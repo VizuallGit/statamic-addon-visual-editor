@@ -51,21 +51,21 @@ class InjectBridgeScript
 
     protected function resolveBridgeUrl(): string
     {
-        $manifestPath = public_path('vendor/statamic-visual-editor/build/manifest.json');
+        $manifestPath = public_path('vendor/visual-editor/build/manifest.json');
 
         if (file_exists($manifestPath)) {
             $manifest = json_decode((string) file_get_contents($manifestPath), true);
             if (json_last_error() !== JSON_ERROR_NONE || ! is_array($manifest)) {
-                return asset('vendor/statamic-visual-editor/bridge.js');
+                return asset('vendor/visual-editor/bridge.js');
             }
 
             $entry = $manifest['resources/js/bridge.js'] ?? null;
 
             if ($entry && isset($entry['file'])) {
-                return asset('vendor/statamic-visual-editor/build/'.$entry['file']);
+                return asset('vendor/visual-editor/build/'.$entry['file']);
             }
         }
 
-        return asset('vendor/statamic-visual-editor/bridge.js');
+        return asset('vendor/visual-editor/bridge.js');
     }
 }
