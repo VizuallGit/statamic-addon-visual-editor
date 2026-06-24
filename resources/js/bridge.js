@@ -1,0 +1,506 @@
+// Bridge script — injected into the Live Preview iframe.
+// Only activates when running inside an iframe (window.self !== window.top).
+
+const ACTIVE_ATTR = 'data-sid-active';
+const HOVER_ATTR = 'data-sid-hover';
+const INNER_ATTR = 'data-sid-inner';
+const SID_ATTR = 'data-sid';
+const SID_FIELD_ATTR = 'data-sid-field';
+const STYLES_ID = '__sve-bridge-styles';
+const MOUSE_ACTIVE_CLASS = 'sve-mouse-active';
+const HOVER_CLEAR_DELAY = 1500; // ms of mouse inactivity before outline clears
+const PULSE_DURATION = 400; // ms — matches the sve-cp-pulse @keyframes animation duration
+
+/**
+ * Copies --focus-outline-width and --focus-outline-color from the CP (parent)
+ * document into the preview iframe's documentElement so both ends share the
+ * same outline token values. Falls back to safe defaults when the CP is
+ * inaccessible (cross-origin guard) or the variables are not defined.
+ */
+export function injectCpVariables(doc, win) {
+  // Thin (1px) preview outlines, intentionally fixed rather than inherited from
+  // the CP's --focus-outline-width — the in-preview highlight should stay subtle.
+  const outlineWidth = '2px';
+  // Opacity applied to outline colors so the highlight reads as a gentle hint
+  // rather than an aggressive solid border. Tweak here to make it lighter/darker.
+  const outlineOpacity = '60%';
+  let focusColor = 'currentColor';
+  let hoverColor = '#9CA3AF';
+
+  try {
+    const cpStyle = getComputedStyle(win.top.document.documentElement);
+    focusColor = cpStyle.getPropertyValue('--focus-outline-color').trim() || focusColor;
+    hoverColor = cpStyle.getPropertyValue('--theme-color-gray-400').trim() || hoverColor;
+  } catch {
+    // cross-origin or CP not accessible — use defaults
+  }
+
+  doc.documentElement.style.setProperty('--sve-outline-width', outlineWidth);
+  doc.documentElement.style.setProperty('--sve-outline-opacity', outlineOpacity);
+  doc.documentElement.style.setProperty('--sve-focus-color', focusColor);
+  doc.documentElement.style.setProperty('--sve-hover-color', hoverColor);
+}
+
+export function injectStyles(doc) {
+  if (doc.getElementById(STYLES_ID)) {
+    return;
+  }
+
+  const style = doc.createElement('style');
+
+  style.id = STYLES_ID;
+  style.textContent = `
+        [data-sid], [data-sid-field] {
+            cursor: pointer;
+            outline-width: var(--sve-outline-width, 1px);
+            outline-style: dashed;
+            outline-color: transparent;
+            outline-offset: 2px;
+            transition: outline-color 0.15s ease;
+        }
+        .${MOUSE_ACTIVE_CLASS} [data-sid], .${MOUSE_ACTIVE_CLASS} [data-sid-field] {
+            outline-color: color-mix(in srgb, var(--sve-hover-color, #9CA3AF) var(--sve-outline-opacity, 55%), transparent);
+        }
+        [data-sid-inner],
+        [data-sid-hover] {
+            outline-width: var(--sve-outline-width, 1px) !important;
+            outline-style: dashed !important;
+            outline-color: color-mix(in srgb, var(--sve-focus-color, currentColor) var(--sve-outline-opacity, 55%), transparent) !important;
+            outline-offset: 2px;
+        }
+        [data-sid-active] {
+            outline-width: var(--sve-outline-width, 1px) !important;
+            outline-style: solid !important;
+            outline-color: color-mix(in srgb, var(--sve-focus-color, currentColor) var(--sve-outline-opacity, 55%), transparent) !important;
+            outline-offset: 2px;
+        }
+        [data-sid-inside] {
+            outline-offset: -2px;
+        }
+        [data-sid-inside][data-sid-inner],
+        [data-sid-inside][data-sid-hover],
+        [data-sid-inside][data-sid-active] {
+            outline-offset: -2px !important;
+        }
+        [data-sid-inside][data-sid-label]::after {
+            top: -4px;
+        }
+        [data-sid][data-sid-label] {
+            position: relative;
+        }
+        [data-sid][data-sid-label]::after {
+            /* safe: data-sid-label is populated only by Blade/Antlers auto-escaped output; no XSS risk */
+            content: attr(data-sid-label);
+            position: absolute;
+            top: -8px;
+            left: calc(-2px - var(--sve-outline-width, 0));
+            transform: translateY(calc(-100%));
+            background: var(--sve-focus-color, currentColor);
+            color: #fff;
+            font-size: 10px;
+            font-family: sans-serif;
+            padding: 2px 8px !important;
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 9999;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        [data-sid-inner][data-sid-label]::after,
+        [data-sid-hover][data-sid-label]::after,
+        [data-sid-active][data-sid-label]::after {
+            opacity: 1;
+        }
+        .sve-cp-pulse {
+            animation: sve-cp-pulse 0.4s ease-out;
+        }
+        @keyframes sve-cp-pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+            100% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+        }
+    `;
+
+  doc.head.appendChild(style);
+}
+
+
+
+/**
+ * Returns the nearest preceding sibling that is (or contains) a non-text
+ * [data-sid] element. Handles cases where data-sid lives on a descendant
+ * element rather than the sibling itself (e.g. video IFRAME inside a wrapper
+ * div that has no data-sid of its own).
+ */
+function findPrecedingSetSibling(el) {
+  let prev = el.previousElementSibling;
+
+  while (prev) {
+    if (prev.hasAttribute(SID_ATTR) && prev.getAttribute('data-sid-type') !== 'text') {
+      return prev;
+    }
+
+    // data-sid might live on a descendant inside an un-annotated wrapper (e.g. video)
+    const inner = prev.querySelector(`[${SID_ATTR}]:not([data-sid-type="text"])`);
+
+    if (inner) {
+      return inner;
+    }
+
+    prev = prev.previousElementSibling;
+  }
+
+  return null;
+}
+
+/**
+ * Given the article-set uid and an afterSetUid (the UID of the preceding set,
+ * or null for the first text group), returns the matching text element in doc.
+ */
+export function findTextAfterSetUid(uid, afterSetUid, doc) {
+  if (afterSetUid === null) {
+    return doc.querySelector(`[${SID_ATTR}="${uid}"][data-sid-type="text"]`);
+  }
+
+  const setEl = doc.querySelector(`[${SID_ATTR}="${afterSetUid}"]`);
+
+  if (!setEl) {
+    return null;
+  }
+
+  // If setEl is not a direct sibling of text elements (e.g. the data-sid lives
+  // on a deeply-nested element like an IFRAME inside a wrapper div), bubble up
+  // to the level where there are next siblings.
+  let scope = setEl;
+
+  while (scope.parentElement && !scope.parentElement.hasAttribute(SID_ATTR) && !scope.nextElementSibling) {
+    scope = scope.parentElement;
+  }
+
+  let next = scope.nextElementSibling;
+
+  while (next) {
+    if (next.hasAttribute(SID_ATTR) && next.getAttribute('data-sid-type') === 'text') {
+      return next;
+    }
+
+    next = next.nextElementSibling;
+  }
+
+  return null;
+}
+
+/**
+ * On every mouse movement: shows dashed outlines on all [data-sid] elements
+ * and marks the innermost hovered one with a solid outline.
+ * Both effects clear after HOVER_CLEAR_DELAY ms of no movement.
+ */
+export function createMouseMoveHandler(win) {
+  let clearTimer = null;
+
+  return function handleMouseMove(event) {
+    win.document.documentElement.classList.add(MOUSE_ACTIVE_CLASS);
+
+    // Track innermost [data-sid] or [data-sid-field] for solid outline
+    const current = win.document.querySelector(`[${INNER_ATTR}]`);
+    const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+
+    if (current !== target) {
+      if (current) {
+        current.removeAttribute(INNER_ATTR);
+      }
+
+      if (target) {
+        target.setAttribute(INNER_ATTR, '');
+      }
+    }
+
+    if (clearTimer) {
+      clearTimeout(clearTimer);
+    }
+
+    clearTimer = setTimeout(() => {
+      win.document.documentElement.classList.remove(MOUSE_ACTIVE_CLASS);
+      win.document.querySelectorAll(`[${INNER_ATTR}]`).forEach((el) => {
+        el.removeAttribute(INNER_ATTR);
+      });
+    }, HOVER_CLEAR_DELAY);
+  };
+}
+
+export function createClickHandler(win) {
+  return function handleClick(event) {
+    const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+
+    if (!target) {
+      win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+        el.removeAttribute(ACTIVE_ATTR);
+      });
+
+      return;
+    }
+
+    event.preventDefault();
+
+    win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+      el.removeAttribute(ACTIVE_ATTR);
+    });
+
+    target.setAttribute(ACTIVE_ATTR, '');
+
+    // Field-handle targeting (data-sid-field) — sends the dot-separated field path.
+    // scope = the _visual_id of the surrounding set, so the CP can disambiguate a
+    // bare handle (e.g. "text") that repeats across many sections/rows.
+    if (target.hasAttribute(SID_FIELD_ATTR)) {
+      win.top.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'click',
+          field: target.getAttribute(SID_FIELD_ATTR),
+          scope: target.getAttribute('data-sid-field-uid') || undefined,
+          label: target.getAttribute('data-sid-label') || undefined,
+        },
+        win.location.origin
+      );
+
+      return;
+    }
+
+    const message = {
+      source: 'statamic-visual-editor',
+      type: 'click',
+      uid: target.getAttribute(SID_ATTR),
+    };
+
+    if (target.getAttribute('data-sid-type') === 'text') {
+      const prevSet = findPrecedingSetSibling(target);
+
+      message.afterSetUid = prevSet ? prevSet.getAttribute(SID_ATTR) : null;
+    }
+
+    win.top.postMessage(message, win.location.origin);
+  };
+}
+
+export function createHoverHandler(win) {
+  let lastHoveredKey = null;
+
+  function handleHover(event) {
+    const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+
+    // Field-handle targeting: deduplicate on the field path string.
+    if (target && target.hasAttribute(SID_FIELD_ATTR)) {
+      const field = target.getAttribute(SID_FIELD_ATTR);
+
+      if (field === lastHoveredKey) {
+        return;
+      }
+
+      lastHoveredKey = field;
+      win.top.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'hover',
+          field,
+          scope: target.getAttribute('data-sid-field-uid') || undefined,
+          label: target.getAttribute('data-sid-label') || undefined,
+        },
+        win.location.origin
+      );
+
+      return;
+    }
+
+    const uid = target ? target.getAttribute(SID_ATTR) : null;
+
+    // Deduplicate: skip when still over the same element (or still off any element).
+    if (uid === lastHoveredKey) {
+      return;
+    }
+
+    lastHoveredKey = uid;
+
+    if (!uid) {
+      // Mouse left all annotated elements — tell the CP to clear its hover state.
+      win.top.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+
+      return;
+    }
+
+    const message = {
+      source: 'statamic-visual-editor',
+      type: 'hover',
+      uid,
+    };
+
+    if (target.getAttribute('data-sid-type') === 'text') {
+      const prevSet = findPrecedingSetSibling(target);
+
+      message.afterSetUid = prevSet ? prevSet.getAttribute(SID_ATTR) : null;
+    }
+
+    win.top.postMessage(message, win.location.origin);
+  }
+
+  // When the mouse leaves the iframe entirely, immediately clear the CP hover
+  // state. Without this, dashed outlines in the CP linger indefinitely because
+  // the mouseover handler only fires for elements inside the iframe.
+  handleHover.reset = () => {
+    lastHoveredKey = null;
+    win.top.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+  };
+
+  return handleHover;
+}
+
+/**
+ * Finds a [data-sid-field] element in the document by field path.
+ * Matches both exact dot-notation paths ("seo.title") and underscore-normalized
+ * paths ("seo_title") that the CP sends when doing reverse hover sync.
+ *
+ * Counterpart: cp.js `findFieldElement()` — runs in the CP and resolves the
+ * CP-side `#field_{handle}` element via getElementById instead of a DOM scan.
+ * The two functions cannot share code because they run in separate bundles
+ * (preview iframe vs. CP window).
+ */
+function findFieldElement(field, doc, scope) {
+  // Scoped lookup: when a set _visual_id is supplied, restrict the search to the
+  // element carrying data-sid="<scope>" (the set) and its descendants. This makes
+  // a bare handle like "text" resolve to the correct repeated instance instead of
+  // the first one in the document.
+  const root =
+    (scope && doc.querySelector(`[${SID_ATTR}="${scope}"]`)) || doc;
+
+  const normalized = field.replaceAll('.', '_');
+
+  // Exact match within scope (preview→CP direction uses dot notation, e.g. "text").
+  const exact = root.querySelector(`[${SID_FIELD_ATTR}="${field}"]`);
+  if (exact) return exact;
+
+  // Full normalization match (e.g. "seo.title" matches data-sid-field="seo.title").
+  const fullMatch = [...root.querySelectorAll(`[${SID_FIELD_ATTR}]`)].find(
+    (el) => el.getAttribute(SID_FIELD_ATTR).replaceAll('.', '_') === normalized
+  );
+  if (fullMatch) return fullMatch;
+
+  // Suffix match (CP→preview direction): the CP sends the full Statamic field ID
+  // suffix, e.g. "page_sections_0_text". Match a short handle like "text" against
+  // the tail. When scoped to a single set this is unambiguous; without a scope it
+  // falls back to the first match, which is only correct for non-repeated fields.
+  for (const el of root.querySelectorAll(`[${SID_FIELD_ATTR}]`)) {
+    const attr = el.getAttribute(SID_FIELD_ATTR).replaceAll('.', '_');
+    if (normalized === attr || normalized.endsWith('_' + attr)) return el;
+  }
+
+  return null;
+}
+
+/**
+ * Briefly plays the sve-cp-pulse animation on el, restarting it if already running.
+ * Used to signal that a CP interaction caused this preview element to be focused.
+ */
+function pulseElement(el) {
+  el.classList.remove('sve-cp-pulse');
+  void el.offsetWidth; // force reflow to restart animation
+  el.classList.add('sve-cp-pulse');
+  setTimeout(() => el.classList.remove('sve-cp-pulse'), PULSE_DURATION);
+}
+
+export function createMessageReceiver(win) {
+  return function handleMessage(event) {
+    // Guard: only accept messages from the parent frame (the Statamic CP).
+    // This prevents cross-site message spoofing from third-party windows.
+    if (event.source !== win.top) {
+      return;
+    }
+
+    const { data } = event;
+
+    if (!data || data.source !== 'statamic-visual-editor') {
+      return;
+    }
+
+    if (data.type === 'hover') {
+      win.document.querySelectorAll(`[${HOVER_ATTR}]`).forEach((el) => {
+        el.removeAttribute(HOVER_ATTR);
+      });
+
+      // Field-handle hover: highlight the element annotated with data-sid-field.
+      if (data.field) {
+        const el = findFieldElement(data.field, win.document, data.scope);
+
+        if (el) {
+          el.setAttribute(HOVER_ATTR, '');
+        }
+
+        return;
+      }
+
+      if (data.uid) {
+        const el =
+          'afterSetUid' in data
+            ? findTextAfterSetUid(data.uid, data.afterSetUid, win.document)
+            : win.document.querySelector(`[${SID_ATTR}="${data.uid}"]`);
+
+        if (el) {
+          el.setAttribute(HOVER_ATTR, '');
+        }
+      }
+
+      return;
+    }
+
+    if (data.type === 'focus') {
+      win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+        el.removeAttribute(ACTIVE_ATTR);
+      });
+
+      // Field-handle focus: highlight the element annotated with data-sid-field.
+      if (data.field) {
+        const el = findFieldElement(data.field, win.document, data.scope);
+
+        if (el) {
+          el.setAttribute(ACTIVE_ATTR, '');
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          pulseElement(el);
+        }
+
+        return;
+      }
+
+      if (data.uid) {
+        const el =
+          'afterSetUid' in data
+            ? findTextAfterSetUid(data.uid, data.afterSetUid, win.document)
+            : win.document.querySelector(`[${SID_ATTR}="${data.uid}"]`);
+
+        if (el) {
+          el.setAttribute(ACTIVE_ATTR, '');
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          pulseElement(el);
+        }
+      }
+    }
+  };
+}
+
+export function initBridge(win = window) {
+  if (win.self === win.top) {
+    return;
+  }
+
+  injectStyles(win.document);
+  injectCpVariables(win.document, win);
+  win.document.addEventListener('click', createClickHandler(win), true);
+  win.document.addEventListener('mousemove', createMouseMoveHandler(win), true);
+
+  const hoverHandler = createHoverHandler(win);
+
+  win.document.addEventListener('mouseover', hoverHandler, true);
+  // When the pointer leaves the iframe document (e.g. moves into the CP chrome),
+  // immediately tell the CP to clear its hover outline.
+  win.document.addEventListener('mouseleave', () => hoverHandler.reset(), true);
+  win.addEventListener('message', createMessageReceiver(win));
+}
+
+initBridge();

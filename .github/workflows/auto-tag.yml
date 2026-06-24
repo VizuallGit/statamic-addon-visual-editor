@@ -1,0 +1,35 @@
+name: Auto-tag ved push
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find næste tag
+        id: next
+        run: |
+          git fetch --tags
+          LATEST=$(git tag -l 'v*' | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then LATEST="v1.0.0"; fi
+          MAJOR=$(echo $LATEST | cut -d. -f1 | tr -d v)
+          MINOR=$(echo $LATEST | cut -d. -f2)
+          PATCH=$(echo $LATEST | cut -d. -f3)
+          NEW="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+          echo "tag=$NEW" >> $GITHUB_OUTPUT
+
+      - name: Opret og push tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ steps.next.outputs.tag }}
+          git push origin ${{ steps.next.outputs.tag }}
