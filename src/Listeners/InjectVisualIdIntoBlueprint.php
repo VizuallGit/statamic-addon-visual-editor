@@ -35,16 +35,19 @@ class InjectVisualIdIntoBlueprint
         $result = [];
 
         foreach ($fields as $fieldDef) {
-            // Expand fieldset imports inline so nested replicators/bards are reachable.
+            // Inject visual IDs into imported fieldsets at runtime without expanding
+            // the import reference in the blueprint. Expanding caused the CP to save
+            // the inlined version to disk, breaking fieldset sync.
             if (isset($fieldDef['import'])) {
                 $fieldset = Fieldset::find($fieldDef['import']);
 
                 if ($fieldset) {
-                    $result = array_merge($result, $this->processFields($fieldset->contents()['fields'] ?? []));
-                } else {
-                    $result[] = $fieldDef;
+                    $fsContents = $fieldset->contents();
+                    $fsContents['fields'] = $this->processFields($fsContents['fields'] ?? []);
+                    $fieldset->setContents($fsContents);
                 }
 
+                $result[] = $fieldDef;
                 continue;
             }
 
