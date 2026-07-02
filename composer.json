@@ -1,40 +1,41 @@
 {
-  "name": "statamic-addon/visual-editor",
-  "autoload": {
-    "psr-4": {
-      "MarioHamann\\StatamicVisualEditor\\": "src"
+    "name": "statamic-addon/visual-editor",
+    "autoload": {
+        "psr-4": {
+            "MarioHamann\\StatamicVisualEditor\\": "src"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
-    "files": [
-      "src/helpers.php"
-    ]
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "MarioHamann\\StatamicVisualEditor\\Tests\\": "tests"
-    }
-  },
-  "require": {
-    "statamic/cms": "^6.0"
-  },
-  "require-dev": {
-    "orchestra/testbench": "^10.8"
-  },
-  "config": {
-    "allow-plugins": {
-      "pixelfear/composer-dist-plugin": true
-    }
-  },
-  "extra": {
-    "statamic": {
-      "name": "Statamic Visual Editor",
-      "description": "Statamic Visual Editor addon"
+    "autoload-dev": {
+        "psr-4": {
+            "MarioHamann\\StatamicVisualEditor\\Tests\\": "tests"
+        }
     },
-    "laravel": {
-      "providers": [
-        "MarioHamann\\StatamicVisualEditor\\ServiceProvider"
-      ]
-    }
-  },
-  "minimum-stability": "dev",
-  "prefer-stable": true
+    "require": {
+        "statamic/cms": "^6.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.8"
+    },
+    "config": {
+        "allow-plugins": {
+            "pixelfear/composer-dist-plugin": true
+        }
+    },
+    "extra": {
+        "statamic": {
+            "name": "Statamic Visual Editor",
+            "description": "Statamic Visual Editor addon"
+        },
+        "laravel": {
+            "providers": [
+                "MarioHamann\\StatamicVisualEditor\\ServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "license": "proprietary"
 }
