@@ -248,6 +248,20 @@ export function createClickHandler(win) {
 
     target.setAttribute(ACTIVE_ATTR, '');
 
+    // Popup targeting (data-sid-action="popup") — opens a CP popup for this item.
+    if (target.getAttribute('data-sid-action') === 'popup') {
+      win.top.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'popup',
+          uid: target.getAttribute(SID_ATTR),
+        },
+        win.location.origin
+      );
+
+      return;
+    }
+
     // Field-handle targeting (data-sid-field) — sends the dot-separated field path.
     // scope = the _visual_id of the surrounding set, so the CP can disambiguate a
     // bare handle (e.g. "text") that repeats across many sections/rows.
@@ -266,11 +280,26 @@ export function createClickHandler(win) {
       return;
     }
 
+    const uid = target.getAttribute(SID_ATTR);
+
+    // Determine which occurrence of this uid was clicked so the CP can target
+    // the correct row when multiple sets share the same uuid (e.g. after a
+    // Replicator "Duplicate Set" before the AutoUuid fieldtype has had a chance
+    // to regenerate a fresh uuid for the copy).
+    const allSameSid = Array.from(win.document.querySelectorAll(`[${SID_ATTR}]`)).filter(
+      (el) => el.getAttribute(SID_ATTR) === uid
+    );
+    const uidIndex = allSameSid.indexOf(target);
+
     const message = {
       source: 'statamic-visual-editor',
       type: 'click',
-      uid: target.getAttribute(SID_ATTR),
+      uid,
     };
+
+    if (uidIndex > 0) {
+      message.uidIndex = uidIndex;
+    }
 
     if (target.getAttribute('data-sid-type') === 'text') {
       const prevSet = findPrecedingSetSibling(target);
@@ -461,8 +490,15 @@ export function createMessageReceiver(win) {
 
         if (el) {
           el.setAttribute(ACTIVE_ATTR, '');
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          pulseElement(el);
+
+          // Only scroll when the lookup was scoped to a specific set. An
+          // unscoped lookup of a repeated handle (e.g. "text" clicked inside
+          // a column popup) resolves to the first match in the document and
+          // would yank the preview to the top of the page mid-edit.
+          if (data.scope) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            pulseElement(el);
+          }
         }
 
         return;
@@ -476,8 +512,15 @@ export function createMessageReceiver(win) {
 
         if (el) {
           el.setAttribute(ACTIVE_ATTR, '');
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          pulseElement(el);
+
+          // Bard text focus (afterSetUid) fires on every click while editing
+          // in the editor — keep the highlight but don't move the page under
+          // the user. Set-level focus (no afterSetUid) still scrolls, so
+          // clicking a section in the CP locates it in the preview.
+          if (!('afterSetUid' in data)) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            pulseElement(el);
+          }
         }
       }
     }

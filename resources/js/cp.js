@@ -140,12 +140,16 @@ export function hideAutoUuidGridColumns(root = document) {
   });
 }
 
-export function findSetByUid(uid, doc = document) {
+export function findSetByUid(uid, doc = document, index = 0) {
   const inputs = doc.querySelectorAll(SELECTORS.visualIdInput);
+  let count = 0;
 
   for (const input of inputs) {
     if (input.value === uid) {
-      return input.closest(SELECTORS.anySet);
+      if (count === index) {
+        return input.closest(SELECTORS.anySet);
+      }
+      count++;
     }
   }
 
@@ -345,11 +349,11 @@ export function switchToContainingTab(setEl, doc = document) {
   return false;
 }
 
-export function handleFocus(uid, doc = document, afterSetUid = undefined) {
+export function handleFocus(uid, doc = document, afterSetUid = undefined, uidIndex = 0) {
   // Clear persistent active state from whichever element previously held it.
   doc.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => el.removeAttribute(ACTIVE_ATTR));
 
-  const setEl = findSetByUid(uid, doc);
+  const setEl = findSetByUid(uid, doc, uidIndex);
 
   if (!setEl) {
     console.warn('[StatamicVisualEditor] handleFocus: no set found for uid:', uid);
@@ -558,7 +562,7 @@ export function createMessageListener(doc = document) {
       if (data.field) {
         handleFieldFocus(data.field, doc, { scopeUid: data.scope });
       } else {
-        handleFocus(data.uid, doc, data.afterSetUid);
+        handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
       }
     } else if (data.type === 'hover') {
       if (data.field || ('field' in data && !data.uid)) {

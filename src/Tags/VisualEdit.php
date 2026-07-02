@@ -52,13 +52,25 @@ class VisualEdit extends Tags
             return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
         }
 
-        $uuid = $this->params->get('id', $this->context->get('_visual_id'));
+        $popup = $this->params->bool('popup', false);
+
+        // popup="true": fall back to _visual_id (auto_uuid), then 'id' — Statamic's
+        // Replicator.processRow() renames _id → id (via RowId::handle()), so inside
+        // a replicator/column-builder loop {{ id }} is the item's unique row ID.
+        if ($popup) {
+            // Do NOT use _visual_id here — it cascades from the parent page section
+            // and would match the wrong element. Use 'id' which Statamic stores per
+            // replicator/column-builder row (processRow renames _id → id in YAML).
+            $uuid = $this->params->get('id', $this->context->get('id'));
+        } else {
+            $uuid = $this->params->get('id', $this->context->get('_visual_id'));
+        }
 
         if (! $uuid) {
             return $content;
         }
 
-        $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside);
+        $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup);
 
         return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
     }
@@ -143,9 +155,13 @@ class VisualEdit extends Tags
         return $attr;
     }
 
-    private function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false): string
+    private function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false, bool $popup = false): string
     {
         $attr = 'data-sid="'.e($uuid).'"';
+
+        if ($popup) {
+            $attr .= ' data-sid-action="popup"';
+        }
 
         if ($label !== '') {
             $attr .= ' data-sid-label="'.e($label).'"';
