@@ -10,5 +10,11 @@
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true
+  },
+  "resources/js/preview.js": {
+    "file": "assets/preview-C_NEcAnz.js",
+    "name": "preview",
+    "src": "resources/js/preview.js",
+    "isEntry": true
   }
 }

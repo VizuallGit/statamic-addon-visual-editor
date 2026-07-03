@@ -48,6 +48,12 @@ class ServiceProvider extends AddonServiceProvider
 
     public function bootAddon()
     {
+        // The injected preview script (resources/js/preview.js) hot-reloads the
+        // preview itself via Alpine.morph. Disable Statamic's built-in hot
+        // reload so the two never morph the same document concurrently —
+        // double-morph races corrupt the DOM and reset the scroll position.
+        config(['statamic.live_preview.hot_reload_contents' => false]);
+
         // Provide the set preview-image map to the CP script. Bound to the CP
         // scripts partial so it only runs on Control Panel page renders (not the
         // front-end), and after routing so the blueprints are resolvable.

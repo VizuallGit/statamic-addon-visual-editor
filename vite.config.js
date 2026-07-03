@@ -8,6 +8,7 @@ export default defineConfig({
       input: [
         'resources/js/addon.js',
         'resources/js/bridge.js',
+        'resources/js/preview.js',
       ],
       publicDirectory: 'resources/dist',
     }),
