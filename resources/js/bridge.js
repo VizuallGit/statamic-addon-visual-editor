@@ -255,6 +255,10 @@ export function createClickHandler(win) {
           source: 'statamic-visual-editor',
           type: 'popup',
           uid: target.getAttribute(SID_ATTR),
+          // The containing section's uid — lets the CP expand and scroll the
+          // publish form to the section whose popup is being opened.
+          sectionUid:
+            target.parentElement?.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) ?? null,
         },
         win.location.origin
       );
@@ -534,6 +538,15 @@ export function initBridge(win = window) {
 
   injectStyles(win.document);
   injectCpVariables(win.document, win);
+
+  // The site's live-preview hot-reload script replaces every <style> in <head>
+  // on each content update, which strips our injected styles and kills the
+  // dashed outlines until a full refresh. Watch <head> and re-inject.
+  new win.MutationObserver(() => {
+    if (!win.document.getElementById(STYLES_ID)) {
+      injectStyles(win.document);
+    }
+  }).observe(win.document.head, { childList: true });
   win.document.addEventListener('click', createClickHandler(win), true);
   win.document.addEventListener('mousemove', createMouseMoveHandler(win), true);
 

@@ -564,6 +564,13 @@ export function createMessageListener(doc = document) {
       } else {
         handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
       }
+    } else if (data.type === 'popup') {
+      // A column popup is opening (the column-builder addon handles that) —
+      // expand and scroll the publish form to the containing section, so the
+      // form behind the popup shows where you are when it closes again.
+      if (data.sectionUid) {
+        handleFocus(data.sectionUid, doc);
+      }
     } else if (data.type === 'hover') {
       if (data.field || ('field' in data && !data.uid)) {
         handleFieldHover(data.field || null, doc, data.scope);
