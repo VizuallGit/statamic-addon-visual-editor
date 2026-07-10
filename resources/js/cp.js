@@ -1027,6 +1027,152 @@ export function handleEditEnd(data) {
   editSession = null;
 }
 
+/**
+ * Moves the set identified by uid one position up/down within its containing
+ * array (page sections, replicator rows, …). Works generically: the uid is
+ * resolved to a value path like "page_sections.2", and the two array items are
+ * swapped via setFieldValue — dirty state, replicator re-render and the live
+ * preview update all follow from Statamic's own reactivity.
+ */
+export function handleMove(data, doc) {
+  const direction = data.direction < 0 ? -1 : 1;
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const path = findPathByUid(values, data.uid);
+
+    if (path === null) {
+      continue;
+    }
+
+    const dot = path.lastIndexOf('.');
+
+    if (dot === -1) {
+      return; // uid sits on a top-level key, not an array item
+    }
+
+    const parentPath = path.slice(0, dot);
+    const index = Number(path.slice(dot + 1));
+    const arr = dataGet(values, parentPath);
+
+    if (!Array.isArray(arr) || !Number.isInteger(index)) {
+      return;
+    }
+
+    const to = index + direction;
+
+    if (to < 0 || to >= arr.length) {
+      return; // already first/last — no-op
+    }
+
+    const next = JSON.parse(JSON.stringify(arr));
+    const [item] = next.splice(index, 1);
+
+    next.splice(to, 0, item);
+    container.setFieldValue(parentPath, next);
+
+    return;
+  }
+}
+
+// --- Live Preview: collapsible editor panel ----------------------------------
+//
+// Inline editing makes the publish form optional for everyday text tweaks, so
+// the editor pane starts collapsed — the preview gets the full width. A toggle
+// button injected into the live-preview header brings it back. The pane is
+// only hidden (display:none), never unmounted: write-back, Bard watchers and
+// popups keep working while it is collapsed.
+
+const LP_COLLAPSED_KEY = 'sve-lp-editor-collapsed';
+const LP_TOGGLE_ID = '__sve-lp-toggle';
+
+// Desired collapse state for the current Live Preview session. null = not
+// initialized (live preview closed); read from localStorage on next mount.
+let lpCollapsed = null;
+
+function lpCollapsedPreference(win) {
+  try {
+    const stored = win.localStorage.getItem(LP_COLLAPSED_KEY);
+
+    return stored === null ? true : stored === '1'; // default: collapsed
+  } catch {
+    return true;
+  }
+}
+
+function setLpCollapsed(win, collapsed) {
+  lpCollapsed = collapsed;
+
+  try {
+    win.localStorage.setItem(LP_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    /* private mode */
+  }
+
+  ensureLpPanelToggle(win);
+}
+
+/**
+ * Injects the panel toggle when the Live Preview screen is (re)mounted, and
+ * enforces the desired collapse state. Called from initCp's MutationObserver:
+ * the editor pane mounts AFTER the header, so the state must be re-asserted on
+ * subsequent mutations rather than applied once at injection time.
+ */
+export function ensureLpPanelToggle(win) {
+  const doc = win.document;
+  const header = doc.querySelector('.live-preview-header');
+
+  if (!header) {
+    // Live preview closed — forget session state; next open re-reads the pref.
+    lpCollapsed = null;
+
+    return;
+  }
+
+  if (lpCollapsed === null) {
+    lpCollapsed = lpCollapsedPreference(win);
+  }
+
+  let btn = doc.getElementById(LP_TOGGLE_ID);
+
+  if (!btn) {
+    btn = doc.createElement('button');
+    btn.id = LP_TOGGLE_ID;
+    btn.type = 'button';
+    // Two-pane "sidebar" glyph drawn with borders so it follows the CP theme color.
+    btn.innerHTML =
+      '<span style="display:inline-block;width:16px;height:12px;border:1.5px solid currentColor;' +
+      'border-radius:3px;position:relative;"><span style="position:absolute;left:4px;top:0;bottom:0;' +
+      'width:1.5px;background:currentColor;"></span></span>';
+    btn.style.cssText =
+      'display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;' +
+      'border-radius:6px;cursor:pointer;background:transparent;border:none;color:currentColor;';
+    btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(128,128,128,0.15)'));
+    btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+    btn.addEventListener('click', () => setLpCollapsed(win, !lpCollapsed));
+    header.insertBefore(btn, header.firstChild);
+  }
+
+  btn.setAttribute('aria-pressed', lpCollapsed ? 'false' : 'true');
+  btn.title = lpCollapsed ? 'Vis redigeringspanel' : 'Skjul redigeringspanel';
+  btn.style.opacity = lpCollapsed ? '0.6' : '1';
+
+  const editor = doc.querySelector('.live-preview-editor');
+
+  if (editor) {
+    const want = lpCollapsed ? 'none' : '';
+
+    if (editor.style.display !== want) {
+      editor.style.display = want;
+    }
+  }
+}
+
 export function createMessageListener(doc = document, win = window) {
   return function handleMessage(event) {
     // Guard: only accept messages from the live-preview iframe.
@@ -1055,6 +1201,8 @@ export function createMessageListener(doc = document, win = window) {
       handleEditInput(data, doc);
     } else if (data.type === 'edit-end') {
       handleEditEnd(data);
+    } else if (data.type === 'move') {
+      handleMove(data, doc);
     } else if (data.type === 'popup') {
       // A column popup is opening (the column-builder addon handles that) —
       // expand and scroll the publish form to the containing section, so the
@@ -1257,8 +1405,14 @@ export function initCp(win = window) {
 
   // Stamp Grid rows immediately and re-stamp whenever the DOM changes
   // (Vue renders Grid rows asynchronously after page load / field expansion).
+  // The same observer injects the Live Preview panel toggle when that screen
+  // mounts (it lives in a portal that appears/disappears dynamically).
   stampGridRows(win.document);
-  const gridObserver = new win.MutationObserver(() => stampGridRows(win.document));
+  ensureLpPanelToggle(win);
+  const gridObserver = new win.MutationObserver(() => {
+    stampGridRows(win.document);
+    ensureLpPanelToggle(win);
+  });
   gridObserver.observe(win.document.body, { childList: true, subtree: true });
 
   const listener = createMessageListener(win.document, win);

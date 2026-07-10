@@ -514,6 +514,102 @@ function createEditToolbar(win, session) {
   positionEditToolbar(win, session);
 }
 
+// --- Section move arrows -------------------------------------------------------
+// Hovering a page section shows a small ↑/↓ control pinned to its top-right
+// corner. Clicking sends a move message; the CP swaps the two items in the
+// containing array (page_sections) and Statamic's reactivity re-renders both
+// the publish form and the preview.
+
+let moveCtrlEl = null;
+let moveTargetEl = null;
+let moveReposition = null;
+
+function hideMoveControl(win) {
+  if (moveCtrlEl) {
+    moveCtrlEl.remove();
+    moveCtrlEl = null;
+  }
+
+  if (moveReposition) {
+    win.removeEventListener('scroll', moveReposition, true);
+    win.removeEventListener('resize', moveReposition);
+    moveReposition = null;
+  }
+
+  moveTargetEl = null;
+}
+
+function positionMoveControl(win) {
+  if (!moveCtrlEl || !moveTargetEl || !moveTargetEl.isConnected) {
+    return;
+  }
+
+  const rect = moveTargetEl.getBoundingClientRect();
+  const height = moveCtrlEl.offsetHeight || 62;
+  const width = moveCtrlEl.offsetWidth || 32;
+  const top = Math.min(Math.max(rect.top + 10, 10), Math.max(rect.bottom - height - 10, 10));
+
+  moveCtrlEl.style.top = `${top}px`;
+  moveCtrlEl.style.left = `${Math.max(rect.right - width - 10, 10)}px`;
+}
+
+function showMoveControl(win, sectionEl) {
+  if (moveTargetEl === sectionEl) {
+    return;
+  }
+
+  hideMoveControl(win);
+  moveTargetEl = sectionEl;
+
+  const doc = win.document;
+  const ctrl = doc.createElement('div');
+
+  ctrl.id = '__sve-move-ctrl';
+  ctrl.style.cssText =
+    'position:fixed;z-index:2147483646;display:flex;flex-direction:column;gap:2px;' +
+    'background:#1f2937;color:#fff;border-radius:8px;padding:3px;' +
+    'box-shadow:0 4px 16px rgba(0,0,0,0.35);font-family:sans-serif;user-select:none;';
+
+  const uid = sectionEl.getAttribute(SID_ATTR);
+
+  const addArrow = (glyph, title, direction) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = glyph;
+    btn.title = title;
+    btn.style.cssText =
+      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+      'justify-content:center;border-radius:5px;font-size:14px;box-sizing:border-box;';
+    btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(255,255,255,0.14)'));
+    btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      win.top.postMessage(
+        { source: 'statamic-visual-editor', type: 'move', uid, direction },
+        win.location.origin
+      );
+    });
+    ctrl.appendChild(btn);
+  };
+
+  addArrow('↑', 'Flyt sektion op', -1);
+  addArrow('↓', 'Flyt sektion ned', 1);
+
+  doc.body.appendChild(ctrl);
+  moveCtrlEl = ctrl;
+
+  moveReposition = () => positionMoveControl(win);
+  win.addEventListener('scroll', moveReposition, true);
+  win.addEventListener('resize', moveReposition);
+  positionMoveControl(win);
+}
+
 /** Handles an edit-start reply: turns the target element contenteditable. */
 function startEditing(win, data) {
   if (!pendingEdit || pendingEdit.requestId !== data.requestId) {
@@ -614,6 +710,7 @@ function startEditing(win, data) {
   win.addEventListener('scroll', session.reposition, true);
   win.addEventListener('resize', session.reposition);
 
+  hideMoveControl(win);
   editing = session;
   win.__sveInlineEdit.active = true;
 
@@ -713,6 +810,21 @@ export function createMouseMoveHandler(win) {
       }
     }
 
+    // Move arrows: pinned to the page section under the cursor (also while
+    // hovering nested fields/sets inside it). <section> is what the site's
+    // templates use for top-level page sections — nested blocks are divs.
+    if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
+      // hovering the control itself — keep it
+    } else {
+      const section = event.target.closest(`section[${SID_ATTR}]:not([data-sid-type="text"])`);
+
+      if (section) {
+        showMoveControl(win, section);
+      } else {
+        hideMoveControl(win);
+      }
+    }
+
     if (clearTimer) {
       clearTimeout(clearTimer);
     }
@@ -722,12 +834,19 @@ export function createMouseMoveHandler(win) {
       win.document.querySelectorAll(`[${INNER_ATTR}]`).forEach((el) => {
         el.removeAttribute(INNER_ATTR);
       });
+      hideMoveControl(win);
     }, HOVER_CLEAR_DELAY);
   };
 }
 
 export function createClickHandler(win) {
   return function handleClick(event) {
+    // Move-control clicks: the buttons handle themselves (and this handler runs
+    // in the capture phase — stopping here would block their click listeners).
+    if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
+      return;
+    }
+
     if (editing) {
       // Toolbar clicks: return without stopPropagation — this handler runs in
       // the capture phase, and stopping here would prevent the event from ever
@@ -1102,6 +1221,10 @@ export function initBridge(win = window) {
   // immediately tell the CP to clear its hover outline.
   win.document.addEventListener('mouseleave', () => hoverHandler.reset(), true);
   win.addEventListener('message', createMessageReceiver(win));
+
+  // A hot-reload morph replaces section elements — drop the move control so it
+  // never points at a detached node; the next hover recreates it.
+  win.addEventListener('statamic:preview-updated', () => hideMoveControl(win));
 }
 
 initBridge();
