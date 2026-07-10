@@ -10,6 +10,25 @@ const STYLES_ID = '__sve-bridge-styles';
 const MOUSE_ACTIVE_CLASS = 'sve-mouse-active';
 const HOVER_CLEAR_DELAY = 1500; // ms of mouse inactivity before outline clears
 const PULSE_DURATION = 400; // ms — matches the sve-cp-pulse @keyframes animation duration
+const EDITING_ATTR = 'data-sve-editing';
+const EDIT_REQUEST_TIMEOUT = 2000; // ms before an unanswered edit-request is abandoned
+const EDIT_INPUT_DEBOUNCE = 150; // ms of typing pause before syncing the value to the CP
+
+// --- Inline editing state ----------------------------------------------------
+// pendingEdit: an edit-request sent to the CP, awaiting edit-start / edit-deny.
+// editing: the active inline-edit session (contenteditable element + listeners).
+let pendingEdit = null;
+let editing = null;
+let requestSeq = 0;
+
+/**
+ * Whitespace-normalizes text for comparison across the preview DOM and the CP
+ * form values: nbsp → space, collapse runs, trim. Duplicated in cp.js because
+ * the two files run in separate bundles (preview iframe vs. CP window).
+ */
+export function normText(s) {
+  return (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 /**
  * Copies --focus-outline-width and --focus-outline-color from the CP (parent)
@@ -73,6 +92,17 @@ export function injectStyles(doc) {
             outline-style: solid !important;
             outline-color: color-mix(in srgb, var(--sve-focus-color, currentColor) var(--sve-outline-opacity, 55%), transparent) !important;
             outline-offset: 2px;
+        }
+        [${EDITING_ATTR}] {
+            outline-width: var(--sve-outline-width, 1px) !important;
+            outline-style: solid !important;
+            outline-color: var(--sve-focus-color, currentColor) !important;
+            outline-offset: 4px;
+            cursor: text !important;
+        }
+        [${EDITING_ATTR}]:focus {
+            /* suppress the site's own focus ring so only the edit outline shows */
+            box-shadow: none;
         }
         [data-sid-inside] {
             outline-offset: -2px;
@@ -190,6 +220,273 @@ export function findTextAfterSetUid(uid, afterSetUid, doc) {
   return null;
 }
 
+// --- Inline editing ----------------------------------------------------------
+//
+// Flow: click on a [data-sid-field] element → send edit-request (field, scope,
+// clicked block + its text) to the CP. The CP resolves the actual form value,
+// verifies the rendered text matches it (so modifier-transformed output is never
+// edited into the wrong value), and replies edit-start or edit-deny. On
+// edit-start the element becomes contenteditable; input is debounced and synced
+// to the CP via edit-input, which writes it into the publish form (dirty state +
+// live preview update happen through Statamic's own reactivity). Enter or blur
+// commits, Escape cancels (CP restores the original value, we restore the DOM).
+
+/**
+ * Descends from a [data-sid-field] wrapper to the innermost element that still
+ * contains all of the wrapper's text — so contenteditable lands on e.g. the
+ * <p> or <span> holding the value rather than an outer layout <div>.
+ */
+function editableFromWrapper(wrapper) {
+  let el = wrapper;
+
+  while (
+    el.children.length === 1 &&
+    normText(el.children[0].textContent) === normText(el.textContent)
+  ) {
+    el = el.children[0];
+  }
+
+  return el;
+}
+
+function placeCaretFromPoint(win, x, y) {
+  const doc = win.document;
+  let range = null;
+
+  if (doc.caretRangeFromPoint) {
+    range = doc.caretRangeFromPoint(x, y);
+  } else if (doc.caretPositionFromPoint) {
+    const pos = doc.caretPositionFromPoint(x, y);
+
+    if (pos) {
+      range = doc.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.collapse(true);
+    }
+  }
+
+  if (range) {
+    const sel = win.getSelection();
+
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
+/**
+ * Sends an edit-request for the clicked [data-sid-field] element. The CP
+ * decides whether (and what exactly) it is editable; nothing changes in the
+ * DOM until an edit-start reply arrives.
+ */
+function requestInlineEdit(win, wrapper, event) {
+  // The direct child of the wrapper containing the click — for Bard fields this
+  // is the block element (h1/p/…) whose index maps to the ProseMirror node.
+  let blockEl = null;
+
+  if (event.target !== wrapper) {
+    let node = event.target;
+
+    while (node.parentElement && node.parentElement !== wrapper) {
+      node = node.parentElement;
+    }
+
+    if (node.parentElement === wrapper) {
+      blockEl = node;
+    }
+  }
+
+  const requestId = `sve-edit-${++requestSeq}`;
+
+  if (pendingEdit) {
+    clearTimeout(pendingEdit.timeout);
+  }
+
+  pendingEdit = {
+    requestId,
+    wrapper,
+    blockEl,
+    clickX: event.clientX,
+    clickY: event.clientY,
+    timeout: setTimeout(() => {
+      if (pendingEdit && pendingEdit.requestId === requestId) {
+        pendingEdit = null;
+      }
+    }, EDIT_REQUEST_TIMEOUT),
+  };
+
+  win.top.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'edit-request',
+      requestId,
+      field: wrapper.getAttribute(SID_FIELD_ATTR),
+      scope: wrapper.getAttribute('data-sid-field-uid') || undefined,
+      blockIndex: blockEl ? Array.prototype.indexOf.call(wrapper.children, blockEl) : null,
+      blockText: blockEl ? normText(blockEl.textContent) : null,
+      wrapperText: normText(wrapper.textContent),
+    },
+    win.location.origin
+  );
+}
+
+function sendEditInput(win, session) {
+  clearTimeout(session.inputTimer);
+  session.inputTimer = null;
+
+  win.top.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'edit-input',
+      requestId: session.requestId,
+      text: session.el.innerText,
+      html: session.el.innerHTML,
+    },
+    win.location.origin
+  );
+}
+
+/** Handles an edit-start reply: turns the target element contenteditable. */
+function startEditing(win, data) {
+  if (!pendingEdit || pendingEdit.requestId !== data.requestId) {
+    return;
+  }
+
+  const { wrapper, blockEl, clickX, clickY, timeout } = pendingEdit;
+
+  clearTimeout(timeout);
+  pendingEdit = null;
+
+  if (editing) {
+    finishEditing(win, false);
+  }
+
+  const el = data.target === 'block' && blockEl ? blockEl : editableFromWrapper(wrapper);
+
+  const session = {
+    requestId: data.requestId,
+    mode: data.mode, // 'string' | 'bard'
+    el,
+    restoreHtml: el.innerHTML,
+    hadContentEditable: el.getAttribute('contenteditable'),
+    inputTimer: null,
+    dirty: false,
+  };
+
+  // plaintext-only keeps existing inline markup (strong/em/a) intact while
+  // typed or pasted content stays plain text. Firefox doesn't support it —
+  // fall back to standard contenteditable there.
+  try {
+    el.contentEditable = 'plaintext-only';
+  } catch {
+    /* unsupported value */
+  }
+
+  if (el.contentEditable !== 'plaintext-only') {
+    el.contentEditable = 'true';
+  }
+
+  el.setAttribute(EDITING_ATTR, '');
+
+  session.onInput = () => {
+    session.dirty = true;
+    clearTimeout(session.inputTimer);
+    session.inputTimer = setTimeout(() => sendEditInput(win, session), EDIT_INPUT_DEBOUNCE);
+  };
+
+  session.onKeydown = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      finishEditing(win, true);
+
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      // Shift+Enter inserts a newline in plain string fields (textarea-style);
+      // everywhere else Enter commits — block splitting is out of scope.
+      if (e.shiftKey && data.mode === 'string') {
+        return;
+      }
+
+      e.preventDefault();
+
+      if (!e.shiftKey) {
+        finishEditing(win, false);
+      }
+    }
+  };
+
+  session.onBlur = () => finishEditing(win, false);
+
+  el.addEventListener('input', session.onInput);
+  el.addEventListener('keydown', session.onKeydown);
+  el.addEventListener('blur', session.onBlur);
+
+  editing = session;
+  win.__sveInlineEdit.active = true;
+
+  el.focus();
+  placeCaretFromPoint(win, clickX, clickY);
+}
+
+/**
+ * Ends the active inline-edit session. Commits (final edit-input flush) unless
+ * cancelled; on cancel the DOM is restored and the CP rolls the value back.
+ * Always notifies preview.js (via window flag + event) so a deferred hot-reload
+ * morph can run.
+ */
+export function finishEditing(win, cancelled) {
+  if (!editing) {
+    return;
+  }
+
+  const session = editing;
+
+  // Clear first: el.blur() below re-fires onBlur → finishEditing must no-op.
+  editing = null;
+
+  clearTimeout(session.inputTimer);
+
+  const { el } = session;
+
+  el.removeEventListener('input', session.onInput);
+  el.removeEventListener('keydown', session.onKeydown);
+  el.removeEventListener('blur', session.onBlur);
+
+  if (!cancelled && session.dirty) {
+    sendEditInput(win, session);
+  }
+
+  win.top.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'edit-end',
+      requestId: session.requestId,
+      cancelled: !!cancelled,
+    },
+    win.location.origin
+  );
+
+  el.removeAttribute(EDITING_ATTR);
+
+  if (session.hadContentEditable === null) {
+    el.removeAttribute('contenteditable');
+  } else {
+    el.setAttribute('contenteditable', session.hadContentEditable);
+  }
+
+  if (cancelled) {
+    el.innerHTML = session.restoreHtml;
+  }
+
+  if (win.document.activeElement === el) {
+    el.blur();
+  }
+
+  win.__sveInlineEdit.active = false;
+  win.dispatchEvent(new CustomEvent('sve:inline-edit-end'));
+}
+
 /**
  * On every mouse movement: shows dashed outlines on all [data-sid] elements
  * and marks the innermost hovered one with a solid outline.
@@ -199,6 +496,10 @@ export function createMouseMoveHandler(win) {
   let clearTimer = null;
 
   return function handleMouseMove(event) {
+    if (editing) {
+      return;
+    }
+
     win.document.documentElement.classList.add(MOUSE_ACTIVE_CLASS);
 
     // Track innermost [data-sid] or [data-sid-field] for solid outline
@@ -230,6 +531,20 @@ export function createMouseMoveHandler(win) {
 
 export function createClickHandler(win) {
   return function handleClick(event) {
+    if (editing) {
+      if (editing.el.contains(event.target)) {
+        // Clicking inside the active inline editor: let the browser place the
+        // caret, but isolate the click from site JS (lightboxes, sliders, …).
+        event.stopPropagation();
+
+        return;
+      }
+
+      // Clicking anywhere else commits the edit; fall through so the click
+      // also performs its normal focus/edit-request behaviour.
+      finishEditing(win, false);
+    }
+
     const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
 
     if (!target) {
@@ -281,6 +596,9 @@ export function createClickHandler(win) {
         win.location.origin
       );
 
+      // Also try to edit the clicked text right here in the preview.
+      requestInlineEdit(win, target, event);
+
       return;
     }
 
@@ -319,6 +637,10 @@ export function createHoverHandler(win) {
   let lastHoveredKey = null;
 
   function handleHover(event) {
+    if (editing) {
+      return;
+    }
+
     const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
 
     // Field-handle targeting: deduplicate on the field path string.
@@ -453,6 +775,21 @@ export function createMessageReceiver(win) {
       return;
     }
 
+    if (data.type === 'edit-start') {
+      startEditing(win, data);
+
+      return;
+    }
+
+    if (data.type === 'edit-deny') {
+      if (pendingEdit && pendingEdit.requestId === data.requestId) {
+        clearTimeout(pendingEdit.timeout);
+        pendingEdit = null;
+      }
+
+      return;
+    }
+
     if (data.type === 'hover') {
       win.document.querySelectorAll(`[${HOVER_ATTR}]`).forEach((el) => {
         el.removeAttribute(HOVER_ATTR);
@@ -535,6 +872,10 @@ export function initBridge(win = window) {
   if (win.self === win.top) {
     return;
   }
+
+  // Shared with preview.js (same window): while an inline edit is active, hot
+  // reload defers its morph so the DOM under the caret is never replaced.
+  win.__sveInlineEdit = win.__sveInlineEdit || { active: false };
 
   injectStyles(win.document);
   injectCpVariables(win.document, win);

@@ -9,6 +9,12 @@
  * iframe: scroll position survives, and <head> styles (e.g. style_push
  * output) are re-synced so section CSS live-updates too.
  *
+ * While an inline edit is active (window.__sveInlineEdit.active, owned by
+ * bridge.js), morphs are deferred: replacing the DOM under the caret would
+ * kill the edit session and revert in-flight keystrokes to a stale server
+ * render. The latest update URL is stashed and applied when the edit ends
+ * (`sve:inline-edit-end` event).
+ *
  * Requires Alpine with the morph plugin on the site (falls back to a plain
  * body swap without it). The addon disables Statamic's built-in
  * `live_preview.hot_reload_contents` at boot so the two never morph the
@@ -38,17 +44,25 @@ function injectPreviewStyles(doc) {
 injectPreviewStyles(document);
 
 let updateSeq = 0;
+let pendingUrl = null;
 
-window.addEventListener('message', async (event) => {
-  if (event.data?.name !== 'statamic.preview.updated') {
+function editingActive() {
+  return !!window.__sveInlineEdit?.active;
+}
+
+async function applyUpdate(url) {
+  // Drop stale responses when rapid edits overtake each other.
+  const seq = ++updateSeq;
+  const text = await fetch(url).then((res) => res.text());
+
+  if (seq !== updateSeq) {
     return;
   }
 
-  // Drop stale responses when rapid edits overtake each other.
-  const seq = ++updateSeq;
-  const text = await fetch(event.data.url).then((res) => res.text());
+  // An inline edit may have started while the fetch was in flight — defer.
+  if (editingActive()) {
+    pendingUrl = url;
 
-  if (seq !== updateSeq) {
     return;
   }
 
@@ -82,4 +96,27 @@ window.addEventListener('message', async (event) => {
 
   restoreScroll();
   requestAnimationFrame(restoreScroll);
+}
+
+window.addEventListener('message', (event) => {
+  if (event.data?.name !== 'statamic.preview.updated') {
+    return;
+  }
+
+  if (editingActive()) {
+    pendingUrl = event.data.url;
+
+    return;
+  }
+
+  applyUpdate(event.data.url);
+});
+
+window.addEventListener('sve:inline-edit-end', () => {
+  if (pendingUrl) {
+    const url = pendingUrl;
+
+    pendingUrl = null;
+    applyUpdate(url);
+  }
 });

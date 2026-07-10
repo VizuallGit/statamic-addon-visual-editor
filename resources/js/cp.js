@@ -542,7 +542,488 @@ export function handleFieldHover(fieldPath, doc = document, scopeUid = undefined
   fieldEl.setAttribute('data-sve-hover', '');
 }
 
-export function createMessageListener(doc = document) {
+// --- Inline editing: write-back ---------------------------------------------
+//
+// The preview iframe sends edit-request / edit-input / edit-end messages
+// (see bridge.js). This side resolves the clicked field to a dotted value
+// path in the publish form, verifies the rendered text actually matches the
+// stored value (so modifier-transformed output can never be written back as
+// the wrong value), and writes edits via the container's setFieldValue().
+// Statamic's own reactivity does the rest: the deep values watcher marks the
+// form dirty and triggers the live preview re-render, and the Bard fieldtype's
+// value watcher updates its editor when the value changes from outside.
+
+/** Node types the inline editor may edit as a single contenteditable block. */
+const EDITABLE_NODE_TYPES = ['heading', 'paragraph'];
+
+// Publish containers captured from Statamic's `publish-container-created`
+// event (fired by Container.vue on mount; payload includes the reactive
+// `values` ref and `setFieldValue`). Registered in initCp, which runs inside
+// Statamic.booting() — before any container mounts.
+const publishContainers = [];
+
+// The active inline-edit session, keyed by the bridge's requestId.
+let editSession = null;
+
+export function registerContainerEvents(win = window) {
+  const events = win.Statamic?.$events;
+
+  if (!events?.$on) {
+    return;
+  }
+
+  events.$on('publish-container-created', (payload) => {
+    if (payload?.setFieldValue && payload?.values) {
+      publishContainers.push(payload);
+    }
+  });
+
+  events.$on('publish-container-destroyed', (payload) => {
+    const index = publishContainers.findIndex((c) => c.name === payload?.name);
+
+    if (index !== -1) {
+      publishContainers.splice(index, 1);
+    }
+  });
+}
+
+/** Unwraps a Vue ref (Container.vue provides `values` as a ref). */
+function unwrapRef(v) {
+  return v && v.__v_isRef ? v.value : v;
+}
+
+/**
+ * Fallback when no container was captured via events (e.g. the CP script ran
+ * after the container mounted): walk the Vue component chain from a
+ * [data-visual-id] input to the PublishContainer's provided context, which
+ * has the same { values, setFieldValue } shape as the event payload.
+ */
+function containerFromDom(doc) {
+  const el = doc.querySelector(SELECTORS.visualIdInput);
+  let component = el?.__vueParentComponent;
+
+  while (component) {
+    const ctx = component.provides?.['PublishContainerContext'];
+
+    if (ctx?.setFieldValue) {
+      return ctx;
+    }
+
+    component = component.parent;
+  }
+
+  return null;
+}
+
+function activeContainers(doc) {
+  // Most recently created first — matches the form the user is looking at.
+  const list = [...publishContainers].reverse();
+
+  if (!list.length) {
+    const ctx = containerFromDom(doc);
+
+    if (ctx) {
+      list.push(ctx);
+    }
+  }
+
+  return list;
+}
+
+/** data_get-style dotted path lookup ("page_sections.0.text"). */
+function dataGet(obj, path) {
+  return path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
+}
+
+/**
+ * Recursively finds the dotted path of the set whose _visual_id (or row id)
+ * equals uid. Mirrors how the preview's scope uid identifies a section/row.
+ */
+function findPathByUid(value, uid, path = '') {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const found = findPathByUid(value[i], uid, path ? `${path}.${i}` : String(i));
+
+      if (found !== null) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  if (value && typeof value === 'object') {
+    if (value._visual_id === uid || value.id === uid) {
+      return path;
+    }
+
+    for (const key of Object.keys(value)) {
+      const found = findPathByUid(value[key], uid, path ? `${path}.${key}` : key);
+
+      if (found !== null) {
+        return found;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Whitespace-normalizes text for comparison across the preview DOM and the CP
+ * form values: nbsp → space, collapse runs, trim. Duplicated in bridge.js
+ * because the two files run in separate bundles (CP window vs. preview iframe).
+ */
+export function normText(s) {
+  return (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Flattens a ProseMirror node to plain text (hardBreak → space). */
+function bardNodeText(node) {
+  if (!node) {
+    return '';
+  }
+
+  if (node.type === 'text') {
+    return node.text || '';
+  }
+
+  if (node.type === 'hardBreak') {
+    return ' ';
+  }
+
+  return (node.content || []).map(bardNodeText).join('');
+}
+
+/**
+ * Collects candidate edit targets for the clicked text within a field value.
+ *
+ * - string values match when their normalized text equals the clicked block's
+ *   (or wrapper's) text.
+ * - arrays are treated as Bard: heading/paragraph nodes match on flattened text.
+ * - plain objects (group fields like section_heading) recurse one level so
+ *   their string/Bard members are reachable.
+ *
+ * The caller requires EXACTLY one candidate — ambiguity means we cannot know
+ * which value the user clicked, so editing is denied.
+ */
+function resolveEditTargets(value, path, req, depth = 0) {
+  if (typeof value === 'string') {
+    const t = normText(value);
+
+    if ((req.blockText !== null && t === req.blockText) || t === req.wrapperText) {
+      return [{ mode: 'string', path }];
+    }
+
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    if (req.blockText === null) {
+      return [];
+    }
+
+    const out = [];
+
+    value.forEach((node, i) => {
+      if (
+        node &&
+        EDITABLE_NODE_TYPES.includes(node.type) &&
+        normText(bardNodeText(node)) === req.blockText
+      ) {
+        out.push({ mode: 'bard', path, index: i });
+      }
+    });
+
+    return out;
+  }
+
+  if (value && typeof value === 'object' && depth < 2) {
+    let out = [];
+
+    for (const key of Object.keys(value)) {
+      out = out.concat(resolveEditTargets(value[key], `${path}.${key}`, req, depth + 1));
+    }
+
+    return out;
+  }
+
+  return [];
+}
+
+/** HTML tag → ProseMirror mark type for inline content parsing. */
+const MARK_TAGS = {
+  STRONG: 'bold',
+  B: 'bold',
+  EM: 'italic',
+  I: 'italic',
+  U: 'underline',
+  S: 'strike',
+  STRIKE: 'strike',
+  DEL: 'strike',
+  CODE: 'code',
+  SUB: 'subscript',
+  SUP: 'superscript',
+};
+
+function sameMarks(a, b) {
+  return JSON.stringify(a || []) === JSON.stringify(b || []);
+}
+
+/**
+ * Parses the innerHTML of an inline-edited block back into ProseMirror inline
+ * content. Semantic tags become marks; everything else (site spans, styling
+ * wrappers) is transparent — only its text survives. This intentionally
+ * ignores presentation-only markup the site's own JS may have injected
+ * (e.g. word-reveal <span>s around headline words).
+ */
+export function parseInlineHtml(html, doc = document) {
+  const root = doc.createElement('div');
+
+  root.innerHTML = html;
+
+  const out = [];
+
+  const pushText = (text, marks) => {
+    if (!text) {
+      return;
+    }
+
+    const last = out[out.length - 1];
+
+    if (last && last.type === 'text' && sameMarks(last.marks, marks)) {
+      last.text += text;
+
+      return;
+    }
+
+    const node = { type: 'text', text };
+
+    if (marks.length) {
+      node.marks = marks.map((m) => ({ ...m }));
+    }
+
+    out.push(node);
+  };
+
+  const walk = (node, marks) => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3) {
+        // Collapse whitespace like HTML rendering does — pretty-printed
+        // template markup must not leak literal newlines/indentation into text.
+        pushText(child.nodeValue.replace(/\u00a0/g, ' ').replace(/\s+/g, ' '), marks);
+      } else if (child.nodeType === 1) {
+        if (child.tagName === 'BR') {
+          out.push({ type: 'hardBreak' });
+          continue;
+        }
+
+        let childMarks = marks;
+        const markType = MARK_TAGS[child.tagName];
+
+        if (markType) {
+          childMarks = [...marks, { type: markType }];
+        } else if (child.tagName === 'A') {
+          const attrs = { href: child.getAttribute('href') };
+
+          for (const attr of ['target', 'rel', 'title']) {
+            if (child.getAttribute(attr)) {
+              attrs[attr] = child.getAttribute(attr);
+            }
+          }
+
+          childMarks = [...marks, { type: 'link', attrs }];
+        }
+
+        walk(child, childMarks);
+      }
+    }
+  };
+
+  walk(root, []);
+
+  // Trim block edges and collapse duplicate spaces across node boundaries.
+  for (let i = 0; i < out.length; i++) {
+    const node = out[i];
+
+    if (node.type !== 'text') {
+      continue;
+    }
+
+    if (i === 0) {
+      node.text = node.text.replace(/^\s+/, '');
+    }
+
+    if (i === out.length - 1) {
+      node.text = node.text.replace(/\s+$/, '');
+    }
+
+    const prev = out[i - 1];
+
+    if (prev && prev.type === 'text' && prev.text.endsWith(' ') && node.text.startsWith(' ')) {
+      node.text = node.text.replace(/^ +/, '');
+    }
+  }
+
+  return out.filter((n) => n.type !== 'text' || n.text !== '');
+}
+
+/** innerText → stored string: nbsp → space, strip the trailing newline(s). */
+function cleanEditedText(text) {
+  return (text || '').replace(/\u00a0/g, ' ').replace(/\n+$/, '');
+}
+
+export function handleEditRequest(data, doc, win) {
+  const reply = (message) =>
+    sendToPreview({ source: 'statamic-visual-editor', requestId: data.requestId, ...message }, win);
+
+  const req = {
+    blockText: data.blockText != null ? normText(data.blockText) : null,
+    wrapperText: normText(data.wrapperText || ''),
+  };
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    let basePath = '';
+
+    if (data.scope) {
+      basePath = findPathByUid(values, data.scope);
+
+      if (basePath === null) {
+        continue; // scope lives in another container
+      }
+    }
+
+    const path = [basePath, data.field].filter(Boolean).join('.');
+    const value = dataGet(values, path);
+
+    if (value === undefined) {
+      continue;
+    }
+
+    // Fast path: Bard field where the clicked block's index maps directly to
+    // the ProseMirror node AND the rendered text matches the stored one.
+    if (Array.isArray(value) && data.blockIndex != null && req.blockText !== null) {
+      const node = value[data.blockIndex];
+
+      if (
+        node &&
+        EDITABLE_NODE_TYPES.includes(node.type) &&
+        normText(bardNodeText(node)) === req.blockText
+      ) {
+        editSession = {
+          container,
+          requestId: data.requestId,
+          mode: 'bard',
+          path,
+          index: data.blockIndex,
+          original: JSON.parse(JSON.stringify(value)),
+        };
+        reply({ type: 'edit-start', mode: 'bard', target: 'block' });
+
+        return;
+      }
+    }
+
+    const candidates = resolveEditTargets(value, path, req);
+
+    if (candidates.length !== 1) {
+      reply({ type: 'edit-deny', reason: candidates.length ? 'ambiguous' : 'no-match' });
+
+      return;
+    }
+
+    const target = candidates[0];
+
+    if (target.mode === 'string') {
+      editSession = {
+        container,
+        requestId: data.requestId,
+        mode: 'string',
+        path: target.path,
+        original: dataGet(values, target.path),
+      };
+      reply({
+        type: 'edit-start',
+        mode: 'string',
+        target: target.path === path ? 'wrapper' : 'block',
+      });
+    } else {
+      editSession = {
+        container,
+        requestId: data.requestId,
+        mode: 'bard',
+        path: target.path,
+        index: target.index,
+        original: JSON.parse(JSON.stringify(dataGet(values, target.path))),
+      };
+      reply({ type: 'edit-start', mode: 'bard', target: 'block' });
+    }
+
+    return;
+  }
+
+  reply({ type: 'edit-deny', reason: 'not-found' });
+}
+
+export function handleEditInput(data, doc) {
+  if (!editSession || editSession.requestId !== data.requestId) {
+    return;
+  }
+
+  const { container } = editSession;
+
+  if (editSession.mode === 'string') {
+    container.setFieldValue(editSession.path, cleanEditedText(data.text));
+
+    return;
+  }
+
+  // Bard: swap the edited node's inline content inside a fresh copy of the
+  // current field value (other nodes/sets stay untouched).
+  const values = unwrapRef(container.values);
+  const current = dataGet(values, editSession.path);
+
+  if (!Array.isArray(current)) {
+    return;
+  }
+
+  const next = JSON.parse(JSON.stringify(current));
+  const node = next[editSession.index];
+
+  if (!node) {
+    return;
+  }
+
+  const content = parseInlineHtml(data.html, doc);
+
+  if (content.length) {
+    node.content = content;
+  } else {
+    delete node.content;
+  }
+
+  container.setFieldValue(editSession.path, next);
+}
+
+export function handleEditEnd(data) {
+  if (!editSession || editSession.requestId !== data.requestId) {
+    return;
+  }
+
+  if (data.cancelled) {
+    editSession.container.setFieldValue(editSession.path, editSession.original);
+  }
+
+  editSession = null;
+}
+
+export function createMessageListener(doc = document, win = window) {
   return function handleMessage(event) {
     // Guard: only accept messages from the live-preview iframe.
     // This prevents cross-site message spoofing from third-party windows.
@@ -564,6 +1045,12 @@ export function createMessageListener(doc = document) {
       } else {
         handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
       }
+    } else if (data.type === 'edit-request') {
+      handleEditRequest(data, doc, win);
+    } else if (data.type === 'edit-input') {
+      handleEditInput(data, doc);
+    } else if (data.type === 'edit-end') {
+      handleEditEnd(data);
     } else if (data.type === 'popup') {
       // A column popup is opening (the column-builder addon handles that) —
       // expand and scroll the publish form to the containing section, so the
@@ -760,13 +1247,17 @@ export function initCp(win = window) {
   style.textContent = CP_STYLES;
   win.document.head.appendChild(style);
 
+  // Capture publish containers (values + setFieldValue) for inline-edit
+  // write-back. Runs inside Statamic.booting(), before any container mounts.
+  registerContainerEvents(win);
+
   // Stamp Grid rows immediately and re-stamp whenever the DOM changes
   // (Vue renders Grid rows asynchronously after page load / field expansion).
   stampGridRows(win.document);
   const gridObserver = new win.MutationObserver(() => stampGridRows(win.document));
   gridObserver.observe(win.document.body, { childList: true, subtree: true });
 
-  const listener = createMessageListener(win.document);
+  const listener = createMessageListener(win.document, win);
 
   win.addEventListener('message', listener);
 
