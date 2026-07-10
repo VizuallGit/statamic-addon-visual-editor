@@ -678,7 +678,11 @@ export function normText(s) {
   return (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-/** Flattens a ProseMirror node to plain text (hardBreak → space). */
+/**
+ * Flattens a ProseMirror node to plain text for comparison with the preview
+ * DOM's textContent. hardBreak maps to '' — <br> contributes nothing to
+ * textContent, so both sides must agree ("råvarer.<br>Vi" reads "råvarer.Vi").
+ */
 function bardNodeText(node) {
   if (!node) {
     return '';
@@ -689,7 +693,7 @@ function bardNodeText(node) {
   }
 
   if (node.type === 'hardBreak') {
-    return ' ';
+    return '';
   }
 
   return (node.content || []).map(bardNodeText).join('');

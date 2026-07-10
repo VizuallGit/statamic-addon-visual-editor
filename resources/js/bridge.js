@@ -345,6 +345,175 @@ function sendEditInput(win, session) {
   );
 }
 
+// --- Floating edit toolbar -----------------------------------------------------
+// A small fixed-position toolbar above the element being edited. Formatting
+// buttons (Bard mode only) run execCommand on the current selection — the
+// resulting <b>/<i>/<a> markup is parsed back to ProseMirror marks by the CP.
+// mousedown is prevented so clicking a button never blurs the editable.
+
+let toolbarEl = null;
+
+function removeEditToolbar() {
+  if (toolbarEl) {
+    toolbarEl.remove();
+    toolbarEl = null;
+  }
+}
+
+function positionEditToolbar(win, session) {
+  if (!toolbarEl) {
+    return;
+  }
+
+  const rect = session.el.getBoundingClientRect();
+  const barHeight = toolbarEl.offsetHeight || 34;
+  let top = rect.top - barHeight - 10;
+
+  // Not enough room above the element — flip below it.
+  if (top < 8) {
+    top = rect.bottom + 10;
+  }
+
+  const maxLeft = win.innerWidth - toolbarEl.offsetWidth - 8;
+
+  toolbarEl.style.top = `${top}px`;
+  toolbarEl.style.left = `${Math.max(8, Math.min(rect.left, maxLeft))}px`;
+}
+
+/** Highlights toggle buttons (bold/italic) that are active at the caret. */
+function updateEditToolbarState(win) {
+  if (!toolbarEl) {
+    return;
+  }
+
+  toolbarEl.querySelectorAll('[data-sve-cmd]').forEach((btn) => {
+    let on = false;
+
+    try {
+      on = win.document.queryCommandState(btn.dataset.sveCmd);
+    } catch {
+      /* unsupported command */
+    }
+
+    btn.dataset.sveOn = on ? '1' : '';
+    btn.style.background = on ? 'rgba(59, 130, 246, 0.55)' : 'transparent';
+  });
+}
+
+function createEditToolbar(win, session) {
+  removeEditToolbar();
+
+  const doc = win.document;
+  const bar = doc.createElement('div');
+
+  bar.id = '__sve-edit-toolbar';
+  bar.style.cssText =
+    'position:fixed;z-index:2147483647;display:flex;align-items:center;gap:2px;' +
+    'background:#1f2937;color:#fff;border-radius:8px;padding:4px;' +
+    'box-shadow:0 4px 16px rgba(0,0,0,0.35);font-family:sans-serif;font-size:13px;' +
+    'line-height:1;user-select:none;cursor:default;';
+
+  // Never steal focus from the editable — otherwise every button click would
+  // blur it and commit the edit before the action runs.
+  bar.addEventListener('mousedown', (e) => e.preventDefault());
+
+  const addButton = (label, title, action, opts = {}) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.title = title;
+
+    if (opts.cmd) {
+      btn.dataset.sveCmd = opts.cmd;
+    }
+
+    btn.style.cssText =
+      'all:unset;cursor:pointer;min-width:26px;height:26px;display:inline-flex;' +
+      'align-items:center;justify-content:center;border-radius:5px;padding:0 6px;' +
+      'box-sizing:border-box;text-align:center;' +
+      (opts.style || '');
+
+    btn.addEventListener('mouseenter', () => {
+      if (!btn.dataset.sveOn) {
+        btn.style.background = 'rgba(255, 255, 255, 0.14)';
+      }
+    });
+    btn.addEventListener('mouseleave', () => {
+      if (!btn.dataset.sveOn) {
+        btn.style.background = 'transparent';
+      }
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      action();
+    });
+
+    bar.appendChild(btn);
+
+    return btn;
+  };
+
+  const addSeparator = () => {
+    const sep = doc.createElement('span');
+
+    sep.style.cssText = 'width:1px;height:18px;background:rgba(255,255,255,0.2);margin:0 3px;';
+    bar.appendChild(sep);
+  };
+
+  const exec = (command, value = null) => {
+    win.document.execCommand(command, false, value);
+    session.onInput();
+    updateEditToolbarState(win);
+  };
+
+  if (session.mode === 'bard') {
+    addButton('B', 'Fed (⌘B)', () => exec('bold'), { cmd: 'bold', style: 'font-weight:700;' });
+    addButton('I', 'Kursiv (⌘I)', () => exec('italic'), {
+      cmd: 'italic',
+      style: 'font-style:italic;font-family:serif;',
+    });
+    addButton('🔗', 'Indsæt link', () => {
+      const sel = win.getSelection();
+
+      if (!sel || sel.isCollapsed) {
+        return;
+      }
+
+      const range = sel.getRangeAt(0).cloneRange();
+
+      // window.prompt may blur the editable — suspend the blur-commit while open.
+      session.suspendBlur = true;
+      const url = win.prompt('Link URL:', 'https://');
+
+      session.suspendBlur = false;
+      session.el.focus();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      if (url && url !== 'https://') {
+        exec('createLink', url);
+      }
+    });
+    addButton('⌫', 'Fjern formatering/link', () => {
+      exec('removeFormat');
+      exec('unlink');
+    });
+    addSeparator();
+  }
+
+  addButton('✓', 'Gem (Enter)', () => finishEditing(win, false), {
+    style: 'color:#4ade80;font-weight:700;',
+  });
+  addButton('✕', 'Annullér (Esc)', () => finishEditing(win, true), {
+    style: 'color:#f87171;',
+  });
+
+  doc.body.appendChild(bar);
+  toolbarEl = bar;
+  positionEditToolbar(win, session);
+}
+
 /** Handles an edit-start reply: turns the target element contenteditable. */
 function startEditing(win, data) {
   if (!pendingEdit || pendingEdit.requestId !== data.requestId) {
@@ -372,17 +541,29 @@ function startEditing(win, data) {
     dirty: false,
   };
 
-  // plaintext-only keeps existing inline markup (strong/em/a) intact while
-  // typed or pasted content stays plain text. Firefox doesn't support it —
-  // fall back to standard contenteditable there.
-  try {
-    el.contentEditable = 'plaintext-only';
-  } catch {
-    /* unsupported value */
-  }
-
-  if (el.contentEditable !== 'plaintext-only') {
+  if (data.mode === 'bard') {
+    // Full contenteditable so execCommand formatting (toolbar + ⌘B/⌘I) works.
+    // Whatever markup lands in the DOM is sanitized by the CP-side parser —
+    // only semantic tags become marks, everything else is flattened to text.
     el.contentEditable = 'true';
+
+    try {
+      win.document.execCommand('styleWithCSS', false, false);
+    } catch {
+      /* deprecated but harmless */
+    }
+  } else {
+    // plaintext-only keeps string fields plain even on rich paste. Firefox
+    // doesn't support it — fall back to standard contenteditable there.
+    try {
+      el.contentEditable = 'plaintext-only';
+    } catch {
+      /* unsupported value */
+    }
+
+    if (el.contentEditable !== 'plaintext-only') {
+      el.contentEditable = 'true';
+    }
   }
 
   el.setAttribute(EDITING_ATTR, '');
@@ -391,6 +572,7 @@ function startEditing(win, data) {
     session.dirty = true;
     clearTimeout(session.inputTimer);
     session.inputTimer = setTimeout(() => sendEditInput(win, session), EDIT_INPUT_DEBOUNCE);
+    positionEditToolbar(win, session);
   };
 
   session.onKeydown = (e) => {
@@ -416,17 +598,28 @@ function startEditing(win, data) {
     }
   };
 
-  session.onBlur = () => finishEditing(win, false);
+  session.onBlur = () => {
+    if (!session.suspendBlur) {
+      finishEditing(win, false);
+    }
+  };
+
+  session.onSelectionChange = () => updateEditToolbarState(win);
+  session.reposition = () => positionEditToolbar(win, session);
 
   el.addEventListener('input', session.onInput);
   el.addEventListener('keydown', session.onKeydown);
   el.addEventListener('blur', session.onBlur);
+  win.document.addEventListener('selectionchange', session.onSelectionChange);
+  win.addEventListener('scroll', session.reposition, true);
+  win.addEventListener('resize', session.reposition);
 
   editing = session;
   win.__sveInlineEdit.active = true;
 
   el.focus();
   placeCaretFromPoint(win, clickX, clickY);
+  createEditToolbar(win, session);
 }
 
 /**
@@ -452,6 +645,10 @@ export function finishEditing(win, cancelled) {
   el.removeEventListener('input', session.onInput);
   el.removeEventListener('keydown', session.onKeydown);
   el.removeEventListener('blur', session.onBlur);
+  win.document.removeEventListener('selectionchange', session.onSelectionChange);
+  win.removeEventListener('scroll', session.reposition, true);
+  win.removeEventListener('resize', session.reposition);
+  removeEditToolbar();
 
   if (!cancelled && session.dirty) {
     sendEditInput(win, session);
@@ -532,6 +729,13 @@ export function createMouseMoveHandler(win) {
 export function createClickHandler(win) {
   return function handleClick(event) {
     if (editing) {
+      // Toolbar clicks: return without stopPropagation — this handler runs in
+      // the capture phase, and stopping here would prevent the event from ever
+      // reaching the toolbar buttons' own click listeners.
+      if (toolbarEl && toolbarEl.contains(event.target)) {
+        return;
+      }
+
       if (editing.el.contains(event.target)) {
         // Clicking inside the active inline editor: let the browser place the
         // caret, but isolate the click from site JS (lightboxes, sliders, …).
