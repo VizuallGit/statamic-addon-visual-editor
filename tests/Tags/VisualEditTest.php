@@ -288,6 +288,53 @@ class VisualEditTest extends TestCase
         $this->assertStringNotContainsString('data-sid-inline-edit', $tag->index());
     }
 
+    public function test_selfclosing_with_field_scope_param_overrides_cascaded_visual_id(): void
+    {
+        $tag = $this->makeTag(
+            context: ['_visual_id' => 'section-uuid'],
+            livePreview: true,
+            params: ['field' => 'text', 'scope' => 'row-id-123'],
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-field-uid="row-id-123"', $result);
+        $this->assertStringNotContainsString('section-uuid', $result);
+    }
+
+    public function test_selfclosing_with_popup_and_field_and_inline_edit_outputs_dual_attrs(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-abc', '_visual_id' => 'section-uuid'],
+            livePreview: true,
+            params: ['popup' => 'true', 'field' => 'text', 'inline-edit' => 'true'],
+        );
+
+        $result = $tag->index();
+
+        // Popup attrs (row id, NOT the cascaded section _visual_id) …
+        $this->assertStringContainsString('data-sid="row-abc"', $result);
+        $this->assertStringContainsString('data-sid-action="popup"', $result);
+        // … plus field attrs scoped to the same row id.
+        $this->assertStringContainsString('data-sid-field="text"', $result);
+        $this->assertStringContainsString('data-sid-field-uid="row-abc"', $result);
+        $this->assertStringContainsString('data-sid-inline-edit', $result);
+    }
+
+    public function test_selfclosing_with_popup_and_field_without_inline_edit_has_no_field_attrs(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-abc'],
+            livePreview: true,
+            params: ['popup' => 'true', 'field' => 'text'],
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid="row-abc"', $result);
+        $this->assertStringNotContainsString('data-sid-field=', $result);
+    }
+
     public function test_selfclosing_with_dot_notation_field_param_outputs_dot_notation(): void
     {
         $tag = $this->makeTag(

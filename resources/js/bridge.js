@@ -278,7 +278,7 @@ function placeCaretFromPoint(win, x, y) {
  * decides whether (and what exactly) it is editable; nothing changes in the
  * DOM until an edit-start reply arrives.
  */
-function requestInlineEdit(win, wrapper, event) {
+function requestInlineEdit(win, wrapper, event, options = {}) {
   // The direct child of the wrapper containing the click — for Bard fields this
   // is the block element (h1/p/…) whose index maps to the ProseMirror node.
   let blockEl = null;
@@ -307,6 +307,8 @@ function requestInlineEdit(win, wrapper, event) {
     blockEl,
     clickX: event.clientX,
     clickY: event.clientY,
+    // Posted instead when the CP denies the edit (dual popup+field elements).
+    popupFallback: options.popupFallback ?? null,
     timeout: setTimeout(() => {
       if (pendingEdit && pendingEdit.requestId === requestId) {
         pendingEdit = null;
@@ -888,18 +890,31 @@ export function createClickHandler(win) {
 
     // Popup targeting (data-sid-action="popup") — opens a CP popup for this item.
     if (target.getAttribute('data-sid-action') === 'popup') {
-      win.top.postMessage(
-        {
-          source: 'statamic-visual-editor',
-          type: 'popup',
-          uid: target.getAttribute(SID_ATTR),
-          // The containing section's uid — lets the CP expand and scroll the
-          // publish form to the section whose popup is being opened.
-          sectionUid:
-            target.parentElement?.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) ?? null,
-        },
-        win.location.origin
-      );
+      const popupMessage = {
+        source: 'statamic-visual-editor',
+        type: 'popup',
+        uid: target.getAttribute(SID_ATTR),
+        // The containing section's uid — lets the CP expand and scroll the
+        // publish form to the section whose popup is being opened.
+        sectionUid:
+          target.parentElement?.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) ?? null,
+      };
+
+      // Dual-annotated blocks (popup + field + inline-edit): clicks on content
+      // try inline editing first. The CP denies when the clicked element does
+      // not map onto the field value (padding, images, unmatched text) — the
+      // edit-deny handler then opens the popup instead.
+      if (
+        target.hasAttribute('data-sid-inline-edit') &&
+        target.hasAttribute(SID_FIELD_ATTR) &&
+        event.target !== target
+      ) {
+        requestInlineEdit(win, target, event, { popupFallback: popupMessage });
+
+        return;
+      }
+
+      win.top.postMessage(popupMessage, win.location.origin);
 
       return;
     }
@@ -1110,8 +1125,16 @@ export function createMessageReceiver(win) {
 
     if (data.type === 'edit-deny') {
       if (pendingEdit && pendingEdit.requestId === data.requestId) {
+        const { popupFallback } = pendingEdit;
+
         clearTimeout(pendingEdit.timeout);
         pendingEdit = null;
+
+        // Dual popup+field element whose click didn't resolve to editable
+        // text — open the popup, as a plain click on the block always did.
+        if (popupFallback) {
+          win.top.postMessage(popupFallback, win.location.origin);
+        }
       }
 
       return;

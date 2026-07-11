@@ -638,6 +638,10 @@ function dataGet(obj, path) {
 /**
  * Recursively finds the dotted path of the set whose _visual_id (or row id)
  * equals uid. Mirrors how the preview's scope uid identifies a section/row.
+ *
+ * Row ids match both `id` and `_id`: the front-end context exposes `id`
+ * (Replicator.processRow renames _id → id), but the publish FORM values keep
+ * the raw `_id` key — column builder rows are only findable through it.
  */
 function findPathByUid(value, uid, path = '') {
   if (Array.isArray(value)) {
@@ -653,7 +657,7 @@ function findPathByUid(value, uid, path = '') {
   }
 
   if (value && typeof value === 'object') {
-    if (value._visual_id === uid || value.id === uid) {
+    if (value._visual_id === uid || value.id === uid || value._id === uid) {
       return path;
     }
 
@@ -1084,9 +1088,13 @@ export function handleMove(data, doc) {
 //
 // Inline editing makes the publish form optional for everyday text tweaks, so
 // the editor pane starts collapsed — the preview gets the full width. A toggle
-// button injected into the live-preview header brings it back. The pane is
-// only hidden (display:none), never unmounted: write-back, Bard watchers and
-// popups keep working while it is collapsed.
+// button injected into the live-preview header brings it back.
+//
+// Collapsing moves the pane off-screen (position:absolute; left:-10000px)
+// instead of display:none: the pane keeps real layout, which the column
+// builder's popup-opening machinery depends on (with display:none its
+// components report zero rects and the popup silently fails to open). The
+// popup itself portals to document.body, so it shows fine while collapsed.
 
 const LP_COLLAPSED_KEY = 'sve-lp-editor-collapsed';
 const LP_TOGGLE_ID = '__sve-lp-toggle';
@@ -1165,10 +1173,12 @@ export function ensureLpPanelToggle(win) {
   const editor = doc.querySelector('.live-preview-editor');
 
   if (editor) {
-    const want = lpCollapsed ? 'none' : '';
+    const want = lpCollapsed ? '-10000px' : '';
 
-    if (editor.style.display !== want) {
-      editor.style.display = want;
+    if (editor.style.left !== want) {
+      editor.style.position = lpCollapsed ? 'absolute' : '';
+      editor.style.left = want;
+      editor.style.top = lpCollapsed ? '0' : '';
     }
   }
 }

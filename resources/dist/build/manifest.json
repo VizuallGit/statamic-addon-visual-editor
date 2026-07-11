@@ -1,12 +1,12 @@
 {
   "resources/js/addon.js": {
-    "file": "assets/addon-Dh1E2cF6.js",
+    "file": "assets/addon-CFTzgFSq.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-Ks7CSmoM.js",
+    "file": "assets/bridge-Dp37gkPJ.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true

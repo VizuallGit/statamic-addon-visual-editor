@@ -33,14 +33,19 @@ class VisualEdit extends Tags
 
         $field = $this->params->get('field');
         $inside = $this->params->bool('outline-inside', false);
+        $popup = $this->params->bool('popup', false);
 
-        if ($field !== null && (string) $field !== '') {
+        if ($field !== null && (string) $field !== '' && ! $popup) {
             // Scope UID: the _visual_id of the set this tag sits inside. Lets the CP
             // disambiguate a bare handle like "text" — which is otherwise identical
             // across every repeated section/row — by locating the matching set first
             // and then the field within it. Without this, "text" matches the first
             // field of that handle anywhere in the form.
-            $scopeUid = $this->context->get('_visual_id');
+            //
+            // scope= overrides the cascaded _visual_id — needed inside column
+            // builder rows, where _visual_id cascades from the parent page section
+            // but the field lives on the row (use :scope="id", the row ID).
+            $scopeUid = $this->params->get('scope', $this->context->get('_visual_id'));
 
             $attr = $this->buildFieldAttr(
                 (string) $field,
@@ -52,8 +57,6 @@ class VisualEdit extends Tags
 
             return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
         }
-
-        $popup = $this->params->bool('popup', false);
 
         // popup="true": fall back to _visual_id (auto_uuid), then 'id' — Statamic's
         // Replicator.processRow() renames _id → id (via RowId::handle()), so inside
@@ -72,6 +75,15 @@ class VisualEdit extends Tags
         }
 
         $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup);
+
+        // popup + field + inline-edit: dual-annotated element. Text clicks try
+        // inline editing first (field scope = the popup row id — column builder
+        // rows have no _visual_id); the bridge falls back to opening the popup
+        // when the CP denies the edit (padding, images, unmatched text).
+        if ($popup && $field !== null && (string) $field !== '' && $this->params->bool('inline-edit', false)) {
+            // Label omitted: buildAttr already emitted data-sid-label.
+            $attr .= ' '.$this->buildFieldAttr((string) $field, '', false, (string) $uuid, true);
+        }
 
         return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
     }
