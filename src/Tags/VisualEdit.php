@@ -47,13 +47,16 @@ class VisualEdit extends Tags
             // but the field lives on the row (use :scope="id", the row ID).
             $scopeUid = $this->params->get('scope', $this->context->get('_visual_id'));
 
+            $inlineEdit = $this->inlineEditParam();
+
             $attr = $this->buildFieldAttr(
                 (string) $field,
                 $this->resolveFieldLabel((string) $field),
                 $inside,
                 $scopeUid ? (string) $scopeUid : '',
-                $this->inlineEditParam(),
-                $this->params->bool('move', false)
+                $inlineEdit,
+                $this->params->bool('move', false),
+                $inlineEdit ? $this->resolveBardConfig((string) $field) : null
             );
 
             return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
@@ -150,7 +153,7 @@ class VisualEdit extends Tags
         return (string) $this->context->get('type', '');
     }
 
-    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false, bool $move = false): string
+    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false, bool $move = false, ?array $bardConfig = null): string
     {
         $attr = 'data-sid-field="'.e($fieldPath).'"';
 
@@ -170,6 +173,17 @@ class VisualEdit extends Tags
         // toolbar). Without it, clicking the element only focuses the CP field.
         if ($inlineEdit) {
             $attr .= ' data-sid-inline-edit';
+        }
+
+        // Bard toolbar config — the preview builds its toolbar from the field's
+        // own `buttons` list (never hardcoded) plus a styles map for its
+        // bard-texstyle buttons.
+        if ($bardConfig) {
+            $attr .= ' data-sid-bard-buttons="'.e(implode(',', $bardConfig['buttons'])).'"';
+
+            if (! empty($bardConfig['styles'])) {
+                $attr .= ' data-sid-bard-styles="'.e(json_encode($bardConfig['styles'])).'"';
+            }
         }
 
         // move="true": show reorder arrows on hover (the row is identified via
@@ -216,6 +230,155 @@ class VisualEdit extends Tags
     private function inlineEditParam(): bool
     {
         return $this->params->bool('inline_edit', $this->params->bool('inline-edit', false));
+    }
+
+    /**
+     * Resolves the Bard field's own toolbar config so the preview builds an
+     * identical toolbar instead of a hardcoded one. Returns
+     * ['buttons' => [...], 'styles' => [name => [type, class, level, ident, name]]]
+     * where `styles` covers the bard-texstyle buttons among the field's buttons.
+     * Returns null when the field isn't a Bard field (e.g. a plain string).
+     */
+    private function resolveBardConfig(string $fieldPath): ?array
+    {
+        try {
+            $blueprintHandle = $this->params->get('blueprint');
+
+            if ($blueprintHandle) {
+                $blueprint = Blueprint::find((string) $blueprintHandle);
+            } else {
+                $page = $this->context->get('page');
+                $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
+            }
+
+            if (! $blueprint) {
+                return null;
+            }
+
+            $handle = last(explode('.', $fieldPath));
+            $setType = (string) $this->context->get('type', '');
+
+            $config = $this->findBardFieldConfig($blueprint->contents(), $handle, $setType);
+
+            if (! $config || ($config['type'] ?? null) !== 'bard') {
+                return null;
+            }
+
+            $buttons = array_values(array_filter((array) ($config['buttons'] ?? []), 'is_string'));
+
+            if (empty($buttons)) {
+                return null;
+            }
+
+            $texstyle = (array) config('statamic.bard_texstyle.styles', []);
+            $styles = [];
+
+            foreach ($buttons as $button) {
+                if (isset($texstyle[$button]) && is_array($texstyle[$button])) {
+                    $style = $texstyle[$button];
+                    $styles[$button] = array_filter([
+                        'type' => $style['type'] ?? 'span',
+                        'class' => $style['class'] ?? null,
+                        'level' => $style['level'] ?? null,
+                        'ident' => $style['ident'] ?? null,
+                        'name' => $style['name'] ?? null,
+                    ], fn ($v) => $v !== null);
+                }
+            }
+
+            return ['buttons' => $buttons, 'styles' => $styles];
+        } catch (\Throwable $e) {
+            Log::debug('VisualEdit: failed to resolve bard config for '.$fieldPath, ['exception' => $e]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Recursively searches a blueprint/fieldset field tree for a Bard field with
+     * the given handle, resolving `import` references and preferring the branch
+     * of a replicator set whose handle matches $setType (so identically-named
+     * fields in different sets — e.g. hero vs seo_text `text` — don't collide).
+     *
+     * $node is any structure that may contain a `fields` array (tabs, sections,
+     * sets, grids, groups). Returns the matched field's config array, or null.
+     */
+    private function findBardFieldConfig($node, string $handle, string $setType, int $depth = 0): ?array
+    {
+        if ($depth > 12 || ! is_array($node)) {
+            return null;
+        }
+
+        // Tabs (assoc: name => tab) — recurse each tab's structure.
+        if (isset($node['tabs']) && is_array($node['tabs'])) {
+            foreach ($node['tabs'] as $tab) {
+                $found = $this->findBardFieldConfig($tab, $handle, $setType, $depth + 1);
+                if ($found) {
+                    return $found;
+                }
+            }
+        }
+
+        // Sections (list) — recurse each.
+        if (isset($node['sections']) && is_array($node['sections'])) {
+            foreach ($node['sections'] as $section) {
+                $found = $this->findBardFieldConfig($section, $handle, $setType, $depth + 1);
+                if ($found) {
+                    return $found;
+                }
+            }
+        }
+
+        foreach ((array) ($node['fields'] ?? []) as $item) {
+            // Import reference — resolve the fieldset and recurse into it.
+            if (isset($item['import'])) {
+                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+
+                if ($fieldset) {
+                    $found = $this->findBardFieldConfig($fieldset->contents(), $handle, $setType, $depth + 1);
+                    if ($found) {
+                        return $found;
+                    }
+                }
+
+                continue;
+            }
+
+            $field = $item['field'] ?? null;
+
+            if (! is_array($field)) {
+                continue;
+            }
+
+            if (($item['handle'] ?? null) === $handle && ($field['type'] ?? null) === 'bard') {
+                return $field;
+            }
+
+            // Grid/group nested fields.
+            if (isset($field['fields'])) {
+                $found = $this->findBardFieldConfig($field, $handle, $setType, $depth + 1);
+                if ($found) {
+                    return $found;
+                }
+            }
+
+            // Replicator/Bard set groups: sets => [group => ['sets' => [handle => ['fields' => ...]]]].
+            foreach (($field['sets'] ?? []) as $group) {
+                foreach (($group['sets'] ?? []) as $setHandle => $set) {
+                    // Scope: when we know the set type, only descend into that set.
+                    if ($setType !== '' && $setHandle !== $setType) {
+                        continue;
+                    }
+
+                    $found = $this->findBardFieldConfig($set, $handle, $setType, $depth + 1);
+                    if ($found) {
+                        return $found;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     protected function isLivePreview(): bool

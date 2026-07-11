@@ -774,6 +774,12 @@ const MARK_TAGS = {
   SUP: 'superscript',
 };
 
+// bard-texstyle span-type styles that inline editing can toggle. A <span> whose
+// class is one of these maps to a btsSpan ProseMirror mark; any other span is
+// treated as transparent styling. Mirrors the span-type entries in
+// config/statamic/bard_texstyle.php — extend here if the site adds more.
+const BTS_SPAN_CLASSES = ['uppercase'];
+
 function sameMarks(a, b) {
   return JSON.stringify(a || []) === JSON.stringify(b || []);
 }
@@ -785,7 +791,7 @@ function sameMarks(a, b) {
  * ignores presentation-only markup the site's own JS may have injected
  * (e.g. word-reveal <span>s around headline words).
  */
-export function parseInlineHtml(html, doc = document) {
+export function parseInlineHtml(html, doc = document, spanClasses = BTS_SPAN_CLASSES) {
   const root = doc.createElement('div');
 
   root.innerHTML = html;
@@ -841,6 +847,15 @@ export function parseInlineHtml(html, doc = document) {
           }
 
           childMarks = [...marks, { type: 'link', attrs }];
+        } else if (child.tagName === 'SPAN') {
+          // bard-texstyle span marks (e.g. class="uppercase"). Only recognized
+          // classes become a btsSpan mark; other spans (site-injected styling
+          // wrappers like the hero word-reveal spans) stay transparent.
+          const btsClass = [...child.classList].find((c) => spanClasses.includes(c));
+
+          if (btsClass) {
+            childMarks = [...marks, { type: 'btsSpan', attrs: { class: btsClass } }];
+          }
         }
 
         walk(child, childMarks);
@@ -930,6 +945,8 @@ export function handleEditRequest(data, doc, win) {
           mode: 'bard',
           path,
           index: data.blockIndex,
+          field: data.field,
+          scope: data.scope,
           original: JSON.parse(JSON.stringify(value)),
         };
         reply({ type: 'edit-start', mode: 'bard', target: 'block' });
@@ -964,6 +981,7 @@ export function handleEditRequest(data, doc, win) {
         mode: 'string',
         path: target.path,
         linkPath,
+        field: data.field,
         scope: data.scope,
         original: dataGet(values, target.path),
       };
@@ -980,6 +998,8 @@ export function handleEditRequest(data, doc, win) {
         mode: 'bard',
         path: target.path,
         index: target.index,
+        field: data.field,
+        scope: data.scope,
         original: JSON.parse(JSON.stringify(dataGet(values, target.path))),
       };
       reply({ type: 'edit-start', mode: 'bard', target: 'block' });
@@ -1020,7 +1040,11 @@ export function handleEditInput(data, doc) {
     return;
   }
 
-  const content = parseInlineHtml(data.html, doc);
+  const content = parseInlineHtml(
+    data.html,
+    doc,
+    Array.isArray(data.spanClasses) && data.spanClasses.length ? data.spanClasses : BTS_SPAN_CLASSES
+  );
 
   if (content.length) {
     node.content = content;
@@ -1041,6 +1065,60 @@ export function handleEditEnd(data) {
   }
 
   editSession = null;
+}
+
+/**
+ * Toolbar tools the preview can't perform in place (lists, quote, color) send
+ * this: open the editor panel and focus the Bard field so the user finishes
+ * with the field's real toolbar. Runs after the inline edit has committed.
+ */
+export function handleOpenPanelField(data, doc, win) {
+  if (!editSession || editSession.requestId !== data.requestId || !editSession.field) {
+    return;
+  }
+
+  const { field, scope } = editSession;
+
+  setLpCollapsed(win, false);
+  setTimeout(() => handleFieldFocus(field, doc, { scopeUid: scope }), 100);
+}
+
+/**
+ * Changes the edited Bard node's block type/attrs (heading level, or paragraph
+ * with an optional bard-texstyle class). Only touches type/attrs — the node's
+ * inline content is preserved and updated separately via handleEditInput.
+ */
+export function handleBlockFormat(data) {
+  if (!editSession || editSession.requestId !== data.requestId || editSession.mode !== 'bard') {
+    return;
+  }
+
+  const { container } = editSession;
+  const values = unwrapRef(container.values);
+  const current = dataGet(values, editSession.path);
+
+  if (!Array.isArray(current)) {
+    return;
+  }
+
+  const next = JSON.parse(JSON.stringify(current));
+  const node = next[editSession.index];
+
+  if (!node) {
+    return;
+  }
+
+  if (data.node === 'heading') {
+    node.type = 'heading';
+    node.attrs = { ...(node.attrs || {}), level: data.level };
+    delete node.attrs.class;
+  } else {
+    node.type = 'paragraph';
+    node.attrs = { ...(node.attrs || {}), class: data.className ?? null };
+    delete node.attrs.level;
+  }
+
+  container.setFieldValue(editSession.path, next);
 }
 
 /**
@@ -1314,6 +1392,10 @@ export function createMessageListener(doc = document, win = window) {
       handleEditInput(data, doc);
     } else if (data.type === 'edit-end') {
       handleEditEnd(data);
+    } else if (data.type === 'block-format') {
+      handleBlockFormat(data);
+    } else if (data.type === 'open-panel-field') {
+      handleOpenPanelField(data, doc, win);
     } else if (data.type === 'asset-edit') {
       handleAssetEdit(data, doc);
     } else if (data.type === 'link-edit') {

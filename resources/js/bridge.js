@@ -342,6 +342,9 @@ function sendEditInput(win, session) {
       requestId: session.requestId,
       text: session.el.innerText,
       html: session.el.innerHTML,
+      // bard-texstyle span classes to recognize as btsSpan marks when parsing
+      // the html back to ProseMirror (derived from the field's own styles).
+      spanClasses: session.spanClasses,
     },
     win.location.origin
   );
@@ -400,6 +403,190 @@ function updateEditToolbarState(win) {
     btn.dataset.sveOn = on ? '1' : '';
     btn.style.background = on ? 'rgba(59, 130, 246, 0.55)' : 'transparent';
   });
+
+  // Span-mark buttons (bard-texstyle) reflect whether the caret sits inside
+  // a span of that class.
+  const sel = win.getSelection();
+  let selNode = sel && sel.rangeCount ? sel.getRangeAt(0).commonAncestorContainer : null;
+
+  if (selNode && selNode.nodeType === 3) {
+    selNode = selNode.parentElement;
+  }
+
+  toolbarEl.querySelectorAll('[data-sve-span-class]').forEach((btn) => {
+    const cls = btn.dataset.sveSpanClass;
+    const on = !!(selNode && selNode.closest?.(`span.${cls}`) && editing?.el.contains(selNode.closest(`span.${cls}`)));
+
+    btn.dataset.sveOn = on ? '1' : '';
+    btn.style.background = on ? 'rgba(59, 130, 246, 0.55)' : 'transparent';
+  });
+
+  // Block-format buttons reflect the current block's tag/class.
+  toolbarEl.querySelectorAll('[data-sve-block-tag]').forEach((btn) => {
+    const el = editing?.el;
+    let on = false;
+
+    if (el) {
+      const wantClass = btn.dataset.sveBlockClass || '';
+      const tagMatches = el.tagName.toLowerCase() === btn.dataset.sveBlockTag;
+
+      on = tagMatches && (wantClass ? el.classList.contains(wantClass) : !hasKnownBlockClass(editing, el));
+    }
+
+    btn.dataset.sveOn = on ? '1' : '';
+    btn.style.background = on ? 'rgba(59, 130, 246, 0.55)' : 'transparent';
+  });
+}
+
+/** True when el carries any of the session's known bard-texstyle block classes. */
+function hasKnownBlockClass(session, el) {
+  return (session.blockClasses || []).some((c) => el.classList.contains(c));
+}
+
+/**
+ * Replaces the contenteditable element with one of a different tag (e.g. h2→h3),
+ * preserving inner markup, editing state and listeners. Returns the new element.
+ * Used for block-format changes; the deferred hot-reload morph reconciles
+ * everything on commit/cancel, so no manual tag restore is needed.
+ */
+function swapEditingElementTag(win, session, tagName) {
+  const old = session.el;
+
+  if (old.tagName.toLowerCase() === tagName.toLowerCase()) {
+    return old;
+  }
+
+  const neo = win.document.createElement(tagName);
+
+  neo.innerHTML = old.innerHTML;
+  neo.setAttribute(EDITING_ATTR, '');
+  neo.contentEditable = old.contentEditable;
+
+  old.removeEventListener('input', session.onInput);
+  old.removeEventListener('keydown', session.onKeydown);
+  old.removeEventListener('blur', session.onBlur);
+  old.replaceWith(neo);
+
+  neo.addEventListener('input', session.onInput);
+  neo.addEventListener('keydown', session.onKeydown);
+  neo.addEventListener('blur', session.onBlur);
+
+  session.el = neo;
+
+  return neo;
+}
+
+/**
+ * Applies a block-format change to the edited Bard node. spec describes the
+ * target block: { tag, node, level?, className? }. Swaps the preview element
+ * (tag) and its bard-texstyle class for instant feedback, then tells the CP to
+ * change the ProseMirror node's type/attrs.
+ */
+function applyBlockFormat(win, session, spec) {
+  const el = swapEditingElementTag(win, session, spec.tag);
+
+  // Reset any bard-texstyle block class we may have added earlier, then apply
+  // the new one. We only touch classes we know about (from sveBlockClasses),
+  // never the element's own styling classes.
+  session.blockClasses?.forEach((c) => el.classList.remove(c));
+
+  if (spec.className) {
+    el.classList.add(spec.className);
+  }
+
+  session.el.focus();
+
+  const range = win.document.createRange();
+
+  range.selectNodeContents(session.el);
+  range.collapse(false);
+
+  const sel = win.getSelection();
+
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  session.dirty = true;
+  win.top.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'block-format',
+      requestId: session.requestId,
+      node: spec.node,
+      level: spec.level ?? null,
+      className: spec.className ?? null,
+    },
+    win.location.origin
+  );
+
+  updateEditToolbarState(win);
+}
+
+/**
+ * Buttons the inline editor can't perform in place (lists, blockquote, color,
+ * …) delegate to the CP: commit the current edit, open the editor panel and
+ * focus the Bard field so the user finishes with the real toolbar there.
+ */
+function openPanelTool(win, session) {
+  win.top.postMessage(
+    { source: 'statamic-visual-editor', type: 'open-panel-field', requestId: session.requestId },
+    win.location.origin
+  );
+  finishEditing(win, false);
+}
+
+/**
+ * Toggles a bard-texstyle span mark (e.g. class="uppercase") around the current
+ * selection. On the CP side parseInlineHtml maps span.<class> back to a btsSpan
+ * ProseMirror mark. Unwraps when the selection already sits inside such a span.
+ */
+function toggleSpanClass(win, session, className) {
+  const sel = win.getSelection();
+
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+    return;
+  }
+
+  const range = sel.getRangeAt(0);
+  let node = range.commonAncestorContainer;
+
+  if (node.nodeType === 3) {
+    node = node.parentElement;
+  }
+
+  const existing = node.closest?.(`span.${className}`);
+
+  if (existing && session.el.contains(existing)) {
+    // Unwrap: move children out, drop the span.
+    const parent = existing.parentNode;
+
+    while (existing.firstChild) {
+      parent.insertBefore(existing.firstChild, existing);
+    }
+
+    parent.removeChild(existing);
+    parent.normalize();
+  } else {
+    const span = win.document.createElement('span');
+
+    span.className = className;
+
+    try {
+      range.surroundContents(span);
+    } catch {
+      // Selection crosses element boundaries — extract and re-insert.
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+    }
+
+    const newRange = win.document.createRange();
+
+    newRange.selectNodeContents(span);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  }
+
+  session.onInput();
 }
 
 function createEditToolbar(win, session) {
@@ -428,6 +615,10 @@ function createEditToolbar(win, session) {
 
     if (opts.cmd) {
       btn.dataset.sveCmd = opts.cmd;
+    }
+
+    if (opts.spanClass) {
+      btn.dataset.sveSpanClass = opts.spanClass;
     }
 
     btn.style.cssText =
@@ -469,38 +660,160 @@ function createEditToolbar(win, session) {
     updateEditToolbarState(win);
   };
 
+  const linkAction = () => {
+    const sel = win.getSelection();
+
+    if (!sel || sel.isCollapsed) {
+      return;
+    }
+
+    const range = sel.getRangeAt(0).cloneRange();
+
+    // window.prompt may blur the editable — suspend the blur-commit while open.
+    session.suspendBlur = true;
+    const url = win.prompt('Link URL:', 'https://');
+
+    session.suspendBlur = false;
+    session.el.focus();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    if (url && url !== 'https://') {
+      exec('createLink', url);
+    }
+  };
+
+  const addBlockButton = (label, title, spec, opts = {}) => {
+    const btn = addButton(label, title, () => applyBlockFormat(win, session, spec), opts);
+
+    btn.dataset.sveBlockTag = spec.tag;
+    btn.dataset.sveBlockClass = spec.className || '';
+
+    return btn;
+  };
+
   if (session.mode === 'bard') {
-    addButton('B', 'Fed (⌘B)', () => exec('bold'), { cmd: 'bold', style: 'font-weight:700;' });
-    addButton('I', 'Kursiv (⌘I)', () => exec('italic'), {
-      cmd: 'italic',
-      style: 'font-style:italic;font-family:serif;',
-    });
-    addButton('🔗', 'Indsæt link', () => {
-      const sel = win.getSelection();
+    // Build the toolbar from the field's own `buttons` config (passed through
+    // as session.bardButtons) — never a hardcoded set. Each button name is
+    // rendered by its handler below; unknown names are skipped. Buttons that
+    // inline editing can't perform in place (lists, quote, color) fall back to
+    // opening the CP panel focused on this field.
+    const buttons = session.bardButtons?.length
+      ? session.bardButtons
+      : ['bold', 'italic', 'anchor', 'removeformat'];
+    const styles = session.bardStyles || {};
+    let group = null;
+    const sep = (g) => {
+      if (group !== null && group !== g) {
+        addSeparator();
+      }
+      group = g;
+    };
 
-      if (!sel || sel.isCollapsed) {
-        return;
+    for (const name of buttons) {
+      if (/^h[1-6]$/.test(name)) {
+        const level = Number(name.slice(1));
+
+        sep('block');
+        addBlockButton(name.toUpperCase(), `Overskrift ${level}`, { tag: name, node: 'heading', level }, {
+          style: 'font-weight:700;font-size:11px;',
+        });
+        // A heading toolbar implies a "normal paragraph" reset button too.
+        continue;
       }
 
-      const range = sel.getRangeAt(0).cloneRange();
+      const style = styles[name];
 
-      // window.prompt may blur the editable — suspend the blur-commit while open.
-      session.suspendBlur = true;
-      const url = win.prompt('Link URL:', 'https://');
+      if (style) {
+        sep('style');
 
-      session.suspendBlur = false;
-      session.el.focus();
-      sel.removeAllRanges();
-      sel.addRange(range);
+        if (style.type === 'span') {
+          addButton(style.ident || 'S', style.name || name, () => toggleSpanClass(win, session, style.class), {
+            spanClass: style.class,
+            style: 'font-size:11px;',
+          });
+        } else {
+          const tag = style.type === 'heading' ? `h${style.level || 2}` : 'p';
 
-      if (url && url !== 'https://') {
-        exec('createLink', url);
+          addBlockButton(style.ident || 'T', style.name || name, {
+            tag,
+            node: style.type === 'heading' ? 'heading' : 'paragraph',
+            level: style.level,
+            className: style.class,
+          }, { style: 'font-size:10px;letter-spacing:1px;' });
+        }
+
+        continue;
       }
-    });
-    addButton('⌫', 'Fjern formatering/link', () => {
-      exec('removeFormat');
-      exec('unlink');
-    });
+
+      switch (name) {
+        case 'bold':
+          sep('mark');
+          addButton('B', 'Fed (⌘B)', () => exec('bold'), { cmd: 'bold', style: 'font-weight:700;' });
+          break;
+        case 'italic':
+          sep('mark');
+          addButton('I', 'Kursiv (⌘I)', () => exec('italic'), {
+            cmd: 'italic',
+            style: 'font-style:italic;font-family:serif;',
+          });
+          break;
+        case 'underline':
+          sep('mark');
+          addButton('U', 'Understreget', () => exec('underline'), {
+            cmd: 'underline',
+            style: 'text-decoration:underline;',
+          });
+          break;
+        case 'strikethrough':
+          sep('mark');
+          addButton('S', 'Gennemstreget', () => exec('strikethrough'), {
+            cmd: 'strikethrough',
+            style: 'text-decoration:line-through;',
+          });
+          break;
+        case 'anchor':
+          sep('mark');
+          addButton('🔗', 'Indsæt link', linkAction);
+          break;
+        case 'removeformat':
+          sep('mark');
+          addButton('⌫', 'Fjern formatering', () => {
+            exec('removeFormat');
+            exec('unlink');
+          });
+          break;
+        case 'quote':
+        case 'unorderedlist':
+        case 'orderedlist':
+        case 'code':
+        case 'codeblock':
+        case 'table':
+        case 'color': {
+          // No in-place handler — delegate to the CP panel.
+          sep('panel');
+          const labels = {
+            quote: ['❝', 'Citat'],
+            unorderedlist: ['•', 'Punktliste'],
+            orderedlist: ['1.', 'Nummerliste'],
+            code: ['</>', 'Kode'],
+            codeblock: ['{ }', 'Kodeblok'],
+            table: ['⊞', 'Tabel'],
+            color: ['🎨', 'Farve'],
+          };
+          const [lbl, ttl] = labels[name];
+
+          addButton(lbl, `${ttl} (åbnes i panelet)`, () => openPanelTool(win, session), {
+            style: 'opacity:0.85;',
+          });
+          break;
+        }
+        default:
+          // Unknown button name — skip silently.
+          break;
+      }
+    }
+
     addSeparator();
   }
 
@@ -529,6 +842,7 @@ function createEditToolbar(win, session) {
   doc.body.appendChild(bar);
   toolbarEl = bar;
   positionEditToolbar(win, session);
+  updateEditToolbarState(win);
 }
 
 // --- Move arrows -----------------------------------------------------------------
@@ -699,10 +1013,43 @@ function startEditing(win, data) {
 
   const el = data.target === 'block' && blockEl ? blockEl : editableFromWrapper(wrapper);
 
+  // The toolbar for a Bard field is built from the field's own `buttons` config,
+  // emitted by the visual_edit tag on the wrapper (data-sid-bard-buttons) plus a
+  // name→{type,class} map for its bard-texstyle styles (data-sid-bard-styles).
+  let bardButtons = null;
+  let bardStyles = null;
+
+  try {
+    const raw = wrapper.getAttribute('data-sid-bard-buttons');
+
+    bardButtons = raw ? raw.split(',').map((s) => s.trim()).filter(Boolean) : null;
+
+    const stylesRaw = wrapper.getAttribute('data-sid-bard-styles');
+
+    bardStyles = stylesRaw ? JSON.parse(stylesRaw) : null;
+  } catch {
+    /* malformed config — fall back to defaults */
+  }
+
   const session = {
     requestId: data.requestId,
     mode: data.mode, // 'string' | 'bard'
     hasLink: !!data.hasLink,
+    bardButtons,
+    bardStyles,
+    // Block-level bard-texstyle classes (paragraph/heading types) — used to
+    // reset an element's style class before applying a new block format.
+    blockClasses: bardStyles
+      ? Object.values(bardStyles)
+          .filter((s) => s.type !== 'span' && s.class)
+          .map((s) => s.class)
+      : [],
+    // Span-type bard-texstyle classes → recognized as btsSpan marks by the CP.
+    spanClasses: bardStyles
+      ? Object.values(bardStyles)
+          .filter((s) => s.type === 'span' && s.class)
+          .map((s) => s.class)
+      : [],
     el,
     restoreHtml: el.innerHTML,
     hadContentEditable: el.getAttribute('contenteditable'),
