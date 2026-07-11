@@ -523,15 +523,74 @@ function applyBlockFormat(win, session, spec) {
 }
 
 /**
- * Buttons the inline editor can't perform in place (lists, blockquote, color,
- * …) delegate to the CP: commit the current edit, open the editor panel and
- * focus the Bard field so the user finishes with the real toolbar there.
+ * Buttons the inline editor can't perform in place (lists, blockquote, …)
+ * delegate to the CP: commit the current edit, open the editor panel and focus
+ * the Bard field so the user finishes with the real toolbar there.
  */
 function openPanelTool(win, session) {
   win.top.postMessage(
     { source: 'statamic-visual-editor', type: 'open-panel-field', requestId: session.requestId },
     win.location.origin
   );
+  finishEditing(win, false);
+}
+
+/** Character offset of (container, offset) within root's text content. */
+function charOffsetWithin(root, container, offset) {
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let count = 0;
+  let node;
+
+  while ((node = walker.nextNode())) {
+    if (node === container) {
+      return count + offset;
+    }
+
+    count += node.nodeValue.length;
+  }
+
+  return count;
+}
+
+/**
+ * Link and text-color use Statamic's own Bard popups (link dialog, colour
+ * palette) rather than a re-implementation. We capture the current selection's
+ * character range, commit the inline text, and ask the CP to open the real
+ * editor at that range and trigger its toolbar button — so the exact same
+ * popup the user knows from the panel appears.
+ *
+ * The bard-command message must be posted BEFORE finishEditing: finishEditing
+ * ends the CP edit session, and the command handler needs it (field/scope/
+ * block index) still alive when the message arrives.
+ */
+function bardCommand(win, session, command) {
+  const sel = win.getSelection();
+  let from = 0;
+  let to = 0;
+
+  if (sel && sel.rangeCount) {
+    const range = sel.getRangeAt(0);
+
+    from = charOffsetWithin(session.el, range.startContainer, range.startOffset);
+    to = charOffsetWithin(session.el, range.endContainer, range.endOffset);
+
+    if (to < from) {
+      [from, to] = [to, from];
+    }
+  }
+
+  win.top.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'bard-command',
+      requestId: session.requestId,
+      command,
+      from,
+      to,
+    },
+    win.location.origin
+  );
+
   finishEditing(win, false);
 }
 
@@ -660,29 +719,6 @@ function createEditToolbar(win, session) {
     updateEditToolbarState(win);
   };
 
-  const linkAction = () => {
-    const sel = win.getSelection();
-
-    if (!sel || sel.isCollapsed) {
-      return;
-    }
-
-    const range = sel.getRangeAt(0).cloneRange();
-
-    // window.prompt may blur the editable — suspend the blur-commit while open.
-    session.suspendBlur = true;
-    const url = win.prompt('Link URL:', 'https://');
-
-    session.suspendBlur = false;
-    session.el.focus();
-    sel.removeAllRanges();
-    sel.addRange(range);
-
-    if (url && url !== 'https://') {
-      exec('createLink', url);
-    }
-  };
-
   const addBlockButton = (label, title, spec, opts = {}) => {
     const btn = addButton(label, title, () => applyBlockFormat(win, session, spec), opts);
 
@@ -774,7 +810,8 @@ function createEditToolbar(win, session) {
           break;
         case 'anchor':
           sep('mark');
-          addButton('🔗', 'Indsæt link', linkAction);
+          // Uses Statamic's own link dialog (opened in the CP for the selection).
+          addButton('🔗', 'Indsæt link', () => bardCommand(win, session, 'link'));
           break;
         case 'removeformat':
           sep('mark');
@@ -783,14 +820,19 @@ function createEditToolbar(win, session) {
             exec('unlink');
           });
           break;
+        case 'color':
+          // Uses bard-color-picker's own colour palette popup (opened in the CP).
+          sep('style');
+          addButton('🎨', 'Tekstfarve', () => bardCommand(win, session, 'color'));
+          break;
         case 'quote':
         case 'unorderedlist':
         case 'orderedlist':
         case 'code':
         case 'codeblock':
-        case 'table':
-        case 'color': {
-          // No in-place handler — delegate to the CP panel.
+        case 'table': {
+          // Block-structure tools — perform them in the CP via the real toolbar
+          // button (the editor panel opens focused on the selection).
           sep('panel');
           const labels = {
             quote: ['❝', 'Citat'],
@@ -799,13 +841,10 @@ function createEditToolbar(win, session) {
             code: ['</>', 'Kode'],
             codeblock: ['{ }', 'Kodeblok'],
             table: ['⊞', 'Tabel'],
-            color: ['🎨', 'Farve'],
           };
           const [lbl, ttl] = labels[name];
 
-          addButton(lbl, `${ttl} (åbnes i panelet)`, () => openPanelTool(win, session), {
-            style: 'opacity:0.85;',
-          });
+          addButton(lbl, ttl, () => bardCommand(win, session, name), { style: 'opacity:0.9;' });
           break;
         }
         default:

@@ -85,8 +85,10 @@ class VisualEdit extends Tags
         // rows have no _visual_id); the bridge falls back to opening the popup
         // when the CP denies the edit (padding, images, unmatched text).
         if ($popup && $field !== null && (string) $field !== '' && $this->inlineEditParam()) {
-            // Label omitted: buildAttr already emitted data-sid-label.
-            $attr .= ' '.$this->buildFieldAttr((string) $field, '', false, (string) $uuid, true);
+            // Label omitted: buildAttr already emitted data-sid-label. Bard config
+            // is resolved here too so column-builder text blocks get the field's
+            // own toolbar, not the default fallback.
+            $attr .= ' '.$this->buildFieldAttr((string) $field, '', false, (string) $uuid, true, false, $this->resolveBardConfig((string) $field));
         }
 
         return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
@@ -258,9 +260,30 @@ class VisualEdit extends Tags
             $handle = last(explode('.', $fieldPath));
             $setType = (string) $this->context->get('type', '');
 
-            $config = $this->findBardFieldConfig($blueprint->contents(), $handle, $setType);
+            // Collect every bard field with this handle, tagged with the set it
+            // sits in, then prefer the one whose set matches the current set type
+            // (context 'type'). This disambiguates identically-named fields —
+            // hero vs seo_text `text`, or a column-builder `text` block — without
+            // the aggressive scoping that broke deeply nested (column) lookups.
+            $matches = [];
+            $this->collectBardFields($blueprint->contents(), $handle, $matches);
 
-            if (! $config || ($config['type'] ?? null) !== 'bard') {
+            if (empty($matches)) {
+                return null;
+            }
+
+            $config = null;
+
+            foreach ($matches as $match) {
+                if ($match['set'] === $setType) {
+                    $config = $match['config'];
+                    break;
+                }
+            }
+
+            $config = $config ?? $matches[0]['config'];
+
+            if (($config['type'] ?? null) !== 'bard') {
                 return null;
             }
 
@@ -295,38 +318,28 @@ class VisualEdit extends Tags
     }
 
     /**
-     * Recursively searches a blueprint/fieldset field tree for a Bard field with
-     * the given handle, resolving `import` references and preferring the branch
-     * of a replicator set whose handle matches $setType (so identically-named
-     * fields in different sets — e.g. hero vs seo_text `text` — don't collide).
+     * Recursively collects every Bard field with the given handle in a
+     * blueprint/fieldset field tree, resolving `import` references. Each match is
+     * recorded as ['config' => <field config>, 'set' => <nearest enclosing set
+     * handle or ''>] so the caller can prefer the one in the current set type.
      *
      * $node is any structure that may contain a `fields` array (tabs, sections,
-     * sets, grids, groups). Returns the matched field's config array, or null.
+     * sets, grids, groups).
      */
-    private function findBardFieldConfig($node, string $handle, string $setType, int $depth = 0): ?array
+    private function collectBardFields($node, string $handle, array &$matches, string $enclosingSet = '', int $depth = 0): void
     {
-        if ($depth > 12 || ! is_array($node)) {
-            return null;
+        if ($depth > 14 || ! is_array($node)) {
+            return;
         }
 
-        // Tabs (assoc: name => tab) — recurse each tab's structure.
-        if (isset($node['tabs']) && is_array($node['tabs'])) {
-            foreach ($node['tabs'] as $tab) {
-                $found = $this->findBardFieldConfig($tab, $handle, $setType, $depth + 1);
-                if ($found) {
-                    return $found;
-                }
-            }
+        // Tabs (assoc: name => tab).
+        foreach (($node['tabs'] ?? []) as $tab) {
+            $this->collectBardFields($tab, $handle, $matches, $enclosingSet, $depth + 1);
         }
 
-        // Sections (list) — recurse each.
-        if (isset($node['sections']) && is_array($node['sections'])) {
-            foreach ($node['sections'] as $section) {
-                $found = $this->findBardFieldConfig($section, $handle, $setType, $depth + 1);
-                if ($found) {
-                    return $found;
-                }
-            }
+        // Sections (list).
+        foreach (($node['sections'] ?? []) as $section) {
+            $this->collectBardFields($section, $handle, $matches, $enclosingSet, $depth + 1);
         }
 
         foreach ((array) ($node['fields'] ?? []) as $item) {
@@ -335,10 +348,7 @@ class VisualEdit extends Tags
                 $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
 
                 if ($fieldset) {
-                    $found = $this->findBardFieldConfig($fieldset->contents(), $handle, $setType, $depth + 1);
-                    if ($found) {
-                        return $found;
-                    }
+                    $this->collectBardFields($fieldset->contents(), $handle, $matches, $enclosingSet, $depth + 1);
                 }
 
                 continue;
@@ -351,34 +361,23 @@ class VisualEdit extends Tags
             }
 
             if (($item['handle'] ?? null) === $handle && ($field['type'] ?? null) === 'bard') {
-                return $field;
+                $matches[] = ['config' => $field, 'set' => $enclosingSet];
             }
 
             // Grid/group nested fields.
             if (isset($field['fields'])) {
-                $found = $this->findBardFieldConfig($field, $handle, $setType, $depth + 1);
-                if ($found) {
-                    return $found;
-                }
+                $this->collectBardFields($field, $handle, $matches, $enclosingSet, $depth + 1);
             }
 
             // Replicator/Bard set groups: sets => [group => ['sets' => [handle => ['fields' => ...]]]].
             foreach (($field['sets'] ?? []) as $group) {
                 foreach (($group['sets'] ?? []) as $setHandle => $set) {
-                    // Scope: when we know the set type, only descend into that set.
-                    if ($setType !== '' && $setHandle !== $setType) {
-                        continue;
-                    }
-
-                    $found = $this->findBardFieldConfig($set, $handle, $setType, $depth + 1);
-                    if ($found) {
-                        return $found;
-                    }
+                    // Descend into every set, tagging matches with this set handle
+                    // so the caller can prefer the one matching the current type.
+                    $this->collectBardFields($set, $handle, $matches, (string) $setHandle, $depth + 1);
                 }
             }
         }
-
-        return null;
     }
 
     protected function isLivePreview(): bool

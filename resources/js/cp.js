@@ -1067,6 +1067,142 @@ export function handleEditEnd(data) {
   editSession = null;
 }
 
+// command → CP Bard toolbar button title matcher. Core Statamic titles are
+// English even in a translated CP; addon buttons (colour) are localized.
+const BARD_CMD_TITLE = {
+  link: /^link$/i,
+  color: /farve|colou?r/i,
+  unorderedlist: /unordered list|bullet|punkt/i,
+  orderedlist: /ordered list|number|nummer/i,
+  quote: /blockquote|quote|citat/i,
+  code: /^code$/i,
+  codeblock: /code block|kodeblok/i,
+  table: /table|tabel/i,
+};
+
+/** Builds a DOM Range spanning [from,to] character offsets within blockEl. */
+function domRangeForOffsets(blockEl, from, to) {
+  const walker = blockEl.ownerDocument.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
+  let count = 0;
+  let startNode = null;
+  let startOff = 0;
+  let endNode = null;
+  let endOff = 0;
+  let node;
+
+  while ((node = walker.nextNode())) {
+    const len = node.nodeValue.length;
+
+    if (startNode === null && from <= count + len) {
+      startNode = node;
+      startOff = from - count;
+    }
+
+    if (to <= count + len) {
+      endNode = node;
+      endOff = to - count;
+      break;
+    }
+
+    count += len;
+  }
+
+  if (!startNode) {
+    return null;
+  }
+
+  if (!endNode) {
+    endNode = startNode;
+    endOff = startNode.nodeValue.length;
+  }
+
+  const range = blockEl.ownerDocument.createRange();
+
+  range.setStart(startNode, startOff);
+  range.setEnd(endNode, endOff);
+
+  return range;
+}
+
+/**
+ * Link/colour/list/quote from the preview toolbar: open the editor panel,
+ * select the same character range in the real CP Bard editor, and click its
+ * native toolbar button — so Statamic's own popup (link dialog, colour palette)
+ * appears, exactly as the user knows it from the panel. Runs after the inline
+ * edit has committed; captures field/scope/index synchronously because the CP
+ * edit session is torn down by the accompanying edit-end.
+ */
+export function handleBardCommand(data, doc, win) {
+  if (!editSession || editSession.requestId !== data.requestId) {
+    return;
+  }
+
+  const titleRe = BARD_CMD_TITLE[data.command];
+
+  if (!titleRe) {
+    return;
+  }
+
+  const { field, scope, index } = editSession;
+
+  setLpCollapsed(win, false);
+
+  let attempts = 0;
+
+  const run = () => {
+    const setEl = scope ? findSetByUid(scope, doc) : null;
+
+    if (setEl) {
+      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
+    }
+
+    const fieldEl = findFieldElement(field, doc, scope);
+    // The field id sits on the content wrapper; the toolbar lives on the
+    // enclosing .bard-fieldtype. Search from there for both toolbar and editor.
+    const bardEl =
+      fieldEl?.closest('.bard-fieldtype') || fieldEl?.querySelector('.bard-fieldtype') || fieldEl;
+    const ce = bardEl?.querySelector('.ProseMirror') || bardEl?.querySelector('[contenteditable="true"]');
+    const toolbar = bardEl?.querySelector('.bard-fixed-toolbar') || bardEl;
+    const btn = toolbar
+      ? [...toolbar.querySelectorAll('button')].find((b) =>
+          titleRe.test(b.getAttribute('title') || b.getAttribute('aria-label') || '')
+        )
+      : null;
+
+    if (!ce || !btn) {
+      if (++attempts < 12) {
+        setTimeout(run, 250);
+      }
+
+      return;
+    }
+
+    bardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const block = ce.children[index];
+
+    if (block && data.to > data.from) {
+      const range = domRangeForOffsets(block, data.from, data.to);
+
+      if (range) {
+        ce.focus();
+        const sel = win.getSelection();
+
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    } else {
+      ce.focus();
+    }
+
+    // Let ProseMirror sync the DOM selection into its state before the button
+    // command reads editor.state.selection.
+    setTimeout(() => btn.click(), 70);
+  };
+
+  setTimeout(run, 120);
+}
+
 /**
  * Toolbar tools the preview can't perform in place (lists, quote, color) send
  * this: open the editor panel and focus the Bard field so the user finishes
@@ -1396,6 +1532,8 @@ export function createMessageListener(doc = document, win = window) {
       handleBlockFormat(data);
     } else if (data.type === 'open-panel-field') {
       handleOpenPanelField(data, doc, win);
+    } else if (data.type === 'bard-command') {
+      handleBardCommand(data, doc, win);
     } else if (data.type === 'asset-edit') {
       handleAssetEdit(data, doc);
     } else if (data.type === 'link-edit') {
