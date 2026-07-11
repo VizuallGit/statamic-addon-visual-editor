@@ -504,6 +504,21 @@ function createEditToolbar(win, session) {
     addSeparator();
   }
 
+  // String fields belonging to a row that also has a link/url value (e.g.
+  // button rows): shortcut to edit the link in the CP panel. The link-edit
+  // message must be posted BEFORE finishEditing so the CP still has the edit
+  // session (and its resolved link path) when the message arrives.
+  if (session.hasLink) {
+    addButton('🔗', 'Skift link', () => {
+      win.top.postMessage(
+        { source: 'statamic-visual-editor', type: 'link-edit', requestId: session.requestId },
+        win.location.origin
+      );
+      finishEditing(win, false);
+    });
+    addSeparator();
+  }
+
   addButton('✓', 'Gem (Enter)', () => finishEditing(win, false), {
     style: 'color:#4ade80;font-weight:700;',
   });
@@ -516,11 +531,12 @@ function createEditToolbar(win, session) {
   positionEditToolbar(win, session);
 }
 
-// --- Section move arrows -------------------------------------------------------
-// Hovering a page section shows a small ↑/↓ control pinned to its top-right
-// corner. Clicking sends a move message; the CP swaps the two items in the
-// containing array (page_sections) and Statamic's reactivity re-renders both
-// the publish form and the preview.
+// --- Move arrows -----------------------------------------------------------------
+// Hovering a page section (or any element annotated with move="true") shows a
+// small arrow control. Clicking sends a move message; the CP swaps the two
+// items in the containing array (page_sections, grid/repeater rows, …) and
+// Statamic's reactivity re-renders both the publish form and the preview.
+// Rows laid out horizontally (flex-row parents) get ←/→ instead of ↑/↓.
 
 let moveCtrlEl = null;
 let moveTargetEl = null;
@@ -547,32 +563,67 @@ function positionMoveControl(win) {
   }
 
   const rect = moveTargetEl.getBoundingClientRect();
-  const height = moveCtrlEl.offsetHeight || 62;
+  const height = moveCtrlEl.offsetHeight || 32;
   const width = moveCtrlEl.offsetWidth || 32;
-  const top = Math.min(Math.max(rect.top + 10, 10), Math.max(rect.bottom - height - 10, 10));
 
-  moveCtrlEl.style.top = `${top}px`;
-  moveCtrlEl.style.left = `${Math.max(rect.right - width - 10, 10)}px`;
+  // Small elements (buttons, grid rows): center the control above the element
+  // so it never covers the content. Tall sections: pin to the top-right corner.
+  if (rect.height < 140) {
+    let top = rect.top - height - 6;
+
+    if (top < 8) {
+      top = rect.bottom + 6;
+    }
+
+    moveCtrlEl.style.top = `${top}px`;
+    moveCtrlEl.style.left = `${Math.max(rect.left + (rect.width - width) / 2, 8)}px`;
+  } else {
+    const top = Math.min(Math.max(rect.top + 10, 10), Math.max(rect.bottom - height - 10, 10));
+
+    moveCtrlEl.style.top = `${top}px`;
+    moveCtrlEl.style.left = `${Math.max(rect.right - width - 10, 10)}px`;
+  }
 }
 
-function showMoveControl(win, sectionEl) {
-  if (moveTargetEl === sectionEl) {
+/** True when el's siblings flow horizontally (flex-row parent). */
+function isHorizontalFlow(win, el) {
+  const parent = el.parentElement;
+
+  if (!parent) {
+    return false;
+  }
+
+  const style = win.getComputedStyle(parent);
+
+  return style.display.includes('flex') && !style.flexDirection.startsWith('column');
+}
+
+function showMoveControl(win, moveEl) {
+  if (moveTargetEl === moveEl) {
     return;
   }
 
   hideMoveControl(win);
-  moveTargetEl = sectionEl;
+
+  // Sections carry data-sid; field-annotated rows (e.g. buttons) identify
+  // their row through the field scope uid instead.
+  const uid = moveEl.getAttribute(SID_ATTR) || moveEl.getAttribute('data-sid-field-uid');
+
+  if (!uid) {
+    return;
+  }
+
+  moveTargetEl = moveEl;
 
   const doc = win.document;
   const ctrl = doc.createElement('div');
+  const horizontal = isHorizontalFlow(win, moveEl);
 
   ctrl.id = '__sve-move-ctrl';
   ctrl.style.cssText =
-    'position:fixed;z-index:2147483646;display:flex;flex-direction:column;gap:2px;' +
+    `position:fixed;z-index:2147483646;display:flex;flex-direction:${horizontal ? 'row' : 'column'};gap:2px;` +
     'background:#1f2937;color:#fff;border-radius:8px;padding:3px;' +
     'box-shadow:0 4px 16px rgba(0,0,0,0.35);font-family:sans-serif;user-select:none;';
-
-  const uid = sectionEl.getAttribute(SID_ATTR);
 
   const addArrow = (glyph, title, direction) => {
     const btn = doc.createElement('button');
@@ -600,8 +651,13 @@ function showMoveControl(win, sectionEl) {
     ctrl.appendChild(btn);
   };
 
-  addArrow('↑', 'Flyt sektion op', -1);
-  addArrow('↓', 'Flyt sektion ned', 1);
+  if (horizontal) {
+    addArrow('←', 'Flyt til venstre', -1);
+    addArrow('→', 'Flyt til højre', 1);
+  } else {
+    addArrow('↑', 'Flyt op', -1);
+    addArrow('↓', 'Flyt ned', 1);
+  }
 
   doc.body.appendChild(ctrl);
   moveCtrlEl = ctrl;
@@ -632,6 +688,7 @@ function startEditing(win, data) {
   const session = {
     requestId: data.requestId,
     mode: data.mode, // 'string' | 'bard'
+    hasLink: !!data.hasLink,
     el,
     restoreHtml: el.innerHTML,
     hadContentEditable: el.getAttribute('contenteditable'),
@@ -812,16 +869,18 @@ export function createMouseMoveHandler(win) {
       }
     }
 
-    // Move arrows: pinned to the page section under the cursor (also while
-    // hovering nested fields/sets inside it). <section> is what the site's
-    // templates use for top-level page sections — nested blocks are divs.
+    // Move arrows: rows opted in via move="true" take priority (innermost);
+    // otherwise the page section under the cursor. <section> is what the
+    // site's templates use for top-level page sections — blocks are divs.
     if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
       // hovering the control itself — keep it
     } else {
-      const section = event.target.closest(`section[${SID_ATTR}]:not([data-sid-type="text"])`);
+      const moveEl =
+        event.target.closest('[data-sid-move]') ||
+        event.target.closest(`section[${SID_ATTR}]:not([data-sid-type="text"])`);
 
-      if (section) {
-        showMoveControl(win, section);
+      if (moveEl) {
+        showMoveControl(win, moveEl);
       } else {
         hideMoveControl(win);
       }
@@ -935,9 +994,31 @@ export function createClickHandler(win) {
       );
 
       // Inline editing is opt-in per template: only elements rendered with
-      // {{ visual_edit field="…" inline-edit="true" }} carry this attribute.
+      // {{ visual_edit field="…" inline_edit="true" }} carry this attribute.
       // Everything else keeps the classic behaviour (focus the CP field only).
       if (target.hasAttribute('data-sid-inline-edit')) {
+        // Media click: the CP opens the field's asset browser instead of a
+        // text-edit session. Triggered when the click lands on an image/video,
+        // or anywhere in a wrapper whose only content is media (no text).
+        const media = event.target.closest('img, picture, video');
+        const isMediaClick =
+          (media && target.contains(media)) ||
+          (normText(target.textContent) === '' && target.querySelector('img, picture, video'));
+
+        if (isMediaClick) {
+          win.top.postMessage(
+            {
+              source: 'statamic-visual-editor',
+              type: 'asset-edit',
+              field: target.getAttribute(SID_FIELD_ATTR),
+              scope: target.getAttribute('data-sid-field-uid') || undefined,
+            },
+            win.location.origin
+          );
+
+          return;
+        }
+
         requestInlineEdit(win, target, event);
       }
 

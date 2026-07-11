@@ -52,7 +52,8 @@ class VisualEdit extends Tags
                 $this->resolveFieldLabel((string) $field),
                 $inside,
                 $scopeUid ? (string) $scopeUid : '',
-                $this->params->bool('inline-edit', false)
+                $this->inlineEditParam(),
+                $this->params->bool('move', false)
             );
 
             return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
@@ -74,13 +75,13 @@ class VisualEdit extends Tags
             return $content;
         }
 
-        $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup);
+        $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup, $this->params->bool('move', false));
 
         // popup + field + inline-edit: dual-annotated element. Text clicks try
         // inline editing first (field scope = the popup row id — column builder
         // rows have no _visual_id); the bridge falls back to opening the popup
         // when the CP denies the edit (padding, images, unmatched text).
-        if ($popup && $field !== null && (string) $field !== '' && $this->params->bool('inline-edit', false)) {
+        if ($popup && $field !== null && (string) $field !== '' && $this->inlineEditParam()) {
             // Label omitted: buildAttr already emitted data-sid-label.
             $attr .= ' '.$this->buildFieldAttr((string) $field, '', false, (string) $uuid, true);
         }
@@ -149,7 +150,7 @@ class VisualEdit extends Tags
         return (string) $this->context->get('type', '');
     }
 
-    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false): string
+    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false, bool $move = false): string
     {
         $attr = 'data-sid-field="'.e($fieldPath).'"';
 
@@ -165,16 +166,22 @@ class VisualEdit extends Tags
             $attr .= ' data-sid-inside';
         }
 
-        // inline-edit="true": opt-in for in-preview editing (contenteditable +
+        // inline_edit="true": opt-in for in-preview editing (contenteditable +
         // toolbar). Without it, clicking the element only focuses the CP field.
         if ($inlineEdit) {
             $attr .= ' data-sid-inline-edit';
         }
 
+        // move="true": show reorder arrows on hover (the row is identified via
+        // the field scope uid when no data-sid is present).
+        if ($move) {
+            $attr .= ' data-sid-move';
+        }
+
         return $attr;
     }
 
-    private function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false, bool $popup = false): string
+    private function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false, bool $popup = false, bool $move = false): string
     {
         $attr = 'data-sid="'.e($uuid).'"';
 
@@ -194,7 +201,21 @@ class VisualEdit extends Tags
             $attr .= ' data-sid-inside';
         }
 
+        // move="true": show reorder arrows on hover for this set/row.
+        if ($move) {
+            $attr .= ' data-sid-move';
+        }
+
         return $attr;
+    }
+
+    /**
+     * inline_edit="true" — opt-in for in-preview editing. The hyphenated
+     * inline-edit spelling is accepted as a legacy alias.
+     */
+    private function inlineEditParam(): bool
+    {
+        return $this->params->bool('inline_edit', $this->params->bool('inline-edit', false));
     }
 
     protected function isLivePreview(): bool

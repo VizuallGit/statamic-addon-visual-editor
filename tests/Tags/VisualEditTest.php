@@ -272,7 +272,7 @@ class VisualEditTest extends TestCase
     {
         $tag = $this->makeTag(
             livePreview: true,
-            params: ['field' => 'hero_title', 'inline-edit' => 'true'],
+            params: ['field' => 'hero_title', 'inline_edit' => 'true'],
         );
 
         $this->assertSame('data-sid-field="hero_title" data-sid-inline-edit', $tag->index());
@@ -286,6 +286,25 @@ class VisualEditTest extends TestCase
         );
 
         $this->assertStringNotContainsString('data-sid-inline-edit', $tag->index());
+    }
+
+    public function test_selfclosing_with_move_param_outputs_move_marker(): void
+    {
+        $set = $this->makeTag(
+            context: ['_visual_id' => 'row-1'],
+            livePreview: true,
+            params: ['move' => 'true'],
+        );
+
+        $this->assertStringContainsString('data-sid-move', $set->index());
+
+        $field = $this->makeTag(
+            context: ['_visual_id' => 'row-1'],
+            livePreview: true,
+            params: ['field' => 'text', 'move' => 'true'],
+        );
+
+        $this->assertStringContainsString('data-sid-move', $field->index());
     }
 
     public function test_selfclosing_with_field_scope_param_overrides_cascaded_visual_id(): void
@@ -307,7 +326,7 @@ class VisualEditTest extends TestCase
         $tag = $this->makeTag(
             context: ['id' => 'row-abc', '_visual_id' => 'section-uuid'],
             livePreview: true,
-            params: ['popup' => 'true', 'field' => 'text', 'inline-edit' => 'true'],
+            params: ['popup' => 'true', 'field' => 'text', 'inline_edit' => 'true'],
         );
 
         $result = $tag->index();
