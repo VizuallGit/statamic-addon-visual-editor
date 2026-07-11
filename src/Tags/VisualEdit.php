@@ -46,7 +46,8 @@ class VisualEdit extends Tags
                 (string) $field,
                 $this->resolveFieldLabel((string) $field),
                 $inside,
-                $scopeUid ? (string) $scopeUid : ''
+                $scopeUid ? (string) $scopeUid : '',
+                $this->params->bool('inline-edit', false)
             );
 
             return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
@@ -136,7 +137,7 @@ class VisualEdit extends Tags
         return (string) $this->context->get('type', '');
     }
 
-    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = ''): string
+    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false): string
     {
         $attr = 'data-sid-field="'.e($fieldPath).'"';
 
@@ -150,6 +151,12 @@ class VisualEdit extends Tags
 
         if ($inside) {
             $attr .= ' data-sid-inside';
+        }
+
+        // inline-edit="true": opt-in for in-preview editing (contenteditable +
+        // toolbar). Without it, clicking the element only focuses the CP field.
+        if ($inlineEdit) {
+            $attr .= ' data-sid-inline-edit';
         }
 
         return $attr;

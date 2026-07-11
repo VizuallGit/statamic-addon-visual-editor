@@ -268,6 +268,26 @@ class VisualEditTest extends TestCase
         $this->assertSame('data-sid-field="hero_title"', $tag->index());
     }
 
+    public function test_selfclosing_with_field_and_inline_edit_param_outputs_marker(): void
+    {
+        $tag = $this->makeTag(
+            livePreview: true,
+            params: ['field' => 'hero_title', 'inline-edit' => 'true'],
+        );
+
+        $this->assertSame('data-sid-field="hero_title" data-sid-inline-edit', $tag->index());
+    }
+
+    public function test_selfclosing_with_field_without_inline_edit_param_has_no_marker(): void
+    {
+        $tag = $this->makeTag(
+            livePreview: true,
+            params: ['field' => 'hero_title'],
+        );
+
+        $this->assertStringNotContainsString('data-sid-inline-edit', $tag->index());
+    }
+
     public function test_selfclosing_with_dot_notation_field_param_outputs_dot_notation(): void
     {
         $tag = $this->makeTag(

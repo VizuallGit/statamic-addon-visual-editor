@@ -919,8 +919,12 @@ export function createClickHandler(win) {
         win.location.origin
       );
 
-      // Also try to edit the clicked text right here in the preview.
-      requestInlineEdit(win, target, event);
+      // Inline editing is opt-in per template: only elements rendered with
+      // {{ visual_edit field="…" inline-edit="true" }} carry this attribute.
+      // Everything else keeps the classic behaviour (focus the CP field only).
+      if (target.hasAttribute('data-sid-inline-edit')) {
+        requestInlineEdit(win, target, event);
+      }
 
       return;
     }
