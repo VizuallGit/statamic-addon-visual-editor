@@ -613,6 +613,20 @@ function showMoveControl(win, moveEl) {
     return;
   }
 
+  // A single row/section has nowhere to move — no arrows. Peers are sibling
+  // elements of the same kind: move-annotated rows, or sections for sections.
+  const peers = moveEl.parentElement
+    ? [...moveEl.parentElement.children].filter((el) =>
+        moveEl.hasAttribute('data-sid-move')
+          ? el.hasAttribute('data-sid-move')
+          : el.tagName === 'SECTION' && el.hasAttribute(SID_ATTR)
+      )
+    : [];
+
+  if (peers.length <= 1) {
+    return;
+  }
+
   moveTargetEl = moveEl;
 
   const doc = win.document;
