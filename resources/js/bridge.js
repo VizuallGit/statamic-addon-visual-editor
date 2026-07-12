@@ -401,7 +401,7 @@ function updateEditToolbarState(win) {
     }
 
     btn.dataset.sveOn = on ? '1' : '';
-    btn.style.background = on ? 'rgba(59, 130, 246, 0.55)' : 'transparent';
+    btn.style.background = on ? '#e4e4e7' : 'transparent';
   });
 
   // Span-mark buttons (bard-texstyle) reflect whether the caret sits inside
@@ -418,7 +418,7 @@ function updateEditToolbarState(win) {
     const on = !!(selNode && selNode.closest?.(`span.${cls}`) && editing?.el.contains(selNode.closest(`span.${cls}`)));
 
     btn.dataset.sveOn = on ? '1' : '';
-    btn.style.background = on ? 'rgba(59, 130, 246, 0.55)' : 'transparent';
+    btn.style.background = on ? '#e4e4e7' : 'transparent';
   });
 
   // Block-format buttons reflect the current block's tag/class.
@@ -434,7 +434,7 @@ function updateEditToolbarState(win) {
     }
 
     btn.dataset.sveOn = on ? '1' : '';
-    btn.style.background = on ? 'rgba(59, 130, 246, 0.55)' : 'transparent';
+    btn.style.background = on ? '#e4e4e7' : 'transparent';
   });
 }
 
@@ -579,6 +579,20 @@ function bardCommand(win, session, command) {
     }
   }
 
+  // Anchor for popups (link/colour): the CP keeps its editor panel hidden and
+  // moves the real Statamic popup here, so it appears over the preview near the
+  // text instead of sliding the whole admin sidebar into view. Coords are in the
+  // iframe viewport; the CP adds the iframe's own offset.
+  const barRect = (toolbarEl || session.el).getBoundingClientRect();
+  const anchorRect = {
+    left: barRect.left,
+    top: barRect.top,
+    bottom: barRect.bottom,
+    right: barRect.right,
+    width: barRect.width,
+    height: barRect.height,
+  };
+
   win.top.postMessage(
     {
       source: 'statamic-visual-editor',
@@ -587,6 +601,7 @@ function bardCommand(win, session, command) {
       command,
       from,
       to,
+      anchorRect,
     },
     win.location.origin
   );
@@ -648,6 +663,47 @@ function toggleSpanClass(win, session, className) {
   session.onInput();
 }
 
+// Statamic's own Bard toolbar icons (captured from the CP so the inline toolbar
+// is pixel-identical to the panel's). Keyed by the button `name` used in the
+// field's `buttons` config. Sized explicitly (the CP relies on Tailwind size
+// classes that don't exist inside the preview).
+const SVG = (vb, inner, w = 15) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${w}" viewBox="${vb}" fill="none" style="display:block;pointer-events:none">${inner}</svg>`;
+
+const HEADING_ICON = {
+  h1: 'M11.39 7.65v5.1M9.7 8.72h.42c.7 0 1.27-.57 1.27-1.27m1.7 5.3h-3.4m-8.69 0V1.25m5.75 0v11.5M1 6.52h5.75',
+  h2: 'M12.93 12.75H9.61V12c0-.53.29-1 .74-1.22l1.84-.86c.44-.21.73-.67.73-1.18 0-.71-.54-1.29-1.21-1.29h-.86c-.54 0-1 .37-1.17.88M1 12.75V1.25m5.75 0v11.5M1 6.52h5.75',
+  h3: 'M9.54 11.87c.18.52.67.88 1.25.88h.88c.73 0 1.33-.59 1.33-1.33v-.22c0-.73-.59-1.33-1.33-1.33h-.44.33c.67 0 1.22-.54 1.22-1.22s-.54-1.22-1.22-1.22h-.66c-.56 0-1.03.37-1.17.88M1 12.75V1.25m5.75 0v11.5M1 6.52h5.75',
+  h4: 'M12.36 11.42H9.15c-.18 0-.32-.14-.32-.32 0-.08.03-.15.08-.21l2.92-3.34c.06-.07.14-.1.23-.1.17 0 .3.14.3.3v3.67zm0 0h.88m-.88 0v1.33M1 12.75V1.25m5.75 0v11.5M1 6.52h5.75',
+};
+
+const headingIcon = (level) =>
+  SVG(
+    '0 0 14 14',
+    `<path d="${HEADING_ICON['h' + level] || HEADING_ICON.h2}" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"/>`
+  );
+
+// bard-texstyle buttons render a single letter over a "T" stem — the letter
+// comes from the style config, so we build it from the style's ident.
+const letterIcon = (letter) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display:block;pointer-events:none"><path d="M9.492,2.338C9.931,2.338 10.307,1.941 10.307,1.502C10.307,1.063 9.931,0.666 9.492,0.666L1.104,0.666C0.665,0.666 0.289,1.063 0.289,1.502C0.289,1.941 0.665,2.338 1.104,2.338L4.41,2.338L4.41,14.565C4.41,15.045 4.807,15.443 5.308,15.443C5.789,15.443 6.186,15.045 6.186,14.565L6.186,2.338L9.492,2.338Z"></path><text text-anchor="middle" x="12.75" y="14.5" style="font-size:10px;stroke-width:1px;stroke:currentColor">${(letter || 'T').slice(0, 1).toUpperCase()}</text></svg>`;
+
+const ICONS = {
+  bold: SVG('0 0 14 14', '<path fill="currentColor" fill-rule="evenodd" d="M3.5.25a.75.75 0 0 0-.75.75v12a.75.75 0 0 0 .75.75h3.75a4 4 0 0 0 1.945-7.496A3.5 3.5 0 0 0 6.75.25H3.5Zm3.25 5.5a2 2 0 1 0 0-4h-2.5v4h2.5Zm-2.5 1.5v5h3a2.5 2.5 0 0 0 0-5h-3Z" clip-rule="evenodd"/>'),
+  italic: SVG('0 0 14 14', '<path fill="currentColor" fill-rule="evenodd" d="M12.45.345H5.637a.75.75 0 0 0 0 1.5H8.18l-3.965 10.31H1.55a.75.75 0 1 0 0 1.5h6.813a.75.75 0 0 0 0-1.5H5.82l3.965-10.31h2.664a.75.75 0 0 0 0-1.5Z" clip-rule="evenodd"/>'),
+  underline: SVG('0 0 24 24', '<path fill="currentColor" d="M12 17.5c3.31 0 6-2.69 6-6V3a1 1 0 0 0-2 0v8.5a4 4 0 0 1-8 0V3a1 1 0 0 0-2 0v8.5c0 3.31 2.69 6 6 6ZM5 21h14a1 1 0 0 0 0-2H5a1 1 0 0 0 0 2Z"/>'),
+  strikethrough: SVG('0 0 24 24', '<path fill="currentColor" d="M21 12H3a1 1 0 0 0 0 2h9.6c1.3.4 2.4 1 2.4 2.2 0 1.5-1.6 2.3-3.4 2.3-1.5 0-2.9-.5-3.7-1.4a1 1 0 1 0-1.5 1.3c1.2 1.4 3.1 2.1 5.2 2.1 3 0 5.4-1.6 5.4-4.3 0-.8-.2-1.5-.6-2.2H21a1 1 0 0 0 0-2ZM6.5 8.3c0-1.5 1.6-2.5 3.6-2.5 1.3 0 2.5.4 3.2 1.2a1 1 0 0 0 1.5-1.3C13.8 4.6 12.2 4 10.1 4 6.9 4 4.5 5.8 4.5 8.3c0 .4 0 .8.2 1.2h2.1c-.2-.4-.3-.8-.3-1.2Z"/>'),
+  removeformat: SVG('0 0 24 24', '<path fill="currentColor" d="M20.48 21.66h-15a1 1 0 0 0 0 2h15a1 1 0 0 0 0-2ZM22 6.43 16.38.78a1.49 1.49 0 0 0-2.12 0L6.5 8.54a1 1 0 0 0 0 1.46l6.36 6.37a1 1 0 0 0 1.42 0L22 8.56a1.51 1.51 0 0 0 0-2.13ZM9.18 19.66a1.82 1.82 0 0 0 1.22-.53l1-1.13a.49.49 0 0 0 0-.68l-5.78-5.73a.5.5 0 0 0-.71 0l-2.65 2.7a2.59 2.59 0 0 0 0 3.6l1.08 1.22a1.75 1.75 0 0 0 1.21.55Z"/>'),
+  anchor: SVG('0 0 14 14', '<path fill="currentColor" fill-rule="evenodd" d="M6.05 2.664a2.377 2.377 0 0 0 .257 3.057l.456.456-.586.586-.456-.456a2.377 2.377 0 0 0-3.057-.257l-.282.2A7.476 7.476 0 0 0 .645 7.974a2.768 2.768 0 0 0 .288 3.575l1.517 1.517a2.768 2.768 0 0 0 3.575.288 7.475 7.475 0 0 0 1.726-1.737l.22-.31a2.336 2.336 0 0 0-.254-3.005l-.48-.48.586-.586.48.48a2.337 2.337 0 0 0 3.006.253l.309-.22a7.479 7.479 0 0 0 1.737-1.725 2.768 2.768 0 0 0-.288-3.575L11.55.933A2.768 2.768 0 0 0 7.975.645a7.476 7.476 0 0 0-1.726 1.737l-.2.282Zm2.834 3.513.48.48a.837.837 0 0 0 1.076.09l.31-.22a5.975 5.975 0 0 0 1.388-1.379 1.268 1.268 0 0 0-.132-1.637l-1.517-1.517a1.268 1.268 0 0 0-1.637-.132c-.533.384-1 .853-1.38 1.389l-.2.281a.877.877 0 0 0 .095 1.128l.456.456.508-.508a.75.75 0 1 1 1.061 1.06l-.508.509ZM5.116 7.823l-.5.5a.75.75 0 1 0 1.062 1.06l.499-.499.48.48a.837.837 0 0 1 .09 1.076l-.22.31a5.975 5.975 0 0 1-1.379 1.388 1.268 1.268 0 0 1-1.637-.132L1.994 10.49a1.268 1.268 0 0 1-.132-1.637c.384-.533.853-1 1.389-1.38l.281-.2a.877.877 0 0 1 1.128.096l.456.455Z" clip-rule="evenodd"/>'),
+  color: SVG('0 0 24 24', '<path fill="currentColor" d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37-1.34-1.34a1 1 0 0 0-1.41 0L9 12.25 11.75 15l8.96-8.96a1 1 0 0 0 0-1.41z"/>'),
+  unorderedlist: SVG('0 0 24 24', '<g fill="currentColor"><path d="M8.5 5H23a1 1 0 0 0 0-2H8.5a1 1 0 0 0 0 2ZM23 11H8.5a1 1 0 0 0 0 2H23a1 1 0 0 0 0-2Zm0 8H8.5a1 1 0 0 0 0 2H23a1 1 0 0 0 0-2Z"/><rect width="3" height="3" x="1" y="2.5" rx=".5"/><rect width="3" height="3" x="1" y="10.5" rx=".5"/><rect width="3" height="3" x="1" y="18.5" rx=".5"/></g>'),
+  orderedlist: SVG('0 0 24 24', '<path fill="currentColor" d="M7.75 4.5h15a1 1 0 0 0 0-2h-15a1 1 0 0 0 0 2Zm15 6.5h-15a1 1 0 0 0 0 2h15a1 1 0 0 0 0-2Zm0 8.5h-15a1 1 0 0 0 0 2h15a1 1 0 0 0 0-2ZM2.21 17.25a2 2 0 0 0-1.93 1.48.75.75 0 0 0 1.45.39.5.5 0 0 1 .48-.37.5.5 0 0 1 .5.5.5.5 0 0 1-.5.5.75.75 0 0 0 0 1.5.5.5 0 0 1 .5.5.5.5 0 0 1-1 .13.75.75 0 1 0-1.44.41 2 2 0 0 0 3.92-.54 1.94 1.94 0 0 0-.34-1.11.28.28 0 0 1 0-.28 1.94 1.94 0 0 0 .34-1.11 2 2 0 0 0-1.98-2Zm2.04-6.5a2 2 0 0 0-4 0 .76.76 0 0 0 .75.75.76.76 0 0 0 .75-.75.5.5 0 0 1 1 0 1 1 0 0 1-.23.64L.41 14a.76.76 0 0 0-.09.79.76.76 0 0 0 .68.43h2.5a.75.75 0 0 0 0-1.5h-.42a.25.25 0 0 1-.22-.14.24.24 0 0 1 0-.27l.81-1a2.59 2.59 0 0 0 .58-1.56ZM4 5.25h-.25A.25.25 0 0 1 3.5 5V1.62A1.38 1.38 0 0 0 2.12.25H1.5a.75.75 0 0 0 0 1.5h.25A.25.25 0 0 1 2 2v3a.25.25 0 0 1-.25.25H1.5a.75.75 0 0 0 0 1.5H4a.75.75 0 0 0 0-1.5Z"/>'),
+  quote: SVG('0 0 24 24', '<path fill="currentColor" d="M9.93 3.93a9.71 9.71 0 0 0-9.43 10v1.24a4.94 4.94 0 1 0 4.94-4.94 4.5 4.5 0 0 0-1.11.14.24.24 0 0 1-.26-.09.26.26 0 0 1 0-.28 6.83 6.83 0 0 1 5.86-3.57 1.25 1.25 0 1 0 0-2.5Zm12.32 2.5a1.25 1.25 0 1 0 0-2.5 9.71 9.71 0 0 0-9.43 10v1.24a4.95 4.95 0 1 0 4.94-4.94 4.56 4.56 0 0 0-1.11.14.24.24 0 0 1-.26-.09.26.26 0 0 1 0-.28 6.83 6.83 0 0 1 5.86-3.57Z"/>'),
+  code: SVG('0 0 24 24', '<path fill="currentColor" d="M8.29 6.29 2.59 12l5.7 5.71a1 1 0 0 0 1.42-1.42L5.41 12l4.3-4.29a1 1 0 1 0-1.42-1.42Zm7.42 0a1 1 0 0 0-1.42 1.42L18.59 12l-4.3 4.29a1 1 0 0 0 1.42 1.42L21.41 12Z"/>'),
+  codeblock: SVG('0 0 24 24', '<path fill="currentColor" d="M20 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-9.29 6.29L8.41 11.6l2.3 2.3a1 1 0 0 1-1.42 1.4L6.3 12.3a1 1 0 0 1 0-1.42l3-3a1 1 0 1 1 1.42 1.42Zm6.99 3-2.99 3a1 1 0 0 1-1.42-1.4l2.3-2.3-2.3-2.3a1 1 0 0 1 1.42-1.4l3 3a1 1 0 0 1 0 1.4Z"/>'),
+  table: SVG('0 0 24 24', '<path fill="currentColor" d="M20 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2ZM4 9h5v3H4V9Zm7 0h9v3h-9V9ZM4 14h5v5H4v-5Zm7 5v-5h9v5h-9Z"/>'),
+};
+
 function createEditToolbar(win, session) {
   removeEditToolbar();
 
@@ -655,11 +711,13 @@ function createEditToolbar(win, session) {
   const bar = doc.createElement('div');
 
   bar.id = '__sve-edit-toolbar';
+  // Light theme, matching Statamic's own Bard fixed toolbar so the inline
+  // editor looks (almost) identical to the panel's.
   bar.style.cssText =
-    'position:fixed;z-index:2147483647;display:flex;align-items:center;gap:2px;' +
-    'background:#1f2937;color:#fff;border-radius:8px;padding:4px;' +
-    'box-shadow:0 4px 16px rgba(0,0,0,0.35);font-family:sans-serif;font-size:13px;' +
-    'line-height:1;user-select:none;cursor:default;';
+    'position:fixed;z-index:2147483647;display:flex;align-items:center;gap:1px;' +
+    'background:#fff;color:#27272a;border:1px solid rgba(0,0,0,0.09);border-radius:9px;padding:4px;' +
+    'box-shadow:0 6px 22px rgba(0,0,0,0.17);font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;' +
+    'font-size:13px;line-height:1;user-select:none;cursor:default;';
 
   // Never steal focus from the editable — otherwise every button click would
   // blur it and commit the edit before the action runs.
@@ -669,7 +727,13 @@ function createEditToolbar(win, session) {
     const btn = doc.createElement('button');
 
     btn.type = 'button';
-    btn.textContent = label;
+
+    if (opts.html) {
+      btn.innerHTML = opts.html;
+    } else {
+      btn.textContent = label;
+    }
+
     btn.title = title;
 
     if (opts.cmd) {
@@ -681,14 +745,14 @@ function createEditToolbar(win, session) {
     }
 
     btn.style.cssText =
-      'all:unset;cursor:pointer;min-width:26px;height:26px;display:inline-flex;' +
-      'align-items:center;justify-content:center;border-radius:5px;padding:0 6px;' +
-      'box-sizing:border-box;text-align:center;' +
+      'all:unset;cursor:pointer;min-width:32px;height:32px;display:inline-flex;' +
+      'align-items:center;justify-content:center;border-radius:8px;padding:0 6px;' +
+      'box-sizing:border-box;text-align:center;color:#27272a;' +
       (opts.style || '');
 
     btn.addEventListener('mouseenter', () => {
       if (!btn.dataset.sveOn) {
-        btn.style.background = 'rgba(255, 255, 255, 0.14)';
+        btn.style.background = 'rgba(0, 0, 0, 0.06)';
       }
     });
     btn.addEventListener('mouseleave', () => {
@@ -709,7 +773,7 @@ function createEditToolbar(win, session) {
   const addSeparator = () => {
     const sep = doc.createElement('span');
 
-    sep.style.cssText = 'width:1px;height:18px;background:rgba(255,255,255,0.2);margin:0 3px;';
+    sep.style.cssText = 'width:1px;height:18px;background:rgba(0,0,0,0.12);margin:0 4px;';
     bar.appendChild(sep);
   };
 
@@ -738,45 +802,37 @@ function createEditToolbar(win, session) {
       ? session.bardButtons
       : ['bold', 'italic', 'anchor', 'removeformat'];
     const styles = session.bardStyles || {};
-    let group = null;
-    const sep = (g) => {
-      if (group !== null && group !== g) {
-        addSeparator();
-      }
-      group = g;
-    };
 
+    // Rendered in the field's own `buttons` order, no separators — mirroring
+    // Statamic's own toolbar exactly. Each name maps to the real Bard icon.
     for (const name of buttons) {
       if (/^h[1-6]$/.test(name)) {
         const level = Number(name.slice(1));
 
-        sep('block');
-        addBlockButton(name.toUpperCase(), `Overskrift ${level}`, { tag: name, node: 'heading', level }, {
-          style: 'font-weight:700;font-size:11px;',
+        addBlockButton('', `Heading ${level}`, { tag: name, node: 'heading', level }, {
+          html: headingIcon(level),
         });
-        // A heading toolbar implies a "normal paragraph" reset button too.
         continue;
       }
 
       const style = styles[name];
 
       if (style) {
-        sep('style');
-
+        // bard-texstyle: the icon is the style's letter (matching bts-icon-letter).
         if (style.type === 'span') {
-          addButton(style.ident || 'S', style.name || name, () => toggleSpanClass(win, session, style.class), {
+          addButton('', style.name || name, () => toggleSpanClass(win, session, style.class), {
             spanClass: style.class,
-            style: 'font-size:11px;',
+            html: letterIcon(style.ident || (style.name || name)),
           });
         } else {
           const tag = style.type === 'heading' ? `h${style.level || 2}` : 'p';
 
-          addBlockButton(style.ident || 'T', style.name || name, {
+          addBlockButton('', style.name || name, {
             tag,
             node: style.type === 'heading' ? 'heading' : 'paragraph',
             level: style.level,
             className: style.class,
-          }, { style: 'font-size:10px;letter-spacing:1px;' });
+          }, { html: letterIcon(style.ident || (style.name || name)) });
         }
 
         continue;
@@ -784,46 +840,33 @@ function createEditToolbar(win, session) {
 
       switch (name) {
         case 'bold':
-          sep('mark');
-          addButton('B', 'Fed (⌘B)', () => exec('bold'), { cmd: 'bold', style: 'font-weight:700;' });
+          addButton('', 'Bold (⌘B)', () => exec('bold'), { cmd: 'bold', html: ICONS.bold });
           break;
         case 'italic':
-          sep('mark');
-          addButton('I', 'Kursiv (⌘I)', () => exec('italic'), {
-            cmd: 'italic',
-            style: 'font-style:italic;font-family:serif;',
-          });
+          addButton('', 'Italic (⌘I)', () => exec('italic'), { cmd: 'italic', html: ICONS.italic });
           break;
         case 'underline':
-          sep('mark');
-          addButton('U', 'Understreget', () => exec('underline'), {
-            cmd: 'underline',
-            style: 'text-decoration:underline;',
-          });
+          addButton('', 'Underline (⌘U)', () => exec('underline'), { cmd: 'underline', html: ICONS.underline });
           break;
         case 'strikethrough':
-          sep('mark');
-          addButton('S', 'Gennemstreget', () => exec('strikethrough'), {
+          addButton('', 'Strikethrough', () => exec('strikethrough'), {
             cmd: 'strikethrough',
-            style: 'text-decoration:line-through;',
+            html: ICONS.strikethrough,
           });
           break;
         case 'anchor':
-          sep('mark');
-          // Uses Statamic's own link dialog (opened in the CP for the selection).
-          addButton('🔗', 'Indsæt link', () => bardCommand(win, session, 'link'));
+          // Uses Statamic's own link dialog (opened for the selection).
+          addButton('', 'Link', () => bardCommand(win, session, 'link'), { html: ICONS.anchor });
           break;
         case 'removeformat':
-          sep('mark');
-          addButton('⌫', 'Fjern formatering', () => {
+          addButton('', 'Remove Formatting', () => {
             exec('removeFormat');
             exec('unlink');
-          });
+          }, { html: ICONS.removeformat });
           break;
         case 'color':
-          // Uses bard-color-picker's own colour palette popup (opened in the CP).
-          sep('style');
-          addButton('🎨', 'Tekstfarve', () => bardCommand(win, session, 'color'));
+          // Uses bard-color-picker's own colour palette popup.
+          addButton('', 'Tekstfarve', () => bardCommand(win, session, 'color'), { html: ICONS.color });
           break;
         case 'quote':
         case 'unorderedlist':
@@ -831,20 +874,17 @@ function createEditToolbar(win, session) {
         case 'code':
         case 'codeblock':
         case 'table': {
-          // Block-structure tools — perform them in the CP via the real toolbar
-          // button (the editor panel opens focused on the selection).
-          sep('panel');
-          const labels = {
-            quote: ['❝', 'Citat'],
-            unorderedlist: ['•', 'Punktliste'],
-            orderedlist: ['1.', 'Nummerliste'],
-            code: ['</>', 'Kode'],
-            codeblock: ['{ }', 'Kodeblok'],
-            table: ['⊞', 'Tabel'],
+          // Block-structure tools performed via Statamic's own editor command.
+          const titles = {
+            quote: 'Blockquote',
+            unorderedlist: 'Unordered List',
+            orderedlist: 'Ordered List',
+            code: 'Code',
+            codeblock: 'Code Block',
+            table: 'Table',
           };
-          const [lbl, ttl] = labels[name];
 
-          addButton(lbl, ttl, () => bardCommand(win, session, name), { style: 'opacity:0.9;' });
+          addButton('', titles[name], () => bardCommand(win, session, name), { html: ICONS[name] });
           break;
         }
         default:
@@ -852,8 +892,6 @@ function createEditToolbar(win, session) {
           break;
       }
     }
-
-    addSeparator();
   }
 
   // String fields belonging to a row that also has a link/url value (e.g.
@@ -861,21 +899,22 @@ function createEditToolbar(win, session) {
   // message must be posted BEFORE finishEditing so the CP still has the edit
   // session (and its resolved link path) when the message arrives.
   if (session.hasLink) {
-    addButton('🔗', 'Skift link', () => {
+    addButton('', 'Skift link', () => {
       win.top.postMessage(
         { source: 'statamic-visual-editor', type: 'link-edit', requestId: session.requestId },
         win.location.origin
       );
       finishEditing(win, false);
-    });
-    addSeparator();
+    }, { html: ICONS.anchor });
   }
 
+  addSeparator();
+
   addButton('✓', 'Gem (Enter)', () => finishEditing(win, false), {
-    style: 'color:#4ade80;font-weight:700;',
+    style: 'color:#16a34a;font-weight:700;font-size:15px;',
   });
   addButton('✕', 'Annullér (Esc)', () => finishEditing(win, true), {
-    style: 'color:#f87171;',
+    style: 'color:#dc2626;font-weight:700;font-size:15px;',
   });
 
   doc.body.appendChild(bar);

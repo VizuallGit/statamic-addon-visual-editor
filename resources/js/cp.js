@@ -1144,8 +1144,13 @@ export function handleBardCommand(data, doc, win) {
   }
 
   const { field, scope, index } = editSession;
+  // link/colour open a Statamic popup; the rest (lists, quote, …) apply in place.
+  const opensPopup = data.command === 'link' || data.command === 'color';
 
-  setLpCollapsed(win, false);
+  // Keep the editor panel HIDDEN. It still has real (off-screen) layout, so the
+  // set expands, the toolbar button clicks and the popup opens — we then move
+  // just that popup over the preview, instead of revealing the whole sidebar.
+  // (Deliberately no setLpCollapsed(false) here.)
 
   let attempts = 0;
 
@@ -1177,8 +1182,6 @@ export function handleBardCommand(data, doc, win) {
       return;
     }
 
-    bardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
     const block = ce.children[index];
 
     if (block && data.to > data.from) {
@@ -1197,10 +1200,119 @@ export function handleBardCommand(data, doc, win) {
 
     // Let ProseMirror sync the DOM selection into its state before the button
     // command reads editor.state.selection.
-    setTimeout(() => btn.click(), 70);
+    setTimeout(() => {
+      btn.click();
+
+      if (opensPopup) {
+        repositionBardPopup(data.command, data.anchorRect, doc, win);
+      }
+    }, 70);
   };
 
   setTimeout(run, 120);
+}
+
+/**
+ * Finds the Statamic popup that a bard command just opened (link dialog or
+ * colour palette) by a distinctive bit of its content, then climbs to the
+ * floating (positioned) container.
+ */
+function findBardPopupEl(command, doc) {
+  let anchorNode = null;
+
+  if (command === 'color') {
+    anchorNode = [...doc.querySelectorAll('*')].find(
+      (e) => e.children.length === 0 && /ingen farve|no colou?r/i.test(e.textContent || '')
+    );
+  } else if (command === 'link') {
+    anchorNode =
+      doc.querySelector('input[placeholder="https://"], input[placeholder*="http" i]') ||
+      [...doc.querySelectorAll('button, label, span, div, h1, h2, h3')].find(
+        (e) =>
+          e.children.length === 0 &&
+          /apply link|anvend link|update link|opdater link|indsæt link/i.test(e.textContent || '')
+      );
+  }
+
+  if (!anchorNode) {
+    return null;
+  }
+
+  let el = anchorNode;
+
+  for (let i = 0; el && i < 12; i++) {
+    const cs = doc.defaultView.getComputedStyle(el);
+    const w = el.getBoundingClientRect().width;
+
+    // A popover/palette is a small positioned box; skip full-screen overlays.
+    if ((cs.position === 'fixed' || cs.position === 'absolute') && w > 120 && w < 640) {
+      return el;
+    }
+
+    el = el.parentElement;
+  }
+
+  return anchorNode.closest('[data-popper-placement]') || anchorNode.parentElement;
+}
+
+/**
+ * Pins the popup over the preview at the anchor sent by the bridge, keeping the
+ * editor panel hidden. Uses !important so Statamic's floating-ui inline styles
+ * (written without priority) can't drag it back to the off-screen button.
+ */
+function repositionBardPopup(command, anchorRect, doc, win) {
+  const iframe = doc.getElementById('live-preview-iframe');
+
+  if (!iframe || !anchorRect) {
+    return;
+  }
+
+  const ir = iframe.getBoundingClientRect();
+  const targetLeft = ir.left + (anchorRect.left || 0);
+  const targetTop = ir.top + (anchorRect.bottom || 0) + 8;
+
+  const place = (popup) => {
+    const w = popup.offsetWidth || 320;
+    const left = Math.max(8, Math.min(targetLeft, win.innerWidth - w - 8));
+    const top = Math.max(8, targetTop);
+
+    popup.style.setProperty('position', 'fixed', 'important');
+    popup.style.setProperty('left', `${left}px`, 'important');
+    popup.style.setProperty('top', `${top}px`, 'important');
+    popup.style.setProperty('right', 'auto', 'important');
+    popup.style.setProperty('bottom', 'auto', 'important');
+    popup.style.setProperty('transform', 'none', 'important');
+    popup.style.setProperty('margin', '0', 'important');
+    popup.style.setProperty('z-index', '2147483000', 'important');
+    // Statamic's link editor renders as a full-height stack card — hug its
+    // content so it looks like a popover floating over the preview.
+    popup.style.setProperty('height', 'auto', 'important');
+    popup.style.setProperty('max-height', '85vh', 'important');
+    popup.style.setProperty('overflow', 'auto', 'important');
+    popup.style.setProperty('border-radius', '12px', 'important');
+    popup.style.setProperty('box-shadow', '0 12px 44px rgba(0,0,0,0.28)', 'important');
+  };
+
+  let tries = 0;
+
+  const findAndPlace = () => {
+    const popup = findBardPopupEl(command, doc);
+
+    if (!popup) {
+      if (++tries < 25) {
+        setTimeout(findAndPlace, 100);
+      }
+
+      return;
+    }
+
+    // Re-assert a few times to win against floating-ui's on-open positioning.
+    place(popup);
+    setTimeout(() => place(popup), 130);
+    setTimeout(() => place(popup), 320);
+  };
+
+  setTimeout(findAndPlace, 60);
 }
 
 /**
@@ -1442,6 +1554,161 @@ function setLpCollapsed(win, collapsed) {
   ensureLpPanelToggle(win);
 }
 
+// --- Single-section ("solo") panel ---------------------------------------------
+// Clicking a section in the preview opens the editor panel showing ONLY that
+// section's fields — instead of the whole page_sections list. Isolation is done
+// the Vue-safe way: mark the path from the section's set up to the editor root
+// with attributes, then hide everything else via an injected <style>. We never
+// insert nodes into, or set inline display on, Statamic's Vue-managed field
+// tree — doing so corrupts Vue's virtual-DOM diffing and tears the whole form
+// down. A MutationObserver re-applies the marks whenever Vue re-renders the
+// fields (e.g. when a set is expanded), so isolation survives re-renders.
+
+const SOLO_STYLE_ID = 'sve-solo-style';
+const SOLO_BACK_ID = 'sve-solo-back';
+const SOLO_PARENT_ATTR = 'data-sve-solo-parent';
+const SOLO_KEEP_ATTR = 'data-sve-solo-keep';
+
+let soloUid = null;
+let soloObserver = null;
+
+/** Removes all solo marks, the injected style, the observer and the back button. */
+export function clearSolo(doc) {
+  soloUid = null;
+
+  if (soloObserver) {
+    soloObserver.disconnect();
+    soloObserver = null;
+  }
+
+  doc.getElementById(SOLO_STYLE_ID)?.remove();
+  doc.getElementById(SOLO_BACK_ID)?.remove();
+  doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
+  doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
+}
+
+function ensureSoloStyle(doc) {
+  if (doc.getElementById(SOLO_STYLE_ID)) {
+    return;
+  }
+
+  const style = doc.createElement('style');
+
+  style.id = SOLO_STYLE_ID;
+  // Hide every child that is not on the kept path. Pure CSS — Vue keeps managing
+  // the real DOM; only computed visibility changes.
+  style.textContent = `[${SOLO_PARENT_ATTR}] > *:not([${SOLO_KEEP_ATTR}]) { display: none !important; }`;
+  doc.head.appendChild(style);
+}
+
+/** Back-to-full-form control, appended to the body (outside the Vue tree). */
+function addSoloBackButton(doc, win) {
+  if (doc.getElementById(SOLO_BACK_ID)) {
+    return;
+  }
+
+  const header = doc.querySelector('.live-preview-header');
+  const top = header ? header.getBoundingClientRect().bottom + 10 : 60;
+
+  const btn = doc.createElement('button');
+
+  btn.id = SOLO_BACK_ID;
+  btn.type = 'button';
+  btn.innerHTML = '<span style="font-size:15px;line-height:1;">&#8249;</span><span>Alle sektioner</span>';
+  btn.style.cssText =
+    `position:fixed;left:16px;top:${top}px;z-index:60;display:flex;align-items:center;gap:7px;` +
+    'padding:6px 12px;border:1px solid rgba(0,0,0,0.14);border-radius:8px;background:#fff;color:#27272a;' +
+    'cursor:pointer;font-size:13px;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,0.12);' +
+    'font-family:ui-sans-serif,system-ui,sans-serif;';
+  btn.addEventListener('mouseenter', () => (btn.style.background = '#f4f4f5'));
+  btn.addEventListener('mouseleave', () => (btn.style.background = '#fff'));
+  btn.addEventListener('click', () => clearSolo(doc));
+
+  doc.body.appendChild(btn);
+}
+
+/**
+ * Marks the path from the target set up to the editor root: each parent gets
+ * SOLO_PARENT_ATTR, each child on the path gets SOLO_KEEP_ATTR. Combined with
+ * the injected style, this hides every off-path element. Returns true on success.
+ */
+function markSoloPath(uid, editor, doc) {
+  doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
+  doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
+
+  const setEl = findSetByUid(uid, doc);
+
+  if (!setEl || !editor.contains(setEl)) {
+    return false;
+  }
+
+  let node = setEl;
+
+  while (node && node !== editor && node.parentElement) {
+    node.setAttribute(SOLO_KEEP_ATTR, '');
+    node.parentElement.setAttribute(SOLO_PARENT_ATTR, '');
+    node = node.parentElement;
+  }
+
+  // Expand the set (and any ancestor sets) so its fields show.
+  [...collectAncestorSets(setEl), setEl].forEach(expandSet);
+
+  return true;
+}
+
+/**
+ * Isolates one section in the editor panel. Returns false when the set can't be
+ * located at all (caller falls back to normal focus). Marks are re-applied on
+ * every field re-render via a MutationObserver.
+ */
+export function soloSection(uid, doc, win) {
+  if (!uid || !findSetByUid(uid, doc)) {
+    return false;
+  }
+
+  soloUid = uid;
+
+  const apply = () => {
+    const editor = doc.querySelector('.live-preview-editor');
+
+    if (!editor) {
+      return;
+    }
+
+    ensureSoloStyle(doc);
+
+    if (markSoloPath(uid, editor, doc)) {
+      addSoloBackButton(doc, win);
+    }
+  };
+
+  apply();
+
+  // Re-apply whenever Vue rebuilds the field tree (expanding a set, live-preview
+  // refresh, …). Guarded so our own marking doesn't loop: we only act when the
+  // marks have gone missing.
+  if (soloObserver) {
+    soloObserver.disconnect();
+  }
+
+  const target = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
+
+  if (target) {
+    soloObserver = new MutationObserver(() => {
+      if (soloUid !== uid) {
+        return;
+      }
+
+      if (!doc.querySelector(`[${SOLO_KEEP_ATTR}]`)) {
+        apply();
+      }
+    });
+    soloObserver.observe(target, { childList: true, subtree: true });
+  }
+
+  return true;
+}
+
 /**
  * Injects the panel toggle when the Live Preview screen is (re)mounted, and
  * enforces the desired collapse state. Called from initCp's MutationObserver:
@@ -1455,6 +1722,7 @@ export function ensureLpPanelToggle(win) {
   if (!header) {
     // Live preview closed — forget session state; next open re-reads the pref.
     lpCollapsed = null;
+    clearSolo(doc);
 
     return;
   }
@@ -1479,7 +1747,16 @@ export function ensureLpPanelToggle(win) {
       'border-radius:6px;cursor:pointer;background:transparent;border:none;color:currentColor;';
     btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(128,128,128,0.15)'));
     btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
-    btn.addEventListener('click', () => setLpCollapsed(win, !lpCollapsed));
+    btn.addEventListener('click', () => {
+      const next = !lpCollapsed;
+
+      // Opening the panel via the toggle shows the FULL form again.
+      if (!next) {
+        clearSolo(doc);
+      }
+
+      setLpCollapsed(win, next);
+    });
     header.insertBefore(btn, header.firstChild);
   }
 
@@ -1520,7 +1797,13 @@ export function createMessageListener(doc = document, win = window) {
       if (data.field) {
         handleFieldFocus(data.field, doc, { scopeUid: data.scope });
       } else {
-        handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
+        // Clicking a section opens the panel showing ONLY that section. Falls
+        // back to plain focus (e.g. nested rows without a resolvable set).
+        setLpCollapsed(win, false);
+
+        if (!soloSection(data.uid, doc, win)) {
+          handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
+        }
       }
     } else if (data.type === 'edit-request') {
       handleEditRequest(data, doc, win);
