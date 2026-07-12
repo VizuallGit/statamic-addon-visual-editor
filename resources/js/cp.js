@@ -1796,6 +1796,14 @@ export function createMessageListener(doc = document, win = window) {
     if (data.type === 'click') {
       if (data.field) {
         handleFieldFocus(data.field, doc, { scopeUid: data.scope });
+
+        // Clicking (or inline-editing) a field also opens the panel showing ONLY
+        // its section, same as clicking the section itself. data.scope is the
+        // containing set's uid.
+        if (data.scope) {
+          setLpCollapsed(win, false);
+          soloSection(data.scope, doc, win);
+        }
       } else {
         // Clicking a section opens the panel showing ONLY that section. Falls
         // back to plain focus (e.g. nested rows without a resolvable set).

@@ -95,8 +95,8 @@ export function injectStyles(doc) {
         }
         [${EDITING_ATTR}] {
             outline-width: var(--sve-outline-width, 1px) !important;
-            outline-style: solid !important;
-            outline-color: var(--sve-focus-color, currentColor) !important;
+            outline-style: dashed !important;
+            outline-color: color-mix(in srgb, var(--sve-focus-color, currentColor) var(--sve-outline-opacity, 55%), transparent) !important;
             outline-offset: 4px;
             cursor: text !important;
         }
@@ -357,6 +357,61 @@ function sendEditInput(win, session) {
 // mousedown is prevented so clicking a button never blurs the editable.
 
 let toolbarEl = null;
+// Colour scheme of the last-built toolbar, so updateEditToolbarState knows what
+// "active" background to paint.
+let toolbarTheme = null;
+
+/**
+ * True when the CP (parent window) is in dark mode. Checks explicit theme
+ * markers first, then falls back to the luminance of the CP's background — so
+ * it works regardless of how Statamic flags the theme. Cross-origin access is
+ * guarded (returns light on failure).
+ */
+function detectCpDark(win) {
+  try {
+    const top = win.top;
+    const root = top.document.documentElement;
+
+    // Statamic v6 stamps `.dark` on <html> when dark mode is active (following
+    // the theme preference / prefers-color-scheme).
+    if (root.classList.contains('dark') || root.getAttribute('data-theme') === 'dark') {
+      return true;
+    }
+
+    if (root.classList.contains('light') || root.getAttribute('data-theme') === 'light') {
+      return false;
+    }
+
+    return top.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    /* cross-origin or not in an iframe — assume light */
+  }
+
+  return false;
+}
+
+/** Toolbar colour tokens for the given scheme (mirrors Statamic's own toolbar). */
+function toolbarThemeFor(dark) {
+  return dark
+    ? {
+        bg: '#27272a',
+        fg: '#e4e4e7',
+        border: 'rgba(255,255,255,0.12)',
+        shadow: '0 6px 22px rgba(0,0,0,0.55)',
+        hover: 'rgba(255,255,255,0.10)',
+        active: 'rgba(255,255,255,0.20)',
+        sep: 'rgba(255,255,255,0.16)',
+      }
+    : {
+        bg: '#fff',
+        fg: '#27272a',
+        border: 'rgba(0,0,0,0.09)',
+        shadow: '0 6px 22px rgba(0,0,0,0.17)',
+        hover: 'rgba(0,0,0,0.06)',
+        active: '#e4e4e7',
+        sep: 'rgba(0,0,0,0.12)',
+      };
+}
 
 function removeEditToolbar() {
   if (toolbarEl) {
@@ -401,7 +456,7 @@ function updateEditToolbarState(win) {
     }
 
     btn.dataset.sveOn = on ? '1' : '';
-    btn.style.background = on ? '#e4e4e7' : 'transparent';
+    btn.style.background = on ? toolbarTheme?.active || '#e4e4e7' : 'transparent';
   });
 
   // Span-mark buttons (bard-texstyle) reflect whether the caret sits inside
@@ -418,7 +473,7 @@ function updateEditToolbarState(win) {
     const on = !!(selNode && selNode.closest?.(`span.${cls}`) && editing?.el.contains(selNode.closest(`span.${cls}`)));
 
     btn.dataset.sveOn = on ? '1' : '';
-    btn.style.background = on ? '#e4e4e7' : 'transparent';
+    btn.style.background = on ? toolbarTheme?.active || '#e4e4e7' : 'transparent';
   });
 
   // Block-format buttons reflect the current block's tag/class.
@@ -434,7 +489,7 @@ function updateEditToolbarState(win) {
     }
 
     btn.dataset.sveOn = on ? '1' : '';
-    btn.style.background = on ? '#e4e4e7' : 'transparent';
+    btn.style.background = on ? toolbarTheme?.active || '#e4e4e7' : 'transparent';
   });
 }
 
@@ -710,13 +765,17 @@ function createEditToolbar(win, session) {
   const doc = win.document;
   const bar = doc.createElement('div');
 
+  // Follow the CP's colour scheme so the toolbar matches Statamic's own Bard
+  // fixed toolbar in both light and dark mode.
+  const theme = toolbarThemeFor(detectCpDark(win));
+
+  toolbarTheme = theme;
+
   bar.id = '__sve-edit-toolbar';
-  // Light theme, matching Statamic's own Bard fixed toolbar so the inline
-  // editor looks (almost) identical to the panel's.
   bar.style.cssText =
     'position:fixed;z-index:2147483647;display:flex;align-items:center;gap:1px;' +
-    'background:#fff;color:#27272a;border:1px solid rgba(0,0,0,0.09);border-radius:9px;padding:4px;' +
-    'box-shadow:0 6px 22px rgba(0,0,0,0.17);font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;' +
+    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius:9px;padding:4px;` +
+    `box-shadow:${theme.shadow};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;` +
     'font-size:13px;line-height:1;user-select:none;cursor:default;';
 
   // Never steal focus from the editable — otherwise every button click would
@@ -747,12 +806,12 @@ function createEditToolbar(win, session) {
     btn.style.cssText =
       'all:unset;cursor:pointer;min-width:32px;height:32px;display:inline-flex;' +
       'align-items:center;justify-content:center;border-radius:8px;padding:0 6px;' +
-      'box-sizing:border-box;text-align:center;color:#27272a;' +
+      `box-sizing:border-box;text-align:center;color:${theme.fg};` +
       (opts.style || '');
 
     btn.addEventListener('mouseenter', () => {
       if (!btn.dataset.sveOn) {
-        btn.style.background = 'rgba(0, 0, 0, 0.06)';
+        btn.style.background = theme.hover;
       }
     });
     btn.addEventListener('mouseleave', () => {
@@ -773,7 +832,7 @@ function createEditToolbar(win, session) {
   const addSeparator = () => {
     const sep = doc.createElement('span');
 
-    sep.style.cssText = 'width:1px;height:18px;background:rgba(0,0,0,0.12);margin:0 4px;';
+    sep.style.cssText = `width:1px;height:18px;background:${theme.sep};margin:0 4px;`;
     bar.appendChild(sep);
   };
 
