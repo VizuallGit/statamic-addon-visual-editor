@@ -21,16 +21,36 @@ https://github.com/user-attachments/assets/97ec557d-2642-4e74-87df-fb365a03154b
 ## Installation
 
 ```bash
-composer require mariohamann/statamic-visual-editor
+composer require statamic-addon/visual-editor
 ```
 
-Publish assets (required on every addon update):
+The compiled assets publish themselves on install and on every update, so there's
+nothing else to run for the editor to load. (If you ever need to force it:
+`php artisan vendor:publish --provider="MarioHamann\StatamicVisualEditor\ServiceProvider" --force`.)
+
+Then scaffold the few content-model pieces the saved-section, global-section and
+template features need:
 
 ```bash
-php artisan vendor:publish --provider="MarioHamann\StatamicVisualEditor\ServiceProvider" --force
+php please sve:install
 ```
 
-A settings page is available at **CP → Tools → Visual Editor** to enable or disable the addon.
+This creates two collections (**Global sections** and **Templates**) with their
+blueprints, and the `global_section` render partial — using the handles from
+`config/statamic-visual-editor.php`, so nothing is assumed. Existing files are
+left as-is. It finishes by printing **one manual step**: add a `global_section`
+set to your own page-builder fieldset (an entries field pointing at the Global
+sections collection, `max_files: 1`, `hide: true`) so pages can reference a synced
+section.
+
+The editor itself is **standalone** — it needs only `statamic/cms` and
+`spatie/browsershot` (pulled in automatically). It doesn't depend on any other
+add-on; the column-builder / spacing / fluid-size editing only activates when
+those fields are actually present.
+
+Finally, annotate the templates you want to edit with the `{{ visual_edit }}`
+tag — that's the one thing that's site-specific and can't be automated. The rest
+of this README is the reference for those tags.
 
 ---
 
@@ -177,14 +197,140 @@ For dense layouts where a 2 px outbound outline overlaps neighbouring elements, 
 
 ---
 
+## Editing & interaction
+
+Set/field targeting (above) makes an element *highlightable*. These parameters
+make it *editable* — inline text, drag-reordering, add/remove, opening panels.
+Each is opt-in: add only what a given element should do.
+
+### `inline_edit="true"` — edit the text right in the preview
+
+Pairs with `field`. Without it, clicking the element only focuses the field in the
+Control Panel. **With** it, you can type directly into the element in the preview,
+and a Bard field brings its own toolbar (bold, links, styles — whatever that
+field's `buttons` list allows, never hardcoded).
+
+```antlers
+<div {{ visual_edit field="text" inline_edit="true" }}>{{ text }}</div>
+<h1 {{ visual_edit field="heading" inline_edit="true" }}>{{ heading }}</h1>
+```
+
+Also works on the field for an image or a button — clicking opens the right editor
+inline. Legacy spelling `inline-edit` is accepted.
+
+### `orderable="true"` — drag rows to reorder, with add/remove
+
+Put it on **each repeated element** (the `<li>` or set `<div>` inside a loop).
+In the preview each row can be dragged among its siblings that also carry
+`orderable`, and gets **+ / −** controls on hover to add another row of the same
+type or remove this one (min/max from the blueprint are respected).
+
+```antlers
+<ul>
+  {{ benefits }}
+    <li {{ visual_edit orderable="true" }}>
+      <b {{ visual_edit field="number" inline_edit="true" }}>{{ number }}</b>
+      <p {{ visual_edit field="text"   inline_edit="true" }}>{{ text }}</p>
+    </li>
+  {{ /benefits }}
+</ul>
+```
+
+It belongs on the item, not the container — the item is what moves and needs its
+own identity. Works in both Grid and Replicator loops.
+
+### `move="true"` — up/down arrows instead of drag
+
+A lighter alternative to `orderable`: shows reorder arrows on hover rather than
+drag-and-drop. Handy where a full drag would be awkward.
+
+```antlers
+<div {{ visual_edit field="text" inline_edit="true" move="true" }}>{{ text }}</div>
+```
+
+### `section-orderable="true"` — move a whole section
+
+Put it on a **top-level section** element. Adds a drag handle to the section's
+hover control that moves the entire section, with a zoomed-out page overview so
+you can see where it lands. Legacy spelling `section_orderable` is accepted.
+
+```antlers
+<section id="id-{{ id }}" {{ visual_edit outline-inside="true" section-orderable="true" }}>
+  …
+</section>
+```
+
+### `insertable="true"` — a "+" block inserter inside a replicator
+
+Put it on the **container** that wraps a replicator loop, together with
+`field="<replicator handle>"`. In the preview, a Gutenberg-style **"+"** appears
+under each block; clicking it opens Statamic's own **Add Set** picker to insert a
+new block of a chosen type at that spot (an empty field shows one "+" to start).
+The insert is native, so it lands in the Control Panel form too.
+
+```antlers
+<div {{ visual_edit field="blocks" insertable="true" }}>
+  {{ blocks }}
+    {{ if type == 'text' }}
+      <div {{ visual_edit orderable="true" }}>{{ text }}</div>
+    {{ elseif type == 'links' }}
+      <div {{ visual_edit orderable="true" }}>{{ partial:components/btn_group }}</div>
+    {{ endif }}
+  {{ /blocks }}
+</div>
+```
+
+Give each block `orderable="true"` too, so a newly inserted block is a proper,
+movable row.
+
+### `global_edit="set.field"` — open a global in the side panel
+
+For content that comes from a **global set** (a phone number, an address rendered
+inside other text). Clicking opens that global in a panel beside the preview with
+the field focused — deliberately *not* inline, since the value is usually wrapped
+in other text and writing the whole string back would corrupt it. `global_edit="true"`
+just opens the panel on the first set. Legacy spelling `global-edit`.
+
+```antlers
+<span {{ visual_edit global_edit="site_settings.phone" }}>Tlf. {{ site_settings:phone }}</span>
+```
+
+### `popup="true"` — open the field's editor as a popup
+
+Targets an item by its row `id` and opens a Control Panel popup for it when
+clicked, rather than editing in place. Used for things like column-builder rows.
+Combine with `field` + `inline_edit` for **dual mode**: a click tries inline
+editing first and falls back to the popup when the click doesn't map onto an
+editable value (padding, an image, unmatched text).
+
+### `scope="{{ id }}"` — fix field identity in nested rows
+
+`field` normally scopes to the section's `_visual_id`, which cascades down. Inside
+a **column-builder row** the field lives on the row, not the section — so pass
+`scope="{{ id }}"` (the row's own id) to point the edit at the right element.
+
+```antlers
+<div {{ visual_edit field="text" inline_edit="true" scope="{{ id }}" }}>{{ text }}</div>
+```
+
+---
+
 ## Parameter reference
 
 All parameters work in both Antlers and Blade (via the fluent API).
 
 | Parameter | Default | Description |
 |---|---|---|
-| _(none)_ | — | Auto-targets the current set by its UUID |
+| _(none)_ | — | Auto-targets the current set by its UUID (put on each set's outer element) |
 | `field` | — | Targets a fixed field by handle (dot notation for nested groups) |
+| `inline_edit` | `false` | Edit the field's value right in the preview (Bard brings its own toolbar) |
+| `orderable` | `false` | On each repeated item: drag to reorder + hover **+/−** to add/remove |
+| `move` | `false` | Show up/down reorder arrows on hover (lighter than `orderable`) |
+| `section-orderable` | `false` | On a section: drag handle to move the whole section |
+| `insertable` | `false` | On a replicator container (with `field`): a "+" that opens the Add Set picker |
+| `global_edit` | — | Open a global set (`set` or `set.field`) in the side panel |
+| `popup` | `false` | Open the item's editor as a CP popup instead of editing in place |
+| `scope` | _(cascaded `_visual_id`)_ | Override the field's scope — use `{{ id }}` inside column-builder rows |
 | `blueprint` | — | Resolve field labels from a specific blueprint (e.g. `collections.pages`). In Antlers the entry's blueprint is used automatically. |
 | `outline-inside` | `false` | Draws the outline inside the element border |
 | `id` | — | Override: target a specific set by a known UUID |
