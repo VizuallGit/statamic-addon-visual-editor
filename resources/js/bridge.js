@@ -7,6 +7,23 @@ const INNER_ATTR = 'data-sid-inner';
 const SID_ATTR = 'data-sid';
 const SID_FIELD_ATTR = 'data-sid-field';
 const STYLES_ID = '__sve-bridge-styles';
+
+/**
+ * A translated string. The CP user's language is resolved server-side and rides
+ * in on the preview response (InjectBridgeScript), because the preview can't see
+ * the CP's config. Falls back to the key so a missing string is obvious, never
+ * blank.
+ */
+function t(key, replacements = {}) {
+  let out = (window.__sveStrings || {})[key] ?? key;
+
+  for (const [name, value] of Object.entries(replacements)) {
+    out = out.replaceAll(`:${name}`, value);
+  }
+
+  return out;
+}
+
 const MOUSE_ACTIVE_CLASS = 'sve-mouse-active';
 const HOVER_CLEAR_DELAY = 1500; // ms of mouse inactivity before outline clears
 const PULSE_DURATION = 400; // ms — matches the sve-cp-pulse @keyframes animation duration
@@ -47,7 +64,7 @@ export function injectCpVariables(doc, win) {
   let hoverColor = '#9CA3AF';
 
   try {
-    const cpStyle = getComputedStyle(win.top.document.documentElement);
+    const cpStyle = getComputedStyle(win.parent.document.documentElement);
     focusColor = cpStyle.getPropertyValue('--focus-outline-color').trim() || focusColor;
     hoverColor = cpStyle.getPropertyValue('--theme-color-gray-400').trim() || hoverColor;
   } catch {
@@ -69,7 +86,7 @@ export function injectStyles(doc) {
 
   style.id = STYLES_ID;
   style.textContent = `
-        [data-sid], [data-sid-field] {
+        [data-sid], [data-sid-field], [data-sid-global] {
             cursor: pointer;
             outline-width: var(--sve-outline-width, 1px);
             outline-style: dashed;
@@ -77,8 +94,33 @@ export function injectStyles(doc) {
             outline-offset: 2px;
             transition: outline-color 0.15s ease;
         }
-        .${MOUSE_ACTIVE_CLASS} [data-sid], .${MOUSE_ACTIVE_CLASS} [data-sid-field] {
+        [data-sid-orderable] {
+            cursor: grab;
+        }
+        .sve-dragging, .sve-dragging * {
+            cursor: move !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+        }
+        .sve-col-resizing, .sve-col-resizing * {
+            cursor: col-resize !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+        }
+        [data-sve-ghost], [data-sve-ghost] * {
+            outline: none !important;
+            animation: none !important;
+            list-style: none !important;
+        }
+        .${MOUSE_ACTIVE_CLASS} [data-sid], .${MOUSE_ACTIVE_CLASS} [data-sid-field], .${MOUSE_ACTIVE_CLASS} [data-sid-global] {
             outline-color: color-mix(in srgb, var(--sve-hover-color, #9CA3AF) var(--sve-outline-opacity, 55%), transparent);
+        }
+        [data-sid-global] {
+            outline-width: var(--sve-outline-width, 1px);
+            outline-style: dashed;
+            outline-color: transparent;
+            outline-offset: 2px;
+            transition: outline-color 0.15s ease;
         }
         [data-sid-inner],
         [data-sid-hover] {
@@ -141,6 +183,64 @@ export function injectStyles(doc) {
         [data-sid-hover][data-sid-label]::after,
         [data-sid-active][data-sid-label]::after {
             opacity: 1;
+        }
+        /* Global (synced) sections. Their content belongs to another entry, so it
+           can't be edited from this page — the badge says so, and clicking one
+           fades the rest of the page back so it's obvious you've stepped inside
+           it. Editing happens in the source's own editor. */
+        [data-sve-global] {
+            position: relative;
+        }
+        [data-sve-global]::before {
+            /* safe: set from our own translations, never from content */
+            content: attr(data-sve-global-label);
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: #7c3aed;
+            color: #fff;
+            font: 500 10px/1 sans-serif;
+            padding: 4px 8px;
+            border-radius: 0 0 4px 0;
+            z-index: 9998;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        [data-sve-global]:hover::before,
+        [data-sve-global][data-sve-global-focused]::before {
+            opacity: 1;
+        }
+        [data-sve-global]:not([data-sve-global-focused]):hover {
+            outline: 2px dashed #7c3aed;
+            outline-offset: -2px;
+            cursor: pointer;
+        }
+        html.sve-global-focus section[data-sid]:not([data-sve-global-focused]),
+        html.sve-global-focus article[data-sid]:not([data-sve-global-focused]) {
+            opacity: 0.25;
+            filter: saturate(0.4);
+            transition: opacity 0.2s ease, filter 0.2s ease;
+        }
+        [data-sve-global-focused] {
+            outline: 3px solid #7c3aed !important;
+            outline-offset: -3px;
+        }
+        /* Before you step in, a global section reads as ONE thing you click into,
+           not a pile of separately editable fields — so the per-field outlines
+           (from the mouse-active rule above) stay hidden. Once focused they come
+           back, because from then on it edits exactly like the page's own. */
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid],
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-field],
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-global],
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-inner],
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-hover],
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-active] {
+            outline-color: transparent !important;
+            cursor: pointer !important;
+        }
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-label]::after {
+            display: none !important;
         }
         .sve-cp-pulse {
             animation: sve-cp-pulse 0.4s ease-out;
@@ -316,7 +416,7 @@ function requestInlineEdit(win, wrapper, event, options = {}) {
     }, EDIT_REQUEST_TIMEOUT),
   };
 
-  win.top.postMessage(
+  win.parent.postMessage(
     {
       source: 'statamic-visual-editor',
       type: 'edit-request',
@@ -331,11 +431,115 @@ function requestInlineEdit(win, wrapper, event, options = {}) {
   );
 }
 
+const escapeHtml = (text) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * The wrapper child block containing the current selection (whole-field mode),
+ * or the session element itself (per-block modes).
+ */
+function currentBlockEl(win, session) {
+  if (session.mode !== 'bard-field') {
+    return session.el;
+  }
+
+  const sel = win.getSelection();
+  let node = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
+
+  if (!node) {
+    return null;
+  }
+
+  if (node.nodeType === 3) {
+    node = node.parentElement;
+  }
+
+  while (node && node.parentElement && node.parentElement !== session.el) {
+    node = node.parentElement;
+  }
+
+  return node && node.parentElement === session.el && node.nodeType === 1 && !node.hasAttribute('data-sve-locked')
+    ? node
+    : null;
+}
+
+/** True when the (collapsed) caret sits at the very end of el's text. */
+function caretAtEndOf(win, el) {
+  const sel = win.getSelection();
+
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) {
+    return false;
+  }
+
+  const range = sel.getRangeAt(0);
+
+  if (!el.contains(range.endContainer)) {
+    return false;
+  }
+
+  const after = win.document.createRange();
+
+  after.selectNodeContents(el);
+  after.setStart(range.endContainer, range.endOffset);
+
+  return after.toString().trim() === '';
+}
+
 function sendEditInput(win, session) {
   clearTimeout(session.inputTimer);
   session.inputTimer = null;
 
-  win.top.postMessage(
+  // Whole-field Bard: serialize every unlocked block child (plus stray text the
+  // browser may have left directly in the wrapper) into an ordered block list —
+  // the CP rebuilds the field's node array from it.
+  if (session.mode === 'bard-field') {
+    const blocks = [];
+
+    for (const child of session.el.childNodes) {
+      if (child.nodeType === 3) {
+        const text = child.nodeValue.trim();
+
+        if (text) {
+          blocks.push({ kind: 'paragraph', level: null, className: null, html: escapeHtml(text) });
+        }
+
+        continue;
+      }
+
+      if (child.nodeType !== 1 || child.hasAttribute('data-sve-locked')) {
+        continue;
+      }
+
+      const heading = /^H([1-6])$/.exec(child.tagName);
+      // A block holding only the caret placeholder <br> is an empty block — it
+      // must not serialize into a stray hardBreak node.
+      const html = /^<br\s*\/?>$/i.test(child.innerHTML.trim()) ? '' : child.innerHTML;
+
+      blocks.push({
+        kind: heading ? 'heading' : 'paragraph',
+        level: heading ? Number(heading[1]) : null,
+        className: heading
+          ? null
+          : (session.blockClasses || []).find((c) => child.classList.contains(c)) || null,
+        html,
+      });
+    }
+
+    win.parent.postMessage(
+      {
+        source: 'statamic-visual-editor',
+        type: 'edit-input',
+        requestId: session.requestId,
+        blocks,
+        spanClasses: session.spanClasses,
+      },
+      win.location.origin
+    );
+
+    return;
+  }
+
+  win.parent.postMessage(
     {
       source: 'statamic-visual-editor',
       type: 'edit-input',
@@ -369,7 +573,7 @@ let toolbarTheme = null;
  */
 function detectCpDark(win) {
   try {
-    const top = win.top;
+    const top = win.parent;
     const root = top.document.documentElement;
 
     // Statamic v6 stamps `.dark` on <html> when dark mode is active (following
@@ -476,9 +680,10 @@ function updateEditToolbarState(win) {
     btn.style.background = on ? toolbarTheme?.active || '#e4e4e7' : 'transparent';
   });
 
-  // Block-format buttons reflect the current block's tag/class.
+  // Block-format buttons reflect the current block's tag/class. In whole-field
+  // mode "the current block" follows the selection.
   toolbarEl.querySelectorAll('[data-sve-block-tag]').forEach((btn) => {
-    const el = editing?.el;
+    const el = editing ? currentBlockEl(win, editing) : null;
     let on = false;
 
     if (el) {
@@ -538,6 +743,54 @@ function swapEditingElementTag(win, session, tagName) {
  * change the ProseMirror node's type/attrs.
  */
 function applyBlockFormat(win, session, spec) {
+  // Whole-field mode: the format applies to the block the selection sits in,
+  // purely in the DOM — the debounced whole-field serialization carries the
+  // type/class change to the CP, so no block-format message is needed.
+  if (session.mode === 'bard-field') {
+    const block = currentBlockEl(win, session);
+
+    if (!block) {
+      return;
+    }
+
+    let el = block;
+
+    if (block.tagName.toLowerCase() !== spec.tag.toLowerCase()) {
+      el = win.document.createElement(spec.tag);
+      el.innerHTML = block.innerHTML;
+      el.className = block.className;
+      block.replaceWith(el);
+    }
+
+    session.blockClasses?.forEach((c) => el.classList.remove(c));
+
+    if (spec.className) {
+      el.classList.add(spec.className);
+    }
+
+    if (!el.getAttribute('class')) {
+      el.removeAttribute('class');
+    }
+
+    session.el.focus();
+
+    const range = win.document.createRange();
+
+    range.selectNodeContents(el);
+    range.collapse(false);
+
+    const sel = win.getSelection();
+
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    session.dirty = true;
+    session.onInput();
+    updateEditToolbarState(win);
+
+    return;
+  }
+
   const el = swapEditingElementTag(win, session, spec.tag);
 
   // Reset any bard-texstyle block class we may have added earlier, then apply
@@ -562,7 +815,7 @@ function applyBlockFormat(win, session, spec) {
   sel.addRange(range);
 
   session.dirty = true;
-  win.top.postMessage(
+  win.parent.postMessage(
     {
       source: 'statamic-visual-editor',
       type: 'block-format',
@@ -583,7 +836,7 @@ function applyBlockFormat(win, session, spec) {
  * the Bard field so the user finishes with the real toolbar there.
  */
 function openPanelTool(win, session) {
-  win.top.postMessage(
+  win.parent.postMessage(
     { source: 'statamic-visual-editor', type: 'open-panel-field', requestId: session.requestId },
     win.location.origin
   );
@@ -623,11 +876,20 @@ function bardCommand(win, session, command) {
   let from = 0;
   let to = 0;
 
+  // Offsets are block-relative: the CP places the selection inside the
+  // ProseMirror block at `blockIndex` (whole-field mode) or the session's
+  // stored index (per-block mode).
+  const scopeEl = session.mode === 'bard-field' ? currentBlockEl(win, session) || session.el : session.el;
+  const blockIndex =
+    session.mode === 'bard-field'
+      ? [...session.el.children].filter((c) => !c.hasAttribute('data-sve-locked')).indexOf(scopeEl)
+      : undefined;
+
   if (sel && sel.rangeCount) {
     const range = sel.getRangeAt(0);
 
-    from = charOffsetWithin(session.el, range.startContainer, range.startOffset);
-    to = charOffsetWithin(session.el, range.endContainer, range.endOffset);
+    from = charOffsetWithin(scopeEl, range.startContainer, range.startOffset);
+    to = charOffsetWithin(scopeEl, range.endContainer, range.endOffset);
 
     if (to < from) {
       [from, to] = [to, from];
@@ -648,7 +910,7 @@ function bardCommand(win, session, command) {
     height: barRect.height,
   };
 
-  win.top.postMessage(
+  win.parent.postMessage(
     {
       source: 'statamic-visual-editor',
       type: 'bard-command',
@@ -656,6 +918,7 @@ function bardCommand(win, session, command) {
       command,
       from,
       to,
+      blockIndex,
       anchorRect,
     },
     win.location.origin
@@ -757,6 +1020,16 @@ const ICONS = {
   code: SVG('0 0 24 24', '<path fill="currentColor" d="M8.29 6.29 2.59 12l5.7 5.71a1 1 0 0 0 1.42-1.42L5.41 12l4.3-4.29a1 1 0 1 0-1.42-1.42Zm7.42 0a1 1 0 0 0-1.42 1.42L18.59 12l-4.3 4.29a1 1 0 0 0 1.42 1.42L21.41 12Z"/>'),
   codeblock: SVG('0 0 24 24', '<path fill="currentColor" d="M20 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Zm-9.29 6.29L8.41 11.6l2.3 2.3a1 1 0 0 1-1.42 1.4L6.3 12.3a1 1 0 0 1 0-1.42l3-3a1 1 0 1 1 1.42 1.42Zm6.99 3-2.99 3a1 1 0 0 1-1.42-1.4l2.3-2.3-2.3-2.3a1 1 0 0 1 1.42-1.4l3 3a1 1 0 0 1 0 1.4Z"/>'),
   table: SVG('0 0 24 24', '<path fill="currentColor" d="M20 3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2ZM4 9h5v3H4V9Zm7 0h9v3h-9V9ZM4 14h5v5H4v-5Zm7 5v-5h9v5h-9Z"/>'),
+  settings: SVG(
+    '0 0 24 24',
+    '<path fill="currentColor" d="M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6a.5.5 0 0 0 .1-.6l-1.9-3.3a.5.5 0 0 0-.6-.2l-2.4 1a7.3 7.3 0 0 0-1.7-1l-.4-2.5a.5.5 0 0 0-.5-.4h-3.8a.5.5 0 0 0-.5.4l-.4 2.5a7.3 7.3 0 0 0-1.7 1l-2.4-1a.5.5 0 0 0-.6.2L2.5 8.8a.5.5 0 0 0 .1.6L4.6 11a7.8 7.8 0 0 0 0 2l-2 1.6a.5.5 0 0 0-.1.6l1.9 3.3c.1.2.4.3.6.2l2.4-1c.5.4 1.1.7 1.7 1l.4 2.5c0 .2.2.4.5.4h3.8c.3 0 .5-.2.5-.4l.4-2.5c.6-.3 1.2-.6 1.7-1l2.4 1c.2.1.5 0 .6-.2l1.9-3.3a.5.5 0 0 0-.1-.6l-2-1.6ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/>',
+    14
+  ),
+  bookmark: SVG(
+    '0 0 24 24',
+    '<path fill="currentColor" d="M17 3H7a2 2 0 0 0-2 2v15a1 1 0 0 0 1.55.83L12 17.2l5.45 3.63A1 1 0 0 0 19 20V5a2 2 0 0 0-2-2Z"/>',
+    14
+  ),
 };
 
 function createEditToolbar(win, session) {
@@ -851,7 +1124,7 @@ function createEditToolbar(win, session) {
     return btn;
   };
 
-  if (session.mode === 'bard') {
+  if (session.mode === 'bard' || session.mode === 'bard-field') {
     // Build the toolbar from the field's own `buttons` config (passed through
     // as session.bardButtons) — never a hardcoded set. Each button name is
     // rendered by its handler below; unknown names are skipped. Buttons that
@@ -959,7 +1232,7 @@ function createEditToolbar(win, session) {
   // session (and its resolved link path) when the message arrives.
   if (session.hasLink) {
     addButton('', 'Skift link', () => {
-      win.top.postMessage(
+      win.parent.postMessage(
         { source: 'statamic-visual-editor', type: 'link-edit', requestId: session.requestId },
         win.location.origin
       );
@@ -969,7 +1242,8 @@ function createEditToolbar(win, session) {
 
   addSeparator();
 
-  addButton('✓', 'Gem (Enter)', () => finishEditing(win, false), {
+  // In whole-field mode Enter splits blocks, so it can't double as commit.
+  addButton('✓', session.mode === 'bard-field' ? t('save') : t('save_enter'), () => finishEditing(win, false), {
     style: 'color:#16a34a;font-weight:700;font-size:15px;',
   });
   addButton('✕', 'Annullér (Esc)', () => finishEditing(win, true), {
@@ -989,9 +1263,171 @@ function createEditToolbar(win, session) {
 // Statamic's reactivity re-renders both the publish form and the preview.
 // Rows laid out horizontally (flex-row parents) get ←/→ instead of ↑/↓.
 
+// --- Global (synced) sections ---------------------------------------------------
+//
+// A global section renders the SOURCE entry's markup, so its content isn't part of
+// this page's form and can't be edited here — it belongs to another entry. The
+// template leaves a hidden marker in front of it; we tag the section itself so it
+// can be badged, focused (the rest of the page fades back, so you always know you
+// are inside a synced section) and handed off to its own editor.
+
+const GLOBAL_ATTR = 'data-sve-global';
+// The page's own page_sections row id for a global section (see the partial).
+const GLOBAL_ROW_ATTR = 'data-sve-global-row';
+const GLOBAL_FOCUS_ATTR = 'data-sve-global-focused';
+const GLOBAL_BAR_ID = '__sve-global-bar';
+
+let globalFocusEl = null;
+// Held separately from the element: a morph patches our attribute back off the
+// live node, so after a re-render the DOM can no longer tell us what we were in.
+let globalFocusId = null;
+
+/** Tags each section that came from a Global section with its source's id. */
+function tagGlobalSections(win) {
+  win.document.querySelectorAll('[data-sve-global-id]').forEach((marker) => {
+    const section = marker.nextElementSibling;
+
+    if (section && !section.hasAttribute(GLOBAL_ATTR)) {
+      section.setAttribute(GLOBAL_ATTR, marker.getAttribute('data-sve-global-id'));
+      section.setAttribute('data-sve-global-label', t('global_badge'));
+
+      // The page's own row id sits on the marker just before this one. Without it
+      // the hover control would act on the SOURCE's id — which this page's form
+      // has never heard of, so move/remove/settings would all quietly do nothing.
+      const row = marker.previousElementSibling?.getAttribute('data-sve-global-row');
+
+      if (row) {
+        section.setAttribute(GLOBAL_ROW_ATTR, row);
+      }
+    }
+  });
+}
+
+function exitGlobalFocus(win, closePanel = true) {
+  const doc = win.document;
+  const wasFocused = !!globalFocusEl;
+
+  doc.querySelectorAll(`[${GLOBAL_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(GLOBAL_FOCUS_ATTR));
+  doc.documentElement.classList.remove('sve-global-focus');
+  doc.getElementById(GLOBAL_BAR_ID)?.remove();
+  globalFocusEl = null;
+  globalFocusId = null;
+
+  // Stepping out closes the section's editor with it — leaving it open would keep
+  // the page rendering an unsaved section you can no longer see you're in.
+  if (wasFocused && closePanel) {
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'close-global-section' }, win.location.origin);
+  }
+}
+
+/**
+ * Steps into a global section: fade the rest of the page and open its editor.
+ * `reopen: false` re-applies the look after a re-render without touching the
+ * panel — reopening it would reload the form under the cursor mid-edit.
+ */
+function enterGlobalFocus(win, section, reopen = true) {
+  if (globalFocusEl === section) {
+    return;
+  }
+
+  exitGlobalFocus(win, false);
+
+  const doc = win.document;
+
+  section.setAttribute(GLOBAL_FOCUS_ATTR, '');
+  doc.documentElement.classList.add('sve-global-focus');
+  globalFocusEl = section;
+  globalFocusId = section.getAttribute(GLOBAL_ATTR);
+
+  const bar = doc.createElement('div');
+
+  bar.id = GLOBAL_BAR_ID;
+  bar.style.cssText =
+    'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483646;' +
+    'display:flex;align-items:center;gap:12px;background:#1f2937;color:#fff;' +
+    'padding:8px 10px 8px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.4);' +
+    'font:500 13px/1.3 sans-serif;user-select:none;';
+
+  const text = doc.createElement('span');
+
+  text.style.cssText = 'opacity:.9;';
+  text.innerHTML = t('global_bar', {
+    section: `<b style="color:#c4b5fd;">${t('global_bar_section')}</b>`,
+  });
+  bar.appendChild(text);
+
+  const barButton = (label, background) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.cssText =
+      'all:unset;cursor:pointer;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;' +
+      `background:${background};color:#fff;`;
+    bar.appendChild(btn);
+
+    return btn;
+  };
+
+  // Saving belongs where you're working — you're editing the section here, not in
+  // the panel, so the Save is here too (it drives the panel's real one).
+  barButton(t('save'), '#7c3aed').addEventListener('click', (event) => {
+    event.stopPropagation();
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'save-global-section' }, win.location.origin);
+  });
+
+  barButton(t('close'), 'rgba(255,255,255,.12)').addEventListener('click', (event) => {
+    event.stopPropagation();
+    exitGlobalFocus(win);
+  });
+
+  doc.documentElement.appendChild(bar);
+
+  // Stepping in opens the section's own editor beside the page. That's not just
+  // somewhere to type: it's the form that owns this content, and the CP borrows
+  // its fields so the text in the page can be edited inline from right here.
+  if (reopen) {
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'open-global-section', id: section.getAttribute(GLOBAL_ATTR) },
+      win.location.origin
+    );
+  }
+}
+
+// The CP's floating back pill, in our coordinates (see sve-pill-box).
+let pillBox = null;
+
 let moveCtrlEl = null;
 let moveTargetEl = null;
 let moveReposition = null;
+// The current control's +/− buttons + the row uid they act on, so the CP's
+// row-caps reply can grey out whichever would break the field's min/max.
+let moveCtrlRowButtons = null;
+
+/** Greys out (or restores) a +/− button, and blocks its click while disabled. */
+function setRowButtonDisabled(btn, disabled) {
+  if (!btn) {
+    return;
+  }
+
+  btn.dataset.sveDisabled = disabled ? '1' : '';
+  btn.style.opacity = disabled ? '0.3' : '';
+  btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+
+  if (disabled) {
+    btn.style.background = 'transparent';
+  }
+}
+
+/** Applies a row-caps reply from the CP to the current control's buttons. */
+function applyRowCaps(data) {
+  if (!moveCtrlRowButtons || moveCtrlRowButtons.uid !== data.uid) {
+    return;
+  }
+
+  setRowButtonDisabled(moveCtrlRowButtons.addBtn, !data.canAdd);
+  setRowButtonDisabled(moveCtrlRowButtons.removeBtn, !data.canRemove);
+}
 
 function hideMoveControl(win) {
   if (moveCtrlEl) {
@@ -1006,6 +1442,7 @@ function hideMoveControl(win) {
   }
 
   moveTargetEl = null;
+  moveCtrlRowButtons = null;
 }
 
 function positionMoveControl(win) {
@@ -1029,10 +1466,15 @@ function positionMoveControl(win) {
     moveCtrlEl.style.top = `${top}px`;
     moveCtrlEl.style.left = `${Math.max(rect.left + (rect.width - width) / 2, 8)}px`;
   } else {
-    const top = Math.min(Math.max(rect.top + 10, 10), Math.max(rect.bottom - height - 10, 10));
+    const left = Math.max(rect.right - width - 10, 10);
+    // The CP's back pill floats in this same corner. Where the control would sit
+    // under it, start below it instead — the two mustn't stack.
+    const clash = pillBox && left + width > pillBox.left;
+    const min = clash ? pillBox.bottom + 8 : 10;
+    const top = Math.min(Math.max(rect.top + 10, min), Math.max(rect.bottom - height - 10, min));
 
     moveCtrlEl.style.top = `${top}px`;
-    moveCtrlEl.style.left = `${Math.max(rect.right - width - 10, 10)}px`;
+    moveCtrlEl.style.left = `${left}px`;
   }
 }
 
@@ -1049,6 +1491,599 @@ function isHorizontalFlow(win, el) {
   return style.display.includes('flex') && !style.flexDirection.startsWith('column');
 }
 
+// --- Column builder: visual width drag + add column ------------------------------
+//
+// Column blocks live in a CSS grid inside a section annotated with
+// data-sid-type="columns". Hovering a block shows a resize handle on the
+// boundary to its row neighbour; dragging it snaps both blocks to the grid's
+// tracks (live, via inline grid-column) and a badge reads out the split.
+// Releasing posts the new spans to the CP, which writes the breakpoint's
+// col_w_* fields (m <768, t <1024, d otherwise — the same buckets the column
+// builder's own width widget uses). A "+" pill in the grid's corner asks the CP
+// to click the column builder's own "Add column" button.
+
+const COL_SECTION_SELECTOR = '[data-sid-type="columns"]';
+
+let colChrome = null; // { handle, addBtn, pair, grid }
+let widthDrag = null;
+let widthDragJustEnded = false;
+
+function bpFieldForWidth(width) {
+  if (width < 768) {
+    return { field: 'col_w_m', prefix: '' };
+  }
+
+  if (width < 1024) {
+    return { field: 'col_w_t', prefix: 'md:' };
+  }
+
+  return { field: 'col_w_d', prefix: 'lg:' };
+}
+
+/** Track/gap geometry of a resolved CSS grid, in screen pixels. */
+function columnGridInfo(win, grid) {
+  const style = win.getComputedStyle(grid);
+  const tracks = style.gridTemplateColumns.split(' ').length;
+  const gap = parseFloat(style.columnGap) || 0;
+  const rect = grid.getBoundingClientRect();
+  const padLeft = parseFloat(style.paddingLeft) || 0;
+  const padRight = parseFloat(style.paddingRight) || 0;
+  const width = rect.width - padLeft - padRight;
+
+  return { tracks, gap, unit: (width + gap) / tracks, left: rect.left + padLeft };
+}
+
+function spanOf(el, info) {
+  return Math.max(1, Math.round((el.getBoundingClientRect().width + info.gap) / info.unit));
+}
+
+function onSameRow(a, b) {
+  const ra = a.getBoundingClientRect();
+  const rb = b.getBoundingClientRect();
+
+  return rb.top < ra.bottom && rb.bottom > ra.top;
+}
+
+function visibleColumnsOf(grid, win) {
+  return [...grid.children].filter(
+    (el) => el.hasAttribute(SID_ATTR) && win.getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0
+  );
+}
+
+function hideColumnChrome(win) {
+  if (!colChrome) {
+    return;
+  }
+
+  colChrome.handle?.remove();
+  colChrome.addBtn?.remove();
+  win.removeEventListener('scroll', colChrome.onScroll, true);
+  colChrome = null;
+}
+
+function positionColumnChrome() {
+  if (!colChrome) {
+    return;
+  }
+
+  const { handle, addBtn, pair, grid } = colChrome;
+
+  if (handle && pair) {
+    const ra = pair.a.getBoundingClientRect();
+    const rb = pair.b.getBoundingClientRect();
+    const x = (ra.right + rb.left) / 2;
+    const top = Math.max(ra.top, rb.top);
+    const bottom = Math.min(ra.bottom, rb.bottom);
+
+    handle.style.left = `${x - 5}px`;
+    handle.style.top = `${(top + bottom) / 2 - 24}px`;
+  }
+
+  if (addBtn) {
+    const rect = grid.getBoundingClientRect();
+
+    addBtn.style.left = `${rect.right - 40}px`;
+    addBtn.style.top = `${rect.bottom - 40}px`;
+  }
+}
+
+/**
+ * Hovering a column block summons its chrome: the resize handle on the boundary
+ * to its row neighbour (right one preferred) and the add-column pill.
+ */
+function maybeShowColumnChrome(win, event) {
+  if (widthDrag) {
+    return;
+  }
+
+  if (colChrome && (colChrome.handle?.contains(event.target) || colChrome.addBtn?.contains(event.target))) {
+    return;
+  }
+
+  const block = event.target.closest?.(`[${SID_ATTR}]`);
+  const section = block?.closest(COL_SECTION_SELECTOR);
+  const grid = block?.parentElement;
+
+  if (!block || !section || !grid || win.getComputedStyle(grid).display !== 'grid') {
+    hideColumnChrome(win);
+
+    return;
+  }
+
+  // VISUAL order, not DOM order: per-breakpoint `order` CSS (order_m/t/d) can
+  // render the DOM's first column on the right. The pair is always
+  // { a: visually left, b: visually right } so the drag math and the written
+  // uids follow what the user actually sees.
+  const rowMates = visibleColumnsOf(grid, win)
+    .filter((el) => el === block || onSameRow(block, el))
+    .sort((x, y) => x.getBoundingClientRect().left - y.getBoundingClientRect().left);
+  const index = rowMates.indexOf(block);
+
+  if (index === -1) {
+    hideColumnChrome(win);
+
+    return;
+  }
+
+  const next = rowMates[index + 1] ?? null;
+  const prev = rowMates[index - 1] ?? null;
+  const pair = next ? { a: block, b: next } : prev ? { a: prev, b: block } : null;
+
+  if (colChrome && colChrome.grid === grid && colChrome.pair?.a === pair?.a && colChrome.pair?.b === pair?.b) {
+    return; // already showing exactly this
+  }
+
+  hideColumnChrome(win);
+
+  const doc = win.document;
+  let handle = null;
+
+  if (pair) {
+    handle = doc.createElement('div');
+    handle.style.cssText =
+      'position:fixed;z-index:2147483646;width:10px;height:48px;border-radius:6px;' +
+      'background:#1f2937;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.18);' +
+      'cursor:col-resize;touch-action:none;';
+    handle.title = t('drag_columns');
+    handle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || widthDrag) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      beginWidthDrag(win, pair, grid);
+    });
+    doc.documentElement.appendChild(handle);
+  }
+
+  const addBtn = doc.createElement('button');
+
+  addBtn.type = 'button';
+  addBtn.textContent = '+';
+  addBtn.title = t('add_column');
+  addBtn.style.cssText =
+    'position:fixed;z-index:2147483646;width:28px;height:28px;border:none;border-radius:50%;' +
+    'background:#1f2937;color:#fff;font-size:18px;line-height:1;cursor:pointer;' +
+    'box-shadow:0 2px 10px rgba(0,0,0,.35);display:inline-flex;align-items:center;justify-content:center;';
+  addBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  addBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'cb-add-column', uid: section.getAttribute(SID_ATTR) },
+      win.location.origin
+    );
+  });
+  doc.documentElement.appendChild(addBtn);
+
+  colChrome = { handle, addBtn, pair, grid, onScroll: () => positionColumnChrome() };
+  win.addEventListener('scroll', colChrome.onScroll, true);
+  positionColumnChrome();
+}
+
+function beginWidthDrag(win, pair, grid) {
+  const info = columnGridInfo(win, grid);
+  const spanA = spanOf(pair.a, info);
+  const spanB = spanOf(pair.b, info);
+
+  const badge = win.document.createElement('div');
+
+  badge.style.cssText =
+    'position:fixed;z-index:2147483647;pointer-events:none;padding:5px 10px;border-radius:6px;' +
+    'background:#1f2937;color:#fff;font:600 12px/1 ui-sans-serif,system-ui,sans-serif;' +
+    'box-shadow:0 4px 16px rgba(0,0,0,.35);white-space:nowrap;';
+  win.document.documentElement.appendChild(badge);
+
+  widthDrag = {
+    ...pair,
+    grid,
+    info,
+    total: spanA + spanB,
+    spanA,
+    applied: spanA,
+    aLeft: pair.a.getBoundingClientRect().left,
+    badge,
+  };
+  win.document.documentElement.classList.add('sve-col-resizing');
+}
+
+function updateWidthDrag(win, event) {
+  const { a, b, info, total, aLeft, badge } = widthDrag;
+
+  event.preventDefault();
+
+  let next = Math.round((event.clientX - aLeft + info.gap / 2) / info.unit);
+
+  next = Math.max(1, Math.min(total - 1, next));
+
+  if (next !== widthDrag.applied) {
+    widthDrag.applied = next;
+    // Inline styles for instant feedback — they also don't depend on every
+    // col-span-* class being present in the site's compiled CSS. The morph
+    // after the CP write replaces them with the real classes.
+    a.style.gridColumn = `span ${next} / span ${next}`;
+    b.style.gridColumn = `span ${total - next} / span ${total - next}`;
+    positionColumnChrome();
+  }
+
+  const pct = (n) => `${Math.round((n / info.tracks) * 100)}%`;
+
+  badge.textContent = `${widthDrag.applied}/${info.tracks} · ${pct(widthDrag.applied)}  |  ${total - widthDrag.applied}/${info.tracks} · ${pct(total - widthDrag.applied)}`;
+  badge.style.left = `${event.clientX + 14}px`;
+  badge.style.top = `${event.clientY + 16}px`;
+}
+
+function finishWidthDrag(win, cancelled) {
+  const { a, b, total, spanA, applied, badge } = widthDrag;
+
+  badge.remove();
+  win.document.documentElement.classList.remove('sve-col-resizing');
+  widthDrag = null;
+
+  widthDragJustEnded = true;
+  setTimeout(() => (widthDragJustEnded = false), 250);
+
+  if (cancelled || applied === spanA) {
+    a.style.gridColumn = '';
+    b.style.gridColumn = '';
+
+    return;
+  }
+
+  const bp = bpFieldForWidth(win.innerWidth);
+  const value = (n) => `${bp.prefix}col-span-${n}`;
+
+  // The inline styles stay on until the CP write comes back through the morph —
+  // removing them now would snap the columns back for a beat.
+  win.parent.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'cb-col-width',
+      changes: [
+        { uid: a.getAttribute(SID_ATTR), field: bp.field, value: value(applied) },
+        { uid: b.getAttribute(SID_ATTR), field: bp.field, value: value(total - applied) },
+      ],
+    },
+    win.location.origin
+  );
+}
+
+// --- Drag & drop reordering ([data-sid-orderable]) -------------------------------
+//
+// Rows opted in via orderable="true" can be dragged among their sibling rows
+// (grid/replicator items rendered in a loop). A pointer-based drag with a
+// threshold keeps clicks working: below the threshold the pointerdown is a
+// normal click (inline edit, focus); beyond it a drag starts, the row dims, an
+// insertion line marks the drop gap, and releasing posts the target index to
+// the CP, which reorders the underlying values array (same machinery as the
+// move arrows). The morphed re-render then shows the new order.
+
+const ORDERABLE_ATTR = 'data-sid-orderable';
+const DRAG_THRESHOLD = 6; // px of movement before a press becomes a drag
+
+let dragState = null;
+let dragJustEnded = false; // one-shot: swallow the click that follows a drag
+
+function orderablePeers(el) {
+  return el.parentElement
+    ? [...el.parentElement.children].filter((c) => c.hasAttribute(ORDERABLE_ATTR))
+    : [];
+}
+
+/** Nearest solid background up the ancestor chain — the ghost card uses it so
+ *  the row's own text keeps its contrast (white cards would swallow light text
+ *  on dark sections). */
+function solidBackgroundFor(win, el) {
+  let node = el;
+
+  for (let i = 0; node && i < 15; i++) {
+    const colour = win.getComputedStyle(node).backgroundColor;
+
+    if (colour && colour !== 'transparent' && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(colour)) {
+      return colour;
+    }
+
+    node = node.parentElement;
+  }
+
+  return '#ffffff';
+}
+
+/**
+ * A floating preview card of the dragged row (Sanity-style): a stripped clone
+ * in a shadowed, slightly scaled card that rides along with the pointer.
+ */
+function buildDragGhost(win, el) {
+  const doc = win.document;
+  const rect = el.getBoundingClientRect();
+  const ghost = doc.createElement('div');
+  const clone = el.cloneNode(true);
+
+  // The clone is decoration only — strip editor annotations so bridge queries
+  // and outline styles never mistake it for content. `id` attributes stay:
+  // sections are styled through #id-… selectors (style_push), and stripping
+  // them would leave the ghost unstyled. The original element precedes the
+  // ghost in tree order, so id lookups still resolve to the real one.
+  [clone, ...clone.querySelectorAll('*')].forEach((node) => {
+    [...node.attributes].forEach((attr) => {
+      if (attr.name.startsWith('data-sid')) {
+        node.removeAttribute(attr.name);
+      }
+    });
+  });
+  clone.style.margin = '0';
+
+  ghost.setAttribute('data-sve-ghost', '');
+  ghost.appendChild(clone);
+  ghost.style.cssText =
+    'position:fixed;left:0;top:0;z-index:2147483647;pointer-events:none;box-sizing:border-box;' +
+    `width:${Math.ceil(rect.width)}px;padding:10px 14px;border-radius:10px;overflow:hidden;` +
+    `background:${solidBackgroundFor(win, el)};box-shadow:0 12px 32px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.06);` +
+    'opacity:.95;transform-origin:top left;will-change:transform;';
+  // On <html>, not <body>: a section drag scales <body> down for the overview,
+  // and a transformed ancestor both captures and scales position:fixed children.
+  doc.documentElement.appendChild(ghost);
+
+  // Scale wide rows down to a hand-sized card.
+  return { ghost, scale: Math.min(1, 300 / Math.max(rect.width, 1)) };
+}
+
+function moveDragGhost(state, x, y) {
+  if (state.ghost) {
+    state.ghost.style.transform = `translate(${x + 14}px, ${y + 12}px) scale(${state.ghostScale}) rotate(1.5deg)`;
+  }
+}
+
+/**
+ * Section drags zoom the whole page out (Sanity-style) so its full structure is
+ * on screen and "drag the hero to the bottom" is one small movement instead of
+ * a scroll marathon. Scaling <body> is purely visual — layout, rects and the
+ * pointer math all keep working in screen space. Returns what restoreZoom needs,
+ * or null when the page already fits the viewport.
+ */
+function zoomOutForDrag(win) {
+  const doc = win.document;
+  const body = doc.body;
+  const scale = (win.innerHeight - 32) / doc.documentElement.scrollHeight;
+
+  if (scale >= 0.999) {
+    return null;
+  }
+
+  const previous = {
+    scroll: win.scrollY,
+    transform: body.style.transform,
+    origin: body.style.transformOrigin,
+    transition: body.style.transition,
+  };
+
+  body.style.transformOrigin = 'top center';
+  body.style.transition = 'transform .35s ease';
+  win.scrollTo(0, 0);
+  // Next frame, so the transition property is committed before the transform
+  // changes — otherwise the zoom snaps instead of animating.
+  win.requestAnimationFrame(() => {
+    body.style.transform = `scale(${Math.max(scale, 0.02)})`;
+  });
+
+  return previous;
+}
+
+function restoreZoom(win, previous) {
+  if (!previous) {
+    return;
+  }
+
+  const body = win.document.body;
+
+  body.style.transform = previous.transform;
+
+  win.setTimeout(() => {
+    body.style.transformOrigin = previous.origin;
+    body.style.transition = previous.transition;
+    win.scrollTo(0, previous.scroll);
+  }, 380);
+}
+
+function endDrag(win) {
+  if (!dragState) {
+    return;
+  }
+
+  dragState.el.style.opacity = '';
+  dragState.indicator?.remove();
+  dragState.ghost?.remove();
+  restoreZoom(win, dragState.zoom);
+  win.document.documentElement.classList.remove('sve-dragging');
+  dragState = null;
+}
+
+function createDragPointerDown(win) {
+  return function onPointerDown(event) {
+    if (event.button !== 0 || editing || dragState) {
+      return;
+    }
+
+    const el = event.target.closest(`[${ORDERABLE_ATTR}]`);
+
+    if (!el) {
+      return;
+    }
+
+    const uid = el.getAttribute(SID_ATTR) || el.getAttribute('data-sid-field-uid');
+    const peers = orderablePeers(el);
+
+    if (!uid || peers.length <= 1) {
+      return;
+    }
+
+    // Nothing is prevented here — a press that never crosses the threshold
+    // must stay a perfectly normal click.
+    dragState = {
+      el,
+      uid,
+      peers,
+      horizontal: isHorizontalFlow(win, el),
+      section: false,
+      zoom: null,
+      startX: event.clientX,
+      startY: event.clientY,
+      fromIndex: peers.indexOf(el),
+      insert: null,
+      active: false,
+      indicator: null,
+      ghost: null,
+    };
+  };
+}
+
+function createDragPointerMove(win) {
+  return function onPointerMove(event) {
+    if (widthDrag) {
+      updateWidthDrag(win, event);
+
+      return;
+    }
+
+    if (!dragState) {
+      return;
+    }
+
+    if (!dragState.active) {
+      const moved = Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY);
+
+      if (moved < DRAG_THRESHOLD) {
+        return;
+      }
+
+      dragState.active = true;
+      dragState.el.style.opacity = '0.45';
+      win.document.documentElement.classList.add('sve-dragging');
+      hideMoveControl(win);
+
+      const indicator = win.document.createElement('div');
+
+      indicator.style.cssText =
+        'position:fixed;z-index:2147483646;pointer-events:none;border-radius:2px;' +
+        'background:var(--sve-focus-color, #3b82f6);box-shadow:0 0 0 1px rgba(255,255,255,.4);';
+      // On <html> — see buildDragGhost for why not <body>.
+      win.document.documentElement.appendChild(indicator);
+      dragState.indicator = indicator;
+
+      // Ghost first (it measures the element at natural size), then the zoom.
+      const { ghost, scale } = buildDragGhost(win, dragState.el);
+
+      dragState.ghost = ghost;
+      dragState.ghostScale = scale;
+
+      if (dragState.section) {
+        dragState.zoom = zoomOutForDrag(win);
+      }
+    }
+
+    event.preventDefault();
+    moveDragGhost(dragState, event.clientX, event.clientY);
+
+    const { peers, horizontal, indicator } = dragState;
+    const pos = horizontal ? event.clientX : event.clientY;
+
+    // Insertion slot = number of peers whose midpoint the pointer has passed.
+    let insert = 0;
+
+    peers.forEach((peer, i) => {
+      const rect = peer.getBoundingClientRect();
+      const mid = horizontal ? (rect.left + rect.right) / 2 : (rect.top + rect.bottom) / 2;
+
+      if (pos > mid) {
+        insert = i + 1;
+      }
+    });
+
+    dragState.insert = insert;
+
+    // Draw the line in the gap the drop would land in.
+    const anchor = peers[Math.min(insert, peers.length - 1)];
+    const rect = anchor.getBoundingClientRect();
+    const after = insert > peers.length - 1;
+
+    if (horizontal) {
+      indicator.style.left = `${(after ? rect.right + 2 : rect.left - 4)}px`;
+      indicator.style.top = `${rect.top}px`;
+      indicator.style.width = '3px';
+      indicator.style.height = `${rect.height}px`;
+    } else {
+      indicator.style.left = `${rect.left}px`;
+      indicator.style.top = `${(after ? rect.bottom + 2 : rect.top - 4)}px`;
+      indicator.style.width = `${rect.width}px`;
+      indicator.style.height = '3px';
+    }
+  };
+}
+
+function createDragPointerUp(win) {
+  return function onPointerUp() {
+    if (widthDrag) {
+      finishWidthDrag(win, false);
+
+      return;
+    }
+
+    if (!dragState) {
+      return;
+    }
+
+    const { active, uid, fromIndex, insert } = dragState;
+
+    endDrag(win);
+
+    if (!active) {
+      return; // plain click — let it proceed untouched
+    }
+
+    // The click event that follows this pointerup must not start an inline
+    // edit or focus jump — the user was dragging, not clicking.
+    dragJustEnded = true;
+    setTimeout(() => (dragJustEnded = false), 250);
+
+    if (insert === null) {
+      return;
+    }
+
+    // Slot → target index in after-removal terms.
+    const to = insert > fromIndex ? insert - 1 : insert;
+
+    if (to === fromIndex) {
+      return;
+    }
+
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'move', uid, toIndex: to },
+      win.location.origin
+    );
+  };
+}
+
 function showMoveControl(win, moveEl) {
   if (moveTargetEl === moveEl) {
     return;
@@ -1057,8 +2092,13 @@ function showMoveControl(win, moveEl) {
   hideMoveControl(win);
 
   // Sections carry data-sid; field-annotated rows (e.g. buttons) identify
-  // their row through the field scope uid instead.
-  const uid = moveEl.getAttribute(SID_ATTR) || moveEl.getAttribute('data-sid-field-uid');
+  // their row through the field scope uid instead. A global section is the odd
+  // one out: its markup is the SOURCE entry's, so its data-sid belongs to another
+  // entry entirely — the page's own row id is what this form can act on.
+  const uid =
+    moveEl.getAttribute(GLOBAL_ROW_ATTR) ||
+    moveEl.getAttribute(SID_ATTR) ||
+    moveEl.getAttribute('data-sid-field-uid');
 
   if (!uid) {
     return;
@@ -1066,15 +2106,30 @@ function showMoveControl(win, moveEl) {
 
   // A single row/section has nowhere to move — no arrows. Peers are sibling
   // elements of the same kind: move-annotated rows, or sections for sections.
+  // Page sections are top-level <section> (or <article>, e.g. main content).
+  const isSectionTag = (el) => el.tagName === 'SECTION' || el.tagName === 'ARTICLE';
+
+  // Rows opted into ordering (orderable="true") are the innermost thing a hover
+  // can land on, so they claim the control before the section around them.
+  const isRow = moveEl.hasAttribute(ORDERABLE_ATTR) && !isSectionTag(moveEl);
+
   const peers = moveEl.parentElement
     ? [...moveEl.parentElement.children].filter((el) =>
-        moveEl.hasAttribute('data-sid-move')
-          ? el.hasAttribute('data-sid-move')
-          : el.tagName === 'SECTION' && el.hasAttribute(SID_ATTR)
+        isRow
+          ? el.hasAttribute(ORDERABLE_ATTR)
+          : moveEl.hasAttribute('data-sid-move')
+            ? el.hasAttribute('data-sid-move')
+            : isSectionTag(el) && el.hasAttribute(SID_ATTR)
       )
     : [];
 
-  if (peers.length <= 1) {
+  // Page sections also get an "add section" (+) button, so their control is
+  // worth showing even when a section is the only one on the page.
+  const isSection = !moveEl.hasAttribute('data-sid-move') && !isRow && isSectionTag(moveEl);
+
+  // An orderable row always gets its control: even the last one left needs a "+"
+  // to add another (and a "−" to remove itself).
+  if (peers.length <= 1 && !isSection && !isRow) {
     return;
   }
 
@@ -1108,7 +2163,7 @@ function showMoveControl(win, moveEl) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      win.top.postMessage(
+      win.parent.postMessage(
         { source: 'statamic-visual-editor', type: 'move', uid, direction },
         win.location.origin
       );
@@ -1116,13 +2171,242 @@ function showMoveControl(win, moveEl) {
     ctrl.appendChild(btn);
   };
 
-  if (horizontal) {
-    addArrow('←', 'Flyt til venstre', -1);
-    addArrow('→', 'Flyt til højre', 1);
-  } else {
-    addArrow('↑', 'Flyt op', -1);
-    addArrow('↓', 'Flyt ned', 1);
+  // Drag handle (sections opted in via section-orderable="true"): grab it and
+  // the page zooms out to a full-structure overview where the section can be
+  // dropped anywhere — the arrows stay for single-step moves.
+  if (moveEl.hasAttribute('data-sid-section-orderable') && peers.length > 1) {
+    const handle = doc.createElement('button');
+
+    handle.type = 'button';
+    handle.textContent = '⠿';
+    handle.title = t('drag_section');
+    handle.style.cssText =
+      'all:unset;cursor:grab;width:26px;height:26px;display:inline-flex;align-items:center;' +
+      'justify-content:center;border-radius:5px;font-size:13px;box-sizing:border-box;touch-action:none;';
+    handle.addEventListener('mouseenter', () => (handle.style.background = 'rgba(255,255,255,0.14)'));
+    handle.addEventListener('mouseleave', () => (handle.style.background = 'transparent'));
+    handle.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || editing || dragState) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      dragState = {
+        el: moveEl,
+        uid,
+        peers,
+        horizontal: false,
+        section: true,
+        zoom: null,
+        startX: event.clientX,
+        startY: event.clientY,
+        fromIndex: peers.indexOf(moveEl),
+        insert: null,
+        active: false,
+        indicator: null,
+        ghost: null,
+      };
+    });
+
+    ctrl.appendChild(handle);
   }
+
+  if (peers.length > 1) {
+    if (horizontal) {
+      addArrow('←', t('move_left'), -1);
+      addArrow('→', t('move_right'), 1);
+    } else {
+      addArrow('↑', t('move_up'), -1);
+      addArrow('↓', t('move_down'), 1);
+    }
+  }
+
+  // Orderable rows: add one after this, or remove this one.
+  if (isRow) {
+    const rowButton = (glyph, title, type, style = '') => {
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.textContent = glyph;
+      btn.title = title;
+      btn.style.cssText =
+        'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+        `justify-content:center;border-radius:5px;font-size:16px;line-height:1;box-sizing:border-box;${style}`;
+      btn.addEventListener('mouseenter', () => {
+        if (!btn.dataset.sveDisabled) btn.style.background = 'rgba(255,255,255,0.14)';
+      });
+      btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // At the field's min/max the button is disabled — the CP would reject it
+        // anyway, this just makes that visible.
+        if (btn.dataset.sveDisabled) {
+          return;
+        }
+
+        win.parent.postMessage({ source: 'statamic-visual-editor', type, uid }, win.location.origin);
+        hideMoveControl(win);
+      });
+
+      ctrl.appendChild(btn);
+
+      return btn;
+    };
+
+    const addBtn = rowButton('+', t('add_another'), 'add-row');
+    const removeBtn = rowButton('−', t('remove_this'), 'remove-row', 'color:#fca5a5;');
+
+    // Ask the CP whether this field is at its min/max, and grey out the button
+    // that would break the limit. Async: the reply arrives via row-caps-result.
+    moveCtrlRowButtons = { uid, addBtn, removeBtn };
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+  }
+
+  // Gear — opens the section's own settings popup (spacing, colours, …), the
+  // same one the panel's "Show settings" button opens.
+  if (isSection) {
+    const gear = doc.createElement('button');
+
+    gear.type = 'button';
+    gear.innerHTML = ICONS.settings;
+    gear.title = t('section_settings');
+    gear.style.cssText =
+      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+      'justify-content:center;border-radius:5px;box-sizing:border-box;';
+    gear.addEventListener('mouseenter', () => (gear.style.background = 'rgba(255,255,255,0.14)'));
+    gear.addEventListener('mouseleave', () => (gear.style.background = 'transparent'));
+    gear.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    gear.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      win.parent.postMessage(
+        { source: 'statamic-visual-editor', type: 'section-settings', uid },
+        win.location.origin
+      );
+    });
+
+    ctrl.appendChild(gear);
+  }
+
+  // Bookmark — save this section as a reusable template.
+  if (isSection) {
+    const save = doc.createElement('button');
+
+    save.type = 'button';
+    save.innerHTML = ICONS.bookmark;
+    save.title = t('save_as_template');
+    save.style.cssText =
+      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+      'justify-content:center;border-radius:5px;box-sizing:border-box;';
+    save.addEventListener('mouseenter', () => (save.style.background = 'rgba(255,255,255,0.14)'));
+    save.addEventListener('mouseleave', () => (save.style.background = 'transparent'));
+    save.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    save.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      win.parent.postMessage(
+        { source: 'statamic-visual-editor', type: 'save-section', uid },
+        win.location.origin
+      );
+      hideMoveControl(win);
+    });
+
+    ctrl.appendChild(save);
+  }
+
+  // "+" — opens Statamic's own Add Set picker, inserting after this section.
+  if (isSection) {
+    const plus = doc.createElement('button');
+
+    plus.type = 'button';
+    plus.textContent = '+';
+    plus.title = t('add_section_below');
+    plus.style.cssText =
+      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+      'justify-content:center;border-radius:5px;font-size:18px;line-height:1;box-sizing:border-box;';
+    plus.addEventListener('mouseenter', () => (plus.style.background = 'rgba(255,255,255,0.14)'));
+    plus.addEventListener('mouseleave', () => (plus.style.background = 'transparent'));
+    plus.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    plus.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      win.parent.postMessage(
+        { source: 'statamic-visual-editor', type: 'add-set', uid },
+        win.location.origin
+      );
+    });
+
+    ctrl.appendChild(plus);
+
+    // "−" — take this section off the page. Sits under the "+", and goes through
+    // the same remove-row handler the orderable rows use: a section IS a row of
+    // page_sections, so its min_sets is honoured for free.
+    const minus = doc.createElement('button');
+
+    minus.type = 'button';
+    minus.textContent = '−';
+    minus.title = t('remove_section');
+    minus.style.cssText =
+      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+      'justify-content:center;border-radius:5px;font-size:16px;line-height:1;box-sizing:border-box;color:#fca5a5;';
+    minus.addEventListener('mouseenter', () => {
+      if (!minus.dataset.sveDisabled) minus.style.background = 'rgba(255,255,255,0.14)';
+    });
+    minus.addEventListener('mouseleave', () => (minus.style.background = 'transparent'));
+    minus.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    minus.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (minus.dataset.sveDisabled) {
+        return;
+      }
+
+      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'remove-row', uid }, win.location.origin);
+      hideMoveControl(win);
+    });
+
+    ctrl.appendChild(minus);
+
+    // Ask the CP whether page_sections is at its min, so the button greys out
+    // instead of silently doing nothing — same as the orderable rows'.
+    moveCtrlRowButtons = { uid, addBtn: null, removeBtn: minus };
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+  }
+
+  // Bridge the gap between the control and its row. The control sits a few px
+  // off the row, and the cursor has to cross that gap to reach it — but in the
+  // gap `event.target` is neither the row nor the control, so the hover handler
+  // would switch to the section's control and this one would vanish before it's
+  // reached. Two transparent strips, just above and below the control and part
+  // of it, keep `moveCtrlEl.contains(target)` true right across the gap so the
+  // control stays put whichever side it's placed on.
+  ['top:100%', 'bottom:100%'].forEach((edge) => {
+    const bridge = doc.createElement('div');
+
+    bridge.style.cssText = `position:absolute;left:-8px;right:-8px;${edge};height:12px;`;
+    ctrl.appendChild(bridge);
+  });
 
   doc.body.appendChild(ctrl);
   moveCtrlEl = ctrl;
@@ -1148,7 +2432,50 @@ function startEditing(win, data) {
     finishEditing(win, false);
   }
 
-  const el = data.target === 'block' && blockEl ? blockEl : editableFromWrapper(wrapper);
+  let el;
+  let lockedEls = [];
+
+  if (data.mode === 'bard-field') {
+    // Whole-field session: the wrapper itself becomes the editable. Map the
+    // field's nodes onto the wrapper's direct children in order; every
+    // unmatched child (buttons, loops, other partials sharing the wrapper) is
+    // locked so the caret and edits can never reach it.
+    el = wrapper;
+
+    const kids = [...wrapper.children];
+    const blocks = [];
+    let cursor = 0;
+
+    for (const node of data.nodes || []) {
+      let found = null;
+
+      while (cursor < kids.length) {
+        const candidate = kids[cursor++];
+
+        if (normText(candidate.textContent) === node.text) {
+          found = candidate;
+          break;
+        }
+      }
+
+      if (!found) {
+        // The DOM doesn't line up with the stored nodes (modifier output,
+        // restructured markup) — abort rather than guess; the CP rolls back.
+        win.parent.postMessage(
+          { source: 'statamic-visual-editor', type: 'edit-end', requestId: data.requestId, cancelled: true },
+          win.location.origin
+        );
+
+        return;
+      }
+
+      blocks.push(found);
+    }
+
+    lockedEls = kids.filter((kid) => !blocks.includes(kid));
+  } else {
+    el = data.target === 'block' && blockEl ? blockEl : editableFromWrapper(wrapper);
+  }
 
   // The toolbar for a Bard field is built from the field's own `buttons` config,
   // emitted by the visual_edit tag on the wrapper (data-sid-bard-buttons) plus a
@@ -1188,17 +2515,24 @@ function startEditing(win, data) {
           .map((s) => s.class)
       : [],
     el,
+    lockedEls,
     restoreHtml: el.innerHTML,
     hadContentEditable: el.getAttribute('contenteditable'),
     inputTimer: null,
     dirty: false,
   };
 
-  if (data.mode === 'bard') {
+  if (data.mode === 'bard' || data.mode === 'bard-field') {
     // Full contenteditable so execCommand formatting (toolbar + ⌘B/⌘I) works.
     // Whatever markup lands in the DOM is sanitized by the CP-side parser —
     // only semantic tags become marks, everything else is flattened to text.
     el.contentEditable = 'true';
+
+    // Non-field content sharing the wrapper stays untouchable.
+    lockedEls.forEach((locked) => {
+      locked.setAttribute('data-sve-locked', '');
+      locked.setAttribute('contenteditable', 'false');
+    });
 
     try {
       win.document.execCommand('styleWithCSS', false, false);
@@ -1237,6 +2571,40 @@ function startEditing(win, data) {
     }
 
     if (e.key === 'Enter') {
+      // Whole-field Bard: Enter splits blocks like the panel's editor.
+      // Shift+Enter falls through to the browser's <br> (parsed to hardBreak).
+      // At the very end of a heading a paragraph is inserted (Bard's
+      // behaviour); everywhere else the browser's own block split matches.
+      if (session.mode === 'bard-field') {
+        if (e.shiftKey) {
+          return;
+        }
+
+        const block = currentBlockEl(win, session);
+
+        if (block && /^H[1-6]$/.test(block.tagName) && caretAtEndOf(win, block)) {
+          e.preventDefault();
+
+          const p = win.document.createElement('p');
+
+          p.innerHTML = '<br>';
+          block.after(p);
+
+          const range = win.document.createRange();
+
+          range.setStart(p, 0);
+          range.collapse(true);
+
+          const sel = win.getSelection();
+
+          sel.removeAllRanges();
+          sel.addRange(range);
+          session.onInput();
+        }
+
+        return;
+      }
+
       // Shift+Enter inserts a newline in plain string fields (textarea-style);
       // everywhere else Enter commits — block splitting is out of scope.
       if (e.shiftKey && data.mode === 'string') {
@@ -1308,7 +2676,7 @@ export function finishEditing(win, cancelled) {
     sendEditInput(win, session);
   }
 
-  win.top.postMessage(
+  win.parent.postMessage(
     {
       source: 'statamic-visual-editor',
       type: 'edit-end',
@@ -1325,6 +2693,11 @@ export function finishEditing(win, cancelled) {
   } else {
     el.setAttribute('contenteditable', session.hadContentEditable);
   }
+
+  (session.lockedEls || []).forEach((locked) => {
+    locked.removeAttribute('data-sve-locked');
+    locked.removeAttribute('contenteditable');
+  });
 
   if (cancelled) {
     el.innerHTML = session.restoreHtml;
@@ -1374,6 +2747,7 @@ export function createMouseMoveHandler(win) {
       // hovering the control itself — keep it
     } else {
       const moveEl =
+        event.target.closest(`[${ORDERABLE_ATTR}]`) ||
         event.target.closest('[data-sid-move]') ||
         event.target.closest(`section[${SID_ATTR}]:not([data-sid-type="text"])`);
 
@@ -1383,6 +2757,8 @@ export function createMouseMoveHandler(win) {
         hideMoveControl(win);
       }
     }
+
+    maybeShowColumnChrome(win, event);
 
     if (clearTimer) {
       clearTimeout(clearTimer);
@@ -1394,16 +2770,52 @@ export function createMouseMoveHandler(win) {
         el.removeAttribute(INNER_ATTR);
       });
       hideMoveControl(win);
+
+      if (!widthDrag) {
+        hideColumnChrome(win);
+      }
     }, HOVER_CLEAR_DELAY);
   };
 }
 
 export function createClickHandler(win) {
   return function handleClick(event) {
+    // The click generated by releasing a drag is not a click — swallow it
+    // before it starts an inline edit or a focus jump.
+    if (dragJustEnded || widthDragJustEnded) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      return;
+    }
+
     // Move-control clicks: the buttons handle themselves (and this handler runs
     // in the capture phase — stopping here would block their click listeners).
     if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
       return;
+    }
+
+    // The global-section bar owns its own clicks.
+    if (event.target.closest(`#${GLOBAL_BAR_ID}`)) {
+      return;
+    }
+
+    // First click on a global section steps into it: the page fades back and its
+    // own editor opens beside you. Once you're in, clicks behave normally again —
+    // so the text edits inline exactly like the page's own. Clicking outside
+    // steps back out.
+    const globalSection = event.target.closest(`[${GLOBAL_ATTR}]`);
+
+    if (globalSection) {
+      if (globalFocusEl !== globalSection) {
+        event.preventDefault();
+        event.stopPropagation();
+        enterGlobalFocus(win, globalSection);
+
+        return;
+      }
+    } else if (globalFocusEl) {
+      exitGlobalFocus(win);
     }
 
     if (editing) {
@@ -1425,6 +2837,26 @@ export function createClickHandler(win) {
       // Clicking anywhere else commits the edit; fall through so the click
       // also performs its normal focus/edit-request behaviour.
       finishEditing(win, false);
+    }
+
+    // Content that comes from a global set: open it in the panel beside the
+    // preview rather than trying to edit it in place — the value is usually
+    // rendered inside other text, so what's on screen isn't what's stored.
+    const globalEl = event.target.closest('[data-sid-global]');
+
+    if (globalEl) {
+      event.preventDefault();
+      event.stopPropagation();
+      win.parent.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'open-global',
+          target: globalEl.getAttribute('data-sid-global') || '',
+        },
+        win.location.origin
+      );
+
+      return;
     }
 
     const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
@@ -1471,7 +2903,7 @@ export function createClickHandler(win) {
         return;
       }
 
-      win.top.postMessage(popupMessage, win.location.origin);
+      win.parent.postMessage(popupMessage, win.location.origin);
 
       return;
     }
@@ -1480,7 +2912,7 @@ export function createClickHandler(win) {
     // scope = the _visual_id of the surrounding set, so the CP can disambiguate a
     // bare handle (e.g. "text") that repeats across many sections/rows.
     if (target.hasAttribute(SID_FIELD_ATTR)) {
-      win.top.postMessage(
+      win.parent.postMessage(
         {
           source: 'statamic-visual-editor',
           type: 'click',
@@ -1504,7 +2936,7 @@ export function createClickHandler(win) {
           (normText(target.textContent) === '' && target.querySelector('img, picture, video'));
 
         if (isMediaClick) {
-          win.top.postMessage(
+          win.parent.postMessage(
             {
               source: 'statamic-visual-editor',
               type: 'asset-edit',
@@ -1550,7 +2982,7 @@ export function createClickHandler(win) {
       message.afterSetUid = prevSet ? prevSet.getAttribute(SID_ATTR) : null;
     }
 
-    win.top.postMessage(message, win.location.origin);
+    win.parent.postMessage(message, win.location.origin);
   };
 }
 
@@ -1573,7 +3005,7 @@ export function createHoverHandler(win) {
       }
 
       lastHoveredKey = field;
-      win.top.postMessage(
+      win.parent.postMessage(
         {
           source: 'statamic-visual-editor',
           type: 'hover',
@@ -1598,7 +3030,7 @@ export function createHoverHandler(win) {
 
     if (!uid) {
       // Mouse left all annotated elements — tell the CP to clear its hover state.
-      win.top.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
 
       return;
     }
@@ -1615,7 +3047,7 @@ export function createHoverHandler(win) {
       message.afterSetUid = prevSet ? prevSet.getAttribute(SID_ATTR) : null;
     }
 
-    win.top.postMessage(message, win.location.origin);
+    win.parent.postMessage(message, win.location.origin);
   }
 
   // When the mouse leaves the iframe entirely, immediately clear the CP hover
@@ -1623,7 +3055,7 @@ export function createHoverHandler(win) {
   // the mouseover handler only fires for elements inside the iframe.
   handleHover.reset = () => {
     lastHoveredKey = null;
-    win.top.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
   };
 
   return handleHover;
@@ -1682,17 +3114,129 @@ function pulseElement(el) {
   setTimeout(() => el.classList.remove('sve-cp-pulse'), PULSE_DURATION);
 }
 
+// --- External drag (dragging a section in from the CP's library panel) ----------
+//
+// The library panel lives in the CP window; the drop target is in here. The CP
+// forwards the pointer (in this window's coordinates, so zoom doesn't matter —
+// both cursor and section rects are in the same viewport space) and we show a
+// drop line between the page's sections, exactly like an internal section drag,
+// including the same zoom-out so the whole page is reachable. On release we tell
+// the CP which section to drop after; the CP does the insert.
+
+let extDrag = null;
+
+function topLevelSections(win) {
+  return [...win.document.querySelectorAll('section[data-sid], article[data-sid]')].filter(
+    (el) => el.getBoundingClientRect().width > 0
+  );
+}
+
+function extDragStart(win) {
+  const indicator = win.document.createElement('div');
+
+  indicator.style.cssText =
+    'position:fixed;z-index:2147483646;pointer-events:none;height:4px;border-radius:2px;' +
+    'background:var(--sve-focus-color,#3b82f6);box-shadow:0 0 0 1px rgba(255,255,255,.5);';
+  win.document.documentElement.appendChild(indicator);
+
+  extDrag = { zoom: zoomOutForDrag(win), indicator, afterUid: null };
+}
+
+function extDragMove(win, x, y) {
+  if (!extDrag) {
+    return;
+  }
+
+  const sections = topLevelSections(win);
+  let afterEl = null;
+
+  // Sections are in document (top-to-bottom) order — the drop goes after the last
+  // one whose midpoint the cursor has passed.
+  for (const el of sections) {
+    const rect = el.getBoundingClientRect();
+
+    if (y > (rect.top + rect.bottom) / 2) {
+      afterEl = el;
+    } else {
+      break;
+    }
+  }
+
+  extDrag.afterUid = afterEl ? afterEl.getAttribute('data-sid') : null;
+
+  const anchor = afterEl || sections[0];
+
+  if (anchor) {
+    const rect = anchor.getBoundingClientRect();
+
+    extDrag.indicator.style.left = `${rect.left}px`;
+    extDrag.indicator.style.width = `${rect.width}px`;
+    extDrag.indicator.style.top = `${(afterEl ? rect.bottom : rect.top) - 2}px`;
+  }
+}
+
+function extDragEnd(win, cancelled) {
+  if (!extDrag) {
+    return;
+  }
+
+  const { afterUid } = extDrag;
+
+  extDrag.indicator?.remove();
+  restoreZoom(win, extDrag.zoom);
+  extDrag = null;
+
+  if (!cancelled) {
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'ext-drop', afterUid },
+      win.location.origin
+    );
+  }
+}
+
 export function createMessageReceiver(win) {
   return function handleMessage(event) {
     // Guard: only accept messages from the parent frame (the Statamic CP).
     // This prevents cross-site message spoofing from third-party windows.
-    if (event.source !== win.top) {
+    if (event.source !== win.parent) {
       return;
     }
 
     const { data } = event;
 
     if (!data || data.source !== 'statamic-visual-editor') {
+      return;
+    }
+
+    if (data.type === 'ext-drag-start') {
+      extDragStart(win);
+
+      return;
+    }
+
+    if (data.type === 'ext-drag-move') {
+      extDragMove(win, data.x, data.y);
+
+      return;
+    }
+
+    if (data.type === 'ext-drag-end') {
+      extDragEnd(win, !!data.cancelled);
+
+      return;
+    }
+
+    if (data.type === 'row-caps-result') {
+      applyRowCaps(data);
+
+      return;
+    }
+
+    // Where the CP's floating "back" pill sits, in our coordinates — so a
+    // section's control can step out from under it.
+    if (data.type === 'sve-pill-box') {
+      pillBox = { bottom: data.bottom, left: data.left };
+
       return;
     }
 
@@ -1712,7 +3256,7 @@ export function createMessageReceiver(win) {
         // Dual popup+field element whose click didn't resolve to editable
         // text — open the popup, as a plain click on the block always did.
         if (popupFallback) {
-          win.top.postMessage(popupFallback, win.location.origin);
+          win.parent.postMessage(popupFallback, win.location.origin);
         }
       }
 
@@ -1797,8 +3341,38 @@ export function createMessageReceiver(win) {
   };
 }
 
+/**
+ * The preview is for editing, not for browsing: following a link would replace
+ * the page being edited with another one, inside an iframe with no way back.
+ * So links (and form submits) are stopped before they navigate.
+ *
+ * Only the navigation is cancelled — the event still propagates, so clicking a
+ * link keeps doing everything else it does here: selecting its section, opening
+ * its field, starting an inline edit.
+ *
+ * Registered before the editor's own click handler so it runs first, whatever
+ * that one decides to do with the event.
+ */
+function blockNavigation(win) {
+  const stopLink = (event) => {
+    // Modified clicks would open a new tab rather than leave the preview — but
+    // "no navigation at all" is the point, so those go too.
+    if (event.target.closest?.('a[href]')) {
+      event.preventDefault();
+    }
+  };
+
+  win.document.addEventListener('click', stopLink, true);
+  win.document.addEventListener('auxclick', stopLink, true); // middle-click
+  win.document.addEventListener(
+    'submit',
+    (event) => event.preventDefault(),
+    true
+  );
+}
+
 export function initBridge(win = window) {
-  if (win.self === win.top) {
+  if (win.self === win.parent) {
     return;
   }
 
@@ -1817,6 +3391,7 @@ export function initBridge(win = window) {
       injectStyles(win.document);
     }
   }).observe(win.document.head, { childList: true });
+  blockNavigation(win);
   win.document.addEventListener('click', createClickHandler(win), true);
   win.document.addEventListener('mousemove', createMouseMoveHandler(win), true);
 
@@ -1828,9 +3403,254 @@ export function initBridge(win = window) {
   win.document.addEventListener('mouseleave', () => hoverHandler.reset(), true);
   win.addEventListener('message', createMessageReceiver(win));
 
+  // Drag & drop reordering for [data-sid-orderable] rows.
+  win.document.addEventListener('pointerdown', createDragPointerDown(win), true);
+  win.document.addEventListener('pointermove', createDragPointerMove(win), true);
+  win.document.addEventListener('pointerup', createDragPointerUp(win), true);
+  win.document.addEventListener(
+    'pointercancel',
+    () => {
+      if (widthDrag) {
+        finishWidthDrag(win, true);
+      }
+
+      endDrag(win);
+    },
+    true
+  );
+
   // A hot-reload morph replaces section elements — drop the move control so it
-  // never points at a detached node; the next hover recreates it.
-  win.addEventListener('statamic:preview-updated', () => hideMoveControl(win));
+  // never points at a detached node; the next hover recreates it. Same for a
+  // drag in flight: its element and peers are about to be detached.
+  win.addEventListener('statamic:preview-updated', () => {
+    hideMoveControl(win);
+    hideColumnChrome(win);
+    endDrag(win);
+
+    if (widthDrag) {
+      finishWidthDrag(win, true);
+    }
+
+    // A morph brings in fresh section elements. Re-tag the global ones and put
+    // the focus back on the same section — every keystroke in it re-renders the
+    // page, so dropping the focus here would throw you out of it as you type.
+    const focusedId = globalFocusId;
+
+    exitGlobalFocus(win, false);
+    tagGlobalSections(win);
+
+    if (focusedId) {
+      const again = win.document.querySelector(`[${GLOBAL_ATTR}="${focusedId}"]`);
+
+      if (again) {
+        enterGlobalFocus(win, again, false);
+      }
+    }
+
+    setupInserters(win); // fresh blocks after the morph
+  });
+
+  // Escape steps back out of a global section.
+  win.document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && globalFocusEl && !editing) {
+      exitGlobalFocus(win);
+    }
+  });
+
+  tagGlobalSections(win);
+
+  // The CP posts the pill's box when its chrome re-renders — which has already
+  // happened by the time we boot in here. Ask for it, now that we're listening.
+  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'sve-pill-box-request' }, win.location.origin);
+
+  // Block inserters: wire them up now, keep them pinned as the preview scrolls or
+  // resizes, and rebuild after a morph brings in fresh blocks.
+  setupInserters(win);
+  win.addEventListener('scroll', () => repositionInserters(win), true);
+  win.addEventListener('resize', () => repositionInserters(win));
+}
+
+// --- Block inserter: a "+" between a replicator's blocks (Gutenberg-style) ------
+//
+// A container marked `data-sid-insert="<field>"` (via {{ visual_edit
+// insertable="true" }}) gets a "+" in each gap between its blocks. Clicking it
+// offers the field's set types; picking one inserts a new block of that type
+// there. Orientation follows the layout: stacked blocks get a horizontal divider,
+// a row of blocks gets a vertical one — so it works both ways.
+
+const INSERT_ATTR = 'data-sid-insert';
+const INSERT_LAYER_ID = '__sve-inserters';
+let inserterInstances = [];
+let inserterHideTimer = null;
+
+function ensureInserterLayer(win) {
+  let layer = win.document.getElementById(INSERT_LAYER_ID);
+
+  if (!layer) {
+    layer = win.document.createElement('div');
+    layer.id = INSERT_LAYER_ID;
+    layer.style.cssText = 'position:fixed;inset:0;z-index:2147482400;pointer-events:none;';
+    win.document.body.appendChild(layer);
+  }
+
+  return layer;
+}
+
+/**
+ * One "+" under each block, shown only while that block (or the "+") is hovered.
+ * An empty field gets a single, always-visible "+" to start it off.
+ */
+function setupInserters(win) {
+  const layer = ensureInserterLayer(win);
+
+  layer.innerHTML = '';
+  inserterInstances = [];
+
+  win.document.querySelectorAll(`[${INSERT_ATTR}]`).forEach((container) => {
+    let sets = [];
+
+    try {
+      sets = JSON.parse(container.getAttribute('data-sid-insert-sets') || '[]');
+    } catch {
+      sets = [];
+    }
+
+    if (!sets.length) {
+      return;
+    }
+
+    const field = container.getAttribute(INSERT_ATTR);
+    const scope = container.getAttribute('data-sid-insert-scope');
+    const blocks = [...container.children].filter((child) => child.hasAttribute(SID_ATTR));
+
+    if (!blocks.length) {
+      const inst = buildInserter(win, { field, sets, scope, container, empty: true });
+
+      inst.el.style.opacity = '1';
+      layer.appendChild(inst.el);
+      inserterInstances.push(inst);
+
+      return;
+    }
+
+    // Orientation from the blocks themselves: two blocks that differ more in x
+    // than in y sit side by side (→ a vertical divider), else stacked.
+    let horizontal = false;
+
+    if (blocks.length >= 2) {
+      const a = blocks[0].getBoundingClientRect();
+      const b2 = blocks[1].getBoundingClientRect();
+
+      horizontal = Math.abs(b2.left - a.left) > Math.abs(b2.top - a.top);
+    }
+
+    blocks.forEach((block) => {
+      const inst = buildInserter(win, { field, sets, block, position: 'after', horizontal, scope });
+
+      layer.appendChild(inst.el);
+      inserterInstances.push(inst);
+
+      const show = () => {
+        clearTimeout(inserterHideTimer);
+        inst.el.style.opacity = '1';
+      };
+      const hide = () => {
+        inserterHideTimer = win.setTimeout(() => {
+          inst.el.style.opacity = '0';
+        }, 120);
+      };
+
+      block.addEventListener('pointerenter', show);
+      block.addEventListener('pointerleave', hide);
+      inst.el.addEventListener('pointerenter', show);
+      inst.el.addEventListener('pointerleave', hide);
+    });
+  });
+
+  repositionInserters(win);
+}
+
+function repositionInserters(win) {
+  inserterInstances.forEach((inst) => positionInserter(win, inst));
+}
+
+function positionInserter(win, inst) {
+  const el = inst.el;
+  const line = el.__line;
+
+  if (inst.empty) {
+    const r = inst.container.getBoundingClientRect();
+
+    el.style.left = `${r.left}px`;
+    el.style.top = `${r.top + 6}px`;
+    el.style.width = `${r.width}px`;
+    el.style.height = '30px';
+    el.style.flexDirection = 'row';
+    line.style.cssText = 'height:2px;flex:1;background:rgba(99,102,241,.45);';
+
+    return;
+  }
+
+  const r = inst.block.getBoundingClientRect();
+
+  if (inst.horizontal) {
+    el.style.left = `${r.right - 15}px`;
+    el.style.top = `${r.top}px`;
+    el.style.width = '30px';
+    el.style.height = `${r.height}px`;
+    el.style.flexDirection = 'column';
+    line.style.cssText = 'width:2px;flex:1;background:rgba(99,102,241,.55);';
+  } else {
+    el.style.left = `${r.left}px`;
+    el.style.top = `${r.bottom - 15}px`;
+    el.style.width = `${r.width}px`;
+    el.style.height = '30px';
+    el.style.flexDirection = 'row';
+    line.style.cssText = 'height:2px;flex:1;background:rgba(99,102,241,.55);';
+  }
+}
+
+function buildInserter(win, opts) {
+  const doc = win.document;
+  const wrap = doc.createElement('div');
+
+  wrap.style.cssText =
+    'position:fixed;pointer-events:none;display:flex;align-items:center;justify-content:center;' +
+    'opacity:0;transition:opacity .1s;';
+
+  const line = doc.createElement('div');
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.textContent = '+';
+  btn.style.cssText =
+    'pointer-events:auto;position:absolute;width:26px;height:26px;border:none;border-radius:7px;cursor:pointer;' +
+    'background:#18181b;color:#fff;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center;' +
+    'box-shadow:0 2px 8px rgba(0,0,0,.3);';
+  btn.addEventListener('mouseenter', () => (btn.style.background = 'var(--theme-color-primary,#4f46e5)'));
+  btn.addEventListener('mouseleave', () => (btn.style.background = '#18181b'));
+  btn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    // Hand off to Statamic's own Add Set picker (opened in the CP), rather than a
+    // little popover of our own — native search, groups, previews, and insert.
+    win.parent.postMessage(
+      {
+        source: 'statamic-visual-editor',
+        type: 'add-block-native',
+        anchorUid: opts.block ? opts.block.getAttribute(SID_ATTR) : null,
+        sectionUid: opts.scope || null,
+        position: opts.position || null,
+      },
+      win.location.origin
+    );
+  });
+
+  wrap.appendChild(line);
+  wrap.appendChild(btn);
+  wrap.__line = line;
+
+  return { el: wrap, ...opts };
 }
 
 initBridge();

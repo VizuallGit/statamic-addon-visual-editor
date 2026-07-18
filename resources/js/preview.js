@@ -46,6 +46,31 @@ injectPreviewStyles(document);
 let updateSeq = 0;
 let pendingUrl = null;
 
+// True while a global set is open beside the preview. Renders then have to ask
+// for the unsaved globals — otherwise the server uses what's on disk and the
+// change you just typed vanishes on the next refresh. Deliberately opt-in per
+// render: a stale override must never silently alter an ordinary preview.
+let globalsActive = false;
+
+// True while a global (synced) section is open in the side panel — same story:
+// the page's own form holds only a reference, so without asking for the unsaved
+// section the render falls back to what's on disk.
+let sectionsActive = false;
+
+function withFlags(url) {
+  let out = url;
+
+  if (globalsActive) {
+    out += (out.includes('?') ? '&' : '?') + 'sve_globals=1';
+  }
+
+  if (sectionsActive) {
+    out += (out.includes('?') ? '&' : '?') + 'sve_sections=1';
+  }
+
+  return out;
+}
+
 function editingActive() {
   return !!window.__sveInlineEdit?.active;
 }
@@ -53,7 +78,7 @@ function editingActive() {
 async function applyUpdate(url) {
   // Drop stale responses when rapid edits overtake each other.
   const seq = ++updateSeq;
-  const text = await fetch(url).then((res) => res.text());
+  const text = await fetch(withFlags(url)).then((res) => res.text());
 
   if (seq !== updateSeq) {
     return;
@@ -99,6 +124,30 @@ async function applyUpdate(url) {
 }
 
 window.addEventListener('message', (event) => {
+  // The CP tells us whether a global set is being edited, and re-renders the
+  // preview on every keystroke in it (there's no entry change to make Statamic
+  // do it for us) by replaying the last preview URL.
+  if (event.data?.name === 'sve.globals') {
+    globalsActive = !!event.data.active;
+
+    if (event.data.url) {
+      applyUpdate(event.data.url);
+    }
+
+    return;
+  }
+
+  // Same, for a global section being edited in the side panel.
+  if (event.data?.name === 'sve.sections') {
+    sectionsActive = !!event.data.active;
+
+    if (event.data.url) {
+      applyUpdate(event.data.url);
+    }
+
+    return;
+  }
+
   if (event.data?.name !== 'statamic.preview.updated') {
     return;
   }

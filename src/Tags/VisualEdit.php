@@ -35,6 +35,38 @@ class VisualEdit extends Tags
         $inside = $this->params->bool('outline-inside', false);
         $popup = $this->params->bool('popup', false);
 
+        // global_edit="site_settings.phone" — clicking opens that global set in the
+        // panel beside the preview, with the field focused. Deliberately NOT inline
+        // editing: what's rendered is often the value inside other text ("Tlf. …"),
+        // and writing the whole rendered string back would corrupt the value.
+        if ($globalAttr = $this->globalEditAttr()) {
+            // Stands on its own — a global isn't part of the entry being edited, so
+            // none of the entry-field annotations apply to it.
+            return $isPair ? '<div '.$globalAttr.'>'.$content.'</div>' : $globalAttr;
+        }
+
+        // insertable="true" on a replicator's container: the preview shows a "+"
+        // between its blocks that inserts a new set of a chosen type. Emits the
+        // field to insert into and the set types it allows (read from the
+        // blueprint, so a new set type just shows up).
+        if ($this->params->bool('insertable', false) && $field !== null && (string) $field !== '') {
+            $attr = 'data-sid-insert="'.e((string) $field).'"';
+
+            // The section this replicator belongs to — its uid. Used to seed the
+            // very first block when the field is empty (no sibling to anchor to).
+            if ($scope = $this->context->get('_visual_id')) {
+                $attr .= ' data-sid-insert-scope="'.e((string) $scope).'"';
+            }
+
+            $sets = $this->resolveInsertSets((string) $field);
+
+            if (! empty($sets)) {
+                $attr .= ' data-sid-insert-sets="'.e(json_encode($sets)).'"';
+            }
+
+            return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
+        }
+
         if ($field !== null && (string) $field !== '' && ! $popup) {
             // Scope UID: the _visual_id of the set this tag sits inside. Lets the CP
             // disambiguate a bare handle like "text" — which is otherwise identical
@@ -56,7 +88,8 @@ class VisualEdit extends Tags
                 $scopeUid ? (string) $scopeUid : '',
                 $inlineEdit,
                 $this->params->bool('move', false),
-                $inlineEdit ? $this->resolveBardConfig((string) $field) : null
+                $inlineEdit ? $this->resolveBardConfig((string) $field) : null,
+                $this->params->bool('orderable', false)
             );
 
             return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
@@ -78,7 +111,13 @@ class VisualEdit extends Tags
             return $content;
         }
 
-        $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup, $this->params->bool('move', false));
+        $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup, $this->params->bool('move', false), $this->params->bool('orderable', false));
+
+        // section-orderable="true": drag handle in the hover control that moves
+        // the whole section with a zoomed-out page overview.
+        if ($this->params->bool('section-orderable', $this->params->bool('section_orderable', false))) {
+            $attr .= ' data-sid-section-orderable';
+        }
 
         // popup + field + inline-edit: dual-annotated element. Text clicks try
         // inline editing first (field scope = the popup row id — column builder
@@ -92,6 +131,24 @@ class VisualEdit extends Tags
         }
 
         return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
+    }
+
+    /**
+     * `global_edit` names the global to open, as "set" or "set.field" — e.g.
+     * global_edit="site_settings.phone". `global_edit="true"` just opens the panel
+     * on the first set, since it says nothing about which global is meant.
+     */
+    private function globalEditAttr(): string
+    {
+        $target = $this->params->get('global_edit', $this->params->get('global-edit'));
+
+        if ($target === null || $target === false || $target === '') {
+            return '';
+        }
+
+        $target = ($target === true || $target === 'true') ? '' : (string) $target;
+
+        return 'data-sid-global="'.e($target).'"';
     }
 
     private function resolveLabel(): string
@@ -155,7 +212,7 @@ class VisualEdit extends Tags
         return (string) $this->context->get('type', '');
     }
 
-    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false, bool $move = false, ?array $bardConfig = null): string
+    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false, bool $move = false, ?array $bardConfig = null, bool $orderable = false): string
     {
         $attr = 'data-sid-field="'.e($fieldPath).'"';
 
@@ -194,10 +251,15 @@ class VisualEdit extends Tags
             $attr .= ' data-sid-move';
         }
 
+        // orderable="true": drag & drop reordering among sibling rows.
+        if ($orderable) {
+            $attr .= ' data-sid-orderable';
+        }
+
         return $attr;
     }
 
-    private function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false, bool $popup = false, bool $move = false): string
+    private function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false, bool $popup = false, bool $move = false, bool $orderable = false): string
     {
         $attr = 'data-sid="'.e($uuid).'"';
 
@@ -220,6 +282,11 @@ class VisualEdit extends Tags
         // move="true": show reorder arrows on hover for this set/row.
         if ($move) {
             $attr .= ' data-sid-move';
+        }
+
+        // orderable="true": drag & drop reordering among sibling rows.
+        if ($orderable) {
+            $attr .= ' data-sid-orderable';
         }
 
         return $attr;
@@ -378,6 +445,120 @@ class VisualEdit extends Tags
                 }
             }
         }
+    }
+
+    /**
+     * The set types a replicator field allows, as [{handle, display}], read from
+     * the blueprint — so the block inserter offers exactly what the field permits,
+     * nothing hardcoded.
+     */
+    private function resolveInsertSets(string $fieldHandle): array
+    {
+        try {
+            $page = $this->context->get('page');
+            $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
+
+            if (! $blueprint) {
+                return [];
+            }
+
+            $config = $this->findReplicatorConfig($blueprint->contents(), $fieldHandle);
+
+            if (! $config) {
+                return [];
+            }
+
+            $out = [];
+
+            foreach ($this->flattenReplicatorSets($config['sets'] ?? []) as $handle => $set) {
+                $out[] = [
+                    'handle' => $handle,
+                    'display' => $set['display'] ?? Str::headline($handle),
+                ];
+            }
+
+            return $out;
+        } catch (\Throwable $e) {
+            Log::debug('VisualEdit: failed to resolve insert sets for '.$fieldHandle, ['exception' => $e]);
+
+            return [];
+        }
+    }
+
+    /** The config of the replicator with this handle, found anywhere in the tree. */
+    private function findReplicatorConfig($node, string $handle, int $depth = 0): ?array
+    {
+        if ($depth > 14 || ! is_array($node)) {
+            return null;
+        }
+
+        foreach (($node['tabs'] ?? []) as $tab) {
+            if ($found = $this->findReplicatorConfig($tab, $handle, $depth + 1)) {
+                return $found;
+            }
+        }
+
+        foreach (($node['sections'] ?? []) as $section) {
+            if ($found = $this->findReplicatorConfig($section, $handle, $depth + 1)) {
+                return $found;
+            }
+        }
+
+        foreach ((array) ($node['fields'] ?? []) as $item) {
+            if (isset($item['import'])) {
+                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+
+                if ($fieldset && $found = $this->findReplicatorConfig($fieldset->contents(), $handle, $depth + 1)) {
+                    return $found;
+                }
+
+                continue;
+            }
+
+            $field = $item['field'] ?? null;
+
+            if (! is_array($field)) {
+                continue;
+            }
+
+            if (($item['handle'] ?? null) === $handle && isset($field['sets'])) {
+                return $field;
+            }
+
+            foreach (($field['sets'] ?? []) as $group) {
+                foreach (($group['sets'] ?? []) as $set) {
+                    if ($found = $this->findReplicatorConfig($set, $handle, $depth + 1)) {
+                        return $found;
+                    }
+                }
+            }
+
+            if (isset($field['fields']) && $found = $this->findReplicatorConfig($field, $handle, $depth + 1)) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    /** Flattens grouped set config (`sets: { group: { sets: {...} } }`) to handle => set. */
+    private function flattenReplicatorSets(array $sets): array
+    {
+        $first = reset($sets);
+
+        if (is_array($first) && isset($first['sets'])) {
+            $out = [];
+
+            foreach ($sets as $group) {
+                foreach (($group['sets'] ?? []) as $handle => $set) {
+                    $out[$handle] = $set;
+                }
+            }
+
+            return $out;
+        }
+
+        return $sets;
     }
 
     protected function isLivePreview(): bool

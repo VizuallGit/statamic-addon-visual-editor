@@ -1,0 +1,97 @@
+<?php
+
+/*
+ * Danish — used when the Control Panel user has picked Danish as their language.
+ * Keys not translated here fall back to English (resources/lang/en/messages.php).
+ */
+
+return [
+    // Hover control on a section / an orderable row
+    'move_up' => 'Flyt op',
+    'move_down' => 'Flyt ned',
+    'move_left' => 'Flyt til venstre',
+    'move_right' => 'Flyt til højre',
+    'drag_section' => 'Træk for at flytte sektionen',
+    'drag_columns' => 'Træk for at ændre kolonnebredder',
+    'add_another' => 'Tilføj endnu en',
+    'remove_this' => 'Fjern denne',
+    'section_settings' => 'Indstillinger for denne sektion',
+    'save_as_template' => 'Gem sektion som skabelon',
+    'add_section_below' => 'Tilføj sektion under denne',
+    'remove_section' => 'Fjern denne sektion',
+    'add_column' => 'Tilføj kolonne',
+    'save_enter' => 'Gem (Enter)',
+
+    // Global (synced) sections
+    'global_badge' => 'Global — synkroniseret',
+    'global_bar' => 'Du er inde i en :section — rediger den her; ændringer gælder alle sider',
+    'global_bar_section' => 'global sektion',
+    'global_panel_title' => 'Global sektion',
+    'global_panel_note' => '— ændringer gælder alle sider',
+    'save_global_section' => 'Gem den globale sektion',
+
+    // Section library
+    'sections' => 'Sektioner',
+    'library_hint' => 'Træk en sektion ind i siden — eller klik for at lægge den nederst.',
+    'tab_page' => 'Side',
+    'tab_custom' => 'Egne',
+    'tab_global' => 'Globale',
+    'no_preview' => 'Ingen preview',
+    'no_section_types' => 'Ingen sektionstyper.',
+    'loading' => 'Henter…',
+    'no_saved_sections' => 'Ingen gemte sektioner endnu. Gem en sektion for at se den her.',
+    'no_global_sections' => 'Ingen globale sektioner endnu. Gem en sektion som synkroniseret.',
+    'saved_sections_failed' => 'Kunne ikke hente gemte sektioner.',
+
+    // "Gem sektion som skabelon"-dialogen
+    'save_section' => 'Gem sektion',
+    'save_section_heading' => 'Gem sektion som skabelon',
+    'name' => 'Navn',
+    'name_placeholder' => 'fx Kontakt-CTA',
+    'synced_hint' => 'Synkroniseret — ændringer slår igennem alle steder (ellers indsat som kopi)',
+    'cancel' => 'Annullér',
+    'saved_toast' => 'Sektionen ":name" er gemt',
+    'save_failed' => 'Kunne ikke gemme sektionen',
+
+    // Live Preview-chrome
+    'all_sections' => 'Alle sektioner',
+    'globals' => 'Globals…',
+    'save_globals' => 'Gem globale indstillinger',
+    'back_to_site' => 'Tilbage til sitet',
+    'back_to_site_title' => 'Forlad editoren og gå tilbage til live-sitet',
+    'back_save_and_leave' => 'Gem og gå tilbage',
+    'back_leave_only' => 'Gå tilbage uden at gemme',
+    'collection' => 'Collection',
+    'choose_entry' => 'Vælg en side…',
+    'new_entry' => 'Ny',
+    'new_in' => 'Opret en ny i :collection',
+    'no_preview_collection' => 'ingen preview',
+    'no_preview_hint' => ':collection har ingen route, så dens entries har ingen side at vise — den åbner i den almindelige editor.',
+    'unsaved_title' => 'Du har ugemte ændringer',
+    'unsaved_body' => 'Vil du gemme dem, før du forlader denne side?',
+    'unsaved_save' => 'Gem og fortsæt',
+    'unsaved_discard' => 'Fortsæt uden at gemme',
+    'saving' => 'Gemmer…',
+    'save' => 'Gem',
+    'close' => 'Luk',
+    'tab_templates' => 'Skabeloner',
+    'save_page_as_template' => 'Gem denne side som skabelon',
+    'template_name' => 'fx Kampagneside',
+    'template_saved' => ':name er gemt som skabelon.',
+    'template_needs_sections' => 'Denne side har ingen sektioner at gemme.',
+    'template_empty' => 'Den skabelon indeholder ingen sektioner.',
+    'no_templates' => 'Ingen skabeloner endnu. Byg en side, og gem den her.',
+    'templates_failed' => 'Skabelonerne kunne ikke hentes.',
+    'template_count' => ':count sektioner',
+    'template_mode_body' => 'Skabelonen har :count sektioner. Skal de erstatte sidens sektioner, eller lægges til?',
+    'template_replace' => 'Erstat alle sektioner',
+    'template_append' => 'Tilføj til siden',
+    'title' => 'Titel',
+    'slug' => 'Slug',
+    'create' => 'Opret',
+    'create_failed' => 'Siden kunne ikke oprettes.',
+    'slug_taken' => 'Sluggen “:slug” er allerede brugt i denne collection.',
+    'slug_invalid' => 'Den titel giver en tom slug — skriv en selv.',
+    'panel' => 'Sideindstillinger',
+    'pages' => 'Sider',
+];

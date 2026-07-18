@@ -21,6 +21,12 @@ class SetPreviewImages
 {
     protected static ?array $cache = null;
 
+    /** Resets the in-request cache after the underlying files/YAML change. */
+    public static function flush(): void
+    {
+        static::$cache = null;
+    }
+
     public static function map(): array
     {
         if (static::$cache !== null) {
@@ -45,16 +51,51 @@ class SetPreviewImages
             static::walk($fieldset->contents(), $filenames);
         }
 
-        // Resolve each filename to a thumbnail URL.
+        // Resolve each filename to a thumbnail URL, cache-busted with the file's
+        // modification time — Statamic's thumbnail URLs are keyed by path only, so
+        // without this a regenerated image keeps serving the browser's cached copy.
         $map = [];
 
         foreach ($filenames as $handle => $filename) {
             if ($asset = Asset::find($prefix.$filename)) {
-                $map[$handle] = $asset->thumbnailUrl();
+                $map[$handle] = static::bust($asset);
             }
         }
 
         return static::$cache = $map;
+    }
+
+    /** Appends ?v=<file mtime> to an asset's thumbnail URL for cache busting. */
+    protected static function bust($asset): string
+    {
+        $url = $asset->thumbnailUrl();
+
+        try {
+            $mtime = $asset->container()->disk()->filesystem()->lastModified($asset->path());
+            $url .= (str_contains($url, '?') ? '&' : '?').'v='.$mtime;
+        } catch (\Throwable $e) {
+            // Leave un-versioned if the mtime can't be read.
+        }
+
+        return $url;
+    }
+
+    /**
+     * Flat { setHandle => stored filename } map across every fieldset — the raw
+     * `image` values before they're resolved to URLs. Used by the preview
+     * generator to know which sets have a preview image and where to write it.
+     *
+     * @return array<string, string>
+     */
+    public static function filenames(): array
+    {
+        $filenames = [];
+
+        foreach (Fieldset::all() as $fieldset) {
+            static::walk($fieldset->contents(), $filenames);
+        }
+
+        return $filenames;
     }
 
     /**

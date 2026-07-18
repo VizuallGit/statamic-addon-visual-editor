@@ -627,6 +627,17 @@ function activeContainers(doc) {
     }
   }
 
+  // A global section's content belongs to the entry open in the panel — another
+  // window, so none of the containers above have ever heard of it. Appended last,
+  // so the page's own fields always win a name clash, this stands in for it: every
+  // caller (inline edit, findPathByUid, the settings panel) then treats a global
+  // section exactly like one of the page's own.
+  const panel = sectionPanelContainer(doc);
+
+  if (panel) {
+    list.push(panel);
+  }
+
   return list;
 }
 
@@ -929,6 +940,41 @@ export function handleEditRequest(data, doc, win) {
       continue;
     }
 
+    // Whole-field Bard editing: when every node is an editable text block
+    // (heading/paragraph), the entire field becomes ONE session — one toolbar,
+    // the caret moves freely between blocks and Enter splits blocks like the
+    // panel's own editor. Fields containing other node types (sets, lists,
+    // images, …) fall back to the per-block editing below.
+    if (
+      Array.isArray(value) &&
+      value.length &&
+      value.every((node) => node && EDITABLE_NODE_TYPES.includes(node.type))
+    ) {
+      editSession = {
+        container,
+        requestId: data.requestId,
+        mode: 'bard-field',
+        path,
+        field: data.field,
+        scope: data.scope,
+        original: JSON.parse(JSON.stringify(value)),
+      };
+      reply({
+        type: 'edit-start',
+        mode: 'bard-field',
+        target: 'wrapper',
+        // Per-node identity so the bridge can map nodes onto DOM blocks.
+        nodes: value.map((node) => ({
+          type: node.type,
+          level: node.attrs?.level ?? null,
+          className: node.attrs?.class ?? null,
+          text: normText(bardNodeText(node)),
+        })),
+      });
+
+      return;
+    }
+
     // Fast path: Bard field where the clicked block's index maps directly to
     // the ProseMirror node AND the rendered text matches the stored one.
     if (Array.isArray(value) && data.blockIndex != null && req.blockText !== null) {
@@ -1020,6 +1066,48 @@ export function handleEditInput(data, doc) {
 
   if (editSession.mode === 'string') {
     container.setFieldValue(editSession.path, cleanEditedText(data.text));
+
+    return;
+  }
+
+  // Whole-field Bard: rebuild the entire node array from the serialized blocks.
+  if (editSession.mode === 'bard-field') {
+    const values = unwrapRef(container.values);
+    const current = dataGet(values, editSession.path);
+    const spanClasses =
+      Array.isArray(data.spanClasses) && data.spanClasses.length ? data.spanClasses : BTS_SPAN_CLASSES;
+
+    const next = (data.blocks || []).map((block, i) => {
+      const type = block.kind === 'heading' ? 'heading' : 'paragraph';
+      // Positional merge keeps attrs we don't manage (e.g. textAlign) as long
+      // as the block at this index kept its type.
+      const orig = Array.isArray(current) && current[i]?.type === type ? current[i] : null;
+      const attrs = { ...(orig?.attrs || {}) };
+      const node = { type };
+
+      if (type === 'heading') {
+        attrs.level = block.level || 2;
+        delete attrs.class;
+      } else if (block.className) {
+        attrs.class = block.className;
+      } else {
+        delete attrs.class;
+      }
+
+      if (Object.keys(attrs).length) {
+        node.attrs = attrs;
+      }
+
+      const content = parseInlineHtml(block.html || '', doc, spanClasses);
+
+      if (content.length) {
+        node.content = content;
+      }
+
+      return node;
+    });
+
+    container.setFieldValue(editSession.path, next);
 
     return;
   }
@@ -1143,7 +1231,10 @@ export function handleBardCommand(data, doc, win) {
     return;
   }
 
-  const { field, scope, index } = editSession;
+  const { field, scope } = editSession;
+  // Whole-field sessions carry the selection's block index in the message; the
+  // per-block session stored it at edit-start.
+  const index = Number.isInteger(data.blockIndex) ? data.blockIndex : editSession.index;
   // link/colour open a Statamic popup; the rest (lists, quote, …) apply in place.
   const opensPopup = data.command === 'link' || data.command === 'color';
 
@@ -1467,6 +1558,10 @@ export function handleLinkEdit(data, doc, win) {
  * swapped via setFieldValue — dirty state, replicator re-render and the live
  * preview update all follow from Statamic's own reactivity.
  */
+/**
+ * Reorders the array item carrying data.uid. Two callers: the hover arrows send
+ * a relative `direction` (±1); drag & drop sends an absolute `toIndex`.
+ */
 export function handleMove(data, doc) {
   const direction = data.direction < 0 ? -1 : 1;
 
@@ -1497,10 +1592,12 @@ export function handleMove(data, doc) {
       return;
     }
 
-    const to = index + direction;
+    const to = Number.isInteger(data.toIndex)
+      ? Math.max(0, Math.min(arr.length - 1, data.toIndex))
+      : index + direction;
 
-    if (to < 0 || to >= arr.length) {
-      return; // already first/last — no-op
+    if (to === index || to < 0 || to >= arr.length) {
+      return; // no movement (or already first/last)
     }
 
     const next = JSON.parse(JSON.stringify(arr));
@@ -1511,6 +1608,1722 @@ export function handleMove(data, doc) {
 
     return;
   }
+}
+
+/**
+ * Visual column resize: writes the col_w_* span classes the preview's width
+ * drag produced. `changes` come in pairs (both columns at a boundary), and the
+ * paths are looked up per uid — width writes never shift array indexes, so one
+ * values snapshot serves both lookups.
+ */
+export function handleColumnWidth(data, doc) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    let applied = false;
+
+    for (const change of data.changes ?? []) {
+      if (typeof change?.field !== 'string' || !/^col_w_[mtd]$/.test(change.field)) {
+        continue;
+      }
+
+      const path = findPathByUid(values, change.uid);
+
+      if (path === null) {
+        continue;
+      }
+
+      container.setFieldValue(`${path}.${change.field}`, change.value);
+      applied = true;
+    }
+
+    if (applied) {
+      return;
+    }
+  }
+}
+
+/**
+ * "+" on a columns section in the preview: append a column to the section's
+ * columns array — mirroring the column builder's own addColumn() defaults —
+ * and open the new card's edit popup so type and fields can be picked.
+ *
+ * Written through setFieldValue rather than by clicking the builder's own
+ * "Add column" button: programmatic clicks reach the builder's edit buttons
+ * fine (the popup flow below), but its add button doesn't respond to them.
+ */
+export function handleAddColumn(data, doc, win) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const sectionPath = findPathByUid(values, data.uid);
+
+    if (sectionPath === null) {
+      continue;
+    }
+
+    const columns = dataGet(values, `${sectionPath}.columns`);
+
+    if (!Array.isArray(columns)) {
+      continue;
+    }
+
+    // Same id format and defaults as the builder's addColumn().
+    const newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const count = columns.length + 1;
+    const newItem = {
+      _id: newId,
+      type: null,
+      enabled: true,
+      col_w_m: 'col-span-12',
+      col_w_t: 'md:col-span-6',
+      col_w_d: 'lg:col-span-4',
+      order_m: count,
+      order_t: count,
+      order_d: count,
+    };
+
+    container.setFieldValue(`${sectionPath}.columns`, [...JSON.parse(JSON.stringify(columns)), newItem]);
+
+    // The card only mounts (and the builder's picker machinery only measures
+    // real rects) in an expanded set — nudge once; Vue applies it asynchronously.
+    const setEl = findSetByUid(data.uid, doc) ?? sortableItemForUid(data.uid, doc);
+
+    if (setEl) {
+      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
+    }
+
+    openColumnTypePicker(newId, doc, win);
+
+    return;
+  }
+}
+
+/**
+ * Opens the builder's type picker on a (typeless) column card once it has
+ * mounted — the same flow the card's own plus icon runs. Cards that already
+ * have a type get their edit popup instead.
+ */
+function openColumnTypePicker(rowId, doc, win, attempts = 0) {
+  const card = doc.querySelector(`[data-cb-item-id="${rowId}"]`);
+  const trigger = card?.querySelector('.cb-col-plus') ?? card?.querySelector('.cb-edit-btn');
+
+  if (trigger && trigger.offsetParent !== null) {
+    trigger.click();
+    keepPickerOnScreen(doc, win);
+
+    return;
+  }
+
+  if (attempts < 25) {
+    setTimeout(() => openColumnTypePicker(rowId, doc, win, attempts + 1), 200);
+  }
+}
+
+/**
+ * The builder positions its type-picker portal at the trigger's rect — with the
+ * editor panel parked off-screen (Hide/Auto mode) that lands at left:-10000px.
+ * Pull it back into view, centered, so picking a type happens over the preview.
+ */
+function keepPickerOnScreen(doc, win, attempts = 0) {
+  const panel = [...doc.body.children].find(
+    (el) => el.style?.position === 'fixed' && el.style?.zIndex === '99999'
+  );
+
+  if (panel) {
+    const left = parseFloat(panel.style.left);
+
+    if (Number.isNaN(left) || left < 0 || left > win.innerWidth) {
+      panel.style.left = `${Math.max(8, (win.innerWidth - (panel.offsetWidth || 224)) / 2)}px`;
+      panel.style.top = '120px';
+    }
+
+    return;
+  }
+
+  if (attempts < 15) {
+    setTimeout(() => keepPickerOnScreen(doc, win, attempts + 1), 150);
+  }
+}
+
+/**
+ * "Save as template": grab the clicked section's data from the form and store it
+ * as a reusable section. A small dialog asks for a name and whether it should be
+ * synced (edits propagate) or a copy (independent).
+ */
+export function handleSaveSection(data, doc, win) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const path = findPathByUid(values, data.uid);
+
+    if (path === null) {
+      continue;
+    }
+
+    const section = dataGet(values, path);
+
+    if (!section || typeof section !== 'object') {
+      return;
+    }
+
+    saveSectionDialog(win, section, (name, synced) => {
+      win
+        .fetch('/!/sve/saved-sections', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': csrfToken(win),
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({
+            title: name,
+            section_type: section.type,
+            section_data: stripSavedSectionData(section),
+            synced,
+          }),
+        })
+        .then((res) => {
+          win.Statamic?.$toast?.[res.ok ? 'success' : 'error'](
+            res.ok ? t(win, 'saved_toast', { name }) : t(win, 'save_failed')
+          );
+        })
+        .catch(() => win.Statamic?.$toast?.error(t(win, 'save_failed')));
+    });
+
+    return;
+  }
+}
+
+/**
+ * "Save this page as a template": every section on the page, stored as one entry
+ * you can drop onto another page.
+ *
+ * The page's own field is read straight off the publish container, so it captures
+ * what's on screen — including edits not yet saved to the page itself.
+ */
+function savePageAsTemplate(win, onSaved = () => {}) {
+  const doc = win.document;
+  const field = sectionField(win);
+
+  let sections = null;
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+    const rows = values && typeof values === 'object' ? values[field] : null;
+
+    if (Array.isArray(rows) && rows.length) {
+      sections = rows;
+
+      break;
+    }
+  }
+
+  if (!sections) {
+    win.Statamic?.$toast?.error(t(win, 'template_needs_sections'));
+
+    return;
+  }
+
+  promptForName(win, t(win, 'save_page_as_template'), t(win, 'template_name'), (name) => {
+    win
+      .fetch('/!/sve/templates', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken(win),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({
+          title: name,
+          // Ids are per-page. A template is a stencil: it gets fresh ones every
+          // time it's dropped, or two pages would claim the same section.
+          sections: sections.map((section) => stripSavedSectionData(section)),
+        }),
+      })
+      .then((res) => {
+        win.Statamic?.$toast?.[res.ok ? 'success' : 'error'](
+          res.ok ? t(win, 'template_saved', { name }) : t(win, 'save_failed')
+        );
+
+        if (res.ok) {
+          onSaved();
+        }
+      })
+      .catch(() => win.Statamic?.$toast?.error(t(win, 'save_failed')));
+  });
+}
+
+/** Drops the per-instance ids so a saved section is a clean template. */
+function stripSavedSectionData(section) {
+  const clone = JSON.parse(JSON.stringify(section));
+
+  const strip = (node) => {
+    if (Array.isArray(node)) {
+      node.forEach(strip);
+    } else if (node && typeof node === 'object') {
+      delete node.id;
+      delete node._id;
+      delete node._visual_id;
+      Object.values(node).forEach(strip);
+    }
+  };
+
+  strip(clone);
+
+  return clone;
+}
+
+/** Minimal "what should it be called?" prompt, themed to the CP. */
+function promptForName(win, heading, placeholder, onOk) {
+  const doc = win.document;
+  const overlay = doc.createElement('div');
+
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
+    'background:rgba(0,0,0,.45);';
+
+  const card = doc.createElement('div');
+
+  card.style.cssText =
+    'width:380px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+    'border-radius:12px;padding:20px;box-shadow:0 24px 64px rgba(0,0,0,.35);' +
+    'font-family:ui-sans-serif,system-ui,sans-serif;';
+  card.innerHTML = `
+    <div style="font-size:15px;font-weight:600;margin-bottom:14px;">${heading}</div>
+    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'name')}</label>
+    <input type="text" data-sve-name placeholder="${placeholder}"
+      style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius:8px;
+      border:1px solid rgba(128,128,128,.4);background:transparent;color:currentColor;font-size:14px;margin-bottom:18px;">
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:7px 14px;border-radius:8px;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
+      <button type="button" data-sve-ok style="all:unset;cursor:pointer;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'save')}</button>
+    </div>
+  `;
+
+  overlay.appendChild(card);
+  doc.body.appendChild(overlay);
+
+  const name = card.querySelector('[data-sve-name]');
+  const close = () => overlay.remove();
+
+  name.focus();
+
+  const submit = () => {
+    const value = name.value.trim();
+
+    if (!value) {
+      name.focus();
+
+      return;
+    }
+
+    close();
+    onOk(value);
+  };
+
+  card.querySelector('[data-sve-cancel]').addEventListener('click', close);
+  card.querySelector('[data-sve-ok]').addEventListener('click', submit);
+  overlay.addEventListener('click', (event) => event.target === overlay && close());
+  name.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      submit();
+    } else if (event.key === 'Escape') {
+      close();
+    }
+  });
+}
+
+/** Minimal name + synced prompt, themed to the CP, appended to the body. */
+function saveSectionDialog(win, section, onSave) {
+  const doc = win.document;
+  const overlay = doc.createElement('div');
+
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
+    'background:rgba(0,0,0,.45);';
+
+  const card = doc.createElement('div');
+
+  card.style.cssText =
+    'width:380px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+    'border-radius:12px;padding:20px;box-shadow:0 24px 64px rgba(0,0,0,.35);' +
+    'font-family:ui-sans-serif,system-ui,sans-serif;';
+  card.innerHTML = `
+    <div style="font-size:15px;font-weight:600;margin-bottom:14px;">${t(win, 'save_section_heading')}</div>
+    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'name')}</label>
+    <input type="text" data-sve-name placeholder="${t(win, 'name_placeholder')}"
+      style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius:8px;
+      border:1px solid rgba(128,128,128,.4);background:transparent;color:currentColor;font-size:14px;margin-bottom:14px;">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:18px;">
+      <input type="checkbox" data-sve-synced style="width:16px;height:16px;">
+      <span>${t(win, 'synced_hint')}</span>
+    </label>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:7px 14px;border-radius:8px;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
+      <button type="button" data-sve-save style="all:unset;cursor:pointer;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'save')}</button>
+    </div>
+  `;
+
+  overlay.appendChild(card);
+  doc.body.appendChild(overlay);
+
+  const name = card.querySelector('[data-sve-name]');
+  const synced = card.querySelector('[data-sve-synced]');
+  const close = () => overlay.remove();
+
+  name.focus();
+
+  const submit = () => {
+    const value = name.value.trim();
+
+    if (!value) {
+      name.focus();
+
+      return;
+    }
+
+    close();
+    onSave(value, synced.checked);
+  };
+
+  card.querySelector('[data-sve-cancel]').addEventListener('click', close);
+  card.querySelector('[data-sve-save]').addEventListener('click', submit);
+  overlay.addEventListener('click', (event) => event.target === overlay && close());
+  name.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      submit();
+    } else if (event.key === 'Escape') {
+      close();
+    }
+  });
+}
+
+// --- Section picker (visual "Add section") ---------------------------------------
+//
+// The "+" on a section opens this instead of Statamic's native Add Set picker, so
+// we can offer three tabs: the built-in section types, and the saved templates
+// split into Custom (insert a copy) and Global (insert a reference). Each is shown
+// with its preview image. Insertion writes straight into the page_sections array,
+// after the section the "+" was clicked on.
+
+/**
+ * A translated string, in the language the CP user picked (resolved server-side,
+ * see ServiceProvider::strings()). Falls back to the key, so a missing string is
+ * visible rather than blank.
+ */
+function t(win, key, replacements = {}) {
+  const strings = win.Statamic?.$config?.get?.('sveStrings') || {};
+  let out = strings[key] ?? key;
+
+  for (const [name, value] of Object.entries(replacements)) {
+    out = out.replaceAll(`:${name}`, value);
+  }
+
+  return out;
+}
+
+const SECTION_PICKER_ID = '__sve-section-picker';
+
+function sectionTypes(win) {
+  const list = win.Statamic?.$config?.get?.('sveSectionTypes');
+
+  return Array.isArray(list) ? list : [];
+}
+
+/** A new uuid for a re-id'd copy. */
+function newUuid(win) {
+  return win.crypto?.randomUUID ? win.crypto.randomUUID() : `${newRowId()}-${newRowId()}`;
+}
+
+/** Gives a section (and everything in it) fresh ids, so a copy is independent. */
+function reidSection(win, section) {
+  const clone = JSON.parse(JSON.stringify(section));
+
+  const walk = (node) => {
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+    } else if (node && typeof node === 'object') {
+      if ('id' in node || '_id' in node) {
+        if ('_id' in node) {
+          node._id = newRowId();
+        } else {
+          node.id = newRowId();
+        }
+      }
+
+      if ('_visual_id' in node) {
+        node._visual_id = newUuid(win);
+      }
+
+      Object.values(node).forEach(walk);
+    }
+  };
+
+  walk(clone);
+
+  return clone;
+}
+
+/**
+ * Inserts a section into page_sections. `afterUid` = the section to drop after;
+ * null drops at the very top. `rowMeta` is the set's fresh meta (from the
+ * section-meta endpoint): without it the Replicator has no way to render the new
+ * row, so it would show in the preview but never in the CP's own section list.
+ * Returns false when the field can't be located (e.g. nothing has focus yet).
+ */
+function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) {
+  const field = sectionField(win);
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    // No uid → drop at the top of the page_sections array.
+    if (afterUid == null) {
+      const rows = dataGet(values, field);
+
+      if (!Array.isArray(rows)) {
+        continue;
+      }
+
+      writeSetMeta(container, field, section, rowMeta);
+      container.setFieldValue(field, [section, ...JSON.parse(JSON.stringify(rows))]);
+
+      return true;
+    }
+
+    const found = rowLocation(values, afterUid);
+
+    if (!found) {
+      continue;
+    }
+
+    const { parentPath, index, rows } = found;
+    const next = JSON.parse(JSON.stringify(rows));
+
+    next.splice(index + 1, 0, section);
+    // Sections live at the top level, so the meta always belongs to `field`.
+    writeSetMeta(container, field, section, rowMeta);
+    container.setFieldValue(parentPath, next);
+
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Registers a new row's meta on the container so the Replicator can render it.
+ * The Replicator reads each row's fields from `meta.<field>.existing[<_id>]`;
+ * merging the fresh meta under the row's id is what makes the row appear in the
+ * CP list (not just the preview).
+ */
+function writeSetMeta(container, field, section, rowMeta) {
+  if (!rowMeta || !section._id || typeof container.setFieldMeta !== 'function') {
+    return;
+  }
+
+  const allMeta = unwrapRef(container.meta) || {};
+  const fieldMeta = allMeta[field] || { existing: {}, new: null, defaults: null, collapsed: [] };
+
+  container.setFieldMeta(field, {
+    ...fieldMeta,
+    existing: { ...(fieldMeta.existing || {}), [section._id]: rowMeta },
+  });
+}
+
+// Site-specific handles all come from the server config (provideToScript), never
+// from a literal here — the addon has to work as installed on any site.
+
+/** The Replicator field the page builder lives in. */
+function sectionField(win) {
+  return win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections';
+}
+
+/** The Replicator set a page uses to reference a synced ("global") saved section. */
+function globalSectionSet(win) {
+  return win.Statamic?.$config?.get?.('sveGlobalSectionSet') || 'global_section';
+}
+
+/** The collection saved sections live in. */
+function savedSectionsCollection(win) {
+  return win.Statamic?.$config?.get?.('sveSavedSectionsCollection') || 'saved_sections';
+}
+
+/** The Replicator set handle a library card of the given kind inserts. */
+function setHandleFor(win, kind, item) {
+  if (kind === 'global') {
+    return globalSectionSet(win);
+  }
+
+  if (kind === 'custom') {
+    return item.section_type;
+  }
+
+  return item.handle;
+}
+
+// Fresh set meta + defaults, per set handle, cached for the session (the
+// blueprint doesn't change while the form is open).
+const sectionMetaCache = new Map();
+
+/** The collection being edited, read from the CP URL. */
+function currentCollection(win) {
+  const match = win.location.pathname.match(/\/collections\/([^/]+)\//);
+
+  return match ? match[1] : null;
+}
+
+/** Fetches (and caches) a set's fresh meta + default values from the addon. */
+/**
+ * Meta + defaults for a set in a NESTED replicator field (a section's own
+ * `blocks`), for the in-preview block inserter. Same endpoint as sections, with a
+ * `field` so it resolves the nested replicator instead of the top-level one.
+ */
+async function fetchNestedSetMeta(win, field, setHandle) {
+  const key = `${field}::${setHandle}`;
+
+  if (sectionMetaCache.has(key)) {
+    return sectionMetaCache.get(key);
+  }
+
+  const collection = currentCollection(win);
+
+  if (!collection) {
+    return null;
+  }
+
+  const url =
+    `/!/sve/section-meta?collection=${encodeURIComponent(collection)}` +
+    `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}`;
+
+  const res = await win.fetch(url, {
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+
+  const data = res.ok ? await res.json() : null;
+
+  sectionMetaCache.set(key, data);
+
+  return data;
+}
+
+/**
+ * Registers a new row's meta in a NESTED replicator field, so the row renders in
+ * the Control Panel form (the sidebar), not only the preview.
+ *
+ * The meta for a top-level field is set with `setFieldMeta(field, …)`, but a
+ * nested field's meta lives deep inside the top field's — so we clone the top
+ * field's meta, walk into the nested field within the clone, add the row there,
+ * and write the whole top field back. `parentPath` is like `page_sections.2.blocks`.
+ */
+function writeNestedRowMeta(container, values, parentPath, rowId, rowMeta) {
+  if (!rowMeta || !rowId || typeof container.setFieldMeta !== 'function') {
+    return;
+  }
+
+  const fullMeta = unwrapRef(container.meta) || {};
+  const segments = parentPath.split('.');
+  const topField = segments[0];
+
+  if (!fullMeta[topField]) {
+    return;
+  }
+
+  const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
+  // metaForPath walks meta keyed by row _id — pass the top field's own meta and
+  // values, and the path below it (e.g. "2.blocks").
+  const nested = metaForPath(clone, dataGet(values, topField), segments.slice(1).join('.'));
+
+  if (!nested || typeof nested !== 'object') {
+    return;
+  }
+
+  nested.existing = { ...(nested.existing || {}), [rowId]: rowMeta };
+  container.setFieldMeta(topField, clone);
+}
+
+/**
+ * "+" between a replicator's blocks: insert a new set of the chosen type, next to
+ * the block the "+" sits by (or as the first block when the field is empty). The
+ * row is written into the nested array with its meta, so it shows in both the
+ * preview and the CP form.
+ */
+async function handleInsertBlock(data, doc, win) {
+  const { field, set, anchorUid, position, scope } = data;
+
+  if (!field || !set) {
+    return;
+  }
+
+  const meta = await fetchNestedSetMeta(win, field, set);
+  const rowId = newRowId();
+  const row = {
+    ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
+    _id: rowId,
+    _visual_id: newUuid(win),
+    type: set,
+  };
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    // Anchored to a sibling block: splice in beside it.
+    if (anchorUid) {
+      const loc = rowLocation(values, anchorUid);
+
+      if (!loc) {
+        continue;
+      }
+
+      const next = JSON.parse(JSON.stringify(loc.rows));
+
+      next.splice(position === 'before' ? loc.index : loc.index + 1, 0, row);
+      writeNestedRowMeta(container, values, loc.parentPath, rowId, meta?.new);
+      container.setFieldValue(loc.parentPath, next);
+
+      return;
+    }
+
+    // Empty field: no sibling to anchor to — seed the section's own field array.
+    if (scope) {
+      const sectionPath = findPathByUid(values, scope);
+
+      if (sectionPath === null) {
+        continue;
+      }
+
+      const fieldPath = `${sectionPath}.${field}`;
+      const existing = dataGet(values, fieldPath);
+      const next = Array.isArray(existing) ? JSON.parse(JSON.stringify(existing)) : [];
+
+      next.push(row);
+      writeNestedRowMeta(container, values, fieldPath, rowId, meta?.new);
+      container.setFieldValue(fieldPath, next);
+
+      return;
+    }
+  }
+}
+
+async function fetchSetMeta(win, setHandle) {
+  if (sectionMetaCache.has(setHandle)) {
+    return sectionMetaCache.get(setHandle);
+  }
+
+  const collection = currentCollection(win);
+
+  if (!collection) {
+    return null;
+  }
+
+  const url =
+    `/!/sve/section-meta?collection=${encodeURIComponent(collection)}&set=${encodeURIComponent(setHandle)}`;
+
+  const res = await win.fetch(url, {
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+
+  if (!res.ok) {
+    return null;
+  }
+
+  const data = await res.json();
+
+  sectionMetaCache.set(setHandle, data);
+
+  return data;
+}
+
+/** The section object to insert for a library card of the given kind. */
+function buildSectionRow(win, kind, item, defaults, newId) {
+  const base = {
+    ...JSON.parse(JSON.stringify(defaults || {})),
+    _id: newId,
+    _visual_id: newUuid(win),
+    enabled: true,
+  };
+
+  if (kind === 'page') {
+    return { ...base, type: item.handle };
+  }
+
+  if (kind === 'global') {
+    // A reference — the template renders the source's current sections. The set
+    // and its entries field share one handle, so the row is built from it.
+    const set = globalSectionSet(win);
+
+    return { ...base, type: set, [set]: [item.id] };
+  }
+
+  // custom: an independent copy with fresh ids, laid over the type's defaults so
+  // any fields added since it was saved still get sensible values.
+  return {
+    ...base,
+    ...reidSection(win, item.section_data || {}),
+    _id: newId,
+    _visual_id: newUuid(win),
+    enabled: true,
+    type: item.section_type,
+  };
+}
+
+/**
+ * Inserts a library card's section: fetches the set's fresh meta, builds the
+ * row from it, and drops it in at `afterUid` (null = top). Async because the
+ * meta round-trip is what lets the row render in the CP list, not only the
+ * preview.
+ */
+async function insertSection(win, doc, afterUid, kind, item) {
+  if (kind === 'template') {
+    return insertTemplate(win, doc, afterUid, item);
+  }
+
+  const meta = await fetchSetMeta(win, setHandleFor(win, kind, item));
+  const newId = newRowId();
+  const row = buildSectionRow(win, kind, item, meta?.defaults, newId);
+
+  insertSectionAfter(win, doc, afterUid, row, meta?.new || null);
+}
+
+/**
+ * Drops a whole template onto the page.
+ *
+ * Every section in it is copied — a template is a stencil, never a reference —
+ * and each one is laid over its type's current defaults, so a template saved
+ * before a field existed still gets a sensible value for it.
+ *
+ * Meta is fetched per section *type*, not per row: the Replicator renders each row
+ * from `meta.<field>.existing[<_id>]`, so without it the sections would appear in
+ * the preview and be missing from the CP list.
+ */
+async function insertTemplate(win, doc, afterUid, item) {
+  const sections = (item.sections || []).filter((section) => section && section.type);
+
+  if (!sections.length) {
+    win.Statamic?.$toast?.error(t(win, 'template_empty'));
+
+    return;
+  }
+
+  const mode = await askTemplateMode(win, item);
+
+  if (!mode) {
+    return; // cancelled
+  }
+
+  const rows = [];
+  const metas = [];
+
+  for (const section of sections) {
+    const meta = await fetchSetMeta(win, section.type);
+    const newId = newRowId();
+
+    rows.push(
+      buildSectionRow(win, 'custom', { section_data: section, section_type: section.type }, meta?.defaults, newId)
+    );
+    metas.push(meta?.new || null);
+  }
+
+  insertSectionsAfter(win, doc, afterUid, rows, metas, mode === 'replace');
+}
+
+/**
+ * The multi-row sibling of `insertSectionAfter`: all of a template's sections in
+ * one write.
+ *
+ * One `setFieldValue` for the lot, not one per section — each call re-renders the
+ * Replicator, so inserting fifteen sections one at a time would be fifteen
+ * re-renders and fifteen preview reloads.
+ */
+function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace) {
+  const field = sectionField(win);
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const existing = dataGet(values, field);
+
+    if (!Array.isArray(existing)) {
+      continue;
+    }
+
+    rows.forEach((row, index) => writeSetMeta(container, field, row, rowMetas[index]));
+
+    if (replace) {
+      container.setFieldValue(field, rows);
+
+      return true;
+    }
+
+    if (afterUid == null) {
+      container.setFieldValue(field, [...rows, ...JSON.parse(JSON.stringify(existing))]);
+
+      return true;
+    }
+
+    const found = rowLocation(values, afterUid);
+
+    if (!found) {
+      continue;
+    }
+
+    const next = JSON.parse(JSON.stringify(found.rows));
+
+    next.splice(found.index + 1, 0, ...rows);
+    container.setFieldValue(found.parentPath, next);
+
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Replace what's on the page, or add to it?
+ *
+ * Asked every time rather than remembered: dropping a template on an empty page
+ * and dropping one onto a page you've already built are different intentions, and
+ * replacing is not undoable from here.
+ */
+function askTemplateMode(win, item) {
+  return new Promise((resolve) => {
+    const doc = win.document;
+    const overlay = doc.createElement('div');
+
+    overlay.style.cssText =
+      'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
+
+    const card = doc.createElement('div');
+
+    card.style.cssText =
+      'width:420px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+      'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
+    card.innerHTML =
+      `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${item.title}</div>` +
+      `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, 'template_mode_body', {
+        count: (item.sections || []).length,
+      })}</div>` +
+      '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
+
+    const actions = card.querySelector('[data-sve-actions]');
+    const close = (value) => {
+      overlay.remove();
+      resolve(value);
+    };
+
+    const button = (label, style, value) => {
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.textContent = label;
+      btn.style.cssText = `all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;${style}`;
+      btn.addEventListener('click', () => close(value));
+      actions.appendChild(btn);
+    };
+
+    button(t(win, 'cancel'), 'opacity:.7;color:currentColor;', null);
+    button(t(win, 'template_replace'), 'color:currentColor;background:rgba(128,128,128,.16);font-weight:500;', 'replace');
+    button(t(win, 'template_append'), 'background:var(--theme-color-primary,#4f46e5);color:#fff;font-weight:600;', 'append');
+
+    overlay.addEventListener('click', (event) => event.target === overlay && close(null));
+    overlay.appendChild(card);
+    doc.body.appendChild(overlay);
+  });
+}
+
+function closeSectionPicker(win) {
+  win.document.getElementById(SECTION_PICKER_ID)?.remove();
+  syncPreviewInset(win);
+}
+
+/**
+ * Only one right-hand panel at a time.
+ *
+ * They all dock to the same edge, so two open at once means one is hidden behind
+ * the other — and the preview holding room for a panel you can't see. Opening any
+ * of them closes the rest; `keep` is the one being opened. Called with nothing to
+ * close them all, which is what leaving Live Preview does.
+ */
+function closeRightPanels(win, keep = null) {
+  if (keep !== SECTION_PICKER_ID) {
+    closeSectionPicker(win);
+  }
+
+  if (keep !== GLOBALS_PANEL_ID) {
+    closeGlobalsPanel(win);
+  }
+
+  if (keep !== GLOBAL_SECTION_PANEL_ID) {
+    closeGlobalSectionPanel(win);
+  }
+}
+
+/**
+ * Right-hand panels (this picker, the globals panel) dock at the viewport edge.
+ * Rather than overlay the preview, they PUSH it — the same way the left editor
+ * pane does — by reserving room on the right of the centering container so the
+ * iframe reflows and stays fully visible. Reserves the widest open panel.
+ */
+function syncPreviewInset(win) {
+  const doc = win.document;
+  const el = doc.querySelector('.live-preview-contents');
+
+  if (!el) {
+    return;
+  }
+
+  const px = rightPanelWidth(doc);
+
+  el.style.transition = 'padding-right .2s ease';
+  el.style.paddingRight = px ? `${px}px` : '';
+
+  // Anything else floating over the preview has to clear the panel too.
+  positionLpBackButton(win);
+}
+
+/** How much of the right edge the open panel is taking, in px (0 if none). */
+function rightPanelWidth(doc) {
+  let px = 0;
+
+  for (const id of [SECTION_PICKER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID]) {
+    const panel = doc.getElementById(id);
+
+    if (panel) {
+      px = Math.max(px, Math.round(panel.getBoundingClientRect().width));
+    }
+  }
+
+  return px;
+}
+
+// The section library is a docked panel, not a popup: it stays open while you
+// work, and you drag a card straight into the preview to place it (or click to
+// drop it at the end). The pending drag lives here so the ext-drop reply from
+// the bridge knows what to insert.
+let libraryDrag = null;
+
+/** Opens/creates the docked section library. Toggles closed if already open. */
+function openSectionPicker(win) {
+  const doc = win.document;
+
+  if (doc.getElementById(SECTION_PICKER_ID)) {
+    closeSectionPicker(win);
+
+    return;
+  }
+
+  closeRightPanels(win, SECTION_PICKER_ID);
+
+  const header = lpHeader(doc);
+  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+
+  const panel = doc.createElement('div');
+
+  panel.id = SECTION_PICKER_ID;
+  panel.style.cssText =
+    `position:fixed;top:${top}px;right:0;bottom:0;width:340px;z-index:41;display:flex;flex-direction:column;` +
+    'background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+    'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);' +
+    'font-family:ui-sans-serif,system-ui,sans-serif;';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
+      <div style="font-size:14px;font-weight:600;">Sektioner</div>
+      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
+    </div>
+    <div style="padding:6px 10px;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
+    <div data-sve-tabs style="display:flex;gap:3px;padding:2px 12px 0;flex:0 0 auto;"></div>
+    <div data-sve-grid style="flex:1 1 auto;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;"></div>
+  `;
+
+  doc.body.appendChild(panel);
+  syncPreviewInset(win);
+
+  const tabsEl = panel.querySelector('[data-sve-tabs]');
+  const gridEl = panel.querySelector('[data-sve-grid]');
+
+  panel.querySelector('[data-sve-close]').addEventListener('click', () => closeSectionPicker(win));
+
+  const tabs = [
+    { key: 'page', label: t(win, 'tab_page') },
+    { key: 'custom', label: t(win, 'tab_custom') },
+    { key: 'global', label: t(win, 'tab_global') },
+    { key: 'template', label: t(win, 'tab_templates') },
+  ];
+  let active = 'page';
+  let saved = null;
+  let templates = null;
+
+  // Block layout, not flex: a flex column here collapsed the image to its
+  // content height and let it overflow the card. A plain block with a 16:9
+  // image (its content absolutely positioned, so the ratio sets the height) and
+  // a title beneath renders identically on every tab.
+  const card = (title, imageUrl, kind, item) => {
+    const el = doc.createElement('div');
+
+    el.style.cssText =
+      'cursor:grab;flex:0 0 auto;border:1px solid rgba(128,128,128,.25);border-radius:10px;overflow:hidden;' +
+      'background:rgba(128,128,128,.05);transition:border-color .12s;user-select:none;touch-action:none;';
+    el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
+    el.addEventListener('mouseleave', () => (el.style.borderColor = 'rgba(128,128,128,.25)'));
+    el.innerHTML = `
+      <div style="position:relative;width:100%;height:177px;background:rgba(128,128,128,.12);overflow:hidden;pointer-events:none;">
+        ${
+          imageUrl
+            ? `<img src="${imageUrl}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;display:block;">`
+            : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.4;font-size:12px;">${t(win, 'no_preview')}</div>`
+        }
+      </div>
+      <div style="padding:8px 10px;font-size:12px;font-weight:500;pointer-events:none;">${title}</div>
+    `;
+
+    beginCardDrag(win, el, kind, item);
+
+    return el;
+  };
+
+  const empty = (text) => {
+    const el = doc.createElement('div');
+
+    el.style.cssText = 'padding:30px 6px;text-align:center;opacity:.55;font-size:12px;';
+    el.textContent = text;
+
+    return el;
+  };
+
+  const renderPage = () => {
+    gridEl.innerHTML = '';
+
+    const types = sectionTypes(win);
+
+    if (!types.length) {
+      gridEl.appendChild(empty(t(win, 'no_section_types')));
+
+      return;
+    }
+
+    types.forEach((type) => gridEl.appendChild(card(type.display, type.image_url, 'page', type)));
+  };
+
+  const renderSaved = (synced) => {
+    gridEl.innerHTML = '';
+
+    const items = (saved || []).filter((s) => !!s.synced === synced);
+
+    if (!items.length) {
+      gridEl.appendChild(
+        empty(
+          synced
+            ? t(win, 'no_global_sections')
+            : t(win, 'no_saved_sections')
+        )
+      );
+
+      return;
+    }
+
+    items.forEach((item) =>
+      gridEl.appendChild(card(item.title, item.preview_url, synced ? 'global' : 'custom', item))
+    );
+  };
+
+  // A template's card carries the whole page, so it says how many sections that
+  // is — the picture alone can't tell you whether you're about to drop three
+  // sections or fifteen.
+  const renderTemplates = () => {
+    gridEl.innerHTML = '';
+
+    const save = doc.createElement('button');
+
+    save.type = 'button';
+    save.textContent = t(win, 'save_page_as_template');
+    save.style.cssText =
+      'all:unset;cursor:pointer;flex:0 0 auto;text-align:center;padding:10px;border-radius:8px;font-size:12px;' +
+      'font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;';
+    save.addEventListener('click', () => savePageAsTemplate(win, () => {
+      templates = null;
+      renderActive();
+    }));
+    gridEl.appendChild(save);
+
+    if (!(templates || []).length) {
+      gridEl.appendChild(empty(t(win, 'no_templates')));
+
+      return;
+    }
+
+    templates.forEach((item) =>
+      gridEl.appendChild(
+        card(`${item.title} · ${t(win, 'template_count', { count: item.count })}`, item.preview_url, 'template', item)
+      )
+    );
+  };
+
+  const renderActive = () => {
+    tabsEl.querySelectorAll('button').forEach((b) => {
+      const on = b.dataset.tab === active;
+
+      b.style.background = on ? 'rgba(128,128,128,.2)' : 'transparent';
+      b.style.fontWeight = on ? '600' : '500';
+      b.style.opacity = on ? '1' : '.7';
+    });
+
+    if (active === 'page') {
+      renderPage();
+
+      return;
+    }
+
+    if (active === 'template') {
+      if (templates === null) {
+        gridEl.innerHTML = '';
+        gridEl.appendChild(empty(t(win, 'loading')));
+
+        win
+          .fetch('/!/sve/templates', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then((res) => res.json())
+          .then((data) => {
+            templates = data.templates || [];
+            renderTemplates();
+          })
+          .catch(() => {
+            templates = [];
+            gridEl.innerHTML = '';
+            gridEl.appendChild(empty(t(win, 'templates_failed')));
+          });
+
+        return;
+      }
+
+      renderTemplates();
+
+      return;
+    }
+
+    if (saved === null) {
+      gridEl.innerHTML = '';
+      gridEl.appendChild(empty(t(win, 'loading')));
+
+      win
+        .fetch('/!/sve/saved-sections', { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then((res) => res.json())
+        .then((data) => {
+          saved = data.sections || [];
+          renderSaved(active === 'global');
+        })
+        .catch(() => {
+          saved = [];
+          gridEl.innerHTML = '';
+          gridEl.appendChild(empty(t(win, 'saved_sections_failed')));
+        });
+
+      return;
+    }
+
+    renderSaved(active === 'global');
+  };
+
+  tabs.forEach((tab) => {
+    const b = doc.createElement('button');
+
+    b.type = 'button';
+    b.dataset.tab = tab.key;
+    b.textContent = tab.label;
+    b.style.cssText = 'all:unset;cursor:pointer;padding:6px 12px;border-radius:8px;font-size:12px;color:currentColor;';
+    b.addEventListener('click', () => {
+      active = tab.key;
+      renderActive();
+    });
+    tabsEl.appendChild(b);
+  });
+
+  renderActive();
+}
+
+/**
+ * Pointer drag on a library card. Below the threshold it's a click (drop at the
+ * end); beyond it, the preview zooms out and shows a drop line, and releasing
+ * drops the section where the line is. The preview owns the zoom + line + target
+ * detection; this side just forwards the pointer and inserts on the reply.
+ */
+function beginCardDrag(win, cardEl, kind, item) {
+  cardEl.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || libraryDrag) {
+      return;
+    }
+
+    event.preventDefault();
+    cardEl.setPointerCapture(event.pointerId);
+
+    const doc = win.document;
+    const frame = previewFrame(doc);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let active = false;
+    let ghost = null;
+
+    const toPreview = (e) => {
+      const r = frame.getBoundingClientRect();
+
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    const start = () => {
+      active = true;
+      // The iframe would swallow the pointer once we're over it — let this window
+      // keep the events, and map the coordinates ourselves.
+      frame.style.pointerEvents = 'none';
+      frame.contentWindow.postMessage({ source: 'statamic-visual-editor', type: 'ext-drag-start' }, win.location.origin);
+
+      ghost = cardEl.cloneNode(true);
+      ghost.style.cssText +=
+        ';position:fixed;z-index:2147483647;pointer-events:none;width:220px;opacity:.9;transform:rotate(1.5deg);box-shadow:0 12px 32px rgba(0,0,0,.3);';
+      doc.body.appendChild(ghost);
+    };
+
+    const onMove = (e) => {
+      if (!active) {
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) < 6) {
+          return;
+        }
+
+        start();
+      }
+
+      const p = toPreview(e);
+
+      frame.contentWindow.postMessage(
+        { source: 'statamic-visual-editor', type: 'ext-drag-move', x: p.x, y: p.y },
+        win.location.origin
+      );
+
+      if (ghost) {
+        ghost.style.left = `${e.clientX - 110}px`;
+        ghost.style.top = `${e.clientY - 16}px`;
+      }
+    };
+
+    const onUp = (e) => {
+      win.removeEventListener('pointermove', onMove);
+      win.removeEventListener('pointerup', onUp);
+      win.removeEventListener('pointercancel', onUp);
+      ghost?.remove();
+
+      if (!active) {
+        // A click: drop at the end of the page.
+        insertSection(win, doc, lastSectionUid(doc), kind, item);
+
+        return;
+      }
+
+      // The bridge replies with ext-drop → the message listener inserts.
+      libraryDrag = { kind, item };
+      frame.style.pointerEvents = '';
+      frame.contentWindow.postMessage(
+        { source: 'statamic-visual-editor', type: 'ext-drag-end', cancelled: e.type === 'pointercancel' },
+        win.location.origin
+      );
+    };
+
+    win.addEventListener('pointermove', onMove);
+    win.addEventListener('pointerup', onUp);
+    win.addEventListener('pointercancel', onUp);
+  });
+}
+
+/** The uid of the last top-level page section in the preview (for click-append). */
+function lastSectionUid(doc) {
+  const frame = previewFrame(doc);
+  const inner = frame?.contentDocument;
+  const sections = inner ? [...inner.querySelectorAll('section[data-sid], article[data-sid]')] : [];
+
+  return sections.length ? sections[sections.length - 1].getAttribute('data-sid') : null;
+}
+
+/** A fresh row id in the same shape Statamic uses for replicator/grid rows. */
+function newRowId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+/**
+ * A blank row modelled on an existing one.
+ *
+ * Copying the row's shape rather than building one from the blueprint: the
+ * blueprint isn't reachable from here, and a row that's missing keys renders
+ * wrong. Text is cleared, ids are regenerated, and everything else is kept —
+ * so a new button arrives with the same styling and an empty label, ready to
+ * fill in, rather than as something the template can't render.
+ */
+function blankRowFrom(row) {
+  const next = {};
+
+  for (const [key, value] of Object.entries(row)) {
+    if (key === 'id' || key === '_id') {
+      next[key] = newRowId();
+    } else if (key === '_visual_id') {
+      next[key] = crypto?.randomUUID ? crypto.randomUUID() : `${newRowId()}-${newRowId()}`;
+    } else if (typeof value === 'string') {
+      next[key] = '';
+    } else {
+      next[key] = JSON.parse(JSON.stringify(value ?? null));
+    }
+  }
+
+  return next;
+}
+
+/**
+ * Walks the container meta alongside the values to the field meta at `path`.
+ * Meta mirrors the values tree but keys array rows by their `_id`
+ * (`existing[<_id>]`) rather than by index, so numeric path segments are
+ * resolved through the value at that index. Returns null if the path can't be
+ * followed.
+ */
+function metaForPath(fullMeta, values, path) {
+  let meta = fullMeta;
+  let val = values;
+
+  for (const seg of path.split('.')) {
+    if (meta == null) {
+      return null;
+    }
+
+    if (/^\d+$/.test(seg)) {
+      const row = Array.isArray(val) ? val[Number(seg)] : null;
+
+      if (!row || !meta.existing) {
+        return null;
+      }
+
+      meta = meta.existing[row._id];
+      val = row;
+    } else {
+      meta = meta[seg];
+      val = val ? val[seg] : null;
+    }
+  }
+
+  return meta;
+}
+
+/**
+ * A new row for an orderable field, pre-filled with the field's DEFAULT values
+ * (from the grid meta) so the CP inputs show them and inline editing works right
+ * away — matching what Statamic's own "Add row" does. Text-only defaults live in
+ * `meta.<field>.defaults`; replicators (per-set defaults) have none, so those
+ * fall back to a blank clone of the neighbouring row.
+ */
+function newRowFor(win, container, values, parentPath, sampleRow) {
+  const fullMeta = unwrapRef(container.meta);
+  const fieldMeta = fullMeta ? metaForPath(fullMeta, values, parentPath) : null;
+  const defaults = fieldMeta && typeof fieldMeta === 'object' ? fieldMeta.defaults : null;
+
+  if (!defaults || typeof defaults !== 'object' || Array.isArray(defaults)) {
+    return blankRowFrom(sampleRow);
+  }
+
+  const row = JSON.parse(JSON.stringify(defaults));
+
+  row._id = newRowId();
+
+  if ('_visual_id' in row || (sampleRow && '_visual_id' in sampleRow)) {
+    row._visual_id = newUuid(win);
+  }
+
+  return row;
+}
+
+/** The array a row lives in, plus its index. */
+function rowLocation(values, uid) {
+  const path = findPathByUid(values, uid);
+  const dot = path === null ? -1 : path.lastIndexOf('.');
+
+  if (dot === -1) {
+    return null;
+  }
+
+  const parentPath = path.slice(0, dot);
+  const index = Number(path.slice(dot + 1));
+  const rows = dataGet(values, parentPath);
+
+  if (!Array.isArray(rows) || !Number.isInteger(index)) {
+    return null;
+  }
+
+  return { parentPath, index, rows };
+}
+
+/**
+ * What the blueprint allows for the field this row lives in (max_rows/min_rows,
+ * or max_sets/min_sets on a replicator). Looked up by the containing set's type
+ * first, since the same handle appears in several sets with different limits.
+ */
+function rowLimits(values, parentPath, win) {
+  const all = win.Statamic?.$config?.get?.('sveRowLimits') ?? {};
+  const handle = parentPath.slice(parentPath.lastIndexOf('.') + 1);
+  const dot = parentPath.lastIndexOf('.');
+  const set = dot === -1 ? null : dataGet(values, parentPath.slice(0, dot));
+  const type = set && typeof set === 'object' ? set.type : null;
+
+  return (type ? all[`${type}.${handle}`] : null) ?? all[handle] ?? {};
+}
+
+/** "+" on an orderable row: add another one just after it, within the field's max. */
+export function handleAddRow(data, doc, win) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const found = rowLocation(values, data.uid);
+
+    if (!found) {
+      continue;
+    }
+
+    const { parentPath, index, rows } = found;
+    const { max } = rowLimits(values, parentPath, win);
+
+    if (max && rows.length >= max) {
+      return; // the field is full — the CP wouldn't allow it either
+    }
+
+    const next = JSON.parse(JSON.stringify(rows));
+
+    next.splice(index + 1, 0, newRowFor(win, container, values, parentPath, rows[index]));
+    container.setFieldValue(parentPath, next);
+
+    return;
+  }
+}
+
+/** "−" on an orderable row: take it out, unless the field's min needs it. */
+export function handleRemoveRow(data, doc, win) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const found = rowLocation(values, data.uid);
+
+    if (!found) {
+      continue;
+    }
+
+    const { parentPath, index, rows } = found;
+    const { min } = rowLimits(values, parentPath, win);
+
+    if (min && rows.length <= min) {
+      return; // removing it would take the field below its minimum
+    }
+
+    const next = JSON.parse(JSON.stringify(rows));
+
+    next.splice(index, 1);
+    container.setFieldValue(parentPath, next);
+
+    return;
+  }
+}
+
+/**
+ * Answers the preview's row-caps request: whether the row's field can take
+ * another row / lose this one, given its min/max. Lets the preview grey out the
+ * +/− that would break the limit (the limit is still enforced here too).
+ */
+export function handleRowCaps(data, doc, win) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const found = rowLocation(values, data.uid);
+
+    if (!found) {
+      continue;
+    }
+
+    const { parentPath, rows } = found;
+    const { min, max } = rowLimits(values, parentPath, win);
+    const count = rows.length;
+
+    sendToPreview(
+      {
+        source: 'statamic-visual-editor',
+        type: 'row-caps-result',
+        uid: data.uid,
+        canAdd: !max || count < max,
+        canRemove: !min || count > min,
+      },
+      win
+    );
+
+    return;
+  }
+}
+
+/**
+ * "Rediger global sektion": a synced section's content belongs to the saved entry,
+ * not to this page — so its own editor is docked beside the preview, and what's
+ * typed in it is stashed so the page around it re-renders live. Editing in
+ * context, without leaving the page or giving the section a URL of its own.
+ */
+export function handleOpenGlobalSection(data, win) {
+  if (!data.id) {
+    return;
+  }
+
+  openGlobalSectionPanel(win, data.id);
+}
+
+/**
+ * The gear on a section in the preview: open that section's own settings popup
+ * (spacing, colours, …) — the very one the panel's "Show settings" button opens,
+ * so every fieldtype and condition inside it behaves exactly as it always has.
+ *
+ * The set has to be expanded first: a collapsed set keeps its fields behind
+ * v-show, and the popup measures layout as it opens — clicked while hidden it
+ * does nothing at all.
+ */
+export function handleSectionSettings(data, doc, win) {
+  const setEl = findSetByUid(data.uid, doc) ?? sortableItemForUid(data.uid, doc);
+
+  if (!setEl) {
+    return;
+  }
+
+  // Expand ONCE. Expanding is a toggle and Vue applies it asynchronously, so a
+  // second nudge while the first is still pending closes the set right back up.
+  [...collectAncestorSets(setEl), setEl].forEach(expandSet);
+
+  let attempts = 0;
+  let revealed = false;
+
+  const open = () => {
+    // Some sections hide their settings behind a revealer — open it first. It's a
+    // toggle, so it gets exactly one click.
+    if (!revealed) {
+      const revealer = settingsRevealer(setEl);
+
+      if (revealer && /^(show|vis)/i.test((revealer.textContent || '').trim())) {
+        revealer.click();
+        revealed = true;
+      }
+    }
+
+    // A collapsed set renders no fields, and revealing takes a beat — just wait.
+    if (!sectionSettingsFields(setEl).length) {
+      if (++attempts < 30) {
+        setTimeout(open, 200);
+      }
+
+      return;
+    }
+
+    // Let Vue settle before isolating; fall back to showing the whole section if
+    // the settings can't be pinned down.
+    setTimeout(() => {
+      if (!soloSectionSettings(data.uid, doc, win)) {
+        soloSection(data.uid, doc, win);
+      }
+
+      forcePanelOpen = true;
+      setLpCollapsed(win, false);
+    }, 250);
+  };
+
+  open();
+}
+
+/**
+ * The section's own "Show settings" revealer.
+ *
+ * Settings aren't a popup — `show_settings` is a `revealer` fieldtype that
+ * unhides the section's `settings` fields in place. Sections are full of buttons
+ * that say much the same thing (every button row and column has its own), so the
+ * section's is picked by nesting: its fields sit in the set's own field list,
+ * everything else's are one or more field lists further in.
+ */
+function settingsRevealer(setEl) {
+  const depth = (el) => {
+    let levels = 0;
+
+    for (let node = el.parentElement; node && node !== setEl; node = node.parentElement) {
+      if (node.classList?.contains('publish-fields')) {
+        levels++;
+      }
+    }
+
+    return levels;
+  };
+
+  // Found by fieldtype, not by label: the field is *called* "Show settings", but
+  // the button Statamic renders inside it reads "Show Fields".
+  return [...setEl.querySelectorAll('.revealer-fieldtype button')].sort(
+    (a, b) => depth(a) - depth(b)
+  )[0];
+}
+
+/**
+ * The panel row for a top-level array item, located via the form values: the
+ * uid's path ("page_sections.3") gives the field handle and index, and the
+ * sortable rows render in values order.
+ */
+function sortableItemForUid(uid, doc) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const path = findPathByUid(values, uid);
+    const match = path?.match(/^([^.]+)\.(\d+)$/);
+
+    if (!match) {
+      continue;
+    }
+
+    return doc.querySelectorAll(`.field_${match[1]}-sortable-item`)[Number(match[2])] ?? null;
+  }
+
+  return null;
 }
 
 // --- Live Preview: collapsible editor panel ----------------------------------
@@ -1525,31 +3338,68 @@ export function handleMove(data, doc) {
 // components report zero rects and the popup silently fails to open). The
 // popup itself portals to document.body, so it shows fine while collapsed.
 
-const LP_COLLAPSED_KEY = 'sve-lp-editor-collapsed';
 const LP_TOGGLE_ID = '__sve-lp-toggle';
+const LP_MODE_ID = '__sve-lp-mode';
+const LP_MODE_KEY = 'sve-lp-panel-mode';
 
-// Desired collapse state for the current Live Preview session. null = not
-// initialized (live preview closed); read from localStorage on next mount.
+// The panel runs in one of three modes, chosen in the header and remembered
+// across sessions:
+//   hide — never opens, not even when something in the preview is clicked
+//   auto — closed until something in the preview is clicked, then opens on it
+//   show — always open
+const LP_MODES = ['hide', 'auto', 'show'];
+const LP_MODE_LABELS = { hide: 'Hide', auto: 'Auto', show: 'Show' };
+
+// Collapse state for the current Live Preview session (auto mode moves it at
+// runtime). null = not initialized (live preview closed); derived from the
+// stored mode on next mount.
 let lpCollapsed = null;
 
-function lpCollapsedPreference(win) {
-  try {
-    const stored = win.localStorage.getItem(LP_COLLAPSED_KEY);
+// Set while a section's settings are on show — see ensureLpPanelToggle.
+let forcePanelOpen = false;
 
-    return stored === null ? true : stored === '1'; // default: collapsed
+function lpMode(win) {
+  try {
+    const stored = win.localStorage.getItem(LP_MODE_KEY);
+
+    return LP_MODES.includes(stored) ? stored : 'hide';
   } catch {
-    return true;
+    return 'hide';
   }
+}
+
+function setLpMode(win, mode) {
+  try {
+    win.localStorage.setItem(LP_MODE_KEY, mode);
+  } catch {
+    /* private mode */
+  }
+
+  // Switching to Show reveals the FULL form, like the old open-toggle did.
+  if (mode === 'show') {
+    clearSolo(win.document);
+  }
+
+  setLpCollapsed(win, mode !== 'show');
+}
+
+/**
+ * A preview interaction (clicking a section, an inline field, …) wants the
+ * panel open. Whether it gets it depends on the mode — in `hide` it never does.
+ * Returns whether the panel is (now) available.
+ */
+function autoOpenPanel(win) {
+  if (lpMode(win) === 'hide') {
+    return false;
+  }
+
+  setLpCollapsed(win, false);
+
+  return true;
 }
 
 function setLpCollapsed(win, collapsed) {
   lpCollapsed = collapsed;
-
-  try {
-    win.localStorage.setItem(LP_COLLAPSED_KEY, collapsed ? '1' : '0');
-  } catch {
-    /* private mode */
-  }
 
   ensureLpPanelToggle(win);
 }
@@ -1566,6 +3416,7 @@ function setLpCollapsed(win, collapsed) {
 
 const SOLO_STYLE_ID = 'sve-solo-style';
 const SOLO_BACK_ID = 'sve-solo-back';
+const SOLO_SAVE_ID = 'sve-solo-save';
 const SOLO_PARENT_ATTR = 'data-sve-solo-parent';
 const SOLO_KEEP_ATTR = 'data-sve-solo-keep';
 
@@ -1583,6 +3434,7 @@ export function clearSolo(doc) {
 
   doc.getElementById(SOLO_STYLE_ID)?.remove();
   doc.getElementById(SOLO_BACK_ID)?.remove();
+  doc.getElementById(SOLO_SAVE_ID)?.remove();
   doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
   doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
 }
@@ -1601,30 +3453,76 @@ function ensureSoloStyle(doc) {
   doc.head.appendChild(style);
 }
 
-/** Back-to-full-form control, appended to the body (outside the Vue tree). */
-function addSoloBackButton(doc, win) {
+/**
+ * Back-to-full-form control, appended to the body (outside the Vue tree). When a
+ * `saveUid` is given (settings view), a "Gem sektion" button is placed beside it
+ * so the section can be saved as a template right from the panel — the same
+ * action as the hover control's bookmark, offered "begge steder".
+ */
+function addSoloBackButton(doc, win, saveUid = null) {
   if (doc.getElementById(SOLO_BACK_ID)) {
     return;
   }
 
-  const header = doc.querySelector('.live-preview-header');
-  const top = header ? header.getBoundingClientRect().bottom + 10 : 60;
+  const header = lpHeader(doc);
+  // A header pill, styled like the others — grey, not a floating white button.
+  const pill =
+    'display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border:none;' +
+    'border-radius:8px;background:rgba(128,128,128,.16);color:currentColor;cursor:pointer;' +
+    'font-size:12px;font-weight:500;font-family:inherit;';
+  // Drop it into the header where the publish tabs would sit, so "back to all
+  // sections" reads as part of the same row of controls.
+  const anchor =
+    doc.getElementById(SETTINGS_TABS_ID) ||
+    doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="settings"]');
 
   const btn = doc.createElement('button');
 
   btn.id = SOLO_BACK_ID;
   btn.type = 'button';
-  btn.innerHTML = '<span style="font-size:15px;line-height:1;">&#8249;</span><span>Alle sektioner</span>';
-  btn.style.cssText =
-    `position:fixed;left:16px;top:${top}px;z-index:60;display:flex;align-items:center;gap:7px;` +
-    'padding:6px 12px;border:1px solid rgba(0,0,0,0.14);border-radius:8px;background:#fff;color:#27272a;' +
-    'cursor:pointer;font-size:13px;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,0.12);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;';
-  btn.addEventListener('mouseenter', () => (btn.style.background = '#f4f4f5'));
-  btn.addEventListener('mouseleave', () => (btn.style.background = '#fff'));
-  btn.addEventListener('click', () => clearSolo(doc));
+  btn.innerHTML = `<span style="font-size:15px;line-height:1;">&#8249;</span><span>${t(win, 'all_sections')}</span>`;
+  btn.style.cssText = pill;
+  btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(128,128,128,.28)'));
+  btn.addEventListener('mouseleave', () => (btn.style.background = 'rgba(128,128,128,.16)'));
+  btn.addEventListener('click', () => {
+    // Leaving a settings view hands the panel back to whatever mode is selected;
+    // leaving an ordinary solo view leaves the panel exactly as it was.
+    const wasSettings = forcePanelOpen;
 
-  doc.body.appendChild(btn);
+    forcePanelOpen = false;
+    clearSolo(doc);
+
+    if (wasSettings) {
+      setLpCollapsed(win, lpMode(win) !== 'show');
+    }
+  });
+
+  if (anchor) {
+    anchor.after(btn);
+  } else if (header) {
+    header.insertBefore(btn, header.firstChild);
+  } else {
+    doc.body.appendChild(btn);
+  }
+
+  if (!saveUid) {
+    return;
+  }
+
+  const save = doc.createElement('button');
+
+  save.id = SOLO_SAVE_ID;
+  save.type = 'button';
+  save.innerHTML =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    `<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg><span>${t(win, 'save_section')}</span>`;
+  save.style.cssText = pill;
+  save.addEventListener('mouseenter', () => (save.style.background = 'rgba(128,128,128,.28)'));
+  save.addEventListener('mouseleave', () => (save.style.background = 'rgba(128,128,128,.16)'));
+  save.addEventListener('click', () => handleSaveSection({ uid: saveUid }, doc, win));
+
+  btn.after(save);
 }
 
 /**
@@ -1657,10 +3555,129 @@ function markSoloPath(uid, editor, doc) {
 }
 
 /**
+ * Isolates a section's settings — and nothing else — in the editor panel.
+ *
+ * Reuses the solo marking, only starting deeper: instead of keeping the path down
+ * to the whole set, it keeps the path down to the set's own `settings` fields, so
+ * the panel shows the spacing/colour controls alone. Several fields can be kept
+ * at once (settings plus its per-breakpoint siblings) — the style only hides
+ * children that aren't marked, so marked siblings all survive.
+ */
+export function soloSectionSettings(uid, doc, win) {
+  const setEl = findSetByUid(uid, doc);
+  const editor = doc.querySelector('.live-preview-editor');
+
+  if (!setEl || !editor || !editor.contains(setEl)) {
+    return false;
+  }
+
+  soloUid = uid;
+
+  const apply = () => {
+    const targets = sectionSettingsFields(setEl);
+
+    if (!targets.length) {
+      return false;
+    }
+
+    ensureSoloStyle(doc);
+
+    doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
+    doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
+
+    targets.forEach((target) => {
+      for (let node = target; node && node !== editor && node.parentElement; node = node.parentElement) {
+        node.setAttribute(SOLO_KEEP_ATTR, '');
+        node.parentElement.setAttribute(SOLO_PARENT_ATTR, '');
+      }
+    });
+
+    addSoloBackButton(doc, win, uid);
+
+    return true;
+  };
+
+  if (!apply()) {
+    return false;
+  }
+
+  if (soloObserver) {
+    soloObserver.disconnect();
+  }
+
+  const target = doc.querySelector('.live-preview-fields') || editor;
+
+  soloObserver = new MutationObserver(() => {
+    if (soloUid === uid && !doc.querySelector(`[${SOLO_KEEP_ATTR}]`)) {
+      apply();
+    }
+  });
+  soloObserver.observe(target, { childList: true, subtree: true });
+
+  return true;
+}
+
+// A section's settings are a tabby field (the Farver / Spacing / Custom css tabs),
+// sometimes alongside a breakpoint switcher for the per-device values. Targeting
+// the fieldtypes, not field ids: in Statamic 6 the `field_…` ids are on the inputs
+// themselves, not on any wrapper, so there is nothing to match a handle against.
+const SETTINGS_FIELDTYPES = '.tabby-fieldtype, [class*="breakpoint-fieldtype"]';
+
+/**
+ * The section's own settings fields.
+ *
+ * Everything nested in a section brings settings of its own — every button row,
+ * every column — and they render the same fieldtypes. The section's are the least
+ * deeply nested: they sit in the set's own field list, the rest one or more field
+ * lists further in.
+ */
+function sectionSettingsFields(setEl) {
+  const depth = (el) => {
+    let levels = 0;
+
+    for (let node = el.parentElement; node && node !== setEl; node = node.parentElement) {
+      if (node.classList?.contains('publish-fields')) {
+        levels++;
+      }
+    }
+
+    return levels;
+  };
+
+  const fields = [...setEl.querySelectorAll(SETTINGS_FIELDTYPES)];
+
+  if (!fields.length) {
+    return [];
+  }
+
+  const shallowest = Math.min(...fields.map(depth));
+
+  return fields.filter((el) => depth(el) === shallowest);
+}
+
+/**
  * Isolates one section in the editor panel. Returns false when the set can't be
  * located at all (caller falls back to normal focus). Marks are re-applied on
  * every field re-render via a MutationObserver.
  */
+/**
+ * Make the sections tab the one on screen.
+ *
+ * Sections live in the first publish tab. If another tab (SEO, Sidebar) is
+ * selected when you open a section, its fields sit in a tab panel the CP has
+ * hidden — so isolating them shows nothing. Switching back first is what keeps the
+ * section from opening into a blank panel.
+ */
+function activateSectionsTab(win) {
+  const first = nativeTabButtons(win.document)[0];
+
+  if (first && first.getAttribute('aria-selected') !== 'true') {
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
+      first.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true }));
+    });
+  }
+}
+
 export function soloSection(uid, doc, win) {
   if (!uid || !findSetByUid(uid, doc)) {
     return false;
@@ -1675,6 +3692,8 @@ export function soloSection(uid, doc, win) {
       return;
     }
 
+    activateSectionsTab(win); // guarded — only clicks when it isn't already showing
+
     ensureSoloStyle(doc);
 
     if (markSoloPath(uid, editor, doc)) {
@@ -1683,6 +3702,7 @@ export function soloSection(uid, doc, win) {
   };
 
   apply();
+  setTimeout(apply, 180); // once the tab switch above has re-rendered the fields
 
   // Re-apply whenever Vue rebuilds the field tree (expanding a set, live-preview
   // refresh, …). Guarded so our own marking doesn't loop: we only act when the
@@ -1717,52 +3737,94 @@ export function soloSection(uid, doc, win) {
  */
 export function ensureLpPanelToggle(win) {
   const doc = win.document;
-  const header = doc.querySelector('.live-preview-header');
+  const header = lpHeader(doc);
 
   if (!header) {
-    // Live preview closed — forget session state; next open re-reads the pref.
+    // Live preview closed — forget session state; next open re-reads the mode.
+    // The docked panels belong to the preview, so they go with it: left behind,
+    // they'd hang over the ordinary publish form with nothing to preview into.
     lpCollapsed = null;
     clearSolo(doc);
+    closeRightPanels(win);
 
     return;
   }
 
   if (lpCollapsed === null) {
-    lpCollapsed = lpCollapsedPreference(win);
+    lpCollapsed = lpMode(win) !== 'show';
   }
 
-  let btn = doc.getElementById(LP_TOGGLE_ID);
+  // Opening a section's settings holds the panel open for as long as they're
+  // shown, whatever the mode says — otherwise the observer that re-applies the
+  // mode on every Vue re-render slams it shut again a moment later.
+  if (forcePanelOpen) {
+    lpCollapsed = false;
+  }
 
-  if (!btn) {
-    btn = doc.createElement('button');
-    btn.id = LP_TOGGLE_ID;
-    btn.type = 'button';
-    // Two-pane "sidebar" glyph drawn with borders so it follows the CP theme color.
-    btn.innerHTML =
+  let icon = doc.getElementById(LP_TOGGLE_ID);
+
+  if (!icon) {
+    // The panel glyph is purely an indicator — the mode buttons next to it do
+    // the switching. Drawn with borders so it follows the CP theme color.
+    icon = doc.createElement('span');
+    icon.id = LP_TOGGLE_ID;
+    icon.innerHTML =
       '<span style="display:inline-block;width:16px;height:12px;border:1.5px solid currentColor;' +
       'border-radius:3px;position:relative;"><span style="position:absolute;left:4px;top:0;bottom:0;' +
       'width:1.5px;background:currentColor;"></span></span>';
-    btn.style.cssText =
-      'display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;' +
-      'border-radius:6px;cursor:pointer;background:transparent;border:none;color:currentColor;';
-    btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(128,128,128,0.15)'));
-    btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
-    btn.addEventListener('click', () => {
-      const next = !lpCollapsed;
-
-      // Opening the panel via the toggle shows the FULL form again.
-      if (!next) {
-        clearSolo(doc);
-      }
-
-      setLpCollapsed(win, next);
-    });
-    header.insertBefore(btn, header.firstChild);
+    icon.style.cssText =
+      'display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;color:currentColor;';
+    header.insertBefore(icon, header.firstChild);
   }
 
-  btn.setAttribute('aria-pressed', lpCollapsed ? 'false' : 'true');
-  btn.title = lpCollapsed ? 'Vis redigeringspanel' : 'Skjul redigeringspanel';
-  btn.style.opacity = lpCollapsed ? '0.6' : '1';
+  icon.style.opacity = lpCollapsed ? '0.6' : '1';
+
+  let group = doc.getElementById(LP_MODE_ID);
+
+  if (!group) {
+    group = doc.createElement('div');
+    group.id = LP_MODE_ID;
+    group.style.cssText =
+      'display:inline-flex;align-items:center;gap:2px;padding:2px;' +
+      'border-radius:8px;background:rgba(128,128,128,.16);font-family:inherit;';
+
+    LP_MODES.forEach((mode) => {
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.dataset.mode = mode;
+      btn.textContent = LP_MODE_LABELS[mode];
+      btn.style.cssText =
+        'padding:4px 10px;border:none;border-radius:6px;cursor:pointer;background:transparent;' +
+        'color:currentColor;font-size:12px;font-weight:500;line-height:1;';
+      btn.addEventListener('click', () => setLpMode(win, mode));
+      group.appendChild(btn);
+    });
+
+    icon.after(group);
+  }
+
+  const active = lpMode(win);
+
+  group.querySelectorAll('button').forEach((btn) => {
+    const on = btn.dataset.mode === active;
+
+    // A light-grey pill on the active mode, with the text left in the theme's own
+    // colour — no forced black.
+    btn.style.background = on ? 'rgba(128,128,128,.45)' : 'transparent';
+    btn.style.color = 'currentColor';
+    btn.style.opacity = on ? '1' : '.75';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+
+  ensureGlobalsPicker(win);
+  ensureSectionLibraryButton(win);
+  ensureCollectionPicker(win);
+  enhanceGrids(win);
+
+  // Collapse all of the above into the icon toolbar — one control at a time.
+  ensureHeaderToolbar(win);
+  applyHeaderTab(win);
 
   const editor = doc.querySelector('.live-preview-editor');
 
@@ -1775,6 +3837,1106 @@ export function ensureLpPanelToggle(win) {
       editor.style.top = lpCollapsed ? '0' : '';
     }
   }
+
+  ensureLpBackButton(win);
+  positionLpBackButton(win);
+}
+
+// --- Header toolbar: one control at a time -------------------------------------
+//
+// The header used to show every control at once — the panel mode, the collection
+// picker, the globals dropdown, the sections button. For an editor a customer
+// uses, that's noise. This collapses them to a row of icons; clicking one reveals
+// only its control and hides the rest. The settings icon is the important one: it
+// opens the editor panel and mirrors its tabs (Main/SEO/Sidebar, read live so a
+// renamed tab just follows) into the header, plus a Save — so "edit the SEO" is
+// one obvious click, not a hunt.
+
+const HEADER_TOOLBAR_ID = '__sve-toolbar';
+const SETTINGS_TABS_ID = '__sve-settings-tabs';
+
+// null = nothing expanded (the simplest header). Persisted so it survives the
+// header being rebuilt on every preview update.
+let headerTab = undefined;
+
+function loadHeaderTab(win) {
+  if (headerTab !== undefined) {
+    return;
+  }
+
+  try {
+    headerTab = win.localStorage.getItem('sve-header-tab') || null;
+  } catch {
+    headerTab = null;
+  }
+}
+
+function setHeaderTab(win, tab) {
+  headerTab = tab;
+
+  try {
+    tab ? win.localStorage.setItem('sve-header-tab', tab) : win.localStorage.removeItem('sve-header-tab');
+  } catch {
+    /* private mode */
+  }
+}
+
+const TOOLBAR_ICONS = {
+  // The panel glyph — the same mark that used to sit alone as the mode indicator.
+  settings:
+    '<span style="display:inline-block;width:16px;height:12px;border:1.5px solid currentColor;' +
+    'border-radius:3px;position:relative;"><span style="position:absolute;left:4px;top:0;bottom:0;' +
+    'width:1.5px;background:currentColor;"></span></span>',
+  pages:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="4" y="3" width="16" height="18" rx="2"/>' +
+    '<line x1="8" y1="8" x2="16" y2="8"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="16" x2="13" y2="16"/></svg>',
+  globals:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><circle cx="12" cy="12" r="9"/>' +
+    '<line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18"/></svg>',
+  sections:
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="7" height="7" rx="1"/>' +
+    '<rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>' +
+    '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
+};
+
+/** The icon row at the far left of the Live Preview header. */
+function ensureHeaderToolbar(win) {
+  const doc = win.document;
+  const header = lpHeader(doc);
+
+  if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
+    return;
+  }
+
+  const bar = doc.createElement('div');
+
+  bar.id = HEADER_TOOLBAR_ID;
+  bar.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin-right:8px;';
+
+  [
+    { key: 'settings', title: t(win, 'panel') },
+    { key: 'pages', title: t(win, 'pages') },
+    { key: 'globals', title: t(win, 'globals') },
+    { key: 'sections', title: t(win, 'sections') },
+  ].forEach((tab) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.dataset.tab = tab.key;
+    btn.title = tab.title;
+    btn.innerHTML = TOOLBAR_ICONS[tab.key];
+    btn.style.cssText =
+      'width:32px;height:30px;display:inline-flex;align-items:center;justify-content:center;' +
+      'border:none;border-radius:8px;cursor:pointer;background:transparent;color:currentColor;';
+    btn.addEventListener('click', () => toggleHeaderTab(win, tab.key));
+    bar.appendChild(btn);
+  });
+
+  header.insertBefore(bar, header.firstChild);
+}
+
+function toggleHeaderTab(win, key) {
+  const active = headerTab === key;
+
+  if (key === 'sections') {
+    // Its "expanded" form is the docked panel, not a header control.
+    setHeaderTab(win, active ? null : 'sections');
+    openSectionPicker(win); // toggles
+
+    if (!active) {
+      setLpCollapsed(win, true); // give the preview its width back
+    }
+
+    applyHeaderTab(win);
+
+    return;
+  }
+
+  // Switching to an inline control closes any docked right panel — one thing out
+  // at a time.
+  closeRightPanels(win);
+  setHeaderTab(win, active ? null : key);
+
+  // The settings tab is the editor panel. Move the MODE with it, not just the
+  // panel — an open panel while Hide stays lit is a contradiction. Opening → Show,
+  // closing → Hide, so Hide/Auto/Show always tells the truth about what's on
+  // screen.
+  if (key === 'settings') {
+    setLpMode(win, active ? 'hide' : 'show');
+  }
+
+  applyHeaderTab(win);
+}
+
+/**
+ * The publish tabs (Main / SEO / Sidebar…), mirrored into the header, plus Save.
+ *
+ * Read from the panel every time rather than remembered: the labels are the
+ * blueprint's own, so a renamed tab follows for free, and different collections
+ * have different tabs. The panel must be open for the native tabs to exist, which
+ * is why this only shows under the settings tab.
+ */
+function ensureSettingsTabs(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return null;
+  }
+
+  let group = doc.getElementById(SETTINGS_TABS_ID);
+
+  if (!group) {
+    group = doc.createElement('div');
+    group.id = SETTINGS_TABS_ID;
+    group.style.cssText =
+      'display:none;align-items:center;gap:2px;padding:2px;border-radius:8px;' +
+      'background:rgba(128,128,128,.16);font-family:inherit;';
+    bar.after(group);
+  }
+
+  const nativeTabs = nativeTabButtons(doc);
+
+  // Rebuild if the set of tabs changed (count or labels) — cheap, and keeps a
+  // renamed or blueprint-specific tab in step.
+  const signature = nativeTabs.map((tabEl) => tabEl.textContent.trim()).join('|');
+
+  if (group.dataset.sig !== signature) {
+    group.dataset.sig = signature;
+    group.innerHTML = '';
+
+    // Skip the first tab (Main): its content is the sections, which you edit in
+    // the preview itself — so it has no place in the settings row.
+    nativeTabs.forEach((tabEl, index) => {
+      if (index === 0) {
+        return;
+      }
+
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.dataset.tabIndex = String(index);
+      btn.textContent = tabEl.textContent.trim();
+      btn.style.cssText =
+        'padding:4px 10px;border:none;border-radius:6px;cursor:pointer;background:transparent;' +
+        'color:currentColor;font-size:12px;font-weight:500;line-height:1;';
+      btn.addEventListener('click', () => clickNativeTab(win, index));
+      group.appendChild(btn);
+    });
+  }
+
+  // Highlight the selected tab only when its content is actually on screen. With
+  // the panel closed nothing is shown, so nothing should look active — a lit-up
+  // SEO with no SEO in sight is just a lie.
+  const panelOpen = !lpCollapsed;
+
+  group.querySelectorAll('[data-tab-index]').forEach((btn) => {
+    const selected = nativeTabs[Number(btn.dataset.tabIndex)]?.getAttribute('aria-selected') === 'true';
+    const on = panelOpen && selected;
+
+    btn.style.background = on ? 'rgba(128,128,128,.45)' : 'transparent';
+    btn.style.color = 'currentColor';
+    btn.style.opacity = on ? '1' : '.75';
+  });
+
+  return group;
+}
+
+/**
+ * The publish tabs actually on screen. reka-ui renders a hidden measurement copy
+ * of the tab list alongside the live one, so filtering to what's visible is what
+ * keeps a click landing on the real tab rather than its ghost.
+ */
+function nativeTabButtons(doc) {
+  return [...(doc.querySelector('.live-preview-editor')?.querySelectorAll('button[role="tab"]') ?? [])].filter(
+    (el) => el.offsetParent !== null
+  );
+}
+
+/** Switch the editor panel to a publish tab by clicking its real tab button. */
+function clickNativeTab(win, index) {
+  const fire = () => {
+    const el = nativeTabButtons(win.document)[index];
+
+    if (!el) {
+      return;
+    }
+
+    // reka-ui's tabs switch on the full pointer sequence, not a bare .click(),
+    // and they want real PointerEvents.
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
+      el.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true }));
+    });
+
+    setTimeout(() => ensureSettingsTabs(win), 60); // re-highlight the new selection
+  };
+
+  // Asking for a tab means asking to see it — so an open panel is implied. On
+  // Hide the panel is closed and its tabs aren't even rendered yet, so switch to
+  // Show first and let them mount before clicking. Leaving the mode on Hide while
+  // showing a tab would just be a contradiction.
+  if (lpMode(win) === 'hide' || lpCollapsed) {
+    setLpMode(win, 'show');
+    setTimeout(fire, 140);
+  } else {
+    fire();
+  }
+}
+
+/** Show the control for the active tab, hide the rest, light up the active icon. */
+/** Hide Statamic's "Live Preview" header label — it names the obvious. */
+function hideLpLabel(doc) {
+  const header = lpHeader(doc);
+
+  if (!header) {
+    return;
+  }
+
+  const label = [...header.querySelectorAll('*')].find(
+    (el) => !el.firstElementChild && /^(live preview|forhåndsvisning)$/i.test((el.textContent || '').trim())
+  );
+
+  if (label && label.style.display !== 'none') {
+    label.style.display = 'none';
+  }
+}
+
+function applyHeaderTab(win) {
+  const doc = win.document;
+
+  loadHeaderTab(win);
+  hideLpLabel(doc);
+
+  // The standalone panel glyph and the old Hide/Auto/Show group are replaced by
+  // the toolbar — keep them out of the way.
+  const glyph = doc.getElementById(LP_TOGGLE_ID);
+
+  if (glyph) {
+    glyph.style.display = 'none';
+  }
+
+  // The sections icon in the toolbar replaces the old "Sektioner" text button.
+  const lib = doc.getElementById(LIBRARY_BUTTON_ID);
+
+  if (lib) {
+    lib.style.display = 'none';
+  }
+
+  const settingsTabs = ensureSettingsTabs(win);
+  const controls = {
+    settings: settingsTabs,
+    pages: doc.getElementById(COLLECTION_PICKER_ID)?.parentElement,
+    globals: doc.getElementById(GLOBALS_PICKER_ID),
+  };
+
+  // Hide/Auto/Show lives under the settings tab — the same tab that owns the
+  // panel it controls.
+  const modeGroup = doc.getElementById(LP_MODE_ID);
+
+  if (modeGroup) {
+    modeGroup.style.display = headerTab === 'settings' ? 'inline-flex' : 'none';
+  }
+
+  Object.entries(controls).forEach(([key, el]) => {
+    if (el) {
+      el.style.display = headerTab === key ? 'inline-flex' : 'none';
+    }
+  });
+
+  // Each control sits directly after the icon it belongs to, so it reads as
+  // connected to it. Guarded — moving a node on every call would trip the
+  // observer that re-runs this into a loop.
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+  const iconOf = (tab) => bar?.querySelector(`button[data-tab="${tab}"]`);
+  const place = (anchor, el) => {
+    if (anchor && el && anchor.nextElementSibling !== el) {
+      anchor.after(el);
+    }
+  };
+
+  const settingsIcon = iconOf('settings');
+
+  place(settingsIcon, modeGroup); // Hide/Auto/Show
+  place(modeGroup || settingsIcon, settingsTabs); // then the publish tabs
+  place(iconOf('pages'), controls.pages);
+  place(iconOf('globals'), controls.globals);
+
+  const sectionsOpen = !!doc.getElementById(SECTION_PICKER_ID);
+
+  // Only the icon buttons — the control groups now live inside the toolbar too,
+  // and a bare querySelectorAll('button') would reach in and wipe the highlight
+  // off Hide/Auto/Show and the tabs.
+  doc.getElementById(HEADER_TOOLBAR_ID)?.querySelectorAll(':scope > button[data-tab]').forEach((btn) => {
+    const on = btn.dataset.tab === headerTab || (btn.dataset.tab === 'sections' && sectionsOpen);
+
+    btn.style.background = on ? 'rgba(128,128,128,.30)' : 'transparent';
+    btn.style.opacity = on ? '1' : '.7';
+  });
+}
+
+// --- Grid rows: collapse to a title, one open at a time ------------------------
+//
+// Statamic's Grid (stacked) shows every row's fields in full, which eats the
+// editor panel when a grid has several rows. This turns each row into an
+// accordion item — the header collapses to a one-line title (the first field's
+// value), and opening one closes the others — the way the Replicator already
+// behaves. Rows are Statamic's own DOM: a `.grid-stacked > <panel>` with a
+// `<header>` (drag handle + duplicate/delete) and a fields body beside it. We
+// only mark and toggle; Vue keeps owning the DOM.
+
+const GRID_ROW_ATTR = 'data-sve-grid-row';
+const GRID_COLLAPSED_ATTR = 'data-sve-grid-collapsed';
+const GRID_DONE_ATTR = 'data-sve-grid-done';
+const GRID_STYLE_ID = 'sve-grid-accordion-style';
+
+function ensureGridStyle(doc) {
+  if (doc.getElementById(GRID_STYLE_ID)) {
+    return;
+  }
+
+  const style = doc.createElement('style');
+
+  style.id = GRID_STYLE_ID;
+  style.textContent = `
+    [${GRID_ROW_ATTR}] > header { cursor: pointer; }
+    [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] > *:not(header) { display: none !important; }
+    [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] > header { border-bottom-color: transparent; }
+    .sve-grid-title {
+      flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 13px; font-weight: 500; opacity: .7; padding: 0 10px; pointer-events: none;
+    }
+    [${GRID_ROW_ATTR}]:not([${GRID_COLLAPSED_ATTR}]) .sve-grid-title { opacity: 0; }
+    .sve-grid-chevron {
+      flex: 0 0 auto; width: 14px; height: 14px; opacity: .5; transition: transform .15s;
+      pointer-events: none; margin-left: 4px;
+    }
+    [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] .sve-grid-chevron { transform: rotate(-90deg); }
+  `;
+  doc.head.appendChild(style);
+}
+
+/** The title shown for a collapsed row — its first field's value. */
+function gridRowTitle(row) {
+  const field = row.querySelector('.publish-fields input, .publish-fields textarea, .publish-fields select');
+  const value = field ? (field.value || '').trim() : '';
+
+  return value || '—';
+}
+
+function setGridRowCollapsed(row, collapsed) {
+  if (collapsed) {
+    row.setAttribute(GRID_COLLAPSED_ATTR, '');
+  } else {
+    row.removeAttribute(GRID_COLLAPSED_ATTR);
+  }
+
+  const title = row.querySelector(':scope > header .sve-grid-title');
+
+  if (title) {
+    title.textContent = collapsed ? gridRowTitle(row) : '';
+  }
+}
+
+/** True for a real Grid stacked row panel — it carries a header of its own. */
+function isGridRow(el) {
+  return el.matches('div') && !!el.querySelector(':scope > header');
+}
+
+function enhanceGridRow(win, row, stacked) {
+  if (row.hasAttribute(GRID_ROW_ATTR)) {
+    return;
+  }
+
+  const header = row.querySelector(':scope > header');
+
+  if (!header) {
+    return;
+  }
+
+  row.setAttribute(GRID_ROW_ATTR, '');
+
+  const doc = win.document;
+  const title = doc.createElement('span');
+
+  title.className = 'sve-grid-title';
+
+  const chevron = doc.createElement('span');
+
+  chevron.className = 'sve-grid-chevron';
+  chevron.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;">' +
+    '<polyline points="6 9 12 15 18 9"></polyline></svg>';
+
+  // Title fills the middle of the header; the chevron sits at the far end. The
+  // drag handle stays first, the duplicate/delete buttons stay last.
+  const firstButton = header.querySelector(':scope > button');
+
+  if (firstButton && firstButton.nextSibling) {
+    header.insertBefore(title, firstButton.nextSibling);
+  } else {
+    header.appendChild(title);
+  }
+
+  header.appendChild(chevron);
+
+  header.addEventListener('click', (event) => {
+    // The drag handle and the duplicate/delete buttons keep their own jobs.
+    if (event.target.closest('button')) {
+      return;
+    }
+
+    const opening = row.hasAttribute(GRID_COLLAPSED_ATTR);
+
+    if (opening) {
+      [...stacked.children].forEach((sibling) => {
+        if (sibling !== row && sibling.hasAttribute(GRID_ROW_ATTR)) {
+          setGridRowCollapsed(sibling, true);
+        }
+      });
+    }
+
+    setGridRowCollapsed(row, !opening);
+  });
+
+  // Rows start collapsed; the grid opens its first one below. Set once, so a
+  // later re-render never fights the state the user has clicked into.
+  setGridRowCollapsed(row, true);
+}
+
+/**
+ * Turns every Grid (stacked) in the editor panel into an accordion. Runs on each
+ * LP re-render; already-enhanced rows are skipped, so user-chosen open/closed
+ * states survive. A freshly seen grid starts with only its first row open.
+ */
+function enhanceGrids(win) {
+  const doc = win.document;
+  const editor = doc.querySelector('.live-preview-editor');
+
+  if (!editor) {
+    return;
+  }
+
+  ensureGridStyle(doc);
+
+  editor.querySelectorAll('.grid-stacked').forEach((stacked) => {
+    const rows = [...stacked.children].filter((el) => isGridRow(el));
+
+    if (!rows.length) {
+      return;
+    }
+
+    // enhanceGridRow starts each row collapsed (once). New rows added later
+    // therefore arrive collapsed without disturbing the rows already on screen.
+    rows.forEach((row) => enhanceGridRow(win, row, stacked));
+
+    // A grid seen for the first time opens its first row, so it isn't a wall of
+    // closed headers — but only if the user hasn't already opened one.
+    if (!stacked.hasAttribute(GRID_DONE_ATTR)) {
+      stacked.setAttribute(GRID_DONE_ATTR, '');
+
+      if (!rows.some((row) => !row.hasAttribute(GRID_COLLAPSED_ATTR))) {
+        setGridRowCollapsed(rows[0], false);
+      }
+    }
+  });
+}
+
+const LP_BACK_ID = '__sve-lp-back';
+
+/** How long to wait for a save to come back before giving the button up again. */
+const LP_SAVE_TIMEOUT = 15000;
+
+/**
+ * Leaving the editor publishes what you changed. Clicking Statamic's own
+ * "Save & Publish" rather than posting to the API ourselves, so validation,
+ * revisions and everything else behave exactly as they do from the CP.
+ *
+ * Nothing changed → leave straight away. A save that fails (validation, say) puts
+ * the button back and keeps you in the editor, where the error is.
+ */
+function leaveEditor(win, link, leave) {
+  if (link.dataset.busy) {
+    return;
+  }
+
+  const save = saveButtonIn(win.document);
+
+  if (!hasUnsavedChanges(win) || !save) {
+    leave();
+
+    return;
+  }
+
+  const label = link.querySelector('span');
+  const original = label?.textContent;
+
+  link.dataset.busy = '1';
+  link.style.pointerEvents = 'none';
+  link.style.opacity = '.5';
+
+  if (label) {
+    label.textContent = t(win, 'saving');
+  }
+
+  // In dev, Vite's full-reload may replace the hosting site the moment the save
+  // hits the content file — before we get to say anything else. Flag the exit
+  // now so that reload also comes back without replaying entrance animations.
+  postToHost(win, 'lp-leaving');
+
+  const release = () => {
+    delete link.dataset.busy;
+    link.style.pointerEvents = '';
+    link.style.opacity = '.8';
+
+    if (label && original) {
+      label.textContent = original;
+    }
+  };
+
+  let settled = false;
+
+  const stop = onEntrySave((ok) => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    stop();
+    clearTimeout(timer);
+
+    if (ok) {
+      leaveQuietly(win, leave);
+    } else {
+      release(); // stay put — the error is in here
+    }
+  });
+
+  const timer = setTimeout(() => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    stop();
+    release();
+  }, LP_SAVE_TIMEOUT);
+
+  save.click();
+}
+
+/**
+ * "Back to the live site" in the Live Preview header. Closing Live Preview with
+ * the × drops you into the admin — which is exactly the thing we're trying to
+ * keep people out of when they arrived from the front end.
+ *
+ * When we're embedded in the site's edit overlay, this doesn't navigate at all:
+ * it asks the site to close the overlay. The page is still sitting there
+ * underneath, untouched, so returning is instant and nothing re-animates.
+ */
+const LP_BACK_MENU_ID = '__sve-lp-back-menu';
+
+/**
+ * Keeps the floating back button below the header and clear of whatever panel is
+ * docked right.
+ *
+ * Re-measured on every re-render rather than once: the header isn't at its final
+ * height on the first pass, and a top measured then leaves the pill sitting on
+ * top of it. A no-op when nothing actually moved — this runs on every mutation,
+ * and rebuilding on each would tear the menu away mid-click.
+ */
+function positionLpBackButton(win) {
+  const doc = win.document;
+  const pill = doc.getElementById(LP_BACK_ID);
+
+  if (!pill) {
+    return;
+  }
+
+  const header = lpHeader(doc);
+  const top = `${(header ? Math.round(header.getBoundingClientRect().bottom) : 0) + 16}px`;
+  const right = `${rightPanelWidth(doc) + 16}px`;
+
+  if (pill.style.top !== top || pill.style.right !== right) {
+    pill.style.top = top;
+    pill.style.right = right;
+    // The menu is anchored to where the pill *was* — it can't follow, so it goes.
+    doc.getElementById(LP_BACK_MENU_ID)?.remove();
+  }
+
+  tellPreviewWherePillIs(win, pill);
+}
+
+/**
+ * Hands the preview the pill's box, in the preview's own coordinates.
+ *
+ * A tall section's hover control pins to its top-right — the same corner the pill
+ * floats in — and the bridge can't see the pill to dodge it: it lives in the CP
+ * window. Sending the real geometry (rather than assuming a fixed offset) is what
+ * keeps this right in the device-preview modes too, where the iframe is narrower
+ * and centred, and the pill isn't over the page at all.
+ */
+function tellPreviewWherePillIs(win, pill) {
+  const frame = previewFrame(win.document);
+
+  if (!frame) {
+    return;
+  }
+
+  const f = frame.getBoundingClientRect();
+  const r = pill.getBoundingClientRect();
+
+  sendToPreview(
+    {
+      source: 'statamic-visual-editor',
+      type: 'sve-pill-box',
+      bottom: Math.round(r.bottom - f.top),
+      left: Math.round(r.left - f.left),
+    },
+    win
+  );
+}
+
+/**
+ * "Back to the site" — the return leg of the front-end's "Rediger" button, and
+ * deliberately its twin: same pill, same corner of the page, so the two read as
+ * one control that flips between viewing and editing.
+ *
+ * Leaving is two decisions, not one, so it asks rather than assumes: saving on
+ * the way out is what you usually want, but "I was only looking" has to be
+ * possible without publishing whatever you nudged.
+ */
+function ensureLpBackButton(win) {
+  const doc = win.document;
+  const header = lpHeader(doc);
+
+  if (!header || doc.getElementById(LP_BACK_ID)) {
+    return;
+  }
+
+  const embedded = isEmbeddedInSite(win);
+
+  // The entry screen behind Live Preview carries a "Visit URL" link — reuse its
+  // href rather than trying to rebuild the front-end URL ourselves. Embedded we
+  // don't need it, but we still keep it on the link as a fallback target.
+  const visit = [...doc.querySelectorAll('a')].find((a) => /visit url|besøg url/i.test(a.textContent || ''));
+  const href = visit?.getAttribute('href');
+
+  if (!href && !embedded) {
+    return;
+  }
+
+  const pill = doc.createElement('a');
+
+  pill.id = LP_BACK_ID;
+  pill.href = href ?? '#';
+  pill.title = t(win, 'back_to_site_title');
+  // A return arrow, not a plain back arrow: you're not stepping one page back,
+  // you're going back out to the site you came in from.
+  pill.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M11 18h3.75a5.25 5.25 0 1 0 0-10.5H5M7.5 4L4 7.5L7.5 11"></path>' +
+    `</svg><span>${t(win, 'back_to_site')}</span>`;
+  // Matches the front-end edit button exactly (InjectEditButton), down to
+  // resting as the icon alone and unfurling the label on hover — the preview is
+  // the page, and the page shouldn't have a button shouting at it.
+  pill.style.cssText =
+    'position:fixed;z-index:2147483000;display:inline-flex;align-items:center;' +
+    'padding:9px;border-radius:999px;background:#18181b;color:#fff;text-decoration:none;' +
+    'font:500 13px/1 ui-sans-serif,system-ui,sans-serif;white-space:nowrap;cursor:pointer;' +
+    'box-shadow:0 4px 14px rgba(0,0,0,.28);transition:right .2s ease,top .2s ease,padding .18s ease;';
+
+  const label = pill.querySelector('span');
+
+  label.style.cssText =
+    'max-width:0;opacity:0;overflow:hidden;white-space:nowrap;' +
+    'transition:max-width .18s ease,opacity .18s ease,margin-left .18s ease;';
+
+  const expand = () => {
+    pill.style.padding = '9px 14px 9px 11px';
+    label.style.maxWidth = '200px';
+    label.style.opacity = '1';
+    label.style.marginLeft = '7px';
+  };
+
+  const collapse = () => {
+    // Stays open while the menu hangs off it, or while a save is in flight —
+    // collapsing out from under either would look like it had given up.
+    if (doc.getElementById(LP_BACK_MENU_ID) || pill.dataset.busy) {
+      return;
+    }
+
+    pill.style.padding = '9px';
+    label.style.maxWidth = '0';
+    label.style.opacity = '0';
+    label.style.marginLeft = '0';
+  };
+
+  pill.addEventListener('mouseenter', expand);
+  pill.addEventListener('mouseleave', collapse);
+  // The menu hangs off the pill and has to be able to hold it open.
+  pill.sveExpand = expand;
+  pill.sveCollapse = collapse;
+
+  const leave = () => {
+    // Read the "Visit URL" fresh, not the one captured when the pill was built:
+    // the link often isn't in the DOM yet that early, and it's the current
+    // entry's front-end URL that matters — which is what's in the DOM now.
+    const visitNow = [...doc.querySelectorAll('a')].find((a) => /visit url|besøg url/i.test(a.textContent || ''));
+    const url = visitNow?.getAttribute('href') || href || null;
+
+    if (embedded) {
+      // The page under the overlay is the one it was opened on. Live Preview may
+      // have moved to another entry since — so hand the host this entry's own
+      // front-end URL, and let it land there rather than reveal the stale page
+      // underneath.
+      postToHost(win, 'lp-close', url ? { url } : {});
+    } else {
+      win.location.href = url || pill.href;
+    }
+  };
+
+  pill.addEventListener('click', (event) => {
+    event.preventDefault();
+
+    if (doc.getElementById(LP_BACK_MENU_ID)) {
+      doc.getElementById(LP_BACK_MENU_ID).remove();
+
+      return;
+    }
+
+    // Nothing to save → don't ask a question with one answer.
+    if (!hasUnsavedChanges(win) || !saveButtonIn(doc)) {
+      leave();
+
+      return;
+    }
+
+    openLpBackMenu(win, pill, leave);
+  });
+
+  doc.body.appendChild(pill);
+  positionLpBackButton(win);
+}
+
+/** The two ways out: with the changes, or without them. */
+function openLpBackMenu(win, pill, leave) {
+  const doc = win.document;
+  const menu = doc.createElement('div');
+  const rect = pill.getBoundingClientRect();
+
+  menu.id = LP_BACK_MENU_ID;
+  menu.style.cssText =
+    `position:fixed;z-index:2147483001;top:${Math.round(rect.bottom + 8)}px;` +
+    `right:${Math.round(win.innerWidth - rect.right)}px;min-width:${Math.max(190, Math.round(rect.width))}px;` +
+    'display:flex;flex-direction:column;padding:5px;border-radius:10px;background:#18181b;' +
+    'box-shadow:0 12px 32px rgba(0,0,0,.4);font:500 13px/1.2 ui-sans-serif,system-ui,sans-serif;';
+
+  const item = (label, onClick, primary) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.cssText =
+      'all:unset;cursor:pointer;padding:9px 12px;border-radius:7px;white-space:nowrap;' +
+      (primary ? 'color:#fff;' : 'color:rgba(255,255,255,.65);');
+    btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(255,255,255,.12)'));
+    btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      menu.remove();
+      onClick();
+    });
+    menu.appendChild(btn);
+
+    return btn;
+  };
+
+  item(t(win, 'back_save_and_leave'), () => {
+    pill.sveExpand?.(); // so "Saving…" is readable rather than clipped to nothing
+    leaveEditor(win, pill, leave);
+  }, true);
+  item(t(win, 'back_leave_only'), leave, false);
+
+  doc.body.appendChild(menu);
+
+  // Anywhere else dismisses it — including the pill, whose own handler toggles.
+  const away = (event) => {
+    if (menu.contains(event.target) || pill.contains(event.target)) {
+      return;
+    }
+
+    menu.remove();
+    pill.sveCollapse?.();
+    doc.removeEventListener('click', away, true);
+  };
+
+  setTimeout(() => doc.addEventListener('click', away, true), 0);
+}
+
+// --- Add section ("+" in the preview) -------------------------------------------
+// Each Replicator row carries an "insert a set before me" button (a popover
+// trigger) at its top. Clicking the row AFTER the clicked section therefore opens
+// Statamic's own Add Set picker at exactly the right position — no re-implemented
+// picker. The last section falls back to the Replicator's own "Add Set" button.
+
+/**
+ * The "insert set here" trigger at the top of a sortable row. It's a popover
+ * trigger (reka-ui) rendered as a centred wrapper around a single button.
+ * Tried by id first, then by class, then by structure — the row also contains
+ * many other buttons, so we must not just grab the first one.
+ */
+function insertButtonOf(item) {
+  const holder =
+    item.querySelector(':scope > [id^="reka-popover-trigger"]') ??
+    [...item.children].find((c) => c.classList?.contains('justify-center')) ??
+    null;
+
+  return holder?.querySelector('button') ?? null;
+}
+
+/**
+ * The picker is a popover anchored to its trigger. With the editor panel parked
+ * off-canvas the trigger sits off-screen, so a list-view popover would render
+ * off-screen too — centre it when that happens. (Grid view is a centred modal
+ * and needs no help.)
+ */
+function ensurePickerVisible(doc, win) {
+  let attempts = 0;
+
+  const run = () => {
+    const input = doc.querySelector('input[placeholder*="Search Sets" i], input[placeholder*="Search" i]');
+
+    if (!input) {
+      if (++attempts < 25) {
+        setTimeout(run, 100);
+      }
+
+      return;
+    }
+
+    let el = input;
+
+    for (let i = 0; el && i < 12; i++) {
+      const cs = win.getComputedStyle(el);
+
+      if (cs.position === 'fixed' || cs.position === 'absolute') {
+        break;
+      }
+
+      el = el.parentElement;
+    }
+
+    if (!el) {
+      return;
+    }
+
+    const rect = el.getBoundingClientRect();
+
+    if (rect.left >= 0 && rect.right <= win.innerWidth && rect.width > 0) {
+      return; // already on screen
+    }
+
+    const w = el.offsetWidth || 480;
+    const h = el.offsetHeight || 420;
+
+    el.style.setProperty('position', 'fixed', 'important');
+    el.style.setProperty('left', `${Math.max(8, (win.innerWidth - w) / 2)}px`, 'important');
+    el.style.setProperty('top', `${Math.max(8, (win.innerHeight - h) / 2)}px`, 'important');
+    el.style.setProperty('right', 'auto', 'important');
+    el.style.setProperty('bottom', 'auto', 'important');
+    el.style.setProperty('transform', 'none', 'important');
+    el.style.setProperty('z-index', '2147483000', 'important');
+  };
+
+  setTimeout(run, 80);
+}
+
+/**
+ * Safety net for when the per-row insert trigger can't be used: the Replicator's
+ * "Add Set" button appends the picked set at the very end, so we watch the
+ * section array and, as soon as it grows, move the new set to sit right after
+ * the section the "+" was clicked on. Same value-array machinery as handleMove.
+ */
+function repositionAfterAdd(uid, doc) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const path = findPathByUid(values, uid);
+
+    if (path === null) {
+      continue;
+    }
+
+    const dot = path.lastIndexOf('.');
+
+    if (dot === -1) {
+      return;
+    }
+
+    const parentPath = path.slice(0, dot);
+    const index = Number(path.slice(dot + 1));
+    const initial = dataGet(values, parentPath);
+
+    if (!Array.isArray(initial) || !Number.isInteger(index)) {
+      return;
+    }
+
+    const startLength = initial.length;
+    let attempts = 0;
+
+    const poll = () => {
+      const current = dataGet(unwrapRef(container.values), parentPath);
+
+      if (!Array.isArray(current)) {
+        return;
+      }
+
+      if (current.length > startLength) {
+        const next = [...current];
+        const [added] = next.splice(next.length - 1, 1); // the appended set
+        next.splice(index + 1, 0, added); // right after the clicked section
+
+        container.setFieldValue(parentPath, next);
+
+        return;
+      }
+
+      // Give the user time to browse the picker; stop if they never pick one.
+      if (++attempts < 240) {
+        setTimeout(poll, 150);
+      }
+    };
+
+    setTimeout(poll, 150);
+
+    return;
+  }
+}
+
+/** Opens Statamic's Add Set picker to insert a section after the given one. */
+export function handleAddSet(data, doc, win) {
+  // The "+" on a section opens the section library (docked panel). You place a
+  // section by dragging a card into the preview, so no insert position is passed.
+  openSectionPicker(win);
+}
+
+/**
+ * Drive Statamic's native Add Set picker to insert next to `setEl`. Shared by the
+ * section "+" and the in-preview block "+": both just need the picker opened at
+ * the right position, and Statamic does the insert (with correct meta) itself.
+ */
+function nativeAddSetAt(setEl, uid, doc, win) {
+  const item = setEl.closest('[class*="sortable-item"]');
+
+  if (!item?.parentElement) {
+    return false;
+  }
+
+  // Walk the real row list (not nextElementSibling — a stray node between rows
+  // must not throw the position off).
+  const rows = [...item.parentElement.children].filter((c) =>
+    /sortable-item/.test((c.className || '').toString())
+  );
+  const next = rows[rows.indexOf(item) + 1] ?? null;
+
+  // Preferred: click the NEXT row's "insert before me" trigger — Statamic then
+  // inserts exactly where we want and nothing else is needed.
+  if (next) {
+    const trigger = insertButtonOf(next);
+
+    if (trigger) {
+      trigger.click();
+      ensurePickerVisible(doc, win);
+
+      return true;
+    }
+  }
+
+  // Otherwise the Replicator's own "Add Set" button, which appends at the end —
+  // so unless this really is the last row, move the picked set into place after.
+  const replicator = item.closest('.replicator-fieldtype-container') ?? doc;
+  const addButton = [...replicator.querySelectorAll('button')].find((b) => /add set/i.test(b.textContent || ''));
+
+  if (!addButton) {
+    return false;
+  }
+
+  if (next) {
+    repositionAfterAdd(uid, doc);
+  }
+
+  addButton.click();
+  ensurePickerVisible(doc, win);
+
+  return true;
+}
+
+/** Legacy: drive Statamic's native Add Set picker (kept for reference/fallback). */
+export function handleAddSetNative(data, doc, win) {
+  const setEl = findSetByUid(data.uid, doc);
+
+  if (setEl) {
+    nativeAddSetAt(setEl, data.uid, doc, win);
+  }
+}
+
+/**
+ * The in-preview "+" between a replicator's blocks, using Statamic's OWN Add Set
+ * picker — the same one the CP shows, with search, groups and previews, and the
+ * native insert so meta is never our problem.
+ *
+ * The catch is that the picker is driven from the CP form, where the block's row
+ * only exists once its section is expanded. So we expand the section first, wait
+ * for the block's row to mount, and then open the picker beside it. Empty field:
+ * no block to sit by — open the picker from the replicator's own Add Set button.
+ */
+function handleAddBlockNative(data, doc, win) {
+  const { anchorUid, sectionUid } = data;
+  const section = sectionUid ? findSetByUid(sectionUid, doc) : null;
+
+  if (section) {
+    collectAncestorSets(section).forEach(expandSet);
+    expandSet(section);
+  }
+
+  let attempts = 0;
+
+  const run = () => {
+    if (anchorUid) {
+      const block = findSetByUid(anchorUid, doc);
+
+      if (block) {
+        collectAncestorSets(block).forEach(expandSet);
+        nativeAddSetAt(block, anchorUid, doc, win);
+
+        return;
+      }
+    } else if (section) {
+      const addButton = [...section.querySelectorAll('button')].find((b) => /add set/i.test(b.textContent || ''));
+
+      if (addButton) {
+        addButton.click();
+        ensurePickerVisible(doc, win);
+
+        return;
+      }
+    }
+
+    if (++attempts < 25) {
+      setTimeout(run, 100); // the row mounts a beat after the section expands
+    }
+  };
+
+  setTimeout(run, 60);
 }
 
 export function createMessageListener(doc = document, win = window) {
@@ -1799,16 +4961,13 @@ export function createMessageListener(doc = document, win = window) {
 
         // Clicking (or inline-editing) a field also opens the panel showing ONLY
         // its section, same as clicking the section itself. data.scope is the
-        // containing set's uid.
-        if (data.scope) {
-          setLpCollapsed(win, false);
+        // containing set's uid. In `hide` mode the panel stays closed.
+        if (data.scope && autoOpenPanel(win)) {
           soloSection(data.scope, doc, win);
         }
-      } else {
+      } else if (autoOpenPanel(win)) {
         // Clicking a section opens the panel showing ONLY that section. Falls
         // back to plain focus (e.g. nested rows without a resolvable set).
-        setLpCollapsed(win, false);
-
         if (!soloSection(data.uid, doc, win)) {
           handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
         }
@@ -1831,6 +4990,52 @@ export function createMessageListener(doc = document, win = window) {
       handleLinkEdit(data, doc, win);
     } else if (data.type === 'move') {
       handleMove(data, doc);
+    } else if (data.type === 'add-set') {
+      handleAddSet(data, doc, win);
+    } else if (data.type === 'cb-col-width') {
+      handleColumnWidth(data, doc);
+    } else if (data.type === 'open-global') {
+      handleOpenGlobal(data, doc, win);
+    } else if (data.type === 'add-row') {
+      handleAddRow(data, doc, win);
+    } else if (data.type === 'add-block-native') {
+      handleAddBlockNative(data, doc, win);
+    } else if (data.type === 'remove-row') {
+      handleRemoveRow(data, doc, win);
+    } else if (data.type === 'row-caps') {
+      handleRowCaps(data, doc, win);
+    } else if (data.type === 'open-global-section') {
+      handleOpenGlobalSection(data, win);
+    } else if (data.type === 'sve-pill-box-request') {
+      const pill = doc.getElementById(LP_BACK_ID);
+
+      if (pill) {
+        tellPreviewWherePillIs(win, pill);
+      }
+    } else if (data.type === 'close-global-section') {
+      closeGlobalSectionPanel(win);
+    } else if (data.type === 'save-global-section') {
+      // The bar's Save, driving the panel's real one.
+      doc
+        .getElementById(GLOBAL_SECTION_PANEL_ID)
+        ?.querySelector('iframe')
+        ?.contentWindow?.postMessage(
+          { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+          win.location.origin
+        );
+    } else if (data.type === 'section-settings') {
+      handleSectionSettings(data, doc, win);
+    } else if (data.type === 'save-section') {
+      handleSaveSection(data, doc, win);
+    } else if (data.type === 'ext-drop') {
+      // A section dragged in from the library was released — insert it where the
+      // preview's drop line ended up (data.afterUid, null = at the top).
+      if (libraryDrag) {
+        insertSection(win, doc, data.afterUid ?? null, libraryDrag.kind, libraryDrag.item);
+        libraryDrag = null;
+      }
+    } else if (data.type === 'cb-add-column') {
+      handleAddColumn(data, doc, win);
     } else if (data.type === 'popup') {
       // A column popup is opening (the column-builder addon handles that) —
       // expand and scroll the publish form to the containing section, so the
@@ -1849,6 +5054,17 @@ export function createMessageListener(doc = document, win = window) {
 }
 
 const CP_STYLES = `
+/* Live Preview header: cluster icon, mode group and the "Live Preview" title on
+   the left with an even gap; the actions keep the right edge. Statamic lays the
+   header out with space-between, which strands the title mid-header. */
+.live-preview-header {
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 1.25rem;
+}
+.live-preview-header > :last-child {
+  margin-left: auto;
+}
 [data-sve-active]:not([contenteditable="false"]), [data-sve-active][contenteditable="false"] > * {
   outline: 2px solid var(--theme-color-blue-500, #3b82f6) !important;
 }
@@ -2021,11 +5237,2027 @@ function scrollBardToTextAfterSet(afterSetUid, containerEl) {
   scrollToWithBardOffset(nodeWrapper.nextElementSibling ?? nodeWrapper);
 }
 
+/**
+ * True when the CP is running inside the front end's edit overlay (a full-screen
+ * iframe on the site) rather than as a page of its own.
+ */
+function isEmbeddedInSite(win) {
+  return win.parent !== win.self;
+}
+
+/** Tell the hosting site something happened. No-op when we aren't embedded. */
+function postToHost(win, type, data = {}) {
+  if (!isEmbeddedInSite(win)) {
+    return;
+  }
+
+  try {
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type, ...data },
+      win.location.origin
+    );
+  } catch {
+    /* the host went away */
+  }
+}
+
+/**
+ * Live Preview has genuinely rendered — not just "the iframe element exists".
+ * Revealing on the element alone can crossfade to an empty frame.
+ */
+function previewPainted(doc) {
+  const frame = doc.getElementById('live-preview-iframe');
+
+  if (!frame) {
+    return false;
+  }
+
+  try {
+    const inner = frame.contentDocument;
+
+    return !!(inner && inner.readyState === 'complete' && inner.body?.childElementCount);
+  } catch {
+    return false; // never throw out of a poll
+  }
+}
+
+/**
+ * The front-end "Rediger" button opens this with ?live-preview=1 — open Live
+ * Preview straight away by clicking the CP's own button, then drop the param so
+ * a refresh doesn't reopen it.
+ *
+ * Two ways in:
+ *  - Embedded in the site's edit overlay: the site keeps us invisible and
+ *    crossfades us in, so we just report when the preview has painted.
+ *  - Navigated to directly: we cover ourselves in the colour of the page we came
+ *    from, so the admin never flashes up behind Live Preview.
+ */
+/**
+ * Statamic's own "open Live Preview" button, found in whatever language the CP is
+ * speaking — matching the English label alone left every other locale waiting on
+ * the failsafe, staring at a blank cover.
+ */
+function livePreviewButton(doc) {
+  return [...doc.querySelectorAll('button, a')].find((el) => {
+    const text = `${el.textContent || ''} ${el.getAttribute('title') || ''}`;
+
+    return /live.?preview|forhåndsvis|vorschau|voorbeeld|aperçu|vista previa/i.test(text);
+  });
+}
+
+/**
+ * The screen that stands in while Live Preview opens.
+ *
+ * Flat colour alone reads as "nothing is happening" — which is exactly what the
+ * old cover looked like for the second or two it was up. The spinner says the
+ * wait is deliberate, and the colour is the page you were just looking at, so it
+ * feels like the page staying rather than the CMS loading.
+ */
+function buildLpCover(doc, background, { blocking = false } = {}) {
+  const cover = doc.createElement('div');
+
+  cover.id = LP_COVER_ID;
+  cover.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;opacity:1;' +
+    // On a page load there's nothing behind this worth hitting, so clicks pass
+    // through. On a move that stays in the document the old page's controls are
+    // still under here, live and invisible — poking those is worse than being
+    // unable to poke anything.
+    `pointer-events:${blocking ? 'auto' : 'none'};` +
+    'display:flex;align-items:center;justify-content:center;' +
+    // Mid grey rather than currentColor: the cover wears the page's colour, which
+    // could be anything — grey is the one ink that reads on both a white page and
+    // a near-black one.
+    `background:${background};color:#9ca3af;transition:opacity .45s ease;`;
+
+  cover.innerHTML =
+    '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+    'stroke-linecap="round" style="opacity:.85;animation:sve-lp-spin 1s linear infinite;">' +
+    '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>' +
+    '<style>@keyframes sve-lp-spin{to{transform:rotate(360deg)}}</style>';
+
+  return cover;
+}
+
+
+/**
+ * Covers the screen *before* leaving, in the colour of the preview you're looking
+ * at, and hands that colour to the next page so its own cover matches. Without
+ * this the CP is bare for the moment between the click and the next page booting
+ * — which is the whole reason switching pages felt like a trip through the
+ * dashboard rather than a step sideways.
+ */
+function previewBackground(win) {
+  let background = '#fff';
+
+  try {
+    const frame = previewFrame(win.document);
+    const body = frame?.contentDocument?.body;
+    const colour = body ? win.getComputedStyle(body).backgroundColor : null;
+
+    // A transparent body tells us nothing — better a plain white than a flash of
+    // the CP showing through.
+    if (colour && !/rgba\(0,\s*0,\s*0,\s*0\)|transparent/.test(colour)) {
+      background = colour;
+    }
+  } catch {
+    /* cross-origin preview — white it is */
+  }
+
+  try {
+    // Handed to the next page so its own cover starts in the same colour.
+    win.localStorage.setItem('sve-lp-bg', background);
+  } catch {
+    /* private mode */
+  }
+
+  return background;
+}
+
+function coverForNavigation(win, { blocking = false } = {}) {
+  const doc = win.document;
+  const background = previewBackground(win);
+  const cover = buildLpCover(doc, background, { blocking });
+
+  doc.getElementById(LP_COVER_ID)?.remove();
+  (doc.body ?? doc.documentElement).appendChild(cover);
+
+  if (!blocking) {
+    return; // a page load is about to take this whole document with it anyway
+  }
+
+  // A cover that swallows clicks must never depend on a later step running to
+  // come down. If the move is cancelled, the visit fails, or the preview never
+  // opens, this is what still lifts it — long enough after the ordinary reveal
+  // (and its own 12s failsafe) to never race them.
+  win.setTimeout(() => {
+    if (doc.getElementById(LP_COVER_ID) === cover) {
+      cover.remove();
+    }
+  }, 15000);
+}
+
+function autoOpenLivePreview(win) {
+  const params = new URLSearchParams(win.location.search);
+
+  if (params.get('live-preview') !== '1') {
+    return;
+  }
+
+  openLivePreviewCovered(win);
+}
+
+/**
+ * Opens Live Preview behind a cover, and reveals once it has painted.
+ *
+ * Split out from the page-load path so an in-app navigation can reuse it: the
+ * entry picker swaps pages without a reload, so there's no boot to hook into,
+ * but the same "hide the CP, open the preview, fade in" is exactly what's wanted.
+ */
+function openLivePreviewCovered(win, { closePanels = false } = {}) {
+  const doc = win.document;
+  const embedded = isEmbeddedInSite(win);
+
+  let cover = null;
+
+  // An in-app move has already put a cover up — one holding a still of the page it
+  // left. Looked for whether or not we're embedded: when the editor is running in
+  // the site's overlay, this is the only code that ever takes that cover down, and
+  // it blocks clicks while it's up. Missing it here strands the whole editor
+  // behind a photograph.
+  cover = doc.getElementById(LP_COVER_ID);
+
+  if (!cover && !embedded) {
+    // The front-end button stashes the colour it was sitting on. (It uses
+    // localStorage rather than a query param so the link's URL stays identical
+    // and the browser's prerender of this page can actually be reused.)
+    let background = '#fff';
+
+    try {
+      background = win.localStorage.getItem('sve-lp-bg') || background;
+    } catch {
+      /* private mode */
+    }
+
+    cover = buildLpCover(doc, background);
+    (doc.body ?? doc.documentElement).appendChild(cover);
+  }
+
+  const stripParams = () => {
+    const url = new URL(win.location.href);
+
+    url.searchParams.delete('live-preview');
+    win.history.replaceState({}, '', url);
+  };
+
+  const reveal = () => {
+    stripParams(); // Statamic rewrites the URL as it opens — clean it once more.
+    hideNavSpinner(win);
+
+    if (embedded) {
+      postToHost(win, 'lp-ready'); // the site fades its own overlay in
+    }
+
+    if (!cover) {
+      return;
+    }
+
+    cover.style.opacity = '0';
+    setTimeout(() => cover.remove(), 500);
+  };
+
+  if (closePanels) {
+    // Arriving on another page means arriving at the page, not at a form. Every
+    // panel standing open belongs to the entry you just left — the fields in the
+    // editor pane, the globals or section panel on the right — so they all go,
+    // whatever the remembered mode says. The mode itself is left alone: it's a
+    // preference about this page, not a verdict on the next one.
+    closeRightPanels(win);
+    setLpCollapsed(win, true);
+  } else {
+    // Live Preview opens with the editor panel following the remembered mode —
+    // hide/auto arrive closed (looking like the site, not a CMS); an explicitly
+    // chosen `show` is respected.
+    setLpCollapsed(win, lpMode(win) !== 'show');
+  }
+
+  // Never leave anyone stranded behind an opaque cover (or an overlay that never
+  // appears).
+  const failsafe = setTimeout(reveal, 12000);
+
+  let attempts = 0;
+  let clicked = false;
+
+  const open = () => {
+    if (previewPainted(doc)) {
+      clearTimeout(failsafe);
+      // One paint tick, so the preview is on screen before anyone fades to it.
+      setTimeout(reveal, 150);
+
+      return;
+    }
+
+    if (!clicked) {
+      const button = livePreviewButton(doc);
+
+      if (button) {
+        button.click();
+        clicked = true;
+        stripParams();
+      }
+    }
+
+    if (++attempts < 150) {
+      setTimeout(open, 100);
+    } else {
+      clearTimeout(failsafe);
+      reveal();
+    }
+  };
+
+  open();
+}
+
+// Notified with `true`/`false` whenever the entry is written back (or fails to
+// be). Watching the network rather than a Statamic event: `saved` is emitted on
+// the publish component, not on a global bus, so there is nothing to listen to
+// from out here.
+const saveListeners = [];
+
+function onEntrySave(callback) {
+  saveListeners.push(callback);
+
+  return () => {
+    const index = saveListeners.indexOf(callback);
+
+    if (index !== -1) {
+      saveListeners.splice(index, 1);
+    }
+  };
+}
+
+/**
+ * Watch for the entry being written back.
+ *
+ * Statamic saves an entry to the very URL its edit screen lives at, and publishes
+ * to a path just below it. Anchoring on that path is what keeps the CP's other
+ * chatter — Live Preview's own render POST, preference writes — from reading as a
+ * save.
+ */
+function watchEntrySaves(win) {
+  const entryPath = win.location.pathname;
+
+  const isSave = (url, method) => {
+    if (!url || !/^(POST|PUT|PATCH)$/i.test(method || 'GET')) {
+      return false;
+    }
+
+    let path;
+
+    try {
+      path = new URL(url, win.location.origin).pathname;
+    } catch {
+      return false;
+    }
+
+    return path.startsWith(entryPath) && !path.includes('/preview');
+  };
+
+  const announce = (ok, rearm) => {
+    if (ok) {
+      // The site under the editor overlay is now showing stale content.
+      postToHost(win, 'lp-saved');
+    } else {
+      rearm();
+    }
+
+    [...saveListeners].forEach((listener) => listener(ok));
+  };
+
+  const { fetch: originalFetch } = win;
+
+  win.fetch = function (input, init = {}) {
+    const url = typeof input === 'string' ? input : input?.url;
+    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
+
+    if (!isSave(url, method)) {
+      return originalFetch.call(this, input, init);
+    }
+
+    const rearm = disarmUnloadWarning(win);
+
+    return originalFetch.call(this, input, init).then(
+      (response) => {
+        announce(response.ok, rearm);
+
+        return response;
+      },
+      (error) => {
+        announce(false, rearm);
+
+        throw error;
+      }
+    );
+  };
+
+  const { open: originalOpen } = win.XMLHttpRequest.prototype;
+
+  win.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    if (isSave(url, method)) {
+      const rearm = disarmUnloadWarning(win);
+
+      this.addEventListener('load', () => announce(this.status >= 200 && this.status < 300, rearm));
+      this.addEventListener('error', () => announce(false, rearm));
+    }
+
+    return originalOpen.call(this, method, url, ...rest);
+  };
+}
+
+/**
+ * Statamic guards against losing unsaved edits with beforeunload handlers. From
+ * the moment a save request is in flight, that guard can only misfire: the
+ * content is already written server-side by the time anything reacts to it — and
+ * things do react. In dev, Vite's full-reload sees the content file change and
+ * reloads the site (this page's host) before the save response is even back,
+ * which put up a "changes you made may not be saved" prompt about changes that
+ * were being saved.
+ *
+ * So: stand the guard down when a save starts. Returns a re-arm function for
+ * when the save fails and the edits genuinely are unsaved again.
+ */
+function disarmUnloadWarning(win) {
+  const dirty = win.Statamic?.$dirty;
+
+  if (!dirty) {
+    return () => {};
+  }
+
+  let names = [];
+
+  try {
+    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
+    const list = unwrapRef(raw);
+
+    names = Array.isArray(list) ? [...list] : [];
+    dirty.disableWarning?.();
+    names.forEach((name) => dirty.remove(name));
+  } catch {
+    /* best effort — worst case the browser asks */
+  }
+
+  return () => {
+    try {
+      names.forEach((name) => dirty.add(name));
+    } catch {
+      /* same */
+    }
+  };
+}
+
+/**
+ * True when the open entry has edits that haven't been written back. Statamic
+ * tracks this globally, keyed by publish-container name ("base" for the entry
+ * form itself).
+ */
+function hasUnsavedChanges(win) {
+  const dirty = win.Statamic?.$dirty;
+
+  if (typeof dirty?.has !== 'function') {
+    return true; // can't tell — saving is the safe side to be wrong on
+  }
+
+  const names = new Set(publishContainers.map((container) => container.name).filter(Boolean));
+
+  names.add('base');
+
+  return [...names].some((name) => dirty.has(name));
+}
+
+/**
+ * Drops the dirty marks — what discarding means. Left up, they'd re-arm the
+ * warning on the *next* navigation, long after the edits they stood for are gone.
+ */
+function discardChanges(win) {
+  const dirty = win.Statamic?.$dirty;
+
+  if (typeof dirty?.remove !== 'function') {
+    return;
+  }
+
+  const names = new Set(publishContainers.map((container) => container.name).filter(Boolean));
+
+  names.add('base');
+
+  // Statamic's own list — it knows about containers we never saw.
+  if (typeof dirty.names === 'function') {
+    (dirty.names() ?? []).forEach((name) => names.add(name));
+  }
+
+  names.forEach((name) => dirty.remove(name));
+}
+
+/**
+ * Calls off Statamic's own unsaved-changes confirm for the navigation we're about
+ * to make. We've already asked — in our own dialog, in the middle of the screen —
+ * and a second, native "Are you sure?" on top of that is just the same question
+ * twice.
+ *
+ * Clearing the dirty marks is not enough on its own: the guard is a router
+ * listener that fires its confirm unconditionally, and it's only unhooked by a
+ * Vue watcher on the dirty list — which flushes on the next tick, after our visit
+ * has already been cancelled. This is Statamic's own synchronous escape hatch,
+ * the one its actions use for `bypassesDirtyWarning`.
+ */
+function dismissDirtyWarning(win) {
+  win.Statamic?.$dirty?.disableWarning?.();
+}
+
+function saveButtonIn(doc) {
+  const header = lpHeader(doc);
+
+  return [...(header?.querySelectorAll('button') ?? [])].find((button) =>
+    /save|publish|udgiv|gem/i.test(button.textContent || '')
+  );
+}
+
+/**
+ * Leaving right when the save response lands races Statamic's own handling of
+ * it: the dirty flag is still up for a beat, and unloading in that window makes
+ * the browser ask "changes you made may not be saved" — about changes that WERE
+ * just saved. So wait for the flag to drop, and disarm Statamic's unload warning
+ * (its own switch for exactly this) as a backstop before leaving.
+ */
+function leaveQuietly(win, leave, attempts = 0) {
+  if (hasUnsavedChanges(win) && attempts < 30) {
+    setTimeout(() => leaveQuietly(win, leave, attempts + 1), 100);
+
+    return;
+  }
+
+  try {
+    win.Statamic?.$dirty?.disableWarning?.();
+  } catch {
+    /* best effort — worst case the browser asks */
+  }
+
+  leave();
+}
+
+// --- Globals beside Live Preview -------------------------------------------------
+//
+// A picker in the Live Preview header lists the global sets. Choosing one opens
+// it in a panel on the right — as an iframe of Statamic's own globals screen, so
+// every fieldtype, replicator and validation works exactly as it does in the CP.
+// (The left editor pane belongs to Statamic's Vue tree; putting a second publish
+// form in there tears the entry form down.)
+//
+// Typing in that form re-renders the preview immediately: the values are posted
+// to the addon, which stashes them for the session, and the preview is asked to
+// render again with `sve_globals=1` — the middleware then swaps the saved globals
+// for these unsaved ones. Statamic itself only re-renders when the ENTRY changes,
+// so the re-render is triggered by replaying the last preview URL.
+
+const GLOBALS_PANEL_ID = '__sve-globals-panel';
+const GLOBALS_PICKER_ID = '__sve-globals-picker';
+const GLOBALS_PANEL_PARAM = 'sve-panel';
+const GLOBALS_DEBOUNCE = 200;
+
+// The URL of the most recent preview render, replayed whenever a global changes.
+let lastPreviewUrl = null;
+let globalsSaveTimer = null;
+
+function globalSets(win) {
+  const sets = win.Statamic?.$config?.get?.('sveGlobalSets');
+
+  return Array.isArray(sets) ? sets : [];
+}
+
+function csrfToken(win) {
+  return (
+    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+    win.Statamic?.$config?.get?.('csrfToken') ||
+    win.Statamic?.$config?.get?.('csrf_token') ||
+    ''
+  );
+}
+
+/**
+ * The live Live Preview header — never the frozen copy of it.
+ *
+ * While a move is in flight there are two on the page: the real bar, and the
+ * still on the cover that keeps it from blinking out. They match selector for
+ * selector, so anything reaching for the header by class alone stands a good
+ * chance of finding the photograph — and our own pollers would then build the
+ * pickers into a bar that's about to be thrown away.
+ */
+function lpHeader(doc) {
+  return (
+    [...doc.querySelectorAll('.live-preview-header')].find((el) => !el.closest(`#${LP_COVER_ID}`)) ??
+    null
+  );
+}
+
+function previewFrame(doc) {
+  return doc.getElementById('live-preview-iframe');
+}
+
+/** Ask the preview to render again, with or without the unsaved globals. */
+function refreshPreview(win, active) {
+  const frame = previewFrame(win.document);
+
+  if (!frame?.contentWindow || !lastPreviewUrl) {
+    return;
+  }
+
+  frame.contentWindow.postMessage(
+    { name: 'sve.globals', active, url: lastPreviewUrl },
+    win.location.origin
+  );
+}
+
+/**
+ * Records the URL of each preview render. Statamic POSTs the entry's values and
+ * gets back a tokenised URL; that URL is what the preview iframe loads, and what
+ * we replay to re-render after a global changes.
+ */
+function watchPreviewRenders(win) {
+  const isPreviewCall = (url, method) =>
+    typeof url === 'string' && url.includes('/preview') && /^POST$/i.test(method || 'GET');
+
+  const remember = (payload) => {
+    try {
+      const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+
+      if (data?.url) {
+        lastPreviewUrl = data.url;
+      }
+    } catch {
+      /* not the payload we expected */
+    }
+  };
+
+  const { fetch: originalFetch } = win;
+
+  win.fetch = function (input, init = {}) {
+    const url = typeof input === 'string' ? input : input?.url;
+    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
+    const request = originalFetch.call(this, input, init);
+
+    if (!isPreviewCall(url, method)) {
+      return request;
+    }
+
+    return request.then((response) => {
+      response.clone().json().then(remember).catch(() => {});
+
+      return response;
+    });
+  };
+
+  // Statamic's CP talks to the server through axios, i.e. XMLHttpRequest — the
+  // preview render never goes through fetch at all.
+  const { open: originalOpen } = win.XMLHttpRequest.prototype;
+
+  win.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    if (isPreviewCall(url, method)) {
+      this.addEventListener('load', () => {
+        if (this.status >= 200 && this.status < 300) {
+          remember(this.response ?? this.responseText);
+        }
+      });
+    }
+
+    return originalOpen.call(this, method, url, ...rest);
+  };
+}
+
+function postGlobals(win, handle, values) {
+  clearTimeout(globalsSaveTimer);
+
+  globalsSaveTimer = setTimeout(() => {
+    win
+      .fetch('/!/sve/globals-preview', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken(win),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ handle, values }),
+      })
+      .then(() => refreshPreview(win, true))
+      .catch(() => {
+        /* the preview simply keeps the last render */
+      });
+  }, GLOBALS_DEBOUNCE);
+}
+
+function closeGlobalsPanel(win) {
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+
+  if (!panel) {
+    return;
+  }
+
+  panel.remove();
+  syncPreviewInset(win);
+
+  // Drop the stash and put the saved globals back in the preview.
+  win
+    .fetch('/!/sve/globals-preview/clear', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .catch(() => {})
+    .then(() => refreshPreview(win, false));
+}
+
+const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
+const GLOBALS_MIN_WIDTH = 320;
+
+function globalsPanelWidth(win) {
+  let stored = 0;
+
+  try {
+    stored = Number(win.localStorage.getItem(GLOBALS_WIDTH_KEY)) || 0;
+  } catch {
+    /* private mode */
+  }
+
+  const max = Math.max(GLOBALS_MIN_WIDTH, win.innerWidth - 360);
+
+  return Math.min(Math.max(stored || 440, GLOBALS_MIN_WIDTH), max);
+}
+
+/** Drag handle on the panel's inner edge; the width is remembered. */
+function globalsResizer(win, panel) {
+  const handle = win.document.createElement('div');
+
+  handle.style.cssText =
+    'position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:1;touch-action:none;';
+  handle.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+
+    // The iframe swallows pointer events once the cursor crosses into it, so it
+    // has to sit out the drag.
+    const frame = panel.querySelector('iframe');
+
+    if (frame) {
+      frame.style.pointerEvents = 'none';
+    }
+
+    const onMove = (move) => {
+      const max = Math.max(GLOBALS_MIN_WIDTH, win.innerWidth - 360);
+      const width = Math.min(Math.max(win.innerWidth - move.clientX, GLOBALS_MIN_WIDTH), max);
+
+      panel.style.width = `${width}px`;
+      syncPreviewInset(win);
+    };
+
+    const onUp = () => {
+      win.removeEventListener('pointermove', onMove);
+      win.removeEventListener('pointerup', onUp);
+
+      if (frame) {
+        frame.style.pointerEvents = '';
+      }
+
+      try {
+        win.localStorage.setItem(GLOBALS_WIDTH_KEY, String(parseInt(panel.style.width, 10)));
+      } catch {
+        /* private mode */
+      }
+    };
+
+    win.addEventListener('pointermove', onMove);
+    win.addEventListener('pointerup', onUp);
+  });
+
+  return handle;
+}
+
+function globalsPanelUrl(win, set) {
+  const url = new URL(set.url, win.location.origin);
+
+  url.searchParams.set(GLOBALS_PANEL_PARAM, '1');
+
+  return url.toString();
+}
+
+function openGlobalsPanel(win, set) {
+  const doc = win.document;
+  const existing = doc.getElementById(GLOBALS_PANEL_ID);
+
+  // Switching sets reuses the panel rather than replacing it. Tearing an iframe
+  // out of the page discards its session-history entries, and the browser then
+  // traverses the joint history to recover — which fires `popstate` on the top
+  // window. In the front-end edit overlay that reads as "the user pressed Back",
+  // and the whole editor closes a few seconds after you pick a second global set.
+  if (existing) {
+    const frame = existing.querySelector('iframe');
+    const title = existing.querySelector('[data-sve-globals-title]');
+
+    if (frame && title) {
+      title.textContent = set.title;
+      frame.title = set.title;
+      frame.contentWindow.location.replace(globalsPanelUrl(win, set));
+
+      return;
+    }
+
+    existing.remove();
+  }
+
+  closeRightPanels(win, GLOBALS_PANEL_ID);
+
+  const header = lpHeader(doc);
+  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+
+  const panel = doc.createElement('div');
+
+  panel.id = GLOBALS_PANEL_ID;
+  panel.style.cssText =
+    `position:fixed;top:${top}px;right:0;bottom:0;width:${globalsPanelWidth(win)}px;z-index:40;` +
+    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
+    'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);';
+
+  panel.appendChild(globalsResizer(win, panel));
+
+  const bar = doc.createElement('div');
+
+  bar.style.cssText =
+    'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 8px 14px;' +
+    'border-bottom:1px solid rgba(128,128,128,.24);font:600 13px/1 ui-sans-serif,system-ui,sans-serif;' +
+    'color:currentColor;flex:0 0 auto;';
+  const title = doc.createElement('span');
+
+  title.setAttribute('data-sve-globals-title', '');
+  title.textContent = set.title;
+  bar.appendChild(title);
+
+  // The CP's own Save sits in the page header, which the panel strips away — so
+  // the panel carries its own, wired to the real button inside the frame.
+  const actions = doc.createElement('div');
+
+  actions.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+  const save = doc.createElement('button');
+
+  save.type = 'button';
+  save.textContent = t(win, 'save');
+  save.title = t(win, 'save_globals');
+  save.style.cssText =
+    'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
+    'color:#fff;font-size:12px;font-weight:600;line-height:1;';
+  save.addEventListener('click', () => {
+    const frame = doc.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
+
+    frame?.contentWindow?.postMessage(
+      { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+      win.location.origin
+    );
+  });
+  actions.appendChild(save);
+
+  const close = doc.createElement('button');
+
+  close.type = 'button';
+  close.textContent = '✕';
+  close.title = t(win, 'close');
+  close.style.cssText =
+    'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+    'justify-content:center;border-radius:6px;color:currentColor;opacity:.7;';
+  close.addEventListener('mouseenter', () => (close.style.background = 'rgba(128,128,128,.18)'));
+  close.addEventListener('mouseleave', () => (close.style.background = 'transparent'));
+  close.addEventListener('click', () => {
+    const picker = doc.getElementById(GLOBALS_PICKER_ID);
+
+    if (picker) {
+      picker.value = '';
+    }
+
+    closeGlobalsPanel(win);
+  });
+  actions.appendChild(close);
+  bar.appendChild(actions);
+
+  const frame = doc.createElement('iframe');
+
+  frame.src = globalsPanelUrl(win, set);
+  frame.title = set.title;
+  frame.style.cssText = 'flex:1 1 auto;width:100%;border:0;background:transparent;';
+
+  panel.appendChild(bar);
+  panel.appendChild(frame);
+  doc.body.appendChild(panel);
+  syncPreviewInset(win);
+}
+
+/** The global-set picker, sat beside the panel-mode buttons in the LP header. */
+function ensureGlobalsPicker(win) {
+  const doc = win.document;
+  const group = doc.getElementById(LP_MODE_ID);
+  const sets = globalSets(win);
+
+  if (!group || !sets.length || doc.getElementById(GLOBALS_PICKER_ID)) {
+    return;
+  }
+
+  const select = doc.createElement('select');
+
+  select.id = GLOBALS_PICKER_ID;
+  select.title = 'Rediger globale indstillinger ved siden af previewet';
+  select.style.cssText =
+    'height:28px;padding:0 8px;border-radius:8px;cursor:pointer;color:currentColor;' +
+    'background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';
+
+  const placeholder = doc.createElement('option');
+
+  placeholder.value = '';
+  placeholder.textContent = t(win, 'globals');
+  select.appendChild(placeholder);
+
+  sets.forEach((set) => {
+    const option = doc.createElement('option');
+
+    option.value = set.handle;
+    option.textContent = set.title;
+    select.appendChild(option);
+  });
+
+  select.addEventListener('change', () => {
+    const set = sets.find((candidate) => candidate.handle === select.value);
+
+    if (set) {
+      openGlobalsPanel(win, set);
+    } else {
+      closeGlobalsPanel(win);
+    }
+  });
+
+  group.after(select);
+}
+
+const LIBRARY_BUTTON_ID = '__sve-library-btn';
+
+/** A "Sektioner" toggle in the LP header that opens/closes the section library. */
+function ensureSectionLibraryButton(win) {
+  const doc = win.document;
+  const group = doc.getElementById(LP_MODE_ID);
+
+  if (!group || doc.getElementById(LIBRARY_BUTTON_ID)) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.id = LIBRARY_BUTTON_ID;
+  btn.type = 'button';
+  btn.title = t(win, 'sections');
+  btn.innerHTML =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="7" height="7" rx="1"/>' +
+    '<rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>' +
+    '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+  btn.style.cssText =
+    'height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;cursor:pointer;' +
+    'color:currentColor;background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';
+  btn.append(t(win, 'sections'));
+  btn.addEventListener('click', () => openSectionPicker(win));
+
+  // After the globals picker if it exists, otherwise right after the mode group.
+  (doc.getElementById(GLOBALS_PICKER_ID) || group).after(btn);
+}
+
+/**
+ * Runs inside the globals panel's iframe: strips the CP chrome down to the form,
+ * and streams the form's values up to the Live Preview window as they're typed.
+ */
+function initGlobalsPanelFrame(win) {
+  const doc = win.document;
+
+  if (!new URLSearchParams(win.location.search).has(GLOBALS_PANEL_PARAM)) {
+    return false;
+  }
+
+  const style = doc.createElement('style');
+
+  style.textContent = `
+    body { background: transparent !important; }
+    [data-sve-panel-hide] { display: none !important; }
+  `;
+  doc.head.appendChild(style);
+
+  // The same panel serves a global SET (/cp/globals/<handle>) and a global
+  // SECTION (/cp/collections/<c>/entries/<id>) — both are just a publish form in
+  // an iframe. The path says which; each stashes through its own channel, and
+  // only an entry brings its own Save button along.
+  const isEntry = win.location.pathname.includes('/collections/');
+
+  // Strip the CP's own chrome (top bar, main nav) but nothing else: the publish
+  // form lives inside <main>, and it has plenty of its own <header>s (every
+  // replicator set) and <nav>s (the tab bar) that must survive.
+  const hideChrome = () => {
+    const main = doc.querySelector('main');
+
+    doc.querySelectorAll('nav, header').forEach((el) => {
+      if (main && (main.contains(el) || el.contains(main))) {
+        return;
+      }
+
+      el.setAttribute('data-sve-panel-hide', '');
+    });
+
+    // An entry's own Save & Publish sits inside <main>, so the sweep above leaves
+    // it — but the panel has its own Save, and two of them (doing the same thing)
+    // is just a way to wonder which one you're supposed to press. Hidden, not
+    // removed: the panel's Save still clicks it.
+    if (isEntry) {
+      doc.querySelectorAll('button').forEach((button) => {
+        if (!/^(save|gem)\b/i.test((button.textContent || '').trim())) {
+          return;
+        }
+
+        // The button and the little dropdown chevron beside it, and nothing more —
+        // hiding an ancestor here would take half the form with it.
+        button.setAttribute('data-sve-panel-hide', '');
+        button.nextElementSibling?.setAttribute('data-sve-panel-hide', '');
+      });
+    }
+  };
+
+  hideChrome();
+  new win.MutationObserver(hideChrome).observe(doc.documentElement, { childList: true, subtree: true });
+
+  // Statamic's own Save button lives in the page header the panel strips away.
+  // It still works — it just can't be seen — so the panel's Save clicks it, and
+  // the normal save (validation, revisions, toast) runs untouched.
+  win.addEventListener('message', (event) => {
+    if (event.origin !== win.location.origin) {
+      return;
+    }
+
+    if (event.data?.source !== 'statamic-visual-editor') {
+      return;
+    }
+
+    // An inline edit in the page, on content this form owns: apply it to the real
+    // container here. The value poll below streams it straight back out, so the
+    // page re-renders with it — the edit never has to know it crossed a window.
+    if (event.data.type === 'sve-section-set-value') {
+      for (const container of activeContainers(doc)) {
+        container.setFieldValue(event.data.path, event.data.value);
+
+        return;
+      }
+
+      return;
+    }
+
+    if (event.data.type !== 'sve-globals-save') {
+      return;
+    }
+
+    // A global set's button reads "Save"; an entry's reads "Save & Publish" — so
+    // match the start, not the whole label, or the panel's Save silently does
+    // nothing for a global section. Clicking works even though it's hidden.
+    [...doc.querySelectorAll('button')]
+      .find((button) => /^(save|gem)\b/i.test((button.textContent || '').trim()))
+      ?.click();
+  });
+
+  const handle = win.location.pathname.split('/').filter(Boolean).pop();
+  let previous = null;
+
+  // Polled rather than watched: the container's `values` is a Vue ref, and a
+  // 200ms compare is both cheaper and far more robust than reaching into Vue's
+  // reactivity from outside its bundle.
+  win.setInterval(() => {
+    for (const container of activeContainers(doc)) {
+      const values = unwrapRef(container.values);
+
+      if (!values || typeof values !== 'object') {
+        continue;
+      }
+
+      const serialized = JSON.stringify(values);
+
+      if (serialized === previous) {
+        return;
+      }
+
+      previous = serialized;
+
+      try {
+        win.parent.postMessage(
+          isEntry
+            ? { source: 'statamic-visual-editor', type: 'sve-section-values', id: handle, values: JSON.parse(serialized) }
+            : { source: 'statamic-visual-editor', type: 'sve-globals-values', handle, values: JSON.parse(serialized) },
+          win.location.origin
+        );
+      } catch {
+        /* the panel was closed */
+      }
+
+      return;
+    }
+  }, 250);
+
+  return true;
+}
+
+/**
+ * Clicking content that comes from a global (global_edit="site_settings.phone"):
+ * open that set in the panel and jump to the field. Editing it there updates the
+ * preview as you type — the same live path the panel already uses.
+ */
+export function handleOpenGlobal(data, doc, win) {
+  const sets = globalSets(win);
+
+  if (!sets.length) {
+    return;
+  }
+
+  const [handle, field] = String(data.target || '').split('.');
+  const set = sets.find((candidate) => candidate.handle === handle) ?? sets[0];
+  const picker = doc.getElementById(GLOBALS_PICKER_ID);
+
+  if (picker) {
+    picker.value = set.handle;
+  }
+
+  openGlobalsPanel(win, set);
+
+  if (field) {
+    focusGlobalField(win, field);
+  }
+}
+
+/** Waits for the panel's form to mount, then scrolls the field into view. */
+function focusGlobalField(win, field, attempts = 0) {
+  const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
+  const inner = frame?.contentDocument;
+
+  const input = inner?.querySelector(`[name="${field}"], #${CSS.escape(field)}`);
+
+  if (input) {
+    input.scrollIntoView({ block: 'center' });
+    input.focus?.();
+
+    return;
+  }
+
+  if (attempts < 30) {
+    setTimeout(() => focusGlobalField(win, field, attempts + 1), 200);
+  }
+}
+
+/** In the Live Preview window: take the values streamed up by the panel. */
+
+// --- Collection picker: move between entries without leaving the preview -------
+//
+// Live Preview is bound to one entry, so "staying in it" is really: navigate, and
+// land back in it. `?live-preview=1` (autoOpenLivePreview) reopens it on arrival,
+// so the seam doesn't show. Collections without a route have no page to render —
+// they still appear, because jumping to "new blog post" is worth having, but they
+// open the ordinary editor and say so.
+
+const COLLECTION_PICKER_ID = '__sve-collection-picker';
+const ENTRY_PICKER_ID = '__sve-entry-picker';
+const NEW_ENTRY_ID = '__sve-new-entry';
+
+const LP_COVER_ID = 'sve-lp-cover';
+
+function pickerCollections(win) {
+  const list = win.Statamic?.$config?.get?.('sveCollections');
+
+  return Array.isArray(list) ? list : [];
+}
+
+/** The entry currently open, from the CP URL. */
+function currentEntryId(win) {
+  const match = win.location.pathname.match(/\/entries\/([^/]+)/);
+
+  return match ? match[1] : null;
+}
+
+/**
+ * Asks about unsaved work before leaving — a dialog, not a dropdown hanging off
+ * whatever you happened to click. Losing edits is the kind of thing that deserves
+ * the middle of the screen.
+ */
+function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
+  const doc = win.document;
+  const overlay = doc.createElement('div');
+
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;' +
+    'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
+
+  const card = doc.createElement('div');
+
+  card.style.cssText =
+    'width:400px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
+  card.innerHTML =
+    `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${t(win, 'unsaved_title')}</div>` +
+    `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, 'unsaved_body')}</div>` +
+    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
+
+  const actions = card.querySelector('[data-sve-actions]');
+  const close = () => overlay.remove();
+
+  const button = (label, style, onClick) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.cssText = `all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;${style}`;
+    btn.addEventListener('click', () => {
+      close();
+      onClick();
+    });
+    actions.appendChild(btn);
+  };
+
+  button(t(win, 'cancel'), 'opacity:.7;color:currentColor;', onCancel);
+  button(t(win, 'unsaved_discard'), 'color:currentColor;background:rgba(128,128,128,.16);font-weight:500;', onDiscard);
+  button(
+    t(win, 'unsaved_save'),
+    'background:var(--theme-color-primary,#4f46e5);color:#fff;font-weight:600;',
+    onSave
+  );
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      close();
+      onCancel();
+    }
+  });
+
+  overlay.appendChild(card);
+  doc.body.appendChild(overlay);
+}
+
+const LP_NAV_SPINNER_ID = '__sve-nav-spinner';
+
+/** A quiet "working on it", so the page you're still looking at isn't a lie. */
+function showNavSpinner(win) {
+  const doc = win.document;
+
+  if (doc.getElementById(LP_NAV_SPINNER_ID)) {
+    return;
+  }
+
+  const header = lpHeader(doc);
+  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+  const pip = doc.createElement('div');
+
+  pip.id = LP_NAV_SPINNER_ID;
+  pip.style.cssText =
+    `position:fixed;top:${top + 16}px;left:50%;transform:translateX(-50%);z-index:2147483000;` +
+    'display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;' +
+    'background:#18181b;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.28);pointer-events:none;';
+  pip.innerHTML =
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+    'stroke-linecap="round" style="opacity:.9;animation:sve-lp-spin 1s linear infinite;">' +
+    '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>' +
+    '<style>@keyframes sve-lp-spin{to{transform:rotate(360deg)}}</style>';
+  doc.body.appendChild(pip);
+}
+
+function hideNavSpinner(win) {
+  win.document.getElementById(LP_NAV_SPINNER_ID)?.remove();
+}
+
+/**
+ * Saves, then goes where the user actually asked to go.
+ *
+ * Statamic answers a save with a redirect of its own — out to the collection
+ * listing — and it lands after ours, so simply moving first loses the race and
+ * dumps you in the admin: the one place this whole picker exists to keep you out
+ * of. So we swallow that one redirect and make the move ourselves.
+ *
+ * If the save fails we stay put, because the error is in here.
+ */
+function saveThenNavigate(win, go) {
+  const router = win.__STATAMIC__?.inertia?.router;
+  const save = saveButtonIn(win.document);
+
+  if (!save) {
+    go();
+
+    return;
+  }
+
+  if (typeof router?.on !== 'function') {
+    leaveQuietly(win, go); // no router to head off; a full load outruns the redirect
+
+    return;
+  }
+
+  showNavSpinner(win);
+
+  let settled = false;
+
+  // The save's own redirect, intercepted. Ours goes out from the next tick so
+  // the router isn't asked to start a visit while it's still cancelling one.
+  const offBefore = router.on('before', () => {
+    offBefore();
+    win.setTimeout(go, 0);
+
+    return false;
+  });
+
+  const stop = onEntrySave((ok) => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    stop();
+    clearTimeout(timer);
+
+    if (!ok) {
+      offBefore();
+      hideNavSpinner(win);
+    }
+  });
+
+  const timer = win.setTimeout(() => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    stop();
+    offBefore();
+    hideNavSpinner(win);
+  }, LP_SAVE_TIMEOUT);
+
+  save.click();
+}
+
+/**
+ * Moves to another entry without the page going out from under you.
+ *
+ * A full page load tears the current document down — that's the blank. Inertia
+ * fetches the next page while this one stays on screen, and only swaps once it
+ * has it; the cover then only has to hide the brief moment between the swap and
+ * the preview painting, rather than the whole trip. Falls back to a plain load
+ * where the router isn't reachable.
+ */
+function navigateFromLp(win, anchor, url, onCancel = () => {}) {
+  const router = win.__STATAMIC__?.inertia?.router;
+
+  const go = () => {
+    // By the time anything calls this, the unsaved question has been put to the
+    // user and answered — on every path into it.
+    dismissDirtyWarning(win);
+
+    // Running in the site's editor overlay, the move belongs to the host: it boots
+    // the next page hidden and only swaps once that page has painted, so the page
+    // you're looking at stays — really stays, not a picture of it — for the whole
+    // wait. That's the front-end edit button's own route, and nothing done inside
+    // this document can match it: an Inertia swap takes the live preview down with
+    // it, and anything put over that gap is a second page change.
+    //
+    // A spinner, because the wait is now spent looking at a page that is doing
+    // nothing.
+    if (isEmbeddedInSite(win)) {
+      showNavSpinner(win);
+
+      // If the host can't produce the page, don't leave a spinner turning at
+      // someone: take the ordinary route instead.
+      const onFail = (event) => {
+        if (event.origin !== win.location.origin) {
+          return;
+        }
+
+        if (event.data?.source !== 'statamic-visual-editor' || event.data.type !== 'lp-goto-failed') {
+          return;
+        }
+
+        win.removeEventListener('message', onFail);
+        hideNavSpinner(win);
+        coverForNavigation(win, { blocking: true });
+        win.location.href = url;
+      };
+
+      win.addEventListener('message', onFail);
+      postToHost(win, 'lp-goto', { url });
+
+      return;
+    }
+
+    if (!router?.visit) {
+      coverForNavigation(win);
+      win.location.href = url;
+
+      return;
+    }
+
+    // Standing alone in the Control Panel there's no host holding the page, so the
+    // gap has to be covered: one cover in the colour you were looking at, a spinner
+    // on it, and the next page fades in once its preview has painted.
+    coverForNavigation(win, { blocking: true });
+
+    router.visit(url, {
+      onSuccess: () => {
+        // The cover stays up until the new preview has painted — that reveal is
+        // the whole point, so it's `reveal` that takes it down.
+        if (/[?&]live-preview=1/.test(url)) {
+          openLivePreviewCovered(win, { closePanels: true });
+
+          return;
+        }
+
+        win.document.getElementById(LP_COVER_ID)?.remove();
+      },
+      onError: () => {
+        win.document.getElementById(LP_COVER_ID)?.remove();
+      },
+    });
+  };
+
+  if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
+    go();
+
+    return;
+  }
+
+  confirmUnsaved(
+    win,
+    () => saveThenNavigate(win, go),
+    () => {
+      discardChanges(win);
+      go();
+    },
+    onCancel
+  );
+}
+
+/**
+ * "New page": a title and a slug, and you're in it.
+ *
+ * The Control Panel's create screen would do this too, but it's a whole form on a
+ * whole other page — and there is nothing to fill in yet. This asks the two things
+ * that can't be guessed and creates the entry bare, so the next thing you see is
+ * the page itself, ready to build.
+ */
+function newEntryDialog(win, collection, onCreated) {
+  const doc = win.document;
+  const overlay = doc.createElement('div');
+
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
+    'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
+
+  const card = doc.createElement('div');
+  const input =
+    'width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius:8px;' +
+    'border:1px solid rgba(128,128,128,.4);background:transparent;color:currentColor;font-size:14px;';
+
+  card.style.cssText =
+    'width:420px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
+  card.innerHTML = `
+    <div style="font-size:15px;font-weight:600;margin-bottom:16px;">${t(win, 'new_in', { collection: collection.title })}</div>
+    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'title')}</label>
+    <input type="text" data-sve-title style="${input}margin-bottom:12px;">
+    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'slug')}</label>
+    <input type="text" data-sve-slug style="${input}">
+    <div data-sve-error style="display:none;font-size:12px;color:#dc2626;margin-top:8px;"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
+      <button type="button" data-sve-create style="all:unset;cursor:pointer;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'create')}</button>
+    </div>
+  `;
+
+  overlay.appendChild(card);
+  doc.body.appendChild(overlay);
+
+  const title = card.querySelector('[data-sve-title]');
+  const slug = card.querySelector('[data-sve-slug]');
+  const error = card.querySelector('[data-sve-error]');
+  const create = card.querySelector('[data-sve-create]');
+  const close = () => overlay.remove();
+
+  title.focus();
+
+  // The slug follows the title until it's touched, and then it's yours — retyping
+  // the title shouldn't quietly undo a slug you chose on purpose.
+  let slugOwned = false;
+
+  slug.addEventListener('input', () => (slugOwned = true));
+  title.addEventListener('input', () => {
+    if (!slugOwned) {
+      slug.value = slugify(title.value);
+    }
+  });
+
+  const submit = () => {
+    const name = title.value.trim();
+
+    if (!name) {
+      title.focus();
+
+      return;
+    }
+
+    create.style.opacity = '.6';
+    create.style.pointerEvents = 'none';
+    error.style.display = 'none';
+
+    win
+      .fetch(`/!/sve/collections/${encodeURIComponent(collection.handle)}/entries`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken(win),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ title: name, slug: slug.value.trim() }),
+      })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          // A taken slug is the one failure worth answering in place.
+          error.textContent = body.message || t(win, 'create_failed');
+          error.style.display = 'block';
+          create.style.opacity = '1';
+          create.style.pointerEvents = '';
+
+          return;
+        }
+
+        close();
+        onCreated(body.id);
+      })
+      .catch(() => {
+        error.textContent = t(win, 'create_failed');
+        error.style.display = 'block';
+        create.style.opacity = '1';
+        create.style.pointerEvents = '';
+      });
+  };
+
+  card.querySelector('[data-sve-cancel]').addEventListener('click', close);
+  create.addEventListener('click', submit);
+  overlay.addEventListener('click', (event) => event.target === overlay && close());
+  card.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      submit();
+    } else if (event.key === 'Escape') {
+      close();
+    }
+  });
+}
+
+/** The slug Statamic would make: lowercase, ascii-ish, hyphenated. */
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[æ]/g, 'ae')
+    .replace(/[ø]/g, 'oe')
+    .replace(/[å]/g, 'aa')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function ensureCollectionPicker(win) {
+  const doc = win.document;
+  const group = doc.getElementById(LP_MODE_ID);
+  const collections = pickerCollections(win);
+
+  if (!group || !collections.length || doc.getElementById(COLLECTION_PICKER_ID)) {
+    return;
+  }
+
+  const style =
+    'height:28px;padding:0 8px;border-radius:8px;cursor:pointer;color:currentColor;' +
+    'background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';
+
+  const wrap = doc.createElement('div');
+
+  wrap.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+
+  const collectionSelect = doc.createElement('select');
+
+  collectionSelect.id = COLLECTION_PICKER_ID;
+  collectionSelect.style.cssText = style;
+
+  collections.forEach((collection) => {
+    const option = doc.createElement('option');
+
+    option.value = collection.handle;
+    // Say it in the option rather than only on hover: you shouldn't have to
+    // discover that a collection can't be previewed by picking it.
+    option.textContent = collection.previewable
+      ? collection.title
+      : `${collection.title} · ${t(win, 'no_preview_collection')}`;
+    collectionSelect.appendChild(option);
+  });
+
+  const entrySelect = doc.createElement('select');
+
+  entrySelect.id = ENTRY_PICKER_ID;
+  entrySelect.style.cssText = `${style}max-width:220px;`;
+
+  const newBtn = doc.createElement('button');
+
+  newBtn.type = 'button';
+  newBtn.id = NEW_ENTRY_ID;
+  newBtn.textContent = `+ ${t(win, 'new_entry')}`;
+  newBtn.style.cssText = `${style}font-weight:600;`;
+
+  const selected = () => collections.find((c) => c.handle === collectionSelect.value);
+
+  const fillEntries = async (keepCurrent) => {
+    const collection = selected();
+
+    entrySelect.innerHTML = '';
+    newBtn.title = t(win, 'new_in', { collection: collection?.title ?? '' });
+    collectionSelect.title = collection?.previewable
+      ? ''
+      : t(win, 'no_preview_hint', { collection: collection?.title ?? '' });
+
+    const placeholder = doc.createElement('option');
+
+    placeholder.value = '';
+    placeholder.textContent = t(win, 'choose_entry');
+    entrySelect.appendChild(placeholder);
+
+    let entries = [];
+
+    try {
+      const res = await win.fetch(`/!/sve/collections/${encodeURIComponent(collectionSelect.value)}/entries`, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+
+      entries = res.ok ? (await res.json()).entries ?? [] : [];
+    } catch {
+      entries = [];
+    }
+
+    entries.forEach((entry) => {
+      const option = doc.createElement('option');
+
+      option.value = entry.id;
+      option.textContent = entry.published ? entry.title : `${entry.title} ·`;
+      entrySelect.appendChild(option);
+    });
+
+    if (keepCurrent) {
+      entrySelect.value = currentEntryId(win) ?? '';
+    }
+  };
+
+  collectionSelect.addEventListener('change', () => fillEntries(false));
+
+  entrySelect.addEventListener('change', () => {
+    if (!entrySelect.value || entrySelect.value === currentEntryId(win)) {
+      return;
+    }
+
+    const collection = selected();
+    const url =
+      `${win.location.origin}/cp/collections/${encodeURIComponent(collection.handle)}` +
+      `/entries/${encodeURIComponent(entrySelect.value)}${collection.previewable ? '?live-preview=1' : ''}`;
+
+    // Stay-put has to look like staying put: if the trip is called off, the
+    // picker goes back to naming the entry that's actually open.
+    navigateFromLp(win, entrySelect, url, () => {
+      entrySelect.value = currentEntryId(win) ?? '';
+    });
+  });
+
+  newBtn.addEventListener('click', () => {
+    const collection = selected();
+
+    newEntryDialog(win, collection, (id) => {
+      const url =
+        `${win.location.origin}/cp/collections/${encodeURIComponent(collection.handle)}` +
+        `/entries/${encodeURIComponent(id)}${collection.previewable ? '?live-preview=1' : ''}`;
+
+      // The entry already exists by now, so there is nothing unsaved to ask about
+      // — but this is the route that knows how to land in a preview.
+      navigateFromLp(win, newBtn, url);
+    });
+  });
+
+  wrap.appendChild(collectionSelect);
+  wrap.appendChild(entrySelect);
+  wrap.appendChild(newBtn);
+  group.after(wrap);
+
+  // Open on whatever you're already editing, so the picker reads as "you are
+  // here" rather than an empty control.
+  collectionSelect.value = currentCollection(win) ?? collections[0].handle;
+  fillEntries(true);
+}
+
+// --- Global section panel -------------------------------------------------------
+//
+// A synced section's content lives in another entry, so the page's form has
+// nothing to edit — only a reference. This docks that entry's own editor beside
+// the preview and stashes what's being typed, so the page around it re-renders
+// live: editing in context, without the section ever needing a URL of its own.
+
+const GLOBAL_SECTION_PANEL_ID = '__sve-global-section-panel';
+
+// The panel's latest values, as it streams them up: { id, values }. This is what
+// lets a global section be edited inline like any other — see activeContainers.
+let sectionPanelValues = null;
+
+/**
+ * The open panel, dressed up as a publish container.
+ *
+ * Reads resolve against the copy of its values it streams us; writes are posted
+ * into the panel, where the real container applies them — and its next poll
+ * streams the change back, stashes it, and re-renders the page. So an inline edit
+ * on a global section takes the same path as one on the page's own fields, and
+ * nothing downstream needs to know the difference.
+ */
+function sectionPanelContainer(doc) {
+  const panel = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
+  const frame = panel?.querySelector('iframe');
+
+  if (!panel || !frame?.contentWindow || !sectionPanelValues?.values) {
+    return null;
+  }
+
+  const win = doc.defaultView;
+
+  return {
+    name: 'sve-global-section',
+    values: sectionPanelValues.values,
+    setFieldValue: (path, value) => {
+      frame.contentWindow.postMessage(
+        { source: 'statamic-visual-editor', type: 'sve-section-set-value', path, value },
+        win.location.origin
+      );
+    },
+  };
+}
+
+/** Tells the preview to re-render asking for (or forgetting) the stashed section. */
+function refreshSections(win, active) {
+  const frame = previewFrame(win.document);
+
+  if (!frame?.contentWindow || !lastPreviewUrl) {
+    return;
+  }
+
+  frame.contentWindow.postMessage({ name: 'sve.sections', active, url: lastPreviewUrl }, win.location.origin);
+}
+
+function postSectionValues(win, id, values) {
+  win
+    .fetch('/!/sve/global-section-stash', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken(win),
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: JSON.stringify({ id, values }),
+    })
+    .then(() => refreshSections(win, true))
+    .catch(() => {});
+}
+
+export function closeGlobalSectionPanel(win) {
+  const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
+
+  if (!panel) {
+    return;
+  }
+
+  panel.remove();
+  sectionPanelValues = null;
+  syncPreviewInset(win);
+
+  // Drop the stash and put the saved section back in the preview.
+  win
+    .fetch('/!/sve/global-section-stash/clear', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .catch(() => {})
+    .then(() => refreshSections(win, false));
+}
+
+/** Docks a global section's own editor beside the page's preview. */
+export function openGlobalSectionPanel(win, id) {
+  const doc = win.document;
+  const existing = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
+
+  // Already showing this section — leave it be. Rebuilding would reload the form
+  // and throw away whatever is half-typed in it.
+  if (existing?.dataset.sveSectionId === id) {
+    return;
+  }
+
+  // Nothing to keep: any panel that's up — including this one showing a different
+  // section — is about to be replaced by the one we're building.
+  closeRightPanels(win);
+
+  const header = lpHeader(doc);
+  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+  const collection = encodeURIComponent(savedSectionsCollection(win));
+  const url = new URL(`/cp/collections/${collection}/entries/${encodeURIComponent(id)}`, win.location.origin);
+
+  url.searchParams.set(GLOBALS_PANEL_PARAM, '1');
+
+  const panel = doc.createElement('div');
+
+  panel.id = GLOBAL_SECTION_PANEL_ID;
+  panel.dataset.sveSectionId = id;
+  panel.style.cssText =
+    `position:fixed;top:${top}px;right:0;bottom:0;width:${globalsPanelWidth(win)}px;z-index:40;` +
+    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
+    'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);';
+
+  panel.appendChild(globalsResizer(win, panel));
+
+  const bar = doc.createElement('div');
+
+  bar.style.cssText =
+    'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 8px 14px;' +
+    'border-bottom:1px solid rgba(128,128,128,.24);font:600 13px/1 ui-sans-serif,system-ui,sans-serif;' +
+    'color:currentColor;flex:0 0 auto;';
+
+  const title = doc.createElement('span');
+
+  title.innerHTML = `${t(win, 'global_panel_title')} <span style="opacity:.55;font-weight:400;">${t(win, 'global_panel_note')}</span>`;
+  bar.appendChild(title);
+
+  const actions = doc.createElement('div');
+
+  actions.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+  const save = doc.createElement('button');
+
+  save.type = 'button';
+  save.textContent = t(win, 'save');
+  save.title = t(win, 'save_global_section');
+  save.style.cssText =
+    'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
+    'color:#fff;font-size:12px;font-weight:600;line-height:1;';
+  save.addEventListener('click', () => {
+    doc
+      .getElementById(GLOBAL_SECTION_PANEL_ID)
+      ?.querySelector('iframe')
+      ?.contentWindow?.postMessage({ source: 'statamic-visual-editor', type: 'sve-globals-save' }, win.location.origin);
+  });
+  actions.appendChild(save);
+
+  const close = doc.createElement('button');
+
+  close.type = 'button';
+  close.textContent = '✕';
+  close.title = t(win, 'close');
+  close.style.cssText =
+    'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
+    'justify-content:center;border-radius:6px;opacity:.7;';
+  close.addEventListener('click', () => closeGlobalSectionPanel(win));
+  actions.appendChild(close);
+
+  bar.appendChild(actions);
+
+  const frame = doc.createElement('iframe');
+
+  frame.src = url.toString();
+  frame.title = t(win, 'global_panel_title');
+  frame.style.cssText = 'flex:1 1 auto;width:100%;border:0;background:transparent;';
+
+  panel.appendChild(bar);
+  panel.appendChild(frame);
+  doc.body.appendChild(panel);
+  syncPreviewInset(win);
+}
+
+/** The panel frame reports what's being typed → stash it → re-render the page. */
+function listenForSectionValues(win) {
+  win.addEventListener('message', (event) => {
+    if (event.origin !== win.location.origin) {
+      return;
+    }
+
+    const { data } = event;
+
+    if (data?.source !== 'statamic-visual-editor' || data.type !== 'sve-section-values') {
+      return;
+    }
+
+    const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
+
+    if (!panel || event.source !== panel.querySelector('iframe')?.contentWindow) {
+      return;
+    }
+
+    // Kept so the panel can stand in as a container — that's what lets a global
+    // section's text be edited inline in the page (see sectionPanelContainer).
+    sectionPanelValues = { id: data.id, values: data.values };
+
+    postSectionValues(win, data.id, data.values);
+  });
+}
+
+function listenForGlobalsValues(win) {
+  win.addEventListener('message', (event) => {
+    if (event.origin !== win.location.origin) {
+      return;
+    }
+
+    const { data } = event;
+
+    if (data?.source !== 'statamic-visual-editor' || data.type !== 'sve-globals-values') {
+      return;
+    }
+
+    const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+
+    if (!panel || event.source !== panel.querySelector('iframe')?.contentWindow) {
+      return;
+    }
+
+    postGlobals(win, data.handle, data.values);
+  });
+}
+
+// --- Asset browser: hard-enforce the field's file limit --------------------------
+//
+// A field with max_files: 1 can still end up holding several assets: the browser
+// only clamps the selection on its own checkbox path, so the other ways a row can
+// become selected (clicking the filename, which opens the asset editor) slip past
+// it. Rather than guess at Statamic's internals, enforce the limit the browser
+// itself advertises: its footer reads "N/M selected". Whenever N exceeds M, the
+// extra rows are deselected — keeping the row that was clicked last, which is the
+// one the user meant.
+
+const ASSET_COUNT_RE = /^(\d+)\s*\/\s*(\d+)\s+selected$/i;
+
+/** The browser's "N/M selected" footer, if it's on screen. */
+function assetCounter(doc) {
+  for (const el of doc.querySelectorAll('span, div, p, td')) {
+    if (el.childElementCount !== 0) {
+      continue;
+    }
+
+    const match = ASSET_COUNT_RE.exec((el.textContent || '').trim());
+
+    if (match) {
+      return { selected: Number(match[1]), max: Number(match[2]) };
+    }
+  }
+
+  return null;
+}
+
+function checkedAssetToggles(doc) {
+  return [...doc.querySelectorAll('[role="checkbox"], input[type="checkbox"]')].filter(
+    (el) =>
+      el.checked === true ||
+      el.getAttribute('aria-checked') === 'true' ||
+      el.dataset?.state === 'checked'
+  );
+}
+
+// The row the user touched most recently — the selection we keep when trimming.
+let lastAssetRow = null;
+
+function enforceAssetLimit(doc) {
+  const counter = assetCounter(doc);
+
+  if (!counter || !counter.max || counter.selected <= counter.max) {
+    return;
+  }
+
+  const toggles = checkedAssetToggles(doc);
+
+  if (toggles.length <= counter.max) {
+    return; // can't see the selection — leave it alone rather than guess
+  }
+
+  const keep = new Set();
+  const clicked = lastAssetRow ? toggles.find((el) => lastAssetRow.contains(el)) : null;
+
+  if (clicked) {
+    keep.add(clicked);
+  }
+
+  // Fill the remaining slots from the bottom: newest selections win.
+  for (const toggle of [...toggles].reverse()) {
+    if (keep.size >= counter.max) {
+      break;
+    }
+
+    keep.add(toggle);
+  }
+
+  toggles.filter((toggle) => !keep.has(toggle)).forEach((toggle) => toggle.click());
+}
+
+function guardAssetLimit(win) {
+  const doc = win.document;
+
+  const check = () => {
+    setTimeout(() => enforceAssetLimit(doc), 60);
+    setTimeout(() => enforceAssetLimit(doc), 450);
+  };
+
+  doc.addEventListener(
+    'click',
+    (event) => {
+      lastAssetRow = event.target.closest?.('tr, li, [data-asset-id]') ?? null;
+      check();
+    },
+    true
+  );
+
+  // Closing the asset editor with the keyboard is not a click.
+  doc.addEventListener('keyup', (event) => {
+    if (event.key === 'Escape' || event.key === 'Enter') {
+      check();
+    }
+  }, true);
+}
+
 export function initCp(win = window) {
   const style = win.document.createElement('style');
   style.id = '__sve-cp-styles';
   style.textContent = CP_STYLES;
   win.document.head.appendChild(style);
+
+  autoOpenLivePreview(win);
+  watchEntrySaves(win);
+  watchPreviewRenders(win);
+  guardAssetLimit(win);
+  listenForGlobalsValues(win);
+  listenForSectionValues(win);
+
+  // Running as the globals panel inside Live Preview: strip to the form and
+  // stream its values up. None of the Live Preview machinery below applies.
+  // The same frame serves a global section's editor — see initGlobalsPanelFrame.
+  initGlobalsPanelFrame(win);
 
   // Capture publish containers (values + setFieldValue) for inline-edit
   // write-back. Runs inside Statamic.booting(), before any container mounts.
