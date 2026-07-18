@@ -1,0 +1,18 @@
+{{# A referenced global section: render the source's CURRENT sections, so editing
+    the source updates every page that references it. Mirrors reusable_sections —
+    the referenced entry's page_sections are augmented and looped like a page's own,
+    so bard, assets and {{ style_push }} all work. #}}
+{{# This row's OWN id, from the page's page_sections — not the source's. It has to
+    be read out here, before the loop below switches context to the referenced
+    entry. Everything the editor does TO the section on this page (move, remove,
+    settings) acts on this id; the source's id only says what to render. #}}
+<span hidden data-sve-global-row="{{ _visual_id }}"></span>
+{{ SET_HANDLE }}
+    {{# Hidden, layout-neutral marker the editor reads: it tags the section that
+        follows as coming from THIS synced source, so the preview can badge it and
+        offer to edit the source. Renders nothing and takes no space. #}}
+    <span hidden data-sve-global-id="{{ id }}"></span>
+    {{ PAGE_BUILDER_FIELD }}
+        {{ partial src="page_sections/{type}" }}
+    {{ /PAGE_BUILDER_FIELD }}
+{{ /SET_HANDLE }}

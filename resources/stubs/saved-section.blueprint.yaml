@@ -1,0 +1,38 @@
+title: 'Global section'
+tabs:
+  main:
+    display: Main
+    sections:
+      -
+        fields:
+          -
+            handle: title
+            field:
+              type: text
+              display: 'Navn'
+              instructions: 'Navnet du ser i vælgeren.'
+              validate:
+                - required
+          -
+            handle: synced
+            field:
+              type: toggle
+              display: 'Synkroniseret'
+              instructions: 'Til: ændringer her slår igennem alle steder sektionen bruges. Fra: sektionen indsættes som en uafhængig kopi.'
+              default: false
+          -
+            handle: section_type
+            field:
+              type: text
+              display: 'Sektionstype'
+              visibility: read_only
+          -
+            handle: preview_image
+            field:
+              type: assets
+              container: assets
+              folder: saved-sections
+              max_files: 1
+              display: 'Preview'
+              visibility: read_only
+          - import: PAGE_BUILDER_FIELD

@@ -1,0 +1,7 @@
+title: 'Global sections'
+revisions: false
+# Deliberately NO route. A route is the only thing that unlocks Statamic's Live
+# Preview button — but it also gives every saved section a real URI, which means
+# a public URL plus an entry in sitemaps and static builds. Not worth it: these
+# are fragments, never pages. Visual editing of a global section is done from the
+# page it sits on instead (see the addon's global-section focus mode).

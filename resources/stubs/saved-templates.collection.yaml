@@ -1,0 +1,11 @@
+title: Templates
+revisions: false
+# Deliberately NO route — same reason as the saved sections store: a route is what
+# unlocks Statamic's Live Preview button, but it also gives every entry a real URI,
+# and that means a public URL plus an entry in sitemaps and static builds. A
+# template is a stack of sections waiting to be copied onto a page, never a page.
+#
+# Its own collection, not a flag on saved_sections: these are two lists, and a CP
+# nav item points at one list. They also behave differently — a saved section can
+# be *synced*, which is what the whole global-section feature hangs off, while a
+# template is only ever copied.

@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Support\Facades\View;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
+use MarioHamann\StatamicVisualEditor\Commands\Install;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
 use Illuminate\Support\Facades\Route;
@@ -78,6 +79,7 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $commands = [
         GenerateSetPreviews::class,
+        Install::class,
     ];
 
     public function bootAddon()
