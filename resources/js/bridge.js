@@ -97,6 +97,22 @@ export function injectStyles(doc) {
         [data-sid-orderable] {
             cursor: grab;
         }
+        /* "Whole card is a link" pattern: a stretched-link overlay
+           (a::after/::before { position:absolute; inset:0 }) sits on top of an
+           orderable card, so the pointer hits the link instead of the row — you
+           get a link cursor rather than the grab hand, the drag is swallowed, and
+           the browser starts a native link-drag. In the preview a link never
+           navigates, so its overlay must not intercept the pointer: let the
+           cursor, hit-testing and drag fall through to the card beneath. The link
+           itself keeps working (its own box is untouched); only its overlay
+           pseudo is neutralised, and native dragging of the link is disabled. */
+        [data-sid-orderable] a::after,
+        [data-sid-orderable] a::before {
+            pointer-events: none !important;
+        }
+        [data-sid-orderable] a {
+            -webkit-user-drag: none;
+        }
         .sve-dragging, .sve-dragging * {
             cursor: move !important;
             user-select: none !important;
@@ -2555,6 +2571,20 @@ function startEditing(win, data) {
 
   el.setAttribute(EDITING_ATTR, '');
 
+  // Lift the editable element above any stretched-link / decorative overlay that
+  // sits on top of it (see resolveSidTarget) for the duration of the edit, so
+  // clicks to place the caret land on the text instead of committing the edit by
+  // hitting the overlay. Only stacking is affected; a static element is made
+  // position:relative with no offsets, so layout does not move. Restored on finish.
+  session.prevZIndex = el.style.zIndex;
+  session.prevPosition = el.style.position;
+
+  if (win.getComputedStyle(el).position === 'static') {
+    el.style.position = 'relative';
+  }
+
+  el.style.zIndex = '2147483646';
+
   session.onInput = () => {
     session.dirty = true;
     clearTimeout(session.inputTimer);
@@ -2688,6 +2718,10 @@ export function finishEditing(win, cancelled) {
 
   el.removeAttribute(EDITING_ATTR);
 
+  // Restore the stacking overrides applied in startEditing.
+  el.style.zIndex = session.prevZIndex || '';
+  el.style.position = session.prevPosition || '';
+
   if (session.hadContentEditable === null) {
     el.removeAttribute('contenteditable');
   } else {
@@ -2728,7 +2762,7 @@ export function createMouseMoveHandler(win) {
 
     // Track innermost [data-sid] or [data-sid-field] for solid outline
     const current = win.document.querySelector(`[${INNER_ATTR}]`);
-    const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+    const target = resolveSidTarget(win, event);
 
     if (current !== target) {
       if (current) {
@@ -2776,6 +2810,53 @@ export function createMouseMoveHandler(win) {
       }
     }, HOVER_CLEAR_DELAY);
   };
+}
+
+/**
+ * Resolves the visual-editor target for a pointer event, seeing through
+ * decorative overlays that swallow the event.
+ *
+ * A common site pattern makes a whole card clickable with a stretched link —
+ * `a::after { position:absolute; inset:0 }`, often z-indexed above the card's
+ * text. The real pointer event then lands on that overlay, so
+ * event.target.closest() walks up to the enclosing section/row and never
+ * reaches the inline-editable field the user was pointing at: it sits UNDER the
+ * overlay as a cousin, not an ancestor.
+ *
+ * Resolve the normal target first. When it is not itself an editable field,
+ * scan the hit-test stack at the pointer for the topmost [data-sid-field]
+ * element that lives inside that target, and prefer it. Constraining to
+ * base.contains(field) means we only ever look through overlays within the same
+ * block — a field in another section/row is never grabbed by mistake.
+ */
+function resolveSidTarget(win, event) {
+  const base = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+
+  if (!base || base.hasAttribute(SID_FIELD_ATTR)) {
+    return base;
+  }
+
+  if (typeof event.clientX !== 'number' || typeof event.clientY !== 'number') {
+    return base;
+  }
+
+  const stack = win.document.elementsFromPoint(event.clientX, event.clientY);
+
+  for (const el of stack) {
+    // The stack is topmost-first; a covered field always paints above its own
+    // section/row, so once we reach `base` there is nothing left to find.
+    if (el === base) {
+      break;
+    }
+
+    const field = el.closest?.(`[${SID_FIELD_ATTR}]`);
+
+    if (field && base.contains(field)) {
+      return field;
+    }
+  }
+
+  return base;
 }
 
 export function createClickHandler(win) {
@@ -2859,7 +2940,7 @@ export function createClickHandler(win) {
       return;
     }
 
-    const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+    const target = resolveSidTarget(win, event);
 
     if (!target) {
       win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
@@ -2994,7 +3075,7 @@ export function createHoverHandler(win) {
       return;
     }
 
-    const target = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+    const target = resolveSidTarget(win, event);
 
     // Field-handle targeting: deduplicate on the field path string.
     if (target && target.hasAttribute(SID_FIELD_ATTR)) {
