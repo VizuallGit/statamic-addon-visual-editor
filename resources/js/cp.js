@@ -183,8 +183,17 @@ export function collectAncestorSets(setEl) {
  * Bard sets (Tiptap node views) carry no data attribute for collapsed state.
  * Instead Vue's `v-show="!collapsed"` hides the content div via an inline
  * `style="display: none;"` — detected here via `el.style.display`.
+ *
+ * Stacked Grid rows use our accordion (`data-sve-grid-collapsed`) — separate
+ * from Statamic's collapse, which Grids don't have.
  */
 export function isSetCollapsed(setEl) {
+  if (setEl.hasAttribute('data-sve-grid-row') || setEl.hasAttribute('data-grid-row')) {
+    // Our accordion marks collapsed stacked rows. Table-mode grid rows have no
+    // accordion — treat them as always open.
+    return setEl.hasAttribute('data-sve-grid-collapsed');
+  }
+
   if (setEl.hasAttribute('data-replicator-set')) {
     return setEl.dataset.collapsed === 'true';
   }
@@ -204,6 +213,25 @@ export function isSetCollapsed(setEl) {
 
 export function expandSet(setEl) {
   if (!isSetCollapsed(setEl)) {
+    return;
+  }
+
+  // Stacked Grid accordion: open this row and collapse siblings (same behaviour
+  // as clicking the header). Do not fake a header click — that would race with
+  // our own listener and can leave the focused row closed.
+  if (setEl.hasAttribute('data-sve-grid-row') || setEl.hasAttribute('data-sve-grid-collapsed')) {
+    const stacked = setEl.parentElement;
+
+    if (stacked) {
+      [...stacked.children].forEach((sibling) => {
+        if (sibling !== setEl && sibling.hasAttribute('data-sve-grid-row')) {
+          setGridRowCollapsed(sibling, true);
+        }
+      });
+    }
+
+    setGridRowCollapsed(setEl, false);
+
     return;
   }
 
@@ -4218,12 +4246,72 @@ function ensureGridStyle(doc) {
   doc.head.appendChild(style);
 }
 
-/** The title shown for a collapsed row — its first field's value. */
-function gridRowTitle(row) {
-  const field = row.querySelector('.publish-fields input, .publish-fields textarea, .publish-fields select');
-  const value = field ? (field.value || '').trim() : '';
+/** Prefer text / textarea / Bard — skip icons, assets, empty controls, etc. */
+const GRID_TITLE_SKIP = [
+  'assets-fieldtype',
+  'button_group-fieldtype',
+  'button-group-fieldtype',
+  'toggle-fieldtype',
+  'revealer-fieldtype',
+  'date-fieldtype',
+  'integer-fieldtype',
+  'float-fieldtype',
+  'range-fieldtype',
+  'color-fieldtype',
+  'auto_uuid-fieldtype',
+  'iconamic-fieldtype',
+  'iconify-fieldtype',
+  'link-fieldtype',
+  'section-fieldtype',
+  'spacer-fieldtype',
+  'hidden-fieldtype',
+];
 
-  return value || '—';
+/**
+ * Collapsed-row label: first non-empty text, textarea or Bard value.
+ * (The previous "first input" approach hit empty icon fields and showed "—".)
+ */
+function gridRowTitle(row) {
+  try {
+    const fields = row.querySelectorAll('.publish-fields input, .publish-fields textarea');
+
+    for (const field of fields) {
+      const type = (
+        field.getAttribute('type') ||
+        (field.tagName === 'TEXTAREA' ? 'textarea' : 'text')
+      ).toLowerCase();
+
+      if (!['text', 'search', 'url', 'email', 'tel', 'textarea'].includes(type)) {
+        continue;
+      }
+
+      const wrapper = field.closest('[class*="-fieldtype"]');
+
+      if (wrapper && GRID_TITLE_SKIP.some((name) => wrapper.classList.contains(name))) {
+        continue;
+      }
+
+      const value = (field.value || '').replace(/\s+/g, ' ').trim();
+
+      if (value) {
+        return value.length > 80 ? `${value.slice(0, 77)}…` : value;
+      }
+    }
+
+    for (const editable of row.querySelectorAll(
+      '.publish-fields .ProseMirror, .publish-fields [contenteditable="true"]',
+    )) {
+      const value = (editable.textContent || '').replace(/\s+/g, ' ').trim();
+
+      if (value) {
+        return value.length > 80 ? `${value.slice(0, 77)}…` : value;
+      }
+    }
+  } catch {
+    // never break Live Preview over a label scrape
+  }
+
+  return '—';
 }
 
 function setGridRowCollapsed(row, collapsed) {
@@ -4235,8 +4323,16 @@ function setGridRowCollapsed(row, collapsed) {
 
   const title = row.querySelector(':scope > header .sve-grid-title');
 
-  if (title) {
-    title.textContent = collapsed ? gridRowTitle(row) : '';
+  if (!title) {
+    return;
+  }
+
+  // Only write when the text actually changes — writing on every LP mutation
+  // observer pass caused an infinite loop and froze Live Preview.
+  const next = collapsed ? gridRowTitle(row) : '';
+
+  if (title.textContent !== next) {
+    title.textContent = next;
   }
 }
 
@@ -4305,6 +4401,26 @@ function enhanceGridRow(win, row, stacked) {
   // Rows start collapsed; the grid opens its first one below. Set once, so a
   // later re-render never fights the state the user has clicked into.
   setGridRowCollapsed(row, true);
+
+  // Vue often fills Title a beat later. One quiet retry only if still "—",
+  // and only if the text would change (avoids mutation-observer loops).
+  win.setTimeout(() => {
+    if (!row.isConnected || !row.hasAttribute(GRID_COLLAPSED_ATTR)) {
+      return;
+    }
+
+    const label = row.querySelector(':scope > header .sve-grid-title');
+
+    if (!label || label.textContent !== '—') {
+      return;
+    }
+
+    const next = gridRowTitle(row);
+
+    if (next !== '—' && label.textContent !== next) {
+      label.textContent = next;
+    }
+  }, 500);
 }
 
 /**
@@ -4352,25 +4468,129 @@ const LP_SAVE_TIMEOUT = 15000;
 
 /**
  * Leaving the editor publishes what you changed. Clicking Statamic's own
- * "Save & Publish" rather than posting to the API ourselves, so validation,
+ * save/publish buttons rather than posting to the API ourselves, so validation,
  * revisions and everything else behave exactly as they do from the CP.
  *
- * Nothing changed → leave straight away. A save that fails (validation, say) puts
- * the button back and keeps you in the editor, where the error is.
+ * Revisions off → one click on "Save & Publish" (unchanged).
+ * Revisions on  → save the working copy, then POST publish automatically (no
+ * Publish dialog), then leave.
+ *
+ * Pass `{ publish: false }` to only save the working copy and stay in the editor.
+ *
+ * Nothing changed → leave straight away (unless save-only). A save that fails
+ * puts the button back and keeps you in the editor, where the error is.
  */
-function leaveEditor(win, link, leave) {
+function leaveEditor(win, link, leave, { publish = true } = {}) {
   if (link.dataset.busy) {
     return;
   }
 
   const save = saveButtonIn(win.document);
+  const hasPublish = !!publishButtonIn(win.document);
+  const saveOnly = hasPublish && !publish;
 
-  if (!hasUnsavedChanges(win) || !save) {
+  if (!save) {
+    if (!saveOnly) {
+      leave();
+    }
+
+    return;
+  }
+
+  if (!hasUnsavedChanges(win)) {
+    if (saveOnly) {
+      return;
+    }
+
+    // Revisions on + publish requested but nothing dirty: still publish the
+    // current working copy if a Publish button exists, then leave.
+    if (hasPublish && publish) {
+      runBusy(win, link, (release, setLabel) => {
+        postToHost(win, 'lp-leaving');
+        publishWorkingCopy(win, {
+          onSuccess: () => leaveQuietly(win, leave),
+          onFailure: release,
+          onPublishing: () => setLabel(t(win, 'publishing')),
+        });
+      });
+
+      return;
+    }
+
     leave();
 
     return;
   }
 
+  runBusy(win, link, (release, setLabel) => {
+    setLabel(t(win, 'saving'));
+
+    if (!saveOnly) {
+      postToHost(win, 'lp-leaving');
+    }
+
+    let settled = false;
+
+    const stop = onEntrySave((ok) => {
+      if (settled) {
+        return;
+      }
+
+      // Revisions off, or save-only: one step.
+      if (!hasPublish || saveOnly) {
+        settled = true;
+        stop();
+        clearTimeout(timer);
+
+        if (!ok) {
+          release();
+
+          return;
+        }
+
+        if (saveOnly) {
+          release();
+        } else {
+          leaveQuietly(win, leave);
+        }
+
+        return;
+      }
+
+      // Revisions on + publish: working-copy save done — publish without a dialog.
+      settled = true;
+      stop();
+      clearTimeout(timer);
+
+      if (!ok) {
+        release();
+
+        return;
+      }
+
+      publishWorkingCopy(win, {
+        onSuccess: () => leaveQuietly(win, leave),
+        onFailure: release,
+        onPublishing: () => setLabel(t(win, 'publishing')),
+      });
+    });
+
+    const timer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      stop();
+      release();
+    }, LP_SAVE_TIMEOUT);
+
+    save.click();
+  });
+}
+
+/** Marks the back-pill busy, runs `work`, and gives it release/setLabel helpers. */
+function runBusy(win, link, work) {
   const label = link.querySelector('span');
   const original = label?.textContent;
 
@@ -4378,14 +4598,11 @@ function leaveEditor(win, link, leave) {
   link.style.pointerEvents = 'none';
   link.style.opacity = '.5';
 
-  if (label) {
-    label.textContent = t(win, 'saving');
-  }
-
-  // In dev, Vite's full-reload may replace the hosting site the moment the save
-  // hits the content file — before we get to say anything else. Flag the exit
-  // now so that reload also comes back without replaying entrance animations.
-  postToHost(win, 'lp-leaving');
+  const setLabel = (text) => {
+    if (label) {
+      label.textContent = text;
+    }
+  };
 
   const release = () => {
     delete link.dataset.busy;
@@ -4395,37 +4612,99 @@ function leaveEditor(win, link, leave) {
     if (label && original) {
       label.textContent = original;
     }
+
+    link.sveCollapse?.();
   };
 
+  work(release, setLabel);
+}
+
+/**
+ * Statamic's publish endpoint for the open entry — same URL the Publish dialog
+ * posts to (`…/entries/{id}/publish`).
+ */
+function entryPublishUrl(win) {
+  return `${win.location.pathname.replace(/\/$/, '')}/publish`;
+}
+
+/**
+ * Publish the working copy with no dialog — the same POST Statamic's "Publish
+ * Now" makes, minus the notes field.
+ *
+ * Waits until the form is clean (Publish would be enabled) so we never race the
+ * preceding Save Changes.
+ */
+function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing } = {}) {
   let settled = false;
+  let enableTimer = null;
+  let attempts = 0;
 
-  const stop = onEntrySave((ok) => {
+  const finish = (ok) => {
     if (settled) {
       return;
     }
 
     settled = true;
-    stop();
+    clearTimeout(enableTimer);
     clearTimeout(timer);
+    (ok ? onSuccess : onFailure)?.();
+  };
 
-    if (ok) {
-      leaveQuietly(win, leave);
-    } else {
-      release(); // stay put — the error is in here
-    }
-  });
-
-  const timer = setTimeout(() => {
+  const tryPublish = () => {
     if (settled) {
       return;
     }
 
-    settled = true;
-    stop();
-    release();
-  }, LP_SAVE_TIMEOUT);
+    // Mirror canPublish: dirty form → wait; Publish button disabled → wait.
+    const button = publishButtonIn(win.document);
 
-  save.click();
+    if (hasUnsavedChanges(win) || button?.disabled) {
+      if (++attempts > 50) {
+        finish(false);
+
+        return;
+      }
+
+      enableTimer = win.setTimeout(tryPublish, 100);
+
+      return;
+    }
+
+    onPublishing?.();
+
+    const rearm = disarmUnloadWarning(win);
+
+    win
+      .fetch(entryPublishUrl(win), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-CSRF-TOKEN': csrfToken(win),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ message: null }),
+      })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        const ok = response.ok && data.saved !== false;
+
+        if (!ok) {
+          rearm();
+        }
+
+        finish(ok);
+      })
+      .catch(() => {
+        rearm();
+        finish(false);
+      });
+  };
+
+  const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
+
+  tryPublish();
 }
 
 /**
@@ -4501,13 +4780,8 @@ function tellPreviewWherePillIs(win, pill) {
 }
 
 /**
- * "Back to the site" — the return leg of the front-end's "Rediger" button, and
- * deliberately its twin: same pill, same corner of the page, so the two read as
- * one control that flips between viewing and editing.
- *
- * Leaving is two decisions, not one, so it asks rather than assumes: saving on
- * the way out is what you usually want, but "I was only looking" has to be
- * possible without publishing whatever you nudged.
+ * "Back" — return to the live site when embedded, or close Live Preview when
+ * opened from the dashboard.
  */
 function ensureLpBackButton(win) {
   const doc = win.document;
@@ -4518,32 +4792,19 @@ function ensureLpBackButton(win) {
   }
 
   const embedded = isEmbeddedInSite(win);
-
-  // The entry screen behind Live Preview carries a "Visit URL" link — reuse its
-  // href rather than trying to rebuild the front-end URL ourselves. Embedded we
-  // don't need it, but we still keep it on the link as a fallback target.
   const visit = [...doc.querySelectorAll('a')].find((a) => /visit url|besøg url/i.test(a.textContent || ''));
   const href = visit?.getAttribute('href');
-
-  if (!href && !embedded) {
-    return;
-  }
 
   const pill = doc.createElement('a');
 
   pill.id = LP_BACK_ID;
   pill.href = href ?? '#';
-  pill.title = t(win, 'back_to_site_title');
-  // A return arrow, not a plain back arrow: you're not stepping one page back,
-  // you're going back out to the site you came in from.
+  pill.title = t(win, embedded ? 'back_to_site_title' : 'back_to_admin_title');
   pill.innerHTML =
     '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
     'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<path d="M11 18h3.75a5.25 5.25 0 1 0 0-10.5H5M7.5 4L4 7.5L7.5 11"></path>' +
-    `</svg><span>${t(win, 'back_to_site')}</span>`;
-  // Matches the front-end edit button exactly (InjectEditButton), down to
-  // resting as the icon alone and unfurling the label on hover — the preview is
-  // the page, and the page shouldn't have a button shouting at it.
+    `</svg><span>${t(win, embedded ? 'back_to_site' : 'back_to_admin')}</span>`;
   pill.style.cssText =
     'position:fixed;z-index:2147483000;display:inline-flex;align-items:center;' +
     'padding:9px;border-radius:999px;background:#18181b;color:#fff;text-decoration:none;' +
@@ -4564,8 +4825,6 @@ function ensureLpBackButton(win) {
   };
 
   const collapse = () => {
-    // Stays open while the menu hangs off it, or while a save is in flight —
-    // collapsing out from under either would look like it had given up.
     if (doc.getElementById(LP_BACK_MENU_ID) || pill.dataset.busy) {
       return;
     }
@@ -4578,27 +4837,10 @@ function ensureLpBackButton(win) {
 
   pill.addEventListener('mouseenter', expand);
   pill.addEventListener('mouseleave', collapse);
-  // The menu hangs off the pill and has to be able to hold it open.
   pill.sveExpand = expand;
   pill.sveCollapse = collapse;
 
-  const leave = () => {
-    // Read the "Visit URL" fresh, not the one captured when the pill was built:
-    // the link often isn't in the DOM yet that early, and it's the current
-    // entry's front-end URL that matters — which is what's in the DOM now.
-    const visitNow = [...doc.querySelectorAll('a')].find((a) => /visit url|besøg url/i.test(a.textContent || ''));
-    const url = visitNow?.getAttribute('href') || href || null;
-
-    if (embedded) {
-      // The page under the overlay is the one it was opened on. Live Preview may
-      // have moved to another entry since — so hand the host this entry's own
-      // front-end URL, and let it land there rather than reveal the stale page
-      // underneath.
-      postToHost(win, 'lp-close', url ? { url } : {});
-    } else {
-      win.location.href = url || pill.href;
-    }
-  };
+  const leave = () => leaveLivePreview(win, href || pill.href);
 
   pill.addEventListener('click', (event) => {
     event.preventDefault();
@@ -4609,7 +4851,6 @@ function ensureLpBackButton(win) {
       return;
     }
 
-    // Nothing to save → don't ask a question with one answer.
     if (!hasUnsavedChanges(win) || !saveButtonIn(doc)) {
       leave();
 
@@ -4623,11 +4864,57 @@ function ensureLpBackButton(win) {
   positionLpBackButton(win);
 }
 
-/** The two ways out: with the changes, or without them. */
+/**
+ * Leave Live Preview the way you entered it:
+ * - Embedded → close overlay onto the entry's front-end URL.
+ * - From dashboard → close Live Preview and stay in admin.
+ */
+function leaveLivePreview(win, fallbackUrl = null) {
+  if (isEmbeddedInSite(win)) {
+    const visitNow = [...win.document.querySelectorAll('a')].find((a) =>
+      /visit url|besøg url/i.test(a.textContent || '')
+    );
+    const url = visitNow?.getAttribute('href') || fallbackUrl || null;
+
+    postToHost(win, 'lp-close', url ? { url } : {});
+
+    return;
+  }
+
+  closeLivePreviewUi(win);
+}
+
+/** Click Statamic's Live Preview × so we stay on the admin entry form. */
+function closeLivePreviewUi(win) {
+  const header = lpHeader(win.document);
+
+  if (!header) {
+    return;
+  }
+
+  const buttons = [...header.querySelectorAll('button')];
+  const close =
+    buttons.find((button) => {
+      const label = `${button.getAttribute('aria-label') || ''} ${button.title || ''}`.trim();
+
+      return /^(close|luk)\b/i.test(label);
+    }) ||
+    [...buttons].reverse().find((button) => {
+      const text = (button.textContent || '').trim();
+
+      return text === '' && button.querySelector('svg');
+    });
+
+  close?.click();
+}
+
+/** Ways out when there are unsaved changes (revisions → three choices). */
 function openLpBackMenu(win, pill, leave) {
   const doc = win.document;
   const menu = doc.createElement('div');
   const rect = pill.getBoundingClientRect();
+  const revisions = !!publishButtonIn(doc);
+  const embedded = isEmbeddedInSite(win);
 
   menu.id = LP_BACK_MENU_ID;
   menu.style.cssText =
@@ -4656,15 +4943,26 @@ function openLpBackMenu(win, pill, leave) {
     return btn;
   };
 
-  item(t(win, 'back_save_and_leave'), () => {
-    pill.sveExpand?.(); // so "Saving…" is readable rather than clipped to nothing
-    leaveEditor(win, pill, leave);
+  const savePublishLabel = revisions
+    ? t(win, embedded ? 'back_save_publish_and_leave' : 'back_save_publish_and_close')
+    : t(win, embedded ? 'back_save_and_leave' : 'back_save_and_close');
+
+  item(savePublishLabel, () => {
+    pill.sveExpand?.();
+    leaveEditor(win, pill, leave, { publish: true });
   }, true);
-  item(t(win, 'back_leave_only'), leave, false);
+
+  if (revisions) {
+    item(t(win, 'back_save_only'), () => {
+      pill.sveExpand?.();
+      leaveEditor(win, pill, leave, { publish: false });
+    }, false);
+  }
+
+  item(t(win, embedded ? 'back_leave_only' : 'back_close_only'), leave, false);
 
   doc.body.appendChild(menu);
 
-  // Anywhere else dismisses it — including the pill, whose own handler toggles.
   const away = (event) => {
     if (menu.contains(event.target) || pill.contains(event.target)) {
       return;
@@ -5716,9 +6014,30 @@ function dismissDirtyWarning(win) {
 function saveButtonIn(doc) {
   const header = lpHeader(doc);
 
+  return [...(header?.querySelectorAll('button') ?? [])].find((button) => {
+    const text = (button.textContent || '').trim();
+
+    if (isPublishButtonLabel(text)) {
+      return false;
+    }
+
+    return /^(save|gem)\b/i.test(text);
+  });
+}
+
+/**
+ * "Publish…" / "Publicér…" — present only when revisions are enabled.
+ */
+function publishButtonIn(doc) {
+  const header = lpHeader(doc);
+
   return [...(header?.querySelectorAll('button') ?? [])].find((button) =>
-    /save|publish|udgiv|gem/i.test(button.textContent || '')
+    isPublishButtonLabel((button.textContent || '').trim())
   );
+}
+
+function isPublishButtonLabel(text) {
+  return /^(publish|udgiv|public[eé]r)\b/i.test(text);
 }
 
 /**

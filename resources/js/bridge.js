@@ -6,6 +6,8 @@ const HOVER_ATTR = 'data-sid-hover';
 const INNER_ATTR = 'data-sid-inner';
 const SID_ATTR = 'data-sid';
 const SID_FIELD_ATTR = 'data-sid-field';
+/** Opt-in from `{{ visual_edit section-orderable="true" }}` — tag-agnostic page section. */
+const SECTION_ORDERABLE_ATTR = 'data-sid-section-orderable';
 const STYLES_ID = '__sve-bridge-styles';
 
 /**
@@ -560,7 +562,9 @@ function sendEditInput(win, session) {
       source: 'statamic-visual-editor',
       type: 'edit-input',
       requestId: session.requestId,
-      text: session.el.innerText,
+      // textContent (not innerText): innerText follows CSS text-transform and
+      // would sync UPPERCASE titles into the CP form.
+      text: session.el.textContent || '',
       html: session.el.innerHTML,
       // bard-texstyle span classes to recognize as btsSpan marks when parsing
       // the html back to ProseMirror (derived from the field's own styles).
@@ -740,11 +744,13 @@ function swapEditingElementTag(win, session, tagName) {
 
   old.removeEventListener('input', session.onInput);
   old.removeEventListener('keydown', session.onKeydown);
+  old.removeEventListener('keyup', session.onKeyup);
   old.removeEventListener('blur', session.onBlur);
   old.replaceWith(neo);
 
   neo.addEventListener('input', session.onInput);
   neo.addEventListener('keydown', session.onKeydown);
+  neo.addEventListener('keyup', session.onKeyup);
   neo.addEventListener('blur', session.onBlur);
 
   session.el = neo;
@@ -2121,13 +2127,13 @@ function showMoveControl(win, moveEl) {
   }
 
   // A single row/section has nowhere to move — no arrows. Peers are sibling
-  // elements of the same kind: move-annotated rows, or sections for sections.
-  // Page sections are top-level <section> (or <article>, e.g. main content).
-  const isSectionTag = (el) => el.tagName === 'SECTION' || el.tagName === 'ARTICLE';
+  // elements of the same kind: orderable rows, move-annotated rows, or other
+  // page sections (opted in via section-orderable="true" — any HTML tag).
+  const isPageSection = (el) => el.hasAttribute(SECTION_ORDERABLE_ATTR);
 
   // Rows opted into ordering (orderable="true") are the innermost thing a hover
   // can land on, so they claim the control before the section around them.
-  const isRow = moveEl.hasAttribute(ORDERABLE_ATTR) && !isSectionTag(moveEl);
+  const isRow = moveEl.hasAttribute(ORDERABLE_ATTR) && !isPageSection(moveEl);
 
   const peers = moveEl.parentElement
     ? [...moveEl.parentElement.children].filter((el) =>
@@ -2135,13 +2141,13 @@ function showMoveControl(win, moveEl) {
           ? el.hasAttribute(ORDERABLE_ATTR)
           : moveEl.hasAttribute('data-sid-move')
             ? el.hasAttribute('data-sid-move')
-            : isSectionTag(el) && el.hasAttribute(SID_ATTR)
+            : isPageSection(el)
       )
     : [];
 
   // Page sections also get an "add section" (+) button, so their control is
   // worth showing even when a section is the only one on the page.
-  const isSection = !moveEl.hasAttribute('data-sid-move') && !isRow && isSectionTag(moveEl);
+  const isSection = !moveEl.hasAttribute('data-sid-move') && !isRow && isPageSection(moveEl);
 
   // An orderable row always gets its control: even the last one left needs a "+"
   // to add another (and a "−" to remove itself).
@@ -2593,6 +2599,13 @@ function startEditing(win, data) {
   };
 
   session.onKeydown = (e) => {
+    // Titles often sit inside <button> (e.g. intro slider). Space/Enter would
+    // activate the button and kick the user out of editing — stop that bubble
+    // without blocking the character itself (no preventDefault on keydown).
+    if (e.code === 'Space' || e.key === ' ') {
+      e.stopPropagation();
+    }
+
     if (e.key === 'Escape') {
       e.preventDefault();
       finishEditing(win, true);
@@ -2649,6 +2662,14 @@ function startEditing(win, data) {
     }
   };
 
+  // Button activation from Space happens on keyup — kill it there.
+  session.onKeyup = (e) => {
+    if (e.code === 'Space' || e.key === ' ') {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  };
+
   session.onBlur = () => {
     if (!session.suspendBlur) {
       finishEditing(win, false);
@@ -2660,6 +2681,7 @@ function startEditing(win, data) {
 
   el.addEventListener('input', session.onInput);
   el.addEventListener('keydown', session.onKeydown);
+  el.addEventListener('keyup', session.onKeyup);
   el.addEventListener('blur', session.onBlur);
   win.document.addEventListener('selectionchange', session.onSelectionChange);
   win.addEventListener('scroll', session.reposition, true);
@@ -2696,6 +2718,7 @@ export function finishEditing(win, cancelled) {
 
   el.removeEventListener('input', session.onInput);
   el.removeEventListener('keydown', session.onKeydown);
+  el.removeEventListener('keyup', session.onKeyup);
   el.removeEventListener('blur', session.onBlur);
   win.document.removeEventListener('selectionchange', session.onSelectionChange);
   win.removeEventListener('scroll', session.reposition, true);
@@ -2774,16 +2797,16 @@ export function createMouseMoveHandler(win) {
       }
     }
 
-    // Move arrows: rows opted in via move="true" take priority (innermost);
-    // otherwise the page section under the cursor. <section> is what the
-    // site's templates use for top-level page sections — blocks are divs.
+    // Move arrows: rows opted in via move="true" / orderable take priority
+    // (innermost); otherwise the page section under the cursor — any element
+    // with section-orderable="true", regardless of HTML tag.
     if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
       // hovering the control itself — keep it
     } else {
       const moveEl =
         event.target.closest(`[${ORDERABLE_ATTR}]`) ||
         event.target.closest('[data-sid-move]') ||
-        event.target.closest(`section[${SID_ATTR}]:not([data-sid-type="text"])`);
+        event.target.closest(`[${SECTION_ORDERABLE_ATTR}]`);
 
       if (moveEl) {
         showMoveControl(win, moveEl);
@@ -3207,7 +3230,7 @@ function pulseElement(el) {
 let extDrag = null;
 
 function topLevelSections(win) {
-  return [...win.document.querySelectorAll('section[data-sid], article[data-sid]')].filter(
+  return [...win.document.querySelectorAll(`[${SECTION_ORDERABLE_ATTR}]`)].filter(
     (el) => el.getBoundingClientRect().width > 0
   );
 }

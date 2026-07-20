@@ -3,7 +3,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cd ../.. && php artisan vendor:publish --force --tag=statamic-visual-editor"
+    "build": "vite build && cd ../.. && php artisan vendor:publish --force --tag=statamic-visual-editor",
+    "cp:build": "vite build"
   },
   "dependencies": {
     "@statamic/cms": "file:../../vendor/statamic/cms/resources/dist-package"
