@@ -3771,9 +3771,12 @@ export function ensureLpPanelToggle(win) {
     // Live preview closed — forget session state; next open re-reads the mode.
     // The docked panels belong to the preview, so they go with it: left behind,
     // they'd hang over the ordinary publish form with nothing to preview into.
+    // The floating back pill lives on document.body (outside Vue), so it must be
+    // removed explicitly — otherwise it survives into the ordinary CP dashboard.
     lpCollapsed = null;
     clearSolo(doc);
     closeRightPanels(win);
+    removeLpBackButton(doc);
 
     return;
   }
@@ -4777,6 +4780,12 @@ function tellPreviewWherePillIs(win, pill) {
     },
     win
   );
+}
+
+/** Tear down the floating back pill (and its menu) when Live Preview closes. */
+function removeLpBackButton(doc) {
+  doc.getElementById(LP_BACK_MENU_ID)?.remove();
+  doc.getElementById(LP_BACK_ID)?.remove();
 }
 
 /**
