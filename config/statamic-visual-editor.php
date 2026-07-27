@@ -118,8 +118,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Live Preview treats header & footer like "step into" components (same feel
-    | as global sections). Designs are selected from the section library's
-    | Header/Footer tabs; content still lives in a global set so it can also be
+    | as global sections). Designs open in a left-docked panel (same side as
+    | Theme Settings); content still lives in a global set so it can also be
     | edited from Theme Settings without Live Preview.
     |
     | - global: the global set handle (default: theme_settings)

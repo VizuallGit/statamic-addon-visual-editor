@@ -2175,6 +2175,7 @@ function t(win, key, replacements = {}) {
 }
 
 const SECTION_PICKER_ID = '__sve-section-picker';
+const CHROME_DESIGNS_ID = '__sve-chrome-designs';
 
 function sectionTypes(win) {
   const list = win.Statamic?.$config?.get?.('sveSectionTypes');
@@ -2700,8 +2701,6 @@ function askTemplateMode(win, item) {
 
 function closeSectionPicker(win) {
   win.document.getElementById(SECTION_PICKER_ID)?.remove();
-  // Library was covering Theme Settings — reveal it again (iframe stays mounted).
-  showGlobalsPanel(win);
   syncPreviewInset(win);
 }
 
@@ -2731,10 +2730,9 @@ function showGlobalsPanel(win) {
 }
 
 /**
- * Right-hand panels dock to the same edge. Opening one usually closes the rest;
- * `keep` is the id (or list of ids) to leave open. Chrome editing toggles between
- * Theme Settings and the design library (never stacked on top of each other).
- * Called with nothing to close them all (leaving Live Preview).
+ * Docked panels: sections library stays on the RIGHT; Theme Settings / chrome
+ * designs dock on the LEFT (with the page content editor). `keep` is id(s) to
+ * leave open. Called with nothing to close them all (leaving Live Preview).
  */
 function closeRightPanels(win, keep = null) {
   const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
@@ -2750,13 +2748,15 @@ function closeRightPanels(win, keep = null) {
   if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID)) {
     closeGlobalSectionPanel(win);
   }
+
+  if (!keepIds.includes(CHROME_DESIGNS_ID)) {
+    closeChromeDesignsPanel(win);
+  }
 }
 
 /**
- * Right-hand panels (this picker, the globals panel) dock at the viewport edge.
- * Rather than overlay the preview, they PUSH it — the same way the left editor
- * pane does — by reserving room on the right of the centering container so the
- * iframe reflows and stays fully visible. Reserves the widest open panel.
+ * Push the preview away from open docked panels — left for Theme Settings /
+ * chrome designs, right for the section library.
  */
 function syncPreviewInset(win) {
   const doc = win.document;
@@ -2766,28 +2766,36 @@ function syncPreviewInset(win) {
     return;
   }
 
-  const px = rightPanelWidth(doc);
+  const right = dockedPanelWidth(doc, [SECTION_PICKER_ID, GLOBAL_SECTION_PANEL_ID]);
+  const left = dockedPanelWidth(doc, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]);
 
-  el.style.transition = 'padding-right .2s ease';
-  el.style.paddingRight = px ? `${px}px` : '';
+  el.style.transition = 'padding-right .2s ease, padding-left .2s ease';
+  el.style.paddingRight = right ? `${right}px` : '';
+  el.style.paddingLeft = left ? `${left}px` : '';
 
-  // Anything else floating over the preview has to clear the panel too.
   positionLpBackButton(win);
 }
 
-/** How much of the right edge the open panel is taking, in px (0 if none). */
-function rightPanelWidth(doc) {
+/** Visible width of the widest panel in `ids` (0 if none). */
+function dockedPanelWidth(doc, ids) {
   let px = 0;
 
-  for (const id of [SECTION_PICKER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID]) {
+  for (const id of ids) {
     const panel = doc.getElementById(id);
 
-    if (panel) {
-      px = Math.max(px, Math.round(panel.getBoundingClientRect().width));
+    if (!panel || panel.style.display === 'none' || panel.hasAttribute('data-sve-chrome-hidden')) {
+      continue;
     }
+
+    px = Math.max(px, Math.round(panel.getBoundingClientRect().width));
   }
 
   return px;
+}
+
+/** @deprecated use dockedPanelWidth — kept for call sites that mean "right edge" */
+function rightPanelWidth(doc) {
+  return dockedPanelWidth(doc, [SECTION_PICKER_ID, GLOBAL_SECTION_PANEL_ID]);
 }
 
 // The section library is a docked panel, not a popup: it stays open while you
@@ -2851,12 +2859,7 @@ function openSectionPicker(win, options = {}) {
     return;
   }
 
-  closeRightPanels(
-    win,
-    initialTab === 'header' || initialTab === 'footer'
-      ? [SECTION_PICKER_ID, GLOBALS_PANEL_ID]
-      : SECTION_PICKER_ID
-  );
+  closeRightPanels(win, [SECTION_PICKER_ID, GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]);
 
   const header = lpHeader(doc);
   const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
@@ -2900,7 +2903,7 @@ function openSectionPicker(win, options = {}) {
     grid.style.columnCount = String(cols);
   };
 
-  panel.appendChild(globalsResizer(win, panel, applyLibraryLayout));
+  panel.appendChild(panelResizer(win, panel, { side: 'right', onResize: applyLibraryLayout }));
   doc.body.appendChild(panel);
   applyLibraryLayout();
   syncPreviewInset(win);
@@ -2917,8 +2920,6 @@ function openSectionPicker(win, options = {}) {
     { key: 'custom', label: t(win, 'tab_custom') },
     { key: 'global', label: t(win, 'tab_global') },
     { key: 'template', label: t(win, 'tab_templates') },
-    { key: 'header', label: t(win, 'tab_header') },
-    { key: 'footer', label: t(win, 'tab_footer') },
   ];
   let active = initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : 'page';
   let saved = null;
@@ -2926,17 +2927,6 @@ function openSectionPicker(win, options = {}) {
   let query = '';
   let group = null; // null = all groups
 
-  const chromeConfig = () => {
-    const cfg = win.Statamic?.$config?.get?.('sveChrome');
-
-    return cfg && typeof cfg === 'object' ? cfg : {};
-  };
-
-  const chromeStyles = (kind) => {
-    const list = chromeConfig()[kind]?.styles;
-
-    return Array.isArray(list) ? list : [];
-  };
 
   // Natural-height preview cards in a CSS-columns masonry grid. The image sets
   // the card height (no fixed crop); break-inside keeps a card in one column.
@@ -3135,69 +3125,8 @@ function openSectionPicker(win, options = {}) {
     );
   };
 
-  // Design cards for header/footer — click to select (no drag). Writes into the
-  // open theme_settings panel so the live globals stash re-renders the preview.
-  const renderChrome = (kind) => {
-    gridEl.innerHTML = '';
-
-    const hint = doc.createElement('div');
-
-    hint.style.cssText = 'padding:4px 2px 14px;font-size:11px;opacity:.6;column-span:all;break-inside:avoid;';
-    hint.textContent = t(win, 'chrome_library_hint');
-    gridEl.appendChild(hint);
-
-    const styles = chromeStyles(kind);
-
-    if (!styles.length) {
-      gridEl.appendChild(empty(t(win, 'chrome_no_styles')));
-
-      return;
-    }
-
-    const filtered = styles.filter((item) => libraryMatchesQuery(item, query));
-
-    if (!filtered.length) {
-      gridEl.appendChild(empty(t(win, 'library_no_matches')));
-
-      return;
-    }
-
-    filtered.forEach((item) => {
-      const el = doc.createElement('div');
-      const title = item.label || item.handle;
-      const imageUrl = item.preview_url || item.image || '';
-
-      el.setAttribute('data-sve-chrome-style', item.handle);
-      el.style.cssText =
-        'cursor:pointer;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
-        'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s,box-shadow .12s;' +
-        'user-select:none;vertical-align:top;';
-      el.addEventListener('mouseenter', () => {
-        if (el.getAttribute('data-sve-chrome-style') !== el.dataset.sveSelected) {
-          el.style.borderColor = 'var(--theme-color-primary,#4f46e5)';
-        }
-      });
-      el.addEventListener('mouseleave', () => {
-        const on = el.style.boxShadow && el.style.boxShadow !== 'none';
-
-        if (!on) {
-          el.style.borderColor = 'rgba(128,128,128,.25)';
-        }
-      });
-      el.innerHTML = `
-        <div style="width:100%;background:rgba(128,128,128,.12);pointer-events:none;">
-          ${
-            imageUrl
-              ? `<img src="${imageUrl}" alt="" style="width:100%;height:auto;display:block;">`
-              : `<div style="width:100%;aspect-ratio:16/5;min-height:56px;display:flex;align-items:center;justify-content:center;opacity:.45;font-size:12px;">${title}</div>`
-          }
-        </div>
-        <div style="padding:8px 10px;font-size:12px;font-weight:500;pointer-events:none;">${title}</div>
-      `;
-      el.addEventListener('click', () => setChromeStyle(win, kind, item.handle));
-      gridEl.appendChild(el);
-    });
-  };
+  // Design cards for header/footer live in the LEFT chrome-designs panel now —
+  // not in this sections library.
 
   const renderActive = () => {
     tabsEl.querySelectorAll('button').forEach((b) => {
@@ -3211,24 +3140,14 @@ function openSectionPicker(win, options = {}) {
     const hintEl = panel.querySelector('[data-sve-hint]');
 
     if (hintEl) {
-      hintEl.textContent =
-        active === 'header' || active === 'footer' ? t(win, 'chrome_library_hint') : t(win, 'library_hint');
+      hintEl.textContent = t(win, 'library_hint');
     }
 
     if (searchEl) {
-      searchEl.placeholder =
-        active === 'header' || active === 'footer'
-          ? t(win, 'chrome_search_placeholder')
-          : t(win, 'library_search_placeholder');
+      searchEl.placeholder = t(win, 'library_search_placeholder');
     }
 
     renderGroups();
-
-    if (active === 'header' || active === 'footer') {
-      renderChrome(active);
-
-      return;
-    }
 
     if (active === 'page') {
       renderPage();
@@ -6125,17 +6044,13 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'open-chrome') {
       handleOpenChrome(data, doc, win);
     } else if (data.type === 'open-chrome-designs') {
-      // Show design library; hide Theme Settings underneath (don't unmount it).
-      openSectionPicker(win, { tab: data.kind === 'footer' ? 'footer' : 'header' });
-      hideGlobalsPanel(win);
+      openChromeDesignsPanel(win, data.kind === 'footer' ? 'footer' : 'header');
     } else if (data.type === 'open-chrome-settings') {
-      // Back to widgets / Theme Settings.
-      closeSectionPicker(win);
+      closeChromeDesignsPanel(win);
       showGlobalsPanel(win);
       activateGlobalsTab(win, data.kind === 'footer' ? 'Footer' : 'Header');
     } else if (data.type === 'close-chrome') {
-      closeSectionPicker(win);
-      // Keep theme settings open for further edits, or close — leave open.
+      closeChromeDesignsPanel(win);
     } else if (data.type === 'save-chrome') {
       doc
         .getElementById(GLOBALS_PANEL_ID)
@@ -7107,14 +7022,17 @@ function globalsPanelWidth(win) {
 }
 
 /**
- * Drag handle on a right-docked panel's inner edge; the width is remembered.
- * `onResize` runs after every width change (e.g. to retile a masonry grid).
+ * Drag handle on a docked panel's inner edge; the width is remembered.
+ * `side: 'right'` = panel on the right (handle on its left). `side: 'left'` =
+ * panel on the left (handle on its right).
  */
-function globalsResizer(win, panel, onResize) {
+function panelResizer(win, panel, { side = 'right', storageKey = GLOBALS_WIDTH_KEY, onResize } = {}) {
   const handle = win.document.createElement('div');
 
   handle.style.cssText =
-    'position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:1;touch-action:none;';
+    side === 'left'
+      ? 'position:absolute;right:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:1;touch-action:none;'
+      : 'position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:1;touch-action:none;';
   handle.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) {
       return;
@@ -7123,8 +7041,6 @@ function globalsResizer(win, panel, onResize) {
     event.preventDefault();
     handle.setPointerCapture(event.pointerId);
 
-    // The iframe swallows pointer events once the cursor crosses into it, so it
-    // has to sit out the drag.
     const frame = panel.querySelector('iframe');
 
     if (frame) {
@@ -7133,7 +7049,10 @@ function globalsResizer(win, panel, onResize) {
 
     const onMove = (move) => {
       const max = Math.max(GLOBALS_MIN_WIDTH, win.innerWidth - 360);
-      const width = Math.min(Math.max(win.innerWidth - move.clientX, GLOBALS_MIN_WIDTH), max);
+      const width =
+        side === 'left'
+          ? Math.min(Math.max(move.clientX, GLOBALS_MIN_WIDTH), max)
+          : Math.min(Math.max(win.innerWidth - move.clientX, GLOBALS_MIN_WIDTH), max);
 
       panel.style.width = `${width}px`;
       syncPreviewInset(win);
@@ -7149,7 +7068,7 @@ function globalsResizer(win, panel, onResize) {
       }
 
       try {
-        win.localStorage.setItem(GLOBALS_WIDTH_KEY, String(parseInt(panel.style.width, 10)));
+        win.localStorage.setItem(storageKey, String(parseInt(panel.style.width, 10)));
       } catch {
         /* private mode */
       }
@@ -7160,6 +7079,11 @@ function globalsResizer(win, panel, onResize) {
   });
 
   return handle;
+}
+
+/** @deprecated alias — right-docked panels */
+function globalsResizer(win, panel, onResize) {
+  return panelResizer(win, panel, { side: 'right', onResize });
 }
 
 function globalsPanelUrl(win, set) {
@@ -7203,7 +7127,14 @@ function openGlobalsPanel(win, set, options = {}) {
     existing.remove();
   }
 
-  closeRightPanels(win, keepLibrary ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID] : GLOBALS_PANEL_ID);
+  // Theme Settings docks LEFT. Keep the right sections library and/or left
+  // designs panel when a chrome style write needs the form mounted underneath.
+  closeRightPanels(
+    win,
+    keepLibrary
+      ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
+      : [GLOBALS_PANEL_ID, SECTION_PICKER_ID]
+  );
 
   const header = lpHeader(doc);
   const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
@@ -7212,12 +7143,13 @@ function openGlobalsPanel(win, set, options = {}) {
 
   panel.id = GLOBALS_PANEL_ID;
   panel.setAttribute('data-sve-globals-handle', set.handle);
+  // LEFT dock — same side as the page content editor.
   panel.style.cssText =
-    `position:fixed;top:${top}px;right:0;bottom:0;width:${globalsPanelWidth(win)}px;z-index:40;` +
+    `position:fixed;top:${top}px;left:0;bottom:0;width:${globalsPanelWidth(win)}px;z-index:40;` +
     'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
-    'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);';
+    'border-right:1px solid rgba(128,128,128,.28);box-shadow:8px 0 24px rgba(0,0,0,.18);';
 
-  panel.appendChild(globalsResizer(win, panel));
+  panel.appendChild(panelResizer(win, panel, { side: 'left' }));
 
   const bar = doc.createElement('div');
 
@@ -7564,9 +7496,194 @@ function chromeGlobalHandle(win) {
   return win.Statamic?.$config?.get?.('sveChrome')?.global || 'theme_settings';
 }
 
+function chromeConfig(win) {
+  const cfg = win.Statamic?.$config?.get?.('sveChrome');
+
+  return cfg && typeof cfg === 'object' ? cfg : {};
+}
+
+/** Configured layout cards for header/footer (`sveChrome.header.styles` etc.). */
+function chromeStyles(win, kind) {
+  const list = chromeConfig(win)[kind]?.styles;
+
+  return Array.isArray(list) ? list : [];
+}
+
+function closeChromeDesignsPanel(win) {
+  win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
+  syncPreviewInset(win);
+}
+
 /**
- * Clicking the site header/footer in Live Preview: open Theme Settings beside
- * the preview (widgets). Designs are a separate step via the bottom bar.
+ * Left-docked design picker for header/footer — same edge as Theme Settings
+ * (not the sections library on the right). Hides Theme Settings while open so
+ * the two don't stack; the form stays mounted for style writes.
+ */
+function openChromeDesignsPanel(win, kind) {
+  const doc = win.document;
+  const chromeKind = kind === 'footer' ? 'footer' : 'header';
+  const existing = doc.getElementById(CHROME_DESIGNS_ID);
+
+  if (existing) {
+    existing.setAttribute('data-sve-chrome-kind', chromeKind);
+    existing.dispatchEvent(new CustomEvent('sve-chrome-render'));
+    hideGlobalsPanel(win);
+    syncPreviewInset(win);
+
+    return;
+  }
+
+  // Keep Theme Settings mounted (hidden) + sections library if open on the right.
+  closeRightPanels(win, [CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, SECTION_PICKER_ID]);
+  hideGlobalsPanel(win);
+
+  const header = lpHeader(doc);
+  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+  const width = globalsPanelWidth(win);
+
+  const panel = doc.createElement('div');
+
+  panel.id = CHROME_DESIGNS_ID;
+  panel.setAttribute('data-sve-chrome-kind', chromeKind);
+  panel.style.cssText =
+    `position:fixed;top:${top}px;left:0;bottom:0;width:${width}px;z-index:40;` +
+    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+    'border-right:1px solid rgba(128,128,128,.28);box-shadow:8px 0 24px rgba(0,0,0,.18);' +
+    'font-family:ui-sans-serif,system-ui,sans-serif;';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
+      <div style="font-size:14px;font-weight:600;" data-sve-title></div>
+      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
+    </div>
+    <div data-sve-hint style="padding:6px 14px;font-size:11px;opacity:.6;flex:0 0 auto;"></div>
+    <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
+      <input data-sve-search type="search" autocomplete="off"
+        style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
+        background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
+    </div>
+    <div data-sve-grid style="flex:1 1 auto;overflow-y:auto;padding:12px;column-gap:12px;"></div>
+  `;
+
+  const applyLayout = () => {
+    const w = panel.getBoundingClientRect().width || width;
+    const cols = w >= 720 ? 3 : w >= 480 ? 2 : 1;
+    const grid = panel.querySelector('[data-sve-grid]');
+
+    if (grid) {
+      grid.style.columnCount = String(cols);
+    }
+  };
+
+  panel.appendChild(panelResizer(win, panel, { side: 'left', onResize: applyLayout }));
+  doc.body.appendChild(panel);
+  applyLayout();
+  syncPreviewInset(win);
+
+  const titleEl = panel.querySelector('[data-sve-title]');
+  const hintEl = panel.querySelector('[data-sve-hint]');
+  const searchEl = panel.querySelector('[data-sve-search]');
+  const gridEl = panel.querySelector('[data-sve-grid]');
+  let query = '';
+
+  const empty = (msg) => {
+    const el = doc.createElement('div');
+
+    el.style.cssText =
+      'padding:24px 8px;text-align:center;opacity:.55;font-size:13px;column-span:all;break-inside:avoid;';
+    el.textContent = msg;
+
+    return el;
+  };
+
+  const markSelected = (style) => {
+    gridEl.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
+      const on = el.getAttribute('data-sve-chrome-style') === style;
+
+      el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
+      el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
+    });
+  };
+
+  const render = () => {
+    const activeKind = panel.getAttribute('data-sve-chrome-kind') === 'footer' ? 'footer' : 'header';
+
+    titleEl.textContent =
+      activeKind === 'footer' ? t(win, 'tab_footer') : t(win, 'tab_header');
+    hintEl.textContent = t(win, 'chrome_library_hint');
+    searchEl.placeholder = t(win, 'chrome_search_placeholder');
+    gridEl.innerHTML = '';
+
+    const styles = chromeStyles(win, activeKind);
+
+    if (!styles.length) {
+      gridEl.appendChild(empty(t(win, 'chrome_no_styles')));
+
+      return;
+    }
+
+    const filtered = styles.filter((item) =>
+      libraryMatchesQuery({ ...item, title: item.label || item.title }, query)
+    );
+
+    if (!filtered.length) {
+      gridEl.appendChild(empty(t(win, 'library_no_matches')));
+
+      return;
+    }
+
+    filtered.forEach((item) => {
+      const el = doc.createElement('div');
+      const title = item.label || item.handle;
+      const imageUrl = item.preview_url || item.image || '';
+
+      el.setAttribute('data-sve-chrome-style', item.handle);
+      el.style.cssText =
+        'cursor:pointer;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
+        'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
+        'user-select:none;vertical-align:top;';
+      el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
+      el.addEventListener('mouseleave', () => {
+        const selected = el.style.boxShadow && el.style.boxShadow !== 'none';
+
+        el.style.borderColor = selected ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
+      });
+      el.innerHTML = `
+        <div style="width:100%;background:rgba(128,128,128,.12);pointer-events:none;">
+          ${
+            imageUrl
+              ? `<img src="${imageUrl}" alt="" style="width:100%;height:auto;display:block;">`
+              : `<div style="width:100%;aspect-ratio:16/5;min-height:56px;display:flex;align-items:center;justify-content:center;opacity:.45;font-size:12px;">${title}</div>`
+          }
+        </div>
+        <div style="padding:8px 10px;font-size:12px;font-weight:500;pointer-events:none;">${title}</div>
+      `;
+      el.addEventListener('click', () => {
+        markSelected(item.handle);
+        setChromeStyle(win, activeKind, item.handle);
+      });
+      gridEl.appendChild(el);
+    });
+  };
+
+  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
+    closeChromeDesignsPanel(win);
+    showGlobalsPanel(win);
+  });
+
+  searchEl.addEventListener('input', () => {
+    query = searchEl.value || '';
+    render();
+  });
+
+  panel.addEventListener('sve-chrome-render', render);
+  render();
+  searchEl.focus();
+}
+
+/**
+ * Clicking the site header/footer in Live Preview: open Theme Settings on the
+ * LEFT (same side as page content). Designs are a separate left panel via the bar.
  */
 export function handleOpenChrome(data, doc, win) {
   const kind = data.kind === 'footer' ? 'footer' : 'header';
@@ -7584,8 +7701,7 @@ export function handleOpenChrome(data, doc, win) {
     picker.value = set.handle;
   }
 
-  // Don't stack the library on top — user must see Theme Settings first.
-  closeSectionPicker(win);
+  closeChromeDesignsPanel(win);
   openGlobalsPanel(win, set);
   showGlobalsPanel(win);
   activateGlobalsTab(win, kind === 'footer' ? 'Footer' : 'Header');
@@ -7598,8 +7714,8 @@ function setChromeStyle(win, kind, style, attempt = 0) {
   const set = sets.find((candidate) => candidate.handle === handle);
   const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
-  // Library alone isn't enough — style changes must hit the theme_settings form
-  // so the globals stash + preview refresh run. Keep the form mounted (may be hidden).
+  // Designs panel alone isn't enough — style changes must hit the theme_settings
+  // form so the globals stash + preview refresh run. Keep the form mounted (hidden).
   if (!frame?.contentWindow) {
     if (set) {
       openGlobalsPanel(win, set, { keepLibrary: true });
@@ -7630,8 +7746,8 @@ function setChromeStyle(win, kind, style, attempt = 0) {
     }, 250 * (attempt + 1));
   }
 
-  // Mark the chosen card in the open library.
-  const panel = win.document.getElementById(SECTION_PICKER_ID);
+  // Mark the chosen card in the open designs panel.
+  const panel = win.document.getElementById(CHROME_DESIGNS_ID);
 
   panel?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
     const on = el.getAttribute('data-sve-chrome-style') === style;
