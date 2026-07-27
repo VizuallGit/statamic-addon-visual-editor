@@ -3290,6 +3290,10 @@ function openSectionPicker(win, options = {}) {
     active = next;
     group = null;
     renderActive();
+
+    const activeBtn = tabsEl.querySelector(`[data-tab="${next}"]`);
+
+    activeBtn?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   });
 
   renderActive();
@@ -6094,7 +6098,10 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'open-chrome') {
       handleOpenChrome(data, doc, win);
     } else if (data.type === 'open-chrome-designs') {
+      // Only switch/open the library tab — never reload the globals iframe here
+      // (that was causing Chrome's "Leave site?" when the form was dirty).
       openSectionPicker(win, { tab: data.kind === 'footer' ? 'footer' : 'header' });
+      activateGlobalsTab(win, data.kind === 'footer' ? 'Footer' : 'Header');
     } else if (data.type === 'close-chrome') {
       // Keep the globals panel — user may still want it; only leave chrome focus.
     } else if (data.type === 'save-chrome') {
@@ -7148,6 +7155,14 @@ function openGlobalsPanel(win, set, options = {}) {
     if (frame && title) {
       title.textContent = set.title;
       frame.title = set.title;
+
+      // Same set already loaded: do NOT location.replace — a dirty form inside
+      // the iframe triggers Chrome's "Leave site?" dialog and blocks the editor.
+      if (existing.getAttribute('data-sve-globals-handle') === set.handle) {
+        return;
+      }
+
+      existing.setAttribute('data-sve-globals-handle', set.handle);
       frame.contentWindow.location.replace(globalsPanelUrl(win, set));
 
       return;
@@ -7164,6 +7179,7 @@ function openGlobalsPanel(win, set, options = {}) {
   const panel = doc.createElement('div');
 
   panel.id = GLOBALS_PANEL_ID;
+  panel.setAttribute('data-sve-globals-handle', set.handle);
   panel.style.cssText =
     `position:fixed;top:${top}px;right:0;bottom:0;width:${globalsPanelWidth(win)}px;z-index:40;` +
     'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
@@ -7376,6 +7392,13 @@ function initGlobalsPanelFrame(win) {
 
   hideChrome();
   new win.MutationObserver(hideChrome).observe(doc.documentElement, { childList: true, subtree: true });
+
+  // Style picks / tab jumps must not trip "Leave site?" from Statamic's dirty check.
+  try {
+    win.Statamic?.$dirty?.disableWarning?.();
+  } catch {
+    /* ignore */
+  }
 
   // Statamic's own Save button lives in the page header the panel strips away.
   // It still works — it just can't be seen — so the panel's Save clicks it, and
