@@ -2727,6 +2727,8 @@ function showGlobalsPanel(win) {
   claimLivePreviewEditor(win);
   mountInLivePreviewEditor(win, panel);
   panel.style.display = 'flex';
+  panel.style.visibility = '';
+  panel.style.pointerEvents = '';
   panel.removeAttribute('data-sve-chrome-hidden');
 
   const designs = win.document.getElementById(CHROME_DESIGNS_ID);
@@ -4326,6 +4328,7 @@ export function ensureLpPanelToggle(win) {
     // The floating back pill lives on document.body (outside Vue), so it must be
     // removed explicitly — otherwise it survives into the ordinary CP dashboard.
     lpCollapsed = null;
+    chromePrefetchArmed = false;
     clearSolo(doc);
     closeRightPanels(win);
     removeLpBackButton(doc);
@@ -4342,6 +4345,12 @@ export function ensureLpPanelToggle(win) {
   // mode on every Vue re-render slams it shut again a moment later.
   if (forcePanelOpen) {
     lpCollapsed = false;
+  }
+
+  // Prefetch Theme Settings once LP is up — first header/footer click stays instant.
+  if (!chromePrefetchArmed) {
+    chromePrefetchArmed = true;
+    scheduleChromeGlobalsPrefetch(win);
   }
 
   let icon = doc.getElementById(LP_TOGGLE_ID);
@@ -7130,6 +7139,11 @@ function closeGlobalsPanel(win) {
     })
     .catch(() => {})
     .then(() => refreshPreview(win, false));
+
+  // Warm the next open so footer/header clicks stay instant after close.
+  if (lpHeader(win.document)) {
+    scheduleChromeGlobalsPrefetch(win);
+  }
 }
 
 const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
@@ -7222,10 +7236,45 @@ function globalsPanelUrl(win, set) {
   return url.toString();
 }
 
+/** Once per Live Preview open — idle-load Theme Settings so the first chrome click is instant. */
+let chromePrefetchArmed = false;
+
+function scheduleChromeGlobalsPrefetch(win) {
+  const run = () => prefetchChromeGlobals(win);
+
+  if (typeof win.requestIdleCallback === 'function') {
+    win.requestIdleCallback(run, { timeout: 1200 });
+  } else {
+    win.setTimeout(run, 400);
+  }
+}
+
+/**
+ * Background-load theme_settings into a hidden iframe. Page sections feel instant
+ * because their form is already mounted; chrome needs the same head start.
+ */
+function prefetchChromeGlobals(win) {
+  const doc = win.document;
+
+  if (!lpHeader(doc) || doc.getElementById(GLOBALS_PANEL_ID)) {
+    return;
+  }
+
+  const handle = chromeGlobalHandle(win);
+  const set = globalSets(win).find((candidate) => candidate.handle === handle);
+
+  if (!set) {
+    return;
+  }
+
+  openGlobalsPanel(win, set, { prefetch: true });
+}
+
 function openGlobalsPanel(win, set, options = {}) {
   const doc = win.document;
   const existing = doc.getElementById(GLOBALS_PANEL_ID);
   const keepLibrary = options.keepLibrary === true;
+  const prefetch = options.prefetch === true;
 
   // Switching sets reuses the panel rather than replacing it. Tearing an iframe
   // out of the page discards its session-history entries, and the browser then
@@ -7233,6 +7282,10 @@ function openGlobalsPanel(win, set, options = {}) {
   // window. In the front-end edit overlay that reads as "the user pressed Back",
   // and the whole editor closes a few seconds after you pick a second global set.
   if (existing) {
+    if (prefetch) {
+      return;
+    }
+
     const frame = existing.querySelector('iframe');
     const title = existing.querySelector('[data-sve-globals-title]');
 
@@ -7258,18 +7311,20 @@ function openGlobalsPanel(win, set, options = {}) {
 
   // Theme Settings fills the shared LP editor. Keep the right sections library
   // and/or designs overlay when a chrome style write needs the form mounted.
-  closeRightPanels(
-    win,
-    keepLibrary
-      ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
-      : [GLOBALS_PANEL_ID, SECTION_PICKER_ID]
-  );
+  if (!prefetch) {
+    closeRightPanels(
+      win,
+      keepLibrary
+        ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
+        : [GLOBALS_PANEL_ID, SECTION_PICKER_ID]
+    );
+  }
 
   const panel = doc.createElement('div');
 
   panel.id = GLOBALS_PANEL_ID;
   panel.setAttribute('data-sve-globals-handle', set.handle);
-  panel.style.cssText = editorOverlayCss();
+  panel.setAttribute('data-sve-chrome-hidden', '1');
 
   const bar = doc.createElement('div');
 
@@ -7337,8 +7392,21 @@ function openGlobalsPanel(win, set, options = {}) {
 
   panel.appendChild(bar);
   panel.appendChild(frame);
-  mountInLivePreviewEditor(win, panel);
-  syncPreviewInset(win);
+
+  if (prefetch) {
+    // Keep display:flex off-screen so the iframe actually boots (display:none
+    // often skips loading). Hidden from layout via data-sve-chrome-hidden.
+    panel.style.cssText =
+      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
+      'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
+      'background:var(--theme-color-content-bg,#fff);';
+    doc.body.appendChild(panel);
+  } else {
+    panel.style.cssText = editorOverlayCss();
+    panel.removeAttribute('data-sve-chrome-hidden');
+    mountInLivePreviewEditor(win, panel);
+    syncPreviewInset(win);
+  }
 }
 
 /** The global-set picker, sat beside the panel-mode buttons in the LP header. */
