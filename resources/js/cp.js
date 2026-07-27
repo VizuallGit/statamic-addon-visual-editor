@@ -2799,7 +2799,9 @@ function borrowLeftEdge(win) {
 function releaseLeftEdgeIfFree(win) {
   const doc = win.document;
 
-  if (doc.getElementById(GLOBALS_PANEL_ID) || doc.getElementById(CHROME_DESIGNS_ID)) {
+  // Hidden Theme Settings still exists in the DOM — only visible left docks
+  // should keep the default editor collapsed.
+  if (dockedPanelWidth(doc, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]) > 0) {
     return;
   }
 
@@ -2813,6 +2815,16 @@ function releaseLeftEdgeIfFree(win) {
   if (lpMode(win) === 'show') {
     setLpCollapsed(win, false);
   }
+}
+
+/**
+ * Leave header/footer chrome so a page section can own the left edge.
+ * Hides Theme Settings (keeps the form/stash mounted) and drops Designs.
+ */
+function dismissChromeForPageEdit(win) {
+  win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
+  hideGlobalsPanel(win);
+  releaseLeftEdgeIfFree(win);
 }
 
 /** Visible width of the widest panel in `ids` (0 if none). */
@@ -3722,6 +3734,8 @@ export function handleSectionSettings(data, doc, win) {
     return;
   }
 
+  dismissChromeForPageEdit(win);
+
   // Expand ONCE. Expanding is a toggle and Vue applies it asynchronously, so a
   // second nudge while the first is still pending closes the set right back up.
   [...collectAncestorSets(setEl), setEl].forEach(expandSet);
@@ -4175,6 +4189,12 @@ function activateSectionsTab(win) {
 export function soloSection(uid, doc, win) {
   if (!uid || !findSetByUid(uid, doc)) {
     return false;
+  }
+
+  // Page section owns the left edge — hide Theme Settings / Designs so they
+  // don't stack beside (or pad) the solo editor.
+  if (win) {
+    dismissChromeForPageEdit(win);
   }
 
   soloUid = uid;
@@ -6089,7 +6109,9 @@ export function createMessageListener(doc = document, win = window) {
       showGlobalsPanel(win);
       activateGlobalsTab(win, data.kind === 'footer' ? 'Footer' : 'Header');
     } else if (data.type === 'close-chrome') {
-      closeChromeDesignsPanel(win);
+      // Stepping out of header/footer (e.g. clicking a page section): free the
+      // left edge so the section editor isn't stacked under Theme Settings.
+      dismissChromeForPageEdit(win);
     } else if (data.type === 'save-chrome') {
       doc
         .getElementById(GLOBALS_PANEL_ID)
