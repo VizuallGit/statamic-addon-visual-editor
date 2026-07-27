@@ -2803,6 +2803,13 @@ function releaseLeftEdgeIfFree(win) {
     return;
   }
 
+  // Outside Live Preview, ensureLpPanelToggle tears panels down via
+  // closeRightPanels — never reopen the editor from here or we recurse until
+  // the CP blanks out (stack overflow).
+  if (!lpHeader(doc)) {
+    return;
+  }
+
   if (lpMode(win) === 'show') {
     setLpCollapsed(win, false);
   }
