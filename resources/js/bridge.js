@@ -280,6 +280,62 @@ export function injectStyles(doc) {
         [data-sve-global]:not([data-sve-global-focused]) [data-sid-label]::after {
             display: none !important;
         }
+        /* Site chrome (header / footer): same "step inside" feel as global
+           sections — click once to focus, the rest of the page fades, then you
+           edit widgets / pick a design from the library. */
+        [data-sve-chrome] {
+            position: relative;
+        }
+        [data-sve-chrome]::before {
+            content: attr(data-sve-chrome-label);
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: #0f766e;
+            color: #fff;
+            font: 500 10px/1 sans-serif;
+            padding: 4px 8px;
+            border-radius: 0 0 4px 0;
+            z-index: 9998;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        [data-sve-chrome]:hover::before,
+        [data-sve-chrome][data-sve-chrome-focused]::before {
+            opacity: 1;
+        }
+        [data-sve-chrome]:not([data-sve-chrome-focused]):hover {
+            outline: 2px dashed #0f766e;
+            outline-offset: -2px;
+            cursor: pointer;
+        }
+        html.sve-chrome-focus [data-sve-chrome]:not([data-sve-chrome-focused]),
+        html.sve-chrome-focus main,
+        html.sve-chrome-focus [data-sve-global] {
+            opacity: 0.25;
+            filter: saturate(0.4);
+            transition: opacity 0.2s ease, filter 0.2s ease;
+            pointer-events: none;
+        }
+        [data-sve-chrome-focused] {
+            outline: 3px solid #0f766e !important;
+            outline-offset: -3px;
+            position: relative;
+            z-index: 2;
+        }
+        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid],
+        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-field],
+        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-global],
+        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-inner],
+        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-hover],
+        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-active] {
+            outline-color: transparent !important;
+            cursor: pointer !important;
+        }
+        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-label]::after {
+            display: none !important;
+        }
         .sve-cp-pulse {
             animation: sve-cp-pulse 0.4s ease-out;
         }
@@ -1388,6 +1444,7 @@ function enterGlobalFocus(win, section, reopen = true) {
     return;
   }
 
+  exitChromeFocus(win, false);
   exitGlobalFocus(win, false);
 
   const doc = win.document;
@@ -1449,6 +1506,110 @@ function enterGlobalFocus(win, section, reopen = true) {
       { source: 'statamic-visual-editor', type: 'open-global-section', id: section.getAttribute(GLOBAL_ATTR) },
       win.location.origin
     );
+  }
+}
+
+// --- Site chrome (header / footer) ----------------------------------------------
+//
+// Same focus UX as global sections, but the content lives in a global set
+// (theme_settings by default). Stepping in fades the page, opens that global in
+// the side panel, and switches the library to Header/Footer design cards.
+
+const CHROME_ATTR = 'data-sve-chrome';
+const CHROME_FOCUS_ATTR = 'data-sve-chrome-focused';
+const CHROME_BAR_ID = '__sve-chrome-bar';
+
+let chromeFocusEl = null;
+let chromeFocusKind = null;
+
+function exitChromeFocus(win, closePanel = true) {
+  const doc = win.document;
+  const wasFocused = !!chromeFocusEl;
+
+  doc.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(CHROME_FOCUS_ATTR));
+  doc.documentElement.classList.remove('sve-chrome-focus');
+  doc.getElementById(CHROME_BAR_ID)?.remove();
+  chromeFocusEl = null;
+  chromeFocusKind = null;
+
+  if (wasFocused && closePanel) {
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'close-chrome' }, win.location.origin);
+  }
+}
+
+/**
+ * Steps into header/footer: fade the rest of the page and open theme settings.
+ * `reopen: false` keeps the panel after a morph (same idea as enterGlobalFocus).
+ */
+function enterChromeFocus(win, el, reopen = true) {
+  if (chromeFocusEl === el) {
+    return;
+  }
+
+  // Can't be in both at once.
+  exitGlobalFocus(win, false);
+  exitChromeFocus(win, false);
+
+  const doc = win.document;
+  const kind = el.getAttribute(CHROME_ATTR) || 'header';
+
+  el.setAttribute(CHROME_FOCUS_ATTR, '');
+  doc.documentElement.classList.add('sve-chrome-focus');
+  chromeFocusEl = el;
+  chromeFocusKind = kind;
+
+  const bar = doc.createElement('div');
+
+  bar.id = CHROME_BAR_ID;
+  bar.style.cssText =
+    'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483646;' +
+    'display:flex;align-items:center;gap:12px;background:#1f2937;color:#fff;' +
+    'padding:8px 10px 8px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.4);' +
+    'font:500 13px/1.3 sans-serif;user-select:none;';
+
+  const text = doc.createElement('span');
+
+  text.style.cssText = 'opacity:.9;';
+  text.innerHTML = t('chrome_bar', {
+    chrome: `<b style="color:#5eead4;">${t(kind === 'footer' ? 'chrome_footer' : 'chrome_header')}</b>`,
+  });
+  bar.appendChild(text);
+
+  const barButton = (label, background) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.cssText =
+      'all:unset;cursor:pointer;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;' +
+      `background:${background};color:#fff;`;
+    bar.appendChild(btn);
+
+    return btn;
+  };
+
+  barButton(t('chrome_designs'), '#0f766e').addEventListener('click', (event) => {
+    event.stopPropagation();
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'open-chrome-designs', kind },
+      win.location.origin
+    );
+  });
+
+  barButton(t('save'), '#0f766e').addEventListener('click', (event) => {
+    event.stopPropagation();
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'save-chrome' }, win.location.origin);
+  });
+
+  barButton(t('close'), 'rgba(255,255,255,.12)').addEventListener('click', (event) => {
+    event.stopPropagation();
+    exitChromeFocus(win);
+  });
+
+  doc.documentElement.appendChild(bar);
+
+  if (reopen) {
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'open-chrome', kind }, win.location.origin);
   }
 }
 
@@ -3170,6 +3331,27 @@ export function createClickHandler(win) {
       return;
     }
 
+    // The chrome (header/footer) bar owns its own clicks.
+    if (event.target.closest(`#${CHROME_BAR_ID}`)) {
+      return;
+    }
+
+    // First click on header/footer steps into chrome focus (page fades). Once
+    // inside, nested clicks edit normally; clicking outside steps back out.
+    const chromeEl = event.target.closest(`[${CHROME_ATTR}]`);
+
+    if (chromeEl) {
+      if (chromeFocusEl !== chromeEl) {
+        event.preventDefault();
+        event.stopPropagation();
+        enterChromeFocus(win, chromeEl);
+
+        return;
+      }
+    } else if (chromeFocusEl) {
+      exitChromeFocus(win);
+    }
+
     // First click on a global section steps into it: the page fades back and its
     // own editor opens beside you. Once you're in, clicks behave normally again —
     // so the text edits inline exactly like the page's own. Clicking outside
@@ -3810,8 +3992,10 @@ export function initBridge(win = window) {
     // the focus back on the same section — every keystroke in it re-renders the
     // page, so dropping the focus here would throw you out of it as you type.
     const focusedId = globalFocusId;
+    const focusedChrome = chromeFocusKind;
 
     exitGlobalFocus(win, false);
+    exitChromeFocus(win, false);
     tagGlobalSections(win);
 
     if (focusedId) {
@@ -3820,15 +4004,25 @@ export function initBridge(win = window) {
       if (again) {
         enterGlobalFocus(win, again, false);
       }
+    } else if (focusedChrome) {
+      const again = win.document.querySelector(`[${CHROME_ATTR}="${focusedChrome}"]`);
+
+      if (again) {
+        enterChromeFocus(win, again, false);
+      }
     }
 
     setupInserters(win); // fresh blocks after the morph
   });
 
-  // Escape steps back out of a global section.
+  // Escape steps back out of a global section or chrome focus.
   win.document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && globalFocusEl && !editing) {
-      exitGlobalFocus(win);
+    if (event.key === 'Escape' && !editing) {
+      if (chromeFocusEl) {
+        exitChromeFocus(win);
+      } else if (globalFocusEl) {
+        exitGlobalFocus(win);
+      }
     }
   });
 

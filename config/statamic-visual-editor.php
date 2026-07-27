@@ -112,4 +112,35 @@ return [
         'collection' => 'saved_templates',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Site chrome (header / footer)
+    |--------------------------------------------------------------------------
+    |
+    | Live Preview treats header & footer like "step into" components (same feel
+    | as global sections). Designs are selected from the section library's
+    | Header/Footer tabs; content still lives in a global set so it can also be
+    | edited from Theme Settings without Live Preview.
+    |
+    | - global: the global set handle (default: theme_settings)
+    | - *.styles: selectable layouts (handle matches Antlers partial name)
+    |
+    */
+    'chrome' => [
+        'global' => 'theme_settings',
+        'header' => [
+            'styles' => [
+                ['handle' => 'style_1', 'label' => 'Classic — logo · nav · CTA'],
+                ['handle' => 'style_2', 'label' => 'Centered — logo over nav'],
+            ],
+        ],
+        'footer' => [
+            'styles' => [
+                ['handle' => 'style_1', 'label' => 'Row — widgets in one band'],
+                ['handle' => 'style_2', 'label' => 'Centered — stacked'],
+                ['handle' => 'style_3', 'label' => 'Columns — brand · nav · form'],
+            ],
+        ],
+    ],
+
 ];

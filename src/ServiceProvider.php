@@ -115,6 +115,7 @@ class ServiceProvider extends AddonServiceProvider
                 'sveSectionField' => config('statamic-visual-editor.previews.field', 'page_sections'),
                 'sveSavedSectionsCollection' => config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
                 'sveGlobalSectionSet' => config('statamic-visual-editor.saved_sections.set', 'global_section'),
+                'sveChrome' => config('statamic-visual-editor.chrome', []),
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
                 'sveCollections' => $this->pickerCollections(),

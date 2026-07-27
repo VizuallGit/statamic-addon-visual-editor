@@ -2806,10 +2806,19 @@ function libraryMatchesQuery(item, query) {
 }
 
 /** Opens/creates the docked section library. Toggles closed if already open. */
-function openSectionPicker(win) {
+function openSectionPicker(win, options = {}) {
   const doc = win.document;
+  const initialTab = options.tab || null;
 
   if (doc.getElementById(SECTION_PICKER_ID)) {
+    if (initialTab) {
+      doc.getElementById(SECTION_PICKER_ID).dispatchEvent(
+        new CustomEvent('sve-set-tab', { detail: { tab: initialTab } })
+      );
+
+      return;
+    }
+
     closeSectionPicker(win);
 
     return;
@@ -2835,7 +2844,7 @@ function openSectionPicker(win) {
       <div style="font-size:14px;font-weight:600;">${t(win, 'sections')}</div>
       <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
     </div>
-    <div style="padding:6px 10px;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
+    <div data-sve-hint style="padding:6px 10px;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
     <div data-sve-tabs style="display:flex;gap:3px;padding:2px 12px 0;flex:0 0 auto;"></div>
     <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
       <input data-sve-search type="search" autocomplete="off" placeholder="${t(win, 'library_search_placeholder')}"
@@ -2876,12 +2885,26 @@ function openSectionPicker(win) {
     { key: 'custom', label: t(win, 'tab_custom') },
     { key: 'global', label: t(win, 'tab_global') },
     { key: 'template', label: t(win, 'tab_templates') },
+    { key: 'header', label: t(win, 'tab_header') },
+    { key: 'footer', label: t(win, 'tab_footer') },
   ];
-  let active = 'page';
+  let active = initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : 'page';
   let saved = null;
   let templates = null;
   let query = '';
   let group = null; // null = all groups
+
+  const chromeConfig = () => {
+    const cfg = win.Statamic?.$config?.get?.('sveChrome');
+
+    return cfg && typeof cfg === 'object' ? cfg : {};
+  };
+
+  const chromeStyles = (kind) => {
+    const list = chromeConfig()[kind]?.styles;
+
+    return Array.isArray(list) ? list : [];
+  };
 
   // Natural-height preview cards in a CSS-columns masonry grid. The image sets
   // the card height (no fixed crop); break-inside keeps a card in one column.
@@ -3080,6 +3103,59 @@ function openSectionPicker(win) {
     );
   };
 
+  // Design cards for header/footer — click to select (no drag). Writes into the
+  // open theme_settings panel so the live globals stash re-renders the preview.
+  const renderChrome = (kind) => {
+    gridEl.innerHTML = '';
+
+    const hint = doc.createElement('div');
+
+    hint.style.cssText = 'padding:4px 2px 14px;font-size:11px;opacity:.6;column-span:all;break-inside:avoid;';
+    hint.textContent = t(win, 'chrome_library_hint');
+    gridEl.appendChild(hint);
+
+    const styles = chromeStyles(kind);
+
+    if (!styles.length) {
+      gridEl.appendChild(empty(t(win, 'chrome_no_styles')));
+
+      return;
+    }
+
+    const filtered = styles.filter((item) => libraryMatchesQuery(item, query));
+
+    if (!filtered.length) {
+      gridEl.appendChild(empty(t(win, 'library_no_matches')));
+
+      return;
+    }
+
+    filtered.forEach((item) => {
+      const el = doc.createElement('div');
+      const title = item.label || item.handle;
+      const imageUrl = item.preview_url || item.image || '';
+
+      el.style.cssText =
+        'cursor:pointer;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
+        'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
+        'user-select:none;vertical-align:top;';
+      el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
+      el.addEventListener('mouseleave', () => (el.style.borderColor = 'rgba(128,128,128,.25)'));
+      el.innerHTML = `
+        <div style="width:100%;background:rgba(128,128,128,.12);pointer-events:none;">
+          ${
+            imageUrl
+              ? `<img src="${imageUrl}" alt="" style="width:100%;height:auto;display:block;">`
+              : `<div style="width:100%;aspect-ratio:16/5;min-height:56px;display:flex;align-items:center;justify-content:center;opacity:.45;font-size:12px;">${title}</div>`
+          }
+        </div>
+        <div style="padding:8px 10px;font-size:12px;font-weight:500;pointer-events:none;">${title}</div>
+      `;
+      el.addEventListener('click', () => setChromeStyle(win, kind, item.handle));
+      gridEl.appendChild(el);
+    });
+  };
+
   const renderActive = () => {
     tabsEl.querySelectorAll('button').forEach((b) => {
       const on = b.dataset.tab === active;
@@ -3089,7 +3165,27 @@ function openSectionPicker(win) {
       b.style.opacity = on ? '1' : '.7';
     });
 
+    const hintEl = panel.querySelector('[data-sve-hint]');
+
+    if (hintEl) {
+      hintEl.textContent =
+        active === 'header' || active === 'footer' ? t(win, 'chrome_library_hint') : t(win, 'library_hint');
+    }
+
+    if (searchEl) {
+      searchEl.placeholder =
+        active === 'header' || active === 'footer'
+          ? t(win, 'chrome_search_placeholder')
+          : t(win, 'library_search_placeholder');
+    }
+
     renderGroups();
+
+    if (active === 'header' || active === 'footer') {
+      renderChrome(active);
+
+      return;
+    }
 
     if (active === 'page') {
       renderPage();
@@ -3166,6 +3262,18 @@ function openSectionPicker(win) {
       renderActive();
     });
     tabsEl.appendChild(b);
+  });
+
+  panel.addEventListener('sve-set-tab', (event) => {
+    const next = event.detail?.tab;
+
+    if (!next || !tabs.some((tab) => tab.key === next)) {
+      return;
+    }
+
+    active = next;
+    group = null;
+    renderActive();
   });
 
   renderActive();
@@ -5967,6 +6075,20 @@ export function createMessageListener(doc = document, win = window) {
       handleColumnWidth(data, doc);
     } else if (data.type === 'open-global') {
       handleOpenGlobal(data, doc, win);
+    } else if (data.type === 'open-chrome') {
+      handleOpenChrome(data, doc, win);
+    } else if (data.type === 'open-chrome-designs') {
+      openSectionPicker(win, { tab: data.kind === 'footer' ? 'footer' : 'header' });
+    } else if (data.type === 'close-chrome') {
+      // Keep the globals panel — user may still want it; only leave chrome focus.
+    } else if (data.type === 'save-chrome') {
+      doc
+        .getElementById(GLOBALS_PANEL_ID)
+        ?.querySelector('iframe')
+        ?.contentWindow?.postMessage(
+          { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+          win.location.origin
+        );
     } else if (data.type === 'add-row') {
       handleAddRow(data, doc, win);
     } else if (data.type === 'add-block-native') {
@@ -7339,6 +7461,78 @@ export function handleOpenGlobal(data, doc, win) {
 
   if (field) {
     focusGlobalField(win, field);
+  }
+}
+
+/** theme_settings (or configured) global used for header/footer chrome. */
+function chromeGlobalHandle(win) {
+  return win.Statamic?.$config?.get?.('sveChrome')?.global || 'theme_settings';
+}
+
+/**
+ * Clicking the site header/footer in Live Preview: open theme settings beside
+ * the preview, jump to the Header/Footer tab, and show design cards in the library.
+ */
+export function handleOpenChrome(data, doc, win) {
+  const kind = data.kind === 'footer' ? 'footer' : 'header';
+  const handle = chromeGlobalHandle(win);
+  const sets = globalSets(win);
+  const set = sets.find((candidate) => candidate.handle === handle);
+
+  if (!set) {
+    return;
+  }
+
+  const picker = doc.getElementById(GLOBALS_PICKER_ID);
+
+  if (picker) {
+    picker.value = set.handle;
+  }
+
+  openGlobalsPanel(win, set);
+  openSectionPicker(win, { tab: kind });
+  activateGlobalsTab(win, kind === 'footer' ? 'Footer' : 'Header');
+}
+
+/** Writes header.style / footer.style into the open globals panel form. */
+function setChromeStyle(win, kind, style) {
+  const path = `${kind}.style`;
+  const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
+
+  if (!frame?.contentWindow) {
+    // Panel not open yet — open chrome first, then retry briefly.
+    handleOpenChrome({ kind }, win.document, win);
+    setTimeout(() => setChromeStyle(win, kind, style), 400);
+
+    return;
+  }
+
+  frame.contentWindow.postMessage(
+    { source: 'statamic-visual-editor', type: 'sve-section-set-value', path, value: style },
+    win.location.origin
+  );
+}
+
+/** Clicks the Header/Footer publish tab inside the globals panel iframe. */
+function activateGlobalsTab(win, label, attempts = 0) {
+  const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
+  const inner = frame?.contentDocument;
+  const needle = String(label || '').toLowerCase();
+
+  const tab = [...(inner?.querySelectorAll('button, [role="tab"], a') || [])].find((el) => {
+    const text = (el.textContent || '').trim().toLowerCase();
+
+    return text === needle || text.startsWith(needle);
+  });
+
+  if (tab) {
+    tab.click();
+
+    return;
+  }
+
+  if (attempts < 40) {
+    setTimeout(() => activateGlobalsTab(win, label, attempts + 1), 150);
   }
 }
 
