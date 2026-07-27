@@ -2704,23 +2704,23 @@ function closeSectionPicker(win) {
 }
 
 /**
- * Only one right-hand panel at a time.
- *
- * They all dock to the same edge, so two open at once means one is hidden behind
- * the other — and the preview holding room for a panel you can't see. Opening any
- * of them closes the rest; `keep` is the one being opened. Called with nothing to
- * close them all, which is what leaving Live Preview does.
+ * Right-hand panels dock to the same edge. Opening one usually closes the rest;
+ * `keep` is the id (or list of ids) to leave open. Chrome editing keeps the
+ * section library AND the theme_settings panel together. Called with nothing to
+ * close them all (leaving Live Preview).
  */
 function closeRightPanels(win, keep = null) {
-  if (keep !== SECTION_PICKER_ID) {
+  const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
+
+  if (!keepIds.includes(SECTION_PICKER_ID)) {
     closeSectionPicker(win);
   }
 
-  if (keep !== GLOBALS_PANEL_ID) {
+  if (!keepIds.includes(GLOBALS_PANEL_ID)) {
     closeGlobalsPanel(win);
   }
 
-  if (keep !== GLOBAL_SECTION_PANEL_ID) {
+  if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID)) {
     closeGlobalSectionPanel(win);
   }
 }
@@ -2824,7 +2824,12 @@ function openSectionPicker(win, options = {}) {
     return;
   }
 
-  closeRightPanels(win, SECTION_PICKER_ID);
+  closeRightPanels(
+    win,
+    initialTab === 'header' || initialTab === 'footer'
+      ? [SECTION_PICKER_ID, GLOBALS_PANEL_ID]
+      : SECTION_PICKER_ID
+  );
 
   const header = lpHeader(doc);
   const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
@@ -3135,12 +3140,23 @@ function openSectionPicker(win, options = {}) {
       const title = item.label || item.handle;
       const imageUrl = item.preview_url || item.image || '';
 
+      el.setAttribute('data-sve-chrome-style', item.handle);
       el.style.cssText =
         'cursor:pointer;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
-        'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
+        'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s,box-shadow .12s;' +
         'user-select:none;vertical-align:top;';
-      el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
-      el.addEventListener('mouseleave', () => (el.style.borderColor = 'rgba(128,128,128,.25)'));
+      el.addEventListener('mouseenter', () => {
+        if (el.getAttribute('data-sve-chrome-style') !== el.dataset.sveSelected) {
+          el.style.borderColor = 'var(--theme-color-primary,#4f46e5)';
+        }
+      });
+      el.addEventListener('mouseleave', () => {
+        const on = el.style.boxShadow && el.style.boxShadow !== 'none';
+
+        if (!on) {
+          el.style.borderColor = 'rgba(128,128,128,.25)';
+        }
+      });
       el.innerHTML = `
         <div style="width:100%;background:rgba(128,128,128,.12);pointer-events:none;">
           ${
@@ -7115,9 +7131,10 @@ function globalsPanelUrl(win, set) {
   return url.toString();
 }
 
-function openGlobalsPanel(win, set) {
+function openGlobalsPanel(win, set, options = {}) {
   const doc = win.document;
   const existing = doc.getElementById(GLOBALS_PANEL_ID);
+  const keepLibrary = options.keepLibrary === true;
 
   // Switching sets reuses the panel rather than replacing it. Tearing an iframe
   // out of the page discards its session-history entries, and the browser then
@@ -7139,7 +7156,7 @@ function openGlobalsPanel(win, set) {
     existing.remove();
   }
 
-  closeRightPanels(win, GLOBALS_PANEL_ID);
+  closeRightPanels(win, keepLibrary ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID] : GLOBALS_PANEL_ID);
 
   const header = lpHeader(doc);
   const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
@@ -7385,6 +7402,29 @@ function initGlobalsPanelFrame(win) {
       return;
     }
 
+    // Header/footer design picker: merge `style` into the header/footer group so
+    // widgets and settings aren't wiped (setFieldValue('header.style') is flaky
+    // on group fields — replacing the whole group is reliable).
+    if (event.data.type === 'sve-chrome-set-style') {
+      const kind = event.data.kind === 'footer' ? 'footer' : 'header';
+      const style = event.data.style;
+
+      for (const container of activeContainers(doc)) {
+        const values = unwrapRef(container.values) || {};
+        const current = values[kind];
+        const group =
+          current && typeof current === 'object' && !Array.isArray(current)
+            ? { ...current, style }
+            : { style };
+
+        container.setFieldValue(kind, group);
+
+        return;
+      }
+
+      return;
+    }
+
     if (event.data.type !== 'sve-globals-save') {
       return;
     }
@@ -7489,28 +7529,58 @@ export function handleOpenChrome(data, doc, win) {
     picker.value = set.handle;
   }
 
-  openGlobalsPanel(win, set);
+  openGlobalsPanel(win, set, { keepLibrary: true });
   openSectionPicker(win, { tab: kind });
   activateGlobalsTab(win, kind === 'footer' ? 'Footer' : 'Header');
 }
 
 /** Writes header.style / footer.style into the open globals panel form. */
-function setChromeStyle(win, kind, style) {
-  const path = `${kind}.style`;
+function setChromeStyle(win, kind, style, attempt = 0) {
+  const handle = chromeGlobalHandle(win);
+  const sets = globalSets(win);
+  const set = sets.find((candidate) => candidate.handle === handle);
   const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
+  // Library alone isn't enough — style changes must hit the theme_settings form
+  // so the globals stash + preview refresh run. Keep both panels open.
   if (!frame?.contentWindow) {
-    // Panel not open yet — open chrome first, then retry briefly.
-    handleOpenChrome({ kind }, win.document, win);
-    setTimeout(() => setChromeStyle(win, kind, style), 400);
+    if (set) {
+      openGlobalsPanel(win, set, { keepLibrary: true });
+    }
+
+    if (attempt < 25) {
+      setTimeout(() => setChromeStyle(win, kind, style, attempt + 1), 200);
+    }
 
     return;
   }
 
   frame.contentWindow.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-section-set-value', path, value: style },
+    { source: 'statamic-visual-editor', type: 'sve-chrome-set-style', kind, style },
     win.location.origin
   );
+
+  // Form may still be mounting — retry a few times.
+  if (attempt < 15) {
+    setTimeout(() => {
+      const again = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
+
+      again?.contentWindow?.postMessage(
+        { source: 'statamic-visual-editor', type: 'sve-chrome-set-style', kind, style },
+        win.location.origin
+      );
+    }, 250 * (attempt + 1));
+  }
+
+  // Mark the chosen card in the open library.
+  const panel = win.document.getElementById(SECTION_PICKER_ID);
+
+  panel?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
+    const on = el.getAttribute('data-sve-chrome-style') === style;
+
+    el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
+    el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
+  });
 }
 
 /** Clicks the Header/Footer publish tab inside the globals panel iframe. */
