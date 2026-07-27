@@ -2724,15 +2724,24 @@ function showGlobalsPanel(win) {
     return;
   }
 
+  claimLivePreviewEditor(win);
+  mountInLivePreviewEditor(win, panel);
   panel.style.display = 'flex';
   panel.removeAttribute('data-sve-chrome-hidden');
-  borrowLeftEdge(win);
+
+  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
+
+  if (designs) {
+    designs.style.display = 'none';
+    designs.setAttribute('data-sve-chrome-hidden', '1');
+  }
+
   syncPreviewInset(win);
 }
 
 /**
  * Docked panels: sections library stays on the RIGHT; Theme Settings / chrome
- * designs dock on the LEFT (with the page content editor). `keep` is id(s) to
+ * designs mount INSIDE the shared left Live Preview editor. `keep` is id(s) to
  * leave open. Called with nothing to close them all (leaving Live Preview).
  */
 function closeRightPanels(win, keep = null) {
@@ -2756,8 +2765,9 @@ function closeRightPanels(win, keep = null) {
 }
 
 /**
- * Push the preview away from open docked panels — left for Theme Settings /
- * chrome designs, right for the section library.
+ * Push the preview away from the RIGHT section library only. Theme Settings /
+ * Designs share `.live-preview-editor` with page sections — same width, no
+ * extra padding-left (that was the flicker/grey gap).
  */
 function syncPreviewInset(win) {
   const doc = win.document;
@@ -2768,63 +2778,119 @@ function syncPreviewInset(win) {
   }
 
   const right = dockedPanelWidth(doc, [SECTION_PICKER_ID, GLOBAL_SECTION_PANEL_ID]);
-  const left = dockedPanelWidth(doc, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]);
 
-  el.style.transition = 'padding-right .2s ease, padding-left .2s ease';
+  el.style.transition = 'padding-right .2s ease';
   el.style.paddingRight = right ? `${right}px` : '';
-  el.style.paddingLeft = left ? `${left}px` : '';
+  el.style.paddingLeft = '';
 
   positionLpBackButton(win);
 }
 
+function livePreviewEditorEl(doc) {
+  return doc.querySelector('.live-preview-editor');
+}
+
+/** Absolute fill of the shared LP editor pane (Hero / Theme Settings / Designs). */
+function editorOverlayCss() {
+  return (
+    'position:absolute;inset:0;width:auto;height:auto;z-index:50;' +
+    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
+    'color:currentColor;border:0;box-shadow:none;font-family:ui-sans-serif,system-ui,sans-serif;'
+  );
+}
+
 /**
- * Theme Settings / chrome designs dock on the LEFT — the same edge as
- * Statamic's `.live-preview-editor`. If that pane stays open, the preview gets
- * editor-width + our padding-left (big grey gap) and the two panels stack.
- * Collapse the default editor while a left-docked panel owns the edge.
+ * Open Statamic's left Live Preview editor and keep it open. Chrome UI mounts
+ * inside it so switching footer ↔ hero never changes sidebar width.
  */
-function borrowLeftEdge(win) {
-  forcePanelOpen = false;
+function claimLivePreviewEditor(win) {
   clearSolo(win.document);
 
   if (headerTab === 'settings') {
     setHeaderTab(win, null);
   }
 
-  setLpCollapsed(win, true);
+  forcePanelOpen = true;
+  setLpCollapsed(win, false);
   applyHeaderTab(win);
+
+  const editor = livePreviewEditorEl(win.document);
+
+  if (editor && win.getComputedStyle(editor).position === 'static') {
+    editor.style.position = 'relative';
+  }
 }
 
-/** After left docked panels close, put Show-mode editor back if that was active. */
+/** @deprecated name — now claims the shared LP editor instead of collapsing it. */
+function borrowLeftEdge(win) {
+  claimLivePreviewEditor(win);
+}
+
+function mountInLivePreviewEditor(win, panel) {
+  claimLivePreviewEditor(win);
+
+  const doc = win.document;
+  const editor = livePreviewEditorEl(doc);
+  const visible = panel.style.display !== 'none';
+
+  panel.style.cssText = editorOverlayCss();
+  panel.style.display = visible ? 'flex' : 'none';
+
+  if (!editor) {
+    doc.body.appendChild(panel);
+    win.setTimeout(() => {
+      const again = livePreviewEditorEl(doc);
+
+      if (again && panel.isConnected && panel.parentElement !== again) {
+        if (win.getComputedStyle(again).position === 'static') {
+          again.style.position = 'relative';
+        }
+
+        again.appendChild(panel);
+        syncPreviewInset(win);
+      }
+    }, 80);
+
+    return;
+  }
+
+  if (panel.parentElement !== editor) {
+    editor.appendChild(panel);
+  }
+}
+
+/** After chrome overlays close, follow LP mode — unless a solo section needs the pane. */
 function releaseLeftEdgeIfFree(win) {
   const doc = win.document;
 
-  // Hidden Theme Settings still exists in the DOM — only visible left docks
-  // should keep the default editor collapsed.
   if (dockedPanelWidth(doc, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]) > 0) {
     return;
   }
 
-  // Outside Live Preview, ensureLpPanelToggle tears panels down via
-  // closeRightPanels — never reopen the editor from here or we recurse until
-  // the CP blanks out (stack overflow).
+  forcePanelOpen = false;
+
   if (!lpHeader(doc)) {
     return;
   }
 
-  if (lpMode(win) === 'show') {
+  if (soloUid) {
     setLpCollapsed(win, false);
+
+    return;
   }
+
+  setLpCollapsed(win, lpMode(win) !== 'show');
 }
 
 /**
- * Leave header/footer chrome so a page section can own the left edge.
- * Hides Theme Settings (keeps the form/stash mounted) and drops Designs.
+ * Leave header/footer chrome so a page section can use the same left editor.
+ * Hides Theme Settings (keeps form/stash); does not collapse the pane (no flicker).
  */
 function dismissChromeForPageEdit(win) {
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
   hideGlobalsPanel(win);
-  releaseLeftEdgeIfFree(win);
+  forcePanelOpen = false;
+  syncPreviewInset(win);
 }
 
 /** Visible width of the widest panel in `ids` (0 if none). */
@@ -7173,7 +7239,6 @@ function openGlobalsPanel(win, set, options = {}) {
     if (frame && title) {
       title.textContent = set.title;
       frame.title = set.title;
-      borrowLeftEdge(win);
       showGlobalsPanel(win);
 
       // Same set already loaded: do NOT location.replace — a dirty form inside
@@ -7191,30 +7256,20 @@ function openGlobalsPanel(win, set, options = {}) {
     existing.remove();
   }
 
-  // Theme Settings docks LEFT. Keep the right sections library and/or left
-  // designs panel when a chrome style write needs the form mounted underneath.
+  // Theme Settings fills the shared LP editor. Keep the right sections library
+  // and/or designs overlay when a chrome style write needs the form mounted.
   closeRightPanels(
     win,
     keepLibrary
       ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
       : [GLOBALS_PANEL_ID, SECTION_PICKER_ID]
   );
-  borrowLeftEdge(win);
-
-  const header = lpHeader(doc);
-  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
 
   const panel = doc.createElement('div');
 
   panel.id = GLOBALS_PANEL_ID;
   panel.setAttribute('data-sve-globals-handle', set.handle);
-  // LEFT dock — same side as the page content editor.
-  panel.style.cssText =
-    `position:fixed;top:${top}px;left:0;bottom:0;width:${globalsPanelWidth(win)}px;z-index:40;` +
-    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
-    'border-right:1px solid rgba(128,128,128,.28);box-shadow:8px 0 24px rgba(0,0,0,.18);';
-
-  panel.appendChild(panelResizer(win, panel, { side: 'left' }));
+  panel.style.cssText = editorOverlayCss();
 
   const bar = doc.createElement('div');
 
@@ -7282,7 +7337,7 @@ function openGlobalsPanel(win, set, options = {}) {
 
   panel.appendChild(bar);
   panel.appendChild(frame);
-  doc.body.appendChild(panel);
+  mountInLivePreviewEditor(win, panel);
   syncPreviewInset(win);
 }
 
@@ -7581,9 +7636,8 @@ function closeChromeDesignsPanel(win) {
 }
 
 /**
- * Left-docked design picker for header/footer — same edge as Theme Settings
- * (not the sections library on the right). Hides Theme Settings while open so
- * the two don't stack; the form stays mounted for style writes.
+ * Design picker for header/footer — same shared LP editor as Theme Settings /
+ * page sections. Hides Theme Settings while open; form stays mounted for writes.
  */
 function openChromeDesignsPanel(win, kind) {
   const doc = win.document;
@@ -7594,7 +7648,9 @@ function openChromeDesignsPanel(win, kind) {
     existing.setAttribute('data-sve-chrome-kind', chromeKind);
     existing.dispatchEvent(new CustomEvent('sve-chrome-render'));
     hideGlobalsPanel(win);
-    borrowLeftEdge(win);
+    existing.style.display = 'flex';
+    existing.removeAttribute('data-sve-chrome-hidden');
+    mountInLivePreviewEditor(win, existing);
     syncPreviewInset(win);
 
     return;
@@ -7603,21 +7659,12 @@ function openChromeDesignsPanel(win, kind) {
   // Keep Theme Settings mounted (hidden) + sections library if open on the right.
   closeRightPanels(win, [CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, SECTION_PICKER_ID]);
   hideGlobalsPanel(win);
-  borrowLeftEdge(win);
-
-  const header = lpHeader(doc);
-  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
-  const width = globalsPanelWidth(win);
 
   const panel = doc.createElement('div');
 
   panel.id = CHROME_DESIGNS_ID;
   panel.setAttribute('data-sve-chrome-kind', chromeKind);
-  panel.style.cssText =
-    `position:fixed;top:${top}px;left:0;bottom:0;width:${width}px;z-index:40;` +
-    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-right:1px solid rgba(128,128,128,.28);box-shadow:8px 0 24px rgba(0,0,0,.18);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;';
+  panel.style.cssText = editorOverlayCss();
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
@@ -7634,7 +7681,7 @@ function openChromeDesignsPanel(win, kind) {
   `;
 
   const applyLayout = () => {
-    const w = panel.getBoundingClientRect().width || width;
+    const w = panel.getBoundingClientRect().width || 400;
     const cols = w >= 720 ? 3 : w >= 480 ? 2 : 1;
     const grid = panel.querySelector('[data-sve-grid]');
 
@@ -7643,10 +7690,18 @@ function openChromeDesignsPanel(win, kind) {
     }
   };
 
-  panel.appendChild(panelResizer(win, panel, { side: 'left', onResize: applyLayout }));
-  doc.body.appendChild(panel);
+  mountInLivePreviewEditor(win, panel);
   applyLayout();
   syncPreviewInset(win);
+
+  // Recalc columns when the shared editor is resized.
+  try {
+    const ro = new win.ResizeObserver(() => applyLayout());
+
+    ro.observe(panel);
+  } catch {
+    /* older browsers */
+  }
 
   const titleEl = panel.querySelector('[data-sve-title]');
   const hintEl = panel.querySelector('[data-sve-hint]');
