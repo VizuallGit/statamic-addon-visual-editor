@@ -2708,11 +2708,15 @@ function closeSectionPicker(win) {
 function hideGlobalsPanel(win) {
   const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
-  if (panel) {
-    panel.style.display = 'none';
-    panel.setAttribute('data-sve-chrome-hidden', '1');
+  if (!panel) {
+    return;
   }
 
+  panel.style.cssText =
+    'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
+    'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
+    'background:var(--theme-color-content-bg,#fff);';
+  panel.setAttribute('data-sve-chrome-hidden', '1');
   syncPreviewInset(win);
 }
 
@@ -2725,16 +2729,16 @@ function showGlobalsPanel(win) {
   }
 
   claimLivePreviewEditor(win);
-  mountInLivePreviewEditor(win, panel);
-  panel.style.display = 'flex';
-  panel.style.visibility = '';
-  panel.style.pointerEvents = '';
+  // Never reparent the iframe — moving it in the DOM reloads it and refreshes
+  // the Live Preview. Keep it on document.body and pin it over the editor.
+  pinGlobalsPanelToEditor(win, panel);
   panel.removeAttribute('data-sve-chrome-hidden');
 
   const designs = win.document.getElementById(CHROME_DESIGNS_ID);
 
   if (designs) {
-    designs.style.display = 'none';
+    designs.style.cssText =
+      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
     designs.setAttribute('data-sve-chrome-hidden', '1');
   }
 
@@ -2794,7 +2798,68 @@ function livePreviewEditorEl(doc) {
   return doc.querySelector('.live-preview-editor');
 }
 
-/** Absolute fill of the shared LP editor pane (Hero / Theme Settings / Designs). */
+/**
+ * Pin a panel over `.live-preview-editor` with position:fixed.
+ * Stays on document.body — reparenting an iframe reloads it (preview flicker).
+ */
+function pinGlobalsPanelToEditor(win, panel) {
+  claimLivePreviewEditor(win);
+
+  const doc = win.document;
+  const editor = livePreviewEditorEl(doc);
+
+  if (!editor) {
+    if (panel.parentElement !== doc.body) {
+      doc.body.appendChild(panel);
+    }
+
+    panel.style.cssText =
+      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
+      'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
+      'background:var(--theme-color-content-bg,#fff);';
+
+    return;
+  }
+
+  if (panel.parentElement !== doc.body) {
+    doc.body.appendChild(panel);
+  }
+
+  const place = () => {
+    const el = livePreviewEditorEl(doc);
+
+    if (!el || panel.hasAttribute('data-sve-chrome-hidden')) {
+      return;
+    }
+
+    const rect = el.getBoundingClientRect();
+
+    panel.style.cssText =
+      `position:fixed;top:${Math.round(rect.top)}px;left:${Math.round(rect.left)}px;` +
+      `width:${Math.round(rect.width)}px;height:${Math.round(rect.height)}px;z-index:50;` +
+      'display:flex;flex-direction:column;visibility:visible;pointer-events:auto;' +
+      'background:var(--theme-color-content-bg,#fff);color:currentColor;border:0;box-shadow:none;' +
+      'font-family:ui-sans-serif,system-ui,sans-serif;';
+  };
+
+  place();
+
+  if (!panel._svePinBound) {
+    panel._svePinBound = true;
+    win.addEventListener('resize', place);
+
+    try {
+      const ro = new win.ResizeObserver(place);
+
+      ro.observe(editor);
+      panel._svePinRo = ro;
+    } catch {
+      /* older browsers */
+    }
+  }
+}
+
+/** Absolute fill CSS — only for designs cards that are not an iframe form. */
 function editorOverlayCss() {
   return (
     'position:absolute;inset:0;width:auto;height:auto;z-index:50;' +
@@ -2830,32 +2895,25 @@ function borrowLeftEdge(win) {
   claimLivePreviewEditor(win);
 }
 
+/** Designs panel (no iframe) can still mount inside the editor. */
 function mountInLivePreviewEditor(win, panel) {
   claimLivePreviewEditor(win);
 
   const doc = win.document;
   const editor = livePreviewEditorEl(doc);
-  const visible = panel.style.display !== 'none';
+  const visible = panel.style.display !== 'none' && !panel.hasAttribute('data-sve-chrome-hidden');
 
   panel.style.cssText = editorOverlayCss();
   panel.style.display = visible ? 'flex' : 'none';
 
   if (!editor) {
     doc.body.appendChild(panel);
-    win.setTimeout(() => {
-      const again = livePreviewEditorEl(doc);
-
-      if (again && panel.isConnected && panel.parentElement !== again) {
-        if (win.getComputedStyle(again).position === 'static') {
-          again.style.position = 'relative';
-        }
-
-        again.appendChild(panel);
-        syncPreviewInset(win);
-      }
-    }, 80);
 
     return;
+  }
+
+  if (win.getComputedStyle(editor).position === 'static') {
+    editor.style.position = 'relative';
   }
 
   if (panel.parentElement !== editor) {
@@ -7115,6 +7173,7 @@ function postGlobals(win, handle, values) {
   clearTimeout(globalsSaveTimer);
 
   globalsSaveTimer = setTimeout(() => {
+    globalsStashActive = true;
     win
       .fetch('/!/sve/globals-preview', {
         method: 'POST',
@@ -7133,6 +7192,34 @@ function postGlobals(win, handle, values) {
   }, GLOBALS_DEBOUNCE);
 }
 
+/** True after we've pushed unsaved globals into the preview stash. */
+let globalsStashActive = false;
+
+function clearGlobalsStash(win, { refresh = true } = {}) {
+  if (!globalsStashActive) {
+    if (refresh) {
+      // Nothing stashed — don't bounce the preview.
+    }
+
+    return Promise.resolve();
+  }
+
+  globalsStashActive = false;
+
+  return win
+    .fetch('/!/sve/globals-preview/clear', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .catch(() => {})
+    .then(() => {
+      if (refresh) {
+        refreshPreview(win, false);
+      }
+    });
+}
+
 function closeGlobalsPanel(win) {
   const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
@@ -7140,19 +7227,11 @@ function closeGlobalsPanel(win) {
     return;
   }
 
+  panel._svePinRo?.disconnect?.();
   panel.remove();
   releaseLeftEdgeIfFree(win);
   syncPreviewInset(win);
-
-  // Drop the stash and put the saved globals back in the preview.
-  win
-    .fetch('/!/sve/globals-preview/clear', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .catch(() => {})
-    .then(() => refreshPreview(win, false));
+  clearGlobalsStash(win, { refresh: true });
 
   // Warm the next open so footer/header clicks stay instant after close.
   scheduleChromeGlobalsPrefetch(win);
@@ -7160,8 +7239,7 @@ function closeGlobalsPanel(win) {
 
 /**
  * Keep the Theme Settings iframe mounted (off-screen) so the next open is
- * instant — same idea as page sections already living in the LP editor DOM.
- * Clears the preview stash but does not tear down the form.
+ * instant. Only refreshes the preview if we had actually stashed edits.
  */
 function parkGlobalsPanel(win) {
   const doc = win.document;
@@ -7178,15 +7256,7 @@ function parkGlobalsPanel(win) {
   panel.setAttribute('data-sve-chrome-hidden', '1');
   forcePanelOpen = false;
   syncPreviewInset(win);
-
-  win
-    .fetch('/!/sve/globals-preview/clear', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .catch(() => {})
-    .then(() => refreshPreview(win, false));
+  clearGlobalsStash(win, { refresh: true });
 }
 
 const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
@@ -7437,18 +7507,19 @@ function openGlobalsPanel(win, set, options = {}) {
   panel.appendChild(bar);
   panel.appendChild(frame);
 
+  // Always keep the panel on document.body. Reparenting the iframe reloads it
+  // and refreshes the Live Preview — that was the visible "loading" flicker.
+  doc.body.appendChild(panel);
+
   if (prefetch) {
-    // Keep display:flex off-screen so the iframe actually boots (display:none
-    // often skips loading). Hidden from layout via data-sve-chrome-hidden.
     panel.style.cssText =
       'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
       'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
       'background:var(--theme-color-content-bg,#fff);';
-    doc.body.appendChild(panel);
+    panel.setAttribute('data-sve-chrome-hidden', '1');
   } else {
-    panel.style.cssText = editorOverlayCss();
     panel.removeAttribute('data-sve-chrome-hidden');
-    mountInLivePreviewEditor(win, panel);
+    pinGlobalsPanelToEditor(win, panel);
     syncPreviewInset(win);
   }
 }
@@ -7543,23 +7614,27 @@ function initGlobalsPanelFrame(win) {
   const style = doc.createElement('style');
 
   style.textContent = `
-    body {
+    html, body {
       background: transparent !important;
       margin: 0 !important;
       padding: 0 !important;
+      height: 100% !important;
     }
     [data-sve-panel-hide] {
       display: none !important;
       height: 0 !important;
+      max-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
       overflow: hidden !important;
       border: 0 !important;
+      min-height: 0 !important;
     }
-    /* Tabs should sit tight under the outer SVE panel bar (~1rem). */
+    /* Tabs tight under the outer SVE bar (~0.75–1rem). */
     main {
       margin: 0 !important;
-      padding-block-start: 0.75rem !important;
+      padding-block: 0.75rem 0 !important;
+      padding-inline: 0 !important;
     }
     main > *:first-child {
       margin-block-start: 0 !important;
@@ -7568,8 +7643,8 @@ function initGlobalsPanelFrame(win) {
     [role="tablist"],
     nav[role="tablist"],
     .tabs {
-      margin-block-start: 0 !important;
-      padding-block-start: 0 !important;
+      margin-block: 0 !important;
+      padding-block: 0 !important;
     }
   `;
   doc.head.appendChild(style);
@@ -7713,6 +7788,7 @@ function initGlobalsPanelFrame(win) {
 
   const handle = win.location.pathname.split('/').filter(Boolean).pop();
   let previous = null;
+  let seeded = false;
 
   // Polled rather than watched: the container's `values` is a Vue ref, and a
   // 200ms compare is both cheaper and far more robust than reaching into Vue's
@@ -7728,6 +7804,15 @@ function initGlobalsPanelFrame(win) {
       const serialized = JSON.stringify(values);
 
       if (serialized === previous) {
+        return;
+      }
+
+      // First snapshot is the saved form — do NOT push it to the parent. That
+      // was refreshing the Live Preview every time the panel (re)loaded.
+      if (!seeded) {
+        previous = serialized;
+        seeded = true;
+
         return;
       }
 
