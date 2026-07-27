@@ -56,27 +56,18 @@ export function normText(s) {
  * inaccessible (cross-origin guard) or the variables are not defined.
  */
 export function injectCpVariables(doc, win) {
-  // Thin (1px) preview outlines, intentionally fixed rather than inherited from
-  // the CP's --focus-outline-width — the in-preview highlight should stay subtle.
-  const outlineWidth = '2px';
-  // Opacity applied to outline colors so the highlight reads as a gentle hint
-  // rather than an aggressive solid border. Tweak here to make it lighter/darker.
-  const outlineOpacity = '60%';
-  let focusColor = 'currentColor';
-  let hoverColor = '#9CA3AF';
-
-  try {
-    const cpStyle = getComputedStyle(win.parent.document.documentElement);
-    focusColor = cpStyle.getPropertyValue('--focus-outline-color').trim() || focusColor;
-    hoverColor = cpStyle.getPropertyValue('--theme-color-gray-400').trim() || hoverColor;
-  } catch {
-    // cross-origin or CP not accessible — use defaults
-  }
+  // Thin dashed outline. Per-element --sve-outline-color is set from background
+  // luminance (black 30% on light, white 30% on dark). Fallback assumes light.
+  // Dash/gap are custom (CSS outline can't control them) — painted via ::before.
+  const outlineWidth = '1px';
+  const outlineColor = 'rgba(0, 0, 0, 0.3)';
 
   doc.documentElement.style.setProperty('--sve-outline-width', outlineWidth);
-  doc.documentElement.style.setProperty('--sve-outline-opacity', outlineOpacity);
-  doc.documentElement.style.setProperty('--sve-focus-color', focusColor);
-  doc.documentElement.style.setProperty('--sve-hover-color', hoverColor);
+  doc.documentElement.style.setProperty('--sve-outline-color', outlineColor);
+  doc.documentElement.style.setProperty('--sve-dash', '8px');
+  doc.documentElement.style.setProperty('--sve-gap', '6px');
+  doc.documentElement.style.setProperty('--sve-focus-color', outlineColor);
+  doc.documentElement.style.setProperty('--sve-hover-color', outlineColor);
 }
 
 export function injectStyles(doc) {
@@ -130,47 +121,76 @@ export function injectStyles(doc) {
             animation: none !important;
             list-style: none !important;
         }
-        .${MOUSE_ACTIVE_CLASS} [data-sid], .${MOUSE_ACTIVE_CLASS} [data-sid-field], .${MOUSE_ACTIVE_CLASS} [data-sid-global] {
-            outline-color: color-mix(in srgb, var(--sve-hover-color, #9CA3AF) var(--sve-outline-opacity, 55%), transparent);
-        }
         [data-sid-global] {
-            outline-width: var(--sve-outline-width, 1px);
-            outline-style: dashed;
-            outline-color: transparent;
-            outline-offset: 2px;
-            transition: outline-color 0.15s ease;
+            outline: none;
         }
+        /* Custom dashed ring — CSS outline/border can't control dash length.
+           ::before (not ::after: labels use ::after) paints wider dashes + gaps. */
         [data-sid-inner],
-        [data-sid-hover] {
-            outline-width: var(--sve-outline-width, 1px) !important;
-            outline-style: dashed !important;
-            outline-color: color-mix(in srgb, var(--sve-focus-color, currentColor) var(--sve-outline-opacity, 55%), transparent) !important;
-            outline-offset: 2px;
+        [data-sid-hover],
+        [data-sid-active],
+        [${EDITING_ATTR}] {
+            outline: none !important;
+            box-shadow: none !important;
         }
-        [data-sid-active] {
-            outline-width: var(--sve-outline-width, 1px) !important;
-            outline-style: solid !important;
-            outline-color: color-mix(in srgb, var(--sve-focus-color, currentColor) var(--sve-outline-opacity, 55%), transparent) !important;
-            outline-offset: 2px;
+        [data-sid-inner]::before,
+        [data-sid-hover]::before,
+        [data-sid-active]::before,
+        [${EDITING_ATTR}]::before {
+            content: '';
+            position: absolute;
+            inset: -6px;
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 9998;
+            box-sizing: border-box;
+            background:
+                repeating-linear-gradient(
+                    90deg,
+                    var(--sve-outline-color, rgba(0, 0, 0, 0.3)) 0 var(--sve-dash, 8px),
+                    transparent var(--sve-dash, 8px) calc(var(--sve-dash, 8px) + var(--sve-gap, 6px))
+                ) top left / 100% var(--sve-outline-width, 1px) no-repeat,
+                repeating-linear-gradient(
+                    90deg,
+                    var(--sve-outline-color, rgba(0, 0, 0, 0.3)) 0 var(--sve-dash, 8px),
+                    transparent var(--sve-dash, 8px) calc(var(--sve-dash, 8px) + var(--sve-gap, 6px))
+                ) bottom left / 100% var(--sve-outline-width, 1px) no-repeat,
+                repeating-linear-gradient(
+                    180deg,
+                    var(--sve-outline-color, rgba(0, 0, 0, 0.3)) 0 var(--sve-dash, 8px),
+                    transparent var(--sve-dash, 8px) calc(var(--sve-dash, 8px) + var(--sve-gap, 6px))
+                ) top left / var(--sve-outline-width, 1px) 100% no-repeat,
+                repeating-linear-gradient(
+                    180deg,
+                    var(--sve-outline-color, rgba(0, 0, 0, 0.3)) 0 var(--sve-dash, 8px),
+                    transparent var(--sve-dash, 8px) calc(var(--sve-dash, 8px) + var(--sve-gap, 6px))
+                ) top right / var(--sve-outline-width, 1px) 100% no-repeat;
+        }
+        /* Hovering a different field than the clicked/focused one: hide every
+           other ring (active + CP hover) so only the hovered field is outlined. */
+        html.sve-outline-hover-override [data-sid-active]:not([data-sid-inner])::before,
+        html.sve-outline-hover-override [data-sid-hover]:not([data-sid-inner])::before {
+            opacity: 0 !important;
+            background: none !important;
         }
         [${EDITING_ATTR}] {
-            outline-width: var(--sve-outline-width, 1px) !important;
-            outline-style: dashed !important;
-            outline-color: color-mix(in srgb, var(--sve-focus-color, currentColor) var(--sve-outline-opacity, 55%), transparent) !important;
-            outline-offset: 4px;
             cursor: text !important;
+            opacity: 1 !important;
         }
-        [${EDITING_ATTR}]:focus {
-            /* suppress the site's own focus ring so only the edit outline shows */
-            box-shadow: none;
+        [data-sid-inline-edit]:has([${EDITING_ATTR}]) {
+            opacity: 1 !important;
         }
-        [data-sid-inside] {
-            outline-offset: -2px;
+        [${EDITING_ATTR}]:focus,
+        [data-sid]:focus,
+        [data-sid-field]:focus,
+        [data-sid-global]:focus {
+            outline: none !important;
+            box-shadow: none !important;
         }
-        [data-sid-inside][data-sid-inner],
-        [data-sid-inside][data-sid-hover],
-        [data-sid-inside][data-sid-active] {
-            outline-offset: -2px !important;
+        [data-sid-inside][data-sid-inner]::before,
+        [data-sid-inside][data-sid-hover]::before,
+        [data-sid-inside][data-sid-active]::before {
+            inset: 1px;
         }
         [data-sid-inside][data-sid-label]::after {
             top: -4px;
@@ -185,7 +205,7 @@ export function injectStyles(doc) {
             top: -8px;
             left: calc(-2px - var(--sve-outline-width, 0));
             transform: translateY(calc(-100%));
-            background: var(--sve-focus-color, currentColor);
+            background: var(--sve-outline-color, rgba(0, 0, 0, 0.3));
             color: #fff;
             font-size: 10px;
             font-family: sans-serif;
@@ -245,9 +265,9 @@ export function injectStyles(doc) {
             outline-offset: -3px;
         }
         /* Before you step in, a global section reads as ONE thing you click into,
-           not a pile of separately editable fields — so the per-field outlines
-           (from the mouse-active rule above) stay hidden. Once focused they come
-           back, because from then on it edits exactly like the page's own. */
+           not a pile of separately editable fields — so nested field outlines
+           stay hidden. Once focused they come back, because from then on it
+           edits exactly like the page's own. */
         [data-sve-global]:not([data-sve-global-focused]) [data-sid],
         [data-sve-global]:not([data-sve-global-focused]) [data-sid-field],
         [data-sve-global]:not([data-sve-global-focused]) [data-sid-global],
@@ -740,6 +760,7 @@ function swapEditingElementTag(win, session, tagName) {
 
   neo.innerHTML = old.innerHTML;
   neo.setAttribute(EDITING_ATTR, '');
+  applyOutlineTone(win, neo);
   neo.contentEditable = old.contentEditable;
 
   old.removeEventListener('input', session.onInput);
@@ -1050,6 +1071,21 @@ const ICONS = {
   bookmark: SVG(
     '0 0 24 24',
     '<path fill="currentColor" d="M17 3H7a2 2 0 0 0-2 2v15a1 1 0 0 0 1.55.83L12 17.2l5.45 3.63A1 1 0 0 0 19 20V5a2 2 0 0 0-2-2Z"/>',
+    14
+  ),
+  hide: SVG(
+    '0 0 24 24',
+    '<path fill="currentColor" d="M12 5c-5 0-9.3 3.1-11 7.5C2.7 16.9 7 20 12 20s9.3-3.1 11-7.5C21.3 8.1 17 5 12 5Zm0 12.5A5 5 0 1 1 12 7.5a5 5 0 0 1 0 10Zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm-9.5 9.4 16-16 1.4 1.4-16 16-1.4-1.4Z"/>',
+    14
+  ),
+  duplicate: SVG(
+    '0 0 24 24',
+    '<path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z"/>',
+    14
+  ),
+  trash: SVG(
+    '0 0 24 24',
+    '<path fill="currentColor" d="M6 7h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7Zm3-4h6l1 1h4v2H4V4h4l1-1Zm1 6v9h2V9H10Zm4 0v9h2V9h-2Z"/>',
     14
   ),
 };
@@ -1467,6 +1503,12 @@ function hideMoveControl(win) {
   moveCtrlRowButtons = null;
 }
 
+// Block action bar (hide/dup/delete) placement.
+// - 'left-vertical'     → vertical stack on the left (right if no room)  [current]
+// - 'above-horizontal'  → horizontal strip just above the field         [previous,
+//                         restore this if the left layout feels worse]
+const BLOCK_CTRL_LAYOUT = 'above-horizontal';
+
 function positionMoveControl(win) {
   if (!moveCtrlEl || !moveTargetEl || !moveTargetEl.isConnected) {
     return;
@@ -1475,29 +1517,112 @@ function positionMoveControl(win) {
   const rect = moveTargetEl.getBoundingClientRect();
   const height = moveCtrlEl.offsetHeight || 32;
   const width = moveCtrlEl.offsetWidth || 32;
+  const isSection = moveTargetEl.hasAttribute(SECTION_ORDERABLE_ATTR);
+  const gap = 8;
+  const margin = 8;
 
-  // Small elements (buttons, grid rows): center the control above the element
-  // so it never covers the content. Tall sections: pin to the top-right corner.
-  if (rect.height < 140) {
-    let top = rect.top - height - 6;
-
-    if (top < 8) {
-      top = rect.bottom + 6;
-    }
-
-    moveCtrlEl.style.top = `${top}px`;
-    moveCtrlEl.style.left = `${Math.max(rect.left + (rect.width - width) / 2, 8)}px`;
-  } else {
+  // Page sections keep the original top-right pin so ↑/↓ stay reachable.
+  if (isSection) {
     const left = Math.max(rect.right - width - 10, 10);
-    // The CP's back pill floats in this same corner. Where the control would sit
-    // under it, start below it instead — the two mustn't stack.
     const clash = pillBox && left + width > pillBox.left;
     const min = clash ? pillBox.bottom + 8 : 10;
     const top = Math.min(Math.max(rect.top + 10, min), Math.max(rect.bottom - height - 10, min));
 
     moveCtrlEl.style.top = `${top}px`;
     moveCtrlEl.style.left = `${left}px`;
+
+    return;
   }
+
+  const layout = moveCtrlEl.dataset.sveLayout || BLOCK_CTRL_LAYOUT;
+
+  // Previous layout — horizontal strip above the field (kept for easy restore).
+  if (layout === 'above-horizontal') {
+    let top = rect.top - height - gap;
+
+    if (top < margin) {
+      top = rect.bottom + gap;
+    }
+
+    const left = Math.max(margin, Math.min(rect.left, win.innerWidth - width - margin));
+
+    moveCtrlEl.style.top = `${top}px`;
+    moveCtrlEl.style.left = `${left}px`;
+
+    return;
+  }
+
+  // left-vertical: prefer left of the item; fall back to the right.
+  // Vertically center on the item (not pinned to top/bottom).
+  let left = rect.left - width - gap;
+
+  if (left < margin) {
+    left = rect.right + gap;
+
+    if (left + width > win.innerWidth - margin) {
+      left = Math.max(margin, win.innerWidth - width - margin);
+    }
+  }
+
+  let top = rect.top + (rect.height - height) / 2;
+
+  if (top + height > win.innerHeight - margin) {
+    top = Math.max(margin, win.innerHeight - height - margin);
+  }
+
+  if (top < margin) {
+    top = margin;
+  }
+
+  if (pillBox && left + width > pillBox.left && top < pillBox.bottom + 8) {
+    top = Math.max(top, pillBox.bottom + 8);
+  }
+
+  moveCtrlEl.style.top = `${top}px`;
+  moveCtrlEl.style.left = `${left}px`;
+}
+
+/** True when the pointer is in the gap between the control and its target. */
+function pointerInMoveControlGap(event) {
+  if (!moveCtrlEl || !moveTargetEl) {
+    return false;
+  }
+
+  if (moveCtrlEl.contains(event.target) || moveTargetEl.contains(event.target)) {
+    return true;
+  }
+
+  const x = event.clientX;
+  const y = event.clientY;
+  const cr = moveCtrlEl.getBoundingClientRect();
+  const tr = moveTargetEl.getBoundingClientRect();
+  const pad = 6;
+  const vTop = Math.min(cr.top, tr.top) - pad;
+  const vBottom = Math.max(cr.bottom, tr.bottom) + pad;
+  const hLeft = Math.min(cr.left, tr.left) - pad;
+  const hRight = Math.max(cr.right, tr.right) + pad;
+
+  // Control to the left of the target
+  if (cr.right <= tr.left + pad) {
+    return x >= cr.right - pad && x <= tr.left + pad && y >= vTop && y <= vBottom;
+  }
+
+  // Control to the right of the target
+  if (cr.left >= tr.right - pad) {
+    return x >= tr.right - pad && x <= cr.left + pad && y >= vTop && y <= vBottom;
+  }
+
+  // Control above the target
+  if (cr.bottom <= tr.top + pad) {
+    return x >= hLeft && x <= hRight && y >= cr.bottom - pad && y <= tr.top + pad;
+  }
+
+  // Control below the target
+  if (cr.top >= tr.bottom - pad) {
+    return x >= hLeft && x <= hRight && y >= tr.bottom - pad && y <= cr.top + pad;
+  }
+
+  return false;
 }
 
 /** True when el's siblings flow horizontally (flex-row parent). */
@@ -1830,6 +1955,60 @@ function solidBackgroundFor(win, el) {
   }
 
   return '#ffffff';
+}
+
+/** Parse `rgb()`, `rgba()` or hex into `{r,g,b}` (0–255). */
+function parseCssColor(colour) {
+  if (!colour || typeof colour !== 'string') {
+    return null;
+  }
+
+  const hex = colour.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+
+  if (hex) {
+    let h = hex[1];
+
+    if (h.length === 3) {
+      h = h.split('').map((c) => c + c).join('');
+    }
+
+    return {
+      r: parseInt(h.slice(0, 2), 16),
+      g: parseInt(h.slice(2, 4), 16),
+      b: parseInt(h.slice(4, 6), 16),
+    };
+  }
+
+  const rgb = colour.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+
+  if (rgb) {
+    return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
+  }
+
+  return null;
+}
+
+/**
+ * Outline that contrasts with the element's background: black @ 30% on light,
+ * white @ 30% on dark. Applied as a local --sve-outline-color on the element.
+ */
+function applyOutlineTone(win, el) {
+  if (!el) {
+    return;
+  }
+
+  const parsed = parseCssColor(solidBackgroundFor(win, el));
+  const luminance = parsed
+    ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
+    : 1;
+  const color = luminance < 0.45 ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)';
+
+  el.style.setProperty('--sve-outline-color', color);
+
+  // ::before dash ring needs a positioning context; don't override absolute/fixed.
+  if (win.getComputedStyle(el).position === 'static') {
+    el.style.position = 'relative';
+  }
 }
 
 /**
@@ -2245,13 +2424,20 @@ function showMoveControl(win, moveEl) {
     }
   }
 
-  // Orderable rows: add one after this, or remove this one.
+  // Orderable rows: add/remove, or for replicator blocks inside an insertable
+  // container — hide / duplicate / delete (matching the CP set header actions).
   if (isRow) {
-    const rowButton = (glyph, title, type, style = '') => {
+    const rowButton = (glyphOrHtml, title, type, style = '', asHtml = false) => {
       const btn = doc.createElement('button');
 
       btn.type = 'button';
-      btn.textContent = glyph;
+
+      if (asHtml) {
+        btn.innerHTML = glyphOrHtml;
+      } else {
+        btn.textContent = glyphOrHtml;
+      }
+
       btn.title = title;
       btn.style.cssText =
         'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
@@ -2283,13 +2469,32 @@ function showMoveControl(win, moveEl) {
       return btn;
     };
 
-    const addBtn = rowButton('+', t('add_another'), 'add-row');
-    const removeBtn = rowButton('−', t('remove_this'), 'remove-row', 'color:#fca5a5;');
+    // Direct child of an insertable replicator → full set actions (hide/dup/delete).
+    const isBlockSet = moveEl.parentElement?.hasAttribute(INSERT_ATTR);
 
-    // Ask the CP whether this field is at its min/max, and grey out the button
-    // that would break the limit. Async: the reply arrives via row-caps-result.
-    moveCtrlRowButtons = { uid, addBtn, removeBtn };
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+    if (isBlockSet) {
+      // Layout switch: see BLOCK_CTRL_LAYOUT at the top of this file.
+      if (BLOCK_CTRL_LAYOUT === 'above-horizontal') {
+        ctrl.style.flexDirection = 'row';
+        ctrl.dataset.sveLayout = 'above-horizontal';
+      } else {
+        ctrl.style.flexDirection = 'column';
+        ctrl.dataset.sveLayout = 'left-vertical';
+      }
+
+      rowButton(ICONS.hide, t('hide_this'), 'hide-row', '', true);
+      const dupBtn = rowButton(ICONS.duplicate, t('duplicate_this'), 'duplicate-row', '', true);
+      const removeBtn = rowButton(ICONS.trash, t('remove_this'), 'remove-row', 'color:#fca5a5;', true);
+
+      moveCtrlRowButtons = { uid, addBtn: dupBtn, removeBtn };
+      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+    } else {
+      const addBtn = rowButton('+', t('add_another'), 'add-row');
+      const removeBtn = rowButton('−', t('remove_this'), 'remove-row', 'color:#fca5a5;');
+
+      moveCtrlRowButtons = { uid, addBtn, removeBtn };
+      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+    }
   }
 
   // Gear — opens the section's own settings popup (spacing, colours, …), the
@@ -2420,13 +2625,12 @@ function showMoveControl(win, moveEl) {
   // off the row, and the cursor has to cross that gap to reach it — but in the
   // gap `event.target` is neither the row nor the control, so the hover handler
   // would switch to the section's control and this one would vanish before it's
-  // reached. Two transparent strips, just above and below the control and part
-  // of it, keep `moveCtrlEl.contains(target)` true right across the gap so the
-  // control stays put whichever side it's placed on.
+  // reached. Tall transparent strips (plus geometric hit-testing in
+  // pointerInMoveControlZone) keep the control reachable.
   ['top:100%', 'bottom:100%'].forEach((edge) => {
     const bridge = doc.createElement('div');
 
-    bridge.style.cssText = `position:absolute;left:-8px;right:-8px;${edge};height:12px;`;
+    bridge.style.cssText = `position:absolute;left:-12px;right:-12px;${edge};height:24px;`;
     ctrl.appendChild(bridge);
   });
 
@@ -2575,7 +2779,15 @@ function startEditing(win, data) {
     }
   }
 
+  applyOutlineTone(win, el);
   el.setAttribute(EDITING_ATTR, '');
+
+  // Placeholder templates often dim default copy (e.g. opacity-50). Clear that
+  // as soon as editing begins — waiting for blur/morph leaves the text faded
+  // while the caret is already in the field.
+  session.opacityEl = wrapper;
+  session.prevOpacity = wrapper.style.opacity;
+  wrapper.style.opacity = '1';
 
   // Lift the editable element above any stretched-link / decorative overlay that
   // sits on top of it (see resolveSidTarget) for the duration of the edit, so
@@ -2745,6 +2957,13 @@ export function finishEditing(win, cancelled) {
   el.style.zIndex = session.prevZIndex || '';
   el.style.position = session.prevPosition || '';
 
+  // Only restore dimming when the edit was cancelled or never changed —
+  // after a real commit keep full opacity until the hot-reload morph
+  // replaces the node (avoids a brief fade-out flash between blur and morph).
+  if (session.opacityEl && (cancelled || !session.dirty)) {
+    session.opacityEl.style.opacity = session.prevOpacity || '';
+  }
+
   if (session.hadContentEditable === null) {
     el.removeAttribute('contenteditable');
   } else {
@@ -2769,21 +2988,77 @@ export function finishEditing(win, cancelled) {
 }
 
 /**
- * On every mouse movement: shows dashed outlines on all [data-sid] elements
- * and marks the innermost hovered one with a solid outline.
- * Both effects clear after HOVER_CLEAR_DELAY ms of no movement.
+ * Show/hide the hover move control (hide/dup/delete, arrows, …) from a pointer
+ * event. Runs even while inline-editing, so other blocks still get their
+ * actions — only the block being edited keeps its control hidden under the toolbox.
+ */
+function updateMoveControlFromPointer(win, event) {
+  if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
+    return;
+  }
+
+  const moveEl =
+    event.target.closest(`[${ORDERABLE_ATTR}]`) ||
+    event.target.closest('[data-sid-move]') ||
+    event.target.closest(`[${SECTION_ORDERABLE_ATTR}]`);
+
+  if (editing) {
+    const editRoot = editing.wrapper || editing.el;
+
+    if (
+      moveEl &&
+      editRoot &&
+      (moveEl === editRoot || moveEl.contains(editRoot) || editRoot.contains(moveEl))
+    ) {
+      hideMoveControl(win);
+
+      return;
+    }
+  }
+
+  if (moveEl) {
+    showMoveControl(win, moveEl);
+  } else if (pointerInMoveControlGap(event)) {
+    // gap between control and target — keep it so hide/delete stay clickable
+  } else {
+    hideMoveControl(win);
+  }
+}
+
+/**
+ * On every mouse movement: marks the innermost hovered editable element with
+ * a dashed outline. Clears after HOVER_CLEAR_DELAY ms of no movement.
+ * (Only the hovered / active / editing element is outlined — not every field.)
+ * Hovering a different field than the active one temporarily hides the active
+ * outline so the two rings don't overlap.
  */
 export function createMouseMoveHandler(win) {
   let clearTimer = null;
+  const HOVER_OVERRIDE = 'sve-outline-hover-override';
+
+  const syncHoverOverride = (target) => {
+    // Any pinned outline (click/CP focus or CP hover) that isn't the element
+    // under the cursor gets suppressed while preview-hovering another field.
+    const pinned =
+      win.document.querySelector(`[${ACTIVE_ATTR}]`) ||
+      win.document.querySelector(`[${HOVER_ATTR}]`);
+    const hoveringOther = !!(target && pinned && target !== pinned);
+
+    win.document.documentElement.classList.toggle(HOVER_OVERRIDE, hoveringOther);
+  };
 
   return function handleMouseMove(event) {
+    // Always keep block actions working — even while another field is being
+    // inline-edited (that used to early-return and made "hover down" feel broken).
+    updateMoveControlFromPointer(win, event);
+
     if (editing) {
       return;
     }
 
     win.document.documentElement.classList.add(MOUSE_ACTIVE_CLASS);
 
-    // Track innermost [data-sid] or [data-sid-field] for solid outline
+    // Track innermost [data-sid] or [data-sid-field] for hover outline
     const current = win.document.querySelector(`[${INNER_ATTR}]`);
     const target = resolveSidTarget(win, event);
 
@@ -2793,27 +3068,12 @@ export function createMouseMoveHandler(win) {
       }
 
       if (target) {
+        applyOutlineTone(win, target);
         target.setAttribute(INNER_ATTR, '');
       }
     }
 
-    // Move arrows: rows opted in via move="true" / orderable take priority
-    // (innermost); otherwise the page section under the cursor — any element
-    // with section-orderable="true", regardless of HTML tag.
-    if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
-      // hovering the control itself — keep it
-    } else {
-      const moveEl =
-        event.target.closest(`[${ORDERABLE_ATTR}]`) ||
-        event.target.closest('[data-sid-move]') ||
-        event.target.closest(`[${SECTION_ORDERABLE_ATTR}]`);
-
-      if (moveEl) {
-        showMoveControl(win, moveEl);
-      } else {
-        hideMoveControl(win);
-      }
-    }
+    syncHoverOverride(target);
 
     maybeShowColumnChrome(win, event);
 
@@ -2823,10 +3083,16 @@ export function createMouseMoveHandler(win) {
 
     clearTimer = setTimeout(() => {
       win.document.documentElement.classList.remove(MOUSE_ACTIVE_CLASS);
+      win.document.documentElement.classList.remove(HOVER_OVERRIDE);
       win.document.querySelectorAll(`[${INNER_ATTR}]`).forEach((el) => {
         el.removeAttribute(INNER_ATTR);
       });
-      hideMoveControl(win);
+
+      // Don't yank the control out from under a parked pointer — the user may
+      // have stopped moving to click hide/delete.
+      if (!(moveCtrlEl && (moveCtrlEl.matches(':hover') || moveTargetEl?.matches(':hover')))) {
+        hideMoveControl(win);
+      }
 
       if (!widthDrag) {
         hideColumnChrome(win);
@@ -2979,6 +3245,7 @@ export function createClickHandler(win) {
       el.removeAttribute(ACTIVE_ATTR);
     });
 
+    applyOutlineTone(win, target);
     target.setAttribute(ACTIVE_ATTR, '');
 
     // Popup targeting (data-sid-action="popup") — opens a CP popup for this item.
@@ -3377,6 +3644,7 @@ export function createMessageReceiver(win) {
         const el = findFieldElement(data.field, win.document, data.scope);
 
         if (el) {
+          applyOutlineTone(win, el);
           el.setAttribute(HOVER_ATTR, '');
         }
 
@@ -3390,6 +3658,7 @@ export function createMessageReceiver(win) {
             : win.document.querySelector(`[${SID_ATTR}="${data.uid}"]`);
 
         if (el) {
+          applyOutlineTone(win, el);
           el.setAttribute(HOVER_ATTR, '');
         }
       }
@@ -3407,6 +3676,7 @@ export function createMessageReceiver(win) {
         const el = findFieldElement(data.field, win.document, data.scope);
 
         if (el) {
+          applyOutlineTone(win, el);
           el.setAttribute(ACTIVE_ATTR, '');
 
           // Only scroll when the lookup was scoped to a specific set. An
@@ -3429,6 +3699,7 @@ export function createMessageReceiver(win) {
             : win.document.querySelector(`[${SID_ATTR}="${data.uid}"]`);
 
         if (el) {
+          applyOutlineTone(win, el);
           el.setAttribute(ACTIVE_ATTR, '');
 
           // Bard text focus (afterSetUid) fires on every click while editing
@@ -3574,18 +3845,18 @@ export function initBridge(win = window) {
   win.addEventListener('resize', () => repositionInserters(win));
 }
 
-// --- Block inserter: a "+" between a replicator's blocks (Gutenberg-style) ------
+// --- Block inserter: a single "+" after the last block --------------------------
 //
 // A container marked `data-sid-insert="<field>"` (via {{ visual_edit
-// insertable="true" }}) gets a "+" in each gap between its blocks. Clicking it
-// offers the field's set types; picking one inserts a new block of that type
-// there. Orientation follows the layout: stacked blocks get a horizontal divider,
-// a row of blocks gets a vertical one — so it works both ways.
+// insertable="true" }}) gets ONE "+" after its last block. Shown while the
+// container (or the "+") is hovered. Clicking opens Statamic's Add Set picker
+// and inserts after that last block. An empty field gets a single, always-
+// visible "+" to start it off. Orientation follows the layout: stacked blocks
+// get a horizontal divider, a row of blocks gets a vertical one.
 
 const INSERT_ATTR = 'data-sid-insert';
 const INSERT_LAYER_ID = '__sve-inserters';
 let inserterInstances = [];
-let inserterHideTimer = null;
 
 function ensureInserterLayer(win) {
   let layer = win.document.getElementById(INSERT_LAYER_ID);
@@ -3601,8 +3872,8 @@ function ensureInserterLayer(win) {
 }
 
 /**
- * One "+" under each block, shown only while that block (or the "+") is hovered.
- * An empty field gets a single, always-visible "+" to start it off.
+ * One "+" after the last block (or in an empty container), shown while the
+ * insertable container — or the "+" itself — is hovered.
  */
 function setupInserters(win) {
   const layer = ensureInserterLayer(win);
@@ -3648,27 +3919,37 @@ function setupInserters(win) {
       horizontal = Math.abs(b2.left - a.left) > Math.abs(b2.top - a.top);
     }
 
-    blocks.forEach((block) => {
-      const inst = buildInserter(win, { field, sets, block, position: 'after', horizontal, scope });
-
-      layer.appendChild(inst.el);
-      inserterInstances.push(inst);
-
-      const show = () => {
-        clearTimeout(inserterHideTimer);
-        inst.el.style.opacity = '1';
-      };
-      const hide = () => {
-        inserterHideTimer = win.setTimeout(() => {
-          inst.el.style.opacity = '0';
-        }, 120);
-      };
-
-      block.addEventListener('pointerenter', show);
-      block.addEventListener('pointerleave', hide);
-      inst.el.addEventListener('pointerenter', show);
-      inst.el.addEventListener('pointerleave', hide);
+    const lastBlock = blocks[blocks.length - 1];
+    const inst = buildInserter(win, {
+      field,
+      sets,
+      block: lastBlock,
+      position: 'after',
+      horizontal,
+      scope,
+      container,
     });
+
+    layer.appendChild(inst.el);
+    inserterInstances.push(inst);
+
+    let hideTimer = null;
+    const show = () => {
+      clearTimeout(hideTimer);
+      inst.el.style.opacity = '1';
+    };
+    const hide = () => {
+      hideTimer = win.setTimeout(() => {
+        inst.el.style.opacity = '0';
+      }, 120);
+    };
+
+    // Hover the whole insertable area (not each block) so one "+" appears
+    // after the last block whenever the section content is hovered.
+    container.addEventListener('pointerenter', show);
+    container.addEventListener('pointerleave', hide);
+    inst.el.addEventListener('pointerenter', show);
+    inst.el.addEventListener('pointerleave', hide);
   });
 
   repositionInserters(win);
@@ -3738,6 +4019,10 @@ function buildInserter(win, opts) {
     event.preventDefault();
     // Hand off to Statamic's own Add Set picker (opened in the CP), rather than a
     // little popover of our own — native search, groups, previews, and insert.
+    // Pass the + button's rect so the CP can pin the picker under it in the
+    // preview (instead of leaving it in the sidebar).
+    const r = btn.getBoundingClientRect();
+
     win.parent.postMessage(
       {
         source: 'statamic-visual-editor',
@@ -3745,6 +4030,14 @@ function buildInserter(win, opts) {
         anchorUid: opts.block ? opts.block.getAttribute(SID_ATTR) : null,
         sectionUid: opts.scope || null,
         position: opts.position || null,
+        anchorRect: {
+          left: r.left,
+          top: r.top,
+          bottom: r.bottom,
+          right: r.right,
+          width: r.width,
+          height: r.height,
+        },
       },
       win.location.origin
     );

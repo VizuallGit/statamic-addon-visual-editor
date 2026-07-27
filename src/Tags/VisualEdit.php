@@ -45,10 +45,10 @@ class VisualEdit extends Tags
             return $isPair ? '<div '.$globalAttr.'>'.$content.'</div>' : $globalAttr;
         }
 
-        // insertable="true" on a replicator's container: the preview shows a "+"
-        // between its blocks that inserts a new set of a chosen type. Emits the
-        // field to insert into and the set types it allows (read from the
-        // blueprint, so a new set type just shows up).
+        // insertable="true" on a replicator's container: the preview shows a
+        // single "+" after the last block that inserts a new set of a chosen
+        // type. Emits the field to insert into and the set types it allows
+        // (read from the blueprint, so a new set type just shows up).
         if ($this->params->bool('insertable', false) && $field !== null && (string) $field !== '') {
             $attr = 'data-sid-insert="'.e((string) $field).'"';
 

@@ -263,10 +263,10 @@ you can see where it lands. Legacy spelling `section_orderable` is accepted.
 ### `insertable="true"` — a "+" block inserter inside a replicator
 
 Put it on the **container** that wraps a replicator loop, together with
-`field="<replicator handle>"`. In the preview, a Gutenberg-style **"+"** appears
-under each block; clicking it opens Statamic's own **Add Set** picker to insert a
-new block of a chosen type at that spot (an empty field shows one "+" to start).
-The insert is native, so it lands in the Control Panel form too.
+`field="<replicator handle>"`. In the preview, a single **"+"** appears after
+the last block while the container is hovered; clicking it opens Statamic's own
+**Add Set** picker to append a new block of a chosen type (an empty field shows
+one "+" to start). The insert is native, so it lands in the Control Panel form too.
 
 ```antlers
 <div {{ visual_edit field="blocks" insertable="true" }}>
@@ -327,7 +327,7 @@ All parameters work in both Antlers and Blade (via the fluent API).
 | `orderable` | `false` | On each repeated item: drag to reorder + hover **+/−** to add/remove |
 | `move` | `false` | Show up/down reorder arrows on hover (lighter than `orderable`) |
 | `section-orderable` | `false` | On a section: drag handle to move the whole section |
-| `insertable` | `false` | On a replicator container (with `field`): a "+" that opens the Add Set picker |
+| `insertable` | `false` | On a replicator container (with `field`): one "+" after the last block |
 | `global_edit` | — | Open a global set (`set` or `set.field`) in the side panel |
 | `popup` | `false` | Open the item's editor as a CP popup instead of editing in place |
 | `scope` | _(cascaded `_visual_id`)_ | Override the field's scope — use `{{ id }}` inside column-builder rows |

@@ -141,6 +141,25 @@ export function hideAutoUuidGridColumns(root = document) {
 }
 
 export function findSetByUid(uid, doc = document, index = 0) {
+  const found = findSetByVisualIdInput(uid, doc, index);
+
+  if (found) {
+    return found;
+  }
+
+  // Nested replicator blocks often scope with the row id (`{{ id }}`) because
+  // `_visual_id` cascades from the parent section in Antlers. Map that row id
+  // to the set's real `_visual_id` via publish values, then retry.
+  const visualId = resolveVisualIdFromValues(uid, doc);
+
+  if (visualId && visualId !== uid) {
+    return findSetByVisualIdInput(visualId, doc, index);
+  }
+
+  return null;
+}
+
+function findSetByVisualIdInput(uid, doc, index = 0) {
   const inputs = doc.querySelectorAll(SELECTORS.visualIdInput);
   let count = 0;
 
@@ -151,6 +170,72 @@ export function findSetByUid(uid, doc = document, index = 0) {
       }
       count++;
     }
+  }
+
+  return null;
+}
+
+/**
+ * Resolves a preview scope uid (row `id` / `_id` or `_visual_id`) to the set's
+ * `_visual_id` stored in the publish form — needed so nested blocks can be
+ * found in the CP DOM the same way top-level sections are.
+ */
+function resolveVisualIdFromValues(uid, doc) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const path = findPathByUid(values, uid);
+
+    if (path === null) {
+      continue;
+    }
+
+    const row = dataGet(values, path);
+
+    if (row && typeof row === 'object' && row._visual_id) {
+      return row._visual_id;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Walks up from a (possibly nested) set uid to the top-level section uid
+ * (e.g. page_sections.2). Field clicks should solo the section, while still
+ * expanding the nested block that owns the field.
+ */
+function topLevelSectionUid(uid, doc) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const path = findPathByUid(values, uid);
+
+    if (!path) {
+      continue;
+    }
+
+    const match = path.match(/^([^.]+)\.(\d+)/);
+
+    if (!match) {
+      continue;
+    }
+
+    const section = dataGet(values, `${match[1]}.${match[2]}`);
+
+    if (!section || typeof section !== 'object') {
+      continue;
+    }
+
+    return section._visual_id || section._id || section.id || null;
   }
 
   return null;
@@ -504,50 +589,74 @@ export function findFieldElement(fieldPath, doc = document, scopeUid = undefined
 export function handleFieldFocus(fieldPath, doc = document, { animate = true, scopeUid = undefined } = {}) {
   doc.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => el.removeAttribute(ACTIVE_ATTR));
 
-  const fieldEl = findFieldElement(fieldPath, doc, scopeUid);
+  // Expand the scoped set (and ancestors) first — nested accordion rows may not
+  // expose their field wrappers until open, so findFieldElement can miss them.
+  if (scopeUid) {
+    const scopedSet = findSetByUid(scopeUid, doc);
 
-  if (!fieldEl) {
-    console.warn('[SVE] handleFieldFocus: no field element found for path:', fieldPath);
-    return;
-  }
-
-  fieldEl.setAttribute(ACTIVE_ATTR, '');
-
-  const tabSwitched = switchToContainingTab(fieldEl, doc);
-
-  // Expand any collapsed ancestor Replicator sets so the field is visible.
-  // This handles {{ visual_edit field="text" }} used inside Replicator partials.
-  const ancestorSets = [];
-  let ancestor = fieldEl.parentElement;
-  while (ancestor) {
-    if (ancestor.hasAttribute('data-replicator-set')) {
-      ancestorSets.unshift(ancestor);
+    if (scopedSet) {
+      [...collectAncestorSets(scopedSet), scopedSet].forEach(expandSet);
     }
-    ancestor = ancestor.parentElement;
   }
-  const anySetsCollapsed = ancestorSets.some(isSetCollapsed);
-  ancestorSets.forEach(expandSet);
 
-  const applyFocus = () => {
-    const doScroll = () => {
-      fieldEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      if (animate) {
-        fieldEl.classList.add('sve-field-highlight');
-        setTimeout(() => fieldEl.classList.remove('sve-field-highlight'), 2000);
+  const focusField = () => {
+    const fieldEl = findFieldElement(fieldPath, doc, scopeUid);
+
+    if (!fieldEl) {
+      console.warn('[SVE] handleFieldFocus: no field element found for path:', fieldPath);
+      return false;
+    }
+
+    fieldEl.setAttribute(ACTIVE_ATTR, '');
+
+    const tabSwitched = switchToContainingTab(fieldEl, doc);
+
+    // Expand any collapsed ancestor Replicator sets so the field is visible.
+    // This handles {{ visual_edit field="text" }} used inside Replicator partials.
+    const ancestorSets = [];
+    let ancestor = fieldEl.parentElement;
+
+    while (ancestor) {
+      if (ancestor.hasAttribute('data-replicator-set')) {
+        ancestorSets.unshift(ancestor);
+      }
+
+      ancestor = ancestor.parentElement;
+    }
+
+    const anySetsCollapsed = ancestorSets.some(isSetCollapsed);
+
+    ancestorSets.forEach(expandSet);
+
+    const applyFocus = () => {
+      const doScroll = () => {
+        fieldEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        if (animate) {
+          fieldEl.classList.add('sve-field-highlight');
+          setTimeout(() => fieldEl.classList.remove('sve-field-highlight'), 2000);
+        }
+      };
+
+      if (anySetsCollapsed) {
+        setTimeout(doScroll, COLLAPSE_SETTLE_MS);
+      } else {
+        doScroll();
       }
     };
 
-    if (anySetsCollapsed) {
-      setTimeout(doScroll, COLLAPSE_SETTLE_MS);
+    if (tabSwitched) {
+      setTimeout(applyFocus, 0);
     } else {
-      doScroll();
+      applyFocus();
     }
+
+    return true;
   };
 
-  if (tabSwitched) {
-    setTimeout(applyFocus, 0);
-  } else {
-    applyFocus();
+  if (!focusField() && scopeUid) {
+    // Field wrappers can mount a beat after the accordion expands.
+    setTimeout(focusField, COLLAPSE_SETTLE_MS);
   }
 }
 
@@ -2660,6 +2769,42 @@ function rightPanelWidth(doc) {
 // the bridge knows what to insert.
 let libraryDrag = null;
 
+/** Handle prefix before `/` — `hero/style_1` → `hero`. Bare handles → `other`. */
+function libraryGroupKey(handle) {
+  if (!handle || typeof handle !== 'string' || !handle.includes('/')) {
+    return 'other';
+  }
+
+  return handle.split('/')[0].toLowerCase();
+}
+
+/** Human label for a group key (`hero` → `Hero`, `media_textbox` → `Media textbox`). */
+function libraryGroupLabel(win, key) {
+  if (key === 'other') {
+    return t(win, 'library_group_other');
+  }
+
+  const spaced = key.replace(/[_-]+/g, ' ');
+
+  return spaced.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Case-insensitive match against display/title and handle. */
+function libraryMatchesQuery(item, query) {
+  const q = (query || '').trim().toLowerCase();
+
+  if (!q) {
+    return true;
+  }
+
+  const haystack = [item.display, item.title, item.handle]
+    .filter((v) => typeof v === 'string' && v.length)
+    .join(' ')
+    .toLowerCase();
+
+  return haystack.includes(q);
+}
+
 /** Opens/creates the docked section library. Toggles closed if already open. */
 function openSectionPicker(win) {
   const doc = win.document;
@@ -2674,30 +2819,54 @@ function openSectionPicker(win) {
 
   const header = lpHeader(doc);
   const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+  const width = globalsPanelWidth(win);
 
   const panel = doc.createElement('div');
 
   panel.id = SECTION_PICKER_ID;
   panel.style.cssText =
-    `position:fixed;top:${top}px;right:0;bottom:0;width:340px;z-index:41;display:flex;flex-direction:column;` +
+    `position:fixed;top:${top}px;right:0;bottom:0;width:${width}px;z-index:41;display:flex;flex-direction:column;` +
     'background:var(--theme-color-content-bg,#fff);color:currentColor;' +
     'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);' +
     'font-family:ui-sans-serif,system-ui,sans-serif;';
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
-      <div style="font-size:14px;font-weight:600;">Sektioner</div>
+      <div style="font-size:14px;font-weight:600;">${t(win, 'sections')}</div>
       <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
     </div>
     <div style="padding:6px 10px;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
     <div data-sve-tabs style="display:flex;gap:3px;padding:2px 12px 0;flex:0 0 auto;"></div>
-    <div data-sve-grid style="flex:1 1 auto;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:12px;"></div>
+    <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
+      <input data-sve-search type="search" autocomplete="off" placeholder="${t(win, 'library_search_placeholder')}"
+        style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
+        background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
+    </div>
+    <div data-sve-groups style="display:none;flex-wrap:nowrap;gap:4px;padding:8px 12px 0;flex:0 0 auto;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
+    <style>[data-sve-groups]::-webkit-scrollbar{display:none}</style>
+    <div data-sve-grid style="flex:1 1 auto;overflow-y:auto;padding:12px;column-gap:12px;"></div>
   `;
 
+  const applyLibraryLayout = () => {
+    const w = panel.getBoundingClientRect().width || width;
+    const cols = w >= 720 ? 3 : w >= 480 ? 2 : 1;
+    const grid = panel.querySelector('[data-sve-grid]');
+
+    if (!grid) {
+      return;
+    }
+
+    grid.style.columnCount = String(cols);
+  };
+
+  panel.appendChild(globalsResizer(win, panel, applyLibraryLayout));
   doc.body.appendChild(panel);
+  applyLibraryLayout();
   syncPreviewInset(win);
 
   const tabsEl = panel.querySelector('[data-sve-tabs]');
+  const searchEl = panel.querySelector('[data-sve-search]');
+  const groupsEl = panel.querySelector('[data-sve-groups]');
   const gridEl = panel.querySelector('[data-sve-grid]');
 
   panel.querySelector('[data-sve-close]').addEventListener('click', () => closeSectionPicker(win));
@@ -2711,25 +2880,26 @@ function openSectionPicker(win) {
   let active = 'page';
   let saved = null;
   let templates = null;
+  let query = '';
+  let group = null; // null = all groups
 
-  // Block layout, not flex: a flex column here collapsed the image to its
-  // content height and let it overflow the card. A plain block with a 16:9
-  // image (its content absolutely positioned, so the ratio sets the height) and
-  // a title beneath renders identically on every tab.
+  // Natural-height preview cards in a CSS-columns masonry grid. The image sets
+  // the card height (no fixed crop); break-inside keeps a card in one column.
   const card = (title, imageUrl, kind, item) => {
     const el = doc.createElement('div');
 
     el.style.cssText =
-      'cursor:grab;flex:0 0 auto;border:1px solid rgba(128,128,128,.25);border-radius:10px;overflow:hidden;' +
-      'background:rgba(128,128,128,.05);transition:border-color .12s;user-select:none;touch-action:none;';
+      'cursor:grab;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
+      'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
+      'user-select:none;touch-action:none;vertical-align:top;';
     el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
     el.addEventListener('mouseleave', () => (el.style.borderColor = 'rgba(128,128,128,.25)'));
     el.innerHTML = `
-      <div style="position:relative;width:100%;height:177px;background:rgba(128,128,128,.12);overflow:hidden;pointer-events:none;">
+      <div style="width:100%;background:rgba(128,128,128,.12);pointer-events:none;">
         ${
           imageUrl
-            ? `<img src="${imageUrl}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:top;display:block;">`
-            : `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.4;font-size:12px;">${t(win, 'no_preview')}</div>`
+            ? `<img src="${imageUrl}" alt="" style="width:100%;height:auto;display:block;">`
+            : `<div style="width:100%;aspect-ratio:3/1;min-height:56px;display:flex;align-items:center;justify-content:center;opacity:.4;font-size:12px;">${t(win, 'no_preview')}</div>`
         }
       </div>
       <div style="padding:8px 10px;font-size:12px;font-weight:500;pointer-events:none;">${title}</div>
@@ -2743,10 +2913,72 @@ function openSectionPicker(win) {
   const empty = (text) => {
     const el = doc.createElement('div');
 
-    el.style.cssText = 'padding:30px 6px;text-align:center;opacity:.55;font-size:12px;';
+    el.style.cssText =
+      'padding:30px 6px;text-align:center;opacity:.55;font-size:12px;column-span:all;break-inside:avoid;';
     el.textContent = text;
 
     return el;
+  };
+
+  const styleChip = (btn, on) => {
+    btn.style.background = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.12)';
+    btn.style.color = on ? '#fff' : 'currentColor';
+    btn.style.fontWeight = on ? '600' : '500';
+    btn.style.opacity = on ? '1' : '.85';
+  };
+
+  const renderGroups = () => {
+    groupsEl.innerHTML = '';
+
+    if (active !== 'page') {
+      groupsEl.style.display = 'none';
+
+      return;
+    }
+
+    const keys = [...new Set(sectionTypes(win).map((type) => libraryGroupKey(type.handle)))];
+    const ordered = keys
+      .filter((k) => k !== 'other')
+      .sort((a, b) => a.localeCompare(b))
+      .concat(keys.includes('other') ? ['other'] : []);
+
+    if (ordered.length < 2) {
+      groupsEl.style.display = 'none';
+      group = null;
+
+      return;
+    }
+
+    groupsEl.style.display = 'flex';
+
+    const chipStyle =
+      'all:unset;cursor:pointer;flex:0 0 auto;white-space:nowrap;padding:4px 10px;border-radius:999px;font-size:11px;color:currentColor;';
+
+    const allBtn = doc.createElement('button');
+
+    allBtn.type = 'button';
+    allBtn.textContent = t(win, 'library_group_all');
+    allBtn.style.cssText = chipStyle;
+    styleChip(allBtn, group === null);
+    allBtn.addEventListener('click', () => {
+      group = null;
+      renderActive();
+    });
+    groupsEl.appendChild(allBtn);
+
+    ordered.forEach((key) => {
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.textContent = libraryGroupLabel(win, key);
+      btn.style.cssText = chipStyle;
+      styleChip(btn, group === key);
+      btn.addEventListener('click', () => {
+        group = key;
+        renderActive();
+      });
+      groupsEl.appendChild(btn);
+    });
   };
 
   const renderPage = () => {
@@ -2760,7 +2992,21 @@ function openSectionPicker(win) {
       return;
     }
 
-    types.forEach((type) => gridEl.appendChild(card(type.display, type.image_url, 'page', type)));
+    const filtered = types.filter((type) => {
+      if (group && libraryGroupKey(type.handle) !== group) {
+        return false;
+      }
+
+      return libraryMatchesQuery(type, query);
+    });
+
+    if (!filtered.length) {
+      gridEl.appendChild(empty(t(win, 'library_no_matches')));
+
+      return;
+    }
+
+    filtered.forEach((type) => gridEl.appendChild(card(type.display, type.image_url, 'page', type)));
   };
 
   const renderSaved = (synced) => {
@@ -2780,7 +3026,15 @@ function openSectionPicker(win) {
       return;
     }
 
-    items.forEach((item) =>
+    const filtered = items.filter((item) => libraryMatchesQuery(item, query));
+
+    if (!filtered.length) {
+      gridEl.appendChild(empty(t(win, 'library_no_matches')));
+
+      return;
+    }
+
+    filtered.forEach((item) =>
       gridEl.appendChild(card(item.title, item.preview_url, synced ? 'global' : 'custom', item))
     );
   };
@@ -2796,7 +3050,8 @@ function openSectionPicker(win) {
     save.type = 'button';
     save.textContent = t(win, 'save_page_as_template');
     save.style.cssText =
-      'all:unset;cursor:pointer;flex:0 0 auto;text-align:center;padding:10px;border-radius:8px;font-size:12px;' +
+      'all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;column-span:all;break-inside:avoid;' +
+      'text-align:center;padding:10px;margin:0 0 12px;border-radius:8px;font-size:12px;' +
       'font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;';
     save.addEventListener('click', () => savePageAsTemplate(win, () => {
       templates = null;
@@ -2810,7 +3065,15 @@ function openSectionPicker(win) {
       return;
     }
 
-    templates.forEach((item) =>
+    const filtered = templates.filter((item) => libraryMatchesQuery(item, query));
+
+    if (!filtered.length) {
+      gridEl.appendChild(empty(t(win, 'library_no_matches')));
+
+      return;
+    }
+
+    filtered.forEach((item) =>
       gridEl.appendChild(
         card(`${item.title} · ${t(win, 'template_count', { count: item.count })}`, item.preview_url, 'template', item)
       )
@@ -2825,6 +3088,8 @@ function openSectionPicker(win) {
       b.style.fontWeight = on ? '600' : '500';
       b.style.opacity = on ? '1' : '.7';
     });
+
+    renderGroups();
 
     if (active === 'page') {
       renderPage();
@@ -2881,6 +3146,11 @@ function openSectionPicker(win) {
     renderSaved(active === 'global');
   };
 
+  searchEl.addEventListener('input', () => {
+    query = searchEl.value;
+    renderActive();
+  });
+
   tabs.forEach((tab) => {
     const b = doc.createElement('button');
 
@@ -2890,12 +3160,16 @@ function openSectionPicker(win) {
     b.style.cssText = 'all:unset;cursor:pointer;padding:6px 12px;border-radius:8px;font-size:12px;color:currentColor;';
     b.addEventListener('click', () => {
       active = tab.key;
+      if (active !== 'page') {
+        group = null;
+      }
       renderActive();
     });
     tabsEl.appendChild(b);
   });
 
   renderActive();
+  searchEl.focus();
 }
 
 /**
@@ -3020,6 +3294,10 @@ function blankRowFrom(row) {
       next[key] = newRowId();
     } else if (key === '_visual_id') {
       next[key] = crypto?.randomUUID ? crypto.randomUUID() : `${newRowId()}-${newRowId()}`;
+    } else if (key === 'type' || key === 'enabled') {
+      // Replicator sets need their type intact — clearing it yields
+      // "Undefined array key type" when the preview augments the field.
+      next[key] = value;
     } else if (typeof value === 'string') {
       next[key] = '';
     } else {
@@ -3182,6 +3460,81 @@ export function handleRemoveRow(data, doc, win) {
     const next = JSON.parse(JSON.stringify(rows));
 
     next.splice(index, 1);
+    container.setFieldValue(parentPath, next);
+
+    return;
+  }
+}
+
+/**
+ * Duplicate an orderable row (replicator set or grid row), keeping its content
+ * but giving every id a fresh value — same idea as Statamic's "Duplicate Set".
+ */
+export function handleDuplicateRow(data, doc, win) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const found = rowLocation(values, data.uid);
+
+    if (!found) {
+      continue;
+    }
+
+    const { parentPath, index, rows } = found;
+    const { max } = rowLimits(values, parentPath, win);
+
+    if (max && rows.length >= max) {
+      return;
+    }
+
+    const copy = reidSection(win, rows[index]);
+
+    if (copy && typeof copy === 'object' && 'enabled' in copy) {
+      copy.enabled = true;
+    }
+
+    const next = JSON.parse(JSON.stringify(rows));
+
+    next.splice(index + 1, 0, copy);
+    container.setFieldValue(parentPath, next);
+
+    return;
+  }
+}
+
+/**
+ * Hide a replicator set (`enabled: false`) — same as the CP's blue toggle.
+ * The set disappears from the preview; re-enable it from the sidebar.
+ * No-ops on grid rows that have no `type` (they're not toggleable sets).
+ */
+export function handleHideRow(data, doc, win) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const found = rowLocation(values, data.uid);
+
+    if (!found) {
+      continue;
+    }
+
+    const { parentPath, index, rows } = found;
+    const row = rows[index];
+
+    if (!row || typeof row !== 'object' || !('type' in row)) {
+      return;
+    }
+
+    const next = JSON.parse(JSON.stringify(rows));
+
+    next[index] = { ...next[index], enabled: false };
     container.setFieldValue(parentPath, next);
 
     return;
@@ -5007,18 +5360,381 @@ function insertButtonOf(item) {
 }
 
 /**
- * The picker is a popover anchored to its trigger. With the editor panel parked
- * off-canvas the trigger sits off-screen, so a list-view popover would render
- * off-screen too — centre it when that happens. (Grid view is a centred modal
- * and needs no help.)
+ * Preview-originated Add Set session. When the picker is opened from the live
+ * preview "+", we keep its anchorRect for the whole time the picker is open —
+ * including list↔grid toggles, which remount the popover onto the CP trigger.
+ * Admin-panel Add Set never sets this, so it stays in the sidebar.
  */
-function ensurePickerVisible(doc, win) {
+let previewPickerSession = null; // { doc, win, anchorRect, observer, goneTimer }
+
+/**
+ * Only the Add Set picker — never "Search sections..." or other CP search
+ * fields (those live in docked sidebars we must not reposition).
+ */
+function findSetPickerSearchInput(doc) {
+  const nodes = doc.querySelectorAll(
+    '[data-set-picker-search-input], input[placeholder*="Search Sets" i]'
+  );
+
+  for (const node of nodes) {
+    const input = node.tagName === 'INPUT' ? node : node.querySelector?.('input') || node;
+
+    if (
+      input instanceof (doc.defaultView?.HTMLElement || HTMLElement) &&
+      input.getClientRects().length > 0
+    ) {
+      return input;
+    }
+  }
+
+  return nodes[0] || null;
+}
+
+function findSetPickerEl(doc, win) {
+  const input = findSetPickerSearchInput(doc);
+
+  if (!input) {
+    return null;
+  }
+
+  // List popover (and its float wrapper) — prefer these so we never grab the
+  // wide grid modal shell when both could match a climb.
+  const list = input.closest('[data-set-picker-popover], .set-picker');
+
+  if (list) {
+    const parent = list.parentElement;
+
+    if (parent && parent !== doc.body) {
+      const cs = win.getComputedStyle(parent);
+      const pw = parent.getBoundingClientRect().width;
+      const floating =
+        cs.position === 'fixed' ||
+        cs.position === 'absolute' ||
+        (cs.transform && cs.transform !== 'none');
+
+      if (floating && pw > 180 && pw < 400) {
+        return parent;
+      }
+    }
+
+    return list;
+  }
+
+  // Grid modal: Search Sets inside a dialog, without .set-picker.
+  const dialog = input.closest('[role="dialog"]');
+
+  if (dialog) {
+    return dialog;
+  }
+
+  let el = input;
+
+  for (let i = 0; el && i < 12; i++) {
+    const cs = win.getComputedStyle(el);
+
+    if (cs.position === 'fixed' || cs.position === 'absolute') {
+      return el;
+    }
+
+    el = el.parentElement;
+  }
+
+  return input.closest('[data-popper-placement]') || input.parentElement;
+}
+
+function placeSetPicker(el, doc, win, anchorRect) {
+  if (anchorRect) {
+    const iframe = doc.getElementById('live-preview-iframe');
+
+    if (iframe && el) {
+      const measured = el.getBoundingClientRect().width || el.offsetWidth || 0;
+
+      // Grid = wide ui-modal. Moving it under the "+" cuts it off on the left.
+      // Leave Statamic's centre alone. List is ~w-72.
+      if (measured >= 400) {
+        return;
+      }
+
+      const ir = iframe.getBoundingClientRect();
+      const w = measured || 288;
+      const h = el.getBoundingClientRect().height || el.offsetHeight || 420;
+      // Centre horizontally on the +, sit just below it.
+      const preferredLeft = ir.left + (anchorRect.left || 0) + (anchorRect.width || 0) / 2 - w / 2;
+      const left = Math.max(8, Math.min(preferredLeft, win.innerWidth - w - 8));
+      let top = ir.top + (anchorRect.bottom || 0) + 8;
+
+      if (top + h > win.innerHeight - 8) {
+        top = Math.max(8, ir.top + (anchorRect.top || 0) - h - 8);
+      }
+
+      el.style.setProperty('position', 'fixed', 'important');
+      el.style.setProperty('left', `${left}px`, 'important');
+      el.style.setProperty('top', `${top}px`, 'important');
+      el.style.setProperty('right', 'auto', 'important');
+      el.style.setProperty('bottom', 'auto', 'important');
+      el.style.setProperty('transform', 'none', 'important');
+      el.style.setProperty('margin', '0', 'important');
+      el.style.setProperty('z-index', '2147483000', 'important');
+      el.style.setProperty('max-height', '85vh', 'important');
+      el.style.setProperty('overflow', 'auto', 'important');
+
+      return;
+    }
+  }
+
+  const rect = el.getBoundingClientRect();
+
+  if (rect.left >= 0 && rect.right <= win.innerWidth && rect.width > 0) {
+    return; // already on screen — admin-panel / grid modal
+  }
+
+  const w = el.offsetWidth || 480;
+  const h = el.offsetHeight || 420;
+
+  el.style.setProperty('position', 'fixed', 'important');
+  el.style.setProperty('left', `${Math.max(8, (win.innerWidth - w) / 2)}px`, 'important');
+  el.style.setProperty('top', `${Math.max(8, (win.innerHeight - h) / 2)}px`, 'important');
+  el.style.setProperty('right', 'auto', 'important');
+  el.style.setProperty('bottom', 'auto', 'important');
+  el.style.setProperty('transform', 'none', 'important');
+  el.style.setProperty('z-index', '2147483000', 'important');
+}
+
+function stopPreviewPickerSession() {
+  if (!previewPickerSession) {
+    return;
+  }
+
+  previewPickerSession.observer?.disconnect();
+  clearTimeout(previewPickerSession.goneTimer);
+  previewPickerSession.doc?.removeEventListener?.(
+    'pointerdown',
+    previewPickerSession.onDocPointer,
+    true
+  );
+
+  try {
+    previewPickerSession.iframeDoc?.removeEventListener?.(
+      'pointerdown',
+      previewPickerSession.onIframePointer,
+      true
+    );
+  } catch {
+    // iframe may already be gone / cross-origin
+  }
+
+  previewPickerSession.iframe?.removeEventListener?.(
+    'load',
+    previewPickerSession.onIframeLoad
+  );
+  previewPickerSession = null;
+}
+
+/** Close the open list Set picker (Escape, then toggle its trigger if needed). */
+function dismissOpenSetPicker(doc) {
+  doc.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: 'Escape',
+      code: 'Escape',
+      keyCode: 27,
+      which: 27,
+      bubbles: true,
+      cancelable: true,
+    })
+  );
+
+  setTimeout(() => {
+    if (!findSetPickerSearchInput(doc)) {
+      return;
+    }
+
+    const trigger = [...doc.querySelectorAll('[aria-expanded="true"]')].find(
+      (el) =>
+        el.closest?.('.replicator-fieldtype-container') ||
+        (el.id || '').includes('reka-popover')
+    );
+
+    trigger?.click();
+  }, 0);
+}
+
+/**
+ * Keep pinning the picker under the preview "+" for as long as it stays open.
+ * List↔grid remounts a new popover on the CP trigger — the observer catches
+ * that and re-applies. Cleared when the Search Sets UI disappears.
+ *
+ * Clicks in the live-preview iframe never reach Statamic's popover
+ * click-outside — so we dismiss list view ourselves on outside pointerdown.
+ */
+function startPreviewPickerSession(doc, win, anchorRect) {
+  stopPreviewPickerSession();
+
+  const ignoreUntil = Date.now() + 350;
+
+  const isListPicker = (el) => {
+    if (!el) {
+      return false;
+    }
+
+    const w = el.getBoundingClientRect().width || el.offsetWidth || 0;
+
+    return w > 0 && w < 400;
+  };
+
+  const onDocPointer = (event) => {
+    if (!previewPickerSession || Date.now() < ignoreUntil) {
+      return;
+    }
+
+    const el = findSetPickerEl(doc, win);
+
+    if (!isListPicker(el)) {
+      return;
+    }
+
+    if (el.contains(event.target)) {
+      return;
+    }
+
+    dismissOpenSetPicker(doc);
+  };
+
+  const onIframePointer = () => {
+    if (!previewPickerSession || Date.now() < ignoreUntil) {
+      return;
+    }
+
+    const el = findSetPickerEl(doc, win);
+
+    if (!isListPicker(el)) {
+      return;
+    }
+
+    dismissOpenSetPicker(doc);
+  };
+
+  const bindIframe = () => {
+    const iframe = doc.getElementById('live-preview-iframe');
+
+    if (!iframe || !previewPickerSession) {
+      return;
+    }
+
+    try {
+      previewPickerSession.iframeDoc?.removeEventListener?.(
+        'pointerdown',
+        onIframePointer,
+        true
+      );
+    } catch {
+      // ignore
+    }
+
+    previewPickerSession.iframe = iframe;
+
+    try {
+      const iframeDoc = iframe.contentDocument;
+
+      if (iframeDoc) {
+        iframeDoc.addEventListener('pointerdown', onIframePointer, true);
+        previewPickerSession.iframeDoc = iframeDoc;
+      }
+    } catch {
+      // cross-origin
+    }
+  };
+
+  const onIframeLoad = () => bindIframe();
+
+  const tick = () => {
+    if (!previewPickerSession) {
+      return;
+    }
+
+    const el = findSetPickerEl(doc, win);
+
+    if (el) {
+      clearTimeout(previewPickerSession.goneTimer);
+      previewPickerSession.goneTimer = null;
+      placeSetPicker(el, doc, win, anchorRect);
+      bindIframe();
+
+      return;
+    }
+
+    // Picker briefly unmounts while switching list↔grid — wait before ending.
+    if (!previewPickerSession.goneTimer) {
+      previewPickerSession.goneTimer = setTimeout(() => {
+        stopPreviewPickerSession();
+      }, 600);
+    }
+  };
+
+  const observer = new MutationObserver(() => tick());
+
+  observer.observe(doc.body, { childList: true, subtree: true, attributes: true });
+  doc.addEventListener('pointerdown', onDocPointer, true);
+
+  const iframe = doc.getElementById('live-preview-iframe');
+
+  iframe?.addEventListener('load', onIframeLoad);
+
+  previewPickerSession = {
+    doc,
+    win,
+    anchorRect,
+    observer,
+    goneTimer: null,
+    onDocPointer,
+    onIframePointer,
+    onIframeLoad,
+    iframe,
+    iframeDoc: null,
+  };
+  bindIframe();
+  tick();
+}
+
+/**
+ * The picker is a popover anchored to its CP trigger. When opened from the
+ * preview "+" we pin it under that button for the whole picker session
+ * (list↔grid included). Without an anchorRect we only rescue off-screen
+ * popovers — admin-panel Add Set is left alone.
+ */
+function ensurePickerVisible(doc, win, anchorRect = null) {
+  if (anchorRect) {
+    startPreviewPickerSession(doc, win, anchorRect);
+
+    // Also nudge a few times up front — floating-ui writes after open.
+    let attempts = 0;
+
+    const run = () => {
+      const el = findSetPickerEl(doc, win);
+
+      if (!el) {
+        if (++attempts < 25) {
+          setTimeout(run, 100);
+        }
+
+        return;
+      }
+
+      placeSetPicker(el, doc, win, anchorRect);
+      setTimeout(() => placeSetPicker(el, doc, win, anchorRect), 130);
+      setTimeout(() => placeSetPicker(el, doc, win, anchorRect), 320);
+    };
+
+    setTimeout(run, 80);
+
+    return;
+  }
+
   let attempts = 0;
 
   const run = () => {
-    const input = doc.querySelector('input[placeholder*="Search Sets" i], input[placeholder*="Search" i]');
+    const el = findSetPickerEl(doc, win);
 
-    if (!input) {
+    if (!el) {
       if (++attempts < 25) {
         setTimeout(run, 100);
       }
@@ -5026,49 +5742,12 @@ function ensurePickerVisible(doc, win) {
       return;
     }
 
-    let el = input;
-
-    for (let i = 0; el && i < 12; i++) {
-      const cs = win.getComputedStyle(el);
-
-      if (cs.position === 'fixed' || cs.position === 'absolute') {
-        break;
-      }
-
-      el = el.parentElement;
-    }
-
-    if (!el) {
-      return;
-    }
-
-    const rect = el.getBoundingClientRect();
-
-    if (rect.left >= 0 && rect.right <= win.innerWidth && rect.width > 0) {
-      return; // already on screen
-    }
-
-    const w = el.offsetWidth || 480;
-    const h = el.offsetHeight || 420;
-
-    el.style.setProperty('position', 'fixed', 'important');
-    el.style.setProperty('left', `${Math.max(8, (win.innerWidth - w) / 2)}px`, 'important');
-    el.style.setProperty('top', `${Math.max(8, (win.innerHeight - h) / 2)}px`, 'important');
-    el.style.setProperty('right', 'auto', 'important');
-    el.style.setProperty('bottom', 'auto', 'important');
-    el.style.setProperty('transform', 'none', 'important');
-    el.style.setProperty('z-index', '2147483000', 'important');
+    placeSetPicker(el, doc, win, null);
   };
 
   setTimeout(run, 80);
 }
 
-/**
- * Safety net for when the per-row insert trigger can't be used: the Replicator's
- * "Add Set" button appends the picked set at the very end, so we watch the
- * section array and, as soon as it grows, move the new set to sit right after
- * the section the "+" was clicked on. Same value-array machinery as handleMove.
- */
 function repositionAfterAdd(uid, doc) {
   for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
@@ -5136,12 +5815,7 @@ export function handleAddSet(data, doc, win) {
   openSectionPicker(win);
 }
 
-/**
- * Drive Statamic's native Add Set picker to insert next to `setEl`. Shared by the
- * section "+" and the in-preview block "+": both just need the picker opened at
- * the right position, and Statamic does the insert (with correct meta) itself.
- */
-function nativeAddSetAt(setEl, uid, doc, win) {
+function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null) {
   const item = setEl.closest('[class*="sortable-item"]');
 
   if (!item?.parentElement) {
@@ -5162,7 +5836,7 @@ function nativeAddSetAt(setEl, uid, doc, win) {
 
     if (trigger) {
       trigger.click();
-      ensurePickerVisible(doc, win);
+      ensurePickerVisible(doc, win, anchorRect);
 
       return true;
     }
@@ -5171,7 +5845,7 @@ function nativeAddSetAt(setEl, uid, doc, win) {
   // Otherwise the Replicator's own "Add Set" button, which appends at the end —
   // so unless this really is the last row, move the picked set into place after.
   const replicator = item.closest('.replicator-fieldtype-container') ?? doc;
-  const addButton = [...replicator.querySelectorAll('button')].find((b) => /add set/i.test(b.textContent || ''));
+  const addButton = [...replicator.querySelectorAll('button')].find((b) => /add set|add block|tilføj/i.test(b.textContent || ''));
 
   if (!addButton) {
     return false;
@@ -5182,32 +5856,13 @@ function nativeAddSetAt(setEl, uid, doc, win) {
   }
 
   addButton.click();
-  ensurePickerVisible(doc, win);
+  ensurePickerVisible(doc, win, anchorRect);
 
   return true;
 }
 
-/** Legacy: drive Statamic's native Add Set picker (kept for reference/fallback). */
-export function handleAddSetNative(data, doc, win) {
-  const setEl = findSetByUid(data.uid, doc);
-
-  if (setEl) {
-    nativeAddSetAt(setEl, data.uid, doc, win);
-  }
-}
-
-/**
- * The in-preview "+" between a replicator's blocks, using Statamic's OWN Add Set
- * picker — the same one the CP shows, with search, groups and previews, and the
- * native insert so meta is never our problem.
- *
- * The catch is that the picker is driven from the CP form, where the block's row
- * only exists once its section is expanded. So we expand the section first, wait
- * for the block's row to mount, and then open the picker beside it. Empty field:
- * no block to sit by — open the picker from the replicator's own Add Set button.
- */
 function handleAddBlockNative(data, doc, win) {
-  const { anchorUid, sectionUid } = data;
+  const { anchorUid, sectionUid, anchorRect = null } = data;
   const section = sectionUid ? findSetByUid(sectionUid, doc) : null;
 
   if (section) {
@@ -5223,16 +5878,16 @@ function handleAddBlockNative(data, doc, win) {
 
       if (block) {
         collectAncestorSets(block).forEach(expandSet);
-        nativeAddSetAt(block, anchorUid, doc, win);
+        nativeAddSetAt(block, anchorUid, doc, win, anchorRect);
 
         return;
       }
     } else if (section) {
-      const addButton = [...section.querySelectorAll('button')].find((b) => /add set/i.test(b.textContent || ''));
+      const addButton = [...section.querySelectorAll('button')].find((b) => /add set|add block|tilføj/i.test(b.textContent || ''));
 
       if (addButton) {
         addButton.click();
-        ensurePickerVisible(doc, win);
+        ensurePickerVisible(doc, win, anchorRect);
 
         return;
       }
@@ -5264,13 +5919,22 @@ export function createMessageListener(doc = document, win = window) {
 
     if (data.type === 'click') {
       if (data.field) {
+        // Solo the top-level section (not a nested block row). Nested blocks
+        // often pass their row id as scope — that must still expand below via
+        // handleFieldFocus, but the panel should show the section.
+        if (data.scope && autoOpenPanel(win)) {
+          soloSection(topLevelSectionUid(data.scope, doc) || data.scope, doc, win);
+        }
+
         handleFieldFocus(data.field, doc, { scopeUid: data.scope });
 
-        // Clicking (or inline-editing) a field also opens the panel showing ONLY
-        // its section, same as clicking the section itself. data.scope is the
-        // containing set's uid. In `hide` mode the panel stays closed.
-        if (data.scope && autoOpenPanel(win)) {
-          soloSection(data.scope, doc, win);
+        // Solo/accordion re-render can leave the nested set collapsed — re-assert
+        // after the expand transition so the edited block's fields stay open.
+        if (data.scope) {
+          setTimeout(
+            () => handleFieldFocus(data.field, doc, { animate: false, scopeUid: data.scope }),
+            COLLAPSE_SETTLE_MS
+          );
         }
       } else if (autoOpenPanel(win)) {
         // Clicking a section opens the panel showing ONLY that section. Falls
@@ -5306,9 +5970,14 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'add-row') {
       handleAddRow(data, doc, win);
     } else if (data.type === 'add-block-native') {
+      // Preview "+": open Statamic's real SetPicker, pin list under the plus.
       handleAddBlockNative(data, doc, win);
     } else if (data.type === 'remove-row') {
       handleRemoveRow(data, doc, win);
+    } else if (data.type === 'duplicate-row') {
+      handleDuplicateRow(data, doc, win);
+    } else if (data.type === 'hide-row') {
+      handleHideRow(data, doc, win);
     } else if (data.type === 'row-caps') {
       handleRowCaps(data, doc, win);
     } else if (data.type === 'open-global-section') {
@@ -6260,8 +6929,11 @@ function globalsPanelWidth(win) {
   return Math.min(Math.max(stored || 440, GLOBALS_MIN_WIDTH), max);
 }
 
-/** Drag handle on the panel's inner edge; the width is remembered. */
-function globalsResizer(win, panel) {
+/**
+ * Drag handle on a right-docked panel's inner edge; the width is remembered.
+ * `onResize` runs after every width change (e.g. to retile a masonry grid).
+ */
+function globalsResizer(win, panel, onResize) {
   const handle = win.document.createElement('div');
 
   handle.style.cssText =
@@ -6288,6 +6960,7 @@ function globalsResizer(win, panel) {
 
       panel.style.width = `${width}px`;
       syncPreviewInset(win);
+      onResize?.(width);
     };
 
     const onUp = () => {
@@ -7570,6 +8243,11 @@ function guardAssetLimit(win) {
 }
 
 export function initCp(win = window) {
+  // Boot marker — proves this build is loaded (DevTools console / window.__SVE_BUILD__).
+  win.__SVE_BUILD__ = 'restore-1740';
+  // eslint-disable-next-line no-console
+  console.info('%c[SVE] restore-1740 loaded', 'background:#0d9488;color:#fff;padding:2px 6px;border-radius:4px');
+
   const style = win.document.createElement('style');
   style.id = '__sve-cp-styles';
   style.textContent = CP_STYLES;

@@ -31,6 +31,7 @@ use Statamic\Facades\Site;
 use Statamic\Facades\User;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
+use MarioHamann\StatamicVisualEditor\Modifiers\IsDefault;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\EntrySaving;
@@ -48,6 +49,10 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $tags = [
         VisualEdit::class,
+    ];
+
+    protected $modifiers = [
+        IsDefault::class,
     ];
 
     protected $listen = [
