@@ -6622,6 +6622,9 @@ function openLivePreviewCovered(win, { closePanels = false } = {}) {
   const doc = win.document;
   const embedded = isEmbeddedInSite(win);
 
+  // Kick Theme Settings load as early as possible (cover is up — free bandwidth).
+  scheduleChromeGlobalsPrefetch(win);
+
   let cover = null;
 
   // An in-app move has already put a cover up — one holding a still of the page it
@@ -7236,17 +7239,13 @@ function globalsPanelUrl(win, set) {
   return url.toString();
 }
 
-/** Once per Live Preview open — idle-load Theme Settings so the first chrome click is instant. */
+/** Once per Live Preview open — preload Theme Settings so the first chrome click is instant. */
 let chromePrefetchArmed = false;
 
 function scheduleChromeGlobalsPrefetch(win) {
-  const run = () => prefetchChromeGlobals(win);
-
-  if (typeof win.requestIdleCallback === 'function') {
-    win.requestIdleCallback(run, { timeout: 1200 });
-  } else {
-    win.setTimeout(run, 400);
-  }
+  // Start immediately — requestIdleCallback left a ~1s gap before the iframe
+  // even began loading, so the first header/footer click still waited.
+  win.setTimeout(() => prefetchChromeGlobals(win), 0);
 }
 
 /**
@@ -7524,22 +7523,51 @@ function initGlobalsPanelFrame(win) {
       el.setAttribute('data-sve-panel-hide', '');
     });
 
-    // An entry's own Save & Publish sits inside <main>, so the sweep above leaves
-    // it — but the panel has its own Save, and two of them (doing the same thing)
-    // is just a way to wonder which one you're supposed to press. Hidden, not
-    // removed: the panel's Save still clicks it.
-    if (isEntry) {
-      doc.querySelectorAll('button').forEach((button) => {
-        if (!/^(save|gem)\b/i.test((button.textContent || '').trim())) {
+    // Inside <main>: hide the publish page toolbar (globe + title + Save) — the
+    // outer SVE panel already has title/Save/✕. Leave replicator/Bard set headers
+    // alone (they carry [data-drag-handle]).
+    if (main) {
+      main.querySelectorAll('header').forEach((el) => {
+        if (el.querySelector('[data-drag-handle]')) {
           return;
         }
 
-        // The button and the little dropdown chevron beside it, and nothing more —
-        // hiding an ancestor here would take half the form with it.
-        button.setAttribute('data-sve-panel-hide', '');
-        button.nextElementSibling?.setAttribute('data-sve-panel-hide', '');
+        const hasSave = [...el.querySelectorAll('button')].some((button) =>
+          /^(save|gem)\b/i.test((button.textContent || '').trim())
+        );
+
+        if (hasSave) {
+          el.setAttribute('data-sve-panel-hide', '');
+        }
       });
     }
+
+    // Always hide Save in the iframe — globals and entries. The panel's Save
+    // still clicks the real (hidden) button via postMessage. Also climb to the
+    // title row (Statamic 6 often uses a div, not <header>) and hide that too.
+    doc.querySelectorAll('button').forEach((button) => {
+      if (!/^(save|gem)\b/i.test((button.textContent || '').trim())) {
+        return;
+      }
+
+      button.setAttribute('data-sve-panel-hide', '');
+      button.nextElementSibling?.setAttribute('data-sve-panel-hide', '');
+
+      let node = button.parentElement;
+
+      for (let depth = 0; node && node !== main && depth < 6; depth += 1, node = node.parentElement) {
+        if (node.querySelector('[data-drag-handle]')) {
+          break;
+        }
+
+        const hasTitle = node.querySelector('h1, h2');
+
+        if (hasTitle) {
+          node.setAttribute('data-sve-panel-hide', '');
+          break;
+        }
+      }
+    });
   };
 
   hideChrome();
