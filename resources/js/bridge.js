@@ -1596,6 +1596,14 @@ function enterChromeFocus(win, el, reopen = true) {
     );
   });
 
+  barButton(t('chrome_settings'), 'rgba(255,255,255,.18)').addEventListener('click', (event) => {
+    event.stopPropagation();
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'open-chrome-settings', kind },
+      win.location.origin
+    );
+  });
+
   barButton(t('save'), '#0f766e').addEventListener('click', (event) => {
     event.stopPropagation();
     win.parent.postMessage({ source: 'statamic-visual-editor', type: 'save-chrome' }, win.location.origin);

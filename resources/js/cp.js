@@ -2700,14 +2700,41 @@ function askTemplateMode(win, item) {
 
 function closeSectionPicker(win) {
   win.document.getElementById(SECTION_PICKER_ID)?.remove();
+  // Library was covering Theme Settings — reveal it again (iframe stays mounted).
+  showGlobalsPanel(win);
+  syncPreviewInset(win);
+}
+
+/** Hide Theme Settings without destroying it (stash + form stay alive). */
+function hideGlobalsPanel(win) {
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+
+  if (panel) {
+    panel.style.display = 'none';
+    panel.setAttribute('data-sve-chrome-hidden', '1');
+  }
+
+  syncPreviewInset(win);
+}
+
+/** Show Theme Settings again after browsing designs. */
+function showGlobalsPanel(win) {
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+
+  if (!panel) {
+    return;
+  }
+
+  panel.style.display = 'flex';
+  panel.removeAttribute('data-sve-chrome-hidden');
   syncPreviewInset(win);
 }
 
 /**
  * Right-hand panels dock to the same edge. Opening one usually closes the rest;
- * `keep` is the id (or list of ids) to leave open. Chrome editing keeps the
- * section library AND the theme_settings panel together. Called with nothing to
- * close them all (leaving Live Preview).
+ * `keep` is the id (or list of ids) to leave open. Chrome editing toggles between
+ * Theme Settings and the design library (never stacked on top of each other).
+ * Called with nothing to close them all (leaving Live Preview).
  */
 function closeRightPanels(win, keep = null) {
   const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
@@ -6098,12 +6125,17 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'open-chrome') {
       handleOpenChrome(data, doc, win);
     } else if (data.type === 'open-chrome-designs') {
-      // Only switch/open the library tab — never reload the globals iframe here
-      // (that was causing Chrome's "Leave site?" when the form was dirty).
+      // Show design library; hide Theme Settings underneath (don't unmount it).
       openSectionPicker(win, { tab: data.kind === 'footer' ? 'footer' : 'header' });
+      hideGlobalsPanel(win);
+    } else if (data.type === 'open-chrome-settings') {
+      // Back to widgets / Theme Settings.
+      closeSectionPicker(win);
+      showGlobalsPanel(win);
       activateGlobalsTab(win, data.kind === 'footer' ? 'Footer' : 'Header');
     } else if (data.type === 'close-chrome') {
-      // Keep the globals panel — user may still want it; only leave chrome focus.
+      closeSectionPicker(win);
+      // Keep theme settings open for further edits, or close — leave open.
     } else if (data.type === 'save-chrome') {
       doc
         .getElementById(GLOBALS_PANEL_ID)
@@ -7533,8 +7565,8 @@ function chromeGlobalHandle(win) {
 }
 
 /**
- * Clicking the site header/footer in Live Preview: open theme settings beside
- * the preview, jump to the Header/Footer tab, and show design cards in the library.
+ * Clicking the site header/footer in Live Preview: open Theme Settings beside
+ * the preview (widgets). Designs are a separate step via the bottom bar.
  */
 export function handleOpenChrome(data, doc, win) {
   const kind = data.kind === 'footer' ? 'footer' : 'header';
@@ -7552,8 +7584,10 @@ export function handleOpenChrome(data, doc, win) {
     picker.value = set.handle;
   }
 
-  openGlobalsPanel(win, set, { keepLibrary: true });
-  openSectionPicker(win, { tab: kind });
+  // Don't stack the library on top — user must see Theme Settings first.
+  closeSectionPicker(win);
+  openGlobalsPanel(win, set);
+  showGlobalsPanel(win);
   activateGlobalsTab(win, kind === 'footer' ? 'Footer' : 'Header');
 }
 
@@ -7565,10 +7599,11 @@ function setChromeStyle(win, kind, style, attempt = 0) {
   const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
   // Library alone isn't enough — style changes must hit the theme_settings form
-  // so the globals stash + preview refresh run. Keep both panels open.
+  // so the globals stash + preview refresh run. Keep the form mounted (may be hidden).
   if (!frame?.contentWindow) {
     if (set) {
       openGlobalsPanel(win, set, { keepLibrary: true });
+      hideGlobalsPanel(win);
     }
 
     if (attempt < 25) {
