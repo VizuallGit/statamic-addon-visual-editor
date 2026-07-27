@@ -2726,6 +2726,7 @@ function showGlobalsPanel(win) {
 
   panel.style.display = 'flex';
   panel.removeAttribute('data-sve-chrome-hidden');
+  borrowLeftEdge(win);
   syncPreviewInset(win);
 }
 
@@ -2774,6 +2775,37 @@ function syncPreviewInset(win) {
   el.style.paddingLeft = left ? `${left}px` : '';
 
   positionLpBackButton(win);
+}
+
+/**
+ * Theme Settings / chrome designs dock on the LEFT — the same edge as
+ * Statamic's `.live-preview-editor`. If that pane stays open, the preview gets
+ * editor-width + our padding-left (big grey gap) and the two panels stack.
+ * Collapse the default editor while a left-docked panel owns the edge.
+ */
+function borrowLeftEdge(win) {
+  forcePanelOpen = false;
+  clearSolo(win.document);
+
+  if (headerTab === 'settings') {
+    setHeaderTab(win, null);
+  }
+
+  setLpCollapsed(win, true);
+  applyHeaderTab(win);
+}
+
+/** After left docked panels close, put Show-mode editor back if that was active. */
+function releaseLeftEdgeIfFree(win) {
+  const doc = win.document;
+
+  if (doc.getElementById(GLOBALS_PANEL_ID) || doc.getElementById(CHROME_DESIGNS_ID)) {
+    return;
+  }
+
+  if (lpMode(win) === 'show') {
+    setLpCollapsed(win, false);
+  }
 }
 
 /** Visible width of the widest panel in `ids` (0 if none). */
@@ -6991,6 +7023,7 @@ function closeGlobalsPanel(win) {
   }
 
   panel.remove();
+  releaseLeftEdgeIfFree(win);
   syncPreviewInset(win);
 
   // Drop the stash and put the saved globals back in the preview.
@@ -7111,6 +7144,8 @@ function openGlobalsPanel(win, set, options = {}) {
     if (frame && title) {
       title.textContent = set.title;
       frame.title = set.title;
+      borrowLeftEdge(win);
+      showGlobalsPanel(win);
 
       // Same set already loaded: do NOT location.replace — a dirty form inside
       // the iframe triggers Chrome's "Leave site?" dialog and blocks the editor.
@@ -7135,6 +7170,7 @@ function openGlobalsPanel(win, set, options = {}) {
       ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
       : [GLOBALS_PANEL_ID, SECTION_PICKER_ID]
   );
+  borrowLeftEdge(win);
 
   const header = lpHeader(doc);
   const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
@@ -7511,6 +7547,7 @@ function chromeStyles(win, kind) {
 
 function closeChromeDesignsPanel(win) {
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
+  releaseLeftEdgeIfFree(win);
   syncPreviewInset(win);
 }
 
@@ -7528,6 +7565,7 @@ function openChromeDesignsPanel(win, kind) {
     existing.setAttribute('data-sve-chrome-kind', chromeKind);
     existing.dispatchEvent(new CustomEvent('sve-chrome-render'));
     hideGlobalsPanel(win);
+    borrowLeftEdge(win);
     syncPreviewInset(win);
 
     return;
@@ -7536,6 +7574,7 @@ function openChromeDesignsPanel(win, kind) {
   // Keep Theme Settings mounted (hidden) + sections library if open on the right.
   closeRightPanels(win, [CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, SECTION_PICKER_ID]);
   hideGlobalsPanel(win);
+  borrowLeftEdge(win);
 
   const header = lpHeader(doc);
   const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
