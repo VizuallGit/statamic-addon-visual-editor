@@ -2754,7 +2754,9 @@ function closeRightPanels(win, keep = null) {
   }
 
   if (!keepIds.includes(GLOBALS_PANEL_ID)) {
-    closeGlobalsPanel(win);
+    // Park (don't destroy) — tearing the iframe down is what made chrome feel
+    // slow compared to page sections that already live in the editor DOM.
+    parkGlobalsPanel(win);
   }
 
   if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID)) {
@@ -4311,6 +4313,10 @@ export function soloSection(uid, doc, win) {
   return true;
 }
 
+// Tracks whether Live Preview was open, so teardown (and stash clear) runs once
+// when leaving — not on every MutationObserver tick outside LP.
+let lpWasOpen = false;
+
 /**
  * Injects the panel toggle when the Live Preview screen is (re)mounted, and
  * enforces the desired collapse state. Called from initCp's MutationObserver:
@@ -4322,19 +4328,24 @@ export function ensureLpPanelToggle(win) {
   const header = lpHeader(doc);
 
   if (!header) {
-    // Live preview closed — forget session state; next open re-reads the mode.
-    // The docked panels belong to the preview, so they go with it: left behind,
-    // they'd hang over the ordinary publish form with nothing to preview into.
-    // The floating back pill lives on document.body (outside Vue), so it must be
-    // removed explicitly — otherwise it survives into the ordinary CP dashboard.
-    lpCollapsed = null;
-    chromePrefetchArmed = false;
-    clearSolo(doc);
-    closeRightPanels(win);
-    removeLpBackButton(doc);
+    if (lpWasOpen) {
+      lpWasOpen = false;
+      lpCollapsed = null;
+      chromePrefetchArmed = false;
+      clearSolo(doc);
+      closeRightPanels(win); // parks Theme Settings iframe so it stays warm
+      removeLpBackButton(doc);
+    }
+
+    // Outside LP: still keep Theme Settings warming in the background.
+    if (!doc.getElementById(GLOBALS_PANEL_ID)) {
+      scheduleChromeGlobalsPrefetch(win);
+    }
 
     return;
   }
+
+  lpWasOpen = true;
 
   if (lpCollapsed === null) {
     lpCollapsed = lpMode(win) !== 'show';
@@ -4347,7 +4358,7 @@ export function ensureLpPanelToggle(win) {
     lpCollapsed = false;
   }
 
-  // Prefetch Theme Settings once LP is up — first header/footer click stays instant.
+  // Ensure Theme Settings is warming (may already be from CP boot).
   if (!chromePrefetchArmed) {
     chromePrefetchArmed = true;
     scheduleChromeGlobalsPrefetch(win);
@@ -7144,9 +7155,38 @@ function closeGlobalsPanel(win) {
     .then(() => refreshPreview(win, false));
 
   // Warm the next open so footer/header clicks stay instant after close.
-  if (lpHeader(win.document)) {
-    scheduleChromeGlobalsPrefetch(win);
+  scheduleChromeGlobalsPrefetch(win);
+}
+
+/**
+ * Keep the Theme Settings iframe mounted (off-screen) so the next open is
+ * instant — same idea as page sections already living in the LP editor DOM.
+ * Clears the preview stash but does not tear down the form.
+ */
+function parkGlobalsPanel(win) {
+  const doc = win.document;
+  const panel = doc.getElementById(GLOBALS_PANEL_ID);
+
+  if (!panel) {
+    return;
   }
+
+  panel.style.cssText =
+    'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
+    'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
+    'background:var(--theme-color-content-bg,#fff);';
+  panel.setAttribute('data-sve-chrome-hidden', '1');
+  forcePanelOpen = false;
+  syncPreviewInset(win);
+
+  win
+    .fetch('/!/sve/globals-preview/clear', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .catch(() => {})
+    .then(() => refreshPreview(win, false));
 }
 
 const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
@@ -7239,28 +7279,33 @@ function globalsPanelUrl(win, set) {
   return url.toString();
 }
 
-/** Once per Live Preview open — preload Theme Settings so the first chrome click is instant. */
+/** Prefetch Theme Settings as early as possible (even before Live Preview). */
 let chromePrefetchArmed = false;
 
 function scheduleChromeGlobalsPrefetch(win) {
-  // Start immediately — requestIdleCallback left a ~1s gap before the iframe
-  // even began loading, so the first header/footer click still waited.
   win.setTimeout(() => prefetchChromeGlobals(win), 0);
 }
 
 /**
  * Background-load theme_settings into a hidden iframe. Page sections feel instant
- * because their form is already mounted; chrome needs the same head start.
+ * because their form is already mounted; chrome needs the same head start —
+ * ideally before the user opens Live Preview at all.
  */
 function prefetchChromeGlobals(win) {
   const doc = win.document;
 
-  if (!lpHeader(doc) || doc.getElementById(GLOBALS_PANEL_ID)) {
+  // Don't run inside the panel iframe itself.
+  if (new URLSearchParams(win.location.search).has(GLOBALS_PANEL_PARAM)) {
+    return;
+  }
+
+  if (doc.getElementById(GLOBALS_PANEL_ID)) {
     return;
   }
 
   const handle = chromeGlobalHandle(win);
-  const set = globalSets(win).find((candidate) => candidate.handle === handle);
+  const sets = globalSets(win);
+  const set = sets.find((candidate) => candidate.handle === handle);
 
   if (!set) {
     return;
@@ -7498,8 +7543,34 @@ function initGlobalsPanelFrame(win) {
   const style = doc.createElement('style');
 
   style.textContent = `
-    body { background: transparent !important; }
-    [data-sve-panel-hide] { display: none !important; }
+    body {
+      background: transparent !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    [data-sve-panel-hide] {
+      display: none !important;
+      height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+    }
+    /* Tabs should sit tight under the outer SVE panel bar (~1rem). */
+    main {
+      margin: 0 !important;
+      padding-block-start: 0.75rem !important;
+    }
+    main > *:first-child {
+      margin-block-start: 0 !important;
+      padding-block-start: 0 !important;
+    }
+    [role="tablist"],
+    nav[role="tablist"],
+    .tabs {
+      margin-block-start: 0 !important;
+      padding-block-start: 0 !important;
+    }
   `;
   doc.head.appendChild(style);
 
@@ -8920,7 +8991,11 @@ export function initCp(win = window) {
   // Running as the globals panel inside Live Preview: strip to the form and
   // stream its values up. None of the Live Preview machinery below applies.
   // The same frame serves a global section's editor — see initGlobalsPanelFrame.
-  initGlobalsPanelFrame(win);
+  if (!initGlobalsPanelFrame(win)) {
+    // Parent CP window — start warming Theme Settings immediately on entry edit,
+    // so it's ready before the user even opens Live Preview.
+    scheduleChromeGlobalsPrefetch(win);
+  }
 
   // Capture publish containers (values + setFieldValue) for inline-edit
   // write-back. Runs inside Statamic.booting(), before any container mounts.
