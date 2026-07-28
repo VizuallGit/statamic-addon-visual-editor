@@ -280,9 +280,9 @@ export function injectStyles(doc) {
         [data-sve-global]:not([data-sve-global-focused]) [data-sid-label]::after {
             display: none !important;
         }
-        /* Site chrome (header / footer): same "step inside" feel as global
-           sections — click once to focus, the rest of the page fades, then you
-           edit widgets / pick a design from the library. */
+        /* Site chrome (header / footer): focus class on <html>. Fade is a FIXED
+           scrim on html::after — NOT opacity on main. Morphing body/main used to
+           paint new nodes at full opacity for a frame (= open/close flicker). */
         [data-sve-chrome] {
             position: relative;
         }
@@ -299,41 +299,58 @@ export function injectStyles(doc) {
             z-index: 9998;
             pointer-events: none;
             opacity: 0;
-            transition: opacity 0.15s ease;
         }
-        [data-sve-chrome]:hover::before,
-        [data-sve-chrome][data-sve-chrome-focused]::before {
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome]:hover::before,
+        html.sve-chrome-focus-header [data-sve-chrome="header"]::before,
+        html.sve-chrome-focus-footer [data-sve-chrome="footer"]::before {
             opacity: 1;
         }
-        [data-sve-chrome]:not([data-sve-chrome-focused]):hover {
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome]:hover {
             outline: 2px dashed #0f766e;
             outline-offset: -2px;
             cursor: pointer;
         }
-        html.sve-chrome-focus [data-sve-chrome]:not([data-sve-chrome-focused]),
-        html.sve-chrome-focus main,
-        html.sve-chrome-focus [data-sve-global] {
-            opacity: 0.25;
-            filter: saturate(0.4);
-            transition: opacity 0.2s ease, filter 0.2s ease;
-            pointer-events: none;
+        html.sve-chrome-focus-header::after,
+        html.sve-chrome-focus-footer::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: 2147483000;
+            background: rgba(15, 23, 42, 0.5);
+            pointer-events: auto;
         }
-        [data-sve-chrome-focused] {
+        html.sve-chrome-focus-header [data-sve-chrome="header"],
+        html.sve-chrome-focus-footer [data-sve-chrome="footer"] {
             outline: 3px solid #0f766e !important;
             outline-offset: -3px;
             position: relative;
-            z-index: 2;
+            z-index: 2147483001;
+            pointer-events: auto;
         }
-        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid],
-        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-field],
-        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-global],
-        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-inner],
-        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-hover],
-        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-active] {
+        html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid],
+        html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid-field],
+        html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid-global],
+        html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid-inner],
+        html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid-hover],
+        html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid-active],
+        html.sve-chrome-focus-footer [data-sve-chrome="header"] [data-sid],
+        html.sve-chrome-focus-footer [data-sve-chrome="header"] [data-sid-field],
+        html.sve-chrome-focus-footer [data-sve-chrome="header"] [data-sid-global],
+        html.sve-chrome-focus-footer [data-sve-chrome="header"] [data-sid-inner],
+        html.sve-chrome-focus-footer [data-sve-chrome="header"] [data-sid-hover],
+        html.sve-chrome-focus-footer [data-sve-chrome="header"] [data-sid-active],
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome] [data-sid],
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome] [data-sid-field],
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome] [data-sid-global],
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome] [data-sid-inner],
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome] [data-sid-hover],
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome] [data-sid-active] {
             outline-color: transparent !important;
             cursor: pointer !important;
         }
-        [data-sve-chrome]:not([data-sve-chrome-focused]) [data-sid-label]::after {
+        html:not([class*="sve-chrome-focus-"]) [data-sve-chrome] [data-sid-label]::after,
+        html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid-label]::after,
+        html.sve-chrome-focus-footer [data-sve-chrome="header"] [data-sid-label]::after {
             display: none !important;
         }
         .sve-cp-pulse {
@@ -1424,6 +1441,8 @@ function exitGlobalFocus(win, closePanel = true) {
   doc.querySelectorAll(`[${GLOBAL_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(GLOBAL_FOCUS_ATTR));
   doc.documentElement.classList.remove('sve-global-focus');
   doc.getElementById(GLOBAL_BAR_ID)?.remove();
+  globalSaveBtn = null;
+  globalSectionDirty = false;
   globalFocusEl = null;
   globalFocusId = null;
 
@@ -1431,6 +1450,170 @@ function exitGlobalFocus(win, closePanel = true) {
   // the page rendering an unsaved section you can no longer see you're in.
   if (wasFocused && closePanel) {
     win.parent.postMessage({ source: 'statamic-visual-editor', type: 'close-global-section' }, win.location.origin);
+  }
+}
+
+/**
+ * Statamic CP light/dark tokens for dialogs rendered inside the preview iframe
+ * (which doesn't inherit CP CSS variables). Reads the parent CP theme when possible.
+ */
+function cpDialogTheme(win) {
+  let dark = false;
+  let bg = '';
+  let primary = '';
+
+  try {
+    const root = win.parent?.document?.documentElement;
+
+    if (root) {
+      dark = root.classList.contains('dark');
+      const cs = win.parent.getComputedStyle(root);
+
+      bg = (cs.getPropertyValue('--theme-color-content-bg') || '').trim();
+      primary = (cs.getPropertyValue('--theme-color-primary') || '').trim();
+    }
+  } catch {
+    // Cross-origin or missing parent — fall back below.
+  }
+
+  return {
+    dark,
+    bg: bg || (dark ? '#1e293b' : '#ffffff'),
+    color: dark ? '#f8fafc' : '#0f172a',
+    muted: dark ? 'rgba(248,250,252,.7)' : 'rgba(15,23,42,.7)',
+    primary: primary || '#4f46e5',
+    overlay: 'rgba(0,0,0,.45)',
+  };
+}
+
+/** Statamic primary button (same look as CP “Save & Publish”). */
+function svePrimaryBtn(theme, { compact = false } = {}) {
+  const pad = compact ? '6px 12px' : '8px 14px';
+  const size = compact ? '12px' : '13px';
+
+  return (
+    `all:unset;cursor:pointer;padding:${pad};border-radius:8px;font-size:${size};font-weight:600;` +
+    `background:${theme.primary};color:#fff;`
+  );
+}
+
+/** Quiet secondary/cancel chip — 10% white on dark, 10% black on light. */
+function sveSecondaryBtn(theme, { compact = false } = {}) {
+  const pad = compact ? '6px 12px' : '8px 14px';
+  const size = compact ? '12px' : '13px';
+  const wash = theme.dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
+
+  return (
+    `all:unset;cursor:pointer;padding:${pad};border-radius:8px;font-size:${size};font-weight:600;` +
+    `color:${theme.color};background:${wash};`
+  );
+}
+
+/** Destructive (discard / close without saving). */
+function sveDangerBtn(theme, { compact = false } = {}) {
+  const pad = compact ? '6px 12px' : '8px 14px';
+  const size = compact ? '12px' : '13px';
+
+  return (
+    `all:unset;cursor:pointer;padding:${pad};border-radius:8px;font-size:${size};font-weight:600;` +
+    'background:#dc2626;color:#fff;'
+  );
+}
+
+/** Floating focus bar (header/footer/global) — same surface as dialog cards. */
+function sveFocusBarStyle(theme) {
+  return (
+    'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483646;' +
+    `display:flex;align-items:center;gap:10px;background:${theme.bg};color:${theme.color};` +
+    'padding:8px 10px 8px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);' +
+    'font:500 13px/1.3 ui-sans-serif,system-ui,sans-serif;user-select:none;'
+  );
+}
+
+/**
+ * Confirm overlay in the preview — same card/button chrome as CP
+ * confirmCloseDiscard / confirmUnsaved (Statamic light + dark).
+ */
+function showPreviewConfirm(win, { title, body, confirmLabel, cancelLabel, danger = false, onConfirm, onCancel }) {
+  const doc = win.document;
+  const theme = cpDialogTheme(win);
+
+  doc.getElementById('__sve-preview-confirm')?.remove();
+
+  const overlay = doc.createElement('div');
+
+  overlay.id = '__sve-preview-confirm';
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;' +
+    `background:${theme.overlay};font-family:ui-sans-serif,system-ui,sans-serif;`;
+
+  const card = doc.createElement('div');
+
+  card.style.cssText =
+    `width:400px;max-width:92vw;background:${theme.bg};color:${theme.color};` +
+    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
+  card.innerHTML =
+    `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${title}</div>` +
+    `<div style="font-size:13px;color:${theme.muted};line-height:1.45;margin-bottom:18px;">${body}</div>` +
+    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
+
+  const actions = card.querySelector('[data-sve-actions]');
+  const close = () => overlay.remove();
+
+  const button = (label, style, fn) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.cssText = style;
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      close();
+      fn?.();
+    });
+    actions.appendChild(btn);
+  };
+
+  button(cancelLabel || t('cancel'), sveSecondaryBtn(theme), () => onCancel?.());
+  button(
+    confirmLabel,
+    danger ? sveDangerBtn(theme) : svePrimaryBtn(theme),
+    () => onConfirm?.()
+  );
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      close();
+      onCancel?.();
+    }
+  });
+
+  overlay.appendChild(card);
+  doc.documentElement.appendChild(overlay);
+}
+
+function confirmEnterGlobal(win, section) {
+  showPreviewConfirm(win, {
+    title: t('global_enter_title'),
+    body: t('global_enter_body'),
+    confirmLabel: t('global_enter_confirm'),
+    cancelLabel: t('cancel'),
+    onConfirm: () => enterGlobalFocus(win, section),
+  });
+}
+
+function requestCloseGlobal(win) {
+  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'request-close-global' }, win.location.origin);
+}
+
+let globalSaveBtn = null;
+let globalSectionDirty = false;
+
+function setGlobalSectionDirtyUI(dirty) {
+  globalSectionDirty = !!dirty;
+
+  if (globalSaveBtn) {
+    globalSaveBtn.style.display = globalSectionDirty ? '' : 'none';
   }
 }
 
@@ -1448,6 +1631,7 @@ function enterGlobalFocus(win, section, reopen = true) {
   exitGlobalFocus(win, false);
 
   const doc = win.document;
+  const theme = cpDialogTheme(win);
 
   section.setAttribute(GLOBAL_FOCUS_ATTR, '');
   doc.documentElement.classList.add('sve-global-focus');
@@ -1457,43 +1641,38 @@ function enterGlobalFocus(win, section, reopen = true) {
   const bar = doc.createElement('div');
 
   bar.id = GLOBAL_BAR_ID;
-  bar.style.cssText =
-    'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483646;' +
-    'display:flex;align-items:center;gap:12px;background:#1f2937;color:#fff;' +
-    'padding:8px 10px 8px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.4);' +
-    'font:500 13px/1.3 sans-serif;user-select:none;';
+  bar.style.cssText = sveFocusBarStyle(theme);
 
   const text = doc.createElement('span');
 
-  text.style.cssText = 'opacity:.9;';
+  text.style.cssText = `font-weight:400;color:${theme.muted};`;
   text.innerHTML = t('global_bar', {
-    section: `<b style="color:#c4b5fd;">${t('global_bar_section')}</b>`,
+    section: `<b style="font-weight:700;color:${theme.color};">${t('global_bar_section')}</b>`,
   });
   bar.appendChild(text);
 
-  const barButton = (label, background) => {
+  const barButton = (label, style) => {
     const btn = doc.createElement('button');
 
     btn.type = 'button';
     btn.textContent = label;
-    btn.style.cssText =
-      'all:unset;cursor:pointer;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;' +
-      `background:${background};color:#fff;`;
+    btn.style.cssText = style;
     bar.appendChild(btn);
 
     return btn;
   };
 
-  // Saving belongs where you're working — you're editing the section here, not in
-  // the panel, so the Save is here too (it drives the panel's real one).
-  barButton(t('save'), '#7c3aed').addEventListener('click', (event) => {
+  // Save only appears once there are unsaved edits (same idea as chrome bar).
+  globalSaveBtn = barButton(t('save'), svePrimaryBtn(theme, { compact: true }));
+  globalSaveBtn.style.display = globalSectionDirty ? '' : 'none';
+  globalSaveBtn.addEventListener('click', (event) => {
     event.stopPropagation();
     win.parent.postMessage({ source: 'statamic-visual-editor', type: 'save-global-section' }, win.location.origin);
   });
 
-  barButton(t('close'), 'rgba(255,255,255,.12)').addEventListener('click', (event) => {
+  barButton(t('close'), sveSecondaryBtn(theme, { compact: true })).addEventListener('click', (event) => {
     event.stopPropagation();
-    exitGlobalFocus(win);
+    requestCloseGlobal(win);
   });
 
   doc.documentElement.appendChild(bar);
@@ -1507,6 +1686,8 @@ function enterGlobalFocus(win, section, reopen = true) {
       win.location.origin
     );
   }
+
+  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'sve-global-dirty-query' }, win.location.origin);
 }
 
 // --- Site chrome (header / footer) ----------------------------------------------
@@ -1521,16 +1702,126 @@ const CHROME_BAR_ID = '__sve-chrome-bar';
 
 let chromeFocusEl = null;
 let chromeFocusKind = null;
+/** Survives morph exits (closePanel=false) so Theme Settings edits don't eject you. */
+let chromeFocusKindSticky = null;
+
+
+function chromeFocusClass(kind) {
+  return kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header';
+}
+
+function clearChromeFocusClasses(doc) {
+  doc.documentElement.classList.remove(
+    'sve-chrome-focus',
+    'sve-chrome-focus-header',
+    'sve-chrome-focus-footer'
+  );
+}
+
+function applyChromeFocusClass(doc, kind) {
+  const next = chromeFocusClass(kind);
+
+  // Idempotent: don't thrash classList if already correct (avoids style recalc flicker).
+  if (doc.documentElement.classList.contains(next)) {
+    doc.documentElement.classList.remove(
+      next === 'sve-chrome-focus-footer' ? 'sve-chrome-focus-header' : 'sve-chrome-focus-footer',
+      'sve-chrome-focus'
+    );
+
+    return;
+  }
+
+  clearChromeFocusClasses(doc);
+  doc.documentElement.classList.add(next);
+}
+
+function hasChromeFocusClass(doc, kind = null) {
+  if (kind) {
+    return doc.documentElement.classList.contains(chromeFocusClass(kind));
+  }
+
+  return (
+    doc.documentElement.classList.contains('sve-chrome-focus-header') ||
+    doc.documentElement.classList.contains('sve-chrome-focus-footer')
+  );
+}
+
+function rememberedChromeKind() {
+  return chromeFocusKindSticky || chromeFocusKind || (typeof window !== 'undefined' ? window.__sveChromeKind : null);
+}
+
+function rememberChromeKind(kind) {
+  chromeFocusKind = kind || null;
+  chromeFocusKindSticky = kind || null;
+
+  if (typeof window !== 'undefined') {
+    window.__sveChromeKind = kind || null;
+  }
+}
+
+/** Rebind after morph: keep html kind class; only refresh the live element pointer. */
+function rebindChromeFocus(win, kind, attempt = 0) {
+  const chromeKind = kind === 'footer' ? 'footer' : kind === 'header' ? 'header' : null;
+
+  if (!chromeKind) {
+    return;
+  }
+
+  rememberChromeKind(chromeKind);
+
+  const doc = win.document;
+
+  // Fade/outline live on <html> — re-assert without removing (no flicker).
+  applyChromeFocusClass(doc, chromeKind);
+
+  const again = doc.querySelector(`[${CHROME_ATTR}="${chromeKind}"]`);
+
+  if (!again) {
+    if (attempt < 50) {
+      setTimeout(() => rebindChromeFocus(win, chromeKind, attempt + 1), 40);
+    }
+
+    return;
+  }
+
+  if (chromeFocusEl !== again || !again.hasAttribute(CHROME_FOCUS_ATTR)) {
+    doc.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => {
+      if (el !== again) {
+        el.removeAttribute(CHROME_FOCUS_ATTR);
+      }
+    });
+    again.setAttribute(CHROME_FOCUS_ATTR, '');
+    chromeFocusEl = again;
+    chromeFocusKind = chromeKind;
+  }
+
+  if (!doc.getElementById(CHROME_BAR_ID)) {
+    mountChromeBar(win, chromeKind);
+  }
+}
+
+/** @deprecated name — soft rebind, never exit/enter. */
+function restoreChromeFocus(win, kind, attempt = 0) {
+  rebindChromeFocus(win, kind, attempt);
+}
 
 function exitChromeFocus(win, closePanel = true) {
   const doc = win.document;
   const wasFocused = !!chromeFocusEl;
 
   doc.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(CHROME_FOCUS_ATTR));
-  doc.documentElement.classList.remove('sve-chrome-focus');
+  clearChromeFocusClasses(doc);
   doc.getElementById(CHROME_BAR_ID)?.remove();
+  chromeSaveBtn = null;
+  chromeStatusEl = null;
+  chromeDirty = false;
   chromeFocusEl = null;
   chromeFocusKind = null;
+
+  if (closePanel) {
+    chromeFocusKindSticky = null;
+    win.__sveChromeKind = null;
+  }
 
   if (wasFocused && closePanel) {
     win.parent.postMessage({ source: 'statamic-visual-editor', type: 'close-chrome' }, win.location.origin);
@@ -1542,7 +1833,11 @@ function exitChromeFocus(win, closePanel = true) {
  * `reopen: false` keeps the panel after a morph (same idea as enterGlobalFocus).
  */
 function enterChromeFocus(win, el, reopen = true) {
-  if (chromeFocusEl === el) {
+  if (chromeFocusEl === el && hasChromeFocusClass(win.document, el.getAttribute(CHROME_ATTR) || 'header')) {
+    if (!win.document.getElementById(CHROME_BAR_ID)) {
+      mountChromeBar(win, el.getAttribute(CHROME_ATTR) || 'header');
+    }
+
     return;
   }
 
@@ -1554,71 +1849,108 @@ function enterChromeFocus(win, el, reopen = true) {
   const kind = el.getAttribute(CHROME_ATTR) || 'header';
 
   el.setAttribute(CHROME_FOCUS_ATTR, '');
-  doc.documentElement.classList.add('sve-chrome-focus');
+  applyChromeFocusClass(doc, kind);
   chromeFocusEl = el;
-  chromeFocusKind = kind;
+  rememberChromeKind(kind);
+  mountChromeBar(win, kind);
+
+  if (reopen) {
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'open-chrome', kind }, win.location.origin);
+  }
+
+  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'sve-chrome-dirty-query' }, win.location.origin);
+}
+
+let chromeSaveBtn = null;
+let chromeStatusEl = null;
+let chromeDirty = false;
+
+function setChromeDirtyUI(dirty) {
+  chromeDirty = !!dirty;
+
+  if (chromeSaveBtn) {
+    chromeSaveBtn.style.display = chromeDirty ? '' : 'none';
+  }
+
+  if (chromeStatusEl) {
+    chromeStatusEl.textContent = chromeDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
+  }
+}
+
+function requestCloseChrome(win) {
+  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'request-close-chrome' }, win.location.origin);
+}
+
+/**
+ * Confirm before stepping into header/footer — same “this is global” gate as
+ * synced sections, so a stray click doesn’t open Theme Settings by accident.
+ */
+function confirmEnterChrome(win, el) {
+  const kind = el.getAttribute(CHROME_ATTR) === 'footer' ? 'footer' : 'header';
+  const chrome = t(kind === 'footer' ? 'chrome_footer' : 'chrome_header');
+
+  showPreviewConfirm(win, {
+    title: t('chrome_enter_title', { chrome }),
+    body: t('chrome_enter_body', { chrome }),
+    confirmLabel: t('chrome_enter_confirm'),
+    cancelLabel: t('cancel'),
+    onConfirm: () => enterChromeFocus(win, el),
+  });
+}
+
+function mountChromeBar(win, kind) {
+  const doc = win.document;
+  const theme = cpDialogTheme(win);
+
+  doc.getElementById(CHROME_BAR_ID)?.remove();
 
   const bar = doc.createElement('div');
 
   bar.id = CHROME_BAR_ID;
-  bar.style.cssText =
-    'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483646;' +
-    'display:flex;align-items:center;gap:12px;background:#1f2937;color:#fff;' +
-    'padding:8px 10px 8px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.4);' +
-    'font:500 13px/1.3 sans-serif;user-select:none;';
+  bar.style.cssText = sveFocusBarStyle(theme);
 
   const text = doc.createElement('span');
 
-  text.style.cssText = 'opacity:.9;';
+  text.style.cssText = `font-weight:400;color:${theme.muted};`;
   text.innerHTML = t('chrome_bar', {
-    chrome: `<b style="color:#5eead4;">${t(kind === 'footer' ? 'chrome_footer' : 'chrome_header')}</b>`,
+    chrome: `<b style="font-weight:700;color:${theme.color};">${t(kind === 'footer' ? 'chrome_footer' : 'chrome_header')}</b>`,
   });
+
+  const status = doc.createElement('span');
+
+  status.style.cssText = `font-weight:400;color:${theme.muted};`;
+  status.textContent = chromeDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
+  chromeStatusEl = status;
+
+  text.appendChild(doc.createTextNode(' '));
+  text.appendChild(status);
   bar.appendChild(text);
 
-  const barButton = (label, background) => {
+  const barButton = (label, style) => {
     const btn = doc.createElement('button');
 
     btn.type = 'button';
     btn.textContent = label;
-    btn.style.cssText =
-      'all:unset;cursor:pointer;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:600;' +
-      `background:${background};color:#fff;`;
+    btn.style.cssText = style;
     bar.appendChild(btn);
 
     return btn;
   };
 
-  barButton(t('chrome_designs'), '#0f766e').addEventListener('click', (event) => {
-    event.stopPropagation();
-    win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'open-chrome-designs', kind },
-      win.location.origin
-    );
-  });
-
-  barButton(t('chrome_settings'), 'rgba(255,255,255,.18)').addEventListener('click', (event) => {
-    event.stopPropagation();
-    win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'open-chrome-settings', kind },
-      win.location.origin
-    );
-  });
-
-  barButton(t('save'), '#0f766e').addEventListener('click', (event) => {
+  // Save only when Theme Settings has unsaved edits (CP drives visibility).
+  chromeSaveBtn = barButton(t('save'), svePrimaryBtn(theme, { compact: true }));
+  chromeSaveBtn.style.display = chromeDirty ? '' : 'none';
+  chromeSaveBtn.addEventListener('click', (event) => {
     event.stopPropagation();
     win.parent.postMessage({ source: 'statamic-visual-editor', type: 'save-chrome' }, win.location.origin);
   });
 
-  barButton(t('close'), 'rgba(255,255,255,.12)').addEventListener('click', (event) => {
+  barButton(t('close'), sveSecondaryBtn(theme, { compact: true })).addEventListener('click', (event) => {
     event.stopPropagation();
-    exitChromeFocus(win);
+    requestCloseChrome(win);
   });
 
   doc.documentElement.appendChild(bar);
-
-  if (reopen) {
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'open-chrome', kind }, win.location.origin);
-  }
 }
 
 // The CP's floating back pill, in our coordinates (see sve-pill-box).
@@ -3339,43 +3671,55 @@ export function createClickHandler(win) {
       return;
     }
 
+    // Confirm overlays own their clicks (don't treat as "outside").
+    if (event.target.closest('#__sve-preview-confirm')) {
+      return;
+    }
+
     // The chrome (header/footer) bar owns its own clicks.
     if (event.target.closest(`#${CHROME_BAR_ID}`)) {
       return;
     }
 
-    // First click on header/footer steps into chrome focus (page fades). Once
-    // inside, nested clicks edit normally; clicking outside steps back out.
+    // First click on header/footer: confirm (“global — applies everywhere”),
+    // then step into chrome focus. Once inside, nested clicks edit normally;
+    // clicking outside asks CP to close (warns if Theme Settings is dirty).
     const chromeEl = event.target.closest(`[${CHROME_ATTR}]`);
 
     if (chromeEl) {
       if (chromeFocusEl !== chromeEl) {
         event.preventDefault();
         event.stopPropagation();
-        enterChromeFocus(win, chromeEl);
+        confirmEnterChrome(win, chromeEl);
 
         return;
       }
-    } else if (chromeFocusEl) {
-      exitChromeFocus(win);
+    } else if (chromeFocusEl || hasChromeFocusClass(win.document)) {
+      event.preventDefault();
+      event.stopPropagation();
+      requestCloseChrome(win);
+
+      return;
     }
 
-    // First click on a global section steps into it: the page fades back and its
-    // own editor opens beside you. Once you're in, clicks behave normally again —
-    // so the text edits inline exactly like the page's own. Clicking outside
-    // steps back out.
+    // Global section: confirm before entering ("changes apply everywhere").
+    // Outside click asks CP to close — same discard warning as chrome.
     const globalSection = event.target.closest(`[${GLOBAL_ATTR}]`);
 
     if (globalSection) {
       if (globalFocusEl !== globalSection) {
         event.preventDefault();
         event.stopPropagation();
-        enterGlobalFocus(win, globalSection);
+        confirmEnterGlobal(win, globalSection);
 
         return;
       }
     } else if (globalFocusEl) {
-      exitGlobalFocus(win);
+      event.preventDefault();
+      event.stopPropagation();
+      requestCloseGlobal(win);
+
+      return;
     }
 
     if (editing) {
@@ -3793,6 +4137,43 @@ export function createMessageReceiver(win) {
       return;
     }
 
+    // CP re-asserts header/footer focus after Theme Settings morphs the preview.
+    if (data.type === 'sve-restore-chrome') {
+      rebindChromeFocus(win, data.kind === 'footer' ? 'footer' : 'header');
+
+      return;
+    }
+
+    if (data.type === 'sve-chrome-dirty') {
+      setChromeDirtyUI(!!data.dirty);
+
+      return;
+    }
+
+    if (data.type === 'sve-global-dirty') {
+      setGlobalSectionDirtyUI(!!data.dirty);
+
+      return;
+    }
+
+    // CP finished a close (clean, or after discard confirm) — drop focus UI.
+    // Panel already dismissed by CP; don't post close-* again.
+    if (data.type === 'sve-force-exit-chrome') {
+      setChromeDirtyUI(false);
+      chromeFocusKindSticky = null;
+      win.__sveChromeKind = null;
+      exitChromeFocus(win, false);
+
+      return;
+    }
+
+    if (data.type === 'sve-force-exit-global') {
+      setGlobalSectionDirtyUI(false);
+      exitGlobalFocus(win, false);
+
+      return;
+    }
+
     // Where the CP's floating "back" pill sits, in our coordinates — so a
     // section's control can step out from under it.
     if (data.type === 'sve-pill-box') {
@@ -3941,6 +4322,13 @@ export function initBridge(win = window) {
     return;
   }
 
+  // Morph/HTML refresh must not stack duplicate listeners or wipe chrome state.
+  if (win.__sveBridgeReady) {
+    return;
+  }
+
+  win.__sveBridgeReady = true;
+
   // Shared with preview.js (same window): while an inline edit is active, hot
   // reload defers its morph so the DOM under the caret is never replaced.
   win.__sveInlineEdit = win.__sveInlineEdit || { active: false };
@@ -3996,14 +4384,12 @@ export function initBridge(win = window) {
       finishWidthDrag(win, true);
     }
 
-    // A morph brings in fresh section elements. Re-tag the global ones and put
-    // the focus back on the same section — every keystroke in it re-renders the
-    // page, so dropping the focus here would throw you out of it as you type.
+    // Morph may replace body nodes. Keep html.sve-chrome-focus-* intact —
+    // never exit/enter chrome here (that was the open/close flicker).
     const focusedId = globalFocusId;
-    const focusedChrome = chromeFocusKind;
+    const focusedChrome = rememberedChromeKind();
 
     exitGlobalFocus(win, false);
-    exitChromeFocus(win, false);
     tagGlobalSections(win);
 
     if (focusedId) {
@@ -4013,23 +4399,43 @@ export function initBridge(win = window) {
         enterGlobalFocus(win, again, false);
       }
     } else if (focusedChrome) {
+      // Surgical chrome morph keeps the same node; only rebind the pointer
+      // if Alpine replaced it. Never clear html classes or remount the bar.
       const again = win.document.querySelector(`[${CHROME_ATTR}="${focusedChrome}"]`);
 
       if (again) {
-        enterChromeFocus(win, again, false);
+        if (chromeFocusEl !== again) {
+          win.document.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => {
+            if (el !== again) {
+              el.removeAttribute(CHROME_FOCUS_ATTR);
+            }
+          });
+          again.setAttribute(CHROME_FOCUS_ATTR, '');
+          chromeFocusEl = again;
+          chromeFocusKind = focusedChrome;
+        }
+      } else {
+        // Full-body morph fell back and chrome node is briefly missing — soft retry.
+        rebindChromeFocus(win, focusedChrome);
       }
     }
 
     setupInserters(win); // fresh blocks after the morph
   });
 
-  // Escape steps back out of a global section or chrome focus.
+  // Escape asks to leave chrome / global focus (CP warns if dirty).
   win.document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !editing) {
-      if (chromeFocusEl) {
-        exitChromeFocus(win);
+      if (win.document.getElementById('__sve-preview-confirm')) {
+        win.document.getElementById('__sve-preview-confirm')?.remove();
+
+        return;
+      }
+
+      if (chromeFocusEl || hasChromeFocusClass(win.document)) {
+        requestCloseChrome(win);
       } else if (globalFocusEl) {
-        exitGlobalFocus(win);
+        requestCloseGlobal(win);
       }
     }
   });

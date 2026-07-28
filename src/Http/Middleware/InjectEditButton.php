@@ -431,6 +431,8 @@ class InjectEditButton
                 button.setAttribute('data-loading', '');
             });
 
+            var ignorePopUntil = 0;
+
             addEventListener('message', function (event) {
                 if (event.origin !== location.origin) return;
 
@@ -441,6 +443,13 @@ class InjectEditButton
 
                 var data = event.data;
                 if (!data || data.source !== 'statamic-visual-editor') return;
+
+                // Theme Settings / Live Preview activity touches joint session
+                // history. Ignore the resulting popstate noise for a beat so we
+                // don't close the overlay and land on the front end.
+                if (data.type !== 'lp-close') {
+                    ignorePopUntil = Date.now() + 1500;
+                }
 
                 if (data.type === 'lp-goto') {
                     // Same origin only: this hands a URL straight to an iframe src.
@@ -485,11 +494,16 @@ class InjectEditButton
                 // Only a real Back press should close the editor. Frames inside it
                 // (the globals panel) add and remove their own session-history
                 // entries, and the browser traverses the joint history to keep up —
-                // which fires popstate here without the user going anywhere. Our
-                // own entry still carries the flag, so that case is recognisable.
+                // which fires popstate here without the user going anywhere.
+                if (!open) return;
                 if (event.state && event.state.sveEditing) return;
 
-                if (open) close(true);
+                if (Date.now() < ignorePopUntil) {
+                    try { history.pushState({ sveEditing: true }, '', location.href); } catch (e) {}
+                    return;
+                }
+
+                close(true);
             });
 
             // If the editor never comes up, fall back to a plain navigation rather

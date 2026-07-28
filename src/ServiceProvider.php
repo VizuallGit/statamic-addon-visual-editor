@@ -100,6 +100,10 @@ class ServiceProvider extends AddonServiceProvider
         // double-morph races corrupt the DOM and reset the scroll position.
         config(['statamic.live_preview.hot_reload_contents' => false]);
 
+        // Busting ?t= on every <script type=module> forces Vite/site.js to
+        // re-execute after each morph → full iframe reload ("Reload site?").
+        config(['statamic.live_preview.force_reload_js_modules' => false]);
+
         // Provide the set preview-image map to the CP script. Bound to the CP
         // scripts partial so it only runs on Control Panel page renders (not the
         // front-end), and after routing so the blueprints are resolvable.

@@ -4,27 +4,16 @@
  * Injected on live preview responses via InjectBridgeScript (same mechanism
  * as bridge.js), so sites get hot reload automatically — no partial needed.
  *
- * On every `statamic.preview.updated` message from the CP, the updated HTML
- * is fetched and morphed into the live document instead of reloading the
- * iframe: scroll position survives, and <head> styles (e.g. style_push
- * output) are re-synced so section CSS live-updates too.
+ * While header/footer chrome is focused, we morph ONLY that chrome node and
+ * soft-diff <head> styles. Fade itself is a fixed html overlay (bridge CSS) —
+ * not opacity on main — so body morphs can never flash focus open/closed.
  *
- * While an inline edit is active (window.__sveInlineEdit.active, owned by
- * bridge.js), morphs are deferred: replacing the DOM under the caret would
- * kill the edit session and revert in-flight keystrokes to a stale server
- * render. The latest update URL is stashed and applied when the edit ends
- * (`sve:inline-edit-end` event).
- *
- * Requires Alpine with the morph plugin on the site (falls back to a plain
- * body swap without it). The addon disables Statamic's built-in
- * `live_preview.hot_reload_contents` at boot so the two never morph the
- * same document concurrently.
- *
- * After each update a `statamic:preview-updated` event is dispatched on
- * window — a hook for site JS that needs to re-run after DOM changes.
+ * chromeKind is also pushed from the CP on `sve.globals` so we don't depend
+ * solely on the html class surviving every race.
  */
 
 const STYLE_ID = '__sve-preview-styles';
+const CHROME_ATTR = 'data-sve-chrome';
 
 function injectPreviewStyles(doc) {
   if (doc.getElementById(STYLE_ID)) {
@@ -57,6 +46,9 @@ let globalsActive = false;
 // section the render falls back to what's on disk.
 let sectionsActive = false;
 
+/** CP-authoritative chrome focus (header|footer|null). Beats racing html class. */
+let chromeKindFromParent = null;
+
 function withFlags(url) {
   let out = url;
 
@@ -73,6 +65,131 @@ function withFlags(url) {
 
 function editingActive() {
   return !!window.__sveInlineEdit?.active;
+}
+
+function normalizeChromeKind(kind) {
+  return kind === 'footer' || kind === 'header' ? kind : null;
+}
+
+/** Prefer CP message; fall back to html class from bridge. */
+function focusedChromeKind() {
+  const fromParent = normalizeChromeKind(chromeKindFromParent);
+
+  if (fromParent) {
+    return fromParent;
+  }
+
+  const root = document.documentElement;
+
+  if (root.classList.contains('sve-chrome-focus-footer')) {
+    return 'footer';
+  }
+
+  if (root.classList.contains('sve-chrome-focus-header')) {
+    return 'header';
+  }
+
+  return null;
+}
+
+function isPreservedStyle(el) {
+  const id = el.id || '';
+
+  return id === STYLE_ID || id.startsWith('__sve-');
+}
+
+/**
+ * Diff head styles in place. Never wipe-then-readd — that FOUC'd the page every
+ * keystroke even when only the footer chrome node changed.
+ */
+function syncHeadStyles(updated) {
+  const live = [...document.head.querySelectorAll('style')].filter((s) => !isPreservedStyle(s));
+  const next = [...updated.head.querySelectorAll('style')];
+  const nextTexts = next.map((s) => s.textContent);
+
+  live.forEach((s) => {
+    if (!nextTexts.includes(s.textContent)) {
+      s.remove();
+    }
+  });
+
+  const remaining = new Set(
+    [...document.head.querySelectorAll('style')].filter((s) => !isPreservedStyle(s)).map((s) => s.textContent)
+  );
+
+  next.forEach((s) => {
+    if (!remaining.has(s.textContent)) {
+      document.head.appendChild(s.cloneNode(true));
+      remaining.add(s.textContent);
+    }
+  });
+}
+
+/**
+ * Morph only the focused chrome node. Use outerHTML (same-document parse) —
+ * passing a node from DOMParser's other document is unreliable with Alpine.morph.
+ */
+function morphChromeOnly(updated, kind) {
+  const live = document.querySelector(`[${CHROME_ATTR}="${kind}"]`);
+  const next = updated.body.querySelector(`[${CHROME_ATTR}="${kind}"]`);
+
+  if (!live || !next) {
+    return false;
+  }
+
+  try {
+    if (window.Alpine?.morph) {
+      window.Alpine.morph(live, next.outerHTML);
+    } else {
+      live.replaceWith(document.importNode(next, true));
+    }
+  } catch (e) {
+    return false;
+  }
+
+  // Re-assert focus class after morph (belt + suspenders with overlay CSS).
+  document.documentElement.classList.add(
+    kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header'
+  );
+  document.documentElement.classList.remove(
+    kind === 'footer' ? 'sve-chrome-focus-header' : 'sve-chrome-focus-footer',
+    'sve-chrome-focus'
+  );
+
+  return true;
+}
+
+function morphFullBody(updated) {
+  try {
+    if (window.Alpine?.morph) {
+      // Alpine.morph(el, htmlString) uses createElement() → firstElementChild
+      // only. Passing body.innerHTML therefore morphs <body> against <header>
+      // (the first child), swaps the whole body for the header, and blanks
+      // main/footer until a full iframe reload. Build a same-document <body>
+      // stand-in so patch runs body→body and updates all children.
+      const to = document.createElement('body');
+
+      for (const attr of updated.body.attributes) {
+        to.setAttribute(attr.name, attr.value);
+      }
+
+      to.innerHTML = updated.body.innerHTML;
+      window.Alpine.morph(document.body, to);
+    } else {
+      document.body.innerHTML = updated.body.innerHTML;
+    }
+  } catch (e) {
+    document.body.innerHTML = updated.body.innerHTML;
+  }
+
+  // Full body morph can drop html classes in some Alpine versions — restore.
+  const kind = focusedChromeKind();
+
+  if (kind) {
+    document.documentElement.classList.add(
+      kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header'
+    );
+  }
 }
 
 async function applyUpdate(url) {
@@ -93,27 +210,19 @@ async function applyUpdate(url) {
 
   const updated = new DOMParser().parseFromString(text, 'text/html');
   const savedScrollY = window.scrollY;
+  const chromeKind = focusedChromeKind();
 
-  try {
-    if (window.Alpine?.morph) {
-      window.Alpine.morph(document.body, updated.body);
-    } else {
-      document.body.innerHTML = updated.body.innerHTML;
-    }
-  } catch (e) {
-    document.body.innerHTML = updated.body.innerHTML;
+  syncHeadStyles(updated);
+
+  let surgical = false;
+
+  if (chromeKind) {
+    surgical = morphChromeOnly(updated, chromeKind);
   }
 
-  // Re-sync <head> styles so pushed section CSS (style_push) live-updates.
-  // Our own style is kept; the bridge re-injects its styles via its observer.
-  document.head.querySelectorAll('style').forEach((s) => {
-    if (s.id !== STYLE_ID) {
-      s.remove();
-    }
-  });
-  updated.head.querySelectorAll('style').forEach((s) => {
-    document.head.appendChild(s.cloneNode(true));
-  });
+  if (!surgical) {
+    morphFullBody(updated);
+  }
 
   window.dispatchEvent(new CustomEvent('statamic:preview-updated'));
 
@@ -124,11 +233,11 @@ async function applyUpdate(url) {
 }
 
 window.addEventListener('message', (event) => {
-  // The CP tells us whether a global set is being edited, and re-renders the
-  // preview on every keystroke in it (there's no entry change to make Statamic
-  // do it for us) by replaying the last preview URL.
   if (event.data?.name === 'sve.globals') {
     globalsActive = !!event.data.active;
+    chromeKindFromParent = event.data.active
+      ? normalizeChromeKind(event.data.chromeKind)
+      : null;
 
     if (event.data.url) {
       applyUpdate(event.data.url);
@@ -137,7 +246,6 @@ window.addEventListener('message', (event) => {
     return;
   }
 
-  // Same, for a global section being edited in the side panel.
   if (event.data?.name === 'sve.sections') {
     sectionsActive = !!event.data.active;
 

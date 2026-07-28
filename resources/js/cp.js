@@ -2704,6 +2704,44 @@ function closeSectionPicker(win) {
   syncPreviewInset(win);
 }
 
+/** True while editing header/footer chrome or a global section. */
+function isSectionLibraryLocked(win) {
+  return !!activeChromeKind || !!win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
+}
+
+/**
+ * Hide/disable the Sections header button (and close the docked library) while
+ * chrome or a global section owns the editor — dragging sections there is a no-op.
+ */
+function syncSectionLibraryAvailability(win) {
+  const doc = win.document;
+  const locked = isSectionLibraryLocked(win);
+  const btn = doc.getElementById(LIBRARY_BUTTON_ID);
+
+  if (locked) {
+    closeSectionPicker(win);
+
+    if (btn) {
+      btn.style.display = 'none';
+      btn.setAttribute('aria-disabled', 'true');
+      btn.disabled = true;
+    }
+
+    if (headerTab === 'sections') {
+      setHeaderTab(win, null);
+      applyHeaderTab(win);
+    }
+
+    return;
+  }
+
+  if (btn) {
+    btn.style.display = '';
+    btn.removeAttribute('aria-disabled');
+    btn.disabled = false;
+  }
+}
+
 /** Hide Theme Settings without destroying it (stash + form stay alive). */
 function hideGlobalsPanel(win) {
   const panel = win.document.getElementById(GLOBALS_PANEL_ID);
@@ -2729,10 +2767,12 @@ function showGlobalsPanel(win) {
   }
 
   claimLivePreviewEditor(win);
+  // Must clear hidden BEFORE pin — place() no-ops while data-sve-chrome-hidden is set
+  // (that left the sidebar blank after Design → Settings).
+  panel.removeAttribute('data-sve-chrome-hidden');
   // Never reparent the iframe — moving it in the DOM reloads it and refreshes
   // the Live Preview. Keep it on document.body and pin it over the editor.
   pinGlobalsPanelToEditor(win, panel);
-  panel.removeAttribute('data-sve-chrome-hidden');
 
   const designs = win.document.getElementById(CHROME_DESIGNS_ID);
 
@@ -2834,9 +2874,11 @@ function pinGlobalsPanelToEditor(win, panel) {
 
     const rect = el.getBoundingClientRect();
 
+    // z-index must sit above the Live Preview iframe/stacking context — too low
+    // and clicks "on the sidebar" land in the faded preview and exit chrome focus.
     panel.style.cssText =
       `position:fixed;top:${Math.round(rect.top)}px;left:${Math.round(rect.left)}px;` +
-      `width:${Math.round(rect.width)}px;height:${Math.round(rect.height)}px;z-index:50;` +
+      `width:${Math.round(rect.width)}px;height:${Math.round(rect.height)}px;z-index:400;` +
       'display:flex;flex-direction:column;visibility:visible;pointer-events:auto;' +
       'background:var(--theme-color-content-bg,#fff);color:currentColor;border:0;box-shadow:none;' +
       'font-family:ui-sans-serif,system-ui,sans-serif;';
@@ -2862,7 +2904,7 @@ function pinGlobalsPanelToEditor(win, panel) {
 /** Absolute fill CSS — only for designs cards that are not an iframe form. */
 function editorOverlayCss() {
   return (
-    'position:absolute;inset:0;width:auto;height:auto;z-index:50;' +
+    'position:absolute;inset:0;width:auto;height:auto;z-index:50;overflow:hidden;' +
     'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
     'color:currentColor;border:0;box-shadow:none;font-family:ui-sans-serif,system-ui,sans-serif;'
   );
@@ -2950,9 +2992,13 @@ function releaseLeftEdgeIfFree(win) {
  */
 function dismissChromeForPageEdit(win) {
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
+  removeChromeModeToggles(win);
+  setActiveChromeKind(null);
+  unlockChromeGlobalsTabs(win);
   hideGlobalsPanel(win);
   forcePanelOpen = false;
   syncPreviewInset(win);
+  syncSectionLibraryAvailability(win);
 }
 
 /** Visible width of the widest panel in `ids` (0 if none). */
@@ -3024,6 +3070,14 @@ function openSectionPicker(win, options = {}) {
   const doc = win.document;
   const initialTab = options.tab || null;
 
+  // Header/footer chrome and global-section edit own the page — no section drops.
+  if (isSectionLibraryLocked(win)) {
+    closeSectionPicker(win);
+    syncSectionLibraryAvailability(win);
+
+    return;
+  }
+
   if (doc.getElementById(SECTION_PICKER_ID)) {
     if (initialTab) {
       doc.getElementById(SECTION_PICKER_ID).dispatchEvent(
@@ -3051,7 +3105,7 @@ function openSectionPicker(win, options = {}) {
     `position:fixed;top:${top}px;right:0;bottom:0;width:${width}px;z-index:41;display:flex;flex-direction:column;` +
     'background:var(--theme-color-content-bg,#fff);color:currentColor;' +
     'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;';
+    'font-family:ui-sans-serif,system-ui,sans-serif;overflow:hidden;';
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
@@ -3067,7 +3121,9 @@ function openSectionPicker(win, options = {}) {
     </div>
     <div data-sve-groups style="display:none;flex-wrap:nowrap;gap:4px;padding:8px 12px 0;flex:0 0 auto;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
     <style>[data-sve-groups]::-webkit-scrollbar{display:none}</style>
-    <div data-sve-grid style="flex:1 1 auto;overflow-y:auto;padding:12px;column-gap:12px;"></div>
+    <div data-sve-scroll style="flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;">
+      <div data-sve-grid style="column-gap:12px;"></div>
+    </div>
   `;
 
   const applyLibraryLayout = () => {
@@ -3079,6 +3135,8 @@ function openSectionPicker(win, options = {}) {
       return;
     }
 
+    // Masonry lives on an unconstrained inner box; the outer [data-sve-scroll]
+    // scrolls. Putting column-count on the scroll box itself overflows sideways.
     grid.style.columnCount = String(cols);
   };
 
@@ -3844,6 +3902,7 @@ export function handleOpenGlobalSection(data, win) {
   }
 
   openGlobalSectionPanel(win, data.id);
+  syncSectionLibraryAvailability(win);
 }
 
 /**
@@ -4603,6 +4662,12 @@ function toggleHeaderTab(win, key) {
   const active = headerTab === key;
 
   if (key === 'sections') {
+    if (isSectionLibraryLocked(win)) {
+      syncSectionLibraryAvailability(win);
+
+      return;
+    }
+
     // Its "expanded" form is the docked panel, not a header control.
     setHeaderTab(win, active ? null : 'sections');
     openSectionPicker(win); // toggles
@@ -5121,8 +5186,11 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
   const save = saveButtonIn(win.document);
   const hasPublish = !!publishButtonIn(win.document);
   const saveOnly = hasPublish && !publish;
+  const entryDirty = hasUnsavedChanges(win);
+  const globalsDirty = hasUnsavedGlobals(win);
+  const sectionDirty = hasUnsavedGlobalSection(win);
 
-  if (!save) {
+  if (!save && !globalsDirty && !sectionDirty) {
     if (!saveOnly) {
       leave();
     }
@@ -5130,7 +5198,7 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
     return;
   }
 
-  if (!hasUnsavedChanges(win)) {
+  if (!entryDirty && !globalsDirty && !sectionDirty) {
     if (saveOnly) {
       return;
     }
@@ -5162,15 +5230,45 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
       postToHost(win, 'lp-leaving');
     }
 
-    let settled = false;
+    const finishAfterEntry = (ok) => {
+      if (!ok) {
+        release();
 
-    const stop = onEntrySave((ok) => {
-      if (settled) {
         return;
       }
 
-      // Revisions off, or save-only: one step.
-      if (!hasPublish || saveOnly) {
+      if (saveOnly) {
+        release();
+      } else {
+        leaveQuietly(win, leave);
+      }
+    };
+
+    const saveEntry = () => {
+      if (!entryDirty || !save) {
+        finishAfterEntry(true);
+
+        return;
+      }
+
+      let settled = false;
+
+      const stop = onEntrySave((ok) => {
+        if (settled) {
+          return;
+        }
+
+        // Revisions off, or save-only: one step.
+        if (!hasPublish || saveOnly) {
+          settled = true;
+          stop();
+          clearTimeout(timer);
+          finishAfterEntry(ok);
+
+          return;
+        }
+
+        // Revisions on + publish: working-copy save done — publish without a dialog.
         settled = true;
         stop();
         clearTimeout(timer);
@@ -5181,44 +5279,44 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
           return;
         }
 
-        if (saveOnly) {
-          release();
-        } else {
-          leaveQuietly(win, leave);
+        publishWorkingCopy(win, {
+          onSuccess: () => leaveQuietly(win, leave),
+          onFailure: release,
+          onPublishing: () => setLabel(t(win, 'publishing')),
+        });
+      });
+
+      const timer = setTimeout(() => {
+        if (settled) {
+          return;
         }
 
-        return;
-      }
+        settled = true;
+        stop();
+        release();
+      }, LP_SAVE_TIMEOUT);
 
-      // Revisions on + publish: working-copy save done — publish without a dialog.
-      settled = true;
-      stop();
-      clearTimeout(timer);
+      save.click();
+    };
 
+    // Theme Settings / global section first — entry save can navigate away.
+    saveGlobalsPanel(win, (ok) => {
       if (!ok) {
         release();
 
         return;
       }
 
-      publishWorkingCopy(win, {
-        onSuccess: () => leaveQuietly(win, leave),
-        onFailure: release,
-        onPublishing: () => setLabel(t(win, 'publishing')),
+      saveGlobalSectionPanel(win, (sectionOk) => {
+        if (!sectionOk) {
+          release();
+
+          return;
+        }
+
+        saveEntry();
       });
     });
-
-    const timer = setTimeout(() => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      stop();
-      release();
-    }, LP_SAVE_TIMEOUT);
-
-    save.click();
   });
 }
 
@@ -5490,7 +5588,7 @@ function ensureLpBackButton(win) {
       return;
     }
 
-    if (!hasUnsavedChanges(win) || !saveButtonIn(doc)) {
+    if (!hasUnsavedWork(win) || (!saveButtonIn(doc) && !hasUnsavedGlobals(win))) {
       leave();
 
       return;
@@ -5598,7 +5696,11 @@ function openLpBackMenu(win, pill, leave) {
     }, false);
   }
 
-  item(t(win, embedded ? 'back_leave_only' : 'back_close_only'), leave, false);
+  item(t(win, embedded ? 'back_leave_only' : 'back_close_only'), () => {
+    discardGlobalsChanges(win);
+    clearSectionsStash(win, { refresh: false });
+    leave();
+  }, false);
 
   doc.body.appendChild(menu);
 
@@ -6247,15 +6349,17 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'open-chrome') {
       handleOpenChrome(data, doc, win);
     } else if (data.type === 'open-chrome-designs') {
-      openChromeDesignsPanel(win, data.kind === 'footer' ? 'footer' : 'header');
+      setChromeSidebarMode(win, 'design');
     } else if (data.type === 'open-chrome-settings') {
-      closeChromeDesignsPanel(win);
-      showGlobalsPanel(win);
-      activateGlobalsTab(win, data.kind === 'footer' ? 'Footer' : 'Header');
+      setChromeSidebarMode(win, 'settings');
     } else if (data.type === 'close-chrome') {
       // Stepping out of header/footer (e.g. clicking a page section): free the
       // left edge so the section editor isn't stacked under Theme Settings.
       dismissChromeForPageEdit(win);
+    } else if (data.type === 'request-close-chrome') {
+      handleRequestCloseChrome(win);
+    } else if (data.type === 'sve-chrome-dirty-query') {
+      notifyChromeDirty(win);
     } else if (data.type === 'save-chrome') {
       doc
         .getElementById(GLOBALS_PANEL_ID)
@@ -6287,6 +6391,10 @@ export function createMessageListener(doc = document, win = window) {
       }
     } else if (data.type === 'close-global-section') {
       closeGlobalSectionPanel(win);
+    } else if (data.type === 'request-close-global') {
+      handleRequestCloseGlobal(win);
+    } else if (data.type === 'sve-global-dirty-query') {
+      notifyGlobalSectionDirty(win);
     } else if (data.type === 'save-global-section') {
       // The bar's Save, driving the panel's real one.
       doc
@@ -7108,9 +7216,37 @@ function refreshPreview(win, active) {
   }
 
   frame.contentWindow.postMessage(
-    { name: 'sve.globals', active, url: lastPreviewUrl },
+    {
+      name: 'sve.globals',
+      active,
+      url: lastPreviewUrl,
+      // Authoritative for surgical morph — don't rely on html class races alone.
+      chromeKind: active ? activeChromeKind : null,
+    },
     win.location.origin
   );
+}
+
+/** Header/footer currently stepped into from Live Preview (null when not). */
+let activeChromeKind = null;
+
+function setActiveChromeKind(kind) {
+  activeChromeKind = kind === 'footer' || kind === 'header' ? kind : null;
+}
+
+/** Tell the preview iframe to keep header/footer chrome focus (soft rebind). */
+function assertChromeFocusInPreview(win) {
+  if (!activeChromeKind) {
+    return;
+  }
+
+  const kind = activeChromeKind;
+
+  // One quiet ping after morph settles — not a burst (that caused flicker).
+  clearTimeout(assertChromeFocusInPreview._timer);
+  assertChromeFocusInPreview._timer = setTimeout(() => {
+    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-restore-chrome', kind }, win);
+  }, 120);
 }
 
 /**
@@ -7172,8 +7308,15 @@ function watchPreviewRenders(win) {
 function postGlobals(win, handle, values) {
   clearTimeout(globalsSaveTimer);
 
+  const epoch = globalsStashEpoch;
+
   globalsSaveTimer = setTimeout(() => {
+    if (epoch !== globalsStashEpoch || !globalsAcceptValues) {
+      return;
+    }
+
     globalsStashActive = true;
+    notifyChromeDirty(win);
     win
       .fetch('/!/sve/globals-preview', {
         method: 'POST',
@@ -7195,11 +7338,386 @@ function postGlobals(win, handle, values) {
 /** True after we've pushed unsaved globals into the preview stash. */
 let globalsStashActive = false;
 
-function clearGlobalsStash(win, { refresh = true } = {}) {
-  if (!globalsStashActive) {
+/** Bumped on discard/save-clear so late polls can't resurrect "unsaved". */
+let globalsStashEpoch = 0;
+
+/** False while discarding/reloading so in-flight value polls are ignored. */
+let globalsAcceptValues = true;
+
+/** Serialized form snapshot considered "saved" while chrome focus is active. */
+let chromeValuesBaseline = null;
+
+/** Ignore value polls until this timestamp (tab-lock settle after chrome open). */
+let chromeIgnoreValuePostsUntil = 0;
+
+/** Cancel pending stash POSTs and ignore value polls until re-enabled. */
+function invalidateGlobalsPreviewStash() {
+  clearTimeout(globalsSaveTimer);
+  globalsSaveTimer = null;
+  globalsStashEpoch += 1;
+  globalsStashActive = false;
+  globalsAcceptValues = false;
+  chromeValuesBaseline = null;
+}
+
+/** Mark chrome form clean after open/save/discard settle. */
+function markChromeFormClean(win) {
+  globalsStashActive = false;
+  clearGlobalsDirtyMarks(win);
+
+  try {
+    const iwin = globalsPanelFrame(win)?.contentWindow;
+    const doc = iwin?.document;
+
+    if (doc) {
+      for (const container of activeContainers(doc)) {
+        const values = unwrapRef(container.values);
+
+        if (values && typeof values === 'object') {
+          chromeValuesBaseline = JSON.stringify(values);
+        }
+
+        break;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  notifyChromeDirty(win);
+}
+
+/** Tell the preview whether the chrome Save button should show. */
+function notifyChromeDirty(win) {
+  const dirty = hasUnsavedGlobals(win);
+  const saveBtn = win.document.querySelector('[data-sve-globals-save-btn]');
+
+  if (saveBtn) {
+    saveBtn.style.display = dirty ? '' : 'none';
+  }
+
+  sendToPreview(
+    {
+      source: 'statamic-visual-editor',
+      type: 'sve-chrome-dirty',
+      dirty,
+    },
+    win
+  );
+}
+
+/** Tell the preview whether the global-section Save button should show. */
+function notifyGlobalSectionDirty(win) {
+  sendToPreview(
+    {
+      source: 'statamic-visual-editor',
+      type: 'sve-global-dirty',
+      dirty: hasUnsavedGlobalSection(win),
+    },
+    win
+  );
+}
+
+/** Listeners for Theme Settings / globals-panel save results (iframe). */
+const globalsSaveListeners = [];
+
+function onGlobalsSave(callback) {
+  globalsSaveListeners.push(callback);
+
+  return () => {
+    const index = globalsSaveListeners.indexOf(callback);
+
+    if (index !== -1) {
+      globalsSaveListeners.splice(index, 1);
+    }
+  };
+}
+
+function globalsPanelFrame(win) {
+  return win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe') || null;
+}
+
+/**
+ * Theme Settings (and other globals panels) live in a separate iframe, so the
+ * entry form's Statamic.$dirty never sees them. The preview stash is the other
+ * signal: any keystroke that refreshed the preview left unsaved globals in cache.
+ */
+function hasUnsavedGlobals(win) {
+  if (globalsStashActive) {
+    return true;
+  }
+
+  // Header/footer chrome: Statamic $dirty stays sticky after tab-lock / remount
+  // and falsely shows Save. Only our value-poll stash counts as real edits.
+  if (activeChromeKind) {
+    return false;
+  }
+
+  const iwin = globalsPanelFrame(win)?.contentWindow;
+
+  if (!iwin) {
+    return false;
+  }
+
+  try {
+    const dirty = iwin.Statamic?.$dirty;
+
+    if (typeof dirty?.has !== 'function') {
+      return false;
+    }
+
+    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
+    const list = unwrapRef(raw);
+
+    // Empty names ⇒ clean. Don't fall through to a bare `has('base')` which
+    // can stay true after discard and falsely keep the chrome Save bar on.
+    if (Array.isArray(list)) {
+      return list.some((name) => dirty.has(name));
+    }
+
+    return dirty.has('base');
+  } catch {
+    return false;
+  }
+}
+
+/** Entry form and/or Theme Settings / globals panel have edits not on disk. */
+function hasUnsavedWork(win) {
+  return hasUnsavedChanges(win) || hasUnsavedGlobals(win) || hasUnsavedGlobalSection(win);
+}
+
+/** Clear Statamic.$dirty marks inside the Theme Settings iframe. */
+function clearGlobalsDirtyMarks(win) {
+  const iwin = globalsPanelFrame(win)?.contentWindow;
+
+  if (!iwin) {
+    return;
+  }
+
+  try {
+    const dirty = iwin.Statamic?.$dirty;
+
+    if (typeof dirty?.remove === 'function') {
+      const names = new Set(['base']);
+      const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
+      const list = unwrapRef(raw);
+
+      if (Array.isArray(list)) {
+        list.forEach((name) => names.add(name));
+      }
+
+      names.forEach((name) => dirty.remove(name));
+    }
+
+    dirty?.disableWarning?.();
+  } catch {
+    /* best effort */
+  }
+
+  // Re-baseline the iframe value poll so the post-save form snapshot
+  // doesn't immediately re-mark chrome as dirty.
+  try {
+    iwin.postMessage(
+      { source: 'statamic-visual-editor', type: 'sve-globals-saved' },
+      win.location.origin
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Drop Theme Settings dirty marks + preview stash (discard path). */
+function discardGlobalsChanges(win, { refresh = false, reloadForm = false } = {}) {
+  // Stop late value polls / debounced stash POSTs from re-marking dirty.
+  invalidateGlobalsPreviewStash();
+
+  if (reloadForm) {
+    // Destroy the dirty iframe entirely. In-place reload left Statamic.$dirty
+    // (and stale polls) sticky, so re-entering chrome still showed Save.
+    const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+
+    panel?._svePinRo?.disconnect?.();
+    panel?.remove();
+    globalsAcceptValues = true;
+    releaseLeftEdgeIfFree(win);
+    syncPreviewInset(win);
+
+    return clearGlobalsStash(win, { refresh, force: true }).then(() => {
+      notifyChromeDirty(win);
+      scheduleChromeGlobalsPrefetch(win);
+    });
+  }
+
+  clearGlobalsDirtyMarks(win);
+  globalsAcceptValues = true;
+
+  return clearGlobalsStash(win, { refresh, force: true }).then(() => {
+    notifyChromeDirty(win);
+  });
+}
+
+/**
+ * Click Theme Settings' Save (via the panel iframe) and wait for the network
+ * result. Resolves true on success / nothing to save, false on failure/timeout.
+ */
+function saveGlobalsPanel(win, done) {
+  if (!hasUnsavedGlobals(win)) {
+    done(true);
+
+    return;
+  }
+
+  const frame = globalsPanelFrame(win);
+  const iwin = frame?.contentWindow;
+
+  if (!iwin) {
+    clearGlobalsStash(win, { refresh: false }).finally(() => done(true));
+
+    return;
+  }
+
+  let settled = false;
+
+  const finish = (ok) => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    stop();
+    clearTimeout(timer);
+    done(ok);
+  };
+
+  const stop = onGlobalsSave(finish);
+  const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
+
+  iwin.postMessage(
+    { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+    win.location.origin
+  );
+}
+
+/**
+ * Watch POSTs to the globals edit URL inside the Theme Settings iframe so we
+ * know when Save actually landed (and can clear the preview stash).
+ * Must be installed from the parent CP window (stash + listeners live there).
+ * Statamic saves via axios → XMLHttpRequest; also wrap fetch for completeness.
+ */
+function watchGlobalsPanelSaves(iwin, parentWin) {
+  if (!iwin || !parentWin || iwin.__sveGlobalsSaveWatch) {
+    return;
+  }
+
+  iwin.__sveGlobalsSaveWatch = true;
+
+  const globalsPath = iwin.location.pathname;
+
+  const isSave = (url, method) => {
+    if (!url || !/^(POST|PUT|PATCH)$/i.test(method || 'GET')) {
+      return false;
+    }
+
+    let path;
+
+    try {
+      path = new URL(url, iwin.location.origin).pathname;
+    } catch {
+      return false;
+    }
+
+    return path.startsWith(globalsPath) && !path.includes('/preview');
+  };
+
+  const announce = (ok) => {
+    if (ok) {
+      // Keep flag true so clearGlobalsStash still hits the server endpoint.
+      globalsStashActive = true;
+      globalsAcceptValues = true;
+      clearGlobalsDirtyMarks(parentWin);
+      clearGlobalsStash(parentWin, { refresh: false }).then(() => {
+        markChromeFormClean(parentWin);
+      });
+    }
+
+    [...globalsSaveListeners].forEach((listener) => listener(ok));
+  };
+
+  const { fetch: originalFetch } = iwin;
+
+  iwin.fetch = function (input, init = {}) {
+    const url = typeof input === 'string' ? input : input?.url;
+    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
+
+    if (!isSave(url, method)) {
+      return originalFetch.call(this, input, init);
+    }
+
+    return originalFetch.call(this, input, init).then(
+      (response) => {
+        announce(response.ok);
+
+        return response;
+      },
+      (error) => {
+        announce(false);
+
+        throw error;
+      }
+    );
+  };
+
+  // Axios uses XHR — without this, chrome Save never clears dirty UI.
+  const { open: originalOpen, send: originalSend } = iwin.XMLHttpRequest.prototype;
+
+  iwin.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    this.__sveGlobalsMethod = method;
+    this.__sveGlobalsUrl = url;
+
+    return originalOpen.call(this, method, url, ...rest);
+  };
+
+  iwin.XMLHttpRequest.prototype.send = function (...args) {
+    if (isSave(this.__sveGlobalsUrl, this.__sveGlobalsMethod)) {
+      this.addEventListener('load', () => {
+        announce(this.status >= 200 && this.status < 300);
+      });
+      this.addEventListener('error', () => announce(false));
+    }
+
+    return originalSend.apply(this, args);
+  };
+}
+
+function ensureGlobalsPanelSaveWatch(win) {
+  const frame = globalsPanelFrame(win);
+
+  if (!frame) {
+    return;
+  }
+
+  const arm = () => {
+    try {
+      if (frame.contentWindow) {
+        globalsAcceptValues = true;
+        watchGlobalsPanelSaves(frame.contentWindow, win);
+      }
+    } catch {
+      /* iframe not ready */
+    }
+  };
+
+  arm();
+  frame.addEventListener('load', arm);
+}
+
+function clearGlobalsStash(win, { refresh = true, force = false } = {}) {
+  if (!globalsStashActive && !force) {
     if (refresh) {
       // Nothing stashed — don't bounce the preview.
     }
+
+    notifyChromeDirty(win);
 
     return Promise.resolve();
   }
@@ -7214,6 +7732,8 @@ function clearGlobalsStash(win, { refresh = true } = {}) {
     })
     .catch(() => {})
     .then(() => {
+      notifyChromeDirty(win);
+
       if (refresh) {
         refreshPreview(win, false);
       }
@@ -7389,6 +7909,7 @@ function openGlobalsPanel(win, set, options = {}) {
   const existing = doc.getElementById(GLOBALS_PANEL_ID);
   const keepLibrary = options.keepLibrary === true;
   const prefetch = options.prefetch === true;
+  const chromeLock = options.chromeLock === 'footer' || options.chromeLock === 'header' ? options.chromeLock : null;
 
   // Switching sets reuses the panel rather than replacing it. Tearing an iframe
   // out of the page discards its session-history entries, and the browser then
@@ -7404,18 +7925,39 @@ function openGlobalsPanel(win, set, options = {}) {
     const title = existing.querySelector('[data-sve-globals-title]');
 
     if (frame && title) {
-      title.textContent = set.title;
+      title.textContent = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
       frame.title = set.title;
       showGlobalsPanel(win);
+      ensureGlobalsPanelSaveWatch(win);
 
       // Same set already loaded: do NOT location.replace — a dirty form inside
       // the iframe triggers Chrome's "Leave site?" dialog and blocks the editor.
       if (existing.getAttribute('data-sve-globals-handle') === set.handle) {
+        if (chromeLock) {
+          lockChromeGlobalsTab(win, chromeLock);
+        } else {
+          setActiveChromeKind(null);
+          unlockChromeGlobalsTabs(win);
+        }
+
         return;
       }
 
       existing.setAttribute('data-sve-globals-handle', set.handle);
+      // New document → need a fresh save watch on the next load.
+      try {
+        delete frame.contentWindow.__sveGlobalsSaveWatch;
+      } catch {
+        /* ignore */
+      }
       frame.contentWindow.location.replace(globalsPanelUrl(win, set));
+
+      if (chromeLock) {
+        lockChromeGlobalsTab(win, chromeLock);
+      } else {
+        setActiveChromeKind(null);
+        unlockChromeGlobalsTabs(win);
+      }
 
       return;
     }
@@ -7423,15 +7965,19 @@ function openGlobalsPanel(win, set, options = {}) {
     existing.remove();
   }
 
-  // Theme Settings fills the shared LP editor. Keep the right sections library
-  // and/or designs overlay when a chrome style write needs the form mounted.
+  // Theme Settings fills the shared LP editor. Keep designs when a chrome style
+  // write needs the form mounted — but never the Sections library during chrome.
   if (!prefetch) {
-    closeRightPanels(
-      win,
-      keepLibrary
-        ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
-        : [GLOBALS_PANEL_ID, SECTION_PICKER_ID]
-    );
+    if (chromeLock) {
+      closeRightPanels(win, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]);
+    } else {
+      closeRightPanels(
+        win,
+        keepLibrary
+          ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
+          : [GLOBALS_PANEL_ID, SECTION_PICKER_ID]
+      );
+    }
   }
 
   const panel = doc.createElement('div');
@@ -7449,7 +7995,7 @@ function openGlobalsPanel(win, set, options = {}) {
   const title = doc.createElement('span');
 
   title.setAttribute('data-sve-globals-title', '');
-  title.textContent = set.title;
+  title.textContent = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
   bar.appendChild(title);
 
   // The CP's own Save sits in the page header, which the panel strips away — so
@@ -7461,11 +8007,14 @@ function openGlobalsPanel(win, set, options = {}) {
   const save = doc.createElement('button');
 
   save.type = 'button';
+  save.setAttribute('data-sve-globals-save-btn', '');
   save.textContent = t(win, 'save');
   save.title = t(win, 'save_globals');
   save.style.cssText =
     'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
     'color:#fff;font-size:12px;font-weight:600;line-height:1;';
+  // Same rule as the chrome bottom bar — only when Theme Settings is dirty.
+  save.style.display = hasUnsavedGlobals(win) ? '' : 'none';
   save.addEventListener('click', () => {
     const frame = doc.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
@@ -7487,6 +8036,33 @@ function openGlobalsPanel(win, set, options = {}) {
   close.addEventListener('mouseenter', () => (close.style.background = 'rgba(128,128,128,.18)'));
   close.addEventListener('mouseleave', () => (close.style.background = 'transparent'));
   close.addEventListener('click', () => {
+    // Same close rules as the preview chrome bar (warn if dirty).
+    if (activeChromeKind) {
+      handleRequestCloseChrome(win);
+
+      return;
+    }
+
+    if (hasUnsavedGlobals(win)) {
+      confirmCloseDiscard(
+        win,
+        { titleKey: 'chrome_close_title', bodyKey: 'chrome_close_body' },
+        () => {
+          discardGlobalsChanges(win, { refresh: true, reloadForm: false }).then(() => {
+            const picker = doc.getElementById(GLOBALS_PICKER_ID);
+
+            if (picker) {
+              picker.value = '';
+            }
+
+            closeGlobalsPanel(win);
+          });
+        }
+      );
+
+      return;
+    }
+
     const picker = doc.getElementById(GLOBALS_PICKER_ID);
 
     if (picker) {
@@ -7506,6 +8082,7 @@ function openGlobalsPanel(win, set, options = {}) {
 
   panel.appendChild(bar);
   panel.appendChild(frame);
+  ensureGlobalsPanelSaveWatch(win);
 
   // Always keep the panel on document.body. Reparenting the iframe reloads it
   // and refreshes the Live Preview — that was the visible "loading" flicker.
@@ -7521,6 +8098,10 @@ function openGlobalsPanel(win, set, options = {}) {
     panel.removeAttribute('data-sve-chrome-hidden');
     pinGlobalsPanelToEditor(win, panel);
     syncPreviewInset(win);
+
+    if (chromeLock) {
+      lockChromeGlobalsTab(win, chromeLock);
+    }
   }
 }
 
@@ -7598,6 +8179,7 @@ function ensureSectionLibraryButton(win) {
 
   // After the globals picker if it exists, otherwise right after the mode group.
   (doc.getElementById(GLOBALS_PICKER_ID) || group).after(btn);
+  syncSectionLibraryAvailability(win);
 }
 
 /**
@@ -7630,10 +8212,10 @@ function initGlobalsPanelFrame(win) {
       border: 0 !important;
       min-height: 0 !important;
     }
-    /* Tabs tight under the outer SVE bar (~0.75–1rem). */
+    /* Tabs tight under the outer SVE bar — no large empty band above fields. */
     main {
       margin: 0 !important;
-      padding-block: 0.75rem 0 !important;
+      padding-block: 0 !important;
       padding-inline: 0 !important;
     }
     main > *:first-child {
@@ -7645,6 +8227,65 @@ function initGlobalsPanelFrame(win) {
     .tabs {
       margin-block: 0 !important;
       padding-block: 0 !important;
+    }
+    /* Chrome lock: kill every spacer above the fields — toggle sits outside the iframe. */
+    html[data-sve-chrome-locked] [role="tablist"],
+    html[data-sve-chrome-locked] [data-sve-chrome-tablist-lock],
+    html[data-sve-chrome-locked] [data-sve-chrome-spacer] {
+      display: none !important;
+      height: 0 !important;
+      max-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+      min-height: 0 !important;
+    }
+    html[data-sve-chrome-locked],
+    html[data-sve-chrome-locked] body {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    html[data-sve-chrome-locked] main,
+    html[data-sve-chrome-locked] main > *,
+    html[data-sve-chrome-locked] .publish-form,
+    html[data-sve-chrome-locked] .publish-sections,
+    html[data-sve-chrome-locked] .tabs-container,
+    html[data-sve-chrome-locked] [data-reka-tabs-root],
+    html[data-sve-chrome-locked] [data-orientation] {
+      margin-top: 0 !important;
+      margin-block-start: 0 !important;
+      padding-top: 0 !important;
+      padding-block-start: 0 !important;
+      gap: 0 !important;
+      row-gap: 0 !important;
+    }
+    html[data-sve-chrome-locked] .publish-sections > .card,
+    html[data-sve-chrome-locked] main .card {
+      margin: 0 !important;
+      margin-top: 0 !important;
+      padding-top: 10px !important;
+      border-top-left-radius: 0 !important;
+      border-top-right-radius: 0 !important;
+    }
+    html[data-sve-chrome-locked] .publish-fields {
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }
+    html[data-sve-chrome-locked] .publish-section-header,
+    html[data-sve-chrome-locked] .section-header,
+    html[data-sve-chrome-locked] [data-section-header],
+    html[data-sve-chrome-locked] .publish-fields > h2,
+    html[data-sve-chrome-locked] .publish-fields > h3,
+    html[data-sve-chrome-locked] .card > header,
+    html[data-sve-chrome-locked] .card > .flex.items-center:first-child:has(h1),
+    html[data-sve-chrome-locked] .card > .flex.items-center:first-child:has(h2),
+    html[data-sve-chrome-locked] .card > .flex.items-center:first-child:has(h3) {
+      display: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
     }
   `;
   doc.head.appendChild(style);
@@ -7716,8 +8357,137 @@ function initGlobalsPanelFrame(win) {
     });
   };
 
+  // When set (e.g. "header"), chrome focus hides every other publish tab so you
+  // can't jump to Colors / Typography while editing the site header/footer.
+  let lockedTabNeedle = null;
+
+  const activatePublishTab = (needle) => {
+    if (!needle) {
+      return false;
+    }
+
+    const tabs = [...doc.querySelectorAll('button[role="tab"]')].filter(
+      (el) => el.offsetParent !== null
+    );
+    const tab = tabs.find((el) => {
+      const text = (el.textContent || '').trim().toLowerCase();
+
+      return text === needle || text.startsWith(needle);
+    });
+
+    if (!tab) {
+      return false;
+    }
+
+    if (tab.getAttribute('aria-selected') !== 'true') {
+      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
+        tab.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true }));
+      });
+    }
+
+    return tab.getAttribute('aria-selected') === 'true';
+  };
+
+  const applyTabLock = () => {
+    const tabs = [...doc.querySelectorAll('button[role="tab"]')];
+
+    if (!lockedTabNeedle) {
+      doc.documentElement.removeAttribute('data-sve-chrome-locked');
+      tabs.forEach((tab) => {
+        if (tab.hasAttribute('data-sve-chrome-tab-lock')) {
+          tab.removeAttribute('data-sve-panel-hide');
+          tab.removeAttribute('data-sve-chrome-tab-lock');
+        }
+      });
+      doc.querySelectorAll('[data-sve-chrome-tablist-lock]').forEach((el) => {
+        el.removeAttribute('data-sve-panel-hide');
+        el.removeAttribute('data-sve-chrome-tablist-lock');
+      });
+      doc.querySelectorAll('[data-sve-chrome-section-title]').forEach((el) => {
+        el.removeAttribute('data-sve-panel-hide');
+        el.removeAttribute('data-sve-chrome-section-title');
+      });
+      doc.querySelectorAll('[data-sve-chrome-spacer]').forEach((el) => {
+        el.removeAttribute('data-sve-panel-hide');
+        el.removeAttribute('data-sve-chrome-spacer');
+      });
+
+      return;
+    }
+
+    doc.documentElement.setAttribute('data-sve-chrome-locked', '1');
+    activatePublishTab(lockedTabNeedle);
+
+    tabs.forEach((tab) => {
+      const text = (tab.textContent || '').trim().toLowerCase();
+      const match = text === lockedTabNeedle || text.startsWith(lockedTabNeedle);
+
+      if (match) {
+        tab.removeAttribute('data-sve-panel-hide');
+        tab.removeAttribute('data-sve-chrome-tab-lock');
+
+        return;
+      }
+
+      tab.setAttribute('data-sve-panel-hide', '');
+      tab.setAttribute('data-sve-chrome-tab-lock', '');
+    });
+
+    // Hide the whole tab row (incl. overflow "…" / lone "Design") so fields sit tight.
+    doc.querySelectorAll('[role="tablist"]').forEach((list) => {
+      const wrap = list.closest('nav') || list.parentElement || list;
+
+      wrap.setAttribute('data-sve-panel-hide', '');
+      wrap.setAttribute('data-sve-chrome-tablist-lock', '');
+    });
+
+    // Blueprint section titles like "Design" — redundant under chrome Design|Settings toggle.
+    doc.querySelectorAll('h1, h2, h3').forEach((heading) => {
+      const text = (heading.textContent || '').trim().toLowerCase();
+
+      if (text !== 'design') {
+        return;
+      }
+
+      const wrap = heading.closest('.publish-section-header, .section-header, header, .flex') || heading;
+
+      wrap.setAttribute('data-sve-panel-hide', '');
+      wrap.setAttribute('data-sve-chrome-section-title', '');
+    });
+
+    // Collapse every sibling above the first publish card — that empty band was the gap
+    // under Design|Settings.
+    const main = doc.querySelector('main');
+    const card = main?.querySelector('.card, .publish-fields, .publish-sections');
+
+    if (card) {
+      let node = card;
+
+      while (node && node !== main) {
+        let sib = node.previousElementSibling;
+
+        while (sib) {
+          const prev = sib.previousElementSibling;
+
+          if (!sib.hasAttribute('data-sve-chrome-spacer')) {
+            sib.setAttribute('data-sve-panel-hide', '');
+            sib.setAttribute('data-sve-chrome-spacer', '');
+          }
+
+          sib = prev;
+        }
+
+        node = node.parentElement;
+      }
+    }
+  };
+
   hideChrome();
-  new win.MutationObserver(hideChrome).observe(doc.documentElement, { childList: true, subtree: true });
+  applyTabLock();
+  new win.MutationObserver(() => {
+    hideChrome();
+    applyTabLock();
+  }).observe(doc.documentElement, { childList: true, subtree: true });
 
   // Style picks / tab jumps must not trip "Leave site?" from Statamic's dirty check.
   try {
@@ -7751,24 +8521,64 @@ function initGlobalsPanelFrame(win) {
       return;
     }
 
-    // Header/footer design picker: merge `style` into the header/footer group so
-    // widgets and settings aren't wiped (setFieldValue('header.style') is flaky
-    // on group fields — replacing the whole group is reliable).
+    // Header/footer design picker: write flattened `header_style` / `footer_style`.
     if (event.data.type === 'sve-chrome-set-style') {
       const kind = event.data.kind === 'footer' ? 'footer' : 'header';
       const style = event.data.style;
 
       for (const container of activeContainers(doc)) {
-        const values = unwrapRef(container.values) || {};
-        const current = values[kind];
-        const group =
-          current && typeof current === 'object' && !Array.isArray(current)
-            ? { ...current, style }
-            : { style };
-
-        container.setFieldValue(kind, group);
+        container.setFieldValue(`${kind}_style`, style);
 
         return;
+      }
+
+      return;
+    }
+
+    // Open the matching publish tab (Header / Footer / …). reka-ui ignores a
+    // bare click() and keeps a hidden twin of each tab — only the visible one.
+    if (event.data.type === 'sve-activate-tab') {
+      activatePublishTab(
+        String(event.data.label || event.data.kind || '')
+          .trim()
+          .toLowerCase()
+      );
+
+      return;
+    }
+
+    // Live Preview header/footer: only that tab's fields — hide Colors, etc.
+    if (event.data.type === 'sve-lock-tab') {
+      lockedTabNeedle = String(event.data.label || event.data.kind || '')
+        .trim()
+        .toLowerCase();
+
+      if (lockedTabNeedle) {
+        activatePublishTab(lockedTabNeedle);
+        applyTabLock();
+      }
+
+      return;
+    }
+
+    if (event.data.type === 'sve-unlock-tabs') {
+      lockedTabNeedle = null;
+      applyTabLock();
+
+      return;
+    }
+
+    // Parent confirmed a successful Save — treat current values as clean baseline.
+    if (event.data.type === 'sve-globals-saved') {
+      for (const container of activeContainers(doc)) {
+        const values = unwrapRef(container.values);
+
+        if (values && typeof values === 'object') {
+          previous = JSON.stringify(values);
+          seeded = true;
+        }
+
+        break;
       }
 
       return;
@@ -7887,6 +8697,139 @@ function closeChromeDesignsPanel(win) {
   syncPreviewInset(win);
 }
 
+const CHROME_MODE_TOGGLE_ATTR = 'data-sve-chrome-mode-toggle';
+
+/** Which chrome sidebar view is visible: design picker vs Theme Settings. */
+function currentChromeSidebarMode(win) {
+  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
+
+  if (designs && !designs.hasAttribute('data-sve-chrome-hidden') && designs.style.display !== 'none') {
+    return 'design';
+  }
+
+  return 'settings';
+}
+
+function paintChromeModeToggle(row, mode) {
+  if (!row) {
+    return;
+  }
+
+  row.querySelectorAll('[data-sve-chrome-mode]').forEach((btn) => {
+    const on = btn.getAttribute('data-sve-chrome-mode') === mode;
+
+    btn.style.background = on ? 'rgba(128,128,128,.22)' : 'transparent';
+    btn.style.fontWeight = on ? '600' : '500';
+    btn.style.opacity = on ? '1' : '.72';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+function paintAllChromeModeToggles(win, mode) {
+  win.document.querySelectorAll(`[${CHROME_MODE_TOGGLE_ATTR}]`).forEach((row) => {
+    paintChromeModeToggle(row, mode);
+  });
+}
+
+function removeChromeModeToggles(win) {
+  win.document.querySelectorAll(`[${CHROME_MODE_TOGGLE_ATTR}]`).forEach((el) => el.remove());
+}
+
+/**
+ * Segmented Design | Settings control for the chrome sidebar.
+ * Replaces the old Designs/Settings buttons on the preview bottom bar.
+ */
+function buildChromeModeToggle(win, mode) {
+  const doc = win.document;
+  const row = doc.createElement('div');
+
+  row.setAttribute(CHROME_MODE_TOGGLE_ATTR, '');
+  row.style.cssText =
+    'display:flex;gap:4px;padding:2px 10px 0;flex:0 0 auto;';
+
+  const track = doc.createElement('div');
+
+  track.style.cssText =
+    'display:flex;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
+    'background:rgba(128,128,128,.12);';
+
+  const makeBtn = (key, label) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.setAttribute('data-sve-chrome-mode', key);
+    btn.style.cssText =
+      'all:unset;cursor:pointer;flex:1 1 0;text-align:center;padding:7px 10px;' +
+      'border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setChromeSidebarMode(win, key);
+    });
+    track.appendChild(btn);
+  };
+
+  makeBtn('design', t(win, 'chrome_designs'));
+  makeBtn('settings', t(win, 'chrome_settings'));
+  row.appendChild(track);
+  paintChromeModeToggle(row, mode);
+
+  return row;
+}
+
+/** Insert (or refresh) the Design/Settings toggle under a panel header. */
+function ensureChromeModeToggle(win, panel, mode) {
+  if (!panel) {
+    return;
+  }
+
+  let row = panel.querySelector(`[${CHROME_MODE_TOGGLE_ATTR}]`);
+
+  if (!row) {
+    row = buildChromeModeToggle(win, mode);
+    const header = panel.firstElementChild;
+
+    if (header?.nextSibling) {
+      panel.insertBefore(row, header.nextSibling);
+    } else {
+      panel.appendChild(row);
+    }
+  } else {
+    paintChromeModeToggle(row, mode);
+  }
+}
+
+/** Switch chrome sidebar between design picker and Theme Settings. */
+function setChromeSidebarMode(win, mode) {
+  const kind =
+    activeChromeKind ||
+    win.document.getElementById(GLOBALS_PANEL_ID)?.getAttribute('data-sve-chrome-kind') ||
+    win.document.getElementById(CHROME_DESIGNS_ID)?.getAttribute('data-sve-chrome-kind') ||
+    'header';
+  const chromeKind = kind === 'footer' ? 'footer' : 'header';
+
+  if (mode === 'design') {
+    openChromeDesignsPanel(win, chromeKind);
+    paintAllChromeModeToggles(win, 'design');
+
+    return;
+  }
+
+  // Keep designs mounted (hidden) so toggling back is instant.
+  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
+
+  if (designs) {
+    designs.style.cssText =
+      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
+    designs.setAttribute('data-sve-chrome-hidden', '1');
+  }
+
+  showGlobalsPanel(win);
+  lockChromeGlobalsTab(win, chromeKind);
+  ensureChromeModeToggle(win, win.document.getElementById(GLOBALS_PANEL_ID), 'settings');
+  paintAllChromeModeToggles(win, 'settings');
+}
+
 /**
  * Design picker for header/footer — same shared LP editor as Theme Settings /
  * page sections. Hides Theme Settings while open; form stays mounted for writes.
@@ -7903,6 +8846,8 @@ function openChromeDesignsPanel(win, kind) {
     existing.style.display = 'flex';
     existing.removeAttribute('data-sve-chrome-hidden');
     mountInLivePreviewEditor(win, existing);
+    ensureChromeModeToggle(win, existing, 'design');
+    paintAllChromeModeToggles(win, 'design');
     syncPreviewInset(win);
 
     return;
@@ -7921,7 +8866,6 @@ function openChromeDesignsPanel(win, kind) {
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
       <div style="font-size:14px;font-weight:600;" data-sve-title></div>
-      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
     </div>
     <div data-sve-hint style="padding:6px 14px;font-size:11px;opacity:.6;flex:0 0 auto;"></div>
     <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
@@ -7929,7 +8873,9 @@ function openChromeDesignsPanel(win, kind) {
         style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
         background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
     </div>
-    <div data-sve-grid style="flex:1 1 auto;overflow-y:auto;padding:12px;column-gap:12px;"></div>
+    <div data-sve-scroll style="flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;">
+      <div data-sve-grid style="column-gap:12px;"></div>
+    </div>
   `;
 
   const applyLayout = () => {
@@ -7943,6 +8889,7 @@ function openChromeDesignsPanel(win, kind) {
   };
 
   mountInLivePreviewEditor(win, panel);
+  ensureChromeModeToggle(win, panel, 'design');
   applyLayout();
   syncPreviewInset(win);
 
@@ -8041,11 +8988,6 @@ function openChromeDesignsPanel(win, kind) {
     });
   };
 
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
-    closeChromeDesignsPanel(win);
-    showGlobalsPanel(win);
-  });
-
   searchEl.addEventListener('input', () => {
     query = searchEl.value || '';
     render();
@@ -8057,8 +8999,8 @@ function openChromeDesignsPanel(win, kind) {
 }
 
 /**
- * Clicking the site header/footer in Live Preview: open Theme Settings on the
- * LEFT (same side as page content). Designs are a separate left panel via the bar.
+ * Clicking the site header/footer in Live Preview: open Theme Settings locked
+ * to that chrome tab only (no Colors / Typography while you're in the header).
  */
 export function handleOpenChrome(data, doc, win) {
   const kind = data.kind === 'footer' ? 'footer' : 'header';
@@ -8077,9 +9019,21 @@ export function handleOpenChrome(data, doc, win) {
   }
 
   closeChromeDesignsPanel(win);
-  openGlobalsPanel(win, set);
+  openGlobalsPanel(win, set, { chromeLock: kind });
   showGlobalsPanel(win);
-  activateGlobalsTab(win, kind === 'footer' ? 'Footer' : 'Header');
+  lockChromeGlobalsTab(win, kind);
+  assertChromeFocusInPreview(win);
+
+  // Entering chrome always starts clean — tab-lock must not look like user edits.
+  globalsStashActive = false;
+  chromeIgnoreValuePostsUntil = Date.now() + 900;
+  chromeValuesBaseline = null;
+  clearGlobalsDirtyMarks(win);
+  notifyChromeDirty(win);
+  syncSectionLibraryAvailability(win);
+
+  win.setTimeout(() => markChromeFormClean(win), 500);
+  win.setTimeout(() => markChromeFormClean(win), 1000);
 }
 
 /** Writes header.style / footer.style into the open globals panel form. */
@@ -8093,7 +9047,7 @@ function setChromeStyle(win, kind, style, attempt = 0) {
   // form so the globals stash + preview refresh run. Keep the form mounted (hidden).
   if (!frame?.contentWindow) {
     if (set) {
-      openGlobalsPanel(win, set, { keepLibrary: true });
+      openGlobalsPanel(win, set, { keepLibrary: true, chromeLock: kind === 'footer' ? 'footer' : 'header' });
       hideGlobalsPanel(win);
     }
 
@@ -8132,27 +9086,94 @@ function setChromeStyle(win, kind, style, attempt = 0) {
   });
 }
 
-/** Clicks the Header/Footer publish tab inside the globals panel iframe. */
-function activateGlobalsTab(win, label, attempts = 0) {
-  const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
+/**
+ * Lock Theme Settings to Header or Footer only (chrome focus from Live Preview).
+ * reka-ui keeps a hidden measurement copy of each tab — only the visible one
+ * switches — and it needs the full pointer sequence, not a bare `.click()`.
+ */
+function lockChromeGlobalsTab(win, kind, attempts = 0) {
+  const chromeKind = kind === 'footer' ? 'footer' : 'header';
+  const label = chromeKind === 'footer' ? 'Footer' : 'Header';
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+  const frame = panel?.querySelector('iframe');
+  const iwin = frame?.contentWindow;
   const inner = frame?.contentDocument;
-  const needle = String(label || '').toLowerCase();
+  const title = panel?.querySelector('[data-sve-globals-title]');
 
-  const tab = [...(inner?.querySelectorAll('button, [role="tab"], a') || [])].find((el) => {
-    const text = (el.textContent || '').trim().toLowerCase();
+  if (panel) {
+    panel.setAttribute('data-sve-chrome-kind', chromeKind);
+    panel.setAttribute('data-sve-chrome-locked', '1');
+    ensureChromeModeToggle(win, panel, currentChromeSidebarMode(win));
+  }
 
-    return text === needle || text.startsWith(needle);
-  });
+  setActiveChromeKind(chromeKind);
 
-  if (tab) {
-    tab.click();
+  if (title) {
+    title.textContent = label;
+  }
+
+  if (!iwin || !inner) {
+    if (attempts < 40) {
+      setTimeout(() => lockChromeGlobalsTab(win, chromeKind, attempts + 1), 150);
+    }
 
     return;
   }
 
-  if (attempts < 40) {
-    setTimeout(() => activateGlobalsTab(win, label, attempts + 1), 150);
+  iwin.postMessage(
+    { source: 'statamic-visual-editor', type: 'sve-lock-tab', label, kind: chromeKind },
+    win.location.origin
+  );
+
+  const tabs = [...inner.querySelectorAll('button[role="tab"]')].filter((el) => el.offsetParent !== null);
+  const tab = tabs.find((el) => {
+    const text = (el.textContent || '').trim().toLowerCase();
+    const needle = label.toLowerCase();
+
+    return text === needle || text.startsWith(needle);
+  });
+
+  if (tab?.getAttribute('aria-selected') === 'true') {
+    // Tablist should already be hidden by the iframe lock — done.
+    return;
   }
+
+  if (tab) {
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
+      tab.dispatchEvent(new iwin.PointerEvent(type, { bubbles: true, cancelable: true }));
+    });
+  }
+
+  if (attempts < 40) {
+    setTimeout(() => lockChromeGlobalsTab(win, chromeKind, attempts + 1), 150);
+  }
+}
+
+/** Full Theme Settings again — all publish tabs visible. */
+function unlockChromeGlobalsTabs(win) {
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+  const frame = panel?.querySelector('iframe');
+  const title = panel?.querySelector('[data-sve-globals-title]');
+  const handle = panel?.getAttribute('data-sve-globals-handle');
+  const set = globalSets(win).find((candidate) => candidate.handle === handle);
+
+  panel?.removeAttribute('data-sve-chrome-locked');
+  panel?.removeAttribute('data-sve-chrome-kind');
+  removeChromeModeToggles(win);
+
+  if (title && set) {
+    title.textContent = set.title;
+  }
+
+  frame?.contentWindow?.postMessage(
+    { source: 'statamic-visual-editor', type: 'sve-unlock-tabs' },
+    win.location.origin
+  );
+}
+
+/** @deprecated — use lockChromeGlobalsTab */
+function activateGlobalsTab(win, label, attempts = 0) {
+  lockChromeGlobalsTab(win, String(label || '').toLowerCase() === 'footer' ? 'footer' : 'header', attempts);
 }
 
 /** Waits for the panel's form to mount, then scrolls the field into view. */
@@ -8204,23 +9225,78 @@ function currentEntryId(win) {
 }
 
 /**
+ * Overlay that covers only the Live Preview iframe (falls back to full viewport).
+ * Keeps confirms visually centered in the preview pane, not the whole CP.
+ */
+function createPreviewCenteredOverlay(doc, id) {
+  const overlay = doc.createElement('div');
+
+  if (id) {
+    overlay.id = id;
+  }
+
+  const iframe = doc.getElementById('live-preview-iframe');
+  const rect = iframe?.getBoundingClientRect?.();
+
+  if (rect && rect.width > 0 && rect.height > 0) {
+    overlay.style.cssText =
+      `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;` +
+      'z-index:2147483646;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
+  } else {
+    overlay.style.cssText =
+      'position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;' +
+      'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
+  }
+
+  return overlay;
+}
+
+function dialogCardStyle(win) {
+  return (
+    'width:400px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
+    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);'
+  );
+}
+
+/** Subtle Cancel chip — 10% white on dark CP, 10% black on light. */
+function dialogCancelButtonStyle(win) {
+  const dark = win.document.documentElement.classList.contains('dark');
+
+  return (
+    `all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;` +
+    `color:currentColor;background:${dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)'};`
+  );
+}
+
+/** Statamic primary — same as CP “Save & Publish”. */
+function dialogPrimaryButtonStyle() {
+  return (
+    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;' +
+    'background:var(--theme-color-primary,#4f46e5);color:#fff;'
+  );
+}
+
+/** Destructive discard. */
+function dialogDangerButtonStyle() {
+  return (
+    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;' +
+    'background:#dc2626;color:#fff;'
+  );
+}
+
+/**
  * Asks about unsaved work before leaving — a dialog, not a dropdown hanging off
  * whatever you happened to click. Losing edits is the kind of thing that deserves
  * the middle of the screen.
  */
 function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
   const doc = win.document;
-  const overlay = doc.createElement('div');
-
-  overlay.style.cssText =
-    'position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;' +
-    'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
+  const overlay = createPreviewCenteredOverlay(doc);
 
   const card = doc.createElement('div');
 
-  card.style.cssText =
-    'width:400px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
+  card.style.cssText = dialogCardStyle(win);
   card.innerHTML =
     `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${t(win, 'unsaved_title')}</div>` +
     `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, 'unsaved_body')}</div>` +
@@ -8234,7 +9310,7 @@ function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
 
     btn.type = 'button';
     btn.textContent = label;
-    btn.style.cssText = `all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;${style}`;
+    btn.style.cssText = style;
     btn.addEventListener('click', () => {
       close();
       onClick();
@@ -8242,13 +9318,13 @@ function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
     actions.appendChild(btn);
   };
 
-  button(t(win, 'cancel'), 'opacity:.7;color:currentColor;', onCancel);
-  button(t(win, 'unsaved_discard'), 'color:currentColor;background:rgba(128,128,128,.16);font-weight:500;', onDiscard);
+  button(t(win, 'cancel'), dialogCancelButtonStyle(win), onCancel);
   button(
-    t(win, 'unsaved_save'),
-    'background:var(--theme-color-primary,#4f46e5);color:#fff;font-weight:600;',
-    onSave
+    t(win, 'unsaved_discard'),
+    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;color:currentColor;background:rgba(128,128,128,.16);',
+    onDiscard
   );
+  button(t(win, 'unsaved_save'), dialogPrimaryButtonStyle(), onSave);
 
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay) {
@@ -8259,6 +9335,124 @@ function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
 
   overlay.appendChild(card);
   doc.body.appendChild(overlay);
+}
+
+/**
+ * Close chrome / global focus with unsaved edits.
+ * Cancel · Save (optional) · Close without saving.
+ */
+function confirmCloseDiscard(win, { titleKey, bodyKey }, onDiscard, onCancel = () => {}, onSave = null) {
+  const doc = win.document;
+
+  doc.getElementById('__sve-close-discard')?.remove();
+
+  const overlay = createPreviewCenteredOverlay(doc, '__sve-close-discard');
+
+  const card = doc.createElement('div');
+
+  card.style.cssText = dialogCardStyle(win);
+  card.innerHTML =
+    `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${t(win, titleKey)}</div>` +
+    `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, bodyKey)}</div>` +
+    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
+
+  const actions = card.querySelector('[data-sve-actions]');
+  const close = () => overlay.remove();
+
+  const button = (label, style, onClick) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.cssText = style;
+    btn.addEventListener('click', () => {
+      close();
+      onClick();
+    });
+    actions.appendChild(btn);
+  };
+
+  button(t(win, 'cancel'), dialogCancelButtonStyle(win), onCancel);
+
+  if (typeof onSave === 'function') {
+    button(t(win, 'save'), dialogPrimaryButtonStyle(), onSave);
+  }
+
+  button(t(win, 'discard_close'), dialogDangerButtonStyle(), onDiscard);
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      close();
+      onCancel();
+    }
+  });
+
+  overlay.appendChild(card);
+  doc.body.appendChild(overlay);
+}
+
+/**
+ * Preview asked to leave header/footer focus. Warn if Theme Settings is dirty.
+ */
+function handleRequestCloseChrome(win) {
+  const finish = () => {
+    dismissChromeForPageEdit(win);
+    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
+  };
+
+  if (!hasUnsavedGlobals(win)) {
+    finish();
+
+    return;
+  }
+
+  confirmCloseDiscard(
+    win,
+    { titleKey: 'chrome_close_title', bodyKey: 'chrome_close_body' },
+    () => {
+      discardGlobalsChanges(win, { refresh: true, reloadForm: true }).then(finish);
+    },
+    () => {},
+    () => {
+      saveGlobalsPanel(win, (ok) => {
+        if (ok) {
+          finish();
+        }
+      });
+    }
+  );
+}
+
+/**
+ * Preview asked to leave a global section. Warn if that section is dirty.
+ */
+function handleRequestCloseGlobal(win) {
+  const finish = () => {
+    // Close panel without posting back to preview (force-exit owns focus UI).
+    const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
+
+    if (panel) {
+      panel.remove();
+      sectionPanelValues = null;
+      syncPreviewInset(win);
+    }
+
+    clearSectionsStash(win, { refresh: true }).finally(() => {
+      sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
+    });
+  };
+
+  if (!hasUnsavedGlobalSection(win)) {
+    finish();
+
+    return;
+  }
+
+  confirmCloseDiscard(
+    win,
+    { titleKey: 'global_close_title', bodyKey: 'global_close_body' },
+    () => finish()
+  );
 }
 
 const LP_NAV_SPINNER_ID = '__sve-nav-spinner';
@@ -8442,7 +9636,7 @@ function navigateFromLp(win, anchor, url, onCancel = () => {}) {
     });
   };
 
-  if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
+  if (!hasUnsavedWork(win) || (!saveButtonIn(win.document) && !hasUnsavedGlobals(win) && !hasUnsavedGlobalSection(win))) {
     go();
 
     return;
@@ -8450,9 +9644,36 @@ function navigateFromLp(win, anchor, url, onCancel = () => {}) {
 
   confirmUnsaved(
     win,
-    () => saveThenNavigate(win, go),
+    () => {
+      // Globals / synced sections first, then the entry.
+      saveGlobalsPanel(win, (ok) => {
+        if (!ok) {
+          onCancel();
+
+          return;
+        }
+
+        saveGlobalSectionPanel(win, (sectionOk) => {
+          if (!sectionOk) {
+            onCancel();
+
+            return;
+          }
+
+          if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
+            go();
+
+            return;
+          }
+
+          saveThenNavigate(win, go);
+        });
+      });
+    },
     () => {
       discardChanges(win);
+      discardGlobalsChanges(win);
+      clearSectionsStash(win, { refresh: false });
       go();
     },
     onCancel
@@ -8738,6 +9959,48 @@ const GLOBAL_SECTION_PANEL_ID = '__sve-global-section-panel';
 // lets a global section be edited inline like any other — see activeContainers.
 let sectionPanelValues = null;
 
+/** True after we've pushed unsaved global-section values into the preview stash. */
+let sectionsStashActive = false;
+
+function globalSectionPanelFrame(win) {
+  return win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe') || null;
+}
+
+/**
+ * Synced section panel lives in its own iframe — entry $dirty never sees it.
+ * Stash activity is the other signal (same idea as Theme Settings).
+ */
+function hasUnsavedGlobalSection(win) {
+  if (sectionsStashActive) {
+    return true;
+  }
+
+  const iwin = globalSectionPanelFrame(win)?.contentWindow;
+
+  if (!iwin) {
+    return false;
+  }
+
+  try {
+    const dirty = iwin.Statamic?.$dirty;
+
+    if (typeof dirty?.has !== 'function') {
+      return false;
+    }
+
+    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
+    const list = unwrapRef(raw);
+
+    if (Array.isArray(list) && list.length) {
+      return list.some((name) => dirty.has(name));
+    }
+
+    return dirty.has('base');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The open panel, dressed up as a publish container.
  *
@@ -8781,6 +10044,8 @@ function refreshSections(win, active) {
 }
 
 function postSectionValues(win, id, values) {
+  sectionsStashActive = true;
+  notifyGlobalSectionDirty(win);
   win
     .fetch('/!/sve/global-section-stash', {
       method: 'POST',
@@ -8796,6 +10061,164 @@ function postSectionValues(win, id, values) {
     .catch(() => {});
 }
 
+function clearSectionsStash(win, { refresh = true } = {}) {
+  if (!sectionsStashActive) {
+    notifyGlobalSectionDirty(win);
+
+    return Promise.resolve();
+  }
+
+  sectionsStashActive = false;
+
+  return win
+    .fetch('/!/sve/global-section-stash/clear', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .catch(() => {})
+    .then(() => {
+      notifyGlobalSectionDirty(win);
+
+      if (refresh) {
+        refreshSections(win, false);
+      }
+    });
+}
+
+/** Listeners for global-section panel save results. */
+const sectionSaveListeners = [];
+
+function onSectionSave(callback) {
+  sectionSaveListeners.push(callback);
+
+  return () => {
+    const index = sectionSaveListeners.indexOf(callback);
+
+    if (index !== -1) {
+      sectionSaveListeners.splice(index, 1);
+    }
+  };
+}
+
+function saveGlobalSectionPanel(win, done) {
+  if (!hasUnsavedGlobalSection(win)) {
+    done(true);
+
+    return;
+  }
+
+  const frame = globalSectionPanelFrame(win);
+  const iwin = frame?.contentWindow;
+
+  if (!iwin) {
+    clearSectionsStash(win, { refresh: false }).finally(() => done(true));
+
+    return;
+  }
+
+  let settled = false;
+
+  const finish = (ok) => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    stop();
+    clearTimeout(timer);
+    done(ok);
+  };
+
+  const stop = onSectionSave(finish);
+  const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
+
+  iwin.postMessage(
+    { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+    win.location.origin
+  );
+}
+
+function watchGlobalSectionPanelSaves(iwin, parentWin) {
+  if (!iwin || !parentWin || iwin.__sveSectionSaveWatch) {
+    return;
+  }
+
+  iwin.__sveSectionSaveWatch = true;
+
+  const entryPath = iwin.location.pathname;
+
+  const isSave = (url, method) => {
+    if (!url || !/^(POST|PUT|PATCH)$/i.test(method || 'GET')) {
+      return false;
+    }
+
+    let path;
+
+    try {
+      path = new URL(url, iwin.location.origin).pathname;
+    } catch {
+      return false;
+    }
+
+    return path.startsWith(entryPath) && !path.includes('/preview');
+  };
+
+  const announce = (ok) => {
+    if (ok) {
+      sectionsStashActive = true;
+      clearSectionsStash(parentWin, { refresh: false });
+    }
+
+    [...sectionSaveListeners].forEach((listener) => listener(ok));
+  };
+
+  const { fetch: originalFetch } = iwin;
+
+  iwin.fetch = function (input, init = {}) {
+    const url = typeof input === 'string' ? input : input?.url;
+    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
+
+    if (!isSave(url, method)) {
+      return originalFetch.call(this, input, init);
+    }
+
+    return originalFetch.call(this, input, init).then(
+      (response) => {
+        announce(response.ok);
+
+        return response;
+      },
+      (error) => {
+        announce(false);
+
+        throw error;
+      }
+    );
+  };
+}
+
+function ensureGlobalSectionPanelSaveWatch(win) {
+  const frame = globalSectionPanelFrame(win);
+
+  if (!frame) {
+    return;
+  }
+
+  const arm = () => {
+    try {
+      if (frame.contentWindow) {
+        watchGlobalSectionPanelSaves(frame.contentWindow, win);
+      }
+    } catch {
+      /* iframe not ready */
+    }
+  };
+
+  arm();
+  frame.addEventListener('load', arm);
+}
+
 export function closeGlobalSectionPanel(win) {
   const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
 
@@ -8807,15 +10230,8 @@ export function closeGlobalSectionPanel(win) {
   sectionPanelValues = null;
   syncPreviewInset(win);
 
-  // Drop the stash and put the saved section back in the preview.
-  win
-    .fetch('/!/sve/global-section-stash/clear', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .catch(() => {})
-    .then(() => refreshSections(win, false));
+  clearSectionsStash(win, { refresh: true });
+  syncSectionLibraryAvailability(win);
 }
 
 /** Docks a global section's own editor beside the page's preview. */
@@ -8891,7 +10307,7 @@ export function openGlobalSectionPanel(win, id) {
   close.style.cssText =
     'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
     'justify-content:center;border-radius:6px;opacity:.7;';
-  close.addEventListener('click', () => closeGlobalSectionPanel(win));
+  close.addEventListener('click', () => handleRequestCloseGlobal(win));
   actions.appendChild(close);
 
   bar.appendChild(actions);
@@ -8906,6 +10322,8 @@ export function openGlobalSectionPanel(win, id) {
   panel.appendChild(frame);
   doc.body.appendChild(panel);
   syncPreviewInset(win);
+  ensureGlobalSectionPanelSaveWatch(win);
+  notifyGlobalSectionDirty(win);
 }
 
 /** The panel frame reports what's being typed → stash it → re-render the page. */
@@ -8931,6 +10349,8 @@ function listenForSectionValues(win) {
     // section's text be edited inline in the page (see sectionPanelContainer).
     sectionPanelValues = { id: data.id, values: data.values };
 
+    // Show Save on the preview bar as soon as the form streams a change.
+    notifyGlobalSectionDirty(win);
     postSectionValues(win, data.id, data.values);
   });
 }
@@ -8953,6 +10373,27 @@ function listenForGlobalsValues(win) {
       return;
     }
 
+    // Discard/reload in progress — ignore stale polls from the old form.
+    if (!globalsAcceptValues) {
+      return;
+    }
+
+    const serialized = JSON.stringify(data.values ?? {});
+
+    // Tab-lock / remount after entering chrome mutates the form once — treat as baseline, not dirty.
+    if (activeChromeKind && Date.now() < chromeIgnoreValuePostsUntil) {
+      chromeValuesBaseline = serialized;
+
+      return;
+    }
+
+    if (activeChromeKind && chromeValuesBaseline !== null && serialized === chromeValuesBaseline) {
+      return;
+    }
+
+    // Show Save on the chrome bar immediately (stash POST is still debounced).
+    globalsStashActive = true;
+    notifyChromeDirty(win);
     postGlobals(win, data.handle, data.values);
   });
 }
