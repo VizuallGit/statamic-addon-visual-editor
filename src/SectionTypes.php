@@ -42,6 +42,7 @@ class SectionTypes
                     'display' => $set['display'] ?? $setHandle,
                     'image_url' => $images[$setHandle] ?? null,
                     'defaults' => static::defaults($handle, $setHandle),
+                    'groups' => static::groups($handle, $setHandle),
                 ];
             }
         }
@@ -56,25 +57,7 @@ class SectionTypes
      */
     protected static function defaults(string $field, string $setHandle): array
     {
-        $collection = Collection::findByHandle(
-            config('statamic-visual-editor.previews.collection', 'pages')
-        );
-
-        $blueprint = $collection?->entryBlueprint();
-
-        if (! $blueprint) {
-            return [];
-        }
-
-        $replicator = $blueprint->fields()->all()->get($field);
-
-        if (! $replicator) {
-            return [];
-        }
-
-        $setFields = $replicator->fieldtype()->fields($setHandle) ?? null;
-
-        if (! $setFields) {
+        if (! $setFields = static::setFields($field, $setHandle)) {
             return [];
         }
 
@@ -93,5 +76,55 @@ class SectionTypes
         }
 
         return $defaults;
+    }
+
+    /**
+     * The set's tabby fields, in the order the fieldset declares them.
+     *
+     * These become the segments of the section panel's Content | Design control.
+     * A section fieldset already separates the two — content fields at the top
+     * level, design controls gathered in a tabby — so the split is read from the
+     * fieldset rather than configured a second time here. Add another tabby and
+     * another segment appears; no code, and no config, has to know about it.
+     *
+     * `display` is the tabby's own, so renaming the field to "Design" renames the
+     * segment.
+     */
+    protected static function groups(string $field, string $setHandle): array
+    {
+        if (! $setFields = static::setFields($field, $setHandle)) {
+            return [];
+        }
+
+        $groups = [];
+
+        foreach ($setFields->all() as $handle => $f) {
+            if ($f->type() !== 'tabby') {
+                continue;
+            }
+
+            $groups[] = [
+                'handle' => $handle,
+                'display' => $f->display() ?: $handle,
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
+     * One set type's fields, resolved off the entry blueprint so that imports and
+     * field references are already flattened — a section that imports its design
+     * tabby from a shared fieldset reads the same as one declaring it inline.
+     */
+    protected static function setFields(string $field, string $setHandle): ?\Statamic\Fields\Fields
+    {
+        $collection = Collection::findByHandle(
+            config('statamic-visual-editor.previews.collection', 'pages')
+        );
+
+        $replicator = $collection?->entryBlueprint()?->fields()->all()->get($field);
+
+        return $replicator?->fieldtype()->fields($setHandle) ?: null;
     }
 }

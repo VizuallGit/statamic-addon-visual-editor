@@ -134,4 +134,8 @@ return [
     'slug_invalid' => 'That title gives an empty slug — please write one.',
     'panel' => 'Page settings',
     'pages' => 'Pages',
+
+    // Section panel: the segmented control built from a section's tabby fields.
+    // The other segments are named by the tabby fields themselves.
+    'section_content' => 'Content',
 ];

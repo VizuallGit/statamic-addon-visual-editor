@@ -131,4 +131,5 @@ return [
     'slug_invalid' => 'Den titel giver en tom slug — skriv en selv.',
     'panel' => 'Sideindstillinger',
     'pages' => 'Sider',
+    'section_content' => 'Indhold',
 ];

@@ -81,6 +81,181 @@ function findGridRow(input) {
  * Called eagerly in initCp and again via MutationObserver when the DOM
  * changes (e.g. Vue renders new Grid rows after navigation or field expansion).
  */
+// --- Section groups: a section's tabby fields as a segmented control ----------
+//
+// A section fieldset already draws the line the editor wants: content fields at
+// the top level, design controls gathered in a tabby. This promotes that split
+// into the same segmented control the header and footer have — one segment for
+// the content, then one per tabby, named by the tabby's own display.
+//
+// Which fields are tabbies is resolved server-side and arrives on sveSectionTypes
+// (see SectionTypes::groups). Nothing here knows a handle: give a section another
+// tabby and it grows another segment, with no change on either side.
+
+const SECTION_TOGGLE_ATTR = 'data-sve-section-toggle';
+const SECTION_GROUP_ATTR = 'data-sve-section-group';
+const SECTION_SEG_ATTR = 'data-sve-section-seg';
+const SECTION_ACTIVE_ATTR = 'data-sve-section-active';
+
+/** The key for the segment holding everything that isn't in a tabby. */
+const SECTION_CONTENT_KEY = '__content';
+
+/** The tabby fields declared for a set type, or [] if it has none. */
+function sectionGroupsFor(win, type) {
+  if (!type) {
+    return [];
+  }
+
+  const types = win.Statamic?.$config?.get?.('sveSectionTypes') || [];
+
+  return types.find((t) => t.handle === type)?.groups || [];
+}
+
+/**
+ * The set's own field wrappers — the ones Statamic renders in its top-level
+ * field list, not those belonging to a nested set or a field inside the tabby.
+ *
+ * Depth is counted in .publish-fields ancestors rather than assumed, because the
+ * markup between a set and its fields differs by fieldtype; the shallowest run is
+ * the set's own list whatever that nesting turns out to be.
+ */
+function ownFieldWrappers(setEl) {
+  const all = [...setEl.querySelectorAll('[id^="field_"]')].filter(
+    (el) => el.closest(SELECTORS.anySet) === setEl
+  );
+
+  if (!all.length) {
+    return [];
+  }
+
+  const depth = (el) => {
+    let levels = 0;
+
+    for (let node = el.parentElement; node && node !== setEl; node = node.parentElement) {
+      if (node.classList?.contains('publish-fields')) {
+        levels++;
+      }
+    }
+
+    return levels;
+  };
+
+  const shallowest = Math.min(...all.map(depth));
+
+  return all.filter((el) => depth(el) === shallowest);
+}
+
+function paintSectionToggle(setEl, active) {
+  setEl.querySelectorAll(`[${SECTION_SEG_ATTR}]`).forEach((btn) => {
+    const on = btn.getAttribute(SECTION_SEG_ATTR) === active;
+
+    btn.style.background = on ? 'rgba(128,128,128,.22)' : 'transparent';
+    btn.style.fontWeight = on ? '600' : '500';
+    btn.style.opacity = on ? '1' : '.72';
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+
+  setEl.querySelectorAll(`[${SECTION_GROUP_ATTR}]`).forEach((wrapper) => {
+    wrapper.style.display = wrapper.getAttribute(SECTION_GROUP_ATTR) === active ? '' : 'none';
+  });
+}
+
+function setSectionGroup(setEl, key) {
+  setEl.setAttribute(SECTION_ACTIVE_ATTR, key);
+  paintSectionToggle(setEl, key);
+}
+
+/**
+ * Builds the control for one section, once. Re-entrant: a set already carrying
+ * the toggle is only repainted, so the MutationObserver driving this can fire as
+ * often as it likes.
+ */
+function enhanceSectionGroups(win, setEl) {
+  const existing = setEl.querySelector(`:scope [${SECTION_TOGGLE_ATTR}]`);
+
+  if (existing) {
+    paintSectionToggle(setEl, setEl.getAttribute(SECTION_ACTIVE_ATTR) || SECTION_CONTENT_KEY);
+
+    return;
+  }
+
+  const groups = sectionGroupsFor(win, setEl.getAttribute('data-type'));
+
+  if (!groups.length) {
+    return;
+  }
+
+  const wrappers = ownFieldWrappers(setEl);
+
+  if (!wrappers.length) {
+    return;
+  }
+
+  const byHandle = new Map(wrappers.map((el) => [el.id.slice('field_'.length), el]));
+
+  // A tabby the fieldset declares but the form hasn't rendered — a revealer or an
+  // `if` still hiding it — simply doesn't get a segment. Better a control that
+  // matches what is on screen than one promising a pane that would come up empty.
+  const present = groups.filter((group) => byHandle.has(group.handle));
+
+  if (!present.length) {
+    return;
+  }
+
+  wrappers.forEach((el) => el.setAttribute(SECTION_GROUP_ATTR, SECTION_CONTENT_KEY));
+  present.forEach((group) => byHandle.get(group.handle).setAttribute(SECTION_GROUP_ATTR, group.handle));
+
+  const doc = win.document;
+  const row = doc.createElement('div');
+
+  row.setAttribute(SECTION_TOGGLE_ATTR, '');
+  row.style.cssText = 'display:flex;padding:0 0 12px;flex:0 0 auto;';
+
+  const track = doc.createElement('div');
+
+  // flex-wrap + a min-width per segment is what makes this hold any number of
+  // tabbies: they share one row while they fit, and fall onto further rows
+  // rather than squeezing to unreadable slivers.
+  track.style.cssText =
+    'display:flex;flex-wrap:wrap;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
+    'background:rgba(128,128,128,.12);';
+
+  [{ key: SECTION_CONTENT_KEY, label: t(win, 'section_content') }]
+    .concat(present.map((group) => ({ key: group.handle, label: group.display })))
+    .forEach(({ key, label }) => {
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.textContent = label;
+      btn.setAttribute(SECTION_SEG_ATTR, key);
+      btn.style.cssText =
+        'all:unset;cursor:pointer;flex:1 1 auto;min-width:88px;text-align:center;' +
+        'padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setSectionGroup(setEl, key);
+      });
+      track.appendChild(btn);
+    });
+
+  row.appendChild(track);
+  wrappers[0].parentElement.insertBefore(row, wrappers[0]);
+
+  setSectionGroup(setEl, SECTION_CONTENT_KEY);
+}
+
+/** Every section in the editor panel. Cheap for sets that have no tabby. */
+export function enhanceSectionGroupsIn(win, root = win.document) {
+  root.querySelectorAll(SELECTORS.replicatorSet).forEach((setEl) => {
+    try {
+      enhanceSectionGroups(win, setEl);
+    } catch {
+      // One malformed set must not stop the rest of the panel from working.
+    }
+  });
+}
+
 export function stampGridRows(root = document) {
   // Table-mode grids (mode: table): stamp every <tr> inside a grid table's <tbody>.
   root.querySelectorAll('table.grid-table tbody tr').forEach((tr) => {
@@ -11161,9 +11336,13 @@ export function initCp(win = window) {
   // mounts (it lives in a portal that appears/disappears dynamically).
   stampGridRows(win.document);
   ensureLpPanelToggle(win);
+  enhanceSectionGroupsIn(win);
   const gridObserver = new win.MutationObserver(() => {
     stampGridRows(win.document);
     ensureLpPanelToggle(win);
+    // Sections mount and remount as the panel opens, a set is added, or a
+    // revealer runs — the same beat those are already caught on.
+    enhanceSectionGroupsIn(win);
   });
   gridObserver.observe(win.document.body, { childList: true, subtree: true });
 
