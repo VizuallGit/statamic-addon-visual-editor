@@ -53,7 +53,7 @@ return [
     'chrome_bar_dirty' => 'You currently have unsaved changes.',
     'chrome_bar_clean' => 'You currently have no changes.',
     'chrome_designs' => 'Design',
-    'chrome_settings' => 'Settings',
+    'chrome_content' => 'Edit content',
     'chrome_library_hint' => 'Click a design to apply it.',
     'chrome_search_placeholder' => 'Search design…',
     'chrome_no_styles' => 'No chrome designs configured.',
