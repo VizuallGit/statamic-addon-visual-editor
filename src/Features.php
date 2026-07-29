@@ -27,6 +27,7 @@ class Features
         'pages',
         'globals',
         'sections',
+        'inline_edit',
         'library_page',
         'library_custom',
         'library_global',

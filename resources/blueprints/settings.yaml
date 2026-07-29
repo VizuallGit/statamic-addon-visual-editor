@@ -56,6 +56,18 @@ tabs:
               if:
                 enabled: 'equals true'
       -
+        display: 'Editing on the page'
+        fields:
+          -
+            handle: inline_edit
+            field:
+              type: toggle
+              display: 'Inline editing'
+              instructions: 'Click text in the preview and type straight into it. Off, the `inline_edit` flag on your `visual_edit` tags stops taking effect — a click focuses the field in the side panel instead, the way an unflagged field already behaves. Your templates stay as they are.'
+              default: true
+              if:
+                enabled: 'equals true'
+      -
         display: 'Section library tabs'
         instructions: 'Which tabs the section library offers. Requires the section library itself to be on.'
         fields:

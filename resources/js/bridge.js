@@ -512,6 +512,13 @@ function placeCaretFromPoint(win, x, y) {
  * DOM until an edit-start reply arrives.
  */
 function requestInlineEdit(win, wrapper, event, options = {}) {
+  // The boundary for the feature as a whole. Callers gate too — the popup path
+  // has to know it is falling back before it decides what to send instead — so
+  // this is the backstop that keeps a future caller from reopening the door.
+  if (!featureOn('inline_edit')) {
+    return;
+  }
+
   // The direct child of the wrapper containing the click — for Bard fields this
   // is the block element (h1/p/…) whose index maps to the ProseMirror node.
   let blockEl = null;
@@ -3851,6 +3858,7 @@ export function createClickHandler(win) {
       // not map onto the field value (padding, images, unmatched text) — the
       // edit-deny handler then opens the popup instead.
       if (
+        featureOn('inline_edit') &&
         target.hasAttribute('data-sid-inline-edit') &&
         target.hasAttribute(SID_FIELD_ATTR) &&
         event.target !== target
@@ -3883,7 +3891,10 @@ export function createClickHandler(win) {
       // Inline editing is opt-in per template: only elements rendered with
       // {{ visual_edit field="…" inline_edit="true" }} carry this attribute.
       // Everything else keeps the classic behaviour (focus the CP field only).
-      if (target.hasAttribute('data-sid-inline-edit')) {
+      // A site can also switch it off wholesale, which is the same thing one
+      // level up: every flagged element falls back to that classic behaviour,
+      // and the click message above has already focused the field.
+      if (featureOn('inline_edit') && target.hasAttribute('data-sid-inline-edit')) {
         // Media click: the CP opens the field's asset browser instead of a
         // text-edit session. Triggered when the click lands on an image/video,
         // or anywhere in a wrapper whose only content is media (no text).

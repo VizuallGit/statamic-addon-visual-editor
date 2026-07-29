@@ -50,6 +50,10 @@ return [
     | - library_templates: its "Templates" tab — whole pages saved to reuse
     | - chrome_header:     clicking the header steps into editing it
     | - chrome_footer:     the same for the footer
+    | - inline_edit:       typing straight into the page. Off, the `inline_edit`
+    |                      flag on the visual_edit tags stops taking effect and a
+    |                      click focuses the field in the panel instead — so a
+    |                      site can turn this off without touching its templates.
     |
     */
     'features' => [
@@ -57,6 +61,7 @@ return [
         'pages' => true,
         'globals' => true,
         'sections' => true,
+        'inline_edit' => true,
         'library_page' => true,
         'library_custom' => true,
         'library_global' => true,
