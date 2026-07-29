@@ -135,7 +135,13 @@ function sectionFieldRows(setEl) {
 
   const shallowest = Math.min(...lists.map(depth));
 
-  return lists.filter((el) => depth(el) === shallowest).flatMap((list) => [...list.children]);
+  return lists
+    .filter((el) => depth(el) === shallowest)
+    .flatMap((list) => [...list.children])
+    // Not the control itself. It is inserted into this very list, so a second
+    // pass would count it as a field, file it under the content group, and hide
+    // it along with that group the moment any other segment was active.
+    .filter((row) => !row.hasAttribute(SECTION_TOGGLE_ATTR));
 }
 
 /**
@@ -285,7 +291,11 @@ function enhanceSectionGroups(win, setEl) {
 
     row = doc.createElement('div');
     row.setAttribute(SECTION_TOGGLE_ATTR, '');
-    row.style.cssText = 'display:flex;padding:0 0 14px;flex:0 0 auto;';
+    // Statamic lays the field list out as a 12-column grid, so a child with no
+    // column of its own lands in one of them — an eighth of the width, which is
+    // how this first shipped invisible. Spanning every column is what makes it a
+    // bar across the panel.
+    row.style.cssText = 'grid-column:1/-1;display:flex;width:100%;';
 
     const track = doc.createElement('div');
 
