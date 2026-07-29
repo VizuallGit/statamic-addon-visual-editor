@@ -10551,6 +10551,14 @@ export function initCp(win = window) {
   // eslint-disable-next-line no-console
   console.info('%c[SVE] restore-1740 loaded', 'background:#0d9488;color:#fff;padding:2px 6px;border-radius:4px');
 
+  // Switched off for this site: leave Statamic's own Live Preview exactly as it
+  // ships. The bridge is already withheld server-side, and without this the CP
+  // would still build the toolbar and open panels onto a preview that can no
+  // longer be clicked — worse than either state on its own.
+  if (win.Statamic?.$config?.get?.('sveEnabled') === false) {
+    return;
+  }
+
   const style = win.document.createElement('style');
   style.id = '__sve-cp-styles';
   style.textContent = CP_STYLES;

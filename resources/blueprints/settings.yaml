@@ -9,7 +9,7 @@ tabs:
             field:
               type: toggle
               display: Enable Visual Editor
-              instructions: 'Inject the bridge script into Live Preview responses and enable click-to-edit functionality. Turning this off disables everything below.'
+              instructions: 'Inject the bridge script into Live Preview responses and enable click-to-edit functionality. With this off there is no editor to configure, so the rest of this screen is hidden — nothing below is forgotten, it just has nothing to act on.'
               default: true
       -
         display: Toolbar
@@ -23,6 +23,8 @@ tabs:
               instructions: 'The side panel with Hide/Auto/Show and the entry''s own tabs (Main, SEO, Sidebar).'
               default: true
               width: 50
+              if:
+                enabled: 'equals true'
           -
             handle: pages
             field:
@@ -31,6 +33,8 @@ tabs:
               instructions: 'Switch between pages, and create new ones, without leaving Live Preview.'
               default: true
               width: 50
+              if:
+                enabled: 'equals true'
           -
             handle: globals
             field:
@@ -39,6 +43,8 @@ tabs:
               instructions: 'Open a global set (Theme Settings and the like) beside the preview.'
               default: true
               width: 50
+              if:
+                enabled: 'equals true'
           -
             handle: sections
             field:
@@ -47,6 +53,8 @@ tabs:
               instructions: 'The panel sections are dragged onto the page from. Off hides its tabs below as well.'
               default: true
               width: 50
+              if:
+                enabled: 'equals true'
       -
         display: 'Section library tabs'
         instructions: 'Which tabs the section library offers. Requires the section library itself to be on.'
@@ -60,6 +68,7 @@ tabs:
               default: true
               width: 50
               if:
+                enabled: 'equals true'
                 sections: 'equals true'
           -
             handle: library_custom
@@ -70,6 +79,7 @@ tabs:
               default: true
               width: 50
               if:
+                enabled: 'equals true'
                 sections: 'equals true'
           -
             handle: library_global
@@ -80,6 +90,7 @@ tabs:
               default: true
               width: 50
               if:
+                enabled: 'equals true'
                 sections: 'equals true'
           -
             handle: library_templates
@@ -90,6 +101,7 @@ tabs:
               default: true
               width: 50
               if:
+                enabled: 'equals true'
                 sections: 'equals true'
       -
         display: 'Header and footer'
@@ -103,6 +115,8 @@ tabs:
               instructions: 'Clicking the header opens its design and settings.'
               default: true
               width: 50
+              if:
+                enabled: 'equals true'
           -
             handle: chrome_footer
             field:
@@ -111,3 +125,5 @@ tabs:
               instructions: 'The same for the footer.'
               default: true
               width: 50
+              if:
+                enabled: 'equals true'

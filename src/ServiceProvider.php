@@ -127,7 +127,9 @@ class ServiceProvider extends AddonServiceProvider
                 'sveSavedSectionsCollection' => config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
                 'sveGlobalSectionSet' => config('statamic-visual-editor.saved_sections.set', 'global_section'),
                 'sveChrome' => config('statamic-visual-editor.chrome', []),
-                // Which tools this site gets (Addons > Statamic Visual Editor).
+                // Whether the editor runs here at all, and which of its tools this
+                // site gets (Addons > Statamic Visual Editor).
+                'sveEnabled' => Features::editorEnabled(),
                 'sveFeatures' => Features::map(),
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
