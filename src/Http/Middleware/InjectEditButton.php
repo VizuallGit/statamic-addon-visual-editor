@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\Features;
 use Statamic\Facades\Data;
 use Statamic\Facades\Site;
 use Statamic\Facades\User;
@@ -110,7 +111,7 @@ class InjectEditButton
 
     protected function shouldInject(Request $request, Response $response): bool
     {
-        if (! config('statamic-visual-editor.enabled', true)) {
+        if (! Features::editorEnabled()) {
             return false;
         }
 

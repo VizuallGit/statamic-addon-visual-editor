@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor;
 use Illuminate\Support\Facades\View;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
 use MarioHamann\StatamicVisualEditor\Commands\Install;
+use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +34,7 @@ use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
 use MarioHamann\StatamicVisualEditor\Modifiers\IsDefault;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
+use Statamic\Events\AddonSettingsSaved;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\EntrySaving;
 use Statamic\Events\GlobalVariablesBlueprintFound;
@@ -67,6 +69,11 @@ class ServiceProvider extends AddonServiceProvider
         ],
         GlobalVariablesSaving::class => [
             StripVisualIds::class,
+        ],
+        // The settings screen saves and then re-renders in the same request —
+        // without this it would show the map resolved before the save.
+        AddonSettingsSaved::class => [
+            [Features::class, 'flush'],
         ],
     ];
 
@@ -120,6 +127,8 @@ class ServiceProvider extends AddonServiceProvider
                 'sveSavedSectionsCollection' => config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
                 'sveGlobalSectionSet' => config('statamic-visual-editor.saved_sections.set', 'global_section'),
                 'sveChrome' => config('statamic-visual-editor.chrome', []),
+                // Which tools this site gets (Addons > Statamic Visual Editor).
+                'sveFeatures' => Features::map(),
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
                 'sveCollections' => $this->pickerCollections(),

@@ -26,6 +26,16 @@ function t(key, replacements = {}) {
   return out;
 }
 
+/**
+ * Is a tool switched on for this site? (Addons > Statamic Visual Editor.)
+ *
+ * Rides in on the preview response the same way the strings do. Unknown keys read
+ * as on — an absent map must not strip the editor down to nothing.
+ */
+function featureOn(key) {
+  return (window.__sveFeatures || {})[key] !== false;
+}
+
 const MOUSE_ACTIVE_CLASS = 'sve-mouse-active';
 const HOVER_CLEAR_DELAY = 1500; // ms of mouse inactivity before outline clears
 const PULSE_DURATION = 400; // ms — matches the sve-cp-pulse @keyframes animation duration
@@ -309,6 +319,18 @@ export function injectStyles(doc) {
             outline: 2px dashed #0f766e;
             outline-offset: -2px;
             cursor: pointer;
+        }
+        /* Chrome this site does not let anyone edit: no label, no outline, no
+           pointer — the hover affordance is a promise, and the click behind it
+           has been switched off (see chromeEditable). */
+        html.sve-chrome-off-header [data-sve-chrome="header"]::before,
+        html.sve-chrome-off-footer [data-sve-chrome="footer"]::before {
+            display: none !important;
+        }
+        html.sve-chrome-off-header [data-sve-chrome="header"]:hover,
+        html.sve-chrome-off-footer [data-sve-chrome="footer"]:hover {
+            outline: none !important;
+            cursor: auto !important;
         }
         html.sve-chrome-focus-header::after,
         html.sve-chrome-focus-footer::after {
@@ -1705,6 +1727,34 @@ let chromeFocusKind = null;
 /** Survives morph exits (closePanel=false) so Theme Settings edits don't eject you. */
 let chromeFocusKindSticky = null;
 
+
+/**
+ * Flags the chrome this site has switched off, so the CSS above can drop its
+ * hover affordance. On <html> rather than the elements themselves: the header
+ * and footer are the site's own markup and get replaced on every morph, while
+ * the root element survives — the same reason the focus classes live there.
+ */
+function markDisabledChrome(doc) {
+  ['header', 'footer'].forEach((kind) => {
+    doc.documentElement.classList.toggle(`sve-chrome-off-${kind}`, !featureOn(`chrome_${kind}`));
+  });
+}
+
+/**
+ * The chrome element only if this site lets it be edited, else null.
+ *
+ * Header and footer toggle separately, so the answer depends on which one was
+ * hit — a site can open its footer to editors while its header stays fixed.
+ */
+function chromeEditable(el) {
+  if (!el) {
+    return null;
+  }
+
+  const kind = el.getAttribute(CHROME_ATTR) === 'footer' ? 'footer' : 'header';
+
+  return featureOn(`chrome_${kind}`) ? el : null;
+}
 
 function chromeFocusClass(kind) {
   return kind === 'footer' ? 'sve-chrome-focus-footer' : 'sve-chrome-focus-header';
@@ -3684,7 +3734,9 @@ export function createClickHandler(win) {
     // First click on header/footer: confirm (“global — applies everywhere”),
     // then step into chrome focus. Once inside, nested clicks edit normally;
     // clicking outside asks CP to close (warns if Theme Settings is dirty).
-    const chromeEl = event.target.closest(`[${CHROME_ATTR}]`);
+    // A site that has switched this half of the chrome off gets neither — the
+    // click falls through to whatever is under it, as on any other page.
+    const chromeEl = chromeEditable(event.target.closest(`[${CHROME_ATTR}]`));
 
     if (chromeEl) {
       if (chromeFocusEl !== chromeEl) {
@@ -4335,6 +4387,7 @@ export function initBridge(win = window) {
 
   injectStyles(win.document);
   injectCpVariables(win.document, win);
+  markDisabledChrome(win.document);
 
   // The site's live-preview hot-reload script replaces every <style> in <head>
   // on each content update, which strips our injected styles and kills the

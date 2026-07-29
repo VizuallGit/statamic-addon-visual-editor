@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\Features;
 use Symfony\Component\HttpFoundation\Response;
 
 class InjectBridgeScript
@@ -12,7 +13,7 @@ class InjectBridgeScript
     {
         $response = $next($request);
 
-        if (! config('statamic-visual-editor.enabled', true)) {
+        if (! Features::editorEnabled()) {
             return $response;
         }
 
@@ -43,9 +44,55 @@ class InjectBridgeScript
 
         $content = substr_replace($content, $tags.'</body>', $pos, strlen('</body>'));
 
-        $response->setContent($this->suppressEntranceAnimations($content));
+        $response->setContent($this->injectHead($content));
 
         return $response;
+    }
+
+    /**
+     * Everything the bridge needs in <head>, in one pass.
+     *
+     * The bridge data is not optional — without it the preview has no strings and
+     * no idea which tools are switched on — so it goes in whether or not the
+     * animation suppression that follows it is wanted.
+     */
+    protected function injectHead(string $content): string
+    {
+        $pos = stripos($content, '</head>');
+
+        if ($pos === false) {
+            return $content;
+        }
+
+        return substr_replace(
+            $content,
+            $this->bridgeData().$this->entranceAnimationGuard().'</head>',
+            $pos,
+            strlen('</head>')
+        );
+    }
+
+    /**
+     * The preview runs as a front-end request and can't reach the CP's config, so
+     * what it needs rides along in the document: its strings, already resolved to
+     * the CP user's language (see ServiceProvider::strings()), and the map of
+     * which tools are on — the bridge must know before it offers one (stepping
+     * into the header, say).
+     */
+    protected function bridgeData(): string
+    {
+        $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
+
+        $strings = json_encode(
+            \MarioHamann\StatamicVisualEditor\ServiceProvider::strings(),
+            $flags | JSON_UNESCAPED_UNICODE
+        );
+
+        $features = json_encode(Features::map(), $flags);
+
+        return <<<HTML
+        <script>window.__sveStrings = {$strings}; window.__sveFeatures = {$features};</script>
+        HTML."\n";
     }
 
     /**
@@ -57,29 +104,13 @@ class InjectBridgeScript
      * Only the first moments are collapsed: the class is dropped once the page has
      * loaded, so anything the visitor scrolls to afterwards animates normally.
      */
-    protected function suppressEntranceAnimations(string $content): string
+    protected function entranceAnimationGuard(): string
     {
         if (! config('statamic-visual-editor.suppress_entrance_animations', true)) {
-            return $content;
+            return '';
         }
 
-        $pos = stripos($content, '</head>');
-
-        if ($pos === false) {
-            return $content;
-        }
-
-        // The bridge runs in the preview, which has no access to the CP's config —
-        // so its strings ride along here, already resolved to the CP user's
-        // language (see ServiceProvider::strings()).
-        $strings = json_encode(
-            \MarioHamann\StatamicVisualEditor\ServiceProvider::strings(),
-            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE
-        );
-
-        $head = <<<HTML
-        <script>window.__sveStrings = {$strings};</script>
-        HTML."\n".<<<'HTML'
+        return <<<'HTML'
         <style id="sve-noanim">
             html.sve-noanim, html.sve-noanim *, html.sve-noanim *::before, html.sve-noanim *::after {
                 animation-duration: 1ms !important;
@@ -106,8 +137,6 @@ class InjectBridgeScript
         })();
         </script>
         HTML;
-
-        return substr_replace($content, $head.'</head>', $pos, strlen('</head>'));
     }
 
     protected function isLivePreview(Request $request): bool

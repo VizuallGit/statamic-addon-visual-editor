@@ -9,5 +9,105 @@ tabs:
             field:
               type: toggle
               display: Enable Visual Editor
-              instructions: Inject the bridge script into Live Preview responses and enable click-to-edit functionality.
+              instructions: 'Inject the bridge script into Live Preview responses and enable click-to-edit functionality. Turning this off disables everything below.'
               default: true
+      -
+        display: Toolbar
+        instructions: 'The icon row at the top left of Live Preview. Switch off what this site has no use for — a hidden tool is one nobody has to be told to ignore.'
+        fields:
+          -
+            handle: panel
+            field:
+              type: toggle
+              display: 'Page settings panel'
+              instructions: 'The side panel with Hide/Auto/Show and the entry''s own tabs (Main, SEO, Sidebar).'
+              default: true
+              width: 50
+          -
+            handle: pages
+            field:
+              type: toggle
+              display: Pages
+              instructions: 'Switch between pages, and create new ones, without leaving Live Preview.'
+              default: true
+              width: 50
+          -
+            handle: globals
+            field:
+              type: toggle
+              display: Globals
+              instructions: 'Open a global set (Theme Settings and the like) beside the preview.'
+              default: true
+              width: 50
+          -
+            handle: sections
+            field:
+              type: toggle
+              display: 'Section library'
+              instructions: 'The panel sections are dragged onto the page from. Off hides its tabs below as well.'
+              default: true
+              width: 50
+      -
+        display: 'Section library tabs'
+        instructions: 'Which tabs the section library offers. Requires the section library itself to be on.'
+        fields:
+          -
+            handle: library_page
+            field:
+              type: toggle
+              display: Page
+              instructions: 'This site''s own section types.'
+              default: true
+              width: 50
+              if:
+                sections: 'equals true'
+          -
+            handle: library_custom
+            field:
+              type: toggle
+              display: Custom
+              instructions: 'Saved sections, inserted as an independent copy.'
+              default: true
+              width: 50
+              if:
+                sections: 'equals true'
+          -
+            handle: library_global
+            field:
+              type: toggle
+              display: Global
+              instructions: 'Synced sections — editing one changes every page using it.'
+              default: true
+              width: 50
+              if:
+                sections: 'equals true'
+          -
+            handle: library_templates
+            field:
+              type: toggle
+              display: Templates
+              instructions: 'Whole pages saved as a stack of sections to reuse.'
+              default: true
+              width: 50
+              if:
+                sections: 'equals true'
+      -
+        display: 'Header and footer'
+        instructions: 'Stepping into the site chrome from the preview. Switch off where the header or footer is fixed and editors should leave it alone.'
+        fields:
+          -
+            handle: chrome_header
+            field:
+              type: toggle
+              display: 'Edit header'
+              instructions: 'Clicking the header opens its design and settings.'
+              default: true
+              width: 50
+          -
+            handle: chrome_footer
+            field:
+              type: toggle
+              display: 'Edit footer'
+              instructions: 'The same for the footer.'
+              default: true
+              width: 50

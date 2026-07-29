@@ -28,6 +28,45 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Features
+    |--------------------------------------------------------------------------
+    |
+    | Which parts of the editor a site gets. Not every site needs every tool —
+    | one without reusable sections has no use for the Global tab, and a site
+    | whose header is fixed shouldn't invite anyone to click into it.
+    |
+    | These are the defaults. Addons > Statamic Visual Editor overrides them per
+    | site, and only the toggles actually saved there override — so a value set
+    | here still applies to everything left untouched, which is what makes this
+    | file worth deploying with.
+    |
+    | - panel:             the page-settings panel (Hide/Auto/Show + its tabs)
+    | - pages:             the collection/entry picker, for moving between pages
+    | - globals:           the globals picker (Theme Settings and friends)
+    | - sections:          the section library panel as a whole
+    | - library_page:      its "Page" tab — the site's own section types
+    | - library_custom:    its "Custom" tab — saved sections, inserted as copies
+    | - library_global:    its "Global" tab — synced sections
+    | - library_templates: its "Templates" tab — whole pages saved to reuse
+    | - chrome_header:     clicking the header steps into editing it
+    | - chrome_footer:     the same for the footer
+    |
+    */
+    'features' => [
+        'panel' => true,
+        'pages' => true,
+        'globals' => true,
+        'sections' => true,
+        'library_page' => true,
+        'library_custom' => true,
+        'library_global' => true,
+        'library_templates' => true,
+        'chrome_header' => true,
+        'chrome_footer' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Section preview images
     |--------------------------------------------------------------------------
     |

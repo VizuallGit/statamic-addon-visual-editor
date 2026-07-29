@@ -2296,6 +2296,17 @@ function sectionField(win) {
   return win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections';
 }
 
+/**
+ * Is a tool switched on for this site? (Addons > Statamic Visual Editor.)
+ *
+ * Unknown keys — and a config that hasn't arrived yet — read as on: the editor
+ * showing a tool it could have hidden is a smaller failure than it hiding one
+ * the site depends on.
+ */
+function featureOn(win, key) {
+  return win.Statamic?.$config?.get?.('sveFeatures')?.[key] !== false;
+}
+
 /** The Replicator set a page uses to reference a synced ("global") saved section. */
 function globalSectionSet(win) {
   return win.Statamic?.$config?.get?.('sveGlobalSectionSet') || 'global_section';
@@ -3070,6 +3081,13 @@ function openSectionPicker(win, options = {}) {
   const doc = win.document;
   const initialTab = options.tab || null;
 
+  // Switched off for this site. Checked here rather than only where the toolbar
+  // icon is built, because the "add a section below" control in the preview opens
+  // the library too — one gate covers every way in.
+  if (!featureOn(win, 'sections')) {
+    return;
+  }
+
   // Header/footer chrome and global-section edit own the page — no section drops.
   if (isSectionLibraryLocked(win)) {
     closeSectionPicker(win);
@@ -3153,12 +3171,16 @@ function openSectionPicker(win, options = {}) {
   panel.querySelector('[data-sve-close]').addEventListener('click', () => closeSectionPicker(win));
 
   const tabs = [
-    { key: 'page', label: t(win, 'tab_page') },
-    { key: 'custom', label: t(win, 'tab_custom') },
-    { key: 'global', label: t(win, 'tab_global') },
-    { key: 'template', label: t(win, 'tab_templates') },
-  ];
-  let active = initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : 'page';
+    { key: 'page', feature: 'library_page', label: t(win, 'tab_page') },
+    { key: 'custom', feature: 'library_custom', label: t(win, 'tab_custom') },
+    { key: 'global', feature: 'library_global', label: t(win, 'tab_global') },
+    { key: 'template', feature: 'library_templates', label: t(win, 'tab_templates') },
+  ].filter((tab) => featureOn(win, tab.feature));
+
+  // 'page' is the natural landing tab, but a site can switch it off — then the
+  // first tab that survived is what opens.
+  const fallbackTab = tabs.some((tab) => tab.key === 'page') ? 'page' : tabs[0]?.key;
+  let active = initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : fallbackTab;
   let saved = null;
   let templates = null;
   let query = '';
@@ -4579,6 +4601,18 @@ const SETTINGS_TABS_ID = '__sve-settings-tabs';
 // header being rebuilt on every preview update.
 let headerTab = undefined;
 
+/** The feature toggle behind each header tab — see ensureHeaderToolbar. */
+const HEADER_TAB_FEATURE = {
+  settings: 'panel',
+  pages: 'pages',
+  globals: 'globals',
+  sections: 'sections',
+};
+
+function headerTabAvailable(win, tab) {
+  return !tab || featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);
+}
+
 function loadHeaderTab(win) {
   if (headerTab !== undefined) {
     return;
@@ -4588,6 +4622,12 @@ function loadHeaderTab(win) {
     headerTab = win.localStorage.getItem('sve-header-tab') || null;
   } catch {
     headerTab = null;
+  }
+
+  // A tab remembered from before the site switched that tool off would open a
+  // control with no icon to close it again. Fall back to nothing expanded.
+  if (!headerTabAvailable(win, headerTab)) {
+    setHeaderTab(win, null);
   }
 }
 
@@ -4636,12 +4676,19 @@ function ensureHeaderToolbar(win) {
   bar.id = HEADER_TOOLBAR_ID;
   bar.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin-right:8px;';
 
+  // `feature` names the toggle on the settings screen; `key` is what the rest of
+  // the header calls the tab. They differ for the panel because the toggle reads
+  // as what it opens ("Page settings panel") while the tab is the icon's slot.
   [
-    { key: 'settings', title: t(win, 'panel') },
-    { key: 'pages', title: t(win, 'pages') },
-    { key: 'globals', title: t(win, 'globals') },
-    { key: 'sections', title: t(win, 'sections') },
+    { key: 'settings', feature: 'panel', title: t(win, 'panel') },
+    { key: 'pages', feature: 'pages', title: t(win, 'pages') },
+    { key: 'globals', feature: 'globals', title: t(win, 'globals') },
+    { key: 'sections', feature: 'sections', title: t(win, 'sections') },
   ].forEach((tab) => {
+    if (!featureOn(win, tab.feature)) {
+      return;
+    }
+
     const btn = doc.createElement('button');
 
     btn.type = 'button';
@@ -4866,9 +4913,11 @@ function applyHeaderTab(win) {
     modeGroup.style.display = headerTab === 'settings' ? 'inline-flex' : 'none';
   }
 
+  // A control whose tool is off stays hidden whatever the active tab is — its
+  // icon is gone, so there would be no way back out of it.
   Object.entries(controls).forEach(([key, el]) => {
     if (el) {
-      el.style.display = headerTab === key ? 'inline-flex' : 'none';
+      el.style.display = headerTab === key && headerTabAvailable(win, key) ? 'inline-flex' : 'none';
     }
   });
 
