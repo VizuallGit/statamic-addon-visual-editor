@@ -16,6 +16,9 @@ use Statamic\Facades\Fieldset;
  */
 class SectionTypes
 {
+    /** Group key for the fields that sit outside any tab — named client-side. */
+    public const CONTENT_GROUP = '__content';
+
     public static function map(): array
     {
         $handle = config('statamic-visual-editor.previews.field', 'page_sections');
@@ -79,16 +82,24 @@ class SectionTypes
     }
 
     /**
-     * The set's tabby fields, in the order the fieldset declares them.
+     * How a set's fields divide into the section panel's segmented control.
      *
-     * These become the segments of the section panel's Content | Design control.
-     * A section fieldset already separates the two — content fields at the top
-     * level, design controls gathered in a tabby — so the split is read from the
-     * fieldset rather than configured a second time here. Add another tabby and
-     * another segment appears; no code, and no config, has to know about it.
+     * Two ways to draw the line, both read off the fieldset rather than
+     * configured a second time here:
      *
-     * `display` is the tabby's own, so renaming the field to "Design" renames the
-     * segment.
+     *  - a `tab` field starts a group, and every field after it belongs to that
+     *    group until the next one. It stores nothing, so marking up an existing
+     *    section costs no migration — the fieldset stays flat and every field
+     *    keeps its handle and its path.
+     *  - a `tabby` is a group on its own, since it already gathers its fields.
+     *
+     * Anything outside both — the plain content fields — is collected into a
+     * leading group the client names, because it is the one group the fieldset
+     * never gives a name to.
+     *
+     * `display` comes from the field, so renaming it to "Design" renames the
+     * segment, and adding another `tab` adds another segment with no change on
+     * either side.
      */
     protected static function groups(string $field, string $setHandle): array
     {
@@ -97,16 +108,51 @@ class SectionTypes
         }
 
         $groups = [];
+        $loose = [];
+        $open = null;
 
         foreach ($setFields->all() as $handle => $f) {
-            if ($f->type() !== 'tabby') {
+            // Hidden fields never reach the panel, and a group made only of them
+            // would be a segment opening on nothing. The editor's own _visual_id
+            // is exactly that: injected into every set, ahead of the author's
+            // first tab, so without this every section grew an empty first tab.
+            if ($f->visibility() === 'hidden') {
                 continue;
             }
 
-            $groups[] = [
-                'handle' => $handle,
-                'display' => $f->display() ?: $handle,
-            ];
+            $type = $f->type();
+
+            if ($type === 'tab') {
+                $groups[] = ['handle' => $handle, 'display' => $f->display() ?: $handle, 'fields' => []];
+                $open = array_key_last($groups);
+
+                continue;
+            }
+
+            if ($type === 'tabby') {
+                // Self-contained: its own fields are inside it, so the group is
+                // the one field. It also closes any open `tab` run — a tabby
+                // after a tab marker reads as its own thing, not as its content.
+                $groups[] = ['handle' => $handle, 'display' => $f->display() ?: $handle, 'fields' => [$handle]];
+                $open = null;
+
+                continue;
+            }
+
+            if ($open === null) {
+                $loose[] = $handle;
+            } else {
+                $groups[$open]['fields'][] = $handle;
+            }
+        }
+
+        if (! $groups) {
+            return [];
+        }
+
+        if ($loose) {
+            // No display: only the client knows what language to name it in.
+            array_unshift($groups, ['handle' => static::CONTENT_GROUP, 'display' => null, 'fields' => $loose]);
         }
 
         return $groups;

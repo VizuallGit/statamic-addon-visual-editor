@@ -81,26 +81,29 @@ function findGridRow(input) {
  * Called eagerly in initCp and again via MutationObserver when the DOM
  * changes (e.g. Vue renders new Grid rows after navigation or field expansion).
  */
-// --- Section groups: a section's tabby fields as a segmented control ----------
+// --- Section groups: a section's own tabs as a segmented control --------------
 //
-// A section fieldset already draws the line the editor wants: content fields at
-// the top level, design controls gathered in a tabby. This promotes that split
-// into the same segmented control the header and footer have — one segment for
-// the content, then one per tabby, named by the tabby's own display.
+// Sections get the same segmented control the header and footer have, built from
+// the way the fieldset is already written: a `tab` field starts a group and the
+// fields after it belong to it, and a `tabby` is a group of its own. Whatever
+// sits outside both is the content, which the fieldset never names — so it is
+// named here, in the editor's language.
 //
-// Which fields are tabbies is resolved server-side and arrives on sveSectionTypes
-// (see SectionTypes::groups). Nothing here knows a handle: give a section another
-// tabby and it grows another segment, with no change on either side.
+// The division is resolved server-side and arrives on sveSectionTypes (see
+// SectionTypes::groups). Nothing here knows a handle: add a `tab` called Custom
+// Code to a fieldset and the section grows that segment, with no change on either
+// side. `tab` stores no value, so marking up an existing section moves no data
+// and leaves the fieldset flat — every field stays where the author put it.
 
 const SECTION_TOGGLE_ATTR = 'data-sve-section-toggle';
 const SECTION_GROUP_ATTR = 'data-sve-section-group';
 const SECTION_SEG_ATTR = 'data-sve-section-seg';
 const SECTION_ACTIVE_ATTR = 'data-sve-section-active';
 
-/** The key for the segment holding everything that isn't in a tabby. */
+/** Matches SectionTypes::CONTENT_GROUP — the fields outside any tab. */
 const SECTION_CONTENT_KEY = '__content';
 
-/** The tabby fields declared for a set type, or [] if it has none. */
+/** The field groups declared for a set type, or [] if it declares none. */
 function sectionGroupsFor(win, type) {
   if (!type) {
     return [];
@@ -193,17 +196,41 @@ function enhanceSectionGroups(win, setEl) {
 
   const byHandle = new Map(wrappers.map((el) => [el.id.slice('field_'.length), el]));
 
-  // A tabby the fieldset declares but the form hasn't rendered — a revealer or an
-  // `if` still hiding it — simply doesn't get a segment. Better a control that
-  // matches what is on screen than one promising a pane that would come up empty.
-  const present = groups.filter((group) => byHandle.has(group.handle));
+  // A group whose fields the form hasn't rendered — a revealer or an `if` still
+  // hiding them — gets no segment. Better a control that matches what is on
+  // screen than one promising a pane that would come up empty.
+  const present = [];
 
-  if (!present.length) {
+  groups.forEach((group) => {
+    const els = (group.fields || []).map((handle) => byHandle.get(handle)).filter(Boolean);
+
+    if (!els.length) {
+      return;
+    }
+
+    els.forEach((el) => el.setAttribute(SECTION_GROUP_ATTR, group.handle));
+    present.push({
+      key: group.handle,
+      // Only the content group comes without a name — the fieldset never gave
+      // it one, so it is named here, in the editor's language.
+      label: group.display || t(win, 'section_content'),
+    });
+  });
+
+  // One segment is not a choice. Leave the panel exactly as Statamic rendered it.
+  if (present.length < 2) {
     return;
   }
 
-  wrappers.forEach((el) => el.setAttribute(SECTION_GROUP_ATTR, SECTION_CONTENT_KEY));
-  present.forEach((group) => byHandle.get(group.handle).setAttribute(SECTION_GROUP_ATTR, group.handle));
+  // The `tab` fields themselves: markers, not content. Their whole job was to say
+  // where a group starts, and the segment now says it in a place you can click.
+  groups.forEach((group) => {
+    const marker = byHandle.get(group.handle);
+
+    if (marker && !(group.fields || []).includes(group.handle)) {
+      marker.style.display = 'none';
+    }
+  });
 
   const doc = win.document;
   const row = doc.createElement('div');
@@ -213,36 +240,34 @@ function enhanceSectionGroups(win, setEl) {
 
   const track = doc.createElement('div');
 
-  // flex-wrap + a min-width per segment is what makes this hold any number of
-  // tabbies: they share one row while they fit, and fall onto further rows
-  // rather than squeezing to unreadable slivers.
+  // flex-wrap + a min-width per segment is what lets this hold any number of
+  // groups: they share one row while they fit, and fall onto further rows rather
+  // than squeezing to unreadable slivers.
   track.style.cssText =
     'display:flex;flex-wrap:wrap;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
     'background:rgba(128,128,128,.12);';
 
-  [{ key: SECTION_CONTENT_KEY, label: t(win, 'section_content') }]
-    .concat(present.map((group) => ({ key: group.handle, label: group.display })))
-    .forEach(({ key, label }) => {
-      const btn = doc.createElement('button');
+  present.forEach(({ key, label }) => {
+    const btn = doc.createElement('button');
 
-      btn.type = 'button';
-      btn.textContent = label;
-      btn.setAttribute(SECTION_SEG_ATTR, key);
-      btn.style.cssText =
-        'all:unset;cursor:pointer;flex:1 1 auto;min-width:88px;text-align:center;' +
-        'padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
-      btn.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setSectionGroup(setEl, key);
-      });
-      track.appendChild(btn);
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.setAttribute(SECTION_SEG_ATTR, key);
+    btn.style.cssText =
+      'all:unset;cursor:pointer;flex:1 1 auto;min-width:88px;text-align:center;' +
+      'padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setSectionGroup(setEl, key);
     });
+    track.appendChild(btn);
+  });
 
   row.appendChild(track);
   wrappers[0].parentElement.insertBefore(row, wrappers[0]);
 
-  setSectionGroup(setEl, SECTION_CONTENT_KEY);
+  setSectionGroup(setEl, present[0].key);
 }
 
 /** Every section in the editor panel. Cheap for sets that have no tabby. */
