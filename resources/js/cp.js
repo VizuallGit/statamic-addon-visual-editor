@@ -81,56 +81,38 @@ function findGridRow(input) {
  * Called eagerly in initCp and again via MutationObserver when the DOM
  * changes (e.g. Vue renders new Grid rows after navigation or field expansion).
  */
+
 // --- Section groups: a section's own tabs as a segmented control --------------
 //
-// Sections get the same segmented control the header and footer have, built from
-// the way the fieldset is already written: a `tab` field starts a group and the
-// fields after it belong to it, and a `tabby` is a group of its own. Whatever
-// sits outside both is the content, which the fieldset never names — so it is
-// named here, in the editor's language.
+// Sections get the control the header and footer already have: one pill across
+// the top of the panel, one segment per group.
 //
-// The division is resolved server-side and arrives on sveSectionTypes (see
-// SectionTypes::groups). Nothing here knows a handle: add a `tab` called Custom
-// Code to a fieldset and the section grows that segment, with no change on either
-// side. `tab` stores no value, so marking up an existing section moves no data
-// and leaves the fieldset flat — every field stays where the author put it.
+// The groups come from how the fieldset is written. A `tab` field starts one and
+// the fields after it belong to it; a `tabby` is a group on its own, since it
+// already gathers its fields. Whatever sits outside both is the content, the one
+// group the fieldset never names — so it is named here, in the editor's language.
+//
+// Read from the rendered form rather than from the blueprint, for two reasons: a
+// field hidden by a condition is simply not there to group, and the fieldtype
+// wrapper class is the same signal the rest of this file already relies on. Add a
+// `tab` called Custom Code to a fieldset and the section grows that segment, with
+// no change here. `tab` stores no value, so marking up an existing section moves
+// no data and leaves the fieldset flat.
 
 const SECTION_TOGGLE_ATTR = 'data-sve-section-toggle';
 const SECTION_GROUP_ATTR = 'data-sve-section-group';
 const SECTION_SEG_ATTR = 'data-sve-section-seg';
 const SECTION_ACTIVE_ATTR = 'data-sve-section-active';
-
-/** Matches SectionTypes::CONTENT_GROUP — the fields outside any tab. */
 const SECTION_CONTENT_KEY = '__content';
 
-/** The field groups declared for a set type, or [] if it declares none. */
-function sectionGroupsFor(win, type) {
-  if (!type) {
-    return [];
-  }
-
-  const types = win.Statamic?.$config?.get?.('sveSectionTypes') || [];
-
-  return types.find((t) => t.handle === type)?.groups || [];
-}
-
 /**
- * The set's own field wrappers — the ones Statamic renders in its top-level
- * field list, not those belonging to a nested set or a field inside the tabby.
+ * The rows of the set's own field list.
  *
- * Depth is counted in .publish-fields ancestors rather than assumed, because the
- * markup between a set and its fields differs by fieldtype; the shallowest run is
- * the set's own list whatever that nesting turns out to be.
+ * Depth is counted in .publish-fields ancestors rather than assumed: the markup
+ * between a set and its fields differs by fieldtype, and only the shallowest run
+ * is the set's own — anything deeper belongs to a nested set or to a tabby.
  */
-function ownFieldWrappers(setEl) {
-  const all = [...setEl.querySelectorAll('[id^="field_"]')].filter(
-    (el) => el.closest(SELECTORS.anySet) === setEl
-  );
-
-  if (!all.length) {
-    return [];
-  }
-
+function sectionFieldRows(setEl) {
   const depth = (el) => {
     let levels = 0;
 
@@ -143,9 +125,110 @@ function ownFieldWrappers(setEl) {
     return levels;
   };
 
-  const shallowest = Math.min(...all.map(depth));
+  const lists = [...setEl.querySelectorAll('.publish-fields')].filter(
+    (el) => el.closest(SELECTORS.anySet) === setEl
+  );
 
-  return all.filter((el) => depth(el) === shallowest);
+  if (!lists.length) {
+    return [];
+  }
+
+  const shallowest = Math.min(...lists.map(depth));
+
+  return lists.filter((el) => depth(el) === shallowest).flatMap((list) => [...list.children]);
+}
+
+/**
+ * The element for a fieldtype rendered directly in this row, or null.
+ *
+ * Statamic wraps every fieldtype in a `<handle>-fieldtype` element — the same
+ * convention the Grid accordion reads. Matches are confined to the row's own
+ * field list so a nested replicator carrying its own tabs can't be mistaken for
+ * one of this section's.
+ */
+function rowFieldtype(row, name) {
+  const el = row.classList?.contains(name) ? row : row.querySelector(`.${name}`);
+
+  return el && el.closest('.publish-fields') === row.parentElement ? el : null;
+}
+
+/** A tab marker's label: its chip's text, without the leading glyph. */
+function tabMarkerLabel(el) {
+  const spans = [...el.querySelectorAll('span')];
+  const text = (spans.length ? spans[spans.length - 1] : el).textContent || '';
+
+  return text.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+}
+
+/** A tabby's label: the field label Statamic renders above it. */
+function tabbyLabel(row) {
+  return (row.querySelector('label')?.textContent || '').trim();
+}
+
+/**
+ * Divides a set's rows into groups, in the order they appear.
+ *
+ * Returns [] when the fieldset draws no line — one group is not a choice, and the
+ * panel is better left exactly as Statamic rendered it.
+ */
+function sectionGroups(win, setEl) {
+  const rows = sectionFieldRows(setEl);
+
+  if (!rows.length) {
+    return null;
+  }
+
+  const groups = [];
+  const loose = [];
+  const markers = [];
+  let open = null;
+  let seq = 0;
+
+  rows.forEach((row) => {
+    const marker = rowFieldtype(row, 'tab-fieldtype');
+
+    if (marker) {
+      markers.push(row);
+      open = { key: `tab-${seq++}`, label: tabMarkerLabel(marker) || row.id, rows: [] };
+      groups.push(open);
+
+      return;
+    }
+
+    if (open) {
+      // Everything after a marker belongs to it, a tabby included. Putting a
+      // "Design" tab in front of a settings tabby is the obvious way to write
+      // it, and it should mean the tabby sits under Design — not beside it.
+      open.rows.push(row);
+
+      return;
+    }
+
+    // A tabby with no marker ahead of it names a group on its own: that is how
+    // sections were written before `tab` markers, and they keep working.
+    if (rowFieldtype(row, 'tabby-fieldtype')) {
+      groups.push({ key: `tabby-${seq++}`, label: tabbyLabel(row), rows: [row] });
+
+      return;
+    }
+
+    loose.push(row);
+  });
+
+  const named = groups.filter((group) => group.rows.length);
+
+  if (!named.length) {
+    return [];
+  }
+
+  if (loose.length) {
+    named.unshift({ key: SECTION_CONTENT_KEY, label: t(win, 'section_content'), rows: loose });
+  }
+
+  // Markers are returned whole, not per group: once the control exists, a chip
+  // saying where a group starts is noise, and one whose group came up empty
+  // would otherwise be left stranded on screen.
+  return named.length > 1 ? { groups: named, markers } : null;
 }
 
 function paintSectionToggle(setEl, active) {
@@ -158,8 +241,8 @@ function paintSectionToggle(setEl, active) {
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
 
-  setEl.querySelectorAll(`[${SECTION_GROUP_ATTR}]`).forEach((wrapper) => {
-    wrapper.style.display = wrapper.getAttribute(SECTION_GROUP_ATTR) === active ? '' : 'none';
+  setEl.querySelectorAll(`[${SECTION_GROUP_ATTR}]`).forEach((row) => {
+    row.style.display = row.getAttribute(SECTION_GROUP_ATTR) === active ? '' : 'none';
   });
 }
 
@@ -169,108 +252,78 @@ function setSectionGroup(setEl, key) {
 }
 
 /**
- * Builds the control for one section, once. Re-entrant: a set already carrying
- * the toggle is only repainted, so the MutationObserver driving this can fire as
- * often as it likes.
+ * Builds the control for one section. Re-entrant: a set already carrying the
+ * toggle is only repainted, so the observer driving this can fire as often as it
+ * likes — and Vue re-rendering a row is caught by the same repaint.
  */
 function enhanceSectionGroups(win, setEl) {
-  const existing = setEl.querySelector(`:scope [${SECTION_TOGGLE_ATTR}]`);
+  const divided = sectionGroups(win, setEl);
 
-  if (existing) {
-    paintSectionToggle(setEl, setEl.getAttribute(SECTION_ACTIVE_ATTR) || SECTION_CONTENT_KEY);
-
+  if (!divided) {
     return;
   }
 
-  const groups = sectionGroupsFor(win, setEl.getAttribute('data-type'));
+  const { groups, markers } = divided;
 
-  if (!groups.length) {
-    return;
-  }
-
-  const wrappers = ownFieldWrappers(setEl);
-
-  if (!wrappers.length) {
-    return;
-  }
-
-  const byHandle = new Map(wrappers.map((el) => [el.id.slice('field_'.length), el]));
-
-  // A group whose fields the form hasn't rendered — a revealer or an `if` still
-  // hiding them — gets no segment. Better a control that matches what is on
-  // screen than one promising a pane that would come up empty.
-  const present = [];
+  const active = setEl.getAttribute(SECTION_ACTIVE_ATTR);
+  const current = groups.some((group) => group.key === active) ? active : groups[0].key;
 
   groups.forEach((group) => {
-    const els = (group.fields || []).map((handle) => byHandle.get(handle)).filter(Boolean);
-
-    if (!els.length) {
-      return;
-    }
-
-    els.forEach((el) => el.setAttribute(SECTION_GROUP_ATTR, group.handle));
-    present.push({
-      key: group.handle,
-      // Only the content group comes without a name — the fieldset never gave
-      // it one, so it is named here, in the editor's language.
-      label: group.display || t(win, 'section_content'),
-    });
+    group.rows.forEach((row) => row.setAttribute(SECTION_GROUP_ATTR, group.key));
   });
 
-  // One segment is not a choice. Leave the panel exactly as Statamic rendered it.
-  if (present.length < 2) {
-    return;
+  // The markers said where each group starts; the segments now say it in a place
+  // you can click.
+  markers.forEach((row) => {
+    row.style.display = 'none';
+  });
+
+  let row = setEl.querySelector(`:scope [${SECTION_TOGGLE_ATTR}]`);
+
+  if (!row) {
+    const doc = win.document;
+
+    row = doc.createElement('div');
+    row.setAttribute(SECTION_TOGGLE_ATTR, '');
+    row.style.cssText = 'display:flex;padding:0 0 14px;flex:0 0 auto;';
+
+    const track = doc.createElement('div');
+
+    // flex-wrap plus a min-width per segment is what lets this hold any number
+    // of groups: they share one row while they fit, and fall onto further rows
+    // rather than squeezing to unreadable slivers.
+    track.style.cssText =
+      'display:flex;flex-wrap:wrap;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
+      'background:rgba(128,128,128,.12);';
+
+    groups.forEach((group) => {
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.textContent = group.label;
+      btn.setAttribute(SECTION_SEG_ATTR, group.key);
+      btn.style.cssText =
+        'all:unset;cursor:pointer;flex:1 1 auto;min-width:96px;text-align:center;' +
+        'padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setSectionGroup(setEl, group.key);
+      });
+      track.appendChild(btn);
+    });
+
+    row.appendChild(track);
+
+    const list = groups[0].rows[0].parentElement;
+
+    list.insertBefore(row, list.firstChild);
   }
 
-  // The `tab` fields themselves: markers, not content. Their whole job was to say
-  // where a group starts, and the segment now says it in a place you can click.
-  groups.forEach((group) => {
-    const marker = byHandle.get(group.handle);
-
-    if (marker && !(group.fields || []).includes(group.handle)) {
-      marker.style.display = 'none';
-    }
-  });
-
-  const doc = win.document;
-  const row = doc.createElement('div');
-
-  row.setAttribute(SECTION_TOGGLE_ATTR, '');
-  row.style.cssText = 'display:flex;padding:0 0 12px;flex:0 0 auto;';
-
-  const track = doc.createElement('div');
-
-  // flex-wrap + a min-width per segment is what lets this hold any number of
-  // groups: they share one row while they fit, and fall onto further rows rather
-  // than squeezing to unreadable slivers.
-  track.style.cssText =
-    'display:flex;flex-wrap:wrap;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
-    'background:rgba(128,128,128,.12);';
-
-  present.forEach(({ key, label }) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.setAttribute(SECTION_SEG_ATTR, key);
-    btn.style.cssText =
-      'all:unset;cursor:pointer;flex:1 1 auto;min-width:88px;text-align:center;' +
-      'padding:7px 10px;border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setSectionGroup(setEl, key);
-    });
-    track.appendChild(btn);
-  });
-
-  row.appendChild(track);
-  wrappers[0].parentElement.insertBefore(row, wrappers[0]);
-
-  setSectionGroup(setEl, present[0].key);
+  setSectionGroup(setEl, current);
 }
 
-/** Every section in the editor panel. Cheap for sets that have no tabby. */
+/** Every section in the editor panel. Cheap for sets whose fieldset has no tabs. */
 export function enhanceSectionGroupsIn(win, root = win.document) {
   root.querySelectorAll(SELECTORS.replicatorSet).forEach((setEl) => {
     try {
