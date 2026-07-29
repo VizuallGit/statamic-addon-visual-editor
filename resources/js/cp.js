@@ -366,35 +366,108 @@ const PANEL_ICONS = {
     '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11.5 4a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4Z"/>',
 };
 
-/** The icon element for a panel, or null when the marker named none. */
+// Iconify SVGs already fetched, so a repaint or a second panel using the same
+// icon costs nothing. Keyed by name; the value is the markup, or a promise while
+// it is on its way.
+const iconifyCache = new Map();
+
+/** Strip an Iconify SVG down to something that inherits the header's colour. */
+function adoptSvg(el, markup) {
+  el.innerHTML = markup;
+
+  const svg = el.querySelector('svg');
+
+  if (!svg) {
+    return;
+  }
+
+  svg.removeAttribute('width');
+  svg.removeAttribute('height');
+  svg.style.cssText = 'width:17px;height:17px;display:block;';
+  // Iconify ships `fill="currentColor"` on most sets, which already follows the
+  // header. The ones drawn with strokes need telling.
+  svg.querySelectorAll('[stroke]:not([stroke="none"])').forEach((node) => {
+    node.setAttribute('stroke', 'currentColor');
+  });
+}
+
+/**
+ * The icon element for a panel, or null when the marker named none.
+ *
+ * Four things count as a name, in the order they are recognised: SVG markup
+ * pasted straight in, an Iconify name like `mdi:palette`, one of the built-in
+ * outlines, and anything short enough to be an emoji. Iconify is fetched once
+ * and swapped in when it lands, so a slow network delays the icon and nothing
+ * else.
+ */
 function panelIcon(doc, name) {
   if (!name) {
     return null;
   }
 
-  const paths = PANEL_ICONS[name] ?? PANEL_ICONS[name.replace(/[-_ ].*$/, '')];
+  const holder = doc.createElement('span');
 
-  if (!paths) {
-    const glyph = doc.createElement('span');
+  holder.style.cssText = 'flex:0 0 auto;display:flex;align-items:center;opacity:.85;';
 
-    glyph.textContent = name.length <= 3 ? name : '';
-    glyph.style.cssText = 'flex:0 0 auto;line-height:1;font-size:15px;';
+  if (/^\s*<svg[\s>]/i.test(name)) {
+    adoptSvg(holder, name);
 
-    return glyph;
+    return holder;
   }
 
-  const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(name)) {
+    const cached = iconifyCache.get(name);
 
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '1.7');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  svg.innerHTML = paths;
-  svg.style.cssText = 'flex:0 0 auto;width:17px;height:17px;opacity:.85;display:block;';
+    if (typeof cached === 'string') {
+      adoptSvg(holder, cached);
 
-  return svg;
+      return holder;
+    }
+
+    holder.style.width = '17px';
+    holder.style.height = '17px';
+
+    const [prefix, icon] = name.split(':');
+    const pending = cached ?? fetch(`https://api.iconify.design/${prefix}/${icon}.svg`)
+      .then((res) => (res.ok ? res.text() : ''))
+      .then((markup) => {
+        iconifyCache.set(name, markup);
+
+        return markup;
+      })
+      .catch(() => '');
+
+    iconifyCache.set(name, pending);
+    pending.then((markup) => markup && adoptSvg(holder, markup));
+
+    return holder;
+  }
+
+  const paths = PANEL_ICONS[name] ?? PANEL_ICONS[name.replace(/[-_ :].*$/, '')];
+
+  if (paths) {
+    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.7');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.innerHTML = paths;
+    svg.style.cssText = 'width:17px;height:17px;display:block;';
+    holder.appendChild(svg);
+
+    return holder;
+  }
+
+  // Anything left that is short enough to be a glyph; longer strings are a name
+  // nobody recognised, and printing it would be worse than showing nothing.
+  holder.textContent = [...name].length <= 2 ? name : '';
+  holder.style.fontSize = '15px';
+  holder.style.lineHeight = '1';
+
+  return holder;
 }
 
 function paintSectionToggle(setEl, active) {
