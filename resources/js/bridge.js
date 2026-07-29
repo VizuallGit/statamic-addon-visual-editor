@@ -594,6 +594,17 @@ function currentBlockEl(win, session) {
     node = node.parentElement;
   }
 
+  // Prefer the nearest heading/paragraph (may sit inside a vizuDiv wrapper).
+  let el = node;
+
+  while (el && el !== session.el) {
+    if (el.nodeType === 1 && /^(H[1-6]|P)$/.test(el.tagName) && !el.hasAttribute('data-sve-locked')) {
+      return el;
+    }
+
+    el = el.parentElement;
+  }
+
   while (node && node.parentElement && node.parentElement !== session.el) {
     node = node.parentElement;
   }
@@ -625,13 +636,157 @@ function caretAtEndOf(win, el) {
   return after.toString().trim() === '';
 }
 
+/** Empty paragraph/div used as a Bard "add set here" slot. */
+function isEmptyEditableBlock(el) {
+  if (!el || el.nodeType !== 1 || el.hasAttribute('data-sve-locked')) {
+    return false;
+  }
+
+  const text = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
+
+  return text === '';
+}
+
+/**
+ * Absolute index among wrapper children for splicing a Bard set into the
+ * serialized node array (locked sets count too).
+ */
+function bardFieldChildIndex(wrapper, el) {
+  return [...wrapper.children].indexOf(el);
+}
+
+function removeBardSetInserter(session) {
+  if (session?.setInserterEl?.parentNode) {
+    session.setInserterEl.parentNode.removeChild(session.setInserterEl);
+  }
+
+  if (session) {
+    session.setInserterEl = null;
+    session.setInserterBlock = null;
+  }
+}
+
+/**
+ * On an empty paragraph in whole-field Bard edit, show a "+" that opens
+ * Statamic's native SetPicker (same popup as the Style 2 replicator inserter).
+ */
+function updateBardSetInserter(win, session) {
+  if (!session || session.mode !== 'bard-field' || !session.bardSets?.length) {
+    removeBardSetInserter(session);
+
+    return;
+  }
+
+  const block = currentBlockEl(win, session);
+
+  if (!block || !isEmptyEditableBlock(block)) {
+    removeBardSetInserter(session);
+
+    return;
+  }
+
+  session.setInserterBlock = block;
+
+  const doc = win.document;
+  let wrap = session.setInserterEl;
+
+  if (!wrap) {
+    wrap = doc.createElement('div');
+    wrap.setAttribute('data-sve-bard-set-inserter', '');
+    wrap.style.cssText =
+      'position:fixed;z-index:2147483647;pointer-events:none;display:flex;align-items:center;' +
+      'justify-content:center;flex-direction:row;';
+
+    const line = doc.createElement('div');
+
+    line.style.cssText = 'height:2px;flex:1;background:rgba(99,102,241,.55);';
+
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.textContent = '+';
+    btn.title = t('add_set') !== 'add_set' ? t('add_set') : 'Tilføj set';
+    btn.style.cssText =
+      'pointer-events:auto;position:absolute;width:26px;height:26px;border:none;border-radius:7px;' +
+      'cursor:pointer;background:#18181b;color:#fff;font-size:17px;line-height:1;display:flex;' +
+      'align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = 'var(--theme-color-primary,#4f46e5)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = '#18181b';
+    });
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      session.suspendBlur = true;
+    });
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openNativeBardSetPicker(win, session, btn);
+    });
+
+    wrap.appendChild(line);
+    wrap.appendChild(btn);
+    doc.body.appendChild(wrap);
+    wrap.__btn = btn;
+    wrap.__line = line;
+    session.setInserterEl = wrap;
+  }
+
+  const r = block.getBoundingClientRect();
+
+  wrap.style.left = `${r.left}px`;
+  wrap.style.top = `${r.bottom - 15}px`;
+  wrap.style.width = `${Math.max(r.width, 120)}px`;
+  wrap.style.height = '30px';
+}
+
+/**
+ * Commit the current Bard edit, then ask the CP to open Statamic's real
+ * SetPicker pinned under the "+" — same component the replicator uses.
+ */
+function openNativeBardSetPicker(win, session, btn) {
+  const block = session.setInserterBlock;
+
+  if (!session?.field || !block) {
+    return;
+  }
+
+  const index = bardFieldChildIndex(session.el, block);
+  const r = (btn || session.setInserterEl?.__btn)?.getBoundingClientRect?.() || block.getBoundingClientRect();
+  const payload = {
+    source: 'statamic-visual-editor',
+    type: 'add-bard-set-native',
+    field: session.field,
+    scope: session.scope || null,
+    index: index < 0 ? null : index,
+    sets: session.bardSets || [],
+    anchorRect: {
+      left: r.left,
+      top: r.top,
+      bottom: r.bottom,
+      right: r.right,
+      width: r.width,
+      height: r.height,
+    },
+  };
+
+  session.dirty = true;
+  removeBardSetInserter(session);
+  finishEditing(win, false);
+
+  win.parent.postMessage(payload, win.location.origin);
+}
+
 function sendEditInput(win, session) {
   clearTimeout(session.inputTimer);
   session.inputTimer = null;
 
-  // Whole-field Bard: serialize every unlocked block child (plus stray text the
-  // browser may have left directly in the wrapper) into an ordered block list —
-  // the CP rebuilds the field's node array from it.
+  // Whole-field Bard: serialize every child in DOM order — unlocked text
+  // blocks become heading/paragraph payloads; locked siblings (Bard sets)
+  // are emitted as placeholders so the CP can keep them in place.
   if (session.mode === 'bard-field') {
     const blocks = [];
 
@@ -646,7 +801,49 @@ function sendEditInput(win, session) {
         continue;
       }
 
-      if (child.nodeType !== 1 || child.hasAttribute('data-sve-locked')) {
+      if (child.nodeType !== 1) {
+        continue;
+      }
+
+      if (child.hasAttribute('data-sve-locked')) {
+        const visualId =
+          child.getAttribute(SID_ATTR) ||
+          child.querySelector?.(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) ||
+          null;
+
+        blocks.push({ kind: 'locked', visualId });
+        continue;
+      }
+
+      // vizuDiv wrapper (two-columns / three-columns) from bard-styles.
+      if (child.hasAttribute('data-vzd')) {
+        const nested = [];
+
+        for (const inner of child.children) {
+          if (inner.nodeType !== 1 || inner.hasAttribute('data-sve-locked')) {
+            continue;
+          }
+
+          const innerHeading = /^H([1-6])$/.exec(inner.tagName);
+          const innerHtml = /^<br\s*\/?>$/i.test(inner.innerHTML.trim()) ? '' : inner.innerHTML;
+          const innerClass =
+            (session.blockClasses || []).find((c) => inner.classList?.contains(c)) || null;
+
+          nested.push({
+            kind: innerHeading ? 'heading' : 'paragraph',
+            level: innerHeading ? Number(innerHeading[1]) : null,
+            className: innerClass,
+            vizuClass: innerClass,
+            vizuBlockStyle: inner.getAttribute?.('data-vbs') || null,
+            html: innerHtml,
+          });
+        }
+
+        blocks.push({
+          kind: 'vizuDiv',
+          className: child.getAttribute('class') || null,
+          children: nested,
+        });
         continue;
       }
 
@@ -654,13 +851,15 @@ function sendEditInput(win, session) {
       // A block holding only the caret placeholder <br> is an empty block — it
       // must not serialize into a stray hardBreak node.
       const html = /^<br\s*\/?>$/i.test(child.innerHTML.trim()) ? '' : child.innerHTML;
+      const vizuClass =
+        (session.blockClasses || []).find((c) => child.classList?.contains(c)) || null;
 
       blocks.push({
         kind: heading ? 'heading' : 'paragraph',
         level: heading ? Number(heading[1]) : null,
-        className: heading
-          ? null
-          : (session.blockClasses || []).find((c) => child.classList.contains(c)) || null,
+        className: vizuClass,
+        vizuClass,
+        vizuBlockStyle: child.getAttribute?.('data-vbs') || null,
         html,
       });
     }
@@ -1126,6 +1325,234 @@ function toggleSpanClass(win, session, className) {
   session.onInput();
 }
 
+/** Merge/remove a CSS property in an inline style string. */
+function setCssProp(styleStr, prop, value) {
+  const parts = (styleStr || '')
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const filtered = parts.filter((p) => !new RegExp(`^${escaped}\\s*:`, 'i').test(p));
+
+  if (value !== null && value !== undefined) {
+    filtered.push(`${prop}: ${value}`);
+  }
+
+  return filtered.join('; ') || null;
+}
+
+function readCssProp(styleStr, prop) {
+  if (!styleStr) {
+    return null;
+  }
+
+  const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = styleStr.match(new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+)`, 'i'));
+
+  return match ? match[1].trim() : null;
+}
+
+/**
+ * Toggle a vizuStyle span mark (data-vizu + inline style prop) on the selection.
+ */
+function toggleVizuSpanProp(win, session, prop, value) {
+  const sel = win.getSelection();
+
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+    return;
+  }
+
+  const range = sel.getRangeAt(0);
+  let node = range.commonAncestorContainer;
+
+  if (node.nodeType === 3) {
+    node = node.parentElement;
+  }
+
+  const existing = node.closest?.('span[data-vizu]');
+
+  if (existing && session.el.contains(existing) && readCssProp(existing.getAttribute('style'), prop) === value) {
+    const next = setCssProp(existing.getAttribute('style'), prop, null);
+
+    if (!next) {
+      const parent = existing.parentNode;
+
+      while (existing.firstChild) {
+        parent.insertBefore(existing.firstChild, existing);
+      }
+
+      parent.removeChild(existing);
+      parent.normalize();
+    } else {
+      existing.setAttribute('style', next);
+    }
+  } else if (existing && session.el.contains(existing)) {
+    existing.setAttribute('style', setCssProp(existing.getAttribute('style'), prop, value));
+  } else {
+    const span = win.document.createElement('span');
+
+    span.setAttribute('data-vizu', '');
+    span.setAttribute('style', `${prop}: ${value}`);
+
+    try {
+      range.surroundContents(span);
+    } catch {
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+    }
+
+    const newRange = win.document.createRange();
+
+    newRange.selectNodeContents(span);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  }
+
+  session.dirty = true;
+  session.onInput();
+  updateEditToolbarState(win);
+}
+
+/** Apply/clear a paragraph/heading class (vizuClass / title). */
+function toggleVizuParagraphClass(win, session, className) {
+  const block = currentBlockEl(win, session);
+
+  if (!block) {
+    return;
+  }
+
+  const on = block.classList.contains(className);
+
+  session.blockClasses?.forEach((c) => block.classList.remove(c));
+
+  if (!on) {
+    block.classList.add(className);
+  }
+
+  if (!block.getAttribute('class')) {
+    block.removeAttribute('class');
+  }
+
+  session.dirty = true;
+  session.onInput();
+  updateEditToolbarState(win);
+}
+
+/** Apply/clear a block-level CSS prop via data-vbs (flow spacing). */
+function toggleVizuBlockProp(win, session, prop, value) {
+  const block = currentBlockEl(win, session);
+
+  if (!block) {
+    return;
+  }
+
+  const current = readCssProp(block.getAttribute('data-vbs'), prop);
+  const next = setCssProp(block.getAttribute('data-vbs'), prop, current === value ? null : value);
+
+  if (next) {
+    block.setAttribute('data-vbs', next);
+    block.style.cssText = next;
+  } else {
+    block.removeAttribute('data-vbs');
+    block.removeAttribute('style');
+  }
+
+  session.dirty = true;
+  session.onInput();
+  updateEditToolbarState(win);
+}
+
+/** Wrap/unwrap the current block in a vizuDiv (two-columns / three-columns). */
+function toggleVizuDiv(win, session, className) {
+  const block = currentBlockEl(win, session);
+
+  if (!block || !session.el.contains(block)) {
+    return;
+  }
+
+  const wrap = block.closest?.('[data-vzd]');
+
+  if (wrap && session.el.contains(wrap) && wrap.classList.contains(className)) {
+    while (wrap.firstChild) {
+      wrap.parentNode.insertBefore(wrap.firstChild, wrap);
+    }
+
+    wrap.remove();
+  } else {
+    const div = win.document.createElement('div');
+
+    div.setAttribute('data-vzd', '');
+    div.className = className;
+    block.parentNode.insertBefore(div, block);
+    div.appendChild(block);
+  }
+
+  session.dirty = true;
+  session.onInput();
+  updateEditToolbarState(win);
+}
+
+function applyVizuStyle(win, session, style) {
+  if (!style) {
+    return;
+  }
+
+  if (style.type === 'div' && style.class) {
+    toggleVizuDiv(win, session, style.class);
+
+    return;
+  }
+
+  if (style.target === 'block' && style.prop) {
+    toggleVizuBlockProp(win, session, style.prop, style.value);
+
+    return;
+  }
+
+  if (style.type === 'paragraph' && style.class) {
+    toggleVizuParagraphClass(win, session, style.class);
+
+    return;
+  }
+
+  if (style.prop && style.value != null) {
+    toggleVizuSpanProp(win, session, style.prop, style.value);
+  }
+}
+
+/** Toolbar icon from a style/group ident (SVG markup or letter). */
+function styleIdentHtml(ident, fallback = '?') {
+  if (typeof ident === 'string' && ident.trimStart().startsWith('<')) {
+    return `<span style="display:inline-flex;align-items:center;pointer-events:none;width:15px;height:15px">${ident}</span>`;
+  }
+
+  return letterIcon(ident || fallback);
+}
+
+function collectBlockClassesFromStyles(bardStyles) {
+  if (!bardStyles) {
+    return [];
+  }
+
+  const out = [];
+
+  const push = (s) => {
+    if (s?.class && (s.type === 'paragraph' || s.type === 'div' || (s.type && s.type !== 'span'))) {
+      out.push(s.class);
+    }
+  };
+
+  Object.values(bardStyles).forEach((s) => {
+    if (s?.kind === 'group' && Array.isArray(s.items)) {
+      s.items.forEach(push);
+    } else {
+      push(s);
+    }
+  });
+
+  return out;
+}
+
 // Statamic's own Bard toolbar icons (captured from the CP so the inline toolbar
 // is pixel-identical to the panel's). Keyed by the button `name` used in the
 // field's `buttons` config. Sized explicitly (the CP relies on Tailwind size
@@ -1308,6 +1735,88 @@ function createEditToolbar(win, session) {
       }
 
       const style = styles[name];
+
+      if (style?.kind === 'group' && Array.isArray(style.items)) {
+        // Dropdown group from bard_styles.php (sizes, flow spacing, …).
+        const groupBtn = addButton('', style.name || name, () => {}, {
+          html: styleIdentHtml(style.ident, (style.name || name)[0]),
+        });
+
+        groupBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const existing = doc.querySelector('[data-sve-bard-style-menu]');
+
+          if (existing) {
+            existing.remove();
+
+            if (existing.dataset.for === name) {
+              return;
+            }
+          }
+
+          const menu = doc.createElement('div');
+
+          menu.dataset.sveBardStyleMenu = '';
+          menu.dataset.for = name;
+          menu.style.cssText =
+            'position:fixed;z-index:2147483647;min-width:160px;padding:4px;' +
+            'background:#1a1f2e;border:1px solid rgba(255,255,255,.12);border-radius:8px;' +
+            'box-shadow:0 8px 24px rgba(0,0,0,.5);';
+
+          style.items.forEach((item) => {
+            const row = doc.createElement('button');
+
+            row.type = 'button';
+            row.style.cssText =
+              'display:flex;align-items:center;gap:8px;width:100%;padding:5px 10px;border:none;' +
+              'cursor:pointer;text-align:left;background:transparent;border-radius:4px;color:#e2e8f0;';
+            row.innerHTML =
+              `<span style="min-width:22px;font-size:11px;opacity:.8">${item.ident && !String(item.ident).startsWith('<') ? item.ident : '·'}</span>` +
+              `<span style="font-size:12px;flex:1">${item.name || item.handle || ''}</span>`;
+            row.addEventListener('mouseenter', () => {
+              row.style.background = 'rgba(255,255,255,.07)';
+            });
+            row.addEventListener('mouseleave', () => {
+              row.style.background = 'transparent';
+            });
+            row.addEventListener('mousedown', (ev) => ev.preventDefault());
+            row.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              applyVizuStyle(win, session, item);
+              menu.remove();
+            });
+            menu.appendChild(row);
+          });
+
+          const r = groupBtn.getBoundingClientRect();
+
+          menu.style.left = `${Math.max(4, Math.min(r.left, win.innerWidth - 180))}px`;
+          menu.style.top = `${r.bottom + 4}px`;
+          doc.body.appendChild(menu);
+
+          const close = (ev) => {
+            if (menu.contains(ev.target) || groupBtn.contains(ev.target)) {
+              return;
+            }
+
+            menu.remove();
+            doc.removeEventListener('mousedown', close, true);
+          };
+
+          setTimeout(() => doc.addEventListener('mousedown', close, true), 0);
+        });
+
+        continue;
+      }
+
+      if (style?.kind === 'vizu') {
+        addButton('', style.name || name, () => applyVizuStyle(win, session, style), {
+          html: styleIdentHtml(style.ident, (style.name || name)[0]),
+        });
+        continue;
+      }
 
       if (style) {
         // bard-texstyle: the icon is the style's letter (matching bts-icon-letter).
@@ -2872,6 +3381,10 @@ function showMoveControl(win, moveEl) {
   // can land on, so they claim the control before the section around them.
   const isRow = moveEl.hasAttribute(ORDERABLE_ATTR) && !isPageSection(moveEl);
 
+  // Direct child of an insertable container → full set actions (hide/dup/delete).
+  // Declared early so Bard mixed content can show move arrows vs all siblings.
+  const isBlockSet = isRow && moveEl.parentElement?.hasAttribute(INSERT_ATTR);
+
   const peers = moveEl.parentElement
     ? [...moveEl.parentElement.children].filter((el) =>
         isRow
@@ -2972,7 +3485,7 @@ function showMoveControl(win, moveEl) {
     ctrl.appendChild(handle);
   }
 
-  if (peers.length > 1) {
+  if (peers.length > 1 || (isBlockSet && (moveEl.parentElement?.children.length || 0) > 1)) {
     if (horizontal) {
       addArrow('←', t('move_left'), -1);
       addArrow('→', t('move_right'), 1);
@@ -3026,9 +3539,6 @@ function showMoveControl(win, moveEl) {
 
       return btn;
     };
-
-    // Direct child of an insertable replicator → full set actions (hide/dup/delete).
-    const isBlockSet = moveEl.parentElement?.hasAttribute(INSERT_ATTR);
 
     if (isBlockSet) {
       // Layout switch: see BLOCK_CTRL_LAYOUT at the top of this file.
@@ -3266,6 +3776,7 @@ function startEditing(win, data) {
   // name→{type,class} map for its bard-texstyle styles (data-sid-bard-styles).
   let bardButtons = null;
   let bardStyles = null;
+  let bardSets = [];
 
   try {
     const raw = wrapper.getAttribute('data-sid-bard-buttons');
@@ -3275,6 +3786,10 @@ function startEditing(win, data) {
     const stylesRaw = wrapper.getAttribute('data-sid-bard-styles');
 
     bardStyles = stylesRaw ? JSON.parse(stylesRaw) : null;
+
+    const setsRaw = wrapper.getAttribute('data-sid-bard-sets');
+
+    bardSets = setsRaw ? JSON.parse(setsRaw) : [];
   } catch {
     /* malformed config — fall back to defaults */
   }
@@ -3285,17 +3800,16 @@ function startEditing(win, data) {
     hasLink: !!data.hasLink,
     bardButtons,
     bardStyles,
-    // Block-level bard-texstyle classes (paragraph/heading types) — used to
-    // reset an element's style class before applying a new block format.
-    blockClasses: bardStyles
-      ? Object.values(bardStyles)
-          .filter((s) => s.type !== 'span' && s.class)
-          .map((s) => s.class)
-      : [],
+    bardSets: Array.isArray(bardSets) ? bardSets : [],
+    field: wrapper.getAttribute(SID_FIELD_ATTR) || null,
+    scope: wrapper.getAttribute('data-sid-field-uid') || null,
+    // Block-level bard-texstyle / bard-styles classes (paragraph/heading/div) —
+    // used to reset an element's style class before applying a new block format.
+    blockClasses: collectBlockClassesFromStyles(bardStyles),
     // Span-type bard-texstyle classes → recognized as btsSpan marks by the CP.
     spanClasses: bardStyles
       ? Object.values(bardStyles)
-          .filter((s) => s.type === 'span' && s.class)
+          .filter((s) => s.type === 'span' && s.class && s.kind !== 'vizu' && s.kind !== 'group')
           .map((s) => s.class)
       : [],
     el,
@@ -3304,6 +3818,7 @@ function startEditing(win, data) {
     hadContentEditable: el.getAttribute('contenteditable'),
     inputTimer: null,
     dirty: false,
+    setInserterEl: null,
   };
 
   if (data.mode === 'bard' || data.mode === 'bard-field') {
@@ -3366,6 +3881,7 @@ function startEditing(win, data) {
     clearTimeout(session.inputTimer);
     session.inputTimer = setTimeout(() => sendEditInput(win, session), EDIT_INPUT_DEBOUNCE);
     positionEditToolbar(win, session);
+    updateBardSetInserter(win, session);
   };
 
   session.onKeydown = (e) => {
@@ -3415,6 +3931,10 @@ function startEditing(win, data) {
           session.onInput();
         }
 
+        // After Enter (browser split or heading→p), offer the set "+" on an
+        // empty paragraph — same idea as Bard's empty-line set button in the CP.
+        win.setTimeout(() => updateBardSetInserter(win, session), 0);
+
         return;
       }
 
@@ -3446,7 +3966,10 @@ function startEditing(win, data) {
     }
   };
 
-  session.onSelectionChange = () => updateEditToolbarState(win);
+  session.onSelectionChange = () => {
+    updateEditToolbarState(win);
+    updateBardSetInserter(win, session);
+  };
   session.reposition = () => positionEditToolbar(win, session);
 
   el.addEventListener('input', session.onInput);
@@ -3494,6 +4017,7 @@ export function finishEditing(win, cancelled) {
   win.removeEventListener('scroll', session.reposition, true);
   win.removeEventListener('resize', session.reposition);
   removeEditToolbar();
+  removeBardSetInserter(session);
 
   if (!cancelled && session.dirty) {
     sendEditInput(win, session);
@@ -3786,6 +4310,14 @@ export function createClickHandler(win) {
       // the capture phase, and stopping here would prevent the event from ever
       // reaching the toolbar buttons' own click listeners.
       if (toolbarEl && toolbarEl.contains(event.target)) {
+        return;
+      }
+
+      // Bard set "+" (same idea as the toolbar): must not commit the edit, or
+      // the inserter is torn down before its own click listener can run.
+      // Do NOT stopPropagation — this handler is capture-phase; stopping would
+      // keep the event from reaching the button.
+      if (event.target.closest?.('[data-sve-bard-set-inserter]')) {
         return;
       }
 
@@ -4554,6 +5086,15 @@ function setupInserters(win) {
   inserterInstances = [];
 
   win.document.querySelectorAll(`[${INSERT_ATTR}]`).forEach((container) => {
+    // Bard whole-field (inline_edit): uses its own empty-paragraph "+" / SetPicker,
+    // not the Style 2 replicator inserter strip.
+    if (
+      container.hasAttribute('data-sid-inline-edit') ||
+      container.hasAttribute('data-sid-bard-sets')
+    ) {
+      return;
+    }
+
     let sets = [];
 
     try {

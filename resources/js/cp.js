@@ -852,6 +852,29 @@ function bardNodeText(node) {
 }
 
 /**
+ * Find a Bard set (or other locked node) from the session original by its
+ * preview `_visual_id` / attrs.id — used when whole-field edit re-serializes
+ * text blocks but must keep set nodes in place.
+ */
+function findPreservedBardNode(nodes, visualId) {
+  if (!Array.isArray(nodes) || !visualId) {
+    return null;
+  }
+
+  return (
+    nodes.find((node) => {
+      if (!node || node.type !== 'set') {
+        return false;
+      }
+
+      const values = node.attrs?.values || {};
+
+      return values._visual_id === visualId || node.attrs?.id === visualId;
+    }) || null
+  );
+}
+
+/**
  * Collects candidate edit targets for the clicked text within a field value.
  *
  * - string values match when their normalized text equals the clicked block's
@@ -996,13 +1019,21 @@ export function parseInlineHtml(html, doc = document, spanClasses = BTS_SPAN_CLA
 
           childMarks = [...marks, { type: 'link', attrs }];
         } else if (child.tagName === 'SPAN') {
-          // bard-texstyle span marks (e.g. class="uppercase"). Only recognized
-          // classes become a btsSpan mark; other spans (site-injected styling
-          // wrappers like the hero word-reveal spans) stay transparent.
-          const btsClass = [...child.classList].find((c) => spanClasses.includes(c));
+          // Vizuall bard-style mark (span[data-vizu] style="prop: value").
+          if (child.hasAttribute('data-vizu') && child.getAttribute('style')) {
+            childMarks = [
+              ...marks,
+              { type: 'vizuStyle', attrs: { style: child.getAttribute('style') } },
+            ];
+          } else {
+            // bard-texstyle span marks (e.g. class="uppercase"). Only recognized
+            // classes become a btsSpan mark; other spans (site-injected styling
+            // wrappers like the hero word-reveal spans) stay transparent.
+            const btsClass = [...child.classList].find((c) => spanClasses.includes(c));
 
-          if (btsClass) {
-            childMarks = [...marks, { type: 'btsSpan', attrs: { class: btsClass } }];
+            if (btsClass) {
+              childMarks = [...marks, { type: 'btsSpan', attrs: { class: btsClass } }];
+            }
           }
         }
 
@@ -1077,15 +1108,19 @@ export function handleEditRequest(data, doc, win) {
       continue;
     }
 
-    // Whole-field Bard editing: when every node is an editable text block
-    // (heading/paragraph), the entire field becomes ONE session — one toolbar,
-    // the caret moves freely between blocks and Enter splits blocks like the
-    // panel's own editor. Fields containing other node types (sets, lists,
-    // images, …) fall back to the per-block editing below.
+    // Whole-field Bard editing: one toolbar for the entire field, caret moves
+    // freely between blocks, Enter splits blocks. Allowed when every node is
+    // either an editable text block (heading/paragraph) or a Bard set — sets
+    // render as locked siblings in the preview and are preserved on save.
+    // Other node types (lists, images, …) still fall back to per-block editing.
     if (
       Array.isArray(value) &&
       value.length &&
-      value.every((node) => node && EDITABLE_NODE_TYPES.includes(node.type))
+      value.every(
+        (node) =>
+          node && (EDITABLE_NODE_TYPES.includes(node.type) || node.type === 'set')
+      ) &&
+      value.some((node) => EDITABLE_NODE_TYPES.includes(node.type))
     ) {
       editSession = {
         container,
@@ -1100,13 +1135,15 @@ export function handleEditRequest(data, doc, win) {
         type: 'edit-start',
         mode: 'bard-field',
         target: 'wrapper',
-        // Per-node identity so the bridge can map nodes onto DOM blocks.
-        nodes: value.map((node) => ({
-          type: node.type,
-          level: node.attrs?.level ?? null,
-          className: node.attrs?.class ?? null,
-          text: normText(bardNodeText(node)),
-        })),
+        // Only text nodes — sets map onto locked DOM siblings automatically.
+        nodes: value
+          .filter((node) => EDITABLE_NODE_TYPES.includes(node.type))
+          .map((node) => ({
+            type: node.type,
+            level: node.attrs?.level ?? null,
+            className: node.attrs?.class ?? null,
+            text: normText(bardNodeText(node)),
+          })),
       });
 
       return;
@@ -1207,25 +1244,51 @@ export function handleEditInput(data, doc) {
     return;
   }
 
-  // Whole-field Bard: rebuild the entire node array from the serialized blocks.
+  // Whole-field Bard: rebuild the node array from the serialized blocks,
+  // preserving locked set nodes (kind: 'locked') at their DOM positions.
   if (editSession.mode === 'bard-field') {
     const values = unwrapRef(container.values);
     const current = dataGet(values, editSession.path);
+    const original = Array.isArray(editSession.original) ? editSession.original : [];
     const spanClasses =
       Array.isArray(data.spanClasses) && data.spanClasses.length ? data.spanClasses : BTS_SPAN_CLASSES;
 
-    const next = (data.blocks || []).map((block, i) => {
+    let textMergeIndex = 0;
+    const next = [];
+
+    const buildTextNode = (block) => {
       const type = block.kind === 'heading' ? 'heading' : 'paragraph';
-      // Positional merge keeps attrs we don't manage (e.g. textAlign) as long
-      // as the block at this index kept its type.
-      const orig = Array.isArray(current) && current[i]?.type === type ? current[i] : null;
+      const pool = Array.isArray(current) ? current : original;
+      let orig = null;
+
+      for (let i = textMergeIndex; i < pool.length; i++) {
+        if (pool[i]?.type === type) {
+          orig = pool[i];
+          textMergeIndex = i + 1;
+          break;
+        }
+      }
+
       const attrs = { ...(orig?.attrs || {}) };
       const node = { type };
 
       if (type === 'heading') {
         attrs.level = block.level || 2;
-        delete attrs.class;
-      } else if (block.className) {
+      }
+
+      if (block.vizuClass) {
+        attrs.vizuClass = block.vizuClass;
+      } else {
+        delete attrs.vizuClass;
+      }
+
+      if (block.vizuBlockStyle) {
+        attrs.vizuBlockStyle = block.vizuBlockStyle;
+      } else {
+        delete attrs.vizuBlockStyle;
+      }
+
+      if (block.className && !block.vizuClass) {
         attrs.class = block.className;
       } else {
         delete attrs.class;
@@ -1242,7 +1305,31 @@ export function handleEditInput(data, doc) {
       }
 
       return node;
-    });
+    };
+
+    for (const block of data.blocks || []) {
+      if (block.kind === 'locked') {
+        const orig = findPreservedBardNode(original, block.visualId);
+
+        if (orig) {
+          next.push(JSON.parse(JSON.stringify(orig)));
+        }
+
+        continue;
+      }
+
+      if (block.kind === 'vizuDiv') {
+        next.push({
+          type: 'vizuDiv',
+          attrs: { class: block.className || null },
+          content: (block.children || []).map((child) => buildTextNode(child)),
+        });
+
+        continue;
+      }
+
+      next.push(buildTextNode(block));
+    }
 
     container.setFieldValue(editSession.path, next);
 
@@ -1709,25 +1796,13 @@ export function handleMove(data, doc) {
       continue;
     }
 
-    const path = findPathByUid(values, data.uid);
+    const found = rowLocation(values, data.uid);
 
-    if (path === null) {
+    if (!found) {
       continue;
     }
 
-    const dot = path.lastIndexOf('.');
-
-    if (dot === -1) {
-      return; // uid sits on a top-level key, not an array item
-    }
-
-    const parentPath = path.slice(0, dot);
-    const index = Number(path.slice(dot + 1));
-    const arr = dataGet(values, parentPath);
-
-    if (!Array.isArray(arr) || !Number.isInteger(index)) {
-      return;
-    }
+    const { parentPath, index, rows: arr } = found;
 
     const to = Number.isInteger(data.toIndex)
       ? Math.max(0, Math.min(arr.length - 1, data.toIndex))
@@ -2475,6 +2550,74 @@ async function handleInsertBlock(data, doc, win) {
 
       return;
     }
+  }
+}
+
+/**
+ * Insert a Bard set node into a Bard field's value array (ProseMirror JSON).
+ * Used by the whole-field inline editor's "+" on an empty paragraph.
+ *
+ * `index` is the text-block index in the serialized preview (locked sets also
+ * count in the final array — the bridge sends the absolute splice index).
+ */
+async function handleInsertBardSet(data, doc, win) {
+  const { field, set, scope, index } = data;
+
+  if (!field || !set) {
+    return;
+  }
+
+  const meta = await fetchNestedSetMeta(win, field, set);
+  const setId = newRowId();
+  const visualId = newUuid(win);
+  const valuesPayload = {
+    ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
+    type: set,
+    _visual_id: visualId,
+  };
+
+  const setNode = {
+    type: 'set',
+    attrs: {
+      id: setId,
+      enabled: true,
+      values: valuesPayload,
+    },
+  };
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    let fieldPath = field;
+
+    if (scope) {
+      const sectionPath = findPathByUid(values, scope);
+
+      if (sectionPath === null) {
+        continue;
+      }
+
+      fieldPath = `${sectionPath}.${field}`;
+    }
+
+    const existing = dataGet(values, fieldPath);
+
+    if (!Array.isArray(existing)) {
+      continue;
+    }
+
+    const next = JSON.parse(JSON.stringify(existing));
+    const at = Number.isInteger(index) ? Math.max(0, Math.min(index, next.length)) : next.length;
+
+    next.splice(at, 0, setNode);
+    writeNestedRowMeta(container, values, fieldPath, setId, meta?.new);
+    container.setFieldValue(fieldPath, next);
+
+    return;
   }
 }
 
@@ -3705,7 +3848,36 @@ function newRowFor(win, container, values, parentPath, sampleRow) {
 /** The array a row lives in, plus its index. */
 function rowLocation(values, uid) {
   const path = findPathByUid(values, uid);
-  const dot = path === null ? -1 : path.lastIndexOf('.');
+
+  if (path === null || path === '') {
+    return null;
+  }
+
+  const parts = path.split('.');
+
+  // Bard set: uid lives on attrs.values (_visual_id) or attrs (id). Climb to the
+  // content-array index so hide/dup/delete/move operate on the set node itself.
+  if (parts.length >= 3 && parts[parts.length - 1] === 'values' && parts[parts.length - 2] === 'attrs') {
+    const index = Number(parts[parts.length - 3]);
+    const parentPath = parts.slice(0, -3).join('.');
+    const rows = dataGet(values, parentPath);
+
+    if (Array.isArray(rows) && Number.isInteger(index) && rows[index]?.type === 'set') {
+      return { parentPath, index, rows, kind: 'bard-set' };
+    }
+  }
+
+  if (parts.length >= 2 && parts[parts.length - 1] === 'attrs') {
+    const index = Number(parts[parts.length - 2]);
+    const parentPath = parts.slice(0, -2).join('.');
+    const rows = dataGet(values, parentPath);
+
+    if (Array.isArray(rows) && Number.isInteger(index) && rows[index]?.type === 'set') {
+      return { parentPath, index, rows, kind: 'bard-set' };
+    }
+  }
+
+  const dot = path.lastIndexOf('.');
 
   if (dot === -1) {
     return null;
@@ -3719,7 +3891,12 @@ function rowLocation(values, uid) {
     return null;
   }
 
-  return { parentPath, index, rows };
+  return {
+    parentPath,
+    index,
+    rows,
+    kind: rows[index]?.type === 'set' ? 'bard-set' : 'row',
+  };
 }
 
 /**
@@ -3800,10 +3977,11 @@ export function handleRemoveRow(data, doc, win) {
 }
 
 /**
- * Duplicate an orderable row (replicator set or grid row), keeping its content
- * but giving every id a fresh value — same idea as Statamic's "Duplicate Set".
+ * Duplicate an orderable row (replicator set, Bard set, or grid row), keeping
+ * its content but giving every id a fresh value — same idea as Statamic's
+ * "Duplicate Set".
  */
-export function handleDuplicateRow(data, doc, win) {
+export async function handleDuplicateRow(data, doc, win) {
   for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
@@ -3817,7 +3995,7 @@ export function handleDuplicateRow(data, doc, win) {
       continue;
     }
 
-    const { parentPath, index, rows } = found;
+    const { parentPath, index, rows, kind } = found;
     const { max } = rowLimits(values, parentPath, win);
 
     if (max && rows.length >= max) {
@@ -3830,6 +4008,20 @@ export function handleDuplicateRow(data, doc, win) {
       copy.enabled = true;
     }
 
+    if (kind === 'bard-set' && copy?.type === 'set' && copy.attrs) {
+      copy.attrs = { ...copy.attrs, enabled: true };
+
+      const setHandle = copy.attrs.values?.type;
+      const rowId = copy.attrs.id;
+
+      if (setHandle && rowId) {
+        const field = parentPath.slice(parentPath.lastIndexOf('.') + 1);
+        const meta = await fetchNestedSetMeta(win, field, setHandle);
+
+        writeNestedRowMeta(container, values, parentPath, rowId, meta?.new);
+      }
+    }
+
     const next = JSON.parse(JSON.stringify(rows));
 
     next.splice(index + 1, 0, copy);
@@ -3840,7 +4032,7 @@ export function handleDuplicateRow(data, doc, win) {
 }
 
 /**
- * Hide a replicator set (`enabled: false`) — same as the CP's blue toggle.
+ * Hide a replicator/Bard set (`enabled: false`) — same as the CP's blue toggle.
  * The set disappears from the preview; re-enable it from the sidebar.
  * No-ops on grid rows that have no `type` (they're not toggleable sets).
  */
@@ -3858,16 +4050,26 @@ export function handleHideRow(data, doc, win) {
       continue;
     }
 
-    const { parentPath, index, rows } = found;
+    const { parentPath, index, rows, kind } = found;
     const row = rows[index];
 
-    if (!row || typeof row !== 'object' || !('type' in row)) {
+    if (!row || typeof row !== 'object') {
       return;
     }
 
     const next = JSON.parse(JSON.stringify(rows));
 
-    next[index] = { ...next[index], enabled: false };
+    if (kind === 'bard-set' && row.type === 'set') {
+      next[index] = {
+        ...next[index],
+        attrs: { ...(next[index].attrs || {}), enabled: false },
+      };
+    } else if ('type' in row) {
+      next[index] = { ...next[index], enabled: false };
+    } else {
+      return;
+    }
+
     container.setFieldValue(parentPath, next);
 
     return;
@@ -6329,6 +6531,369 @@ function handleAddBlockNative(data, doc, win) {
   setTimeout(run, 60);
 }
 
+/**
+ * Walk the Vue parent chain from el looking for Bard's fieldtype proxy
+ * (openSetPicker / editor / showAddSetButton).
+ */
+function findBardVueProxy(el) {
+  let vn = el?.__vueParentComponent;
+
+  if (!vn && el?.querySelector) {
+    const pm = el.querySelector('.ProseMirror') || el.querySelector('[contenteditable="true"]');
+
+    vn = pm?.__vueParentComponent;
+  }
+
+  for (let i = 0; vn && i < 40; i++) {
+    const proxy = vn.proxy;
+
+    if (
+      proxy &&
+      (typeof proxy.openSetPicker === 'function' ||
+        (proxy.editor && 'showAddSetButton' in proxy))
+    ) {
+      return proxy;
+    }
+
+    vn = vn.parent;
+  }
+
+  // Fallback: climb DOM and check each node's Vue parent.
+  let cur = el;
+
+  for (let i = 0; cur && i < 30; i++) {
+    const proxy = cur.__vueParentComponent?.proxy;
+
+    if (
+      proxy &&
+      (typeof proxy.openSetPicker === 'function' ||
+        (proxy.editor && 'showAddSetButton' in proxy))
+    ) {
+      return proxy;
+    }
+
+    cur = cur.parentElement;
+  }
+
+  return null;
+}
+
+/**
+ * Place TipTap's selection inside the top-level child at index (required for
+ * Bard's floating SetPicker to mount — DOM Selection alone is not enough).
+ */
+function placeBardTipTapAtIndex(editor, index) {
+  if (!editor?.state?.doc) {
+    return false;
+  }
+
+  let targetPos = null;
+  let lastTextPos = null;
+  let i = 0;
+
+  editor.state.doc.forEach((node, pos) => {
+    if (node.isTextblock) {
+      lastTextPos = pos + 1;
+    }
+
+    if (Number.isInteger(index) && i === index) {
+      targetPos = pos + (node.isTextblock ? 1 : 0);
+    }
+
+    i++;
+  });
+
+  if (targetPos == null) {
+    targetPos = lastTextPos;
+  }
+
+  if (targetPos == null) {
+    editor.chain().focus().run();
+
+    return false;
+  }
+
+  try {
+    editor.chain().focus().setTextSelection(targetPos).run();
+
+    return true;
+  } catch {
+    try {
+      editor.chain().focus().run();
+    } catch {
+      /* ignore */
+    }
+
+    return false;
+  }
+}
+
+/**
+ * Place the caret in the Bard ProseMirror at a top-level child index (matching
+ * the preview wrapper's children, including set node-views).
+ */
+function placeBardCaretAtIndex(pm, index, win) {
+  if (!pm) {
+    return false;
+  }
+
+  const kids = [...pm.children];
+  const target = Number.isInteger(index) ? kids[index] : kids[kids.length - 1];
+
+  if (!target) {
+    pm.focus();
+
+    return false;
+  }
+
+  pm.focus();
+
+  try {
+    const range = win.document.createRange();
+
+    range.selectNodeContents(target);
+    range.collapse(true);
+
+    const sel = win.getSelection();
+
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch {
+    /* selection APIs can throw on detached nodes */
+  }
+
+  return true;
+}
+
+/**
+ * CP-side fallback when Bard's SetPicker isn't mounted yet: same Search Sets
+ * UX (search + list), pinned under the preview "+", inserting via insert-bard-set.
+ */
+function openBardSetPickerFallback(doc, win, data) {
+  const sets = Array.isArray(data.sets) ? data.sets : [];
+
+  if (!sets.length) {
+    return;
+  }
+
+  doc.getElementById('sve-bard-set-fallback')?.remove();
+
+  const panel = doc.createElement('div');
+
+  panel.id = 'sve-bard-set-fallback';
+  panel.setAttribute('data-set-picker-popover', '');
+  panel.style.cssText =
+    'position:fixed;z-index:999999;width:260px;max-height:320px;overflow:auto;' +
+    'background:#fff;color:#18181b;border:1px solid #e4e4e7;border-radius:8px;' +
+    'box-shadow:0 10px 40px rgba(0,0,0,.18);padding:8px;font-size:13px;';
+
+  if (doc.documentElement.classList.contains('dark')) {
+    panel.style.background = '#18181b';
+    panel.style.color = '#fafafa';
+    panel.style.borderColor = '#3f3f46';
+  }
+
+  const search = doc.createElement('input');
+
+  search.type = 'search';
+  search.setAttribute('data-set-picker-search-input', '');
+  search.placeholder = 'Search Sets...';
+  search.style.cssText =
+    'width:100%;box-sizing:border-box;margin-bottom:6px;padding:6px 8px;' +
+    'border:1px solid #d4d4d8;border-radius:6px;background:transparent;color:inherit;';
+
+  const list = doc.createElement('div');
+
+  const render = (q = '') => {
+    list.innerHTML = '';
+    const needle = q.trim().toLowerCase();
+
+    sets
+      .filter((s) => {
+        const label = `${s.display || ''} ${s.handle || ''}`.toLowerCase();
+
+        return !needle || label.includes(needle);
+      })
+      .forEach((s) => {
+        const btn = doc.createElement('button');
+
+        btn.type = 'button';
+        btn.textContent = s.display || s.handle;
+        btn.style.cssText =
+          'display:block;width:100%;text-align:left;padding:8px 10px;border:none;' +
+          'border-radius:6px;background:transparent;color:inherit;cursor:pointer;';
+        btn.addEventListener('mouseenter', () => {
+          btn.style.background = doc.documentElement.classList.contains('dark')
+            ? 'rgba(255,255,255,.08)'
+            : 'rgba(0,0,0,.05)';
+        });
+        btn.addEventListener('mouseleave', () => {
+          btn.style.background = 'transparent';
+        });
+        btn.addEventListener('click', () => {
+          panel.remove();
+          stopPreviewPickerSession();
+          handleInsertBardSet(
+            {
+              field: data.field,
+              set: s.handle,
+              scope: data.scope,
+              index: data.index,
+            },
+            doc,
+            win
+          );
+        });
+        list.appendChild(btn);
+      });
+  };
+
+  search.addEventListener('input', () => render(search.value));
+  render();
+
+  panel.appendChild(search);
+  panel.appendChild(list);
+  doc.body.appendChild(panel);
+
+  ensurePickerVisible(doc, win, data.anchorRect || null);
+  setTimeout(() => search.focus(), 50);
+
+  const onOutside = (e) => {
+    if (panel.contains(e.target)) {
+      return;
+    }
+
+    panel.remove();
+    doc.removeEventListener('pointerdown', onOutside, true);
+    stopPreviewPickerSession();
+  };
+
+  setTimeout(() => doc.addEventListener('pointerdown', onOutside, true), 100);
+}
+
+/**
+ * Preview "+" on a Bard field: open Statamic's real SetPicker (Search Sets),
+ * pinned under the plus — same component the replicator inserter uses.
+ *
+ * Bard only mounts SetPicker while showAddSetButton is true (empty focused
+ * textblock via TipTap). We drive TipTap selection, then open; if the native
+ * picker never mounts we fall back to a Search Sets list with the field's sets.
+ */
+function handleAddBardSetNative(data, doc, win) {
+  const { field, scope, index = null, anchorRect = null, sets = [] } = data;
+
+  if (!field) {
+    return;
+  }
+
+  if (scope && autoOpenPanel(win)) {
+    soloSection(topLevelSectionUid(scope, doc) || scope, doc, win);
+  }
+
+  handleFieldFocus(field, doc, { scopeUid: scope || undefined });
+
+  let attempts = 0;
+
+  const run = () => {
+    const fieldEl = findFieldElement(field, doc, scope || undefined);
+    const bardEl =
+      fieldEl?.closest('.bard-fieldtype') || fieldEl?.querySelector('.bard-fieldtype') || fieldEl;
+    const pm = bardEl?.querySelector('.ProseMirror') || bardEl?.querySelector('[contenteditable="true"]');
+
+    if (!bardEl || !pm) {
+      if (++attempts < 30) {
+        setTimeout(run, 100);
+      } else {
+        openBardSetPickerFallback(doc, win, data);
+      }
+
+      return;
+    }
+
+    const proxy = findBardVueProxy(bardEl);
+
+    if (proxy?.editor) {
+      placeBardTipTapAtIndex(proxy.editor, index);
+    } else {
+      placeBardCaretAtIndex(pm, index, win);
+    }
+
+    // Temporarily allow the floating set button so SetPicker can mount even
+    // if TipTap's "empty paragraph" heuristic lags a frame behind focus.
+    const prevAlways = proxy?.config?.always_show_set_button;
+    let restored = false;
+
+    const restoreAlways = () => {
+      if (!proxy?.config || restored) {
+        return;
+      }
+
+      restored = true;
+      proxy.config.always_show_set_button = prevAlways;
+    };
+
+    if (proxy?.config) {
+      proxy.config.always_show_set_button = true;
+    }
+
+    if (proxy) {
+      proxy.showAddSetButton = true;
+    }
+
+    let openAttempts = 0;
+
+    const tryOpen = () => {
+      if (proxy) {
+        try {
+          if (proxy.$refs?.setPicker && typeof proxy.$refs.setPicker.open === 'function') {
+            proxy.$refs.setPicker.open();
+            ensurePickerVisible(doc, win, anchorRect);
+            setTimeout(restoreAlways, 1500);
+
+            return;
+          }
+
+          if (typeof proxy.openSetPicker === 'function' && proxy.$refs?.setPicker) {
+            proxy.openSetPicker();
+            ensurePickerVisible(doc, win, anchorRect);
+            setTimeout(restoreAlways, 1500);
+
+            return;
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+
+      const trigger =
+        bardEl.querySelector('.bard-set-selector button') ||
+        bardEl.querySelector('.bard-set-selector [aria-expanded]') ||
+        doc.querySelector('.bard-set-selector button');
+
+      if (trigger) {
+        trigger.click();
+        ensurePickerVisible(doc, win, anchorRect);
+        setTimeout(restoreAlways, 1500);
+
+        return;
+      }
+
+      if (++openAttempts < 25) {
+        setTimeout(tryOpen, 80);
+
+        return;
+      }
+
+      restoreAlways();
+      openBardSetPickerFallback(doc, win, { ...data, sets });
+    };
+
+    setTimeout(tryOpen, 60);
+  };
+
+  setTimeout(run, 120);
+}
+
 export function createMessageListener(doc = document, win = window) {
   return function handleMessage(event) {
     // Guard: only accept messages from the live-preview iframe.
@@ -6422,6 +6987,10 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'add-block-native') {
       // Preview "+": open Statamic's real SetPicker, pin list under the plus.
       handleAddBlockNative(data, doc, win);
+    } else if (data.type === 'add-bard-set-native') {
+      handleAddBardSetNative(data, doc, win);
+    } else if (data.type === 'insert-bard-set') {
+      handleInsertBardSet(data, doc, win);
     } else if (data.type === 'remove-row') {
       handleRemoveRow(data, doc, win);
     } else if (data.type === 'duplicate-row') {
@@ -8819,7 +9388,9 @@ function buildChromeModeToggle(win, mode) {
   };
 
   makeBtn('design', t(win, 'chrome_designs'));
-  makeBtn('settings', t(win, 'chrome_settings'));
+  // Key stays 'settings' — it names the sidebar mode, which is the global set's
+  // own form. The label says what that form is for: the header's content.
+  makeBtn('settings', t(win, 'chrome_content'));
   row.appendChild(track);
   paintChromeModeToggle(row, mode);
 

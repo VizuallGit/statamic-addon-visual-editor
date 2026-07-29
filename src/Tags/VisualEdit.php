@@ -49,7 +49,11 @@ class VisualEdit extends Tags
         // single "+" after the last block that inserts a new set of a chosen
         // type. Emits the field to insert into and the set types it allows
         // (read from the blueprint, so a new set type just shows up).
-        if ($this->params->bool('insertable', false) && $field !== null && (string) $field !== '') {
+        //
+        // When also used with inline_edit (Bard whole-field), skip this early
+        // return — insert attrs are merged into the field annotation below so
+        // orderable Bard sets get the same hide/dup/delete toolbar as Style 2.
+        if ($this->params->bool('insertable', false) && $field !== null && (string) $field !== '' && ! $this->inlineEditParam()) {
             $attr = 'data-sid-insert="'.e((string) $field).'"';
 
             // The section this replicator belongs to — its uid. Used to seed the
@@ -91,6 +95,22 @@ class VisualEdit extends Tags
                 $inlineEdit ? $this->resolveBardConfig((string) $field) : null,
                 $this->params->bool('orderable', false)
             );
+
+            // Bard whole-field + insertable: same hide/dup/delete toolbar as
+            // Style 2 replicator blocks (parent marked data-sid-insert).
+            if ($this->params->bool('insertable', false)) {
+                $attr .= ' data-sid-insert="'.e((string) $field).'"';
+
+                if ($scopeUid) {
+                    $attr .= ' data-sid-insert-scope="'.e((string) $scopeUid).'"';
+                }
+
+                $sets = $this->resolveInsertSets((string) $field);
+
+                if (! empty($sets)) {
+                    $attr .= ' data-sid-insert-sets="'.e(json_encode($sets)).'"';
+                }
+            }
 
             return $isPair ? '<div '.$attr.'>'.$content.'</div>' : $attr;
         }
@@ -236,12 +256,17 @@ class VisualEdit extends Tags
 
         // Bard toolbar config — the preview builds its toolbar from the field's
         // own `buttons` list (never hardcoded) plus a styles map for its
-        // bard-texstyle buttons.
+        // bard-texstyle buttons. When the Bard field defines sets, emit those
+        // too so whole-field inline edit can offer the same "+" set picker.
         if ($bardConfig) {
             $attr .= ' data-sid-bard-buttons="'.e(implode(',', $bardConfig['buttons'])).'"';
 
             if (! empty($bardConfig['styles'])) {
                 $attr .= ' data-sid-bard-styles="'.e(json_encode($bardConfig['styles'])).'"';
+            }
+
+            if (! empty($bardConfig['sets'])) {
+                $attr .= ' data-sid-bard-sets="'.e(json_encode($bardConfig['sets'])).'"';
             }
         }
 
@@ -361,7 +386,16 @@ class VisualEdit extends Tags
             }
 
             $texstyle = (array) config('statamic.bard_texstyle.styles', []);
+            $bardStyleList = (array) config('statamic.bard_styles.styles', []);
+            $bardGroups = (array) config('statamic.bard_styles.groups', []);
             $styles = [];
+            $bardByHandle = [];
+
+            foreach ($bardStyleList as $bardStyle) {
+                if (is_array($bardStyle) && ! empty($bardStyle['handle'])) {
+                    $bardByHandle[$bardStyle['handle']] = $bardStyle;
+                }
+            }
 
             foreach ($buttons as $button) {
                 if (isset($texstyle[$button]) && is_array($texstyle[$button])) {
@@ -373,15 +407,81 @@ class VisualEdit extends Tags
                         'ident' => $style['ident'] ?? null,
                         'name' => $style['name'] ?? null,
                     ], fn ($v) => $v !== null);
+
+                    continue;
+                }
+
+                // Vizuall bard-style addon: groups + individual styles from
+                // config/statamic/bard_styles.php (button names bard-group-* / bard-*).
+                if (str_starts_with($button, 'bard-group-')) {
+                    $groupKey = substr($button, strlen('bard-group-'));
+                    $meta = is_array($bardGroups[$groupKey] ?? null) ? $bardGroups[$groupKey] : [];
+                    $items = [];
+
+                    foreach ($bardStyleList as $bardStyle) {
+                        if (! is_array($bardStyle) || ($bardStyle['group'] ?? null) !== $groupKey) {
+                            continue;
+                        }
+
+                        $items[] = $this->normalizeBardStyle($bardStyle);
+                    }
+
+                    $styles[$button] = array_filter([
+                        'kind' => 'group',
+                        'name' => $meta['name'] ?? $groupKey,
+                        'ident' => $meta['ident'] ?? null,
+                        'items' => $items,
+                    ], fn ($v) => $v !== null);
+
+                    continue;
+                }
+
+                if (str_starts_with($button, 'bard-')) {
+                    $handle = str_replace('-', '_', substr($button, strlen('bard-')));
+
+                    if (isset($bardByHandle[$handle])) {
+                        $styles[$button] = array_merge(
+                            ['kind' => 'vizu'],
+                            $this->normalizeBardStyle($bardByHandle[$handle])
+                        );
+                    }
                 }
             }
 
-            return ['buttons' => $buttons, 'styles' => $styles];
+            $sets = [];
+
+            foreach ($this->flattenReplicatorSets($config['sets'] ?? []) as $setHandle => $set) {
+                $sets[] = [
+                    'handle' => $setHandle,
+                    'display' => $set['display'] ?? $setHandle,
+                ];
+            }
+
+            return ['buttons' => $buttons, 'styles' => $styles, 'sets' => $sets];
         } catch (\Throwable $e) {
             Log::debug('VisualEdit: failed to resolve bard config for '.$fieldPath, ['exception' => $e]);
 
             return null;
         }
+    }
+
+    /**
+     * Normalizes a single entry from config/statamic/bard_styles.php for the
+     * preview toolbar (span/paragraph/div + optional block-target props).
+     */
+    private function normalizeBardStyle(array $style): array
+    {
+        return array_filter([
+            'handle' => $style['handle'] ?? null,
+            'type' => $style['type'] ?? 'span',
+            'name' => $style['name'] ?? null,
+            'ident' => $style['ident'] ?? null,
+            'prop' => $style['prop'] ?? null,
+            'value' => $style['value'] ?? null,
+            'class' => $style['class'] ?? null,
+            'target' => $style['target'] ?? null,
+            'cp_css' => $style['cp_css'] ?? null,
+        ], fn ($v) => $v !== null);
     }
 
     /**
