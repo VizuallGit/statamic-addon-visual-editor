@@ -107,7 +107,9 @@ const SECTION_CONTENT_KEY = '__content';
 
 // Accordion panels within a segment.
 const SECTION_PANEL_ATTR = 'data-sve-section-panel'; // a row's panel key
-const SECTION_PANEL_HEAD_ATTR = 'data-sve-panel-head'; // the header we insert
+const SECTION_PANEL_CARD_ATTR = 'data-sve-panel-card'; // the card we insert
+const SECTION_PANEL_HEAD_ATTR = 'data-sve-panel-head'; // its clickable header
+const SECTION_PANEL_BODY_ATTR = 'data-sve-panel-body'; // its field list
 const SECTION_PANEL_OPEN_ATTR = 'data-sve-panel-open'; // open key, on the set
 const SECTION_PANEL_OWNER_ATTR = 'data-sve-panel-owner'; // a group heading itself
 
@@ -219,14 +221,35 @@ function sectionGroups(win, setEl) {
   let panel = null;
   let seq = 0;
 
-  const openPanel = (label, icon, rows_ = []) => {
-    panel = { key: `panel-${seq++}`, label, icon, rows: rows_ };
+  // Keyed by label, not by position: a card built on one pass has to be found
+  // again on the next, and by then the rows it holds have moved inside it —
+  // every counter would have shifted.
+  const panelKey = (label) => `p-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  const openPanel = (key, label, icon, rows_ = [], card = null) => {
+    panel = { key, label, icon, rows: rows_, card };
     (open ? open.panels : loose.panels).push(panel);
   };
 
   loose.panels = [];
 
   rows.forEach((row) => {
+    // A card from an earlier pass *is* its panel. Rows that follow it are ones
+    // Vue has pulled back out of it, and belong to it again.
+    if (row.hasAttribute(SECTION_PANEL_CARD_ATTR)) {
+      const body = row.querySelector(`[${SECTION_PANEL_BODY_ATTR}]`);
+
+      openPanel(
+        row.getAttribute(SECTION_PANEL_ATTR),
+        row.getAttribute('data-sve-panel-label') || '',
+        row.getAttribute('data-sve-panel-icon') || null,
+        body ? [...body.children] : [],
+        row
+      );
+
+      return;
+    }
+
     const marker = rowFieldtype(row, 'tab-fieldtype');
 
     if (marker) {
@@ -235,7 +258,17 @@ function sectionGroups(win, setEl) {
       markers.push(row);
 
       if (cfg.accordion) {
-        openPanel(cfg.label, cfg.icon);
+        const key = panelKey(cfg.label);
+
+        // Its card is already in the list and will be met on its own; opening a
+        // second panel here would split the same group in two.
+        if (setEl.querySelector(`[${SECTION_PANEL_CARD_ATTR}][${SECTION_PANEL_ATTR}="${key}"]`)) {
+          panel = null;
+
+          return;
+        }
+
+        openPanel(key, cfg.label, cfg.icon);
 
         return;
       }
@@ -254,7 +287,12 @@ function sectionGroups(win, setEl) {
       const label = fieldLabel(row);
 
       if (label) {
-        openPanel(label, null, [row]);
+        const key = panelKey(label);
+
+        if (!setEl.querySelector(`[${SECTION_PANEL_CARD_ATTR}][${SECTION_PANEL_ATTR}="${key}"]`)) {
+          openPanel(key, label, null, [row]);
+        }
+
         row.setAttribute(SECTION_PANEL_OWNER_ATTR, '');
         panel = null; // self-contained: the rows after it are not its body
 
@@ -306,6 +344,59 @@ function sectionGroups(win, setEl) {
   return named.length > 1 ? { groups: named, markers } : null;
 }
 
+// A small outline set, drawn here rather than pulled from the Control Panel's
+// icon component — that lives in Vue and this builds raw DOM. An unknown name
+// falls through to whatever was written, so an emoji works as well.
+const PANEL_ICONS = {
+  color:
+    '<path d="M12 3v18a6 6 0 0 0 0-12 6 6 0 0 1 0-6Z"/><circle cx="12" cy="12" r="9"/>',
+  spacing:
+    '<path d="M3 6h18M7 12h10M3 18h18"/>',
+  background:
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 15 5-5 4 4 3-3 6 6"/>',
+  text:
+    '<path d="M4 6h16M4 12h10M4 18h13"/>',
+  code:
+    '<path d="m8 8-4 4 4 4M16 8l4 4-4 4"/>',
+  layout:
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',
+  image:
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  settings:
+    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11.5 4a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4Z"/>',
+};
+
+/** The icon element for a panel, or null when the marker named none. */
+function panelIcon(doc, name) {
+  if (!name) {
+    return null;
+  }
+
+  const paths = PANEL_ICONS[name] ?? PANEL_ICONS[name.replace(/[-_ ].*$/, '')];
+
+  if (!paths) {
+    const glyph = doc.createElement('span');
+
+    glyph.textContent = name.length <= 3 ? name : '';
+    glyph.style.cssText = 'flex:0 0 auto;line-height:1;font-size:15px;';
+
+    return glyph;
+  }
+
+  const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.7');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.innerHTML = paths;
+  svg.style.cssText = 'flex:0 0 auto;width:17px;height:17px;opacity:.85;display:block;';
+
+  return svg;
+}
+
 function paintSectionToggle(setEl, active) {
   setEl.querySelectorAll(`[${SECTION_SEG_ATTR}]`).forEach((btn) => {
     const on = btn.getAttribute(SECTION_SEG_ATTR) === active;
@@ -318,47 +409,44 @@ function paintSectionToggle(setEl, active) {
 
   const openPanel = setEl.getAttribute(SECTION_PANEL_OPEN_ATTR);
 
+  // Rows that are not inside a panel: shown with their segment.
   setEl.querySelectorAll(`[${SECTION_GROUP_ATTR}]`).forEach((row) => {
-    // Headers are painted below. Clearing display here would wipe the flex they
-    // are laid out with, which is how the chevron, icon and label ended up run
-    // together in one block.
-    if (row.hasAttribute(SECTION_PANEL_HEAD_ATTR)) {
+    if (row.hasAttribute(SECTION_PANEL_CARD_ATTR)) {
       return;
     }
 
-    const panel = row.getAttribute(SECTION_PANEL_ATTR);
-
-    // A row inside a panel shows only when its segment is up *and* its panel is
-    // the open one.
-    const visible = row.getAttribute(SECTION_GROUP_ATTR) === active
-      && (!panel || panel === openPanel);
-
-    row.style.display = visible ? '' : 'none';
+    row.style.display = row.getAttribute(SECTION_GROUP_ATTR) === active ? '' : 'none';
   });
 
-  setEl.querySelectorAll(`[${SECTION_PANEL_HEAD_ATTR}]`).forEach((head) => {
-    const on = head.getAttribute(SECTION_PANEL_ATTR) === openPanel;
+  setEl.querySelectorAll(`[${SECTION_PANEL_CARD_ATTR}]`).forEach((card) => {
+    const on = card.getAttribute(SECTION_PANEL_ATTR) === openPanel;
+    const head = card.querySelector(`[${SECTION_PANEL_HEAD_ATTR}]`);
+    const body = card.querySelector(`[${SECTION_PANEL_BODY_ATTR}]`);
+    const chevron = card.querySelector('[data-sve-chevron]');
 
-    // A header stays up whatever is open — it is how you open it — but only
-    // while its own segment is showing.
-    head.style.setProperty(
-      'display',
-      head.getAttribute(SECTION_GROUP_ATTR) === active ? 'flex' : 'none',
-      'important'
-    );
-    const chevron = head.querySelector('[data-sve-chevron]');
+    card.style.display = card.getAttribute(SECTION_GROUP_ATTR) === active ? '' : 'none';
 
-    head.setAttribute('aria-expanded', on ? 'true' : 'false');
-    head.style.background = on ? 'rgba(128,128,128,.18)' : 'rgba(128,128,128,.06)';
-    // Square off the bottom while open so the fields below read as its body
-    // rather than as the next thing along.
-    head.style.borderBottomLeftRadius = on ? '0' : '9px';
-    head.style.borderBottomRightRadius = on ? '0' : '9px';
+    if (body) {
+      body.style.display = on ? 'grid' : 'none';
+    }
+
+    if (head) {
+      head.setAttribute('aria-expanded', on ? 'true' : 'false');
+      // The divider only belongs there while something sits below it.
+      head.style.borderBottom = on
+        ? '1px solid rgba(128,128,128,.20)'
+        : '1px solid transparent';
+    }
 
     if (chevron) {
-      chevron.style.transform = on ? 'rotate(0deg)' : 'rotate(-90deg)';
+      chevron.style.transform = on ? 'rotate(180deg)' : 'rotate(0deg)';
     }
   });
+}
+
+function setSectionGroup(setEl, key) {
+  setEl.setAttribute(SECTION_ACTIVE_ATTR, key);
+  paintSectionToggle(setEl, key);
 }
 
 function setSectionPanel(setEl, key) {
@@ -370,55 +458,74 @@ function setSectionPanel(setEl, key) {
   paintSectionToggle(setEl, setEl.getAttribute(SECTION_ACTIVE_ATTR) || '');
 }
 
-/** The clickable header for one accordion panel. */
-function buildPanelHead(win, setEl, panel, groupKey) {
+/**
+ * One panel: a card holding its own header and its own field list.
+ *
+ * Header and body live inside one grid item rather than being two, because the
+ * field grid puts 32px between its children — enough to break a card in half.
+ * The body repeats the grid it was lifted out of, so fields keep the widths the
+ * blueprint gave them.
+ */
+function buildPanelCard(win, setEl, panel, groupKey, gridGap) {
   const doc = win.document;
+  const card = doc.createElement('div');
+
+  card.setAttribute(SECTION_PANEL_CARD_ATTR, '');
+  card.setAttribute(SECTION_PANEL_ATTR, panel.key);
+  card.setAttribute(SECTION_GROUP_ATTR, groupKey);
+  card.setAttribute('data-sve-panel-label', panel.label);
+
+  if (panel.icon) {
+    card.setAttribute('data-sve-panel-icon', panel.icon);
+  }
+  card.style.cssText =
+    'grid-column:1/-1;border-radius:12px;overflow:hidden;' +
+    'background:rgba(128,128,128,.08);border:1px solid rgba(128,128,128,.16);';
+
   const head = doc.createElement('button');
 
   head.type = 'button';
   head.setAttribute(SECTION_PANEL_HEAD_ATTR, '');
-  head.setAttribute(SECTION_PANEL_ATTR, panel.key);
-  head.setAttribute(SECTION_GROUP_ATTR, groupKey);
-  // Reset the button explicitly rather than with `all:unset`: as the first
-  // declaration in a cssText block, `all` swallows the longhands that follow it,
-  // and this rendered as a block with no gap between chevron and label.
   head.style.cssText =
     'appearance:none;background:none;margin:0;font:inherit;box-sizing:border-box;' +
-    'grid-column:1/-1;display:flex;align-items:center;gap:10px;text-align:left;' +
-    'width:100%;cursor:pointer;padding:11px 13px;border-radius:9px;' +
-    'border:1px solid rgba(128,128,128,.22);' +
-    'font-size:12px;font-weight:600;color:currentColor;';
-
-  // The panel's stylesheet lays buttons out as blocks and wins on specificity,
-  // which left the chevron, icon and label running together with no gap. This is
-  // the one declaration that has to beat it.
+    'align-items:center;gap:11px;text-align:left;width:100%;cursor:pointer;' +
+    'padding:14px 14px;border:0;border-bottom:1px solid transparent;' +
+    'font-size:13px;font-weight:600;color:currentColor;';
   head.style.setProperty('display', 'flex', 'important');
 
-  const chevron = doc.createElement('span');
+  const icon = panelIcon(doc, panel.icon);
 
-  chevron.setAttribute('data-sve-chevron', '');
-  chevron.textContent = '⌄';
-  chevron.style.cssText =
-    'flex:0 0 auto;opacity:.6;transition:transform .15s;line-height:1;' +
-    'font-size:15px;width:12px;text-align:center;margin-top:-3px;';
-  head.appendChild(chevron);
-
-  if (panel.icon) {
-    const icon = doc.createElement('span');
-
-    // The icon is whatever the marker named. Statamic's icon components are not
-    // reachable from here, so this shows the name only when it is something a
-    // font can draw — an emoji. Anything else is skipped rather than printed.
-    icon.textContent = /\p{Extended_Pictographic}/u.test(panel.icon) ? panel.icon : '';
-    icon.style.cssText = 'flex:0 0 auto;line-height:1;';
+  if (icon) {
     head.appendChild(icon);
   }
 
   const label = doc.createElement('span');
 
   label.textContent = panel.label;
-  label.style.cssText = 'flex:1 1 auto;text-align:left;';
+  label.style.cssText = 'flex:1 1 auto;';
   head.appendChild(label);
+
+  // The chevron sits in its own tile on the right, which gives the row a second
+  // anchor and makes the whole header read as one control.
+  const tile = doc.createElement('span');
+
+  tile.style.cssText =
+    'flex:0 0 auto;display:flex;align-items:center;justify-content:center;' +
+    'width:28px;height:28px;border-radius:8px;background:rgba(128,128,128,.16);';
+
+  const chevron = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+
+  chevron.setAttribute('data-sve-chevron', '');
+  chevron.setAttribute('viewBox', '0 0 24 24');
+  chevron.setAttribute('fill', 'none');
+  chevron.setAttribute('stroke', 'currentColor');
+  chevron.setAttribute('stroke-width', '2.2');
+  chevron.setAttribute('stroke-linecap', 'round');
+  chevron.setAttribute('stroke-linejoin', 'round');
+  chevron.innerHTML = '<path d="m6 9 6 6 6-6"/>';
+  chevron.style.cssText = 'width:13px;height:13px;transition:transform .18s;display:block;';
+  tile.appendChild(chevron);
+  head.appendChild(tile);
 
   head.addEventListener('click', (event) => {
     event.preventDefault();
@@ -426,12 +533,16 @@ function buildPanelHead(win, setEl, panel, groupKey) {
     setSectionPanel(setEl, panel.key);
   });
 
-  return head;
-}
+  const body = doc.createElement('div');
 
-function setSectionGroup(setEl, key) {
-  setEl.setAttribute(SECTION_ACTIVE_ATTR, key);
-  paintSectionToggle(setEl, key);
+  body.setAttribute(SECTION_PANEL_BODY_ATTR, '');
+  body.style.cssText =
+    `display:grid;grid-template-columns:repeat(12,1fr);gap:${gridGap};padding:18px 14px;`;
+
+  card.appendChild(head);
+  card.appendChild(body);
+
+  return card;
 }
 
 /**
@@ -455,32 +566,45 @@ function enhanceSectionGroups(win, setEl) {
     group.rows.forEach((row) => row.setAttribute(SECTION_GROUP_ATTR, group.key));
 
     group.panels.forEach((panel) => {
-      panel.rows.forEach((row) => {
-        row.setAttribute(SECTION_GROUP_ATTR, group.key);
-        row.setAttribute(SECTION_PANEL_ATTR, panel.key);
-      });
-
-      if (setEl.querySelector(`[${SECTION_PANEL_HEAD_ATTR}][${SECTION_PANEL_ATTR}="${panel.key}"]`)) {
-        return;
-      }
-
       const anchor = panel.rows[0];
 
       if (!anchor) {
         return;
       }
 
-      anchor.parentElement.insertBefore(buildPanelHead(win, setEl, panel, group.key), anchor);
+      let card = panel.card
+        || setEl.querySelector(`[${SECTION_PANEL_CARD_ATTR}][${SECTION_PANEL_ATTR}="${panel.key}"]`);
 
-      // A group draws its own name inside the box; the header above it now says
-      // the same thing, and twice is once too many.
-      if (anchor.hasAttribute(SECTION_PANEL_OWNER_ATTR)) {
-        const label = anchor.querySelector('label');
+      if (!card) {
+        const list = anchor.parentElement;
+        const gap = win.getComputedStyle?.(list)?.rowGap || '32px';
 
-        if (label) {
-          label.style.display = 'none';
-        }
+        card = buildPanelCard(win, setEl, panel, group.key, gap);
+        list.insertBefore(card, anchor);
       }
+
+      const body = card.querySelector(`[${SECTION_PANEL_BODY_ATTR}]`);
+
+      // Moving, not copying — and re-checked on every pass, because Vue owns
+      // these rows and puts them back in its own list whenever it re-renders.
+      panel.rows.forEach((row) => {
+        row.setAttribute(SECTION_PANEL_ATTR, panel.key);
+        row.removeAttribute(SECTION_GROUP_ATTR);
+
+        if (row.parentElement !== body) {
+          body.appendChild(row);
+        }
+
+        // A group draws its own name inside the box; the header above it now
+        // says the same thing, and twice is once too many.
+        if (row.hasAttribute(SECTION_PANEL_OWNER_ATTR)) {
+          const label = row.querySelector('label');
+
+          if (label) {
+            label.style.display = 'none';
+          }
+        }
+      });
     });
   });
 
