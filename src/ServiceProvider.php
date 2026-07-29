@@ -19,6 +19,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SetPreviewsController;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsList;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
@@ -79,6 +80,9 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $middlewareGroups = [
         'web' => [
+            // First: it has to decide before the view renders, unlike the rest,
+            // which rewrite the response on the way back out.
+            DisableViteHotReload::class,
             InjectBridgeScript::class,
             InjectEditButton::class,
             OverrideGlobalsInPreview::class,
