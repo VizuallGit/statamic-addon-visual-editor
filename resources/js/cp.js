@@ -105,6 +105,12 @@ const SECTION_SEG_ATTR = 'data-sve-section-seg';
 const SECTION_ACTIVE_ATTR = 'data-sve-section-active';
 const SECTION_CONTENT_KEY = '__content';
 
+// Accordion panels within a segment.
+const SECTION_PANEL_ATTR = 'data-sve-section-panel'; // a row's panel key
+const SECTION_PANEL_HEAD_ATTR = 'data-sve-panel-head'; // the header we insert
+const SECTION_PANEL_OPEN_ATTR = 'data-sve-panel-open'; // open key, on the set
+const SECTION_PANEL_OWNER_ATTR = 'data-sve-panel-owner'; // a group heading itself
+
 /**
  * The rows of the set's own field list.
  *
@@ -158,24 +164,46 @@ function rowFieldtype(row, name) {
   return el && el.closest('.publish-fields') === row.parentElement ? el : null;
 }
 
-/** A tab marker's label: its chip's text, without the leading glyph. */
-function tabMarkerLabel(el) {
-  const spans = [...el.querySelectorAll('span')];
-  const text = (spans.length ? spans[spans.length - 1] : el).textContent || '';
+/**
+ * What a tab marker says about itself.
+ *
+ * The chip carries its label, style and icon on data attributes (see the tabs
+ * addon) because field config never reaches the rendered panel any other way.
+ * Falling back to the chip's own text keeps older markers working — they simply
+ * have no style and no icon, which is the default anyway.
+ */
+function tabMarkerConfig(el) {
+  const chip = el.matches?.('[data-tab-marker]') ? el : el.querySelector('[data-tab-marker]');
+  const fallback = () => {
+    const spans = [...el.querySelectorAll('span')];
 
-  return text.replace(/^[^\p{L}\p{N}]+/u, '').trim();
+    return ((spans.length ? spans[spans.length - 1] : el).textContent || '')
+      .replace(/^[^\p{L}\p{N}]+/u, '')
+      .trim();
+  };
+
+  return {
+    label: chip?.getAttribute('data-tab-label') || fallback(),
+    accordion: chip?.getAttribute('data-tab-style') === 'accordion',
+    icon: chip?.getAttribute('data-tab-icon') || null,
+  };
 }
 
-/** A tabby's label: the field label Statamic renders above it. */
-function tabbyLabel(row) {
+/** A field's own label, as Statamic renders it above the control. */
+function fieldLabel(row) {
   return (row.querySelector('label')?.textContent || '').trim();
 }
 
 /**
- * Divides a set's rows into groups, in the order they appear.
+ * Divides a set's rows into segments, each of which may hold accordion panels.
  *
- * Returns [] when the fieldset draws no line — one group is not a choice, and the
- * panel is better left exactly as Statamic rendered it.
+ * A plain `tab` marker opens a segment. A marker with `style: accordion` opens a
+ * panel inside the segment it sits in, and a `group` field is a panel too — it
+ * already carries a name and its own fields, which is the whole shape. Rows
+ * before a segment's first panel stay above the accordion, always visible.
+ *
+ * Returns null when the fieldset draws no line: one segment is not a choice, and
+ * the panel is better left exactly as Statamic rendered it.
  */
 function sectionGroups(win, setEl) {
   const rows = sectionFieldRows(setEl);
@@ -188,32 +216,68 @@ function sectionGroups(win, setEl) {
   const loose = [];
   const markers = [];
   let open = null;
+  let panel = null;
   let seq = 0;
+
+  const openPanel = (label, icon, rows_ = []) => {
+    panel = { key: `panel-${seq++}`, label, icon, rows: rows_ };
+    (open ? open.panels : loose.panels).push(panel);
+  };
+
+  loose.panels = [];
 
   rows.forEach((row) => {
     const marker = rowFieldtype(row, 'tab-fieldtype');
 
     if (marker) {
+      const cfg = tabMarkerConfig(marker);
+
       markers.push(row);
-      open = { key: `tab-${seq++}`, label: tabMarkerLabel(marker) || row.id, rows: [] };
+
+      if (cfg.accordion) {
+        openPanel(cfg.label, cfg.icon);
+
+        return;
+      }
+
+      panel = null;
+      open = { key: `tab-${seq++}`, label: cfg.label, rows: [], panels: [] };
       groups.push(open);
 
       return;
     }
 
+    // A group names itself and holds its own fields — a panel already, in every
+    // respect but the chevron. Only when it heads its own panel, though: one
+    // sitting inside an open accordion is just part of that panel's contents.
+    if (!panel && rowFieldtype(row, 'group-fieldtype')) {
+      const label = fieldLabel(row);
+
+      if (label) {
+        openPanel(label, null, [row]);
+        row.setAttribute(SECTION_PANEL_OWNER_ATTR, '');
+        panel = null; // self-contained: the rows after it are not its body
+
+        return;
+      }
+    }
+
+    if (panel) {
+      panel.rows.push(row);
+
+      return;
+    }
+
     if (open) {
-      // Everything after a marker belongs to it, a tabby included. Putting a
-      // "Design" tab in front of a settings tabby is the obvious way to write
-      // it, and it should mean the tabby sits under Design — not beside it.
       open.rows.push(row);
 
       return;
     }
 
-    // A tabby with no marker ahead of it names a group on its own: that is how
+    // A tabby with no marker ahead of it names a segment on its own: that is how
     // sections were written before `tab` markers, and they keep working.
     if (rowFieldtype(row, 'tabby-fieldtype')) {
-      groups.push({ key: `tabby-${seq++}`, label: tabbyLabel(row), rows: [row] });
+      groups.push({ key: `tabby-${seq++}`, label: fieldLabel(row), rows: [row], panels: [] });
 
       return;
     }
@@ -221,14 +285,19 @@ function sectionGroups(win, setEl) {
     loose.push(row);
   });
 
-  const named = groups.filter((group) => group.rows.length);
+  const named = groups.filter((group) => group.rows.length || group.panels.length);
 
   if (!named.length) {
-    return [];
+    return null;
   }
 
-  if (loose.length) {
-    named.unshift({ key: SECTION_CONTENT_KEY, label: t(win, 'section_content'), rows: loose });
+  if (loose.length || loose.panels.length) {
+    named.unshift({
+      key: SECTION_CONTENT_KEY,
+      label: t(win, 'section_content'),
+      rows: [...loose],
+      panels: loose.panels,
+    });
   }
 
   // Markers are returned whole, not per group: once the control exists, a chip
@@ -247,9 +316,117 @@ function paintSectionToggle(setEl, active) {
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
 
+  const openPanel = setEl.getAttribute(SECTION_PANEL_OPEN_ATTR);
+
   setEl.querySelectorAll(`[${SECTION_GROUP_ATTR}]`).forEach((row) => {
-    row.style.display = row.getAttribute(SECTION_GROUP_ATTR) === active ? '' : 'none';
+    // Headers are painted below. Clearing display here would wipe the flex they
+    // are laid out with, which is how the chevron, icon and label ended up run
+    // together in one block.
+    if (row.hasAttribute(SECTION_PANEL_HEAD_ATTR)) {
+      return;
+    }
+
+    const panel = row.getAttribute(SECTION_PANEL_ATTR);
+
+    // A row inside a panel shows only when its segment is up *and* its panel is
+    // the open one.
+    const visible = row.getAttribute(SECTION_GROUP_ATTR) === active
+      && (!panel || panel === openPanel);
+
+    row.style.display = visible ? '' : 'none';
   });
+
+  setEl.querySelectorAll(`[${SECTION_PANEL_HEAD_ATTR}]`).forEach((head) => {
+    const on = head.getAttribute(SECTION_PANEL_ATTR) === openPanel;
+
+    // A header stays up whatever is open — it is how you open it — but only
+    // while its own segment is showing.
+    head.style.setProperty(
+      'display',
+      head.getAttribute(SECTION_GROUP_ATTR) === active ? 'flex' : 'none',
+      'important'
+    );
+    const chevron = head.querySelector('[data-sve-chevron]');
+
+    head.setAttribute('aria-expanded', on ? 'true' : 'false');
+    head.style.background = on ? 'rgba(128,128,128,.18)' : 'rgba(128,128,128,.06)';
+    // Square off the bottom while open so the fields below read as its body
+    // rather than as the next thing along.
+    head.style.borderBottomLeftRadius = on ? '0' : '9px';
+    head.style.borderBottomRightRadius = on ? '0' : '9px';
+
+    if (chevron) {
+      chevron.style.transform = on ? 'rotate(0deg)' : 'rotate(-90deg)';
+    }
+  });
+}
+
+function setSectionPanel(setEl, key) {
+  // Clicking the open one closes it: with everything shut you can see the whole
+  // list of panels at once, which is the point of an accordion.
+  const next = setEl.getAttribute(SECTION_PANEL_OPEN_ATTR) === key ? '' : key;
+
+  setEl.setAttribute(SECTION_PANEL_OPEN_ATTR, next);
+  paintSectionToggle(setEl, setEl.getAttribute(SECTION_ACTIVE_ATTR) || '');
+}
+
+/** The clickable header for one accordion panel. */
+function buildPanelHead(win, setEl, panel, groupKey) {
+  const doc = win.document;
+  const head = doc.createElement('button');
+
+  head.type = 'button';
+  head.setAttribute(SECTION_PANEL_HEAD_ATTR, '');
+  head.setAttribute(SECTION_PANEL_ATTR, panel.key);
+  head.setAttribute(SECTION_GROUP_ATTR, groupKey);
+  // Reset the button explicitly rather than with `all:unset`: as the first
+  // declaration in a cssText block, `all` swallows the longhands that follow it,
+  // and this rendered as a block with no gap between chevron and label.
+  head.style.cssText =
+    'appearance:none;background:none;margin:0;font:inherit;box-sizing:border-box;' +
+    'grid-column:1/-1;display:flex;align-items:center;gap:10px;text-align:left;' +
+    'width:100%;cursor:pointer;padding:11px 13px;border-radius:9px;' +
+    'border:1px solid rgba(128,128,128,.22);' +
+    'font-size:12px;font-weight:600;color:currentColor;';
+
+  // The panel's stylesheet lays buttons out as blocks and wins on specificity,
+  // which left the chevron, icon and label running together with no gap. This is
+  // the one declaration that has to beat it.
+  head.style.setProperty('display', 'flex', 'important');
+
+  const chevron = doc.createElement('span');
+
+  chevron.setAttribute('data-sve-chevron', '');
+  chevron.textContent = '⌄';
+  chevron.style.cssText =
+    'flex:0 0 auto;opacity:.6;transition:transform .15s;line-height:1;' +
+    'font-size:15px;width:12px;text-align:center;margin-top:-3px;';
+  head.appendChild(chevron);
+
+  if (panel.icon) {
+    const icon = doc.createElement('span');
+
+    // The icon is whatever the marker named. Statamic's icon components are not
+    // reachable from here, so this shows the name only when it is something a
+    // font can draw — an emoji. Anything else is skipped rather than printed.
+    icon.textContent = /\p{Extended_Pictographic}/u.test(panel.icon) ? panel.icon : '';
+    icon.style.cssText = 'flex:0 0 auto;line-height:1;';
+    head.appendChild(icon);
+  }
+
+  const label = doc.createElement('span');
+
+  label.textContent = panel.label;
+  label.style.cssText = 'flex:1 1 auto;text-align:left;';
+  head.appendChild(label);
+
+  head.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setSectionPanel(setEl, panel.key);
+  });
+
+  return head;
 }
 
 function setSectionGroup(setEl, key) {
@@ -276,13 +453,50 @@ function enhanceSectionGroups(win, setEl) {
 
   groups.forEach((group) => {
     group.rows.forEach((row) => row.setAttribute(SECTION_GROUP_ATTR, group.key));
+
+    group.panels.forEach((panel) => {
+      panel.rows.forEach((row) => {
+        row.setAttribute(SECTION_GROUP_ATTR, group.key);
+        row.setAttribute(SECTION_PANEL_ATTR, panel.key);
+      });
+
+      if (setEl.querySelector(`[${SECTION_PANEL_HEAD_ATTR}][${SECTION_PANEL_ATTR}="${panel.key}"]`)) {
+        return;
+      }
+
+      const anchor = panel.rows[0];
+
+      if (!anchor) {
+        return;
+      }
+
+      anchor.parentElement.insertBefore(buildPanelHead(win, setEl, panel, group.key), anchor);
+
+      // A group draws its own name inside the box; the header above it now says
+      // the same thing, and twice is once too many.
+      if (anchor.hasAttribute(SECTION_PANEL_OWNER_ATTR)) {
+        const label = anchor.querySelector('label');
+
+        if (label) {
+          label.style.display = 'none';
+        }
+      }
+    });
   });
 
-  // The markers said where each group starts; the segments now say it in a place
-  // you can click.
+  // The markers said where each group starts; the segments and panel headers now
+  // say it in a place you can click.
   markers.forEach((row) => {
     row.style.display = 'none';
   });
+
+  if (!setEl.hasAttribute(SECTION_PANEL_OPEN_ATTR)) {
+    // First panel of the opening segment starts open, so a tab never comes up as
+    // a stack of closed bars with nothing to read.
+    const first = groups.find((group) => group.panels.length)?.panels[0];
+
+    setEl.setAttribute(SECTION_PANEL_OPEN_ATTR, first ? first.key : '');
+  }
 
   let row = setEl.querySelector(`:scope [${SECTION_TOGGLE_ATTR}]`);
 
