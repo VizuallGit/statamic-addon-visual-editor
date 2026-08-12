@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
+use MarioHamann\StatamicVisualEditor\PanelVisibility;
 use MarioHamann\StatamicVisualEditor\Traits\HandlesReplicatorSets;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\GlobalVariablesBlueprintFound;
@@ -35,6 +36,15 @@ class InjectVisualIdIntoBlueprint
         $result = [];
 
         foreach ($fields as $fieldDef) {
+            // "Where is this edited?", as answered on the field's own settings
+            // screen, becomes the condition that answers it. Done here rather than
+            // in a listener of its own: this walk already reaches every field on a
+            // page — through imports, field references, sets and grids — and a
+            // second walk of the same tree would be the same code twice.
+            if (isset($fieldDef['field']) && is_array($fieldDef['field'])) {
+                $fieldDef['field'] = PanelVisibility::apply($fieldDef['field']);
+            }
+
             // Inject visual IDs into imported fieldsets at runtime without expanding
             // the import reference in the blueprint. Expanding caused the CP to save
             // the inlined version to disk, breaking fieldset sync.
@@ -98,7 +108,11 @@ class InjectVisualIdIntoBlueprint
 
             $inlined = $fsField;
             $inlined['handle'] = $fieldDef['handle'];
-            $inlined['field'] = array_merge($fsField['field'], $fieldDef['config'] ?? []);
+            // After the merge, so a set overriding the referenced field answers the
+            // question for its own copy of it.
+            $inlined['field'] = PanelVisibility::apply(
+                array_merge($fsField['field'], $fieldDef['config'] ?? [])
+            );
 
             $type = $inlined['field']['type'] ?? null;
 
@@ -129,15 +143,13 @@ class InjectVisualIdIntoBlueprint
     {
         $handles = array_column($fields, 'handle');
 
-        if (in_array('_visual_id', $handles, true)) {
-            return $fields;
+        if (! in_array('_visual_id', $handles, true)) {
+            $fields[] = ['handle' => '_visual_id', 'field' => [
+                'type' => 'auto_uuid',
+                'visibility' => 'hidden',
+                'replicator_preview' => false,
+            ]];
         }
-
-        $fields[] = ['handle' => '_visual_id', 'field' => [
-            'type' => 'auto_uuid',
-            'visibility' => 'hidden',
-            'replicator_preview' => false,
-        ]];
 
         return $fields;
     }

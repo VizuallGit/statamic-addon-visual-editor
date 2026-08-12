@@ -78,6 +78,11 @@ class OverrideGlobalsInPreview
 
             $variables->data($this->process($variables, $raw, $saved->all()));
 
+            // Theme color swatches/resolve cache must see the live bias/sat.
+            if ($handle === 'theme_settings' && class_exists(\Vizuall\ColorScheme\Fieldtypes\ThemeColorPicker::class)) {
+                \Vizuall\ColorScheme\Fieldtypes\ThemeColorPicker::clearSwatchCache();
+            }
+
             app()->terminating(fn () => $variables->data($saved));
         }
     }

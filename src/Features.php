@@ -27,11 +27,16 @@ class Features
         'pages',
         'globals',
         'sections',
+        'outline',
         'inline_edit',
+        'focus_panel',
+        'open_first_section',
+        'open_in_preview',
         'library_page',
         'library_custom',
         'library_global',
         'library_templates',
+        'library_in_use_only',
         'chrome_header',
         'chrome_footer',
     ];
@@ -82,6 +87,23 @@ class Features
         return array_key_exists('enabled', $saved)
             ? (bool) $saved['enabled']
             : (bool) config('statamic-visual-editor.enabled', true);
+    }
+
+    /**
+     * A saved setting that is not one of the on/off toggles.
+     *
+     * The map casts everything to a boolean, which is right for a switch and
+     * wrong for anything else — a list of user groups would come back as `true`.
+     * Read on the same terms as the map: what the settings screen saved wins,
+     * then config, then the caller's default.
+     */
+    public static function setting(string $key, mixed $default = null): mixed
+    {
+        $saved = static::saved();
+
+        return array_key_exists($key, $saved)
+            ? $saved[$key]
+            : config("statamic-visual-editor.features.{$key}", $default);
     }
 
     /** Forget the cached map — for tests, and after the settings screen saves. */

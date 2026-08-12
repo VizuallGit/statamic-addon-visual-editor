@@ -1,18 +1,18 @@
 {
   "resources/js/addon.js": {
-    "file": "assets/addon-B0u0LWGL.js",
+    "file": "assets/addon-9W4ZTom1.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-rBl95jTl.js",
+    "file": "assets/bridge-BqIY9UGr.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true
   },
   "resources/js/preview.js": {
-    "file": "assets/preview-Ken6MCEq.js",
+    "file": "assets/preview-By6M6vaM.js",
     "name": "preview",
     "src": "resources/js/preview.js",
     "isEntry": true

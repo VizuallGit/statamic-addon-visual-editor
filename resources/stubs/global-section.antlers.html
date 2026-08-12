@@ -8,11 +8,12 @@
     settings) acts on this id; the source's id only says what to render. #}}
 <span hidden data-sve-global-row="{{ _visual_id }}"></span>
 {{ SET_HANDLE }}
-    {{# Hidden, layout-neutral marker the editor reads: it tags the section that
-        follows as coming from THIS synced source, so the preview can badge it and
-        offer to edit the source. Renders nothing and takes no space. #}}
-    <span hidden data-sve-global-id="{{ id }}"></span>
-    {{ PAGE_BUILDER_FIELD }}
-        {{ partial src="page_sections/{type}" }}
-    {{ /PAGE_BUILDER_FIELD }}
+    {{# display:contents — no layout box. Wraps every section from the synced
+        source so the editor can badge/focus them without tagging following
+        (non-global) page sections as global too. #}}
+    <div data-sve-global-root="{{ id }}" style="display:contents">
+        {{ PAGE_BUILDER_FIELD }}
+            {{ partial src="page_sections/{type}" }}
+        {{ /PAGE_BUILDER_FIELD }}
+    </div>
 {{ /SET_HANDLE }}

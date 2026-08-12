@@ -1,0 +1,139 @@
+/**
+ * Visual editor — CP-styling.
+ *
+ * Flyttet fra projektets resources/css/cp.css, hvor den lå sammen med andre
+ * addons' styling. Kun de to blokke der hører til det her addon er med:
+ * låste rækker og foldede blueprint-sektioner.
+ *
+ * Uden for @layer med vilje. Statamic v6 bruger CSS cascade layers, og
+ * ulagdelt CSS slår lagdelt uanset specificity — hvilket er præcis det de to
+ * blokke skal kunne.
+ */
+
+/* ═══════════════════════════════════════════════════════
+   Låste rækker  ([data-row-locked])
+   Sættes af resources/js/components/LockedRows.js på hver
+   række i et replicator-/grid-felt med "Lås rækker" slået til.
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+    --locked-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a5 5 0 0 0-5 5v3H6.5A2.5 2.5 0 0 0 4 12.5v7A2.5 2.5 0 0 0 6.5 22h11a2.5 2.5 0 0 0 2.5-2.5v-7a2.5 2.5 0 0 0-2.5-2.5H17V7a5 5 0 0 0-5-5zm0 2a3 3 0 0 1 3 3v3H9V7a3 3 0 0 1 3-3z'/%3E%3C/svg%3E");
+
+    /* Samme lås, med bøjlen løftet af mod højre. */
+    --unlocked-row-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6.5 10h11a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 19.5v-7A2.5 2.5 0 0 1 6.5 10zM11 10V7a5 5 0 0 1 10 0v3h-2V7a3 3 0 0 0-6 0v3z'/%3E%3C/svg%3E");
+}
+
+/* Trækhåndtaget forsvinder — uden håndtag kan rækken ikke gribes. Låses rækken
+   op, matcher reglen ikke længere, og håndtaget kommer tilbage af sig selv. */
+[data-row-locked] > header > [class*="-sortable-handle"],
+[data-row-locked] > td[class*="drag-handle"] > *:not([data-row-lock-toggle]) {
+    display: none;
+}
+
+/* … og hængelåsen sætter sig samme sted, så pladsen ikke skifter. Den er en
+   knap: et klik tager låsen af netop denne række.
+
+   `order: -1` er ikke pynt. Knappen står SIDST blandt headerens børn, fordi
+   visual editoren læser et sets foldeknap som den første `button[type="button"]`
+   der er direkte barn af headeren — lå låsen foran, blev den klikket i stedet, og
+   sættet foldede sig aldrig ud i sidepanelet. Headeren er en flex-række, så den
+   kan stå bagest i DOM'en og forrest for øjet. */
+[data-row-lock-toggle] {
+    all: unset;
+    order: -1;
+    display: block;
+    flex: none;
+    width: 1em;
+    height: 1em;
+    margin-inline: 0.125em auto;
+    cursor: pointer;
+    background-color: currentColor;
+    opacity: 0.4;
+    mask: var(--locked-row-icon) center / contain no-repeat;
+
+    /* Grid-cellen slår sine pointer-events fra for ikke at kunne trækkes — men
+       låsen skal stadig kunne klikkes. */
+    pointer-events: auto;
+}
+
+[data-row-lock-toggle]:hover,
+[data-row-lock-toggle]:focus-visible {
+    opacity: 0.9;
+}
+
+/* Låst op: åben lås, så det kan ses på rækken at den kan flyttes og slettes.
+   Den `auto`-margin holdt pladsen mens trækhåndtaget var skjult; nu står
+   håndtaget der igen og gør det selv, så låsen skal kun fylde sig selv. */
+[data-row-unlocked] [data-row-lock-toggle] {
+    margin-inline-end: 0.25em;
+    mask-image: var(--unlocked-row-icon);
+}
+
+/* Grid-rækker trækkes fra cellen selv — den ER håndtaget, så den kan ikke bare
+   skjules som replicatorens ikon. Pointer-events slår grebet fra i stedet;
+   hængelåsen inde i cellen tager sine egne igen ovenfor. */
+[data-row-locked] > td[class*="drag-handle"] {
+    background: none;
+    cursor: default;
+    pointer-events: none;
+}
+
+/* ── Visual editorens sidepanel ─────────────────────────────────────────────
+   Låsen ser ens ud begge steder: hængelås i stedet for trækhåndtag, og de samme
+   menupunkter væk. En låst blok skal ellers opføre sig som en ulåst — den kan
+   åbnes, felterne inde i den vises, og der kan skrives i dem.
+
+   Kun ét er anderledes: "Tilføj"-knapper skjules ikke i panelet. Genkendelsen af
+   dem hviler på markup panelet bygger om undervejs, og rammer den forbi, er det
+   et felt der forsvinder. */
+.live-preview-editor [data-set-picker-locked] {
+    display: revert;
+}
+
+/* "Tilføj set" — både knappen under rækkerne og "+" imellem dem. */
+[data-set-picker-locked] {
+    display: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Foldede blueprint-sektioner
+   Sektioner med `collapsible: true` i blueprintet.
+   ═══════════════════════════════════════════════════════ */
+
+/* En foldet sektion er kun sin overskrift, og den flade skal skille sig ud fra
+   siden bag den — ellers flyder rækken af lukkede sektioner sammen med bunden.
+
+   Farven sættes på KORTET, ikke på overskriften. Overskriften maler ikke selv
+   noget (dens baggrund er gennemsigtig); det er kortet under den der er den
+   flade man ser. Den detalje er værd at holde fast i: der findes en
+   `.publish-section-header`-klasse i Statamics stylesheet, men den sidder ikke
+   på elementet i denne version — en regel hængt op på den rammer ingenting.
+
+   Derfor strukturen frem for en klasse: kortet er det eneste element der har en
+   foldet sektionsbeholder som direkte barn. Det holder også, når Statamic
+   skifter sine utility-klasser ud. Åbne sektioner matcher ikke og beholder
+   deres nuværende udseende.
+
+   Reglen står uden for `@layer` og slår derfor Statamics egne lagdelte
+   utilities uanset specificity — se noten om cascade layers øverst i filen.
+
+   Kant og skygge kommer oveni. Kortet har dem ikke — hverken åbent eller
+   foldet; den fine lyse streg og den bløde mørke skygge man ser om en åben
+   sektion, sidder på panelet INDE i kortet (`ring-gray-700/80` og
+   `0 2px 4px -2px`). Foldet er det panel væk, og pillen står nøgen. Så de to
+   værdier flyttes herned, målt af det åbne panel, så en lukket sektion løfter
+   sig fra baggrunden på præcis samme måde som en åben.
+
+   Kortets egen inderste streg langs overkanten (`inset-shadow-2xs`) skal
+   skrives med igen: `box-shadow` erstatter hele listen, og uden den ville
+   foldede sektioner miste en kant de åbne har.
+
+   Kun mørkt tema. Både farven og ringen er valgt til den mørke palet; i lyst
+   tema bliver sektionerne stående som Statamic tegner dem. */
+.dark :has(> .publish-section-collapsible--collapsed) {
+    background-color: #1e1e21;
+    box-shadow:
+        inset 0 1px 0 0 #000,
+        0 0 0 1px color-mix(in oklab, var(--theme-color-gray-700) 80%, transparent),
+        0 2px 4px -2px rgb(0 0 0 / 0.37);
+}

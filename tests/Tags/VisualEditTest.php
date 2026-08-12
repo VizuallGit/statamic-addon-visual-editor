@@ -542,4 +542,300 @@ class VisualEditTest extends TestCase
         $this->assertStringContainsString('data-sid-field="heading"', $result);
         $this->assertStringNotContainsString('data-sid-label', $result);
     }
+
+    // -------------------------------------------------------------------------
+    // controls= param — sibling fields offered in the inline toolbar
+    // -------------------------------------------------------------------------
+
+    /**
+     * Two sets that both define `font_tag`, so set-preference can be asserted, all
+     * of it behind a fieldset reference whose `config` carries the sets — which is
+     * how a shared block field is actually wired up.
+     */
+    private function registerControlsBlueprint(): void
+    {
+        $blueprint = Blueprint::make()->setContents([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'fields' => [
+                                [
+                                    'handle' => 'blocks',
+                                    'field' => 'shared.blocks',
+                                    'config' => [
+                                        'sets' => [
+                                            'group' => [
+                                                'sets' => [
+                                                    'headline' => [
+                                                        'fields' => [
+                                                            ['handle' => 'headline', 'field' => ['type' => 'text']],
+                                                            ['handle' => 'note', 'field' => ['type' => 'text', 'display' => 'Note']],
+                                                            ['handle' => 'font_tag', 'field' => [
+                                                                'type' => 'button_group',
+                                                                'display' => 'Font tag',
+                                                                'default' => 'h1',
+                                                                'options' => [
+                                                                    ['key' => 'h1', 'value' => 'H1'],
+                                                                    ['key' => 'h2', 'value' => 'H2'],
+                                                                ],
+                                                            ]],
+                                                            ['handle' => 'size', 'field' => [
+                                                                'type' => 'select',
+                                                                'display' => 'Size',
+                                                                'options' => ['small' => 'Small', 'large' => 'Large'],
+                                                            ]],
+                                                        ],
+                                                    ],
+                                                    'quote' => [
+                                                        'fields' => [
+                                                            ['handle' => 'font_tag', 'field' => [
+                                                                'type' => 'button_group',
+                                                                'display' => 'Quote tag',
+                                                                'options' => [['key' => 'blockquote', 'value' => 'Quote']],
+                                                            ]],
+                                                        ],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        Blueprint::shouldReceive('find')->with('collections.pages')->andReturn($blueprint);
+
+        // The referenced field carries nothing the lookup needs — the sets live
+        // entirely in the override above.
+        $fieldset = (new \Statamic\Fields\Fieldset)->setHandle('shared')->setContents([
+            'fields' => [
+                ['handle' => 'blocks', 'field' => ['type' => 'replicator', 'sets' => []]],
+            ],
+        ]);
+
+        \Statamic\Facades\Fieldset::shouldReceive('find')->with('shared')->andReturn($fieldset);
+    }
+
+    /** The decoded data-sid-controls JSON from a rendered attribute string. */
+    private function controlsFrom(string $attr): array
+    {
+        $this->assertMatchesRegularExpression('/data-sid-controls="[^"]+"/', $attr);
+        preg_match('/data-sid-controls="([^"]+)"/', $attr, $matches);
+
+        return json_decode(html_entity_decode($matches[1], ENT_QUOTES), true);
+    }
+
+    public function test_controls_param_emits_sibling_fields_of_the_edited_one(): void
+    {
+        $this->registerControlsBlueprint();
+
+        $tag = $this->makeTag(
+            context: ['type' => 'headline'],
+            params: [
+                'field' => 'headline',
+                'inline_edit' => 'true',
+                'controls' => 'font_tag|size',
+                'blueprint' => 'collections.pages',
+            ],
+            livePreview: true,
+        );
+
+        $controls = $this->controlsFrom($tag->index());
+
+        $this->assertCount(2, $controls);
+
+        // Named order is kept.
+        $this->assertSame('font_tag', $controls[0]['handle']);
+        $this->assertSame('Font tag', $controls[0]['display']);
+        $this->assertSame('button_group', $controls[0]['type']);
+        $this->assertSame('h1', $controls[0]['default']);
+        $this->assertSame([['key' => 'h1', 'label' => 'H1'], ['key' => 'h2', 'label' => 'H2']], $controls[0]['options']);
+
+        // Keyed option maps normalize to the same {key,label} shape.
+        $this->assertSame('size', $controls[1]['handle']);
+        $this->assertSame('select', $controls[1]['type']);
+        $this->assertSame([['key' => 'small', 'label' => 'Small'], ['key' => 'large', 'label' => 'Large']], $controls[1]['options']);
+    }
+
+    public function test_controls_param_prefers_the_set_named_in_context(): void
+    {
+        $this->registerControlsBlueprint();
+
+        $tag = $this->makeTag(
+            context: ['type' => 'quote'],
+            params: [
+                'field' => 'headline',
+                'inline_edit' => 'true',
+                'controls' => 'font_tag',
+                'blueprint' => 'collections.pages',
+            ],
+            livePreview: true,
+        );
+
+        $controls = $this->controlsFrom($tag->index());
+
+        $this->assertSame('Quote tag', $controls[0]['display']);
+        $this->assertSame([['key' => 'blockquote', 'label' => 'Quote']], $controls[0]['options']);
+    }
+
+    public function test_controls_param_drops_handles_the_toolbar_cannot_render(): void
+    {
+        $this->registerControlsBlueprint();
+
+        $tag = $this->makeTag(
+            context: ['type' => 'headline'],
+            params: [
+                'field' => 'headline',
+                'inline_edit' => 'true',
+                // `note` is a text field; `nope` doesn't exist at all.
+                'controls' => 'note|nope',
+                'blueprint' => 'collections.pages',
+            ],
+            livePreview: true,
+        );
+
+        $this->assertStringNotContainsString('data-sid-controls', $tag->index());
+    }
+
+    public function test_controls_param_is_ignored_without_inline_edit(): void
+    {
+        $this->registerControlsBlueprint();
+
+        $tag = $this->makeTag(
+            context: ['type' => 'headline'],
+            params: [
+                'field' => 'headline',
+                'controls' => 'font_tag',
+                'blueprint' => 'collections.pages',
+            ],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-field="headline"', $result);
+        $this->assertStringNotContainsString('data-sid-controls', $result);
+    }
+
+    // -------------------------------------------------------------------------
+    // grid_view — widths that can be dragged in the preview
+    // -------------------------------------------------------------------------
+
+    /**
+     * Params are snake_case, like every other Antlers tag. The dashed spellings
+     * predate that and still have to work: templates on other sites use them.
+     */
+    public function test_snake_case_and_dashed_param_spellings_agree(): void
+    {
+        foreach ([
+            ['outline_inside' => 'true', 'section_orderable' => 'true'],
+            ['outline-inside' => 'true', 'section-orderable' => 'true'],
+        ] as $params) {
+            $tag = $this->makeTag(
+                context: ['_visual_id' => 'abc-123'],
+                params: $params,
+                livePreview: true,
+            );
+
+            $result = $tag->index();
+
+            $this->assertStringContainsString('data-sid-inside', $result);
+            $this->assertStringContainsString('data-sid-section-orderable', $result);
+        }
+    }
+
+    public function test_grid_params_accept_both_spellings(): void
+    {
+        foreach ([
+            ['grid_view' => 'true', 'grid_min' => '2', 'grid_resize' => 'split'],
+            ['grid-view' => 'true', 'grid-min' => '2', 'grid-resize' => 'split'],
+        ] as $params) {
+            $result = $this->makeTag(
+                context: ['_visual_id' => 'abc-123'],
+                params: $params,
+                livePreview: true,
+            )->index();
+
+            $this->assertStringContainsString('data-sid-grid-min="2"', $result);
+            $this->assertStringContainsString('data-sid-grid-resize="split"', $result);
+        }
+    }
+
+    /** No count in the tag: the preview reads the container's own tracks. */
+    public function test_grid_view_states_no_column_count_of_its_own(): void
+    {
+        $tag = $this->makeTag(
+            context: ['_visual_id' => 'abc-123'],
+            params: ['grid_view' => 'true'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-grid', $result);
+        $this->assertStringNotContainsString('data-sid-grid="', $result);
+    }
+
+    public function test_grid_params_name_the_columns_field_and_minimum(): void
+    {
+        $tag = $this->makeTag(
+            context: ['_visual_id' => 'abc-123'],
+            params: ['grid_view' => 'true', 'grid' => '6', 'grid-field' => 'width', 'grid-min' => '2'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-grid="6"', $result);
+        $this->assertStringContainsString('data-sid-grid-field="width"', $result);
+        $this->assertStringContainsString('data-sid-grid-min="2"', $result);
+    }
+
+    public function test_grid_resize_split_is_announced_and_free_is_the_default(): void
+    {
+        $split = $this->makeTag(
+            context: ['_visual_id' => 'abc-123'],
+            params: ['grid_view' => 'true', 'grid-resize' => 'split'],
+            livePreview: true,
+        );
+
+        $free = $this->makeTag(
+            context: ['_visual_id' => 'abc-123'],
+            params: ['grid_view' => 'true', 'grid-resize' => 'free'],
+            livePreview: true,
+        );
+
+        $this->assertStringContainsString('data-sid-grid-resize="split"', $split->index());
+        $this->assertStringNotContainsString('data-sid-grid-resize', $free->index());
+    }
+
+    /** The container holding the blocks is the insertable one — and it returns early. */
+    public function test_grid_view_survives_the_insertable_branch(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'section-1'],
+            params: ['field' => 'blocks', 'insertable' => 'true', 'grid_view' => 'true'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-insert="blocks"', $result);
+        $this->assertStringContainsString('data-sid-grid', $result);
+    }
+
+    public function test_no_grid_attributes_without_the_param(): void
+    {
+        $tag = $this->makeTag(
+            context: ['_visual_id' => 'abc-123'],
+            livePreview: true,
+        );
+
+        $this->assertStringNotContainsString('data-sid-grid', $tag->index());
+    }
 }

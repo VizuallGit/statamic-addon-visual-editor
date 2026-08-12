@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor;
 
 use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
+use Statamic\Facades\User;
 
 /**
  * The page-builder's section types, for the visual "Add section" picker: each
@@ -29,6 +30,10 @@ class SectionTypes
         $images = SetPreviewImages::map();
         $exclude = (array) config('statamic-visual-editor.previews.exclude', []);
 
+        // Deleting a type edits the fieldset in the repository, so it is the
+        // developer permission that decides — not the one for editing pages.
+        $canDelete = (bool) User::current()?->can('configure fields');
+
         $types = [];
 
         foreach ($sets as $group) {
@@ -37,11 +42,18 @@ class SectionTypes
                     continue;
                 }
 
+                // Narrowed to what the site already uses — unless the site never
+                // asked for that, or a super admin is asking.
+                if (! LibraryAccess::allowsType($setHandle)) {
+                    continue;
+                }
+
                 $types[] = [
                     'handle' => $setHandle,
                     'display' => $set['display'] ?? $setHandle,
                     'image_url' => $images[$setHandle] ?? null,
                     'defaults' => static::defaults($handle, $setHandle),
+                    'can_delete' => $canDelete,
                 ];
             }
         }

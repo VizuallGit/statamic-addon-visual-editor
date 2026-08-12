@@ -44,16 +44,34 @@ return [
     | - pages:             the collection/entry picker, for moving between pages
     | - globals:           the globals picker (Theme Settings and friends)
     | - sections:          the section library panel as a whole
+    | - outline:           the heading outline panel — the page's headings as one
+    |                      list, docked on the right, each one a jump to it
     | - library_page:      its "Page" tab — the site's own section types
     | - library_custom:    its "Custom" tab — saved sections, inserted as copies
     | - library_global:    its "Global" tab — synced sections
     | - library_templates: its "Templates" tab — whole pages saved to reuse
+    | - library_in_use_only: narrows all four tabs to what the site already uses.
+    |                      The list comes from a scan you run yourself (Addons >
+    |                      Statamic Visual Editor), so it never widens on its own.
+    |                      No scan yet means no limit, and who it covers is set
+    |                      beside it — see LibraryAccess.
     | - chrome_header:     clicking the header steps into editing it
     | - chrome_footer:     the same for the footer
     | - inline_edit:       typing straight into the page. Off, the `inline_edit`
     |                      flag on the visual_edit tags stops taking effect and a
     |                      click focuses the field in the panel instead — so a
     |                      site can turn this off without touching its templates.
+    | - focus_panel:       the simplified editor panel. On, clicking a section (or
+    |                      a block inside one) shows that one thing, named at the
+    |                      top with its icon and instructions, and nothing else.
+    |                      Off, the panel stays the section list Statamic renders.
+    | - open_first_section: open an entry in its first section rather than on the
+    |                      list of all of them. The back arrow goes to the list.
+    |                      Needs focus_panel; off by default.
+    | - open_in_preview:    clicking an entry opens the preview instead of the
+    |                      publish form. Which collections that covers is listed
+    |                      beside it; a collection without a route is skipped,
+    |                      since it has no page to render.
     |
     */
     'features' => [
@@ -61,13 +79,41 @@ return [
         'pages' => true,
         'globals' => true,
         'sections' => true,
+        'outline' => true,
         'inline_edit' => true,
+        'focus_panel' => true,
+        'open_first_section' => false,
+        'open_in_preview' => false,
+        // Not a toggle: the collections the line above covers, by handle. Empty
+        // means the switch has nothing to act on, so nothing changes.
+        'open_in_preview_collections' => [],
         'library_page' => true,
         'library_custom' => true,
         'library_global' => true,
         'library_templates' => true,
+        'library_in_use_only' => false,
+        // Not toggles: who the limit above covers. 'everyone' means everyone,
+        // super admins included — which is how you check what an editor sees
+        // without a second account. 'roles' narrows it to the handles listed.
+        'library_in_use_only_scope' => 'everyone',
+        'library_in_use_only_roles' => [],
         'chrome_header' => true,
         'chrome_footer' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Section library snapshot
+    |--------------------------------------------------------------------------
+    |
+    | Where `library_in_use_only` writes what it found: the section types and
+    | global sections the site was using when the scan was last run. Null puts it
+    | in resources/visual-editor/library-snapshot.yaml, so it is committed and
+    | travels with the site rather than being re-scanned per environment.
+    |
+    */
+    'library' => [
+        'snapshot' => null,
     ],
 
     /*
@@ -75,25 +121,68 @@ return [
     | Section preview images
     |--------------------------------------------------------------------------
     |
-    | Configures the "Section Previews" utility, which regenerates the Add Set
-    | picker preview images by screenshotting a real rendered instance of each
-    | section type on the site.
+    | Section previews are screenshots of the real thing, taken in a headless
+    | browser and kept up to date by themselves. A section type is photographed
+    | with its DEFAULT values — what the Add Set picker inserts — so the picture
+    | in the picker is what you get when you drop it in.
+    |
+    | Nothing has to be run by hand. Saving a section, a fieldset or the theme
+    | settings asks for a refresh, as does opening the section library, and each
+    | preview's filename carries a fingerprint of everything the picture depends
+    | on — so a refresh where nothing changed starts no browser at all.
     |
     | - field:      the Replicator field (fieldset handle) whose set types get
     |               previews (e.g. your page-builder field).
-    | - collection: the collection whose entries are scanned for a real instance
-    |               of each section type.
+    | - collection: the collection a preview is rendered inside, and the first one
+    |               searched for a real instance of a section type whose template
+    |               draws nothing from its defaults alone.
+    | - scan:       collection handles to search for those instances. Null searches
+    |               them all (bar the editor's own stores), so examples kept
+    |               outside the pages collection are found without configuring
+    |               anything.
+    | - template:   the template to render that shell with. Null means the
+    |               collection's own — never the host entry's, which may override
+    |               it with one that puts markup above the sections and would
+    |               leave every screenshot showing that instead.
+    | - auto:       whether saves refresh previews in the background. Each refresh
+    |               that finds something to do starts a headless browser for a few
+    |               seconds — nothing a visitor ever waits on, but real memory on
+    |               the machine that runs it. Set SVE_PREVIEWS_AUTO=false on a
+    |               server where that isn't welcome (or where Chrome isn't
+    |               installed): previews are then generated where the design is
+    |               built and deployed as the files they are. Nothing about the
+    |               public site depends on this either way.
     | - exclude:    set handles to skip (e.g. a column builder or reusable
     |               sections that don't make sense as a single screenshot).
-    | - overrides:  per-handle ['url' => …, 'selector' => …] to override the
-    |               auto-discovered instance (url + '#id-<uid>').
+    | - overrides:  per-handle ['url' => …, 'selector' => …] to photograph
+    |               something else entirely.
     | - width/delay: browser window width (px) and the ms to wait for entrance
     |               animations before capturing.
+    |
+    | - watch / watch_exclude: the files that decide whether EVERY preview is out
+    |               of date — the built assets and the shared templates. The
+    |               build manifest rather than the CSS sources on purpose: a
+    |               screenshot shows what has been built, so an unbuilt edit must
+    |               not count as a change. Section partials are excluded because
+    |               each one is fingerprinted against its own section, which is
+    |               what keeps a change to one section from re-shooting the site.
+    | - section_partials: where a set handle's own template lives, so
+    |               `hero/style_1` is looked for at
+    |               `<section_partials>/hero/style_1.antlers.html`.
+    | - theme_global: the global set whose values every preview depends on —
+    |               colours, fonts, spacing. Saving it makes every preview stale.
+    |               Deliberately not the chrome set: header and footer may live in
+    |               a set of their own, and a header edit must not re-shoot the
+    |               whole site (nor a colour change leave it untouched).
     |
     */
     'previews' => [
         'field' => 'page_sections',
+        'theme_global' => 'theme_settings',
         'collection' => 'pages',
+        'scan' => null,
+        'template' => null,
+        'auto' => env('SVE_PREVIEWS_AUTO', true),
         'exclude' => ['columns', 'reusable_sections'],
         // What to capture on the isolated section-preview page. The signed
         // preview route renders the real page with only one section inside
@@ -107,6 +196,15 @@ return [
         ],
         'width' => 1440,
         'delay' => 1500,
+
+        'watch' => [
+            'public/build/manifest.json',
+            'resources/views',
+        ],
+        'watch_exclude' => [
+            'resources/views/partials/page_sections',
+        ],
+        'section_partials' => 'resources/views/partials/page_sections',
     ],
 
     /*
@@ -166,12 +264,32 @@ return [
     | Theme Settings); content still lives in a global set so it can also be
     | edited from Theme Settings without Live Preview.
     |
-    | - global: the global set handle (default: theme_settings)
+    | - global: the global set both halves live in (default: theme_settings)
+    | - *.global: a set for that half alone, when the two live apart. Given one,
+    |   stepping across mounts the right form instead of isolating a tab the
+    |   form on screen does not contain — which shows the half you just left.
     | - *.styles: selectable layouts (handle matches Antlers partial name)
     |
     */
     'chrome' => [
         'global' => 'theme_settings',
+
+        /*
+        | Tabs of that global set the Live Preview panel leaves out.
+        |
+        | Header and footer are edited by clicking them on the page — that is
+        | what chrome focus mode is for, and it opens the very same fields. A
+        | Header tab sitting in Theme Settings beside it is a second door to the
+        | same room, and the one that doesn't show you what you're changing.
+        |
+        | Tab HANDLES, from the global set's blueprint — not the labels on
+        | screen, which are renamed and translated. Only the docked panel in
+        | Live Preview is affected: the ordinary Control Panel globals screen
+        | still shows every tab, so nothing becomes unreachable.
+        |
+        | Empty the array to show them all.
+        */
+        'hidden_tabs' => ['header', 'footer'],
         'header' => [
             'styles' => [
                 ['handle' => 'style_1', 'label' => 'Classic — logo · nav · CTA'],

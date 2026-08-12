@@ -55,6 +55,16 @@ tabs:
               width: 50
               if:
                 enabled: 'equals true'
+          -
+            handle: outline
+            field:
+              type: toggle
+              display: 'Heading outline'
+              instructions: 'The page''s headings as one list, docked on the right — the structure a reader, a screen reader or a search engine meets, rather than the sections it was built from. Clicking one scrolls the preview to it and opens the block it sits in.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
       -
         display: 'Editing on the page'
         fields:
@@ -67,6 +77,48 @@ tabs:
               default: true
               if:
                 enabled: 'equals true'
+          -
+            handle: focus_panel
+            field:
+              type: toggle
+              display: 'Focus panel'
+              instructions: 'Show one thing at a time beside the preview. Clicking a section opens its own fields under its name, icon and instructions; clicking a block inside it steps in and shows the block''s, with the back arrow pointing at the section it came from. The blocks nested in a section are opened from the page rather than unfolded as a list here. Off, the panel is the section list Statamic renders. The ordinary publish form is untouched either way.'
+              default: true
+              if:
+                enabled: 'equals true'
+          -
+            handle: open_first_section
+            field:
+              type: toggle
+              display: 'Open in the first section'
+              instructions: 'Skip the Page sections list. Opening an entry goes straight into the first section on the page and shows that section''s own fields, instead of the sidebar listing every section at once. The list is still there — the back arrow at the top of the panel goes to it. Off, the panel opens on the full list as Statamic renders it. Requires the focus panel.'
+              default: false
+              if:
+                enabled: 'equals true'
+                focus_panel: 'equals true'
+      -
+        display: 'Opening an entry'
+        instructions: 'Where a click in the Control Panel lands. Named collections skip the publish form and open in the preview instead; everything else opens the way Statamic ships.'
+        fields:
+          -
+            handle: open_in_preview
+            field:
+              type: toggle
+              display: 'Open entries in Live Preview'
+              instructions: 'Clicking an entry — in a listing, in the page tree, in search — goes straight into the preview rather than the form behind it. The form is not gone: closing the preview puts you in it, on the same entry.'
+              default: false
+              if:
+                enabled: 'equals true'
+          -
+            handle: open_in_preview_collections
+            field:
+              type: collections
+              display: Collections
+              instructions: 'Only these. A collection left out here opens its ordinary editor, which is what you want for the ones that are records rather than pages. Collections without a route are ignored even when named: there is no page to render, so there would be nothing to open.'
+              mode: select
+              if:
+                enabled: 'equals true'
+                open_in_preview: 'equals true'
       -
         display: 'Section library tabs'
         instructions: 'Which tabs the section library offers. Requires the section library itself to be on.'
@@ -115,6 +167,56 @@ tabs:
               if:
                 enabled: 'equals true'
                 sections: 'equals true'
+      -
+        display: 'What editors may build with'
+        instructions: 'Holding the library to the designs the site already has, so a page cannot quietly grow a look nothing else uses.'
+        fields:
+          -
+            handle: library_in_use_only
+            field:
+              type: toggle
+              display: 'Limit the library to what the site already uses'
+              instructions: "Only the sections this site already has somewhere are offered. Section types and global sections are found by scanning the pages. Custom sections and templates are copied on insert and leave nothing behind to scan for, so they are judged by what they are built from — offered while every section in them is a design the site uses. Nothing is narrowed until the scan below has been run at least once."
+              default: false
+              if:
+                enabled: 'equals true'
+                sections: 'equals true'
+          -
+            handle: library_in_use_only_scope
+            field:
+              type: button_group
+              display: 'Applies to'
+              instructions: "Being a super admin is no exemption on its own — pick Everyone to see for yourself what an editor sees. You cannot lock yourself out: this screen is not governed by the setting."
+              default: everyone
+              options:
+                everyone: Everyone
+                roles: 'Only certain roles'
+              if:
+                enabled: 'equals true'
+                sections: 'equals true'
+                library_in_use_only: 'equals true'
+          -
+            handle: library_in_use_only_roles
+            field:
+              type: user_roles
+              display: Roles
+              instructions: 'Anyone holding one of these sees the narrowed library; everyone else sees all of it. Roles rather than groups, because a role a user gets through their group counts too — so nobody slips past by holding it the other way. Name none and the limit applies to nobody.'
+              mode: select
+              if:
+                enabled: 'equals true'
+                sections: 'equals true'
+                library_in_use_only: 'equals true'
+                library_in_use_only_scope: 'equals roles'
+          -
+            handle: library_scan
+            field:
+              type: library_scan
+              display: 'Scan the site'
+              instructions: "Reads every page and writes down the sections it finds. That list is the limit until you run this again — it never widens by itself, so a design added later stays out of reach until you say otherwise."
+              if:
+                enabled: 'equals true'
+                sections: 'equals true'
+                library_in_use_only: 'equals true'
       -
         display: 'Header and footer'
         instructions: 'Stepping into the site chrome from the preview. Switch off where the header or footer is fixed and editors should leave it alone.'

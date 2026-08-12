@@ -136,16 +136,52 @@ export function injectStyles(doc) {
         }
         /* Custom dashed ring — CSS outline/border can't control dash length.
            ::before (not ::after: labels use ::after) paints wider dashes + gaps. */
+        /* The colour, not the shorthand. "outline: none" also resets the colour
+           to currentColor and the width to medium, and the base rule's 0.15s
+           colour transition then runs that opaque value back down to transparent
+           when the attribute goes away — a thin dark edge flashing around every
+           block on the way out of a hover. Overriding only the colour leaves
+           nothing to transition from. */
         [data-sid-inner],
         [data-sid-hover],
         [data-sid-active],
         [${EDITING_ATTR}] {
-            outline: none !important;
+            outline-color: transparent !important;
             box-shadow: none !important;
+        }
+        /* outline="always": while the pointer is anywhere in the container, every
+           block in it wears the same ring as the one being hovered — not the
+           thin base outline, which sits at a different offset and would read as
+           a second border around the same block. A block with a picture in it
+           shows its own extent; one that is only text on the section's own
+           background does not, and a width you cannot see is one you cannot
+           judge.
+
+           The ring is drawn on a pseudo-element, so its block has to be a
+           positioning context. Set for good rather than on hover: switching an
+           element from static to relative re-anchors anything absolute inside
+           it, and having that happen the moment you point at a block would look
+           like the page twitching. */
+        [data-sid-outline="always"] > [data-sid] {
+            position: relative;
+        }
+        /* Ambient rings sit back a step, so the block under the pointer still
+           reads as the one under the pointer. Same ring, less of it. */
+        [data-sid-outline="always"]:hover > [data-sid]:not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]),
+        [data-sid-outline="always"][data-sid-outline-on] > [data-sid]:not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]) {
+            --sve-outline-color: var(--sve-outline-ambient, rgba(0, 0, 0, 0.12));
+        }
+        /* Mid-drag every block steps back, the one being dragged included. What
+           matters then is the outline you are pulling, and it can only read as
+           the answer if nothing else on screen is speaking at the same volume. */
+        html.sve-col-resizing [data-sid-outline="always"] > [data-sid] {
+            --sve-outline-color: var(--sve-outline-ambient, rgba(0, 0, 0, 0.12));
         }
         [data-sid-inner]::before,
         [data-sid-hover]::before,
         [data-sid-active]::before,
+        [data-sid-outline="always"]:hover > [data-sid]::before,
+        [data-sid-outline="always"][data-sid-outline-on] > [data-sid]::before,
         [${EDITING_ATTR}]::before {
             content: '';
             position: absolute;
@@ -232,16 +268,13 @@ export function injectStyles(doc) {
         [data-sid-active][data-sid-label]::after {
             opacity: 1;
         }
-        /* Global (synced) sections. Their content belongs to another entry, so it
-           can't be edited from this page — the badge says so, and clicking one
-           fades the rest of the page back so it's obvious you've stepped inside
-           it. Editing happens in the source's own editor. */
+        /* Global (synced) sections. Badge is a real child (not ::before) so it
+           never collides with the hover/active outline ring — that shared
+           ::before used to paint a solid primary fill over the whole section. */
         [data-sve-global] {
             position: relative;
         }
-        [data-sve-global]::before {
-            /* safe: set from our own translations, never from content */
-            content: attr(data-sve-global-label);
+        [data-sve-global-badge] {
             position: absolute;
             top: 0;
             left: 0;
@@ -250,13 +283,13 @@ export function injectStyles(doc) {
             font: 500 10px/1 sans-serif;
             padding: 4px 8px;
             border-radius: 0 0 4px 0;
-            z-index: 9998;
+            z-index: 9999;
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.15s ease;
         }
-        [data-sve-global]:hover::before,
-        [data-sve-global][data-sve-global-focused]::before {
+        [data-sve-global]:hover > [data-sve-global-badge],
+        [data-sve-global][data-sve-global-focused] > [data-sve-global-badge] {
             opacity: 1;
         }
         [data-sve-global]:not([data-sve-global-focused]):hover {
@@ -264,15 +297,27 @@ export function injectStyles(doc) {
             outline-offset: -2px;
             cursor: pointer;
         }
+        /* Inside a global section, the page around it is out of reach: faded and
+           not clickable, so it reads as "right now I am editing this, and only
+           this". Nothing is hidden — you can still see where you are. The bar at
+           the bottom is the way out. */
         html.sve-global-focus section[data-sid]:not([data-sve-global-focused]),
-        html.sve-global-focus article[data-sid]:not([data-sve-global-focused]) {
-            opacity: 0.25;
-            filter: saturate(0.4);
-            transition: opacity 0.2s ease, filter 0.2s ease;
+        html.sve-global-focus article[data-sid]:not([data-sve-global-focused]),
+        html.sve-global-focus [data-sid-section-orderable]:not([data-sve-global-focused]) {
+            opacity: 0.35;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        /* The header and footer are outside the section too. */
+        html.sve-global-focus > body > header,
+        html.sve-global-focus > body > footer {
+            opacity: 0.35;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
         }
         [data-sve-global-focused] {
-            outline: 3px solid #7c3aed !important;
-            outline-offset: -3px;
+            outline: 2px solid #7c3aed !important;
+            outline-offset: -2px;
         }
         /* Before you step in, a global section reads as ONE thing you click into,
            not a pile of separately editable fields — so nested field outlines
@@ -286,6 +331,11 @@ export function injectStyles(doc) {
         [data-sve-global]:not([data-sve-global-focused]) [data-sid-active] {
             outline-color: transparent !important;
             cursor: pointer !important;
+        }
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-hover]::before,
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-active]::before,
+        [data-sve-global]:not([data-sve-global-focused]) [data-sid-inner]::before {
+            display: none !important;
         }
         [data-sve-global]:not([data-sve-global-focused]) [data-sid-label]::after {
             display: none !important;
@@ -507,6 +557,21 @@ function placeCaretFromPoint(win, x, y) {
 }
 
 /**
+ * The sibling-field controls the visual_edit tag declared for this element
+ * (controls="font_tag|size"), as [{handle, display, type, options, default}].
+ */
+function controlsFrom(wrapper) {
+  try {
+    const raw = wrapper.getAttribute('data-sid-controls');
+    const list = raw ? JSON.parse(raw) : [];
+
+    return Array.isArray(list) ? list.filter((c) => c && typeof c.handle === 'string') : [];
+  } catch {
+    return []; // malformed config — no controls rather than a broken toolbar
+  }
+}
+
+/**
  * Sends an edit-request for the clicked [data-sid-field] element. The CP
  * decides whether (and what exactly) it is editable; nothing changes in the
  * DOM until an edit-start reply arrives.
@@ -566,6 +631,12 @@ function requestInlineEdit(win, wrapper, event, options = {}) {
       blockIndex: blockEl ? Array.prototype.indexOf.call(wrapper.children, blockEl) : null,
       blockText: blockEl ? normText(blockEl.textContent) : null,
       wrapperText: normText(wrapper.textContent),
+      // Inline Bard (headline): preview has bare text/spans; CP may still hold
+      // a legacy string or unwrapped text nodes — flag so edit can upgrade.
+      bardInline: wrapper.hasAttribute('data-sid-bard-inline'),
+      // Handles only — the CP answers with their current values so the toolbar
+      // can render each control pre-selected.
+      controls: controlsFrom(wrapper).map((c) => c.handle),
     },
     win.location.origin
   );
@@ -788,6 +859,26 @@ function sendEditInput(win, session) {
   // blocks become heading/paragraph payloads; locked siblings (Bard sets)
   // are emitted as placeholders so the CP can keep them in place.
   if (session.mode === 'bard-field') {
+    // Inline Bard: one line of mixed text/spans on the wrapper (no <p> child).
+    // Serialize the whole wrapper as a single paragraph — same shape the CP
+    // Bard field keeps while editing (wrapInlineValue).
+    if (session.bardInline) {
+      const html = /^<br\s*\/?>$/i.test(session.el.innerHTML.trim()) ? '' : session.el.innerHTML;
+
+      win.parent.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'edit-input',
+          requestId: session.requestId,
+          blocks: [{ kind: 'paragraph', level: null, className: null, html }],
+          spanClasses: session.spanClasses,
+        },
+        win.location.origin
+      );
+
+      return;
+    }
+
     const blocks = [];
 
     for (const child of session.el.childNodes) {
@@ -960,9 +1051,535 @@ function toolbarThemeFor(dark) {
 
 function removeEditToolbar() {
   if (toolbarEl) {
+    // The control dropdown lives on <body>, not in the bar — it would outlive it.
+    toolbarEl.ownerDocument.querySelector('[data-sve-menu]')?.remove();
     toolbarEl.remove();
     toolbarEl = null;
   }
+}
+
+/**
+ * Dropdown for a select-type quick control. Rendered on <body> rather than inside
+ * the toolbar so no ancestor can clip it, and closed on the next outside mousedown.
+ */
+/**
+ * A menu hung off a toolbar button. Rendered on <body> rather than inside the
+ * toolbar so no ancestor can clip it, and closed on the next mousedown outside.
+ *
+ * `key` says which button opened it, so a second click on the same one closes it
+ * instead of reopening. Rows are {label, selected, danger, dividerBefore, run}.
+ */
+function openToolbarMenu(win, anchor, key, rows) {
+  const doc = win.document;
+  const existing = doc.querySelector('[data-sve-menu]');
+
+  if (existing) {
+    existing.remove();
+
+    if (existing.dataset.for === key) {
+      return;
+    }
+  }
+
+  const theme = toolbarTheme || toolbarThemeFor(detectCpDark(win));
+  const menu = doc.createElement('div');
+
+  menu.dataset.sveMenu = '';
+  menu.dataset.for = key;
+  menu.style.cssText =
+    'position:fixed;z-index:2147483647;min-width:11em;padding:0.3em;' +
+    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius:0.6em;` +
+    `box-shadow:${theme.shadow};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;` +
+    'font-size:13px;line-height:1;';
+  // Same reason as the toolbar itself: never blur the editable.
+  menu.addEventListener('mousedown', (e) => e.preventDefault());
+
+  rows.forEach((item) => {
+    if (item.dividerBefore && menu.childNodes.length) {
+      const rule = doc.createElement('div');
+
+      rule.style.cssText = `height:1px;margin:0.3em 0.2em;background:${theme.sep};`;
+      menu.appendChild(rule);
+    }
+
+    const row = doc.createElement('button');
+
+    row.type = 'button';
+    row.textContent = item.label;
+    row.disabled = !!item.disabled;
+    row.style.cssText =
+      'all:unset;display:flex;align-items:center;box-sizing:border-box;width:100%;' +
+      'padding:0.55em 0.7em;border-radius:0.35em;' +
+      `cursor:${item.disabled ? 'not-allowed' : 'pointer'};` +
+      `opacity:${item.disabled ? '0.4' : '1'};` +
+      `color:${item.danger && !item.disabled ? '#dc2626' : theme.fg};` +
+      (item.selected && !item.disabled ? `background:${theme.active};` : '');
+
+    if (!item.disabled) {
+      row.addEventListener('mouseenter', () => {
+        row.style.background = theme.hover;
+      });
+      row.addEventListener('mouseleave', () => {
+        row.style.background = item.selected ? theme.active : 'transparent';
+      });
+      row.addEventListener('click', (e) => {
+        e.preventDefault();
+        menu.remove();
+        item.run();
+      });
+    }
+
+    menu.appendChild(row);
+  });
+
+  doc.body.appendChild(menu);
+
+  // Positioned after it is in the DOM, so its measured width can keep it on
+  // screen — a menu opened near the right edge would otherwise run off it.
+  const rect = anchor.getBoundingClientRect();
+
+  menu.style.left = `${Math.max(4, Math.min(rect.left, win.innerWidth - menu.offsetWidth - 4))}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
+
+  const close = (e) => {
+    if (menu.contains(e.target) || anchor.contains(e.target)) {
+      return;
+    }
+
+    menu.remove();
+    doc.removeEventListener('mousedown', close, true);
+  };
+
+  setTimeout(() => doc.addEventListener('mousedown', close, true), 0);
+}
+
+/** The select-type quick control's dropdown — one shape of the menu above. */
+function openControlMenu(win, anchor, control, onPick) {
+  const current = control.value == null ? '' : String(control.value);
+
+  openToolbarMenu(
+    win,
+    anchor,
+    control.handle,
+    (control.options || []).map((option) => ({
+      label: option.label,
+      selected: option.key === current,
+      run: () => onPick(option.key),
+    }))
+  );
+}
+
+/**
+ * Character offsets of the current selection inside el, or null when there is
+ * no usable range (collapsed / outside the editable).
+ */
+function selectionOffsetsIn(win, el) {
+  const sel = win.getSelection();
+
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+    return null;
+  }
+
+  const range = sel.getRangeAt(0);
+
+  if (!el.contains(range.commonAncestorContainer)) {
+    return null;
+  }
+
+  const pre = win.document.createRange();
+
+  pre.selectNodeContents(el);
+  pre.setEnd(range.startContainer, range.startOffset);
+
+  const start = pre.toString().length;
+  const end = start + range.toString().length;
+
+  return { start, end };
+}
+
+/**
+ * Wrap the current text selection in `{…}` so a plain string field can carry a
+ * coloured highlight (rendered by the site's highlight_color modifier). No-op
+ * when there is no selection or the selection is already a braced segment.
+ * Returns true when the DOM text changed (or was already wrapped).
+ */
+function wrapSelectionInBraces(win, el) {
+  const off = selectionOffsetsIn(win, el);
+
+  if (!off) {
+    return false;
+  }
+
+  const full = el.textContent || '';
+  let { start, end } = off;
+
+  // Caret inside an existing {…} — expand to the whole brace pair so we don't
+  // nest braces when the user re-colours the same word.
+  if (full[start - 1] === '{' && full[end] === '}') {
+    return true;
+  }
+
+  const mid = full.slice(start, end);
+
+  if (!mid || /^\{[^{}]*\}$/.test(mid)) {
+    return true;
+  }
+
+  el.textContent = full.slice(0, start) + '{' + mid + '}' + full.slice(end);
+
+  return true;
+}
+
+/**
+ * Display → edit: coloured <span data-highlight> back to `{text}` so plaintext
+ * editing keeps the markers that textContent would otherwise drop.
+ */
+function highlightSpansToBraces(el) {
+  const spans = el.querySelectorAll('span[data-highlight]');
+
+  if (!spans.length) {
+    return;
+  }
+
+  spans.forEach((span) => {
+    const text = span.textContent || '';
+
+    span.replaceWith(el.ownerDocument.createTextNode(`{${text}}`));
+  });
+
+  el.normalize();
+}
+
+let themeSwatchesCache = null;
+
+/** Snapshot the current selection so async UI (colour swatches) can't kill it. */
+function captureSelectionRange(win) {
+  const sel = win.getSelection();
+
+  if (!sel || !sel.rangeCount || sel.isCollapsed) {
+    return null;
+  }
+
+  try {
+    return sel.getRangeAt(0).cloneRange();
+  } catch {
+    return null;
+  }
+}
+
+/** Re-apply a saved range before wrapping marks (colour/bold). */
+function restoreSelectionRange(win, range, rootEl) {
+  if (!range) {
+    return false;
+  }
+
+  try {
+    if (rootEl && !rootEl.contains(range.commonAncestorContainer)) {
+      return false;
+    }
+
+    const sel = win.getSelection();
+
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    return !sel.isCollapsed;
+  } catch {
+    return false;
+  }
+}
+
+/** Ask the CP for theme colour swatches (hex + css var). Cached per page load. */
+function fetchThemeSwatches(win) {
+  if (themeSwatchesCache) {
+    return Promise.resolve(themeSwatchesCache);
+  }
+
+  return new Promise((resolve) => {
+    const requestId = `swatch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let settled = false;
+
+    const finish = (swatches) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      win.removeEventListener('message', onMessage);
+      themeSwatchesCache = Array.isArray(swatches) ? swatches : [];
+      resolve(themeSwatchesCache);
+    };
+
+    const onMessage = (event) => {
+      const data = event.data;
+
+      if (
+        data?.source === 'statamic-visual-editor' &&
+        data.type === 'theme-swatches' &&
+        data.requestId === requestId
+      ) {
+        finish(data.swatches);
+      }
+    };
+
+    win.addEventListener('message', onMessage);
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'theme-swatches-request', requestId },
+      '*'
+    );
+    win.setTimeout(() => finish([]), 4000);
+  });
+}
+
+/**
+ * Colour control for theme_color_picker / color: open a swatch strip, wrap the
+ * current selection in {…}, then commit via the normal edit-control path.
+ */
+function openHighlightColorMenu(win, anchor, control, session, onPick) {
+  const doc = win.document;
+  const existing = doc.querySelector('[data-sve-color-menu]');
+
+  if (existing) {
+    existing.remove();
+
+    if (existing.dataset.for === control.handle) {
+      return;
+    }
+  }
+
+  // Selection dies when the async swatch strip mounts / focus moves — capture
+  // it now so the first colour pick on a new block still has a range to wrap.
+  const savedRange = captureSelectionRange(win);
+
+  const menu = doc.createElement('div');
+
+  menu.dataset.sveColorMenu = '';
+  menu.dataset.for = control.handle;
+  menu.style.cssText =
+    'position:fixed;z-index:2147483647;max-width:min(320px,92vw);padding:8px;' +
+    'background:#1a1f2e;border:1px solid rgba(255,255,255,.12);border-radius:10px;' +
+    'box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;flex-wrap:wrap;gap:4px;';
+
+  const loading = doc.createElement('div');
+
+  loading.style.cssText = 'padding:8px 12px;font-size:12px;color:#a1a1aa;';
+  loading.textContent = '…';
+  menu.appendChild(loading);
+
+  const place = () => {
+    const rect = anchor.getBoundingClientRect();
+    const w = menu.offsetWidth || 280;
+    let left = rect.left;
+    let top = rect.bottom + 6;
+
+    if (left + w > win.innerWidth - 8) {
+      left = Math.max(8, win.innerWidth - w - 8);
+    }
+
+    if (top + menu.offsetHeight > win.innerHeight - 8) {
+      top = Math.max(8, rect.top - menu.offsetHeight - 6);
+    }
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  };
+
+  doc.body.appendChild(menu);
+  place();
+
+  const close = () => {
+    menu.remove();
+    doc.removeEventListener('mousedown', onDocDown, true);
+  };
+
+  const onDocDown = (e) => {
+    if (!menu.contains(e.target) && e.target !== anchor) {
+      close();
+    }
+  };
+
+  doc.addEventListener('mousedown', onDocDown, true);
+
+  const pick = (value) => {
+    close();
+    restoreSelectionRange(win, savedRange, session?.el);
+    onPick(value);
+  };
+
+  fetchThemeSwatches(win).then((swatches) => {
+    if (!menu.isConnected) {
+      return;
+    }
+
+    menu.innerHTML = '';
+
+    const current = control.value == null ? '' : String(control.value);
+
+    const clearBtn = doc.createElement('button');
+
+    clearBtn.type = 'button';
+    clearBtn.title = 'Fjern farve';
+    clearBtn.textContent = '×';
+    clearBtn.style.cssText =
+      'width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,.2);' +
+      'background:transparent;color:#a1a1aa;cursor:pointer;font-size:14px;line-height:1;';
+    clearBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    clearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      pick(null);
+    });
+    menu.appendChild(clearBtn);
+
+    if (!swatches.length) {
+      const empty = doc.createElement('div');
+
+      empty.style.cssText = 'padding:4px 8px;font-size:12px;color:#a1a1aa;';
+      empty.textContent = 'Ingen farver';
+      menu.appendChild(empty);
+      place();
+
+      return;
+    }
+
+    swatches.forEach((swatch) => {
+      const stored = swatch.var
+        ? (String(swatch.var).startsWith('var(') ? swatch.var : `var(${swatch.var})`)
+        : swatch.hex;
+      const btn = doc.createElement('button');
+
+      btn.type = 'button';
+      btn.title = stored;
+      btn.style.cssText =
+        `width:22px;height:22px;border-radius:6px;border:2px solid ${stored === current ? '#fff' : 'transparent'};` +
+        `background:${swatch.hex || stored};cursor:pointer;padding:0;`;
+      btn.addEventListener('mousedown', (e) => e.preventDefault());
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        pick(stored);
+      });
+      menu.appendChild(btn);
+    });
+
+    place();
+  });
+}
+
+/**
+ * Apply a highlight colour on a plain text field:
+ * 1. Wrap the selection in {…} (storage format)
+ * 2. Commit text + colour to the CP immediately
+ * 3. Paint coloured spans in the DOM so the user never stares at braces
+ * 4. End the edit session — do NOT reopen (reopen would show braces again)
+ * 5. Drop any deferred (stale) preview morph so it cannot wipe the spans
+ */
+function applyHighlightColor(win, session, control, value) {
+  if (value != null && value !== '') {
+    wrapSelectionInBraces(win, session.el);
+  }
+
+  // Snapshot braced plain text BEFORE turning it into spans — textContent of
+  // coloured spans would drop the {…} markers the modifier needs.
+  const bracedText = (session.el.textContent || '').replace(/\u00a0/g, ' ').replace(/\n+$/, '');
+
+  win.parent.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'edit-input',
+      requestId: session.requestId,
+      text: bracedText,
+      html: session.el.innerHTML,
+    },
+    win.location.origin
+  );
+
+  win.parent.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'edit-control',
+      requestId: session.requestId,
+      handle: control.handle,
+      value,
+    },
+    win.location.origin
+  );
+
+  if (value != null && value !== '') {
+    session.el.setAttribute('data-highlight-color', String(value));
+    bracesToHighlightSpans(win, session.el, String(value));
+  } else {
+    session.el.removeAttribute('data-highlight-color');
+  }
+
+  // A preview update may have been deferred while we were editing — that URL is
+  // from BEFORE the wrap/colour write and would morph braces back as plain text.
+  win.dispatchEvent(new CustomEvent('sve:clear-pending-preview'));
+
+  // Text already committed — skip the dirty sendEditInput in finishEditing.
+  session.dirty = false;
+  finishEditing(win, false);
+}
+
+/** Turn `{accent}` plain text into coloured <span data-highlight> for instant preview. */
+function bracesToHighlightSpans(win, el, color) {
+  const full = el.textContent || '';
+
+  if (!full.includes('{')) {
+    return;
+  }
+
+  const doc = win.document;
+  const frag = doc.createDocumentFragment();
+  const re = /\{([^{}]+)\}/g;
+  let last = 0;
+  let match;
+
+  while ((match = re.exec(full)) !== null) {
+    if (match.index > last) {
+      frag.appendChild(doc.createTextNode(full.slice(last, match.index)));
+    }
+
+    const span = doc.createElement('span');
+
+    span.setAttribute('data-highlight', '');
+    span.style.color = color;
+    span.textContent = match[1];
+    frag.appendChild(span);
+    last = match.index + match[0].length;
+  }
+
+  if (last < full.length) {
+    frag.appendChild(doc.createTextNode(full.slice(last)));
+  }
+
+  el.replaceChildren(frag);
+}
+
+/**
+ * After a Live Preview morph the server may still emit literal {…} (race, or
+ * the Antlers modifier didn't run). Rebuild coloured spans from
+ * data-highlight-color whenever braces are visible and spans are missing.
+ */
+function enhanceHighlightBraces(win) {
+  const doc = win.document;
+
+  doc.querySelectorAll('[data-highlight-color]').forEach((el) => {
+    if (el.querySelector('span[data-highlight]')) {
+      return;
+    }
+
+    const text = el.textContent || '';
+
+    if (!text.includes('{')) {
+      return;
+    }
+
+    const color =
+      el.getAttribute('data-highlight-color') || 'var(--highlighted-color)';
+
+    bracesToHighlightSpans(win, el, color);
+  });
 }
 
 function positionEditToolbar(win, session) {
@@ -1356,13 +1973,49 @@ function readCssProp(styleStr, prop) {
  * Toggle a vizuStyle span mark (data-vizu + inline style prop) on the selection.
  */
 function toggleVizuSpanProp(win, session, prop, value) {
-  const sel = win.getSelection();
+  const current = readSelectionVizuProp(win, session, prop);
 
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+  if (current === value) {
+    clearVizuSpanProp(win, session, prop);
+
     return;
   }
 
-  const range = sel.getRangeAt(0);
+  setVizuSpanProp(win, session, prop, value);
+}
+
+/** Current vizuStyle CSS prop on the selection (or null). */
+function readSelectionVizuProp(win, session, prop) {
+  const sel = win.getSelection();
+
+  if (!sel || !sel.rangeCount) {
+    return null;
+  }
+
+  let node = sel.getRangeAt(0).commonAncestorContainer;
+
+  if (node.nodeType === 3) {
+    node = node.parentElement;
+  }
+
+  const existing = node?.closest?.('span[data-vizu]');
+
+  if (!existing || !session.el.contains(existing)) {
+    return null;
+  }
+
+  return readCssProp(existing.getAttribute('style'), prop);
+}
+
+/** Ensure selection has a vizuStyle span with prop=value (never toggles off). */
+function setVizuSpanProp(win, session, prop, value) {
+  const sel = win.getSelection();
+  let range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+
+  if (!range || range.collapsed) {
+    return;
+  }
+
   let node = range.commonAncestorContainer;
 
   if (node.nodeType === 3) {
@@ -1371,22 +2024,7 @@ function toggleVizuSpanProp(win, session, prop, value) {
 
   const existing = node.closest?.('span[data-vizu]');
 
-  if (existing && session.el.contains(existing) && readCssProp(existing.getAttribute('style'), prop) === value) {
-    const next = setCssProp(existing.getAttribute('style'), prop, null);
-
-    if (!next) {
-      const parent = existing.parentNode;
-
-      while (existing.firstChild) {
-        parent.insertBefore(existing.firstChild, existing);
-      }
-
-      parent.removeChild(existing);
-      parent.normalize();
-    } else {
-      existing.setAttribute('style', next);
-    }
-  } else if (existing && session.el.contains(existing)) {
+  if (existing && session.el.contains(existing)) {
     existing.setAttribute('style', setCssProp(existing.getAttribute('style'), prop, value));
   } else {
     const span = win.document.createElement('span');
@@ -1409,7 +2047,53 @@ function toggleVizuSpanProp(win, session, prop, value) {
   }
 
   session.dirty = true;
-  session.onInput();
+  // Flush immediately — colour/marks must hit the sidebar without waiting for
+  // the typing debounce (otherwise the panel only updates on the next key).
+  clearTimeout(session.inputTimer);
+  session.inputTimer = null;
+  sendEditInput(win, session);
+  updateEditToolbarState(win);
+}
+
+/** Remove a vizuStyle CSS prop from the selection; unwrap span if empty. */
+function clearVizuSpanProp(win, session, prop) {
+  const sel = win.getSelection();
+
+  if (!sel || !sel.rangeCount) {
+    return;
+  }
+
+  let node = sel.getRangeAt(0).commonAncestorContainer;
+
+  if (node.nodeType === 3) {
+    node = node.parentElement;
+  }
+
+  const existing = node?.closest?.('span[data-vizu]');
+
+  if (!existing || !session.el.contains(existing)) {
+    return;
+  }
+
+  const next = setCssProp(existing.getAttribute('style'), prop, null);
+
+  if (!next) {
+    const parent = existing.parentNode;
+
+    while (existing.firstChild) {
+      parent.insertBefore(existing.firstChild, existing);
+    }
+
+    parent.removeChild(existing);
+    parent.normalize();
+  } else {
+    existing.setAttribute('style', next);
+  }
+
+  session.dirty = true;
+  clearTimeout(session.inputTimer);
+  session.inputTimer = null;
+  sendEditInput(win, session);
   updateEditToolbarState(win);
 }
 
@@ -1612,6 +2296,11 @@ const ICONS = {
     '<path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z"/>',
     14
   ),
+  more: SVG(
+    '0 0 24 24',
+    '<circle cx="12" cy="5" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="19" r="1.7" fill="currentColor"/>',
+    14
+  ),
   trash: SVG(
     '0 0 24 24',
     '<path fill="currentColor" d="M6 7h12v13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7Zm3-4h6l1 1h4v2H4V4h4l1-1Zm1 6v9h2V9H10Zm4 0v9h2V9h-2Z"/>',
@@ -1619,8 +2308,777 @@ const ICONS = {
   ),
 };
 
+// How long to keep waiting for the re-render triggered by a quick control before
+// reopening the editor anyway (nothing changed, or hot reload is off).
+const CONTROL_RERENDER_TIMEOUT = 1500;
+// Grace period after a re-render: a control change usually produces two updates
+// (the committed text, then the new setting) and we want the last one.
+const CONTROL_RERENDER_SETTLE = 250;
+
+/** Re-enters inline editing on a field once the preview has re-rendered it. */
+function reopenInlineEdit(win, field, scope) {
+  if (!field) {
+    return;
+  }
+
+  let settle = null;
+  let fallback = null;
+  let attempts = 0;
+  let finished = false;
+  const maxAttempts = 8;
+
+  const cleanup = () => {
+    finished = true;
+    clearTimeout(settle);
+    clearTimeout(fallback);
+    win.removeEventListener('statamic:preview-updated', onUpdate);
+  };
+
+  const open = () => {
+    if (finished) {
+      return;
+    }
+
+    const selector =
+      `[${SID_FIELD_ATTR}="${CSS.escape(field)}"]` +
+      (scope ? `[data-sid-field-uid="${CSS.escape(scope)}"]` : '');
+    const wrapper = win.document.querySelector(selector);
+
+    if (!wrapper) {
+      // Global-section control changes (font_tag h1→h2) re-stash and morph
+      // twice: once for the committed text, once for the new tag. The first
+      // pass often runs before the final node exists — keep waiting.
+      attempts += 1;
+
+      if (attempts >= maxAttempts) {
+        cleanup();
+      }
+
+      return;
+    }
+
+    cleanup();
+
+    const rect = wrapper.getBoundingClientRect();
+
+    // Synthetic event: requestInlineEdit only reads target + click coordinates,
+    // which decide where the caret lands.
+    requestInlineEdit(win, wrapper, {
+      target: wrapper,
+      clientX: rect.left + 8,
+      clientY: rect.top + rect.height / 2,
+    });
+  };
+
+  const onUpdate = () => {
+    if (finished) {
+      return;
+    }
+
+    clearTimeout(settle);
+    // Prefer the latest morph — font_tag/size redraws replace the element.
+    settle = setTimeout(open, CONTROL_RERENDER_SETTLE);
+  };
+
+  fallback = setTimeout(() => {
+    open();
+
+    if (!finished) {
+      // Last chance after stash morph (global sections are slower than LP).
+      fallback = setTimeout(open, CONTROL_RERENDER_TIMEOUT);
+    }
+  }, CONTROL_RERENDER_TIMEOUT);
+
+  win.addEventListener('statamic:preview-updated', onUpdate);
+}
+
+/**
+ * A quick control was used. What it changes is rendered server-side, so the edit
+ * is committed first — that also releases the hot-reload morph that inline
+ * editing defers — and the session is picked back up on the re-rendered element.
+ */
+function applyControlValue(win, session, control, value) {
+  const { field, scope, requestId } = session;
+
+  // Keep the session alive until the CP has applied the control — finishEditing
+  // posts edit-end which clears editSession; if that races ahead of edit-control,
+  // the size/font_tag write is dropped.
+  win.parent.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'edit-control',
+      requestId,
+      handle: control.handle,
+      value,
+    },
+    win.location.origin
+  );
+
+  // Defer end so the parent handles edit-control first (same turn's messages
+  // are processed in order, but finishEditing also does DOM work here).
+  // Start reopen BEFORE finishEditing clears the DOM markers we need — and
+  // keep listening across multiple morphs (global stash often fires two).
+  win.setTimeout(() => {
+    reopenInlineEdit(win, field, scope);
+    finishEditing(win, false);
+  }, 0);
+}
+
+/**
+ * The block a row sits inside: the nearest ancestor that is a set of an
+ * insertable container. Null when there is none — a row directly in a page
+ * section has no block above it, and a page section is never one.
+ *
+ * A row's own actions stop at the row, and rowContextFor only ever sees the
+ * innermost one. So a link inside a links block leaves the block itself out of
+ * reach: nothing on the page belongs to it that the cursor can find, because the
+ * links cover it completely. This is the way back up to it.
+ */
+function blockHolding(el) {
+  let node = el.parentElement;
+
+  while (node && node.nodeType === 1) {
+    if (
+      node.hasAttribute(SID_ATTR) &&
+      !node.hasAttribute(SECTION_ORDERABLE_ATTR) &&
+      node.parentElement?.hasAttribute(INSERT_ATTR)
+    ) {
+      return node;
+    }
+
+    node = node.parentElement;
+  }
+
+  return null;
+}
+
+/**
+ * Everything the toolbar needs to speak for the block a field sits in: what to
+ * call it, how to move it, and what can be done to it.
+ *
+ * Blocks no longer carry a hover control, so this is the only place those actions
+ * appear — which is the point. They can't be pulled out from under the cursor,
+ * and they can't vanish the moment you start typing.
+ *
+ * Mirrors showMoveControl's row branch: arrows when there are siblings to swap
+ * with, then hide / duplicate / delete for a set inside an insertable container,
+ * or add / remove for a plain orderable row.
+ */
+/**
+ * A field that asked for a badge without being a row — `toolbar="true"`, or an
+ * `icon=` / `icon_from=` that implies it.
+ *
+ * It has something to name itself with at the head of the bar, and nothing else:
+ * peers, add, duplicate and remove all read the replicator around a row, and a
+ * lone field has none. Being movable and wearing a badge are separate questions,
+ * so a section heading can have the second without pretending to the first.
+ */
+function badgeOnlyContext(el) {
+  return {
+    row: el,
+    uid: el.getAttribute('data-sid-field-uid') || el.getAttribute(SID_ATTR) || '',
+    peers: [],
+    horizontal: false,
+    block: null,
+    blockUid: null,
+    blockLabel: '',
+    label: el.getAttribute('data-sid-label') || '',
+    icon: el.getAttribute('data-sid-icon') || '',
+    iconSvg: el.getAttribute('data-sid-icon-svg') || '',
+    moveActions: [],
+    itemActions: [],
+  };
+}
+
+/**
+ * The row proper, given any orderable element inside it.
+ *
+ * Walks out through nested orderables while they stay inside the same replicator
+ * container: whatever ends up as a direct child of that container is the row the
+ * field owns, and everything below it is decoration the template added.
+ */
+function outermostRowWithin(row) {
+  const container = row.closest(`[${INSERT_ATTR}]`);
+
+  if (!container) {
+    return row;
+  }
+
+  let out = row;
+
+  for (let i = 0; i < 10; i++) {
+    const outer = out.parentElement?.closest(`[${ORDERABLE_ATTR}]`);
+
+    if (!outer || !container.contains(outer)) {
+      return out;
+    }
+
+    out = outer;
+  }
+
+  return out;
+}
+
+function rowContextFor(win, el) {
+  const inner = el.closest(`[${ORDERABLE_ATTR}]`);
+
+  if (!inner) {
+    const badged = el.closest('[data-sid-icon], [data-sid-icon-svg]');
+
+    return badged ? badgeOnlyContext(badged) : null;
+  }
+
+  // A page section is not a row: it keeps its own hover control, with actions
+  // (settings, save as template, add below) that no text edit would surface.
+  if (inner.hasAttribute(SECTION_ORDERABLE_ATTR) || !inner.parentElement) {
+    return null;
+  }
+
+  // Two orderable layers around one block: a template may wrap each row in an
+  // orderable div of its own while the partial inside also declares orderable.
+  // The OUTER one is the row — it is what sits among the siblings and what moves
+  // in the DOM — so counting the inner one too made the list twice as long, and
+  // a drag of one step landed two rows away.
+  const row = outermostRowWithin(inner);
+
+  const uid =
+    row.getAttribute(GLOBAL_ROW_ATTR) || row.getAttribute(SID_ATTR) || row.getAttribute('data-sid-field-uid');
+
+  if (!uid) {
+    return null;
+  }
+
+  const post = (type, extra = {}) =>
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type, uid, ...extra },
+      win.location.origin
+    );
+
+  // The block around the row, when the row is not one itself. Only a nested row
+  // has one: a block's own parent IS the insertable container.
+  const block = row.parentElement.hasAttribute(INSERT_ATTR) ? null : blockHolding(row);
+  const blockUid = block?.getAttribute(SID_ATTR) || null;
+  const blockLabel = block?.getAttribute('data-sid-label') || '';
+
+  const peers = orderablePeers(row);
+  const horizontal = isHorizontalFlow(win, row);
+  const moveActions = [];
+
+  if (peers.length > 1) {
+    moveActions.push(
+      {
+        glyph: horizontal ? '←' : '↑',
+        label: horizontal ? t('move_left') : t('move_up'),
+        run: () => post('move', { direction: -1 }),
+      },
+      {
+        glyph: horizontal ? '→' : '↓',
+        label: horizontal ? t('move_right') : t('move_down'),
+        run: () => post('move', { direction: 1 }),
+      }
+    );
+  }
+
+  // Insert on either side of this row. Both hand off to Statamic's own set
+  // picker — the same one the "+" between blocks opens — so the choice is made
+  // in one place, with its groups, search and previews, wherever it starts.
+  const addAt = (position) => {
+    const r = row.getBoundingClientRect();
+    const edge = position === 'before' ? r.top : r.bottom;
+
+    post('add-block-native', {
+      anchorUid: uid,
+      sectionUid: row.parentElement.getAttribute('data-sid-insert-scope') || null,
+      position,
+      // Same as the "+" inserter: inside a global section the picker belongs in
+      // the panel's form, where that section's blocks actually live.
+      global: !!row.closest(`[${GLOBAL_FOCUS_ATTR}]`),
+      // A flat rect on the edge the new block lands at, so the picker opens
+      // where it is going rather than over the middle of the block it came from.
+      anchorRect: { left: r.left, right: r.left, top: edge, bottom: edge, width: 0, height: 0 },
+    });
+  };
+
+  // Written out rather than drawn: in a menu a word says what an icon only hints
+  // at, and there is room for it.
+  const itemActions = row.parentElement.hasAttribute(INSERT_ATTR)
+    ? [
+        { label: t('add_before'), dividerBefore: true, run: () => addAt('before') },
+        { label: t('add_after'), run: () => addAt('after') },
+        {
+          label: t('duplicate_this'),
+          dividerBefore: true,
+          requiresAdd: true,
+          run: () => post('duplicate-row'),
+        },
+        { label: t('hide_this'), run: () => post('hide-row') },
+        {
+          label: t('remove_this'),
+          danger: true,
+          dividerBefore: true,
+          cancels: true,
+          requiresRemove: true,
+          run: () => post('remove-row'),
+        },
+      ]
+    : [
+        {
+          label: t('add_another'),
+          dividerBefore: true,
+          // Hidden when the field is at max_rows / max_sets — see menu open.
+          requiresAdd: true,
+          run: () => post('add-row'),
+        },
+        {
+          label: t('remove_this'),
+          danger: true,
+          dividerBefore: true,
+          cancels: true,
+          requiresRemove: true,
+          // Taking the last one leaves the block holding an empty list and
+          // drawing nothing, so it would sit there with nothing on the page to
+          // reach it by. It goes with the row.
+          run: () => post('remove-row', { emptyRemovesBlock: blockUid }),
+        },
+        // …and the block itself, in one go, without emptying it first. Nothing
+        // else offers it: the row shadows the block for the whole of its area.
+        ...(blockUid
+          ? [
+              {
+                label: blockLabel ? t('remove_block', { name: blockLabel }) : t('remove_block_plain'),
+                danger: true,
+                dividerBefore: true,
+                cancels: true,
+                run: () =>
+                  win.parent.postMessage(
+                    { source: 'statamic-visual-editor', type: 'remove-row', uid: blockUid },
+                    win.location.origin
+                  ),
+              },
+            ]
+          : []),
+      ];
+
+  return {
+    row,
+    uid,
+    peers,
+    horizontal,
+    block,
+    blockUid,
+    blockLabel,
+    // The visual_edit tag writes the set's display name here (Str::headline of
+    // its type), which is exactly what the Control Panel calls the block.
+    // Read off the inner element first: where a template wraps the block, the
+    // wrapper is the row that moves, but the partial inside is the one carrying
+    // the field annotation — and with it the set's name and icon.
+    label: inner.getAttribute('data-sid-label') || row.getAttribute('data-sid-label') || '',
+    icon: inner.getAttribute('data-sid-icon') || row.getAttribute('data-sid-icon') || '',
+    iconSvg: inner.getAttribute('data-sid-icon-svg') || row.getAttribute('data-sid-icon-svg') || '',
+    moveActions,
+    itemActions,
+  };
+}
+
+/**
+ * The badge standing for the block. The icon the set names in "Edit Set" comes
+ * first — it is the one the author chose, and it arrives already drawn. Then a
+ * heading set's level, then an icon the toolbar knows by name, then Iconify /
+ * pasted SVG from the raw name, and last the name's first letter, which still
+ * tells a Headline from a Richtext at a glance.
+ *
+ * It is also the only thing left of the block's name out here: the bar sits on
+ * top of what it names, so the word only said what was already on screen.
+ */
+function rowBadge(doc, ctx) {
+  const badge = doc.createElement('span');
+  const heading = /^h([1-6])$/.exec(ctx.icon);
+
+  badge.style.cssText = 'flex:0 0 auto;display:flex;align-items:center;justify-content:center;opacity:.75;';
+
+  if (ctx.iconSvg) {
+    badge.innerHTML = ctx.iconSvg;
+
+    const svg = badge.querySelector('svg');
+
+    if (svg) {
+      // The icon files carry the Control Panel's own size; the bar sets its own
+      // off the text, the same as every other badge here.
+      // As style, not as attributes: presentation attributes lose to any rule
+      // the page happens to have for `svg`, and the page is not ours.
+      svg.style.setProperty('width', '1.15em', 'important');
+      svg.style.setProperty('height', '1.15em', 'important');
+
+      return badge;
+    }
+
+    badge.innerHTML = '';
+  }
+
+  if (ctx.icon && /^\s*<svg[\s>]/i.test(ctx.icon)) {
+    badge.innerHTML = ctx.icon;
+
+    const svg = badge.querySelector('svg');
+
+    if (svg) {
+      svg.style.setProperty('width', '1.15em', 'important');
+      svg.style.setProperty('height', '1.15em', 'important');
+
+      return badge;
+    }
+
+    badge.innerHTML = '';
+  }
+
+  if (ctx.icon && /^[a-z0-9-]+:[a-z0-9-]+$/i.test(ctx.icon)) {
+    adoptBadgeIconify(badge, ctx.icon);
+
+    return badge;
+  }
+
+  if (heading) {
+    badge.innerHTML = headingIcon(Number(heading[1]));
+
+    return badge;
+  }
+
+  // Statamic's icon names don't all match the toolbar's own; the few that mean
+  // the same thing are bridged here, and the rest fall through to the letter.
+  const known = ICONS[{ link: 'anchor', table: 'table', code: 'code' }[ctx.icon] ?? ctx.icon];
+
+  if (known) {
+    badge.innerHTML = known;
+
+    return badge;
+  }
+
+  if (!ctx.label) {
+    return null;
+  }
+
+  // Knocked into a filled tile so it reads as a mark, not as a stray capital
+  // sitting in front of the word it was taken from.
+  badge.textContent = ctx.label.trim().charAt(0).toUpperCase();
+  badge.style.cssText =
+    'flex:0 0 auto;display:flex;align-items:center;justify-content:center;' +
+    'width:1.45em;height:1.45em;border-radius:0.35em;font-size:0.85em;font-weight:700;' +
+    'background:rgba(128,128,128,.28);';
+
+  return badge;
+}
+
+/** Iconify SVGs for preview badges — same cache shape as the CP panel icons. */
+const badgeIconifyCache = new Map();
+
+function adoptBadgeIconify(badge, name) {
+  const apply = (markup) => {
+    if (!markup || !badge.isConnected) {
+      return;
+    }
+
+    badge.innerHTML = markup;
+
+    const svg = badge.querySelector('svg');
+
+    if (!svg) {
+      return;
+    }
+
+    svg.removeAttribute('width');
+    svg.removeAttribute('height');
+    svg.style.setProperty('width', '1.15em', 'important');
+    svg.style.setProperty('height', '1.15em', 'important');
+    svg.querySelectorAll('[stroke]:not([stroke="none"])').forEach((node) => {
+      node.setAttribute('stroke', 'currentColor');
+    });
+  };
+
+  const cached = badgeIconifyCache.get(name);
+
+  if (typeof cached === 'string') {
+    apply(cached);
+
+    return;
+  }
+
+  const [prefix, icon] = name.split(':');
+  const pending =
+    cached ??
+    fetch(`https://api.iconify.design/${prefix}/${icon}.svg`)
+      .then((res) => (res.ok ? res.text() : ''))
+      .then((markup) => {
+        badgeIconifyCache.set(name, markup);
+
+        return markup;
+      })
+      .catch(() => '');
+
+  badgeIconifyCache.set(name, pending);
+  pending.then(apply);
+}
+
+// --- Wrap-up belt (same shape as the edit toolbar's row chip) -------------------
+//
+// Nested rows (link buttons) cover their parent block completely. The old
+// ↑↓/hide/dup/trash strip is the wrong language — authors already know the
+// edit-toolbar belt. This one is that belt, opened on *click* of a Links
+// wrap-up (or any block that holds nested orderable rows).
+
+let hoverBeltEl = null;
+let hoverBeltTarget = null;
+let hoverBeltReposition = null;
+
+function hideHoverBelt(win) {
+  if (hoverBeltEl) {
+    hoverBeltEl.ownerDocument.querySelector('[data-sve-menu]')?.remove();
+    hoverBeltEl.remove();
+    hoverBeltEl = null;
+  }
+
+  if (hoverBeltReposition) {
+    win.removeEventListener('scroll', hoverBeltReposition, true);
+    win.removeEventListener('resize', hoverBeltReposition);
+    hoverBeltReposition = null;
+  }
+
+  hoverBeltTarget = null;
+}
+
+function positionHoverBelt(win) {
+  if (!hoverBeltEl || !hoverBeltTarget || !hoverBeltTarget.isConnected) {
+    return;
+  }
+
+  const rect = hoverBeltTarget.getBoundingClientRect();
+  const barHeight = hoverBeltEl.offsetHeight || 34;
+  let top = rect.top - barHeight - 10;
+
+  if (top < 8) {
+    top = rect.bottom + 10;
+  }
+
+  const maxLeft = win.innerWidth - hoverBeltEl.offsetWidth - 8;
+
+  hoverBeltEl.style.top = `${top}px`;
+  hoverBeltEl.style.left = `${Math.max(8, Math.min(rect.left, maxLeft))}px`;
+}
+
+function pointerInHoverBeltGap(event) {
+  if (!hoverBeltEl || !hoverBeltTarget) {
+    return false;
+  }
+
+  if (hoverBeltEl.contains(event.target) || hoverBeltTarget.contains(event.target)) {
+    return true;
+  }
+
+  const x = event.clientX;
+  const y = event.clientY;
+  const br = hoverBeltEl.getBoundingClientRect();
+  const tr = hoverBeltTarget.getBoundingClientRect();
+  const pad = 8;
+  const top = Math.min(br.top, tr.top) - pad;
+  const bottom = Math.max(br.bottom, tr.bottom) + pad;
+  const left = Math.min(br.left, tr.left) - pad;
+  const right = Math.max(br.right, tr.right) + pad;
+
+  return x >= left && x <= right && y >= top && y <= bottom;
+}
+
+/**
+ * The edit-toolbar belt for a row/block, without an edit session — used on hover
+ * for wrap-ups (e.g. the Links block) whose children would otherwise steal every
+ * pointer event.
+ */
+function showHoverBelt(win, rowEl) {
+  const ctx = rowContextFor(win, rowEl);
+
+  if (!ctx) {
+    hideHoverBelt(win);
+
+    return;
+  }
+
+  // Already showing for this row — just keep it positioned.
+  if (hoverBeltEl && hoverBeltTarget === ctx.row) {
+    positionHoverBelt(win);
+
+    return;
+  }
+
+  hideHoverBelt(win);
+
+  const doc = win.document;
+  const theme = toolbarThemeFor(detectCpDark(win));
+  const SQUARE = 32;
+  const pill =
+    `display:flex;align-items:center;gap:1px;background:${theme.bg};color:${theme.fg};` +
+    `border:1px solid ${theme.border};border-radius:9px;padding:4px;box-shadow:${theme.shadow};` +
+    'box-sizing:content-box;margin:0;';
+
+  const bar = doc.createElement('div');
+
+  bar.id = '__sve-hover-belt';
+  bar.style.cssText =
+    'position:fixed;z-index:2147483646;display:flex;align-items:center;gap:7px;' +
+    `color:${theme.fg};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;` +
+    'font-size:13px;line-height:1;user-select:none;cursor:default;';
+  bar.addEventListener('mousedown', (e) => e.preventDefault());
+
+  const group = doc.createElement('div');
+
+  group.style.cssText = pill;
+
+  const addButton = (label, title, opts = {}) => {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+
+    if (opts.html) {
+      btn.innerHTML = opts.html;
+    } else {
+      btn.textContent = label;
+    }
+
+    btn.title = title;
+    btn.style.cssText =
+      `all:unset;cursor:pointer;min-width:${SQUARE}px;height:${SQUARE}px;display:inline-flex;` +
+      'align-items:center;justify-content:center;border-radius:8px;padding:0 6px;' +
+      `box-sizing:border-box;text-align:center;color:${theme.fg};`;
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = theme.hover;
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'transparent';
+    });
+
+    if (opts.onPointerDown) {
+      btn.style.cursor = 'grab';
+      btn.style.touchAction = 'none';
+      btn.addEventListener('pointerdown', opts.onPointerDown);
+    }
+
+    if (opts.onClick) {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        opts.onClick(e);
+      });
+    }
+
+    group.appendChild(btn);
+
+    return btn;
+  };
+
+  const chip = doc.createElement('span');
+
+  chip.style.cssText =
+    pill + `flex:0 0 auto;justify-content:center;width:${SQUARE}px;height:${SQUARE}px;` +
+    'font-weight:600;white-space:nowrap;';
+
+  const badge = rowBadge(doc, ctx);
+
+  if (badge) {
+    chip.appendChild(badge);
+  }
+
+  if (ctx.label) {
+    chip.title = ctx.label;
+  }
+
+  if (chip.childNodes.length) {
+    bar.appendChild(chip);
+  }
+
+  if (ctx.peers.length > 1) {
+    addButton('⠿', t('drag_section'), {
+      onPointerDown: (event) => {
+        if (event.button !== 0 || dragState) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const { row, uid, peers, horizontal } = ctx;
+
+        hideHoverBelt(win);
+
+        dragState = {
+          el: row,
+          uid,
+          peers,
+          horizontal,
+          section: false,
+          zoom: null,
+          startX: event.clientX,
+          startY: event.clientY,
+          fromIndex: peers.indexOf(row),
+          insert: null,
+          active: false,
+          indicator: null,
+          ghost: null,
+        };
+      },
+    });
+  }
+
+  const menuBtn = addButton('', t('more_actions'), {
+    html: ICONS.more,
+    onClick: () => {
+      requestRowCaps(win, ctx.uid).then((caps) => {
+        const actions = [...ctx.moveActions, ...ctx.itemActions].filter((action) => {
+          if (action.requiresAdd && !caps.canAdd) {
+            return false;
+          }
+
+          if (action.requiresRemove && !caps.canRemove) {
+            return false;
+          }
+
+          return true;
+        });
+
+        openToolbarMenu(
+          win,
+          menuBtn,
+          `hover-${ctx.uid}`,
+          actions.map((action) => ({
+            label: action.label,
+            danger: action.danger,
+            dividerBefore: action.dividerBefore,
+            run: () => {
+              hideHoverBelt(win);
+              action.run();
+            },
+          }))
+        );
+      });
+    },
+  });
+
+  if (group.children.length) {
+    bar.appendChild(group);
+  }
+
+  if (!bar.children.length) {
+    return;
+  }
+
+  doc.body.appendChild(bar);
+  hoverBeltEl = bar;
+  hoverBeltTarget = ctx.row;
+  positionHoverBelt(win);
+
+  hoverBeltReposition = () => positionHoverBelt(win);
+  win.addEventListener('scroll', hoverBeltReposition, true);
+  win.addEventListener('resize', hoverBeltReposition);
+}
+
 function createEditToolbar(win, session) {
   removeEditToolbar();
+  hideHoverBelt(win);
 
   const doc = win.document;
   const bar = doc.createElement('div');
@@ -1631,12 +3089,36 @@ function createEditToolbar(win, session) {
 
   toolbarTheme = theme;
 
+  // Two boxes with the page showing between them: the icon naming the block,
+  // and the controls acting on it. The bar itself draws nothing and only lines
+  // them up, so the gap is the section's own background — which is what says the
+  // icon is a different kind of thing rather than the first button on a row.
+  //
+  // Both boxes are built from the same square: a button is one, and so is the
+  // icon. That is what keeps the two the same height and the icon's box a true
+  // 1:1 — the sizes were written out twice before, and drifted apart.
+  const SQUARE = 32;
+
+  // `box-sizing` and `margin` are spelled out because this is drawn inside the
+  // customer's own page: a theme with `* { box-sizing: border-box }` — which is
+  // most of them — would otherwise have the icon's fixed square measure its own
+  // padding and border from the inside, and come out short of the controls.
+  const pill =
+    `display:flex;align-items:center;gap:1px;background:${theme.bg};color:${theme.fg};` +
+    `border:1px solid ${theme.border};border-radius:9px;padding:4px;box-shadow:${theme.shadow};` +
+    'box-sizing:content-box;margin:0;';
+
   bar.id = '__sve-edit-toolbar';
   bar.style.cssText =
-    'position:fixed;z-index:2147483647;display:flex;align-items:center;gap:1px;' +
-    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius:9px;padding:4px;` +
-    `box-shadow:${theme.shadow};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;` +
+    'position:fixed;z-index:2147483647;display:flex;align-items:center;gap:7px;' +
+    `color:${theme.fg};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;` +
     'font-size:13px;line-height:1;user-select:none;cursor:default;';
+
+  // Everything that is not the icon. Filled first and hung on the bar last, so
+  // the icon comes first however much ends up in here.
+  const group = doc.createElement('div');
+
+  group.style.cssText = pill;
 
   // Never steal focus from the editable — otherwise every button click would
   // blur it and commit the edit before the action runs.
@@ -1664,7 +3146,7 @@ function createEditToolbar(win, session) {
     }
 
     btn.style.cssText =
-      'all:unset;cursor:pointer;min-width:32px;height:32px;display:inline-flex;' +
+      `all:unset;cursor:pointer;min-width:${SQUARE}px;height:${SQUARE}px;display:inline-flex;` +
       'align-items:center;justify-content:center;border-radius:8px;padding:0 6px;' +
       `box-sizing:border-box;text-align:center;color:${theme.fg};` +
       (opts.style || '');
@@ -1684,21 +3166,229 @@ function createEditToolbar(win, session) {
       action();
     });
 
-    bar.appendChild(btn);
+    // A grab handle starts its work on pointerdown, not on click — but it is the
+    // same button otherwise, and gets its look from the same place.
+    if (opts.onPointerDown) {
+      btn.style.cursor = opts.cursor || 'grab';
+      btn.style.touchAction = 'none';
+      btn.addEventListener('pointerdown', opts.onPointerDown);
+    }
+
+    group.appendChild(btn);
 
     return btn;
   };
 
+  // The bar is built in sections, and each one asks for a rule in front of
+  // itself without knowing whether the section before it put anything on the
+  // bar. So the rule is refused when there is nothing to divide, or when the
+  // last thing added was already one: two rules in a row read as a gap where a
+  // section went missing.
   const addSeparator = () => {
+    const last = group.lastElementChild;
+
+    if (!last || last.dataset.sveSep) {
+      return;
+    }
+
     const sep = doc.createElement('span');
 
+    sep.dataset.sveSep = '1';
     sep.style.cssText = `width:1px;height:18px;background:${theme.sep};margin:0 4px;`;
-    bar.appendChild(sep);
+    group.appendChild(sep);
   };
+
+  // The block this text belongs to, named and handled at the head of the bar —
+  // the same shape Gutenberg uses, and the reason the hover control could go.
+  // Only where the template asked for a bar. The row around the text may well be
+  // orderable — that is what lets the boxes be rearranged — but being movable is
+  // not a reason to hang a bar over a field that did not ask for one. The badge,
+  // the drag handle and the actions menu all belong to the same answer.
+  const rowCtx = session.el.hasAttribute('data-sid-toolbar')
+    ? rowContextFor(win, session.el)
+    : null;
+
+  if (rowCtx) {
+    const chip = doc.createElement('span');
+
+    // The same 26px box the buttons occupy, so the bar keeps its rhythm — but
+    // with no hover and nothing to press. That, and the rule set after it, is
+    // what says this one is naming the block rather than acting on it.
+    // The same square, in the same box: one square plus the pill's own padding
+    // and border on each side is the controls' height, and the icon's box comes
+    // out 1:1 without either measurement being repeated.
+    chip.style.cssText =
+      pill + `flex:0 0 auto;justify-content:center;width:${SQUARE}px;height:${SQUARE}px;` +
+      'font-weight:600;white-space:nowrap;';
+
+    const badge = rowBadge(doc, rowCtx);
+
+    if (badge) {
+      chip.appendChild(badge);
+    }
+
+    // The name is the badge's tooltip rather than a word on the bar. The bar
+    // stands on the block it names, so the word repeated what was already there
+    // — and the room it took is the room the field's own controls wanted.
+    if (rowCtx.label) {
+      chip.title = rowCtx.label;
+    }
+
+    if (chip.childNodes.length) {
+      bar.appendChild(chip);
+    }
+
+    // Drag handle. The drag machinery refuses to start while a caret is in the
+    // page — and the row is about to move out from under it anyway — so the edit
+    // is committed first and the existing pointermove/pointerup take it from here.
+    if (rowCtx.peers.length > 1) {
+      addButton('⠿', t('drag_section'), () => {}, {
+        onPointerDown: (event) => {
+          if (event.button !== 0 || dragState) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const { row, uid, peers, horizontal } = rowCtx;
+
+          finishEditing(win, false);
+
+          dragState = {
+            el: row,
+            uid,
+            peers,
+            horizontal,
+            section: false,
+            zoom: null,
+            startX: event.clientX,
+            startY: event.clientY,
+            fromIndex: peers.indexOf(row),
+            insert: null,
+            active: false,
+            indicator: null,
+            ghost: null,
+          };
+        },
+      });
+    }
+
+    // Moving lives in the ⋮ menu alone. As arrows it was the same two commands a
+    // second time, next to the menu that already spelled them out, on a bar the
+    // field's own controls have to share.
+    //
+    // Only a divider once there is something to divide: with the arrows gone, a
+    // block with no icon, no name and no siblings puts nothing here at all.
+    if (group.children.length) {
+      addSeparator();
+    }
+  }
+
+  const markActive = (btn) => {
+    btn.dataset.sveOn = '1';
+    btn.style.background = theme.active;
+  };
+
+  /**
+   * One sibling-field control. The fieldtype decides the shape, and nothing
+   * else: button_group and radio render as a segmented row, select as a
+   * dropdown — the same two shapes they have in the Control Panel.
+   *
+   * The count used to decide it too (buttons up to three options, a dropdown
+   * beyond), which meant a four-option button_group silently became a dropdown
+   * and the toolbar disagreed with the panel beside it about what the field is.
+   * A bar that grows a little is the smaller price.
+   */
+  const addControl = (control) => {
+    const current = control.value == null ? '' : String(control.value);
+
+    if (control.type === 'theme_color_picker' || control.type === 'color') {
+      const btn = addButton('', control.display || 'Farve', () => {}, { html: ICONS.color });
+
+      if (current) {
+        btn.style.boxShadow = `inset 0 -3px 0 ${current}`;
+      }
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openHighlightColorMenu(win, btn, control, session, (value) => {
+          applyHighlightColor(win, session, control, value);
+        });
+      });
+
+      return;
+    }
+
+    if (control.type === 'toggle') {
+      const on = control.value === true || current === '1' || current === 'true';
+      const btn = addButton(control.display, control.display, () => applyControlValue(win, session, control, !on), {
+        style: 'padding:0 10px;font-size:12px;font-weight:600;',
+      });
+
+      if (on) {
+        markActive(btn);
+      }
+
+      return;
+    }
+
+    const options = control.options || [];
+
+    if (control.type !== 'select' && options.length) {
+      options.forEach((option) => {
+        const btn = addButton(
+          option.label,
+          `${control.display}: ${option.label}`,
+          () => applyControlValue(win, session, control, option.key),
+          { style: 'padding:0 8px;font-size:12px;font-weight:600;' }
+        );
+
+        if (option.key === current) {
+          markActive(btn);
+        }
+      });
+
+      return;
+    }
+
+    // Closed button shows the field title ("Size") while the value is empty or
+    // still the blueprint default — not "Small" just because that is the default.
+    // After the author picks a non-default option, show that option's label.
+    const defaultKey = control.default != null && control.default !== '' ? String(control.default) : '';
+    const isChosen = current !== '' && current !== defaultKey;
+    const selected = isChosen ? options.find((option) => option.key === current) : null;
+    const btn = addButton(
+      `${selected ? selected.label : control.display} ▾`,
+      selected ? `${control.display}: ${selected.label}` : control.display,
+      () => {},
+      { style: 'padding:0 10px;font-size:12px;gap:4px;' }
+    );
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openControlMenu(win, btn, control, (value) => applyControlValue(win, session, control, value));
+    });
+  };
+
+  // Sibling-field controls (controls="font_tag|size") before Bard tools like
+  // colour — tag/size are the block’s own settings and should lead the bar.
+  if (session.controls?.length) {
+    if (group.children.length) {
+      addSeparator();
+    }
+
+    session.controls.forEach(addControl);
+  }
 
   const exec = (command, value = null) => {
     win.document.execCommand(command, false, value);
-    session.onInput();
+    session.dirty = true;
+    clearTimeout(session.inputTimer);
+    session.inputTimer = null;
+    sendEditInput(win, session);
     updateEditToolbarState(win);
   };
 
@@ -1865,10 +3555,36 @@ function createEditToolbar(win, session) {
             exec('unlink');
           }, { html: ICONS.removeformat });
           break;
-        case 'color':
-          // Uses bard-color-picker's own colour palette popup.
-          addButton('', 'Tekstfarve', () => bardCommand(win, session, 'color'), { html: ICONS.color });
+        case 'color': {
+          // In-preview theme swatches — keep the edit session open. The old
+          // bardCommand path finished editing and tried to click the CP Bard
+          // colour button, which fails with floating toolbars (nothing opens).
+          const colorBtn = addButton('', 'Tekstfarve', () => {}, { html: ICONS.color });
+          const activeColor = readSelectionVizuProp(win, session, 'color');
+
+          if (activeColor) {
+            colorBtn.style.boxShadow = `inset 0 -3px 0 ${activeColor}`;
+          }
+
+          colorBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openHighlightColorMenu(
+              win,
+              colorBtn,
+              { handle: '__bard_color__', value: readSelectionVizuProp(win, session, 'color') },
+              session,
+              (value) => {
+                if (value == null || value === '') {
+                  clearVizuSpanProp(win, session, 'color');
+                } else {
+                  setVizuSpanProp(win, session, 'color', value);
+                }
+              }
+            );
+          });
           break;
+        }
         case 'quote':
         case 'unorderedlist':
         case 'orderedlist':
@@ -1909,15 +3625,62 @@ function createEditToolbar(win, session) {
     }, { html: ICONS.anchor });
   }
 
-  addSeparator();
+  // Everything that can be done to the block, behind one button at the far end —
+  // away from the drag handle, so nothing destructive sits under a pointer that
+  // was reaching for a move. Written out in words, moving included: a menu has
+  // room to say what an arrow could only hint at.
+  if (rowCtx && (rowCtx.moveActions.length || rowCtx.itemActions.length)) {
+    addSeparator();
 
-  // In whole-field mode Enter splits blocks, so it can't double as commit.
-  addButton('✓', session.mode === 'bard-field' ? t('save') : t('save_enter'), () => finishEditing(win, false), {
-    style: 'color:#16a34a;font-weight:700;font-size:15px;',
-  });
-  addButton('✕', 'Annullér (Esc)', () => finishEditing(win, true), {
-    style: 'color:#dc2626;font-weight:700;font-size:15px;',
-  });
+    const menuBtn = addButton('', t('more_actions'), () => {}, { html: ICONS.more });
+
+    menuBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Honour max_rows / min_rows before the menu appears — otherwise
+      // "Add another" stays clickable on a field that's already full.
+      requestRowCaps(win, rowCtx.uid).then((caps) => {
+        const actions = [...rowCtx.moveActions, ...rowCtx.itemActions].filter((action) => {
+          if (action.requiresAdd && !caps.canAdd) {
+            return false;
+          }
+
+          if (action.requiresRemove && !caps.canRemove) {
+            return false;
+          }
+
+          return true;
+        });
+
+        const items = actions.map((action) => ({
+          label: action.label,
+          danger: action.danger,
+          dividerBefore: action.dividerBefore,
+          run: () => {
+            // The session ends before the row changes: the paths shift with it, and
+            // a deferred edit-input landing afterwards would write into whatever
+            // took its place. Removing cancels — there is nothing left to commit to.
+            finishEditing(win, !!action.cancels);
+            action.run();
+          },
+        }));
+
+        openToolbarMenu(win, menuBtn, `row-${rowCtx.uid}`, items);
+      });
+    });
+  }
+
+  // Commit/cancel live on Enter (inline Bard), Esc, and click-outside — the
+  // green ✓ / red ✕ only cluttered the bar and nobody used them.
+  if (group.children.length) {
+    bar.appendChild(group);
+  }
+
+  // Nothing to show — an empty toolbar is just a box hovering over the text.
+  if (!bar.children.length) {
+    return;
+  }
 
   doc.body.appendChild(bar);
   toolbarEl = bar;
@@ -1943,6 +3706,37 @@ function createEditToolbar(win, session) {
 const GLOBAL_ATTR = 'data-sve-global';
 // The page's own page_sections row id for a global section (see the partial).
 const GLOBAL_ROW_ATTR = 'data-sve-global-row';
+
+/** The display:contents wrapper a global section's rendered sections live in. */
+const GLOBAL_ROOT_ATTR = 'data-sve-global-root';
+
+/**
+ * A peer's box, even when it has none of its own.
+ *
+ * A global section is wrapped in display:contents so it adds no layout box —
+ * measuring it gives zeros, and a drop beside it landed in the wrong place.
+ * What it renders does have a box, so measure that instead.
+ */
+function peerRect(el) {
+  const rect = el.getBoundingClientRect();
+
+  if (rect.width || rect.height) {
+    return rect;
+  }
+
+  const first = el.firstElementChild;
+
+  if (!first) {
+    return rect;
+  }
+
+  const a = first.getBoundingClientRect();
+  const b = (el.lastElementChild ?? first).getBoundingClientRect();
+  const left = Math.min(a.left, b.left);
+  const top = Math.min(a.top, b.top);
+
+  return new DOMRect(left, top, Math.max(a.right, b.right) - left, Math.max(a.bottom, b.bottom) - top);
+}
 const GLOBAL_FOCUS_ATTR = 'data-sve-global-focused';
 const GLOBAL_BAR_ID = '__sve-global-bar';
 
@@ -1953,34 +3747,75 @@ let globalFocusId = null;
 
 /** Tags each section that came from a Global section with its source's id. */
 function tagGlobalSections(win) {
+  const label = t('global_badge');
+
+  const ensureBadge = (el, text) => {
+    let badge = el.querySelector(':scope > [data-sve-global-badge]');
+
+    if (!badge) {
+      badge = win.document.createElement('span');
+      badge.setAttribute('data-sve-global-badge', '');
+      el.prepend(badge);
+    }
+
+    badge.textContent = text;
+  };
+
+  const apply = (el, sourceId, row) => {
+    el.setAttribute(GLOBAL_ATTR, sourceId);
+    el.setAttribute('data-sve-global-label', label);
+    ensureBadge(el, label);
+
+    if (row) {
+      el.setAttribute(GLOBAL_ROW_ATTR, row);
+    }
+  };
+
+  // Preferred: wrap from the template (display:contents) — every section inside
+  // belongs to this synced source; nothing after it on the page gets tagged.
+  win.document.querySelectorAll('[data-sve-global-root]').forEach((root) => {
+    const sourceId = root.getAttribute('data-sve-global-root');
+    const row =
+      root.previousElementSibling?.getAttribute('data-sve-global-row') ||
+      root.parentElement?.querySelector(':scope > [data-sve-global-row]')?.getAttribute('data-sve-global-row');
+
+    // Only the page_sections roots (direct children), not nested rows/blocks —
+    // those would otherwise get the purple "Global" badge too.
+    [...root.children].forEach((el) => {
+      if (el.hasAttribute(SID_ATTR) || /^SECTION|ARTICLE$/i.test(el.tagName)) {
+        apply(el, sourceId, row);
+      }
+    });
+  });
+
+  // Legacy marker (single following sibling) for sites that haven't updated the
+  // global_section partial yet.
   win.document.querySelectorAll('[data-sve-global-id]').forEach((marker) => {
+    if (marker.closest('[data-sve-global-root]')) {
+      return;
+    }
+
+    const sourceId = marker.getAttribute('data-sve-global-id');
+    const row = marker.previousElementSibling?.getAttribute('data-sve-global-row');
     const section = marker.nextElementSibling;
 
     if (section && !section.hasAttribute(GLOBAL_ATTR)) {
-      section.setAttribute(GLOBAL_ATTR, marker.getAttribute('data-sve-global-id'));
-      section.setAttribute('data-sve-global-label', t('global_badge'));
-
-      // The page's own row id sits on the marker just before this one. Without it
-      // the hover control would act on the SOURCE's id — which this page's form
-      // has never heard of, so move/remove/settings would all quietly do nothing.
-      const row = marker.previousElementSibling?.getAttribute('data-sve-global-row');
-
-      if (row) {
-        section.setAttribute(GLOBAL_ROW_ATTR, row);
-      }
+      apply(section, sourceId, row);
     }
   });
 }
 
 function exitGlobalFocus(win, closePanel = true) {
   const doc = win.document;
-  const wasFocused = !!globalFocusEl;
+  const wasFocused = !!globalFocusEl || !!globalFocusId;
 
   doc.querySelectorAll(`[${GLOBAL_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(GLOBAL_FOCUS_ATTR));
   doc.documentElement.classList.remove('sve-global-focus');
   doc.getElementById(GLOBAL_BAR_ID)?.remove();
   globalSaveBtn = null;
+  globalStatusEl = null;
   globalSectionDirty = false;
+  globalSectionLabel = null;
   globalFocusEl = null;
   globalFocusId = null;
 
@@ -1988,6 +3823,50 @@ function exitGlobalFocus(win, closePanel = true) {
   // the page rendering an unsaved section you can no longer see you're in.
   if (wasFocused && closePanel) {
     win.parent.postMessage({ source: 'statamic-visual-editor', type: 'close-global-section' }, win.location.origin);
+  }
+
+  // … and it goes away again with the focus.
+  if (wasFocused) {
+    setupInserters(win);
+  }
+}
+
+/**
+ * After a Live Preview morph the section nodes are new DOM. Re-apply focus marks
+ * without tearing down panel state (exitGlobalFocus would clear globalFocusId and
+ * leave fields un-editable until the user re-confirms enter).
+ */
+function rebindGlobalFocus(win, sourceId, attempt = 0) {
+  if (!sourceId) {
+    return;
+  }
+
+  tagGlobalSections(win);
+
+  const doc = win.document;
+  const sections = [...doc.querySelectorAll(`[${GLOBAL_ATTR}="${CSS.escape(sourceId)}"]`)];
+
+  if (!sections.length) {
+    if (attempt < 10) {
+      win.setTimeout(() => rebindGlobalFocus(win, sourceId, attempt + 1), 80);
+    }
+
+    // Keep the id sticky so the next click can still recover focus.
+    globalFocusId = sourceId;
+
+    return;
+  }
+
+  doc.querySelectorAll(`[${GLOBAL_FOCUS_ATTR}]`).forEach((el) => el.removeAttribute(GLOBAL_FOCUS_ATTR));
+  sections.forEach((el) => el.setAttribute(GLOBAL_FOCUS_ATTR, ''));
+  doc.documentElement.classList.add('sve-global-focus');
+  globalFocusEl = sections[0];
+  globalFocusId = sourceId;
+
+  // A morph replaces the whole page, bar included — put it back, or stepping
+  // into a global section and typing one character loses the way to save it.
+  if (!doc.getElementById(GLOBAL_BAR_ID)) {
+    mountGlobalBar(win);
   }
 }
 
@@ -2145,7 +4024,10 @@ function requestCloseGlobal(win) {
 }
 
 let globalSaveBtn = null;
+let globalStatusEl = null;
 let globalSectionDirty = false;
+/** The set's display name, as the CP reads it off the panel's values. */
+let globalSectionLabel = null;
 
 function setGlobalSectionDirtyUI(dirty) {
   globalSectionDirty = !!dirty;
@@ -2153,28 +4035,27 @@ function setGlobalSectionDirtyUI(dirty) {
   if (globalSaveBtn) {
     globalSaveBtn.style.display = globalSectionDirty ? '' : 'none';
   }
+
+  if (globalStatusEl) {
+    globalStatusEl.textContent = globalSectionDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
+  }
 }
 
 /**
- * Steps into a global section: fade the rest of the page and open its editor.
- * `reopen: false` re-applies the look after a re-render without touching the
- * panel — reopening it would reload the form under the cursor mid-edit.
+ * The bar that says which global section is being edited, whether it holds
+ * unsaved work, and where to save it.
+ *
+ * The same bar the header and footer get, for the same reason: stepping into
+ * something shared has to keep saying so, and the page behind it can no longer
+ * be trusted to — what you are looking at is one of several places this section
+ * appears. Built here rather than in the CP because it belongs over the page, in
+ * the preview's own coordinates; the CP's panel is beside it, not on it.
  */
-function enterGlobalFocus(win, section, reopen = true) {
-  if (globalFocusEl === section) {
-    return;
-  }
-
-  exitChromeFocus(win, false);
-  exitGlobalFocus(win, false);
-
+function mountGlobalBar(win) {
   const doc = win.document;
   const theme = cpDialogTheme(win);
 
-  section.setAttribute(GLOBAL_FOCUS_ATTR, '');
-  doc.documentElement.classList.add('sve-global-focus');
-  globalFocusEl = section;
-  globalFocusId = section.getAttribute(GLOBAL_ATTR);
+  doc.getElementById(GLOBAL_BAR_ID)?.remove();
 
   const bar = doc.createElement('div');
 
@@ -2185,8 +4066,17 @@ function enterGlobalFocus(win, section, reopen = true) {
 
   text.style.cssText = `font-weight:400;color:${theme.muted};`;
   text.innerHTML = t('global_bar', {
-    section: `<b style="font-weight:700;color:${theme.color};">${t('global_bar_section')}</b>`,
+    section: `<b style="font-weight:700;color:${theme.color};">${globalSectionLabel || t('global_bar_fallback')}</b>`,
   });
+
+  const status = doc.createElement('span');
+
+  status.style.cssText = `font-weight:400;color:${theme.muted};`;
+  status.textContent = globalSectionDirty ? t('chrome_bar_dirty') : t('chrome_bar_clean');
+  globalStatusEl = status;
+
+  text.appendChild(doc.createTextNode(' '));
+  text.appendChild(status);
   bar.appendChild(text);
 
   const barButton = (label, style) => {
@@ -2200,12 +4090,15 @@ function enterGlobalFocus(win, section, reopen = true) {
     return btn;
   };
 
-  // Save only appears once there are unsaved edits (same idea as chrome bar).
+  // Save only while there is something to save — the CP drives the flag.
   globalSaveBtn = barButton(t('save'), svePrimaryBtn(theme, { compact: true }));
   globalSaveBtn.style.display = globalSectionDirty ? '' : 'none';
   globalSaveBtn.addEventListener('click', (event) => {
     event.stopPropagation();
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'save-global-section' }, win.location.origin);
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'save-global-section' },
+      win.location.origin
+    );
   });
 
   barButton(t('close'), sveSecondaryBtn(theme, { compact: true })).addEventListener('click', (event) => {
@@ -2214,18 +4107,55 @@ function enterGlobalFocus(win, section, reopen = true) {
   });
 
   doc.documentElement.appendChild(bar);
+}
 
-  // Stepping in opens the section's own editor beside the page. That's not just
-  // somewhere to type: it's the form that owns this content, and the CP borrows
-  // its fields so the text in the page can be edited inline from right here.
+/**
+ * Steps into a global section: mark it focused and open its editor on the LEFT
+ * (same place as a normal section). Confirm already happened; from here it
+ * edits like any other section — values live on the synced source entry.
+ * `reopen: false` re-applies the look after a re-render without remounting the
+ * panel (would reload the form mid-edit).
+ */
+function enterGlobalFocus(win, section, reopen = true) {
+  const sourceId = section.getAttribute(GLOBAL_ATTR);
+
+  // Already focused on this synced source (any of its rendered sections).
+  if (globalFocusId && globalFocusId === sourceId && globalFocusEl) {
+    if (!win.document.getElementById(GLOBAL_BAR_ID)) {
+      mountGlobalBar(win);
+    }
+
+    return;
+  }
+
+  exitChromeFocus(win, false);
+  exitGlobalFocus(win, false);
+
+  const doc = win.document;
+
+  // Focus every rendered chunk that belongs to this synced source (multi-section
+  // globals), not only the one that was clicked.
+  doc.querySelectorAll(`[${GLOBAL_ATTR}="${CSS.escape(sourceId)}"]`).forEach((el) => {
+    el.setAttribute(GLOBAL_FOCUS_ATTR, '');
+  });
+  doc.documentElement.classList.add('sve-global-focus');
+  globalFocusEl = section;
+  globalFocusId = sourceId;
+  mountGlobalBar(win);
+
+  // Open the source entry in the left Live Preview editor — same slot a normal
+  // section uses. Inline edit borrows that form's values (sectionPanelContainer).
   if (reopen) {
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'open-global-section', id: section.getAttribute(GLOBAL_ATTR) },
+      { source: 'statamic-visual-editor', type: 'open-global-section', id: sourceId },
       win.location.origin
     );
   }
 
   win.parent.postMessage({ source: 'statamic-visual-editor', type: 'sve-global-dirty-query' }, win.location.origin);
+
+  // The section's own "+" only exists while it is being edited.
+  setupInserters(win);
 }
 
 // --- Site chrome (header / footer) ----------------------------------------------
@@ -2237,6 +4167,20 @@ function enterGlobalFocus(win, section, reopen = true) {
 const CHROME_ATTR = 'data-sve-chrome';
 const CHROME_FOCUS_ATTR = 'data-sve-chrome-focused';
 const CHROME_BAR_ID = '__sve-chrome-bar';
+
+/**
+ * What a click outside the header/footer means while you are inside one.
+ *
+ * true (default) — nothing at all, the same lock a global section has. The page
+ *   around it is faded and out of reach, and the way out is the bar at the bottom.
+ * false — the older behaviour: the click asks the Control Panel to close chrome,
+ *   warning first if Theme Settings has unsaved work.
+ *
+ * Goes off together with CHROME_INLINE in cp.js — the lock is part of editing the
+ * header in the left panel, and on its own over the docked route it would only
+ * take away a way out that route still expects to have.
+ */
+const CHROME_LOCKS_PAGE = true;
 
 let chromeFocusEl = null;
 let chromeFocusKind = null;
@@ -2529,6 +4473,10 @@ let moveReposition = null;
 // row-caps reply can grey out whichever would break the field's min/max.
 let moveCtrlRowButtons = null;
 
+// Waiting for a row-caps reply so a toolbar menu can hide Add another / Remove
+// when the field's min/max would reject them.
+let pendingRowCaps = null;
+
 /** Greys out (or restores) a +/− button, and blocks its click while disabled. */
 function setRowButtonDisabled(btn, disabled) {
   if (!btn) {
@@ -2546,12 +4494,55 @@ function setRowButtonDisabled(btn, disabled) {
 
 /** Applies a row-caps reply from the CP to the current control's buttons. */
 function applyRowCaps(data) {
+  if (pendingRowCaps && pendingRowCaps.uid === data.uid) {
+    const { resolve } = pendingRowCaps;
+
+    pendingRowCaps = null;
+    resolve(data);
+  }
+
   if (!moveCtrlRowButtons || moveCtrlRowButtons.uid !== data.uid) {
     return;
   }
 
   setRowButtonDisabled(moveCtrlRowButtons.addBtn, !data.canAdd);
   setRowButtonDisabled(moveCtrlRowButtons.removeBtn, !data.canRemove);
+}
+
+/**
+ * Asks the CP whether this row's field can take another / lose this one.
+ * Resolves with { canAdd, canRemove }; falls back to allowing both if the
+ * reply never arrives (so a hung CP can't trap the menu closed).
+ */
+function requestRowCaps(win, uid) {
+  return new Promise((resolve) => {
+    if (pendingRowCaps) {
+      pendingRowCaps.resolve({ canAdd: true, canRemove: true });
+    }
+
+    const timer = win.setTimeout(() => {
+      if (pendingRowCaps?.uid === uid) {
+        pendingRowCaps = null;
+        resolve({ canAdd: true, canRemove: true });
+      }
+    }, 400);
+
+    pendingRowCaps = {
+      uid,
+      resolve: (data) => {
+        win.clearTimeout(timer);
+        resolve({
+          canAdd: data.canAdd !== false,
+          canRemove: data.canRemove !== false,
+        });
+      },
+    };
+
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'row-caps', uid },
+      win.location.origin
+    );
+  });
 }
 
 function hideMoveControl(win) {
@@ -2715,10 +4706,26 @@ function isHorizontalFlow(win, el) {
 // col_w_* fields (m <768, t <1024, d otherwise — the same buckets the column
 // builder's own width widget uses). A "+" pill in the grid's corner asks the CP
 // to click the column builder's own "Add column" button.
+//
+// The same handle serves a second kind of grid: any container a template opts in
+// with `{{ visual_edit grid_view="true" }}`. There the blocks are ordinary
+// replicator rows, and what gets written is a span field on the row (per
+// breakpoint, if the field is responsive) rather than column-builder classes.
+// Two things differ, and only two: what a release writes, and that the tracks
+// are drawn while you drag — a column builder row IS the grid, but a hero block
+// sits in a grid nobody can see.
 
 const COL_SECTION_SELECTOR = '[data-sid-type="columns"]';
 
-let colChrome = null; // { handle, addBtn, pair, grid }
+/** `{{ visual_edit grid_view="true" grid="12" }}` on the blocks' container. */
+const GRID_ATTR = 'data-sid-grid';
+const GRID_FIELD_ATTR = 'data-sid-grid-field';
+const GRID_MIN_ATTR = 'data-sid-grid-min';
+const GRID_RESIZE_ATTR = 'data-sid-grid-resize';
+const GRID_HANDLES_ATTR = 'data-sid-grid-handles';
+const GRID_PREVIEW_ATTR = 'data-sid-grid-preview';
+
+let colChrome = null; // { handle, addBtn, pair, grid, mode, lines }
 let widthDrag = null;
 let widthDragJustEnded = false;
 
@@ -2764,13 +4771,293 @@ function visibleColumnsOf(grid, win) {
   );
 }
 
+/**
+ * The block under the pointer, seen from the grid: the child of an opted-in
+ * container that the pointer is somewhere inside.
+ *
+ * Climbing beats `closest('[data-sid]')` here. A hero block holds annotated
+ * elements of its own — a headline, an image — and the nearest one of those has
+ * a parent that is no grid, so a pointer over the actual content would find
+ * nothing to resize. What matters is which of the grid's own children the
+ * pointer is in, however deep.
+ */
+function gridBlockFor(win, event) {
+  const target = event.target;
+  let node = target?.nodeType === 1 ? target : (target?.parentElement ?? null);
+
+  for (let i = 0; node && i < 20; i++) {
+    const parent = node.parentElement;
+
+    if (parent?.hasAttribute(GRID_ATTR) && node.hasAttribute(SID_ATTR)) {
+      return { block: node, grid: parent };
+    }
+
+    node = parent;
+  }
+
+  // The gap between two blocks belongs to the container, not to either block —
+  // and it is exactly what the pointer crosses on its way to the handle. Without
+  // falling back to the nearest block here, the chrome is taken down the moment
+  // you reach for it, and the handle can never be grabbed at all.
+  const grid = target?.closest?.(`[${GRID_ATTR}]`);
+  const block = grid ? nearestGridChild(grid, win, event) : null;
+
+  return block ? { block, grid } : null;
+}
+
+/** The grid child the pointer is in, or — over a gap — the one it is nearest. */
+function nearestGridChild(grid, win, event) {
+  let best = null;
+  let bestDistance = Infinity;
+
+  for (const el of visibleColumnsOf(grid, win)) {
+    const rect = el.getBoundingClientRect();
+    const dx = Math.max(rect.left - event.clientX, 0, event.clientX - rect.right);
+    const dy = Math.max(rect.top - event.clientY, 0, event.clientY - rect.bottom);
+    const distance = dx * dx + dy * dy;
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = el;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * How many columns to write to, the fewest a block may keep, and which of the
+ * two ways of resizing this container asked for.
+ *
+ * `free` — each block owns its width. Drag it wide enough and the row runs out
+ * of room, so the next block wraps underneath; you then go and set that one too.
+ *
+ * `split` — the boundary between two blocks is what moves. What one gains the
+ * other gives up, the row stays full, and 50/50 becomes 66/33 in one gesture.
+ *
+ * Neither is the right answer everywhere, which is why it is the template that
+ * says: a hero of two halves wants `split`, a row of cards wants `free`.
+ */
+function gridConfig(grid) {
+  const declared = parseInt(grid.getAttribute(GRID_ATTR) || '', 10);
+  const min = parseInt(grid.getAttribute(GRID_MIN_ATTR) || '', 10);
+
+  return {
+    columns: Number.isFinite(declared) && declared > 0 ? declared : null,
+    field: grid.getAttribute(GRID_FIELD_ATTR) || 'span',
+    min: Number.isFinite(min) && min > 0 ? min : 1,
+    split: (grid.getAttribute(GRID_RESIZE_ATTR) || 'free') === 'split',
+    // `both` — a handle on each edge, and only where dragging can still change
+    // something. `right` — one handle on the trailing edge, always.
+    handles: (grid.getAttribute(GRID_HANDLES_ATTR) || 'both') === 'right' ? 'right' : 'both',
+    // `live` — the block takes its new width as you drag, row breaks and all.
+    // `outline` — only an outline follows the pointer, and the layout is left
+    // alone until you let go. Steadier to aim with, at the cost of not seeing
+    // what the row does until it is done.
+    preview: (grid.getAttribute(GRID_PREVIEW_ATTR) || 'live') === 'outline' ? 'outline' : 'live',
+  };
+}
+
+/**
+ * White on a dark section, black on a light one — the same reading the hover
+ * outlines take, so the two never disagree about which way the page leans.
+ *
+ * A fixed colour cannot work here: the tracks lie on whatever background the
+ * section happens to have, and any hue picked in advance is invisible against
+ * some of them. Plain black and white at low opacity are the two that always
+ * have somewhere to go.
+ */
+function gridTone(win, el) {
+  const parsed = parseCssColor(solidBackgroundFor(win, el));
+  const luminance = parsed ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255 : 1;
+
+  // White gets a touch less than black: dark overlays on a light page read
+  // heavier than light ones on a dark page at the same alpha. `outline` is the
+  // same 30% the hover rings use, so a drag outline and a block edge match.
+  return luminance < 0.45
+    ? { fill: 'rgba(255,255,255,.03)', outline: 'rgba(255, 255, 255, 0.3)', ambient: 'rgba(255, 255, 255, 0.12)' }
+    : { fill: 'rgba(0,0,0,.04)', outline: 'rgba(0, 0, 0, 0.3)', ambient: 'rgba(0, 0, 0, 0.12)' };
+}
+
+/**
+ * The dashed ring, as an inline background.
+ *
+ * Same four gradients the stylesheet paints around a hovered block, in the same
+ * dash and gap. The drag outline is the same kind of thing — "this is the piece
+ * we are talking about" — so it should not be a second visual language.
+ */
+function dashedRing(colour) {
+  const stripe = (deg) =>
+    `repeating-linear-gradient(${deg}deg, ${colour} 0 8px, transparent 8px 14px)`;
+
+  return [
+    `${stripe(90)} top left / 100% 1px no-repeat`,
+    `${stripe(90)} bottom left / 100% 1px no-repeat`,
+    `${stripe(180)} top left / 1px 100% no-repeat`,
+    `${stripe(180)} top right / 1px 100% no-repeat`,
+  ].join(',');
+}
+
+/**
+ * The always-on outline takes its colour once, on the container.
+ *
+ * Set there rather than on each block because a custom property inherits: one
+ * reading of the section's background answers for every block in it, however
+ * many get added later.
+ */
+function toneOutlineContainer(win, event) {
+  const el = event.target?.closest?.('[data-sid-outline]');
+
+  if (!el || el.dataset.sveOutlineToned) {
+    return;
+  }
+
+  const tone = gridTone(win, el);
+
+  el.dataset.sveOutlineToned = '1';
+  el.style.setProperty('--sve-outline-color', tone.outline);
+  el.style.setProperty('--sve-outline-ambient', tone.ambient);
+}
+
+// The tracks outlive the chrome around them. Moving from one block to the next
+// tears the handle down and builds a new one, and lines rebuilt along with it
+// would blink at every crossing — so they live here, keyed to their grid, and
+// are only really taken down when the pointer leaves for good.
+let gridLines = null; // { el, grid, timer }
+
+function removeGridLinesNow() {
+  if (!gridLines) {
+    return;
+  }
+
+  clearTimeout(gridLines.timer);
+  gridLines.el.remove();
+  gridLines = null;
+}
+
+/**
+ * How tall the tracks are drawn: the section around the grid, not the grid.
+ *
+ * The columns only ever came from the grid horizontally — where a track starts
+ * and how wide it is. Vertically there is nothing to inherit, so they may as
+ * well run the section's full height and read as part of it, instead of
+ * stopping short at the padding the blocks happen to sit inside.
+ *
+ * Deliberately measured rather than fixed by moving the padding onto the blocks:
+ * that would change the page itself to suit a ruler that is only on screen while
+ * somebody hovers.
+ */
+function gridLinesBox(grid) {
+  const host = grid.parentElement?.closest(`[${SID_ATTR}]`) ?? grid;
+
+  return host.getBoundingClientRect();
+}
+
+function positionGridLines() {
+  if (!gridLines) {
+    return;
+  }
+
+  const { el, grid } = gridLines;
+  const box = gridLinesBox(grid);
+  const info = columnGridInfo(grid.ownerDocument.defaultView, grid);
+
+  el.style.left = `${info.left}px`;
+  el.style.top = `${box.top}px`;
+  el.style.height = `${box.height}px`;
+}
+
+/** Fades out, then goes. `immediate` is for a morph, where the grid it measured is gone. */
+function hideGridLines(immediate = false) {
+  if (!gridLines) {
+    return;
+  }
+
+  if (immediate) {
+    removeGridLinesNow();
+
+    return;
+  }
+
+  if (gridLines.timer) {
+    return; // already on its way out
+  }
+
+  const { el } = gridLines;
+
+  el.style.opacity = '0';
+  gridLines.timer = setTimeout(() => {
+    if (gridLines?.el === el) {
+      removeGridLinesNow();
+    }
+  }, 220);
+}
+
+/**
+ * The tracks, drawn over the grid.
+ *
+ * Measured from the resolved grid rather than from the declared column count, so
+ * the lines land on the boundaries the browser actually used — gap, padding and
+ * a scaled preview included. Faint on purpose: this is a ruler held up against
+ * the page, not part of it.
+ *
+ * Calling it again for the same grid is how a fade already under way is called
+ * back — which is what makes crossing from one block to another look like
+ * nothing happened at all.
+ */
+function showGridLines(win, grid, info) {
+  if (gridLines && gridLines.grid === grid) {
+    clearTimeout(gridLines.timer);
+    gridLines.timer = null;
+    gridLines.el.style.opacity = '1';
+    positionGridLines();
+
+    return;
+  }
+
+  removeGridLinesNow();
+
+  const doc = win.document;
+  const rect = gridLinesBox(grid);
+  const tone = gridTone(win, grid);
+  const box = doc.createElement('div');
+
+  box.style.cssText =
+    `position:fixed;z-index:2147483644;pointer-events:none;opacity:0;transition:opacity .14s ease;` +
+    `left:${info.left}px;top:${rect.top}px;` +
+    `width:${info.unit * info.tracks - info.gap}px;height:${rect.height}px;`;
+
+  for (let i = 0; i < info.tracks; i++) {
+    const track = doc.createElement('div');
+
+    track.style.cssText =
+      `position:absolute;top:0;bottom:0;left:${i * info.unit}px;width:${info.unit - info.gap}px;` +
+      `background:${tone.fill};`;
+    box.appendChild(track);
+  }
+
+  doc.documentElement.appendChild(box);
+  gridLines = { el: box, grid, timer: null };
+
+  // Next frame: a transition needs a value to move away from, and one set in the
+  // same frame as the element is inserted has nothing to move away from.
+  win.requestAnimationFrame(() => {
+    if (gridLines?.el === box) {
+      box.style.opacity = '1';
+    }
+  });
+}
+
 function hideColumnChrome(win) {
+  hideGridLines();
+
   if (!colChrome) {
     return;
   }
 
-  colChrome.handle?.remove();
+  colChrome.handles.forEach(({ el }) => el.remove());
   colChrome.addBtn?.remove();
+  colChrome.grid?.removeAttribute('data-sid-outline-on');
   win.removeEventListener('scroll', colChrome.onScroll, true);
   colChrome = null;
 }
@@ -2780,17 +5067,37 @@ function positionColumnChrome() {
     return;
   }
 
-  const { handle, addBtn, pair, grid } = colChrome;
+  const { handles, addBtn, grid, block } = colChrome;
 
-  if (handle && pair) {
-    const ra = pair.a.getBoundingClientRect();
-    const rb = pair.b.getBoundingClientRect();
-    const x = (ra.right + rb.left) / 2;
-    const top = Math.max(ra.top, rb.top);
-    const bottom = Math.min(ra.bottom, rb.bottom);
+  positionGridLines();
 
-    handle.style.left = `${x - 5}px`;
-    handle.style.top = `${(top + bottom) / 2 - 24}px`;
+  for (const { el, side, pair } of handles) {
+    let x;
+    let top;
+    let bottom;
+
+    if (pair) {
+      const ra = pair.a.getBoundingClientRect();
+      const rb = pair.b.getBoundingClientRect();
+
+      x = (ra.right + rb.left) / 2;
+      top = Math.max(ra.top, rb.top);
+      bottom = Math.min(ra.bottom, rb.bottom);
+    } else {
+      // A block owns its own width, so its handle sits on its own edge — not on
+      // a boundary shared with a neighbour. Dragging it takes nothing from
+      // anyone; the row simply runs out of room and the next block wraps.
+      const rect = block.getBoundingClientRect();
+
+      x = side === 'left' ? rect.left : rect.right;
+      top = rect.top;
+      bottom = rect.bottom;
+    }
+
+    // Centred on its own box, so a handle with a bigger grab area than its bar
+    // still sits exactly on the edge.
+    el.style.left = `${x - el.offsetWidth / 2}px`;
+    el.style.top = `${(top + bottom) / 2 - el.offsetHeight / 2}px`;
   }
 
   if (addBtn) {
@@ -2810,24 +5117,34 @@ function maybeShowColumnChrome(win, event) {
     return;
   }
 
-  if (colChrome && (colChrome.handle?.contains(event.target) || colChrome.addBtn?.contains(event.target))) {
+  if (
+    colChrome &&
+    (colChrome.handles.some(({ el }) => el.contains(event.target)) || colChrome.addBtn?.contains(event.target))
+  ) {
     return;
   }
 
-  const block = event.target.closest?.(`[${SID_ATTR}]`);
-  const section = block?.closest(COL_SECTION_SELECTOR);
-  const grid = block?.parentElement;
+  // Two ways to be a resizable block, asked in order of how specific they are:
+  // a child of a container that opted in with grid_view, or a column-builder
+  // column. The first is looked up by climbing, because the pointer is usually
+  // over the block's contents rather than the block itself.
+  const spanned = gridBlockFor(win, event);
+  const block = spanned?.block ?? event.target.closest?.(`[${SID_ATTR}]`);
+  const grid = spanned?.grid ?? block?.parentElement;
+  const mode = spanned ? 'span' : block?.closest(COL_SECTION_SELECTOR) ? 'columns' : null;
 
-  if (!block || !section || !grid || win.getComputedStyle(grid).display !== 'grid') {
+  if (!block || !mode || !grid || win.getComputedStyle(grid).display !== 'grid') {
     hideColumnChrome(win);
 
     return;
   }
 
+  const config = mode === 'span' ? gridConfig(grid) : null;
+
   // VISUAL order, not DOM order: per-breakpoint `order` CSS (order_m/t/d) can
-  // render the DOM's first column on the right. The pair is always
-  // { a: visually left, b: visually right } so the drag math and the written
-  // uids follow what the user actually sees.
+  // render the DOM's first column on the right. Neighbours are read left to
+  // right off the screen, so the drag math and the written uids follow what the
+  // user actually sees.
   const rowMates = visibleColumnsOf(grid, win)
     .filter((el) => el === block || onSameRow(block, el))
     .sort((x, y) => x.getBoundingClientRect().left - y.getBoundingClientRect().left);
@@ -2841,65 +5158,208 @@ function maybeShowColumnChrome(win, event) {
 
   const next = rowMates[index + 1] ?? null;
   const prev = rowMates[index - 1] ?? null;
-  const pair = next ? { a: block, b: next } : prev ? { a: prev, b: block } : null;
 
-  if (colChrome && colChrome.grid === grid && colChrome.pair?.a === pair?.a && colChrome.pair?.b === pair?.b) {
+  // Which edges are worth offering. An edge already flush against the grid has
+  // nowhere left to grow, so its handle is dropped — but only as long as the
+  // other one survives. A block filling the whole row is flush on both sides,
+  // and dropping both would leave it with no way back: it could never be made
+  // narrower again. Stranding beats tidiness, so in that case both stay.
+  const sides = [];
+
+  if (mode === 'span' && config.handles === 'both') {
+    const info = columnGridInfo(win, grid);
+    const rect = block.getBoundingClientRect();
+
+    if (rect.left > info.left + 2) {
+      sides.push('left');
+    }
+
+    if (rect.right < info.left + info.unit * info.tracks - info.gap - 2) {
+      sides.push('right');
+    }
+
+    if (sides.length === 0) {
+      sides.push('left', 'right');
+    }
+  } else {
+    sides.push('right');
+  }
+
+  // `split` borrows the column builder's pairing wholesale: same boundary, same
+  // give-and-take. Only what gets written at the end differs.
+  const pairFor = (side) => {
+    if (mode !== 'columns' && !config?.split) {
+      return null;
+    }
+
+    if (side === 'left') {
+      return prev ? { a: prev, b: block } : null;
+    }
+
+    return next ? { a: block, b: next } : prev ? { a: prev, b: block } : null;
+  };
+
+  const wanted = sides.map((side) => ({ side, pair: pairFor(side) }));
+
+  // Column builder: a lone column has no boundary to drag, so it gets nothing.
+  const live = mode === 'columns' ? wanted.filter((w) => w.pair) : wanted;
+
+  if (
+    colChrome &&
+    colChrome.grid === grid &&
+    colChrome.mode === mode &&
+    colChrome.block === block &&
+    colChrome.handles.length === live.length &&
+    colChrome.handles.every((h, i) => h.side === live[i].side && h.pair?.a === live[i].pair?.a && h.pair?.b === live[i].pair?.b)
+  ) {
     return; // already showing exactly this
   }
 
   hideColumnChrome(win);
 
   const doc = win.document;
-  let handle = null;
+  const handles = live.map(({ side, pair }) => {
+    const el = doc.createElement('div');
 
-  if (pair) {
-    handle = doc.createElement('div');
-    handle.style.cssText =
+    el.style.cssText =
       'position:fixed;z-index:2147483646;width:10px;height:48px;border-radius:6px;' +
       'background:#1f2937;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.18);' +
       'cursor:col-resize;touch-action:none;';
-    handle.title = t('drag_columns');
-    handle.addEventListener('pointerdown', (e) => {
+    el.title = t('drag_columns');
+
+    // A hero's blocks sit far apart, and 10px of grab area in the middle of all
+    // that space is a target you aim at rather than reach for. The bar keeps its
+    // size; what grows is the invisible box around it.
+    if (mode === 'span') {
+      const bar = doc.createElement('div');
+
+      bar.style.cssText =
+        'width:10px;height:48px;border-radius:6px;pointer-events:none;' +
+        'background:#1f2937;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.18);';
+      el.style.cssText =
+        'position:fixed;z-index:2147483646;width:28px;height:64px;background:transparent;' +
+        'display:flex;align-items:center;justify-content:center;cursor:col-resize;touch-action:none;';
+      el.appendChild(bar);
+    }
+
+    el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || widthDrag) {
         return;
       }
 
       e.preventDefault();
       e.stopPropagation();
-      beginWidthDrag(win, pair, grid);
+      beginWidthDrag(win, pair ?? { a: block, b: null }, grid, mode, e.clientX, side, el);
     });
-    doc.documentElement.appendChild(handle);
+
+    // The tracks belong to the handle, not to the section: they answer "where
+    // can this land", which is only a question once you have reached for it.
+    // A column builder block draws its own edges and has never needed them.
+    if (mode === 'span') {
+      el.addEventListener('pointerenter', () => showGridLines(win, grid, columnGridInfo(win, grid)));
+      el.addEventListener('pointerleave', () => {
+        if (!widthDrag) {
+          hideGridLines();
+        }
+      });
+    }
+
+    doc.documentElement.appendChild(el);
+
+    return { el, side, pair };
+  });
+
+  let addBtn = null;
+
+  if (mode === 'columns') {
+    const section = block.closest(COL_SECTION_SELECTOR);
+
+    addBtn = doc.createElement('button');
+    addBtn.type = 'button';
+    addBtn.textContent = '+';
+    addBtn.title = t('add_column');
+    addBtn.style.cssText =
+      'position:fixed;z-index:2147483646;width:28px;height:28px;border:none;border-radius:50%;' +
+      'background:#1f2937;color:#fff;font-size:18px;line-height:1;cursor:pointer;' +
+      'box-shadow:0 2px 10px rgba(0,0,0,.35);display:inline-flex;align-items:center;justify-content:center;';
+    addBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    addBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      win.parent.postMessage(
+        { source: 'statamic-visual-editor', type: 'cb-add-column', uid: section?.getAttribute(SID_ATTR) },
+        win.location.origin
+      );
+    });
+    doc.documentElement.appendChild(addBtn);
   }
 
-  const addBtn = doc.createElement('button');
+  // The handle lives outside the container, so reaching for it ends the
+  // container's :hover and would take every block's edge down with it — right
+  // when you need to see what you are about to resize. The chrome's own lifetime
+  // is the honest answer to "is this section being worked on", so it carries the
+  // rings: raised here, dropped in hideColumnChrome, and untouched for as long
+  // as the pointer is on a handle or a drag is running.
+  if (mode === 'span') {
+    grid.setAttribute('data-sid-outline-on', '');
+  }
 
-  addBtn.type = 'button';
-  addBtn.textContent = '+';
-  addBtn.title = t('add_column');
-  addBtn.style.cssText =
-    'position:fixed;z-index:2147483646;width:28px;height:28px;border:none;border-radius:50%;' +
-    'background:#1f2937;color:#fff;font-size:18px;line-height:1;cursor:pointer;' +
-    'box-shadow:0 2px 10px rgba(0,0,0,.35);display:inline-flex;align-items:center;justify-content:center;';
-  addBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  addBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'cb-add-column', uid: section.getAttribute(SID_ATTR) },
-      win.location.origin
-    );
-  });
-  doc.documentElement.appendChild(addBtn);
-
-  colChrome = { handle, addBtn, pair, grid, onScroll: () => positionColumnChrome() };
+  colChrome = { handles, addBtn, block, grid, mode, onScroll: () => positionColumnChrome() };
   win.addEventListener('scroll', colChrome.onScroll, true);
   positionColumnChrome();
 }
 
-function beginWidthDrag(win, pair, grid) {
+/**
+ * Where the outline sits for a given span, in screen pixels.
+ *
+ * Anchored on the edge you did NOT grab, so the outline grows the way your hand
+ * moves. That the block itself may end up somewhere else entirely — wrapped onto
+ * the next row — is the trade this mode makes: a steady thing to aim at while
+ * dragging, and the truth on release.
+ */
+function updateDragGhost(span) {
+  const { ghost, handleEl, info, side, anchorLeft, anchorRight, blockTop, blockHeight } = widthDrag;
+  const width = Math.max(0, span * info.unit - info.gap);
+  const left = side === 'left' ? anchorRight - width : anchorLeft;
+
+  // Sat 6px outside the columns it stands for, which is where a block's own ring
+  // sits. Drawn flush instead, the same width would look a hair narrower than
+  // the block it is about to become.
+  ghost.style.left = `${left - 6}px`;
+  ghost.style.top = `${blockTop - 6}px`;
+  ghost.style.width = `${width + 12}px`;
+  ghost.style.height = `${blockHeight + 12}px`;
+
+  // The handle travels with the outline's dragged edge, so what you are holding
+  // and what you are aiming stay the same thing.
+  if (handleEl) {
+    const edge = side === 'left' ? left : left + width;
+
+    handleEl.style.left = `${edge - handleEl.offsetWidth / 2}px`;
+  }
+}
+
+function beginWidthDrag(win, pair, grid, mode = 'columns', startX = 0, side = 'right', handleEl = null) {
   const info = columnGridInfo(win, grid);
   const spanA = spanOf(pair.a, info);
-  const spanB = spanOf(pair.b, info);
+  const spanB = pair.b ? spanOf(pair.b, info) : 0;
+  const config = mode === 'span' ? gridConfig(grid) : { field: null, min: 1, preview: 'live' };
+  const rectA = pair.a.getBoundingClientRect();
+
+  // Only a block resized on its own gets the outline. A paired drag is about the
+  // boundary between two blocks, and one of the two standing still while the
+  // other is outlined says nothing useful.
+  let ghost = null;
+
+  if (config.preview === 'outline' && !pair.b) {
+    const tone = gridTone(win, grid);
+
+    ghost = win.document.createElement('div');
+    ghost.style.cssText =
+      'position:fixed;z-index:2147483645;pointer-events:none;border-radius:4px;' +
+      `background:${dashedRing(tone.outline)};`;
+    win.document.documentElement.appendChild(ghost);
+  }
 
   const badge = win.document.createElement('div');
 
@@ -2909,58 +5369,146 @@ function beginWidthDrag(win, pair, grid) {
     'box-shadow:0 4px 16px rgba(0,0,0,.35);white-space:nowrap;';
   win.document.documentElement.appendChild(badge);
 
+  // The tracks are already up if the chrome is; a drag started any other way
+  // still gets to see them.
+  if (mode === 'span') {
+    showGridLines(win, grid, info);
+  }
+
   widthDrag = {
     ...pair,
     grid,
     info,
+    mode,
+    field: config.field,
+    // Resized on its own, a block may go as narrow as the grid allows and as
+    // wide as the whole row. Paired, it has to leave the other half room to
+    // exist — its ceiling is what the two of them share.
+    min: mode === 'span' ? Math.min(config.min, info.tracks) : 1,
+    max: pair.b
+      ? spanA + spanB - (mode === 'span' ? Math.min(config.min, info.tracks) : 1)
+      : Math.min(info.tracks, config.columns ?? info.tracks),
     total: spanA + spanB,
     spanA,
     applied: spanA,
-    aLeft: pair.a.getBoundingClientRect().left,
+    aLeft: rectA.left,
+    startX,
+    // Grabbed on the left, the block gets wider as the pointer goes left.
+    // Both edges write the same number; the side only says which way is bigger.
+    sign: side === 'left' ? -1 : 1,
+    side,
+    ghost,
+    handleEl,
+    anchorLeft: rectA.left,
+    anchorRight: rectA.right,
+    blockTop: rectA.top,
+    blockHeight: rectA.height,
     badge,
   };
+
+  if (ghost) {
+    updateDragGhost(spanA);
+  }
+
   win.document.documentElement.classList.add('sve-col-resizing');
 }
 
 function updateWidthDrag(win, event) {
-  const { a, b, info, total, aLeft, badge } = widthDrag;
+  const { a, b, info, total, aLeft, badge, min, max, spanA, startX, sign } = widthDrag;
 
   event.preventDefault();
 
-  let next = Math.round((event.clientX - aLeft + info.gap / 2) / info.unit);
+  // Paired, the pointer IS the boundary, so the width is read off its position.
+  // Alone, it is read as a distance travelled instead: a block that outgrows its
+  // row wraps mid-drag and its left edge moves out from under the pointer — as a
+  // position, the width would jump the moment the row broke.
+  let next = b
+    ? Math.round((event.clientX - aLeft + info.gap / 2) / info.unit)
+    : spanA + sign * Math.round((event.clientX - startX) / info.unit);
 
-  next = Math.max(1, Math.min(total - 1, next));
+  next = Math.max(min, Math.min(max, next));
 
   if (next !== widthDrag.applied) {
     widthDrag.applied = next;
-    // Inline styles for instant feedback — they also don't depend on every
-    // col-span-* class being present in the site's compiled CSS. The morph
-    // after the CP write replaces them with the real classes.
-    a.style.gridColumn = `span ${next} / span ${next}`;
-    b.style.gridColumn = `span ${total - next} / span ${total - next}`;
-    positionColumnChrome();
+
+    if (widthDrag.ghost) {
+      // The layout is left alone until release; only the outline moves.
+      updateDragGhost(next);
+    } else {
+      // Inline styles for instant feedback — they also don't depend on every
+      // col-span-* class being present in the site's compiled CSS. The morph
+      // after the CP write replaces them with the real classes.
+      a.style.gridColumn = `span ${next} / span ${next}`;
+
+      if (b) {
+        b.style.gridColumn = `span ${total - next} / span ${total - next}`;
+      }
+
+      positionColumnChrome();
+    }
   }
 
   const pct = (n) => `${Math.round((n / info.tracks) * 100)}%`;
+  const applied = widthDrag.applied;
 
-  badge.textContent = `${widthDrag.applied}/${info.tracks} · ${pct(widthDrag.applied)}  |  ${total - widthDrag.applied}/${info.tracks} · ${pct(total - widthDrag.applied)}`;
+  badge.textContent = b
+    ? `${applied}/${info.tracks} · ${pct(applied)}  |  ${total - applied}/${info.tracks} · ${pct(total - applied)}`
+    : `${applied}/${info.tracks} · ${pct(applied)}`;
   badge.style.left = `${event.clientX + 14}px`;
   badge.style.top = `${event.clientY + 16}px`;
 }
 
 function finishWidthDrag(win, cancelled) {
-  const { a, b, total, spanA, applied, badge } = widthDrag;
+  const { a, b, total, spanA, applied, badge, mode, field, ghost } = widthDrag;
 
   badge.remove();
+  ghost?.remove();
   win.document.documentElement.classList.remove('sve-col-resizing');
   widthDrag = null;
+
+  // Outlined drags have left the layout untouched so far. This is the jump the
+  // mode trades for: the block takes its width now, in one move, and the write
+  // that follows only confirms what is already on screen.
+  if (ghost && !cancelled && applied !== spanA) {
+    a.style.gridColumn = `span ${applied} / span ${applied}`;
+  }
+
+  positionColumnChrome();
+
+  // Let go still holding the handle and the tracks stay — no pointerenter is
+  // coming to bring them back, and blinking them out under a pointer that never
+  // moved would read as something breaking.
+  if (!colChrome?.handles.some(({ el }) => el.matches(':hover'))) {
+    hideGridLines();
+  }
 
   widthDragJustEnded = true;
   setTimeout(() => (widthDragJustEnded = false), 250);
 
   if (cancelled || applied === spanA) {
     a.style.gridColumn = '';
-    b.style.gridColumn = '';
+
+    if (b) {
+      b.style.gridColumn = '';
+    }
+
+    return;
+  }
+
+  // Written once, on release. Every write re-renders the page builder in the CP,
+  // and one landing mid-request leaves a promise unsettled — which is a spinner
+  // that never stops. During the drag the inline grid-column is the whole story.
+  if (mode === 'span') {
+    const changes = [{ uid: a.getAttribute(SID_ATTR), span: applied }];
+
+    if (b) {
+      changes.push({ uid: b.getAttribute(SID_ATTR), span: total - applied });
+    }
+
+    win.parent.postMessage(
+      { source: 'statamic-visual-editor', type: 'sve-grid-span', field, changes },
+      win.location.origin
+    );
 
     return;
   }
@@ -3000,9 +5548,40 @@ let dragState = null;
 let dragJustEnded = false; // one-shot: swallow the click that follows a drag
 
 function orderablePeers(el) {
-  return el.parentElement
-    ? [...el.parentElement.children].filter((c) => c.hasAttribute(ORDERABLE_ATTR))
-    : [];
+  if (!el.parentElement) {
+    return [];
+  }
+
+  const siblings = [...el.parentElement.children].filter((c) => c.hasAttribute(ORDERABLE_ATTR));
+
+  if (siblings.length > 1) {
+    return siblings;
+  }
+
+  // A block standing alone among its DOM siblings may still have peers: a
+  // template is free to wrap each row in markup of its own, and then no two rows
+  // share a parent. What they do share is the replicator container, so ask that
+  // — counting only rows it owns directly, so a nested replicator's rows are not
+  // mistaken for this one's.
+  const container = el.closest(`[${INSERT_ATTR}]`);
+
+  if (!container) {
+    return siblings;
+  }
+
+  const owned = [...container.querySelectorAll(`[${ORDERABLE_ATTR}]`)].filter((row) => {
+    if (row.parentElement?.closest(`[${INSERT_ATTR}]`) !== container) {
+      return false;
+    }
+
+    // Not a row nested inside another row: a wrapped block declares orderable
+    // twice over, and counting both would double the list.
+    const outer = row.parentElement?.closest(`[${ORDERABLE_ATTR}]`);
+
+    return !outer || !container.contains(outer);
+  });
+
+  return owned.length > 1 ? owned : siblings;
 }
 
 /** Nearest solid background up the ancestor chain — the ghost card uses it so
@@ -3280,7 +5859,7 @@ function createDragPointerMove(win) {
     let insert = 0;
 
     peers.forEach((peer, i) => {
-      const rect = peer.getBoundingClientRect();
+      const rect = peerRect(peer);
       const mid = horizontal ? (rect.left + rect.right) / 2 : (rect.top + rect.bottom) / 2;
 
       if (pos > mid) {
@@ -3292,7 +5871,7 @@ function createDragPointerMove(win) {
 
     // Draw the line in the gap the drop would land in.
     const anchor = peers[Math.min(insert, peers.length - 1)];
-    const rect = anchor.getBoundingClientRect();
+    const rect = peerRect(anchor);
     const after = insert > peers.length - 1;
 
     if (horizontal) {
@@ -3375,7 +5954,12 @@ function showMoveControl(win, moveEl) {
   // A single row/section has nowhere to move — no arrows. Peers are sibling
   // elements of the same kind: orderable rows, move-annotated rows, or other
   // page sections (opted in via section-orderable="true" — any HTML tag).
-  const isPageSection = (el) => el.hasAttribute(SECTION_ORDERABLE_ATTR);
+  // A global section counts as a section on this page like any other. What sits
+  // among the page's sections is its display:contents wrapper, so that wrapper
+  // is a peer too — otherwise a page with one normal and one global section
+  // looks like it has only one, and neither gets arrows.
+  const isPageSection = (el) =>
+    el.hasAttribute(SECTION_ORDERABLE_ATTR) || el.hasAttribute(GLOBAL_ROOT_ATTR);
 
   // Rows opted into ordering (orderable="true") are the innermost thing a hover
   // can land on, so they claim the control before the section around them.
@@ -3385,8 +5969,14 @@ function showMoveControl(win, moveEl) {
   // Declared early so Bard mixed content can show move arrows vs all siblings.
   const isBlockSet = isRow && moveEl.parentElement?.hasAttribute(INSERT_ATTR);
 
-  const peers = moveEl.parentElement
-    ? [...moveEl.parentElement.children].filter((el) =>
+  // Inside a global section the mouse is on one of the SOURCE's sections, one
+  // level in from the page's own list. Its place among the page's sections is
+  // the wrapper's place, so peers are counted from there.
+  const globalRoot = isRow ? null : moveEl.closest(`[${GLOBAL_ROOT_ATTR}]`);
+  const peerEl = globalRoot ?? moveEl;
+
+  const peers = peerEl.parentElement
+    ? [...peerEl.parentElement.children].filter((el) =>
         isRow
           ? el.hasAttribute(ORDERABLE_ATTR)
           : moveEl.hasAttribute('data-sid-move')
@@ -3408,14 +5998,40 @@ function showMoveControl(win, moveEl) {
   moveTargetEl = moveEl;
 
   const doc = win.document;
+  const theme = toolbarThemeFor(detectCpDark(win));
   const ctrl = doc.createElement('div');
-  const horizontal = isHorizontalFlow(win, moveEl);
+  // Two different questions, and they were being answered by the same word.
+  //
+  // `flowsSideways` is about the thing itself: does it sit beside its siblings
+  // or above them? That is what decides which way the arrows point — and a
+  // section is always stacked, so it moves up and down, never left and right.
+  //
+  // `horizontal` is only about the strip of buttons: a section's control lies
+  // across its top corner the way a toolbar does, whichever way the section
+  // itself moves. Rows keep taking their layout from their flow.
+  const flowsSideways = isHorizontalFlow(win, moveEl);
+  const horizontal = isSection || flowsSideways;
+  const BTN = 26;
+  const btnCss =
+    `all:unset;cursor:pointer;width:${BTN}px;height:${BTN}px;display:inline-flex;align-items:center;` +
+    `justify-content:center;border-radius:6px;box-sizing:border-box;color:${theme.fg};line-height:1;`;
+  const paintHover = (btn) => {
+    btn.addEventListener('mouseenter', () => {
+      if (!btn.dataset.sveDisabled) {
+        btn.style.background = theme.hover;
+      }
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'transparent';
+    });
+  };
 
   ctrl.id = '__sve-move-ctrl';
+  // Same tokens as the headline/richtext edit toolbar — just a smaller pill.
   ctrl.style.cssText =
-    `position:fixed;z-index:2147483646;display:flex;flex-direction:${horizontal ? 'row' : 'column'};gap:2px;` +
-    'background:#1f2937;color:#fff;border-radius:8px;padding:3px;' +
-    'box-shadow:0 4px 16px rgba(0,0,0,0.35);font-family:sans-serif;user-select:none;';
+    `position:fixed;z-index:2147483646;display:flex;flex-direction:${horizontal ? 'row' : 'column'};gap:1px;` +
+    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius:9px;padding:3px;` +
+    `box-shadow:${theme.shadow};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;user-select:none;`;
 
   const addArrow = (glyph, title, direction) => {
     const btn = doc.createElement('button');
@@ -3423,11 +6039,8 @@ function showMoveControl(win, moveEl) {
     btn.type = 'button';
     btn.textContent = glyph;
     btn.title = title;
-    btn.style.cssText =
-      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-      'justify-content:center;border-radius:5px;font-size:14px;box-sizing:border-box;';
-    btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(255,255,255,0.14)'));
-    btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+    btn.style.cssText = `${btnCss}font-size:14px;`;
+    paintHover(btn);
     btn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -3452,11 +6065,8 @@ function showMoveControl(win, moveEl) {
     handle.type = 'button';
     handle.textContent = '⠿';
     handle.title = t('drag_section');
-    handle.style.cssText =
-      'all:unset;cursor:grab;width:26px;height:26px;display:inline-flex;align-items:center;' +
-      'justify-content:center;border-radius:5px;font-size:13px;box-sizing:border-box;touch-action:none;';
-    handle.addEventListener('mouseenter', () => (handle.style.background = 'rgba(255,255,255,0.14)'));
-    handle.addEventListener('mouseleave', () => (handle.style.background = 'transparent'));
+    handle.style.cssText = `${btnCss}cursor:grab;font-size:13px;touch-action:none;`;
+    paintHover(handle);
     handle.addEventListener('pointerdown', (event) => {
       if (event.button !== 0 || editing || dragState) {
         return;
@@ -3474,7 +6084,7 @@ function showMoveControl(win, moveEl) {
         zoom: null,
         startX: event.clientX,
         startY: event.clientY,
-        fromIndex: peers.indexOf(moveEl),
+        fromIndex: peers.indexOf(peerEl),
         insert: null,
         active: false,
         indicator: null,
@@ -3486,7 +6096,7 @@ function showMoveControl(win, moveEl) {
   }
 
   if (peers.length > 1 || (isBlockSet && (moveEl.parentElement?.children.length || 0) > 1)) {
-    if (horizontal) {
+    if (flowsSideways) {
       addArrow('←', t('move_left'), -1);
       addArrow('→', t('move_right'), 1);
     } else {
@@ -3498,7 +6108,7 @@ function showMoveControl(win, moveEl) {
   // Orderable rows: add/remove, or for replicator blocks inside an insertable
   // container — hide / duplicate / delete (matching the CP set header actions).
   if (isRow) {
-    const rowButton = (glyphOrHtml, title, type, style = '', asHtml = false) => {
+    const rowButton = (glyphOrHtml, title, type, style = '', asHtml = false, extra = null) => {
       const btn = doc.createElement('button');
 
       btn.type = 'button';
@@ -3510,13 +6120,8 @@ function showMoveControl(win, moveEl) {
       }
 
       btn.title = title;
-      btn.style.cssText =
-        'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-        `justify-content:center;border-radius:5px;font-size:16px;line-height:1;box-sizing:border-box;${style}`;
-      btn.addEventListener('mouseenter', () => {
-        if (!btn.dataset.sveDisabled) btn.style.background = 'rgba(255,255,255,0.14)';
-      });
-      btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+      btn.style.cssText = `${btnCss}font-size:16px;${style}`;
+      paintHover(btn);
       btn.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -3531,7 +6136,10 @@ function showMoveControl(win, moveEl) {
           return;
         }
 
-        win.parent.postMessage({ source: 'statamic-visual-editor', type, uid }, win.location.origin);
+        win.parent.postMessage(
+          { source: 'statamic-visual-editor', type, uid, ...(extra || {}) },
+          win.location.origin
+        );
         hideMoveControl(win);
       });
 
@@ -3552,46 +6160,22 @@ function showMoveControl(win, moveEl) {
 
       rowButton(ICONS.hide, t('hide_this'), 'hide-row', '', true);
       const dupBtn = rowButton(ICONS.duplicate, t('duplicate_this'), 'duplicate-row', '', true);
-      const removeBtn = rowButton(ICONS.trash, t('remove_this'), 'remove-row', 'color:#fca5a5;', true);
+      const removeBtn = rowButton(ICONS.trash, t('remove_this'), 'remove-row', '', true);
 
       moveCtrlRowButtons = { uid, addBtn: dupBtn, removeBtn };
       win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
     } else {
       const addBtn = rowButton('+', t('add_another'), 'add-row');
-      const removeBtn = rowButton('−', t('remove_this'), 'remove-row', 'color:#fca5a5;');
+      // Taking away the last row leaves the block holding this field with
+      // nothing to draw — see blockHolding(). The uid, not the element: this
+      // rides across postMessage, which can only carry plain data.
+      const removeBtn = rowButton('−', t('remove_this'), 'remove-row', '', false, {
+        emptyRemovesBlock: blockHolding(moveEl)?.getAttribute(SID_ATTR) || null,
+      });
 
       moveCtrlRowButtons = { uid, addBtn, removeBtn };
       win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
     }
-  }
-
-  // Gear — opens the section's own settings popup (spacing, colours, …), the
-  // same one the panel's "Show settings" button opens.
-  if (isSection) {
-    const gear = doc.createElement('button');
-
-    gear.type = 'button';
-    gear.innerHTML = ICONS.settings;
-    gear.title = t('section_settings');
-    gear.style.cssText =
-      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-      'justify-content:center;border-radius:5px;box-sizing:border-box;';
-    gear.addEventListener('mouseenter', () => (gear.style.background = 'rgba(255,255,255,0.14)'));
-    gear.addEventListener('mouseleave', () => (gear.style.background = 'transparent'));
-    gear.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    gear.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'section-settings', uid },
-        win.location.origin
-      );
-    });
-
-    ctrl.appendChild(gear);
   }
 
   // Bookmark — save this section as a reusable template.
@@ -3601,11 +6185,8 @@ function showMoveControl(win, moveEl) {
     save.type = 'button';
     save.innerHTML = ICONS.bookmark;
     save.title = t('save_as_template');
-    save.style.cssText =
-      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-      'justify-content:center;border-radius:5px;box-sizing:border-box;';
-    save.addEventListener('mouseenter', () => (save.style.background = 'rgba(255,255,255,0.14)'));
-    save.addEventListener('mouseleave', () => (save.style.background = 'transparent'));
+    save.style.cssText = btnCss;
+    paintHover(save);
     save.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -3630,11 +6211,8 @@ function showMoveControl(win, moveEl) {
     plus.type = 'button';
     plus.textContent = '+';
     plus.title = t('add_section_below');
-    plus.style.cssText =
-      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-      'justify-content:center;border-radius:5px;font-size:18px;line-height:1;box-sizing:border-box;';
-    plus.addEventListener('mouseenter', () => (plus.style.background = 'rgba(255,255,255,0.14)'));
-    plus.addEventListener('mouseleave', () => (plus.style.background = 'transparent'));
+    plus.style.cssText = `${btnCss}font-size:18px;`;
+    paintHover(plus);
     plus.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -3650,21 +6228,45 @@ function showMoveControl(win, moveEl) {
 
     ctrl.appendChild(plus);
 
-    // "−" — take this section off the page. Sits under the "+", and goes through
-    // the same remove-row handler the orderable rows use: a section IS a row of
-    // page_sections, so its min_sets is honoured for free.
+    // Duplicate — the same handler the orderable rows use, because a section IS
+    // a row of page_sections.
+    const copy = doc.createElement('button');
+
+    copy.type = 'button';
+    copy.innerHTML = ICONS.duplicate;
+    copy.title = t('duplicate_this');
+    copy.style.cssText = btnCss;
+    paintHover(copy);
+    copy.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    copy.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      win.parent.postMessage(
+        { source: 'statamic-visual-editor', type: 'duplicate-row', uid },
+        win.location.origin
+      );
+      hideMoveControl(win);
+    });
+
+    ctrl.appendChild(copy);
+
+    // Take this section off the page. A bin rather than a minus sign: a minus
+    // reads as "one fewer" — it could as well mean collapse or zoom out — while
+    // a bin says what is actually about to happen. The rows next door have said
+    // it that way all along.
+    //
+    // Goes through the same remove-row handler the orderable rows use, so
+    // `min_sets` is honoured for free.
     const minus = doc.createElement('button');
 
     minus.type = 'button';
-    minus.textContent = '−';
+    minus.innerHTML = ICONS.trash;
     minus.title = t('remove_section');
-    minus.style.cssText =
-      'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-      'justify-content:center;border-radius:5px;font-size:16px;line-height:1;box-sizing:border-box;color:#fca5a5;';
-    minus.addEventListener('mouseenter', () => {
-      if (!minus.dataset.sveDisabled) minus.style.background = 'rgba(255,255,255,0.14)';
-    });
-    minus.addEventListener('mouseleave', () => (minus.style.background = 'transparent'));
+    minus.style.cssText = btnCss;
+    paintHover(minus);
     minus.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -3677,7 +6279,10 @@ function showMoveControl(win, moveEl) {
         return;
       }
 
-      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'remove-row', uid }, win.location.origin);
+      win.parent.postMessage(
+        { source: 'statamic-visual-editor', type: 'remove-row', uid, confirm: true },
+        win.location.origin
+      );
       hideMoveControl(win);
     });
 
@@ -3736,37 +6341,50 @@ function startEditing(win, data) {
     // locked so the caret and edits can never reach it.
     el = wrapper;
 
+    const bardInline = wrapper.hasAttribute('data-sid-bard-inline');
     const kids = [...wrapper.children];
-    const blocks = [];
-    let cursor = 0;
+    const nodes = data.nodes || [];
 
-    for (const node of data.nodes || []) {
-      let found = null;
+    // Inline Bard (headline etc.) augments to bare text/spans — no <p> child
+    // like richtext. The wrapper IS the single block; skip child mapping.
+    if (
+      bardInline &&
+      nodes.length === 1 &&
+      normText(wrapper.textContent) === nodes[0].text
+    ) {
+      lockedEls = [];
+    } else {
+      const blocks = [];
+      let cursor = 0;
 
-      while (cursor < kids.length) {
-        const candidate = kids[cursor++];
+      for (const node of nodes) {
+        let found = null;
 
-        if (normText(candidate.textContent) === node.text) {
-          found = candidate;
-          break;
+        while (cursor < kids.length) {
+          const candidate = kids[cursor++];
+
+          if (normText(candidate.textContent) === node.text) {
+            found = candidate;
+            break;
+          }
         }
+
+        if (!found) {
+          // The DOM doesn't line up with the stored nodes (modifier output,
+          // restructured markup) — abort rather than guess; the CP rolls back.
+          win.parent.postMessage(
+            { source: 'statamic-visual-editor', type: 'edit-end', requestId: data.requestId, cancelled: true },
+            win.location.origin
+          );
+
+          return;
+        }
+
+        blocks.push(found);
       }
 
-      if (!found) {
-        // The DOM doesn't line up with the stored nodes (modifier output,
-        // restructured markup) — abort rather than guess; the CP rolls back.
-        win.parent.postMessage(
-          { source: 'statamic-visual-editor', type: 'edit-end', requestId: data.requestId, cancelled: true },
-          win.location.origin
-        );
-
-        return;
-      }
-
-      blocks.push(found);
+      lockedEls = kids.filter((kid) => !blocks.includes(kid));
     }
-
-    lockedEls = kids.filter((kid) => !blocks.includes(kid));
   } else {
     el = data.target === 'block' && blockEl ? blockEl : editableFromWrapper(wrapper);
   }
@@ -3777,6 +6395,7 @@ function startEditing(win, data) {
   let bardButtons = null;
   let bardStyles = null;
   let bardSets = [];
+  const bardInline = wrapper.hasAttribute('data-sid-bard-inline');
 
   try {
     const raw = wrapper.getAttribute('data-sid-bard-buttons');
@@ -3794,13 +6413,23 @@ function startEditing(win, data) {
     /* malformed config — fall back to defaults */
   }
 
+  // Sibling-field quick controls: shape from the tag (types, options), current
+  // value from the CP's reply — the two are matched up by handle here so the
+  // toolbar only ever deals with one list.
+  const controls = controlsFrom(wrapper).map((control) => ({
+    ...control,
+    value: data.controls?.[control.handle] ?? control.default ?? null,
+  }));
+
   const session = {
     requestId: data.requestId,
     mode: data.mode, // 'string' | 'bard'
     hasLink: !!data.hasLink,
+    controls,
     bardButtons,
     bardStyles,
     bardSets: Array.isArray(bardSets) ? bardSets : [],
+    bardInline,
     field: wrapper.getAttribute(SID_FIELD_ATTR) || null,
     scope: wrapper.getAttribute('data-sid-field-uid') || null,
     // Block-level bard-texstyle / bard-styles classes (paragraph/heading/div) —
@@ -3820,6 +6449,12 @@ function startEditing(win, data) {
     dirty: false,
     setInserterEl: null,
   };
+
+  // Before contenteditable: turn highlight spans back into {text} so a plain
+  // string field keeps its markers (textContent would otherwise drop them).
+  if (data.mode === 'string') {
+    highlightSpansToBraces(el);
+  }
 
   if (data.mode === 'bard' || data.mode === 'bard-field') {
     // Full contenteditable so execCommand formatting (toolbar + ⌘B/⌘I) works.
@@ -3900,6 +6535,14 @@ function startEditing(win, data) {
     }
 
     if (e.key === 'Enter') {
+      // Inline Bard (headline etc.): Enter commits — never split into new lines.
+      if (session.bardInline) {
+        e.preventDefault();
+        finishEditing(win, false);
+
+        return;
+      }
+
       // Whole-field Bard: Enter splits blocks like the panel's editor.
       // Shift+Enter falls through to the browser's <br> (parsed to hardBreak).
       // At the very end of a heading a paragraph is inserted (Bard's
@@ -4070,17 +6713,43 @@ export function finishEditing(win, cancelled) {
 }
 
 /**
- * Show/hide the hover move control (hide/dup/delete, arrows, …) from a pointer
- * event. Runs even while inline-editing, so other blocks still get their
- * actions — only the block being edited keeps its control hidden under the toolbox.
+ * Show/hide the hover move control from a pointer event.
+ *
+ * The Links wrap-up belt is click-driven (see showHoverBelt) — not hover — so
+ * it matches the per-link belt. Nested rows still defer to the section control
+ * on hover; plain blocks keep their actions in the click toolbar.
  */
 function updateMoveControlFromPointer(win, event) {
   if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
     return;
   }
 
+  // Keep a pinned wrap-up belt while the pointer is on it or in the gap to it.
+  if (hoverBeltEl && (hoverBeltEl.contains(event.target) || pointerInHoverBeltGap(event))) {
+    return;
+  }
+
+  const rowEl = event.target.closest(`[${ORDERABLE_ATTR}]`);
+
+  if (rowEl && !rowEl.hasAttribute(SECTION_ORDERABLE_ATTR)) {
+    // A block keeps its own toolbar — that part stands. But the section around
+    // it should not go away just because the cursor moved onto something inside
+    // it: the control belongs to the whole section, and the cursor never left.
+    // It used to blink out and back as you passed over a heading, which looked
+    // like the control couldn't make up its mind.
+    const section = rowEl.closest(`[${SECTION_ORDERABLE_ATTR}]`);
+
+    if (section) {
+      showMoveControl(win, section);
+    } else {
+      hideMoveControl(win);
+    }
+
+    return;
+  }
+
   const moveEl =
-    event.target.closest(`[${ORDERABLE_ATTR}]`) ||
+    rowEl ||
     event.target.closest('[data-sid-move]') ||
     event.target.closest(`[${SECTION_ORDERABLE_ATTR}]`);
 
@@ -4105,6 +6774,44 @@ function updateMoveControlFromPointer(win, event) {
   } else {
     hideMoveControl(win);
   }
+}
+
+/**
+ * The Links wrap-up (or any block that holds nested orderable rows) the click
+ * should open a belt for — or null when the click belongs to a child row/field.
+ */
+function wrapUpBeltTarget(target, event) {
+  // Field chrome around nested rows (the links flex wrapper): click on padding,
+  // not on a child button.
+  if (target.hasAttribute(SID_FIELD_ATTR)) {
+    const childRow = target.querySelector(`[${ORDERABLE_ATTR}]`);
+    const clickedRow = event.target.closest(`[${ORDERABLE_ATTR}]`);
+
+    if (childRow && (!clickedRow || clickedRow === target)) {
+      return blockHolding(childRow);
+    }
+
+    return null;
+  }
+
+  // The block itself (empty-gone around the links), when the click did not land
+  // on an inner orderable row.
+  if (
+    target.hasAttribute(ORDERABLE_ATTR) &&
+    !target.hasAttribute(SECTION_ORDERABLE_ATTR) &&
+    target.parentElement?.hasAttribute(INSERT_ATTR) &&
+    target.querySelector(`[${ORDERABLE_ATTR}]`)
+  ) {
+    const inner = event.target.closest(`[${ORDERABLE_ATTR}]`);
+
+    if (inner && inner !== target) {
+      return null;
+    }
+
+    return target;
+  }
+
+  return null;
 }
 
 /**
@@ -4157,6 +6864,7 @@ export function createMouseMoveHandler(win) {
 
     syncHoverOverride(target);
 
+    toneOutlineContainer(win, event);
     maybeShowColumnChrome(win, event);
 
     if (clearTimer) {
@@ -4241,9 +6949,13 @@ export function createClickHandler(win) {
       return;
     }
 
-    // Move-control clicks: the buttons handle themselves (and this handler runs
-    // in the capture phase — stopping here would block their click listeners).
+    // Move-control / wrap-up-belt clicks: the buttons handle themselves (and this
+    // handler runs in the capture phase — stopping here would block their listeners).
     if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
+      return;
+    }
+
+    if (hoverBeltEl && hoverBeltEl.contains(event.target)) {
       return;
     }
 
@@ -4257,14 +6969,31 @@ export function createClickHandler(win) {
       return;
     }
 
+    // Inline toolbar + portaled menus live on <body>, outside [data-sve-global]
+    // / chrome. They are still editing the focused section — never a leave.
+    if (
+      (toolbarEl && toolbarEl.contains(event.target)) ||
+      event.target.closest?.(
+        '[data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu], [data-sve-bard-set-inserter]'
+      )
+    ) {
+      return;
+    }
+
+    // The block inserters draw in an overlay layer on <body>, outside
+    // [data-sve-global] — but the "+" inserts INTO the section it sits on. A
+    // click on one is editing the focused section, never a leave.
+    if (event.target.closest?.(`#${INSERT_LAYER_ID}`)) {
+      return;
+    }
+
     // The chrome (header/footer) bar owns its own clicks.
     if (event.target.closest(`#${CHROME_BAR_ID}`)) {
       return;
     }
 
     // First click on header/footer: confirm (“global — applies everywhere”),
-    // then step into chrome focus. Once inside, nested clicks edit normally;
-    // clicking outside asks CP to close (warns if Theme Settings is dirty).
+    // then step into chrome focus. Once inside, nested clicks edit normally.
     // A site that has switched this half of the chrome off gets neither — the
     // click falls through to whatever is under it, as on any other page.
     const chromeEl = chromeEditable(event.target.closest(`[${CHROME_ATTR}]`));
@@ -4280,27 +7009,49 @@ export function createClickHandler(win) {
     } else if (chromeFocusEl || hasChromeFocusClass(win.document)) {
       event.preventDefault();
       event.stopPropagation();
-      requestCloseChrome(win);
+
+      // Inside the header or the footer the rest of the page is locked, exactly
+      // as it is inside a global section: a click out there does nothing at all.
+      // Leaving is a decision made on the bar at the bottom — Save or Close — or
+      // with Escape, not something that happens to you because the pointer
+      // landed an inch too far down the page.
+      if (!CHROME_LOCKS_PAGE) {
+        requestCloseChrome(win);
+      }
 
       return;
     }
 
     // Global section: confirm before entering ("changes apply everywhere").
     // Outside click asks CP to close — same discard warning as chrome.
+    // Compare by source id (not element ref): a synced entry can render several
+    // sections, and clicks inside any of them must stay in focus — not re-open
+    // the enter dialog.
     const globalSection = event.target.closest(`[${GLOBAL_ATTR}]`);
 
     if (globalSection) {
-      if (globalFocusEl !== globalSection) {
+      const sourceId = globalSection.getAttribute(GLOBAL_ATTR);
+
+      if (globalFocusId && globalFocusId === sourceId) {
+        // Morph may have stripped data-sve-global-focused — recover and keep editing.
+        if (!globalSection.hasAttribute(GLOBAL_FOCUS_ATTR)) {
+          rebindGlobalFocus(win, sourceId);
+        }
+        // Fall through to normal field/inline-edit handling below.
+      } else {
         event.preventDefault();
         event.stopPropagation();
         confirmEnterGlobal(win, globalSection);
 
         return;
       }
-    } else if (globalFocusEl) {
+    } else if (globalFocusEl || globalFocusId) {
+      // Inside a global section, the rest of the page is locked: a click out
+      // there does nothing at all. Leaving is a decision you make on the bar at
+      // the bottom — Save or Close — or with Escape, not something that happens
+      // to you because the pointer landed an inch too far to the left.
       event.preventDefault();
       event.stopPropagation();
-      requestCloseGlobal(win);
 
       return;
     }
@@ -4310,6 +7061,18 @@ export function createClickHandler(win) {
       // the capture phase, and stopping here would prevent the event from ever
       // reaching the toolbar buttons' own click listeners.
       if (toolbarEl && toolbarEl.contains(event.target)) {
+        return;
+      }
+
+      // Dropdowns / swatch strips are portaled to <body> (not inside toolbarEl).
+      // Treating them as "outside" committed the edit before the option click
+      // ran — size never applied, and colour hit a dead CP session (preview
+      // painted via the closure, sidebar only after the next keystroke).
+      if (
+        event.target.closest?.(
+          '[data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu]'
+        )
+      ) {
         return;
       }
 
@@ -4360,6 +7123,7 @@ export function createClickHandler(win) {
       win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
         el.removeAttribute(ACTIVE_ATTR);
       });
+      hideHoverBelt(win);
 
       return;
     }
@@ -4369,6 +7133,50 @@ export function createClickHandler(win) {
     win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
       el.removeAttribute(ACTIVE_ATTR);
     });
+
+    // Links wrap-up (and similar blocks with nested orderable rows): same belt
+    // as a single link, opened on click — not hover.
+    const wrapUp = wrapUpBeltTarget(target, event);
+
+    if (wrapUp) {
+      applyOutlineTone(win, wrapUp);
+      wrapUp.setAttribute(ACTIVE_ATTR, '');
+      hideMoveControl(win);
+      showHoverBelt(win, wrapUp);
+
+      const uid =
+        wrapUp.getAttribute(GLOBAL_ROW_ATTR) ||
+        wrapUp.getAttribute(SID_ATTR) ||
+        wrapUp.getAttribute('data-sid-field-uid');
+
+      if (uid) {
+        win.parent.postMessage(
+          {
+            source: 'statamic-visual-editor',
+            type: 'click',
+            uid,
+            global: !!wrapUp.closest(`[${GLOBAL_FOCUS_ATTR}]`),
+          },
+          win.location.origin
+        );
+      } else if (target.hasAttribute(SID_FIELD_ATTR)) {
+        win.parent.postMessage(
+          {
+            source: 'statamic-visual-editor',
+            type: 'click',
+            field: target.getAttribute(SID_FIELD_ATTR),
+            scope: target.getAttribute('data-sid-field-uid') || undefined,
+            label: target.getAttribute('data-sid-label') || undefined,
+            global: !!target.closest(`[${GLOBAL_FOCUS_ATTR}]`),
+          },
+          win.location.origin
+        );
+      }
+
+      return;
+    }
+
+    hideHoverBelt(win);
 
     applyOutlineTone(win, target);
     target.setAttribute(ACTIVE_ATTR, '');
@@ -4416,6 +7224,18 @@ export function createClickHandler(win) {
           field: target.getAttribute(SID_FIELD_ATTR),
           scope: target.getAttribute('data-sid-field-uid') || undefined,
           label: target.getAttribute('data-sid-label') || undefined,
+          // The starting values this template declared for the block —
+          // `controls="tag:h2|font_size:text-600"`. The toolbar has always used
+          // them to draw itself; sending them on means the side panel can agree,
+          // which it cannot do on its own: it renders the Statamic form, and the
+          // form has never heard of the template.
+          controlDefaults: controlsFrom(target)
+            .filter((c) => c.default != null && c.default !== '')
+            .map((c) => ({ handle: c.handle, default: c.default })),
+          // Only route sidebar focus into the synced-section panel when the
+          // click is inside a focused global section — not every click while
+          // that panel happens to be open.
+          global: !!target.closest(`[${GLOBAL_FOCUS_ATTR}]`),
         },
         win.location.origin
       );
@@ -4470,6 +7290,7 @@ export function createClickHandler(win) {
       source: 'statamic-visual-editor',
       type: 'click',
       uid,
+      global: !!target.closest(`[${GLOBAL_FOCUS_ATTR}]`),
     };
 
     if (uidIndex > 0) {
@@ -4694,6 +7515,118 @@ function extDragEnd(win, cancelled) {
   }
 }
 
+// --- Heading outline -----------------------------------------------------------
+// Every heading on the page, in the order a reader meets them, for the outline
+// panel in the Control Panel.
+//
+// Collected here because only the preview knows. The CP holds fields, and a
+// heading on the page can come from a block, a global, a partial or the layout —
+// the rendered document is the one place they are all one list, in the order they
+// are actually read.
+//
+// Nothing is remembered between messages: an entry is identified by its position
+// in the list, and the list is rebuilt on both sides of every exchange. The page
+// changes constantly — every keystroke re-renders and morphs it — so a rebuilt
+// list is always the current one, where a remembered element would be a node that
+// no longer exists.
+
+const OUTLINE_SELECTOR = 'h1, h2, h3, h4, h5, h6';
+
+// The editor's own furniture — toolbars, hover controls, the front-end edit
+// button. All of it is injected under an id of ours, and none of it is the page.
+const OUTLINE_CHROME = '[id^="__sve"], [id^="sve-"], [data-sve-ui]';
+
+// A morph is hundreds of mutations; the panel wants the settled result.
+const OUTLINE_SETTLE_MS = 400;
+
+let outlineWatcher = null;
+
+/** The heading elements the outline is built from, in document order. */
+function outlineElements(win) {
+  return [...win.document.querySelectorAll(OUTLINE_SELECTOR)].filter(
+    // Rendered, and the page's own: a heading in a closed mobile menu is not on
+    // the page as anyone sees it, and neither is one in our own toolbar.
+    (el) => !el.closest(OUTLINE_CHROME) && el.getClientRects().length > 0
+  );
+}
+
+/**
+ * The outline as the panel receives it.
+ *
+ * Each entry carries what it takes to act on it: the level and the text to draw,
+ * and — where the template annotated it — the set and field it sits in, so a
+ * click can open the block that owns the heading as readily as scroll to it.
+ */
+function collectOutline(win) {
+  return outlineElements(win).map((el) => {
+    const set = el.closest(`[${SID_ATTR}]`);
+    const field = el.closest(`[${SID_FIELD_ATTR}]`);
+
+    return {
+      level: Number(el.tagName.slice(1)) || 1,
+      text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160),
+      uid: set?.getAttribute(SID_ATTR) || null,
+      field: field?.getAttribute(SID_FIELD_ATTR) || null,
+      scope: field?.getAttribute('data-sid-field-uid') || null,
+    };
+  });
+}
+
+function sendOutline(win) {
+  win.parent.postMessage(
+    { source: 'statamic-visual-editor', type: 'outline', items: collectOutline(win) },
+    win.location.origin
+  );
+}
+
+/**
+ * Keeps the panel's list in step with the page while it is open.
+ *
+ * Only while it is open: watching costs little, but a panel nobody has opened
+ * should cost nothing at all.
+ */
+function watchOutline(win, on) {
+  if (outlineWatcher) {
+    outlineWatcher.observer.disconnect();
+    win.clearTimeout(outlineWatcher.timer);
+    outlineWatcher = null;
+  }
+
+  if (!on) {
+    return;
+  }
+
+  const observer = new win.MutationObserver(() => {
+    win.clearTimeout(outlineWatcher.timer);
+    outlineWatcher.timer = win.setTimeout(() => sendOutline(win), OUTLINE_SETTLE_MS);
+  });
+
+  outlineWatcher = { observer, timer: 0 };
+  observer.observe(win.document.body, { childList: true, subtree: true, characterData: true });
+
+  sendOutline(win);
+}
+
+/** Brings a heading into view and marks it, the same way a click in the CP does. */
+function focusOutlineEntry(win, index) {
+  const el = outlineElements(win)[index];
+
+  if (!el) {
+    return;
+  }
+
+  win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((node) => {
+    node.removeAttribute(ACTIVE_ATTR);
+  });
+
+  applyOutlineTone(win, el);
+  el.setAttribute(ACTIVE_ATTR, '');
+  // Centred rather than aligned to the top: a heading is the start of something,
+  // and the point of jumping to it is seeing what it heads.
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  pulseElement(el);
+}
+
 export function createMessageReceiver(win) {
   return function handleMessage(event) {
     // Guard: only accept messages from the parent frame (the Statamic CP).
@@ -4710,6 +7643,18 @@ export function createMessageReceiver(win) {
 
     if (data.type === 'ext-drag-start') {
       extDragStart(win);
+
+      return;
+    }
+
+    if (data.type === 'outline-watch') {
+      watchOutline(win, !!data.on);
+
+      return;
+    }
+
+    if (data.type === 'outline-focus') {
+      focusOutlineEntry(win, data.index);
 
       return;
     }
@@ -4746,6 +7691,19 @@ export function createMessageReceiver(win) {
     }
 
     if (data.type === 'sve-global-dirty') {
+      // The label arrives with the dirty state because it comes from the same
+      // place: the values the panel streams up. It can be null on the first
+      // reply, before the form has hydrated — keep the last real one.
+      if (data.label) {
+        const changed = globalSectionLabel !== data.label;
+
+        globalSectionLabel = data.label;
+
+        if (changed && win.document.getElementById(GLOBAL_BAR_ID)) {
+          mountGlobalBar(win);
+        }
+      }
+
       setGlobalSectionDirtyUI(!!data.dirty);
 
       return;
@@ -4777,8 +7735,36 @@ export function createMessageReceiver(win) {
       return;
     }
 
+    // The block tree asking for a row to be selected the way clicking it on the
+    // page selects it — outlined, scrolled to, and with its toolbar up.
+    //
+    // A message rather than a synthesised click: a click carries a position, and
+    // the position is what decides which block of a Bard field is being edited.
+    // There is no position here, so the element is named instead and the rest of
+    // the flow is the ordinary one.
+    if (data.type === 'sve-activate') {
+      activateByUid(win, data);
+
+      return;
+    }
+
     if (data.type === 'edit-start') {
       startEditing(win, data);
+
+      return;
+    }
+
+    // Panel still hydrating — stretch the pending-edit window so a quick click
+    // right after entering a global section isn't abandoned at 2s.
+    if (data.type === 'edit-pending') {
+      if (pendingEdit && pendingEdit.requestId === data.requestId) {
+        clearTimeout(pendingEdit.timeout);
+        pendingEdit.timeout = setTimeout(() => {
+          if (pendingEdit && pendingEdit.requestId === data.requestId) {
+            pendingEdit = null;
+          }
+        }, 10000);
+      }
 
       return;
     }
@@ -4883,6 +7869,72 @@ export function createMessageReceiver(win) {
 }
 
 /**
+ * Selects the block a uid names, as a click on it would.
+ *
+ * Two ids are offered, because a block is annotated twice and not always with
+ * the same one. `data-sid` carries the set's `_visual_id`, injected into the
+ * blueprint; `data-sid-field-uid` carries whatever the template passed as
+ * `scope`, which is conventionally the row's own `id`. A tree built from the
+ * stored values knows both and cannot tell which the template chose, so it sends
+ * both and the first that matches anything wins.
+ *
+ * The toolbar only comes up when the block has exactly one annotated field. With
+ * several — a section, say — there is no one thing that was clicked, and opening
+ * the first of them would be a guess presented as an answer.
+ */
+function activateByUid(win, data) {
+  const doc = win.document;
+  const ids = (Array.isArray(data.ids) ? data.ids : [data.uid, data.rowId]).filter(Boolean);
+  let el = null;
+
+  // The field annotation is tried before the set one, and both are tried for
+  // every id. A block is often marked as a field on the element that draws it
+  // and as a set on nothing at all, so looking only for `data-sid` finds the
+  // section it sits in — and outlining the section when a headline was asked for
+  // looks exactly like the feature not working.
+  for (const id of ids) {
+    el = doc.querySelector(`[data-sid-field-uid="${CSS.escape(id)}"]`);
+
+    if (el) {
+      break;
+    }
+  }
+
+  if (!el) {
+    for (const id of ids) {
+      el = doc.querySelector(`[${SID_ATTR}="${CSS.escape(id)}"]`);
+
+      if (el) {
+        break;
+      }
+    }
+  }
+
+  if (!el) {
+    return;
+  }
+
+  doc.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((node) => node.removeAttribute(ACTIVE_ATTR));
+  applyOutlineTone(win, el);
+  el.setAttribute(ACTIVE_ATTR, '');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  pulseElement(el);
+
+  const fields = el.matches(`[${SID_FIELD_ATTR}]`)
+    ? [el]
+    : [...el.querySelectorAll(`[${SID_FIELD_ATTR}]`)];
+
+  if (fields.length !== 1) {
+    return;
+  }
+
+  // `event.target === wrapper` on purpose: it is what tells requestInlineEdit
+  // that no particular block within the field was aimed at, so the whole field
+  // is the subject — which is exactly the case when the click came from a list.
+  requestInlineEdit(win, fields[0], { target: fields[0] });
+}
+
+/**
  * The preview is for editing, not for browsing: following a link would replace
  * the page being edited with another one, inside an iframe with no way back.
  * So links (and form submits) are stopped before they navigate.
@@ -4974,46 +8026,45 @@ export function initBridge(win = window) {
   win.addEventListener('statamic:preview-updated', () => {
     hideMoveControl(win);
     hideColumnChrome(win);
+    // No fade here: the grid the tracks were measured against is being replaced,
+    // so there is nothing left for them to sit on while they bow out.
+    hideGridLines(true);
     endDrag(win);
 
     if (widthDrag) {
       finishWidthDrag(win, true);
     }
 
+    // Rebuild {…} → coloured spans if the morph left literal braces.
+    enhanceHighlightBraces(win);
+
     // Morph may replace body nodes. Keep html.sve-chrome-focus-* intact —
     // never exit/enter chrome here (that was the open/close flicker).
+    // Same for global focus: exitGlobalFocus+enter used to clear globalFocusId
+    // when the new node wasn't ready yet — then H1→H2 (and any control morph)
+    // left the section "unfocused", so the next click opened the enter-dialog
+    // instead of the inline toolbar.
     const focusedId = globalFocusId;
     const focusedChrome = rememberedChromeKind();
 
-    exitGlobalFocus(win, false);
     tagGlobalSections(win);
 
     if (focusedId) {
-      const again = win.document.querySelector(`[${GLOBAL_ATTR}="${focusedId}"]`);
-
-      if (again) {
-        enterGlobalFocus(win, again, false);
-      }
+      rebindGlobalFocus(win, focusedId);
     } else if (focusedChrome) {
-      // Surgical chrome morph keeps the same node; only rebind the pointer
-      // if Alpine replaced it. Never clear html classes or remount the bar.
-      const again = win.document.querySelector(`[${CHROME_ATTR}="${focusedChrome}"]`);
-
-      if (again) {
-        if (chromeFocusEl !== again) {
-          win.document.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => {
-            if (el !== again) {
-              el.removeAttribute(CHROME_FOCUS_ATTR);
-            }
-          });
-          again.setAttribute(CHROME_FOCUS_ATTR, '');
-          chromeFocusEl = again;
-          chromeFocusKind = focusedChrome;
-        }
-      } else {
-        // Full-body morph fell back and chrome node is briefly missing — soft retry.
-        rebindChromeFocus(win, focusedChrome);
-      }
+      // One path for every morph, surgical or full-body. The old code only
+      // re-pointed at the node when Alpine had replaced it, and left the rest
+      // alone on the grounds that a surgical morph keeps everything — but it
+      // doesn't: the morph patches the chrome node against server HTML, which
+      // carries no `data-sve-chrome-focused`, so the attribute is stripped off
+      // the very node it kept. A full-body morph additionally takes the bar with
+      // it, since that lives in <body>.
+      //
+      // `rebindChromeFocus` is the soft rebind — it re-asserts the html class
+      // without clearing it first, re-tags the node, and remounts the bar only
+      // when it is actually gone. It never exits and re-enters, which is what
+      // used to flicker.
+      rebindChromeFocus(win, focusedChrome);
     }
 
     setupInserters(win); // fresh blocks after the morph
@@ -5045,6 +8096,7 @@ export function initBridge(win = window) {
   // Block inserters: wire them up now, keep them pinned as the preview scrolls or
   // resizes, and rebuild after a morph brings in fresh blocks.
   setupInserters(win);
+  enhanceHighlightBraces(win);
   win.addEventListener('scroll', () => repositionInserters(win), true);
   win.addEventListener('resize', () => repositionInserters(win));
 }
@@ -5061,6 +8113,19 @@ export function initBridge(win = window) {
 const INSERT_ATTR = 'data-sid-insert';
 const INSERT_LAYER_ID = '__sve-inserters';
 let inserterInstances = [];
+
+/**
+ * Is this global section the one being edited?
+ *
+ * A morph can strip the focus attribute, so the id we are focused on counts too
+ * — the same recovery the click handler does.
+ */
+function isGlobalFocused(section) {
+  return (
+    section.hasAttribute(GLOBAL_FOCUS_ATTR) ||
+    (!!globalFocusId && globalFocusId === section.getAttribute(GLOBAL_ATTR))
+  );
+}
 
 function ensureInserterLayer(win) {
   let layer = win.document.getElementById(INSERT_LAYER_ID);
@@ -5095,6 +8160,18 @@ function setupInserters(win) {
       return;
     }
 
+    // Inside a global section you have not stepped into: its blocks belong to
+    // the synced source, not to this page, and the "+" would offer to add one
+    // to a field the page cannot edit. Worse, the inserter draws in an overlay
+    // layer outside the section, so clicking it reads as a click outside the
+    // global section and asks you to leave it. Entering the section calls this
+    // again, and the "+" appears then.
+    const globalSection = container.closest(`[${GLOBAL_ATTR}]`);
+
+    if (globalSection && !isGlobalFocused(globalSection)) {
+      return;
+    }
+
     let sets = [];
 
     try {
@@ -5109,7 +8186,26 @@ function setupInserters(win) {
 
     const field = container.getAttribute(INSERT_ATTR);
     const scope = container.getAttribute('data-sid-insert-scope');
-    const blocks = [...container.children].filter((child) => child.hasAttribute(SID_ATTR));
+
+    // A block can be annotated two ways and is a block either way: as a set
+    // (data-sid) or as the field it edits (data-sid-field + orderable), which is
+    // what a template does when the block's own element has to be the row —
+    // no wrapper to hang data-sid on, because a wrapper would break the
+    // parent's `> * + *` rhythm. Counting only the first kind left containers
+    // full of blocks looking empty, and the "+" drew itself across the top as
+    // if there were nothing there.
+    const blocks = [...container.children].filter(
+      (child) => child.hasAttribute(SID_ATTR) || child.hasAttribute(ORDERABLE_ATTR)
+    );
+
+    // A field that is full has nothing to offer. The Control Panel greys out its
+    // Add Set button at `max_sets`; this "+" is the addon's own control, so it
+    // has to be told — otherwise the preview invites an insert the form refuses.
+    const max = Number(container.getAttribute('data-sid-insert-max'));
+
+    if (Number.isFinite(max) && max > 0 && blocks.length >= max) {
+      return;
+    }
 
     if (!blocks.length) {
       const inst = buildInserter(win, { field, sets, scope, container, empty: true });
@@ -5130,6 +8226,22 @@ function setupInserters(win) {
       const b2 = blocks[1].getBoundingClientRect();
 
       horizontal = Math.abs(b2.left - a.left) > Math.abs(b2.top - a.top);
+    } else {
+      // One block left and nothing to measure against — ask the container how it
+      // lays its children out. It matters: a two-column section down to its last
+      // block would otherwise offer a full-width bar under the text, which reads
+      // as the inserter of whatever replicator is *inside* that block rather than
+      // as the way to put the second column back.
+      const style = win.getComputedStyle(container);
+      const display = style.display;
+
+      if (display === 'flex' || display === 'inline-flex') {
+        horizontal = style.flexDirection.startsWith('row');
+      } else if (display === 'grid' || display === 'inline-grid') {
+        horizontal =
+          style.gridAutoFlow.startsWith('column') ||
+          style.gridTemplateColumns.split(' ').filter(Boolean).length > 1;
+      }
     }
 
     const lastBlock = blocks[blocks.length - 1];
@@ -5198,6 +8310,17 @@ function positionInserter(win, inst) {
     el.style.height = `${r.height}px`;
     el.style.flexDirection = 'column';
     line.style.cssText = 'width:2px;flex:1;background:rgba(99,102,241,.55);';
+
+    // In a grid_view section the resize handle sits on this very edge, centred.
+    // Two controls in one spot means one of them cannot be used, so the "+"
+    // moves to the foot of the strip — the far end of the same line, still
+    // plainly "add one after this".
+    if (el.__btn) {
+      const shared = inst.container.hasAttribute(GRID_ATTR);
+
+      el.__btn.style.top = shared ? 'auto' : '';
+      el.__btn.style.bottom = shared ? '0' : '';
+    }
   } else {
     el.style.left = `${r.left}px`;
     el.style.top = `${r.bottom - 15}px`;
@@ -5205,6 +8328,11 @@ function positionInserter(win, inst) {
     el.style.height = '30px';
     el.style.flexDirection = 'row';
     line.style.cssText = 'height:2px;flex:1;background:rgba(99,102,241,.55);';
+
+    if (el.__btn) {
+      el.__btn.style.top = '';
+      el.__btn.style.bottom = '';
+    }
   }
 }
 
@@ -5235,30 +8363,45 @@ function buildInserter(win, opts) {
     // Pass the + button's rect so the CP can pin the picker under it in the
     // preview (instead of leaving it in the sidebar).
     const r = btn.getBoundingClientRect();
+    const inGlobal = !!opts.container?.closest?.(`[${GLOBAL_FOCUS_ATTR}]`);
 
-    win.parent.postMessage(
-      {
-        source: 'statamic-visual-editor',
-        type: 'add-block-native',
-        anchorUid: opts.block ? opts.block.getAttribute(SID_ATTR) : null,
-        sectionUid: opts.scope || null,
-        position: opts.position || null,
-        anchorRect: {
-          left: r.left,
-          top: r.top,
-          bottom: r.bottom,
-          right: r.right,
-          width: r.width,
-          height: r.height,
+    const send = (extra = {}) =>
+      win.parent.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'add-block-native',
+          anchorUid: opts.block
+            ? opts.block.getAttribute(SID_ATTR) || opts.block.getAttribute('data-sid-field-uid')
+            : null,
+          sectionUid: opts.scope || null,
+          // A global section's fields are not in the page's form — they live in
+          // the panel docked beside the preview. The CP needs to know which form
+          // to work in, and only we can see where the "+" is sitting.
+          global: inGlobal,
+          position: opts.position || null,
+          anchorRect: {
+            left: r.left,
+            top: r.top,
+            bottom: r.bottom,
+            right: r.right,
+            width: r.width,
+            height: r.height,
+          },
+          ...extra,
         },
-      },
-      win.location.origin
-    );
+        win.location.origin
+      );
+
+    // In a global section the CP opens Statamic's picker itself, over the
+    // preview, because the section's own form is in the panel and its picker
+    // would appear over there. It needs the list to do that.
+    send(inGlobal ? { sets: opts.sets || [] } : {});
   });
 
   wrap.appendChild(line);
   wrap.appendChild(btn);
   wrap.__line = line;
+  wrap.__btn = btn;
 
   return { el: wrap, ...opts };
 }

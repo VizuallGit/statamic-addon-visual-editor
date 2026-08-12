@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\LibraryAccess;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
 use Statamic\Facades\User;
@@ -63,6 +64,21 @@ class SectionMetaController
         $set = $sets[$request->set] ?? null;
 
         abort_unless($set, 404);
+
+        /*
+         * The same gate the library list is drawn behind, so a narrowed library
+         * cannot simply be asked around: without meta a row never appears in the
+         * Control Panel's section list, and the insert cannot be completed.
+         *
+         * Two things are deliberately outside it. A nested field (a section's own
+         * blocks) holds blocks, not sections, and was never narrowed. And the
+         * global-section set is always allowed through — *which* global sections
+         * may be inserted is decided by id, in the list the library asks for.
+         */
+        if (! $request->filled('field')
+            && $request->set !== config('statamic-visual-editor.saved_sections.set', 'global_section')) {
+            abort_unless(LibraryAccess::allowsType($request->set), 403);
+        }
 
         $fields = new Fields(
             items: $set['fields'],

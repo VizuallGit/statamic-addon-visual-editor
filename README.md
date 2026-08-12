@@ -188,11 +188,11 @@ When there's no single outermost element to annotate, use the pair tag to wrap c
 For dense layouts where a 2 px outbound outline overlaps neighbouring elements, draw the outline inside instead:
 
 ```antlers
-<div {{ visual_edit outline-inside="true" }}>
+<div {{ visual_edit outline_inside="true" }}>
 ```
 
 ```blade
-<div {!! Statamic::tag('visual_edit')->context($set->all())->params(['outline-inside' => true])->fetch() !!}>
+<div {!! Statamic::tag('visual_edit')->context($set->all())->params(['outline_inside' => true])->fetch() !!}>
 ```
 
 ---
@@ -217,6 +217,40 @@ field's `buttons` list allows, never hardcoded).
 
 Also works on the field for an image or a button — clicking opens the right editor
 inline. Legacy spelling `inline-edit` is accepted.
+
+A plain text field gets no ✓/✕ buttons: **Enter** or a click outside commits it and
+**Esc** cancels, so unless the element declares `controls` (below) or sits in a row
+with a link, no toolbar appears at all. Rich text keeps its ✓/✕ — there Enter
+splits blocks instead of committing.
+
+### `controls="font_tag|size"` — a block's own settings in the toolbar
+
+Pairs with `inline_edit`. Names sibling fields **on the same row** as the field
+being edited; each one is rendered in the inline toolbar, so a block's settings can
+be changed without opening the panel.
+
+```antlers
+{{ _tag = font_tag ? font_tag : 'h2' }}
+<{{ _tag }} {{ visual_edit field="headline" inline_edit="true" controls="font_tag|size" }}>
+  {{ headline }}
+</{{ _tag }}>
+```
+
+Handles are separated by `|` or `,` and render in the order they're named. Types
+and options come from the blueprint, so adding an option to the field adds it to
+the toolbar:
+
+| Field type | Rendered as |
+|---|---|
+| `button_group`, `radio` — up to 3 options | segmented buttons, current one highlighted |
+| `select`, or any longer option list | dropdown showing the current label |
+| `toggle` | a single on/off chip |
+
+Anything else — and any handle that isn't a field on that row — is skipped.
+
+What a control changes is rendered **server-side**, so using one commits the text
+edit, writes the value, and reopens the editor on the re-rendered element. Give the
+setting an effect in your template, or nothing will appear to happen.
 
 ### `orderable="true"` — drag rows to reorder, with add/remove
 
@@ -248,14 +282,14 @@ drag-and-drop. Handy where a full drag would be awkward.
 <div {{ visual_edit field="text" inline_edit="true" move="true" }}>{{ text }}</div>
 ```
 
-### `section-orderable="true"` — move a whole section
+### `section_orderable="true"` — move a whole section
 
 Put it on a **top-level section** element. Adds a drag handle to the section's
 hover control that moves the entire section, with a zoomed-out page overview so
-you can see where it lands. Legacy spelling `section_orderable` is accepted.
+you can see where it lands. Legacy spelling `section-orderable` is accepted.
 
 ```antlers
-<section id="id-{{ id }}" {{ visual_edit outline-inside="true" section-orderable="true" }}>
+<section id="id-{{ id }}" {{ visual_edit outline_inside="true" section_orderable="true" }}>
   …
 </section>
 ```
@@ -315,6 +349,159 @@ a **column-builder row** the field lives on the row, not the section — so pass
 
 ---
 
+## The focus panel
+
+Beside the preview the panel shows **one thing at a time**, named at the top.
+
+Click a section on the page and the panel becomes that section: its icon, its
+display name and its `instructions` in a header, its own fields under it, and its
+`tab` markers as the row of segments across the middle. Click a block *inside* the
+section and the panel steps in one level — now it is the block, and the back arrow
+in the Live Preview header points at the section it came from rather than at the
+whole page.
+
+A section shows everything it holds: its own fields, and the blocks built inside
+it as a list that unfolds where it stands. Clicking a block on the page opens its
+section with that block unfolded and scrolled to — you stay in the section and can
+work down it — and each block's header carries an **arrow** that opens that block
+on its own, for when one thing at a time is what's wanted. The back arrow then
+points at the section it came from.
+
+A segment with nothing in it — every field on it hidden from this editor — is
+dropped rather than offered empty. Adding, removing and reordering blocks stays
+where it already was: the hover controls on the page (`orderable`, `insertable`,
+`move`).
+
+Nothing here is configured per template. The header reads the set's own config:
+
+```yaml
+headline:
+  display: Headline
+  icon: h1                       # Statamic icon name, Iconify name, or an emoji
+  instructions: 'One line for the editor about what this block is.'
+  fields:
+    # …
+```
+
+`icon` accepts a name from Statamic's own icon set (`h1`, `link`,
+`fieldtype-bard`), an Iconify name (`lucide:layout-template`), a filename from a
+custom SVG folder registered with `Icon::register()` (see below), pasted SVG
+markup, or an emoji. In **Edit Set** the Icon picker still lists Statamic's
+(or `Sets::useIcons`) SVGs; a **Custom (Iconify / SVG)** field under it accepts
+the rest. With no icon the header draws the initial of the name, so blocks still
+tell themselves apart at a glance.
+
+### Custom SVG files
+
+Drop `.svg` files in a folder and register it:
+
+```php
+use Statamic\Facades\Icon;
+
+Icon::register('vizuall', resource_path('svg/set-icons'));
+```
+
+Then type the filename (without `.svg`) in the custom icon field — e.g. `hero`.
+
+To also show those files in Statamic's Icon picker (replacing the default set for
+Replicator/Bard sets), call:
+
+```php
+use Statamic\Fieldtypes\Sets;
+
+Sets::useIcons('vizuall', resource_path('svg/set-icons'));
+```
+
+Switch it off under **Addons → Statamic Visual Editor → Focus panel** and the panel
+is the section list Statamic renders, as before. The ordinary publish form — the
+entry screen outside Live Preview — is untouched either way.
+
+### Where a field is edited
+
+Every field's own settings screen gains one question: **Where it is edited**.
+
+| Answer | The field appears |
+|---|---|
+| Both editors *(default)* | in the panel beside the preview **and** in the ordinary entry form |
+| Only beside the preview | in the panel alone |
+| Not beside the preview | in the entry form alone |
+
+Use the last one for a field whose value is already set on the page itself — a
+heading's tag and size, offered in the inline toolbar through `controls` — so the
+editor is not asked the same question twice.
+
+It is a dropdown in the Control Panel, not a line of YAML: nobody needs access to
+the site's files to decide where a field belongs. Under the hood the answer
+becomes the custom condition this was done with before the setting existed
+(`custom notInLivePreview` / `custom onlyInLivePreview`), applied as the blueprint
+is read, together with the `always_save` that a conditionally hidden field needs —
+so a field hidden from one editor still keeps whatever the other one set.
+
+A condition written by hand always wins: a field carrying its own `if`, `if_any`
+or `unless` is left exactly as it is, and a field that has never been asked the
+question is not touched at all. Existing sites keep working unchanged.
+
+---
+
+## The heading outline
+
+The icon of stepped lines in the Live Preview header opens the page's headings as
+one list, docked on the right.
+
+Not the sections the page is built from — the structure a reader, a screen reader
+or a search engine actually meets, in the order they meet it, whether a heading
+comes from a block, a global, a partial or the layout. Each entry is drawn at its
+level (`H1`, `H2`, `H3`…), indented against the shallowest heading on the page, so
+a page whose top heading is an `H2` reads flush rather than pushed in under a level
+that isn't there.
+
+Clicking an entry does two things:
+
+- the preview scrolls to that heading, centred, and marks it the way a click in the
+  Control Panel does;
+- the block the heading sits in opens in the editor panel — where the template
+  annotated it with `visual_edit`, the field's own block; otherwise the section
+  around it. A panel put away (Hide) stays away: the click was "take me there",
+  not "open everything".
+
+The list keeps itself current. The preview reports its headings while the panel is
+open and again whenever the page settles after a change, so typing into a heading
+updates the outline as you type. Closing the panel stops the watching.
+
+Nothing needs annotating for the outline itself — it reads the rendered page. The
+`visual_edit` annotations are what make an entry *clickable through* to its block,
+so a well-annotated template gets navigation for free.
+
+A heading with no text yet is listed as *(no text yet)* rather than as a gap, and
+headings inside the editor's own toolbars — or in something not currently rendered,
+like a closed mobile menu — are left out.
+
+### What it checks
+
+The panel also says when the structure doesn't hold up. None of it shows on the
+page — text looks the same whatever level it is written at — so the outline is
+where it can be said at all:
+
+| | |
+|---|---|
+| **No H1** | Nothing on the page says what the whole page is about. Shown as a note above the list. |
+| **More than one H1** | Several things claim to be what the page is. Also a note above the list. |
+| **A heading before the H1** | The H1 should be the first heading on the page. Marked on the row. |
+| **A skipped level** | H1 straight to H3, H2 straight to H4. Levels step down one at a time. Marked on the row. |
+
+Marked rows turn amber and carry a `!`; hovering one explains what is wrong with
+it. Amber rather than red throughout: nothing here is broken — the page renders
+fine, it just doesn't read the way its levels claim.
+
+Nothing is stored and nothing is dismissed. The checks run against the list as it
+stands, and the list is rebuilt whenever the page changes — so dragging a section
+into place clears the warnings by the next render, because there is nothing left to
+report.
+
+Switch it off under **Addons → Statamic Visual Editor → Heading outline**.
+
+---
+
 ## Parameter reference
 
 All parameters work in both Antlers and Blade (via the fluent API).
@@ -324,15 +511,16 @@ All parameters work in both Antlers and Blade (via the fluent API).
 | _(none)_ | — | Auto-targets the current set by its UUID (put on each set's outer element) |
 | `field` | — | Targets a fixed field by handle (dot notation for nested groups) |
 | `inline_edit` | `false` | Edit the field's value right in the preview (Bard brings its own toolbar) |
+| `controls` | — | With `inline_edit`: sibling fields on the same row (`"font_tag\|size"`) offered in the toolbar |
 | `orderable` | `false` | On each repeated item: drag to reorder + hover **+/−** to add/remove |
 | `move` | `false` | Show up/down reorder arrows on hover (lighter than `orderable`) |
-| `section-orderable` | `false` | On a section: drag handle to move the whole section |
+| `section_orderable` | `false` | On a section: drag handle to move the whole section |
 | `insertable` | `false` | On a replicator container (with `field`): one "+" after the last block |
 | `global_edit` | — | Open a global set (`set` or `set.field`) in the side panel |
 | `popup` | `false` | Open the item's editor as a CP popup instead of editing in place |
 | `scope` | _(cascaded `_visual_id`)_ | Override the field's scope — use `{{ id }}` inside column-builder rows |
 | `blueprint` | — | Resolve field labels from a specific blueprint (e.g. `collections.pages`). In Antlers the entry's blueprint is used automatically. |
-| `outline-inside` | `false` | Draws the outline inside the element border |
+| `outline_inside` | `false` | Draws the outline inside the element border |
 | `id` | — | Override: target a specific set by a known UUID |
 
 ### Antlers ↔ Blade mapping
@@ -342,7 +530,7 @@ All parameters work in both Antlers and Blade (via the fluent API).
 | `{{ visual_edit }}` | `Statamic::tag('visual_edit')->context($set->all())->fetch()` |
 | `{{ visual_edit field="title" }}` | `Statamic::tag('visual_edit')->field('title')->fetch()` |
 | `{{ visual_edit field="title" blueprint="collections.pages" }}` | `Statamic::tag('visual_edit')->blueprint('collections.pages')->field('title')->fetch()` |
-| `{{ visual_edit outline-inside="true" }}` | `Statamic::tag('visual_edit')->context($set->all())->params(['outline-inside' => true])->fetch()` |
+| `{{ visual_edit outline_inside="true" }}` | `Statamic::tag('visual_edit')->context($set->all())->params(['outline_inside' => true])->fetch()` |
 
 ---
 

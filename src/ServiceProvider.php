@@ -2,43 +2,66 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
 use MarioHamann\StatamicVisualEditor\Commands\Install;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\LibraryAccess;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\LibraryScanFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\ColumnSpanFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\IconButtonGroupFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\Replicator;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
 use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatePreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionDefaultsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SetPreviewsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\EagerImagesInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsList;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalSectionStashController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\OverrideGlobalSectionsInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\OverrideGlobalsInPreview;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\RegisterPanelVisibility;
 use Statamic\Facades\Collection;
 use Statamic\Facades\CP\Nav;
 use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Site;
 use Statamic\Facades\User;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
+use MarioHamann\StatamicVisualEditor\Listeners\RefreshPreviews;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
+use MarioHamann\StatamicVisualEditor\Listeners\WrapResponsiveFields;
 use MarioHamann\StatamicVisualEditor\Modifiers\IsDefault;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
+use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
 use Statamic\Events\AddonSettingsSaved;
+use Statamic\Events\BlueprintSaved;
 use Statamic\Events\EntryBlueprintFound;
+use Statamic\Events\EntryDeleted;
+use Statamic\Events\EntrySaved;
 use Statamic\Events\EntrySaving;
+use Statamic\Events\FieldsetSaved;
 use Statamic\Events\GlobalVariablesBlueprintFound;
+use Statamic\Events\GlobalVariablesSaved;
 use Statamic\Events\GlobalVariablesSaving;
 use Statamic\Facades\Utility;
 use Statamic\Providers\AddonServiceProvider;
@@ -48,10 +71,19 @@ class ServiceProvider extends AddonServiceProvider
 {
     protected $fieldtypes = [
         AutoUuidFieldtype::class,
+        LibraryScanFieldtype::class,
+        ResponsiveFieldtype::class,
+        ColumnSpanFieldtype::class,
+        IconButtonGroupFieldtype::class,
+        UniqueSetsFieldtype::class,
+        // ⚠️ Overtager Statamics egen `replicator`-handle — handlen udledes
+        // af klassenavnet. ALT replicator-arbejde i CP'et går igennem den.
+        Replicator::class,
     ];
 
     protected $tags = [
         VisualEdit::class,
+        ResponsiveCss::class,
     ];
 
     protected $modifiers = [
@@ -61,6 +93,19 @@ class ServiceProvider extends AddonServiceProvider
     protected $listen = [
         EntryBlueprintFound::class => [
             InjectVisualIdIntoBlueprint::class,
+            // Står her for læsbarhedens skyld. Registreringen sker reelt af sig
+            // selv: Statamic scanner `src/Listeners` og læser hver listeners
+            // type-hint, og alt derfra kommer FØR det her array (se
+            // AddonServiceProvider::getEventListeners). Rækkefølgen kan altså
+            // ikke sættes herfra.
+            //
+            // ⚠️ Så længe projektets egen listener stadig findes, kører den
+            // først og pakker felterne ind — den her er så en no-op, fordi
+            // `apply()` springer et felt over der allerede er `responsive`.
+            // Fjernes projektets listener, vender rækkefølgen: `_visual_id` og
+            // "Hvor redigeres det?" ville da møde det rå felt i stedet for
+            // indpakningen. Det skal løses FØR projektets fil fjernes.
+            WrapResponsiveFields::class,
         ],
         GlobalVariablesBlueprintFound::class => [
             InjectVisualIdIntoBlueprint::class,
@@ -75,6 +120,28 @@ class ServiceProvider extends AddonServiceProvider
         // without this it would show the map resolved before the save.
         AddonSettingsSaved::class => [
             [Features::class, 'flush'],
+            // The library limit reads those settings and settles its answer once
+            // per request — without this the screen would re-render on the map
+            // it resolved before the save.
+            [LibraryAccess::class, 'flush'],
+        ],
+        // Everything that can make a preview image out of date. Cheap by design:
+        // the run these ask for compares fingerprints and starts no browser when
+        // nothing has actually changed. See the listener for what's watched.
+        EntrySaved::class => [
+            RefreshPreviews::class,
+        ],
+        EntryDeleted::class => [
+            RefreshPreviews::class,
+        ],
+        FieldsetSaved::class => [
+            RefreshPreviews::class,
+        ],
+        BlueprintSaved::class => [
+            RefreshPreviews::class,
+        ],
+        GlobalVariablesSaved::class => [
+            RefreshPreviews::class,
         ],
     ];
 
@@ -83,6 +150,7 @@ class ServiceProvider extends AddonServiceProvider
             // First: it has to decide before the view renders, unlike the rest,
             // which rewrite the response on the way back out.
             DisableViteHotReload::class,
+            EagerImagesInPreview::class,
             InjectBridgeScript::class,
             InjectEditButton::class,
             OverrideGlobalsInPreview::class,
@@ -90,7 +158,12 @@ class ServiceProvider extends AddonServiceProvider
         ],
         'statamic.cp.authenticated' => [
             HideStoresFromCollectionsList::class,
+            RegisterPanelVisibility::class,
         ],
+    ];
+
+    protected $stylesheets = [
+        __DIR__.'/../resources/css/addon.css',
     ];
 
     protected $commands = [
@@ -115,6 +188,7 @@ class ServiceProvider extends AddonServiceProvider
         // re-execute after each morph → full iframe reload ("Reload site?").
         config(['statamic.live_preview.force_reload_js_modules' => false]);
 
+
         // Provide the set preview-image map to the CP script. Bound to the CP
         // scripts partial so it only runs on Control Panel page renders (not the
         // front-end), and after routing so the blueprints are resolvable.
@@ -124,6 +198,10 @@ class ServiceProvider extends AddonServiceProvider
                 'sveGlobalSets' => $this->globalSets(),
                 'sveRowLimits' => RowLimits::map(),
                 'sveSectionTypes' => SectionTypes::map(),
+                // What each set calls itself — the name, icon and instructions the
+                // focus panel puts at the top. Set config never reaches the
+                // rendered form, so it travels with the rest of the settings.
+                'sveSetMeta' => SetMeta::map(),
                 // Handles the client must not assume: everything it builds (field
                 // paths, the global-section row, the CP link to a source entry)
                 // comes from config, so the addon works on any site as installed.
@@ -131,6 +209,7 @@ class ServiceProvider extends AddonServiceProvider
                 'sveSavedSectionsCollection' => config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
                 'sveGlobalSectionSet' => config('statamic-visual-editor.saved_sections.set', 'global_section'),
                 'sveChrome' => config('statamic-visual-editor.chrome', []),
+                'sveHiddenGlobalsTabs' => $this->hiddenGlobalsTabs(),
                 // Whether the editor runs here at all, and which of its tools this
                 // site gets (Addons > Statamic Visual Editor).
                 'sveEnabled' => Features::editorEnabled(),
@@ -138,6 +217,9 @@ class ServiceProvider extends AddonServiceProvider
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
                 'sveCollections' => $this->pickerCollections(),
+                // The collections whose entries open in the preview rather than
+                // the publish form (Addons > Statamic Visual Editor).
+                'sveOpenInPreview' => $this->openInPreviewCollections(),
             ]);
         });
 
@@ -152,6 +234,12 @@ class ServiceProvider extends AddonServiceProvider
         Route::middleware(['web', 'signed'])->group(function () {
             Route::get('/!/sve/section-preview/{entry}/{section}', [SectionPreviewController::class, 'show'])
                 ->name('sve.section-preview');
+
+            // A section type on its own, drawn with its default values — what the
+            // picker inserts, and so what its preview image should be a picture
+            // of. The handle rides in `?type=`, since set handles hold slashes.
+            Route::get('/!/sve/section-defaults-preview', SectionDefaultsPreviewController::class)
+                ->name('sve.section-defaults-preview');
 
             // Renders a saved section on its own, for its preview screenshot.
             Route::get('/!/sve/saved-section-preview/{id}', [SavedSectionPreviewController::class, 'show'])
@@ -174,18 +262,38 @@ class ServiceProvider extends AddonServiceProvider
 
         // Stashes the globals being edited beside Live Preview, so the preview
         // render can use them before they're saved.
-        Route::middleware('web')->group(function () {
-            Route::post('/!/sve/globals-preview', [GlobalsPreviewController::class, 'store'])
-                ->name('sve.globals-preview.store');
-            Route::post('/!/sve/globals-preview/clear', [GlobalsPreviewController::class, 'clear'])
-                ->name('sve.globals-preview.clear');
+        //
+        // A publish form's values are carried on these two routes, and Laravel's
+        // `web` group would take them apart on the way in: TrimStrings strips the
+        // edges off every string, and ConvertEmptyStringsToNull turns what is left
+        // of a whitespace-only one into null. In a Bard value the space between
+        // two styled words IS a string of its own — `{type: text, text: " "}` —
+        // and so is the space at the end of `"Indtast "`. Trimmed, the words run
+        // into each other: "Indtast din overhs" comes back "Indtastdinoverhs", but
+        // only where somebody has coloured a word, and only in the preview, since
+        // the value itself is never touched. Statamic hits the same wall and
+        // answers it the same way — it skips Laravel's TrimStrings for the whole
+        // Control Panel and runs a Bard-aware one there instead (see
+        // Statamic\Http\Middleware\CP\TrimStrings). These routes are the Control
+        // Panel by another name: nothing on them is user input to be tidied up,
+        // it is a form's values on their way to being rendered.
+        Route::middleware('web')
+            ->withoutMiddleware([TrimStrings::class, ConvertEmptyStringsToNull::class])
+            ->group(function () {
+                Route::post('/!/sve/globals-preview', [GlobalsPreviewController::class, 'store'])
+                    ->name('sve.globals-preview.store');
+                Route::post('/!/sve/globals-preview/clear', [GlobalsPreviewController::class, 'clear'])
+                    ->name('sve.globals-preview.clear');
 
-            // Same idea for a global section being edited in the side panel: the
-            // page's preview renders what's being typed, not what's on disk.
-            Route::post('/!/sve/global-section-stash', [GlobalSectionStashController::class, 'store'])
-                ->name('sve.global-section-stash.store');
-            Route::post('/!/sve/global-section-stash/clear', [GlobalSectionStashController::class, 'clear'])
-                ->name('sve.global-section-stash.clear');
+                // Same idea for a global section being edited in the side panel: the
+                // page's preview renders what's being typed, not what's on disk.
+                Route::post('/!/sve/global-section-stash', [GlobalSectionStashController::class, 'store'])
+                    ->name('sve.global-section-stash.store');
+                Route::post('/!/sve/global-section-stash/clear', [GlobalSectionStashController::class, 'clear'])
+                    ->name('sve.global-section-stash.clear');
+            });
+
+        Route::middleware('web')->group(function () {
 
             // Saved sections (reusable section templates).
             Route::get('/!/sve/saved-sections', [SavedSectionsController::class, 'index'])
@@ -194,17 +302,47 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.saved-sections.store');
             Route::post('/!/sve/saved-sections/{id}/preview', [SavedSectionsController::class, 'regeneratePreview'])
                 ->name('sve.saved-sections.preview');
+            // Where a section is in use — asked before the delete, so the confirm
+            // can name the pages that lose it.
+            Route::get('/!/sve/saved-sections/{id}/usage', [SavedSectionsController::class, 'usage'])
+                ->name('sve.saved-sections.usage');
+            Route::delete('/!/sve/saved-sections/{id}', [SavedSectionsController::class, 'destroy'])
+                ->name('sve.saved-sections.destroy');
 
             // Page templates (a whole page's sections, saved to drop on another).
             Route::get('/!/sve/templates', [SavedTemplatesController::class, 'index'])
                 ->name('sve.templates.index');
             Route::post('/!/sve/templates', [SavedTemplatesController::class, 'store'])
                 ->name('sve.templates.store');
+            Route::delete('/!/sve/templates/{id}', [SavedTemplatesController::class, 'destroy'])
+                ->name('sve.templates.destroy');
+
+            // The site's own section types, with preview images as they are on
+            // disk — the library asks on open, so a regenerated preview shows
+            // without reloading the Control Panel.
+            Route::get('/!/sve/section-types', [SectionTypesController::class, 'index'])
+                ->name('sve.section-types.index');
+
+            // The handle travels as a query parameter, never a path segment — set
+            // handles hold slashes (`hero/style_1`), and a route parameter would
+            // swallow them.
+            Route::get('/!/sve/section-types/usage', [SectionTypesController::class, 'usage'])
+                ->name('sve.section-types.usage');
+            Route::delete('/!/sve/section-types', [SectionTypesController::class, 'destroy'])
+                ->name('sve.section-types.destroy');
 
             // Fresh meta + defaults for a set, so a picker-inserted section also
             // renders in the CP's own section list (see SectionMetaController).
             Route::get('/!/sve/section-meta', SectionMetaController::class)
                 ->name('sve.section-meta');
+
+            // The snapshot behind a narrowed library: what the site was using when
+            // the scan was last run, and the button on the settings screen that
+            // runs it again.
+            Route::get('/!/sve/library-scan', [LibraryScanController::class, 'show'])
+                ->name('sve.library-scan.show');
+            Route::post('/!/sve/library-scan', [LibraryScanController::class, 'store'])
+                ->name('sve.library-scan.store');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)
@@ -218,11 +356,11 @@ class ServiceProvider extends AddonServiceProvider
         // Utility page with a button to (re)generate the Add Set picker preview
         // images by screenshotting the rendered sections.
         Utility::register('set-previews')
-            ->view('sve::utilities.set-previews', fn () => ['sets' => SetPreviewImages::map()])
+            ->view('sve::utilities.set-previews', fn () => PreviewStatus::all())
             ->title('Section Previews')
             ->navTitle('Section Previews')
             ->icon('assets')
-            ->description('Regenerér preview-billeder til "Add Set"-pickeren ved at screenshotte sektionerne.')
+            ->description(__('sve::messages.previews_intro'))
             ->routes(function ($router) {
                 $router->post('generate', [SetPreviewsController::class, 'generate'])->name('generate');
             });
@@ -255,19 +393,35 @@ class ServiceProvider extends AddonServiceProvider
         $stores = static::stores();
 
         Nav::extend(function ($nav) use ($stores) {
-            foreach ($stores as $handle) {
-                if (! $collection = Collection::findByHandle($handle)) {
-                    continue; // not installed on this site — nothing to move
+            $collections = collect($stores)
+                ->map(fn ($handle) => Collection::findByHandle($handle))
+                ->filter(); // whatever is not installed on this site is nothing to move
+
+            if ($collections->isEmpty()) {
+                return;
+            }
+
+            /*
+             * Statamic's own Nav::remove() matches a child by its display name, and
+             * two collections are free to share a title — renaming a store to
+             * something the site already uses would pull the site's own collection
+             * out of the list along with it. The show URL carries the handle, so it
+             * can only ever match the one store.
+             */
+            $urls = $collections->map->showUrl()->all();
+
+            if ($parent = $nav->find('Content', 'Collections')) {
+                if ($children = $parent->resolveChildren()->children()) {
+                    $parent->children($children->reject(fn ($child) => in_array($child->url(), $urls, true)));
                 }
+            }
 
-                // Statamic lists collections by title, so that is the child to pull.
-                $nav->remove('Content', 'Collections', $collection->title());
-
+            $collections->each(function ($collection) use ($nav) {
                 $nav->content($collection->title())
                     ->url($collection->showUrl())
                     ->icon($collection->icon() ?: 'content-writing')
                     ->can('view', $collection);
-            }
+            });
         });
     }
 
@@ -334,6 +488,36 @@ class ServiceProvider extends AddonServiceProvider
             ->all();
     }
 
+    /**
+     * The collections a click lands in the preview rather than the form.
+     *
+     * Filtered down to the ones that can actually be previewed. A collection
+     * without a route has no page to render, so Statamic draws no Live Preview
+     * button — an entry there would sit behind the cover waiting for something
+     * that is never coming. Named or not, those open the ordinary editor.
+     *
+     * @return array<int, string>
+     */
+    protected function openInPreviewCollections(): array
+    {
+        if (! Features::enabled('open_in_preview')) {
+            return [];
+        }
+
+        $chosen = Features::setting('open_in_preview_collections', []);
+
+        if (! is_array($chosen) || $chosen === []) {
+            return [];
+        }
+
+        $site = Site::selected()?->handle() ?? Site::default()->handle();
+
+        return collect($chosen)
+            ->filter(fn ($handle) => (bool) Collection::findByHandle($handle)?->route($site))
+            ->values()
+            ->all();
+    }
+
     protected function globalSets(): array
     {
         if (! $user = User::current()) {
@@ -356,6 +540,78 @@ class ServiceProvider extends AddonServiceProvider
             ->filter()
             ->values()
             ->all();
+    }
+
+    /**
+     * Tabs the docked Theme Settings panel leaves out, as the labels they carry
+     * on screen.
+     *
+     * Configured by handle, resolved here to labels: the panel has only the
+     * rendered publish form to work with — the tab buttons in it carry their
+     * display text and nothing that names the blueprint tab — so the matching
+     * has to happen on the label. Doing the lookup server-side is what keeps the
+     * config honest (a handle, stable) and the match right in every language (a
+     * label, as the blueprint actually spells it).
+     *
+     * @return array<string, array<int, string>>  global set handle => lowercased labels
+     */
+    protected function hiddenGlobalsTabs(): array
+    {
+        $hidden = (array) config('statamic-visual-editor.chrome.hidden_tabs', []);
+
+        if (! $hidden) {
+            return [];
+        }
+
+        $map = [];
+
+        // One set or one per half — the tabs to leave out are named the same way
+        // either way, so every set that carries a half gets the same treatment.
+        foreach ($this->chromeGlobalHandles() as $handle) {
+            if (! $set = GlobalSet::findByHandle($handle)) {
+                continue;
+            }
+
+            $tabs = $set->blueprint()?->contents()['tabs'] ?? [];
+            $labels = [];
+
+            foreach ($hidden as $tab) {
+                if (! isset($tabs[$tab])) {
+                    continue; // renamed or removed since it was configured
+                }
+
+                // No `display` means Statamic titleises the handle for the tab button.
+                $labels[] = Str::lower($tabs[$tab]['display'] ?? Str::title(str_replace('_', ' ', $tab)));
+            }
+
+            if ($labels) {
+                $map[$handle] = $labels;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * Every global set holding a half of the site frame, deduplicated.
+     *
+     * `chrome.global` names one set for both; `chrome.header.global` and
+     * `chrome.footer.global` name one each. Configuring both is allowed and
+     * answers with the two specific ones — the shared key is then the fallback
+     * for a half that names none.
+     *
+     * @return array<int, string>
+     */
+    protected function chromeGlobalHandles(): array
+    {
+        $shared = config('statamic-visual-editor.chrome.global');
+
+        $handles = collect(['header', 'footer'])
+            ->map(fn ($half) => config("statamic-visual-editor.chrome.{$half}.global") ?: $shared)
+            ->filter()
+            ->all();
+
+        return array_values(array_unique($handles ?: [$shared ?: 'theme_settings']));
     }
 
     protected $vite = [

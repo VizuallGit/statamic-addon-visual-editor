@@ -4,8 +4,8 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use MarioHamann\StatamicVisualEditor\PreviewHost;
 use Statamic\Facades\Entry;
-use Statamic\Facades\Site;
 
 /**
  * Renders a saved TEMPLATE — every section in it — so the preview generator can
@@ -35,25 +35,6 @@ class SavedTemplatePreviewController extends Controller
 
         abort_unless(is_array($sections) && $sections !== [], 404);
 
-        if (! $host = $this->hostPage()) {
-            abort(404);
-        }
-
-        $host->set($field, $sections);
-
-        return $host->toResponse($request);
-    }
-
-    /** Any published page, used purely as the rendering shell. */
-    protected function hostPage()
-    {
-        $collection = config('statamic-visual-editor.previews.collection', 'pages');
-        $site = Site::default()->handle();
-
-        return Entry::query()
-            ->where('collection', $collection)
-            ->where('site', $site)
-            ->where('published', true)
-            ->first();
+        return PreviewHost::respond($request, $sections);
     }
 }

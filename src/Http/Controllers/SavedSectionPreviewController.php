@@ -4,8 +4,8 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use MarioHamann\StatamicVisualEditor\PreviewHost;
 use Statamic\Facades\Entry;
-use Statamic\Facades\Site;
 use Statamic\Facades\User;
 
 /**
@@ -31,13 +31,7 @@ class SavedSectionPreviewController extends Controller
 
         abort_unless(is_array($sections) && isset($sections[0]), 404);
 
-        if (! $host = $this->hostPage()) {
-            abort(404);
-        }
-
-        $host->set($field, [$sections[0]]);
-
-        return $host->toResponse($request);
+        return PreviewHost::respond($request, [$sections[0]]);
     }
 
     /**

@@ -13,6 +13,7 @@
  */
 
 const STYLE_ID = '__sve-preview-styles';
+const THEME_SCALE_STYLE_ID = '__sve-theme-scale';
 const CHROME_ATTR = 'data-sve-chrome';
 
 function injectPreviewStyles(doc) {
@@ -31,6 +32,43 @@ function injectPreviewStyles(doc) {
 }
 
 injectPreviewStyles(document);
+
+/** Last live theme scale from CP — re-applied after morph so server :root can't win. */
+let lastThemeScaleCss = '';
+
+/**
+ * Apply live --primary-* from Theme Settings (lys/sat) without waiting for a
+ * full preview morph. Kept at end of <head> so it beats layout_style_push.
+ */
+/**
+ * Apply live --primary-* from Theme Settings (lys/sat). Kept at end of <head>
+ * so it beats layout_style_push after morph.
+ */
+function applyThemeScaleCss(css) {
+  if (css) {
+    lastThemeScaleCss = css;
+  }
+
+  let el = document.getElementById(THEME_SCALE_STYLE_ID);
+
+  // Color-scheme may have written the style directly — after morph it must
+  // still sit last in <head>, or the server :root wins.
+  if (!lastThemeScaleCss) {
+    if (el) {
+      document.head.appendChild(el);
+    }
+
+    return;
+  }
+
+  if (!el) {
+    el = document.createElement('style');
+    el.id = THEME_SCALE_STYLE_ID;
+  }
+
+  el.textContent = `:root{${lastThemeScaleCss}}`;
+  document.head.appendChild(el);
+}
 
 let updateSeq = 0;
 let pendingUrl = null;
@@ -213,6 +251,8 @@ async function applyUpdate(url) {
   const chromeKind = focusedChromeKind();
 
   syncHeadStyles(updated);
+  // Server HTML carries saved bias/sat in :root — put live scale back on top.
+  applyThemeScaleCss();
 
   let surgical = false;
 
@@ -233,6 +273,12 @@ async function applyUpdate(url) {
 }
 
 window.addEventListener('message', (event) => {
+  if (event.data?.source === 'statamic-visual-editor' && event.data.type === 'sve-theme-scale') {
+    applyThemeScaleCss(event.data.css || '');
+
+    return;
+  }
+
   if (event.data?.name === 'sve.globals') {
     globalsActive = !!event.data.active;
     chromeKindFromParent = event.data.active
@@ -267,6 +313,10 @@ window.addEventListener('message', (event) => {
   }
 
   applyUpdate(event.data.url);
+});
+
+window.addEventListener('sve:clear-pending-preview', () => {
+  pendingUrl = null;
 });
 
 window.addEventListener('sve:inline-edit-end', () => {

@@ -3,7 +3,10 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use MarioHamann\StatamicVisualEditor\LibraryAccess;
+use MarioHamann\StatamicVisualEditor\PreviewRefresher;
 use MarioHamann\StatamicVisualEditor\SavedSectionPreview;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -36,7 +39,13 @@ class SavedTemplatesController
 
     public function index(Request $request)
     {
-        abort_unless(User::current(), 403);
+        $user = User::current();
+
+        abort_unless($user, 403);
+
+        // See the same call in SavedSectionsController::index — opening the library
+        // is where a design change that no save announced gets noticed.
+        $kicked = PreviewRefresher::kickThrottled();
 
         $site = Site::selected()?->handle() ?? Site::default()->handle();
 
@@ -51,13 +60,29 @@ class SavedTemplatesController
                 // The raw sections, so the client can insert copies without a
                 // second round-trip. Always sent: a template is always a copy.
                 'sections' => static::sectionsOf($entry),
+                // Whether to offer the delete control at all — the client has no
+                // view of entry permissions.
+                'can_delete' => $user->can('delete', $entry),
             ])
+            /*
+             * A template is copied on insert, so nothing left in a page says it
+             * came from here — there is nothing to scan for. What it is made of
+             * answers instead: it is offered while every section in it is a design
+             * the site already uses. Only when the site asks for a narrowed
+             * library, and never to a super admin.
+             */
+            ->filter(fn ($template) => LibraryAccess::allowsSections($template['sections']))
             ->map(fn ($template) => $template + ['count' => count($template['sections'])])
             ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
 
-        return response()->json(['templates' => $templates]);
+        return response()->json([
+            'templates' => $templates,
+            // See SavedSectionsController::index — the panel asks again while
+            // pictures are still being taken.
+            'running' => $kicked || Cache::get('sve-previews:running', false),
+        ]);
     }
 
     public function store(Request $request)
@@ -92,28 +117,47 @@ class SavedTemplatesController
             ->published(true)
             ->data([
                 'title' => $data['title'],
-                static::field() => $sections,
+                // Control Panel values turned into storage values — see the
+                // method's docblock for why a template saved without this renders
+                // with empty picture frames.
+                static::field() => SavedSectionsController::processed($sections, static::collection()),
             ]);
 
+        // Its screenshot is not asked for here: saving fires EntrySaved, and the
+        // RefreshPreviews listener takes it from there — the same path a template
+        // edited later in the Control Panel goes through.
         $entry->save();
-
-        // The screenshot needs a headless browser (seconds), so it runs after the
-        // response is sent — saving stays instant. The picker shows a placeholder
-        // until the image lands.
-        dispatch(function () use ($entry) {
-            app(SavedSectionPreview::class)->generate($entry->fresh(), [
-                'folder' => 'saved-templates',
-                'route' => 'sve.saved-template-preview',
-                // The whole stack, not one section: that's what a template is.
-                'selector' => 'main',
-            ]);
-        })->afterResponse();
 
         return response()->json([
             'id' => $entry->id(),
             'title' => $entry->value('title'),
             'count' => count($sections),
         ]);
+    }
+
+    /**
+     * Deletes a template.
+     *
+     * No usage list to warn about: a template is copied onto a page, never
+     * referenced, so the pages built from one keep their sections and never learn
+     * that the stencil is gone.
+     */
+    public function destroy(Request $request, string $id)
+    {
+        $user = User::current();
+
+        abort_unless($user, 403);
+
+        $entry = Entry::find($id);
+
+        abort_unless($entry && $entry->collectionHandle() === static::collection(), 404);
+        abort_unless($user->can('delete', $entry), 403);
+
+        app(SavedSectionPreview::class)->forget($entry);
+
+        $entry->delete();
+
+        return response()->json(['ok' => true]);
     }
 
     /** The raw sections stored on a template entry. */

@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use MarioHamann\StatamicVisualEditor\PreviewHost;
 use Statamic\Facades\Entry;
 
 /**
@@ -38,9 +39,11 @@ class SectionPreviewController extends Controller
 
         abort_unless($target, 404);
 
-        // In-memory only — never saved.
-        $model->set($field, [$target]);
-
-        return $model->toResponse($request);
+        // This entry as the shell — the section may read from the page around it —
+        // but rendered through the collection's template rather than its own: an
+        // entry that overrides its template (a home page listing something above
+        // its sections) would otherwise put that markup first inside <main>, and
+        // the generator photographs the first child.
+        return PreviewHost::respond($request, [$target], $model);
     }
 }
