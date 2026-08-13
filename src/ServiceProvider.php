@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
@@ -93,18 +94,11 @@ class ServiceProvider extends AddonServiceProvider
     protected $listen = [
         EntryBlueprintFound::class => [
             InjectVisualIdIntoBlueprint::class,
-            // Står her for læsbarhedens skyld. Registreringen sker reelt af sig
-            // selv: Statamic scanner `src/Listeners` og læser hver listeners
-            // type-hint, og alt derfra kommer FØR det her array (se
-            // AddonServiceProvider::getEventListeners). Rækkefølgen kan altså
-            // ikke sættes herfra.
-            //
-            // ⚠️ Så længe projektets egen listener stadig findes, kører den
-            // først og pakker felterne ind — den her er så en no-op, fordi
-            // `apply()` springer et felt over der allerede er `responsive`.
-            // Fjernes projektets listener, vender rækkefølgen: `_visual_id` og
-            // "Hvor redigeres det?" ville da møde det rå felt i stedet for
-            // indpakningen. Det skal løses FØR projektets fil fjernes.
+            // Den rigtige registrering står i `register()` ovenfor, hvor den
+            // kommer FØR de to her — se noten der om hvorfor rækkefølgen
+            // afgøres et andet sted end i det her array. Den her linje er
+            // Statamics egen auto-opdagelse, som fyrer igen bagefter uden at
+            // gøre noget: et felt der allerede er pakket ind, røres ikke.
             WrapResponsiveFields::class,
         ],
         GlobalVariablesBlueprintFound::class => [
@@ -170,6 +164,31 @@ class ServiceProvider extends AddonServiceProvider
         GenerateSetPreviews::class,
         Install::class,
     ];
+
+    /**
+     * The responsive wrap has to reach the blueprint before anything else does.
+     *
+     * `_visual_id` injection and "Where is this edited?" both rewrite each field
+     * as they walk past it, and a field wrapped in `responsive` is a different
+     * shape than the raw one — so which of the two goes first decides what the
+     * other one sees. In the site this was moved from, the wrap went first.
+     *
+     * It cannot be ordered from `$listen`: Statamic scans `src/Listeners` and
+     * registers everything it finds there *before* that array is read
+     * (AddonServiceProvider::getEventListeners), so a listener class always
+     * lands behind the discovered ones. Registered here instead, in `register()`,
+     * which runs before any provider boots — and therefore before the scan.
+     *
+     * The discovered registration still happens and fires again afterwards.
+     * That is harmless: `apply()` returns a field untouched once it is already
+     * `responsive`, so the second pass has nothing left to do.
+     */
+    public function register()
+    {
+        parent::register();
+
+        Event::listen(EntryBlueprintFound::class, [WrapResponsiveFields::class, 'handle']);
+    }
 
     public function bootAddon()
     {
