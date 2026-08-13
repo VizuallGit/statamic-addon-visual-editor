@@ -4820,7 +4820,7 @@ function paintFocusLockedTabs(win, btn, tab, on) {
 
   btn.disabled = off;
   btn.style.pointerEvents = off ? 'none' : '';
-  btn.style.cursor = off ? 'default' : '';
+  btn.style.cursor = off ? 'default' : 'pointer';
   // A merged tool wears its surface on the frame around the glyph, and it is the
   // frame that goes out — see applyHeaderTab. Fading the glyph here as well would
   // fade it twice over, leaving it far darker than the standalone icons it stands
@@ -6776,6 +6776,8 @@ function sortableItemForUid(uid, doc) {
 const LP_TOGGLE_ID = '__sve-lp-toggle';
 const LP_MODE_ID = '__sve-lp-mode';
 const LP_MODE_KEY = 'sve-lp-panel-mode';
+const LP_COLLAPSED_KEY = 'sve-lp-collapsed';
+const KEEP_CHROME_KEY = 'sve-keep-chrome';
 
 const LP_WIDTH_ID = '__sve-lp-width';
 const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
@@ -7140,6 +7142,29 @@ function lpMode(win) {
   }
 }
 
+/** True while a page change is in flight — the next editor should keep the bar as it was. */
+function shouldKeepChrome(win) {
+  try {
+    return win.sessionStorage.getItem(KEEP_CHROME_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function storedLpCollapsed(win) {
+  try {
+    const stored = win.localStorage.getItem(LP_COLLAPSED_KEY);
+
+    if (stored === '1' || stored === '0') {
+      return stored === '1';
+    }
+  } catch {
+    /* private mode */
+  }
+
+  return lpMode(win) !== 'show';
+}
+
 function setLpMode(win, mode) {
   try {
     win.localStorage.setItem(LP_MODE_KEY, mode);
@@ -7172,6 +7197,12 @@ function autoOpenPanel(win) {
 
 function setLpCollapsed(win, collapsed) {
   lpCollapsed = collapsed;
+
+  try {
+    win.localStorage.setItem(LP_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    /* private mode */
+  }
 
   ensureLpPanelToggle(win);
 }
@@ -10666,7 +10697,7 @@ function ensureLpPanelToggleInner(win) {
   lpWasOpen = true;
 
   if (lpCollapsed === null) {
-    lpCollapsed = lpMode(win) !== 'show';
+    lpCollapsed = shouldKeepChrome(win) ? storedLpCollapsed(win) : lpMode(win) !== 'show';
   }
 
   // Opening a section's settings holds the panel open for as long as they're
@@ -10759,7 +10790,10 @@ function ensureLpPanelToggleInner(win) {
   // Collapse all of the above into the icon toolbar — one control at a time.
   ensureHeaderToolbar(win);
   applyHeaderTab(win);
-  openFirstSectionOnce(win);
+  if (!shouldKeepChrome(win)) {
+    openFirstSectionOnce(win);
+  }
+  restoreDockedHeaderPanels(win);
   openSettingsTab(win);
   applySectionsFieldVisibility(win);
 
@@ -11923,20 +11957,44 @@ function loadHeaderTab(win) {
     return;
   }
 
-  // Nothing unfolded on arrival. The panel button used to open expanded, which
-  // meant the bar changed width a moment after the editor appeared — every icon
-  // beside it moved, and the alignment with the sidebar was measured against a
-  // layout that was about to change. A row of closed icons is also simply what
-  // the rest of the bar looks like.
-  //
-  // Deliberately not restored from localStorage: "when I open Live Preview" is
-  // the moment being described, and it should look the same every time.
+  // A fresh Live Preview starts with every icon folded — otherwise the bar
+  // changes width a moment after it appears. A page change is different: the
+  // next editor should look like the one you just left, tab and all.
+  if (shouldKeepChrome(win)) {
+    try {
+      const stored = win.localStorage.getItem('sve-header-tab');
+
+      headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
+    } catch {
+      headerTab = null;
+    }
+
+    return;
+  }
+
   headerTab = null;
 
-  // A tab remembered from before the site switched that tool off would open a
-  // control with no icon to close it again. Fall back to nothing expanded.
   if (!headerTabAvailable(win, headerTab)) {
     setHeaderTab(win, null);
+  }
+}
+
+/** Re-open a docked right panel that was showing when the last page left. */
+let dockedHeaderRestored = false;
+
+function restoreDockedHeaderPanels(win) {
+  if (dockedHeaderRestored || !shouldKeepChrome(win)) {
+    return;
+  }
+
+  dockedHeaderRestored = true;
+
+  if (headerTab === 'sections' && !win.document.getElementById(SECTION_PICKER_ID)) {
+    openSectionPicker(win);
+  } else if (headerTab === 'listview' && !listViewPanel(win.document)) {
+    toggleListViewPanel(win);
+  } else if (headerTab === 'outline' && !outlinePanel(win.document)) {
+    toggleOutlinePanel(win);
   }
 }
 
@@ -12451,6 +12509,7 @@ function applyHeaderTab(win) {
     btn.style.color = 'currentColor';
     btn.style.border = 'none';
     btn.style.boxShadow = 'none';
+    btn.style.cursor = 'pointer';
 
     // Sets the opacity itself — a locked tool is dimmer than an idle one, and
     // brighter than nothing.
@@ -15325,6 +15384,25 @@ export function createMessageListener(doc = document, win = window) {
 }
 
 const CP_STYLES = `
+/* Live Preview top bar — pointer + a visible hover so the icons read as buttons. */
+#__sve-toolbar button[data-tab],
+#__sve-lp-mode button,
+#__sve-preview-chrome button {
+  cursor: pointer !important;
+}
+#__sve-toolbar button[data-tab]:hover:not(:disabled),
+#__sve-lp-mode button:hover,
+#__sve-preview-chrome button:hover {
+  opacity: 1 !important;
+}
+#__sve-toolbar button[data-tab]:hover:not(:disabled) {
+  background: rgba(128, 128, 128, .28) !important;
+}
+#__sve-lp-mode button:hover:not([aria-pressed="true"]),
+#__sve-preview-chrome button:hover:not([aria-pressed="true"]) {
+  background: rgba(128, 128, 128, .22) !important;
+}
+
 /* Docked right panels (sections library / Theme Settings) sit at z-index 40–60.
    Publish closes those panels (see watchPublishClosesRightPanels) — no z-index
    war needed for Statamic's Publish sheet. */

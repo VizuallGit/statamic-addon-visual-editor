@@ -26,6 +26,9 @@
         }
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "1.1.x-dev"
+        },
         "statamic": {
             "name": "Statamic Visual Editor",
             "description": "Statamic Visual Editor addon"

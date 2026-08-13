@@ -10,6 +10,7 @@ const SOURCE = 'statamic-visual-editor';
 const STYLE_ID = 'sve-overlay-host-styles';
 const LOADING_ID = 'sve-overlay-loading';
 const PREVIEW_LOADING_ID = 'sve-preview-loading';
+const KEEP_CHROME_KEY = 'sve-keep-chrome';
 const FADE_MS = 380;
 const SPINNER_SVG =
   '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
@@ -300,6 +301,11 @@ function createHost(win) {
     }
 
     showPreviewLoading();
+    try {
+      win.sessionStorage.setItem(KEEP_CHROME_KEY, '1');
+    } catch {
+      /* private mode */
+    }
     win.clearTimeout(nextTimer);
     next = editor(url);
     nextTimer = win.setTimeout(() => {
@@ -317,6 +323,11 @@ function createHost(win) {
   function openEditor(url) {
     wanted = true;
     setLoading(true);
+    try {
+      win.sessionStorage.removeItem(KEEP_CHROME_KEY);
+    } catch {
+      /* private mode */
+    }
     boot(url);
 
     if (ready) {
@@ -357,6 +368,11 @@ function createHost(win) {
     wanted = false;
     setLoading(false);
     clearPreviewLoading();
+    try {
+      win.sessionStorage.removeItem(KEEP_CHROME_KEY);
+    } catch {
+      /* private mode */
+    }
 
     if (isCpHost(win)) {
       detachFrames();
