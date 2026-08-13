@@ -9,6 +9,7 @@ export default defineConfig({
         'resources/js/addon.js',
         'resources/js/bridge.js',
         'resources/js/preview.js',
+        'resources/js/overlay-host.js',
       ],
       publicDirectory: 'resources/dist',
     }),

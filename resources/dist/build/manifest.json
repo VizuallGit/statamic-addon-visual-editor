@@ -1,14 +1,23 @@
 {
   "resources/js/addon.js": {
-    "file": "assets/addon-9W4ZTom1.js",
+    "file": "assets/addon-B6kU68EW.js",
     "name": "addon",
     "src": "resources/js/addon.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "resources/js/overlay-host.js"
+    ]
   },
   "resources/js/bridge.js": {
     "file": "assets/bridge-BqIY9UGr.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
+    "isEntry": true
+  },
+  "resources/js/overlay-host.js": {
+    "file": "assets/overlay-host-B7o1U8VC.js",
+    "name": "overlay-host",
+    "src": "resources/js/overlay-host.js",
     "isEntry": true
   },
   "resources/js/preview.js": {

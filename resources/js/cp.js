@@ -1,5 +1,7 @@
 // Control Panel script — handles postMessage routing from the Live Preview iframe.
 
+import { gotoOverlay, openOverlay } from './overlay-host.js';
+
 export const SELECTORS = {
   visualIdInput: '[data-visual-id]',
   replicatorSet: '[data-replicator-set]',
@@ -16041,11 +16043,8 @@ function previewPainted(doc) {
  * Preview straight away by clicking the CP's own button, then drop the param so
  * a refresh doesn't reopen it.
  *
- * Two ways in:
- *  - Embedded in the site's edit overlay: the site keeps us invisible and
- *    crossfades us in, so we just report when the preview has painted.
- *  - Navigated to directly: we cover ourselves in the colour of the page we came
- *    from, so the admin never flashes up behind Live Preview.
+ * The editor always opens in the overlay iframe. Inside that iframe we click
+ * Statamic's own button so the preview paints, then tell the host.
  */
 /**
  * Statamic's own "open Live Preview" button, found in whatever language the CP is
@@ -16058,6 +16057,43 @@ function livePreviewButton(doc) {
 
     return /live.?preview|forhåndsvis|vorschau|voorbeeld|aperçu|vista previa/i.test(text);
   });
+}
+
+/**
+ * Statamic's own Live Preview control opens in-place. That is a second editor.
+ * On the top window we take the click and open the overlay instead — the same
+ * iframe the front-end button uses. Inside the overlay the click must still
+ * reach Statamic, or the preview never paints.
+ */
+function interceptLivePreviewOpen(win) {
+  win.document.addEventListener(
+    'click',
+    (event) => {
+      if (isEmbeddedInSite(win) || livePreviewEditorEl(win.document)) {
+        return;
+      }
+
+      const button = livePreviewButton(win.document);
+
+      if (!button || !button.contains(event.target)) {
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+
+      const url = new URL(win.location.href);
+
+      url.searchParams.set('live-preview', '1');
+      openOverlay(win, url.toString());
+    },
+    true
+  );
 }
 
 /**
@@ -16390,10 +16426,23 @@ function autoOpenLivePreview(win) {
     return;
   }
 
-  // The full-load way in — a browser without the router, or the front-end edit
-  // button, which leaves no note and so claims nothing.
-  claimOrigin(win);
-  openLivePreviewCovered(win);
+  // Inside the overlay iframe this is the one remaining job: click Statamic's
+  // own Live Preview control so the preview paints, then tell the host.
+  if (isEmbeddedInSite(win)) {
+    claimOrigin(win);
+    openLivePreviewCovered(win);
+
+    return;
+  }
+
+  // Landed on this URL as a full page (bookmark, failsafe). Same overlay as
+  // every other way in — the document underneath is the host, not the editor.
+  const url = win.location.href;
+  const clean = new URL(win.location.href);
+
+  clean.searchParams.delete('live-preview');
+  win.history.replaceState({}, '', clean);
+  openOverlay(win, url);
 }
 
 /**
@@ -16629,43 +16678,11 @@ function forgetOrigin(win) {
 }
 
 /**
- * Makes the move, covered.
- *
- * Inertia fetches the next screen while this one is still up, so the cover only
- * has to hide the moment between the swap and the preview painting — the same
- * trip the entry picker makes. Without a router it's a plain load, and the param
- * is picked up on the way in by autoOpenLivePreview.
- *
- * The panels are deliberately NOT closed on the way in. Moving between entries
- * inside the preview does close them, because everything standing open belongs
- * to the entry being left; arriving from the Control Panel there is nothing open
- * to belong to anything, and forcing it shut would override the editor panel's
- * own remembered Hidden/Auto/Visible.
+ * Opens the editor in the overlay iframe. The listing (or form) stays put
+ * underneath — the same host the front-end edit button uses.
  */
 function goToPreview(win, url) {
-  const router = win.__STATAMIC__?.inertia?.router;
-  const background = cpBackground(win);
-
-  rememberOrigin(win, new URL(url, win.location.origin).pathname, win.location.href);
-
-  if (!router?.visit) {
-    win.location.href = url;
-
-    return;
-  }
-
-  coverForNavigation(win, {
-    blocking: true,
-    background,
-    then: () =>
-      router.visit(url, {
-        onSuccess: () => {
-          claimOrigin(win);
-          openLivePreviewCovered(win);
-        },
-        onError: () => win.document.getElementById(LP_COVER_ID)?.remove(),
-      }),
-  });
+  openOverlay(win, url);
 }
 
 function initOpenInPreview(win) {
@@ -20231,34 +20248,22 @@ function saveThenNavigate(win, go) {
 /**
  * Moves to another entry without the page going out from under you.
  *
- * A full page load tears the current document down — that's the blank. Inertia
- * fetches the next page while this one stays on screen, and only swaps once it
- * has it; the cover then only has to hide the brief moment between the swap and
- * the preview painting, rather than the whole trip. Falls back to a plain load
- * where the router isn't reachable.
+ * Always the overlay: the host boots the next editor hidden and swaps once it
+ * has painted. Same from the front-end button and from the collection picker.
  */
 function navigateFromLp(win, anchor, url, onCancel = () => {}) {
-  const router = win.__STATAMIC__?.inertia?.router;
 
   const go = () => {
     // By the time anything calls this, the unsaved question has been put to the
     // user and answered — on every path into it.
     dismissDirtyWarning(win);
 
-    // Running in the site's editor overlay, the move belongs to the host: it boots
-    // the next page hidden and only swaps once that page has painted, so the page
-    // you're looking at stays — really stays, not a picture of it — for the whole
-    // wait. That's the front-end edit button's own route, and nothing done inside
-    // this document can match it: an Inertia swap takes the live preview down with
-    // it, and anything put over that gap is a second page change.
-    //
-    // A spinner, because the wait is now spent looking at a page that is doing
-    // nothing.
+    // The editor always lives in the overlay iframe. The host (site or CP)
+    // boots the next page hidden and swaps once it has painted — same move
+    // from the front-end button and from the collection picker.
     if (isEmbeddedInSite(win)) {
       showNavSpinner(win);
 
-      // If the host can't produce the page, don't leave a spinner turning at
-      // someone: take the ordinary route instead.
       const onFail = (event) => {
         if (event.origin !== win.location.origin) {
           return;
@@ -20274,40 +20279,12 @@ function navigateFromLp(win, anchor, url, onCancel = () => {}) {
       };
 
       win.addEventListener('message', onFail);
-      postToHost(win, 'lp-goto', { url });
+      gotoOverlay(win, url);
 
       return;
     }
 
-    if (!router?.visit) {
-      coverForNavigation(win, { then: () => (win.location.href = url) });
-
-      return;
-    }
-
-    // Standing alone in the Control Panel there's no host holding the page, so the
-    // gap has to be covered: the page you were looking at held on screen, a spinner
-    // on it, and the next page fades in once its preview has painted.
-    coverForNavigation(win, {
-      blocking: true,
-      then: () =>
-        router.visit(url, {
-          onSuccess: () => {
-            // The cover stays up until the new preview has painted — that reveal
-            // is the whole point, so it's `reveal` that takes it down.
-            if (/[?&]live-preview=1/.test(url)) {
-              openLivePreviewCovered(win, { closePanels: true });
-
-              return;
-            }
-
-            win.document.getElementById(LP_COVER_ID)?.remove();
-          },
-          onError: () => {
-            win.document.getElementById(LP_COVER_ID)?.remove();
-          },
-        }),
-    });
+    gotoOverlay(win, url);
   };
 
   if (!hasUnsavedWork(win) || (!saveButtonIn(win.document) && !hasUnsavedGlobals(win) && !hasUnsavedGlobalSection(win))) {
@@ -22789,6 +22766,7 @@ export function initCp(win = window) {
   watchPublishClosesRightPanels(win);
 
   autoOpenLivePreview(win);
+  interceptLivePreviewOpen(win);
   initOpenInPreview(win);
   watchEntrySaves(win);
   watchPreviewRenders(win);

@@ -153,6 +153,7 @@ class InjectEditButton
     protected function button($entry): string
     {
         $url = e($entry->editUrl().'?live-preview=1');
+        $host = e($this->resolveScriptUrl('resources/js/overlay-host.js'));
 
         return <<<HTML
         <a href="{$url}" id="sve-edit-button" title="Rediger denne side i Live Preview">
@@ -185,35 +186,9 @@ class InjectEditButton
             #sve-edit-button[data-loading] { pointer-events: none; opacity: .75; }
             #sve-edit-button[data-loading] svg { animation: sve-spin 1s linear infinite; }
             @keyframes sve-spin { to { transform: rotate(360deg); } }
-
-            /* The editor itself: a full-screen frame that lives on top of the page.
-               opacity (not display/visibility) — a frame that isn't rendered can be
-               laid out at the wrong size, and Live Preview measures the viewport as
-               it mounts.
-
-               A class rather than an id: changing page inside the editor boots a
-               second one of these beside the first and only swaps once it has
-               painted, so there are briefly two on the page. */
-            .sve-edit-overlay {
-                position: fixed; inset: 0; width: 100%; height: 100%;
-                border: 0; margin: 0; z-index: 2147483200;
-                opacity: 0; pointer-events: none;
-            }
-            .sve-edit-overlay[data-open] { opacity: 1; pointer-events: auto; }
-            html.sve-editing { overflow: hidden; }
-            html.sve-editing #sve-edit-button { display: none; }
-
-            /* Cross-fade the site and the editor. The site declares
-               `@view-transition { navigation: auto }`, but that's cross-document —
-               this is a same-document transition and needs its own timing. */
-            html.sve-morphing::view-transition-old(root),
-            html.sve-morphing::view-transition-new(root) {
-                animation-duration: 380ms;
-                animation-timing-function: cubic-bezier(.4, 0, .2, 1);
-            }
-
-            @media print { #sve-edit-button, .sve-edit-overlay { display: none; } }
+            @media print { #sve-edit-button { display: none; } }
         </style>
+        <script type="module" src="{$host}"></script>
         <script>
         (function () {
             var button = document.getElementById('sve-edit-button');
@@ -232,11 +207,6 @@ class InjectEditButton
                 }
             });
 
-            // Hand the page's background colour to the CP so it can cover itself
-            // in the same colour while Live Preview boots — the editor UI is then
-            // never seen and the jump feels like it stays on the site.
-            // <body> is often transparent (the colour sits on <html> or a wrapper),
-            // so fall back until we find a real one.
             function solidBackground(el) {
                 if (!el) return null;
                 var colour = getComputedStyle(el).backgroundColor;
@@ -244,9 +214,6 @@ class InjectEditButton
                 return colour;
             }
 
-            // Prefer the colour actually filling the top of the viewport — that's
-            // what the eye is on when the click happens, so covering with it is
-            // what makes the jump read as seamless.
             function backgroundInView() {
                 var el = document.elementFromPoint(Math.floor(innerWidth / 2), 4);
                 for (var i = 0; el && i < 12; i++) {
@@ -257,9 +224,6 @@ class InjectEditButton
                 return null;
             }
 
-            // Stash it where the CP can read it. Deliberately NOT a query param:
-            // the link's URL has to stay identical for the browser's prerender
-            // (below) to be reused on click.
             function rememberBackground() {
                 try {
                     localStorage.setItem(
@@ -273,247 +237,36 @@ class InjectEditButton
             }
 
             rememberBackground();
-            // Refresh on hover and on click — the visitor may have scrolled, and
-            // the cover should match whatever they're actually looking at.
             button.addEventListener('pointerenter', rememberBackground);
             button.addEventListener('click', rememberBackground);
 
-            // ---- The editor overlay -------------------------------------------
-            // We never navigate away. The Control Panel boots inside a full-screen
-            // frame on top of this page, and we cross-fade to it once Live Preview
-            // has actually painted. The site stays alive underneath, so coming back
-            // is instant and nothing on it re-animates.
-            //
-            // (This also side-steps the cross-document problem entirely: navigating
-            // from a page with @view-transition into the CP leaves the CP's Inertia
-            // app half-booted, whether the transition runs or is skipped.)
-
-            var target = button.getAttribute('href');
-            var frame = null;
-            var next = null;     // a second editor, booting another page behind this one
-            var nextTimer = null;
-            var ready = false;   // Live Preview has painted inside the frame
-            var open = false;    // the overlay is on screen
-            var wanted = false;  // clicked while it was still booting
-            var saved = false;   // something was saved — the page below is stale
-            var root = document.documentElement;
-
-            function editor(src) {
-                var el = document.createElement('iframe');
-                el.className = 'sve-edit-overlay';
-                el.title = 'Live Preview';
-                el.src = src;
-                document.body.appendChild(el);
-                return el;
-            }
-
-            function boot() {
-                if (frame) return;
-                frame = editor(target);
-            }
-
-            // Changing page from inside the editor, by exactly the route the button
-            // itself takes: boot the next page hidden, leave the one you're looking
-            // at alone, and swap only once the new one says it has painted. Anything
-            // that covers or fakes the old page in the meantime reads as a page
-            // change of its own — which is the whole thing this avoids.
-            function goto(url) {
-                if (!open || !frame) return;
-                if (next) next.remove();
-                clearTimeout(nextTimer);
-
-                next = editor(url);
-
-                // Never strand the editor on a page that never comes: hand it back
-                // and let it move itself the ordinary way.
-                nextTimer = setTimeout(function () {
-                    if (!next) return;
-                    next.remove();
-                    next = null;
-                    tell(frame, 'lp-goto-failed');
-                }, 20000);
-            }
-
-            function tell(el, type) {
-                try {
-                    el.contentWindow.postMessage({ source: 'statamic-visual-editor', type: type }, location.origin);
-                } catch (e) {}
-            }
-
-            function morph(update) {
-                if (!document.startViewTransition) { update(); return; }
-                root.classList.add('sve-morphing');
-                document.startViewTransition(update).finished
-                    .catch(function () {})
-                    .then(function () { root.classList.remove('sve-morphing'); });
-            }
-
-            function show() {
-                if (open || !frame) return;
-                open = true;
-                // A history entry, so Back closes the editor instead of leaving the site.
-                try { history.pushState({ sveEditing: true }, '', location.href); } catch (e) {}
-                morph(function () {
-                    frame.setAttribute('data-open', '');
-                    root.classList.add('sve-editing');
-                });
-            }
-
-            function close(fromHistory, target) {
-                if (!open) return;
-                open = false;
-                button.removeAttribute('data-loading');
-
-                // Where the front end should end up. Live Preview may have moved to
-                // another entry since the overlay opened, so the page sitting under
-                // it can be the wrong one — land on the entry you were actually on.
-                var dest = null;
-                if (target) {
-                    try {
-                        var u = new URL(target, location.origin);
-                        if (u.origin === location.origin) dest = u;
-                    } catch (e) {}
-                }
-
-                var elsewhere = dest && dest.pathname !== location.pathname;
-
-                // A real front-end load is needed when the page underneath is stale
-                // (something was saved) or simply the wrong page (you navigated). The
-                // instant reveal below is only right when neither is true.
-                if (saved || elsewhere) {
-                    // Detach the editor before leaving: unloading with the frame still
-                    // in it lets the CP's beforeunload handlers put up a "changes you
-                    // made may not be saved" prompt — about changes that were just
-                    // saved. A detached iframe can never show that prompt.
-                    frame.remove();
-                    frame = null;
-                    ready = false;
-
-                    if (elsewhere) {
-                        // A fresh page, so its entrance animations should play.
-                        location.href = dest.href;
-                    } else {
-                        // Same page, refreshed for the saved content. Hold the
-                        // animations back so the reload reads as the content simply
-                        // being there.
-                        try { sessionStorage.setItem('sve-noanim', '1'); } catch (e) {}
-                        location.reload();
-                    }
-                    return;
-                }
-
-                if (!fromHistory) {
-                    try { history.back(); } catch (e) {}
-                }
-
-                morph(function () {
-                    frame.removeAttribute('data-open');
-                    root.classList.remove('sve-editing');
-                });
-            }
-
-            // Boot on hover, so the click lands on an editor that is already up.
-            button.addEventListener('pointerenter', boot);
-            button.addEventListener('focus', boot);
-
+            // Module scripts are deferred — hold the click until overlay-host binds.
             button.addEventListener('click', function (event) {
-                // Leave modified clicks (new tab, new window) alone.
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-                if (!document.body) return;
-
                 event.preventDefault();
-                boot();
-
-                if (ready) { show(); return; }
-
-                // Still booting: hold here rather than showing a blank editor. The
-                // page stays fully visible and interactive in the meantime.
-                wanted = true;
                 button.setAttribute('data-loading', '');
+                window.__sveWantEditor = true;
             });
-
-            var ignorePopUntil = 0;
-
-            addEventListener('message', function (event) {
-                if (event.origin !== location.origin) return;
-
-                var from = frame && event.source === frame.contentWindow ? 'frame'
-                         : next && event.source === next.contentWindow ? 'next'
-                         : null;
-                if (!from) return;
-
-                var data = event.data;
-                if (!data || data.source !== 'statamic-visual-editor') return;
-
-                // Theme Settings / Live Preview activity touches joint session
-                // history. Ignore the resulting popstate noise for a beat so we
-                // don't close the overlay and land on the front end.
-                if (data.type !== 'lp-close') {
-                    ignorePopUntil = Date.now() + 1500;
-                }
-
-                if (data.type === 'lp-goto') {
-                    // Same origin only: this hands a URL straight to an iframe src.
-                    var url;
-                    try { url = new URL(String(data.url), location.origin); } catch (e) { return; }
-                    if (from === 'frame' && url.origin === location.origin) goto(url.href);
-                    return;
-                }
-
-                if (data.type === 'lp-ready') {
-                    if (from === 'next') {
-                        // The new page has painted. Swap it in for the one on screen
-                        // and drop that one — a single cross-fade, with no moment in
-                        // between where neither is there.
-                        clearTimeout(nextTimer);
-                        var old = frame;
-                        frame = next;
-                        next = null;
-                        morph(function () {
-                            frame.setAttribute('data-open', '');
-                            if (old) old.remove();
-                        });
-                        return;
-                    }
-
-                    ready = true;
-                    button.removeAttribute('data-loading');
-                    if (wanted) { wanted = false; show(); }
-                } else if (data.type === 'lp-saved') {
-                    saved = true;
-                } else if (data.type === 'lp-leaving') {
-                    // A save is on its way. In dev, Vite's full-reload may replace
-                    // this page before anything else arrives — flag now so that
-                    // reload also skips the entrance animations.
-                    try { sessionStorage.setItem('sve-noanim', '1'); } catch (e) {}
-                } else if (data.type === 'lp-close') {
-                    close(false, data.url);
-                }
-            });
-
-            addEventListener('popstate', function (event) {
-                // Only a real Back press should close the editor. Frames inside it
-                // (the globals panel) add and remove their own session-history
-                // entries, and the browser traverses the joint history to keep up —
-                // which fires popstate here without the user going anywhere.
-                if (!open) return;
-                if (event.state && event.state.sveEditing) return;
-
-                if (Date.now() < ignorePopUntil) {
-                    try { history.pushState({ sveEditing: true }, '', location.href); } catch (e) {}
-                    return;
-                }
-
-                close(true);
-            });
-
-            // If the editor never comes up, fall back to a plain navigation rather
-            // than leaving someone staring at a spinner.
-            setTimeout(function () {
-                if (wanted && !ready) { wanted = false; rememberBackground(); location.href = target; }
-            }, 20000);
         })();
         </script>
         HTML;
+    }
+
+    protected function resolveScriptUrl(string $entry): string
+    {
+        $fallback = asset('vendor/visual-editor/'.basename($entry));
+        $manifestPath = public_path('vendor/visual-editor/build/manifest.json');
+
+        if (file_exists($manifestPath)) {
+            $manifest = json_decode((string) file_get_contents($manifestPath), true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($manifest)) {
+                $resolved = $manifest[$entry] ?? null;
+                if ($resolved && isset($resolved['file'])) {
+                    return asset('vendor/visual-editor/build/'.$resolved['file']);
+                }
+            }
+        }
+
+        return $fallback;
     }
 }
