@@ -20148,7 +20148,10 @@ function handleRequestCloseGlobal(win) {
 
 const LP_NAV_SPINNER_ID = '__sve-nav-spinner';
 
-/** A quiet "working on it", so the page you're still looking at isn't a lie. */
+/**
+ * Dims the Live Preview canvas while the next page is on its way — overlay and
+ * spinner fade in together, centred on the preview, not perched on the header.
+ */
 function showNavSpinner(win) {
   const doc = win.document;
 
@@ -20156,25 +20159,37 @@ function showNavSpinner(win) {
     return;
   }
 
-  const header = lpHeader(doc);
-  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
-  const pip = doc.createElement('div');
+  const overlay = createPreviewCenteredOverlay(doc, LP_NAV_SPINNER_ID);
 
-  pip.id = LP_NAV_SPINNER_ID;
-  pip.style.cssText =
-    `position:fixed;top:${top + 16}px;left:50%;transform:translateX(-50%);z-index:2147483000;` +
-    'display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;' +
-    'background:#18181b;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.28);pointer-events:none;';
-  pip.innerHTML =
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
-    'stroke-linecap="round" style="opacity:.9;animation:sve-lp-spin 1s linear infinite;">' +
+  overlay.style.background = 'rgba(0,0,0,.6)';
+  overlay.style.opacity = '0';
+  overlay.style.transition = 'opacity .38s cubic-bezier(.4, 0, .2, 1)';
+  overlay.style.pointerEvents = 'auto';
+  overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML =
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" ' +
+    'stroke-linecap="round" style="animation:sve-lp-spin 1s linear infinite;">' +
     '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>' +
     '<style>@keyframes sve-lp-spin{to{transform:rotate(360deg)}}</style>';
-  doc.body.appendChild(pip);
+  doc.body.appendChild(overlay);
+  void overlay.offsetWidth;
+  overlay.style.opacity = '1';
 }
 
 function hideNavSpinner(win) {
-  win.document.getElementById(LP_NAV_SPINNER_ID)?.remove();
+  const el = win.document.getElementById(LP_NAV_SPINNER_ID);
+
+  if (!el || el.dataset.hiding) {
+    return;
+  }
+
+  el.dataset.hiding = '1';
+  el.style.opacity = '0';
+
+  const remove = () => el.remove();
+
+  el.addEventListener('transitionend', remove, { once: true });
+  win.setTimeout(remove, 400);
 }
 
 /**
@@ -20257,13 +20272,13 @@ function navigateFromLp(win, anchor, url, onCancel = () => {}) {
     // By the time anything calls this, the unsaved question has been put to the
     // user and answered — on every path into it.
     dismissDirtyWarning(win);
+    win.document.getElementById(LP_NAV_SPINNER_ID)?.remove();
 
     // The editor always lives in the overlay iframe. The host (site or CP)
     // boots the next page hidden and swaps once it has painted — same move
-    // from the front-end button and from the collection picker.
+    // from the front-end button and from the collection picker. The dim
+    // overlay lives on the host so it can fade out over the new page.
     if (isEmbeddedInSite(win)) {
-      showNavSpinner(win);
-
       const onFail = (event) => {
         if (event.origin !== win.location.origin) {
           return;

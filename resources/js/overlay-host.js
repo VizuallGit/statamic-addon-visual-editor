@@ -9,6 +9,11 @@
 const SOURCE = 'statamic-visual-editor';
 const STYLE_ID = 'sve-overlay-host-styles';
 const LOADING_ID = 'sve-overlay-loading';
+const PREVIEW_LOADING_ID = 'sve-preview-loading';
+const FADE_MS = 380;
+const SPINNER_SVG =
+  '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
+  '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
 
 function isCpHost(win) {
   return /\/cp(\/|$)/.test(win.location.pathname);
@@ -33,13 +38,15 @@ function ensureStyles(win) {
       position: fixed; inset: 0; width: 100%; height: 100%;
       border: 0; margin: 0; z-index: 2147483200;
       opacity: 0; pointer-events: none;
+      transition: opacity ${FADE_MS}ms cubic-bezier(.4, 0, .2, 1);
     }
     .sve-edit-overlay[data-open] { opacity: 1; pointer-events: auto; }
     html.sve-editing { overflow: hidden; }
     html.sve-editing #sve-edit-button { display: none; }
+    html.sve-morphing .sve-edit-overlay { transition: none; }
     html.sve-morphing::view-transition-old(root),
     html.sve-morphing::view-transition-new(root) {
-      animation-duration: 380ms;
+      animation-duration: ${FADE_MS}ms;
       animation-timing-function: cubic-bezier(.4, 0, .2, 1);
     }
     #${LOADING_ID} {
@@ -50,8 +57,17 @@ function ensureStyles(win) {
       pointer-events: none;
     }
     #${LOADING_ID} svg { animation: sve-overlay-spin 1s linear infinite; }
+    #${PREVIEW_LOADING_ID} {
+      position: fixed; z-index: 2147483250; box-sizing: border-box;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.6); color: #fff;
+      opacity: 0; pointer-events: none;
+      transition: opacity ${FADE_MS}ms cubic-bezier(.4, 0, .2, 1);
+    }
+    #${PREVIEW_LOADING_ID}[data-show] { opacity: 1; pointer-events: auto; }
+    #${PREVIEW_LOADING_ID} svg { animation: sve-overlay-spin 1s linear infinite; }
     @keyframes sve-overlay-spin { to { transform: rotate(360deg); } }
-    @media print { #sve-edit-button, .sve-edit-overlay, #${LOADING_ID} { display: none; } }
+    @media print { #sve-edit-button, .sve-edit-overlay, #${LOADING_ID}, #${PREVIEW_LOADING_ID} { display: none; } }
   `;
   doc.head.appendChild(style);
 }
@@ -70,8 +86,112 @@ function createHost(win) {
   let saved = false;
   let ignorePopUntil = 0;
   let failTimer = null;
+  let swapTimer = null;
+  let loadingHideTimer = null;
 
   ensureStyles(win);
+
+  function previewBox() {
+    const fallback = () => {
+      const r = frame?.getBoundingClientRect();
+
+      if (!r || r.width < 8 || r.height < 8) {
+        return { left: 0, top: 0, width: win.innerWidth, height: win.innerHeight };
+      }
+
+      return { left: r.left, top: r.top, width: r.width, height: r.height };
+    };
+
+    try {
+      const inner = frame?.contentDocument;
+      const el =
+        inner?.getElementById('live-preview-iframe') ||
+        inner?.querySelector('.live-preview-contents');
+
+      if (!el) {
+        return fallback();
+      }
+
+      const r = el.getBoundingClientRect();
+      const fr = frame.getBoundingClientRect();
+
+      if (r.width < 8 || r.height < 8) {
+        return fallback();
+      }
+
+      return {
+        left: fr.left + r.left,
+        top: fr.top + r.top,
+        width: r.width,
+        height: r.height,
+      };
+    } catch {
+      return fallback();
+    }
+  }
+
+  function placePreviewLoading(el) {
+    const box = previewBox();
+
+    el.style.left = `${Math.round(box.left)}px`;
+    el.style.top = `${Math.round(box.top)}px`;
+    el.style.width = `${Math.round(box.width)}px`;
+    el.style.height = `${Math.round(box.height)}px`;
+  }
+
+  function showPreviewLoading() {
+    if (!frame) {
+      return;
+    }
+
+    win.clearTimeout(loadingHideTimer);
+
+    let el = doc.getElementById(PREVIEW_LOADING_ID);
+
+    if (!el) {
+      el = doc.createElement('div');
+      el.id = PREVIEW_LOADING_ID;
+      el.setAttribute('aria-hidden', 'true');
+      el.innerHTML = SPINNER_SVG;
+      doc.body.appendChild(el);
+      win.addEventListener('resize', onPreviewLoadingResize);
+    }
+
+    placePreviewLoading(el);
+    void el.offsetWidth;
+    el.setAttribute('data-show', '');
+  }
+
+  function onPreviewLoadingResize() {
+    const el = doc.getElementById(PREVIEW_LOADING_ID);
+
+    if (el) {
+      placePreviewLoading(el);
+    }
+  }
+
+  function hidePreviewLoading() {
+    const el = doc.getElementById(PREVIEW_LOADING_ID);
+
+    if (!el) {
+      return;
+    }
+
+    el.removeAttribute('data-show');
+    win.clearTimeout(loadingHideTimer);
+    loadingHideTimer = win.setTimeout(() => {
+      el.remove();
+      win.removeEventListener('resize', onPreviewLoadingResize);
+      loadingHideTimer = null;
+    }, FADE_MS);
+  }
+
+  function clearPreviewLoading() {
+    win.clearTimeout(loadingHideTimer);
+    loadingHideTimer = null;
+    win.removeEventListener('resize', onPreviewLoadingResize);
+    doc.getElementById(PREVIEW_LOADING_ID)?.remove();
+  }
 
   function editor(src) {
     const el = doc.createElement('iframe');
@@ -179,6 +299,7 @@ function createHost(win) {
       next.remove();
     }
 
+    showPreviewLoading();
     win.clearTimeout(nextTimer);
     next = editor(url);
     nextTimer = win.setTimeout(() => {
@@ -188,6 +309,7 @@ function createHost(win) {
 
       next.remove();
       next = null;
+      hidePreviewLoading();
       tell(frame, 'lp-goto-failed');
     }, 20000);
   }
@@ -214,6 +336,9 @@ function createHost(win) {
   }
 
   function detachFrames() {
+    win.clearTimeout(swapTimer);
+    swapTimer = null;
+    clearPreviewLoading();
     frame?.remove();
     next?.remove();
     frame = null;
@@ -231,6 +356,7 @@ function createHost(win) {
     open = false;
     wanted = false;
     setLoading(false);
+    clearPreviewLoading();
 
     if (isCpHost(win)) {
       detachFrames();
@@ -342,15 +468,18 @@ function createHost(win) {
     if (data.type === 'lp-ready') {
       if (from === 'next') {
         win.clearTimeout(nextTimer);
+        win.clearTimeout(swapTimer);
 
         const old = frame;
 
         frame = next;
         next = null;
-        morph(() => {
-          frame.setAttribute('data-open', '');
+        frame.setAttribute('data-open', '');
+        hidePreviewLoading();
+        swapTimer = win.setTimeout(() => {
           old?.remove();
-        });
+          swapTimer = null;
+        }, FADE_MS);
 
         return;
       }

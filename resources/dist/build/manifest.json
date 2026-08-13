@@ -1,6 +1,6 @@
 {
   "resources/js/addon.js": {
-    "file": "assets/addon-B6kU68EW.js",
+    "file": "assets/addon-DwsxlRra.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -15,7 +15,7 @@
     "isEntry": true
   },
   "resources/js/overlay-host.js": {
-    "file": "assets/overlay-host-B7o1U8VC.js",
+    "file": "assets/overlay-host-C3EmKfmV.js",
     "name": "overlay-host",
     "src": "resources/js/overlay-host.js",
     "isEntry": true
