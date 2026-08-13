@@ -16201,12 +16201,25 @@ function buildPanelStill(win, selector) {
   }
 }
 
-function buildLpCover(doc, background, { blocking = false, still = null, panelStill = null, headerStill = null, label = null } = {}) {
+function buildLpCover(doc, background, { blocking = false, still = null, panelStill = null, label = null } = {}) {
   const cover = doc.createElement('div');
+
+  // The bar along the top is left out of the cover entirely, rather than covered
+  // and then painted back. It is the one part of the screen that is the same
+  // before and after — the same buttons, doing the same things — so the cleanest
+  // way for it to survive a move untouched is for the move never to reach it.
+  //
+  // A copy would have looked right and been wrong: the buttons in it do nothing,
+  // and for the length of the move the bar you can see is not the bar you can
+  // use. Measured rather than assumed, because the header is only there once
+  // Live Preview is open; on a page load there is nothing yet and the cover
+  // starts at the top as it always did.
+  const header = [...doc.querySelectorAll('.live-preview-header')].find((el) => !el.closest(`#${LP_COVER_ID}`));
+  const headerBottom = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
 
   cover.id = LP_COVER_ID;
   cover.style.cssText =
-    'position:fixed;inset:0;z-index:2147483647;opacity:1;' +
+    `position:fixed;left:0;right:0;bottom:0;top:${headerBottom}px;z-index:2147483647;opacity:1;` +
     // On a page load there's nothing behind this worth hitting, so clicks pass
     // through. On a move that stays in the document the old page's controls are
     // still under here, live and invisible — poking those is worse than being
@@ -16223,20 +16236,26 @@ function buildLpCover(doc, background, { blocking = false, still = null, panelSt
   style.textContent = '@keyframes sve-lp-spin{to{transform:rotate(360deg)}}';
   cover.appendChild(style);
 
+  // Every copy is measured against the window, but sits in a cover that now
+  // starts below the header. Without this they would all hang that far too low.
+  const lift = (el) => {
+    if (el && headerBottom) {
+      el.style.top = `${parseFloat(el.style.top || '0') - headerBottom}px`;
+    }
+
+    return el;
+  };
+
   // The panel you were looking at, still there. No scrim over this one: the
   // preview is what is being replaced, and dimming the panel as well would say
   // the whole screen is leaving. The panel is the thing that stays.
   if (panelStill) {
-    cover.appendChild(panelStill);
-  }
-
-  if (headerStill) {
-    cover.appendChild(headerStill);
+    cover.appendChild(lift(panelStill));
   }
 
   // The page you were looking at, still there. Added first so the rest sits on it.
   if (still) {
-    cover.appendChild(still);
+    cover.appendChild(lift(still));
 
     // Dimmed, over exactly the area the preview occupied. It says the page is on
     // its way out without taking it off the screen — and it is what stops the
@@ -16358,19 +16377,16 @@ function coverForNavigation(win, { blocking = false, background = null, then = n
   // are torn down as soon as the form behind them is replaced.
   const still = buildPreviewStill(win);
 
-  // The panel and the bar above it. Both are chrome — they look the same before
-  // and after — so the move should not be able to take them off the screen even
-  // for a moment. The bar was the more obvious of the two: it simply vanished
-  // for the length of the move and came back.
+  // The panel only. The bar above it is left out of the cover altogether — see
+  // buildLpCover — so there is nothing to copy there.
   const panelStill = buildPanelStill(win, '.live-preview-fields, .live-preview-editor');
-  const headerStill = buildPanelStill(win, '.live-preview-header');
 
   // With a still, the only thing left showing is the frame around the preview —
   // header and editor panel — so the cover wears the Control Panel's colour and
   // the whole thing reads as the chrome staying put. Without one it stands in for
   // the page itself, and the page's own colour is the closest thing to not moving.
   const colour = background ?? (still ? cpBackground(win) : previewBackground(win));
-  const cover = buildLpCover(doc, colour, { blocking, still, panelStill, headerStill, label: t(win, 'loading') });
+  const cover = buildLpCover(doc, colour, { blocking, still, panelStill, label: t(win, 'loading') });
 
   doc.getElementById(LP_COVER_ID)?.remove();
 
