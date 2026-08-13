@@ -16155,10 +16155,12 @@ function buildPreviewStill(win) {
  * Null when there is no panel to copy, which is the ordinary case on a page load
  * where Live Preview is not open yet.
  */
-function buildPanelStill(win) {
+function buildPanelStill(win, selector) {
   try {
     const doc = win.document;
-    const panel = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
+    // Never a copy: on a second move the last one may still be fading out, and
+    // copying that would freeze the screen a page behind where it actually is.
+    const panel = [...doc.querySelectorAll(selector)].find((el) => !el.closest(`#${LP_COVER_ID}`));
 
     if (!panel) {
       return null;
@@ -16199,7 +16201,7 @@ function buildPanelStill(win) {
   }
 }
 
-function buildLpCover(doc, background, { blocking = false, still = null, panelStill = null, label = null } = {}) {
+function buildLpCover(doc, background, { blocking = false, still = null, panelStill = null, headerStill = null, label = null } = {}) {
   const cover = doc.createElement('div');
 
   cover.id = LP_COVER_ID;
@@ -16226,6 +16228,10 @@ function buildLpCover(doc, background, { blocking = false, still = null, panelSt
   // the whole screen is leaving. The panel is the thing that stays.
   if (panelStill) {
     cover.appendChild(panelStill);
+  }
+
+  if (headerStill) {
+    cover.appendChild(headerStill);
   }
 
   // The page you were looking at, still there. Added first so the rest sits on it.
@@ -16351,14 +16357,20 @@ function coverForNavigation(win, { blocking = false, background = null, then = n
   // this is a copy of is on its way out. The panel goes the same way — its fields
   // are torn down as soon as the form behind them is replaced.
   const still = buildPreviewStill(win);
-  const panelStill = buildPanelStill(win);
+
+  // The panel and the bar above it. Both are chrome — they look the same before
+  // and after — so the move should not be able to take them off the screen even
+  // for a moment. The bar was the more obvious of the two: it simply vanished
+  // for the length of the move and came back.
+  const panelStill = buildPanelStill(win, '.live-preview-fields, .live-preview-editor');
+  const headerStill = buildPanelStill(win, '.live-preview-header');
 
   // With a still, the only thing left showing is the frame around the preview —
   // header and editor panel — so the cover wears the Control Panel's colour and
   // the whole thing reads as the chrome staying put. Without one it stands in for
   // the page itself, and the page's own colour is the closest thing to not moving.
   const colour = background ?? (still ? cpBackground(win) : previewBackground(win));
-  const cover = buildLpCover(doc, colour, { blocking, still, panelStill, label: t(win, 'loading') });
+  const cover = buildLpCover(doc, colour, { blocking, still, panelStill, headerStill, label: t(win, 'loading') });
 
   doc.getElementById(LP_COVER_ID)?.remove();
 
