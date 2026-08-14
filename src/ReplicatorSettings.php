@@ -2,13 +2,14 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Statamic\Fieldtypes\Bard;
 use Statamic\Fieldtypes\Grid;
 use Statamic\Fieldtypes\Replicator;
 
 /**
- * De to ekstra indstillinger på replicator- og grid-felter.
+ * De ekstra indstillinger på replicator-, grid- og bard-felter.
  *
- * Begge lægges på Statamics EGNE klasser, ikke på addonets `Replicator`.
+ * De lægges på Statamics EGNE klasser, ikke på addonets `Replicator`.
  * `appendConfigFields()` gemmer under `static::class`, så en registrering lagt
  * på addonets klasse ville forsvinde den dag den fil blev fjernet igen. Lagt her
  * læses de af {@see \MarioHamann\StatamicVisualEditor\Fieldtypes\Replicator}
@@ -27,8 +28,8 @@ class ReplicatorSettings
         foreach ([Replicator::class, Grid::class] as $fieldtype) {
             $fieldtype::appendConfigFields([
                 'locked_rows' => [
-                    'display' => 'Lås rækker',
-                    'instructions' => 'Rækkerne kan stadig redigeres og skjules, men ikke flyttes, duplikeres eller slettes. Låste rækker får et hængelås-ikon i stedet for trækhåndtaget.',
+                    'display' => __('sve::messages.field_locked_rows'),
+                    'instructions' => __('sve::messages.field_locked_rows_instructions'),
                     'type' => 'toggle',
                     'default' => false,
                     'width' => 50,
@@ -41,9 +42,29 @@ class ReplicatorSettings
         // kender — fluebenet ville stå der og ikke gøre noget.
         Replicator::appendConfigFields([
             'unique_sets' => [
-                'display' => 'Kun én af hver',
-                'instructions' => 'De afkrydsede typer kan kun tilføjes én gang. Når en af dem ligger i listen, kan den ikke vælges igen før rækken er slettet.',
+                'display' => __('sve::messages.field_unique_sets'),
+                'instructions' => __('sve::messages.field_unique_sets_instructions'),
                 'type' => 'unique_sets',
+                'full_width_setting' => true,
+            ],
+            // Handle er Statamics egen `default` — afkrydsningen SKRIVER de
+            // rækker man ellers skulle taste i YAML. Type er felttypen her,
+            // ikke en tekstboks.
+            'default' => [
+                'display' => __('sve::messages.field_from_the_start'),
+                'instructions' => __('sve::messages.field_from_the_start_sets_instructions'),
+                'type' => 'default_sets',
+                'full_width_setting' => true,
+            ],
+        ]);
+
+        // Bard arver ikke replicatorens `default`-afkrydsning: dens default er
+        // et ProseMirror-dokument (afsnit, overskrift), ikke en liste af sets.
+        Bard::appendConfigFields([
+            'default' => [
+                'display' => __('sve::messages.field_from_the_start'),
+                'instructions' => __('sve::messages.field_from_the_start_bard_instructions'),
+                'type' => 'bard_default',
                 'full_width_setting' => true,
             ],
         ]);

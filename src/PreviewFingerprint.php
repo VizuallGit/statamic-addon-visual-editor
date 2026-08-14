@@ -16,17 +16,17 @@ use Statamic\Facades\Site;
  *
  * Two inputs, kept apart on purpose so a run does the least work possible:
  *
- * - design(): everything shared by every preview — the built CSS/JS, the layout,
- *   the shared partials, the theme settings. Change a colour and every preview
- *   is stale, correctly.
+ * - design(): everything shared by every preview — CSS/JS (Vite sources and the
+ *   build manifest), the layout, the shared partials, the theme settings.
+ *   Change a colour and every preview is stale, correctly.
  * - the section itself: its own partial(s) and its own data (for a section type,
  *   the resolved default values; for a saved section, what's stored on it).
  *   Change one section's template and only that one is rebuilt.
  *
- * The built assets are read from the build manifest rather than the CSS sources:
- * a screenshot renders what's been built, so a source edit that hasn't been
- * built yet must NOT count as a change — otherwise the preview would be marked
- * fresh while showing the old design.
+ * CSS sources are watched as well as the build manifest: while `npm run dev`
+ * runs, screenshots load from the Vite server, so a source edit that has not
+ * been built yet is still what the picture will show. The manifest covers the
+ * case where Vite is not running.
  */
 class PreviewFingerprint
 {

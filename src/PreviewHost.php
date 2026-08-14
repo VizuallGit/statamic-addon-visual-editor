@@ -66,7 +66,7 @@ class PreviewHost
      * screenshot is taken of.
      *
      * Matched on the path, not the route name, so middleware can ask before
-     * routing has happened (`DisableViteHotReload` has to decide before the view
+     * routing has happened (`DisableViteHotReload` has to wrap Vite before the view
      * renders) and so it still answers for a request that ends up 404ing.
      */
     public static function isRenderRequest(Request $request): bool

@@ -25,7 +25,7 @@
     <p class="text-gray mb-3">{{ __('sve::messages.previews_intro') }}</p>
 
     <p class="text-gray text-sm mb-6">
-        {!! __('sve::messages.previews_build_note', ['command' => '<code>npm run build</code>']) !!}
+        {!! __('sve::messages.previews_build_note', ['command' => '<code>npm run dev:previews</code>']) !!}
     </p>
 
     @if ($problem)

@@ -713,6 +713,92 @@ export function enhanceIconFieldtype() {
   components.register('icon-fieldtype', Enhanced);
 }
 
+/**
+ * Hook Iconify's fieldtype so preview Change/Browse can open *its* Stack —
+ * the same "Search and select an icon" panel as the sidebar. We do not patch
+ * the Iconify addon; we wrap the registered Vue component and call Stack.open.
+ */
+export function enhanceIconifyFieldtype() {
+  const components = window.Statamic?.$components;
+  const app = components?.app;
+  const Vue = window.Vue;
+
+  if (!app || !Vue?.h || !components?.register) {
+    return;
+  }
+
+  const Original = app.component('iconify-fieldtype');
+
+  if (!Original || Original.__sveOpenHook) {
+    return;
+  }
+
+  Original.__sveOpenHook = true;
+
+  const { h, onMounted, onBeforeUnmount, getCurrentInstance } = Vue;
+
+  const Enhanced = {
+    name: 'iconify-fieldtype',
+    __sveOpenHook: true,
+    inheritAttrs: false,
+    props: Original.props,
+    emits: Original.emits || ['update:value'],
+    setup(props, { attrs, slots, emit }) {
+      const inst = getCurrentInstance();
+
+      const open = () => openIconifyStackFromInstance(inst);
+
+      onMounted(() => {
+        const el = hostElement(inst);
+
+        if (!el) {
+          return;
+        }
+
+        el.__sveOpenIconify = open;
+        el.addEventListener('sve-open-iconify', open);
+      });
+
+      onBeforeUnmount(() => {
+        const el = hostElement(inst);
+
+        if (!el) {
+          return;
+        }
+
+        delete el.__sveOpenIconify;
+        el.removeEventListener('sve-open-iconify', open);
+      });
+
+      return () =>
+        h(
+          Original,
+          {
+            ...attrs,
+            ...props,
+            'onUpdate:value': (value) => {
+              emit('update:value', value);
+              attrs['onUpdate:value']?.(value);
+            },
+          },
+          slots
+        );
+    },
+  };
+
+  components.register('iconify-fieldtype', Enhanced);
+}
+
+function hostElement(inst) {
+  const el = inst?.vnode?.el;
+
+  if (el?.nodeType === 1) {
+    return el;
+  }
+
+  return el?.parentElement || null;
+}
+
 function paintSectionToggle(list, active) {
   ownDescendants(list, `[${SECTION_SEG_ATTR}]`).forEach((btn) => {
     btn.setAttribute('aria-pressed', btn.getAttribute(SECTION_SEG_ATTR) === active ? 'true' : 'false');
@@ -2591,7 +2677,19 @@ export function handleEditRequest(data, doc, win) {
     }
 
     if (value === undefined) {
-      continue;
+      // A new row often has no key yet (`title` missing, not `title: ''`).
+      // Treat that as empty so inline edit can start, instead of denying.
+      if (basePath && data.field) {
+        const row = dataGet(values, basePath);
+
+        if (row && typeof row === 'object' && !Array.isArray(row)) {
+          value = data.fieldtype === 'bard' ? [] : '';
+        }
+      }
+
+      if (value === undefined) {
+        continue;
+      }
     }
 
     // Inline Bard (headline): upgrade legacy strings / unwrapped text nodes to
@@ -2604,6 +2702,60 @@ export function handleEditRequest(data, doc, win) {
     ) {
       value = normalizeInlineBardValue(value);
       container.setFieldValue(path, value);
+    }
+
+    // Empty Bard: nothing stored yet. `as="h3"` / the wrapper tag says what
+    // the first block should be, so a title can start as a heading rather than
+    // a paragraph — the same choice BlockStudio's RichText/InnerBlocks make.
+    const emptyBard =
+      data.fieldtype === 'bard' &&
+      (value === '' ||
+        value == null ||
+        (Array.isArray(value) && value.length === 0));
+
+    if (emptyBard) {
+      editSession = {
+        container,
+        requestId: data.requestId,
+        mode: 'bard-field',
+        path,
+        field: data.field,
+        scope: data.scope,
+        original: [],
+      };
+      reply({
+        type: 'edit-start',
+        mode: 'bard-field',
+        target: 'wrapper',
+        controls: controlValues(values, path, data.controls),
+        nodes: [],
+      });
+
+      return;
+    }
+
+    // Empty text (or any non-Bard scalar): start a string edit even when the
+    // preview has only ghost placeholder text, so wrapperText is '' and would
+    // otherwise fail the "rendered text matches stored value" check.
+    if (data.fieldtype !== 'bard' && (value === '' || value == null) && !Array.isArray(value)) {
+      editSession = {
+        container,
+        requestId: data.requestId,
+        mode: 'string',
+        path,
+        field: data.field,
+        scope: data.scope,
+        original: '',
+      };
+      reply({
+        type: 'edit-start',
+        mode: 'string',
+        target: 'wrapper',
+        hasLink: false,
+        controls: controlValues(values, path, data.controls),
+      });
+
+      return;
     }
 
     // Whole-field Bard editing: one toolbar for the entire field, caret moves
@@ -3339,6 +3491,264 @@ export function handleAssetEdit(data, doc) {
   };
 
   tryOpen();
+}
+
+/**
+ * Opens Iconify's own Stack ("Search and select an icon") from preview
+ * Change/Browse — the same panel as the sidebar. Raise it above the live
+ * preview so it is not hidden behind the iframe.
+ */
+export function handleIconEdit(data, doc, win = window) {
+  if (data.action === 'remove') {
+    writeIconField(data, doc, null);
+
+    return;
+  }
+
+  let attempts = 0;
+
+  const tryOpen = () => {
+    const setEl = data.scope ? findSetByUid(data.scope, doc) : null;
+
+    if (setEl) {
+      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
+    }
+
+    const fieldEl =
+      findFieldElement(data.field, doc, data.scope) ||
+      (setEl ? setEl.querySelector('.iconify-fieldtype') : null) ||
+      (data.scope ? null : doc.querySelector('.iconify-fieldtype'));
+
+    if (openIconifyFromField(fieldEl, doc)) {
+      return;
+    }
+
+    if (attempts === 2) {
+      setLpCollapsed(win, false);
+      handleFieldFocus(data.field, doc, { animate: false, scopeUid: data.scope });
+    }
+
+    if (++attempts < 12) {
+      setTimeout(tryOpen, 180);
+    }
+  };
+
+  tryOpen();
+}
+
+function openIconifyFromField(fieldEl, doc) {
+  if (!fieldEl) {
+    return false;
+  }
+
+  const root = fieldEl.querySelector('.iconify-fieldtype') || fieldEl;
+  const opener = [fieldEl, root, ...root.querySelectorAll('*')].find(
+    (el) => typeof el.__sveOpenIconify === 'function'
+  )?.__sveOpenIconify;
+  const opened = (opener && opener()) || openIconifyStack(root) || clickBrowseIconify(root);
+
+  if (!opened) {
+    return false;
+  }
+
+  watchAndRaiseIconifyDialog(doc);
+
+  return true;
+}
+
+function clickBrowseIconify(root) {
+  const browse = [...root.querySelectorAll('button, [role="button"]')].find((b) =>
+    /browse iconify/i.test(b.textContent || '')
+  );
+
+  if (!browse) {
+    return false;
+  }
+
+  browse.click();
+
+  return true;
+}
+
+function raiseIconifyDialog(doc) {
+  const bump = (start) => {
+    let node = start;
+
+    for (let i = 0; i < 14 && node && node !== doc.body; i++) {
+      const pos = node.ownerDocument.defaultView?.getComputedStyle(node).position;
+
+      if (
+        pos === 'fixed' ||
+        pos === 'absolute' ||
+        node.hasAttribute('data-reka-portal') ||
+        node.hasAttribute('data-reka-dialog-overlay') ||
+        node.hasAttribute('data-reka-dialog-content')
+      ) {
+        node.style.setProperty('z-index', '2147483600', 'important');
+      }
+
+      node = node.parentElement;
+    }
+  };
+
+  for (const el of doc.querySelectorAll('h2, h3, [role="dialog"]')) {
+    if (!/search and select an icon/i.test((el.textContent || '').trim().slice(0, 80))) {
+      continue;
+    }
+
+    const dialog =
+      el.closest('[role="dialog"], [data-reka-dialog-content], [data-reka-portal]') || el;
+
+    bump(dialog);
+    dialog.parentElement?.querySelectorAll('[data-reka-dialog-overlay]').forEach(bump);
+    break;
+  }
+}
+
+function watchAndRaiseIconifyDialog(doc) {
+  raiseIconifyDialog(doc);
+
+  const observer = new MutationObserver(() => raiseIconifyDialog(doc));
+
+  observer.observe(doc.body, { childList: true, subtree: true });
+  setTimeout(() => observer.disconnect(), 2500);
+}
+
+function openIconifyStackFromInstance(inst) {
+  return openStackInTree(inst?.subTree, 0) || openStackInTree(inst?.vnode, 0);
+}
+
+/**
+ * Iconify's Stack exposes open(); v-model:open also has onUpdate:open.
+ * Title is never minified.
+ */
+function openStackInTree(vnode, depth) {
+  if (!vnode || typeof vnode !== 'object' || depth > 36) {
+    return false;
+  }
+
+  const props = vnode.props || vnode.component?.props;
+  const isIconStack = /search and select an icon/i.test(String(props?.title || ''));
+  const exposed = vnode.component?.exposed || vnode.component?.proxy;
+
+  if (isIconStack) {
+    let called = false;
+
+    if (typeof exposed?.open === 'function') {
+      exposed.open();
+      called = true;
+    }
+
+    const update = props['onUpdate:open'] || props.onUpdateOpen;
+    const list = Array.isArray(update) ? update : [update];
+
+    for (const fn of list) {
+      if (typeof fn === 'function') {
+        fn(true);
+        called = true;
+      }
+    }
+
+    if (called) {
+      return true;
+    }
+  }
+
+  if (vnode.component?.subTree && openStackInTree(vnode.component.subTree, depth + 1)) {
+    return true;
+  }
+
+  const kids = [
+    ...(Array.isArray(vnode.children) ? vnode.children : []),
+    ...(Array.isArray(vnode.dynamicChildren) ? vnode.dynamicChildren : []),
+  ];
+
+  for (const child of kids) {
+    if (openStackInTree(child, depth + 1)) {
+      return true;
+    }
+
+    if (Array.isArray(child)) {
+      for (const nested of child) {
+        if (openStackInTree(nested, depth + 1)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function openIconifyStack(fieldEl) {
+  const root = fieldEl.querySelector('.iconify-fieldtype') || fieldEl;
+  const seen = new Set();
+
+  const fromComponent = (component) => {
+    if (!component || seen.has(component)) {
+      return false;
+    }
+
+    seen.add(component);
+
+    return openStackInTree(component.subTree, 0) || openStackInTree(component.vnode, 0);
+  };
+
+  for (const el of [root, ...root.querySelectorAll('*')]) {
+    if (fromComponent(el.__vueParentComponent)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function resolveIconField(data, doc) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    let basePath = '';
+
+    if (data.scope) {
+      basePath = findPathByUid(values, data.scope);
+
+      if (basePath === null) {
+        continue;
+      }
+    }
+
+    let path = [basePath, data.field].filter(Boolean).join('.');
+    let value = dataGet(values, path);
+
+    if (value === undefined && data.field && basePath !== '') {
+      const deepPath = deepestFieldPath(dataGet(values, basePath), data.field, basePath);
+
+      if (deepPath) {
+        path = deepPath;
+        value = dataGet(values, path);
+      }
+    }
+
+    if (value === undefined && !basePath) {
+      continue;
+    }
+
+    return { container, path, value };
+  }
+
+  return null;
+}
+
+function writeIconField(data, doc, value) {
+  const found = resolveIconField(data, doc);
+
+  if (found) {
+    found.container.setFieldValue(found.path, value);
+  }
 }
 
 /**
@@ -4299,8 +4709,8 @@ function currentCollection(win) {
  * `blocks`), for the in-preview block inserter. Same endpoint as sections, with a
  * `field` so it resolves the nested replicator instead of the top-level one.
  */
-async function fetchNestedSetMeta(win, field, setHandle) {
-  const key = `${field}::${setHandle}`;
+async function fetchNestedSetMeta(win, field, setHandle, sectionType = '') {
+  const key = `${field}::${setHandle}::${sectionType}`;
 
   if (sectionMetaCache.has(key)) {
     return sectionMetaCache.get(key);
@@ -4314,7 +4724,8 @@ async function fetchNestedSetMeta(win, field, setHandle) {
 
   const url =
     `/!/sve/section-meta?collection=${encodeURIComponent(collection)}` +
-    `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}`;
+    `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}` +
+    (sectionType ? `&section=${encodeURIComponent(sectionType)}` : '');
 
   const res = await win.fetch(url, {
     credentials: 'same-origin',
@@ -4417,6 +4828,513 @@ function rowMetaTemplate(container, values, parentPath, sampleRow) {
 }
 
 /**
+ * `template="icon|title:Enter a title"` from the preview — starting inner sets
+ * for a new row, declared in Antlers where the replicator is used. Same idea as
+ * `controls="tag:h1"`: the fieldset stays reusable; the template says what a
+ * fresh row contains at this place.
+ *
+ * Pipe-separated set types, optional `:text` on the field named like the set
+ * (`title:Hello`) or `type.field:text`. JSON is accepted too — BlockStudio's
+ * InnerBlocks shape `[['title', { title: 'Hello' }]]`.
+ */
+function parseSidTemplate(spec) {
+  const trimmed = String(spec || '').trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const json = JSON.parse(trimmed);
+
+      return (Array.isArray(json) ? json : []).map(normalizeSidTemplateItem).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  return trimmed
+    .split('|')
+    .map((part) => {
+      const raw = part.trim();
+
+      if (!raw) {
+        return null;
+      }
+
+      // `3:item` — N starting rows of that set, not a field value named "3".
+      const counted = raw.match(/^(\d+):([A-Za-z_][\w-]*)$/);
+
+      if (counted) {
+        return { type: counted[2], count: Number(counted[1]) };
+      }
+
+      const colon = raw.indexOf(':');
+
+      if (colon === -1) {
+        return { type: raw };
+      }
+
+      const left = raw.slice(0, colon).trim();
+      const value = raw.slice(colon + 1).trim();
+      const dot = left.indexOf('.');
+
+      if (dot !== -1) {
+        return { type: left.slice(0, dot), field: left.slice(dot + 1), value };
+      }
+
+      return { type: left, field: left, value };
+    })
+    .filter(Boolean);
+}
+
+function normalizeSidTemplateItem(raw) {
+  if (typeof raw === 'string') {
+    return raw.trim() ? { type: raw.trim() } : null;
+  }
+
+  if (Array.isArray(raw)) {
+    const type = String(raw[0] || '')
+      .trim()
+      .replace(/^core\//, '');
+
+    if (!type) {
+      return null;
+    }
+
+    const attrs = raw[1] && typeof raw[1] === 'object' && !Array.isArray(raw[1]) ? { ...raw[1] } : {};
+
+    delete attrs.placeholder;
+
+    return { type, attrs };
+  }
+
+  if (raw && typeof raw === 'object' && typeof raw.type === 'string') {
+    const { type, ...attrs } = raw;
+
+    return { type, attrs };
+  }
+
+  return null;
+}
+
+function isBardValue(value) {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value[0] &&
+    typeof value[0] === 'object' &&
+    ['paragraph', 'heading', 'text', 'set', 'bulletList', 'orderedList'].includes(value[0].type)
+  );
+}
+
+function looksLikeBardSpec(spec) {
+  return typeof spec === 'string' && /^(heading:\d+:|paragraph:|h[1-6]:)/i.test(spec.trim());
+}
+
+function specToBard(spec) {
+  if (Array.isArray(spec)) {
+    return spec;
+  }
+
+  return String(spec)
+    .split('|')
+    .map((part) => {
+      const p = part.trim();
+      const heading = p.match(/^heading:([1-6]):(.*)$/i) || p.match(/^h([1-6]):(.*)$/i);
+
+      if (heading) {
+        const text = heading[2];
+
+        return {
+          type: 'heading',
+          attrs: { level: Number(heading[1]) },
+          content: text ? [{ type: 'text', text }] : [],
+        };
+      }
+
+      if (/^paragraph:/i.test(p)) {
+        const text = p.slice(p.indexOf(':') + 1);
+
+        return { type: 'paragraph', content: text ? [{ type: 'text', text }] : [] };
+      }
+
+      return { type: 'paragraph', content: p ? [{ type: 'text', text: p }] : [] };
+    });
+}
+
+function coerceSidValue(current, spec) {
+  if (isBardValue(current) || looksLikeBardSpec(spec)) {
+    return specToBard(spec);
+  }
+
+  return spec;
+}
+
+function applySidFieldDefaults(row, defaults) {
+  if (!row || !defaults || typeof defaults !== 'object') {
+    return;
+  }
+
+  for (const [handle, value] of Object.entries(defaults)) {
+    if (handle === 'type' || value == null || value === '') {
+      continue;
+    }
+
+    const current = row[handle];
+    const blank =
+      current === undefined ||
+      current === null ||
+      current === '' ||
+      (Array.isArray(current) && !current.length);
+
+    if (blank) {
+      row[handle] = coerceSidValue(current, value);
+    }
+  }
+}
+
+function assignSidTemplateValues(row, item, fieldDefaults) {
+  if (item.attrs && typeof item.attrs === 'object') {
+    for (const [key, value] of Object.entries(item.attrs)) {
+      if (key === 'type' || key === 'placeholder' || value == null) {
+        continue;
+      }
+
+      row[key] = coerceSidValue(row[key], value);
+    }
+  }
+
+  const field = item.field || item.type;
+
+  if (item.value != null && item.value !== '' && field) {
+    row[field] = coerceSidValue(row[field], item.value);
+  }
+
+  applySidFieldDefaults(row, fieldDefaults);
+}
+
+function nestedReplicatorHandle(row, metaNew) {
+  const keys = new Set();
+
+  if (row && typeof row === 'object') {
+    for (const [key, value] of Object.entries(row)) {
+      if (['id', '_id', '_visual_id', 'type', 'enabled'].includes(key)) {
+        continue;
+      }
+
+      if (Array.isArray(value)) {
+        keys.add(key);
+      }
+    }
+  }
+
+  if (metaNew && typeof metaNew === 'object') {
+    for (const [key, value] of Object.entries(metaNew)) {
+      if (value && typeof value === 'object' && !Array.isArray(value) && 'existing' in value) {
+        keys.add(key);
+      }
+    }
+  }
+
+  const list = [...keys];
+
+  if (list.includes('blocks')) {
+    return 'blocks';
+  }
+
+  return list[0] || null;
+}
+
+async function buildSidTemplateRow(win, field, item, fieldDefaults) {
+  const meta = await fetchNestedSetMeta(win, field, item.type);
+  const rowId = newRowId();
+  const row = {
+    ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
+    _id: rowId,
+    _visual_id: newUuid(win),
+    type: item.type,
+  };
+
+  assignSidTemplateValues(row, item, fieldDefaults);
+
+  return { row, meta: meta?.new ? JSON.parse(JSON.stringify(meta.new)) : {} };
+}
+
+function attachSidNestedMeta(parentMeta, nestedField, nestedBuilt) {
+  if (!parentMeta || !nestedField || !nestedBuilt.length) {
+    return parentMeta;
+  }
+
+  parentMeta[nestedField] = parentMeta[nestedField] || { existing: {} };
+  parentMeta[nestedField].existing = { ...(parentMeta[nestedField].existing || {}) };
+
+  for (const built of nestedBuilt) {
+    parentMeta[nestedField].existing[built.row._id] = built.meta || {};
+  }
+
+  return parentMeta;
+}
+
+/**
+ * Fill a newly created row from an Antlers `template` / `default`.
+ *
+ * `template="icon|title"` — inner sets for this row (typically `blocks`).
+ * `template="3:item"` on the parent — N child rows, each filled from
+ * `rowTemplate` (the `<li>`'s `template="icon|title"`).
+ */
+async function applySidTemplate(win, row, template, fieldDefaults, parentMeta, rowTemplate = '', fieldTemplates = {}) {
+  const items = parseSidTemplate(template);
+  const nested = [];
+  let nestedField = null;
+
+  if (items.some((item) => item.count)) {
+    const nestedHandle = nestedReplicatorHandle(row, parentMeta);
+
+    if (nestedHandle) {
+      nestedField = nestedHandle;
+
+      for (const spec of items) {
+        const times = spec.count || 1;
+
+        for (let n = 0; n < times; n++) {
+          const built = await buildSidTemplateRow(win, nestedHandle, { type: spec.type }, fieldDefaults);
+          const inner = await applySidTemplate(win, built.row, rowTemplate, fieldDefaults, built.meta, '', fieldTemplates);
+          const meta = attachSidNestedMeta(built.meta, inner.nestedField, inner.nested);
+
+          nested.push({ row: inner.row, meta: meta || built.meta });
+        }
+      }
+
+      row[nestedHandle] = nested.map((built) => built.row);
+    } else {
+      applySidFieldDefaults(row, fieldDefaults);
+    }
+  } else if (items.length) {
+    const types = items.map((item) => item.type);
+    const nestedHandle = nestedReplicatorHandle(row, parentMeta);
+
+    if (nestedHandle && row.type && !types.includes(row.type)) {
+      nestedField = nestedHandle;
+
+      for (const item of items) {
+        nested.push(await buildSidTemplateRow(win, nestedHandle, item, fieldDefaults));
+      }
+
+      row[nestedHandle] = nested.map((built) => built.row);
+    } else {
+      const match = items.find((item) => item.type === row.type) || (items.length === 1 ? items[0] : null);
+
+      if (match) {
+        assignSidTemplateValues(row, match, fieldDefaults);
+      } else {
+        applySidFieldDefaults(row, fieldDefaults);
+      }
+    }
+  } else {
+    applySidFieldDefaults(row, fieldDefaults);
+  }
+
+  if (nested.length && fieldTemplates && typeof fieldTemplates === 'object') {
+    for (let i = 0; i < nested.length; i++) {
+      const spec = fieldTemplates[nested[i].row?.type];
+
+      if (!spec || !(spec.template || spec.rowTemplate)) {
+        continue;
+      }
+
+      const inner = await applySidTemplate(
+        win,
+        nested[i].row,
+        spec.template || '',
+        fieldDefaults,
+        nested[i].meta || {},
+        spec.rowTemplate || '',
+        fieldTemplates
+      );
+
+      nested[i] = {
+        row: inner.row,
+        meta: attachSidNestedMeta(nested[i].meta, inner.nestedField, inner.nested) || nested[i].meta,
+      };
+    }
+
+    if (nestedField) {
+      row[nestedField] = nested.map((built) => built.row);
+    }
+  }
+
+  return { row, nested, nestedField };
+}
+
+function countedTemplateTypes(template) {
+  return parseSidTemplate(template)
+    .filter((item) => item.count)
+    .map((item) => item.type);
+}
+
+function sectionTypeFromPath(values, parentPath) {
+  const parts = String(parentPath || '').split('.');
+
+  if (parts.length < 2 || !Number.isInteger(Number(parts[1]))) {
+    return '';
+  }
+
+  const section = dataGet(values, `${parts[0]}.${parts[1]}`);
+
+  return section && typeof section === 'object' ? String(section.type || '') : '';
+}
+
+async function overlaySidTemplate(win, container, _values, parentPath, added, template, fieldDefaults, rowTemplate = '') {
+  if (!added?._id) {
+    return;
+  }
+
+  const values = unwrapRef(container.values);
+
+  const rows = dataGet(values, parentPath);
+
+  if (!Array.isArray(rows)) {
+    return;
+  }
+
+  const index = rows.findIndex((row) => row && row._id === added._id);
+
+  if (index < 0) {
+    return;
+  }
+
+  const sectionType = sectionTypeFromPath(values, parentPath);
+  const field = parentPath.slice(parentPath.lastIndexOf('.') + 1);
+  const addedMeta =
+    added.type && field
+      ? await fetchNestedSetMeta(win, field, added.type, sectionType)
+      : null;
+
+  // `3:item` seeds a new *list*. A single new *item* (the native picker, or +
+  // on an empty ul) should only get the row template — icon|title — not 3 rows.
+  let applyTemplate = template || addedMeta?.template || '';
+  let applyRowTemplate = rowTemplate || addedMeta?.rowTemplate || '';
+
+  if (added.type && countedTemplateTypes(applyTemplate).includes(added.type)) {
+    applyTemplate = applyRowTemplate;
+    applyRowTemplate = '';
+  }
+
+  if (!applyTemplate && !applyRowTemplate && !(fieldDefaults && Object.keys(fieldDefaults).length)) {
+    return;
+  }
+
+  const row = JSON.parse(JSON.stringify(rows[index]));
+  const parentMeta =
+    (addedMeta?.new ? JSON.parse(JSON.stringify(addedMeta.new)) : null) ||
+    rowMetaTemplate(container, values, parentPath, row) ||
+    {};
+  const built = await applySidTemplate(
+    win,
+    row,
+    applyTemplate,
+    fieldDefaults,
+    parentMeta,
+    applyRowTemplate,
+    addedMeta?.fieldTemplates || {}
+  );
+  const next = JSON.parse(JSON.stringify(rows));
+
+  next[index] = built.row;
+  container.setFieldValue(parentPath, next);
+
+  if (built.nestedField && built.nested.length) {
+    const updated = unwrapRef(container.values);
+    const rowPath = `${parentPath}.${index}`;
+    const fullMeta = unwrapRef(container.meta) || {};
+    const segments = rowPath.split('.');
+    const topField = segments[0];
+
+    if (!fullMeta[topField] || typeof container.setFieldMeta !== 'function') {
+      return;
+    }
+
+    const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
+    const rowMeta = metaForPath(clone, dataGet(updated, topField), segments.slice(1).join('.'));
+
+    if (!rowMeta) {
+      return;
+    }
+
+    attachSidNestedMeta(rowMeta, built.nestedField, built.nested);
+    container.setFieldMeta(topField, clone);
+  }
+}
+
+function watchNewRow(doc, win, data, onAdded) {
+  const { uid, anchorUid, sectionUid, field } = data;
+  const around = uid || anchorUid;
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    let parentPath = null;
+    let startIds = new Set();
+
+    if (around) {
+      const loc = rowLocation(values, around);
+
+      if (!loc) {
+        continue;
+      }
+
+      parentPath = loc.parentPath;
+      startIds = new Set(loc.rows.map((row) => row?._id).filter(Boolean));
+    } else if (sectionUid && field) {
+      const sectionPath = findPathByUid(values, sectionUid);
+
+      if (sectionPath === null) {
+        continue;
+      }
+
+      parentPath = `${sectionPath}.${field}`;
+      const existing = dataGet(values, parentPath);
+
+      startIds = new Set((Array.isArray(existing) ? existing : []).map((row) => row?._id).filter(Boolean));
+    } else {
+      continue;
+    }
+
+    let attempts = 0;
+
+    const poll = () => {
+      const current = dataGet(unwrapRef(container.values), parentPath);
+
+      if (!Array.isArray(current)) {
+        return;
+      }
+
+      const added = current.find((row) => row && row._id && !startIds.has(row._id));
+
+      if (added) {
+        onAdded(container, unwrapRef(container.values), parentPath, added);
+
+        return;
+      }
+
+      if (++attempts < 240) {
+        setTimeout(poll, 150);
+      }
+    };
+
+    setTimeout(poll, 150);
+
+    return;
+  }
+}
+
+/**
  * "+" between a replicator's blocks: insert a new set of the chosen type, next to
  * the block the "+" sits by (or as the first block when the field is empty). The
  * row is written into the nested array with its meta, so it shows in both the
@@ -4429,7 +5347,7 @@ async function handleInsertBlock(data, doc, win) {
     return;
   }
 
-  const meta = await fetchNestedSetMeta(win, field, set);
+  const meta = await fetchNestedSetMeta(win, field, set, data.sectionType || '');
   const rowId = newRowId();
   const row = {
     ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
@@ -4437,6 +5355,19 @@ async function handleInsertBlock(data, doc, win) {
     _visual_id: newUuid(win),
     type: set,
   };
+  const built = await applySidTemplate(
+    win,
+    row,
+    data.template || meta?.template || '',
+    data.fieldDefaults,
+    meta?.new ? JSON.parse(JSON.stringify(meta.new)) : {},
+    data.rowTemplate || meta?.rowTemplate || ''
+  );
+  const rowMeta = attachSidNestedMeta(
+    meta?.new ? JSON.parse(JSON.stringify(meta.new)) : {},
+    built.nestedField,
+    built.nested
+  );
 
   for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
@@ -4455,8 +5386,8 @@ async function handleInsertBlock(data, doc, win) {
 
       const next = JSON.parse(JSON.stringify(loc.rows));
 
-      next.splice(position === 'before' ? loc.index : loc.index + 1, 0, row);
-      writeNestedRowMeta(container, values, loc.parentPath, rowId, meta?.new);
+      next.splice(position === 'before' ? loc.index : loc.index + 1, 0, built.row);
+      writeNestedRowMeta(container, values, loc.parentPath, rowId, rowMeta);
       container.setFieldValue(loc.parentPath, next);
 
       return;
@@ -4474,8 +5405,8 @@ async function handleInsertBlock(data, doc, win) {
       const existing = dataGet(values, fieldPath);
       const next = Array.isArray(existing) ? JSON.parse(JSON.stringify(existing)) : [];
 
-      next.push(row);
-      writeNestedRowMeta(container, values, fieldPath, rowId, meta?.new);
+      next.push(built.row);
+      writeNestedRowMeta(container, values, fieldPath, rowId, rowMeta);
       container.setFieldValue(fieldPath, next);
 
       return;
@@ -4978,6 +5909,17 @@ function syncPreviewInset(win) {
   el.style.paddingRight = right ? `${right}px` : '';
   el.style.paddingLeft = '';
 
+  if (LP_SCALE_DEVICE_TO_PANE) {
+    applyLpDevice(win);
+    applyLpZoom(win);
+    paintLpPreviewChrome(win);
+    win.setTimeout(() => {
+      applyLpDevice(win);
+      applyLpZoom(win);
+      paintLpPreviewChrome(win);
+    }, 220);
+  }
+
   positionLpBackButton(win);
 }
 
@@ -5008,8 +5950,7 @@ function pinGlobalsPanelRight(win, panel) {
       return;
     }
 
-    const header = lpHeader(doc);
-    const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+    const top = dockedPanelTop(win);
     const width = globalsPanelWidth(win);
 
     panel.style.cssText =
@@ -5281,8 +6222,7 @@ function mountSectionPicker(win, options = {}) {
   // Same right slot as Theme Settings — park globals (stash kept unless discarded above).
   closeRightPanels(win, [SECTION_PICKER_ID, CHROME_DESIGNS_ID]);
 
-  const header = lpHeader(doc);
-  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+  const top = dockedPanelTop(win);
   const width = globalsPanelWidth(win);
 
   const panel = doc.createElement('div');
@@ -5356,7 +6296,16 @@ function mountSectionPicker(win, options = {}) {
   const groupsEl = panel.querySelector('[data-sve-groups]');
   const gridEl = panel.querySelector('[data-sve-grid]');
 
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => closeSectionPicker(win));
+  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
+    closeSectionPicker(win);
+
+    if (headerTab === 'sections') {
+      setHeaderTab(win, null);
+    }
+
+    persistDockedPanel(win);
+    applyHeaderTab(win);
+  });
   groupsEl.addEventListener('scroll', syncGroupsFade);
 
   const tabs = [
@@ -6357,7 +7306,7 @@ function rowLimits(values, parentPath, win) {
 }
 
 /** "+" on an orderable row: add another one just after it, within the field's max. */
-export function handleAddRow(data, doc, win) {
+export async function handleAddRow(data, doc, win) {
   for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
@@ -6379,14 +7328,22 @@ export function handleAddRow(data, doc, win) {
     }
 
     const row = newRowFor(win, container, values, parentPath, rows[index]);
+    const rowMeta = rowMetaTemplate(container, values, parentPath, rows[index]) || {};
+    const built = await applySidTemplate(win, row, data.template, data.fieldDefaults, rowMeta);
     const next = JSON.parse(JSON.stringify(rows));
 
-    next.splice(index + 1, 0, row);
+    next.splice(index + 1, 0, built.row);
 
     // Without meta.existing[row._id] the Grid/Replicator Vue UI ignores the row:
     // Live Preview (values) shows it, the sidebar does not. Same requirement as
     // handleInsertBlock / insertSectionAfter.
-    writeNestedRowMeta(container, values, parentPath, row._id, rowMetaTemplate(container, values, parentPath, rows[index]));
+    writeNestedRowMeta(
+      container,
+      values,
+      parentPath,
+      built.row._id,
+      attachSidNestedMeta(rowMeta, built.nestedField, built.nested)
+    );
     container.setFieldValue(parentPath, next);
 
     return;
@@ -6777,6 +7734,7 @@ const LP_TOGGLE_ID = '__sve-lp-toggle';
 const LP_MODE_ID = '__sve-lp-mode';
 const LP_MODE_KEY = 'sve-lp-panel-mode';
 const LP_COLLAPSED_KEY = 'sve-lp-collapsed';
+const LP_DOCKED_KEY = 'sve-lp-docked';
 const KEEP_CHROME_KEY = 'sve-keep-chrome';
 
 const LP_WIDTH_ID = '__sve-lp-width';
@@ -7129,6 +8087,9 @@ function lpModeSeparator(doc, before) {
 // stored mode on next mount.
 let lpCollapsed = null;
 
+/** Snapshot: they had the editor sidebar closed when this Live Preview opened. */
+let lpEnterSidebarClosed = null;
+
 // Set while a section's settings are on show — see ensureLpPanelToggle.
 let forcePanelOpen = false;
 
@@ -7165,6 +8126,25 @@ function storedLpCollapsed(win) {
   return lpMode(win) !== 'show';
 }
 
+function persistDockedPanel(win) {
+  const doc = win.document;
+  let value = '';
+
+  if (listViewPanel(doc)) {
+    value = 'listview';
+  } else if (doc.getElementById(SECTION_PICKER_ID)) {
+    value = 'sections';
+  }
+
+  try {
+    value
+      ? win.localStorage.setItem(LP_DOCKED_KEY, value)
+      : win.localStorage.removeItem(LP_DOCKED_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
 function setLpMode(win, mode) {
   try {
     win.localStorage.setItem(LP_MODE_KEY, mode);
@@ -7175,6 +8155,9 @@ function setLpMode(win, mode) {
   // Switching to Show reveals the FULL form, like the old open-toggle did.
   if (mode === 'show') {
     clearSolo(win.document);
+    setHeaderTab(win, 'settings');
+  } else if (headerTab === 'settings') {
+    setHeaderTab(win, null);
   }
 
   setLpCollapsed(win, mode !== 'show');
@@ -7270,8 +8253,7 @@ function toggleOutlinePanel(win) {
 
   closeRightPanels(win, [OUTLINE_PANEL_ID]);
 
-  const header = lpHeader(doc);
-  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+  const top = dockedPanelTop(win);
   const panel = doc.createElement('div');
 
   panel.id = OUTLINE_PANEL_ID;
@@ -7674,6 +8656,50 @@ function listViewPanel(doc) {
   return doc.getElementById(LISTVIEW_PANEL_ID);
 }
 
+/** Last measured Live Preview header bottom — never pin a docked panel to 0. */
+let dockedPanelTopLast = 56;
+
+function dockedPanelTop(win) {
+  const header = lpHeader(win.document);
+
+  if (header) {
+    const bottom = Math.round(header.getBoundingClientRect().bottom);
+
+    if (bottom > 8) {
+      dockedPanelTopLast = bottom;
+
+      return bottom;
+    }
+  }
+
+  return dockedPanelTopLast;
+}
+
+/**
+ * Keep right-docked panels under the Live Preview header.
+ *
+ * They are `position:fixed` with `top` set from the header's height. On a page
+ * change the header is often still 0px tall when the panel is restored, so `top`
+ * becomes 0 and the tree covers Save & Publish. Re-pin whenever the header loop
+ * runs — once the bar has a real height, the panel drops under it.
+ */
+function pinDockedPanelsUnderHeader(win) {
+  const top = `${dockedPanelTop(win)}px`;
+  const doc = win.document;
+
+  [LISTVIEW_PANEL_ID, SECTION_PICKER_ID, OUTLINE_PANEL_ID, GLOBALS_PANEL_ID, CHROME_DESIGNS_ID].forEach((id) => {
+    const panel = doc.getElementById(id);
+
+    if (!panel || panel.hasAttribute('data-sve-chrome-hidden')) {
+      return;
+    }
+
+    if (panel.style.top !== top) {
+      panel.style.top = top;
+    }
+  });
+}
+
 export function closeListViewPanel(win) {
   if (!listViewPanel(win.document)) {
     return;
@@ -7713,6 +8739,63 @@ function isBlockRow(value) {
   );
 }
 
+/**
+ * Is this one row of a Grid field?
+ *
+ * Grid rows have no `type` — they are not sets — so `isBlockRow` cannot see them.
+ * What they do have is the same identity a set has: `_visual_id` (injected into
+ * every grid), or Statamic's own `id` / `_id`. Without this the tree drew a Links
+ * block as one row and hid the buttons inside it, while a List next to it (a
+ * nested Replicator) showed every item. The two are the same kind of thing to
+ * click; only the fieldtype differs.
+ *
+ * Named apart from the DOM helper `isGridRow` (a stacked row element). This one
+ * reads publish values. Checked only on array items, never on nested objects, so
+ * a Bard node's `attrs` (which can carry an `id`) is not mistaken for a row.
+ */
+function isGridRowValue(value) {
+  return (
+    !!value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && !isBlockRow(value)
+    && typeof value.type !== 'string'
+    && ('_visual_id' in value || typeof value.id === 'string' || typeof value._id === 'string')
+  );
+}
+
+function isTreeRow(value) {
+  return isBlockRow(value) || isGridRowValue(value);
+}
+
+/**
+ * A label for a grid row that has no set name: the first short text it holds.
+ *
+ * A link's own "Læs mere" tells the buttons apart; falling back to the field's
+ * display name would name every row "Links" under a block already called that.
+ */
+function gridRowPreview(row) {
+  const keys = ['text', 'title', 'label', 'heading', 'name', 'headline'];
+
+  for (const key of keys) {
+    const value = row?.[key];
+
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const text = value.replace(/\s+/g, ' ').trim();
+
+    if (!text) {
+      continue;
+    }
+
+    return text.length > 40 ? `${text.slice(0, 37)}…` : text;
+  }
+
+  return '';
+}
+
 /** The id a row is known by, in the order the rest of this file prefers them. */
 function blockRowUid(row) {
   return row._visual_id || row.id || row._id || '';
@@ -7738,8 +8821,11 @@ function blockRowIds(row) {
  * The page's blocks, flattened into rows with their depth.
  *
  * Walks every array under the page-builder field, at any depth, because nesting
- * is the thing being shown: a section holds blocks, a block holds rows, and how
- * deep that goes is the fieldset's business, not this panel's.
+ * is the thing being shown: a section holds blocks, a block holds rows — Replicator
+ * sets and Grid rows alike — and how deep that goes is the fieldset's business,
+ * not this panel's. Grid rows that sit directly on a section (Style, background
+ * opacity, a responsive field's drawers) are skipped: those are the section's own
+ * settings, not something you pick from a tree of blocks.
  *
  * Keys beginning with `_` are skipped. They hold the editor's own bookkeeping —
  * `_visual_id`, `_bp_order` — which is not part of the page and would otherwise
@@ -7760,7 +8846,7 @@ function listViewTree(win, doc) {
 
     if (Array.isArray(node)) {
       node.forEach((item, index) => {
-        if (!isBlockRow(item)) {
+        if (!isTreeRow(item)) {
           collect(item, depth, parentUid, out, listKey);
 
           return;
@@ -7768,6 +8854,14 @@ function listViewTree(win, doc) {
 
         const uid = blockRowUid(item);
         const children = [];
+        const grid = isGridRowValue(item);
+
+        // Grid rows on a section itself are settings — Style, background,
+        // responsive drawers — not blocks. A Links set's buttons sit one level
+        // deeper, inside a content block, and those are the ones the tree is for.
+        if (grid && depth < 2) {
+          return;
+        }
 
         collect(item, depth + 1, uid, children, listKey);
 
@@ -7786,7 +8880,9 @@ function listViewTree(win, doc) {
           // block is annotated with in the preview is the template's choice, not
           // something a tree of values can know.
           ids: blockRowIds(item),
-          type: item.type,
+          type: item.type || null,
+          kind: grid ? 'grid' : 'set',
+          preview: grid ? gridRowPreview(item) : '',
           depth,
           index,
           listKey,
@@ -8172,9 +9268,12 @@ function openListViewMenu(win, anchor, item) {
     add(t(win, 'listview_move_down'), () => handleMove({ uid: item.uid, direction: 1 }, doc));
     add(t(win, 'listview_duplicate'), () => handleDuplicateRow({ uid: item.uid }, doc, win));
   }
-  add(t(win, item.enabled ? 'listview_hide' : 'listview_show'), () =>
-    handleHideRow({ uid: item.uid }, doc, win)
-  );
+  // Grid rows have no `enabled` switch — hiding is a Replicator/Bard set thing.
+  if (item.kind !== 'grid') {
+    add(t(win, item.enabled ? 'listview_hide' : 'listview_show'), () =>
+      handleHideRow({ uid: item.uid }, doc, win)
+    );
+  }
   if (!item.locked) {
     add(t(win, 'listview_delete'), () => handleRemoveRow({ uid: item.uid }, doc, win), true);
   }
@@ -8364,7 +9463,7 @@ function renderListView(win) {
   }
 
   visible.forEach((item) => {
-    const meta = setMeta(win, item.type);
+    const meta = item.kind === 'grid' ? gridMeta(win, item.listKey) : setMeta(win, item.type);
     const row = doc.createElement('div');
 
     row.setAttribute('data-sve-lv-row', '');
@@ -8436,7 +9535,8 @@ function renderListView(win) {
     const text = doc.createElement('span');
 
     text.setAttribute('data-sve-lv-text', '');
-    text.textContent = meta?.display || item.type;
+    text.textContent =
+      item.preview || meta?.display || humanizeHandle(item.type || item.listKey) || t(win, 'listview_item');
     row.appendChild(text);
 
     // The section toolbar's own controls, on the row. The same four things the
@@ -8718,8 +9818,7 @@ function toggleListViewPanel(win) {
 
   closeRightPanels(win, [LISTVIEW_PANEL_ID]);
 
-  const header = lpHeader(doc);
-  const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+  const top = dockedPanelTop(win);
   const panel = doc.createElement('div');
 
   panel.id = LISTVIEW_PANEL_ID;
@@ -8759,7 +9858,16 @@ function toggleListViewPanel(win) {
     tabsEl.appendChild(btn);
   });
 
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => closeListViewPanel(win));
+  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
+    closeListViewPanel(win);
+
+    if (headerTab === 'listview') {
+      setHeaderTab(win, null);
+    }
+
+    persistDockedPanel(win);
+    applyHeaderTab(win);
+  });
   panel.appendChild(
     panelResizer(win, panel, {
       side: 'right',
@@ -9478,6 +10586,13 @@ function setMeta(win, handle) {
   return (handle && map?.[handle]) || null;
 }
 
+/** What a Grid field calls its rows: display name and the icon on the field. */
+function gridMeta(win, handle) {
+  const map = win.Statamic?.$config?.get?.('sveGridMeta');
+
+  return (handle && map?.[handle]) || null;
+}
+
 /** The set handle ("hero/style_2") of the row a uid points at. */
 function setTypeForUid(uid, doc) {
   for (const container of activeContainers(doc)) {
@@ -9867,12 +10982,13 @@ function paintFocusHeader(win, doc, meta, back) {
     return;
   }
 
-  const label =
-    back?.label ||
-    (panelFrameDoc(doc) && win.location.pathname.includes('/collections/')
-      ? t(win, 'close')
-      : t(win, 'all_sections'));
-  const key = `${meta.icon || ''}|${meta.display}|${meta.instructions || ''}|${label}`;
+  const closeInstead =
+    !back && panelFrameDoc(doc) && win.location.pathname.includes('/collections/');
+  // The page-sections list is not in the panel when "Open in the first section"
+  // is on, so "All sections" leads nowhere. A block still names its section.
+  const hideBack = !back && !closeInstead && featureOn(win, 'open_first_section');
+  const label = back?.label || (closeInstead ? t(win, 'close') : t(win, 'all_sections'));
+  const key = `${meta.icon || ''}|${meta.display}|${meta.instructions || ''}|${hideBack ? '' : label}`;
 
   if (header.getAttribute('data-sve-focus-key') === key) {
     return;
@@ -9904,23 +11020,28 @@ function paintFocusHeader(win, doc, meta, back) {
   title.setAttribute('data-sve-focus-title', '');
   title.textContent = meta.display;
 
-  const out = doc.createElement('button');
+  line.append(tile, title);
 
-  out.type = 'button';
-  out.setAttribute('data-sve-focus-back', '');
-  out.innerHTML =
-    '<span aria-hidden="true" data-sve-focus-back-arrow>&#8249;</span><span>' + label + '</span>';
-  out.addEventListener('click', () => {
-    if (back?.onBack) {
-      back.onBack();
+  if (!hideBack) {
+    const out = doc.createElement('button');
 
-      return;
-    }
+    out.type = 'button';
+    out.setAttribute('data-sve-focus-back', '');
+    out.innerHTML =
+      '<span aria-hidden="true" data-sve-focus-back-arrow>&#8249;</span><span>' + label + '</span>';
+    out.addEventListener('click', () => {
+      if (back?.onBack) {
+        back.onBack();
 
-    leaveSolo(doc, win);
-  });
+        return;
+      }
 
-  line.append(tile, title, out);
+      leaveSolo(doc, win);
+    });
+
+    line.append(out);
+  }
+
   header.appendChild(line);
 
   if (!meta.instructions) {
@@ -10016,6 +11137,67 @@ function hideEmptySegments(setEl) {
  * to what it should be rather than toggled, so a repaint costs nothing and a
  * re-render is caught by the next one.
  */
+/** The field handle a row sits in (`links` in `page_sections.0.blocks.2.links.0`). */
+function fieldHandleFromPath(path) {
+  const parts = String(path || '').split('.');
+  const last = parts[parts.length - 1];
+
+  return /^\d+$/.test(last) && parts.length >= 2 ? parts[parts.length - 2] : null;
+}
+
+/**
+ * What the focus header should say for this uid: a set's own name, or a grid
+ * row's text (and the grid field's icon), so stepping into a link is not a
+ * blank title.
+ */
+function focusRowMeta(win, uid, doc) {
+  const handle = setTypeForUid(uid, doc);
+
+  if (handle) {
+    const meta = setMeta(win, handle);
+
+    return {
+      display: meta?.display || humanizeHandle(handle),
+      icon: meta?.icon || null,
+      instructions: meta?.instructions || '',
+    };
+  }
+
+  let listKey = null;
+  let preview = '';
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const path = findPathByUid(values, uid);
+
+    if (path === null) {
+      continue;
+    }
+
+    listKey = fieldHandleFromPath(path);
+    const row = dataGet(values, path);
+
+    if (row && typeof row === 'object') {
+      preview = gridRowPreview(row);
+    }
+
+    break;
+  }
+
+  const meta = gridMeta(win, listKey);
+
+  return {
+    display: preview || meta?.display || humanizeHandle(listKey) || t(win, 'listview_item'),
+    icon: meta?.icon || null,
+    instructions: meta?.instructions || '',
+  };
+}
+
 function paintFocus(win, doc, uid, kind) {
   const setEl = findSetByUid(uid, doc);
 
@@ -10050,19 +11232,7 @@ function paintFocus(win, doc, uid, kind) {
   // is what's wanted.
   markStepIntoAll(win);
 
-  const handle = setTypeForUid(uid, doc);
-  const meta = setMeta(win, handle);
-
-  paintFocusHeader(
-    win,
-    doc,
-    {
-      display: meta?.display || humanizeHandle(handle),
-      icon: meta?.icon || null,
-      instructions: meta?.instructions || '',
-    },
-    focusBack(win, doc, uid, kind)
-  );
+  paintFocusHeader(win, doc, focusRowMeta(win, uid, doc), focusBack(win, doc, uid, kind));
 
   applyFocusSegment(setEl);
   hideEmptySegments(setEl);
@@ -10104,8 +11274,7 @@ function focusBack(win, doc, uid, kind) {
     return null;
   }
 
-  const handle = setTypeForUid(parent, doc);
-  const label = setMeta(win, handle)?.display || humanizeHandle(handle);
+  const label = focusRowMeta(win, parent, doc).display;
 
   // A step back the pill can't name is a step back nobody can predict. Left
   // unnamed, it says "all sections" and does exactly that instead.
@@ -10669,8 +11838,12 @@ function ensureLpPanelToggleInner(win) {
       lpHeaderBgCache = null; // næste åbning kan være i et andet CP-tema
       doc.getElementById(LP_WIDTH_ID)?.remove();
       chromePrefetchArmed = false;
+      persistDockedPanel(win);
       clearSolo(doc);
       closeRightPanels(win); // parks Theme Settings iframe so it stays warm
+      dockedHeaderRestored = false;
+      headerTab = undefined;
+      lpEnterSidebarClosed = null;
       removeLpBackButton(doc);
       lpCloseHideObserver?.disconnect();
       lpCloseHideObserver = null;
@@ -10684,20 +11857,21 @@ function ensureLpPanelToggleInner(win) {
     return;
   }
 
-  // Fresh Live Preview session → always start on desktop Fit (laptop icon),
-  // never whatever Mobile/Tablet was left from last time.
+  // Fresh Live Preview session → start on Responsive (fills the pane, no auto-zoom).
   if (!lpWasOpen) {
     try {
       win.localStorage.setItem(LP_DEVICE_KEY, 'Responsive');
     } catch {
       /* private mode */
     }
+
+    lpEnterSidebarClosed = storedLpCollapsed(win);
   }
 
   lpWasOpen = true;
 
   if (lpCollapsed === null) {
-    lpCollapsed = shouldKeepChrome(win) ? storedLpCollapsed(win) : lpMode(win) !== 'show';
+    lpCollapsed = storedLpCollapsed(win);
   }
 
   // Opening a section's settings holds the panel open for as long as they're
@@ -10793,7 +11967,21 @@ function ensureLpPanelToggleInner(win) {
   if (!shouldKeepChrome(win)) {
     openFirstSectionOnce(win);
   }
+
+  // Opening the first section must not force the sidebar open if they closed it.
+  if (lpEnterSidebarClosed && lpCollapsed === false) {
+    lpCollapsed = true;
+
+    try {
+      win.localStorage.setItem(LP_COLLAPSED_KEY, '1');
+    } catch {
+      /* private mode */
+    }
+  }
+
   restoreDockedHeaderPanels(win);
+  pinDockedPanelsUnderHeader(win);
+  applyHeaderTab(win);
   openSettingsTab(win);
   applySectionsFieldVisibility(win);
 
@@ -10826,15 +12014,23 @@ function ensureLpPanelToggleInner(win) {
 // --- Preview chrome: devices + zoom, no Pop out --------------------------------
 //
 // Statamic's own header shows a "Pop out" button and a text device <Select…>.
-// Editors need icons for Mobile / Tablet / Laptop / Fit, plus zoom — same bar
-// we shipped around midday 5 Aug. We hide Statamic's controls and drive the
-// iframe size / scale ourselves so Vue re-renders can't put Pop out back
-// without us putting it away again on the next observer pass.
+// Editors get Puck-style icons: Mobile / Tablet / Laptop / Full-width, plus zoom.
+// Device presets lock CSS width and auto-scale to the pane. Full-width fills the
+// pane and never auto-zooms — shrinking the window just narrows the page.
+// Plus is disabled when the preview already fills the available width.
+//
+// LP_SCALE_DEVICE_TO_PANE (the experiment):
+//   true  — device presets auto-scale to the pane; plus locks at that ceiling
+//   false — no auto-scale (old Fit fills; tablet/mobile light up with width)
+// Restore the old behaviour: set this to false and `npm run cp:build`,
+// or `git checkout checkpoint-fit-follows-pane`.
+
+const LP_SCALE_DEVICE_TO_PANE = true;
 
 const LP_PREVIEW_CHROME_ID = '__sve-preview-chrome';
 const LP_DEVICE_KEY = 'sve-lp-device';
 const LP_ZOOM_KEY = 'sve-lp-zoom';
-const LP_ZOOM_STEPS = [50, 75, 90, 100, 110, 125, 150];
+const LP_ZOOM_STEPS = [50, 75, 90, 100];
 const LP_ZOOM_DEFAULT = 100;
 
 const LP_DEVICE_ICONS = {
@@ -10842,11 +12038,11 @@ const LP_DEVICE_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
   Tablet:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
-  // Fit / Responsive uses the laptop glyph — no separate Laptop control.
-  Responsive:
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M2 18h20M8 22h8"/></svg>',
   Laptop:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M2 18h20M8 22h8"/></svg>',
+  // Full-width / Responsive — four arrows out, same idea as Statamic and Puck.
+  Responsive:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><line x1="21" y1="3" x2="14" y2="10"/><polyline points="9 21 3 21 3 15"/><line x1="3" y1="21" x2="10" y2="14"/><polyline points="21 15 21 21 15 21"/><line x1="21" y1="21" x2="14" y2="14"/><polyline points="3 9 3 3 9 3"/><line x1="3" y1="3" x2="10" y2="10"/></svg>',
 };
 
 function lpConfiguredDevices(win) {
@@ -10856,21 +12052,25 @@ function lpConfiguredDevices(win) {
 }
 
 /**
- * Fit (laptop icon) → Tablet → Mobile. Laptop/Desktop presets are dropped:
- * Fit fills the pane, and Tablet/Mobile light up automatically when the Fit
- * width crosses their breakpoints.
+ * Mobile → Tablet → Laptop → Responsive — Statamic's devices, reversed so
+ * mobile sits on the left and Responsive (expand) on the right.
+ *
+ * Responsive and Laptop are always present. Tablet/Mobile only if configured.
  */
 function lpDeviceKeys(win) {
   const configured = lpConfiguredDevices(win);
-  const keys = ['Responsive'];
+  const keys = [];
+
+  if (configured.Mobile) {
+    keys.push('Mobile');
+  }
 
   if (configured.Tablet) {
     keys.push('Tablet');
   }
 
-  if (configured.Mobile) {
-    keys.push('Mobile');
-  }
+  keys.push('Laptop');
+  keys.push('Responsive');
 
   return keys;
 }
@@ -10879,18 +12079,11 @@ function lpStoredDevice(win) {
   try {
     let stored = win.localStorage.getItem(LP_DEVICE_KEY);
 
-    // Old builds had a separate Laptop — treat it as Fit.
-    if (stored === 'Laptop' || stored === 'Desktop') {
-      stored = 'Responsive';
-
-      try {
-        win.localStorage.setItem(LP_DEVICE_KEY, stored);
-      } catch {
-        /* private mode */
-      }
+    if (stored === 'Desktop') {
+      stored = 'Laptop';
     }
 
-    if (stored && (stored === 'Responsive' || lpConfiguredDevices(win)[stored])) {
+    if (stored && lpDeviceKeys(win).includes(stored)) {
       return stored;
     }
   } catch {
@@ -10901,13 +12094,15 @@ function lpStoredDevice(win) {
 }
 
 /**
- * Which device icon should look active. In Fit mode the highlight follows the
- * preview width (tablet/mobile), so resizing the pane updates the chrome.
+ * Which device icon should look active.
+ *
+ * Scale-to-fit: the icon you clicked stays lit — opening a sidebar must not
+ * pretend you switched to tablet. Old Fit: the highlight follows pane width.
  */
 function lpChromeActiveDevice(win) {
   const device = lpStoredDevice(win);
 
-  if (device === 'Tablet' || device === 'Mobile') {
+  if (LP_SCALE_DEVICE_TO_PANE || device !== 'Responsive') {
     return device;
   }
 
@@ -10915,7 +12110,7 @@ function lpChromeActiveDevice(win) {
   const w = iframe?.clientWidth || iframe?.offsetWidth || 0;
 
   // Before the iframe has a real size (or while LP is still mounting), don't
-  // treat a tiny/zero width as Mobile — keep the desktop Fit icon lit.
+  // treat a tiny/zero width as Mobile — keep the Full-width icon lit.
   if (w < 200) {
     return 'Responsive';
   }
@@ -10969,9 +12164,8 @@ const BP_INHERITS = { laptop: [], tablet: ['laptop'], mobile: ['tablet', 'laptop
 /**
  * The breakpoint being edited — the same answer the responsive fields give.
  *
- * Fit is not a synonym for laptop: it fills the pane, and at a narrow pane that
- * is tablet or mobile. Reading only the device button would file a drag made at
- * mobile width under laptop, which is most of the way to "it works sometimes".
+ * Full-width is not a synonym for laptop: it fills the pane, and at a narrow
+ * pane that is tablet or mobile. Laptop stays laptop even when scaled down.
  */
 function currentBp(win) {
   let device = 'Responsive';
@@ -10990,9 +12184,12 @@ function currentBp(win) {
     return 'mobile';
   }
 
-  const iframe = previewFrame(win.document);
+  if (device === 'Laptop') {
+    return 'laptop';
+  }
 
-  return lpWidthToBp(iframe?.clientWidth || iframe?.offsetWidth || 1200);
+  // Full-width: the page is as wide as the pane, so the breakpoint follows it.
+  return lpWidthToBp(lpPaneInnerSize(win).width || 1200);
 }
 
 /** Does this list name exactly the blocks that exist right now? */
@@ -11224,6 +12421,7 @@ function setLpDevice(win, key) {
   // width, and until this has run that width is still the one being left — so a
   // sort placed above it would quietly sort into the order it came from.
   applyLpDevice(win, key);
+  applyLpZoom(win);
   paintLpPreviewChrome(win);
 
   const to = key === 'Tablet' ? 'tablet' : key === 'Mobile' ? 'mobile' : currentBp(win);
@@ -11256,6 +12454,14 @@ function lpWidthToBp(width) {
   return 'mobile';
 }
 
+/**
+ * Full-width fills the pane and never auto-zooms. Device presets lock a CSS
+ * width and scale down when the pane is narrower than that frame.
+ */
+function lpShouldFillPane(win) {
+  return lpStoredDevice(win) === 'Responsive';
+}
+
 function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
   let bp = 'laptop';
 
@@ -11263,11 +12469,10 @@ function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
     bp = 'mobile';
   } else if (deviceKey === 'Tablet') {
     bp = 'tablet';
+  } else if (deviceKey === 'Laptop') {
+    bp = 'laptop';
   } else if (deviceKey === 'Responsive') {
-    const iframe = previewFrame(win.document);
-    const w = iframe?.clientWidth || iframe?.offsetWidth || 0;
-
-    bp = lpWidthToBp(w || 1200);
+    bp = lpWidthToBp(lpPaneInnerSize(win).width || 1200);
   }
 
   try {
@@ -11288,7 +12493,11 @@ function applyLpDevice(win, key = lpStoredDevice(win)) {
   }
 
   const devices = lpConfiguredDevices(win);
-  const preset = key && key !== 'Responsive' ? devices[key] : null;
+  let preset = key && key !== 'Responsive' ? devices[key] : null;
+
+  if (key === 'Laptop' && !preset) {
+    preset = { width: 1440, height: 900 };
+  }
   const contents = doc.querySelector('.live-preview-contents');
   const isDark = doc.documentElement.classList.contains('dark');
   const canvasBg = isDark ? '#0a0a0a' : '#ffffff';
@@ -11301,8 +12510,8 @@ function applyLpDevice(win, key = lpStoredDevice(win)) {
     }
 
     // Column flex: align-items = horizontal, justify-content = vertical.
-    // Center the device frame in the pane; keep it flush to the top (no gap).
-    if (contents.style.getPropertyValue('align-items') !== 'center') {
+    // Scale-to-fit owns align-items in applyLpZoom (left while scaled, else center).
+    if (!LP_SCALE_DEVICE_TO_PANE && contents.style.getPropertyValue('align-items') !== 'center') {
       contents.style.setProperty('align-items', 'center', 'important');
     }
 
@@ -11369,6 +12578,10 @@ function applyLpDevice(win, key = lpStoredDevice(win)) {
     iframe.style.setProperty('max-height', 'none', 'important');
   }
 
+  if (iframe.style.getPropertyValue('max-width') !== 'none') {
+    iframe.style.setProperty('max-width', 'none', 'important');
+  }
+
   // Drop the floating “device card” look — same flush frame as Fit mode.
   if (iframe.style.getPropertyValue('border-radius') !== '0px') {
     iframe.style.setProperty('border-radius', '0', 'important');
@@ -11384,7 +12597,27 @@ let lpResponsiveWidthObserver = null;
 let lpResponsiveWidthTarget = null;
 let lpResponsiveWidthLastBp = null;
 
+function lpDeviceCssWidth(win, key = lpStoredDevice(win)) {
+  const devices = lpConfiguredDevices(win);
+
+  if (key === 'Tablet' && devices.Tablet) {
+    return devices.Tablet.width;
+  }
+
+  if (key === 'Mobile' && devices.Mobile) {
+    return devices.Mobile.width;
+  }
+
+  return devices.Laptop?.width || 1440;
+}
+
 function watchLpResponsiveWidth(win) {
+  if (LP_SCALE_DEVICE_TO_PANE) {
+    watchLpPreviewFit(win);
+
+    return;
+  }
+
   const iframe = previewFrame(win.document);
 
   if (!iframe) {
@@ -11432,11 +12665,126 @@ function watchLpResponsiveWidth(win) {
   tick();
 }
 
+/** Keep the scaled preview fitted when sidebars open or the window resizes. */
+function watchLpPreviewFit(win) {
+  const contents = win.document.querySelector('.live-preview-contents');
+
+  if (!contents) {
+    return;
+  }
+
+  if (lpResponsiveWidthTarget === contents && lpResponsiveWidthObserver) {
+    return;
+  }
+
+  lpResponsiveWidthObserver?.disconnect();
+  lpResponsiveWidthTarget = contents;
+
+  const tick = () => {
+    applyLpDevice(win);
+    applyLpZoom(win);
+    paintLpPreviewChrome(win);
+
+    if (lpStoredDevice(win) === 'Responsive') {
+      const bp = lpWidthToBp(lpPaneInnerSize(win).width || 1200);
+
+      if (bp !== lpResponsiveWidthLastBp) {
+        lpResponsiveWidthLastBp = bp;
+        dispatchLpBreakpoint(win, 'Responsive');
+      }
+    }
+  };
+
+  lpResponsiveWidthObserver = new win.ResizeObserver(tick);
+  lpResponsiveWidthObserver.observe(contents);
+  tick();
+}
+
+function lpPaneInnerSize(win) {
+  const pane = win.document.querySelector('.live-preview-contents');
+
+  if (!pane) {
+    return { width: 0, height: 0 };
+  }
+
+  const style = win.getComputedStyle(pane);
+  const padL = parseFloat(style.paddingLeft) || 0;
+  const padR = parseFloat(style.paddingRight) || 0;
+  const padT = parseFloat(style.paddingTop) || 0;
+  const padB = parseFloat(style.paddingBottom) || 0;
+
+  return {
+    width: Math.max(0, pane.clientWidth - padL - padR),
+    height: Math.max(0, pane.clientHeight - padT - padB),
+  };
+}
+
+function lpFitScale(win) {
+  const deviceW = lpDeviceCssWidth(win);
+  const paneW = lpPaneInnerSize(win).width;
+
+  if (!deviceW || !paneW) {
+    return 1;
+  }
+
+  return Math.min(1, paneW / deviceW);
+}
+
+/** Zoom never goes past 100% — on any device, including full-width. */
+function lpMaxStoredZoom(_win) {
+  return 100;
+}
+
+function lpZoomInAllowed(win) {
+  return lpStoredZoom(win) < lpMaxStoredZoom(win);
+}
+
+function lpNextZoomIn(win) {
+  const cur = lpStoredZoom(win);
+  const max = lpMaxStoredZoom(win);
+  const next = LP_ZOOM_STEPS.find((step) => step > cur && step <= max);
+
+  if (next != null) {
+    return next;
+  }
+
+  return cur < max ? max : cur;
+}
+
+function lpZoomIsAuto(win) {
+  if (!LP_SCALE_DEVICE_TO_PANE || lpShouldFillPane(win)) {
+    return false;
+  }
+
+  return lpStoredZoom(win) === 100 && lpFitScale(win) < 0.995;
+}
+
+/** The zoom the preview actually shows — fit-to-pane times the user's zoom. */
+function lpVisualZoom(win, percent = lpStoredZoom(win)) {
+  const used = Math.min(percent, lpMaxStoredZoom(win));
+
+  if (!LP_SCALE_DEVICE_TO_PANE || lpShouldFillPane(win)) {
+    return used;
+  }
+
+  return Math.max(1, Math.round(lpFitScale(win) * used));
+}
+
 function lpStoredZoom(win) {
   try {
     const n = parseInt(win.localStorage.getItem(LP_ZOOM_KEY) ?? '', 10);
 
     if (Number.isFinite(n) && n >= 25 && n <= 300) {
+      if (n > 100) {
+        try {
+          win.localStorage.setItem(LP_ZOOM_KEY, '100');
+        } catch {
+          /* private mode */
+        }
+
+        return 100;
+      }
+
       return n;
     }
   } catch {
@@ -11447,7 +12795,8 @@ function lpStoredZoom(win) {
 }
 
 function setLpZoom(win, percent) {
-  const clamped = Math.max(25, Math.min(300, Math.round(percent)));
+  const max = lpMaxStoredZoom(win);
+  const clamped = Math.max(25, Math.min(max, Math.round(percent)));
 
   try {
     win.localStorage.setItem(LP_ZOOM_KEY, String(clamped));
@@ -11461,18 +12810,44 @@ function setLpZoom(win, percent) {
 
 function applyLpZoom(win, percent = lpStoredZoom(win)) {
   const iframe = previewFrame(win.document);
+  const contents = win.document.querySelector('.live-preview-contents');
 
   if (!iframe) {
     return;
   }
 
-  const scale = percent / 100;
-  const wantOrigin = 'top center';
-  const wantTransform = scale === 1 ? '' : `scale(${scale})`;
+  percent = Math.min(percent, lpMaxStoredZoom(win));
 
-  // Scale the iframe itself. transform-origin top center keeps the page under
-  // the header; width/height compensation stops the layout from leaving a
-  // huge empty gutter around a shrunk frame. Skip no-op writes — see applyLpDevice.
+  const deviceW = lpDeviceCssWidth(win);
+  let scale = percent / 100;
+
+  if (LP_SCALE_DEVICE_TO_PANE && !lpShouldFillPane(win)) {
+    scale = lpFitScale(win) * (percent / 100);
+  }
+
+  const pane = lpPaneInnerSize(win);
+  const layoutW = lpShouldFillPane(win) ? pane.width || deviceW : deviceW;
+  const visualW = layoutW * scale;
+  const slackX = pane.width && visualW ? Math.max(0, pane.width - visualW) : 0;
+  const centerX = slackX > 1;
+
+  const fitted = LP_SCALE_DEVICE_TO_PANE && Math.abs(scale - 1) >= 0.001;
+  const wantOrigin = fitted ? 'top left' : 'top center';
+  const wantTransform = fitted || Math.abs(scale - 1) >= 0.001 ? `scale(${scale})` : '';
+
+  if (contents && LP_SCALE_DEVICE_TO_PANE) {
+    // Keep the layout box left-aligned while scaled (origin top-left). Centering
+    // is done with marginLeft so a 1440 frame in a narrower pane cannot clip.
+    const align = fitted ? 'flex-start' : 'center';
+
+    if (contents.style.getPropertyValue('align-items') !== align) {
+      contents.style.setProperty('align-items', align, 'important');
+    }
+  }
+
+  // Scale from the top-left of the pane. Origin `center` plus a 1440px frame in
+  // a narrower column clips the left of the page — overflow hides it before
+  // the transform is painted.
   if (iframe.style.transformOrigin !== wantOrigin) {
     iframe.style.transformOrigin = wantOrigin;
   }
@@ -11481,21 +12856,42 @@ function applyLpZoom(win, percent = lpStoredZoom(win)) {
     iframe.style.transform = wantTransform;
   }
 
-  if (scale === 1) {
-    if (iframe.style.marginBottom) {
-      iframe.style.marginBottom = '';
-    }
+  if (!wantTransform) {
+    ['marginBottom', 'marginLeft', 'marginRight'].forEach((prop) => {
+      if (iframe.style[prop]) {
+        iframe.style[prop] = '';
+      }
+    });
 
     return;
   }
 
-  // When scaled down, reclaim the leftover vertical space so the contents
-  // pane doesn't scroll through empty padding under the frame.
-  const h = iframe.offsetHeight || iframe.getBoundingClientRect().height / scale;
-  const wantMargin = `${h * (scale - 1)}px`;
+  const paneH = pane.height;
+  const layoutH = paneH && fitted ? paneH / scale : iframe.offsetHeight || paneH;
+  const wantMarginY = `${layoutH * (scale - 1)}px`;
+  const wantMarginL = fitted && centerX ? `${Math.round(slackX / 2)}px` : '';
+  const wantMarginR = fitted ? `${layoutW * (scale - 1)}px` : '';
 
-  if (iframe.style.marginBottom !== wantMargin) {
-    iframe.style.marginBottom = wantMargin;
+  if (fitted && paneH) {
+    const wantH = `${layoutH}px`;
+
+    if (iframe.style.getPropertyValue('height') !== wantH) {
+      iframe.style.setProperty('height', wantH, 'important');
+    }
+  }
+
+  if (iframe.style.marginBottom !== wantMarginY) {
+    iframe.style.marginBottom = wantMarginY;
+  }
+
+  if (fitted) {
+    if (iframe.style.marginLeft !== wantMarginL) {
+      iframe.style.marginLeft = wantMarginL;
+    }
+
+    if (iframe.style.marginRight !== wantMarginR) {
+      iframe.style.marginRight = wantMarginR;
+    }
   }
 }
 
@@ -11613,11 +13009,13 @@ function ensureLpPreviewChrome(win) {
 
     zoomLabel.type = 'button';
     zoomLabel.dataset.zoom = 'label';
-    zoomLabel.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 8px;min-width:3.25rem;`;
+    zoomLabel.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 8px;min-width:6.25rem;white-space:nowrap;`;
     zoomLabel.addEventListener('click', () => {
+      const max = lpMaxStoredZoom(win);
+      const allowed = LP_ZOOM_STEPS.filter((step) => step <= max);
       const cur = lpStoredZoom(win);
-      const idx = LP_ZOOM_STEPS.indexOf(cur);
-      const next = LP_ZOOM_STEPS[(idx + 1) % LP_ZOOM_STEPS.length] ?? LP_ZOOM_DEFAULT;
+      const idx = allowed.indexOf(cur);
+      const next = allowed[(idx + 1) % allowed.length] ?? LP_ZOOM_DEFAULT;
 
       setLpZoom(win, next);
     });
@@ -11632,10 +13030,11 @@ function ensureLpPreviewChrome(win) {
     zoomIn.style.cssText =
       `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
     zoomIn.addEventListener('click', () => {
-      const cur = lpStoredZoom(win);
-      const next = LP_ZOOM_STEPS.find((step) => step > cur) ?? Math.min(300, cur + 10);
+      const next = lpNextZoomIn(win);
 
-      setLpZoom(win, next);
+      if (next > lpStoredZoom(win)) {
+        setLpZoom(win, next);
+      }
     });
 
     zoom.appendChild(zoomOut);
@@ -11661,7 +13060,12 @@ function ensureLpPreviewChrome(win) {
 
       btn.type = 'button';
       btn.dataset.device = key;
-      btn.title = key === 'Responsive' ? t(win, 'device_fit') : key;
+      btn.title =
+        key === 'Responsive'
+          ? t(win, 'device_full')
+          : key === 'Laptop'
+            ? t(win, 'device_laptop')
+            : key;
       btn.innerHTML = LP_DEVICE_ICONS[key] || LP_DEVICE_ICONS.Laptop;
       btn.style.cssText =
         `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
@@ -11721,7 +13125,7 @@ function paintLpPreviewChrome(win) {
   }
 
   const device = lpChromeActiveDevice(win);
-  const zoom = lpStoredZoom(win);
+  const zoom = lpVisualZoom(win);
 
   chrome.querySelectorAll('[data-device]').forEach((btn) => {
     paintLpActiveControl(btn, btn.dataset.device === device);
@@ -11732,6 +13136,21 @@ function paintLpPreviewChrome(win) {
     if (btn.dataset.zoom === 'label') {
       if (btn.style.opacity !== '1') {
         btn.style.opacity = '1';
+      }
+
+      return;
+    }
+
+    if (btn.dataset.zoom === 'in') {
+      const allowed = lpZoomInAllowed(win);
+      const want = allowed ? LP_ICON_IDLE_OPACITY : LP_ICON_LOCKED_OPACITY;
+
+      btn.disabled = !allowed;
+      btn.setAttribute('aria-disabled', allowed ? 'false' : 'true');
+      btn.title = t(win, allowed ? 'zoom_in' : 'zoom_in_max');
+
+      if (btn.style.opacity !== want) {
+        btn.style.opacity = want;
       }
 
       return;
@@ -11748,13 +13167,24 @@ function paintLpPreviewChrome(win) {
   const label = chrome.querySelector('[data-zoom="label"]');
 
   if (label) {
-    const text = `${zoom}%`;
+    const auto = lpZoomIsAuto(win);
+    const text = auto ? t(win, 'zoom_auto', { percent: zoom }) : `${zoom}%`;
 
     if (label.textContent !== text) {
       label.textContent = text;
     }
 
-    const title = t(win, 'zoom_level', { percent: zoom });
+    if (label.style.minWidth !== '6.25rem') {
+      label.style.minWidth = '6.25rem';
+    }
+
+    if (label.style.whiteSpace !== 'nowrap') {
+      label.style.whiteSpace = 'nowrap';
+    }
+
+    const title = auto
+      ? t(win, 'zoom_auto', { percent: zoom })
+      : t(win, 'zoom_level', { percent: zoom });
 
     if (label.title !== title) {
       label.title = title;
@@ -11957,44 +13387,54 @@ function loadHeaderTab(win) {
     return;
   }
 
-  // A fresh Live Preview starts with every icon folded — otherwise the bar
-  // changes width a moment after it appears. A page change is different: the
-  // next editor should look like the one you just left, tab and all.
-  if (shouldKeepChrome(win)) {
-    try {
-      const stored = win.localStorage.getItem('sve-header-tab');
+  try {
+    const stored = win.localStorage.getItem('sve-header-tab');
 
-      headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
-    } catch {
-      headerTab = null;
-    }
+    headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
+  } catch {
+    headerTab = null;
+  }
+}
+
+/** Re-open a docked right panel that was showing last time. */
+let dockedHeaderRestored = false;
+
+function restoreDockedHeaderPanels(win) {
+  let want = '';
+
+  try {
+    want = win.localStorage.getItem(LP_DOCKED_KEY) || '';
+  } catch {
+    /* private mode */
+  }
+
+  // Closed on purpose — don't bring it back from an old header tab.
+  if (!want) {
+    dockedHeaderRestored = true;
 
     return;
   }
 
-  headerTab = null;
+  const showing =
+    (want === 'sections' && !!win.document.getElementById(SECTION_PICKER_ID)) ||
+    ((want === 'listview' || want === 'outline') && !!listViewPanel(win.document));
 
-  if (!headerTabAvailable(win, headerTab)) {
-    setHeaderTab(win, null);
+  if (showing) {
+    dockedHeaderRestored = true;
+
+    return;
   }
-}
 
-/** Re-open a docked right panel that was showing when the last page left. */
-let dockedHeaderRestored = false;
-
-function restoreDockedHeaderPanels(win) {
-  if (dockedHeaderRestored || !shouldKeepChrome(win)) {
+  if (dockedHeaderRestored && !shouldKeepChrome(win)) {
     return;
   }
 
   dockedHeaderRestored = true;
 
-  if (headerTab === 'sections' && !win.document.getElementById(SECTION_PICKER_ID)) {
+  if (want === 'sections') {
     openSectionPicker(win);
-  } else if (headerTab === 'listview' && !listViewPanel(win.document)) {
+  } else if (want === 'listview' || want === 'outline') {
     toggleListViewPanel(win);
-  } else if (headerTab === 'outline' && !outlinePanel(win.document)) {
-    toggleOutlinePanel(win);
   }
 }
 
@@ -12148,6 +13588,18 @@ function ensureHeaderToolbar(win) {
 function toggleHeaderTab(win, key) {
   const active = headerTab === key;
 
+  if (key === 'settings') {
+    // The icon follows the panel, not the remembered tab. Hidden leaves the tab
+    // as "settings" while the sidebar is gone — using that as `active` made the
+    // next click close a panel that was already closed.
+    const open = lpCollapsed === false;
+
+    setLpMode(win, open ? 'hide' : 'show');
+    applyHeaderTab(win);
+
+    return;
+  }
+
   if (key === 'outline') {
     // A docked panel, like the section library — the icon is the whole control,
     // there is nothing to unfold into the header beside it.
@@ -12159,9 +13611,11 @@ function toggleHeaderTab(win, key) {
   }
 
   if (key === 'listview') {
-    // Same shape as the outline: one icon, one docked panel, nothing to unfold.
-    setHeaderTab(win, active ? null : 'listview');
+    const open = !!listViewPanel(win.document);
+
+    setHeaderTab(win, open ? null : 'listview');
     toggleListViewPanel(win);
+    persistDockedPanel(win);
     applyHeaderTab(win);
 
     return;
@@ -12180,32 +13634,19 @@ function toggleHeaderTab(win, key) {
       syncSectionLibraryAvailability(win);
     }
 
-    // Its "expanded" form is the docked panel, not a header control.
-    setHeaderTab(win, active ? null : 'sections');
+    const open = !!win.document.getElementById(SECTION_PICKER_ID);
+
+    setHeaderTab(win, open ? null : 'sections');
     openSectionPicker(win); // toggles
-
-    if (!active) {
-      setLpCollapsed(win, true); // give the preview its width back
-    }
-
+    persistDockedPanel(win);
     applyHeaderTab(win);
 
     return;
   }
 
-  // Switching to an inline control closes any docked right panel — one thing out
-  // at a time.
-  closeRightPanels(win);
+  // Pages / Globals unfold in the header. They must not close a docked right
+  // panel — changing page with the block tree open is a normal move.
   setHeaderTab(win, active ? null : key);
-
-  // The settings tab is the editor panel. Move the MODE with it, not just the
-  // panel — an open panel while Hide stays lit is a contradiction. Opening → Show,
-  // closing → Hide, so Hide/Auto/Show always tells the truth about what's on
-  // screen.
-  if (key === 'settings') {
-    setLpMode(win, active ? 'hide' : 'show');
-  }
-
   applyHeaderTab(win);
 }
 
@@ -12397,7 +13838,7 @@ function applyHeaderTab(win) {
   const headerBg = lpHeaderBg(win) || 'rgba(0,0,0,.35)';
 
   if (modeGroup) {
-    modeGroup.style.display = headerTab === 'settings' ? 'inline-flex' : 'none';
+    modeGroup.style.display = lpCollapsed === false ? 'inline-flex' : 'none';
   }
 
   // A control whose tool is off stays hidden whatever the active tab is — its
@@ -12485,6 +13926,7 @@ function applyHeaderTab(win) {
   // what is in front of you.
   const docked = {
     sections: !!doc.getElementById(SECTION_PICKER_ID),
+    listview: !!listViewPanel(doc),
     outline: !!outlinePanel(doc),
   };
 
@@ -12494,25 +13936,35 @@ function applyHeaderTab(win) {
   // panelikonet ligger et niveau nede i sin egen ramme.
   syncToolbarIcons(doc);
 
+  const sidebarOpen = lpCollapsed === false;
+
   doc.getElementById(HEADER_TOOLBAR_ID)?.querySelectorAll('button[data-tab]').forEach((btn) => {
     const tab = btn.dataset.tab;
-    const on = tab in docked ? docked[tab] : tab === headerTab;
+    const on =
+      tab === 'settings'
+        ? sidebarOpen
+        : tab in docked
+          ? docked[tab]
+          : tab === headerTab;
 
-    // One grey pill language everywhere. MERGED icons sit on the frame surface
-    // (transparent). Standalone icons get HEADER_SURFACE. Idle = slight opacity.
-    if (MERGED_TABS.includes(tab)) {
-      btn.style.background = 'transparent';
-    } else {
-      btn.style.background = HEADER_SURFACE;
-    }
-
-    btn.style.color = 'currentColor';
     btn.style.border = 'none';
     btn.style.boxShadow = 'none';
     btn.style.cursor = 'pointer';
 
-    // Sets the opacity itself — a locked tool is dimmer than an idle one, and
-    // brighter than nothing.
+    if (MERGED_TABS.includes(tab)) {
+      btn.style.background = 'transparent';
+      btn.style.color = 'currentColor';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    } else if (on) {
+      btn.style.background = HEADER_FIELD_SURFACE;
+      btn.style.color = 'currentColor';
+      btn.setAttribute('aria-pressed', 'true');
+    } else {
+      btn.style.background = HEADER_SURFACE;
+      btn.style.color = 'currentColor';
+      btn.setAttribute('aria-pressed', 'false');
+    }
+
     paintFocusLockedTabs(win, btn, tab, on);
   });
 
@@ -14683,6 +16135,12 @@ function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
 function handleAddBlockNative(data, doc, win) {
   const { anchorUid, sectionUid, anchorRect = null, position = 'after' } = data;
 
+  if (data.template || (data.fieldDefaults && Object.keys(data.fieldDefaults).length)) {
+    watchNewRow(doc, win, data, (container, values, parentPath, added) => {
+      overlaySidTemplate(win, container, values, parentPath, added, data.template, data.fieldDefaults);
+    });
+  }
+
   // A global section's fields are not in this form. They belong to the synced
   // source entry, whose own form is the panel docked beside the preview — so the
   // set lives in that document, and the picker has to open in there. Without
@@ -15263,6 +16721,10 @@ export function createMessageListener(doc = document, win = window) {
       const idoc = globalSectionEditorDoc(doc);
 
       handleAssetEdit(data, idoc || doc);
+    } else if (data.type === 'icon-edit') {
+      const idoc = globalSectionEditorDoc(doc);
+
+      handleIconEdit(data, idoc || doc, win);
     } else if (data.type === 'link-edit') {
       const idoc = globalSectionEditorDoc(doc);
       const iwin = globalSectionEditorWin(win);
@@ -15390,16 +16852,19 @@ const CP_STYLES = `
 #__sve-preview-chrome button {
   cursor: pointer !important;
 }
+#__sve-preview-chrome button:disabled {
+  cursor: default !important;
+}
 #__sve-toolbar button[data-tab]:hover:not(:disabled),
-#__sve-lp-mode button:hover,
-#__sve-preview-chrome button:hover {
+#__sve-lp-mode button:hover:not(:disabled),
+#__sve-preview-chrome button:hover:not(:disabled) {
   opacity: 1 !important;
 }
-#__sve-toolbar button[data-tab]:hover:not(:disabled) {
+#__sve-toolbar button[data-tab]:hover:not(:disabled):not([aria-pressed="true"]) {
   background: rgba(128, 128, 128, .28) !important;
 }
-#__sve-lp-mode button:hover:not([aria-pressed="true"]),
-#__sve-preview-chrome button:hover:not([aria-pressed="true"]) {
+#__sve-lp-mode button:hover:not(:disabled):not([aria-pressed="true"]),
+#__sve-preview-chrome button:hover:not(:disabled):not([aria-pressed="true"]) {
   background: rgba(128, 128, 128, .22) !important;
 }
 
@@ -15881,6 +17346,8 @@ header:hover > [data-sve-focus-step] {
   justify-content: flex-start !important;
   align-items: center !important;
   gap: 1.25rem;
+  position: relative;
+  z-index: 50;
 }
 .live-preview-header > :last-child {
   margin-left: auto;
@@ -20245,9 +21712,11 @@ function showNavSpinner(win) {
   overlay.style.pointerEvents = 'auto';
   overlay.setAttribute('aria-hidden', 'true');
   overlay.innerHTML =
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" ' +
+    '<span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;' +
+    'border-radius:999px;background:#000;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35);">' +
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
     'stroke-linecap="round" style="animation:sve-lp-spin 1s linear infinite;">' +
-    '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>' +
+    '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg></span>' +
     '<style>@keyframes sve-lp-spin{to{transform:rotate(360deg)}}</style>';
   doc.body.appendChild(overlay);
   void overlay.offsetWidth;
@@ -21405,8 +22874,7 @@ function openGlobalSectionPanelFrame(win, id) {
     editor.appendChild(panel);
   } else {
     // Fallback if LP editor isn't mounted yet — left-docked fixed panel.
-    const header = lpHeader(doc);
-    const top = header ? Math.round(header.getBoundingClientRect().bottom) : 0;
+    const top = dockedPanelTop(win);
 
     panel.style.cssText =
       `position:fixed;top:${top}px;left:0;bottom:0;width:${lpStoredWidth(win)}px;z-index:40;` +

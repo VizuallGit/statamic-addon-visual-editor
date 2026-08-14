@@ -97,6 +97,42 @@ export function injectStyles(doc) {
             outline-offset: 2px;
             transition: outline-color 0.15s ease;
         }
+        /* Iconify (and similar picker) fields: a persistent inner ring so the
+           graphic reads as its own target inside a selected row. Empty slots
+           keep a clickable box so "no icon yet" still opens the search. */
+        [data-sid-field][data-sid-fieldtype="iconify"],
+        [data-sid-field][data-sid-fieldtype="iconamic"] {
+            position: relative;
+            display: inline-flex;
+            vertical-align: middle;
+            align-items: center;
+            justify-content: center;
+        }
+        [data-sid-field][data-sid-fieldtype="iconify"]:not(:has(svg, img, iconify-icon, picture)),
+        [data-sid-field][data-sid-fieldtype="iconamic"]:not(:has(svg, img, iconify-icon, picture)) {
+            min-width: 2.25em;
+            min-height: 2.25em;
+        }
+        /* Ghost text while a field is empty — editor only, never stored.
+           A real child (not ::before/::after): those pseudos already paint the
+           dashed ring and the set label. */
+        [data-sve-placeholder] {
+            display: inline;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        [data-sve-placeholder]::before {
+            content: attr(data-sve-placeholder);
+            opacity: 0.4;
+        }
+        [${EDITING_ATTR}] [data-sve-placeholder] {
+            display: none;
+        }
+        [data-sid-field][data-sid-fieldtype="iconify"]:not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]),
+        [data-sid-field][data-sid-fieldtype="iconamic"]:not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]) {
+            --sve-outline-color: var(--sve-outline-ambient, rgba(0, 0, 0, 0.18));
+        }
         [data-sid-orderable] {
             cursor: grab;
         }
@@ -182,6 +218,8 @@ export function injectStyles(doc) {
         [data-sid-active]::before,
         [data-sid-outline="always"]:hover > [data-sid]::before,
         [data-sid-outline="always"][data-sid-outline-on] > [data-sid]::before,
+        [data-sid-field][data-sid-fieldtype="iconify"]::before,
+        [data-sid-field][data-sid-fieldtype="iconamic"]::before,
         [${EDITING_ATTR}]::before {
             content: '';
             position: absolute;
@@ -596,7 +634,7 @@ function requestInlineEdit(win, wrapper, event, options = {}) {
     }
 
     if (node.parentElement === wrapper) {
-      blockEl = node;
+      blockEl = node.hasAttribute('data-sve-placeholder') ? null : node;
     }
   }
 
@@ -634,6 +672,8 @@ function requestInlineEdit(win, wrapper, event, options = {}) {
       // Inline Bard (headline): preview has bare text/spans; CP may still hold
       // a legacy string or unwrapped text nodes — flag so edit can upgrade.
       bardInline: wrapper.hasAttribute('data-sid-bard-inline'),
+      fieldtype: wrapper.getAttribute('data-sid-fieldtype') || '',
+      as: wrapper.getAttribute('data-sid-as') || '',
       // Handles only — the CP answers with their current values so the toolbar
       // can render each control pre-selected.
       controls: controlsFrom(wrapper).map((c) => c.handle),
@@ -644,6 +684,48 @@ function requestInlineEdit(win, wrapper, event, options = {}) {
 
 const escapeHtml = (text) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * What an empty Bard field is — heading vs paragraph. From `as="h3"` /
+ * `placeholder="h3:…"`, or from the wrapper tag itself (`<h3>`).
+ */
+function sidAsKind(el) {
+  const fromAs = parseSidAs(el?.getAttribute?.('data-sid-as') || '');
+
+  if (fromAs) {
+    return fromAs;
+  }
+
+  const heading = /^H([1-6])$/.exec(el?.tagName || '');
+
+  if (heading) {
+    return { kind: 'heading', level: Number(heading[1]) };
+  }
+
+  return { kind: 'paragraph', level: null };
+}
+
+function parseSidAs(raw) {
+  const as = String(raw || '')
+    .trim()
+    .toLowerCase();
+
+  if (!as) {
+    return null;
+  }
+
+  if (as === 'p' || as === 'paragraph') {
+    return { kind: 'paragraph', level: null };
+  }
+
+  const h = /^h([1-6])$/.exec(as) || /^heading:?([1-6])?$/.exec(as);
+
+  if (h) {
+    return { kind: 'heading', level: Number(h[1] || 2) };
+  }
+
+  return null;
+}
 
 /**
  * The wrapper child block containing the current selection (whole-field mode),
@@ -716,6 +798,62 @@ function isEmptyEditableBlock(el) {
   const text = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
 
   return text === '';
+}
+
+/**
+ * Ghost text on empty fields (`placeholder="Enter a title"` → data-sid-placeholder).
+ *
+ * A real span, not a pseudo: ::before is the dashed ring and ::after is the set
+ * label. The span has no text nodes, so textContent (and therefore saved values)
+ * stay empty — the hint is CSS `content` only, like Gutenberg's RichText.
+ */
+function syncSidPlaceholders(doc) {
+  if (!doc?.querySelectorAll) {
+    return;
+  }
+
+  doc.querySelectorAll('[data-sid-placeholder]').forEach((el) => {
+    const hint = el.getAttribute('data-sid-placeholder') || '';
+    const span = [...el.children].find((child) => child.hasAttribute('data-sve-placeholder'));
+
+    if (el.hasAttribute(EDITING_ATTR) || el.querySelector(`[${EDITING_ATTR}]`)) {
+      span?.remove();
+
+      return;
+    }
+
+    const empty = fieldIsEmptyForPlaceholder(el);
+
+    if (!hint || !empty) {
+      span?.remove();
+
+      return;
+    }
+
+    const node = span || doc.createElement('span');
+
+    node.setAttribute('data-sve-placeholder', hint);
+    node.setAttribute('aria-hidden', 'true');
+    node.setAttribute('contenteditable', 'false');
+
+    if (!span) {
+      el.insertBefore(node, el.firstChild);
+    }
+  });
+}
+
+function fieldIsEmptyForPlaceholder(el) {
+  const clone = el.cloneNode(true);
+
+  clone.querySelectorAll('[data-sve-placeholder]').forEach((node) => node.remove());
+
+  const text = (clone.textContent || '').replace(/\u00a0/g, ' ').trim();
+
+  if (text) {
+    return false;
+  }
+
+  return !clone.querySelector('svg, img, iconify-icon, picture, video, iframe');
 }
 
 /**
@@ -879,6 +1017,7 @@ function sendEditInput(win, session) {
       return;
     }
 
+    const wrapperKind = sidAsKind(session.el);
     const blocks = [];
 
     for (const child of session.el.childNodes) {
@@ -886,13 +1025,22 @@ function sendEditInput(win, session) {
         const text = child.nodeValue.trim();
 
         if (text) {
-          blocks.push({ kind: 'paragraph', level: null, className: null, html: escapeHtml(text) });
+          blocks.push({
+            kind: wrapperKind.kind,
+            level: wrapperKind.level,
+            className: null,
+            html: escapeHtml(text),
+          });
         }
 
         continue;
       }
 
       if (child.nodeType !== 1) {
+        continue;
+      }
+
+      if (child.hasAttribute('data-sve-placeholder')) {
         continue;
       }
 
@@ -951,6 +1099,21 @@ function sendEditInput(win, session) {
         className: vizuClass,
         vizuClass,
         vizuBlockStyle: child.getAttribute?.('data-vbs') || null,
+        html,
+      });
+    }
+
+    if (!blocks.length) {
+      const clone = session.el.cloneNode(true);
+
+      clone.querySelectorAll('[data-sve-placeholder]').forEach((node) => node.remove());
+
+      const html = /^<br\s*\/?>$/i.test((clone.innerHTML || '').trim()) ? '' : clone.innerHTML;
+
+      blocks.push({
+        kind: wrapperKind.kind,
+        level: wrapperKind.level,
+        className: null,
         html,
       });
     }
@@ -1124,6 +1287,7 @@ function openToolbarMenu(win, anchor, key, rows) {
       });
       row.addEventListener('click', (e) => {
         e.preventDefault();
+        e.stopPropagation();
         menu.remove();
         item.run();
       });
@@ -2596,6 +2760,7 @@ function rowContextFor(win, el) {
       // A flat rect on the edge the new block lands at, so the picker opens
       // where it is going rather than over the middle of the block it came from.
       anchorRect: { left: r.left, right: r.left, top: edge, bottom: edge, width: 0, height: 0 },
+      ...sidTemplatePayload(row.parentElement),
     });
   };
 
@@ -2627,7 +2792,7 @@ function rowContextFor(win, el) {
           dividerBefore: true,
           // Hidden when the field is at max_rows / max_sets — see menu open.
           requiresAdd: true,
-          run: () => post('add-row'),
+          run: () => post('add-row', sidTemplatePayload(row)),
         },
         {
           label: t('remove_this'),
@@ -6165,7 +6330,7 @@ function showMoveControl(win, moveEl) {
       moveCtrlRowButtons = { uid, addBtn: dupBtn, removeBtn };
       win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
     } else {
-      const addBtn = rowButton('+', t('add_another'), 'add-row');
+      const addBtn = rowButton('+', t('add_another'), 'add-row', '', false, sidTemplatePayload(moveEl));
       // Taking away the last row leaves the block holding this field with
       // nothing to draw — see blockHolding(). The uid, not the element: this
       // rides across postMessage, which can only carry plain data.
@@ -6450,6 +6615,8 @@ function startEditing(win, data) {
     setInserterEl: null,
   };
 
+  el.querySelectorAll('[data-sve-placeholder]').forEach((node) => node.remove());
+
   // Before contenteditable: turn highlight spans back into {text} so a plain
   // string field keeps its markers (textContent would otherwise drop them).
   if (data.mode === 'string') {
@@ -6513,6 +6680,7 @@ function startEditing(win, data) {
 
   session.onInput = () => {
     session.dirty = true;
+    syncSidPlaceholders(win.document);
     clearTimeout(session.inputTimer);
     session.inputTimer = setTimeout(() => sendEditInput(win, session), EDIT_INPUT_DEBOUNCE);
     positionEditToolbar(win, session);
@@ -6703,6 +6871,8 @@ export function finishEditing(win, cancelled) {
   if (cancelled) {
     el.innerHTML = session.restoreHtml;
   }
+
+  syncSidPlaceholders(win.document);
 
   if (win.document.activeElement === el) {
     el.blur();
@@ -6936,6 +7106,66 @@ function resolveSidTarget(win, event) {
   }
 
   return base;
+}
+
+const ICON_PICKER_TYPES = ['iconify', 'iconamic'];
+
+function isIconPickerField(el) {
+  const type = (el.getAttribute('data-sid-fieldtype') || '').toLowerCase();
+
+  if (ICON_PICKER_TYPES.includes(type)) {
+    return true;
+  }
+
+  // Blueprint missed: a wrapper whose only content is an icon graphic.
+  if (!el.hasAttribute('data-sid-inline-edit')) {
+    return false;
+  }
+
+  return !!el.querySelector('svg, iconify-icon') && normText(el.textContent) === '';
+}
+
+function iconFieldHasValue(el) {
+  if (el.querySelector('[data-sve-icon-empty]')) {
+    return false;
+  }
+
+  if (el.querySelector('svg, img, iconify-icon, picture')) {
+    return true;
+  }
+
+  return normText(el.textContent) !== '';
+}
+
+function postIconEdit(win, wrapper, action) {
+  win.parent.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'icon-edit',
+      action,
+      field: wrapper.getAttribute(SID_FIELD_ATTR),
+      scope: wrapper.getAttribute('data-sid-field-uid') || undefined,
+    },
+    win.location.origin
+  );
+}
+
+/**
+ * Change / Remove hung off the clicked icon — same two actions as the Iconify
+ * field in the sidebar, but sitting on the preview so the panel can stay closed.
+ */
+function openIconFieldMenu(win, wrapper) {
+  openToolbarMenu(win, wrapper, 'icon-picker', [
+    {
+      label: t('icon_change'),
+      run: () => postIconEdit(win, wrapper, 'change'),
+    },
+    {
+      label: t('icon_remove'),
+      danger: true,
+      run: () => postIconEdit(win, wrapper, 'remove'),
+    },
+  ]);
 }
 
 export function createClickHandler(win) {
@@ -7265,6 +7495,18 @@ export function createClickHandler(win) {
             },
             win.location.origin
           );
+
+          return;
+        }
+
+        // Iconify: filled icon → Change/Remove (same as the sidebar). Empty →
+        // Iconify's own search, same as "Browse Iconify".
+        if (isIconPickerField(target)) {
+          if (iconFieldHasValue(target)) {
+            openIconFieldMenu(win, target);
+          } else {
+            postIconEdit(win, target, 'browse');
+          }
 
           return;
         }
@@ -8026,6 +8268,7 @@ export function initBridge(win = window) {
   win.addEventListener('statamic:preview-updated', () => {
     hideMoveControl(win);
     hideColumnChrome(win);
+    win.document.querySelector('[data-sve-menu]')?.remove();
     // No fade here: the grid the tracks were measured against is being replaced,
     // so there is nothing left for them to sit on while they bow out.
     hideGridLines(true);
@@ -8068,6 +8311,7 @@ export function initBridge(win = window) {
     }
 
     setupInserters(win); // fresh blocks after the morph
+    syncSidPlaceholders(win.document);
   });
 
   // Escape asks to leave chrome / global focus (CP warns if dirty).
@@ -8097,6 +8341,7 @@ export function initBridge(win = window) {
   // resizes, and rebuild after a morph brings in fresh blocks.
   setupInserters(win);
   enhanceHighlightBraces(win);
+  syncSidPlaceholders(win.document);
   win.addEventListener('scroll', () => repositionInserters(win), true);
   win.addEventListener('resize', () => repositionInserters(win));
 }
@@ -8113,6 +8358,54 @@ export function initBridge(win = window) {
 const INSERT_ATTR = 'data-sid-insert';
 const INSERT_LAYER_ID = '__sve-inserters';
 let inserterInstances = [];
+
+function collectSidFieldDefaults(root) {
+  const out = {};
+
+  if (!root?.querySelectorAll) {
+    return out;
+  }
+
+  root.querySelectorAll('[data-sid-field][data-sid-default]').forEach((el) => {
+    const field = el.getAttribute('data-sid-field');
+    const value = el.getAttribute('data-sid-default');
+
+    if (field && value != null && value !== '') {
+      out[field] = value;
+    }
+  });
+
+  return out;
+}
+
+function sidTemplatePayload(el) {
+  const container = el?.hasAttribute?.(INSERT_ATTR) ? el : el?.closest?.(`[${INSERT_ATTR}]`);
+  const row = el?.closest?.('[data-sid-orderable]');
+  const containerTemplate =
+    container?.getAttribute('data-sid-template') || el?.getAttribute?.('data-sid-template') || '';
+  const rowTemplate =
+    row?.getAttribute('data-sid-template') ||
+    container?.getAttribute('data-sid-row-template') ||
+    '';
+  const fieldDefaults = collectSidFieldDefaults(container || el);
+  const extra = {};
+
+  if (container?.getAttribute(INSERT_ATTR)) {
+    extra.field = container.getAttribute(INSERT_ATTR);
+  }
+
+  // A click on an existing row uses that row's template (`icon|title` on the
+  // <li>). The container's `3:item` is only for seeding a new list.
+  extra.template = rowTemplate || containerTemplate;
+  extra.rowTemplate = rowTemplate;
+  extra.containerTemplate = containerTemplate;
+
+  if (Object.keys(fieldDefaults).length) {
+    extra.fieldDefaults = fieldDefaults;
+  }
+
+  return extra;
+}
 
 /**
  * Is this global section the one being edited?
@@ -8151,6 +8444,16 @@ function setupInserters(win) {
   inserterInstances = [];
 
   win.document.querySelectorAll(`[${INSERT_ATTR}]`).forEach((container) => {
+    if (!container.getAttribute('data-sid-row-template')) {
+      const row = [...container.querySelectorAll('[data-sid-orderable][data-sid-template]')].find(
+        (el) => el !== container
+      );
+
+      if (row?.getAttribute('data-sid-template')) {
+        container.setAttribute('data-sid-row-template', row.getAttribute('data-sid-template'));
+      }
+    }
+
     // Bard whole-field (inline_edit): uses its own empty-paragraph "+" / SetPicker,
     // not the Style 2 replicator inserter strip.
     if (
@@ -8388,6 +8691,7 @@ function buildInserter(win, opts) {
             height: r.height,
           },
           ...extra,
+          ...sidTemplatePayload(opts.container),
         },
         win.location.origin
       );

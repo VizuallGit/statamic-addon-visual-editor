@@ -18,6 +18,8 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ColumnSpanFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\IconButtonGroupFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\Replicator;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\BardDefaultFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\DefaultSetsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
 use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
@@ -77,6 +79,8 @@ class ServiceProvider extends AddonServiceProvider
         ColumnSpanFieldtype::class,
         IconButtonGroupFieldtype::class,
         UniqueSetsFieldtype::class,
+        DefaultSetsFieldtype::class,
+        BardDefaultFieldtype::class,
         // ⚠️ Overtager Statamics egen `replicator`-handle — handlen udledes
         // af klassenavnet. ALT replicator-arbejde i CP'et går igennem den.
         Replicator::class,
@@ -212,6 +216,8 @@ class ServiceProvider extends AddonServiceProvider
         // scripts partial so it only runs on Control Panel page renders (not the
         // front-end), and after routing so the blueprints are resolvable.
         View::composer('statamic::partials.scripts', function () {
+            $setMeta = SetMeta::all();
+
             Statamic::provideToScript([
                 'svePreviewImages' => SetPreviewImages::map(),
                 'sveGlobalSets' => $this->globalSets(),
@@ -220,7 +226,8 @@ class ServiceProvider extends AddonServiceProvider
                 // What each set calls itself — the name, icon and instructions the
                 // focus panel puts at the top. Set config never reaches the
                 // rendered form, so it travels with the rest of the settings.
-                'sveSetMeta' => SetMeta::map(),
+                'sveSetMeta' => $setMeta['sets'],
+                'sveGridMeta' => $setMeta['grids'],
                 // Handles the client must not assume: everything it builds (field
                 // paths, the global-section row, the CP link to a source entry)
                 // comes from config, so the addon works on any site as installed.

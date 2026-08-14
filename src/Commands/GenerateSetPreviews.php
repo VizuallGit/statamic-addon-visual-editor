@@ -18,15 +18,16 @@ use Statamic\Facades\Site;
  *
  * This is the one place screenshots are taken. Everything else — a save, a
  * fieldset change, the section library opening — asks for this to run, and the
- * fingerprints inside decide what actually needs a browser. Run it by hand after
- * `npm run build` if you'd rather not wait for the next save to notice.
+ * fingerprints inside decide what actually needs a browser. Beside Vite, run
+ * `npm run dev:previews` so a template or CSS change is photographed as it
+ * looks on the working tree. Without Vite, run this after `npm run build`.
  */
 class GenerateSetPreviews extends Command
 {
     protected $signature = 'sve:previews
         {--only= : A single set handle, or a saved section/template entry id}
         {--force : Re-shoot everything, even what the fingerprints say is current}
-        {--watch : Stay running and regenerate whenever a section template, the build or the theme changes}
+        {--watch : Stay running and regenerate whenever a section template, CSS, the build or the theme changes}
         {--interval=2 : Seconds between checks while watching}
         {--sync : Skip the lock — for running inside another process that holds it}';
 
@@ -131,7 +132,7 @@ class GenerateSetPreviews extends Command
             PreviewFingerprint::flush();
 
             // Every target's filename carries its fingerprint, so the set of names
-            // IS the state of the site's design: partials, defaults, built CSS and
+            // IS the state of the site's design: partials, defaults, CSS/JS and
             // theme settings all reach it.
             $current = md5(json_encode(array_map(
                 fn ($target) => $target['filename'],

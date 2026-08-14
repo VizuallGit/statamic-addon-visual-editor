@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Tags;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\IconResolver;
+use MarioHamann\StatamicVisualEditor\VisualEditAntlers;
 use Statamic\Facades\Blueprint;
 use Statamic\Tags\Tags;
 
@@ -73,6 +74,9 @@ class VisualEdit extends Tags
             if ($max = $this->resolveInsertMax((string) $field)) {
                 $attr .= ' data-sid-insert-max="'.$max.'"';
             }
+
+            $attr .= $this->templateAttr();
+            $attr .= $this->rowTemplateAttr((string) $field);
 
             return $isPair ? '<div '.$attr.$grid.'>'.$content.'</div>' : $attr.$grid;
         }
@@ -363,6 +367,15 @@ class VisualEdit extends Tags
             $attr .= ' data-sid-inside';
         }
 
+        // Fieldtype so the preview can open the right picker (Iconify, assets, …)
+        // instead of starting a text edit on a graphic. Omitted when the blueprint
+        // cannot be resolved — the preview then falls back to DOM sniffing.
+        $fieldType = $this->resolveFieldType($fieldPath);
+
+        if ($fieldType !== '') {
+            $attr .= ' data-sid-fieldtype="'.e($fieldType).'"';
+        }
+
         // inline_edit="true": opt-in for in-preview editing (contenteditable).
         // Without it, clicking the element only focuses the CP field. It says
         // nothing about a toolbar — that is `toolbar=` below.
@@ -418,6 +431,11 @@ class VisualEdit extends Tags
         if ($orderable) {
             $attr .= ' data-sid-orderable';
         }
+
+        $attr .= $this->templateAttr();
+        $attr .= $this->defaultAttr();
+        $attr .= $this->placeholderAttr();
+        $attr .= $this->asAttr();
 
         // toolbar="true": show the set's (or field's) icon as a badge in front of
         // the name in the inline toolbar. Opt-in per annotation, because `type`
@@ -500,7 +518,176 @@ class VisualEdit extends Tags
             $attr .= ' data-sid-orderable';
         }
 
+        $attr .= $this->templateAttr();
+
         return $attr;
+    }
+
+    /**
+     * `template="icon|title:Enter a title"` — starting inner sets for a new row,
+     * declared where the replicator is used rather than on the shared fieldset.
+     *
+     * On an insertable container, `template="3:item"` is how many rows of that
+     * set to create when the list itself is new. The row's own template
+     * (`template="icon|title"` on the `<li>`) says what each of those rows
+     * contains. Copied onto the container as `data-sid-row-template` so an
+     * empty list still knows — the `<li>` is not in the DOM yet.
+     *
+     * An interpolated parameter that was never passed (`template="{foo}"`) is
+     * empty and omitted, so nothing declared falls through to the fieldset.
+     */
+    private function templateAttr(): string
+    {
+        return $this->sidParamAttr('template', 'data-sid-template');
+    }
+
+    /**
+     * Inner-row template from the orderable sibling in this section's Antlers.
+     */
+    private function rowTemplateAttr(string $field): string
+    {
+        $found = VisualEditAntlers::fromSection($this->resolveSectionType(), $field);
+        $rowTemplate = $found['rowTemplate'] ?? '';
+
+        if ($rowTemplate === '') {
+            return '';
+        }
+
+        return ' data-sid-row-template="'.e($rowTemplate).'"';
+    }
+
+    /**
+     * `default="Enter a title"` — starting value for this field, at this place.
+     *
+     * For Bard: `default="heading:1:Book Title|paragraph:Summary"`. A plain
+     * string becomes a paragraph. Applied when the parent row is created, not
+     * written over content the editor has already typed.
+     */
+    private function defaultAttr(): string
+    {
+        return $this->sidParamAttr('default', 'data-sid-default');
+    }
+
+    /**
+     * `placeholder="Enter a title"` — ghost text in the preview while the field
+     * is empty. Never stored. Gutenberg / BlockStudio RichText: the hint lives
+     * where the field is rendered, so a shared title field can say different
+     * things in a hero and in a card, without a YAML default that then has to
+     * be dimmed with `is_default`.
+     *
+     * Prefix the hint with the Bard node it should be (`h3:Enter a title`,
+     * `paragraph:Summary`) — same idea as InnerBlocks listing `core/heading`
+     * vs `core/paragraph`. Bare text is just the hint; use `as=` for the node
+     * on its own.
+     */
+    private function placeholderAttr(): string
+    {
+        $parsed = $this->parsePlaceholderSpec($this->params->get('placeholder'));
+
+        if ($parsed['text'] === '') {
+            return '';
+        }
+
+        return ' data-sid-placeholder="'.e($parsed['text']).'"';
+    }
+
+    /**
+     * `as="h3"` — what an empty Bard field is: a heading or a paragraph.
+     * Taken from the param, or from a `placeholder="h3:…"` prefix.
+     */
+    private function asAttr(): string
+    {
+        $as = $this->normalizeAs($this->params->get('as'));
+
+        if ($as === null) {
+            $as = $this->parsePlaceholderSpec($this->params->get('placeholder'))['as'];
+        }
+
+        if ($as === null) {
+            return '';
+        }
+
+        return ' data-sid-as="'.e($as).'"';
+    }
+
+    /**
+     * @return array{text: string, as: string|null}
+     */
+    private function parsePlaceholderSpec(mixed $spec): array
+    {
+        if ($spec === null || $spec === false || $spec === true) {
+            return ['text' => '', 'as' => null];
+        }
+
+        $spec = trim((string) $spec);
+
+        if ($spec === '') {
+            return ['text' => '', 'as' => null];
+        }
+
+        if (preg_match('/^(h[1-6]|paragraph|p):(.+)$/is', $spec, $m)) {
+            return [
+                'as' => $this->normalizeAs($m[1]),
+                'text' => trim($m[2]),
+            ];
+        }
+
+        if (preg_match('/^heading:([1-6]):(.+)$/is', $spec, $m)) {
+            return [
+                'as' => 'h'.$m[1],
+                'text' => trim($m[2]),
+            ];
+        }
+
+        return ['text' => $spec, 'as' => null];
+    }
+
+    private function normalizeAs(mixed $as): ?string
+    {
+        if (! is_string($as)) {
+            return null;
+        }
+
+        $as = strtolower(trim($as));
+
+        if ($as === '' ) {
+            return null;
+        }
+
+        if (in_array($as, ['p', 'paragraph'], true)) {
+            return 'paragraph';
+        }
+
+        if (preg_match('/^h[1-6]$/', $as)) {
+            return $as;
+        }
+
+        if (preg_match('/^heading:?([1-6])?$/', $as, $m)) {
+            return 'h'.($m[1] ?: '2');
+        }
+
+        return null;
+    }
+
+    private function sidParamAttr(string $param, string $attribute): string
+    {
+        $spec = $this->params->get($param);
+
+        if ($spec === null || $spec === false || $spec === true) {
+            return '';
+        }
+
+        if (is_array($spec)) {
+            $spec = json_encode($spec);
+        }
+
+        $spec = trim((string) $spec);
+
+        if ($spec === '') {
+            return '';
+        }
+
+        return ' '.$attribute.'="'.e($spec).'"';
     }
 
     /**
@@ -510,6 +697,86 @@ class VisualEdit extends Tags
     private function inlineEditParam(): bool
     {
         return $this->params->bool('inline_edit', $this->params->bool('inline-edit', false));
+    }
+
+    /**
+     * The blueprint fieldtype for this handle (`iconify`, `assets`, `bard`, …).
+     * Empty when the field cannot be found — the preview then has no picker hint.
+     */
+    private function resolveFieldType(string $fieldPath): string
+    {
+        try {
+            $blueprintHandle = $this->params->get('blueprint');
+
+            if ($blueprintHandle) {
+                $blueprint = Blueprint::find((string) $blueprintHandle);
+            } else {
+                $page = $this->context->get('page');
+                $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
+            }
+
+            if (! $blueprint) {
+                return '';
+            }
+
+            $handle = last(explode('.', $fieldPath));
+            $matches = [];
+            $this->collectFieldsByHandle($blueprint->contents(), $handle, $matches);
+
+            $match = $this->preferFieldMatch($matches);
+            $type = $match['config']['type'] ?? null;
+
+            return is_string($type) && $type !== '' ? $type : '';
+        } catch (\Throwable $e) {
+            Log::debug('VisualEdit: failed to resolve field type for '.$fieldPath, ['exception' => $e]);
+
+            return '';
+        }
+    }
+
+    /**
+     * Picks the blueprint field that belongs to this row: the match whose set
+     * chain equals the scoped row's, then section+set, then nearest set handle,
+     * then the first match. Same preference order as resolveBardConfig.
+     */
+    private function preferFieldMatch(array $matches): ?array
+    {
+        if ($matches === []) {
+            return null;
+        }
+
+        $setType = (string) $this->context->get('type', '');
+        $valueChain = $this->resolveSetChainByScope();
+
+        if (! empty($valueChain)) {
+            foreach ($matches as $match) {
+                if (($match['chain'] ?? []) === $valueChain) {
+                    return $match;
+                }
+            }
+        }
+
+        $sectionType = $valueChain[0] ?? $this->resolveSectionType();
+
+        if ($sectionType !== '' && $setType !== '') {
+            foreach ($matches as $match) {
+                $chain = $match['chain'] ?? [];
+
+                if (($chain[0] ?? null) === $sectionType && ($chain[count($chain) - 1] ?? null) === $setType) {
+                    return $match;
+                }
+            }
+        }
+
+        if ($setType !== '') {
+            foreach ($matches as $match) {
+                if ($match['set'] === $setType) {
+                    return $match;
+                }
+            }
+        }
+
+        return $matches[0];
     }
 
     /**

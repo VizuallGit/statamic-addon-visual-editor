@@ -199,6 +199,7 @@ return [
 
         'watch' => [
             'public/build/manifest.json',
+            'resources/css',
             'resources/views',
         ],
         'watch_exclude' => [

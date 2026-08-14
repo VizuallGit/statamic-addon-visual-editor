@@ -31,6 +31,8 @@ return [
     'remove_section' => 'Remove this section',
     'add_column' => 'Add column',
     'save_enter' => 'Save (Enter)',
+    'icon_change' => 'Change',
+    'icon_remove' => 'Remove',
 
     // Global (synced) sections
     'global_badge' => 'Global — synced',
@@ -57,6 +59,7 @@ return [
     'listview_hide' => 'Hide',
     'listview_show' => 'Show',
     'listview_delete' => 'Delete',
+    'listview_item' => 'Item',
 
     // Heading outline
     'outline' => 'Heading outline',
@@ -163,9 +166,13 @@ return [
     'close_live_preview' => 'Close live preview',
     'close_live_preview_title' => 'Close Live Preview',
     'device_fit' => 'Fit to window',
+    'device_full' => 'Full width',
+    'device_laptop' => 'Laptop — stays desktop, scales to fit',
     'zoom_in' => 'Zoom in',
+    'zoom_in_max' => 'Already filling the preview',
     'zoom_out' => 'Zoom out',
     'zoom_level' => 'Zoom :percent%',
+    'zoom_auto' => ':percent% (Auto)',
     'back_save_and_leave' => 'Save and go back',
     'back_save_and_close' => 'Save and close',
     'back_save_publish_and_leave' => 'Save, publish and go back',
@@ -213,6 +220,23 @@ return [
     'section_content' => 'Content',
     'focus_step_in' => 'Open this block on its own',
 
+    // Replicator / Bard field settings
+    'field_locked_rows' => 'Lock rows',
+    'field_locked_rows_instructions' => 'Rows can still be edited and hidden, but not moved, duplicated, or deleted. Locked rows get a padlock icon instead of the drag handle.',
+    'field_unique_sets' => 'Only one of each',
+    'field_unique_sets_instructions' => 'The checked types can only be added once. When one of them is in the list, it cannot be selected again until the row is deleted.',
+    'field_from_the_start' => 'From the start',
+    'field_from_the_start_sets_instructions' => 'The checked types are in the field when it is created. Anything else is added afterwards. The order is the order they were checked in.',
+    'field_from_the_start_bard_instructions' => 'The text the field opens with — typically a paragraph, a headline, or both. Written as the field’s default in YAML.',
+    'field_from_the_start_paragraph' => 'Paragraph',
+    'field_from_the_start_headline' => 'Headline :level',
+    'field_from_the_start_remove' => 'Remove',
+    'field_from_the_start_add' => 'Add default value',
+    'field_from_the_start_placeholder' => 'e.g. Enter your text',
+    'field_from_the_start_placeholder_inline' => 'e.g. Enter your headline',
+    'field_from_the_start_other_block' => 'Other block (:type) — kept as-is',
+    'field_from_the_start_no_sets' => 'This field has no sets yet. Create them under Manage Sets — then they can be checked here.',
+
     // "Where is this edited?" — on every field's own settings screen.
     'field_where' => 'Where it is edited',
     'field_where_instructions' => 'Which editor offers this field. Keep it out of the panel beside the preview when its value is already set on the page itself — through the inline toolbar — so it is not asked for twice. The field is saved either way.',
@@ -222,7 +246,7 @@ return [
 
     // Grid field config — same idea as a Replicator set's icon
     'grid_icon' => 'Icon',
-    'grid_icon_instructions' => 'Shown as the badge in the visual editor for rows of this grid (like a Replicator set icon). Grids have no sets of their own, so the icon lives on the grid field.',
+    'grid_icon_instructions' => 'Shown as the badge in the visual editor for each row of this grid. The wrapping block (the Replicator set) has its own icon — pick that on the set, not here.',
 
     // The "Scan the site" button on the settings screen
     'library_scan_button' => 'Scan the site',
@@ -232,8 +256,8 @@ return [
     'library_scan_failed' => 'The scan could not be run.',
 
     // Section Previews — the utility page and its diagnostics
-    'previews_intro' => 'Preview images keep themselves up to date. Each section is photographed as it looks on the site, and a picture is only retaken when something actually changed — the section\'s template, its default values, the built CSS or the theme settings. That happens when you save, and when you open the section library.',
-    'previews_build_note' => 'Screenshots use the built CSS/JS, not the dev server. Run :command after a styling change so the previews follow it.',
+    'previews_intro' => 'Preview images keep themselves up to date. Each section is photographed as it looks on the site, and a picture is only retaken when something actually changed — the section\'s template, its default values, the CSS or the theme settings. That happens when you save, and when you open the section library.',
+    'previews_build_note' => 'While Vite is running, screenshots use the same CSS as Live Preview. Run :command to keep both the picker pictures and the working CSS in step; without Vite, run `npm run build` first.',
     'previews_generate' => 'Update what changed',
     'previews_generate_force' => 'Regenerate everything',
     'previews_running' => 'A run is under way. Reload this page in a moment.',

@@ -15,7 +15,7 @@ use Statamic\Fieldtypes\Sets;
  * Same approach as the section-type generator: render it on its own through a
  * signed route, photograph it, and name the file after a fingerprint of
  * everything the picture depends on (the section's own data, its partial, the
- * built CSS, the theme settings). The fingerprint is what lets this be called on
+ * CSS, the theme settings). The fingerprint is what lets this be called on
  * every save of every saved section: unchanged means the filename matches, and
  * the browser is never started.
  *

@@ -3,25 +3,25 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Foundation\Vite;
+use Illuminate\Support\Collection;
+use Illuminate\Support\HtmlString;
 use ReflectionObject;
 use ReflectionProperty;
 
 /**
- * A Vite that cannot be talked back into hot mode.
+ * Vite for Live Preview and screenshot renders: hot assets, no HMR client.
  *
- * `DisableViteHotReload` points Vite at a hot file that does not exist, which is
- * how a Live Preview render is made to resolve assets from the build manifest.
- * Setting it on the container instance is not enough on its own: Statamic's
- * `{{ vite }}` tag takes a *clone* of that instance and calls `useHotFile(null)`
- * on it when the tag has no `hot` parameter — which every ordinary use of the tag
- * doesn't. And `hotFile()` reads `$this->hotFile ?? public_path('/hot')`, so null
- * doesn't mean "no hot file", it means "the real one" — which exists while
- * `npm run dev` runs. The dev client lands in the preview document after all, and
- * its hot reload throws the editor out of whatever it was in the middle of.
+ * `npm run dev` (and `npm run dev:previews`) must reach these documents — that
+ * is how a new Tailwind class shows up without `npm run build`. What must not
+ * reach them is `@vite/client`. The preview is morphed in place by preview.js;
+ * Vite's full-reload throws the editor out of an open header or inline edit and
+ * can surface Chrome's "Reload site?" prompt.
  *
- * So the answer is given by the object rather than by its state: `hotFile()` is
- * final for the length of the request, and `useHotFile()` stops being a way to
- * change it. Cloning carries the override along, because it is the class.
+ * Statamic's `{{ vite }}` tag clones the container instance and calls
+ * `useHotFile(null)` when the tag has no `hot` parameter. `hotFile()` then
+ * falls back to `public/hot`, which is what we want — but only if this class
+ * still answers for the clone. `useHotFile()` is inert and `hotFile()` is
+ * locked, so the clone keeps the same file and the same "no client" `__invoke`.
  */
 class LivePreviewVite extends Vite
 {
@@ -62,5 +62,29 @@ class LivePreviewVite extends Vite
     public function useHotFile($path)
     {
         return $this;
+    }
+
+    /**
+     * Same as Laravel's hot path, minus `@vite/client`. CSS/JS still come from
+     * the Vite server; a missing hot file falls through to the build manifest.
+     */
+    public function __invoke($entrypoints, $buildDirectory = null)
+    {
+        if (! $this->isRunningHot()) {
+            return parent::__invoke($entrypoints, $buildDirectory);
+        }
+
+        $entrypoints = new Collection($entrypoints);
+
+        return new HtmlString(
+            $entrypoints
+                ->map(fn ($entrypoint) => $this->makeTagForChunk(
+                    $entrypoint,
+                    $this->hotAsset($entrypoint),
+                    null,
+                    null
+                ))
+                ->join('')
+        );
     }
 }

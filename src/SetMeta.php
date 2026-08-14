@@ -7,8 +7,8 @@ use Statamic\Facades\Fieldset;
 use Statamic\Support\Str;
 
 /**
- * What every Replicator set calls itself: its display name, its icon and the line
- * of instructions written under it.
+ * What every Replicator set — and every Grid field — calls itself: its display
+ * name, its icon and the line of instructions written under it.
  *
  * The focus panel names what you clicked at the top of the editor — a section, a
  * block inside one, a row inside that — and none of it is in the rendered form.
@@ -17,9 +17,14 @@ use Statamic\Support\Str;
  * config stops at the server. So it is collected here, once per request, and
  * handed to the browser with the rest of the addon's configuration.
  *
- * Keyed by set handle rather than by path: the same block is the same block
- * wherever it is used, and a page builder that imports one fieldset into twenty
- * sections would otherwise repeat itself twenty times.
+ * Grids live in a map of their own, keyed by field handle. A Links *set* and a
+ * Links *grid* both happen to be called `links`, and filing them together made
+ * the block and every button inside it wear the same icon. The wrapping set
+ * keeps the set's icon; each row uses the icon picked on the grid field.
+ *
+ * Keyed by set/field handle rather than by path: the same block is the same
+ * block wherever it is used, and a page builder that imports one fieldset into
+ * twenty sections would otherwise repeat itself twenty times.
  */
 class SetMeta
 {
@@ -27,13 +32,14 @@ class SetMeta
     protected const MAX_DEPTH = 20;
 
     /**
-     * Every set the page builder can reach, by handle.
+     * Sets and grids the page builder can reach, each by handle.
      *
-     * @return array<string, array{display: string, icon: ?string, instructions: ?string}>
+     * @return array{sets: array<string, array>, grids: array<string, array>}
      */
-    public static function map(): array
+    public static function all(): array
     {
-        $map = [];
+        $sets = [];
+        $grids = [];
         $seen = [];
 
         // The entry blueprint first: it is the page builder as an editor actually
@@ -43,7 +49,7 @@ class SetMeta
         );
 
         if ($contents = $collection?->entryBlueprint()?->contents()) {
-            static::walk($contents, $map, $seen);
+            static::walk($contents, $sets, $grids, $seen);
         }
 
         // …then the page-builder fieldset on its own, for the sets a blueprint can
@@ -54,10 +60,30 @@ class SetMeta
         );
 
         if ($fieldset) {
-            static::walk($fieldset->contents(), $map, $seen);
+            static::walk($fieldset->contents(), $sets, $grids, $seen);
         }
 
-        return $map;
+        return ['sets' => $sets, 'grids' => $grids];
+    }
+
+    /**
+     * Every set the page builder can reach, by handle.
+     *
+     * @return array<string, array{display: string, icon: ?string, instructions: ?string}>
+     */
+    public static function map(): array
+    {
+        return static::all()['sets'];
+    }
+
+    /**
+     * Every Grid field the page builder can reach, by handle.
+     *
+     * @return array<string, array{display: string, icon: ?string, instructions: ?string}>
+     */
+    public static function grids(): array
+    {
+        return static::all()['grids'];
     }
 
     /**
@@ -67,10 +93,11 @@ class SetMeta
      * imports itself (directly or in a ring) would otherwise never bottom out.
      *
      * @param  array<string, mixed>  $node
-     * @param  array<string, array>  $map    collected meta, by set handle
+     * @param  array<string, array>  $sets   collected set meta, by handle
+     * @param  array<string, array>  $grids  collected grid meta, by field handle
      * @param  array<string, true>   $seen   fieldset handles already followed
      */
-    protected static function walk(array $node, array &$map, array &$seen, int $depth = 0): void
+    protected static function walk(array $node, array &$sets, array &$grids, array &$seen, int $depth = 0): void
     {
         if ($depth > static::MAX_DEPTH) {
             return;
@@ -80,8 +107,14 @@ class SetMeta
             $seen[$node['import']] = true;
 
             if ($imported = Fieldset::find($node['import'])) {
-                static::walk($imported->contents(), $map, $seen, $depth + 1);
+                static::walk($imported->contents(), $sets, $grids, $seen, $depth + 1);
             }
+        }
+
+        $field = $node['field'] ?? null;
+
+        if (is_array($field) && ($field['type'] ?? null) === 'grid' && isset($node['handle'])) {
+            static::record($grids, (string) $node['handle'], $field);
         }
 
         if (isset($node['sets']) && is_array($node['sets'])) {
@@ -90,8 +123,8 @@ class SetMeta
                     continue;
                 }
 
-                static::record($map, (string) $handle, $set);
-                static::walk($set, $map, $seen, $depth + 1);
+                static::record($sets, (string) $handle, $set);
+                static::walk($set, $sets, $grids, $seen, $depth + 1);
             }
         }
 
@@ -102,7 +135,7 @@ class SetMeta
                 continue;
             }
 
-            static::walk($value, $map, $seen, $depth + 1);
+            static::walk($value, $sets, $grids, $seen, $depth + 1);
         }
     }
 

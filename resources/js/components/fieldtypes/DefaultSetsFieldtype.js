@@ -1,17 +1,14 @@
 /**
- * "Kun én af hver" — afkrydsning af de set-typer der kun må optræde én gang.
+ * "Med fra start" — afkrydsning af de set-typer et nyt replicator-felt får med.
  *
- * Feltet står i replicatorens egne indstillinger og gemmer en liste af handles
- * i `unique_sets`. Se app/Fieldtypes/UniqueSets.php.
+ * Feltet står i replicatorens egne indstillinger og gemmer under `default`,
+ * samme form som YAML: `[{ type: 'icon' }, { type: 'title' }]`. Se
+ * DefaultSetsFieldtype.php.
  *
  * Mulighederne er ikke skrevet ned nogen steder. De læses fra `sets`-feltet i
  * SAMME formular mens man redigerer — tilføjer man et set i fanen ved siden af,
- * dukker det op her med det samme, uden at noget skal gemmes først. Det er hele
- * pointen med at læse dem reaktivt: de to felter kan ikke komme ud af trit.
- *
- * `sets` har den form Statamics egen Sets-fieldtype leverer til CP'et: en liste
- * af grupper, hver med sine sets under `sections`. Formen læses defensivt, for
- * et felt uden sets endnu har ingen af delene.
+ * dukker det op her med det samme. En række der allerede har andre nøgler
+ * (indlejrede defaults) bliver liggende, så længe typen stadig er krydset af.
  */
 (function () {
     'use strict';
@@ -28,7 +25,27 @@
             return (window.Statamic?.$config?.get?.('sveStrings') || {})[key] ?? key;
         }
 
-        Statamic.$components.register('unique-sets-fieldtype', {
+        /**
+         * `default` kan være rækker (`{ type }`) eller bare handles. Begge tæller
+         * som rækker her, så en YAML skrevet i hånden og en afkrydsning mødes.
+         */
+        function asRows(value) {
+            if (!Array.isArray(value)) return [];
+
+            return value.flatMap((item) => {
+                if (typeof item === 'string' && item !== '') {
+                    return [{ type: item }];
+                }
+
+                if (item && typeof item === 'object' && typeof item.type === 'string' && item.type !== '') {
+                    return [item];
+                }
+
+                return [];
+            });
+        }
+
+        Statamic.$components.register('default-sets-fieldtype', {
             props: {
                 value: { default: () => [] },
                 config: { type: Object, default: () => ({}) },
@@ -63,16 +80,19 @@
                     });
                 });
 
-                const selected = computed(() => (Array.isArray(props.value) ? props.value : []));
+                const rows = computed(() => asRows(props.value));
 
                 function isChecked(handle) {
-                    return selected.value.includes(handle);
+                    return rows.value.some(row => row.type === handle);
                 }
 
                 function toggle(handle) {
-                    emit('update:value', isChecked(handle)
-                        ? selected.value.filter(h => h !== handle)
-                        : [...selected.value, handle]);
+                    if (isChecked(handle)) {
+                        emit('update:value', rows.value.filter(row => row.type !== handle));
+                        return;
+                    }
+
+                    emit('update:value', [...rows.value, { type: handle }]);
                 }
 
                 return { sets, isChecked, toggle, t };

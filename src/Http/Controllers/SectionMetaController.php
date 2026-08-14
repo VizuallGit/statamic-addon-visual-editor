@@ -39,6 +39,7 @@ class SectionMetaController
             // A nested replicator field (e.g. a section's own `blocks`) rather than
             // the top-level page-builder field — for the in-preview block inserter.
             'field' => ['nullable', 'string'],
+            'section' => ['nullable', 'string'],
         ]);
 
         $collection = Collection::findByHandle($request->collection);

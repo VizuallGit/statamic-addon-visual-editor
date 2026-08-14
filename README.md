@@ -215,8 +215,16 @@ field's `buttons` list allows, never hardcoded).
 <h1 {{ visual_edit field="heading" inline_edit="true" }}>{{ heading }}</h1>
 ```
 
-Also works on the field for an image or a button — clicking opens the right editor
-inline. Legacy spelling `inline-edit` is accepted.
+Also works on the field for an image, an Iconify icon, or a button — clicking
+opens the right editor inline. An icon that already has a value offers
+**Change / Remove** (the same two actions as the sidebar); an empty icon field
+opens the Iconify search. Legacy spelling `inline-edit` is accepted.
+
+```antlers
+<div {{ visual_edit field="icon" inline_edit="true" }}>
+    {{ iconify:icon }}
+</div>
+```
 
 A plain text field gets no ✓/✕ buttons: **Enter** or a click outside commits it and
 **Esc** cancels, so unless the element declares `controls` (below) or sits in a row
@@ -251,6 +259,11 @@ Anything else — and any handle that isn't a field on that row — is skipped.
 What a control changes is rendered **server-side**, so using one commits the text
 edit, writes the value, and reopens the editor on the re-rendered element. Give the
 setting an effect in your template, or nothing will appear to happen.
+
+The option a control starts on can be declared in the same string —
+`controls="tag:h1|font_size:text-700"` — so one shared headline block can lead
+with an H1 in the hero and an H3 in a content box. See `template` / `default`
+below for the same idea on replicator rows and field values.
 
 ### `orderable="true"` — drag rows to reorder, with add/remove
 
@@ -316,6 +329,78 @@ one "+" to start). The insert is native, so it lands in the Control Panel form t
 
 Give each block `orderable="true"` too, so a newly inserted block is a proper,
 movable row.
+
+### `template="3:item"` / `template="icon|title"` — starting rows, declared in the template
+
+A shared replicator should not carry *place-specific* start content in its YAML
+`default`. Declare it where the list is rendered.
+
+`template="3:item"` on the **insertable container** is how many rows a new list
+starts with. `template="icon|title"` on each **orderable row** is what that row
+contains — the same reason a headline partial takes `headline_tag="h1"`.
+
+```antlers
+<ul {{ visual_edit field="list" insertable="true" template="3:item" }}>
+  {{ list }}
+    <li {{ visual_edit orderable="true" template="icon|title" }}>
+      {{ blocks }}…{{ /blocks }}
+    </li>
+  {{ /list }}
+</ul>
+```
+
+A new list is created with three `item` rows; each row gets an `icon` set and a
+`title` set. Clicking + on an existing list adds one more row with the same
+inner sets. YAML `default` on the fieldset is still the fallback when nothing
+is declared here.
+
+Optional `:text` on an inner set writes a starting **value** (`title:Hello`).
+For a hint that should not be stored, leave the set empty and use `placeholder`
+on the field (below).
+
+JSON is accepted too, in the same shape BlockStudio's InnerBlocks template uses
+(`[['icon'], ['title', { placeholder: 'Book Title' }]]`). A `placeholder` key in
+JSON is not written as a value. Pipe syntax is the one that sits comfortably in
+an HTML attribute.
+
+### `placeholder="Enter a title"` — ghost text while the field is empty
+
+On a text or Bard field. Shown only in Live Preview while the field has no
+content; never saved. The live site stays empty until someone types. Declare it
+where the field is used, so a shared title can hint "Book title" in one section
+and "Your name" in another.
+
+```antlers
+<p {{ visual_edit field="title" inline_edit="true" placeholder="Enter a title" }}>{{ title }}</p>
+```
+
+On a Bard field the hint can name the node it belongs to — heading vs paragraph —
+so a title starts as an H3 and a body as a paragraph, without a YAML default:
+
+```antlers
+<h3 {{ visual_edit field="title" inline_edit="true" placeholder="h3:Enter a title" }}>{{ title }}</h3>
+<p {{ visual_edit field="text" inline_edit="true" placeholder="paragraph:Enter your text" }}>{{ text }}</p>
+```
+
+`as="h3"` does the same when the hint has no prefix. The wrapper tag is a
+fallback if neither is set (`<h3>` → heading 3, `<p>` → paragraph).
+
+### `default="Enter a title"` — starting value for a field, at this place
+
+On a text or Bard field. Applied when the parent row is created, not written
+over content the editor has already typed. A plain string is the value (Bard:
+one paragraph). Richer Bard start content:
+
+```antlers
+<p {{ visual_edit field="title" inline_edit="true" default="Enter a title" }}>{{ title }}</p>
+
+<div {{ visual_edit field="text" inline_edit="true" default="heading:1:Book Title|paragraph:Summary" }}>
+  {{ text }}
+</div>
+```
+
+An interpolated parameter that was never passed (`template="{foo}"`,
+`default="{bar}"`) is omitted, so the fieldset's own default remains.
 
 ### `global_edit="set.field"` — open a global in the side panel
 
@@ -516,6 +601,10 @@ All parameters work in both Antlers and Blade (via the fluent API).
 | `move` | `false` | Show up/down reorder arrows on hover (lighter than `orderable`) |
 | `section_orderable` | `false` | On a section: drag handle to move the whole section |
 | `insertable` | `false` | On a replicator container (with `field`): one "+" after the last block |
+| `template` | — | On an insertable container: starting inner sets for a new row (`"icon\|title"`) |
+| `placeholder` | — | On a field: ghost text while empty (`"Enter a title"`, or Bard `"h3:Enter a title"`) — not stored |
+| `as` | — | On a Bard field: node for empty content (`h1`–`h6` or `paragraph`) |
+| `default` | — | On a field: starting **value** at this place (`"Enter a title"`, or Bard `"heading:1:Title\|paragraph:Summary"`) |
 | `global_edit` | — | Open a global set (`set` or `set.field`) in the side panel |
 | `popup` | `false` | Open the item's editor as a CP popup instead of editing in place |
 | `scope` | _(cascaded `_visual_id`)_ | Override the field's scope — use `{{ id }}` inside column-builder rows |

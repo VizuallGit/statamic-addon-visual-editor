@@ -524,6 +524,39 @@ class VisualEditTest extends TestCase
 
         $this->assertStringContainsString('data-sid-field="heading"', $result);
         $this->assertStringContainsString('data-sid-label="Page Heading"', $result);
+        $this->assertStringContainsString('data-sid-fieldtype="text"', $result);
+    }
+
+    public function test_selfclosing_with_blueprint_param_emits_iconify_fieldtype(): void
+    {
+        $blueprint = Blueprint::make()->setContents([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'fields' => [
+                                ['handle' => 'icon', 'field' => ['type' => 'iconify', 'display' => 'Icon']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        Blueprint::shouldReceive('find')
+            ->with('collections.pages')
+            ->andReturn($blueprint);
+
+        $tag = $this->makeTag(
+            livePreview: true,
+            params: ['field' => 'icon', 'inline_edit' => 'true', 'blueprint' => 'collections.pages'],
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-field="icon"', $result);
+        $this->assertStringContainsString('data-sid-fieldtype="iconify"', $result);
+        $this->assertStringContainsString('data-sid-inline-edit', $result);
     }
 
     public function test_selfclosing_with_blueprint_param_falls_back_gracefully_when_blueprint_not_found(): void
@@ -639,6 +672,7 @@ class VisualEditTest extends TestCase
             params: [
                 'field' => 'headline',
                 'inline_edit' => 'true',
+                'toolbar' => 'true',
                 'controls' => 'font_tag|size',
                 'blueprint' => 'collections.pages',
             ],
@@ -671,6 +705,7 @@ class VisualEditTest extends TestCase
             params: [
                 'field' => 'headline',
                 'inline_edit' => 'true',
+                'toolbar' => 'true',
                 'controls' => 'font_tag',
                 'blueprint' => 'collections.pages',
             ],
@@ -827,6 +862,133 @@ class VisualEditTest extends TestCase
 
         $this->assertStringContainsString('data-sid-insert="blocks"', $result);
         $this->assertStringContainsString('data-sid-grid', $result);
+    }
+
+    public function test_template_param_emits_on_an_insertable_container(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'section-1'],
+            params: ['field' => 'list', 'insertable' => 'true', 'template' => 'icon|title:Enter a title'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-insert="list"', $result);
+        $this->assertStringContainsString('data-sid-template="icon|title:Enter a title"', $result);
+    }
+
+    public function test_count_template_emits_on_an_insertable_container(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'section-1'],
+            params: ['field' => 'list', 'insertable' => 'true', 'template' => '3:item'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-insert="list"', $result);
+        $this->assertStringContainsString('data-sid-template="3:item"', $result);
+    }
+
+    public function test_orderable_row_emits_its_own_template(): void
+    {
+        $tag = $this->makeTag(
+            context: ['_visual_id' => 'row-1', 'type' => 'item'],
+            params: ['orderable' => 'true', 'template' => 'icon|title'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-orderable', $result);
+        $this->assertStringContainsString('data-sid-template="icon|title"', $result);
+    }
+
+    public function test_empty_template_param_is_omitted(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'section-1'],
+            params: ['field' => 'list', 'insertable' => 'true', 'template' => ''],
+            livePreview: true,
+        );
+
+        $this->assertStringNotContainsString('data-sid-template', $tag->index());
+    }
+
+    public function test_default_param_emits_on_a_field(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-1'],
+            params: ['field' => 'title', 'inline_edit' => 'true', 'default' => 'Enter a title'],
+            livePreview: true,
+        );
+
+        $this->assertStringContainsString('data-sid-default="Enter a title"', $tag->index());
+    }
+
+    public function test_placeholder_param_emits_on_a_field(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-1'],
+            params: ['field' => 'title', 'inline_edit' => 'true', 'placeholder' => 'Enter a title'],
+            livePreview: true,
+        );
+
+        $this->assertStringContainsString('data-sid-placeholder="Enter a title"', $tag->index());
+        $this->assertStringNotContainsString('data-sid-default', $tag->index());
+    }
+
+    public function test_placeholder_prefix_sets_bard_as_and_strips_it_from_the_hint(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-1'],
+            params: ['field' => 'title', 'inline_edit' => 'true', 'placeholder' => 'h3:Enter a title'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-placeholder="Enter a title"', $result);
+        $this->assertStringContainsString('data-sid-as="h3"', $result);
+        $this->assertStringNotContainsString('h3:Enter', $result);
+    }
+
+    public function test_as_param_declares_the_bard_node_on_its_own(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-1'],
+            params: ['field' => 'title', 'inline_edit' => 'true', 'as' => 'h2', 'placeholder' => 'Enter a title'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-as="h2"', $result);
+        $this->assertStringContainsString('data-sid-placeholder="Enter a title"', $result);
+    }
+
+    public function test_placeholder_param_is_omitted_outside_live_preview(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-1'],
+            params: ['field' => 'title', 'inline_edit' => 'true', 'placeholder' => 'Enter a title'],
+            livePreview: false,
+        );
+
+        $this->assertSame('', $tag->index());
+    }
+
+    public function test_default_param_is_omitted_outside_live_preview(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'row-1'],
+            params: ['field' => 'title', 'inline_edit' => 'true', 'default' => 'Enter a title'],
+            livePreview: false,
+        );
+
+        $this->assertSame('', $tag->index());
     }
 
     public function test_no_grid_attributes_without_the_param(): void

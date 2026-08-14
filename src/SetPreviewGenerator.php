@@ -28,7 +28,7 @@ use Statamic\Fieldtypes\Sets;
  * and the set's `image:` in the fieldset YAML is updated to match.
  *
  * Filenames carry a fingerprint (`hero-style-1-<hash>.png`) of everything the
- * picture depends on: the section's own partial and defaults, the built CSS/JS,
+ * picture depends on: the section's own partial and defaults, the CSS/JS,
  * the layout, the theme settings. That is what makes this cheap enough to run on
  * every save — a run where nothing changed compares strings and starts no browser
  * — and it doubles as cache busting, since a new hash is a new URL that no

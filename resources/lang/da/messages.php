@@ -28,6 +28,8 @@ return [
     'remove_section' => 'Fjern denne sektion',
     'add_column' => 'Tilføj kolonne',
     'save_enter' => 'Gem (Enter)',
+    'icon_change' => 'Skift',
+    'icon_remove' => 'Fjern',
 
     // Global (synced) sections
     'global_badge' => 'Global — synkroniseret',
@@ -54,6 +56,7 @@ return [
     'listview_hide' => 'Skjul',
     'listview_show' => 'Vis',
     'listview_delete' => 'Slet',
+    'listview_item' => 'Punkt',
 
     // Overskriftsoversigt
     'outline' => 'Overskrifter',
@@ -160,9 +163,13 @@ return [
     'close_live_preview' => 'Luk live preview',
     'close_live_preview_title' => 'Luk Live Preview',
     'device_fit' => 'Tilpas til vindue',
+    'device_full' => 'Fuld bredde',
+    'device_laptop' => 'Computer — bliver på desktop, skalerer til pladsen',
     'zoom_in' => 'Zoom ind',
+    'zoom_in_max' => 'Previewet fylder allerede pladsen',
     'zoom_out' => 'Zoom ud',
     'zoom_level' => 'Zoom :percent%',
+    'zoom_auto' => ':percent% (Auto)',
     'back_save_and_leave' => 'Gem og gå tilbage',
     'back_save_and_close' => 'Gem og luk',
     'back_save_publish_and_leave' => 'Gem, publicér og gå tilbage',
@@ -207,6 +214,23 @@ return [
     'section_content' => 'Indhold',
     'focus_step_in' => 'Åbn denne blok alene',
 
+    // Replicator / Bard-feltindstillinger
+    'field_locked_rows' => 'Lås rækker',
+    'field_locked_rows_instructions' => 'Rækkerne kan stadig redigeres og skjules, men ikke flyttes, duplikeres eller slettes. Låste rækker får et hængelås-ikon i stedet for trækhåndtaget.',
+    'field_unique_sets' => 'Kun én af hver',
+    'field_unique_sets_instructions' => 'De afkrydsede typer kan kun tilføjes én gang. Når en af dem ligger i listen, kan den ikke vælges igen før rækken er slettet.',
+    'field_from_the_start' => 'Fra starten',
+    'field_from_the_start_sets_instructions' => 'De afkrydsede typer ligger i feltet, når det oprettes. Resten tilføjes bagefter. Rækkefølgen er den, de er krydset af i.',
+    'field_from_the_start_bard_instructions' => 'Den tekst feltet åbner med — typisk et afsnit, en overskrift, eller begge. Den skrives som feltets default i YAML.',
+    'field_from_the_start_paragraph' => 'Afsnit',
+    'field_from_the_start_headline' => 'Overskrift :level',
+    'field_from_the_start_remove' => 'Fjern',
+    'field_from_the_start_add' => 'Tilføj standardværdi',
+    'field_from_the_start_placeholder' => 'f.eks. Indtast din tekst',
+    'field_from_the_start_placeholder_inline' => 'f.eks. Indtast din overskrift',
+    'field_from_the_start_other_block' => 'Anden blok (:type) — bevares som den er',
+    'field_from_the_start_no_sets' => 'Feltet har ingen sets endnu. Opret dem under Manage Sets — så kan de krydses af her.',
+
     // "Hvor redigeres feltet?" — på feltets egen indstillingsside.
     'field_where' => 'Hvor feltet redigeres',
     'field_where_instructions' => 'Hvilken editor der viser feltet. Hold det ude af panelet ved siden af preview\'et når værdien allerede sættes på siden selv — via værktøjslinjen inline — så der ikke bliver spurgt om det samme to steder. Feltet gemmes uanset hvad.',
@@ -216,7 +240,7 @@ return [
 
     // Grid-felt — samme idé som ikonet på et Replicator-set
     'grid_icon' => 'Ikon',
-    'grid_icon_instructions' => 'Vises som badge i visual editor for rækker i dette grid (som ikonet på et Replicator-set). Grids har ingen sets, så ikonet ligger på selve grid-feltet.',
+    'grid_icon_instructions' => 'Vises som badge i visual editor for hver række i dette grid. Blokken omkring (Replicator-settet) har sit eget ikon — det vælges på settet, ikke her.',
 
     // "Scan sitet"-knappen på indstillingsskærmen
     'library_scan_button' => 'Scan sitet',
@@ -226,8 +250,8 @@ return [
     'library_scan_failed' => 'Scanningen kunne ikke gennemføres.',
 
     // Section Previews — utility-siden og dens diagnostik
-    'previews_intro' => 'Preview-billederne holder sig selv opdaterede. Hver sektion fotograferes som den ser ud på sitet, og et billede tages kun forfra når noget faktisk har ændret sig — sektionens skabelon, dens standardværdier, det byggede CSS eller temaindstillingerne. Det sker automatisk når du gemmer, og når du åbner sektionsbiblioteket.',
-    'previews_build_note' => 'Screenshots bruger det byggede CSS/JS, ikke dev-serveren. Kør :command efter en styling-ændring, så previews følger med.',
+    'previews_intro' => 'Preview-billederne holder sig selv opdaterede. Hver sektion fotograferes som den ser ud på sitet, og et billede tages kun forfra når noget faktisk har ændret sig — sektionens skabelon, dens standardværdier, CSS\'en eller temaindstillingerne. Det sker automatisk når du gemmer, og når du åbner sektionsbiblioteket.',
+    'previews_build_note' => 'Mens Vite kører, bruger screenshots det samme CSS som Live Preview. Kør :command for at holde både picker-billederne og arbejdende CSS i trit; uden Vite skal du først køre `npm run build`.',
     'previews_generate' => 'Opdatér det der er ændret',
     'previews_generate_force' => 'Regenerér alle forfra',
     'previews_running' => 'En kørsel er i gang lige nu. Genindlæs siden om et øjeblik.',

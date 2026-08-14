@@ -66,9 +66,16 @@ function ensureStyles(win) {
       transition: opacity ${FADE_MS}ms cubic-bezier(.4, 0, .2, 1);
     }
     #${PREVIEW_LOADING_ID}[data-show] { opacity: 1; pointer-events: auto; }
+    #${PREVIEW_LOADING_ID} .sve-spinner-chip {
+      display: flex; align-items: center; justify-content: center;
+      width: 44px; height: 44px; border-radius: 999px;
+      background: #000; color: #fff;
+      box-shadow: 0 4px 14px rgba(0,0,0,.35);
+    }
     #${PREVIEW_LOADING_ID} svg { animation: sve-overlay-spin 1s linear infinite; }
     @keyframes sve-overlay-spin { to { transform: rotate(360deg); } }
     @media print { #sve-edit-button, .sve-edit-overlay, #${LOADING_ID}, #${PREVIEW_LOADING_ID} { display: none; } }
+    ${isCpHost(win) ? `#${LOADING_ID} { display: none !important; }` : ''}
   `;
   doc.head.appendChild(style);
 }
@@ -153,7 +160,7 @@ function createHost(win) {
       el = doc.createElement('div');
       el.id = PREVIEW_LOADING_ID;
       el.setAttribute('aria-hidden', 'true');
-      el.innerHTML = SPINNER_SVG;
+      el.innerHTML = `<span class="sve-spinner-chip">${SPINNER_SVG}</span>`;
       doc.body.appendChild(el);
       win.addEventListener('resize', onPreviewLoadingResize);
     }
@@ -218,13 +225,20 @@ function createHost(win) {
 
     const pip = doc.getElementById(LOADING_ID);
 
+    // The pip stands in for #sve-edit-button, which only exists on the
+    // front end. On the CP the same chip sits on the global header and
+    // does not belong there — the overlay itself is the loading state.
+    if (isCpHost(win)) {
+      pip?.remove();
+
+      return;
+    }
+
     if (on && !btn && !pip) {
       const el = doc.createElement('div');
 
       el.id = LOADING_ID;
-      el.innerHTML =
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
-        '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
+      el.innerHTML = SPINNER_SVG;
       doc.body.appendChild(el);
     } else if (!on) {
       pip?.remove();
