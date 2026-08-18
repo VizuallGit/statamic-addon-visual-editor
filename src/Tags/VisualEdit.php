@@ -292,6 +292,12 @@ class VisualEdit extends Tags
 
     private function resolveLabel(): string
     {
+        $custom = trim((string) $this->context->get('_sve_label', ''));
+
+        if ($custom !== '') {
+            return $custom;
+        }
+
         $type = (string) $this->context->get('type', '');
 
         return $type ? Str::headline($type) : '';

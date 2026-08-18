@@ -12,12 +12,14 @@ import './components/LockedRows.js';
 import './components/UniqueSets.js';
 import './components/SectionAccordion.js';
 import { enhanceIconFieldtype, enhanceIconifyFieldtype, initCp } from './cp.js';
+import { initComments } from './comments.js';
 
 Statamic.booting(() => {
   Statamic.component('auto_uuid-fieldtype', AutoUuid);
   Statamic.component('library_scan-fieldtype', LibraryScan);
   // Parent Control Panel window.
   initCp();
+  initComments();
 });
 
 // Icon fieldtype is registered on the Vue app during boot — wrap it afterwards

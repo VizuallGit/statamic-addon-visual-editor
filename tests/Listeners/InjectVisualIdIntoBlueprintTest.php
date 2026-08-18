@@ -322,6 +322,63 @@ class InjectVisualIdIntoBlueprintTest extends TestCase
         $this->assertSame('auto_uuid', $visualIdField['field']['type']);
     }
 
+    public function test_replicator_sets_gain_a_hidden_label_field(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'text_block' => $this->textSet('text_block'),
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $fields = $this->getSetsFields($blueprint, 'content', 'main', 'text_block');
+        $labelField = collect($fields)->firstWhere('handle', '_sve_label');
+
+        $this->assertNotNull($labelField);
+        $this->assertSame('hidden', $labelField['field']['type']);
+        $this->assertSame('hidden', $labelField['field']['visibility']);
+    }
+
+    public function test_existing_label_field_is_not_duplicated(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'text_block' => [
+                    'display' => 'Text Block',
+                    'fields' => [
+                        ['handle' => 'text', 'field' => ['type' => 'textarea']],
+                        ['handle' => '_sve_label', 'field' => ['type' => 'hidden']],
+                    ],
+                ],
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $fields = $this->getSetsFields($blueprint, 'content', 'main', 'text_block');
+        $labelCount = count(array_filter(array_column($fields, 'handle'), fn ($h) => $h === '_sve_label'));
+
+        $this->assertSame(1, $labelCount);
+    }
+
+    public function test_grid_fields_do_not_gain_a_label_field(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->gridField('links', [
+                ['handle' => 'text', 'field' => ['type' => 'text']],
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $fields = $this->getGridFields($blueprint, 'links');
+
+        $this->assertContains('_visual_id', array_column($fields, 'handle'));
+        $this->assertNotContains('_sve_label', array_column($fields, 'handle'));
+    }
+
     // -------------------------------------------------------------------------
     // String field references (field: 'fieldset_handle.field_handle')
     // -------------------------------------------------------------------------

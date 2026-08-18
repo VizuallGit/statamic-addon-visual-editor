@@ -1,0 +1,46 @@
+/**
+ * Compile Tailwind utilities from the template-dock HTML pane.
+ *
+ * The compiler itself is fetched from a CDN only when `tailwind_dock` is on
+ * and a save runs. Off, the save path is the three panes as they already were.
+ */
+
+let buildCss = null;
+let themePromise = null;
+
+export function tailwindDockOn(win) {
+  return win.Statamic?.$config?.get?.('sveFeatures')?.tailwind_dock === true;
+}
+
+export async function compileSectionTailwind(win, html) {
+  if (!buildCss) {
+    const mod = await import(
+      /* @vite-ignore */
+      'https://cdn.jsdelivr.net/npm/tailwindcss-in-browser@0.6.0/+esm'
+    );
+    buildCss = mod.default;
+  }
+
+  const theme = await loadTheme(win);
+  const css = await buildCss(html, theme, {
+    compileCssOptions: { addPreflight: false },
+    transformCssOptions: { minify: true },
+  });
+
+  return typeof css === 'string' ? css.trim() : '';
+}
+
+function loadTheme(win) {
+  if (!themePromise) {
+    themePromise = win
+      .fetch('/!/sve/tailwind-theme', {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      .then((res) => (res.ok ? res.json() : { css: '' }))
+      .then((data) => (typeof data.css === 'string' ? data.css : ''))
+      .catch(() => '');
+  }
+
+  return themePromise;
+}

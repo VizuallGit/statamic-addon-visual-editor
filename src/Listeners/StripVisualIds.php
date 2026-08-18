@@ -102,6 +102,12 @@ class StripVisualIds
 
       unset($items[$idx]['_visual_id']);
 
+      $label = $items[$idx]['_sve_label'] ?? null;
+
+      if ($label === null || $label === '') {
+          unset($items[$idx]['_sve_label']);
+      }
+
       $setFields = $this->findSetFields($sets, $item['type']);
 
       if (! empty($setFields)) {
@@ -120,6 +126,12 @@ class StripVisualIds
       }
 
       unset($items[$idx]['attrs']['values']['_visual_id']);
+
+      $label = $items[$idx]['attrs']['values']['_sve_label'] ?? null;
+
+      if ($label === null || $label === '') {
+          unset($items[$idx]['attrs']['values']['_sve_label']);
+      }
 
       $setHandle = $item['attrs']['values']['type'] ?? null;
 

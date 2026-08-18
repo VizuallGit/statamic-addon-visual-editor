@@ -59,6 +59,8 @@ return [
     'listview_hide' => 'Hide',
     'listview_show' => 'Show',
     'listview_delete' => 'Delete',
+    'listview_rename' => 'Rename',
+    'listview_global' => 'Global',
     'listview_item' => 'Item',
 
     // Heading outline
@@ -213,6 +215,11 @@ return [
     'slug_taken' => 'The slug “:slug” is already used in this collection.',
     'slug_invalid' => 'That title gives an empty slug — please write one.',
     'panel' => 'Page settings',
+    'right_dock' => 'Right sidebar',
+    'right_dock_pin' => 'Keep this open',
+    'right_dock_unpin' => 'Do not keep open',
+    'right_dock_reorder' => 'Drag to reorder',
+    'comments_pane' => 'Comments',
     'pages' => 'Pages',
 
     // Section panel: the segmented control built from a section's tabby fields.
@@ -294,4 +301,41 @@ return [
     'responsive_changed_count' => ':count changes on :device',
     'responsive_reset' => 'Reset',
     'responsive_inherit_from' => 'Inherit from :device again',
+
+    // Super-admin template dock (section Antlers file)
+    'code_dock_toggle' => 'Edit section template',
+    'code_dock_label' => 'Template',
+    'code_dock_html' => 'HTML',
+    'code_dock_css' => 'CSS',
+    'code_dock_js' => 'JS',
+    'code_dock_loading' => 'Loading…',
+    'code_dock_saving' => 'Saving…',
+    'code_dock_saved' => 'Saved',
+    'code_dock_error' => 'Could not save',
+    'code_dock_missing' => 'No template file for this section',
+
+    // Super-admin AI chat in Live Preview
+    'ai_panel' => 'AI',
+    'ai_panel_title' => 'AI',
+    'ai_panel_hint' => 'Click a section, then ask for a change — it writes in that section. Or ask for a new fieldset / section type.',
+    'ai_panel_hint_build' => 'Ask for markup — it shows the result here so you can copy or insert. It does not change files.',
+    'ai_panel_writing_to' => 'Writing in :type',
+    'ai_panel_building_for' => 'Building for :type',
+    'ai_panel_need_section' => 'No section selected — click one, or ask it to create a new type.',
+    'ai_panel_need_section_build' => 'Build mode — no section selected. Ask for a complete snippet.',
+    'ai_panel_need_key' => 'Add a Cursor API key under Addons → Visual Editor, or set CURSOR_API_KEY in .env. Get it at cursor.com/dashboard/api (same Cursor account, not Claude).',
+    'ai_panel_placeholder' => 'e.g. Add a heading…',
+    'ai_panel_placeholder_build' => 'e.g. A heading and a list of five items…',
+    'ai_panel_send' => 'Send',
+    'ai_panel_thinking' => 'Working…',
+    'ai_panel_applied' => 'Template updated',
+    'ai_panel_error' => 'The AI request failed',
+    'ai_panel_empty' => 'Write what you want changed.',
+    'ai_panel_mode_write' => 'Write',
+    'ai_panel_mode_build' => 'Build',
+    'ai_panel_copy' => 'Copy',
+    'ai_panel_copied' => 'Copied',
+    'ai_panel_insert' => 'Insert',
+    'ai_panel_inserted' => 'Inserted',
+    'ai_panel_insert_need_dock' => 'Open the template dock first.',
 ];

@@ -223,6 +223,12 @@ function createHost(win) {
       }
     }
 
+    try {
+      win.dispatchEvent(new CustomEvent(on ? 'sve-overlay-loading' : 'sve-overlay-idle'));
+    } catch {
+      /* ignore */
+    }
+
     const pip = doc.getElementById(LOADING_ID);
 
     // The pip stands in for #sve-edit-button, which only exists on the

@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveFieldtype;
 use Statamic\Facades\Fieldset;
 use Statamic\Fields\Field;
 use Statamic\Fields\Fields;
@@ -116,9 +117,21 @@ class SectionDefaults
         $config = $field->config();
         $type = $field->type();
 
+        // The wrapping happens when a blueprint is read, not when a fieldset is
+        // listed: screenshots resolve defaults from the YAML as written. A
+        // `sve_responsive` field is still its original type there, so its default
+        // is the inner value — but the partial reads `padding.laptop.padding`.
+        // Nest it the way an inserted section stores it, or the picture has no
+        // padding at all.
+        if ($type === 'responsive') {
+            $nested = static::resolve($config['fields'] ?? [], $path.'.'.ResponsiveFieldtype::base());
+
+            return $nested === [] ? null : [ResponsiveFieldtype::base() => $nested];
+        }
+
         // Grid: `default:` holds the rows; each row's own fields supply the rest.
         if ($type === 'grid' && is_array($default)) {
-            return static::rows($default, fn ($row, $index) => array_merge(
+            $default = static::rows($default, fn ($row, $index) => array_merge(
                 static::resolve($config['fields'] ?? [], $path.'.'.$index),
                 $row,
             ), $path);
@@ -127,7 +140,7 @@ class SectionDefaults
         // Replicator / Bard: each row names its set, and that set's fields
         // supply the row's defaults.
         if (in_array($type, ['replicator', 'bard'], true) && is_array($default)) {
-            return static::rows($default, function ($row, $index) use ($config, $path) {
+            $default = static::rows($default, function ($row, $index) use ($config, $path) {
                 if (empty($row['type']) || ! is_string($row['type'])) {
                     return $row;
                 }
@@ -142,10 +155,31 @@ class SectionDefaults
         if ($type === 'group') {
             $nested = static::resolve($config['fields'] ?? [], $path);
 
-            return array_merge($nested, is_array($default) ? $default : []);
+            $default = array_merge($nested, is_array($default) ? $default : []);
         }
 
-        return $default;
+        return static::wrapResponsive($field, $default);
+    }
+
+    /**
+     * Puts a `sve_responsive` field's default under the base breakpoint, matching
+     * how the value is stored once the field has been wrapped in `responsive`.
+     */
+    protected static function wrapResponsive(Field $field, mixed $value): mixed
+    {
+        if ($value === null || $value === [] || $value === '') {
+            return $value;
+        }
+
+        if (empty($field->get(ResponsiveFields::KEY))) {
+            return $value;
+        }
+
+        if (is_array($value) && array_intersect(array_keys($value), ResponsiveFieldtype::handles())) {
+            return $value;
+        }
+
+        return [ResponsiveFieldtype::base() => [$field->handle() => $value]];
     }
 
     /**

@@ -72,6 +72,22 @@ return [
     |                      publish form. Which collections that covers is listed
     |                      beside it; a collection without a route is skipped,
     |                      since it has no page to render.
+    | - template_dock:     super-admin only. Clicking a section opens a bottom
+    |                      panel on the section's Antlers file and writes it
+    |                      back to disk. Off by default.
+    | - tailwind_dock:     compile Tailwind utilities from the HTML pane into a
+    |                      hidden `sve_tw` block on save, so a class that was
+    |                      never in `npm run build` still works without Vite.
+    |                      Needs template_dock. Off by default — the dock then
+    |                      writes the file exactly as it does today.
+    | - ai_panel:          super-admin only. A Live Preview chat that runs a
+    |                      local Cursor agent on this site (same Cursor account,
+    |                      not a second Claude bill). Needs a Cursor API key
+    |                      from cursor.com/dashboard/api (settings or
+    |                      CURSOR_API_KEY). Off by default.
+    | - comments:          super-admin only. Figma-style pins in Live Preview.
+    |                      Threads are stored on the site under
+    |                      storage/statamic-visual-editor/comments. On by default.
     |
     */
     'features' => [
@@ -84,6 +100,10 @@ return [
         'focus_panel' => true,
         'open_first_section' => false,
         'open_in_preview' => false,
+        'template_dock' => false,
+        'tailwind_dock' => false,
+        'ai_panel' => false,
+        'comments' => true,
         // Not a toggle: the collections the line above covers, by handle. Empty
         // means the switch has nothing to act on, so nothing changes.
         'open_in_preview_collections' => [],
@@ -114,6 +134,37 @@ return [
     */
     'library' => [
         'snapshot' => null,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tailwind in the template dock
+    |--------------------------------------------------------------------------
+    |
+    | When `tailwind_dock` is on, the HTML pane is compiled with this file's
+    | `@theme` / `@utility` so `bg-primary` matches the site. Missing file
+    | falls back to Tailwind's defaults; arbitrary values still work.
+    |
+    */
+    'tailwind' => [
+        'css' => resource_path('css/site.css'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI panel
+    |--------------------------------------------------------------------------
+    |
+    | Live Preview chat for super admins. Uses Cursor, not Anthropic. The key
+    | can also be saved on the addon settings screen (`ai_api_key`); that
+    | wins when it is not empty.
+    |
+    */
+    'ai' => [
+        'api_key' => env('CURSOR_API_KEY', env('STATAMIC_VISUAL_EDITOR_AI_KEY')),
+        'model' => env('STATAMIC_VISUAL_EDITOR_AI_MODEL', 'composer-2.5'),
+        'node' => env('STATAMIC_VISUAL_EDITOR_NODE'),
+        'rules' => env('STATAMIC_VISUAL_EDITOR_AI_RULES'),
     ],
 
     /*
@@ -253,6 +304,13 @@ return [
     */
     'templates' => [
         'collection' => 'saved_templates',
+
+        /*
+        | Page-section Antlers partials. The template dock reads and writes
+        | `{handle}.antlers.html` here (`hero/style_2` → `hero/style_2.antlers.html`).
+        | The dock never creates a file that is not already on disk.
+        */
+        'partials' => resource_path('views/partials/page_sections'),
     ],
 
     /*

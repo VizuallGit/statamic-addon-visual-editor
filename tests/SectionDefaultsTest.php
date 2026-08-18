@@ -43,6 +43,20 @@ class SectionDefaultsTest extends TestCase
                                             ['handle' => 'text', 'field' => ['type' => 'text']],
                                         ],
                                     ],
+                                    'spaced' => [
+                                        'display' => 'Spaced',
+                                        'fields' => [
+                                            ['handle' => 'title', 'field' => ['type' => 'text', 'default' => 'Hi']],
+                                            [
+                                                'handle' => 'padding',
+                                                'field' => [
+                                                    'type' => 'text',
+                                                    'default' => '9',
+                                                    'sve_responsive' => true,
+                                                ],
+                                            ],
+                                        ],
+                                    ],
                                 ],
                             ],
                         ],
@@ -114,5 +128,19 @@ class SectionDefaultsTest extends TestCase
     public function test_an_unknown_handle_has_no_defaults()
     {
         $this->assertNull(SectionDefaults::for('nope/style_9'));
+    }
+
+    public function test_a_responsive_fields_default_is_nested_under_the_base_breakpoint()
+    {
+        // Templates read `padding.laptop.padding`. The fieldset still stores the
+        // inner default on the unwrapped field; without this nest a screenshot of
+        // the defaults would draw the section with no padding at all.
+        $section = SectionDefaults::for('spaced');
+
+        $this->assertSame('Hi', $section['title']);
+        $this->assertSame(
+            ['laptop' => ['padding' => '9']],
+            $section['padding'],
+        );
     }
 }

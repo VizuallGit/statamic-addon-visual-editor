@@ -156,6 +156,30 @@ class StripVisualIdsTest extends TestCase
     $this->assertArrayNotHasKey('_visual_id', $data['content'][0]);
   }
 
+  public function test_replicator_custom_labels_are_kept_on_entry_saving(): void
+  {
+    $blueprint = $this->makeBlueprint([
+      $this->replicatorField('content', [
+        'text_block' => $this->textSet(),
+      ]),
+    ]);
+
+    $entry = $this->makeTestObject($blueprint, [
+      'content' => [
+        ['type' => 'text_block', 'text' => 'Hello', '_sve_label' => 'Hero', '_visual_id' => 'uuid-1'],
+        ['type' => 'text_block', 'text' => 'World', '_sve_label' => '', '_visual_id' => 'uuid-2'],
+      ],
+    ]);
+
+    EntrySaving::dispatch($entry);
+
+    $data = $entry->data()->all();
+
+    $this->assertSame('Hero', $data['content'][0]['_sve_label']);
+    $this->assertArrayNotHasKey('_sve_label', $data['content'][1]);
+    $this->assertArrayNotHasKey('_visual_id', $data['content'][0]);
+  }
+
   // -------------------------------------------------------------------------
   // EntrySaving — Bard
   // -------------------------------------------------------------------------

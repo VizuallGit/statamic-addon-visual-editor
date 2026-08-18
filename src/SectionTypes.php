@@ -8,7 +8,8 @@ use Statamic\Facades\User;
 
 /**
  * The page-builder's section types, for the visual "Add section" picker: each
- * type's handle, display name, preview image and default field values.
+ * type's handle, display name, fieldset group, preview image and default field
+ * values. Groups follow the replicator set tabs in the page_sections fieldset.
  *
  * The defaults are computed the same way Statamic applies them when you add a
  * set (each field's `default`), so inserting a section from the picker starts
@@ -36,8 +37,14 @@ class SectionTypes
 
         $types = [];
 
-        foreach ($sets as $group) {
-            foreach (($group['sets'] ?? []) as $setHandle => $set) {
+        foreach ($sets as $groupKey => $group) {
+            if (! is_array($group) || ! isset($group['sets']) || ! is_array($group['sets'])) {
+                continue;
+            }
+
+            $groupDisplay = $group['display'] ?? (string) $groupKey;
+
+            foreach ($group['sets'] as $setHandle => $set) {
                 if (($set['hide'] ?? false) === true || in_array($setHandle, $exclude, true)) {
                     continue;
                 }
@@ -51,6 +58,8 @@ class SectionTypes
                 $types[] = [
                     'handle' => $setHandle,
                     'display' => $set['display'] ?? $setHandle,
+                    'group' => (string) $groupKey,
+                    'group_display' => $groupDisplay,
                     'image_url' => $images[$setHandle] ?? null,
                     'defaults' => static::defaults($handle, $setHandle),
                     'can_delete' => $canDelete,

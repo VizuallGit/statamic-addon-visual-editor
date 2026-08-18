@@ -22,6 +22,8 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\BardDefaultFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\DefaultSetsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
 use Illuminate\Support\Facades\Route;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
@@ -33,6 +35,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionDefaultsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SetPreviewsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
@@ -46,6 +49,7 @@ use MarioHamann\StatamicVisualEditor\Http\Middleware\OverrideGlobalsInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\RegisterPanelVisibility;
 use Statamic\Facades\Collection;
 use Statamic\Facades\CP\Nav;
+use Statamic\Facades\Entry;
 use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Site;
 use Statamic\Facades\User;
@@ -234,12 +238,18 @@ class ServiceProvider extends AddonServiceProvider
                 'sveSectionField' => config('statamic-visual-editor.previews.field', 'page_sections'),
                 'sveSavedSectionsCollection' => config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
                 'sveGlobalSectionSet' => config('statamic-visual-editor.saved_sections.set', 'global_section'),
+                // Id → { title, section_type } for global rows in the block tree,
+                // so a referenced section can name itself by what it actually is
+                // rather than by the "Global section" set.
+                'sveSavedSectionLabels' => $this->savedSectionLabels(),
                 'sveChrome' => config('statamic-visual-editor.chrome', []),
                 'sveHiddenGlobalsTabs' => $this->hiddenGlobalsTabs(),
                 // Whether the editor runs here at all, and which of its tools this
                 // site gets (Addons > Statamic Visual Editor).
                 'sveEnabled' => Features::editorEnabled(),
                 'sveFeatures' => Features::map(),
+                'sveAiReady' => AiChat::ready(),
+                'sveComments' => $this->commentsPayload(),
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
                 'sveCollections' => $this->pickerCollections(),
@@ -317,6 +327,12 @@ class ServiceProvider extends AddonServiceProvider
                     ->name('sve.global-section-stash.store');
                 Route::post('/!/sve/global-section-stash/clear', [GlobalSectionStashController::class, 'clear'])
                     ->name('sve.global-section-stash.clear');
+
+                // Antlers whitespace at the edges of a partial is layout, not
+                // noise — TrimStrings would eat the blank lines a template
+                // author just put back.
+                Route::post('/!/sve/section-template', [SectionTemplateController::class, 'update'])
+                    ->name('sve.section-template.update');
             });
 
         Route::middleware('web')->group(function () {
@@ -361,6 +377,26 @@ class ServiceProvider extends AddonServiceProvider
             // renders in the CP's own section list (see SectionMetaController).
             Route::get('/!/sve/section-meta', SectionMetaController::class)
                 ->name('sve.section-meta');
+
+            // Same query-parameter pattern as section-types: handles hold slashes.
+            Route::get('/!/sve/section-template', [SectionTemplateController::class, 'show'])
+                ->name('sve.section-template.show');
+            Route::get('/!/sve/tailwind-theme', [SectionTemplateController::class, 'theme'])
+                ->name('sve.tailwind-theme');
+
+            Route::post('/!/sve/ai-chat', [AiChatController::class, 'store'])
+                ->name('sve.ai-chat');
+
+            Route::get('/!/sve/comments/{entry}', [CommentsController::class, 'index'])
+                ->name('sve.comments.index');
+            Route::post('/!/sve/comments/{entry}', [CommentsController::class, 'store'])
+                ->name('sve.comments.store');
+            Route::post('/!/sve/comments/{entry}/{comment}/replies', [CommentsController::class, 'reply'])
+                ->name('sve.comments.reply');
+            Route::patch('/!/sve/comments/{entry}/{comment}', [CommentsController::class, 'update'])
+                ->name('sve.comments.update');
+            Route::delete('/!/sve/comments/{entry}/{comment}', [CommentsController::class, 'destroy'])
+                ->name('sve.comments.destroy');
 
             // The snapshot behind a narrowed library: what the site was using when
             // the scan was last run, and the button on the settings screen that
@@ -569,6 +605,42 @@ class ServiceProvider extends AddonServiceProvider
     }
 
     /**
+     * What each saved (global) section calls itself, keyed by entry id.
+     *
+     * A page holds only a reference. The block tree names the row by the source's
+     * section type ("Hero style 5") rather than by the reference set ("Global
+     * section"), and this map is how it looks that up without a round-trip.
+     *
+     * @return array<string, array{title: string, section_type: string}>
+     */
+    protected function savedSectionLabels(): array
+    {
+        $handle = config('statamic-visual-editor.saved_sections.collection', 'saved_sections');
+
+        if (! Collection::findByHandle($handle)) {
+            return [];
+        }
+
+        $site = Site::selected()?->handle() ?? Site::default()->handle();
+
+        try {
+            return Entry::query()
+                ->where('collection', $handle)
+                ->where('site', $site)
+                ->get()
+                ->mapWithKeys(fn ($entry) => [
+                    $entry->id() => [
+                        'title' => (string) ($entry->value('title') ?? ''),
+                        'section_type' => (string) ($entry->value('section_type') ?? ''),
+                    ],
+                ])
+                ->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /**
      * Tabs the docked Theme Settings panel leaves out, as the labels they carry
      * on screen.
      *
@@ -616,6 +688,32 @@ class ServiceProvider extends AddonServiceProvider
         }
 
         return $map;
+    }
+
+    /**
+     * Who is commenting from this Control Panel session.
+     *
+     * Pins and threads are super-admin only; everyone else gets an empty payload
+     * so the comments script never paints a mode it cannot save.
+     */
+    protected function commentsPayload(): array
+    {
+        $user = User::current();
+
+        if (! $user?->isSuper() || ! Features::editorEnabled() || ! Features::enabled('comments')) {
+            return ['enabled' => false];
+        }
+
+        $name = trim((string) ($user->name() ?: $user->email() ?: 'User'));
+
+        return [
+            'enabled' => true,
+            'user' => [
+                'id' => $user->id(),
+                'name' => $name,
+                'initials' => $user->initials() ?: strtoupper(mb_substr($name, 0, 1)),
+            ],
+        ];
     }
 
     /**

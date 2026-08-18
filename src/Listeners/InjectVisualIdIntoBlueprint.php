@@ -76,7 +76,7 @@ class InjectVisualIdIntoBlueprint
 
             if ($type === 'grid') {
                 $gridFields = $fieldDef['field']['fields'] ?? [];
-                $injected = $this->injectVisualId($gridFields);
+                $injected = $this->injectEditorFields($gridFields, withLabel: false);
                 $fieldDef['field']['fields'] = $this->processFields($injected);
             }
 
@@ -122,7 +122,7 @@ class InjectVisualIdIntoBlueprint
 
             if ($type === 'grid') {
                 $gridFields = $inlined['field']['fields'] ?? [];
-                $injected = $this->injectVisualId($gridFields);
+                $injected = $this->injectEditorFields($gridFields, withLabel: false);
                 $inlined['field']['fields'] = $this->processFields($injected);
             }
 
@@ -135,11 +135,19 @@ class InjectVisualIdIntoBlueprint
     private function processReplicatorSets(array $sets): array
     {
         return $this->mapSetFields($sets, function (array $fields): array {
-            return $this->processFields($this->injectVisualId($fields));
+            return $this->processFields($this->injectEditorFields($fields, withLabel: true));
         });
     }
 
-    private function injectVisualId(array $fields): array
+    /**
+     * Fields the editor keeps on every set, never drawn in the form.
+     *
+     * `_visual_id` is the click-target the preview uses. `_sve_label` is the
+     * name a block wears in the tree when someone has renamed it — hidden so
+     * it is not a field to fill in, but still a real field so a save keeps it.
+     * Grids skip the label: their tree row already names itself from content.
+     */
+    private function injectEditorFields(array $fields, bool $withLabel): array
     {
         $handles = array_column($fields, 'handle');
 
@@ -148,6 +156,15 @@ class InjectVisualIdIntoBlueprint
                 'type' => 'auto_uuid',
                 'visibility' => 'hidden',
                 'replicator_preview' => false,
+            ]];
+        }
+
+        if ($withLabel && ! in_array('_sve_label', $handles, true)) {
+            $fields[] = ['handle' => '_sve_label', 'field' => [
+                'type' => 'hidden',
+                'visibility' => 'hidden',
+                'replicator_preview' => false,
+                'listable' => false,
             ]];
         }
 

@@ -21,6 +21,18 @@ class Features
     /** The addon's package name — how the settings repository files it. */
     protected const ADDON_ID = 'statamic-addon/visual-editor';
 
+    /**
+     * Keys that must stay off when neither settings nor config mention them.
+     *
+     * `enabled()` treats an unknown key as on, so a dangerous new toggle would
+     * light up on sites that have not merged the config yet. List those here.
+     */
+    protected const DEFAULT_OFF = [
+        'template_dock',
+        'tailwind_dock',
+        'ai_panel',
+    ];
+
     /** Every toggle, in the order the settings screen shows them. */
     public const KEYS = [
         'panel',
@@ -32,6 +44,10 @@ class Features
         'focus_panel',
         'open_first_section',
         'open_in_preview',
+        'template_dock',
+        'tailwind_dock',
+        'ai_panel',
+        'comments',
         'library_page',
         'library_custom',
         'library_global',
@@ -62,7 +78,10 @@ class Features
         foreach (static::KEYS as $key) {
             $map[$key] = array_key_exists($key, $saved)
                 ? (bool) $saved[$key]
-                : (bool) config("statamic-visual-editor.features.{$key}", true);
+                : (bool) config(
+                    "statamic-visual-editor.features.{$key}",
+                    ! in_array($key, static::DEFAULT_OFF, true)
+                );
         }
 
         return static::$map = $map;

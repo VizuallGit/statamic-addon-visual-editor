@@ -40,6 +40,8 @@ class PreviewHost
 
         abort_unless($host, 404);
 
+        $host->blueprint();
+
         $field = config('statamic-visual-editor.previews.field', 'page_sections');
 
         $host->set($field, array_values($sections));

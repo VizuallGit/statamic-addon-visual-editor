@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Listeners;
 
 use MarioHamann\StatamicVisualEditor\ResponsiveFields;
 use Statamic\Events\EntryBlueprintFound;
+use Statamic\Facades\Blink;
 
 /**
  * Pakker hvert afkrydset felt ind i `responsive`, når blueprintet læses.
@@ -23,5 +24,26 @@ class WrapResponsiveFields
         $event->blueprint->setContents(
             ResponsiveFields::walk($event->blueprint->contents())
         );
+
+        static::forgetImportedFieldsCache();
+    }
+
+    /**
+     * Glemmer Blinks import-cache, så næste `Fields`-læsning ser indpakningen.
+     *
+     * Statamic husker importerede fieldset-felter på importnavnet alene, ikke på
+     * indholdet. Et screenshot af defaults udvider de imports først (for at
+     * fylde tomme felter), mens feltet stadig er sin oprindelige type. Uden at
+     * glemme den cache ville preview'et så augmentere `padding` som et
+     * spacing-felt i stedet for et responsivt — og billedet ville være uden
+     * padding, selv om en rigtig side med samme data har den.
+     */
+    protected static function forgetImportedFieldsCache(): void
+    {
+        foreach (array_keys(Blink::all()) as $key) {
+            if (is_string($key) && str_starts_with($key, 'blueprint-imported-fields-')) {
+                Blink::forget($key);
+            }
+        }
     }
 }

@@ -26,6 +26,11 @@ class SectionDefaultsPreviewController extends Controller
 
         abort_if($handle === '', 404);
 
+        // Wrap responsive fields before defaults are resolved: otherwise the
+        // import cache holds the unwrapped fieldset and the screenshot renders
+        // padding as a flat spacing value the template never reads.
+        PreviewHost::page()?->blueprint();
+
         $section = SectionDefaults::for($handle);
 
         abort_unless($section, 404);

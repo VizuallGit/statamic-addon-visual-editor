@@ -72,6 +72,16 @@ class VisualEditTest extends TestCase
         $this->assertSame('data-sid="abc-123" data-sid-label="Text Block" data-sid-type="text_block"', $tag->index());
     }
 
+    public function test_selfclosing_prefers_custom_label_over_type(): void
+    {
+        $tag = $this->makeTag(
+            context: ['_visual_id' => 'abc-123', 'type' => 'text_block', '_sve_label' => 'Hero'],
+            livePreview: true,
+        );
+
+        $this->assertSame('data-sid="abc-123" data-sid-label="Hero" data-sid-type="text_block"', $tag->index());
+    }
+
     public function test_selfclosing_includes_raw_type_as_data_sid_type(): void
     {
         $tag = $this->makeTag(

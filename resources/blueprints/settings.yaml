@@ -96,6 +96,54 @@ tabs:
               if:
                 enabled: 'equals true'
                 focus_panel: 'equals true'
+          -
+            handle: template_dock
+            field:
+              type: toggle
+              display: 'Edit section templates'
+              instructions: 'When a super admin clicks a section, a bottom panel opens the section''s Antlers file. Saving writes the file on this server. Content editors never see it, even with this on. Off by default.'
+              default: false
+              if:
+                enabled: 'equals true'
+          -
+            handle: tailwind_dock
+            field:
+              type: toggle
+              display: 'Compile Tailwind in the template dock'
+              instructions: 'When you type a Tailwind class in the HTML pane — including one this site has never used, like `bg-[#333333]` — the editor compiles the CSS and saves it with the section. Works without `npm run dev`. Off, the dock writes the file exactly as it does today. Super admin only; needs the template dock.'
+              default: false
+              if:
+                enabled: 'equals true'
+                template_dock: 'equals true'
+          -
+            handle: ai_panel
+            field:
+              type: toggle
+              display: 'AI chat'
+              instructions: 'A super-admin chat in Live Preview that runs Cursor on this site. Same Cursor account you already pay for — not a second Claude/Anthropic bill. Content editors never see it. Off by default.'
+              default: false
+              if:
+                enabled: 'equals true'
+          -
+            handle: comments
+            field:
+              type: toggle
+              display: Comments
+              instructions: 'Figma-style pins in Live Preview. Super admins click the preview to leave a thread on a section. Content editors never see it.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: ai_api_key
+            field:
+              type: text
+              display: 'Cursor API key'
+              input_type: password
+              instructions: 'From cursor.com/dashboard/api — your existing Cursor account, not Claude. You can also set CURSOR_API_KEY in .env; this field wins when it is not empty.'
+              if:
+                enabled: 'equals true'
+                ai_panel: 'equals true'
       -
         display: 'Opening an entry'
         instructions: 'Where a click in the Control Panel lands. Named collections skip the publish form and open in the preview instead; everything else opens the way Statamic ships.'

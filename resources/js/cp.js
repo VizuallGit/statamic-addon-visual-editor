@@ -1,6 +1,25 @@
 // Control Panel script — handles postMessage routing from the Live Preview iframe.
 
 import { gotoOverlay, openOverlay } from './overlay-host.js';
+import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock.js';
+import { aiPanelAllowed, closeAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
+import {
+  RIGHT_DOCK_ID,
+  RIGHT_PANEL_FILL,
+  beginRightShellSwap,
+  endRightShellSwap,
+  hideRightDock,
+  isRightDockTool,
+  isToolbarShortcut,
+  parkInRightShell,
+  registerRightDockHook,
+  releaseRightShellIfEmpty,
+  relayoutRightDock,
+  revealRightPane,
+  rightDockWidth,
+  showInRightShell,
+  splitterFill,
+} from './right-dock.js';
 
 export const SELECTORS = {
   visualIdInput: '[data-visual-id]',
@@ -2030,8 +2049,18 @@ function markEntryFormClean(win) {
 /**
  * After Live Preview opens the form still mutates briefly (Bard, replicator,
  * visual ids). Wait for that to settle before taking the clean baseline.
+ *
+ * Take that snapshot once per session. ensureLpBackButton runs again on every
+ * DOM settle (preview refresh, chrome, Vue patches), and rewriting the baseline
+ * then treats the user's edits as "clean" — which is why × sometimes left
+ * without the unsaved menu even though the page had changed. Saves call
+ * markEntryFormClean themselves; closing Live Preview clears the snapshot.
  */
 function scheduleEntryBaseline(win) {
+  if (entryValuesBaseline != null) {
+    return;
+  }
+
   clearTimeout(entryBaselineTimer);
 
   let attempts = 0;
@@ -2040,11 +2069,15 @@ function scheduleEntryBaseline(win) {
     attempts += 1;
 
     if (markEntryFormClean(win)) {
+      entryBaselineTimer = null;
+
       return;
     }
 
     if (attempts < 20) {
       entryBaselineTimer = win.setTimeout(trySnap, 250);
+    } else {
+      entryBaselineTimer = null;
     }
   };
 
@@ -4135,6 +4168,8 @@ export function handleSaveSection(data, doc, win) {
             return;
           }
 
+          rememberSavedSection(body.id, { title: name, section_type: section.type });
+
           // Swap the local section for a synced reference — LP morphs from setFieldValue.
           await replaceSectionWithGlobalReference(win, doc, data.uid, body.id);
         })
@@ -4431,6 +4466,7 @@ function t(win, key, replacements = {}) {
 
 const SECTION_PICKER_ID = '__sve-section-picker';
 const CHROME_DESIGNS_ID = '__sve-chrome-designs';
+const COMMENTS_PANEL_ID = '__sve-comments-pane';
 
 // The type list is handed over at page render. Deleting one replaces it here for
 // the rest of the session — the config is a snapshot, and reloading the CP just
@@ -4504,6 +4540,7 @@ function refreshSectionTypes(win, onUpdated) {
  * still holds the list it fetched before the save.
  */
 function libraryWentStale(win) {
+  savedSectionIndex = null;
   win.document
     .getElementById(SECTION_PICKER_ID)
     ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
@@ -4677,6 +4714,75 @@ function globalSectionSet(win) {
 /** The collection saved sections live in. */
 function savedSectionsCollection(win) {
   return win.Statamic?.$config?.get?.('sveSavedSectionsCollection') || 'saved_sections';
+}
+
+/**
+ * What each saved (global) section is, keyed by entry id.
+ *
+ * Seeded from the CP config so the block tree can name a referenced section
+ * without waiting on a fetch. Grows during the session when one is saved or
+ * dropped from the library — the config is a snapshot from page load.
+ */
+let savedSectionIndex = null;
+
+function rememberSavedSection(id, info) {
+  if (!id || typeof id !== 'string') {
+    return;
+  }
+
+  if (!savedSectionIndex) {
+    savedSectionIndex = new Map();
+  }
+
+  savedSectionIndex.set(id, {
+    title: info?.title || '',
+    section_type: info?.section_type || '',
+  });
+}
+
+function savedSectionLookup(win) {
+  if (savedSectionIndex) {
+    return savedSectionIndex;
+  }
+
+  savedSectionIndex = new Map();
+  const raw = win.Statamic?.$config?.get?.('sveSavedSectionLabels');
+
+  if (raw && typeof raw === 'object') {
+    Object.entries(raw).forEach(([id, info]) => {
+      savedSectionIndex.set(id, {
+        title: info?.title || '',
+        section_type: info?.section_type || '',
+      });
+    });
+  }
+
+  return savedSectionIndex;
+}
+
+function savedSectionInfo(win, id) {
+  return id ? savedSectionLookup(win).get(id) || null : null;
+}
+
+/** First entry id from an Entries field value (array, string, or `{id}`). */
+function firstEntryId(value) {
+  if (typeof value === 'string' && value !== '') {
+    return value;
+  }
+
+  if (Array.isArray(value) && value.length) {
+    const first = value[0];
+
+    if (typeof first === 'string' && first !== '') {
+      return first;
+    }
+
+    if (first && typeof first === 'object' && typeof first.id === 'string') {
+      return first.id;
+    }
+  }
+
+  return '';
 }
 
 /** The Replicator set handle a library card of the given kind inserts. */
@@ -5530,6 +5636,8 @@ function buildSectionRow(win, kind, item, defaults, newId) {
     // and its entries field share one handle, so the row is built from it.
     const set = globalSectionSet(win);
 
+    rememberSavedSection(item.id, { title: item.title, section_type: item.section_type });
+
     return { ...base, type: set, [set]: [item.id] };
   }
 
@@ -5715,7 +5823,11 @@ function askTemplateMode(win, item) {
 }
 
 function closeSectionPicker(win) {
-  win.document.getElementById(SECTION_PICKER_ID)?.remove();
+  const panel = win.document.getElementById(SECTION_PICKER_ID);
+
+  panel?._sveLibRo?.disconnect?.();
+  panel?.remove();
+  releaseRightShellIfEmpty(win);
   syncPreviewInset(win);
 }
 
@@ -5733,7 +5845,7 @@ function isSectionLibraryLocked(win) {
  * straight past that lock — another page, another global set, the section
  * library, the block tree — so while you are inside, they have nothing to act on.
  *
- * The panel tool is deliberately not among them. Hidden/Auto/Visible is how you
+ * The panel tool is deliberately not among them. The left-sidebar icon is how you
  * get at the fields you stepped in for, and taking it away would lock the way in
  * along with the way out.
  */
@@ -5820,11 +5932,7 @@ function hideGlobalsPanel(win) {
     return;
   }
 
-  panel.style.cssText =
-    'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
-    'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
-    'background:var(--theme-color-content-bg,#fff);';
-  panel.setAttribute('data-sve-chrome-hidden', '1');
+  parkInRightShell(win, panel);
   syncPreviewInset(win);
 }
 
@@ -5836,10 +5944,8 @@ function showGlobalsPanel(win) {
     return;
   }
 
-  // Must clear hidden BEFORE pin — place() no-ops while data-sve-chrome-hidden is set.
-  panel.removeAttribute('data-sve-chrome-hidden');
   // Never reparent the iframe — moving it in the DOM reloads it and refreshes
-  // the Live Preview. Keep it on document.body and dock to the right.
+  // the Live Preview. The shared shell keeps it as a parked child.
   pinGlobalsPanelRight(win, panel);
 
   const designs = win.document.getElementById(CHROME_DESIGNS_ID);
@@ -5860,6 +5966,20 @@ function showGlobalsPanel(win) {
 function closeRightPanels(win, keep = null) {
   const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
 
+  beginRightShellSwap();
+
+  try {
+    closeRightPanelsInner(win, keepIds);
+  } finally {
+    endRightShellSwap();
+  }
+
+  if (!keepIds.length) {
+    hideRightDock(win);
+  }
+}
+
+function closeRightPanelsInner(win, keepIds) {
   if (!keepIds.includes(SECTION_PICKER_ID)) {
     closeSectionPicker(win);
   }
@@ -5870,6 +5990,10 @@ function closeRightPanels(win, keep = null) {
 
   if (!keepIds.includes(LISTVIEW_PANEL_ID)) {
     closeListViewPanel(win);
+  }
+
+  if (!keepIds.includes(COMMENTS_PANEL_ID)) {
+    closeCommentsPanel(win);
   }
 
   if (!keepIds.includes(GLOBALS_PANEL_ID)) {
@@ -5885,6 +6009,10 @@ function closeRightPanels(win, keep = null) {
   if (!keepIds.includes(CHROME_DESIGNS_ID)) {
     closeChromeDesignsPanel(win);
   }
+
+  if (!keepIds.includes('__sve-ai-panel')) {
+    closeAiPanel(win);
+  }
 }
 
 /**
@@ -5899,15 +6027,19 @@ function syncPreviewInset(win) {
   }
 
   const right = dockedPanelWidth(doc, [
+    RIGHT_DOCK_ID,
     SECTION_PICKER_ID,
     OUTLINE_PANEL_ID,
     LISTVIEW_PANEL_ID,
+    COMMENTS_PANEL_ID,
     GLOBALS_PANEL_ID,
+    '__sve-ai-panel',
   ]);
 
   el.style.transition = 'padding-right .2s ease';
   el.style.paddingRight = right ? `${right}px` : '';
   el.style.paddingLeft = '';
+  relayoutCodeDock(win);
 
   if (LP_SCALE_DEVICE_TO_PANE) {
     applyLpDevice(win);
@@ -5932,41 +6064,7 @@ function livePreviewEditorEl(doc) {
  * Stays on document.body — reparenting an iframe reloads it (preview flicker).
  */
 function pinGlobalsPanelRight(win, panel) {
-  const doc = win.document;
-
-  if (panel.parentElement !== doc.body) {
-    doc.body.appendChild(panel);
-  }
-
-  if (!panel.querySelector('[data-sve-globals-resizer]')) {
-    const handle = globalsResizer(win, panel);
-
-    handle.setAttribute('data-sve-globals-resizer', '');
-    panel.insertBefore(handle, panel.firstChild);
-  }
-
-  const place = () => {
-    if (panel.hasAttribute('data-sve-chrome-hidden')) {
-      return;
-    }
-
-    const top = dockedPanelTop(win);
-    const width = globalsPanelWidth(win);
-
-    panel.style.cssText =
-      `position:fixed;top:${top}px;right:0;bottom:0;width:${width}px;z-index:40;` +
-      'display:flex;flex-direction:column;visibility:visible;pointer-events:auto;' +
-      'background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-      'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);' +
-      'font-family:ui-sans-serif,system-ui,sans-serif;';
-  };
-
-  place();
-
-  if (!panel._svePinBound) {
-    panel._svePinBound = true;
-    win.addEventListener('resize', place);
-  }
+  showInRightShell(win, panel, { keep: true });
 }
 
 /** @deprecated alias — Theme Settings docks right now. */
@@ -6086,7 +6184,12 @@ function dockedPanelWidth(doc, ids) {
   for (const id of ids) {
     const panel = doc.getElementById(id);
 
-    if (!panel || panel.style.display === 'none' || panel.hasAttribute('data-sve-chrome-hidden')) {
+    if (
+      !panel ||
+      panel.style.display === 'none' ||
+      panel.hasAttribute('data-sve-chrome-hidden') ||
+      panel.hasAttribute('data-sve-right-closed')
+    ) {
       continue;
     }
 
@@ -6111,8 +6214,18 @@ function rightPanelWidth(doc) {
 // the bridge knows what to insert.
 let libraryDrag = null;
 
-/** Handle prefix before `/` — `hero/style_1` → `hero`. Bare handles → `other`. */
-function libraryGroupKey(handle) {
+/**
+ * The page_sections fieldset group this type sits in (`hero`, `entries`, …).
+ * Older payloads without `group` fall back to the handle prefix (`hero/style_1`
+ * → `hero`); a bare handle becomes `other`.
+ */
+function libraryGroupKey(type) {
+  if (type && typeof type.group === 'string' && type.group.length) {
+    return type.group;
+  }
+
+  const handle = type?.handle;
+
   if (!handle || typeof handle !== 'string' || !handle.includes('/')) {
     return 'other';
   }
@@ -6120,8 +6233,14 @@ function libraryGroupKey(handle) {
   return handle.split('/')[0].toLowerCase();
 }
 
-/** Human label for a group key (`hero` → `Hero`, `media_textbox` → `Media textbox`). */
-function libraryGroupLabel(win, key) {
+/** Fieldset tab label (`Hero`), then a title-cased key, then "Other". */
+function libraryGroupLabel(win, key, types) {
+  const fromYaml = (types || []).find((type) => type.group === key && type.group_display);
+
+  if (fromYaml?.group_display) {
+    return fromYaml.group_display;
+  }
+
   if (key === 'other') {
     return t(win, 'library_group_other');
   }
@@ -6129,6 +6248,21 @@ function libraryGroupLabel(win, key) {
   const spaced = key.replace(/[_-]+/g, ' ');
 
   return spaced.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Unique group keys in fieldset order (first seen), not alphabetically. */
+function libraryGroupKeys(types) {
+  const keys = [];
+
+  (types || []).forEach((type) => {
+    const key = libraryGroupKey(type);
+
+    if (!keys.includes(key)) {
+      keys.push(key);
+    }
+  });
+
+  return keys;
 }
 
 /** Case-insensitive match against display/title and handle. */
@@ -6208,9 +6342,15 @@ function openSectionPicker(win, options = {}) {
   }
 
   mountSectionPicker(win, options);
+
+  if (initialTab) {
+    doc.getElementById(SECTION_PICKER_ID)?.dispatchEvent(
+      new CustomEvent('sve-set-tab', { detail: { tab: initialTab } })
+    );
+  }
 }
 
-/** Build the sections library panel (right dock). Caller has already handled globals. */
+/** Build the sections library panel. Caller has already handled globals. */
 function mountSectionPicker(win, options = {}) {
   const doc = win.document;
   const initialTab = options.tab || null;
@@ -6219,30 +6359,22 @@ function mountSectionPicker(win, options = {}) {
     return;
   }
 
-  // Same right slot as Theme Settings — park globals (stash kept unless discarded above).
   closeRightPanels(win, [SECTION_PICKER_ID, CHROME_DESIGNS_ID]);
-
-  const top = dockedPanelTop(win);
-  const width = globalsPanelWidth(win);
 
   const panel = doc.createElement('div');
 
   panel.id = SECTION_PICKER_ID;
-  panel.style.cssText =
-    `position:fixed;top:${top}px;right:0;bottom:0;width:${width}px;z-index:41;display:flex;flex-direction:column;` +
-    'background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;overflow:hidden;';
+  panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
       <div style="font-size:14px;font-weight:600;">${t(win, 'sections')}</div>
       <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
     </div>
-    <div data-sve-hint style="padding:6px 10px;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
+    <div data-sve-hint style="padding:8px 12px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
     <div data-sve-tabs style="display:flex;gap:3px;padding:2px 12px 0;flex:0 0 auto;"></div>
     <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
-      <input data-sve-search type="search" autocomplete="off" placeholder="${t(win, 'library_search_placeholder')}"
+      <input data-sve-search type="text" autocomplete="sve-off" placeholder="${t(win, 'library_search_placeholder')}"
         style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
         background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
     </div>
@@ -6271,7 +6403,7 @@ function mountSectionPicker(win, options = {}) {
   };
 
   const applyLibraryLayout = () => {
-    const w = panel.getBoundingClientRect().width || width;
+    const w = panel.getBoundingClientRect().width || rightDockWidth(win);
     const cols = w >= 720 ? 3 : w >= 480 ? 2 : 1;
     const grid = panel.querySelector('[data-sve-grid]');
 
@@ -6286,17 +6418,25 @@ function mountSectionPicker(win, options = {}) {
     grid.style.columnCount = String(cols);
   };
 
-  panel.appendChild(panelResizer(win, panel, { side: 'right', onResize: applyLibraryLayout }));
-  doc.body.appendChild(panel);
+  showInRightShell(win, panel);
   applyLibraryLayout();
   syncPreviewInset(win);
+
+  try {
+    const ro = new win.ResizeObserver(() => applyLibraryLayout());
+
+    ro.observe(panel);
+    panel._sveLibRo = ro;
+  } catch {
+    win.addEventListener('resize', applyLibraryLayout);
+  }
 
   const tabsEl = panel.querySelector('[data-sve-tabs]');
   const searchEl = panel.querySelector('[data-sve-search]');
   const groupsEl = panel.querySelector('[data-sve-groups]');
   const gridEl = panel.querySelector('[data-sve-grid]');
 
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
+  panel.querySelector('[data-sve-close]')?.addEventListener('click', () => {
     closeSectionPicker(win);
 
     if (headerTab === 'sections') {
@@ -6404,11 +6544,12 @@ function mountSectionPicker(win, options = {}) {
       return;
     }
 
-    const keys = [...new Set(sectionTypes(win).map((type) => libraryGroupKey(type.handle)))];
-    const ordered = keys
-      .filter((k) => k !== 'other')
-      .sort((a, b) => a.localeCompare(b))
-      .concat(keys.includes('other') ? ['other'] : []);
+    const types = sectionTypes(win);
+    const ordered = libraryGroupKeys(types);
+
+    if (group && !ordered.includes(group)) {
+      group = null;
+    }
 
     if (ordered.length < 2) {
       groupsEl.style.display = 'none';
@@ -6438,7 +6579,7 @@ function mountSectionPicker(win, options = {}) {
       const btn = doc.createElement('button');
 
       btn.type = 'button';
-      btn.textContent = libraryGroupLabel(win, key);
+      btn.textContent = libraryGroupLabel(win, key, types);
       btn.style.cssText = chipStyle;
       styleChip(btn, group === key);
       btn.addEventListener('click', () => {
@@ -6463,7 +6604,7 @@ function mountSectionPicker(win, options = {}) {
     }
 
     const filtered = types.filter((type) => {
-      if (group && libraryGroupKey(type.handle) !== group) {
+      if (group && libraryGroupKey(type) !== group) {
         return false;
       }
 
@@ -8097,7 +8238,11 @@ function lpMode(win) {
   try {
     const stored = win.localStorage.getItem(LP_MODE_KEY);
 
-    return LP_MODES.includes(stored) ? stored : 'hide';
+    if (stored === 'auto' || !LP_MODES.includes(stored)) {
+      return 'hide';
+    }
+
+    return stored;
   } catch {
     return 'hide';
   }
@@ -8134,6 +8279,8 @@ function persistDockedPanel(win) {
     value = 'listview';
   } else if (doc.getElementById(SECTION_PICKER_ID)) {
     value = 'sections';
+  } else if (doc.getElementById(COMMENTS_PANEL_ID)) {
+    value = 'comments';
   }
 
   try {
@@ -8152,6 +8299,10 @@ function setLpMode(win, mode) {
     /* private mode */
   }
 
+  // An explicit Show/Hide click is the user's choice — do not keep slamming
+  // the sidebar shut because it happened to be closed when Live Preview opened.
+  lpEnterSidebarClosed = false;
+
   // Switching to Show reveals the FULL form, like the old open-toggle did.
   if (mode === 'show') {
     clearSolo(win.document);
@@ -8169,13 +8320,7 @@ function setLpMode(win, mode) {
  * Returns whether the panel is (now) available.
  */
 function autoOpenPanel(win) {
-  if (lpMode(win) === 'hide') {
-    return false;
-  }
-
-  setLpCollapsed(win, false);
-
-  return true;
+  return lpCollapsed === false;
 }
 
 function setLpCollapsed(win, collapsed) {
@@ -8213,9 +8358,6 @@ let outlineActive = -1;
 let outlineAnswered = false;
 
 function outlinePanel(doc) {
-  // The headings live in the block tree's panel now, as its second tab. The
-  // standalone panel is still built by `toggleOutlinePanel` and still works; it
-  // simply has nothing in the header opening it any more.
   return doc.getElementById(OUTLINE_PANEL_ID) || doc.getElementById(LISTVIEW_PANEL_ID);
 }
 
@@ -8225,16 +8367,54 @@ function watchOutlineInPreview(win, on) {
 }
 
 export function closeOutlinePanel(win) {
-  if (!outlinePanel(win.document)) {
+  const panel = win.document.getElementById(OUTLINE_PANEL_ID);
+
+  if (!panel) {
+    if (!listViewPanel(win.document)) {
+      outlineItems = [];
+      outlineActive = -1;
+      outlineAnswered = false;
+      watchOutlineInPreview(win, false);
+    }
+
+    syncPreviewInset(win);
+
     return;
   }
 
-  outlinePanel(win.document).remove();
+  panel.remove();
   outlineItems = [];
   outlineActive = -1;
   outlineAnswered = false;
   watchOutlineInPreview(win, false);
+  releaseRightShellIfEmpty(win);
   syncPreviewInset(win);
+}
+
+function fillOutlinePane(win, pane) {
+  if (pane.querySelector('[data-sve-outline-list]')) {
+    return;
+  }
+
+  pane.id = OUTLINE_PANEL_ID;
+  pane.innerHTML = `
+    <div style="padding:8px 14px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
+    <div data-sve-outline-notice style="flex:0 0 auto;"></div>
+    <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;"></div>
+  `;
+}
+
+function showOutlinePane(win) {
+  renderOutline(win);
+  watchOutlineInPreview(win, true);
+
+  [700, 2000].forEach((delay) => {
+    win.setTimeout(() => {
+      if (!outlineAnswered && (win.document.getElementById(OUTLINE_PANEL_ID) || listViewTab === 'outline')) {
+        watchOutlineInPreview(win, true);
+      }
+    }, delay);
+  });
 }
 
 /** Opens the panel, or closes it when it is already up. */
@@ -8245,7 +8425,7 @@ function toggleOutlinePanel(win) {
     return;
   }
 
-  if (outlinePanel(doc)) {
+  if (doc.getElementById(OUTLINE_PANEL_ID)) {
     closeOutlinePanel(win);
 
     return;
@@ -8253,15 +8433,10 @@ function toggleOutlinePanel(win) {
 
   closeRightPanels(win, [OUTLINE_PANEL_ID]);
 
-  const top = dockedPanelTop(win);
   const panel = doc.createElement('div');
 
   panel.id = OUTLINE_PANEL_ID;
-  panel.style.cssText =
-    `position:fixed;top:${top}px;right:0;bottom:0;width:${globalsPanelWidth(win)}px;z-index:41;` +
-    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;overflow:hidden;';
+  panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
@@ -8274,20 +8449,15 @@ function toggleOutlinePanel(win) {
   `;
 
   panel.querySelector('[data-sve-close]').addEventListener('click', () => closeOutlinePanel(win));
-  panel.appendChild(panelResizer(win, panel, { side: 'right' }));
-  doc.body.appendChild(panel);
+  showInRightShell(win, panel);
   syncPreviewInset(win);
 
-  renderOutline(win); // "Loading…", until the preview answers
+  renderOutline(win);
   watchOutlineInPreview(win, true);
 
-  // A preview that is still booting has no listener yet, and a message posted
-  // into it is simply gone. Two more asks, then we take the silence for an
-  // answer — the panel is one click to close and reopen, and a request repeated
-  // forever is worse than a list that can be asked for again.
   [700, 2000].forEach((delay) => {
     win.setTimeout(() => {
-      if (!outlineAnswered && outlinePanel(win.document)) {
+      if (!outlineAnswered && doc.getElementById(OUTLINE_PANEL_ID)) {
         watchOutlineInPreview(win, true);
       }
     }, delay);
@@ -8568,8 +8738,9 @@ function jumpToOutlineEntry(win, index, item) {
 // view, collapsed, or hidden behind a condition is missing from the drawing while
 // still being part of the page.
 //
-// Nothing here writes. A click hands the uid to the same `focusFromPreview` the
-// outline uses, and the panel is redrawn from scratch each time it opens.
+// A click hands the uid to the same `focusFromPreview` the outline uses. Rename
+// is the one write: it stores `_sve_label` on the row. The panel is redrawn from
+// scratch each time it opens.
 
 const LISTVIEW_PANEL_ID = '__sve-listview-panel';
 
@@ -8581,17 +8752,7 @@ const LISTVIEW_DEFAULT_WIDTH = 320; // 20rem
 const LISTVIEW_MIN_WIDTH = 220;
 
 function listViewPanelWidth(win) {
-  let stored = 0;
-
-  try {
-    stored = Number(win.localStorage.getItem(LISTVIEW_WIDTH_KEY)) || 0;
-  } catch {
-    /* private mode */
-  }
-
-  const max = Math.max(LISTVIEW_MIN_WIDTH, win.innerWidth - 360);
-
-  return Math.min(Math.max(stored || LISTVIEW_DEFAULT_WIDTH, LISTVIEW_MIN_WIDTH), max);
+  return rightDockWidth(win);
 }
 
 /** The tree as last built, nested. */
@@ -8684,20 +8845,7 @@ function dockedPanelTop(win) {
  * runs — once the bar has a real height, the panel drops under it.
  */
 function pinDockedPanelsUnderHeader(win) {
-  const top = `${dockedPanelTop(win)}px`;
-  const doc = win.document;
-
-  [LISTVIEW_PANEL_ID, SECTION_PICKER_ID, OUTLINE_PANEL_ID, GLOBALS_PANEL_ID, CHROME_DESIGNS_ID].forEach((id) => {
-    const panel = doc.getElementById(id);
-
-    if (!panel || panel.hasAttribute('data-sve-chrome-hidden')) {
-      return;
-    }
-
-    if (panel.style.top !== top) {
-      panel.style.top = top;
-    }
-  });
+  relayoutRightDock(win);
 }
 
 export function closeListViewPanel(win) {
@@ -8710,8 +8858,8 @@ export function closeListViewPanel(win) {
   listViewDragUid = null;
   listViewStarted = false;
   listViewCollapsed.clear();
-  // Nothing left to draw them into, so stop the preview reporting its headings.
   watchOutlineInPreview(win, false);
+  releaseRightShellIfEmpty(win);
   syncPreviewInset(win);
 }
 
@@ -8869,6 +9017,11 @@ function listViewTree(win, doc) {
         // på feltet, ikke en værdi på rækken, så værdierne alene kan ikke sige
         // det. `data-row-locked` stemples af projektets LockedRows.js.
         const el = uid ? findSetByVisualIdInput(uid, doc) : null;
+        const globalSet = globalSectionSet(win);
+        const isGlobal = !grid && item.type === globalSet;
+        const globalId = isGlobal ? firstEntryId(item[globalSet]) : '';
+        const custom =
+          typeof item._sve_label === 'string' ? item._sve_label.trim() : '';
 
         out.push({
           locked: !!el?.hasAttribute('data-row-locked'),
@@ -8883,6 +9036,10 @@ function listViewTree(win, doc) {
           type: item.type || null,
           kind: grid ? 'grid' : 'set',
           preview: grid ? gridRowPreview(item) : '',
+          label: custom,
+          global: isGlobal,
+          globalId,
+          globalType: isGlobal ? savedSectionInfo(win, globalId)?.section_type || '' : '',
           depth,
           index,
           listKey,
@@ -9094,6 +9251,34 @@ function ensureListViewStyles(doc) {
     [data-sve-lv-twist]:hover { opacity: 1; background: rgba(128,128,128,.28); }
     [data-sve-lv-twist][data-sve-lv-shut] { transform: rotate(-90deg); }
     [data-sve-lv-text] { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    [data-sve-lv-global] {
+      flex: none;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .02em;
+      line-height: 1;
+      padding: 3px 6px;
+      border-radius: 999px;
+      background: rgba(128,128,128,.22);
+      opacity: .9;
+    }
+    [data-sve-lv-row][data-sve-lv-current] [data-sve-lv-global] {
+      background: rgba(255,255,255,.22);
+    }
+    [data-sve-lv-rename] {
+      all: unset;
+      box-sizing: border-box;
+      flex: 1 1 auto;
+      min-width: 0;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1.3;
+      padding: 1px 4px;
+      margin: -1px -4px;
+      border-radius: 3px;
+      background: rgba(255,255,255,.16);
+      outline: 2px solid currentColor;
+    }
   `;
 
   doc.head.appendChild(style);
@@ -9199,6 +9384,200 @@ function listViewVisible(nodes, out = []) {
   return out;
 }
 
+/**
+ * The name a tree row falls back to when nobody has renamed it.
+ *
+ * A global section is a reference, so the set's own display name is always
+ * "Global section". The row should name what it *is* — the source's type —
+ * and wear a badge for the reference. A custom `_sve_label` is not this.
+ */
+function listViewDefaultLabel(win, item) {
+  if (item.kind === 'grid' && item.preview) {
+    return item.preview;
+  }
+
+  if (item.global) {
+    const type = item.globalType || savedSectionInfo(win, item.globalId)?.section_type || '';
+
+    if (type) {
+      return setMeta(win, type)?.display || humanizeHandle(type);
+    }
+
+    const title = savedSectionInfo(win, item.globalId)?.title || '';
+
+    if (title) {
+      return title;
+    }
+  }
+
+  const meta = item.kind === 'grid' ? gridMeta(win, item.listKey) : setMeta(win, item.type);
+
+  return meta?.display || humanizeHandle(item.type || item.listKey) || t(win, 'listview_item');
+}
+
+function listViewRowLabel(win, item) {
+  return item.label || listViewDefaultLabel(win, item);
+}
+
+/** Icon/name meta for a tree row — a global section uses the source type's icon. */
+function listViewRowMeta(win, item) {
+  if (item.kind === 'grid') {
+    return gridMeta(win, item.listKey);
+  }
+
+  const type = item.global
+    ? item.globalType || savedSectionInfo(win, item.globalId)?.section_type || item.type
+    : item.type;
+
+  return setMeta(win, type);
+}
+
+function writeRowLabel(win, uid, label) {
+  const doc = win.document;
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const found = rowLocation(values, uid);
+
+    if (!found) {
+      continue;
+    }
+
+    const { parentPath, index, rows, kind } = found;
+    const next = JSON.parse(JSON.stringify(rows));
+    const value = label.trim();
+
+    if (kind === 'bard-set' && next[index]?.type === 'set') {
+      const valuesNode = { ...(next[index].attrs?.values || {}) };
+
+      if (value) {
+        valuesNode._sve_label = value;
+      } else {
+        delete valuesNode._sve_label;
+      }
+
+      next[index] = {
+        ...next[index],
+        attrs: { ...(next[index].attrs || {}), values: valuesNode },
+      };
+    } else {
+      next[index] = { ...next[index] };
+
+      if (value) {
+        next[index]._sve_label = value;
+      } else {
+        delete next[index]._sve_label;
+      }
+    }
+
+    container.setFieldValue(parentPath, next);
+
+    return;
+  }
+}
+
+/**
+ * Puts the current name on the left panel, if it is showing this row or a
+ * block inside it. The tree already redraws; the header does not, unless asked.
+ */
+function refreshFocusName(win) {
+  const doc = win.document;
+
+  if (!soloUid) {
+    return;
+  }
+
+  const kind = doc.documentElement.getAttribute(FOCUS_ROOT_ATTR) || 'section';
+
+  paintFocusHeader(
+    win,
+    doc,
+    focusRowMeta(win, soloUid, doc),
+    focusBack(win, doc, soloUid, kind)
+  );
+}
+
+/**
+ * Turns the row's name into an input. Enter keeps it, Escape throws it away,
+ * an empty name (or the type's own name again) goes back to the default.
+ */
+function beginListViewRename(win, rowEl, item) {
+  if (!rowEl || !item?.uid || item.kind === 'grid' || rowEl.querySelector('[data-sve-lv-rename]')) {
+    return;
+  }
+
+  const doc = win.document;
+  const text = rowEl.querySelector('[data-sve-lv-text]');
+
+  if (!text) {
+    return;
+  }
+
+  const input = doc.createElement('input');
+  let closed = false;
+
+  input.type = 'text';
+  input.setAttribute('data-sve-lv-rename', '');
+  input.value = listViewRowLabel(win, item);
+  rowEl.draggable = false;
+
+  const finish = (save) => {
+    if (closed) {
+      return;
+    }
+
+    closed = true;
+    rowEl.draggable = !item.locked;
+
+    if (save) {
+      const next = input.value.replace(/\s+/g, ' ').trim();
+      const fallback = listViewDefaultLabel(win, item);
+      const stored = next && next !== fallback ? next : '';
+
+      writeRowLabel(win, item.uid, stored);
+      sendToPreview(
+        {
+          source: 'statamic-visual-editor',
+          type: 'sve-row-label',
+          ids: item.ids,
+          label: stored || fallback,
+        },
+        win
+      );
+    }
+
+    win.setTimeout(() => {
+      renderListView(win);
+      refreshFocusName(win);
+    }, 0);
+  };
+
+  ['mousedown', 'click', 'dblclick', 'pointerdown'].forEach((name) => {
+    input.addEventListener(name, (event) => event.stopPropagation());
+  });
+  input.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      finish(true);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+  input.addEventListener('blur', () => finish(true));
+
+  text.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
 const LISTVIEW_MENU_ID = '__sve-listview-menu';
 
 /**
@@ -9254,15 +9633,25 @@ function openListViewMenu(win, anchor, item) {
     });
     btn.addEventListener('click', () => {
       close();
-      run();
+      const skipRedraw = run() === false;
+
       // Redrawn after Vue has taken the write — the tree this row came from
       // describes the page as it was before it.
-      win.setTimeout(() => renderListView(win), 0);
+      if (!skipRedraw) {
+        win.setTimeout(() => renderListView(win), 0);
+      }
     });
 
     menu.appendChild(btn);
   };
 
+  if (item.kind !== 'grid') {
+    add(t(win, 'listview_rename'), () => {
+      beginListViewRename(win, anchor.closest('[data-sve-lv-row]') || listViewPanel(doc)?.querySelector(`[data-sve-lv-uid="${item.uid}"]`), item);
+
+      return false;
+    });
+  }
   if (!item.locked) {
     add(t(win, 'listview_move_up'), () => handleMove({ uid: item.uid, direction: -1 }, doc));
     add(t(win, 'listview_move_down'), () => handleMove({ uid: item.uid, direction: 1 }, doc));
@@ -9463,13 +9852,17 @@ function renderListView(win) {
   }
 
   visible.forEach((item) => {
-    const meta = item.kind === 'grid' ? gridMeta(win, item.listKey) : setMeta(win, item.type);
+    const meta = listViewRowMeta(win, item);
     const row = doc.createElement('div');
 
     row.setAttribute('data-sve-lv-row', '');
     row.setAttribute('role', 'button');
     row.tabIndex = 0;
     row.style.marginLeft = `${item.depth * 14}px`;
+
+    if (item.uid) {
+      row.setAttribute('data-sve-lv-uid', item.uid);
+    }
 
     if (item.uid === listViewActiveUid) {
       row.setAttribute('data-sve-lv-current', '');
@@ -9535,9 +9928,26 @@ function renderListView(win) {
     const text = doc.createElement('span');
 
     text.setAttribute('data-sve-lv-text', '');
-    text.textContent =
-      item.preview || meta?.display || humanizeHandle(item.type || item.listKey) || t(win, 'listview_item');
+    text.textContent = listViewRowLabel(win, item);
     row.appendChild(text);
+
+    if (item.kind !== 'grid') {
+      text.title = t(win, 'listview_rename');
+      text.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        beginListViewRename(win, row, item);
+      });
+    }
+
+    if (item.global) {
+      const badge = doc.createElement('span');
+
+      badge.setAttribute('data-sve-lv-global', '');
+      badge.textContent = t(win, 'listview_global');
+      badge.title = t(win, 'global_badge');
+      row.appendChild(badge);
+    }
 
     // The section toolbar's own controls, on the row. The same four things the
     // bar in the preview offers, calling the same functions — so a block can be
@@ -9807,6 +10217,37 @@ function renderListView(win) {
   });
 }
 
+function fillListViewPane(win, pane) {
+  if (pane.querySelector('[data-sve-listview-list]')) {
+    return;
+  }
+
+  pane.id = LISTVIEW_PANEL_ID;
+  pane.innerHTML = `
+    <div style="padding:8px 14px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'listview_hint')}</div>
+    <div data-sve-listview-list style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;"></div>
+  `;
+}
+
+function showListViewPane(win) {
+  renderListView(win);
+}
+
+function registerRightDockContent() {
+  registerRightDockHook('listview', {
+    fill: fillListViewPane,
+    show: showListViewPane,
+  });
+  registerRightDockHook('outline', {
+    fill: fillOutlinePane,
+    show: showOutlinePane,
+    hide: (win) => watchOutlineInPreview(win, false),
+  });
+  registerRightDockHook('sections', {
+    fill: (win) => mountSectionPicker(win),
+  });
+}
+
 function toggleListViewPanel(win) {
   const doc = win.document;
 
@@ -9818,15 +10259,10 @@ function toggleListViewPanel(win) {
 
   closeRightPanels(win, [LISTVIEW_PANEL_ID]);
 
-  const top = dockedPanelTop(win);
   const panel = doc.createElement('div');
 
   panel.id = LISTVIEW_PANEL_ID;
-  panel.style.cssText =
-    `position:fixed;top:${top}px;right:0;bottom:0;width:${listViewPanelWidth(win)}px;z-index:41;` +
-    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-left:1px solid rgba(128,128,128,.28);box-shadow:-8px 0 24px rgba(0,0,0,.18);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;overflow:hidden;';
+  panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 0;flex:0 0 auto;">
@@ -9837,9 +10273,6 @@ function toggleListViewPanel(win) {
     <div data-sve-lv-body style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column;"></div>
   `;
 
-  // Two views of the same page, so one panel with two tabs rather than two
-  // panels fighting for the same edge: the blocks it is built from, and the
-  // headings a reader actually meets.
   const tabsEl = panel.querySelector('[data-sve-lv-tabs]');
 
   [
@@ -9868,20 +10301,66 @@ function toggleListViewPanel(win) {
     persistDockedPanel(win);
     applyHeaderTab(win);
   });
-  panel.appendChild(
-    panelResizer(win, panel, {
-      side: 'right',
-      storageKey: LISTVIEW_WIDTH_KEY,
-      // Keep the preview beside the panel while the edge is being dragged, not
-      // just once it is let go — otherwise the page slides under the panel for
-      // the length of the drag.
-      onResize: () => syncPreviewInset(win),
-    })
-  );
-  doc.body.appendChild(panel);
+  showInRightShell(win, panel);
   syncPreviewInset(win);
 
   setListViewTab(win, listViewTab);
+}
+
+function commentsPanel(doc) {
+  return doc.getElementById(COMMENTS_PANEL_ID);
+}
+
+function closeCommentsPanel(win) {
+  if (!commentsPanel(win.document)) {
+    return;
+  }
+
+  commentsPanel(win.document).remove();
+  releaseRightShellIfEmpty(win);
+  win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
+  syncPreviewInset(win);
+}
+
+function toggleCommentsPanel(win) {
+  const doc = win.document;
+
+  if (commentsPanel(doc)) {
+    closeCommentsPanel(win);
+    persistDockedPanel(win);
+    applyHeaderTab(win);
+
+    return;
+  }
+
+  closeRightPanels(win, [COMMENTS_PANEL_ID]);
+
+  const panel = doc.createElement('div');
+
+  panel.id = COMMENTS_PANEL_ID;
+  panel.style.cssText = RIGHT_PANEL_FILL;
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
+      <div style="font-size:14px;font-weight:600;">${t(win, 'comments_pane')}</div>
+      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
+    </div>
+  `;
+
+  const host = doc.createElement('div');
+
+  host.setAttribute('data-sve-comments-host', '');
+  host.style.cssText = 'flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;';
+  panel.appendChild(host);
+  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
+    closeCommentsPanel(win);
+    persistDockedPanel(win);
+    applyHeaderTab(win);
+  });
+  showInRightShell(win, panel);
+  persistDockedPanel(win);
+  applyHeaderTab(win);
+  syncPreviewInset(win);
 }
 
 /**
@@ -9978,6 +10457,15 @@ export function clearSolo(doc) {
   soloBackAction = null;
   foldedFor = null;
 
+  const win = doc.defaultView || window;
+  const lpOpen = !!doc.querySelector('.live-preview-editor');
+
+  if (lpOpen && isCodeDockArmed(win) && templateDockAllowed(win)) {
+    syncCodeDock(win, doc, null);
+  } else {
+    closeCodeDock(doc);
+  }
+  relayoutAiPanel(doc.defaultView || window);
   clearFocus(doc);
 
   if (soloObserver) {
@@ -11152,17 +11640,7 @@ function fieldHandleFromPath(path) {
  */
 function focusRowMeta(win, uid, doc) {
   const handle = setTypeForUid(uid, doc);
-
-  if (handle) {
-    const meta = setMeta(win, handle);
-
-    return {
-      display: meta?.display || humanizeHandle(handle),
-      icon: meta?.icon || null,
-      instructions: meta?.instructions || '',
-    };
-  }
-
+  let row = null;
   let listKey = null;
   let preview = '';
 
@@ -11180,13 +11658,30 @@ function focusRowMeta(win, uid, doc) {
     }
 
     listKey = fieldHandleFromPath(path);
-    const row = dataGet(values, path);
-
-    if (row && typeof row === 'object') {
-      preview = gridRowPreview(row);
-    }
-
+    row = dataGet(values, path);
     break;
+  }
+
+  if (row && typeof row === 'object') {
+    preview = isGridRowValue(row) ? gridRowPreview(row) : '';
+  }
+
+  if (handle) {
+    const globalSet = globalSectionSet(win);
+    const sourceType =
+      handle === globalSet && row && typeof row === 'object'
+        ? savedSectionInfo(win, firstEntryId(row[globalSet]))?.section_type || ''
+        : '';
+    const type = sourceType || handle;
+    const meta = setMeta(win, type);
+    const custom = typeof row?._sve_label === 'string' ? row._sve_label.trim() : '';
+
+    return {
+      display: custom || (sourceType ? meta?.display || humanizeHandle(sourceType) : '')
+        || meta?.display || humanizeHandle(handle),
+      icon: meta?.icon || setMeta(win, handle)?.icon || null,
+      instructions: meta?.instructions || '',
+    };
   }
 
   const meta = gridMeta(win, listKey);
@@ -11545,6 +12040,11 @@ export function soloSection(uid, doc, win, { kind = null, segment = null } = {})
 
     isolated = true;
 
+    if (win) {
+      syncCodeDock(win, doc, uid);
+      relayoutAiPanel(win);
+    }
+
     if (!focusPanelOn(win)) {
       addSoloBackButton(doc, win);
 
@@ -11641,6 +12141,10 @@ export function soloSection(uid, doc, win, { kind = null, segment = null } = {})
         apply();
 
         return;
+      }
+
+      if (win) {
+        syncCodeDock(win, doc, uid);
       }
 
       if (focusPanelOn(win)) {
@@ -11887,74 +12391,8 @@ function ensureLpPanelToggleInner(win) {
     scheduleChromeGlobalsPrefetch(win);
   }
 
-  let icon = doc.getElementById(LP_TOGGLE_ID);
-
-  if (!icon) {
-    // The panel glyph is purely an indicator — the mode buttons next to it do
-    // the switching. Drawn with borders so it follows the CP theme color.
-    icon = doc.createElement('span');
-    icon.id = LP_TOGGLE_ID;
-    icon.innerHTML =
-      '<span style="display:inline-block;width:16px;height:12px;border:1.5px solid currentColor;' +
-      'border-radius:3px;position:relative;"><span style="position:absolute;left:4px;top:0;bottom:0;' +
-      'width:1.5px;background:currentColor;"></span></span>';
-    icon.style.cssText =
-      'display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;color:currentColor;';
-    header.insertBefore(icon, header.firstChild);
-  }
-
-  icon.style.opacity = lpCollapsed ? '0.6' : '1';
-
-  let group = doc.getElementById(LP_MODE_ID);
-
-  if (!group) {
-    group = doc.createElement('div');
-    group.id = LP_MODE_ID;
-    group.style.cssText = HEADER_GROUP_STYLE;
-
-    LP_MODES.forEach((mode, i) => {
-      const btn = doc.createElement('button');
-
-      // Ingen streg foran den første — der er gruppens egen kant.
-      if (i) {
-        group.appendChild(lpModeSeparator(doc, mode));
-      }
-
-      btn.type = 'button';
-      btn.dataset.mode = mode;
-      btn.textContent = LP_MODE_LABELS[mode];
-      btn.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 10px;`;
-      btn.addEventListener('click', () => setLpMode(win, mode));
-      group.appendChild(btn);
-    });
-
-    icon.after(group);
-  }
-
-  const active = lpMode(win);
-
-  group.querySelectorAll('button').forEach((btn) => {
-    const mode = btn.dataset.mode;
-    const label = LP_MODE_LABELS[mode];
-
-    // Keep labels in sync if the chrome already existed before a rename.
-    if (label && btn.textContent !== label) {
-      btn.textContent = label;
-    }
-
-  // Valgt = samme flade primary som Save & Publish.
-    paintLpActiveControl(btn, mode === active);
-  });
-
-  // Stregen står mellem to ting der ikke rører hinanden. Den valgte tilstand har
-  // sin egen pille, og en streg klods op ad en pillekant er to kanter det samme
-  // sted — så den nabo-streg falder væk.
-  group.querySelectorAll('[data-sep-before]').forEach((sep) => {
-    const after = sep.dataset.sepBefore;
-    const before = LP_MODES[LP_MODES.indexOf(after) - 1];
-
-    sep.style.opacity = active === after || active === before ? '0' : LP_SEP_OPACITY;
-  });
+  doc.getElementById(LP_TOGGLE_ID)?.remove();
+  doc.getElementById(LP_MODE_ID)?.remove();
 
   ensureGlobalsPicker(win);
   ensureSectionLibraryButton(win);
@@ -11968,8 +12406,9 @@ function ensureLpPanelToggleInner(win) {
     openFirstSectionOnce(win);
   }
 
-  // Opening the first section must not force the sidebar open if they closed it.
-  if (lpEnterSidebarClosed && lpCollapsed === false) {
+  // First-section auto-open must not override "they started with it closed".
+  // forcePanelOpen (chrome / global) and setLpMode (the toolbar icon) win.
+  if (!forcePanelOpen && lpEnterSidebarClosed && lpCollapsed === false) {
     lpCollapsed = true;
 
     try {
@@ -11990,11 +12429,9 @@ function ensureLpPanelToggleInner(win) {
   if (editor) {
     const want = lpCollapsed ? '-10000px' : '';
 
-    if (editor.style.left !== want) {
-      editor.style.position = lpCollapsed ? 'absolute' : '';
-      editor.style.left = want;
-      editor.style.top = lpCollapsed ? '0' : '';
-    }
+    editor.style.position = lpCollapsed ? 'absolute' : '';
+    editor.style.left = want;
+    editor.style.top = lpCollapsed ? '0' : '';
 
     // Den bredde man sidst valgte, hentet frem én gang når panelet er der.
     // Derefter er det håndtagets og knappernes bord.
@@ -12009,6 +12446,10 @@ function ensureLpPanelToggleInner(win) {
   positionLpBackButton(win);
   watchStatamicLpClose(win);
   ensureLpPreviewChrome(win);
+  // Closing parks the editor off-screen, so the dock goes full-width. Opening
+  // it again has to re-measure — otherwise the dock stays at left:0 and the
+  // sidebar footer sits on top of HTML/CSS/JS.
+  relayoutCodeDock(win);
 }
 
 // --- Preview chrome: devices + zoom, no Pop out --------------------------------
@@ -13253,7 +13694,7 @@ const SETTINGS_TABS_ID = '__sve-settings-tabs';
  * Ikoner der folder en kontrol ud ved siden af sig. De øvrige (sektioner,
  * disposition) åbner et panel i siden og står helt frit.
  */
-const FRAMED_TABS = ['settings', 'pages', 'globals'];
+const FRAMED_TABS = ['pages', 'globals'];
 
 /**
  * De to der samler ikon og kontrol i ét felt, delt op af gennemgående streger.
@@ -13272,7 +13713,9 @@ const seamId = (key) => `__sve-seam-${key}`;
 const HEADER_SURFACE = 'rgba(128,128,128,.16)';
 
 /**
- * Kvadratisk ikonknap i topbaren — samme flade/højde som device/zoom-grupperne.
+ * Kvadratisk ikonknap i topbaren — samme flade/højde som device/zoom-grupperne
+ * når den står alene (fx go-back). Ikoner inde i en gruppe bruger
+ * LP_TOOLBAR_ICON_STYLE.
  */
 const LP_ICON_BTN_STYLE =
   `box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;` +
@@ -13320,6 +13763,10 @@ const FRAMED_CONTROL_STYLE =
   `box-sizing:border-box;height:${LP_CONTROL_H}px;border:none;border-radius:.375rem;` +
   'background:transparent;cursor:pointer;color:currentColor;' +
   'font-size:12px;font-weight:500;font-family:inherit;line-height:1;';
+
+/** Ikon inde i en topbar-gruppe — samme mål som device-knapperne. */
+const LP_TOOLBAR_ICON_STYLE =
+  `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
 
 /**
  * En select i et felt med streger: ingen flade om sig selv — stregerne er det
@@ -13409,7 +13856,7 @@ function restoreDockedHeaderPanels(win) {
   }
 
   // Closed on purpose — don't bring it back from an old header tab.
-  if (!want) {
+  if (!want || want === 'right') {
     dockedHeaderRestored = true;
 
     return;
@@ -13417,7 +13864,8 @@ function restoreDockedHeaderPanels(win) {
 
   const showing =
     (want === 'sections' && !!win.document.getElementById(SECTION_PICKER_ID)) ||
-    ((want === 'listview' || want === 'outline') && !!listViewPanel(win.document));
+    ((want === 'listview' || want === 'outline') && !!listViewPanel(win.document)) ||
+    (want === 'comments' && !!commentsPanel(win.document));
 
   if (showing) {
     dockedHeaderRestored = true;
@@ -13435,6 +13883,8 @@ function restoreDockedHeaderPanels(win) {
     openSectionPicker(win);
   } else if (want === 'listview' || want === 'outline') {
     toggleListViewPanel(win);
+  } else if (want === 'comments') {
+    toggleCommentsPanel(win);
   }
 }
 
@@ -13454,6 +13904,10 @@ const TOOLBAR_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="18" height="18" rx="2"/>' +
     '<path d="M9 3v18"/></svg>',
+  rightdock:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="18" height="18" rx="2"/>' +
+    '<path d="M15 3v18"/></svg>',
   pages:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="4" y="3" width="16" height="18" rx="2"/>' +
@@ -13479,6 +13933,17 @@ const TOOLBAR_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block"><line x1="4" y1="6" x2="20" y2="6"/>' +
     '<line x1="9" y1="12" x2="20" y2="12"/><line x1="14" y1="18" x2="20" y2="18"/></svg>',
+  code:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:block" aria-hidden="true">' +
+    '<path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.565-2.438L1.5 0zm7.031 9.75-.232-2.718h10.059l.23-2.622H5.412l.698 8.01h9.02l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.157H8.531z"/></svg>',
+  comments:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  ai:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/>' +
+    '<path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>',
 };
 
 /** Keep toolbar glyphs in sync after icon redesigns (toolbar mounts once). */
@@ -13493,12 +13958,18 @@ function syncToolbarIcons(doc) {
     const key = btn.dataset.tab;
     const html = TOOLBAR_ICONS[key];
 
-    if (!html || btn.dataset.iconVer === 'stroke-15') {
+    if (!html || btn.dataset.iconVer === 'stroke-15-html5') {
       return;
     }
 
+    const badge = btn.querySelector('[data-sc-badge]');
+
     btn.innerHTML = html;
-    btn.dataset.iconVer = 'stroke-15';
+    btn.dataset.iconVer = 'stroke-15-html5';
+
+    if (badge) {
+      btn.appendChild(badge);
+    }
   });
 }
 
@@ -13508,14 +13979,20 @@ function ensureHeaderToolbar(win) {
   const header = lpHeader(doc);
 
   if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
+    doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="rightdock"]')?.remove();
+    ensureCodeDockToolbarButton(win);
+    ensureAiToolbarButton(win);
+    ensureCommentsToolbarButton(win);
+
     return;
   }
 
   const bar = doc.createElement('div');
 
   bar.id = HEADER_TOOLBAR_ID;
+  bar.dataset.sveChrome = 'group-1';
   bar.style.cssText =
-    `display:inline-flex;align-items:center;gap:${LP_TOOLBAR_GAP}px;margin-right:${LP_TOOLBAR_GAP}px;`;
+    `${HEADER_GROUP_STYLE}gap:4px;margin-right:${LP_TOOLBAR_GAP}px;`;
 
   // `feature` names the toggle on the settings screen; `key` is what the rest of
   // the header calls the tab. They differ for the panel because the toggle reads
@@ -13525,11 +14002,28 @@ function ensureHeaderToolbar(win) {
     { key: 'pages', feature: 'pages', title: t(win, 'pages') },
     { key: 'globals', feature: 'globals', title: t(win, 'globals') },
     { key: 'sections', feature: 'sections', title: t(win, 'sections') },
-    // One icon for both lists: the headings are the block tree's second tab now,
-    // so a button of their own would open the same panel twice.
     { key: 'listview', feature: 'listview', title: t(win, 'listview') },
+    { key: 'code', title: t(win, 'code_dock_toggle') },
+    { key: 'ai', title: t(win, 'ai_panel') },
+    { key: 'comments', feature: 'comments', title: t(win, 'comments_pane') },
   ].forEach((tab) => {
-    if (!featureOn(win, tab.feature)) {
+    if (isToolbarShortcut(tab.key) && isRightDockTool(tab.key)) {
+      // Right-dock pane with a header shortcut (comments badge).
+    } else if (isRightDockTool(tab.key)) {
+      return;
+    } else if (tab.key === 'code') {
+      if (!templateDockAllowed(win)) {
+        return;
+      }
+    } else if (tab.key === 'ai') {
+      if (!aiPanelAllowed(win)) {
+        return;
+      }
+    } else if (tab.key === 'comments') {
+      if (!featureOn(win, 'comments')) {
+        return;
+      }
+    } else if (!featureOn(win, tab.feature)) {
       return;
     }
 
@@ -13539,11 +14033,35 @@ function ensureHeaderToolbar(win) {
     btn.dataset.tab = tab.key;
     btn.title = tab.title;
     btn.innerHTML = TOOLBAR_ICONS[tab.key];
+    btn.dataset.iconVer = 'stroke-15-html5';
     // Same outer size as devices / zoom / go-back — one height across the bar.
-    btn.style.cssText = LP_ICON_BTN_STYLE;
+    btn.style.cssText = LP_TOOLBAR_ICON_STYLE + (tab.key === 'comments' ? 'position:relative;' : '');
     btn.querySelector('svg')?.setAttribute('width', '15');
     btn.querySelector('svg')?.setAttribute('height', '15');
-    btn.addEventListener('click', () => toggleHeaderTab(win, tab.key));
+    btn.addEventListener('click', () => {
+      if (tab.key === 'comments') {
+        toggleCommentsPanel(win);
+        persistDockedPanel(win);
+        applyHeaderTab(win);
+        syncPreviewInset(win);
+
+        return;
+      }
+
+      if (tab.key === 'code') {
+        toggleCodeDockButton(win);
+
+        return;
+      }
+
+      if (tab.key === 'ai') {
+        toggleAiPanelButton(win);
+
+        return;
+      }
+
+      toggleHeaderTab(win, tab.key);
+    });
 
     if (FRAMED_TABS.includes(tab.key)) {
       const wrap = doc.createElement('div');
@@ -13551,15 +14069,7 @@ function ensureHeaderToolbar(win) {
       wrap.id = frameId(tab.key);
 
       if (MERGED_TABS.includes(tab.key)) {
-        // Ét felt: ikon, søm, kontrol. Wrapperen er selve gruppeboksen — fladen
-        // sættes i applyHeaderTab, så den kun tegnes når feltet er foldet ud.
-        wrap.style.cssText =
-          `display:inline-flex;align-items:center;box-sizing:border-box;height:${LP_CHROME_H}px;` +
-          `padding:${LP_CONTROL_PAD}px;border-radius:.5rem;`;
-        btn.style.width = `${LP_CONTROL_H}px`;
-        btn.style.height = `${LP_CONTROL_H}px`;
-        btn.style.borderRadius = '.375rem';
-        btn.style.background = 'transparent';
+        wrap.style.cssText = 'display:inline-flex;align-items:center;';
         wrap.appendChild(btn);
 
         const seam = headerSeam(doc);
@@ -13583,6 +14093,189 @@ function ensureHeaderToolbar(win) {
   });
 
   header.insertBefore(bar, header.firstChild);
+}
+
+function toggleCodeDockButton(win) {
+  const next = !isCodeDockArmed(win);
+
+  setCodeDockArmed(win, next);
+
+  if (next) {
+    syncCodeDock(win, win.document, soloUid);
+  } else {
+    closeCodeDock(win.document);
+  }
+
+  applyHeaderTab(win);
+}
+
+/**
+ * The code icon is added after the toolbar first mounts (feature flags can
+ * arrive late) and sits after the block tree, last in the icon row.
+ */
+function ensureCodeDockToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  const existing = bar.querySelector('button[data-tab="code"]');
+
+  if (!templateDockAllowed(win)) {
+    existing?.remove();
+
+    if (isCodeDockArmed(win)) {
+      setCodeDockArmed(win, false);
+      closeCodeDock(doc);
+    }
+
+    return;
+  }
+
+  if (existing) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'code';
+  btn.dataset.iconVer = 'stroke-15-html5';
+  btn.title = t(win, 'code_dock_toggle');
+  btn.innerHTML = TOOLBAR_ICONS.code;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => toggleCodeDockButton(win));
+
+  const listview = bar.querySelector('button[data-tab="listview"]');
+  const rightdock = bar.querySelector('button[data-tab="rightdock"]');
+
+  if (listview) {
+    listview.after(btn);
+  } else if (rightdock) {
+    rightdock.after(btn);
+  } else {
+    bar.appendChild(btn);
+  }
+}
+
+function ensureCommentsToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  if (!featureOn(win, 'comments')) {
+    bar.querySelector('button[data-tab="comments"]')?.remove();
+
+    return;
+  }
+
+  if (isRightDockTool('comments')) {
+    if (!isToolbarShortcut('comments')) {
+      bar.querySelector('button[data-tab="comments"]')?.remove();
+
+      return;
+    }
+
+    if (bar.querySelector('button[data-tab="comments"]')) {
+      bar.appendChild(bar.querySelector('button[data-tab="comments"]'));
+
+      return;
+    }
+
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.dataset.tab = 'comments';
+    btn.dataset.iconVer = 'stroke-15';
+    btn.title = t(win, 'comments_pane');
+    btn.innerHTML = TOOLBAR_ICONS.comments;
+    btn.style.cssText = `${LP_TOOLBAR_ICON_STYLE}position:relative;`;
+    btn.querySelector('svg')?.setAttribute('width', '15');
+    btn.querySelector('svg')?.setAttribute('height', '15');
+    btn.addEventListener('click', () => {
+      revealRightPane(win, 'comments');
+      persistDockedPanel(win);
+      applyHeaderTab(win);
+      syncPreviewInset(win);
+    });
+    bar.appendChild(btn);
+    win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
+
+    return;
+  }
+
+  const comments = bar.querySelector('button[data-tab="comments"]');
+
+  if (comments && comments !== bar.lastElementChild) {
+    bar.appendChild(comments);
+  }
+}
+
+function toggleAiPanelButton(win) {
+  if (!aiPanelAllowed(win)) {
+    return;
+  }
+
+  if (!isAiPanelOpen(win.document)) {
+    closeRightPanels(win, ['__sve-ai-panel']);
+  }
+
+  toggleAiPanel(win);
+  syncPreviewInset(win);
+  applyHeaderTab(win);
+}
+
+function ensureAiToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  const existing = bar.querySelector('button[data-tab="ai"]');
+
+  if (!aiPanelAllowed(win)) {
+    existing?.remove();
+
+    if (isAiPanelOpen(doc)) {
+      closeAiPanel(win);
+      syncPreviewInset(win);
+    }
+
+    return;
+  }
+
+  if (existing) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'ai';
+  btn.dataset.iconVer = 'stroke-15-spark';
+  btn.title = t(win, 'ai_panel');
+  btn.innerHTML = TOOLBAR_ICONS.ai;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => toggleAiPanelButton(win));
+
+  const code = bar.querySelector('button[data-tab="code"]');
+
+  if (code) {
+    code.after(btn);
+  } else {
+    bar.appendChild(btn);
+  }
 }
 
 function toggleHeaderTab(win, key) {
@@ -13809,14 +14502,18 @@ function applyHeaderTab(win) {
 
   loadHeaderTab(win);
   hideLpLabel(doc);
+  ensureCodeDockToolbarButton(win);
+  ensureCommentsToolbarButton(win);
+  ensureAiToolbarButton(win);
 
-  // The standalone panel glyph and the old Hide/Auto/Show group are replaced by
-  // the toolbar — keep them out of the way.
+  // The standalone panel glyph and the old Hide/Auto/Show group are gone.
   const glyph = doc.getElementById(LP_TOGGLE_ID);
 
   if (glyph) {
     glyph.style.display = 'none';
   }
+
+  doc.getElementById(LP_MODE_ID)?.remove();
 
   // The sections icon in the toolbar replaces the old "Sektioner" text button.
   const lib = doc.getElementById(LIBRARY_BUTTON_ID);
@@ -13832,14 +14529,7 @@ function applyHeaderTab(win) {
     globals: doc.getElementById(GLOBALS_PICKER_ID)?.parentElement,
   };
 
-  // Hide/Auto/Show lives under the settings tab — the same tab that owns the
-  // panel it controls.
-  const modeGroup = doc.getElementById(LP_MODE_ID);
   const headerBg = lpHeaderBg(win) || 'rgba(0,0,0,.35)';
-
-  if (modeGroup) {
-    modeGroup.style.display = lpCollapsed === false ? 'inline-flex' : 'none';
-  }
 
   // A control whose tool is off stays hidden whatever the active tab is — its
   // icon is gone, so there would be no way back out of it.
@@ -13861,7 +14551,9 @@ function applyHeaderTab(win) {
       frame.style.margin = '0';
 
       if (MERGED_TABS.includes(key)) {
-        frame.style.background = HEADER_SURFACE;
+        frame.style.background = 'transparent';
+        frame.style.height = '';
+        frame.style.padding = '0';
       }
 
       // Låsen sidder på feltet, ikke på glyffen inde i det. Sider og Globals bærer
@@ -13905,6 +14597,19 @@ function applyHeaderTab(win) {
   // connected to it. Guarded — moving a node on every call would trip the
   // observer that re-runs this into a loop.
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (bar && bar.dataset.sveChrome !== 'group-1') {
+    bar.dataset.sveChrome = 'group-1';
+    bar.style.cssText = `${HEADER_GROUP_STYLE}gap:4px;margin-right:${LP_TOOLBAR_GAP}px;`;
+  }
+
+  if (bar) {
+    bar.style.setProperty(
+      '--sve-toolbar-ring',
+      `color-mix(in srgb, rgb(128 128 128) 16%, ${headerBg})`
+    );
+  }
+
   const iconOf = (tab) => bar?.querySelector(`button[data-tab="${tab}"]`);
   const place = (anchor, el) => {
     if (anchor && el && anchor.nextElementSibling !== el) {
@@ -13916,7 +14621,6 @@ function applyHeaderTab(win) {
   // ellers ville den lande foran stregen der skiller dem.
   const anchorFor = (key) => doc.getElementById(seamId(key)) || iconOf(key);
 
-  place(anchorFor('settings'), modeGroup);
   place(anchorFor('pages'), controls.pages);
   place(anchorFor('globals'), controls.globals);
 
@@ -13927,7 +14631,9 @@ function applyHeaderTab(win) {
   const docked = {
     sections: !!doc.getElementById(SECTION_PICKER_ID),
     listview: !!listViewPanel(doc),
-    outline: !!outlinePanel(doc),
+    outline: !!doc.getElementById(OUTLINE_PANEL_ID),
+    comments: !!commentsPanel(doc),
+    ai: isAiPanelOpen(doc),
   };
 
   // Only the icon buttons — the control groups now live inside the toolbar too,
@@ -13938,33 +14644,25 @@ function applyHeaderTab(win) {
 
   const sidebarOpen = lpCollapsed === false;
 
-  doc.getElementById(HEADER_TOOLBAR_ID)?.querySelectorAll('button[data-tab]').forEach((btn) => {
+  bar?.querySelectorAll('button[data-tab]').forEach((btn) => {
     const tab = btn.dataset.tab;
     const on =
       tab === 'settings'
         ? sidebarOpen
-        : tab in docked
-          ? docked[tab]
-          : tab === headerTab;
+        : tab === 'code'
+          ? isCodeDockArmed(win)
+          : tab in docked
+            ? docked[tab]
+            : tab === headerTab;
 
-    btn.style.border = 'none';
-    btn.style.boxShadow = 'none';
-    btn.style.cursor = 'pointer';
-
-    if (MERGED_TABS.includes(tab)) {
-      btn.style.background = 'transparent';
-      btn.style.color = 'currentColor';
-      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    } else if (on) {
-      btn.style.background = HEADER_FIELD_SURFACE;
-      btn.style.color = 'currentColor';
-      btn.setAttribute('aria-pressed', 'true');
-    } else {
-      btn.style.background = HEADER_SURFACE;
-      btn.style.color = 'currentColor';
-      btn.setAttribute('aria-pressed', 'false');
+    if (btn.style.width !== '28px') {
+      btn.style.width = '28px';
+      btn.style.height = `${LP_CONTROL_H}px`;
+      btn.style.borderRadius = '.375rem';
+      btn.style.padding = '0';
     }
 
+    paintLpActiveControl(btn, on);
     paintFocusLockedTabs(win, btn, tab, on);
   });
 
@@ -15251,6 +15949,7 @@ function ensureLpBackButton(win) {
   pill.style.marginRight = '0';
 
   positionLpBackButton(win);
+  // Idempotent: no-ops once the session already has a clean snapshot.
   scheduleEntryBaseline(win);
 }
 
@@ -15728,6 +16427,7 @@ function startPreviewPickerSession(doc, win, anchorRect) {
       clearTimeout(previewPickerSession.goneTimer);
       previewPickerSession.goneTimer = null;
       placeSetPicker(el, doc, win, anchorRect);
+      silenceSetPickerSearch(doc);
       bindIframe();
 
       return;
@@ -15772,7 +16472,103 @@ function startPreviewPickerSession(doc, win, anchorRect) {
  * (list↔grid included). Without an anchorRect we only rescue off-screen
  * popovers — admin-panel Add Set is left alone.
  */
+function isSetPickerSearchField(el) {
+  if (!el || el.tagName !== 'INPUT') {
+    return false;
+  }
+
+  if (el.hasAttribute('data-set-picker-search-input')) {
+    return true;
+  }
+
+  return /search sets/i.test(el.getAttribute('placeholder') || '');
+}
+
+function applySetPickerSearchAttrs(input) {
+  // Safari stores previous searches per origin for type=search and shows them
+  // even with autocomplete=off. Chrome also ignores "off" on search fields.
+  if ((input.getAttribute('type') || '').toLowerCase() === 'search') {
+    input.type = 'text';
+  }
+
+  input.setAttribute('autocomplete', 'sve-off');
+  input.autocomplete = 'sve-off';
+  input.setAttribute('autocorrect', 'off');
+  input.setAttribute('autocapitalize', 'off');
+  input.setAttribute('spellcheck', 'false');
+  input.setAttribute('data-1p-ignore', 'true');
+  input.setAttribute('data-lpignore', 'true');
+  input.setAttribute('data-form-type', 'other');
+  input.setAttribute('aria-autocomplete', 'none');
+
+  const name = input.getAttribute('name') || '';
+
+  if (!name || /^search$/i.test(name)) {
+    input.setAttribute('name', 'sve-set-search');
+  }
+}
+
+function onSetPickerSearchFocus(event) {
+  const input = event.target;
+
+  applySetPickerSearchAttrs(input);
+
+  if (input.readOnly) {
+    return;
+  }
+
+  // Browsers skip native suggestions on readonly fields. Lift it on the next
+  // frame so the editor can still type.
+  input.readOnly = true;
+  requestAnimationFrame(() => {
+    input.readOnly = false;
+  });
+}
+
+function silenceSetPickerSearch(doc) {
+  const input = findSetPickerSearchInput(doc);
+
+  if (!input || input.tagName !== 'INPUT') {
+    return;
+  }
+
+  applySetPickerSearchAttrs(input);
+
+  if (input.hasAttribute('data-sve-no-suggest')) {
+    return;
+  }
+
+  input.setAttribute('data-sve-no-suggest', '');
+  input.addEventListener('focus', onSetPickerSearchFocus);
+}
+
+function armSetPickerSearchSilence(win) {
+  if (win.__sveSetPickerSilence) {
+    return;
+  }
+
+  win.__sveSetPickerSilence = true;
+
+  win.document.addEventListener(
+    'focusin',
+    (event) => {
+      const el = event.target;
+
+      if (!(el instanceof win.HTMLInputElement) || !isSetPickerSearchField(el)) {
+        return;
+      }
+
+      applySetPickerSearchAttrs(el);
+      onSetPickerSearchFocus(event);
+      silenceSetPickerSearch(win.document);
+    },
+    true
+  );
+}
+
 function ensurePickerVisible(doc, win, anchorRect = null) {
+  closeCodeDockPopups(doc);
+
   if (anchorRect) {
     startPreviewPickerSession(doc, win, anchorRect);
 
@@ -15791,6 +16587,7 @@ function ensurePickerVisible(doc, win, anchorRect = null) {
       }
 
       placeSetPicker(el, doc, win, anchorRect);
+      silenceSetPickerSearch(doc);
       setTimeout(() => placeSetPicker(el, doc, win, anchorRect), 130);
       setTimeout(() => placeSetPicker(el, doc, win, anchorRect), 320);
     };
@@ -15814,6 +16611,7 @@ function ensurePickerVisible(doc, win, anchorRect = null) {
     }
 
     placeSetPicker(el, doc, win, null);
+    silenceSetPickerSearch(doc);
   };
 
   setTimeout(run, 80);
@@ -16377,8 +17175,13 @@ function openBardSetPickerFallback(doc, win, data) {
 
   const search = doc.createElement('input');
 
-  search.type = 'search';
+  search.type = 'text';
   search.setAttribute('data-set-picker-search-input', '');
+  search.setAttribute('autocomplete', 'sve-off');
+  search.setAttribute('autocorrect', 'off');
+  search.setAttribute('autocapitalize', 'off');
+  search.setAttribute('spellcheck', 'false');
+  search.setAttribute('name', 'sve-set-search');
   search.placeholder = 'Search Sets...';
   search.style.cssText =
     'width:100%;box-sizing:border-box;margin-bottom:6px;padding:6px 8px;' +
@@ -16862,6 +17665,9 @@ const CP_STYLES = `
 }
 #__sve-toolbar button[data-tab]:hover:not(:disabled):not([aria-pressed="true"]) {
   background: rgba(128, 128, 128, .28) !important;
+}
+#__sve-toolbar button[data-tab="comments"] [data-sc-badge] {
+  box-shadow: 0 0 0 2px var(--sve-toolbar-ring, rgba(128,128,128,.16));
 }
 #__sve-lp-mode button:hover:not(:disabled):not([aria-pressed="true"]),
 #__sve-preview-chrome button:hover:not(:disabled):not([aria-pressed="true"]) {
@@ -18226,8 +19032,110 @@ function forgetOrigin(win) {
  * Opens the editor in the overlay iframe. The listing (or form) stays put
  * underneath — the same host the front-end edit button uses.
  */
-function goToPreview(win, url) {
+function goToPreview(win, url, fromEl) {
+  showEntryOpening(win.document, fromEl, url);
   openOverlay(win, url);
+}
+
+const ENTRY_OPEN_STYLE_ID = '__sve-entry-open-style';
+const ENTRY_OPEN_ATTR = 'data-sve-entry-loading';
+
+function ensureEntryOpenStyles(doc) {
+  if (doc.getElementById(ENTRY_OPEN_STYLE_ID)) {
+    return;
+  }
+
+  const style = doc.createElement('style');
+
+  style.id = ENTRY_OPEN_STYLE_ID;
+  style.textContent = `
+[${ENTRY_OPEN_ATTR}] {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-inline-start: 8px;
+  height: 8px;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+[${ENTRY_OPEN_ATTR}] i {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: .22;
+  animation: sve-entry-dots 1s ease-in-out infinite;
+}
+[${ENTRY_OPEN_ATTR}] i:nth-child(2) { animation-delay: .15s; }
+[${ENTRY_OPEN_ATTR}] i:nth-child(3) { animation-delay: .3s; }
+[${ENTRY_OPEN_ATTR}] i:nth-child(4) { animation-delay: .45s; }
+@keyframes sve-entry-dots {
+  0%, 100% { opacity: .22; }
+  50% { opacity: .88; }
+}
+`;
+  doc.head.appendChild(style);
+}
+
+function clearEntryOpening(doc) {
+  doc.querySelectorAll(`[${ENTRY_OPEN_ATTR}]`).forEach((el) => el.remove());
+}
+
+function entryTitleAnchor(doc, fromEl, url) {
+  if (fromEl?.closest) {
+    const branch = fromEl.closest('.page-tree-branch');
+    const inBranch = branch?.querySelector('a[href*="/entries/"]');
+
+    if (inBranch) {
+      return inBranch;
+    }
+
+    if (fromEl.matches?.('a[href]')) {
+      return fromEl;
+    }
+
+    const nested = fromEl.querySelector?.('a[href*="/entries/"]');
+
+    if (nested) {
+      return nested;
+    }
+  }
+
+  let path = '';
+
+  try {
+    path = new URL(url, doc.defaultView.location.origin).pathname;
+  } catch {
+    return null;
+  }
+
+  const links = [...doc.querySelectorAll(`a[href*="/entries/"]`)];
+
+  return links.find((a) => {
+    try {
+      return new URL(a.href, doc.defaultView.location.origin).pathname === path;
+    } catch {
+      return false;
+    }
+  }) || null;
+}
+
+function showEntryOpening(doc, fromEl, url) {
+  ensureEntryOpenStyles(doc);
+  clearEntryOpening(doc);
+
+  const anchor = entryTitleAnchor(doc, fromEl, url);
+
+  if (!anchor) {
+    return;
+  }
+
+  const dots = doc.createElement('span');
+
+  dots.setAttribute(ENTRY_OPEN_ATTR, '');
+  dots.setAttribute('aria-hidden', 'true');
+  dots.innerHTML = '<i></i><i></i><i></i><i></i>';
+  anchor.after(dots);
 }
 
 function initOpenInPreview(win) {
@@ -18267,7 +19175,7 @@ function initOpenInPreview(win) {
       event.stopPropagation();
       event.stopImmediatePropagation();
 
-      goToPreview(win, url);
+      goToPreview(win, url, anchor);
     },
     true
   );
@@ -18311,6 +19219,8 @@ function initOpenInPreview(win) {
   };
 
   hookRouter();
+
+  win.addEventListener('sve-overlay-idle', () => clearEntryOpening(win.document));
 }
 
 // Notified with `true`/`false` whenever the entry is written back (or fails to
@@ -18744,6 +19654,23 @@ function refreshPreview(win, active) {
   );
 }
 
+/**
+ * Replay the current Live Preview URL into the iframe.
+ *
+ * Must morph, never `location.reload()`: a full reload of the front-end in the
+ * iframe ejects Live Preview (same failure Vite `refresh: true` used to cause).
+ */
+export function replayLivePreview(win) {
+  const frame = previewFrame(win.document);
+  const url = lastPreviewUrl || frame?.getAttribute('src') || frame?.src;
+
+  if (!frame?.contentWindow || !url) {
+    return;
+  }
+
+  frame.contentWindow.postMessage({ name: 'statamic.preview.updated', url }, '*');
+}
+
 /** Header/footer currently stepped into from Live Preview (null when not). */
 let activeChromeKind = null;
 
@@ -18964,10 +19891,17 @@ function notifyChromeDirty(win) {
  */
 function globalSectionLabel(win) {
   const rows = sectionPanelValues?.values?.[sectionField(win)];
-  const type = Array.isArray(rows) && rows.length ? rows[0]?.type : null;
+  const row = Array.isArray(rows) && rows.length ? rows[0] : null;
+  const type = row?.type;
 
   if (typeof type !== 'string' || !type) {
     return null;
+  }
+
+  const custom = typeof row._sve_label === 'string' ? row._sve_label.trim() : '';
+
+  if (custom) {
+    return custom;
   }
 
   return setMeta(win, type)?.display || humanizeHandle(type);
@@ -19413,11 +20347,7 @@ function parkGlobalsPanel(win) {
     return;
   }
 
-  panel.style.cssText =
-    'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
-    'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
-    'background:var(--theme-color-content-bg,#fff);';
-  panel.setAttribute('data-sve-chrome-hidden', '1');
+  parkInRightShell(win, panel);
   forcePanelOpen = false;
   syncPreviewInset(win);
 }
@@ -19426,17 +20356,7 @@ const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
 const GLOBALS_MIN_WIDTH = 320;
 
 function globalsPanelWidth(win) {
-  let stored = 0;
-
-  try {
-    stored = Number(win.localStorage.getItem(GLOBALS_WIDTH_KEY)) || 0;
-  } catch {
-    /* private mode */
-  }
-
-  const max = Math.max(GLOBALS_MIN_WIDTH, win.innerWidth - 360);
-
-  return Math.min(Math.max(stored || 440, GLOBALS_MIN_WIDTH), max);
+  return rightDockWidth(win);
 }
 
 /**
@@ -19446,11 +20366,12 @@ function globalsPanelWidth(win) {
  */
 function panelResizer(win, panel, { side = 'right', storageKey = GLOBALS_WIDTH_KEY, onResize } = {}) {
   const handle = win.document.createElement('div');
+  const grip = splitterFill('ew');
 
   handle.style.cssText =
     side === 'left'
-      ? 'position:absolute;right:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:1;touch-action:none;'
-      : 'position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:1;touch-action:none;';
+      ? `position:absolute;right:-8px;top:0;bottom:0;width:16px;cursor:ew-resize;z-index:2;touch-action:none;${grip}`
+      : `position:absolute;left:-8px;top:0;bottom:0;width:16px;cursor:ew-resize;z-index:2;touch-action:none;${grip}`;
   handle.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) {
       return;
@@ -19737,18 +20658,10 @@ function openGlobalsPanel(win, set, options = {}) {
   panel.appendChild(frame);
   ensureGlobalsPanelSaveWatch(win);
 
-  // Always keep the panel on document.body. Reparenting the iframe reloads it
-  // and refreshes the Live Preview — that was the visible "loading" flicker.
-  doc.body.appendChild(panel);
-
+  // Park inside the shared shell so switching tools never reparents the iframe.
   if (prefetch) {
-    panel.style.cssText =
-      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;' +
-      'display:flex;flex-direction:column;visibility:hidden;pointer-events:none;' +
-      'background:var(--theme-color-content-bg,#fff);';
-    panel.setAttribute('data-sve-chrome-hidden', '1');
+    parkInRightShell(win, panel);
   } else {
-    panel.removeAttribute('data-sve-chrome-hidden');
     pinGlobalsPanelRight(win, panel);
     syncPreviewInset(win);
 
@@ -19761,10 +20674,10 @@ function openGlobalsPanel(win, set, options = {}) {
 /** The global-set picker, sat beside the panel-mode buttons in the LP header. */
 function ensureGlobalsPicker(win) {
   const doc = win.document;
-  const group = doc.getElementById(LP_MODE_ID);
+  const header = lpHeader(doc);
   const sets = globalSets(win);
 
-  if (!group || !sets.length || doc.getElementById(GLOBALS_PICKER_ID)) {
+  if (!header || !sets.length || doc.getElementById(GLOBALS_PICKER_ID)) {
     return;
   }
 
@@ -19821,7 +20734,7 @@ function ensureGlobalsPicker(win) {
 
   wrap.style.cssText = 'display:inline-flex;align-items:center;font-family:inherit;';
   wrap.appendChild(select);
-  group.after(wrap);
+  header.appendChild(wrap);
 }
 
 const LIBRARY_BUTTON_ID = '__sve-library-btn';
@@ -21080,7 +21993,7 @@ function openChromeDesignsPanel(win, kind) {
     </div>
     <div data-sve-hint style="padding:6px 14px;font-size:11px;opacity:.6;flex:0 0 auto;"></div>
     <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
-      <input data-sve-search type="search" autocomplete="off"
+      <input data-sve-search type="text" autocomplete="sve-off"
         style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
         background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
     </div>
@@ -22028,10 +22941,10 @@ function slugify(value) {
 
 function ensureCollectionPicker(win) {
   const doc = win.document;
-  const group = doc.getElementById(LP_MODE_ID);
+  const header = lpHeader(doc);
   const collections = pickerCollections(win);
 
-  if (!group || !collections.length || doc.getElementById(COLLECTION_PICKER_ID)) {
+  if (!header || !collections.length || doc.getElementById(COLLECTION_PICKER_ID)) {
     return;
   }
 
@@ -22155,7 +23068,7 @@ function ensureCollectionPicker(win) {
   wrap.appendChild(headerSeam(doc));
   wrap.appendChild(entrySelect);
   wrap.appendChild(newBtn);
-  group.after(wrap);
+  header.appendChild(wrap);
 
   // Open on whatever you're already editing, so the picker reads as "you are
   // here" rather than an empty control.
@@ -24303,7 +25216,9 @@ export function initCp(win = window) {
   registerPanelConditions(win);
 
   // Boot marker — proves this build is loaded (DevTools: window.__SVE_BUILD__).
-  win.__SVE_BUILD__ = 'global-fix-2026-08-06f';
+  win.__SVE_BUILD__ = 'set-picker-no-suggest-3-2026-08-17';
+
+  armSetPickerSearchSilence(win);
 
   try {
     win.document.getElementById('sve-lp-cover')?.remove();
@@ -24319,12 +25234,29 @@ export function initCp(win = window) {
     return;
   }
 
+  registerRightDockContent();
+
   const style = win.document.createElement('style');
   style.id = '__sve-cp-styles';
   style.textContent = CP_STYLES;
   win.document.head.appendChild(style);
 
   watchPublishClosesRightPanels(win);
+  win.addEventListener('resize', () => {
+    relayoutCodeDock(win);
+    relayoutAiPanel(win);
+    relayoutRightDock(win);
+    syncPreviewInset(win);
+  });
+  win.addEventListener('sve-right-dock-change', () => {
+    persistDockedPanel(win);
+    syncPreviewInset(win);
+    applyHeaderTab(win);
+  });
+  win.addEventListener('sve-ai-closed', () => {
+    syncPreviewInset(win);
+    applyHeaderTab(win);
+  });
 
   autoOpenLivePreview(win);
   interceptLivePreviewOpen(win);
