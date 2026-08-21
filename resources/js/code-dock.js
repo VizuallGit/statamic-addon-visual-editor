@@ -6,10 +6,15 @@
  * type — which is why editors never see it. The three panes map to markup,
  * `{{ style_push }}` and `{{ script_push }}`; saving writes them back as one
  * file and morphs Live Preview.
+ *
+ * A super admin can lock a section type so the panes stay visible but
+ * read-only. Unlocking asks first: the file is shared by every page that
+ * uses the type. Designed types start locked; `custom_section` starts open.
+ * The file may hold `{{# sve-locked #}}` or `{{# sve-unlocked #}}`.
  */
 
 import { findSetByUid, replayLivePreview } from './cp.js';
-import { compileSectionTailwind, tailwindDockOn } from './tailwind-bake.js';
+import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { splitterFill } from './right-dock.js';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
 import { Compartment, EditorState } from '@codemirror/state';
@@ -23,6 +28,7 @@ import { tags } from '@lezer/highlight';
 
 const DOCK_ID = '__sve-code-dock';
 const STYLE_ID = '__sve-code-dock-style';
+const UNLOCK_ID = '__sve-code-dock-unlock';
 const HEIGHT_KEY = 'sve-code-dock-height';
 const PANES_KEY = 'sve-code-dock-panes';
 const WIDTHS_KEY = 'sve-code-dock-widths';
@@ -30,9 +36,12 @@ const ARMED_KEY = 'sve-code-dock-armed';
 const DEFAULT_HEIGHT = 280;
 const MIN_HEIGHT = 120;
 const MIN_PANE = 140;
-const BAR = 36;
 const SAVE_MS = 700;
 const HANDLES = ['html', 'css', 'js'];
+const LOCK_CLOSED_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+const LOCK_OPEN_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-1"/></svg>';
 const CSS_MENU_ID = '__sve-css-menu';
 const HTML_HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 const HTML_TOOLS = [
@@ -134,22 +143,39 @@ let cssColorsPromise = null;
 let lastUid = null;
 let lastType = null;
 let lastParts = { html: '', css: '', js: '' };
+let lastLocked = false;
+let lockReady = false;
 let lastWin = null;
 let loadGen = 0;
 let saveTimer = null;
 let saveInFlight = null;
-let bakeGen = 0;
 let dragging = false;
 let applying = false;
+let layoutObserver = null;
+let layoutWin = null;
+let observedEditor = null;
+let observedRight = null;
+let layoutWatchBound = false;
 const editors = { html: null, css: null, js: null };
 const readOnlyOf = {
   html: new Compartment(),
   css: new Compartment(),
   js: new Compartment(),
 };
+const editableOf = {
+  html: new Compartment(),
+  css: new Compartment(),
+  js: new Compartment(),
+};
 
-function t(win, key) {
-  return win.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
+function t(win, key, replacements = {}) {
+  let out = win.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
+
+  for (const [name, value] of Object.entries(replacements)) {
+    out = String(out).replaceAll(`:${name}`, value);
+  }
+
+  return out;
 }
 
 function csrfToken(win) {
@@ -228,6 +254,47 @@ function languageOf(handle) {
   return html({ autoCloseTags: true });
 }
 
+function dockParent(doc) {
+  return doc.querySelector('.live-preview') || doc.body;
+}
+
+function attachDock(doc, dock) {
+  const parent = dockParent(doc);
+
+  if (dock.parentElement !== parent) {
+    parent.appendChild(dock);
+  }
+}
+
+/**
+ * Bubble only — capture would steal keys/clicks from CodeMirror.
+ * Stops Statamic Live Preview (DismissableLayer / global shortcuts) from
+ * treating the dock as "outside" and closing onto the front end.
+ */
+function shieldDock(dock) {
+  if (dock._sveShield) {
+    return;
+  }
+
+  dock._sveShield = true;
+
+  const stop = (event) => event.stopPropagation();
+
+  for (const type of [
+    'keydown',
+    'keypress',
+    'keyup',
+    'pointerdown',
+    'pointerup',
+    'mousedown',
+    'mouseup',
+    'click',
+    'focusin',
+  ]) {
+    dock.addEventListener(type, stop);
+  }
+}
+
 function isPanelFrame(doc) {
   try {
     return new URLSearchParams(doc.defaultView?.location?.search || '').has('sve-panel');
@@ -241,11 +308,7 @@ function isPanelFrame(doc) {
  * keys as on, which would open a disk-writing dock by accident.
  */
 export function templateDockAllowed(win) {
-  if (win.Statamic?.$config?.get?.('sveFeatures')?.template_dock !== true) {
-    return false;
-  }
-
-  return win.Statamic?.$permissions?.has?.('super') === true;
+  return win.Statamic?.$config?.get?.('sveFeatures')?.template_dock === true;
 }
 
 export function isCodeDockArmed(win) {
@@ -253,19 +316,11 @@ export function isCodeDockArmed(win) {
     return false;
   }
 
-  try {
-    return win.localStorage.getItem(ARMED_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return chromeGet(win, ARMED_KEY) === '1';
 }
 
 export function setCodeDockArmed(win, on) {
-  try {
-    win.localStorage.setItem(ARMED_KEY, on ? '1' : '0');
-  } catch {
-    /* private window */
-  }
+  chromeSet(win, ARMED_KEY, on ? '1' : '0');
 }
 
 function outermostSetOf(uid, doc) {
@@ -289,30 +344,22 @@ function outermostSetOf(uid, doc) {
 }
 
 function storedHeight(win) {
-  try {
-    const n = parseInt(win.localStorage.getItem(HEIGHT_KEY) ?? '', 10);
+  const n = parseInt(chromeGet(win, HEIGHT_KEY) ?? '', 10);
 
-    if (Number.isFinite(n) && n >= MIN_HEIGHT) {
-      return n;
-    }
-  } catch {
-    /* private window */
+  if (Number.isFinite(n) && n >= MIN_HEIGHT) {
+    return n;
   }
 
   return DEFAULT_HEIGHT;
 }
 
 function storeHeight(win, px) {
-  try {
-    win.localStorage.setItem(HEIGHT_KEY, String(px));
-  } catch {
-    /* private window */
-  }
+  chromeSet(win, HEIGHT_KEY, String(px));
 }
 
 function storedPanes(win) {
   try {
-    const raw = JSON.parse(win.localStorage.getItem(PANES_KEY) || 'null');
+    const raw = JSON.parse(chromeGet(win, PANES_KEY) || 'null');
 
     if (raw && typeof raw === 'object') {
       return {
@@ -329,16 +376,12 @@ function storedPanes(win) {
 }
 
 function storePanes(win, panes) {
-  try {
-    win.localStorage.setItem(PANES_KEY, JSON.stringify(panes));
-  } catch {
-    /* private window */
-  }
+  chromeSet(win, PANES_KEY, JSON.stringify(panes));
 }
 
 function storedWidths(win) {
   try {
-    const raw = JSON.parse(win.localStorage.getItem(WIDTHS_KEY) || 'null');
+    const raw = JSON.parse(chromeGet(win, WIDTHS_KEY) || 'null');
 
     if (raw && typeof raw === 'object') {
       const n = (v) => (Number.isFinite(v) && v > 0 ? v : 1);
@@ -353,11 +396,7 @@ function storedWidths(win) {
 }
 
 function storeWidths(win, widths) {
-  try {
-    win.localStorage.setItem(WIDTHS_KEY, JSON.stringify(widths));
-  } catch {
-    /* private window */
-  }
+  chromeSet(win, WIDTHS_KEY, JSON.stringify(widths));
 }
 
 function ensureStyle(doc) {
@@ -383,11 +422,11 @@ function ensureStyle(doc) {
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 #${DOCK_ID} [data-sve-code-bar] {
-  flex: 0 0 ${BAR}px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 10px;
+  padding: 18px 12px 10px;
   border-bottom: 1px solid rgba(255,255,255,.08);
   user-select: none;
   cursor: ns-resize;
@@ -421,6 +460,104 @@ function ensureStyle(doc) {
   font-size: 11px;
   opacity: .7;
   flex: 0 0 auto;
+}
+#${DOCK_ID} [data-sve-code-lock] {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border-radius: 6px;
+  color: #d4d4d4;
+  opacity: .55;
+}
+#${DOCK_ID} [data-sve-code-lock]:hover {
+  opacity: 1;
+  background: rgba(255,255,255,.1);
+}
+#${DOCK_ID} [data-sve-code-lock][aria-pressed="true"] {
+  opacity: 1;
+  color: #fbbf24;
+  background: rgba(251,191,36,.12);
+}
+#${DOCK_ID} [data-sve-code-lock][hidden] {
+  display: none;
+}
+#${DOCK_ID}[data-sve-code-locked] [data-sve-css-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-html-tools] {
+  pointer-events: none;
+  opacity: .28;
+}
+#${DOCK_ID}[data-sve-code-locked] [data-sve-code-pane] .cm-editor {
+  opacity: .62;
+}
+#${DOCK_ID} [data-sve-code-lock-banner] {
+  display: none;
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #fbbf24;
+  background: rgba(251,191,36,.08);
+  border-bottom: 1px solid rgba(251,191,36,.18);
+}
+#${DOCK_ID}[data-sve-code-locked] [data-sve-code-lock-banner] {
+  display: block;
+}
+#${UNLOCK_ID} {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.5);
+}
+#${UNLOCK_ID} [data-sve-unlock-card] {
+  width: min(420px, calc(100vw - 32px));
+  padding: 20px;
+  border-radius: 12px;
+  background: #252526;
+  color: #d4d4d4;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 16px 40px rgba(0,0,0,.45);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+#${UNLOCK_ID} [data-sve-unlock-title] {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+#${UNLOCK_ID} [data-sve-unlock-body] {
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: .75;
+  margin-bottom: 18px;
+}
+#${UNLOCK_ID} [data-sve-unlock-actions] {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+#${UNLOCK_ID} [data-sve-unlock-actions] button {
+  all: unset;
+  cursor: pointer;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+#${UNLOCK_ID} [data-sve-unlock-cancel] {
+  background: rgba(255,255,255,.1);
+  color: #d4d4d4;
+}
+#${UNLOCK_ID} [data-sve-unlock-confirm] {
+  background: #b45309;
+  color: #fff;
 }
 #${DOCK_ID} [data-sve-code-grip] {
   position: absolute;
@@ -674,7 +811,6 @@ function rightInset(doc) {
     '__sve-outline-panel',
     '__sve-listview-panel',
     '__sve-right-dock',
-    '__sve-globals-panel',
     '__sve-chrome-designs',
     '__sve-global-section-panel',
     '__sve-ai-panel',
@@ -695,11 +831,84 @@ function rightInset(doc) {
   return right;
 }
 
+/**
+ * Follow the left editor and right dock as they resize. The code dock is
+ * `position:fixed` with `left`/`right` measured from those two; without this
+ * it stays put until the CP's debounced DOM pass (~500ms) runs.
+ */
+function observeDockLayout(win) {
+  const doc = win.document;
+
+  layoutWin = win;
+
+  if (typeof win.ResizeObserver !== 'function') {
+    return;
+  }
+
+  if (!layoutObserver) {
+    layoutObserver = new win.ResizeObserver(() => {
+      if (layoutWin) {
+        relayoutCodeDock(layoutWin);
+      }
+    });
+  }
+
+  const editor = doc.querySelector('.live-preview-editor');
+  const right = doc.getElementById('__sve-right-dock');
+
+  if (editor !== observedEditor) {
+    if (observedEditor) {
+      layoutObserver.unobserve(observedEditor);
+    }
+
+    observedEditor = editor;
+
+    if (editor) {
+      layoutObserver.observe(editor);
+    }
+  }
+
+  if (right !== observedRight) {
+    if (observedRight) {
+      layoutObserver.unobserve(observedRight);
+    }
+
+    observedRight = right;
+
+    if (right) {
+      layoutObserver.observe(right);
+    }
+  }
+}
+
+function stopObservingDockLayout() {
+  layoutObserver?.disconnect();
+  layoutObserver = null;
+  layoutWin = null;
+  observedEditor = null;
+  observedRight = null;
+}
+
+function bindLayoutWatch(win) {
+  if (layoutWatchBound) {
+    return;
+  }
+
+  layoutWatchBound = true;
+  win.addEventListener('sve-right-dock-change', () => observeDockLayout(win));
+}
+
 function previewBottomPad(doc, px) {
   const el = doc.querySelector('.live-preview-contents');
 
   if (el) {
     el.style.paddingBottom = px ? `${px}px` : '';
+  }
+}
+
+function measureEditors() {
+  for (const handle of HANDLES) {
+    editors[handle]?.requestMeasure();
   }
 }
 
@@ -755,7 +964,12 @@ function applyPaneWidths(win, dock) {
 }
 
 function placeDock(win, dock) {
+  if (dragging) {
+    return;
+  }
+
   const doc = win.document;
+  attachDock(doc, dock);
   const height = storedHeight(win);
   const left = editorRight(doc);
   const right = rightInset(doc);
@@ -767,6 +981,55 @@ function placeDock(win, dock) {
   previewBottomPad(doc, height);
 }
 
+/**
+ * Keep pointer events on this window for the whole drag. Live Preview's
+ * iframe otherwise swallows mousemove/mouseup the moment the cursor
+ * crosses into it — the dock freezes, then jumps when events come back.
+ */
+function beginOverlayDrag(win, cursor, onMove, onEnd) {
+  const doc = win.document;
+  const frames = [...doc.querySelectorAll('iframe')];
+
+  frames.forEach((frame) => {
+    frame.style.pointerEvents = 'none';
+  });
+
+  const shield = doc.createElement('div');
+  shield.setAttribute('data-sve-code-drag-shield', '');
+  shield.style.cssText =
+    `position:fixed;inset:0;z-index:2147483646;cursor:${cursor};user-select:none;`;
+  doc.body.appendChild(shield);
+
+  dragging = true;
+
+  let done = false;
+
+  const move = (event) => {
+    onMove(event);
+  };
+
+  const up = () => {
+    if (done) {
+      return;
+    }
+
+    done = true;
+    dragging = false;
+    doc.removeEventListener('mousemove', move);
+    doc.removeEventListener('mouseup', up);
+    win.removeEventListener('blur', up);
+    frames.forEach((frame) => {
+      frame.style.pointerEvents = '';
+    });
+    shield.remove();
+    onEnd?.();
+  };
+
+  doc.addEventListener('mousemove', move);
+  doc.addEventListener('mouseup', up);
+  win.addEventListener('blur', up);
+}
+
 function bindResize(win, dock) {
   if (dock._sveResizeBound) {
     return;
@@ -775,35 +1038,34 @@ function bindResize(win, dock) {
   dock._sveResizeBound = true;
 
   const startResize = (event) => {
-    if (event.target.closest('[data-sve-code-pane-btn], .cm-editor')) {
+    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-lock], .cm-editor')) {
       return;
     }
 
     event.preventDefault();
-    dragging = true;
 
     const startY = event.clientY;
-    const startH = storedHeight(win);
+    const startH = dock.getBoundingClientRect().height;
+    let next = startH;
 
-    const move = (e) => {
-      const next = Math.min(
-        Math.max(MIN_HEIGHT, startH + (startY - e.clientY)),
-        Math.round(win.innerHeight * 0.7)
-      );
-
-      storeHeight(win, next);
-      placeDock(win, dock);
-    };
-
-    const up = () => {
-      dragging = false;
-      win.document.removeEventListener('mousemove', move);
-      win.document.removeEventListener('mouseup', up);
-      win.dispatchEvent(new Event('resize'));
-    };
-
-    win.document.addEventListener('mousemove', move);
-    win.document.addEventListener('mouseup', up);
+    beginOverlayDrag(
+      win,
+      'ns-resize',
+      (e) => {
+        next = Math.min(
+          Math.max(MIN_HEIGHT, startH + (startY - e.clientY)),
+          Math.round(win.innerHeight * 0.7)
+        );
+        dock.style.height = `${next}px`;
+        previewBottomPad(win.document, next);
+        measureEditors();
+      },
+      () => {
+        storeHeight(win, next);
+        placeDock(win, dock);
+        win.dispatchEvent(new Event('resize'));
+      }
+    );
   };
 
   dock.querySelector('[data-sve-code-bar]')?.addEventListener('mousedown', startResize);
@@ -819,6 +1081,10 @@ function bindSplitters(win, dock) {
 
   dock.querySelectorAll('[data-sve-code-split]').forEach((split) => {
     split.addEventListener('mousedown', (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
@@ -839,36 +1105,33 @@ function bindSplitters(win, dock) {
       const rightW = rightEl.getBoundingClientRect().width;
       const total = leftW + rightW;
 
-      dragging = true;
       split.setAttribute('data-active', '');
 
-      const move = (e) => {
-        const dx = e.clientX - startX;
-        let nextL = Math.max(MIN_PANE, Math.min(total - MIN_PANE, leftW + dx));
-        let nextR = total - nextL;
+      beginOverlayDrag(
+        win,
+        'col-resize',
+        (e) => {
+          const dx = e.clientX - startX;
+          let nextL = Math.max(MIN_PANE, Math.min(total - MIN_PANE, leftW + dx));
+          let nextR = total - nextL;
 
-        if (total < MIN_PANE * 2) {
-          nextL = leftW;
-          nextR = rightW;
+          if (total < MIN_PANE * 2) {
+            nextL = leftW;
+            nextR = rightW;
+          }
+
+          const widths = storedWidths(win);
+
+          widths[leftHandle] = nextL;
+          widths[rightHandle] = nextR;
+          storeWidths(win, widths);
+          applyPaneWidths(win, dock);
+          measureEditors();
+        },
+        () => {
+          split.removeAttribute('data-active');
         }
-
-        const widths = storedWidths(win);
-
-        widths[leftHandle] = nextL;
-        widths[rightHandle] = nextR;
-        storeWidths(win, widths);
-        applyPaneWidths(win, dock);
-      };
-
-      const up = () => {
-        dragging = false;
-        split.removeAttribute('data-active');
-        win.document.removeEventListener('mousemove', move);
-        win.document.removeEventListener('mouseup', up);
-      };
-
-      win.document.addEventListener('mousemove', move);
-      win.document.addEventListener('mouseup', up);
+      );
     });
   });
 }
@@ -915,6 +1178,156 @@ function setPath(doc, path) {
   }
 }
 
+function paintLock(win) {
+  const dock = win.document.getElementById(DOCK_ID);
+  const btn = dock?.querySelector('[data-sve-code-lock]');
+  const banner = dock?.querySelector('[data-sve-code-lock-banner]');
+
+  if (!dock || !btn) {
+    return;
+  }
+
+  const locked = lastLocked && lockReady;
+
+  dock.toggleAttribute('data-sve-code-locked', locked);
+  btn.hidden = !lockReady;
+  btn.setAttribute('aria-pressed', lastLocked ? 'true' : 'false');
+  btn.title = t(win, lastLocked ? 'code_dock_unlock' : 'code_dock_lock');
+  btn.setAttribute('aria-label', btn.title);
+  btn.innerHTML = lastLocked ? LOCK_CLOSED_ICON : LOCK_OPEN_ICON;
+
+  if (banner) {
+    banner.textContent = t(win, 'code_dock_locked_banner');
+  }
+}
+
+function bindLock(win, dock) {
+  if (dock._sveLockBound) {
+    return;
+  }
+
+  dock._sveLockBound = true;
+
+  dock.querySelector('[data-sve-code-lock]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!lockReady || !lastType) {
+      return;
+    }
+
+    if (lastLocked) {
+      confirmUnlock(win);
+
+      return;
+    }
+
+    setTemplateLock(win, true);
+  });
+}
+
+function confirmUnlock(win) {
+  const doc = win.document;
+
+  doc.getElementById(UNLOCK_ID)?.remove();
+
+  const overlay = doc.createElement('div');
+
+  overlay.id = UNLOCK_ID;
+  overlay.innerHTML = `
+    <div data-sve-unlock-card>
+      <div data-sve-unlock-title></div>
+      <div data-sve-unlock-body></div>
+      <div data-sve-unlock-actions>
+        <button type="button" data-sve-unlock-cancel></button>
+        <button type="button" data-sve-unlock-confirm></button>
+      </div>
+    </div>
+  `;
+
+  overlay.querySelector('[data-sve-unlock-title]').textContent = t(win, 'code_dock_unlock_title');
+  overlay.querySelector('[data-sve-unlock-body]').textContent = t(win, 'code_dock_unlock_body');
+  overlay.querySelector('[data-sve-unlock-cancel]').textContent = t(win, 'cancel');
+  overlay.querySelector('[data-sve-unlock-confirm]').textContent = t(win, 'code_dock_unlock_confirm');
+
+  const close = () => overlay.remove();
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      close();
+    }
+  });
+  overlay.querySelector('[data-sve-unlock-cancel]').addEventListener('click', close);
+  overlay.querySelector('[data-sve-unlock-confirm]').addEventListener('click', () => {
+    close();
+    setTemplateLock(win, false);
+  });
+  overlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      close();
+    }
+  });
+
+  doc.body.appendChild(overlay);
+  overlay.querySelector('[data-sve-unlock-cancel]').focus();
+}
+
+function setTemplateLock(win, locked) {
+  const type = lastType;
+
+  if (!type) {
+    return;
+  }
+
+  const go = () => {
+    if (lastType !== type) {
+      return;
+    }
+
+    win
+      .fetch('/!/sve/section-template/lock', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': csrfToken(win),
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ type, locked }),
+      })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(String(res.status));
+        }
+
+        if (lastType !== type) {
+          return;
+        }
+
+        lastLocked = locked;
+        writeParts(lastParts, locked);
+        paintLock(win);
+        setStatus(win.document, locked ? t(win, 'code_dock_locked') : '');
+      })
+      .catch(() => {
+        setStatus(win.document, t(win, 'code_dock_error'));
+      });
+  };
+
+  if (locked) {
+    flushSave(win.document);
+
+    if (saveInFlight) {
+      saveInFlight.finally(go);
+
+      return;
+    }
+  }
+
+  go();
+}
+
 function readParts() {
   const parts = { html: '', css: '', js: '' };
 
@@ -946,7 +1359,10 @@ function writeParts(parts, disabled) {
       }
 
       view.dispatch({
-        effects: readOnlyOf[handle].reconfigure(EditorState.readOnly.of(!!disabled)),
+        effects: [
+          readOnlyOf[handle].reconfigure(EditorState.readOnly.of(!!disabled)),
+          editableOf[handle].reconfigure(EditorView.editable.of(!disabled)),
+        ],
       });
     }
   } finally {
@@ -1446,6 +1862,14 @@ function insertCssAtCursor(text) {
 }
 
 function paintCssToolState(win) {
+  try {
+    paintCssToolStateInner(win);
+  } catch {
+    /* invalid Antlers-in-CSS must not take down Live Preview */
+  }
+}
+
+function paintCssToolStateInner(win) {
   const dock = win?.document?.getElementById(DOCK_ID);
   const line = currentCssLine();
   const have = line ? cssDeclaration(line.text) : '';
@@ -2013,6 +2437,14 @@ function applyHtmlTag(tag) {
 }
 
 function paintHtmlToolState(win) {
+  try {
+    paintHtmlToolStateInner(win);
+  } catch {
+    /* invalid Antlers-in-HTML must not take down Live Preview */
+  }
+}
+
+function paintHtmlToolStateInner(win) {
   const dock = win?.document?.getElementById(DOCK_ID);
   const el = htmlElementAtCursor();
   const tag = el?.name || '';
@@ -2247,6 +2679,16 @@ function postSave(win, type, parts) {
       }),
     })
     .then(async (res) => {
+      if (res.status === 423) {
+        lastLocked = true;
+        lockReady = true;
+        writeParts(lastParts, true);
+        paintLock(win);
+        setStatus(win.document, t(win, 'code_dock_locked'));
+
+        return;
+      }
+
       if (!res.ok) {
         throw new Error(String(res.status));
       }
@@ -2264,6 +2706,9 @@ function postSave(win, type, parts) {
       }
 
       refreshPreview(win);
+      win.document
+        .getElementById('__sve-section-picker')
+        ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
     })
     .catch(() => {
       setStatus(win.document, t(win, 'code_dock_error'));
@@ -2296,29 +2741,7 @@ function flushSave(doc) {
   }
 
   setStatus(doc, t(win, 'code_dock_saving'));
-  bakeThenSave(win, type, parts);
-}
-
-function bakeThenSave(win, type, parts) {
-  const gen = ++bakeGen;
-
-  return (async () => {
-    let payload = parts;
-
-    if (tailwindDockOn(win)) {
-      try {
-        payload = { ...parts, tw: await compileSectionTailwind(win, parts.html) };
-      } catch {
-        payload = parts;
-      }
-    }
-
-    if (gen !== bakeGen || lastType !== type) {
-      return;
-    }
-
-    postSave(win, type, payload);
-  })();
+  postSave(win, type, parts);
 }
 
 function scheduleSave(win, doc) {
@@ -2382,6 +2805,7 @@ function mountEditor(win, handle, parent) {
         saveKey,
         EditorView.lineWrapping,
         readOnlyOf[handle].of(EditorState.readOnly.of(false)),
+        editableOf[handle].of(EditorView.editable.of(true)),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onEditorInput(win);
@@ -2414,7 +2838,8 @@ function ensureDock(win) {
     const chromeOk =
       cssLabel?.getAttribute('data-sve-css-chrome') === 'flex-tools-1' &&
       dock.querySelector('[data-sve-html-tools]') &&
-      dock.getAttribute('data-sve-code-chrome') === 'split-16';
+      dock.querySelector('[data-sve-code-lock]') &&
+      dock.getAttribute('data-sve-code-chrome') === 'lock-1';
 
     if (!chromeOk) {
       for (const handle of HANDLES) {
@@ -2430,7 +2855,7 @@ function ensureDock(win) {
   if (!dock) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
-    dock.setAttribute('data-sve-code-chrome', 'split-16');
+    dock.setAttribute('data-sve-code-chrome', 'lock-1');
     dock.innerHTML = `
       <div data-sve-code-grip aria-hidden="true"></div>
       <div data-sve-code-bar>
@@ -2439,7 +2864,9 @@ function ensureDock(win) {
         <button type="button" data-sve-code-pane-btn="js">${t(win, 'code_dock_js')}</button>
         <span data-sve-code-path></span>
         <span data-sve-code-status></span>
+        <button type="button" data-sve-code-lock hidden></button>
       </div>
+      <div data-sve-code-lock-banner></div>
       <div data-sve-code-panes>
         <div data-sve-code-pane="html">
           <div data-sve-code-pane-label>
@@ -2463,16 +2890,15 @@ function ensureDock(win) {
         </div>
       </div>
     `;
-    doc.body.appendChild(dock);
-    // Bubble only — capture would steal keys from CodeMirror. Stops Statamic
-    // CP shortcuts from seeing typing in the dock as Live Preview chrome.
-    dock.addEventListener('keydown', (event) => event.stopPropagation());
+    attachDock(doc, dock);
+    shieldDock(dock);
     paintPaneButtons(dock, storedPanes(win));
     bindResize(win, dock);
     bindPaneToggles(win, dock);
     bindSplitters(win, dock);
     bindCssTools(win, dock);
     bindHtmlTools(win, dock);
+    bindLock(win, dock);
 
     for (const handle of HANDLES) {
       const host = dock.querySelector(`[data-sve-code-pane="${handle}"] [data-sve-code-host]`);
@@ -2481,6 +2907,13 @@ function ensureDock(win) {
     }
   }
 
+  attachDock(doc, dock);
+  shieldDock(dock);
+  bindLock(win, dock);
+  bindLayoutWatch(win);
+  observeDockLayout(win);
+  paintLock(win);
+
   return dock;
 }
 
@@ -2488,10 +2921,13 @@ function showMissing(win, type) {
   const dock = ensureDock(win);
 
   lastType = type;
+  lastLocked = true;
+  lockReady = false;
   lastParts = { html: '', css: '', js: '' };
   writeParts(lastParts, true);
   setPath(win.document, type);
   setStatus(win.document, t(win, 'code_dock_missing'));
+  paintLock(win);
   placeDock(win, dock);
 }
 
@@ -2500,9 +2936,12 @@ function loadTemplate(win, type) {
   const dock = ensureDock(win);
 
   lastType = type;
+  lastLocked = true;
+  lockReady = false;
   writeParts({ html: '', css: '', js: '' }, true);
   setPath(win.document, type);
   setStatus(win.document, t(win, 'code_dock_loading'));
+  paintLock(win);
   placeDock(win, dock);
 
   win
@@ -2537,9 +2976,12 @@ function loadTemplate(win, type) {
         js: typeof data.js === 'string' ? data.js : '',
       };
       lastType = type;
-      writeParts(lastParts, false);
+      lastLocked = !!data.locked;
+      lockReady = true;
+      writeParts(lastParts, lastLocked);
       setPath(win.document, data.path || type);
-      setStatus(win.document, '');
+      setStatus(win.document, lastLocked ? t(win, 'code_dock_locked') : '');
+      paintLock(win);
       placeDock(win, dock);
     })
     .catch(() => {
@@ -2560,8 +3002,12 @@ export function isCodeDockOpen(doc) {
   return !!doc?.getElementById(DOCK_ID);
 }
 
+export function isCodeDockLocked() {
+  return lastLocked;
+}
+
 /**
- * Paste AI Build-mode output into the open template dock.
+ * Paste AI Write-mode output into the open template dock.
  * HTML goes at the cursor; CSS/JS are appended to those panes.
  *
  * @param {{ html?: string, css?: string, js?: string }} parts
@@ -2660,8 +3106,11 @@ export function closeCodeDock(doc) {
   lastUid = null;
   lastType = null;
   lastParts = { html: '', css: '', js: '' };
+  lastLocked = false;
+  lockReady = false;
   lastWin = doc?.defaultView || lastWin;
   closeCssMenu(doc);
+  doc?.getElementById(UNLOCK_ID)?.remove();
 
   for (const handle of HANDLES) {
     editors[handle]?.destroy();
@@ -2669,6 +3118,7 @@ export function closeCodeDock(doc) {
   }
 
   doc?.getElementById(DOCK_ID)?.remove();
+  stopObservingDockLayout();
 
   if (doc) {
     previewBottomPad(doc, 0);
@@ -2686,6 +3136,7 @@ export function relayoutCodeDock(win) {
     return;
   }
 
+  observeDockLayout(win);
   placeDock(win, dock);
 }
 
@@ -2701,6 +3152,10 @@ function firstSectionType(doc) {
  * the first section on the page.
  */
 export function syncCodeDock(win, doc, uid) {
+  if (dragging) {
+    return;
+  }
+
   if (!win || !doc || isPanelFrame(doc) || !templateDockAllowed(win) || !isCodeDockArmed(win)) {
     if (doc) {
       closeCodeDock(doc);

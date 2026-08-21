@@ -14,10 +14,10 @@ use Symfony\Component\Process\PhpExecutableFinder;
  * and the new images appear in the picker a moment later.
  *
  * Called from anywhere a preview could have gone out of date — a saved section
- * saved, a fieldset's defaults changed, the theme's colours changed, the section
- * library opened. Calling it too often is harmless by design: the run itself
- * compares fingerprints first and starts no browser when nothing changed, which
- * is what makes "just refresh after every save" an affordable policy.
+ * saved, a fieldset's defaults changed, the theme's colours changed. Not from
+ * merely opening the picker: that started a screenshot job that rebuilt the
+ * Live Preview chrome (Theme Settings included) every 1.5s. Not from the
+ * template dock: that save runs on every keystroke.
  *
  * @see Commands\GenerateSetPreviews for the locking that keeps concurrent kicks
  *      from photographing the same section twice.
@@ -68,10 +68,9 @@ class PreviewRefresher
     /**
      * Throttles the "something might have changed" kicks that arrive in bursts.
      *
-     * Opening the section library asks on behalf of three panels at once; a bulk
-     * publish saves twenty entries in a second. One run covers all of it, so the
-     * rest are dropped — and dropping them is safe because the run reads the
-     * fingerprints when it starts, not when it was asked.
+     * A bulk publish saves twenty entries in a second. One run covers all of it,
+     * so the rest are dropped — and dropping them is safe because the run reads
+     * the fingerprints when it starts, not when it was asked.
      */
     public static function kickThrottled(int $seconds = 20): bool
     {
@@ -81,10 +80,6 @@ class PreviewRefresher
 
         static::kick();
 
-        // Told to the caller so the section library knows to keep asking for the
-        // pictures: a run that has only just been started has not reached the
-        // point of announcing itself, and without this the panel would look once,
-        // see nothing happening, and settle for the images it already had.
         return true;
     }
 

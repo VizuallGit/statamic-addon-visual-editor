@@ -1,0 +1,28 @@
+---
+description: NEVER change Statamic default fields — only build on top unless the user explicitly asks
+alwaysApply: true
+---
+
+# Statamic default and fields are untouchable
+
+This outranks every other rule in this addon. Same rule as `~/.cursor/rules/00-statamic-default-urorligt.mdc`.
+
+Do not change, replace, wrap, or hijack Statamic's normal field behaviour in the Control Panel. Display name, handle, instructions, defaults, integers, text, replicator, grid, bard — they keep working as Statamic ships them.
+
+Only **build on top**. Changing Statamic default is allowed only when the user explicitly asks for that change **in this message**.
+
+## Forbidden
+
+- Subclass + `::register()` on an existing handle (`iconify`, `replicator`, `text`, …)
+- Wrap/replace a field's Vue component
+- `npm run cp:build` here or on the site when it rebuilds `addon.js` — that breaks field settings
+- Overwrite `public/vendor/app/` or `public/vendor/statamic-addon/`
+- Change `DefaultSetsFieldtype.js` (bundled in `addon-DmXwhlR7.js`)
+- CSS that hits native inputs
+- `appendConfigFields` on `Fieldtype::class` so every field's settings break
+
+## Allowed (on top of Statamic)
+
+- `appendConfigFields` on **one** fieldtype, adding a setting, class untouched
+- A **separate** small script, never a new `addon.js`
+- YAML `default:` in fieldsets

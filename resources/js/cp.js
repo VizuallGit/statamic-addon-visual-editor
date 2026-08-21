@@ -2,23 +2,39 @@
 
 import { gotoOverlay, openOverlay } from './overlay-host.js';
 import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock.js';
-import { aiPanelAllowed, closeAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
+import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
+import {
+  bindChromePrefsFlush,
+  chromeGet,
+  chromeRemove,
+  chromeSet,
+  clearChromePrefs,
+  hydrateChromePrefs,
+} from './chrome-prefs.js';
 import {
   RIGHT_DOCK_ID,
+  RIGHT_DOCK_PIN_STACK,
   RIGHT_PANEL_FILL,
   beginRightShellSwap,
   endRightShellSwap,
   hideRightDock,
+  isRightDockOpen,
   isRightDockTool,
+  isRightDockResizing,
   isToolbarShortcut,
-  parkInRightShell,
+  persistVisibleRightPanes,
+  pinnedKeepIds,
   registerRightDockHook,
   releaseRightShellIfEmpty,
+  placeRightDock,
   relayoutRightDock,
+  rememberedListViewTab,
+  rememberedRightPaneKeys,
   revealRightPane,
   rightDockWidth,
   showInRightShell,
   splitterFill,
+  visiblePaneKeys,
 } from './right-dock.js';
 
 export const SELECTORS = {
@@ -2000,6 +2016,11 @@ function unwrapRef(v) {
  */
 let entryValuesBaseline = null;
 let entryBaselineTimer = null;
+// True between a successful save/publish response and the delayed re-baseline.
+// Statamic writes the response into the form with trackDirtyState off for 500ms,
+// so an immediate snapshot is the *pre*-response values — leave then thinks the
+// hydrated form is unsaved work. Suppress the warning until we catch up.
+let entrySaveSettling = false;
 
 /** The entry publish container ("base"), if we've seen it. */
 function entryPublishContainer() {
@@ -2054,7 +2075,7 @@ function markEntryFormClean(win) {
  * DOM settle (preview refresh, chrome, Vue patches), and rewriting the baseline
  * then treats the user's edits as "clean" — which is why × sometimes left
  * without the unsaved menu even though the page had changed. Saves call
- * markEntryFormClean themselves; closing Live Preview clears the snapshot.
+ * scheduleEntryBaselineAfterSave; closing Live Preview clears the snapshot.
  */
 function scheduleEntryBaseline(win) {
   if (entryValuesBaseline != null) {
@@ -2084,10 +2105,40 @@ function scheduleEntryBaseline(win) {
   entryBaselineTimer = win.setTimeout(trySnap, 600);
 }
 
+/**
+ * After save/publish: wait for Statamic to apply resetValuesFromResponse (it
+ * keeps trackDirtyState off for 500ms) and for Bard/visual ids to catch up,
+ * then treat the hydrated form as clean.
+ */
+function scheduleEntryBaselineAfterSave(win) {
+  entrySaveSettling = true;
+  clearTimeout(entryBaselineTimer);
+
+  const delays = [600, 500];
+  let step = 0;
+
+  const run = () => {
+    markEntryFormClean(win);
+    step += 1;
+
+    if (step < delays.length) {
+      entryBaselineTimer = win.setTimeout(run, delays[step]);
+
+      return;
+    }
+
+    entrySaveSettling = false;
+    entryBaselineTimer = null;
+  };
+
+  entryBaselineTimer = win.setTimeout(run, delays[0]);
+}
+
 function clearEntryBaseline() {
   clearTimeout(entryBaselineTimer);
   entryBaselineTimer = null;
   entryValuesBaseline = null;
+  entrySaveSettling = false;
 }
 
 /**
@@ -4484,51 +4535,52 @@ function sectionTypes(win) {
 }
 
 /**
- * Fetches the section types with their preview images as they are on disk, and
- * keeps fetching while previews are being regenerated.
+ * Fetches the section types with their preview images as they are on disk.
  *
- * The list handed over at page render is a snapshot. Editing a section's Antlers
- * partial changes what the section looks like without any save the Control Panel
- * could hear about, so the card in the picker would go on promising the old
- * design until the whole Control Panel was reloaded. Asking when the tab opens —
- * and again while a run is under way — is what makes "change the code, look at
- * the picker" show the change.
+ * One request when Patterns opens, and one when something actually changed
+ * (theme save, template save, a section saved into the library). Not a timer:
+ * polling every 1.5s rebuilt the Live Preview header and Theme Settings with
+ * every picture that landed.
  */
+let sectionTypesGen = 0;
+let lastTypeHandles = '';
+let lastTypeImages = '';
+let libraryCatchupTimer = 0;
+
 function refreshSectionTypes(win, onUpdated) {
-  let tries = 0;
-  let sawRun = false;
+  const gen = ++sectionTypesGen;
 
-  const ask = () => {
-    win
-      .fetch('/!/sve/section-types', {
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data.types) && data.types.length) {
-          sectionTypesOverride = data.types;
-          onUpdated();
-        }
+  win
+    .fetch('/!/sve/section-types', {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .then((res) => res.json())
+    .then((data) => {
+      if (gen !== sectionTypesGen) {
+        return;
+      }
 
-        if (data.running) {
-          sawRun = true;
-        } else if (!sawRun) {
-          return; // nothing was being regenerated; one look was enough
-        } else {
-          // One more after it finishes: the last section it photographs is
-          // written just after it stops announcing itself.
-          sawRun = false;
-        }
+      if (!Array.isArray(data.types) || !data.types.length) {
+        return;
+      }
 
-        if (tries++ < 25) {
-          win.setTimeout(ask, 1500);
-        }
-      })
-      .catch(() => {});
-  };
+      const handles = data.types.map((type) => `${type.handle}\t${type.display || ''}`).join('\n');
+      const images = data.types.map((type) => type.image_url || '').join('\n');
 
-  ask();
+      sectionTypesOverride = data.types;
+
+      const listChanged = handles !== lastTypeHandles;
+      const imagesChanged = images !== lastTypeImages;
+
+      lastTypeHandles = handles;
+      lastTypeImages = images;
+
+      if ((listChanged || imagesChanged) && typeof onUpdated === 'function') {
+        onUpdated({ listChanged, imagesChanged });
+      }
+    })
+    .catch(() => {});
 }
 
 /**
@@ -4538,6 +4590,9 @@ function refreshSectionTypes(win, onUpdated) {
  * has no way of knowing. Without this the designer saves "hero with the red
  * background", switches to the Custom tab, and it isn't there — because the tab
  * still holds the list it fetched before the save.
+ *
+ * Screenshots finish a few seconds after the save. One follow-up refetch picks
+ * those pictures up. It is not a loop: it fires once, for this change.
  */
 function libraryWentStale(win) {
   savedSectionIndex = null;
@@ -4547,39 +4602,20 @@ function libraryWentStale(win) {
 }
 
 /**
- * Loads a library list, and keeps loading while its pictures are still being
- * taken.
+ * Loads a library list once.
  *
  * A section saved from the editor is on screen before its screenshot exists —
  * photographing it takes a few seconds in a real browser, which is deliberately
- * not done while the save is waiting. Without this the card would sit there
- * blank until the whole Control Panel was reloaded, and the designer who just
- * changed a background to red would have no way of knowing the picker had caught
- * up. So a card without a picture, or a run that is under way, is a reason to
- * ask again shortly.
+ * not done while the save is waiting. The card appears immediately; the one
+ * follow-up from `libraryWentStale` fills the picture in. Asking every 1.5s
+ * while sitting still rebuilt the rest of Live Preview with it.
  */
 function pollLibrary(win, url, take, onItems, onFailed) {
-  let tries = 0;
-
-  const ask = () => {
-    win
-      .fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then((res) => res.json())
-      .then((data) => {
-        const items = take(data);
-
-        onItems(items);
-
-        const waiting = data.running || items.some((item) => !item.preview_url);
-
-        if (waiting && tries++ < 25) {
-          win.setTimeout(ask, 1500);
-        }
-      })
-      .catch(() => onFailed());
-  };
-
-  ask();
+  win
+    .fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then((res) => res.json())
+    .then((data) => onItems(take(data)))
+    .catch(() => onFailed());
 }
 
 /** A new uuid for a re-id'd copy. */
@@ -5924,19 +5960,118 @@ function syncSectionLibraryAvailability(win) {
   applyHeaderTab(win);
 }
 
+/** True while Theme Settings / Site settings covers the left editor. */
+function isGlobalsOverlayOpen(win) {
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+
+  return !!(panel && !panel.hidden && !panel.hasAttribute('data-sve-chrome-hidden'));
+}
+
+/**
+ * Park Theme Settings off-screen on document.body.
+ *
+ * Never reparent the iframe (that reloads it). Never put it in the right dock —
+ * that is where the block tree / comments / library stack, and Theme Settings
+ * is a full form, not one more pane in that stack.
+ */
+function parkGlobalsOverlay(panel) {
+  if (!panel) {
+    return;
+  }
+
+  panel.hidden = true;
+  panel.setAttribute('data-sve-chrome-hidden', '1');
+  panel.style.cssText =
+    'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
+}
+
+/** Keep the iframe on body so showing it never moves it in the DOM. */
+function attachGlobalsOverlay(win, panel) {
+  if (!panel || panel.parentElement === win.document.body) {
+    return;
+  }
+
+  win.document.body.appendChild(panel);
+}
+
+/**
+ * Cover the left Live Preview editor with Theme Settings.
+ *
+ * Same form as before (tabs, colour pickers, …) — just over Page Settings
+ * instead of stacked in the right sidebar. Sits under the width-handle (z 62)
+ * and over the Page Settings/SEO tab bar (z 60).
+ */
+function placeGlobalsOverlay(win) {
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+
+  if (!panel || panel.hidden || panel.hasAttribute('data-sve-chrome-hidden')) {
+    return;
+  }
+
+  const editor = livePreviewEditorEl(win.document);
+
+  if (!editor || lpCollapsed) {
+    return;
+  }
+
+  const rect = editor.getBoundingClientRect();
+  const handle = win.document.querySelector('.live-preview-resizer');
+  const grip = handle ? Math.round(handle.getBoundingClientRect().width) || 16 : 16;
+  const width = Math.max(0, Math.round(rect.width) - grip);
+
+  panel.hidden = false;
+  panel.removeAttribute('data-sve-chrome-hidden');
+  panel.style.cssText =
+    'position:fixed;z-index:61;display:flex;flex-direction:column;overflow:hidden;' +
+    'background:var(--theme-color-content-bg,#fff);color:currentColor;border:0;box-shadow:none;' +
+    'font-family:ui-sans-serif,system-ui,sans-serif;box-sizing:border-box;';
+  panel.style.left = `${Math.round(rect.left)}px`;
+  panel.style.top = `${Math.round(rect.top)}px`;
+  panel.style.width = `${width}px`;
+  panel.style.height = `${Math.round(rect.height)}px`;
+
+  const tabs = win.document.getElementById(LP_WIDTH_ID);
+
+  if (tabs) {
+    tabs.style.visibility = 'hidden';
+  }
+}
+
+function bindGlobalsOverlayLayout(win) {
+  const editor = livePreviewEditorEl(win.document);
+
+  if (!editor || typeof win.ResizeObserver !== 'function' || editor._sveGlobalsRo) {
+    return;
+  }
+
+  editor._sveGlobalsRo = new win.ResizeObserver(() => placeGlobalsOverlay(win));
+  editor._sveGlobalsRo.observe(editor);
+}
+
 /** Hide Theme Settings without destroying it (stash + form stay alive). */
-function hideGlobalsPanel(win) {
+function hideGlobalsPanel(win, { release = true } = {}) {
   const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
   if (!panel) {
     return;
   }
 
-  parkInRightShell(win, panel);
+  parkGlobalsOverlay(panel);
+
+  const tabs = win.document.getElementById(LP_WIDTH_ID);
+
+  if (tabs) {
+    tabs.style.visibility = '';
+  }
+
+  if (release) {
+    releaseLeftEdgeIfFree(win);
+  }
+
   syncPreviewInset(win);
 }
 
-/** Show Theme Settings again (right dock). Does not touch the left section editor. */
+/** Show Theme Settings again (left overlay). Page section form stays mounted underneath. */
 function showGlobalsPanel(win) {
   const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
@@ -5945,8 +6080,8 @@ function showGlobalsPanel(win) {
   }
 
   // Never reparent the iframe — moving it in the DOM reloads it and refreshes
-  // the Live Preview. The shared shell keeps it as a parked child.
-  pinGlobalsPanelRight(win, panel);
+  // the Live Preview. It lives on body; we only change its box.
+  pinGlobalsPanelLeft(win, panel);
 
   const designs = win.document.getElementById(CHROME_DESIGNS_ID);
 
@@ -5960,21 +6095,24 @@ function showGlobalsPanel(win) {
 }
 
 /**
- * Docked panels on the RIGHT: sections library, Theme Settings, global sections.
+ * Docked panels on the RIGHT: sections library, block tree, comments, AI.
+ * Theme Settings lives on the left and is not closed from here.
  * `keep` is id(s) to leave open. Called with nothing to close them all (leaving Live Preview).
  */
 function closeRightPanels(win, keep = null) {
   const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
+  const extra = keepIds.length && RIGHT_DOCK_PIN_STACK ? pinnedKeepIds(win) : [];
+  const allKeep = [...new Set([...keepIds, ...extra])];
 
   beginRightShellSwap();
 
   try {
-    closeRightPanelsInner(win, keepIds);
+    closeRightPanelsInner(win, allKeep);
   } finally {
     endRightShellSwap();
   }
 
-  if (!keepIds.length) {
+  if (!allKeep.length) {
     hideRightDock(win);
   }
 }
@@ -5996,12 +6134,6 @@ function closeRightPanelsInner(win, keepIds) {
     closeCommentsPanel(win);
   }
 
-  if (!keepIds.includes(GLOBALS_PANEL_ID)) {
-    // Park (don't destroy) — tearing the iframe down is what made chrome feel
-    // slow compared to page sections that already live in the editor DOM.
-    parkGlobalsPanel(win);
-  }
-
   if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(GLOBAL_SECTION_HOST_ID)) {
     closeGlobalSectionPanel(win);
   }
@@ -6019,6 +6151,10 @@ function closeRightPanelsInner(win, keepIds) {
  * Push the preview away from RIGHT-docked panels (Theme Settings, sections library, …).
  */
 function syncPreviewInset(win) {
+  if (isRightDockResizing()) {
+    return;
+  }
+
   const doc = win.document;
   const el = doc.querySelector('.live-preview-contents');
 
@@ -6032,7 +6168,6 @@ function syncPreviewInset(win) {
     OUTLINE_PANEL_ID,
     LISTVIEW_PANEL_ID,
     COMMENTS_PANEL_ID,
-    GLOBALS_PANEL_ID,
     '__sve-ai-panel',
   ]);
 
@@ -6060,16 +6195,36 @@ function livePreviewEditorEl(doc) {
 }
 
 /**
- * Dock Theme Settings on the RIGHT (same slot as the sections library).
+ * Dock Theme Settings over the LEFT Live Preview editor.
  * Stays on document.body — reparenting an iframe reloads it (preview flicker).
  */
-function pinGlobalsPanelRight(win, panel) {
-  showInRightShell(win, panel, { keep: true });
+function pinGlobalsPanelLeft(win, panel) {
+  attachGlobalsOverlay(win, panel);
+  forcePanelOpen = true;
+  setLpCollapsed(win, false);
+  applyHeaderTab(win);
+
+  const editor = livePreviewEditorEl(win.document);
+
+  if (editor && win.getComputedStyle(editor).position === 'static') {
+    editor.style.position = 'relative';
+  }
+
+  panel.hidden = false;
+  panel.removeAttribute('data-sve-chrome-hidden');
+  bindGlobalsOverlayLayout(win);
+  placeGlobalsOverlay(win);
+  applyHeaderTab(win);
 }
 
-/** @deprecated alias — Theme Settings docks right now. */
+/** @deprecated alias — Theme Settings docks left now. */
+function pinGlobalsPanelRight(win, panel) {
+  pinGlobalsPanelLeft(win, panel);
+}
+
+/** @deprecated alias */
 function pinGlobalsPanelToEditor(win, panel) {
-  pinGlobalsPanelRight(win, panel);
+  pinGlobalsPanelLeft(win, panel);
 }
 
 /** Absolute fill CSS — only for designs cards that are not an iframe form. */
@@ -6159,10 +6314,11 @@ function releaseLeftEdgeIfFree(win) {
 
 /**
  * Leave header/footer chrome focus so a page section can use the left editor.
- * Theme Settings stays on the right (form + stash intact) — only chrome designs
+ * Theme Settings overlay is parked (form + stash intact) — only chrome designs
  * and tab-lock are cleared.
  */
 function dismissChromeForPageEdit(win) {
+  hideGlobalsPanel(win, { release: false });
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
   removeChromeModeToggles(win);
   setActiveChromeKind(null);
@@ -6215,27 +6371,35 @@ function rightPanelWidth(doc) {
 let libraryDrag = null;
 
 /**
- * The page_sections fieldset group this type sits in (`hero`, `entries`, …).
- * Older payloads without `group` fall back to the handle prefix (`hero/style_1`
- * → `hero`); a bare handle becomes `other`.
+ * Chip group for the section library: the type prefix (`hero/style_1` → `hero`,
+ * `featured_section/style_2` → `featured_section`). A site can dump every set
+ * into one fieldset tab (`Items`); that tab is not the filter the picker shows.
+ * Bare handles (`code_block`) keep their own chip. YAML `group` is only used
+ * when the handle has no prefix of its own.
  */
 function libraryGroupKey(type) {
+  const handle = type?.handle;
+
+  if (handle && typeof handle === 'string' && handle.includes('/')) {
+    return handle.split('/')[0].toLowerCase();
+  }
+
+  if (handle && typeof handle === 'string' && handle.length) {
+    return handle.toLowerCase();
+  }
+
   if (type && typeof type.group === 'string' && type.group.length) {
     return type.group;
   }
 
-  const handle = type?.handle;
-
-  if (!handle || typeof handle !== 'string' || !handle.includes('/')) {
-    return 'other';
-  }
-
-  return handle.split('/')[0].toLowerCase();
+  return 'other';
 }
 
-/** Fieldset tab label (`Hero`), then a title-cased key, then "Other". */
+/** Handle-prefix label (`Hero`), fieldset tab when it matches, then "Other". */
 function libraryGroupLabel(win, key, types) {
-  const fromYaml = (types || []).find((type) => type.group === key && type.group_display);
+  const fromYaml = (types || []).find(
+    (type) => type.group === key && type.group_display && libraryGroupKey(type) === key
+  );
 
   if (fromYaml?.group_display) {
     return fromYaml.group_display;
@@ -6315,32 +6479,7 @@ function openSectionPicker(win, options = {}) {
     return;
   }
 
-  // Theme Settings owns the same right slot — close it first (warn if dirty).
-  const globalsPanel = doc.getElementById(GLOBALS_PANEL_ID);
-  const globalsVisible = globalsPanel && !globalsPanel.hasAttribute('data-sve-chrome-hidden');
-
-  if (globalsVisible && hasUnsavedGlobals(win)) {
-    confirmCloseDiscard(
-      win,
-      { titleKey: 'globals_close_title', bodyKey: 'globals_close_body' },
-      () => {
-        discardGlobalsChanges(win, { refresh: true, reloadForm: false }).then(() =>
-          mountSectionPicker(win, options)
-        );
-      },
-      () => {},
-      () => {
-        saveGlobalsPanel(win, (ok) => {
-          if (ok) {
-            mountSectionPicker(win, options);
-          }
-        });
-      }
-    );
-
-    return;
-  }
-
+  // Theme Settings is on the left now — the library can open beside it.
   mountSectionPicker(win, options);
 
   if (initialTab) {
@@ -6367,55 +6506,57 @@ function mountSectionPicker(win, options = {}) {
   panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
-      <div style="font-size:14px;font-weight:600;">${t(win, 'sections')}</div>
-      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
+    <div style="display:flex;align-items:center;flex:0 0 auto;gap:6px;">
+      <div data-sve-right-title>${t(win, 'sections')}</div>
+      <button type="button" data-sve-close>✕</button>
     </div>
-    <div data-sve-hint style="padding:8px 12px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
-    <div data-sve-tabs style="display:flex;gap:3px;padding:2px 12px 0;flex:0 0 auto;"></div>
-    <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
+    <div data-sve-hint style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
+    <div data-sve-tabs style="display:flex;gap:3px;padding:2px 0 0;flex:0 0 auto;"></div>
+    <div data-sve-search-wrap style="padding:var(--sve-right-body-pad-block) 0 0;flex:0 0 auto;">
       <input data-sve-search type="text" autocomplete="sve-off" placeholder="${t(win, 'library_search_placeholder')}"
         style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
         background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
     </div>
-    <div data-sve-groups style="display:none;flex-wrap:nowrap;gap:4px;padding:8px 0 0 12px;margin-right:12px;flex:0 0 auto;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
+    <div data-sve-groups-wrap style="display:none;position:relative;flex:0 0 auto;align-self:stretch;width:100%;max-width:100%;min-width:0;">
+      <div data-sve-groups style="display:flex;flex-wrap:nowrap;gap:4px;padding:var(--sve-right-body-pad-block) 0 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
+      <div data-sve-groups-fade aria-hidden="true" style="display:none;position:absolute;top:var(--sve-right-body-pad-block);right:0;bottom:0;width:36px;pointer-events:none;background:linear-gradient(to right,transparent,var(--theme-color-content-bg,Canvas));"></div>
+    </div>
     <style>[data-sve-groups]::-webkit-scrollbar{display:none}</style>
-    <div data-sve-scroll style="flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;">
+    <div data-sve-scroll style="flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-top:var(--sve-right-body-pad-block);padding:0 0 var(--sve-right-body-pad-block);">
       <div data-sve-grid style="column-gap:12px;"></div>
     </div>
   `;
 
-  // The group chips scroll sideways when they do not fit. A soft right edge says
-  // there is more to come; it lifts once the last chip is in view, so a row that
-  // fits keeps its chips at full strength.
+  // Fade sits on a sibling, not on the scroller. Setting mask-image on a
+  // scrollable element resets scrollLeft in Chrome.
   const syncGroupsFade = () => {
     const groups = panel.querySelector('[data-sve-groups]');
+    const fade = panel.querySelector('[data-sve-groups-fade]');
 
-    if (!groups) {
+    if (!groups || !fade) {
       return;
     }
 
     const more = groups.scrollWidth - groups.clientWidth - groups.scrollLeft > 1;
-    const mask = more ? 'linear-gradient(to right,#000 calc(100% - 36px),transparent 100%)' : '';
 
-    groups.style.webkitMaskImage = mask;
-    groups.style.maskImage = mask;
+    fade.style.display = more ? 'block' : 'none';
   };
 
   const applyLibraryLayout = () => {
     const w = panel.getBoundingClientRect().width || rightDockWidth(win);
     const cols = w >= 720 ? 3 : w >= 480 ? 2 : 1;
     const grid = panel.querySelector('[data-sve-grid]');
+    const next = String(cols);
 
     syncGroupsFade();
 
-    if (!grid) {
+    if (!grid || grid.style.columnCount === next) {
       return;
     }
 
     // Masonry lives on an unconstrained inner box; the outer [data-sve-scroll]
     // scrolls. Putting column-count on the scroll box itself overflows sideways.
-    grid.style.columnCount = String(cols);
+    grid.style.columnCount = next;
   };
 
   showInRightShell(win, panel);
@@ -6433,6 +6574,7 @@ function mountSectionPicker(win, options = {}) {
 
   const tabsEl = panel.querySelector('[data-sve-tabs]');
   const searchEl = panel.querySelector('[data-sve-search]');
+  const groupsWrap = panel.querySelector('[data-sve-groups-wrap]');
   const groupsEl = panel.querySelector('[data-sve-groups]');
   const gridEl = panel.querySelector('[data-sve-grid]');
 
@@ -6463,12 +6605,7 @@ function mountSectionPicker(win, options = {}) {
   let templates = null;
   let query = '';
   let group = null; // null = all groups
-  // When the pictures were last asked for. Not a plain "already asked" flag: the
-  // library stays open while its owner edits a section's template in an editor,
-  // and coming back to the Page tab afterwards should show what that edit did.
-  // A timestamp asks again then, while ignoring the re-render every keystroke in
-  // the search field causes.
-  let typesAskedAt = 0;
+  let typesAsked = false;
 
 
   // Natural-height preview cards in a CSS-columns masonry grid. The image sets
@@ -6476,10 +6613,11 @@ function mountSectionPicker(win, options = {}) {
   const card = (title, imageUrl, kind, item) => {
     const el = doc.createElement('div');
 
+    el.setAttribute('data-sve-lib-handle', String(item?.handle || item?.id || title));
     el.style.cssText =
       'cursor:grab;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
       'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
-      'user-select:none;touch-action:none;vertical-align:top;';
+      'user-select:none;vertical-align:top;';
     el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
     el.addEventListener('mouseleave', () => (el.style.borderColor = 'rgba(128,128,128,.25)'));
     el.innerHTML = `
@@ -6536,10 +6674,9 @@ function mountSectionPicker(win, options = {}) {
   };
 
   const renderGroups = () => {
-    groupsEl.innerHTML = '';
-
     if (active !== 'page') {
-      groupsEl.style.display = 'none';
+      groupsWrap.style.display = 'none';
+      groupsEl.innerHTML = '';
 
       return;
     }
@@ -6552,13 +6689,35 @@ function mountSectionPicker(win, options = {}) {
     }
 
     if (ordered.length < 2) {
-      groupsEl.style.display = 'none';
+      groupsWrap.style.display = 'none';
+      groupsEl.innerHTML = '';
       group = null;
 
       return;
     }
 
-    groupsEl.style.display = 'flex';
+    const existing = [...groupsEl.querySelectorAll('[data-sve-group]')];
+    const sameChips =
+      groupsWrap.style.display !== 'none' &&
+      existing.length === ordered.length + 1 &&
+      existing[0]?.getAttribute('data-sve-group') === '' &&
+      ordered.every((key, i) => existing[i + 1]?.getAttribute('data-sve-group') === key);
+
+    if (sameChips) {
+      existing.forEach((btn) => {
+        const key = btn.getAttribute('data-sve-group');
+
+        styleChip(btn, key === '' ? group === null : group === key);
+      });
+      syncGroupsFade();
+
+      return;
+    }
+
+    const scrollLeft = groupsEl.scrollLeft;
+
+    groupsEl.innerHTML = '';
+    groupsWrap.style.display = 'block';
 
     const chipStyle =
       'all:unset;cursor:pointer;flex:0 0 auto;white-space:nowrap;padding:4px 10px;border-radius:999px;font-size:11px;color:currentColor;';
@@ -6566,6 +6725,7 @@ function mountSectionPicker(win, options = {}) {
     const allBtn = doc.createElement('button');
 
     allBtn.type = 'button';
+    allBtn.setAttribute('data-sve-group', '');
     allBtn.textContent = t(win, 'library_group_all');
     allBtn.style.cssText = chipStyle;
     styleChip(allBtn, group === null);
@@ -6579,6 +6739,7 @@ function mountSectionPicker(win, options = {}) {
       const btn = doc.createElement('button');
 
       btn.type = 'button';
+      btn.setAttribute('data-sve-group', key);
       btn.textContent = libraryGroupLabel(win, key, types);
       btn.style.cssText = chipStyle;
       styleChip(btn, group === key);
@@ -6589,15 +6750,78 @@ function mountSectionPicker(win, options = {}) {
       groupsEl.appendChild(btn);
     });
 
-    syncGroupsFade();
+    groupsEl.scrollLeft = scrollLeft;
+    requestAnimationFrame(syncGroupsFade);
+  };
+
+  const gridScrollEl = () => panel.querySelector('[data-sve-scroll]');
+
+  /**
+   * Fill the masonry without snapping scroll back to the top.
+   *
+   * Preview polling used to wipe `innerHTML` every 1.5s. Emptying the grid
+   * collapses the scroll box, so `scrollTop` clamps to 0 — and the group chips
+   * were rebuilt the same way. Same cards in the same order only get their
+   * picture/title updated.
+   */
+  const paintGrid = (rows, before) => {
+    const existing = [...gridEl.querySelectorAll(':scope > [data-sve-lib-handle]')];
+    const sameOrder =
+      existing.length === rows.length &&
+      rows.length > 0 &&
+      rows.every((row, i) => existing[i].getAttribute('data-sve-lib-handle') === row.key);
+
+    if (sameOrder) {
+      rows.forEach((row, i) => {
+        const el = existing[i];
+        const titleEl = el.querySelector('[data-sve-card-title]');
+
+        if (titleEl && titleEl.textContent !== row.title) {
+          titleEl.textContent = row.title;
+        }
+
+        const img = el.querySelector('img');
+
+        if (row.imageUrl) {
+          if (img) {
+            if (img.getAttribute('src') !== row.imageUrl) {
+              const h = img.getBoundingClientRect().height;
+
+              if (h) {
+                img.style.minHeight = `${Math.round(h)}px`;
+                img.addEventListener('load', () => {
+                  img.style.minHeight = '';
+                }, { once: true });
+              }
+
+              img.setAttribute('src', row.imageUrl);
+            }
+          } else {
+            el.replaceWith(card(row.title, row.imageUrl, row.kind, row.item));
+          }
+        }
+      });
+
+      return;
+    }
+
+    const scrollEl = gridScrollEl();
+    const top = scrollEl?.scrollTop ?? 0;
+
+    gridEl.innerHTML = '';
+    before?.();
+    rows.forEach((row) => gridEl.appendChild(card(row.title, row.imageUrl, row.kind, row.item)));
+
+    if (scrollEl) {
+      scrollEl.scrollTop = top;
+    }
   };
 
   const renderPage = () => {
-    gridEl.innerHTML = '';
-
     const types = sectionTypes(win);
 
     if (!types.length) {
+      gridEl.innerHTML = '';
       gridEl.appendChild(empty(t(win, 'no_section_types')));
 
       return;
@@ -6612,20 +6836,42 @@ function mountSectionPicker(win, options = {}) {
     });
 
     if (!filtered.length) {
+      gridEl.innerHTML = '';
       gridEl.appendChild(empty(t(win, 'library_no_matches')));
 
       return;
     }
 
-    filtered.forEach((type) => gridEl.appendChild(card(type.display, type.image_url, 'page', type)));
+    paintGrid(
+      filtered.map((type) => ({
+        key: String(type.handle),
+        title: type.display,
+        imageUrl: type.image_url,
+        kind: 'page',
+        item: type,
+      }))
+    );
+  };
+
+  const applyTypeRefresh = (diff = { listChanged: true, imagesChanged: true }) => {
+    if (active !== 'page') {
+      return;
+    }
+
+    if (diff.listChanged) {
+      renderGroups();
+    }
+
+    if (diff.listChanged || diff.imagesChanged) {
+      renderPage();
+    }
   };
 
   const renderSaved = (synced) => {
-    gridEl.innerHTML = '';
-
     const items = (saved || []).filter((s) => !!s.synced === synced);
 
     if (!items.length) {
+      gridEl.innerHTML = '';
       gridEl.appendChild(
         empty(
           synced
@@ -6640,13 +6886,20 @@ function mountSectionPicker(win, options = {}) {
     const filtered = items.filter((item) => libraryMatchesQuery(item, query));
 
     if (!filtered.length) {
+      gridEl.innerHTML = '';
       gridEl.appendChild(empty(t(win, 'library_no_matches')));
 
       return;
     }
 
-    filtered.forEach((item) =>
-      gridEl.appendChild(card(item.title, item.preview_url, synced ? 'global' : 'custom', item))
+    paintGrid(
+      filtered.map((item) => ({
+        key: String(item.id),
+        title: item.title,
+        imageUrl: item.preview_url,
+        kind: synced ? 'global' : 'custom',
+        item,
+      }))
     );
   };
 
@@ -6654,23 +6907,26 @@ function mountSectionPicker(win, options = {}) {
   // is — the picture alone can't tell you whether you're about to drop three
   // sections or fifteen.
   const renderTemplates = () => {
-    gridEl.innerHTML = '';
+    const saveBtn = () => {
+      const save = doc.createElement('button');
 
-    const save = doc.createElement('button');
+      save.type = 'button';
+      save.textContent = t(win, 'save_page_as_template');
+      save.style.cssText =
+        'all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;column-span:all;break-inside:avoid;' +
+        'text-align:center;padding:10px;margin:0 0 12px;border-radius:8px;font-size:12px;' +
+        'font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;';
+      save.addEventListener('click', () => savePageAsTemplate(win, () => {
+        templates = null;
+        renderActive();
+      }));
 
-    save.type = 'button';
-    save.textContent = t(win, 'save_page_as_template');
-    save.style.cssText =
-      'all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;column-span:all;break-inside:avoid;' +
-      'text-align:center;padding:10px;margin:0 0 12px;border-radius:8px;font-size:12px;' +
-      'font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;';
-    save.addEventListener('click', () => savePageAsTemplate(win, () => {
-      templates = null;
-      renderActive();
-    }));
-    gridEl.appendChild(save);
+      return save;
+    };
 
     if (!(templates || []).length) {
+      gridEl.innerHTML = '';
+      gridEl.appendChild(saveBtn());
       gridEl.appendChild(empty(t(win, 'no_templates')));
 
       return;
@@ -6679,15 +6935,22 @@ function mountSectionPicker(win, options = {}) {
     const filtered = templates.filter((item) => libraryMatchesQuery(item, query));
 
     if (!filtered.length) {
+      gridEl.innerHTML = '';
+      gridEl.appendChild(saveBtn());
       gridEl.appendChild(empty(t(win, 'library_no_matches')));
 
       return;
     }
 
-    filtered.forEach((item) =>
-      gridEl.appendChild(
-        card(`${item.title} · ${t(win, 'template_count', { count: item.count })}`, item.preview_url, 'template', item)
-      )
+    paintGrid(
+      filtered.map((item) => ({
+        key: String(item.id),
+        title: `${item.title} · ${t(win, 'template_count', { count: item.count })}`,
+        imageUrl: item.preview_url,
+        kind: 'template',
+        item,
+      })),
+      () => gridEl.appendChild(saveBtn())
     );
   };
 
@@ -6716,15 +6979,9 @@ function mountSectionPicker(win, options = {}) {
     renderGroups();
 
     if (active === 'page') {
-      // Ask the server what the sections look like now, and keep asking while it
-      // is busy retaking the pictures.
-      if (Date.now() - typesAskedAt > 10000) {
-        typesAskedAt = Date.now();
-        refreshSectionTypes(win, () => {
-          if (active === 'page') {
-            renderPage();
-          }
-        });
+      if (!typesAsked) {
+        typesAsked = true;
+        refreshSectionTypes(win, applyTypeRefresh);
       }
 
       renderPage();
@@ -6815,21 +7072,55 @@ function mountSectionPicker(win, options = {}) {
 
   // Something was added to a library while this panel was open — a section just
   // saved from the editor, most often. The lists it has are from before that, so
-  // it drops them and asks again; the new card arrives without its picture and
-  // pollLibrary fills that in a few seconds later, when the screenshot lands.
+  // it drops them and asks again. A screenshot follows the save; one catch-up
+  // event (not a 1.5s loop) fills the picture in.
   panel.addEventListener('sve-library-stale', () => {
     saved = null;
     templates = null;
-
-    // The Page tab too, when the reason was a change to the design itself:
-    // Theme Settings are in every preview's fingerprint, so the section types
-    // are just as wrong as the saved sections. Their list lives in its own
-    // cache, filled by its own poller, so dropping `saved` alone left the Page
-    // tab showing the old colours while Custom had caught up.
     sectionTypesOverride = null;
-    refreshSectionTypes(win, () => renderActive());
-
+    typesAsked = false;
     renderActive();
+
+    win.clearTimeout(libraryCatchupTimer);
+    libraryCatchupTimer = win.setTimeout(() => {
+      panel.dispatchEvent(new win.CustomEvent('sve-library-preview-ready'));
+    }, 8000);
+  });
+
+  panel.addEventListener('sve-library-preview-ready', () => {
+    refreshSectionTypes(win, applyTypeRefresh);
+
+    if (saved !== null) {
+      pollLibrary(
+        win,
+        '/!/sve/saved-sections',
+        (data) => data.sections || [],
+        (items) => {
+          saved = items;
+
+          if (active === 'custom' || active === 'global') {
+            renderSaved(active === 'global');
+          }
+        },
+        () => {}
+      );
+    }
+
+    if (templates !== null) {
+      pollLibrary(
+        win,
+        '/!/sve/templates',
+        (data) => data.templates || [],
+        (items) => {
+          templates = items;
+
+          if (active === 'template') {
+            renderTemplates();
+          }
+        },
+        () => {}
+      );
+    }
   });
 
   panel.addEventListener('sve-set-tab', (event) => {
@@ -7175,10 +7466,43 @@ function stripSectionsFromForm(win, matches) {
 }
 
 /**
+ * True when the pointer is over the live-preview iframe and not over a CP
+ * overlay that sits on top of it (code dock, right sidebar, left editor, Theme Settings).
+ * The iframe has pointer-events:none for the drag, so the box is the source
+ * of truth; elementFromPoint only vetoes overlays.
+ */
+function pointerOverLivePreview(win, frame, event) {
+  if (!frame) {
+    return false;
+  }
+
+  const r = frame.getBoundingClientRect();
+
+  if (
+    event.clientX < r.left ||
+    event.clientX > r.right ||
+    event.clientY < r.top ||
+    event.clientY > r.bottom
+  ) {
+    return false;
+  }
+
+  const hit = win.document.elementFromPoint(event.clientX, event.clientY);
+
+  if (!hit || hit === frame || frame.contains(hit)) {
+    return true;
+  }
+
+  return !hit.closest(
+    '#__sve-right-dock, #__sve-code-dock, #__sve-globals-panel, .live-preview-editor, .live-preview-header, #__sve-toolbar'
+  );
+}
+
+/**
  * Pointer drag on a library card. Below the threshold it's a click (drop at the
- * end); beyond it, the preview zooms out and shows a drop line, and releasing
- * drops the section where the line is. The preview owns the zoom + line + target
- * detection; this side just forwards the pointer and inserts on the reply.
+ * end). Beyond it, the preview zooms out and shows a drop line — but only a
+ * release over the live preview inserts. Letting go halfway (library, editor,
+ * chrome) cancels; nothing is added.
  */
 function beginCardDrag(win, cardEl, kind, item) {
   cardEl.addEventListener('pointerdown', (event) => {
@@ -7186,15 +7510,13 @@ function beginCardDrag(win, cardEl, kind, item) {
       return;
     }
 
-    event.preventDefault();
-    cardEl.setPointerCapture(event.pointerId);
-
     const doc = win.document;
     const frame = previewFrame(doc);
     const startX = event.clientX;
     const startY = event.clientY;
     let active = false;
     let ghost = null;
+    let aborted = false;
 
     const toPreview = (e) => {
       const r = frame.getBoundingClientRect();
@@ -7202,8 +7524,15 @@ function beginCardDrag(win, cardEl, kind, item) {
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
 
+    const stopListen = () => {
+      win.removeEventListener('pointermove', onMove);
+      win.removeEventListener('pointerup', onUp);
+      win.removeEventListener('pointercancel', onUp);
+    };
+
     const start = () => {
       active = true;
+      cardEl.setPointerCapture(event.pointerId);
       // The iframe would swallow the pointer once we're over it — let this window
       // keep the events, and map the coordinates ourselves.
       frame.style.pointerEvents = 'none';
@@ -7216,8 +7545,25 @@ function beginCardDrag(win, cardEl, kind, item) {
     };
 
     const onMove = (e) => {
+      if (aborted) {
+        return;
+      }
+
       if (!active) {
-        if (Math.hypot(e.clientX - startX, e.clientY - startY) < 6) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        if (Math.hypot(dx, dy) < 6) {
+          return;
+        }
+
+        // Vertical drag inside the list is a scroll, not a section drag.
+        const scrollEl = cardEl.closest('[data-sve-scroll]');
+
+        if (scrollEl && Math.abs(dy) >= Math.abs(dx)) {
+          aborted = true;
+          stopListen();
+
           return;
         }
 
@@ -7238,25 +7584,45 @@ function beginCardDrag(win, cardEl, kind, item) {
     };
 
     const onUp = (e) => {
-      win.removeEventListener('pointermove', onMove);
-      win.removeEventListener('pointerup', onUp);
-      win.removeEventListener('pointercancel', onUp);
+      stopListen();
       ghost?.remove();
 
-      if (!active) {
-        // A click: drop at the end of the page.
-        insertSection(win, doc, lastSectionUid(doc), kind, item);
+      try {
+        cardEl.releasePointerCapture(e.pointerId);
+      } catch {
+        /* already released */
+      }
+
+      if (aborted || !active) {
+        if (!aborted && !active) {
+          // A click: drop at the end of the page.
+          insertSection(win, doc, lastSectionUid(doc), kind, item);
+        }
 
         return;
       }
 
-      // The bridge replies with ext-drop → the message listener inserts.
-      libraryDrag = { kind, item };
-      frame.style.pointerEvents = '';
-      frame.contentWindow.postMessage(
-        { source: 'statamic-visual-editor', type: 'ext-drag-end', cancelled: e.type === 'pointercancel' },
-        win.location.origin
-      );
+      const overPreview =
+        e.type !== 'pointercancel' && pointerOverLivePreview(win, frame, e);
+
+      if (overPreview) {
+        // The bridge replies with ext-drop → the message listener inserts.
+        libraryDrag = { kind, item };
+      } else {
+        libraryDrag = null;
+      }
+
+      if (frame) {
+        frame.style.pointerEvents = '';
+        frame.contentWindow?.postMessage(
+          {
+            source: 'statamic-visual-editor',
+            type: 'ext-drag-end',
+            cancelled: !overPreview,
+          },
+          win.location.origin
+        );
+      }
     };
 
     win.addEventListener('pointermove', onMove);
@@ -7752,6 +8118,15 @@ export function handleSectionSettings(data, doc, win) {
     return;
   }
 
+  if (isGlobalsOverlayOpen(win) && hasUnsavedGlobals(win)) {
+    confirmLeaveGlobalsOverlay(win, () => {
+      dismissChromeForPageEdit(win);
+      handleSectionSettings(data, doc, win);
+    });
+
+    return;
+  }
+
   dismissChromeForPageEdit(win);
 
   // Expand ONCE. Expanding is a toggle and Vue applies it asynchronously, so a
@@ -7892,19 +8267,12 @@ const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
  */
 const LP_WIDTH_KEY = 'statamic.live-preview.editor-width';
 
-/**
- * De tre bredder, smallest først. `rem` og ikke pixels, fordi det er sådan
- * feltopstillingen i panelet er sat op — grænsen for hvornår felterne falder ned
- * i én kolonne står i `cp.css` som en container query i rem, og de to tal skal
- * kunne sammenlignes med det blotte øje.
- */
-const LP_WIDTHS = [
-  { rem: 22, label: 'S' },
-  { rem: 26, label: 'M' },
-  { rem: 32, label: 'L' },
-];
+/** Same rem bounds on the left editor and the right dock. */
+const LP_SIDE_MIN_REM = 16;
+const LP_SIDE_MAX_REM = 50;
+const LP_SIDE_DEFAULT_REM = 22;
 
-const LP_WIDTH_DEFAULT = 26;
+let lpWidthDragging = false;
 
 // The panel runs in one of three modes, chosen in the header and remembered
 // across sessions:
@@ -7920,6 +8288,12 @@ const LP_MODE_LABELS = { hide: 'Hidden', auto: 'Auto', show: 'Visible' };
  */
 const LP_PRIMARY_FLAT =
   'color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent)';
+
+/** Count disc on the comments icon. Idle = same metal as the glyph, dark type; open = pale blue. */
+const COMMENTS_BADGE_FG = 'var(--theme-color-primary, #4530D8)';
+const COMMENTS_BADGE_IDLE_TYPE = '#18181b';
+const COMMENTS_BADGE_ACTIVE_BG =
+  'color-mix(in oklab, var(--theme-color-primary, #4530D8) 14%, white)';
 
 /** Idle icon opacity — same for toolbar + device chrome. */
 const LP_ICON_IDLE_OPACITY = '0.7';
@@ -8097,48 +8471,36 @@ function paintLpSaveButton(win) {
     return;
   }
 
-  header.querySelectorAll('button').forEach((btn) => {
-    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+  const buttons = [...header.querySelectorAll('button')];
+  const hasPublish = buttons.some((btn) => isLpPublishLabel(btn.textContent || ''));
 
-    if (!isLpSaveLabel(text) && !isLpPublishLabel(text)) {
+  buttons.forEach((btn) => {
+    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+    const isSave = isLpSaveLabel(text);
+    const isPublish = isLpPublishLabel(text);
+
+    if (!isSave && !isPublish) {
       return;
     }
 
-    if (btn.style.getPropertyValue('background') !== LP_PRIMARY_FLAT) {
-      btn.style.setProperty('background', LP_PRIMARY_FLAT, 'important');
-    }
+    // Split Save + Publish: Publish is the action. Save Changes is a quiet write.
+    // Combined "Save & Publish" stays the primary button.
+    const highlight = isPublish || (isSave && !hasPublish);
+    const idleSurface = 'rgba(128,128,128,.16)';
 
-    if (btn.style.getPropertyValue('background-image') !== 'none') {
-      btn.style.setProperty('background-image', 'none', 'important');
-    }
-
-    if (btn.style.getPropertyValue('color') !== 'rgb(255, 255, 255)' && btn.style.color !== '#fff') {
-      btn.style.setProperty('color', '#fff', 'important');
-    }
-
-    if (btn.style.getPropertyValue('border') !== 'none' && btn.style.getPropertyValue('border-width') !== '0px') {
-      btn.style.setProperty('border', 'none', 'important');
-    }
-
-    if (btn.style.getPropertyValue('box-shadow') !== 'none') {
-      btn.style.setProperty('box-shadow', 'none', 'important');
-    }
-
-    // Same soft corner + height as devices / zoom / left icon pills.
-    if (btn.style.getPropertyValue('border-radius') !== '0.5rem') {
-      btn.style.setProperty('border-radius', '0.5rem', 'important');
-    }
-
-    if (btn.style.getPropertyValue('height') !== `${LP_CHROME_H}px`) {
-      btn.style.setProperty('height', `${LP_CHROME_H}px`, 'important');
-    }
-
-    if (btn.style.getPropertyValue('box-sizing') !== 'border-box') {
-      btn.style.setProperty('box-sizing', 'border-box', 'important');
-    }
-
-    // Ingen egen margin — syncLpRightBarGaps styrer afstanden via parent gap /
-    // ml-auto på højre-klyngen. Rør ikke margin-left her (kan være ml-auto).
+    btn.style.setProperty(
+      'background',
+      highlight ? LP_PRIMARY_FLAT : idleSurface,
+      'important'
+    );
+    btn.style.setProperty('background-image', 'none', 'important');
+    btn.style.setProperty('color', highlight ? '#fff' : 'currentColor', 'important');
+    btn.style.setProperty('opacity', highlight ? '1' : LP_ICON_IDLE_OPACITY, 'important');
+    btn.style.setProperty('border', 'none', 'important');
+    btn.style.setProperty('box-shadow', 'none', 'important');
+    btn.style.setProperty('border-radius', '0.5rem', 'important');
+    btn.style.setProperty('height', `${LP_CHROME_H}px`, 'important');
+    btn.style.setProperty('box-sizing', 'border-box', 'important');
     btn.style.setProperty('margin-right', '0', 'important');
   });
 }
@@ -8235,17 +8597,13 @@ let lpEnterSidebarClosed = null;
 let forcePanelOpen = false;
 
 function lpMode(win) {
-  try {
-    const stored = win.localStorage.getItem(LP_MODE_KEY);
+  const stored = chromeGet(win, LP_MODE_KEY);
 
-    if (stored === 'auto' || !LP_MODES.includes(stored)) {
-      return 'hide';
-    }
-
-    return stored;
-  } catch {
+  if (stored === 'auto' || !LP_MODES.includes(stored)) {
     return 'hide';
   }
+
+  return stored;
 }
 
 /** True while a page change is in flight — the next editor should keep the bar as it was. */
@@ -8258,46 +8616,45 @@ function shouldKeepChrome(win) {
 }
 
 function storedLpCollapsed(win) {
-  try {
-    const stored = win.localStorage.getItem(LP_COLLAPSED_KEY);
+  const stored = chromeGet(win, LP_COLLAPSED_KEY);
 
-    if (stored === '1' || stored === '0') {
-      return stored === '1';
-    }
-  } catch {
-    /* private mode */
+  if (stored === '1' || stored === '0') {
+    return stored === '1';
   }
 
   return lpMode(win) !== 'show';
 }
 
 function persistDockedPanel(win) {
-  const doc = win.document;
-  let value = '';
-
-  if (listViewPanel(doc)) {
-    value = 'listview';
-  } else if (doc.getElementById(SECTION_PICKER_ID)) {
-    value = 'sections';
-  } else if (doc.getElementById(COMMENTS_PANEL_ID)) {
-    value = 'comments';
+  if (!lpHeader(win.document)) {
+    return;
   }
 
-  try {
-    value
-      ? win.localStorage.setItem(LP_DOCKED_KEY, value)
-      : win.localStorage.removeItem(LP_DOCKED_KEY);
-  } catch {
-    /* private mode */
+  const keys = visiblePaneKeys(win);
+
+  persistVisibleRightPanes(win, keys);
+
+  let value = '';
+
+  if (keys.includes('listview')) {
+    value = 'listview';
+  } else if (keys.includes('sections')) {
+    value = 'sections';
+  } else if (keys.includes('comments')) {
+    value = 'comments';
+  } else if (keys.includes('ai')) {
+    value = 'ai';
+  }
+
+  if (value) {
+    chromeSet(win, LP_DOCKED_KEY, value);
+  } else {
+    chromeRemove(win, LP_DOCKED_KEY);
   }
 }
 
 function setLpMode(win, mode) {
-  try {
-    win.localStorage.setItem(LP_MODE_KEY, mode);
-  } catch {
-    /* private mode */
-  }
+  chromeSet(win, LP_MODE_KEY, mode);
 
   // An explicit Show/Hide click is the user's choice — do not keep slamming
   // the sidebar shut because it happened to be closed when Live Preview opened.
@@ -8325,11 +8682,10 @@ function autoOpenPanel(win) {
 
 function setLpCollapsed(win, collapsed) {
   lpCollapsed = collapsed;
+  chromeSet(win, LP_COLLAPSED_KEY, collapsed ? '1' : '0');
 
-  try {
-    win.localStorage.setItem(LP_COLLAPSED_KEY, collapsed ? '1' : '0');
-  } catch {
-    /* private mode */
+  if (collapsed && isGlobalsOverlayOpen(win)) {
+    hideGlobalsPanel(win, { release: false });
   }
 
   ensureLpPanelToggle(win);
@@ -8398,9 +8754,9 @@ function fillOutlinePane(win, pane) {
 
   pane.id = OUTLINE_PANEL_ID;
   pane.innerHTML = `
-    <div style="padding:8px 14px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
+    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
     <div data-sve-outline-notice style="flex:0 0 auto;"></div>
-    <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;"></div>
+    <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
   `;
 }
 
@@ -8439,13 +8795,13 @@ function toggleOutlinePanel(win) {
   panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
-      <div style="font-size:14px;font-weight:600;">${t(win, 'outline')}</div>
-      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
+    <div style="display:flex;align-items:center;flex:0 0 auto;gap:6px;">
+      <div data-sve-right-title>${t(win, 'outline')}</div>
+      <button type="button" data-sve-close>✕</button>
     </div>
-    <div style="padding:6px 14px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
+    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
     <div data-sve-outline-notice style="flex:0 0 auto;"></div>
-    <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;"></div>
+    <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
   `;
 
   panel.querySelector('[data-sve-close]').addEventListener('click', () => closeOutlinePanel(win));
@@ -8845,7 +9201,17 @@ function dockedPanelTop(win) {
  * runs — once the bar has a real height, the panel drops under it.
  */
 function pinDockedPanelsUnderHeader(win) {
-  relayoutRightDock(win);
+  // Only follow the header's height. Restacking panes from the DOM pass
+  // reparented Theme Settings and made the top bar blink with Patterns.
+  if (isRightDockResizing()) {
+    return;
+  }
+
+  if (isRightDockOpen(win)) {
+    placeRightDock(win);
+  }
+
+  placeGlobalsOverlay(win);
 }
 
 export function closeListViewPanel(win) {
@@ -9115,13 +9481,14 @@ const LISTVIEW_STYLE_ID = '__sve-listview-style';
  * whichever it is in, and every tint is mixed from that.
  */
 function ensureListViewStyles(doc) {
-  if (doc.getElementById(LISTVIEW_STYLE_ID)) {
-    return;
+  let style = doc.getElementById(LISTVIEW_STYLE_ID);
+
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = LISTVIEW_STYLE_ID;
+    doc.head.appendChild(style);
   }
 
-  const style = doc.createElement('style');
-
-  style.id = LISTVIEW_STYLE_ID;
   style.textContent = `
     [data-sve-lv-row] {
       all: unset;
@@ -9133,14 +9500,14 @@ function ensureListViewStyles(doc) {
          left margin. That margin is the indent — set on the card rather than as
          padding inside it, so a nested block steps in as a whole instead of
          growing a wide empty shoulder. */
-      padding: 8px;
+      padding: 10px 8px;
       /* Tall enough for the controls whether they are showing or not. They are
          20px and the label is about 17, so without this the row grew the moment
          the pointer arrived — and every row below it stepped down. Height is
          reserved; the horizontal space is not, since five buttons' worth of it
          would be taken from the label on every row at once. */
-      min-height: 36px;
-      margin-bottom: 3px;
+      min-height: 40px;
+      margin-bottom: 5px;
       background: rgba(128,128,128,.16);
       border-radius: 6px;
       font-size: 13px;
@@ -9162,7 +9529,7 @@ function ensureListViewStyles(doc) {
     /* The dots and the buttons share one slot and swap: at rest the row shows
        what it can do (be moved), under the pointer it shows what you can do to
        it. Neither ever takes space from the other, so nothing shifts. */
-    [data-sve-lv-handle] { flex: none; display: inline-flex; align-items: center; opacity: .55; pointer-events: none; }
+    [data-sve-lv-handle] { flex: none; width: 14px; margin-inline-start: 8px; display: inline-flex; align-items: center; justify-content: center; opacity: .55; pointer-events: none; }
     /* Låst: en hængelås i stedet for prikkerne, og den bliver stående når
        markøren er over rækken — den siger hvorfor der ikke er knapper. */
     [data-sve-lv-handle][data-sve-lv-locked] svg { display: none; }
@@ -9197,9 +9564,14 @@ function ensureListViewStyles(doc) {
     [data-sve-lv-branch] {
       border: 1px solid rgba(255,255,255,.15);
       border-radius: 9px;
-      /* Nothing at the bottom: the last row's own 3px stands in for it. */
-      padding: 3px 3px 0;
-      margin-bottom: 3px;
+      box-sizing: border-box;
+      width: 100%;
+      /* Same inset on every side — the selected row must not sit flush to the box. */
+      padding: 5px;
+      margin-bottom: 5px;
+    }
+    [data-sve-lv-branch] > [data-sve-lv-row]:last-child {
+      margin-bottom: 0;
     }
     /* Until the selection is one of the rows inside it — then the box is the
        place you are working in, and it says so in the row's blue, held back a
@@ -9218,7 +9590,7 @@ function ensureListViewStyles(doc) {
     /* Out of the way until the row is under the pointer or is the current one.
        Five controls on every row at once would read as the loudest thing in the
        panel, and the panel is for finding your way around. */
-    [data-sve-lv-actions] { flex: none; display: none; align-items: center; gap: 1px; margin-left: 2px; }
+    [data-sve-lv-actions] { flex: none; display: none; align-items: center; gap: 1px; margin-inline-start: 8px; }
     [data-sve-lv-row]:hover [data-sve-lv-actions],
     [data-sve-lv-row][data-sve-lv-current] [data-sve-lv-actions] { display: inline-flex; }
     [data-sve-lv-act] {
@@ -9280,8 +9652,6 @@ function ensureListViewStyles(doc) {
       outline: 2px solid currentColor;
     }
   `;
-
-  doc.head.appendChild(style);
 }
 
 /** Every node in the tree, folded or not. */
@@ -10224,8 +10594,8 @@ function fillListViewPane(win, pane) {
 
   pane.id = LISTVIEW_PANEL_ID;
   pane.innerHTML = `
-    <div style="padding:8px 14px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'listview_hint')}</div>
-    <div data-sve-listview-list style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;"></div>
+    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'listview_hint')}</div>
+    <div data-sve-listview-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
   `;
 }
 
@@ -10265,11 +10635,10 @@ function toggleListViewPanel(win) {
   panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px 0;flex:0 0 auto;">
-      <div data-sve-lv-tabs style="display:flex;gap:14px;"></div>
-      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
+    <div data-sve-lv-chrome>
+      <div data-sve-lv-tabs></div>
+      <button type="button" data-sve-close>✕</button>
     </div>
-    <div style="border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;"></div>
     <div data-sve-lv-body style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column;"></div>
   `;
 
@@ -10283,10 +10652,8 @@ function toggleListViewPanel(win) {
 
     btn.type = 'button';
     btn.dataset.lvTab = tab.key;
+    btn.setAttribute('data-sve-panel-tab', '');
     btn.textContent = tab.label;
-    btn.style.cssText =
-      'all:unset;cursor:pointer;padding:6px 0 8px;font-size:13px;font-weight:600;opacity:.55;'
-      + 'border-bottom:2px solid transparent;margin-bottom:-1px;';
     btn.addEventListener('click', () => setListViewTab(win, tab.key));
     tabsEl.appendChild(btn);
   });
@@ -10327,8 +10694,6 @@ function toggleCommentsPanel(win) {
 
   if (commentsPanel(doc)) {
     closeCommentsPanel(win);
-    persistDockedPanel(win);
-    applyHeaderTab(win);
 
     return;
   }
@@ -10341,9 +10706,10 @@ function toggleCommentsPanel(win) {
   panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
-      <div style="font-size:14px;font-weight:600;">${t(win, 'comments_pane')}</div>
-      <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
+    <div style="display:flex;align-items:center;flex:0 0 auto;gap:6px;">
+      <div data-sve-right-title>${t(win, 'comments_pane')}</div>
+      <button type="button" data-sve-comments-place title="${t(win, 'comments_place')}" aria-pressed="false">${TOOLBAR_ICONS.comments}</button>
+      <button type="button" data-sve-close>✕</button>
     </div>
   `;
 
@@ -10383,21 +10749,19 @@ function setListViewTab(win, tab) {
   }
 
   listViewTab = tab;
+  chromeSet(win, 'sve-listview-tab', tab);
 
   panel.querySelectorAll('[data-lv-tab]').forEach((btn) => {
-    const active = btn.dataset.lvTab === tab;
-
-    btn.style.opacity = active ? '1' : '.55';
-    btn.style.borderBottomColor = active ? '#3858e9' : 'transparent';
+    btn.setAttribute('aria-pressed', btn.dataset.lvTab === tab ? 'true' : 'false');
   });
 
   const body = panel.querySelector('[data-sve-lv-body]');
 
   if (tab === 'outline') {
     body.innerHTML = `
-      <div style="padding:8px 14px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
+      <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
       <div data-sve-outline-notice style="flex:0 0 auto;"></div>
-      <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;"></div>
+      <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
     `;
 
     renderOutline(win); // "Loading…", until the preview answers
@@ -10419,8 +10783,8 @@ function setListViewTab(win, tab) {
   watchOutlineInPreview(win, false);
 
   body.innerHTML = `
-    <div style="padding:8px 14px 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'listview_hint')}</div>
-    <div data-sve-listview-list style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;"></div>
+    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'listview_hint')}</div>
+    <div data-sve-listview-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
   `;
 
   renderListView(win);
@@ -11988,13 +12352,22 @@ export function soloSection(uid, doc, win, { kind = null, segment = null } = {})
     return false;
   }
 
-  // Page section owns the left edge — hide Theme Settings / Designs so they
-  // don't stack beside (or pad) the solo editor.
+  // Page section owns the left edge — park Theme Settings / Designs so they
+  // don't cover the solo editor.
   //
   // Unless the set is one of the chrome form's own: a widget in the header is
   // reached by clicking it on the page, exactly like a block in a section, and
   // stepping into it is not leaving the header — it IS editing the header.
   if (win && !chromeHost(doc)?.contains(setEl)) {
+    if (isGlobalsOverlayOpen(win) && hasUnsavedGlobals(win)) {
+      confirmLeaveGlobalsOverlay(win, () => {
+        dismissChromeForPageEdit(win);
+        soloSection(uid, doc, win, { kind, segment });
+      });
+
+      return false;
+    }
+
     dismissChromeForPageEdit(win);
   }
 
@@ -12182,131 +12555,200 @@ function remToPx(win, rem) {
   return Math.round(rem * root);
 }
 
+function clampSideWidth(win, px) {
+  return Math.round(
+    Math.min(remToPx(win, LP_SIDE_MAX_REM), Math.max(remToPx(win, LP_SIDE_MIN_REM), px))
+  );
+}
+
 /** Bredden panelet står i, som den er gemt. Intet gemt: standarden. */
 function lpStoredWidth(win) {
-  let stored = null;
+  const stored = parseInt(chromeGet(win, LP_WIDTH_KEY) ?? '', 10);
+  const fallback = remToPx(win, LP_SIDE_DEFAULT_REM);
 
-  try {
-    stored = parseInt(win.localStorage.getItem(LP_WIDTH_KEY) ?? '', 10);
-  } catch {
-    /* localStorage kan være lukket i et privat vindue */
-  }
-
-  return Number.isFinite(stored) && stored > 0 ? stored : remToPx(win, LP_WIDTH_DEFAULT);
+  return clampSideWidth(win, Number.isFinite(stored) && stored > 0 ? stored : fallback);
 }
 
-function setLpWidth(win, rem) {
-  const px = remToPx(win, rem);
+function persistLpWidth(win, px) {
+  const next = clampSideWidth(win, px);
 
-  try {
-    win.localStorage.setItem(LP_WIDTH_KEY, String(px));
-  } catch {
-    /* som ovenfor — valget gælder så kun denne gang */
-  }
+  chromeSet(win, LP_WIDTH_KEY, String(next));
 
+  return next;
+}
+
+function applyLpEditorWidth(win, px) {
   const editor = win.document.querySelector('.live-preview-editor');
 
-  if (editor) {
-    editor.style.width = `${px}px`;
+  if (!editor || lpCollapsed) {
+    return persistLpWidth(win, px);
   }
 
-  ensureLpWidthPicker(win);
+  const next = persistLpWidth(win, px);
+
+  editor.style.width = `${next}px`;
+
+  return next;
 }
 
-/** Linjen sidder over panelet, så den følger med når vinduet ændrer sig. */
+/**
+ * Own the left resizer so we can sit at 16–50 rem. Statamic's own handle
+ * floors at 350px and would ignore a narrower stored width.
+ */
+function bindLpEditorResize(win) {
+  const doc = win.document;
+  const handle = doc.querySelector('.live-preview-resizer');
+  const editor = doc.querySelector('.live-preview-editor');
+
+  if (!handle || !editor || handle._sveWidthBound) {
+    return;
+  }
+
+  handle._sveWidthBound = true;
+
+  handle.addEventListener(
+    'mousedown',
+    (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const startX = event.clientX;
+      const startW = editor.getBoundingClientRect().width;
+      let next = startW;
+      const frames = [...doc.querySelectorAll('iframe')];
+
+      frames.forEach((frame) => {
+        frame.style.pointerEvents = 'none';
+      });
+
+      lpWidthDragging = true;
+      doc.body.style.cursor = 'ew-resize';
+      doc.body.style.userSelect = 'none';
+
+      const move = (e) => {
+        next = applyLpEditorWidth(win, startW + (e.clientX - startX));
+        placeLpWidthPicker(win);
+        placeGlobalsOverlay(win);
+      };
+
+      const up = () => {
+        lpWidthDragging = false;
+        doc.body.style.cursor = '';
+        doc.body.style.userSelect = '';
+        frames.forEach((frame) => {
+          frame.style.pointerEvents = '';
+        });
+        doc.removeEventListener('mousemove', move, true);
+        doc.removeEventListener('mouseup', up, true);
+        applyLpEditorWidth(win, next);
+        win.dispatchEvent(new Event('resize'));
+      };
+
+      doc.addEventListener('mousemove', move, true);
+      doc.addEventListener('mouseup', up, true);
+    },
+    true
+  );
+}
+
+/**
+ * Fanerne sidder over panelet, så de følger med når det ændrer bredde.
+ * Drag-striben går i fuld højde (inkl. fanerækken) — baren stopper før den.
+ */
 function placeLpWidthPicker(win) {
   const doc = win.document;
   const bar = doc.getElementById(LP_WIDTH_ID);
   const editor = doc.querySelector('.live-preview-editor');
 
   if (!bar || !editor) {
+    if (editor && !bar) {
+      editor.style.paddingTop = '';
+    }
+
+    placeLpResizer(win);
+
     return;
   }
 
   const rect = editor.getBoundingClientRect();
+  const handle = doc.querySelector('.live-preview-resizer');
+  const grip = handle ? Math.round(handle.getBoundingClientRect().width) || 16 : 16;
+  const width = Math.max(0, Math.round(rect.width) - grip);
 
-  bar.style.left = `${Math.round(rect.left + 12)}px`;
-  // Panelets bredde er den grænse grupperne ombryder ved. Et smalt panel eller en
-  // blueprint med mange faner skal lægge dem ned under hinanden, ikke ud over
-  // kanten hvor de ikke kan nås.
-  bar.style.maxWidth = `${Math.max(0, Math.round(rect.width - 24))}px`;
-  // Målt efter ombrydningen frem for regnet ud på forhånd: linjen kan være én
-  // eller flere rækker høj, og den skal ligge lige over panelets underkant uanset
-  // hvad. `offsetHeight` læses derfor efter at bredden er sat.
-  bar.style.top = `${Math.round(rect.bottom - 12 - bar.offsetHeight)}px`;
+  bar.style.left = `${Math.round(rect.left)}px`;
+  bar.style.top = `${Math.round(rect.top)}px`;
+  bar.style.width = `${width}px`;
+  bar.style.maxWidth = `${width}px`;
+  bar.style.background = win.getComputedStyle(editor).backgroundColor;
+  editor.style.paddingTop = `${Math.round(bar.offsetHeight)}px`;
+  placeLpResizer(win);
 }
 
 /**
- * Tre bredder at vælge panelet i, nederst i det.
- *
- * Den ligger på `document.body` og ikke i panelet. To grunde: panelets kolonne
- * ruller, og en linje man skal rulle ned til for at finde er ikke en linje man
- * bruger — og solo-visningen skjuler alt i kolonnen der ikke er markeret, så en
- * knap derinde ville forsvinde i samme øjeblik man klikkede sig ind i en sektion.
+ * Statamic's drag strip sits in the flex content box under our tab padding.
+ * Pin it absolute so it runs from the editor top (under the header) to the bottom.
  */
-function ensureLpWidthPicker(win) {
-  const doc = win.document;
-  const editor = doc.querySelector('.live-preview-editor');
-  let bar = doc.getElementById(LP_WIDTH_ID);
+function placeLpResizer(win) {
+  const handle = win.document.querySelector('.live-preview-resizer');
+  const editor = win.document.querySelector('.live-preview-editor');
 
-  // Væk når panelet er væk. Et sæt knapper svævende over preview'et ville ikke
-  // høre til noget.
-  if (!editor || lpCollapsed) {
-    bar?.remove();
+  if (!handle || !editor || lpCollapsed) {
+    if (handle) {
+      handle.style.position = '';
+      handle.style.top = '';
+      handle.style.right = '';
+      handle.style.bottom = '';
+      handle.style.height = '';
+      handle.style.marginTop = '';
+      handle.style.paddingTop = '';
+      handle.style.zIndex = '';
+      handle.style.alignSelf = '';
+    }
 
     return;
   }
 
-  if (!bar) {
-    bar = doc.createElement('div');
-    bar.id = LP_WIDTH_ID;
-    // Selve linjen har hverken flade eller hjørner — den holder bare grupperne.
-    // `wrap` er det der gør at et smalt panel lægger dem under hinanden i stedet
-    // for at skubbe dem ud over kanten.
-    bar.style.cssText =
-      'position:fixed;z-index:60;display:flex;flex-wrap:wrap;align-items:center;gap:6px;' +
-      'color:currentColor;font-family:inherit;';
+  handle.style.position = 'absolute';
+  handle.style.top = '0';
+  handle.style.right = '0';
+  handle.style.bottom = '0';
+  handle.style.height = 'auto';
+  handle.style.marginTop = '0';
+  handle.style.paddingTop = '0';
+  handle.style.zIndex = '62';
+  handle.style.alignSelf = 'stretch';
+}
 
-    const widths = doc.createElement('div');
+/**
+ * Publish-fanerne (Page Settings, SEO, …) øverst i venstre panel.
+ *
+ * S/M/L-bredderne er væk — panelet husker det sidste træk i stedet. Fanerne
+ * ligger på `document.body`, så solo-visningen ikke kan skjule dem.
+ */
+function ensureLpWidthPicker(win) {
+  const doc = win.document;
+  const editor = doc.querySelector('.live-preview-editor');
+  const bar = doc.getElementById(LP_WIDTH_ID);
 
-    widths.id = LP_WIDTH_GROUP_ID;
-    widths.style.cssText = FLOATING_GROUP_STYLE;
+  if (!editor || lpCollapsed) {
+    bar?.remove();
 
-    LP_WIDTHS.forEach(({ rem, label }) => {
-      const btn = doc.createElement('button');
+    if (editor) {
+      editor.style.paddingTop = '';
+    }
 
-      btn.type = 'button';
-      btn.dataset.rem = String(rem);
-      btn.textContent = label;
-      btn.title = `${rem}rem`;
-      btn.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 10px;`;
-      btn.addEventListener('click', () => setLpWidth(win, rem));
-      widths.appendChild(btn);
-    });
+    placeLpResizer(win);
 
-    bar.appendChild(widths);
-    doc.body.appendChild(bar);
-    win.addEventListener('resize', () => placeLpWidthPicker(win));
+    return;
   }
 
-  // Publish-fanerne bor her og ikke i topbaren: de hører til panelet, og det er
-  // her panelet ender. Linjen ligger på document.body, så solo-visningen — der
-  // skjuler alt i panelkolonnen på nær den klikkede sektion — ikke kan tage dem.
-  // Deres egen boks, ikke en afdeling i breddernes: bredde og faner har intet med
-  // hinanden at gøre, og en fælles flade med en streg i ville påstå det modsatte.
+  bindLpEditorResize(win);
   ensureSettingsTabs(win);
-
-  // Efter fanerne, så en eventuel ombrydning er med i højden linjen placeres på.
   placeLpWidthPicker(win);
-
-  // Den valgte er den hvis bredde panelet rent faktisk står i. Er der trukket i
-  // håndtaget til noget derimellem, er ingen af dem valgt — og det er rigtigt:
-  // så er bredden ikke en af de tre.
-  const current = lpStoredWidth(win);
-
-  doc.getElementById(LP_WIDTH_GROUP_ID)?.querySelectorAll('button').forEach((btn) => {
-    paintLpActiveControl(btn, remToPx(win, Number(btn.dataset.rem)) === current);
-  });
 }
 
 let lpPanelToggleBusy = false;
@@ -12344,7 +12786,8 @@ function ensureLpPanelToggleInner(win) {
       chromePrefetchArmed = false;
       persistDockedPanel(win);
       clearSolo(doc);
-      closeRightPanels(win); // parks Theme Settings iframe so it stays warm
+      closeRightPanels(win);
+      parkGlobalsPanel(win);
       dockedHeaderRestored = false;
       headerTab = undefined;
       lpEnterSidebarClosed = null;
@@ -12361,14 +12804,8 @@ function ensureLpPanelToggleInner(win) {
     return;
   }
 
-  // Fresh Live Preview session → start on Responsive (fills the pane, no auto-zoom).
+  // Fresh Live Preview session — keep this user's device, collapse choice, pins.
   if (!lpWasOpen) {
-    try {
-      win.localStorage.setItem(LP_DEVICE_KEY, 'Responsive');
-    } catch {
-      /* private mode */
-    }
-
     lpEnterSidebarClosed = storedLpCollapsed(win);
   }
 
@@ -12410,12 +12847,7 @@ function ensureLpPanelToggleInner(win) {
   // forcePanelOpen (chrome / global) and setLpMode (the toolbar icon) win.
   if (!forcePanelOpen && lpEnterSidebarClosed && lpCollapsed === false) {
     lpCollapsed = true;
-
-    try {
-      win.localStorage.setItem(LP_COLLAPSED_KEY, '1');
-    } catch {
-      /* private mode */
-    }
+    chromeSet(win, LP_COLLAPSED_KEY, '1');
   }
 
   restoreDockedHeaderPanels(win);
@@ -12433,15 +12865,15 @@ function ensureLpPanelToggleInner(win) {
     editor.style.left = want;
     editor.style.top = lpCollapsed ? '0' : '';
 
-    // Den bredde man sidst valgte, hentet frem én gang når panelet er der.
-    // Derefter er det håndtagets og knappernes bord.
-    if (!lpWidthApplied) {
-      lpWidthApplied = true;
+    // Den sidst trukne bredde, klemmet til 16–50 rem. Under træk lader vi
+    // håndtaget styre, ellers ville loopet trække tilbage under fingeren.
+    if (!lpWidthDragging) {
       editor.style.width = `${lpStoredWidth(win)}px`;
     }
   }
 
   ensureLpWidthPicker(win);
+  placeGlobalsOverlay(win);
   ensureLpBackButton(win);
   positionLpBackButton(win);
   watchStatamicLpClose(win);
@@ -12517,18 +12949,14 @@ function lpDeviceKeys(win) {
 }
 
 function lpStoredDevice(win) {
-  try {
-    let stored = win.localStorage.getItem(LP_DEVICE_KEY);
+  let stored = chromeGet(win, LP_DEVICE_KEY);
 
-    if (stored === 'Desktop') {
-      stored = 'Laptop';
-    }
+  if (stored === 'Desktop') {
+    stored = 'Laptop';
+  }
 
-    if (stored && lpDeviceKeys(win).includes(stored)) {
-      return stored;
-    }
-  } catch {
-    /* private mode */
+  if (stored && lpDeviceKeys(win).includes(stored)) {
+    return stored;
   }
 
   return 'Responsive';
@@ -12609,13 +13037,7 @@ const BP_INHERITS = { laptop: [], tablet: ['laptop'], mobile: ['tablet', 'laptop
  * pane that is tablet or mobile. Laptop stays laptop even when scaled down.
  */
 function currentBp(win) {
-  let device = 'Responsive';
-
-  try {
-    device = win.localStorage.getItem(LP_DEVICE_KEY) || 'Responsive';
-  } catch {
-    /* private mode */
-  }
+  let device = chromeGet(win, LP_DEVICE_KEY) || 'Responsive';
 
   if (device === 'Tablet') {
     return 'tablet';
@@ -12852,11 +13274,7 @@ function setLpDevice(win, key) {
   // holding the same thing.
   blockOrderSettleUntil = Date.now() + 1200;
 
-  try {
-    win.localStorage.setItem(LP_DEVICE_KEY, String(key));
-  } catch {
-    /* private mode */
-  }
+  chromeSet(win, LP_DEVICE_KEY, String(key));
 
   // Before the sort, not after. In Fit the breakpoint is read off the preview's
   // width, and until this has run that width is still the one being left — so a
@@ -13212,24 +13630,16 @@ function lpVisualZoom(win, percent = lpStoredZoom(win)) {
 }
 
 function lpStoredZoom(win) {
-  try {
-    const n = parseInt(win.localStorage.getItem(LP_ZOOM_KEY) ?? '', 10);
+  const n = parseInt(chromeGet(win, LP_ZOOM_KEY) ?? '', 10);
 
-    if (Number.isFinite(n) && n >= 25 && n <= 300) {
-      if (n > 100) {
-        try {
-          win.localStorage.setItem(LP_ZOOM_KEY, '100');
-        } catch {
-          /* private mode */
-        }
+  if (Number.isFinite(n) && n >= 25 && n <= 300) {
+    if (n > 100) {
+      chromeSet(win, LP_ZOOM_KEY, '100');
 
-        return 100;
-      }
-
-      return n;
+      return 100;
     }
-  } catch {
-    /* private mode */
+
+    return n;
   }
 
   return LP_ZOOM_DEFAULT;
@@ -13239,11 +13649,7 @@ function setLpZoom(win, percent) {
   const max = lpMaxStoredZoom(win);
   const clamped = Math.max(25, Math.min(max, Math.round(percent)));
 
-  try {
-    win.localStorage.setItem(LP_ZOOM_KEY, String(clamped));
-  } catch {
-    /* private mode */
-  }
+  chromeSet(win, LP_ZOOM_KEY, String(clamped));
 
   applyLpZoom(win, clamped);
   paintLpPreviewChrome(win);
@@ -13428,7 +13834,7 @@ function ensureLpPreviewChrome(win) {
     const zoom = doc.createElement('div');
 
     zoom.dataset.sveZoom = '';
-    zoom.style.cssText = HEADER_GROUP_STYLE;
+    zoom.style.cssText = `${HEADER_GROUP_STYLE}gap:6px;`;
 
     const zoomOut = doc.createElement('button');
 
@@ -13450,7 +13856,7 @@ function ensureLpPreviewChrome(win) {
 
     zoomLabel.type = 'button';
     zoomLabel.dataset.zoom = 'label';
-    zoomLabel.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 8px;min-width:6.25rem;white-space:nowrap;`;
+    zoomLabel.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 4px;min-width:2.75rem;white-space:nowrap;`;
     zoomLabel.addEventListener('click', () => {
       const max = lpMaxStoredZoom(win);
       const allowed = LP_ZOOM_STEPS.filter((step) => step <= max);
@@ -13605,6 +14011,12 @@ function paintLpPreviewChrome(win) {
   paintLpSaveButton(win);
   syncLpRightBarGaps(win);
 
+  const zoomBox = chrome.querySelector('[data-sve-zoom]');
+
+  if (zoomBox && zoomBox.style.gap !== '6px') {
+    zoomBox.style.gap = '6px';
+  }
+
   const label = chrome.querySelector('[data-zoom="label"]');
 
   if (label) {
@@ -13615,8 +14027,13 @@ function paintLpPreviewChrome(win) {
       label.textContent = text;
     }
 
-    if (label.style.minWidth !== '6.25rem') {
-      label.style.minWidth = '6.25rem';
+    if (label.style.minWidth !== '2.75rem') {
+      label.style.minWidth = '2.75rem';
+    }
+
+    if (label.style.paddingLeft !== '4px') {
+      label.style.paddingLeft = '4px';
+      label.style.paddingRight = '4px';
     }
 
     if (label.style.whiteSpace !== 'nowrap') {
@@ -13712,6 +14129,9 @@ const seamId = (key) => `__sve-seam-${key}`;
 /** Fladen bag både ikonknappen og kontrolgruppen — samme, så de hører sammen. */
 const HEADER_SURFACE = 'rgba(128,128,128,.16)';
 
+/** Hover-flade på venstre toolbar-ikoner — idle-flade på close, så den læses som en knap. */
+const HEADER_ICON_HOVER = 'rgba(128, 128, 128, .28)';
+
 /**
  * Kvadratisk ikonknap i topbaren — samme flade/højde som device/zoom-grupperne
  * når den står alene (fx go-back). Ikoner inde i en gruppe bruger
@@ -13783,21 +14203,15 @@ const FRAMED_SELECT_STYLE =
   'background-position:right .375rem center;background-size:12px;';
 
 /**
- * Sømmen mellem to dele af samme felt.
- *
- * Ikke en streg lagt oven på gruppen, men en revne hele vejen ned gennem den, i
- * topbarens farve. `align-self:stretch` med negativ margin op og ned strækker
- * den ud over gruppens luft, så den går kant til kant. Farven sættes i
- * applyHeaderTab, så et CP-temaskift rammer alle søm samtidig.
+ * Sømmen mellem to dele af samme felt — ikke i brug i topbaren.
  */
 function headerSeam(doc) {
-  const seam = doc.createElement('span');
+  return lpModeSeparator(doc);
+}
 
-  seam.dataset.sveSeam = '';
-  seam.style.cssText =
-    `flex:0 0 auto;align-self:stretch;width:1px;margin:${-LP_CONTROL_PAD}px ${LP_SEAM_GAP}px;`;
-
-  return seam;
+/** Fjern lyse ikon-streger i topbaren, hvis en ældre session har sat dem ind. */
+function syncToolbarIconSeps(bar) {
+  bar?.querySelectorAll('[data-sve-toolbar-sep]').forEach((el) => el.remove());
 }
 
 /**
@@ -13834,67 +14248,161 @@ function loadHeaderTab(win) {
     return;
   }
 
-  try {
-    const stored = win.localStorage.getItem('sve-header-tab');
+  const stored = chromeGet(win, 'sve-header-tab');
 
-    headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
-  } catch {
-    headerTab = null;
+  headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
+}
+
+/** Re-open docked right panels that were showing last time — pins, order, extras. */
+let dockedHeaderRestored = false;
+
+/**
+ * While Live Preview is still booting inside the site overlay, remounting every
+ * pinned right pane (AI + tree + comments + sections) races the preview open and
+ * can prevent `lp-ready` — the host then looks like login failed. Pause until
+ * the preview has painted.
+ */
+let dockRestorePaused = false;
+
+function restoreRememberedCodeDock(win) {
+  try {
+    if (isCodeDockArmed(win) && templateDockAllowed(win)) {
+      syncCodeDock(win, win.document, soloUid);
+    }
+  } catch (err) {
+    console.error('[sve] restore code dock', err);
   }
 }
 
-/** Re-open a docked right panel that was showing last time. */
-let dockedHeaderRestored = false;
-
 function restoreDockedHeaderPanels(win) {
-  let want = '';
+  if (dockRestorePaused) {
+    return;
+  }
+
+  // Once restored this session, stop. Re-running on every MutationObserver tick
+  // remounts AI/tree/comments and races the frontend overlay open.
+  if (dockedHeaderRestored) {
+    return;
+  }
+
+  const showing = (key) => {
+    if (key === 'listview' || key === 'outline') {
+      return !!listViewPanel(win.document);
+    }
+
+    if (key === 'sections') {
+      return !!win.document.getElementById(SECTION_PICKER_ID);
+    }
+
+    if (key === 'comments') {
+      return !!commentsPanel(win.document);
+    }
+
+    if (key === 'ai') {
+      return isAiPanelOpen(win.document);
+    }
+
+    return false;
+  };
+
+  let keys = [];
 
   try {
-    want = win.localStorage.getItem(LP_DOCKED_KEY) || '';
+    keys = rememberedRightPaneKeys(win);
+    const docked = chromeGet(win, LP_DOCKED_KEY) || '';
+
+    if (docked && docked !== 'right') {
+      const extra = docked === 'outline' ? 'listview' : docked;
+
+      if (!keys.includes(extra)) {
+        keys = [...keys, extra];
+      }
+    }
   } catch {
-    /* private mode */
+    keys = [];
   }
 
-  // Closed on purpose — don't bring it back from an old header tab.
-  if (!want || want === 'right') {
+  if (!keys.length) {
     dockedHeaderRestored = true;
+    restoreRememberedCodeDock(win);
 
     return;
   }
 
-  const showing =
-    (want === 'sections' && !!win.document.getElementById(SECTION_PICKER_ID)) ||
-    ((want === 'listview' || want === 'outline') && !!listViewPanel(win.document)) ||
-    (want === 'comments' && !!commentsPanel(win.document));
-
-  if (showing) {
+  if (keys.every(showing)) {
     dockedHeaderRestored = true;
+    restoreRememberedCodeDock(win);
 
-    return;
-  }
+    if (rememberedListViewTab(win) === 'outline' && listViewPanel(win.document)) {
+      setListViewTab(win, 'outline');
+    }
 
-  if (dockedHeaderRestored && !shouldKeepChrome(win)) {
     return;
   }
 
   dockedHeaderRestored = true;
+  listViewTab = rememberedListViewTab(win);
 
-  if (want === 'sections') {
-    openSectionPicker(win);
-  } else if (want === 'listview' || want === 'outline') {
-    toggleListViewPanel(win);
-  } else if (want === 'comments') {
-    toggleCommentsPanel(win);
+  beginRightShellSwap();
+
+  try {
+    keys.forEach((key) => {
+      try {
+        ensureRightTool(win, key);
+      } catch (err) {
+        console.error('[sve] restore right pane', key, err);
+      }
+    });
+  } finally {
+    endRightShellSwap();
+  }
+
+  if (listViewTab === 'outline' && listViewPanel(win.document)) {
+    setListViewTab(win, 'outline');
+  }
+
+  relayoutRightDock(win);
+  persistDockedPanel(win);
+  restoreRememberedCodeDock(win);
+}
+
+function ensureRightTool(win, key) {
+  if (key === 'listview' || key === 'outline') {
+    if (!listViewPanel(win.document)) {
+      toggleListViewPanel(win);
+    }
+
+    return;
+  }
+
+  if (key === 'sections') {
+    if (!win.document.getElementById(SECTION_PICKER_ID)) {
+      openSectionPicker(win);
+    }
+
+    return;
+  }
+
+  if (key === 'comments') {
+    if (!commentsPanel(win.document)) {
+      toggleCommentsPanel(win);
+    }
+
+    return;
+  }
+
+  if (key === 'ai') {
+    ensureAiPanel(win);
   }
 }
 
 function setHeaderTab(win, tab) {
   headerTab = tab;
 
-  try {
-    tab ? win.localStorage.setItem('sve-header-tab', tab) : win.localStorage.removeItem('sve-header-tab');
-  } catch {
-    /* private mode */
+  if (tab) {
+    chromeSet(win, 'sve-header-tab', tab);
+  } else {
+    chromeRemove(win, 'sve-header-tab');
   }
 }
 
@@ -13938,7 +14446,8 @@ const TOOLBAR_ICONS = {
     '<path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.565-2.438L1.5 0zm7.031 9.75-.232-2.718h10.059l.23-2.622H5.412l.698 8.01h9.02l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.157H8.531z"/></svg>',
   comments:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H9.5L5 21.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z"/></svg>',
   ai:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
@@ -13958,14 +14467,14 @@ function syncToolbarIcons(doc) {
     const key = btn.dataset.tab;
     const html = TOOLBAR_ICONS[key];
 
-    if (!html || btn.dataset.iconVer === 'stroke-15-html5') {
+    if (!html || btn.dataset.iconVer === 'cursor-bubble-1') {
       return;
     }
 
     const badge = btn.querySelector('[data-sc-badge]');
 
     btn.innerHTML = html;
-    btn.dataset.iconVer = 'stroke-15-html5';
+    btn.dataset.iconVer = 'cursor-bubble-1';
 
     if (badge) {
       btn.appendChild(badge);
@@ -13983,6 +14492,7 @@ function ensureHeaderToolbar(win) {
     ensureCodeDockToolbarButton(win);
     ensureAiToolbarButton(win);
     ensureCommentsToolbarButton(win);
+    syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
   }
@@ -14033,7 +14543,7 @@ function ensureHeaderToolbar(win) {
     btn.dataset.tab = tab.key;
     btn.title = tab.title;
     btn.innerHTML = TOOLBAR_ICONS[tab.key];
-    btn.dataset.iconVer = 'stroke-15-html5';
+    btn.dataset.iconVer = 'cursor-bubble-1';
     // Same outer size as devices / zoom / go-back — one height across the bar.
     btn.style.cssText = LP_TOOLBAR_ICON_STYLE + (tab.key === 'comments' ? 'position:relative;' : '');
     btn.querySelector('svg')?.setAttribute('width', '15');
@@ -14069,10 +14579,10 @@ function ensureHeaderToolbar(win) {
       wrap.id = frameId(tab.key);
 
       if (MERGED_TABS.includes(tab.key)) {
-        wrap.style.cssText = 'display:inline-flex;align-items:center;';
+        wrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;';
         wrap.appendChild(btn);
 
-        const seam = headerSeam(doc);
+        const seam = lpModeSeparator(doc);
 
         seam.id = seamId(tab.key);
         seam.style.display = 'none';
@@ -14093,6 +14603,7 @@ function ensureHeaderToolbar(win) {
   });
 
   header.insertBefore(bar, header.firstChild);
+  syncToolbarIconSeps(bar);
 }
 
 function toggleCodeDockButton(win) {
@@ -14193,7 +14704,7 @@ function ensureCommentsToolbarButton(win) {
 
     btn.type = 'button';
     btn.dataset.tab = 'comments';
-    btn.dataset.iconVer = 'stroke-15';
+    btn.dataset.iconVer = 'cursor-bubble-1';
     btn.title = t(win, 'comments_pane');
     btn.innerHTML = TOOLBAR_ICONS.comments;
     btn.style.cssText = `${LP_TOOLBAR_ICON_STYLE}position:relative;`;
@@ -14353,77 +14864,126 @@ function toggleHeaderTab(win, key) {
  */
 function ensureSettingsTabs(win) {
   const doc = win.document;
-  const bar = doc.getElementById(LP_WIDTH_ID);
+  const editor = doc.querySelector('.live-preview-editor');
+  const nativeTabs = nativeTabButtons(doc);
+  const extra = nativeTabs.slice(1);
 
-  if (!bar) {
+  hideNativePublishTabList(doc);
+
+  let bar = doc.getElementById(LP_WIDTH_ID);
+
+  if (!editor || lpCollapsed || extra.length === 0) {
+    bar?.remove();
+
+    if (editor) {
+      editor.style.paddingTop = '';
+    }
+
     return null;
   }
+
+  if (!bar) {
+    bar = doc.createElement('div');
+    bar.id = LP_WIDTH_ID;
+    bar.setAttribute('data-sve-settings-bar', '');
+    bar.style.cssText =
+      'position:fixed;z-index:60;display:flex;align-items:stretch;' +
+      'color:currentColor;font-family:inherit;box-sizing:border-box;';
+    doc.body.appendChild(bar);
+    win.addEventListener('resize', () => placeLpWidthPicker(win));
+  }
+
+  bar.setAttribute('data-sve-settings-bar', '');
 
   let group = doc.getElementById(SETTINGS_TABS_ID);
 
   if (!group) {
     group = doc.createElement('div');
     group.id = SETTINGS_TABS_ID;
-    group.style.cssText = FLOATING_GROUP_STYLE;
     bar.appendChild(group);
   }
 
-  const nativeTabs = nativeTabButtons(doc);
+  group.removeAttribute('data-sve-section-track');
+  group.removeAttribute('data-sve-fill');
+  group.setAttribute('data-sve-settings-tabs', '');
+  group.style.cssText = 'width:100%;max-width:100%;';
 
-  // Rebuild if the set of tabs changed (count or labels) — cheap, and keeps a
-  // renamed or blueprint-specific tab in step.
-  const signature = nativeTabs.map((tabEl) => tabEl.textContent.trim()).join('|');
+  const signature = `text|${extra.map((tabEl) => tabEl.textContent.trim()).join('|')}`;
 
-  // Kun når der er faner at læse navnene af. Solo-visningen sætter display:none
-  // på hele panelkolonnen på nær den markerede sektion — også fanelisten — og en
-  // tom liste ville her betyde "byg boksen om til ingenting". Fanerne er der
-  // stadig, de er bare ikke fremme, så navnene bliver stående.
-  if (nativeTabs.length && group.dataset.sig !== signature) {
+  if (group.dataset.sig !== signature) {
     group.dataset.sig = signature;
     group.innerHTML = '';
 
-    // Skip the first tab (Main): its content is the sections, which you edit in
-    // the preview itself — so it has no place in the settings row.
-    nativeTabs.forEach((tabEl, index) => {
-      if (index === 0) {
-        return;
-      }
-
+    extra.forEach((tabEl, offset) => {
+      const index = offset + 1;
       const btn = doc.createElement('button');
 
       btn.type = 'button';
       btn.dataset.tabIndex = String(index);
+      btn.setAttribute('data-sve-settings-tab', '');
       btn.textContent = tabEl.textContent.trim();
-      btn.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 10px;`;
-      btn.addEventListener('click', () => clickNativeTab(win, index));
+      btn.addEventListener('click', () => {
+        const selected = nativeTabButtons(win.document)[index]?.getAttribute('aria-selected') === 'true';
+
+        clickNativeTab(win, selected ? 0 : index);
+      });
       group.appendChild(btn);
     });
   }
 
-  // Highlight the selected tab only when its content is actually on screen. With
-  // the panel closed nothing is shown, so nothing should look active — a lit-up
-  // SEO with no SEO in sight is just a lie.
   const panelOpen = !lpCollapsed;
 
-  // Samme markering som Hidden/Auto/Visible oppe i topbaren: primær blå.
   group.querySelectorAll('[data-tab-index]').forEach((btn) => {
     const selected = nativeTabs[Number(btn.dataset.tabIndex)]?.getAttribute('aria-selected') === 'true';
 
-    paintLpActiveControl(btn, panelOpen && selected);
+    btn.setAttribute('aria-pressed', panelOpen && selected ? 'true' : 'false');
   });
 
   return group;
 }
 
+function nativePublishTabList(doc) {
+  const editor = doc.querySelector('.live-preview-editor');
+
+  if (!editor) {
+    return null;
+  }
+
+  return (
+    editor.querySelector('.live-preview-fields [role="tablist"]') ||
+    [...editor.querySelectorAll('[role="tablist"]')].find((list) => {
+      if (list.closest('.replicator-fieldtype, .bard-fieldtype, .grid-fieldtype, .grid-table')) {
+        return false;
+      }
+
+      return true;
+    }) ||
+    null
+  );
+}
+
 /**
- * The publish tabs actually on screen. reka-ui renders a hidden measurement copy
- * of the tab list alongside the live one, so filtering to what's visible is what
- * keeps a click landing on the real tab rather than its ghost.
+ * The publish tabs actually on the entry form — including when solo hides them.
+ *
+ * reka-ui renders a hidden measurement copy of the tab list, so we take the
+ * first real tablist in the editor and skip fieldtype-internal tabs.
  */
 function nativeTabButtons(doc) {
-  return [...(doc.querySelector('.live-preview-editor')?.querySelectorAll('button[role="tab"]') ?? [])].filter(
-    (el) => el.offsetParent !== null
-  );
+  const list = nativePublishTabList(doc);
+
+  if (!list) {
+    return [];
+  }
+
+  return [...list.querySelectorAll('button[role="tab"]')];
+}
+
+function hideNativePublishTabList(doc) {
+  const list = nativePublishTabList(doc);
+
+  if (list && list.style.display !== 'none') {
+    list.style.display = 'none';
+  }
 }
 
 /**
@@ -14554,6 +15114,7 @@ function applyHeaderTab(win) {
         frame.style.background = 'transparent';
         frame.style.height = '';
         frame.style.padding = '0';
+        frame.style.gap = '6px';
       }
 
       // Låsen sidder på feltet, ikke på glyffen inde i det. Sider og Globals bærer
@@ -14568,7 +15129,7 @@ function applyHeaderTab(win) {
     }
 
     if (seam) {
-      seam.style.display = expanded ? 'block' : 'none';
+      seam.style.display = 'none';
     }
   });
 
@@ -14651,6 +15212,8 @@ function applyHeaderTab(win) {
         ? sidebarOpen
         : tab === 'code'
           ? isCodeDockArmed(win)
+          : tab === 'globals'
+            ? headerTab === 'globals' || isGlobalsOverlayOpen(win)
           : tab in docked
             ? docked[tab]
             : tab === headerTab;
@@ -14666,6 +15229,7 @@ function applyHeaderTab(win) {
     paintFocusLockedTabs(win, btn, tab, on);
   });
 
+  syncToolbarIconSeps(bar);
   alignHeaderToolbarWithSidebar(win);
 }
 
@@ -14971,21 +15535,14 @@ function applyDeclaredDefaults(data, doc) {
 }
 
 /**
- * Luften fra vinduets venstrekant ind til det første ikon i topbaren.
+ * Luften fra vinduets kant ind til topbarens første/sidste kontrol.
  *
- * Et fast mål, og det er hele pointen: den gamle vej målte sig frem til
- * panelets øverste indhold, og det indhold er ikke det samme fra gang til gang.
- * Med en sektion valgt er det blokkens kort — som ligger inde i sit eget kort og
- * derfor længere inde — og uden er det sektionslisten. Luften ud til vinduets
- * kant sprang derfor, alt efter hvad man lige havde klikket på.
- *
- * `1.75rem` er Statamics egen `padding-inline-start` på live-preview-headeren,
- * altså den plads etiketten "Live Preview" stod på, før den blev skjult.
- *
- * `null` = den gamle opførsel: mål panelets indhold og læg ikonerne på linje med
- * det. Koden nedenfor står urørt, så den vej er ét ord væk.
+ * Samme 12px som sidebares indhold (`padding-inline` på højre dock og på
+ * Page Settings/SEO-fanerne), så ikonerne står på linje med det der er
+ * under dem — ikke Statamics gamle 1.75rem/1rem til "Live Preview"-etiketten.
  */
-const LP_TOOLBAR_LEFT = '1.75rem';
+const LP_TOOLBAR_LEFT = '12px';
+const LP_TOOLBAR_EDGE = '12px';
 
 function alignHeaderToolbarWithSidebar(win) {
   const doc = win.document;
@@ -14997,11 +15554,13 @@ function alignHeaderToolbarWithSidebar(win) {
     return;
   }
 
-  // Et fast mål frem for en måling — se LP_TOOLBAR_LEFT. Sat før alle guards
-  // nedenfor, så luften også står når panelet er væk eller kørt ud af skærmen.
   if (LP_TOOLBAR_LEFT !== null) {
-    if (header.style.paddingLeft !== LP_TOOLBAR_LEFT) {
-      header.style.paddingLeft = LP_TOOLBAR_LEFT;
+    if (header.style.paddingLeft !== LP_TOOLBAR_EDGE) {
+      header.style.paddingLeft = LP_TOOLBAR_EDGE;
+    }
+
+    if (header.style.paddingRight !== LP_TOOLBAR_EDGE) {
+      header.style.paddingRight = LP_TOOLBAR_EDGE;
     }
 
     return;
@@ -15877,8 +16436,8 @@ function removeLpBackButton(doc) {
 }
 
 /**
- * Close control — return to the live site when embedded, or close Live Preview
- * when opened from the dashboard. Icon sits in the top bar after Save & Publish.
+ * Close control in the top bar after Save & Publish. Opens a short menu:
+ * back to admin, or back to the live site. Unsaved work is asked about after.
  */
 function ensureLpBackButton(win) {
   const doc = win.document;
@@ -15890,9 +16449,6 @@ function ensureLpBackButton(win) {
 
   hideStatamicLpClose(header);
 
-  const embedded = isEmbeddedInSite(win);
-  const visit = [...doc.querySelectorAll('a')].find((a) => /visit url|besøg url/i.test(a.textContent || ''));
-  const href = visit?.getAttribute('href');
   let pill = doc.getElementById(LP_BACK_ID);
 
   if (!pill) {
@@ -15900,8 +16456,6 @@ function ensureLpBackButton(win) {
     pill.id = LP_BACK_ID;
     pill.type = 'button';
     pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
-
-    const leave = () => leaveLivePreview(win, href || null);
 
     pill.addEventListener('click', (event) => {
       event.preventDefault();
@@ -15913,21 +16467,7 @@ function ensureLpBackButton(win) {
         return;
       }
 
-      // Nothing changed → leave immediately. No save/publish menu.
-      if (!hasUnsavedWork(win)) {
-        leave();
-
-        return;
-      }
-
-      // Dirty, but nowhere to save it from (no entry Save, no globals/section) → leave.
-      if (!saveButtonIn(doc) && !hasUnsavedGlobals(win) && !hasUnsavedGlobalSection(win)) {
-        leave();
-
-        return;
-      }
-
-      openLpBackMenu(win, pill, leave);
+      openLpBackMenu(win, pill);
     });
 
     header.appendChild(pill);
@@ -15938,10 +16478,10 @@ function ensureLpBackButton(win) {
     pill.innerHTML = LP_BACK_ICON_SVG;
   }
 
-  pill.title = t(win, embedded ? 'back_to_site_title' : 'close_live_preview_title');
+  pill.title = t(win, 'close_live_preview_title');
   pill.setAttribute('aria-label', pill.title);
-  pill.style.opacity = LP_ICON_IDLE_OPACITY;
-  pill.style.background = HEADER_SURFACE;
+  pill.style.opacity = '1';
+  pill.style.background = HEADER_ICON_HOVER;
   pill.style.width = `${LP_CHROME_H}px`;
   pill.style.height = `${LP_CHROME_H}px`;
   pill.style.borderRadius = '.5rem';
@@ -16031,13 +16571,214 @@ function closeLivePreviewUi(win) {
   }
 }
 
-/** Ways out when there are unsaved changes (revisions → three choices). */
-function openLpBackMenu(win, pill, leave) {
+/** Public URL of the open entry, from Visit URL or the preview iframe. */
+function visitUrlOf(win) {
+  const visit = [...win.document.querySelectorAll('a')].find((a) =>
+    /visit url|besøg url/i.test(a.textContent || '')
+  );
+  const href = visit?.getAttribute('href');
+
+  if (href) {
+    return href;
+  }
+
+  try {
+    const src = win.document.getElementById('live-preview-iframe')?.getAttribute('src');
+
+    if (!src) {
+      return null;
+    }
+
+    const url = new URL(src, win.location.origin);
+
+    url.searchParams.delete('live-preview');
+    url.searchParams.delete('preview');
+
+    return url.pathname === '/' && !url.search ? null : url.href;
+  } catch {
+    return null;
+  }
+}
+
+/** Overlay host is the Control Panel listing/form, not the live site. */
+function hostIsControlPanel(win) {
+  try {
+    return /\/cp(\/|$)/.test(win.top.location.pathname);
+  } catch {
+    return !isEmbeddedInSite(win);
+  }
+}
+
+function goTop(win, url) {
+  try {
+    win.top.location.href = url;
+  } catch {
+    win.location.href = url;
+  }
+}
+
+/**
+ * Collection listing for the open entry — never the entry publish form.
+ *
+ * With open-in-preview, the form is not a place anyone came from. The way
+ * back to admin is the collection (or the listing that opened the overlay).
+ */
+function collectionListingUrl(win) {
+  const origin = originForCurrentEntry(win);
+
+  if (origin) {
+    try {
+      const path = new URL(origin, win.location.origin).pathname;
+
+      if (/\/cp(\/|$)/.test(path) && !ENTRY_EDIT_PATH.test(path)) {
+        return origin;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const match = win.location.pathname.match(/\/collections\/([^/]+)\/entries\//);
+
+  if (match) {
+    return `${win.location.origin}/cp/collections/${match[1]}`;
+  }
+
+  return `${win.location.origin}/cp`;
+}
+
+/** Leave the visual editor and land on the collection listing. */
+function leaveToAdmin(win) {
+  dismissDirtyWarning(win);
+
+  // Overlay sits on the CP listing (or dashboard): just lift it.
+  if (isEmbeddedInSite(win) && hostIsControlPanel(win)) {
+    postToHost(win, 'lp-close');
+
+    return;
+  }
+
+  const listing = collectionListingUrl(win);
+
+  forgetOrigin(win);
+
+  if (isEmbeddedInSite(win)) {
+    postToHost(win, 'lp-close', listing ? { url: listing } : {});
+
+    return;
+  }
+
+  leaveToOrigin(win, listing);
+}
+
+/** Leave the visual editor and land on the public page. */
+function leaveToFrontend(win) {
+  dismissDirtyWarning(win);
+  const url = visitUrlOf(win);
+
+  if (isEmbeddedInSite(win) && !hostIsControlPanel(win)) {
+    postToHost(win, 'lp-close', url ? { url } : {});
+
+    return;
+  }
+
+  if (url) {
+    goTop(win, url);
+
+    return;
+  }
+
+  leaveToAdmin(win);
+}
+
+/** Save or discard first when the form is dirty, then run `leave`. */
+function confirmLeaveIfDirty(win, leave) {
+  if (!hasUnsavedWork(win)) {
+    leave();
+
+    return;
+  }
+
+  confirmUnsaved(
+    win,
+    () => {
+      saveGlobalsPanel(win, (ok) => {
+        if (!ok) {
+          return;
+        }
+
+        saveGlobalSectionPanel(win, (sectionOk) => {
+          if (!sectionOk) {
+            return;
+          }
+
+          if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
+            leaveQuietly(win, leave);
+
+            return;
+          }
+
+          saveThenNavigate(win, leave);
+        });
+      });
+    },
+    () => {
+      discardChanges(win);
+      discardGlobalsChanges(win);
+      clearSectionsStash(win, { refresh: false });
+      leave();
+    }
+  );
+}
+
+/**
+ * Widths, pins and docks only — not the page. Does not reload, so unsaved
+ * work in the form stays put.
+ */
+function resetEditorLayout(win) {
+  closeCodeDock(win.document);
+  setCodeDockArmed(win, false);
+  closeRightPanels(win);
+
+  listViewTab = 'tree';
+  headerTab = null;
+  lpEnterSidebarClosed = true;
+  lpCollapsed = true;
+  dockedHeaderRestored = true;
+
+  const editor = win.document.querySelector('.live-preview-editor');
+
+  if (editor) {
+    editor.style.position = 'absolute';
+    editor.style.left = '-10000px';
+    editor.style.top = '0';
+    editor.style.width = `${remToPx(win, LP_SIDE_DEFAULT_REM)}px`;
+  }
+
+  applyLpDevice(win, 'Responsive');
+  applyLpZoom(win, LP_ZOOM_DEFAULT);
+  clearChromePrefs(win);
+  persistLpWidth(win, remToPx(win, LP_SIDE_DEFAULT_REM));
+  chromeSet(win, LP_MODE_KEY, 'hide');
+  chromeSet(win, LP_COLLAPSED_KEY, '1');
+  chromeSet(win, LP_DEVICE_KEY, 'Responsive');
+  chromeSet(win, LP_ZOOM_KEY, String(LP_ZOOM_DEFAULT));
+  chromeSet(win, 'sve-listview-tab', 'tree');
+
+  relayoutRightDock(win);
+  relayoutCodeDock(win);
+  relayoutAiPanel(win);
+  syncPreviewInset(win);
+  applyHeaderTab(win);
+  paintLpPreviewChrome(win);
+  ensureLpPanelToggle(win);
+}
+
+/** Close menu: admin or the live site — Save/Publish stay on the header buttons. */
+function openLpBackMenu(win, pill) {
   const doc = win.document;
   const menu = doc.createElement('div');
   const rect = pill.getBoundingClientRect();
-  const revisions = !!publishButtonIn(doc);
-  const embedded = isEmbeddedInSite(win);
 
   menu.id = LP_BACK_MENU_ID;
   menu.style.cssText =
@@ -16046,14 +16787,14 @@ function openLpBackMenu(win, pill, leave) {
     'display:flex;flex-direction:column;padding:5px;border-radius:10px;background:#18181b;' +
     'box-shadow:0 12px 32px rgba(0,0,0,.4);font:500 13px/1.2 ui-sans-serif,system-ui,sans-serif;';
 
-  const item = (label, onClick, primary) => {
+  const item = (label, title, onClick) => {
     const btn = doc.createElement('button');
 
     btn.type = 'button';
     btn.textContent = label;
+    btn.title = title;
     btn.style.cssText =
-      'all:unset;cursor:pointer;padding:9px 12px;border-radius:7px;white-space:nowrap;' +
-      (primary ? 'color:#fff;' : 'color:rgba(255,255,255,.65);');
+      'all:unset;cursor:pointer;padding:9px 12px;border-radius:7px;white-space:nowrap;color:rgba(255,255,255,.88);';
     btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(255,255,255,.12)'));
     btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
     btn.addEventListener('click', (event) => {
@@ -16062,36 +16803,26 @@ function openLpBackMenu(win, pill, leave) {
       onClick();
     });
     menu.appendChild(btn);
-
-    return btn;
   };
 
-  const savePublishLabel = revisions
-    ? t(win, embedded ? 'back_save_publish_and_leave' : 'back_save_publish_and_close')
-    : t(win, embedded ? 'back_save_and_leave' : 'back_save_and_close');
+  item(t(win, 'back_to_admin'), t(win, 'back_to_admin_title'), () => {
+    confirmLeaveIfDirty(win, () => leaveToAdmin(win));
+  });
+  item(t(win, 'back_to_site'), t(win, 'back_to_site_title'), () => {
+    confirmLeaveIfDirty(win, () => leaveToFrontend(win));
+  });
 
-  item(savePublishLabel, () => {
-    pill.sveExpand?.();
-    leaveEditor(win, pill, leave, { publish: true });
-  }, true);
+  const sep = doc.createElement('div');
 
-  if (revisions) {
-    item(t(win, 'back_save_only'), () => {
-      pill.sveExpand?.();
-      leaveEditor(win, pill, leave, { publish: false });
-    }, false);
-  }
+  sep.setAttribute('aria-hidden', 'true');
+  sep.style.cssText = 'height:1px;margin:5px 8px;background:rgba(255,255,255,.1);';
+  menu.appendChild(sep);
 
-  item(t(win, embedded ? 'back_leave_only' : 'back_close_only'), () => {
-    discardGlobalsChanges(win);
-    clearSectionsStash(win, { refresh: false });
-    leave();
-  }, false);
-
-  // Keep form edits; just leave Live Preview (admin form / host overlay).
-  item(t(win, 'close_live_preview'), () => {
-    leave();
-  }, false);
+  item(t(win, 'reset_layout'), t(win, 'reset_layout_title'), () => {
+    resetEditorLayout(win);
+  });
+  menu.lastElementChild.style.opacity = '.5';
+  menu.lastElementChild.style.fontSize = '12px';
 
   doc.body.appendChild(menu);
 
@@ -17649,6 +18380,10 @@ export function createMessageListener(doc = document, win = window) {
 }
 
 const CP_STYLES = `
+/* Match sidebar inset (12px) — Statamic ships 1.75rem / 1rem on the header. */
+.live-preview-header {
+  padding-inline: 12px !important;
+}
 /* Live Preview top bar — pointer + a visible hover so the icons read as buttons. */
 #__sve-toolbar button[data-tab],
 #__sve-lp-mode button,
@@ -17664,19 +18399,144 @@ const CP_STYLES = `
   opacity: 1 !important;
 }
 #__sve-toolbar button[data-tab]:hover:not(:disabled):not([aria-pressed="true"]) {
-  background: rgba(128, 128, 128, .28) !important;
+  background: ${HEADER_ICON_HOVER} !important;
+}
+#${LP_BACK_ID} {
+  background: ${HEADER_ICON_HOVER} !important;
+  opacity: 1 !important;
+}
+#${LP_BACK_ID}:hover {
+  background: rgba(128, 128, 128, .4) !important;
 }
 #__sve-toolbar button[data-tab="comments"] [data-sc-badge] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  /* currentColor follows the button (the idle glyph). text-fill is the number
+     so we can keep that inherit for the disc. */
+  background: currentColor !important;
+  color: inherit !important;
+  -webkit-text-fill-color: ${COMMENTS_BADGE_IDLE_TYPE} !important;
   box-shadow: 0 0 0 2px var(--sve-toolbar-ring, rgba(128,128,128,.16));
+}
+#__sve-toolbar button[data-tab="comments"][aria-pressed="true"] [data-sc-badge] {
+  background: ${COMMENTS_BADGE_ACTIVE_BG} !important;
+  color: ${COMMENTS_BADGE_FG} !important;
+  -webkit-text-fill-color: ${COMMENTS_BADGE_FG} !important;
 }
 #__sve-lp-mode button:hover:not(:disabled):not([aria-pressed="true"]),
 #__sve-preview-chrome button:hover:not(:disabled):not([aria-pressed="true"]) {
   background: rgba(128, 128, 128, .22) !important;
 }
 
-/* Docked right panels (sections library / Theme Settings) sit at z-index 40–60.
-   Publish closes those panels (see watchPublishClosesRightPanels) — no z-index
-   war needed for Statamic's Publish sheet. */
+/* Page Settings / SEO and Block tree / Outline — same text tabs. */
+[data-sve-settings-bar] {
+  border-bottom: 1px solid rgba(128, 128, 128, .22);
+}
+[data-sve-settings-tabs],
+[data-sve-lv-tabs] {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+  padding: 0;
+}
+/* Left bar sits on the editor edge; right pane already has 12px padding-inline. */
+[data-sve-settings-tabs] {
+  padding: 0 12px;
+}
+[data-sve-lv-tabs] {
+  flex: 1 1 auto;
+}
+[data-sve-settings-tab],
+[data-sve-panel-tab] {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  padding: 14px 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: currentColor;
+  opacity: .58;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+}
+[data-sve-settings-tab]:hover,
+[data-sve-panel-tab]:hover {
+  opacity: 1;
+  background: transparent;
+}
+[data-sve-settings-tab]:focus-visible,
+[data-sve-panel-tab]:focus-visible {
+  outline: 2px solid var(--theme-color-primary, #4530D8);
+  outline-offset: 2px;
+}
+[data-sve-settings-tab][aria-pressed="true"],
+[data-sve-panel-tab][aria-pressed="true"] {
+  opacity: 1;
+  border-bottom-color: var(--theme-color-primary, #4530D8);
+  background: transparent;
+}
+
+/* Tab bar is fixed over the editor; the drag strip spans the full editor height
+   (through the tabs) and sits above the bar on the right edge. */
+.live-preview-editor {
+  --sve-lp-gutter: 12px;
+  --sve-lp-resizer: 1rem;
+}
+.live-preview-editor > .live-preview-resizer {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
+  z-index: 62 !important;
+}
+/* The handle is out of flow and sits on the editor edge, so padding-right on
+   the field column must clear the handle *and* leave the same gutter as the
+   left. Statamic's own px-4 is 16px on both sides — 4px more than the 12px
+   the tabs and header use — so the left reads wider than the right (right is
+   gutter + handle). Same 12px on both, plus the handle on the right. */
+.live-preview-editor .live-preview-fields {
+  box-sizing: border-box;
+  min-width: 0;
+  padding-left: var(--sve-lp-gutter) !important;
+  padding-right: calc(var(--sve-lp-gutter) + var(--sve-lp-resizer)) !important;
+}
+
+/* Page Settings / SEO (and any other publish tab) ship as a Statamic Panel +
+   Card: rounded box, ring, own padding. A focused section has that chrome
+   stripped, so the tab views looked like a form dropped into a different
+   app. Flatten the same way — fields sit on the panel background, in the
+   same gutter as the section views. The Card selector is the panel's own
+   body, not a card nested inside a field. */
+.live-preview-editor .live-preview-fields [data-ui-panel],
+.live-preview-editor .live-preview-fields .publish-section-collapsible__inner > [data-ui-card] {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.live-preview-editor .publish-tab-outer {
+  padding-inline: 0 !important;
+}
+
+/* Code dock is unlayered z-index 45, which beats Tailwind z-50. Statamic
+   Publish/revision dialogs must sit above it. The right sidebar stays open. */
+[data-reka-dialog-overlay],
+[data-reka-dialog-content],
+[data-reka-alert-dialog-overlay],
+[data-reka-alert-dialog-content] {
+  z-index: 200 !important;
+}
 /* The page's own fields, while the field column belongs to a global section.
    The solo view hides them too once it has a set to isolate; this covers the
    moment before that, when the synced entry's form is still mounting. */
@@ -18050,7 +18910,7 @@ header:hover > [data-sve-focus-step] {
 }
 [data-sve-outline-level] {
   flex: 0 0 auto;
-  padding: 0.45em 0 0.45em 0.5em;
+  padding: 0.55em 0 0.55em 0.5em;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -18060,7 +18920,7 @@ header:hover > [data-sve-focus-step] {
   opacity: .5;
 }
 [data-sve-outline-text] {
-  padding: 0.45em 0.6em 0.45em 0.4em;
+  padding: 0.55em 0.6em 0.55em 0.4em;
   opacity: .75;
   overflow-wrap: anywhere;
 }
@@ -18389,14 +19249,6 @@ function previewPainted(doc) {
   }
 }
 
-/**
- * The front-end "Rediger" button opens this with ?live-preview=1 — open Live
- * Preview straight away by clicking the CP's own button, then drop the param so
- * a refresh doesn't reopen it.
- *
- * The editor always opens in the overlay iframe. Inside that iframe we click
- * Statamic's own button so the preview paints, then tell the host.
- */
 /**
  * Statamic's own "open Live Preview" button, found in whatever language the CP is
  * speaking — matching the English label alone left every other locale waiting on
@@ -18847,7 +19699,19 @@ function openLivePreviewCovered(win, { closePanels = false } = {}) {
     hideNavSpinner(win);
 
     if (embedded) {
-      postToHost(win, 'lp-ready'); // the site fades its own overlay in
+      // Chrome must already be in place when the overlay fades in — otherwise
+      // the right sidebar / bottom dock jumps in a beat later.
+      dockRestorePaused = false;
+      dockedHeaderRestored = false;
+
+      try {
+        restoreDockedHeaderPanels(win);
+        pinDockedPanelsUnderHeader(win);
+      } catch (err) {
+        console.error('[sve] restoreDockedHeaderPanels', err);
+      }
+
+      postToHost(win, 'lp-ready');
     }
 
     if (!cover) {
@@ -18913,9 +19777,9 @@ function openLivePreviewCovered(win, { closePanels = false } = {}) {
 // --- Opening an entry straight into the preview -------------------------------
 //
 // For the collections named on the settings screen, clicking an entry lands in
-// Live Preview instead of the publish form behind it. The form is untouched —
-// closing the preview puts you in it, on the same entry — and every collection
-// left off the list opens exactly as Statamic ships it.
+// Live Preview instead of the publish form behind it. Closing "back to admin"
+// returns to the collection listing — never the entry form. Collections left
+// off the list open exactly as Statamic ships them.
 //
 // The one thing every route in shares is the entry's own edit URL: the listing,
 // the page tree, search, the dashboard. So that URL is what's watched, in two
@@ -19033,6 +19897,14 @@ function forgetOrigin(win) {
  * underneath — the same host the front-end edit button uses.
  */
 function goToPreview(win, url, fromEl) {
+  try {
+    const parsed = new URL(url, win.location.origin);
+
+    rememberOrigin(win, parsed.pathname, win.location.href);
+  } catch {
+    /* ignore */
+  }
+
   showEntryOpening(win.document, fromEl, url);
   openOverlay(win, url);
 }
@@ -19272,7 +20144,7 @@ function watchEntrySaves(win) {
     if (ok) {
       // The site under the editor overlay is now showing stale content.
       postToHost(win, 'lp-saved');
-      markEntryFormClean(win);
+      scheduleEntryBaselineAfterSave(win);
     } else {
       rearm();
     }
@@ -19370,6 +20242,12 @@ function disarmUnloadWarning(win) {
  * isDirty), and mount/hydration often leaves a sticky dirty.has('base').
  */
 function hasUnsavedChanges(win) {
+  // Save just landed; the form is being rewritten from the response. That
+  // rewrite is not unsaved work — it's the saved values arriving.
+  if (entrySaveSettling) {
+    return false;
+  }
+
   // Value-diff against the clean baseline — the authoritative signal for the
   // back button. Falls through only before the baseline exists.
   if (entryValuesBaseline != null) {
@@ -19520,10 +20398,14 @@ function leaveQuietly(win, leave, attempts = 0) {
 // --- Globals beside Live Preview -------------------------------------------------
 //
 // A picker in the Live Preview header lists the global sets. Choosing one opens
-// it in a panel on the right — as an iframe of Statamic's own globals screen, so
+// it over the left editor — as an iframe of Statamic's own globals screen, so
 // every fieldtype, replicator and validation works exactly as it does in the CP.
 // (The left editor pane belongs to Statamic's Vue tree; putting a second publish
-// form in there tears the entry form down.)
+// form in there tears the entry form down. An iframe overlay does not.)
+//
+// The right sidebar is left alone, so the block tree / comments / library can
+// stay open. Closing the overlay parks the iframe off-screen; the page section
+// form underneath is still there.
 //
 // Typing in that form re-renders the preview immediately: the values are posted
 // to the addon, which stashes them for the session, and the preview is asked to
@@ -19544,6 +20426,19 @@ function globalSets(win) {
   const sets = win.Statamic?.$config?.get?.('sveGlobalSets');
 
   return Array.isArray(sets) ? sets : [];
+}
+
+/** Global sets the globe menu lists — not every set the editor can still open. */
+function pickerGlobalSets(win) {
+  const sets = globalSets(win);
+  const allowed = win.Statamic?.$config?.get?.('sveGlobalsPicker');
+  const off = win.Statamic?.$config?.get?.('sveGlobalsPickerOff') || [];
+
+  if (!Array.isArray(allowed)) {
+    return sets.filter((set) => !off.includes(set.handle));
+  }
+
+  return sets.filter((set) => allowed.includes(set.handle));
 }
 
 function csrfToken(win) {
@@ -19654,6 +20549,53 @@ function refreshPreview(win, active) {
   );
 }
 
+/** The URL the preview iframe is actually showing, not a remembered one. */
+function frameDocumentUrl(frame) {
+  try {
+    const href = frame?.contentWindow?.location?.href;
+
+    if (href && href !== 'about:blank') {
+      return href;
+    }
+  } catch {
+    /* cross-origin — Live Preview is same-origin */
+  }
+
+  return frame?.getAttribute('src') || frame?.src || '';
+}
+
+/**
+ * A tokenised Live Preview document — never a screenshot route or the public site.
+ *
+ * Replaying those into the iframe paints the front end (with Rediger) over the
+ * preview and looks exactly like Live Preview closed.
+ */
+function isLivePreviewDocumentUrl(url, origin) {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(url, origin);
+
+    if (parsed.origin !== origin) {
+      return false;
+    }
+
+    if (parsed.pathname.includes('/!/sve/')) {
+      return false;
+    }
+
+    return (
+      parsed.searchParams.has('token') ||
+      parsed.searchParams.has('live-preview') ||
+      parsed.searchParams.has('preview')
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Replay the current Live Preview URL into the iframe.
  *
@@ -19662,9 +20604,19 @@ function refreshPreview(win, active) {
  */
 export function replayLivePreview(win) {
   const frame = previewFrame(win.document);
-  const url = lastPreviewUrl || frame?.getAttribute('src') || frame?.src;
 
-  if (!frame?.contentWindow || !url) {
+  if (!frame?.contentWindow) {
+    return;
+  }
+
+  const origin = win.location.origin;
+  let url = frameDocumentUrl(frame);
+
+  if (!isLivePreviewDocumentUrl(url, origin)) {
+    url = lastPreviewUrl || '';
+  }
+
+  if (!isLivePreviewDocumentUrl(url, origin)) {
     return;
   }
 
@@ -19699,15 +20651,31 @@ function assertChromeFocusInPreview(win) {
  * we replay to re-render after a global changes.
  */
 function watchPreviewRenders(win) {
-  const isPreviewCall = (url, method) =>
-    typeof url === 'string' && url.includes('/preview') && /^POST$/i.test(method || 'GET');
+  const isPreviewCall = (url, method) => {
+    if (typeof url !== 'string' || !/^POST$/i.test(method || 'GET')) {
+      return false;
+    }
+
+    let path;
+
+    try {
+      path = new URL(url, win.location.origin).pathname;
+    } catch {
+      return false;
+    }
+
+    // Statamic's entry-preview POST. Addon routes also contain "/preview"
+    // (`/!/sve/globals-preview`, screenshot URLs) and must not overwrite this.
+    return path.includes('/preview') && !path.includes('/!/sve/');
+  };
 
   const remember = (payload) => {
     try {
       const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+      const url = data?.url;
 
-      if (data?.url) {
-        lastPreviewUrl = data.url;
+      if (typeof url === 'string' && isLivePreviewDocumentUrl(url, win.location.origin)) {
+        lastPreviewUrl = url;
       }
     } catch {
       /* not the payload we expected */
@@ -19868,7 +20836,8 @@ function notifyChromeDirty(win) {
   const saveBtn = win.document.querySelector('[data-sve-globals-save-btn]');
 
   if (saveBtn) {
-    saveBtn.style.display = dirty ? '' : 'none';
+    saveBtn.style.display = '';
+    saveBtn.style.opacity = dirty ? '1' : LP_ICON_IDLE_OPACITY;
   }
 
   sendToPreview(
@@ -20196,11 +21165,8 @@ function watchGlobalsPanelSaves(iwin, parentWin, entryPath = null) {
 
       // Theme Settings are part of every preview's fingerprint, so saving them
       // makes every picture in the library wrong at once — and the server starts
-      // retaking them within the second. The library has no way to hear that on
-      // its own: it stopped polling when the last run finished, so an open panel
-      // would sit on the old colours until the whole Control Panel was reloaded.
-      // That is the shape the bug took — the page went blue, the thumbnails
-      // stayed orange, and nothing was actually wrong on disk.
+      // retaking them. The library hears that here, asks once, and asks once more
+      // when the screenshot for this save has had time to land.
       libraryWentStale(parentWin);
     }
 
@@ -20318,6 +21284,13 @@ function closeGlobalsPanel(win) {
 
   panel._svePinRo?.disconnect?.();
   panel.remove();
+
+  const tabs = win.document.getElementById(LP_WIDTH_ID);
+
+  if (tabs) {
+    tabs.style.visibility = '';
+  }
+
   releaseLeftEdgeIfFree(win);
   syncPreviewInset(win);
   clearGlobalsStash(win, { refresh: true });
@@ -20347,7 +21320,7 @@ function parkGlobalsPanel(win) {
     return;
   }
 
-  parkInRightShell(win, panel);
+  parkGlobalsOverlay(panel);
   forcePanelOpen = false;
   syncPreviewInset(win);
 }
@@ -20406,11 +21379,7 @@ function panelResizer(win, panel, { side = 'right', storageKey = GLOBALS_WIDTH_K
         frame.style.pointerEvents = '';
       }
 
-      try {
-        win.localStorage.setItem(storageKey, String(parseInt(panel.style.width, 10)));
-      } catch {
-        /* private mode */
-      }
+      chromeSet(win, storageKey, String(parseInt(panel.style.width, 10)));
     };
 
     win.addEventListener('pointermove', onMove);
@@ -20481,7 +21450,6 @@ function prefetchChromeGlobals(win) {
 function openGlobalsPanel(win, set, options = {}) {
   const doc = win.document;
   const existing = doc.getElementById(GLOBALS_PANEL_ID);
-  const keepLibrary = options.keepLibrary === true;
   const prefetch = options.prefetch === true;
   const chromeLock = options.chromeLock === 'footer' || options.chromeLock === 'header' ? options.chromeLock : null;
 
@@ -20499,7 +21467,11 @@ function openGlobalsPanel(win, set, options = {}) {
     const title = existing.querySelector('[data-sve-globals-title]');
 
     if (frame && title) {
-      title.textContent = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
+      const label = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
+
+      title.textContent = label;
+      existing.querySelector('[data-sve-focus-tile]') &&
+        (existing.querySelector('[data-sve-focus-tile]').textContent = (label || '?').trim().charAt(0).toUpperCase());
       frame.title = set.title;
       showGlobalsPanel(win);
       ensureGlobalsPanelSaveWatch(win);
@@ -20517,41 +21489,41 @@ function openGlobalsPanel(win, set, options = {}) {
         return;
       }
 
-      existing.setAttribute('data-sve-globals-handle', set.handle);
-      // New document → need a fresh save watch on the next load.
-      try {
-        delete frame.contentWindow.__sveGlobalsSaveWatch;
-      } catch {
-        /* ignore */
-      }
-      frame.contentWindow.location.replace(globalsPanelUrl(win, set));
+      const previousHandle = existing.getAttribute('data-sve-globals-handle');
+      const switchSet = () => {
+        existing.setAttribute('data-sve-globals-handle', set.handle);
+        // New document → need a fresh save watch on the next load.
+        try {
+          delete frame.contentWindow.__sveGlobalsSaveWatch;
+        } catch {
+          /* ignore */
+        }
+        frame.contentWindow.location.replace(globalsPanelUrl(win, set));
 
-      if (chromeLock) {
-        lockChromeGlobalsTab(win, chromeLock);
-      } else {
-        setActiveChromeKind(null);
-        unlockChromeGlobalsTabs(win);
-      }
+        if (chromeLock) {
+          lockChromeGlobalsTab(win, chromeLock);
+        } else {
+          setActiveChromeKind(null);
+          unlockChromeGlobalsTabs(win);
+        }
+      };
+
+      confirmLeaveGlobalsOverlay(
+        win,
+        switchSet,
+        () => {
+          const picker = win.document.getElementById(GLOBALS_PICKER_ID);
+
+          if (picker && previousHandle) {
+            picker.value = previousHandle;
+          }
+        }
+      );
 
       return;
     }
 
     existing.remove();
-  }
-
-  // Theme Settings docks on the right. Close the sections library unless a
-  // chrome style write explicitly wants it kept (keepLibrary).
-  if (!prefetch) {
-    if (chromeLock) {
-      closeRightPanels(win, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]);
-    } else {
-      closeRightPanels(
-        win,
-        keepLibrary
-          ? [GLOBALS_PANEL_ID, SECTION_PICKER_ID, CHROME_DESIGNS_ID]
-          : [GLOBALS_PANEL_ID]
-      );
-    }
   }
 
   const panel = doc.createElement('div');
@@ -20563,13 +21535,21 @@ function openGlobalsPanel(win, set, options = {}) {
   const bar = doc.createElement('div');
 
   bar.style.cssText =
-    'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px 8px 14px;' +
-    'border-bottom:1px solid rgba(128,128,128,.24);font:600 13px/1 ui-sans-serif,system-ui,sans-serif;' +
-    'color:currentColor;flex:0 0 auto;';
-  const title = doc.createElement('span');
+    'display:flex;align-items:center;gap:10px;padding:11px 12px 9px;' +
+    'border-bottom:1px solid rgba(128,128,128,.16);flex:0 0 auto;';
+
+  const tile = doc.createElement('span');
+
+  tile.setAttribute('data-sve-focus-tile', '');
+  tile.textContent = (set.title || '?').trim().charAt(0).toUpperCase();
+  bar.appendChild(tile);
+
+  const title = doc.createElement('h2');
 
   title.setAttribute('data-sve-globals-title', '');
+  title.setAttribute('data-sve-focus-title', '');
   title.textContent = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
+  title.style.cssText = 'flex:1 1 auto;min-width:0;';
   bar.appendChild(title);
 
   // The CP's own Save sits in the page header, which the panel strips away — so
@@ -20587,8 +21567,8 @@ function openGlobalsPanel(win, set, options = {}) {
   save.style.cssText =
     'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
     'color:#fff;font-size:12px;font-weight:600;line-height:1;';
-  // Same rule as the chrome bottom bar — only when Theme Settings is dirty.
-  save.style.display = hasUnsavedGlobals(win) ? '' : 'none';
+  save.style.display = '';
+  save.style.opacity = hasUnsavedGlobals(win) ? '1' : LP_ICON_IDLE_OPACITY;
   save.addEventListener('click', () => {
     const frame = doc.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
@@ -20617,33 +21597,19 @@ function openGlobalsPanel(win, set, options = {}) {
       return;
     }
 
-    if (hasUnsavedGlobals(win)) {
-      confirmCloseDiscard(
-        win,
-        { titleKey: 'chrome_close_title', bodyKey: 'chrome_close_body' },
-        () => {
-          discardGlobalsChanges(win, { refresh: true, reloadForm: false }).then(() => {
-            const picker = doc.getElementById(GLOBALS_PICKER_ID);
-
-            if (picker) {
-              picker.value = '';
-            }
-
-            closeGlobalsPanel(win);
-          });
-        }
-      );
-
-      return;
-    }
-
     const picker = doc.getElementById(GLOBALS_PICKER_ID);
 
-    if (picker) {
-      picker.value = '';
-    }
+    confirmLeaveGlobalsOverlay(
+      win,
+      () => {
+        if (picker) {
+          picker.value = '';
+        }
 
-    closeGlobalsPanel(win);
+        closeGlobalsPanel(win);
+      },
+      () => {}
+    );
   });
   actions.appendChild(close);
   bar.appendChild(actions);
@@ -20658,11 +21624,14 @@ function openGlobalsPanel(win, set, options = {}) {
   panel.appendChild(frame);
   ensureGlobalsPanelSaveWatch(win);
 
-  // Park inside the shared shell so switching tools never reparents the iframe.
+  // Stay on body so the iframe is never reparented. Prefetch parks off-screen;
+  // a real open covers the left editor.
+  attachGlobalsOverlay(win, panel);
+
   if (prefetch) {
-    parkInRightShell(win, panel);
+    parkGlobalsOverlay(panel);
   } else {
-    pinGlobalsPanelRight(win, panel);
+    pinGlobalsPanelLeft(win, panel);
     syncPreviewInset(win);
 
     if (chromeLock) {
@@ -20675,7 +21644,7 @@ function openGlobalsPanel(win, set, options = {}) {
 function ensureGlobalsPicker(win) {
   const doc = win.document;
   const header = lpHeader(doc);
-  const sets = globalSets(win);
+  const sets = pickerGlobalSets(win);
 
   if (!header || !sets.length || doc.getElementById(GLOBALS_PICKER_ID)) {
     return;
@@ -20702,12 +21671,19 @@ function ensureGlobalsPicker(win) {
   });
 
   select.addEventListener('change', () => {
+    const previous = doc.getElementById(GLOBALS_PANEL_ID)?.getAttribute('data-sve-globals-handle') || '';
     const set = sets.find((candidate) => candidate.handle === select.value);
 
     if (set) {
       openGlobalsPanel(win, set);
     } else {
-      closeGlobalsPanel(win);
+      confirmLeaveGlobalsOverlay(
+        win,
+        () => closeGlobalsPanel(win),
+        () => {
+          select.value = previous;
+        }
+      );
     }
   });
 
@@ -20814,7 +21790,31 @@ function initGlobalsPanelFrame(win) {
     html[data-sve-entry-panel] .publish-form > * > [class*="title-fieldtype"] {
       display: none !important;
     }
-    /* Tabs tight under the outer SVE bar — no large empty band above fields. */
+    /* Hide the CP shell so the form is the panel. Do not restyle Statamic cards. */
+    .h-14.bg-global-header-bg {
+      display: none !important;
+      height: 0 !important;
+      max-height: 0 !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+    }
+    #main {
+      top: 0 !important;
+    }
+    [data-ui-header] {
+      display: none !important;
+      height: 0 !important;
+      max-height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+    }
+    /* Only extra: 26px above the tabs. Left/right stay Statamic default. */
+    #content-card {
+      padding-top: 26px !important;
+    }
     main {
       margin: 0 !important;
       padding-block: 0 !important;
@@ -20920,6 +21920,14 @@ function initGlobalsPanelFrame(win) {
     // outer SVE panel already has title/Save/✕. Leave replicator/Bard set headers
     // alone (they carry [data-drag-handle]).
     if (main) {
+      main.querySelectorAll('h1').forEach((el) => {
+        if (el.closest('[data-drag-handle], [data-replicator-set], [data-grid-row]')) {
+          return;
+        }
+
+        el.setAttribute('data-sve-panel-hide', '');
+      });
+
       main.querySelectorAll('header').forEach((el) => {
         if (el.querySelector('[data-drag-handle]')) {
           return;
@@ -20935,9 +21943,11 @@ function initGlobalsPanelFrame(win) {
       });
     }
 
-    // Always hide Save in the iframe — globals and entries. The panel's Save
-    // still clicks the real (hidden) button via postMessage. Also climb to the
-    // title row (Statamic 6 often uses a div, not <header>) and hide that too.
+    // Statamic 6 page Header is a padded flex div (`data-ui-header`, py-6/py-8),
+    // not <header>/h1 — hiding the title left the padding as an empty band.
+    doc.querySelectorAll('[data-ui-header]').forEach((el) => {
+      el.setAttribute('data-sve-panel-hide', '');
+    });
     doc.querySelectorAll('button').forEach((button) => {
       if (!/^(save|gem)\b/i.test((button.textContent || '').trim())) {
         return;
@@ -22444,11 +23454,12 @@ function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
 
   const card = doc.createElement('div');
 
-  card.style.cssText = dialogCardStyle(win);
+  card.style.cssText =
+    dialogCardStyle(win).replace('width:400px', 'width:560px');
   card.innerHTML =
     `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${t(win, 'unsaved_title')}</div>` +
     `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, 'unsaved_body')}</div>` +
-    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
+    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:nowrap;"></div>';
 
   const actions = card.querySelector('[data-sve-actions]');
   const close = () => overlay.remove();
@@ -22483,6 +23494,34 @@ function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
 
   overlay.appendChild(card);
   doc.body.appendChild(overlay);
+}
+
+/**
+ * Asks before leaving Theme Settings / a globals overlay with unsaved edits.
+ * Save · discard · cancel. Clean overlay (or none) runs `onLeave` immediately.
+ */
+function confirmLeaveGlobalsOverlay(win, onLeave, onCancel = () => {}) {
+  if (!isGlobalsOverlayOpen(win) || !hasUnsavedGlobals(win)) {
+    onLeave();
+
+    return;
+  }
+
+  confirmCloseDiscard(
+    win,
+    { titleKey: 'globals_close_title', bodyKey: 'globals_close_body' },
+    () => {
+      discardGlobalsChanges(win, { refresh: true, reloadForm: false }).then(onLeave);
+    },
+    onCancel,
+    () => {
+      saveGlobalsPanel(win, (ok) => {
+        if (ok) {
+          onLeave();
+        }
+      });
+    }
+  );
 }
 
 /**
@@ -22655,10 +23694,10 @@ function hideNavSpinner(win) {
 /**
  * Saves, then goes where the user actually asked to go.
  *
- * Statamic answers a save with a redirect of its own — out to the collection
- * listing — and it lands after ours, so simply moving first loses the race and
- * dumps you in the admin: the one place this whole picker exists to keep you out
- * of. So we swallow that one redirect and make the move ourselves.
+ * Without revisions, Statamic answers a save with a redirect to the collection
+ * listing — we swallow that and go ourselves, or we'd lose the race and land
+ * in admin. With revisions there is no redirect (the form stays open), so
+ * waiting for one left the spinner up forever after "Save and continue".
  *
  * If the save fails we stay put, because the error is in here.
  */
@@ -22681,41 +23720,59 @@ function saveThenNavigate(win, go) {
   showNavSpinner(win);
 
   let settled = false;
+  let redirectWait = null;
+  let offBefore = () => {};
+  let stop = () => {};
 
-  // The save's own redirect, intercepted. Ours goes out from the next tick so
-  // the router isn't asked to start a visit while it's still cancelling one.
-  const offBefore = router.on('before', () => {
+  const finish = (ok) => {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    stop();
     offBefore();
-    win.setTimeout(go, 0);
+    clearTimeout(timer);
+    clearTimeout(redirectWait);
+
+    if (!ok) {
+      hideNavSpinner(win);
+
+      return;
+    }
+
+    leaveQuietly(win, go);
+  };
+
+  // Listing redirect only (GET). The save itself is PATCH/POST — must not cancel it.
+  offBefore = router.on('before', (event) => {
+    const visit = event.detail?.visit;
+
+    if (visit?.method && String(visit.method).toLowerCase() !== 'get') {
+      return;
+    }
+
+    win.setTimeout(() => finish(true), 0);
 
     return false;
   });
 
-  const stop = onEntrySave((ok) => {
+  stop = onEntrySave((ok) => {
     if (settled) {
       return;
     }
-
-    settled = true;
-    stop();
-    clearTimeout(timer);
 
     if (!ok) {
-      offBefore();
-      hideNavSpinner(win);
-    }
-  });
+      finish(false);
 
-  const timer = win.setTimeout(() => {
-    if (settled) {
       return;
     }
 
-    settled = true;
-    stop();
-    offBefore();
-    hideNavSpinner(win);
-  }, LP_SAVE_TIMEOUT);
+    // Revisions stay on the form. Give a listing-redirect a beat, then leave.
+    redirectWait = win.setTimeout(() => finish(true), 200);
+  });
+
+  const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
 
   save.click();
 }
@@ -22951,8 +24008,8 @@ function ensureCollectionPicker(win) {
   const wrap = doc.createElement('div');
 
   // Ingen egen flade: den ligger i panelets sammensatte felt, og felterne her
-  // skilles ad af søm — se ensureHeaderToolbar.
-  wrap.style.cssText = 'display:inline-flex;align-items:center;font-family:inherit;';
+  // skilles ad af de samme lyse streger som i zoom.
+  wrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-family:inherit;';
 
   const collectionSelect = doc.createElement('select');
 
@@ -22983,7 +24040,7 @@ function ensureCollectionPicker(win) {
   newBtn.textContent = `+ ${t(win, 'new_entry')}`;
   // Same flat primary as Visible / active device pills.
   newBtn.style.cssText =
-    `${FRAMED_CONTROL_STYLE}padding:0 .75rem;margin-left:${LP_SEAM_GAP}px;font-weight:600;` +
+    `${FRAMED_CONTROL_STYLE}padding:0 .75rem;font-weight:600;` +
     `background:${LP_PRIMARY_FLAT};color:#fff;opacity:1;border:none;box-shadow:none;`;
 
   const selected = () => collections.find((c) => c.handle === collectionSelect.value);
@@ -23063,9 +24120,6 @@ function ensureCollectionPicker(win) {
   });
 
   wrap.appendChild(collectionSelect);
-  // Søm mellem de to der vælger noget. Ikke foran "+ New" — den har sin egen
-  // mørke flade, og en streg klods op ad dens kant er to kanter samme sted.
-  wrap.appendChild(headerSeam(doc));
   wrap.appendChild(entrySelect);
   wrap.appendChild(newBtn);
   header.appendChild(wrap);
@@ -24608,6 +25662,7 @@ async function openChromeInline(win, kind) {
   setActiveChromeKind(chromeKind);
   chromeInlineKind = chromeKind;
   setLpMode(win, 'show');
+  hideGlobalsPanel(win, { release: false });
 
   // Both halves in one set: they are two tabs of one form, and stepping across is
   // a tab switch rather than a remount — nothing half-typed is lost.
@@ -25175,38 +26230,109 @@ function registerPanelConditions(win) {
 }
 
 /**
- * Publish opens Statamic's own right-side panel. Our Sections / Theme Settings
- * drawers sit in the same place — close them on Publish so they never cover it.
+ * Do not raise `.portal-targets` — that full-viewport layer hides the docks.
+ * Move `.stack-content` to body (Alpine teleport) and pin it `position:fixed`
+ * at the same box, so the panel is in front and sidebar / code-dock stay put.
  */
-function watchPublishClosesRightPanels(win) {
-  const shouldClose = (el) => {
-    if (!el || el.closest?.('[id^="__sve"]')) {
-      return false;
+function watchPublishDialogStack(win) {
+  const HOST_ID = '__sve-publish-teleport';
+  const doc = win.document;
+  const homes = new WeakMap();
+  let scheduled = false;
+
+  const hostEl = () => {
+    let host = doc.getElementById(HOST_ID);
+
+    if (!host) {
+      host = doc.createElement('div');
+      host.id = HOST_ID;
+      doc.body.appendChild(host);
     }
 
-    const text = `${el.textContent || ''} ${el.getAttribute?.('aria-label') || ''}`.trim();
-
-    return isPublishButtonLabel(text);
+    return host;
   };
 
-  win.document.addEventListener(
-    'click',
-    (event) => {
-      const el = event.target?.closest?.('button, [role="menuitem"], a');
+  const pin = (panel) => {
+    const box = panel.getBoundingClientRect();
+    const gap = Math.round(box.top);
 
-      if (!shouldClose(el)) {
-        return;
+    panel.style.setProperty('position', 'fixed', 'important');
+    panel.style.setProperty('top', `${gap}px`, 'important');
+    panel.style.setProperty('right', `${gap}px`, 'important');
+    panel.style.setProperty('left', 'auto', 'important');
+    panel.style.setProperty('width', `${Math.round(box.width)}px`, 'important');
+    panel.style.setProperty('height', `${Math.round(win.innerHeight - gap * 2)}px`, 'important');
+    panel.style.setProperty('z-index', '200', 'important');
+    panel.style.setProperty('margin', '0', 'important');
+    panel.style.setProperty('pointer-events', 'auto', 'important');
+  };
+
+  const unpin = (panel) => {
+    ['position', 'top', 'right', 'left', 'width', 'height', 'z-index', 'margin', 'pointer-events'].forEach(
+      (prop) => panel.style.removeProperty(prop)
+    );
+  };
+
+  const restore = (panel) => {
+    const home = homes.get(panel);
+
+    unpin(panel);
+
+    if (home?.parentNode) {
+      home.parentNode.insertBefore(panel, home);
+      home.remove();
+    }
+
+    homes.delete(panel);
+  };
+
+  const sync = () => {
+    // Live Preview only. Fieldset/blueprint stacks are the same markup
+    // (Display name, handle, select). Pinning them on every DOM mutation
+    // drops focus — text and select die, toggles still click.
+    const inLivePreview = !!doc.querySelector('.live-preview-header');
+    const open = inLivePreview && !!doc.querySelector('.portal-targets.stacks-on-stacks');
+    const host = doc.getElementById(HOST_ID);
+
+    if (!open) {
+      if (host) {
+        [...host.querySelectorAll('.stack-content')].forEach(restore);
       }
 
-      closeRightPanels(win);
-      // Header "sections" tab stays lit otherwise — clear it with the drawer.
-      if (headerTab === 'sections') {
-        setHeaderTab(win, null);
-        applyHeaderTab(win);
+      return;
+    }
+
+    const target = hostEl();
+
+    doc.querySelectorAll('.portal-targets .stack-content, #__sve-publish-teleport .stack-content').forEach((panel) => {
+      if (panel.parentElement !== target) {
+        pin(panel);
+
+        const home = doc.createComment('sve-publish-home');
+
+        panel.parentNode.insertBefore(home, panel);
+        homes.set(panel, home);
+        target.appendChild(panel);
+      } else {
+        pin(panel);
       }
-    },
-    true
-  );
+    });
+  };
+
+  const schedule = () => {
+    if (scheduled) {
+      return;
+    }
+
+    scheduled = true;
+    win.requestAnimationFrame(() => {
+      scheduled = false;
+      sync();
+    });
+  };
+
+  sync();
+  new win.MutationObserver(schedule).observe(doc.body, { childList: true, subtree: true });
 }
 
 export function initCp(win = window) {
@@ -25216,7 +26342,11 @@ export function initCp(win = window) {
   registerPanelConditions(win);
 
   // Boot marker — proves this build is loaded (DevTools: window.__SVE_BUILD__).
-  win.__SVE_BUILD__ = 'set-picker-no-suggest-3-2026-08-17';
+  win.__SVE_BUILD__ = 'publish-gap-match-top-2026-08-20';
+
+  if (win.__SVE_SCROLL_TEST) {
+    win.__sveOpenPatterns = (options) => openSectionPicker(win, options || {});
+  }
 
   armSetPickerSearchSilence(win);
 
@@ -25234,6 +26364,33 @@ export function initCp(win = window) {
     return;
   }
 
+  // Overlay iframe (?live-preview=1): hold remembered chrome until the
+  // preview has painted, then restore it *before* `lp-ready` so the fade-in
+  // already has the sidebar / dock. Remounting during boot still drops ready.
+  try {
+    if (
+      isEmbeddedInSite(win) &&
+      new URLSearchParams(win.location.search).get('live-preview') === '1'
+    ) {
+      dockRestorePaused = true;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    hydrateChromePrefs(win);
+    bindChromePrefsFlush(win);
+
+    const lvTab = chromeGet(win, 'sve-listview-tab');
+
+    if (lvTab === 'outline' || lvTab === 'tree') {
+      listViewTab = lvTab;
+    }
+  } catch (err) {
+    console.error('[sve] chrome prefs', err);
+  }
+
   registerRightDockContent();
 
   const style = win.document.createElement('style');
@@ -25241,7 +26398,7 @@ export function initCp(win = window) {
   style.textContent = CP_STYLES;
   win.document.head.appendChild(style);
 
-  watchPublishClosesRightPanels(win);
+  watchPublishDialogStack(win);
   win.addEventListener('resize', () => {
     relayoutCodeDock(win);
     relayoutAiPanel(win);

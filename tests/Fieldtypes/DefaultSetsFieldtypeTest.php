@@ -37,16 +37,28 @@ class DefaultSetsFieldtypeTest extends TestCase
         $this->assertSame($rows, $this->fieldtype->preProcess($rows));
     }
 
-    public function test_duplicate_types_keep_the_first_row(): void
+    public function test_duplicate_types_are_kept_in_order(): void
     {
         $this->assertSame(
-            [['type' => 'icon', 'icon' => 'star'], ['type' => 'title']],
+            [
+                ['type' => 'icon', 'icon' => 'star'],
+                ['type' => 'title'],
+                ['type' => 'icon'],
+            ],
             $this->fieldtype->process([
                 ['type' => 'icon', 'icon' => 'star'],
                 ['type' => 'title'],
                 ['type' => 'icon'],
             ]),
         );
+    }
+
+    public function test_six_items_stay_six_items(): void
+    {
+        $rows = array_fill(0, 6, ['type' => 'item']);
+
+        $this->assertSame($rows, $this->fieldtype->process($rows));
+        $this->assertSame($rows, $this->fieldtype->preProcess($rows));
     }
 
     public function test_empty_list_is_stored_as_null(): void

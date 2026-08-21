@@ -11,13 +11,12 @@ use Statamic\Fields\Fieldtype;
  * egen `default`-nøgle, samme form som man ellers skriver i YAML i hånden:
  *
  *     default:
- *       - type: icon
- *       - type: title
+ *       - type: item
+ *       - type: item
+ *       - type: item
  *
- * Så fylder Statamic selv rækkerne ud når feltet oprettes — en ny sektion, et
- * nyt list-item, et nyt hvad-som-helst der rummer replicatoren. Ingen ekstra
- * runtime: det er feltets default, og alt der allerede læser den (CP, preview,
- * SectionDefaults) følger med.
+ * Så fylder Statamic selv rækkerne ud når feltet oprettes. Antallet ved siden
+ * af fluebenet er antallet af rækker. Item med 6 er seks item-rækker.
  *
  * Mulighederne læses fra det `sets`-felt der står ved siden af i samme
  * formular, præcis som {@see UniqueSetsFieldtype}. En eksisterende default med
@@ -53,27 +52,34 @@ class DefaultSetsFieldtype extends Fieldtype
     }
 
     /**
-     * En liste af rækker med `type` — én pr. handle, i den rækkefølge de kom.
+     * En liste af rækker med `type`, i den rækkefølge de kom. Samme type må
+     * gerne stå flere gange — det er tallet ved siden af fluebenet.
      *
      * En streng tæller som `{type: handle}`. En række der allerede har andre
-     * nøgler (indlejrede defaults) får lov at beholde dem. Dubletter droppes,
-     * den første vinder, så et flueben ikke kan lægge den samme type to gange.
+     * nøgler (indlejrede defaults) får lov at beholde dem. Flere end 24 af
+     * samme type klippes.
      *
      * @return array<int, array{type: string}>
      */
     protected function normalize($data): array
     {
-        $seen = [];
         $rows = [];
+        $counts = [];
 
         foreach (is_array($data) ? $data : [] as $item) {
             $row = $this->row($item);
 
-            if (! $row || isset($seen[$row['type']])) {
+            if (! $row) {
                 continue;
             }
 
-            $seen[$row['type']] = true;
+            $type = $row['type'];
+            $counts[$type] = ($counts[$type] ?? 0) + 1;
+
+            if ($counts[$type] > 24) {
+                continue;
+            }
+
             $rows[] = $row;
         }
 

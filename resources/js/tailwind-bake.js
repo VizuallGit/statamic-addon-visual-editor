@@ -22,12 +22,21 @@ export async function compileSectionTailwind(win, html) {
   }
 
   const theme = await loadTheme(win);
-  const css = await buildCss(html, theme, {
+  const css = await buildCss(markupForCompile(html), theme, {
     compileCssOptions: { addPreflight: false },
     transformCssOptions: { minify: true },
   });
 
   return typeof css === 'string' ? css.trim() : '';
+}
+
+/**
+ * Tailwind's in-browser extractor is the v3 scanner. Antlers `{{ … }}` in a
+ * class attribute (and `{{ visual_edit }}` on the tag) produces junk candidates
+ * that can abort compile — so they come out before the HTML is scanned.
+ */
+export function markupForCompile(html) {
+  return String(html || '').replace(/\{\{[\s\S]*?\}\}/g, ' ');
 }
 
 function loadTheme(win) {

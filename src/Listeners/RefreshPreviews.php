@@ -27,12 +27,10 @@ use Statamic\Events\GlobalVariablesSaved;
  *   what its preview is a picture of, may have changed
  * - the theme's global variables saved — colours and fonts, so every preview
  * - one of those entries deleted — its screenshot has nothing left to depict
+ * - a section type's Antlers partial saved from the template dock
  *
  * Not watched: ordinary page saves. A section type's preview comes from its
- * defaults, not from any page, so editing a page changes nothing about it. The
- * exception is the fallback for a type with no defaults at all, and the section
- * library asks for a refresh when it opens, which covers that without putting a
- * process behind every page save on the site.
+ * defaults, not from any page, so editing a page changes nothing about it.
  */
 class RefreshPreviews
 {

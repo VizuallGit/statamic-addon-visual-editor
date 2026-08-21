@@ -11,13 +11,115 @@ const STYLE_ID = 'sve-overlay-host-styles';
 const LOADING_ID = 'sve-overlay-loading';
 const PREVIEW_LOADING_ID = 'sve-preview-loading';
 const KEEP_CHROME_KEY = 'sve-keep-chrome';
+const OPEN_IN_PREVIEW_ORIGIN = 'sve-open-in-preview-origin';
 const FADE_MS = 380;
+
+/**
+ * So "Go back to admin" can land on the collection listing — never the
+ * entry form. Skipped when the CP listing already left a more specific note.
+ */
+function rememberCollectionOrigin(win, href) {
+  try {
+    if (win.sessionStorage.getItem(OPEN_IN_PREVIEW_ORIGIN)) {
+      return;
+    }
+
+    const parsed = new URL(String(href), win.location.origin);
+    const match = parsed.pathname.match(/\/collections\/([^/]+)\/entries\//);
+
+    if (!match) {
+      return;
+    }
+
+    win.sessionStorage.setItem(
+      OPEN_IN_PREVIEW_ORIGIN,
+      JSON.stringify({
+        entry: parsed.pathname,
+        from: `${parsed.origin}/cp/collections/${match[1]}`,
+      })
+    );
+  } catch {
+    /* private mode */
+  }
+}
+
 const SPINNER_SVG =
   '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
   '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
 
 function isCpHost(win) {
   return /\/cp(\/|$)/.test(win.location.pathname);
+}
+
+/**
+ * Vite's client calls location.reload() on `full-reload`. While the overlay is
+ * open that reload is the front end coming back. Swallow it; CSS HMR still
+ * uses `update` messages and is left alone.
+ */
+function guardHostReload(win, isOpen) {
+  if (win.__sveReloadGuard) {
+    return;
+  }
+
+  win.__sveReloadGuard = true;
+
+  try {
+    const reload = win.location.reload.bind(win.location);
+
+    win.location.reload = function (...args) {
+      if (isOpen()) {
+        return;
+      }
+
+      return reload(...args);
+    };
+  } catch {
+    /* some browsers freeze Location */
+  }
+
+  const wrapSocket = (ws) => {
+    if (!ws || ws.__sveGuarded) {
+      return;
+    }
+
+    ws.__sveGuarded = true;
+    ws.addEventListener('message', (event) => {
+      if (!isOpen()) {
+        return;
+      }
+
+      let data = event.data;
+
+      try {
+        data = typeof data === 'string' ? JSON.parse(data) : data;
+      } catch {
+        return;
+      }
+
+      if (data?.type === 'full-reload') {
+        event.stopImmediatePropagation();
+      }
+    });
+  };
+
+  try {
+    const Original = win.WebSocket;
+
+    if (Original && !Original.__sveGuarded) {
+      win.WebSocket = function (url, protocols) {
+        const ws = protocols === undefined ? new Original(url) : new Original(url, protocols);
+
+        wrapSocket(ws);
+
+        return ws;
+      };
+      win.WebSocket.prototype = Original.prototype;
+      win.WebSocket.__sveGuarded = true;
+      Object.setPrototypeOf(win.WebSocket, Original);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 function isEmbedded(win) {
@@ -92,12 +194,12 @@ function createHost(win) {
   let open = false;
   let wanted = false;
   let saved = false;
-  let ignorePopUntil = 0;
   let failTimer = null;
   let swapTimer = null;
-  let loadingHideTimer = null;
+  let   loadingHideTimer = null;
 
   ensureStyles(win);
+  guardHostReload(win, () => open);
 
   function previewBox() {
     const fallback = () => {
@@ -273,6 +375,8 @@ function createHost(win) {
   }
 
   function boot(url) {
+    rememberCollectionOrigin(win, url);
+
     if (frame) {
       try {
         if (new URL(frame.src, win.location.origin).href === new URL(url, win.location.origin).href) {
@@ -307,6 +411,7 @@ function createHost(win) {
       frame.setAttribute('data-open', '');
       root.classList.add('sve-editing');
     });
+    guardHostReload(win, () => open);
   }
 
   function goto(url) {
@@ -358,12 +463,18 @@ function createHost(win) {
 
     win.clearTimeout(failTimer);
     failTimer = win.setTimeout(() => {
-      if (wanted && !ready) {
+      if (wanted && !ready && frame) {
+        // Still no lp-ready — show the overlay anyway so Rediger is never a dead end.
+        ready = true;
+        wanted = false;
+        setLoading(false);
+        show();
+      } else if (wanted && !ready) {
         wanted = false;
         setLoading(false);
         win.location.href = url;
       }
-    }, 20000);
+    }, 8000);
   }
 
   function detachFrames() {
@@ -464,7 +575,16 @@ function createHost(win) {
       return;
     }
 
-    const from =
+    const data = event.data;
+
+    if (!data || data.source !== SOURCE) {
+      return;
+    }
+
+    // Prefer the exact frame/next window. Fall back to any overlay iframe —
+    // some browsers briefly desync event.source during navigation and that
+    // used to drop `lp-ready`, leaving the Rediger button spinning forever.
+    let from =
       frame && event.source === frame.contentWindow
         ? 'frame'
         : next && event.source === next.contentWindow
@@ -472,17 +592,24 @@ function createHost(win) {
           : null;
 
     if (!from) {
-      return;
-    }
+      const overlays = [...doc.querySelectorAll('iframe.sve-edit-overlay')];
+      const match = overlays.find((el) => {
+        try {
+          return event.source === el.contentWindow;
+        } catch {
+          return false;
+        }
+      });
 
-    const data = event.data;
+      if (!match) {
+        return;
+      }
 
-    if (!data || data.source !== SOURCE) {
-      return;
-    }
+      from = next && match === next ? 'next' : 'frame';
 
-    if (data.type !== 'lp-close') {
-      ignorePopUntil = Date.now() + 1500;
+      if (from === 'frame' && match !== frame) {
+        frame = match;
+      }
     }
 
     if (data.type === 'lp-goto') {
@@ -544,26 +671,21 @@ function createHost(win) {
     }
   });
 
-  win.addEventListener('popstate', (event) => {
+  win.addEventListener('popstate', () => {
     if (!open) {
       return;
     }
 
-    if (event.state?.sveEditing) {
-      return;
+    // The preview iframe (and Statamic replacing it on morph) pushes history
+    // entries without `sveEditing`. Treating those as Back used to lift the
+    // overlay onto the front end while typing in the template dock.
+    // Leave only via lp-close (the ×). Re-assert our history state so Back
+    // inside the iframe cannot eject the host.
+    try {
+      win.history.pushState({ sveEditing: true }, '', win.location.href);
+    } catch {
+      /* ignore */
     }
-
-    if (Date.now() < ignorePopUntil) {
-      try {
-        win.history.pushState({ sveEditing: true }, '', win.location.href);
-      } catch {
-        /* ignore */
-      }
-
-      return;
-    }
-
-    close(true);
   });
 
   return { boot, open: openEditor, goto, close };
@@ -613,14 +735,18 @@ function bindEditButton(win) {
 
   btn.addEventListener('pointerenter', () => host.boot(url));
   btn.addEventListener('focus', () => host.boot(url));
-  btn.addEventListener('click', (event) => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
-      return;
-    }
+  btn.addEventListener(
+    'click',
+    (event) => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) {
+        return;
+      }
 
-    event.preventDefault();
-    host.open(url);
-  });
+      event.preventDefault();
+      host.open(url);
+    },
+    true
+  );
 
   if (win.__sveWantEditor) {
     host.open(url);

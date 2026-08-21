@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\LibraryAccess;
-use MarioHamann\StatamicVisualEditor\PreviewRefresher;
 use MarioHamann\StatamicVisualEditor\SavedSectionPreview;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -43,10 +42,6 @@ class SavedTemplatesController
 
         abort_unless($user, 403);
 
-        // See the same call in SavedSectionsController::index — opening the library
-        // is where a design change that no save announced gets noticed.
-        $kicked = PreviewRefresher::kickThrottled();
-
         $site = Site::selected()?->handle() ?? Site::default()->handle();
 
         $templates = Entry::query()
@@ -81,7 +76,7 @@ class SavedTemplatesController
             'templates' => $templates,
             // See SavedSectionsController::index — the panel asks again while
             // pictures are still being taken.
-            'running' => $kicked || Cache::get('sve-previews:running', false),
+            'running' => Cache::get('sve-previews:running', false),
         ]);
     }
 

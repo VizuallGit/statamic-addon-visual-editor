@@ -1,0 +1,35 @@
+---
+description: VE kernel is locked — one surface per task, no neighbouring files
+alwaysApply: true
+---
+
+# Visual Editor — safe change
+
+First action: write **Surface:** and **Files:**. Open only those files.
+
+## Locked — do not open
+
+Unless the user **explicitly** says the bug is the kernel (overlay, morph, eject, bridge):
+
+- `resources/js/preview.js`
+- `resources/js/overlay-host.js`
+- `resources/js/bridge.js`
+- In `cp.js`: `replayLivePreview`, `watchPreviewRenders`, `gotoOverlay`, `openOverlay`
+
+A tweak to a panel, dock, AI, or comments does **not** touch those four.
+
+## One surface
+
+- Overlay / Rediger / ejected to the public site → `overlay-host.js` only
+- Morph / eject after dock «saved» → `preview.js` only (plus the three `cp.js` functions if the bug is there)
+- Template dock → `code-dock.js` only (+ PHP that **only** writes the file)
+- Right dock / publish popup → that panel, not overlay or preview
+- New feature → new isolated module/Vue component. No import of the kernel. postMessage only.
+
+## Stop and ask
+
+- Task needs two surfaces → stop, name both, wait
+- Drive-by edit in a neighbouring file → forbidden
+- New import from panel/dock into overlay/preview/`replayLivePreview` → forbidden
+
+After a change: state what was touched, and what was deliberately left alone.

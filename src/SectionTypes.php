@@ -87,6 +87,10 @@ class SectionTypes
             try {
                 $value = $f->defaultValue();
 
+                if ($f->type() === 'replicator' && is_array($value)) {
+                    $value = FromTheStart::expand($value, $f->get(FromTheStart::KEY));
+                }
+
                 if ($value !== null && $value !== '' && $value !== []) {
                     $defaults[$handle] = $value;
                 }

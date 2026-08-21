@@ -43,7 +43,14 @@ return [
     | - panel:             the page-settings panel (Hide/Auto/Show + its tabs)
     | - pages:             the collection/entry picker, for moving between pages
     | - globals:           the globals picker (Theme Settings and friends)
+    | - globals_picker:    which global sets that menu lists, by handle. Null
+    |                      (the default) shows everything except header/footer —
+    |                      those are opened by clicking them on the page. An
+    |                      empty array shows none. Addons > Visual Editor is
+    |                      the usual place to change this per site.
     | - sections:          the section library panel as a whole
+    | - listview:          the block tree in the right dock (heading outline is
+    |                      a tab inside it). On by default.
     | - outline:           the heading outline panel — the page's headings as one
     |                      list, docked on the right, each one a jump to it
     | - library_page:      its "Page" tab — the site's own section types
@@ -72,29 +79,36 @@ return [
     |                      publish form. Which collections that covers is listed
     |                      beside it; a collection without a route is skipped,
     |                      since it has no page to render.
-    | - template_dock:     super-admin only. Clicking a section opens a bottom
-    |                      panel on the section's Antlers file and writes it
-    |                      back to disk. Off by default.
-    | - tailwind_dock:     compile Tailwind utilities from the HTML pane into a
-    |                      hidden `sve_tw` block on save, so a class that was
-    |                      never in `npm run build` still works without Vite.
-    |                      Needs template_dock. Off by default — the dock then
-    |                      writes the file exactly as it does today.
-    | - ai_panel:          super-admin only. A Live Preview chat that runs a
-    |                      local Cursor agent on this site (same Cursor account,
-    |                      not a second Claude bill). Needs a Cursor API key
-    |                      from cursor.com/dashboard/api (settings or
-    |                      CURSOR_API_KEY). Off by default.
-    | - comments:          super-admin only. Figma-style pins in Live Preview.
-    |                      Threads are stored on the site under
+    | - template_dock:     clicking a section opens a bottom panel with that
+    |                      section's Antlers file (HTML / CSS / JS). Saving
+    |                      writes the file on this server. Off by default.
+    |                      Who sees the icon sits under the toggle — super admins
+    |                      unless you name specific people.
+    | - tailwind_dock:     compile Tailwind classes from the HTML pane into
+    |                      {{ sve_tw }} when the dock saves. Needs template_dock.
+    |                      Off by default — the dock then writes the file as today.
+    | - ai_panel:          a Live Preview chat that runs a local Cursor agent.
+    |                      Off by default. Who sees the icon sits under the toggle.
+    | - comments:          Figma-style pins in Live Preview. Threads live in
     |                      storage/statamic-visual-editor/comments. On by default.
+    |                      Who sees the icon sits under the toggle.
+    | - *_access:          who sees that toolbar icon (except Page settings).
+    |                      Nested under the matching toggle: everyone, super
+    |                      admins, or named users/groups. template_dock_access
+    |                      defaults to super; the rest to everyone.
+    |                      toolbar_access is the old all-in-one blob and is still
+    |                      read if a per-tool key is missing.
     |
     */
     'features' => [
         'panel' => true,
         'pages' => true,
         'globals' => true,
+        // Not a toggle: handles shown in the globe menu. Null = all except
+        // header/footer. [] = none.
+        'globals_picker' => null,
         'sections' => true,
+        'listview' => true,
         'outline' => true,
         'inline_edit' => true,
         'focus_panel' => true,
@@ -104,6 +118,18 @@ return [
         'tailwind_dock' => false,
         'ai_panel' => false,
         'comments' => true,
+        // Nested under each toolbar toggle. Null = defaults
+        // (template_dock = super, everything else = everyone).
+        'pages_access' => null,
+        'globals_access' => null,
+        'sections_access' => null,
+        'listview_access' => null,
+        'template_dock_access' => null,
+        'ai_panel_access' => null,
+        'comments_access' => null,
+        // Legacy all-in-one blob from the old settings screen. Still read
+        // when a per-tool *_access key is missing.
+        'toolbar_access' => null,
         // Not a toggle: the collections the line above covers, by handle. Empty
         // means the switch has nothing to act on, so nothing changes.
         'open_in_preview_collections' => [],
@@ -155,9 +181,10 @@ return [
     | AI panel
     |--------------------------------------------------------------------------
     |
-    | Live Preview chat for super admins. Uses Cursor, not Anthropic. The key
-    | can also be saved on the addon settings screen (`ai_api_key`); that
-    | wins when it is not empty.
+    | Live Preview chat for super admins. Uses Cursor, not Anthropic. Paste
+    | the key on the addon settings screen (`ai_api_key`). That is what the
+    | editor uses. CURSOR_API_KEY in .env is only a fallback if the field
+    | is left empty.
     |
     */
     'ai' => [
@@ -311,6 +338,14 @@ return [
         | The dock never creates a file that is not already on disk.
         */
         'partials' => resource_path('views/partials/page_sections'),
+
+        /*
+        | Handles that stay editable in the template dock until someone locks
+        | them. Everything else is locked by default — a super admin can still
+        | unlock it. A prefix matches the type and any nested style
+        | (`custom_section` → `custom_section/style_1`).
+        */
+        'unlocked' => ['custom_section'],
     ],
 
     /*

@@ -2,7 +2,8 @@
  * Figma-style comment pins over Live Preview.
  *
  * Pins sit in the Control Panel window on top of the iframe. Threads are stored
- * per entry in this site's storage/statamic-visual-editor/comments. Super admin only.
+ * per entry in this site's storage/statamic-visual-editor/comments. Who may use
+ * them is set under the Comments toggle on Addons → Visual Editor.
  */
 export function initComments() {
   const ROOT_ID = 'sc-cp-root';
@@ -11,6 +12,8 @@ export function initComments() {
   const Z_HIT = '45';
   const Z_PIN = '46';
   const Z_THREAD = '47';
+  /** Same as the rest of the editor chrome — not a pill, not 12px. */
+  const CHROME_RADIUS = '8px';
 
   let mode = false;
   let comments = [];
@@ -22,6 +25,9 @@ export function initComments() {
   let ticking = false;
   let sidebarFilter = 'open';
   let bootObserver = null;
+  let lastSectionFingerprint = '';
+  let orphanTimer = null;
+  let pruning = false;
 
   function config() {
     return window.Statamic?.$config?.get?.('sveComments') || window.StatamicConfig?.sveComments || null;
@@ -38,10 +44,6 @@ export function initComments() {
 
     if (config()?.enabled === false) {
       return false;
-    }
-
-    if (window.Statamic?.$permissions?.has) {
-      return window.Statamic.$permissions.has('super') === true;
     }
 
     return true;
@@ -136,7 +138,7 @@ export function initComments() {
       fetchedEntryId = null;
       paintDockBadge();
 
-      if (mode) {
+      if (commentsPaneOpen()) {
         paintUi();
       }
 
@@ -145,9 +147,11 @@ export function initComments() {
 
     if (id === fetchedEntryId) {
       paintDockBadge();
+      syncOrphanComments({ force: true });
       return;
     }
 
+    resetSectionWatch();
     fetchedEntryId = id;
 
     try {
@@ -160,13 +164,15 @@ export function initComments() {
 
     paintDockBadge();
 
-    if (mode) {
+    if (commentsPaneOpen()) {
       paintUi();
     }
+
+    syncOrphanComments({ force: true });
   }
 
   function openCount() {
-    return comments.filter((comment) => !comment.resolved).length;
+    return comments.filter((comment) => !comment.resolved && commentIsOnPage(comment)).length;
   }
 
   function commentsPaneOpen() {
@@ -214,9 +220,13 @@ export function initComments() {
 
       const inHead = btn.hasAttribute('data-sve-right-pane-btn');
       const ring = 'var(--sve-toolbar-ring, rgba(128,128,128,.16))';
+      const primary = 'var(--theme-color-primary, #4530D8)';
+      const fill = inHead
+        ? `color-mix(in oklab, ${primary} 74%, white)`
+        : 'currentColor';
       const style = inHead
-        ? 'display:inline-flex;align-items:center;justify-content:center;margin-left:8px;min-width:16px;height:16px;padding:0 5px;border-radius:999px;background:#4530D8;color:#fff;font-size:10px;font-weight:700;line-height:16px;flex:0 0 auto;'
-        : `position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;padding:0 4px;border-radius:999px;background:#4530D8;color:#fff;font-size:9px;font-weight:700;line-height:14px;text-align:center;pointer-events:none;box-shadow:0 0 0 2px ${ring};`;
+        ? `display:inline-flex;align-items:center;justify-content:center;margin-left:8px;min-width:16px;height:16px;padding:0 5px;border-radius:999px;background:${fill};color:#fff;font-size:10px;font-weight:700;line-height:1;flex:0 0 auto;box-sizing:border-box;`
+        : `position:absolute;top:-2px;right:-2px;display:inline-flex;align-items:center;justify-content:center;min-width:13px;height:13px;padding:0 2px;border-radius:999px;background:${fill};color:inherit;font-size:8px;font-weight:700;line-height:1;text-align:center;pointer-events:none;box-sizing:border-box;box-shadow:0 0 0 2px ${ring};`;
 
       if (!badge) {
         badge = document.createElement('span');
@@ -232,28 +242,61 @@ export function initComments() {
     });
   }
 
-  function syncModeFromDock() {
-    const next = commentsPaneOpen();
+  function t(key) {
+    return window.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
+  }
 
-    if (next === mode) {
-      paintDockBadge();
-
-      if (mode) {
-        layoutGeometry();
-      }
+  function setPlaceMode(on) {
+    if (!commentsPaneOpen()) {
+      mode = false;
+      paintPlaceButton();
 
       return;
     }
 
-    mode = next;
-    openId = next ? openId : null;
-    draft = next ? draft : null;
-    paintDockBadge();
-    paintUi();
+    mode = !!on;
 
-    if (mode) {
-      loadComments();
+    if (!mode) {
+      draft = null;
+
+      if (openId === '__draft') {
+        openId = null;
+      }
     }
+
+    paintUi();
+    paintPlaceButton();
+  }
+
+  function paintPlaceButton() {
+    const btn = document.querySelector('[data-sve-comments-place]');
+
+    if (!btn) {
+      return;
+    }
+
+    btn.setAttribute('aria-pressed', mode ? 'true' : 'false');
+    btn.title = t(mode ? 'comments_place_off' : 'comments_place');
+  }
+
+  function syncModeFromDock() {
+    const open = commentsPaneOpen();
+
+    paintDockBadge();
+
+    if (!open) {
+      mode = false;
+      openId = null;
+      draft = null;
+      teardownUi();
+      paintPlaceButton();
+
+      return;
+    }
+
+    loadComments();
+    paintUi();
+    paintPlaceButton();
   }
 
   function cssEscape(value) {
@@ -270,6 +313,8 @@ export function initComments() {
     }
 
     return (
+      el.closest('[data-sve-chrome]') ||
+      el.closest('[data-sve-global]') ||
       el.closest('[data-sid-section-orderable]') ||
       el.closest('section[data-sid], article[data-sid]') ||
       outermostSid(el)
@@ -294,9 +339,73 @@ export function initComments() {
     return outer;
   }
 
+  function chromeVisualId(kind) {
+    if (kind === 'header') {
+      return '__chrome_header';
+    }
+
+    if (kind === 'footer') {
+      return '__chrome_footer';
+    }
+
+    return null;
+  }
+
+  function sectionVisualId(el) {
+    if (!el) {
+      return '__page';
+    }
+
+    const chrome = el.getAttribute?.('data-sve-chrome');
+    const chromeId = chromeVisualId(chrome);
+
+    if (chromeId) {
+      return chromeId;
+    }
+
+    const global = el.hasAttribute?.('data-sve-global')
+      ? el
+      : el.closest?.('[data-sve-global]');
+    const row = global?.getAttribute?.('data-sve-global-row');
+
+    if (row) {
+      return row;
+    }
+
+    return el.getAttribute?.('data-sid') || '__page';
+  }
+
   function sectionById(doc, id) {
     if (!id || id === '__page') {
       return doc.body || doc.documentElement;
+    }
+
+    if (id === '__chrome_header') {
+      return doc.querySelector('[data-sve-chrome="header"]');
+    }
+
+    if (id === '__chrome_footer') {
+      return doc.querySelector('[data-sve-chrome="footer"]');
+    }
+
+    const global = doc.querySelector(`[data-sve-global][data-sve-global-row="${cssEscape(id)}"]`);
+
+    if (global) {
+      return global;
+    }
+
+    const rowMarker = doc.querySelector(`[data-sve-global-row="${cssEscape(id)}"]`);
+
+    if (rowMarker) {
+      const root = rowMarker.nextElementSibling?.hasAttribute?.('data-sve-global-root')
+        ? rowMarker.nextElementSibling
+        : rowMarker.parentElement?.querySelector(':scope > [data-sve-global-root]');
+
+      return (
+        root?.querySelector('[data-sid-section-orderable], section[data-sid], article[data-sid]') ||
+        root ||
+        rowMarker
+      );
     }
 
     const matches = [...doc.querySelectorAll(`[data-sid="${cssEscape(id)}"]`)];
@@ -408,7 +517,7 @@ export function initComments() {
     hit.style.cssText =
       'position:fixed;z-index:' +
       Z_HIT +
-      ';pointer-events:auto;background:rgba(0,0,0,0);cursor:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Cpath fill=\'%234530D8\' d=\'M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2z\'/%3E%3C/svg%3E") 4 20, crosshair;';
+      ';pointer-events:auto;background:rgba(0,0,0,0);cursor:url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Cpath fill=\'%234530D8\' d=\'M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H9.5L5 21.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z\'/%3E%3C/svg%3E") 4 20, crosshair;';
     hit.addEventListener('pointerdown', (event) => event.stopPropagation());
     hit.addEventListener('mousedown', (event) => {
       event.preventDefault();
@@ -489,7 +598,7 @@ export function initComments() {
       const under = ctx.doc.elementFromPoint(point.x, point.y);
 
       section = findSection(under) || ctx.doc.body || ctx.doc.documentElement;
-      visualId = section?.getAttribute?.('data-sid') || '__page';
+      visualId = sectionVisualId(section);
     }
 
     const rel = section && point ? relativePoint(section, point.x, point.y) : { x: 50, y: 50 };
@@ -533,7 +642,7 @@ export function initComments() {
   }
 
   function paintUi() {
-    if (!mode) {
+    if (!commentsPaneOpen()) {
       teardownUi();
       return;
     }
@@ -541,7 +650,17 @@ export function initComments() {
     const wrap = root();
 
     [...wrap.querySelectorAll('[data-sc-chrome]')].forEach((el) => el.remove());
-    layoutHit();
+
+    if (mode) {
+      layoutHit();
+    } else {
+      const hit = document.getElementById(HIT_ID);
+
+      if (hit) {
+        setStyle(hit, 'display', 'none');
+      }
+    }
+
     startTick();
 
     const ctx = previewCtx();
@@ -553,6 +672,11 @@ export function initComments() {
 
     items.forEach((comment, index) => {
       const section = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
+
+      if (!section && comment.visual_id && comment.visual_id !== '__page' && comment.id !== '__draft') {
+        return;
+      }
+
       const pos = section ? screenPos(section, comment.x, comment.y) : fallbackPos(comment);
       const pin = document.createElement('button');
       const initials = comment.messages?.[0]?.author_initials || String(index + 1);
@@ -591,7 +715,10 @@ export function initComments() {
       wrap.appendChild(pin);
 
       if (openId === comment.id) {
-        wrap.appendChild(threadCard(comment, pos));
+        const card = threadCard(comment, pos);
+
+        wrap.appendChild(card);
+        placeThread(card, pos);
       }
     });
 
@@ -604,15 +731,344 @@ export function initComments() {
     return text.length > 90 ? `${text.slice(0, 87)}…` : text;
   }
 
+  function headline(value) {
+    return String(value || '')
+      .replace(/[/_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function elementLabel(el) {
+    if (!el) {
+      return 'Sektion';
+    }
+
+    const chrome = el.getAttribute('data-sve-chrome');
+
+    if (chrome === 'header') {
+      return el.getAttribute('data-sve-chrome-label') || 'Header';
+    }
+
+    if (chrome === 'footer') {
+      return el.getAttribute('data-sve-chrome-label') || 'Footer';
+    }
+
+    const global = el.hasAttribute('data-sve-global')
+      ? el
+      : el.closest?.('[data-sve-global]');
+
+    if (global) {
+      const sourceId = global.getAttribute('data-sve-global');
+      const saved = window.Statamic?.$config?.get?.('sveSavedSectionLabels')?.[sourceId];
+      const title = (saved?.title || '').trim();
+
+      if (title) {
+        return `Global: ${title}`;
+      }
+
+      const type = (global.getAttribute('data-sid-type') || saved?.section_type || '').trim();
+
+      return `Global: ${headline(type) || 'sektion'}`;
+    }
+
+    const label = (el.getAttribute('data-sid-label') || '').trim();
+    const type = (el.getAttribute('data-sid-type') || '').trim();
+
+    if (label && !label.includes('/')) {
+      return label;
+    }
+
+    return headline(type || label) || 'Sektion';
+  }
+
   function commentLabel(comment) {
     if (!comment.visual_id || comment.visual_id === '__page') {
-      return 'Side';
+      return 'Hele siden';
     }
 
     const ctx = previewCtx();
     const el = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
 
-    return el?.getAttribute('data-sid-label') || el?.getAttribute('data-sid-type') || 'Sektion';
+    return elementLabel(el);
+  }
+
+  function commentIsOnPage(comment) {
+    if (!comment?.visual_id || comment.visual_id === '__page' || comment.id === '__draft') {
+      return true;
+    }
+
+    const ctx = previewCtx();
+
+    if (!ctx || !collectPageSections(ctx.doc).length) {
+      return true;
+    }
+
+    return !!sectionById(ctx.doc, comment.visual_id);
+  }
+
+  function collectPageSections(doc) {
+    if (!doc) {
+      return [];
+    }
+
+    const seen = new Set();
+    const items = [];
+
+    doc.querySelectorAll('[data-sve-chrome], [data-sve-global], [data-sid-section-orderable]').forEach((el) => {
+      const id = sectionVisualId(el);
+
+      if (!id || id === '__page' || seen.has(id)) {
+        return;
+      }
+
+      if (el.hasAttribute('data-sid-section-orderable') && el.closest('[data-sve-chrome]')) {
+        return;
+      }
+
+      // One picker row per synced global — not each inner source section.
+      if (
+        el.hasAttribute('data-sid-section-orderable') &&
+        !el.hasAttribute('data-sve-global') &&
+        el.closest('[data-sve-global]')
+      ) {
+        return;
+      }
+
+      seen.add(id);
+      items.push({ id, label: elementLabel(el), el });
+    });
+
+    // Before the bridge tags [data-sve-global], template markers are enough.
+    doc.querySelectorAll('[data-sve-global-root]').forEach((root) => {
+      const row =
+        root.previousElementSibling?.getAttribute('data-sve-global-row') ||
+        root.parentElement?.querySelector(':scope > [data-sve-global-row]')?.getAttribute('data-sve-global-row');
+
+      if (!row || seen.has(row)) {
+        return;
+      }
+
+      const el =
+        root.querySelector('[data-sid-section-orderable], section[data-sid], article[data-sid]') || root;
+      const sourceId = root.getAttribute('data-sve-global-root');
+      const saved = window.Statamic?.$config?.get?.('sveSavedSectionLabels')?.[sourceId];
+      const title = (saved?.title || '').trim();
+      const type = (el.getAttribute?.('data-sid-type') || saved?.section_type || '').trim();
+      const label = title ? `Global: ${title}` : `Global: ${headline(type) || 'sektion'}`;
+
+      seen.add(row);
+      items.push({ id: row, label, el });
+    });
+
+    const counts = {};
+
+    items.forEach((item) => {
+      counts[item.label] = (counts[item.label] || 0) + 1;
+    });
+
+    const seenLabel = {};
+
+    return items.map((item) => {
+      if (counts[item.label] < 2) {
+        return item;
+      }
+
+      seenLabel[item.label] = (seenLabel[item.label] || 0) + 1;
+
+      return { ...item, label: `${item.label} (${seenLabel[item.label]})` };
+    });
+  }
+
+  function pickerOptions(currentId) {
+    const ctx = previewCtx();
+    const sections = ctx ? collectPageSections(ctx.doc) : [];
+    const options = sections.map((section) => ({ id: section.id, label: section.label }));
+
+    if (!options.some((option) => option.id === '__page')) {
+      options.push({ id: '__page', label: 'Hele siden' });
+    }
+
+    if (currentId && !options.some((option) => option.id === currentId)) {
+      const el = ctx ? sectionById(ctx.doc, currentId) : null;
+
+      options.unshift({
+        id: currentId,
+        label: el ? elementLabel(el) : 'Sektion (fjernet)',
+      });
+    }
+
+    return options;
+  }
+
+  function resetSectionWatch() {
+    lastSectionFingerprint = '';
+    clearTimeout(orphanTimer);
+    orphanTimer = null;
+  }
+
+  function sectionFingerprint(doc) {
+    return collectPageSections(doc)
+      .map((section) => section.id)
+      .join('|');
+  }
+
+  function syncOrphanComments({ force = false } = {}) {
+    const ctx = previewCtx();
+
+    if (!ctx || !entryId) {
+      return;
+    }
+
+    const sections = collectPageSections(ctx.doc);
+
+    if (!sections.length) {
+      return;
+    }
+
+    const fingerprint = sectionFingerprint(ctx.doc);
+
+    if (!force && fingerprint === lastSectionFingerprint) {
+      return;
+    }
+
+    const first = lastSectionFingerprint === '';
+
+    lastSectionFingerprint = fingerprint;
+    clearTimeout(orphanTimer);
+    orphanTimer = setTimeout(
+      () => pruneMissingSections(),
+      first && !force ? 700 : 80
+    );
+  }
+
+  function missingVisualIds(doc) {
+    return [
+      ...new Set(
+        comments
+          .filter((comment) => {
+            const id = comment.visual_id;
+
+            if (!id || id === '__page') {
+              return false;
+            }
+
+            return !sectionById(doc, id);
+          })
+          .map((comment) => comment.visual_id)
+      ),
+    ];
+  }
+
+  async function pruneMissingSections() {
+    const ctx = previewCtx();
+
+    if (!ctx || !entryId || pruning) {
+      return;
+    }
+
+    if (!collectPageSections(ctx.doc).length) {
+      return;
+    }
+
+    const gone = missingVisualIds(ctx.doc);
+
+    if (!gone.length) {
+      return;
+    }
+
+    pruning = true;
+
+    try {
+      const result = await request(`/!/sve/comments/${encodeURIComponent(entryId)}/prune`, {
+        method: 'POST',
+        body: JSON.stringify({ visual_ids: gone }),
+      });
+
+      comments = result.comments || comments.filter((comment) => !gone.includes(comment.visual_id));
+
+      if (openId && openId !== '__draft' && !comments.some((comment) => comment.id === openId)) {
+        openId = null;
+      }
+
+      paintDockBadge();
+
+      if (commentsPaneOpen()) {
+        paintUi();
+      }
+    } catch {
+      /* preview may still be loading */
+    } finally {
+      pruning = false;
+    }
+  }
+
+  async function assignSection(comment, visualId) {
+    if (!visualId || visualId === comment.visual_id) {
+      return;
+    }
+
+    if (comment.id === '__draft' && draft) {
+      draft.visual_id = visualId;
+      paintUi();
+      focusComposer();
+      return;
+    }
+
+    try {
+      const result = await request(
+        `/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`,
+        { method: 'PATCH', body: JSON.stringify({ visual_id: visualId }) }
+      );
+
+      comments = comments.map((item) => (item.id === comment.id ? result.comment : item));
+      openId = comment.id;
+      paintUi();
+      focusComposer();
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function sectionPicker(comment, theme) {
+    const wrap = document.createElement('div');
+    const label = document.createElement('label');
+    const select = document.createElement('select');
+    const options = pickerOptions(comment.visual_id);
+
+    wrap.style.cssText = 'padding:8px 12px;display:flex;flex-direction:column;gap:4px;';
+    label.textContent = 'Sektion';
+    label.htmlFor = 'sc-section-' + comment.id;
+    label.style.cssText =
+      'font-size:10px;font-weight:650;opacity:.55;letter-spacing:.02em;text-transform:uppercase;';
+    select.id = label.htmlFor;
+    select.style.cssText =
+      'box-sizing:border-box;display:block;width:100%;font:inherit;font-size:12px;padding:6px 8px;border-radius:' +
+      CHROME_RADIUS +
+      ';border:1px solid ' +
+      theme.inputBorder +
+      ';background:' +
+      theme.input +
+      ';color:inherit;color-scheme:' +
+      theme.scheme +
+      ';cursor:pointer;';
+
+    options.forEach((option) => {
+      const node = document.createElement('option');
+
+      node.value = option.id;
+      node.textContent = option.label;
+      node.selected = option.id === comment.visual_id;
+      select.appendChild(node);
+    });
+
+    select.value = comment.visual_id || '__page';
+    select.addEventListener('mousedown', (event) => event.stopPropagation());
+    select.addEventListener('pointerdown', (event) => event.stopPropagation());
+    select.addEventListener('change', () => assignSection(comment, select.value));
+    wrap.append(label, select);
+
+    return wrap;
   }
 
   function paintSidebar() {
@@ -624,22 +1080,23 @@ export function initComments() {
       return;
     }
 
-    if (!mode) {
+    if (!commentsPaneOpen()) {
       panel.innerHTML = '';
       return;
     }
 
-    const open = comments.filter((comment) => !comment.resolved);
-    const shown = sidebarFilter === 'open' ? open : comments;
+    const alive = comments.filter((comment) => commentIsOnPage(comment));
+    const open = alive.filter((comment) => !comment.resolved);
+    const shown = sidebarFilter === 'open' ? open : alive;
 
     panel.innerHTML = '';
 
     const tabs = document.createElement('div');
 
-    tabs.style.cssText = 'display:flex;gap:4px;padding:10px 12px 0;flex:0 0 auto;';
+    tabs.style.cssText = 'display:flex;gap:4px;padding:var(--sve-right-body-pad-block) 0 0;flex:0 0 auto;';
     [
       ['open', `Åbne (${open.length})`],
-      ['all', `Alle (${comments.length})`],
+      ['all', `Alle (${alive.length})`],
     ].forEach(([id, label]) => {
       const tab = document.createElement('button');
 
@@ -662,15 +1119,19 @@ export function initComments() {
 
     const list = document.createElement('div');
 
-    list.style.cssText = 'flex:1 1 auto;min-height:0;overflow-y:auto;padding:10px 12px 16px;display:flex;flex-direction:column;gap:8px;';
+    list.style.cssText = 'flex:1 1 auto;min-height:0;overflow-y:auto;padding:var(--sve-right-body-pad-block) 0;display:flex;flex-direction:column;gap:8px;';
 
     if (!shown.length) {
       const empty = document.createElement('div');
 
       empty.style.cssText = 'padding:24px 8px;text-align:center;opacity:.55;font-size:12px;line-height:1.45;';
-      empty.textContent = sidebarFilter === 'open'
-        ? 'Ingen åbne kommentarer. Klik i preview for at tilføje en.'
-        : 'Ingen kommentarer på siden endnu. Klik i preview for at tilføje en.';
+      empty.textContent = mode
+        ? (sidebarFilter === 'open'
+          ? 'Ingen åbne kommentarer. Klik i preview for at tilføje en.'
+          : 'Ingen kommentarer på siden endnu. Klik i preview for at tilføje en.')
+        : (sidebarFilter === 'open'
+          ? 'Ingen åbne kommentarer. Tryk på taleboblen for at skrive.'
+          : 'Ingen kommentarer på siden endnu. Tryk på taleboblen for at skrive.');
       list.appendChild(empty);
     }
 
@@ -681,7 +1142,9 @@ export function initComments() {
 
       row.type = 'button';
       row.style.cssText =
-        'all:unset;cursor:pointer;display:block;padding:10px;border-radius:10px;border:1px solid ' +
+        'all:unset;cursor:pointer;display:block;padding:10px;border-radius:' +
+        CHROME_RADIUS +
+        ';border:1px solid ' +
         (active ? 'rgba(69,48,216,.45)' : 'rgba(128,128,128,.18)') +
         ';background:' +
         (active ? 'rgba(69,48,216,.08)' : 'rgba(128,128,128,.08)') +
@@ -733,11 +1196,13 @@ export function initComments() {
   }
 
   function layoutGeometry() {
-    if (!mode) {
+    if (!commentsPaneOpen()) {
       return;
     }
 
-    layoutHit();
+    if (mode) {
+      layoutHit();
+    }
 
     const ctx = previewCtx();
     const wrap = document.getElementById(ROOT_ID);
@@ -754,6 +1219,11 @@ export function initComments() {
 
     items.forEach((comment) => {
       const section = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
+
+      if (!section && comment.visual_id && comment.visual_id !== '__page' && comment.id !== '__draft') {
+        return;
+      }
+
       const pos = section ? screenPos(section, comment.x, comment.y) : fallbackPos();
       const pin = wrap.querySelector(`[data-sc-pin="${comment.id}"]`);
       const thread = wrap.querySelector(`[data-sc-thread="${comment.id}"]`);
@@ -772,15 +1242,44 @@ export function initComments() {
   function placeThread(card, point) {
     const iframe = previewIframe();
     const ir = iframe?.getBoundingClientRect();
+    const pad = 8;
+    const cardW = 280;
+    const gap = 22;
     const rightBound = ir?.right || window.innerWidth;
     const leftBound = ir?.left || 0;
-    const spaceRight = rightBound - point.left;
-    let left = spaceRight < 300 ? point.left - 288 : point.left + 22;
+    const topBound = (ir?.top ?? 0) + pad;
+    const bottomBound = (ir?.bottom || window.innerHeight) - pad;
+    const frameH = Math.max(160, bottomBound - topBound);
 
-    left = Math.min(Math.max(leftBound + 8, left), Math.max(leftBound + 8, rightBound - 288));
+    card.style.maxHeight = `${frameH}px`;
+    card.style.overflowY = 'auto';
+
+    const spaceRight = rightBound - point.left;
+    let left = spaceRight < cardW + gap ? point.left - cardW - pad : point.left + gap;
+
+    left = Math.min(Math.max(leftBound + pad, left), Math.max(leftBound + pad, rightBound - cardW - pad));
+
+    const height = Math.min(card.offsetHeight || 280, frameH);
+    const preferBelow = point.top - pad;
+    const fitsBelow = preferBelow + height <= bottomBound;
+    let top;
+
+    if (fitsBelow) {
+      top = preferBelow;
+    } else {
+      top = point.top - height + pad;
+
+      if (top < topBound) {
+        top = topBound;
+      }
+    }
+
+    if (top + height > bottomBound) {
+      top = Math.max(topBound, bottomBound - height);
+    }
 
     card.style.left = `${left}px`;
-    card.style.top = `${Math.max(8, Math.min(point.top - 8, (ir?.bottom || window.innerHeight) - 120))}px`;
+    card.style.top = `${top}px`;
   }
 
   function startTick() {
@@ -791,7 +1290,7 @@ export function initComments() {
     ticking = true;
 
     const tick = () => {
-      if (!mode) {
+      if (!commentsPaneOpen()) {
         ticking = false;
         return;
       }
@@ -858,10 +1357,11 @@ export function initComments() {
       theme.text +
       ';color-scheme:' +
       theme.scheme +
-      ';border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.22);pointer-events:auto;z-index:' +
+      ';border-radius:' +
+      CHROME_RADIUS +
+      ';box-shadow:0 10px 40px rgba(0,0,0,.22);pointer-events:auto;z-index:' +
       Z_THREAD +
       ';overflow:hidden;font-family:ui-sans-serif,system-ui,sans-serif;';
-    placeThread(card, point);
     isolatePointer(card);
 
     const header = document.createElement('header');
@@ -887,6 +1387,7 @@ export function initComments() {
     });
     header.appendChild(close);
     card.appendChild(header);
+    card.appendChild(sectionPicker(comment, theme));
 
     if (!isDraft) {
       const list = document.createElement('div');
@@ -923,7 +1424,9 @@ export function initComments() {
     input.style.cssText =
       'width:100%;min-height:64px;resize:vertical;border:1px solid ' +
       theme.inputBorder +
-      ';border-radius:8px;padding:8px;font:inherit;font-size:13px;box-sizing:border-box;pointer-events:auto;background:' +
+      ';border-radius:' +
+      CHROME_RADIUS +
+      ';padding:8px;font:inherit;font-size:13px;box-sizing:border-box;pointer-events:auto;background:' +
       theme.input +
       ';color:inherit;';
     actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;';
@@ -949,7 +1452,9 @@ export function initComments() {
     submit.type = 'button';
     submit.textContent = isDraft ? 'Send' : 'Svar';
     submit.style.cssText =
-      'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:8px;background:' +
+      'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
+      CHROME_RADIUS +
+      ';background:' +
       theme.primary +
       ';color:#fff;pointer-events:auto;';
     actions.appendChild(submit);
@@ -960,7 +1465,9 @@ export function initComments() {
       resolve.type = 'button';
       resolve.textContent = comment.resolved ? 'Åbn igen' : 'Marker som løst';
       resolve.style.cssText =
-        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:8px;background:' +
+        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
+      CHROME_RADIUS +
+      ';background:' +
         theme.ghost +
         ';color:inherit;pointer-events:auto;';
       resolve.addEventListener('click', (event) => {
@@ -975,9 +1482,11 @@ export function initComments() {
       remove.type = 'button';
       remove.textContent = 'Slet';
       remove.style.cssText =
-        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:8px;background:transparent;color:' +
-        theme.primary +
-        ';pointer-events:auto;';
+        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
+      CHROME_RADIUS +
+      ';background:' +
+        theme.ghost +
+        ';color:inherit;pointer-events:auto;';
       remove.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -993,7 +1502,9 @@ export function initComments() {
       cancel.type = 'button';
       cancel.textContent = 'Annuller';
       cancel.style.cssText =
-        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:8px;background:' +
+        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
+      CHROME_RADIUS +
+      ';background:' +
         theme.ghost +
         ';color:inherit;pointer-events:auto;';
       cancel.addEventListener('click', (event) => {
@@ -1109,19 +1620,9 @@ export function initComments() {
   }
 
   function deselectComments() {
-    if (!mode && !commentsPaneOpen()) {
-      return;
+    if (mode) {
+      setPlaceMode(false);
     }
-
-    const btn = document.querySelector('#__sve-toolbar button[data-tab="comments"]');
-
-    if (btn) {
-      btn.click();
-      return;
-    }
-
-    document.getElementById('__sve-comments-pane')?.remove();
-    window.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
   }
 
   function start() {
@@ -1135,11 +1636,25 @@ export function initComments() {
     syncModeFromDock();
 
     window.addEventListener('sve-right-dock-change', syncModeFromDock);
+    window.addEventListener('sve-comments-place', () => setPlaceMode(!mode));
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-sve-comments-place]');
+
+      if (!btn) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setPlaceMode(!mode);
+    });
     window.addEventListener('popstate', () => {
       fetchedEntryId = null;
+      resetSectionWatch();
       loadComments();
     });
     window.addEventListener('resize', layoutGeometry);
+    window.setInterval(() => syncOrphanComments(), 600);
     let lastDark = isDark();
     new MutationObserver(() => {
       const next = isDark();
@@ -1150,12 +1665,17 @@ export function initComments() {
 
       lastDark = next;
 
-      if (mode && openId) {
+      if (commentsPaneOpen() && openId) {
         paintUi();
       }
     }).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
     window.addEventListener('message', (event) => {
       const data = event.data;
+
+      if (data?.name === 'statamic.preview.updated') {
+        syncOrphanComments({ force: true });
+        return;
+      }
 
       if (!data || data.source !== 'sve-comments') {
         return;

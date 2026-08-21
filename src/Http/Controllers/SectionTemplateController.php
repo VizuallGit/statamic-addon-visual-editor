@@ -5,15 +5,14 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
+use MarioHamann\StatamicVisualEditor\TailwindBake;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
-use Statamic\Facades\User;
 
 /**
  * Read and write a section type's Antlers partial from Live Preview.
  *
- * Super admin and the settings toggle both have to be on. The file is the
- * shared template for every page that uses the type — which is why editors
- * never see the dock.
+ * The settings toggle and toolbar access both have to be on. The file is the
+ * shared template for every page that uses the type.
  */
 class SectionTemplateController
 {
@@ -26,7 +25,7 @@ class SectionTemplateController
 
         abort_unless($path, 404);
 
-        $parts = SectionTemplate::split((string) file_get_contents($path));
+        $parts = SectionTemplate::split((string) file_get_contents($path), $handle);
 
         return response()->json([
             'type' => $handle,
@@ -34,6 +33,7 @@ class SectionTemplateController
             'html' => $parts['html'],
             'css' => $parts['css'],
             'js' => $parts['js'],
+            'locked' => ! empty($parts['locked']),
         ]);
     }
 
@@ -61,21 +61,31 @@ class SectionTemplateController
 
         abort_unless($path, 404);
 
-        $meta = SectionTemplate::split((string) file_get_contents($path));
-        $tw = $request->input('tw');
+        $meta = SectionTemplate::split((string) file_get_contents($path), $handle);
+
+        abort_if(! empty($meta['locked']), 423);
+
+        $tw = Features::enabled('tailwind_dock')
+            ? TailwindBake::fromHtml($html)
+            : ($meta['tw'] ?? '');
+
         $contents = SectionTemplate::join([
             'html' => $html,
             'css' => $css,
             'js' => $js,
-            'tw' => Features::enabled('tailwind_dock') && is_string($tw)
-                ? $tw
-                : ($meta['tw'] ?? ''),
+            'tw' => $tw,
             'html_tag' => $meta['html_tag'],
             'css_tag' => $meta['css_tag'],
             'js_tag' => $meta['js_tag'],
-        ]);
+            'locked' => false,
+        ], $handle);
 
         file_put_contents($path, $contents);
+
+        // Do not kick PreviewRefresher here. The dock saves on every keystroke;
+        // spawning a headless browser then loads extra site documents and has
+        // thrown the editor back to the public front end. Picker screenshots
+        // catch up when the library opens or `sve:previews` runs.
 
         return response()->json([
             'ok' => true,
@@ -83,9 +93,28 @@ class SectionTemplateController
         ]);
     }
 
+    public function lock(Request $request)
+    {
+        $this->authorize();
+
+        $handle = (string) $request->input('type', '');
+        $path = SectionTemplate::path($handle);
+
+        abort_unless($path, 404);
+
+        $locked = $request->boolean('locked');
+
+        SectionTemplate::setLocked($path, $locked);
+
+        return response()->json([
+            'ok' => true,
+            'locked' => $locked,
+            'path' => SectionTemplate::relative($path),
+        ]);
+    }
+
     protected function authorize(): void
     {
-        abort_unless(User::current()?->isSuper(), 403);
-        abort_unless(Features::enabled('template_dock'), 403);
+        abort_unless(Features::allows('template_dock'), 403);
     }
 }

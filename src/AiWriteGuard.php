@@ -38,7 +38,7 @@ class AiWriteGuard
     }
 
     /**
-     * Contents of every allowed AI file, so Build mode can undo the agent.
+     * Contents of every allowed AI file, so Write mode can undo the agent.
      *
      * @return array<string, string|false>
      */
@@ -63,7 +63,7 @@ class AiWriteGuard
 
     /**
      * Undo agent writes under the allowlist. Files that were already dirty
-     * before the run stay as the user left them — Build must not revert a
+     * before the run stay as the user left them — Write must not revert a
      * template they were editing in the dock while the agent thought.
      *
      * @param  array<string, string|false>  $before

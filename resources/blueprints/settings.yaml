@@ -36,6 +36,15 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: pages_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: pages
+              if:
+                enabled: 'equals true'
+                pages: 'equals true'
+          -
             handle: globals
             field:
               type: toggle
@@ -45,6 +54,24 @@ tabs:
               width: 50
               if:
                 enabled: 'equals true'
+          -
+            handle: globals_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: globals
+              if:
+                enabled: 'equals true'
+                globals: 'equals true'
+          -
+            handle: globals_picker
+            field:
+              type: globals_picker
+              display: 'Shown in the Globals menu'
+              instructions: 'Which global sets the globe menu lists in Live Preview. Header and footer are off by default — they are still opened by clicking them on the page. Turn a set on here if you want it in the menu on this site.'
+              if:
+                enabled: 'equals true'
+                globals: 'equals true'
           -
             handle: sections
             field:
@@ -56,6 +83,34 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: sections_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: sections
+              if:
+                enabled: 'equals true'
+                sections: 'equals true'
+          -
+            handle: listview
+            field:
+              type: toggle
+              display: 'Block tree'
+              instructions: 'The page as a tree of sections and blocks, docked on the right. Heading outline is a tab inside it.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: listview_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: listview
+              if:
+                enabled: 'equals true'
+                listview: 'equals true'
+          -
             handle: outline
             field:
               type: toggle
@@ -65,6 +120,25 @@ tabs:
               width: 50
               if:
                 enabled: 'equals true'
+          -
+            handle: comments
+            field:
+              type: toggle
+              display: Comments
+              instructions: 'Figma-style pins in Live Preview.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: comments_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: comments
+              if:
+                enabled: 'equals true'
+                comments: 'equals true'
       -
         display: 'Editing on the page'
         fields:
@@ -101,16 +175,25 @@ tabs:
             field:
               type: toggle
               display: 'Edit section templates'
-              instructions: 'When a super admin clicks a section, a bottom panel opens the section''s Antlers file. Saving writes the file on this server. Content editors never see it, even with this on. Off by default.'
+              instructions: 'When a section is selected, a bottom panel opens the section''s Antlers file. Saving writes the file on this server. Off by default. Super admins see the icon unless you name specific people — so a customer who is also super does not get the code dock by default.'
               default: false
               if:
                 enabled: 'equals true'
+          -
+            handle: template_dock_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: template_dock
+              if:
+                enabled: 'equals true'
+                template_dock: 'equals true'
           -
             handle: tailwind_dock
             field:
               type: toggle
               display: 'Compile Tailwind in the template dock'
-              instructions: 'When you type a Tailwind class in the HTML pane — including one this site has never used, like `bg-[#333333]` — the editor compiles the CSS and saves it with the section. Works without `npm run dev`. Off, the dock writes the file exactly as it does today. Super admin only; needs the template dock.'
+              instructions: 'When you type a Tailwind class in the HTML pane — including one this site has never used, like `bg-[#333333]` — the editor compiles the CSS and saves it with the section. Works without `npm run dev`. Off, the dock writes the file exactly as it does today. Needs the template dock.'
               default: false
               if:
                 enabled: 'equals true'
@@ -120,27 +203,26 @@ tabs:
             field:
               type: toggle
               display: 'AI chat'
-              instructions: 'A super-admin chat in Live Preview that runs Cursor on this site. Same Cursor account you already pay for — not a second Claude/Anthropic bill. Content editors never see it. Off by default.'
+              instructions: 'A chat in Live Preview that runs Cursor on this site. Same Cursor account you already pay for — not a second Claude/Anthropic bill. Off by default.'
               default: false
               if:
                 enabled: 'equals true'
           -
-            handle: comments
+            handle: ai_panel_access
             field:
-              type: toggle
-              display: Comments
-              instructions: 'Figma-style pins in Live Preview. Super admins click the preview to leave a thread on a section. Content editors never see it.'
-              default: true
-              width: 50
+              type: toolbar_access
+              hide_display: true
+              tool: ai_panel
               if:
                 enabled: 'equals true'
+                ai_panel: 'equals true'
           -
             handle: ai_api_key
             field:
               type: text
               display: 'Cursor API key'
               input_type: password
-              instructions: 'From cursor.com/dashboard/api — your existing Cursor account, not Claude. You can also set CURSOR_API_KEY in .env; this field wins when it is not empty.'
+              instructions: 'Paste it here, from cursor.com/dashboard/api. This field is what the editor uses. If you leave it empty, CURSOR_API_KEY in .env is used instead.'
               if:
                 enabled: 'equals true'
                 ai_panel: 'equals true'

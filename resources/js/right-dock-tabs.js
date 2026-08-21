@@ -2,11 +2,22 @@
  * One right sidebar for Live Preview.
  *
  * Tools stay as icons in the top bar. Clicking one loads its content into this
- * shell — same width, same Statamic drag-dots handle. Theme Settings keeps its
- * iframe parked inside so switching away does not reload it.
+ * shell — same width, same Statamic drag-dots handle. Theme Settings is not
+ * a pane here: it covers the left editor so the pin-stack stays for tools
+ * like the block tree and comments.
  *
- * Accordion snapshot (several open, pin, reorder): right-dock-accordion.js
+ * Pin (RIGHT_DOCK_PIN_STACK): a pin next to each panel's close keeps that
+ * tool in the sidebar when you open another from the top bar. Several can
+ * sit stacked, each foldable to its header so one library cannot eat the
+ * column. A dotted grip reorders; a height grip sits between two open panes.
+ * Unpin and they go back to one at a time. Set the flag to false and rebuild
+ * to drop the experiment.
+ *
+ * Accordion snapshot (tools lived in the sidebar, not the top bar):
+ * right-dock-accordion.js
  */
+
+import { chromeGet, chromeSet } from './chrome-prefs.js';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -28,18 +39,62 @@ export const RIGHT_DOCK_ID = '__sve-right-dock';
 const STYLE_ID = '__sve-right-dock-style';
 const OPEN_KEY = 'sve-right-dock-open';
 const WIDTH_KEY = 'sve-right-dock-width';
+const OPEN_PANES_KEY = 'sve-right-dock-open-panes';
+const FOLDED_KEY = 'sve-right-dock-folded';
 const LEGACY_WIDTH_KEYS = ['sve-globals-panel-width', 'sve-listview-panel-width', 'sve-ai-panel-width'];
 
-const MIN_WIDTH = 240;
-const DEFAULT_WIDTH = 320;
-const CHROME = 'shell-1';
+const MIN_WIDTH_REM = 16;
+const MAX_WIDTH_REM = 50;
+const DEFAULT_WIDTH_REM = 22;
+const MIN_PANE = 76;
+
+/**
+ * Try: pin several top-bar tools in the right sidebar at once.
+ * Set to `false` and run `npm run cp:build` to go back to one at a time.
+ */
+export const RIGHT_DOCK_PIN_STACK = true;
+
+const CHROME = RIGHT_DOCK_PIN_STACK ? 'shell-pin-2' : 'shell-1';
+const PIN_KEY = 'sve-right-dock-pinned';
+const HEIGHTS_KEY = 'sve-right-dock-stack-heights';
+const ORDER_KEY = 'sve-right-dock-stack-order';
+
+const GRIP_6 =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">'
+  + '<circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="6" r="1.7"/>'
+  + '<circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/>'
+  + '<circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
+
+const PANE_BY_ID = {
+  '__sve-listview-panel': 'listview',
+  '__sve-outline-panel': 'outline',
+  '__sve-comments-pane': 'comments',
+  '__sve-section-picker': 'sections',
+  '__sve-ai-panel': 'ai',
+};
+
+const PIN_OFF =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
+  + 'stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1z"/></svg>';
+
+const PIN_ON =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" '
+  + 'stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1z"/></svg>';
+
+const CLOSE_ICON =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+const CHEVRON_ICON =
+  '<svg data-sve-right-chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
+  + 'stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
 
 export const RIGHT_PANE_TOOLS = ['listview', 'outline', 'comments', 'sections', 'ai'];
 
 /** Inner panel fill — the shell owns position, width, border and the grip. */
 export const RIGHT_PANEL_FILL =
   'flex:1 1 auto;min-height:0;min-width:0;width:100%;display:flex;flex-direction:column;' +
-  'overflow:hidden;position:relative;background:transparent;border:0;box-shadow:none;';
+  'overflow:hidden;position:relative;background:transparent;border:0;box-shadow:none;box-sizing:border-box;';
 
 /** Same 2×4 dots as Statamic `.live-preview-resizer` (vendor `drag-dots.svg`). */
 export const DRAG_DOTS_V =
@@ -73,6 +128,11 @@ html.dark ${selector},
 }
 
 const hooks = {};
+let widthDragging = false;
+
+export function isRightDockResizing() {
+  return widthDragging;
+}
 
 export function toolPlacement(key) {
   return TOOL_PLACEMENT[key] || 'topbar';
@@ -91,59 +151,259 @@ export function registerRightDockHook(key, hook) {
 }
 
 function storedOpen(win) {
-  try {
-    const raw = win.localStorage.getItem(OPEN_KEY);
+  const raw = chromeGet(win, OPEN_KEY);
 
-    if (raw === '0') {
-      return false;
-    }
+  if (raw === '0') {
+    return false;
+  }
 
-    if (raw === '1') {
-      return true;
-    }
-  } catch {
-    /* private mode */
+  if (raw === '1') {
+    return true;
   }
 
   return false;
 }
 
 function storeOpen(win, open) {
-  try {
-    win.localStorage.setItem(OPEN_KEY, open ? '1' : '0');
-  } catch {
-    /* private mode */
-  }
+  chromeSet(win, OPEN_KEY, open ? '1' : '0');
+}
+
+function remPx(win, rem) {
+  const root = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
+
+  return Math.round(rem * root);
+}
+
+function clampDockWidth(win, px) {
+  return Math.round(Math.min(remPx(win, MAX_WIDTH_REM), Math.max(remPx(win, MIN_WIDTH_REM), px)));
 }
 
 function readStoredPx(win, key) {
-  try {
-    const n = Number(win.localStorage.getItem(key));
+  const n = Number(chromeGet(win, key));
 
-    if (Number.isFinite(n) && n >= MIN_WIDTH) {
-      return Math.min(n, Math.round(win.innerWidth * 0.6));
-    }
-  } catch {
-    /* ignore */
+  if (Number.isFinite(n) && n > 0) {
+    return clampDockWidth(win, n);
   }
 
   return 0;
 }
 
 function storedWidth(win) {
-  return readStoredPx(win, WIDTH_KEY) || LEGACY_WIDTH_KEYS.reduce((found, key) => found || readStoredPx(win, key), 0) || DEFAULT_WIDTH;
+  return (
+    readStoredPx(win, WIDTH_KEY) ||
+    LEGACY_WIDTH_KEYS.reduce((found, key) => found || readStoredPx(win, key), 0) ||
+    remPx(win, DEFAULT_WIDTH_REM)
+  );
 }
 
 function storeWidth(win, px) {
-  try {
-    win.localStorage.setItem(WIDTH_KEY, String(px));
-  } catch {
-    /* private mode */
-  }
+  chromeSet(win, WIDTH_KEY, String(px));
 }
 
 export function rightDockWidth(win) {
   return storedWidth(win);
+}
+
+function t(win, key) {
+  return win.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
+}
+
+function paneKeyOf(el) {
+  return el?.getAttribute?.('data-sve-right-pane') || PANE_BY_ID[el?.id] || '';
+}
+
+function storedPinned(win) {
+  const out = {};
+
+  try {
+    const raw = JSON.parse(chromeGet(win, PIN_KEY) || 'null');
+
+    if (raw && typeof raw === 'object') {
+      for (const key of Object.values(PANE_BY_ID)) {
+        out[key] = raw[key] === true;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return out;
+}
+
+function storePinned(win, pinned) {
+  chromeSet(win, PIN_KEY, JSON.stringify(pinned));
+}
+
+function storedFolded(win) {
+  const out = {};
+
+  try {
+    const raw = JSON.parse(chromeGet(win, FOLDED_KEY) || 'null');
+
+    if (raw && typeof raw === 'object') {
+      for (const key of Object.values(PANE_BY_ID)) {
+        out[key] = raw[key] === true;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return out;
+}
+
+function storeFolded(win, folded) {
+  chromeSet(win, FOLDED_KEY, JSON.stringify(folded));
+}
+
+function storedHeights(win) {
+  try {
+    const raw = JSON.parse(chromeGet(win, HEIGHTS_KEY) || 'null');
+
+    if (raw && typeof raw === 'object') {
+      return raw;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return {};
+}
+
+function storeHeights(win, heights) {
+  chromeSet(win, HEIGHTS_KEY, JSON.stringify(heights));
+}
+
+function storedOrder(win) {
+  try {
+    const raw = JSON.parse(chromeGet(win, ORDER_KEY) || 'null');
+
+    if (Array.isArray(raw)) {
+      return raw.filter((key) => typeof key === 'string');
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return [];
+}
+
+function storeOrder(win, order) {
+  chromeSet(win, ORDER_KEY, JSON.stringify(order));
+}
+
+function storedOpenPanes(win) {
+  try {
+    const raw = JSON.parse(chromeGet(win, OPEN_PANES_KEY) || 'null');
+
+    if (Array.isArray(raw)) {
+      return raw.filter((key) => typeof key === 'string' && Object.values(PANE_BY_ID).includes(key));
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return [];
+}
+
+export function visiblePaneKeys(win) {
+  const slot = slotEl(dockEl(win.document));
+
+  return [...(slot?.children || [])].filter(isVisibleChild).map(paneKeyOf).filter(Boolean);
+}
+
+export function persistVisibleRightPanes(win, keys = null) {
+  const panes = keys || visiblePaneKeys(win);
+
+  chromeSet(win, OPEN_PANES_KEY, JSON.stringify(panes));
+}
+
+/**
+ * Panes to remount after a full reload: stack order, then pins, then last open.
+ * Outline is a tab on the block tree, not its own shell pane.
+ */
+export function rememberedRightPaneKeys(win) {
+  const pinned = storedPinned(win);
+  const open = storedOpenPanes(win);
+  const want = new Set();
+
+  for (const key of Object.keys(pinned)) {
+    if (pinned[key]) {
+      want.add(key === 'outline' ? 'listview' : key);
+    }
+  }
+
+  for (const key of open) {
+    want.add(key === 'outline' ? 'listview' : key);
+  }
+
+  const out = [];
+  const seen = new Set();
+
+  for (const key of [...storedOrder(win), ...open, ...want]) {
+    const next = key === 'outline' ? 'listview' : key;
+
+    if (!want.has(next) || seen.has(next)) {
+      continue;
+    }
+
+    seen.add(next);
+    out.push(next);
+  }
+
+  return out;
+}
+
+export function rememberedListViewTab(win) {
+  const tab = chromeGet(win, 'sve-listview-tab');
+
+  if (tab === 'outline' || storedOpenPanes(win).includes('outline')) {
+    return 'outline';
+  }
+
+  return 'tree';
+}
+
+function persistStackOrder(win, slot) {
+  const order = [...slot.children].filter(isVisibleChild).map(paneKeyOf).filter(Boolean);
+
+  if (order.length) {
+    storeOrder(win, order);
+  }
+}
+
+function orderedKids(win, slot) {
+  const kids = [...slot.children].filter(isVisibleChild);
+  const order = storedOrder(win);
+
+  if (!order.length) {
+    return kids;
+  }
+
+  const rank = (el) => {
+    const i = order.indexOf(paneKeyOf(el));
+
+    return i < 0 ? order.length : i;
+  };
+
+  return [...kids].sort((a, b) => rank(a) - rank(b));
+}
+
+function isPinned(win, key) {
+  return RIGHT_DOCK_PIN_STACK && !!key && storedPinned(win)[key] === true;
+}
+
+/** Panel ids that stay when another top-bar tool opens. Empty if the experiment is off. */
+export function pinnedKeepIds(win) {
+  if (!RIGHT_DOCK_PIN_STACK) {
+    return [];
+  }
+
+  const pinned = storedPinned(win);
+
+  return Object.entries(PANE_BY_ID)
+    .filter(([, key]) => pinned[key])
+    .map(([id]) => id);
 }
 
 function ensureStyle(doc) {
@@ -157,12 +417,17 @@ function ensureStyle(doc) {
 
   style.textContent = `
 #${RIGHT_DOCK_ID} {
+  --sve-right-gutter: 12px;
+  --sve-right-header-gap: 10px;
+  --sve-right-header-pad-block: 10px;
+  --sve-right-body-pad-block: 12px;
   position: fixed;
   right: 0;
   z-index: 41;
   display: flex;
-  flex-direction: column;
-  overflow: visible;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
   border-left: 1px solid rgba(128,128,128,.28);
@@ -183,16 +448,268 @@ function ensureStyle(doc) {
   overflow: hidden;
 }
 #${RIGHT_DOCK_ID} [data-sve-right-resize] {
-  position: absolute;
-  left: -8px;
-  top: 0;
-  bottom: 0;
+  position: relative;
+  flex: 0 0 16px;
   width: 16px;
+  align-self: stretch;
   cursor: ew-resize;
   z-index: 2;
   ${splitterFill('ew')}
 }
+#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-slot] {
+  padding: 0;
+  gap: 0;
+}
+#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] {
+  border-radius: 0;
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane] {
+  box-sizing: border-box;
+  padding-inline: var(--sve-right-gutter);
+}
+/* One gutter, owned by the pane. Nested lists used to add their own 10–14px
+   and the block tree sat narrower than comments / patterns / AI. */
+#${RIGHT_DOCK_ID} [data-sve-right-pane] > :not(:first-child),
+#${RIGHT_DOCK_ID} [data-sve-comments-host] > *,
+#${RIGHT_DOCK_ID} [data-sve-lv-body] > * {
+  padding-inline: 0 !important;
+  margin-inline: 0 !important;
+}
+#${RIGHT_DOCK_ID} [data-sve-lv-body],
+#${RIGHT_DOCK_ID} [data-sve-listview-list],
+#${RIGHT_DOCK_ID} [data-sve-outline-list] {
+  width: 100%;
+  box-sizing: border-box;
+}
+#${RIGHT_DOCK_ID} [data-sve-listview-list],
+#${RIGHT_DOCK_ID} [data-sve-outline-list] {
+  padding-inline: 0 !important;
+  padding-block: var(--sve-right-body-pad-block);
+}
+#${RIGHT_DOCK_ID} [data-sve-right-split] {
+  flex: 0 0 12px;
+  cursor: ns-resize;
+  z-index: 1;
+  margin: 0;
+  ${splitterFill('ns')}
+  background-size: 11px 5px;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 5'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' x='3' rx='1'/><rect width='2' height='2' x='6' rx='1'/><rect width='2' height='2' x='9' rx='1'/><rect width='2' height='2' y='3' rx='1'/><rect width='2' height='2' x='3' y='3' rx='1'/><rect width='2' height='2' x='6' y='3' rx='1'/><rect width='2' height='2' x='9' y='3' rx='1'/></g></svg>");
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane] > :first-child {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap;
+  gap: var(--sve-right-header-gap);
+  width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
+  min-width: 0;
+  flex: 0 0 auto;
+  padding-block: var(--sve-right-header-pad-block) !important;
+  padding-inline: 0 !important;
+  border-bottom: 1px solid rgba(128,128,128,.22);
+  background: transparent;
+}
+#${RIGHT_DOCK_ID} [data-sve-lv-chrome] {
+  align-items: stretch !important;
+  gap: var(--sve-right-header-gap);
+  padding: var(--sve-right-header-pad-block) 0 0 !important;
+}
+#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-lv-tabs] {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-reorder],
+#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-fold],
+#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-actions],
+#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-pin],
+#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-close] {
+  align-self: center;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-title] {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+}
+#${RIGHT_DOCK_ID} [data-sve-ai-name] {
+  flex: 0 0 auto;
+}
+#${RIGHT_DOCK_ID} [data-sve-ai-type] {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: .55;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+#${RIGHT_DOCK_ID} [data-sve-ai-modes] {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+#${RIGHT_DOCK_ID} [data-sve-ai-modes] [data-sve-ai-mode] {
+  flex: 0 0 auto;
+  pointer-events: auto;
+  cursor: pointer;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-actions] {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pin],
+#${RIGHT_DOCK_ID} [data-sve-close],
+#${RIGHT_DOCK_ID} [data-sve-comments-place] {
+  all: unset;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pin] {
+  opacity: .55;
+  background: transparent;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pin] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] > :first-child {
+  cursor: default;
+}
+#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] > :first-child :is(button, input, a, [data-lv-tab], [data-sve-panel-tab]):not([data-sve-right-reorder]):not([data-sve-right-fold]) {
+  cursor: pointer;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-reorder] {
+  all: unset;
+  cursor: grab !important;
+  width: 16px;
+  height: 20px;
+  margin-inline-end: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  color: currentColor;
+  background-color: var(--theme-color-gray-300, #d4d4d8);
+}
+#${RIGHT_DOCK_ID} [data-sve-right-reorder] svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  opacity: .55;
+  pointer-events: none;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-reorder]:active {
+  cursor: grabbing !important;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-fold] {
+  all: unset;
+  cursor: pointer;
+  width: 16px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  color: currentColor;
+  opacity: .55;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-fold] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  transition: transform .12s ease;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane]:not([data-sve-right-folded]) [data-sve-right-fold] svg {
+  transform: rotate(90deg);
+}
+#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-title] {
+  cursor: pointer;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] ~ [data-sve-right-pane] > :first-child {
+  border-top: 1px solid rgba(128,128,128,.22);
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] > :first-child {
+  border-bottom: none;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] > :not(:first-child) {
+  display: none !important;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] [data-sve-ai-modes] {
+  display: none !important;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pane][data-dragging] {
+  opacity: .55;
+}
+#${RIGHT_DOCK_ID} [data-sve-right-pin][aria-pressed="true"] {
+  opacity: 1;
+  color: currentColor;
+  background: transparent;
+}
+#${RIGHT_DOCK_ID} [data-sve-comments-place] {
+  opacity: .55;
+  background: transparent;
+}
+#${RIGHT_DOCK_ID} [data-sve-comments-place] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+}
+#${RIGHT_DOCK_ID} [data-sve-comments-place][aria-pressed="true"] {
+  opacity: 1;
+  color: currentColor;
+  background: transparent;
+}
+#${RIGHT_DOCK_ID} [data-sve-comments-place][aria-pressed="true"] svg {
+  fill: currentColor;
+}
+#${RIGHT_DOCK_ID} [data-sve-close] {
+  opacity: .55;
+}
+#${RIGHT_DOCK_ID} [data-sve-close] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
 ${splitterFillDark(`#${RIGHT_DOCK_ID} [data-sve-right-resize]`)}
+${splitterFillDark(`#${RIGHT_DOCK_ID} [data-sve-right-split]`)}
+${splitterFillDark(`#${RIGHT_DOCK_ID} [data-sve-right-reorder]`)}
 `;
 }
 
@@ -207,6 +724,7 @@ function slotEl(dock) {
 function isVisibleChild(el) {
   return (
     !!el &&
+    !el.hasAttribute('data-sve-right-split') &&
     !el.hidden &&
     !el.hasAttribute('data-sve-chrome-hidden') &&
     el.style.display !== 'none'
@@ -227,6 +745,58 @@ function notify(win) {
   );
 }
 
+function previewRightPad(doc, px) {
+  const el = doc.querySelector('.live-preview-contents');
+
+  if (!el) {
+    return;
+  }
+
+  el.style.transition = 'none';
+  el.style.paddingRight = px ? `${px}px` : '';
+}
+
+function beginOverlayDrag(win, cursor, onMove, onEnd) {
+  const doc = win.document;
+  const frames = [...doc.querySelectorAll('iframe')];
+
+  frames.forEach((frame) => {
+    frame.style.pointerEvents = 'none';
+  });
+
+  const shield = doc.createElement('div');
+  shield.setAttribute('data-sve-right-drag-shield', '');
+  shield.style.cssText =
+    `position:fixed;inset:0;z-index:2147483646;cursor:${cursor};user-select:none;`;
+  doc.body.appendChild(shield);
+
+  let done = false;
+
+  const move = (event) => {
+    onMove(event);
+  };
+
+  const up = () => {
+    if (done) {
+      return;
+    }
+
+    done = true;
+    doc.removeEventListener('mousemove', move);
+    doc.removeEventListener('mouseup', up);
+    win.removeEventListener('blur', up);
+    frames.forEach((frame) => {
+      frame.style.pointerEvents = '';
+    });
+    shield.remove();
+    onEnd?.();
+  };
+
+  doc.addEventListener('mousemove', move);
+  doc.addEventListener('mouseup', up);
+  win.addEventListener('blur', up);
+}
+
 function bindWidth(win, dock) {
   if (dock._sveRightWidthBound) {
     return;
@@ -237,34 +807,438 @@ function bindWidth(win, dock) {
   const handle = dock.querySelector('[data-sve-right-resize]');
 
   handle?.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
     event.preventDefault();
 
     const startX = event.clientX;
     const startW = dock.getBoundingClientRect().width;
-    const frame = dock.querySelector('iframe');
+    let next = startW;
 
-    if (frame) {
-      frame.style.pointerEvents = 'none';
+    widthDragging = true;
+
+    beginOverlayDrag(
+      win,
+      'ew-resize',
+      (e) => {
+        next = clampDockWidth(
+          win,
+          startW + (startX - e.clientX)
+        );
+        dock.style.width = `${next}px`;
+        previewRightPad(win.document, next);
+      },
+      () => {
+        widthDragging = false;
+        storeWidth(win, next);
+        placeRightDock(win);
+        previewRightPad(win.document, next);
+        win.dispatchEvent(new Event('resize'));
+      }
+    );
+  });
+}
+
+function paintPinButton(win, btn, key) {
+  const on = isPinned(win, key);
+
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.title = t(win, on ? 'right_dock_unpin' : 'right_dock_pin');
+  btn.innerHTML = on ? PIN_ON : PIN_OFF;
+}
+
+function ensurePinButton(win, panel) {
+  if (!RIGHT_DOCK_PIN_STACK) {
+    panel.querySelector('[data-sve-right-pin]')?.remove();
+
+    return;
+  }
+
+  const key = paneKeyOf(panel);
+
+  if (!key) {
+    return;
+  }
+
+  const close = panel.querySelector('[data-sve-close]');
+
+  if (!close) {
+    return;
+  }
+
+  let actions = close.closest('[data-sve-right-actions]');
+
+  if (!actions) {
+    actions = win.document.createElement('div');
+    actions.setAttribute('data-sve-right-actions', '');
+    close.before(actions);
+  }
+
+  if (close.parentElement !== actions) {
+    actions.appendChild(close);
+  }
+
+  if (!close.querySelector('svg')) {
+    close.innerHTML = CLOSE_ICON;
+  }
+
+  panel.querySelectorAll('[data-sve-comments-place]').forEach((el) => {
+    if (el.parentElement !== actions) {
+      actions.insertBefore(el, close);
+    }
+  });
+
+  let btn = actions.querySelector('[data-sve-right-pin]');
+
+  if (!btn) {
+    btn = win.document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('data-sve-right-pin', key);
+    actions.insertBefore(btn, close);
+  }
+
+  paintPinButton(win, btn, key);
+}
+
+function ensureReorderGrip(win, panel, stacked) {
+  const header = panel.firstElementChild;
+
+  if (!header) {
+    return;
+  }
+
+  let grip = header.querySelector('[data-sve-right-reorder]');
+
+  if (!stacked) {
+    grip?.remove();
+
+    return;
+  }
+
+  if (!grip) {
+    grip = win.document.createElement('button');
+    grip.type = 'button';
+    grip.setAttribute('data-sve-right-reorder', '');
+    grip.title = t(win, 'right_dock_reorder');
+    grip.innerHTML = GRIP_6;
+    header.insertBefore(grip, header.firstChild);
+  } else if (header.firstElementChild !== grip) {
+    header.insertBefore(grip, header.firstChild);
+  }
+}
+
+function ensureFoldButton(win, panel, stacked) {
+  const header = panel.firstElementChild;
+
+  if (!header) {
+    return;
+  }
+
+  let btn = header.querySelector('[data-sve-right-fold]');
+
+  if (!stacked) {
+    btn?.remove();
+
+    return;
+  }
+
+  if (!btn) {
+    btn = win.document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('data-sve-right-fold', '');
+    btn.innerHTML = CHEVRON_ICON;
+    const grip = header.querySelector('[data-sve-right-reorder]');
+
+    if (grip) {
+      grip.after(btn);
+    } else {
+      header.insertBefore(btn, header.firstChild);
+    }
+  }
+
+  const open = !panel.hasAttribute('data-sve-right-folded');
+
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  btn.title = t(win, open ? 'right_dock_fold' : 'right_dock_unfold');
+}
+
+function toggleFold(win, panel) {
+  const key = paneKeyOf(panel);
+
+  if (!key) {
+    return;
+  }
+
+  const folded = storedFolded(win);
+
+  folded[key] = !folded[key];
+  storeFolded(win, folded);
+  layoutStack(win, dockEl(win.document));
+}
+
+function layoutStack(win, dock) {
+  const slot = slotEl(dock);
+
+  if (!slot) {
+    return;
+  }
+
+  const kids = orderedKids(win, slot);
+  const current = [...slot.children].filter((el) => !el.hasAttribute('data-sve-right-split'));
+  const orderSame = current.length === kids.length && kids.every((el, i) => current[i] === el);
+
+  // Re-appending already-stacked panes reloads iframes. Skip that when the
+  // order is already right — but still apply stack, grips and heights.
+  slot.querySelectorAll('[data-sve-right-split]').forEach((el) => el.remove());
+
+  if (!orderSame) {
+    kids.forEach((el) => {
+      if (el.hasAttribute('data-sve-right-keep') && el.parentElement === slot) {
+        return;
+      }
+
+      slot.appendChild(el);
+    });
+  }
+
+  const stacked = RIGHT_DOCK_PIN_STACK && kids.length > 1;
+
+  if (stacked) {
+    dock.setAttribute('data-sve-right-stack', '');
+  } else {
+    dock.removeAttribute('data-sve-right-stack');
+  }
+
+  kids.forEach((el) => {
+    ensureReorderGrip(win, el, stacked);
+    ensureFoldButton(win, el, stacked);
+  });
+
+  if (!stacked) {
+    kids.forEach((el) => {
+      fillPanel(el);
+      el.removeAttribute('data-sve-right-folded');
+      el.style.flex = '';
+      el.style.minHeight = '';
+    });
+
+    return;
+  }
+
+  const heights = storedHeights(win);
+  const folded = storedFolded(win);
+
+  kids.forEach((el) => {
+    const key = paneKeyOf(el);
+
+    fillPanel(el);
+
+    if (key && folded[key]) {
+      el.setAttribute('data-sve-right-folded', '');
+      el.style.flex = '0 0 auto';
+      el.style.minHeight = '0';
+    } else {
+      el.removeAttribute('data-sve-right-folded');
+      const grow = key && Number.isFinite(heights[key]) ? heights[key] : 1;
+
+      el.style.flex = `${Math.max(0.4, grow)} 1 0`;
+      el.style.minHeight = `${MIN_PANE}px`;
     }
 
-    const move = (e) => {
-      const next = Math.min(
-        Math.max(MIN_WIDTH, startW + (startX - e.clientX)),
-        Math.round(win.innerWidth * 0.6)
-      );
+    ensureFoldButton(win, el, true);
+  });
 
-      storeWidth(win, next);
-      dock.style.width = `${next}px`;
-      win.dispatchEvent(new Event('resize'));
+  for (let i = 0; i < kids.length - 1; i += 1) {
+    const above = kids[i];
+    const below = kids[i + 1];
+
+    if (above.hasAttribute('data-sve-right-folded') || below.hasAttribute('data-sve-right-folded')) {
+      continue;
+    }
+
+    const split = win.document.createElement('div');
+
+    split.setAttribute('data-sve-right-split', '');
+    split.setAttribute('data-sve-right-split-after', above.id);
+    below.before(split);
+  }
+}
+
+function beginStackReorder(win, dock, panel) {
+  const slot = slotEl(dock);
+
+  if (!panel || !slot || !isVisibleChild(panel)) {
+    return;
+  }
+
+  panel.setAttribute('data-dragging', '');
+  slot.querySelectorAll('[data-sve-right-split]').forEach((el) => el.remove());
+
+  const frames = [...win.document.querySelectorAll('iframe')];
+
+  frames.forEach((frame) => {
+    frame.style.pointerEvents = 'none';
+  });
+
+  const move = (e) => {
+    const hover = [...slot.children].filter(isVisibleChild).find((el) => {
+      if (el === panel) {
+        return false;
+      }
+
+      const r = el.getBoundingClientRect();
+
+      return e.clientY >= r.top && e.clientY <= r.bottom;
+    });
+
+    if (!hover) {
+      return;
+    }
+
+    const r = hover.getBoundingClientRect();
+
+    if (e.clientY < r.top + r.height / 2) {
+      slot.insertBefore(panel, hover);
+    } else {
+      slot.insertBefore(panel, hover.nextElementSibling);
+    }
+  };
+
+  const up = () => {
+    panel.removeAttribute('data-dragging');
+    persistStackOrder(win, slot);
+    layoutStack(win, dock);
+    frames.forEach((frame) => {
+      frame.style.pointerEvents = '';
+    });
+    win.document.removeEventListener('mousemove', move);
+    win.document.removeEventListener('mouseup', up);
+  };
+
+  win.document.addEventListener('mousemove', move);
+  win.document.addEventListener('mouseup', up);
+}
+
+function bindPinStack(win, dock) {
+  if (!RIGHT_DOCK_PIN_STACK || dock._sveRightPinBound) {
+    return;
+  }
+
+  dock._sveRightPinBound = true;
+
+  dock.addEventListener('click', (event) => {
+    const fold = event.target.closest('[data-sve-right-fold], [data-sve-right-title]');
+
+    if (fold && dock.contains(fold) && dock.hasAttribute('data-sve-right-stack')) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const pane = fold.closest('[data-sve-right-pane]');
+
+      if (pane) {
+        toggleFold(win, pane);
+      }
+
+      return;
+    }
+
+    const pin = event.target.closest('[data-sve-right-pin]');
+
+    if (!pin || !dock.contains(pin)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const key = pin.getAttribute('data-sve-right-pin');
+    const pinned = storedPinned(win);
+
+    pinned[key] = !pinned[key];
+    storePinned(win, pinned);
+    paintPinButton(win, pin, key);
+  });
+
+  dock.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const grip = event.target.closest('[data-sve-right-reorder]');
+    const panel = grip && dock.contains(grip) ? grip.closest('[data-sve-right-pane]') : null;
+
+    if (panel) {
+      event.preventDefault();
+      event.stopPropagation();
+      beginStackReorder(win, dock, panel);
+
+      return;
+    }
+
+    const split = event.target.closest('[data-sve-right-split]');
+
+    if (!split || !dock.contains(split) || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const slot = slotEl(dock);
+    const above = win.document.getElementById(split.getAttribute('data-sve-right-split-after'));
+    const below = split.nextElementSibling;
+
+    if (!slot || !isVisibleChild(above) || !isVisibleChild(below)) {
+      return;
+    }
+
+    const startY = event.clientY;
+    const aboveH = above.getBoundingClientRect().height;
+    const belowH = below.getBoundingClientRect().height;
+    const total = aboveH + belowH;
+    const aboveKey = paneKeyOf(above);
+    const belowKey = paneKeyOf(below);
+    const frames = [...win.document.querySelectorAll('iframe')];
+
+    frames.forEach((frame) => {
+      frame.style.pointerEvents = 'none';
+    });
+
+    const move = (e) => {
+      const dy = e.clientY - startY;
+      let nextA = Math.max(MIN_PANE, Math.min(total - MIN_PANE, aboveH + dy));
+      let nextB = total - nextA;
+
+      if (total < MIN_PANE * 2) {
+        nextA = aboveH;
+        nextB = belowH;
+      }
+
+      above.style.flex = `${nextA} 1 0`;
+      below.style.flex = `${nextB} 1 0`;
+
+      if (aboveKey || belowKey) {
+        const heights = storedHeights(win);
+
+        if (aboveKey) {
+          heights[aboveKey] = nextA;
+        }
+
+        if (belowKey) {
+          heights[belowKey] = nextB;
+        }
+
+        storeHeights(win, heights);
+      }
     };
 
     const up = () => {
       win.document.removeEventListener('mousemove', move);
       win.document.removeEventListener('mouseup', up);
-
-      if (frame) {
+      frames.forEach((frame) => {
         frame.style.pointerEvents = '';
-      }
+      });
     };
 
     win.document.addEventListener('mousemove', move);
@@ -297,7 +1271,7 @@ function parkDockOffscreen(dock) {
 export function placeRightDock(win) {
   const dock = dockEl(win.document);
 
-  if (!dock || dock.hasAttribute('data-sve-right-closed')) {
+  if (!dock || dock.hasAttribute('data-sve-right-closed') || widthDragging) {
     return;
   }
 
@@ -343,6 +1317,8 @@ export function ensureRightDock(win) {
     bindWidth(win, dock);
   }
 
+  bindPinStack(win, dock);
+
   return dock;
 }
 
@@ -364,7 +1340,8 @@ function showKeepChild(el) {
 
 /**
  * Put `panel` in the shared right sidebar. Other tools are removed, except
- * children marked `data-sve-right-keep` (Theme Settings iframe) which hide.
+ * children marked `data-sve-right-keep` (Theme Settings iframe) which hide,
+ * and — when pin stack is on — panels the user has pinned.
  */
 export function showInRightShell(win, panel, { keep = false } = {}) {
   const dock = ensureRightDock(win);
@@ -374,8 +1351,25 @@ export function showInRightShell(win, panel, { keep = false } = {}) {
     return dock;
   }
 
+  const key = paneKeyOf(panel);
+
+  if (key) {
+    panel.setAttribute('data-sve-right-pane', key);
+
+    const folded = storedFolded(win);
+
+    if (folded[key]) {
+      folded[key] = false;
+      storeFolded(win, folded);
+    }
+  }
+
   for (const child of [...slot.children]) {
-    if (child === panel) {
+    if (child === panel || child.hasAttribute('data-sve-right-split')) {
+      continue;
+    }
+
+    if (isPinned(win, paneKeyOf(child))) {
       continue;
     }
 
@@ -395,6 +1389,8 @@ export function showInRightShell(win, panel, { keep = false } = {}) {
   }
 
   showKeepChild(panel);
+  ensurePinButton(win, panel);
+  layoutStack(win, dock);
   dock.removeAttribute('data-sve-right-closed');
   storeOpen(win, true);
   placeRightDock(win);
@@ -420,6 +1416,7 @@ export function parkInRightShell(win, panel) {
   }
 
   hideKeepChild(panel);
+  layoutStack(win, dockEl(win.document));
   releaseRightShellIfEmpty(win);
 }
 
@@ -453,7 +1450,11 @@ export function releaseRightShellIfEmpty(win) {
 
   if (!visibleRightShellChild(win)) {
     hideRightDock(win);
+
+    return;
   }
+
+  layoutStack(win, dock);
 }
 
 export function openRightDock(win) {
@@ -545,8 +1546,13 @@ export function restoreRightDock(win) {
 }
 
 export function relayoutRightDock(win) {
+  if (widthDragging) {
+    return;
+  }
+
   if (isRightDockOpen(win)) {
     placeRightDock(win);
+    layoutStack(win, dockEl(win.document));
   }
 }
 

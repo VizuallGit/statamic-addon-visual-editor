@@ -6,6 +6,8 @@ import './components/fieldtypes/ResponsiveFieldtype.js';
 import './components/fieldtypes/ColumnSpanFieldtype.js';
 import './components/fieldtypes/IconButtonGroupFieldtype.js';
 import './components/fieldtypes/UniqueSetsFieldtype.js';
+import './components/fieldtypes/GlobalsPickerFieldtype.js';
+import './components/fieldtypes/ToolbarAccessFieldtype.js';
 import './components/fieldtypes/DefaultSetsFieldtype.js';
 import './components/fieldtypes/BardDefaultFieldtype.js';
 import './components/LockedRows.js';

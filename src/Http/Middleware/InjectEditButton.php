@@ -152,7 +152,9 @@ class InjectEditButton
 
     protected function button($entry): string
     {
-        $url = e($entry->editUrl().'?live-preview=1');
+        $edit = $entry->editUrl();
+        $joiner = str_contains($edit, '?') ? '&' : '?';
+        $url = e($edit.$joiner.'live-preview=1');
         $host = e($this->resolveScriptUrl('resources/js/overlay-host.js'));
 
         return <<<HTML
@@ -240,13 +242,13 @@ class InjectEditButton
             button.addEventListener('pointerenter', rememberBackground);
             button.addEventListener('click', rememberBackground);
 
-            // Module scripts are deferred — hold the click until overlay-host binds.
+            // Capture so @view-transition cannot follow the href into the CP.
             button.addEventListener('click', function (event) {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
                 event.preventDefault();
                 button.setAttribute('data-loading', '');
                 window.__sveWantEditor = true;
-            });
+            }, true);
         })();
         </script>
         HTML;

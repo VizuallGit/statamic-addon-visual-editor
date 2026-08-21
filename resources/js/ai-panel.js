@@ -5,11 +5,12 @@
  * to Statamic from the developer's machine. This panel calls Anthropic from
  * the Control Panel and runs a local Cursor agent on this site.
  *
- * Write mode edits the selected section on disk. Build mode returns markup
- * in the sidebar so it can be copied or inserted — files stay untouched.
+ * Write mode returns markup in the sidebar so it can be copied or inserted —
+ * files stay untouched. Build mode edits the selected section on disk.
  */
 
-import { currentTemplateType, insertAiSnippet, isCodeDockOpen, refreshCodeDockFromDisk } from './code-dock.js';
+import { currentTemplateType, insertAiSnippet, isCodeDockLocked, isCodeDockOpen, refreshCodeDockFromDisk } from './code-dock.js';
+import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 
 const PANEL_ID = '__sve-ai-panel';
@@ -20,11 +21,7 @@ let sending = false;
 let mode = 'write';
 
 export function aiPanelAllowed(win) {
-  if (win.Statamic?.$config?.get?.('sveFeatures')?.ai_panel !== true) {
-    return false;
-  }
-
-  return win.Statamic?.$permissions?.has?.('super') === true;
+  return win.Statamic?.$config?.get?.('sveFeatures')?.ai_panel === true;
 }
 
 export function isAiPanelOpen(doc) {
@@ -34,6 +31,14 @@ export function isAiPanelOpen(doc) {
 export function closeAiPanel(win) {
   win?.document?.getElementById(PANEL_ID)?.remove();
   releaseRightShellIfEmpty(win);
+}
+
+export function ensureAiPanel(win) {
+  if (!aiPanelAllowed(win) || isAiPanelOpen(win.document)) {
+    return;
+  }
+
+  openAiPanel(win);
 }
 
 export function toggleAiPanel(win) {
@@ -64,23 +69,12 @@ function csrfToken(win) {
 }
 
 function storedMode(win) {
-  try {
-    const value = win.localStorage.getItem(MODE_KEY);
-
-    return value === 'build' ? 'build' : 'write';
-  } catch {
-    return 'write';
-  }
+  return chromeGet(win, MODE_KEY) === 'build' ? 'build' : 'write';
 }
 
 function persistMode(win, next) {
   mode = next === 'build' ? 'build' : 'write';
-
-  try {
-    win.localStorage.setItem(MODE_KEY, mode);
-  } catch {
-    /* private */
-  }
+  chromeSet(win, MODE_KEY, mode);
 }
 
 function previewDocument(win) {
@@ -151,21 +145,19 @@ function openAiPanel(win) {
   panel.style.cssText = RIGHT_PANEL_FILL;
 
   panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;gap:8px;">
-      <div>
-        <div style="font-size:14px;font-weight:600;">${t(win, 'ai_panel_title')}</div>
-        <div data-sve-ai-type style="font-size:11px;opacity:.55;margin-top:2px;"></div>
+    <div style="display:flex;align-items:center;flex:0 0 auto;gap:6px;">
+      <div data-sve-right-title>
+        <span data-sve-ai-name>${t(win, 'ai_panel_title')}</span>
+        <span data-sve-ai-type></span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto;">
-        <div data-sve-ai-modes style="display:flex;gap:4px;"></div>
-        <button type="button" data-sve-close style="all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;opacity:.7;">✕</button>
-      </div>
+      <div data-sve-ai-modes></div>
+      <button type="button" data-sve-close>✕</button>
     </div>
-    <div data-sve-ai-hint style="padding:8px 14px 0;font-size:12px;opacity:.65;flex:0 0 auto;line-height:1.4;"></div>
-    <div data-sve-ai-log style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;"></div>
-    <form data-sve-ai-form style="flex:0 0 auto;border-top:1px solid rgba(128,128,128,.2);padding:10px 12px 12px;display:flex;gap:8px;align-items:flex-end;">
-      <textarea data-sve-ai-input rows="2" style="flex:1 1 auto;resize:none;min-height:44px;max-height:120px;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.28);background:transparent;color:inherit;font:inherit;font-size:13px;"></textarea>
-      <button type="submit" data-sve-ai-send style="all:unset;cursor:pointer;flex:0 0 auto;padding:8px 12px;border-radius:8px;background:var(--theme-color-primary,#4f46e5);color:#fff;font-size:13px;font-weight:600;">${t(win, 'ai_panel_send')}</button>
+    <div data-sve-ai-hint style="padding:var(--sve-right-body-pad-block) 0 0;font-size:12px;opacity:.65;flex:0 0 auto;line-height:1.4;"></div>
+    <div data-sve-ai-log style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:var(--sve-right-body-pad-block) 0;display:flex;flex-direction:column;gap:10px;"></div>
+    <form data-sve-ai-form style="flex:0 0 auto;border-top:1px solid rgba(128,128,128,.2);padding:var(--sve-right-body-pad-block) 0;display:flex;flex-direction:column;gap:8px;">
+      <textarea data-sve-ai-input rows="4" style="width:100%;box-sizing:border-box;resize:vertical;min-height:88px;max-height:200px;padding:10px 12px;border-radius:8px;border:1px solid rgba(128,128,128,.28);background:transparent;color:inherit;font:inherit;font-size:13px;"></textarea>
+      <button type="submit" data-sve-ai-send style="all:unset;cursor:pointer;box-sizing:border-box;width:100%;text-align:center;padding:8px 12px;border-radius:8px;background:var(--theme-color-primary,#4f46e5);color:#fff;font-size:13px;font-weight:600;">${t(win, 'ai_panel_send')}</button>
     </form>
   `;
 
@@ -418,7 +410,7 @@ function paintAiLog(win) {
       bubble.appendChild(wrap);
     }
 
-    if (row.mode === 'build' && hasSnippet(parts)) {
+    if (row.mode === 'write' && hasSnippet(parts)) {
       const actions = win.document.createElement('div');
       const insert = actionBtn(win, t(win, 'ai_panel_insert'));
 
@@ -426,6 +418,15 @@ function paintAiLog(win) {
       insert.addEventListener('click', () => {
         if (!isCodeDockOpen(win.document)) {
           insert.textContent = t(win, 'ai_panel_insert_need_dock');
+          win.setTimeout(() => {
+            insert.textContent = t(win, 'ai_panel_insert');
+          }, 1600);
+
+          return;
+        }
+
+        if (isCodeDockLocked()) {
+          insert.textContent = t(win, 'ai_panel_insert_locked');
           win.setTimeout(() => {
             insert.textContent = t(win, 'ai_panel_insert');
           }, 1600);
@@ -510,7 +511,7 @@ function sendAi(win) {
         content: reply || (data.applied ? t(win, 'ai_panel_applied') : t(win, 'ai_panel_error')),
       });
 
-      if (data.applied && data.mode !== 'build') {
+      if (data.applied && data.mode === 'build') {
         refreshCodeDockFromDisk(win);
       }
     })

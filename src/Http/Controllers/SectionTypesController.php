@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use MarioHamann\StatamicVisualEditor\PreviewRefresher;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\SectionUsage;
 use MarioHamann\StatamicVisualEditor\SetPreviewImages;
@@ -54,16 +53,14 @@ class SectionTypesController
      * Page tab asks here instead, so what you see is what a screenshot of the
      * section would look like today.
      *
-     * It also asks for a refresh while it's here. Editing an Antlers partial fires
-     * no event anybody can listen for — the file simply changes — so opening the
-     * library is the moment to notice, and `running` tells the panel to keep
-     * asking until the new pictures have landed.
+     * `running` is only true if a screenshot job is already going — started by a
+     * save (theme, fieldset, saved section) or by `sve:previews --watch`. Opening
+     * this list must not start a job: that rebuilt the picker and the Theme
+     * Settings iframe every 1.5s.
      */
     public function index(Request $request)
     {
         abort_unless(User::current(), 403);
-
-        $kicked = PreviewRefresher::kickThrottled();
 
         // The map is memoised per request and was resolved before the YAML the
         // generator may have just rewritten.
@@ -71,7 +68,7 @@ class SectionTypesController
 
         return response()->json([
             'types' => SectionTypes::map(),
-            'running' => $kicked || Cache::get('sve-previews:running', false),
+            'running' => Cache::get('sve-previews:running', false),
         ]);
     }
 

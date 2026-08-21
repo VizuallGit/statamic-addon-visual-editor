@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 use Illuminate\Foundation\Http\Middleware\TrimStrings;
+use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
@@ -20,6 +21,8 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\IconButtonGroupFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\Replicator;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\BardDefaultFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\DefaultSetsFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\GlobalsPickerFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\ToolbarAccessFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
 use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
@@ -53,6 +56,7 @@ use Statamic\Facades\Entry;
 use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Site;
 use Statamic\Facades\User;
+use MarioHamann\StatamicVisualEditor\Listeners\ExpandFromTheStart;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
 use MarioHamann\StatamicVisualEditor\Listeners\RefreshPreviews;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
@@ -60,6 +64,7 @@ use MarioHamann\StatamicVisualEditor\Listeners\WrapResponsiveFields;
 use MarioHamann\StatamicVisualEditor\Modifiers\IsDefault;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
+use MarioHamann\StatamicVisualEditor\Tags\SveTw;
 use Statamic\Events\AddonSettingsSaved;
 use Statamic\Events\BlueprintSaved;
 use Statamic\Events\EntryBlueprintFound;
@@ -83,6 +88,8 @@ class ServiceProvider extends AddonServiceProvider
         ColumnSpanFieldtype::class,
         IconButtonGroupFieldtype::class,
         UniqueSetsFieldtype::class,
+        GlobalsPickerFieldtype::class,
+        ToolbarAccessFieldtype::class,
         DefaultSetsFieldtype::class,
         BardDefaultFieldtype::class,
         // ⚠️ Overtager Statamics egen `replicator`-handle — handlen udledes
@@ -93,6 +100,7 @@ class ServiceProvider extends AddonServiceProvider
     protected $tags = [
         VisualEdit::class,
         ResponsiveCss::class,
+        SveTw::class,
     ];
 
     protected $modifiers = [
@@ -108,6 +116,7 @@ class ServiceProvider extends AddonServiceProvider
             // Statamics egen auto-opdagelse, som fyrer igen bagefter uden at
             // gøre noget: et felt der allerede er pakket ind, røres ikke.
             WrapResponsiveFields::class,
+            ExpandFromTheStart::class,
         ],
         GlobalVariablesBlueprintFound::class => [
             InjectVisualIdIntoBlueprint::class,
@@ -168,6 +177,16 @@ class ServiceProvider extends AddonServiceProvider
         __DIR__.'/../resources/css/addon.css',
     ];
 
+    // Own file, never inlined into Blade (Vue `{{ }}` would compile as PHP
+    // and kill every field in the Control Panel). Not bundled into addon.js.
+    // Served from public/vendor/{packageName()}/js/ — that is visual-editor,
+    // not statamic-addon/visual-editor.
+    protected $scripts = [
+        __DIR__.'/../resources/js/disable-publish-stack-pin.js',
+        __DIR__.'/../resources/js/publish-stack-lift.js',
+        __DIR__.'/../resources/js/default-sets-count.js',
+    ];
+
     protected $commands = [
         GenerateSetPreviews::class,
         Install::class,
@@ -205,6 +224,20 @@ class ServiceProvider extends AddonServiceProvider
         // (e.g. the preview generator settings) resolve.
         $this->mergeConfigFrom(__DIR__.'/../config/statamic-visual-editor.php', 'statamic-visual-editor');
 
+        // After every addon has registered tags, so Iconify's `iconify` handle
+        // is already there. A name in `{{ iconify:icon }}` becomes SVG. Not in
+        // `$tags`: that folder is autoloaded, and this class extends Iconify.
+        Event::listen(RouteMatched::class, function () {
+            IconifyDefault::registerTag();
+        });
+
+        // `/!/sve/…` carries a publish form's values, not visitor input. Bard
+        // keeps a space as its own string (`{type: text, text: " "}`); Laravel's
+        // TrimStrings would eat it. Every addon route must skip this — a new
+        // site must not add anything in AppServiceProvider.
+        TrimStrings::skipWhen(fn ($request) => $request->is('!/sve/*'));
+        ConvertEmptyStringsToNull::skipWhen(fn ($request) => $request->is('!/sve/*'));
+
         // The injected preview script (resources/js/preview.js) hot-reloads the
         // preview itself via Alpine.morph. Disable Statamic's built-in hot
         // reload so the two never morph the same document concurrently —
@@ -225,6 +258,8 @@ class ServiceProvider extends AddonServiceProvider
             Statamic::provideToScript([
                 'svePreviewImages' => SetPreviewImages::map(),
                 'sveGlobalSets' => $this->globalSets(),
+                'sveGlobalsPicker' => Features::setting('globals_picker'),
+                'sveGlobalsPickerOff' => Features::globalsPickerOffByDefault(),
                 'sveRowLimits' => RowLimits::map(),
                 'sveSectionTypes' => SectionTypes::map(),
                 // What each set calls itself — the name, icon and instructions the
@@ -247,7 +282,7 @@ class ServiceProvider extends AddonServiceProvider
                 // Whether the editor runs here at all, and which of its tools this
                 // site gets (Addons > Statamic Visual Editor).
                 'sveEnabled' => Features::editorEnabled(),
-                'sveFeatures' => Features::map(),
+                'sveFeatures' => Features::visible(),
                 'sveAiReady' => AiChat::ready(),
                 'sveComments' => $this->commentsPayload(),
                 // Every on-screen string, in the CP user's own language.
@@ -333,6 +368,8 @@ class ServiceProvider extends AddonServiceProvider
                 // author just put back.
                 Route::post('/!/sve/section-template', [SectionTemplateController::class, 'update'])
                     ->name('sve.section-template.update');
+                Route::post('/!/sve/section-template/lock', [SectionTemplateController::class, 'lock'])
+                    ->name('sve.section-template.lock');
             });
 
         Route::middleware('web')->group(function () {
@@ -391,6 +428,8 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.comments.index');
             Route::post('/!/sve/comments/{entry}', [CommentsController::class, 'store'])
                 ->name('sve.comments.store');
+            Route::post('/!/sve/comments/{entry}/prune', [CommentsController::class, 'prune'])
+                ->name('sve.comments.prune');
             Route::post('/!/sve/comments/{entry}/{comment}/replies', [CommentsController::class, 'reply'])
                 ->name('sve.comments.reply');
             Route::patch('/!/sve/comments/{entry}/{comment}', [CommentsController::class, 'update'])
@@ -693,14 +732,14 @@ class ServiceProvider extends AddonServiceProvider
     /**
      * Who is commenting from this Control Panel session.
      *
-     * Pins and threads are super-admin only; everyone else gets an empty payload
-     * so the comments script never paints a mode it cannot save.
+     * Gated by the comments toggle and toolbar access. Everyone else gets an
+     * empty payload so the comments script never paints a mode it cannot save.
      */
     protected function commentsPayload(): array
     {
         $user = User::current();
 
-        if (! $user?->isSuper() || ! Features::editorEnabled() || ! Features::enabled('comments')) {
+        if (! $user || ! Features::editorEnabled() || ! Features::allows('comments')) {
             return ['enabled' => false];
         }
 

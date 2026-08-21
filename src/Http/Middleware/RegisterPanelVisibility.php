@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\GridIcon;
+use MarioHamann\StatamicVisualEditor\IconifyDefault;
 use MarioHamann\StatamicVisualEditor\PanelVisibility;
 use MarioHamann\StatamicVisualEditor\ReplicatorSettings;
 use MarioHamann\StatamicVisualEditor\ResponsiveFields;
@@ -29,6 +30,7 @@ class RegisterPanelVisibility
         GridIcon::register();
         ResponsiveFields::register();
         ReplicatorSettings::register();
+        IconifyDefault::register();
 
         return $next($request);
     }

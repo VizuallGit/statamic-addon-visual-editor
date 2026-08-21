@@ -8,6 +8,8 @@
  * Switching Live Preview devices flips which drawer Fields bind to. Fields are
  * remounted with :key=breakpoint so a tablet edit can never write into laptop.
  */
+import { chromeGet } from '../../chrome-prefs.js';
+
 (function () {
     'use strict';
 
@@ -35,7 +37,7 @@
 
         function bpFromStorage() {
             try {
-                return deviceToBp(localStorage.getItem('sve-lp-device'));
+                return deviceToBp(chromeGet(window, 'sve-lp-device'));
             } catch {
                 return 'laptop';
             }

@@ -233,7 +233,7 @@ return [
     'field_unique_sets' => 'Only one of each',
     'field_unique_sets_instructions' => 'The checked types can only be added once. When one of them is in the list, it cannot be selected again until the row is deleted.',
     'field_from_the_start' => 'From the start',
-    'field_from_the_start_sets_instructions' => 'The checked types are in the field when it is created. Anything else is added afterwards. The order is the order they were checked in.',
+    'field_from_the_start_sets_instructions' => 'The checked types are in the field when it is created. The number next to a type is how many of that type. Item with 6 gives six items. Anything else is added afterwards.',
     'field_from_the_start_bard_instructions' => 'The text the field opens with — typically a paragraph, a headline, or both. Written as the field’s default in YAML.',
     'field_from_the_start_paragraph' => 'Paragraph',
     'field_from_the_start_headline' => 'Headline :level',
@@ -254,6 +254,9 @@ return [
     // Grid field config — same idea as a Replicator set's icon
     'grid_icon' => 'Icon',
     'grid_icon_instructions' => 'Shown as the badge in the visual editor for each row of this grid. The wrapping block (the Replicator set) has its own icon — pick that on the set, not here.',
+
+    'iconify_default' => 'Default icon',
+    'iconify_default_instructions' => 'An Iconify name, e.g. simple-line-icons:check. Used when nothing is selected. A chosen icon replaces it.',
 
     // The "Scan the site" button on the settings screen
     'library_scan_button' => 'Scan the site',

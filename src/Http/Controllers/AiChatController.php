@@ -5,12 +5,11 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\AiChat;
 use MarioHamann\StatamicVisualEditor\Features;
-use Statamic\Facades\User;
 
 /**
- * Super-admin chat from Live Preview: rewrite the open Antlers file, create
- * YAML fieldsets / blueprints / new section partials, or (Build mode) return
- * markup without writing files.
+ * Chat from Live Preview: rewrite the open Antlers file, create YAML fieldsets /
+ * blueprints / new section partials, or (Write mode) return markup without writing
+ * files. Gated by the AI toggle and toolbar access.
  *
  * Runs a local Cursor agent against the site. Same Cursor account — not Anthropic.
  */
@@ -46,7 +45,6 @@ class AiChatController
 
     protected function authorize(): void
     {
-        abort_unless(User::current()?->isSuper(), 403);
-        abort_unless(Features::enabled('ai_panel'), 403);
+        abort_unless(Features::allows('ai_panel'), 403);
     }
 }

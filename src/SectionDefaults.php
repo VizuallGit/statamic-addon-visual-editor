@@ -138,7 +138,12 @@ class SectionDefaults
         }
 
         // Replicator / Bard: each row names its set, and that set's fields
-        // supply the row's defaults.
+        // supply the row's defaults. Count lives beside `default` so the
+        // checkbox fieldtype never has to store duplicate types.
+        if ($type === 'replicator' && is_array($default)) {
+            $default = FromTheStart::expand($default, $field->get(FromTheStart::KEY));
+        }
+
         if (in_array($type, ['replicator', 'bard'], true) && is_array($default)) {
             $default = static::rows($default, function ($row, $index) use ($config, $path) {
                 if (empty($row['type']) || ! is_string($row['type'])) {

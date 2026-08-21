@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\FromTheStart;
 use MarioHamann\StatamicVisualEditor\LibraryAccess;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
@@ -88,7 +89,15 @@ class SectionMetaController
         );
 
         $defaults = $fields->all()
-            ->map(fn ($field) => $field->fieldtype()->preProcess($field->defaultValue()))
+            ->map(function ($field) {
+                $value = $field->defaultValue();
+
+                if ($field->type() === 'replicator' && is_array($value)) {
+                    $value = FromTheStart::expand($value, $field->get(FromTheStart::KEY));
+                }
+
+                return $field->fieldtype()->preProcess($value);
+            })
             ->all();
 
         $new = $fields->addValues($defaults)->meta()->put('_', '_')->toArray();

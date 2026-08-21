@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\LibraryAccess;
-use MarioHamann\StatamicVisualEditor\PreviewRefresher;
 use MarioHamann\StatamicVisualEditor\SavedSectionPreview;
 use MarioHamann\StatamicVisualEditor\SectionUsage;
 use Statamic\Facades\Collection;
@@ -80,12 +79,6 @@ class SavedSectionsController
 
         abort_unless($user, 403);
 
-        // Opening the library is the moment to catch anything the save events
-        // can't see — a section template edited in the editor, a rebuilt CSS
-        // bundle. Throttled and detached: it never delays this response, and the
-        // run itself does nothing when no fingerprint has moved.
-        $kicked = PreviewRefresher::kickThrottled();
-
         $site = Site::selected()?->handle() ?? Site::default()->handle();
 
         $sections = Entry::query()
@@ -121,10 +114,7 @@ class SavedSectionsController
 
         return response()->json([
             'sections' => $sections,
-            // Tells the panel to ask again shortly: a section saved a moment ago
-            // has no screenshot yet, and its card would otherwise stay blank
-            // until somebody reloaded the Control Panel.
-            'running' => $kicked || Cache::get('sve-previews:running', false),
+            'running' => Cache::get('sve-previews:running', false),
         ]);
     }
 

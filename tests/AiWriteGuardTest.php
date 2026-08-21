@@ -19,7 +19,7 @@ class AiWriteGuardTest extends TestCase
         $this->assertNull(AiWriteGuard::gitPath('?? ../secret'));
     }
 
-    public function test_build_mode_deletes_files_the_agent_created(): void
+    public function test_write_mode_deletes_files_the_agent_created(): void
     {
         @mkdir(resource_path('fieldsets'), 0775, true);
 
@@ -35,7 +35,7 @@ class AiWriteGuardTest extends TestCase
         $this->assertArrayNotHasKey($rel, AiWriteGuard::snapshotAllowed());
     }
 
-    public function test_build_mode_reverts_clean_files_the_agent_edited(): void
+    public function test_write_mode_reverts_clean_files_the_agent_edited(): void
     {
         @mkdir(resource_path('fieldsets'), 0775, true);
 
@@ -51,7 +51,7 @@ class AiWriteGuardTest extends TestCase
         @unlink($full);
     }
 
-    public function test_build_mode_leaves_already_dirty_files_alone(): void
+    public function test_write_mode_leaves_already_dirty_files_alone(): void
     {
         @mkdir(resource_path('fieldsets'), 0775, true);
 

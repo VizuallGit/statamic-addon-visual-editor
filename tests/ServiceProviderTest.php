@@ -35,6 +35,11 @@ class ServiceProviderTest extends TestCase
         $this->assertInstanceOf(AutoUuidFieldtype::class, $fieldtype);
     }
 
+    public function test_sve_tw_tag_registered(): void
+    {
+        $this->assertContains('sve_tw', collect(app('statamic.tags'))->keys()->all());
+    }
+
     public function test_tag_registered(): void
     {
         $tag = app(VisualEdit::class);

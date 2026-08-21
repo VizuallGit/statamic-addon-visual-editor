@@ -1,6 +1,6 @@
 {
   "resources/js/addon.js": {
-    "file": "assets/addon-DmXwhlR7.js",
+    "file": "assets/addon-nGOWKneF.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -15,13 +15,13 @@
     "isEntry": true
   },
   "resources/js/overlay-host.js": {
-    "file": "assets/overlay-host-CUUXVXGi.js",
+    "file": "assets/overlay-host-BTVtlmkx.js",
     "name": "overlay-host",
     "src": "resources/js/overlay-host.js",
     "isEntry": true
   },
   "resources/js/preview.js": {
-    "file": "assets/preview-By6M6vaM.js",
+    "file": "assets/preview-OaFJDUIj.js",
     "name": "preview",
     "src": "resources/js/preview.js",
     "isEntry": true

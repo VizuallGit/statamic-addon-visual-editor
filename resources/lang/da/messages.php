@@ -227,7 +227,7 @@ return [
     'field_unique_sets' => 'Kun én af hver',
     'field_unique_sets_instructions' => 'De afkrydsede typer kan kun tilføjes én gang. Når en af dem ligger i listen, kan den ikke vælges igen før rækken er slettet.',
     'field_from_the_start' => 'Fra starten',
-    'field_from_the_start_sets_instructions' => 'De afkrydsede typer ligger i feltet, når det oprettes. Resten tilføjes bagefter. Rækkefølgen er den, de er krydset af i.',
+    'field_from_the_start_sets_instructions' => 'De afkrydsede typer ligger i feltet, når det oprettes. Tallet ved siden af en type er hvor mange af netop den. Item med 6 giver seks items. Resten tilføjes bagefter.',
     'field_from_the_start_bard_instructions' => 'Den tekst feltet åbner med — typisk et afsnit, en overskrift, eller begge. Den skrives som feltets default i YAML.',
     'field_from_the_start_paragraph' => 'Afsnit',
     'field_from_the_start_headline' => 'Overskrift :level',
@@ -248,6 +248,9 @@ return [
     // Grid-felt — samme idé som ikonet på et Replicator-set
     'grid_icon' => 'Ikon',
     'grid_icon_instructions' => 'Vises som badge i visual editor for hver række i dette grid. Blokken omkring (Replicator-settet) har sit eget ikon — det vælges på settet, ikke her.',
+
+    'iconify_default' => 'Standardikon',
+    'iconify_default_instructions' => 'Et Iconify-navn, f.eks. simple-line-icons:check. Bruges når intet er valgt. Et valgt ikon vinder.',
 
     // "Scan sitet"-knappen på indstillingsskærmen
     'library_scan_button' => 'Scan sitet',

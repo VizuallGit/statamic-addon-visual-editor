@@ -26,6 +26,11 @@ class FeaturesTest extends TestCase
         $this->assertTrue(Features::enabled('comments'));
     }
 
+    public function test_block_tree_is_on_by_default(): void
+    {
+        $this->assertTrue(Features::enabled('listview'));
+    }
+
     public function test_ai_panel_stays_off_when_the_config_key_is_missing(): void
     {
         $features = config('statamic-visual-editor.features', []);
@@ -111,15 +116,62 @@ class FeaturesTest extends TestCase
         $this->assertSame('build', \MarioHamann\StatamicVisualEditor\AiChat::modeOf('Build'));
     }
 
-    public function test_build_mode_instructions_forbid_file_writes(): void
+    public function test_write_mode_instructions_forbid_file_writes(): void
     {
         $build = \MarioHamann\StatamicVisualEditor\AiChat::modeInstructions('build');
         $write = \MarioHamann\StatamicVisualEditor\AiChat::modeInstructions('write');
 
-        $this->assertStringContainsString('BUILD MODE', $build);
-        $this->assertStringContainsString('Do not write', $build);
-        $this->assertStringContainsString('```html', $build);
         $this->assertStringContainsString('WRITE MODE', $write);
-        $this->assertStringNotContainsString('Do not write', $write);
+        $this->assertStringContainsString('Do not write', $write);
+        $this->assertStringContainsString('```html', $write);
+        $this->assertStringContainsString('BUILD MODE', $build);
+        $this->assertStringNotContainsString('Do not write', $build);
+    }
+
+    public function test_globals_picker_hides_header_and_footer_by_default(): void
+    {
+        config(['statamic-visual-editor.features.globals_picker' => null]);
+        Features::flush();
+        $sets = [
+            ['handle' => 'theme_settings'],
+            ['handle' => 'site_settings'],
+            ['handle' => 'header'],
+            ['handle' => 'footer'],
+        ];
+
+        $shown = Features::filterGlobalsPicker($sets);
+        $handles = array_column($shown, 'handle');
+
+        $this->assertSame(['theme_settings', 'site_settings'], $handles);
+        $this->assertContains('header', Features::globalsPickerOffByDefault());
+        $this->assertContains('footer', Features::globalsPickerOffByDefault());
+        $this->assertNotContains('theme_settings', Features::globalsPickerOffByDefault());
+    }
+
+    public function test_globals_picker_respects_a_saved_list(): void
+    {
+        config(['statamic-visual-editor.features.globals_picker' => ['header', 'theme_settings']]);
+        Features::flush();
+
+        $shown = Features::filterGlobalsPicker([
+            ['handle' => 'theme_settings'],
+            ['handle' => 'site_settings'],
+            ['handle' => 'header'],
+        ]);
+
+        $this->assertSame(['theme_settings', 'header'], array_column($shown, 'handle'));
+    }
+
+    public function test_globals_picker_empty_list_shows_none(): void
+    {
+        config(['statamic-visual-editor.features.globals_picker' => []]);
+        Features::flush();
+
+        $shown = Features::filterGlobalsPicker([
+            ['handle' => 'theme_settings'],
+            ['handle' => 'header'],
+        ]);
+
+        $this->assertSame([], $shown);
     }
 }

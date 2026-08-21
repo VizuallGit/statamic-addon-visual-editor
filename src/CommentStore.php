@@ -94,6 +94,31 @@ class CommentStore
         return true;
     }
 
+    public function deleteByVisualIds(string $entryId, array $visualIds): int
+    {
+        $ids = array_values(array_filter(
+            $visualIds,
+            fn ($id) => is_string($id) && $id !== '' && $id !== '__page'
+        ));
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        $comments = $this->all($entryId);
+        $next = array_values(array_filter(
+            $comments,
+            fn ($comment) => ! in_array($comment['visual_id'] ?? '', $ids, true)
+        ));
+        $removed = count($comments) - count($next);
+
+        if ($removed > 0) {
+            $this->save($entryId, $next);
+        }
+
+        return $removed;
+    }
+
     public function safeId(string $entryId): string
     {
         $id = preg_replace('/[^a-zA-Z0-9._-]/', '', $entryId) ?? '';

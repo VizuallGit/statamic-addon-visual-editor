@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
+use MarioHamann\StatamicVisualEditor\FromTheStart;
 use MarioHamann\StatamicVisualEditor\SectionDefaults;
 use Statamic\Facades\Fieldset;
 use Statamic\Fields\Fieldset as FieldsetModel;
@@ -32,6 +33,25 @@ class SectionDefaultsTest extends TestCase
                                                     'fields' => [
                                                         ['handle' => 'label', 'field' => ['type' => 'text', 'default' => 'Fordel']],
                                                         ['handle' => 'note', 'field' => ['type' => 'text']],
+                                                    ],
+                                                ],
+                                            ],
+                                            [
+                                                'handle' => 'items',
+                                                'field' => [
+                                                    'type' => 'replicator',
+                                                    'default' => [['type' => 'item']],
+                                                    FromTheStart::KEY => [['set' => 'item', 'count' => 3]],
+                                                    'sets' => [
+                                                        'item' => [
+                                                            'sets' => [
+                                                                'item' => [
+                                                                    'fields' => [
+                                                                        ['handle' => 'label', 'field' => ['type' => 'text', 'default' => 'Punkt']],
+                                                                    ],
+                                                                ],
+                                                            ],
+                                                        ],
                                                     ],
                                                 ],
                                             ],
@@ -87,6 +107,17 @@ class SectionDefaultsTest extends TestCase
         // Rather than written as null: the section partial should fall through to
         // whatever it does for a missing value, as it would on a real new section.
         $this->assertArrayNotHasKey('nothing', SectionDefaults::for('hero/style_1'));
+    }
+
+    public function test_a_replicator_count_repeats_each_default_type()
+    {
+        $items = SectionDefaults::for('hero/style_1')['items'];
+
+        $this->assertCount(3, $items);
+        $this->assertSame('item', $items[0]['type']);
+        $this->assertSame('item', $items[2]['type']);
+        $this->assertSame('Punkt', $items[0]['label']);
+        $this->assertSame('Punkt', $items[2]['label']);
     }
 
     public function test_grid_rows_are_filled_from_their_own_fields_defaults()

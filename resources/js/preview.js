@@ -1,8 +1,11 @@
+import morphPlugin from '@alpinejs/morph';
+
 /**
  * Live Preview: hot reload via Alpine.morph
  *
  * Injected on live preview responses via InjectBridgeScript (same mechanism
  * as bridge.js), so sites get hot reload automatically — no partial needed.
+ * Morph ships in this file; the site front end does not register it.
  *
  * While header/footer chrome is focused, we morph ONLY that chrome node and
  * soft-diff <head> styles. Fade itself is a fixed html overlay (bridge CSS) —
@@ -32,6 +35,18 @@ function injectPreviewStyles(doc) {
 }
 
 injectPreviewStyles(document);
+
+function ensureAlpineMorph() {
+  const Alpine = window.Alpine;
+
+  if (!Alpine || typeof Alpine.morph === 'function') {
+    return;
+  }
+
+  Alpine.plugin(morphPlugin);
+}
+
+ensureAlpineMorph();
 
 /** Last live theme scale from CP — re-applied after morph so server :root can't win. */
 let lastThemeScaleCss = '';
@@ -168,6 +183,8 @@ function syncHeadStyles(updated) {
  * passing a node from DOMParser's other document is unreliable with Alpine.morph.
  */
 function morphChromeOnly(updated, kind) {
+  ensureAlpineMorph();
+
   const live = document.querySelector(`[${CHROME_ATTR}="${kind}"]`);
   const next = updated.body.querySelector(`[${CHROME_ATTR}="${kind}"]`);
 
@@ -198,6 +215,8 @@ function morphChromeOnly(updated, kind) {
 }
 
 function morphFullBody(updated) {
+  ensureAlpineMorph();
+
   try {
     if (window.Alpine?.morph) {
       // Alpine.morph(el, htmlString) uses createElement() → firstElementChild
@@ -230,10 +249,47 @@ function morphFullBody(updated) {
   }
 }
 
+function leftLivePreview(requested, finalUrl) {
+  try {
+    const from = new URL(requested, window.location.origin);
+    const to = new URL(finalUrl || requested, window.location.origin);
+    const had = from.searchParams.has('token') || from.searchParams.has('live-preview');
+    const has = to.searchParams.has('token') || to.searchParams.has('live-preview');
+
+    if (had && !has) {
+      return true;
+    }
+
+    if (to.pathname.includes('/!/sve/') && /preview/i.test(to.pathname)) {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return false;
+}
+
 async function applyUpdate(url) {
+  if (!url) {
+    return;
+  }
+
   // Drop stale responses when rapid edits overtake each other.
   const seq = ++updateSeq;
-  const text = await fetch(withFlags(url)).then((res) => res.text());
+  let text;
+
+  try {
+    const res = await fetch(withFlags(url), { credentials: 'same-origin' });
+
+    if (!res.ok || leftLivePreview(url, res.url)) {
+      return;
+    }
+
+    text = await res.text();
+  } catch {
+    return;
+  }
 
   if (seq !== updateSeq) {
     return;
@@ -247,21 +303,32 @@ async function applyUpdate(url) {
   }
 
   const updated = new DOMParser().parseFromString(text, 'text/html');
+
+  // Rediger lives on the public site, never in Live Preview. Morphing that
+  // document in paints the front end into the iframe and looks like an eject.
+  if (updated.getElementById('sve-edit-button')) {
+    return;
+  }
+
   const savedScrollY = window.scrollY;
   const chromeKind = focusedChromeKind();
 
-  syncHeadStyles(updated);
-  // Server HTML carries saved bias/sat in :root — put live scale back on top.
-  applyThemeScaleCss();
+  try {
+    syncHeadStyles(updated);
+    // Server HTML carries saved bias/sat in :root — put live scale back on top.
+    applyThemeScaleCss();
 
-  let surgical = false;
+    let surgical = false;
 
-  if (chromeKind) {
-    surgical = morphChromeOnly(updated, chromeKind);
-  }
+    if (chromeKind) {
+      surgical = morphChromeOnly(updated, chromeKind);
+    }
 
-  if (!surgical) {
-    morphFullBody(updated);
+    if (!surgical) {
+      morphFullBody(updated);
+    }
+  } catch {
+    return;
   }
 
   window.dispatchEvent(new CustomEvent('statamic:preview-updated'));

@@ -6,8 +6,8 @@ namespace MarioHamann\StatamicVisualEditor;
  * Super-admin Cursor chat from Live Preview.
  *
  * Uses the same Cursor account — not a second Claude/Anthropic bill.
- * Write mode may change YAML / Antlers under fieldsets, blueprints and
- * page_sections partials. Build mode asks for markup in the reply and
+ * Build mode may change YAML / Antlers under fieldsets, blueprints and
+ * page_sections partials. Write mode asks for markup in the reply and
  * reverts any file writes. Anything outside the allowlist is reverted.
  */
 class AiChat
@@ -47,10 +47,11 @@ class AiChat
         $messages = static::sanitize($messages);
         $before = static::allowedSnapshot();
         $forbidden = AiWriteGuard::snapshot();
+        $locked = SectionTemplate::lockedSnapshots();
         $allowed = [];
         $dirtyBefore = [];
 
-        if ($mode === 'build') {
+        if ($mode === 'write') {
             $dirtyBefore = AiWriteGuard::changedRelativePaths();
             $allowed = AiWriteGuard::snapshotAllowed();
         }
@@ -59,11 +60,13 @@ class AiChat
 
         AiWriteGuard::restore($forbidden);
 
-        if ($mode === 'build') {
+        if ($mode === 'write') {
             AiWriteGuard::restoreAllowed($allowed, $dirtyBefore);
         }
 
-        $changed = $mode === 'build' ? [] : static::changedPaths($before, static::allowedSnapshot());
+        SectionTemplate::restoreLocked($locked);
+
+        $changed = $mode === 'write' ? [] : static::changedPaths($before, static::allowedSnapshot());
 
         return [
             'reply' => $out['reply'] !== '' ? $out['reply'] : 'Done.',
@@ -75,9 +78,9 @@ class AiChat
 
     public static function modeInstructions(string $mode): string
     {
-        if (static::modeOf($mode) === 'build') {
+        if (static::modeOf($mode) === 'write') {
             return <<<'TXT'
-BUILD MODE — output only. Do not write, create, edit or delete any files. Do not use file-writing tools.
+WRITE MODE — output only. Do not write, create, edit or delete any files. Do not use file-writing tools.
 The user wants the result in the chat so they can copy or insert it.
 
 Reply with fenced code blocks, in this order when they apply:
@@ -101,7 +104,7 @@ TXT;
         }
 
         return <<<'TXT'
-WRITE MODE — edit the selected section's files on disk (or create a new section type only when they explicitly ask for one).
+BUILD MODE — edit the selected section's files on disk (or create a new section type only when they explicitly ask for one).
 TXT;
     }
 
@@ -134,7 +137,7 @@ TXT;
         $target = static::targetFiles($handle);
         $path = $handle !== '' ? SectionTemplate::path($handle) : null;
         $parts = $path
-            ? SectionTemplate::split((string) file_get_contents($path))
+            ? SectionTemplate::split((string) file_get_contents($path), $handle)
             : ['html' => '', 'css' => '', 'js' => ''];
         $html = static::clip((string) ($parts['html'] ?? ''));
         $css = static::clip((string) ($parts['css'] ?? ''));
@@ -154,14 +157,14 @@ TXT;
         $rules = AiRules::text();
         $modeBlock = static::modeInstructions($mode);
         $scope = $handle !== ''
-            ? ($mode === 'build'
+            ? ($mode === 'write'
                 ? <<<TXT
 SELECTED SECTION — context only. Do not write these files.
 Handle: {$target['handle']}
 Antlers file: {$target['antlers']}
 Fieldset file: {$target['fieldset']}
 
-The user clicked this section. Build a snippet they can paste into it. Match its fields, loops and visual_edit tags.
+The user clicked this section. Write a snippet they can paste into it. Match its fields, loops and visual_edit tags.
 TXT
                 : <<<TXT
 SELECTED SECTION — write here.
@@ -175,10 +178,10 @@ Do not create a new section type, a new style_N file, or a new folder.
 Do not write another section's files.
 Only create new files if they explicitly ask for a new section type / new set / new fieldset.
 TXT)
-            : ($mode === 'build'
+            : ($mode === 'write'
                 ? <<<TXT
 No section is selected.
-Build a complete section they can paste. Use the frame under "New section".
+Write a complete section they can paste. Use the frame under "New section".
 TXT
                 : <<<TXT
 No section is selected.
@@ -186,7 +189,15 @@ If they ask to change "the heading" or "this section", tell them to click a sect
 Create new files only when they explicitly ask for a new section type, fieldset or YAML file.
 TXT);
 
-        $folders = $mode === 'build'
+        if ($mode === 'build' && $path && SectionTemplate::fileIsLocked($path)) {
+            $scope .= <<<'TXT'
+
+
+LOCKED — do not edit this Antlers file. It is locked in the template dock. You may still edit the fieldset, or create a new section type if they asked for one. Do not remove the {{# sve-locked #}} comment.
+TXT;
+        }
+
+        $folders = $mode === 'write'
             ? <<<TXT
 You may READ these folders for context. Do not write them:
 - resources/fieldsets/
@@ -195,7 +206,7 @@ You may READ these folders for context. Do not write them:
 - resources/visual-editor/ai-rules.md
 
 Never touch vendor, .env, PHP, config or content entries.
-In Build mode, skip appending to ai-rules.md — mention the rule in the reply instead.
+In Write mode, skip appending to ai-rules.md — mention the rule in the reply instead.
 TXT
             : <<<TXT
 You may read and write these folders only:

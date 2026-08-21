@@ -39,6 +39,7 @@ class Features
         'pages',
         'globals',
         'sections',
+        'listview',
         'outline',
         'inline_edit',
         'focus_panel',
@@ -94,6 +95,41 @@ class Features
     }
 
     /**
+     * Is this tool on *and* allowed for the current user?
+     *
+     * Site toggle first, then toolbar access (everyone / super / named people).
+     * Unknown keys follow `enabled()` — a typo should not hide the editor.
+     */
+    public static function allows(string $key, ?\Statamic\Contracts\Auth\User $user = null): bool
+    {
+        if (! static::enabled($key)) {
+            return false;
+        }
+
+        return ToolbarAccess::allows($key, $user);
+    }
+
+    /**
+     * The feature map as this Control Panel user should see it.
+     *
+     * Same keys as `map()`. A tool that is on for the site but not for this
+     * user comes back false, so the browser can keep using `sveFeatures`
+     * without a second list.
+     *
+     * @return array<string, bool>
+     */
+    public static function visible(?\Statamic\Contracts\Auth\User $user = null): array
+    {
+        $map = static::map();
+
+        foreach (ToolbarAccess::KEYS as $key) {
+            $map[$key] = static::allows($key, $user);
+        }
+
+        return $map;
+    }
+
+    /**
      * Is the editor itself switched on?
      *
      * Separate from the feature map because it gates the addon as a whole,
@@ -123,6 +159,59 @@ class Features
         return array_key_exists($key, $saved)
             ? $saved[$key]
             : config("statamic-visual-editor.features.{$key}", $default);
+    }
+
+    /**
+     * Handles the Globals menu hides until the settings screen says otherwise.
+     *
+     * Header and footer are edited by clicking them on the page. Listing them
+     * in the globe menu as well is a second door to the same room — off until
+     * this site turns them on. The shared theme set is never in this list.
+     *
+     * @return list<string>
+     */
+    public static function globalsPickerOffByDefault(): array
+    {
+        $cfg = config('statamic-visual-editor.chrome', []);
+        $shared = $cfg['global'] ?? 'theme_settings';
+
+        return collect([
+            $cfg['header']['global'] ?? null,
+            $cfg['footer']['global'] ?? null,
+            'header',
+            'footer',
+        ])
+            ->filter(fn ($handle) => is_string($handle) && $handle !== '' && $handle !== $shared)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Keep the global sets the globe menu should list.
+     *
+     * Null / missing setting = the default (everything except header/footer).
+     * An empty array is a real choice: show none.
+     *
+     * @param  list<array{handle: string, title?: string, url?: string}>  $sets
+     * @return list<array{handle: string, title?: string, url?: string}>
+     */
+    public static function filterGlobalsPicker(array $sets): array
+    {
+        $allowed = static::setting('globals_picker');
+        $off = static::globalsPickerOffByDefault();
+
+        if (! is_array($allowed)) {
+            return array_values(array_filter(
+                $sets,
+                fn ($set) => ! in_array($set['handle'] ?? '', $off, true)
+            ));
+        }
+
+        return array_values(array_filter(
+            $sets,
+            fn ($set) => in_array($set['handle'] ?? '', $allowed, true)
+        ));
     }
 
     /** Forget the cached map — for tests, and after the settings screen saves. */

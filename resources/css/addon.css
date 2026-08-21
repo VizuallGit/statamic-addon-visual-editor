@@ -137,3 +137,39 @@
         0 0 0 1px color-mix(in oklab, var(--theme-color-gray-700) 80%, transparent),
         0 2px 4px -2px rgb(0 0 0 / 0.37);
 }
+
+/* ═══════════════════════════════════════════════════════
+   Antal ved "Fra starten"
+   Kun dette felt. Ikke Statamics integer, ikke type=number globalt.
+   ═══════════════════════════════════════════════════════ */
+
+.input-text.sve-from-the-start-count {
+    width: 2.75rem !important;
+    height: 1.5rem !important;
+    min-height: 1.5rem !important;
+    padding: 0 0 0 0.4rem !important;
+    font-size: 13px !important;
+    line-height: 1.5rem !important;
+    background-color: #2e2e33 !important;
+    border: 1px solid #3a3a40 !important;
+    color: inherit !important;
+    box-sizing: border-box !important;
+    border-radius: 3px !important;
+    overflow: hidden !important;
+    position: relative !important;
+    appearance: auto;
+    -moz-appearance: auto;
+}
+
+.input-text.sve-from-the-start-count::-webkit-inner-spin-button,
+.input-text.sve-from-the-start-count::-webkit-outer-spin-button {
+    -webkit-appearance: inner-spin-button !important;
+    opacity: 1 !important;
+    margin: 0 !important;
+    height: 1.5rem !important;
+    width: 14px !important;
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+}

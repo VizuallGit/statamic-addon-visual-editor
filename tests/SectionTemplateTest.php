@@ -23,6 +23,7 @@ class SectionTemplateTest extends TestCase
         $files = [
             $this->dir.'/hero/style_2.antlers.html',
             $this->dir.'/faq/style_1.antlers.html',
+            $this->dir.'/custom_section/style_1.antlers.html',
         ];
 
         foreach ($files as $file) {
@@ -31,7 +32,7 @@ class SectionTemplateTest extends TestCase
             }
         }
 
-        foreach ([$this->dir.'/hero', $this->dir.'/faq', $this->dir] as $dir) {
+        foreach ([$this->dir.'/hero', $this->dir.'/faq', $this->dir.'/custom_section', $this->dir] as $dir) {
             if (is_dir($dir)) {
                 rmdir($dir);
             }
@@ -211,5 +212,143 @@ class SectionTemplateTest extends TestCase
 
         $this->assertSame("<section>hi</section>\n", $out);
         $this->assertStringNotContainsString('sve_tw', $out);
+    }
+
+    public function test_split_strips_the_lock_marker_from_the_html_pane(): void
+    {
+        $parts = SectionTemplate::split(
+            "{{# sve-locked #}}\n<section>hi</section>\n"
+        );
+
+        $this->assertTrue($parts['locked']);
+        $this->assertSame('<section>hi</section>', $parts['html']);
+        $this->assertStringNotContainsString('sve-locked', $parts['html']);
+    }
+
+    public function test_join_writes_the_lock_marker_above_the_html(): void
+    {
+        $out = SectionTemplate::join([
+            'html' => '<section>hi</section>',
+            'css' => '',
+            'js' => '',
+            'locked' => true,
+        ]);
+
+        $this->assertStringStartsWith("{{# sve-locked #}}\n", $out);
+        $this->assertStringContainsString('<section>hi</section>', $out);
+    }
+
+    public function test_designed_types_are_locked_without_a_marker(): void
+    {
+        $parts = SectionTemplate::split("<section>hi</section>\n", 'hero/style_2');
+
+        $this->assertTrue($parts['locked']);
+        $this->assertTrue(SectionTemplate::fileIsLocked($this->dir.'/hero/style_2.antlers.html'));
+    }
+
+    public function test_custom_sections_are_unlocked_without_a_marker(): void
+    {
+        $parts = SectionTemplate::split("<section>hi</section>\n", 'custom_section/style_1');
+
+        $this->assertFalse($parts['locked']);
+        $this->assertFalse(SectionTemplate::defaultsLocked('custom_section/style_1'));
+        $this->assertFalse(SectionTemplate::defaultsLocked('custom_section'));
+        $this->assertTrue(SectionTemplate::defaultsLocked('hero/style_2'));
+    }
+
+    public function test_an_unlock_marker_opens_a_designed_type(): void
+    {
+        $parts = SectionTemplate::split(
+            "{{# sve-unlocked #}}\n<section>hi</section>\n",
+            'hero/style_2'
+        );
+
+        $this->assertFalse($parts['locked']);
+        $this->assertStringNotContainsString('sve-unlocked', $parts['html']);
+    }
+
+    public function test_join_writes_an_unlock_marker_for_a_designed_type(): void
+    {
+        $out = SectionTemplate::join([
+            'html' => '<section>hi</section>',
+            'css' => '',
+            'js' => '',
+            'locked' => false,
+        ], 'hero/style_2');
+
+        $this->assertStringStartsWith("{{# sve-unlocked #}}\n", $out);
+        $this->assertStringNotContainsString('sve-locked', $out);
+    }
+
+    public function test_join_omits_markers_when_the_default_already_matches(): void
+    {
+        $lockedHero = SectionTemplate::join([
+            'html' => '<section>hi</section>',
+            'css' => '',
+            'js' => '',
+            'locked' => true,
+        ], 'hero/style_2');
+
+        $openCustom = SectionTemplate::join([
+            'html' => '<section>hi</section>',
+            'css' => '',
+            'js' => '',
+            'locked' => false,
+        ], 'custom_section/style_1');
+
+        $this->assertSame("<section>hi</section>\n", $lockedHero);
+        $this->assertSame("<section>hi</section>\n", $openCustom);
+    }
+
+    public function test_set_locked_unlocks_a_designed_type_with_a_marker(): void
+    {
+        $path = $this->dir.'/hero/style_2.antlers.html';
+        $before = (string) file_get_contents($path);
+
+        $this->assertTrue(SectionTemplate::fileIsLocked($path));
+
+        SectionTemplate::setLocked($path, false);
+
+        $this->assertFalse(SectionTemplate::fileIsLocked($path));
+        $this->assertStringStartsWith("{{# sve-unlocked #}}\n", (string) file_get_contents($path));
+        $this->assertStringContainsString($before, (string) file_get_contents($path));
+
+        SectionTemplate::setLocked($path, true);
+
+        $this->assertTrue(SectionTemplate::fileIsLocked($path));
+        $this->assertSame($before, (string) file_get_contents($path));
+    }
+
+    public function test_set_locked_locks_a_custom_section_with_a_marker(): void
+    {
+        mkdir($this->dir.'/custom_section', 0777, true);
+        $path = $this->dir.'/custom_section/style_1.antlers.html';
+        file_put_contents($path, "<section>custom</section>\n");
+
+        $this->assertFalse(SectionTemplate::fileIsLocked($path));
+
+        SectionTemplate::setLocked($path, true);
+
+        $this->assertTrue(SectionTemplate::fileIsLocked($path));
+        $this->assertStringStartsWith("{{# sve-locked #}}\n", (string) file_get_contents($path));
+
+        SectionTemplate::setLocked($path, false);
+
+        $this->assertFalse(SectionTemplate::fileIsLocked($path));
+        $this->assertSame("<section>custom</section>\n", (string) file_get_contents($path));
+    }
+
+    public function test_restore_locked_puts_a_changed_file_back(): void
+    {
+        $path = $this->dir.'/hero/style_2.antlers.html';
+        $locked = (string) file_get_contents($path);
+        $snapshots = SectionTemplate::lockedSnapshots();
+
+        $this->assertArrayHasKey($path, $snapshots);
+
+        file_put_contents($path, "<section>changed</section>\n");
+        SectionTemplate::restoreLocked($snapshots);
+
+        $this->assertSame($locked, (string) file_get_contents($path));
     }
 }

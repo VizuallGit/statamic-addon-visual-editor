@@ -78,18 +78,55 @@ class CommentsController
         $this->authorize($entry);
 
         $data = $request->validate([
-            'resolved' => 'required|boolean',
+            'resolved' => 'sometimes|boolean',
+            'visual_id' => 'sometimes|string|max:80',
+            'x' => 'sometimes|numeric|min:0|max:100',
+            'y' => 'sometimes|numeric|min:0|max:100',
         ]);
+
+        abort_unless($request->hasAny(['resolved', 'visual_id', 'x', 'y']), 422);
 
         $thread = $this->store->find($entry, $comment);
 
         abort_unless($thread, 404);
 
-        $thread['resolved'] = (bool) $data['resolved'];
+        if (array_key_exists('resolved', $data)) {
+            $thread['resolved'] = (bool) $data['resolved'];
+        }
+
+        if (array_key_exists('visual_id', $data)) {
+            $thread['visual_id'] = $data['visual_id'];
+        }
+
+        if (array_key_exists('x', $data)) {
+            $thread['x'] = round((float) $data['x'], 2);
+        }
+
+        if (array_key_exists('y', $data)) {
+            $thread['y'] = round((float) $data['y'], 2);
+        }
 
         $this->store->put($entry, $thread);
 
         return response()->json(['comment' => $thread]);
+    }
+
+    public function prune(Request $request, string $entry)
+    {
+        $this->authorize($entry);
+
+        $data = $request->validate([
+            'visual_ids' => 'required|array|min:1',
+            'visual_ids.*' => 'string|max:80',
+        ]);
+
+        $removed = $this->store->deleteByVisualIds($entry, $data['visual_ids']);
+
+        return response()->json([
+            'ok' => true,
+            'removed' => $removed,
+            'comments' => $this->store->all($entry),
+        ]);
     }
 
     public function destroy(string $entry, string $comment)
@@ -103,8 +140,7 @@ class CommentsController
 
     protected function authorize(string $entry): void
     {
-        abort_unless(Features::editorEnabled() && Features::enabled('comments'), 403);
-        abort_unless(User::current()?->isSuper(), 403);
+        abort_unless(Features::editorEnabled() && Features::allows('comments'), 403);
         abort_unless(Entry::find($entry), 404);
     }
 

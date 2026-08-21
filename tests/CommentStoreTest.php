@@ -47,4 +47,17 @@ class CommentStoreTest extends TestCase
         $this->assertFalse($store->delete('entry-abc', 'thread-1'));
         $this->assertSame([], $store->all('entry-abc'));
     }
+
+    public function test_it_deletes_comments_for_removed_sections(): void
+    {
+        $store = new CommentStore;
+        $store->put('entry-abc', ['id' => 'on-hero', 'visual_id' => 'hero', 'messages' => []]);
+        $store->put('entry-abc', ['id' => 'on-banner', 'visual_id' => 'banner', 'messages' => []]);
+        $store->put('entry-abc', ['id' => 'on-page', 'visual_id' => '__page', 'messages' => []]);
+
+        $removed = $store->deleteByVisualIds('entry-abc', ['hero', '__page', '']);
+
+        $this->assertSame(1, $removed);
+        $this->assertSame(['on-banner', 'on-page'], array_column($store->all('entry-abc'), 'id'));
+    }
 }
