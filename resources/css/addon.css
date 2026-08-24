@@ -161,6 +161,88 @@
     -moz-appearance: auto;
 }
 
+/* ═══════════════════════════════════════════════════════
+   Søskende-synk
+   Kun feltets egen label — ikke Icon eller dropdown-rækker.
+   ═══════════════════════════════════════════════════════ */
+
+[data-sve-sync-field] > .responsive-fieldtype-header,
+[data-sve-sync-field] > .responsive-fieldtype-header > .responsive-fieldtype-label,
+[data-sve-sync-field] > [data-ui-field-header] [data-ui-label] > div,
+[data-sve-sync-field] > [data-ui-field-header] > label:not(.sr-only):not(:has(> div)) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+[data-sve-sync-field] > .responsive-fieldtype-header > .responsive-fieldtype-label::after,
+[data-sve-sync-field] > [data-ui-field-header] [data-ui-label] > div::after,
+[data-sve-sync-field] > [data-ui-field-header] > label:not(.sr-only):not(:has(> div))::after,
+[data-sve-sync-field]:has(> label.sr-only)::before {
+    content: 'Synced';
+    flex: none;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: color-mix(in oklab, currentColor 70%, transparent);
+    background: color-mix(in oklab, currentColor 14%, transparent);
+    box-shadow: none;
+}
+
+[data-sve-sync-field]:has(> label.sr-only)::before {
+    align-self: flex-start;
+    margin-bottom: 6px;
+}
+
+[data-sve-sync-field][data-sve-sync-state="source"] > .responsive-fieldtype-header > .responsive-fieldtype-label::after,
+[data-sve-sync-field][data-sve-sync-state="follow"] > .responsive-fieldtype-header > .responsive-fieldtype-label::after,
+[data-sve-sync-field][data-sve-sync-state="source"] > [data-ui-field-header] [data-ui-label] > div::after,
+[data-sve-sync-field][data-sve-sync-state="follow"] > [data-ui-field-header] [data-ui-label] > div::after,
+[data-sve-sync-field][data-sve-sync-state="source"] > [data-ui-field-header] > label:not(.sr-only):not(:has(> div))::after,
+[data-sve-sync-field][data-sve-sync-state="follow"] > [data-ui-field-header] > label:not(.sr-only):not(:has(> div))::after,
+[data-sve-sync-field][data-sve-sync-state="source"]:has(> label.sr-only)::before,
+[data-sve-sync-field][data-sve-sync-state="follow"]:has(> label.sr-only)::before {
+    content: 'Unsync';
+    color: #fff;
+    background: var(--theme-color-primary, #4f46e5);
+    box-shadow: none;
+}
+
+[data-sve-sync-field][data-sve-sync-locked] > *:not(.responsive-fieldtype-header):not([data-ui-field-header]):not(label.sr-only) {
+    pointer-events: none !important;
+    opacity: 0.45;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Keep table layout
+   Skjulte editor-kolonner (_visual_id, _sve_sync) tager ellers
+   pladsen til højre for feltet. Kun gitre med fluebenet.
+   ═══════════════════════════════════════════════════════ */
+
+[data-sve-keep-table] table.grid-table [data-sve-keep-table-col-hidden] {
+    display: none;
+    width: 0;
+    padding: 0;
+    border: 0;
+}
+
+[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) {
+    width: 100%;
+}
+
+[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) > *,
+[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) [data-ui-combobox],
+[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) [data-ui-combobox-anchor],
+[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) [data-ui-combobox-trigger] {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+}
+
+
 .input-text.sve-from-the-start-count::-webkit-inner-spin-button,
 .input-text.sve-from-the-start-count::-webkit-outer-spin-button {
     -webkit-appearance: inner-spin-button !important;
@@ -172,4 +254,25 @@
     top: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Icon button group
+   Kun vores felt. Den valgte knap skal kunne ses; den
+   anden dæmpes. Statamics native button_group røres ikke.
+   ═══════════════════════════════════════════════════════ */
+
+.icon_button_group-fieldtype button:not([data-sve-ibg-selected]),
+.icon-button-group-fieldtype button:not([data-sve-ibg-selected]) {
+    opacity: 0.4;
+}
+
+.icon_button_group-fieldtype button:not([data-sve-ibg-selected]):hover,
+.icon-button-group-fieldtype button:not([data-sve-ibg-selected]):hover {
+    opacity: 0.7;
+}
+
+.icon_button_group-fieldtype button[data-sve-ibg-selected],
+.icon-button-group-fieldtype button[data-sve-ibg-selected] {
+    opacity: 1;
 }

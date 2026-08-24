@@ -1,4 +1,7 @@
 /**
+ * KERNEL — not Vue. Overlay host. Do not convert this file.
+ * Do not import it from resources/js/cp/surfaces/.
+ *
  * The editor overlay — one way in, whether the host is the live site or the CP.
  *
  * The page underneath never goes away. Control Panel Live Preview boots in a
@@ -63,18 +66,36 @@ function guardHostReload(win, isOpen) {
 
   win.__sveReloadGuard = true;
 
-  try {
-    const reload = win.location.reload.bind(win.location);
-
-    win.location.reload = function (...args) {
+  const wrapReload = (reload) =>
+    function (...args) {
       if (isOpen()) {
         return;
       }
 
-      return reload(...args);
+      return reload.apply(this, args);
     };
+
+  try {
+    const reload = win.location.reload.bind(win.location);
+
+    win.location.reload = wrapReload(reload);
   } catch {
-    /* some browsers freeze Location */
+    /* some browsers freeze Location — try the prototype below */
+  }
+
+  try {
+    const proto = Object.getPrototypeOf(win.location);
+    const desc = Object.getOwnPropertyDescriptor(proto, 'reload');
+
+    if (desc?.value && !desc.value.__sveGuarded) {
+      const protoReload = desc.value;
+      const wrapped = wrapReload(protoReload);
+
+      wrapped.__sveGuarded = true;
+      Object.defineProperty(proto, 'reload', { ...desc, value: wrapped });
+    }
+  } catch {
+    /* ignore */
   }
 
   const wrapSocket = (ws) => {
@@ -447,7 +468,6 @@ function createHost(win) {
 
   function openEditor(url) {
     wanted = true;
-    setLoading(true);
     try {
       win.sessionStorage.removeItem(KEEP_CHROME_KEY);
     } catch {
@@ -459,7 +479,11 @@ function createHost(win) {
       wanted = false;
       setLoading(false);
       show();
+
+      return;
     }
+
+    setLoading(true);
 
     win.clearTimeout(failTimer);
     failTimer = win.setTimeout(() => {
@@ -723,6 +747,77 @@ export function gotoOverlay(win, url) {
   installOverlayHost(win).goto(url);
 }
 
+/**
+ * Skip the hidden editor warm-up on a constrained connection — the page the
+ * user is reading comes first, and hover still boots if they reach for Rediger.
+ */
+function shouldWarm(win) {
+  try {
+    const conn = win.navigator.connection;
+
+    if (conn?.saveData) {
+      return false;
+    }
+
+    if (conn?.effectiveType && /^(slow-2g|2g)$/.test(conn.effectiveType)) {
+      return false;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return true;
+}
+
+function prefetchEditor(win, url) {
+  const doc = win.document;
+
+  if (!url || doc.querySelector('link[data-sve-editor-prefetch]')) {
+    return;
+  }
+
+  const link = doc.createElement('link');
+
+  link.rel = 'prefetch';
+  link.as = 'document';
+  link.href = url;
+  link.setAttribute('data-sve-editor-prefetch', '');
+  doc.head.appendChild(link);
+}
+
+/**
+ * Start the same hidden iframe hover already starts, once the page is quiet.
+ * A click a few seconds later can then fade in a finished overlay instead of
+ * waiting on a cold Control Panel.
+ */
+function scheduleWarm(win, boot, url) {
+  if (!url || !shouldWarm(win)) {
+    return;
+  }
+
+  prefetchEditor(win, url);
+
+  const start = () => {
+    if (shouldWarm(win)) {
+      boot(url);
+    }
+  };
+
+  const whenQuiet = () => {
+    if (typeof win.requestIdleCallback === 'function') {
+      win.requestIdleCallback(start, { timeout: 2000 });
+    } else {
+      win.setTimeout(start, 1200);
+    }
+  };
+
+  if (win.document.readyState === 'complete') {
+    whenQuiet();
+  } else {
+    win.addEventListener('load', whenQuiet, { once: true });
+  }
+}
+
 function bindEditButton(win) {
   const btn = win.document.getElementById('sve-edit-button');
 
@@ -733,7 +828,10 @@ function bindEditButton(win) {
   const host = installOverlayHost(win);
   const url = btn.getAttribute('href');
 
+  scheduleWarm(win, host.boot, url);
+
   btn.addEventListener('pointerenter', () => host.boot(url));
+  btn.addEventListener('pointerdown', () => host.boot(url));
   btn.addEventListener('focus', () => host.boot(url));
   btn.addEventListener(
     'click',

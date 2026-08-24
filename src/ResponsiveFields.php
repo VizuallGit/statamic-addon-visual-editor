@@ -176,7 +176,10 @@ class ResponsiveFields
         }
 
         $inner = $field;
-        unset($inner[static::KEY], $inner['instructions']);
+        // Synk-knappen skal sidde på indpakningen, ikke på feltet i skuffen —
+        // ellers kommer der to knapper, og den indre kender kun den aktive
+        // breakpoint-sti, ikke hele den responsive værdi.
+        unset($inner[static::KEY], $inner['instructions'], $inner[SiblingSync::KEY]);
 
         // Betingelsen følger med udenpå. Blev den stående på det indre felt, ville
         // den pege på et søskendefelt der ikke findes derinde og aldrig blive sand:
@@ -188,7 +191,7 @@ class ResponsiveFields
         // — én gang for indpakningen og én for feltet i den.
         $inner['hide_display'] = true;
 
-        return $conditions + [
+        $wrapped = $conditions + [
             'type' => 'responsive',
             // Label + override-dot + reset tegnes af fieldtypen selv, så Statamics
             // egen label ikke står ovenover og forhindrer prikken i at sidde
@@ -201,5 +204,12 @@ class ResponsiveFields
                 ['handle' => $handle, 'field' => $inner],
             ],
         ];
+
+        if (! empty($field[SiblingSync::KEY])) {
+            $wrapped[SiblingSync::KEY] = true;
+            $wrapped = SiblingSync::apply($wrapped);
+        }
+
+        return $wrapped;
     }
 }

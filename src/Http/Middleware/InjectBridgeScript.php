@@ -146,23 +146,6 @@ class InjectBridgeScript
 
     protected function resolveScriptUrl(string $entry): string
     {
-        $fallback = asset('vendor/visual-editor/'.basename($entry));
-
-        $manifestPath = public_path('vendor/visual-editor/build/manifest.json');
-
-        if (file_exists($manifestPath)) {
-            $manifest = json_decode((string) file_get_contents($manifestPath), true);
-            if (json_last_error() !== JSON_ERROR_NONE || ! is_array($manifest)) {
-                return $fallback;
-            }
-
-            $resolved = $manifest[$entry] ?? null;
-
-            if ($resolved && isset($resolved['file'])) {
-                return asset('vendor/visual-editor/build/'.$resolved['file']);
-            }
-        }
-
-        return $fallback;
+        return \MarioHamann\StatamicVisualEditor\BuiltAssets::url($entry);
     }
 }

@@ -31,11 +31,21 @@ class Features
         'template_dock',
         'tailwind_dock',
         'ai_panel',
+        'open_first_section',
+    ];
+
+    /**
+     * Still in KEYS and JS, but never on. Page Settings is the empty-panel
+     * default; Focus panel already does one-section-at-a-time.
+     */
+    protected const PARKED_OFF = [
+        'open_first_section',
     ];
 
     /** Every toggle, in the order the settings screen shows them. */
     public const KEYS = [
         'panel',
+        'page_activity',
         'pages',
         'globals',
         'sections',
@@ -83,6 +93,10 @@ class Features
                     "statamic-visual-editor.features.{$key}",
                     ! in_array($key, static::DEFAULT_OFF, true)
                 );
+
+            if (in_array($key, static::PARKED_OFF, true)) {
+                $map[$key] = false;
+            }
         }
 
         return static::$map = $map;

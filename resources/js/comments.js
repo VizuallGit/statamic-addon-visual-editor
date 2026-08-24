@@ -1,10 +1,16 @@
 /**
  * Figma-style comment pins over Live Preview.
  *
- * Pins sit in the Control Panel window on top of the iframe. Threads are stored
- * per entry in this site's storage/statamic-visual-editor/comments. Who may use
- * them is set under the Comments toggle on Addons → Visual Editor.
+ * Pins sit in the Control Panel window on top of the iframe. The list in the
+ * right dock is Vue (`CommentsSidebar`). Pin geometry over the iframe is not.
  */
+import CommentsSidebar from './cp/surfaces/CommentsSidebar.vue';
+import CommentThread from './cp/surfaces/CommentThread.vue';
+import CommentPins from './cp/surfaces/CommentPins.vue';
+import { commentsSidebar } from './cp/comments/store.js';
+import { mountSurface } from './cp/mount.js';
+import { mountPane } from './cp/mount-pane.js';
+
 export function initComments() {
   const ROOT_ID = 'sc-cp-root';
   const HIT_ID = 'sc-cp-hit';
@@ -22,12 +28,16 @@ export function initComments() {
   let started = false;
   let openId = null;
   let draft = null;
-  let ticking = false;
+  let pinFollow = null;
   let sidebarFilter = 'open';
   let bootObserver = null;
   let lastSectionFingerprint = '';
   let orphanTimer = null;
+  let orphanWatch = null;
   let pruning = false;
+  let sidebarApp = null;
+  let threadApp = null;
+  let pinsApp = null;
 
   function config() {
     return window.Statamic?.$config?.get?.('sveComments') || window.StatamicConfig?.sveComments || null;
@@ -175,10 +185,31 @@ export function initComments() {
     return comments.filter((comment) => !comment.resolved && commentIsOnPage(comment)).length;
   }
 
+  function surfaceIsShown(el) {
+    if (!el) {
+      return false;
+    }
+
+    if (
+      el.hidden ||
+      el.hasAttribute('data-sve-chrome-hidden') ||
+      el.hasAttribute('data-sve-right-folded') ||
+      el.hasAttribute('data-sve-right-closed')
+    ) {
+      return false;
+    }
+
+    if (el.style.display === 'none' || el.style.visibility === 'hidden') {
+      return false;
+    }
+
+    return true;
+  }
+
   function commentsPaneOpen() {
     const host = commentsHost();
 
-    if (!host) {
+    if (!host || !surfaceIsShown(host)) {
       return false;
     }
 
@@ -188,15 +219,10 @@ export function initComments() {
       return false;
     }
 
-    const pane = host.closest('[data-sve-right-pane="comments"]');
+    const pane =
+      host.closest('[data-sve-right-pane="comments"]') || host.closest('#__sve-comments-pane');
 
-    if (pane) {
-      return !pane.hidden && pane.style.display !== 'none';
-    }
-
-    const panel = host.closest('#__sve-comments-pane');
-
-    return !!panel && !panel.hasAttribute('data-sve-chrome-hidden') && panel.style.display !== 'none';
+    return !!pane && surfaceIsShown(pane);
   }
 
   function commentsHost() {
@@ -288,12 +314,14 @@ export function initComments() {
       mode = false;
       openId = null;
       draft = null;
+      stopOrphanWatch();
       teardownUi();
       paintPlaceButton();
 
       return;
     }
 
+    startOrphanWatch();
     loadComments();
     paintUi();
     paintPlaceButton();
@@ -635,9 +663,15 @@ export function initComments() {
   }
 
   function teardownUi() {
-    ticking = false;
+    unbindPinFollow();
+    threadApp?.unmount();
+    threadApp = null;
+    pinsApp?.unmount();
+    pinsApp = null;
     document.getElementById(ROOT_ID)?.remove();
     document.getElementById(SIDEBAR_ID)?.remove();
+    sidebarApp?.unmount();
+    sidebarApp = null;
     commentsHost()?.replaceChildren();
   }
 
@@ -649,6 +683,10 @@ export function initComments() {
 
     const wrap = root();
 
+    pinsApp?.unmount();
+    pinsApp = null;
+    threadApp?.unmount();
+    threadApp = null;
     [...wrap.querySelectorAll('[data-sc-chrome]')].forEach((el) => el.remove());
 
     if (mode) {
@@ -661,14 +699,16 @@ export function initComments() {
       }
     }
 
-    startTick();
-
     const ctx = previewCtx();
     const items = comments.slice();
 
     if (draft) {
       items.push({ id: '__draft', ...draft, resolved: false, messages: [] });
     }
+
+    const pins = [];
+    let openComment = null;
+    let openPos = null;
 
     items.forEach((comment, index) => {
       const section = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
@@ -678,31 +718,36 @@ export function initComments() {
       }
 
       const pos = section ? screenPos(section, comment.x, comment.y) : fallbackPos(comment);
-      const pin = document.createElement('button');
-      const initials = comment.messages?.[0]?.author_initials || String(index + 1);
 
-      pin.type = 'button';
-      pin.dataset.scChrome = '';
-      pin.dataset.scPin = comment.id;
-      pin.style.cssText =
-        'position:fixed;width:28px;height:28px;margin:-6px 0 0 -6px;border:0;padding:0;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:#4530D8;color:#fff;box-shadow:0 2px 10px rgba(0,0,0,.28);pointer-events:auto;cursor:pointer;z-index:' +
-        Z_PIN +
-        ';display:flex;align-items:center;justify-content:center;';
+      pins.push({
+        id: comment.id,
+        left: pos.left,
+        top: pos.top,
+        initials: comment.messages?.[0]?.author_initials || String(index + 1),
+        resolved: !!comment.resolved,
+      });
 
-      if (comment.resolved) {
-        pin.style.background = '#64748b';
+      if (openId === comment.id) {
+        openComment = comment;
+        openPos = pos;
       }
+    });
 
-      pin.style.left = `${pos.left}px`;
-      pin.style.top = `${pos.top}px`;
-      pin.innerHTML = '<span style="transform:rotate(45deg);font-size:10px;font-weight:700;"></span>';
-      pin.querySelector('span').textContent = initials;
-      pin.addEventListener('mousedown', (event) => event.stopPropagation());
-      pin.addEventListener('click', (event) => {
-        event.stopPropagation();
-        openId = openId === comment.id ? null : comment.id;
+    let pinHost = wrap.querySelector('[data-sc-pins]');
 
-        if (comment.id !== '__draft') {
+    if (!pinHost) {
+      pinHost = document.createElement('div');
+      pinHost.dataset.scPins = '';
+      wrap.appendChild(pinHost);
+    }
+
+    pinsApp = mountPane(pinHost, CommentPins, {
+      pins,
+      zIndex: Z_PIN,
+      onToggle: (id) => {
+        openId = openId === id ? null : id;
+
+        if (id !== '__draft') {
           draft = null;
         }
 
@@ -711,18 +756,23 @@ export function initComments() {
         if (openId) {
           focusComposer();
         }
-      });
-      wrap.appendChild(pin);
-
-      if (openId === comment.id) {
-        const card = threadCard(comment, pos);
-
-        wrap.appendChild(card);
-        placeThread(card, pos);
-      }
+      },
     });
 
+    if (openComment) {
+      const card = threadCard(openComment, openPos);
+
+      wrap.appendChild(card);
+      placeThread(card, openPos);
+    }
+
     paintSidebar();
+
+    if (mode || pins.length || openComment) {
+      bindPinFollow();
+    } else {
+      unbindPinFollow();
+    }
   }
 
   function snippet(comment) {
@@ -942,6 +992,30 @@ export function initComments() {
     );
   }
 
+  function startOrphanWatch() {
+    if (orphanWatch) {
+      return;
+    }
+
+    orphanWatch = window.setInterval(() => {
+      if (!commentsPaneOpen()) {
+        stopOrphanWatch();
+        return;
+      }
+
+      syncOrphanComments();
+    }, 600);
+  }
+
+  function stopOrphanWatch() {
+    if (!orphanWatch) {
+      return;
+    }
+
+    window.clearInterval(orphanWatch);
+    orphanWatch = null;
+  }
+
   function missingVisualIds(doc) {
     return [
       ...new Set(
@@ -1072,8 +1146,6 @@ export function initComments() {
   }
 
   function paintSidebar() {
-    document.getElementById(SIDEBAR_ID)?.remove();
-
     const panel = commentsHost();
 
     if (!panel) {
@@ -1081,7 +1153,9 @@ export function initComments() {
     }
 
     if (!commentsPaneOpen()) {
-      panel.innerHTML = '';
+      sidebarApp?.unmount();
+      sidebarApp = null;
+      panel.replaceChildren();
       return;
     }
 
@@ -1089,91 +1163,39 @@ export function initComments() {
     const open = alive.filter((comment) => !comment.resolved);
     const shown = sidebarFilter === 'open' ? open : alive;
 
-    panel.innerHTML = '';
-
-    const tabs = document.createElement('div');
-
-    tabs.style.cssText = 'display:flex;gap:4px;padding:var(--sve-right-body-pad-block) 0 0;flex:0 0 auto;';
-    [
-      ['open', `Åbne (${open.length})`],
-      ['all', `Alle (${alive.length})`],
-    ].forEach(([id, label]) => {
-      const tab = document.createElement('button');
-
-      tab.type = 'button';
-      tab.textContent = label;
-      tab.style.cssText =
-        'all:unset;cursor:pointer;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:' +
-        (sidebarFilter === id ? '600' : '500') +
-        ';background:' +
-        (sidebarFilter === id ? 'var(--theme-color-primary,#4530D8)' : 'rgba(128,128,128,.22)') +
-        ';color:' +
-        (sidebarFilter === id ? '#fff' : 'currentColor');
-      tab.addEventListener('click', () => {
-        sidebarFilter = id;
-        paintSidebar();
-      });
-      tabs.appendChild(tab);
-    });
-    panel.appendChild(tabs);
-
-    const list = document.createElement('div');
-
-    list.style.cssText = 'flex:1 1 auto;min-height:0;overflow-y:auto;padding:var(--sve-right-body-pad-block) 0;display:flex;flex-direction:column;gap:8px;';
-
-    if (!shown.length) {
-      const empty = document.createElement('div');
-
-      empty.style.cssText = 'padding:24px 8px;text-align:center;opacity:.55;font-size:12px;line-height:1.45;';
-      empty.textContent = mode
-        ? (sidebarFilter === 'open'
-          ? 'Ingen åbne kommentarer. Klik i preview for at tilføje en.'
-          : 'Ingen kommentarer på siden endnu. Klik i preview for at tilføje en.')
-        : (sidebarFilter === 'open'
-          ? 'Ingen åbne kommentarer. Tryk på taleboblen for at skrive.'
-          : 'Ingen kommentarer på siden endnu. Tryk på taleboblen for at skrive.');
-      list.appendChild(empty);
-    }
-
-    shown.forEach((comment) => {
+    commentsSidebar.filter = sidebarFilter;
+    commentsSidebar.mode = mode;
+    commentsSidebar.openCount = open.length;
+    commentsSidebar.allCount = alive.length;
+    commentsSidebar.rows = shown.map((comment) => {
       const first = comment.messages?.[0] || {};
-      const row = document.createElement('button');
-      const active = openId === comment.id;
 
-      row.type = 'button';
-      row.style.cssText =
-        'all:unset;cursor:pointer;display:block;padding:10px;border-radius:' +
-        CHROME_RADIUS +
-        ';border:1px solid ' +
-        (active ? 'rgba(69,48,216,.45)' : 'rgba(128,128,128,.18)') +
-        ';background:' +
-        (active ? 'rgba(69,48,216,.08)' : 'rgba(128,128,128,.08)') +
-        (comment.resolved ? ';opacity:.62' : '');
-
-      const meta = document.createElement('div');
-
-      meta.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;';
-      meta.innerHTML =
-        `<span style="font-size:11px;font-weight:650"></span><span style="font-size:10px;opacity:.55"></span>`;
-      meta.children[0].textContent = first.author_name || 'User';
-      meta.children[1].textContent = timeAgo(first.created_at);
-
-      const where = document.createElement('div');
-
-      where.style.cssText = 'font-size:10px;opacity:.55;margin-bottom:4px;';
-      where.textContent = comment.resolved ? `Løst · ${commentLabel(comment)}` : commentLabel(comment);
-
-      const body = document.createElement('div');
-
-      body.style.cssText = 'font-size:13px;line-height:1.4;';
-      body.textContent = snippet(comment) || 'Kommentar';
-
-      row.append(meta, where, body);
-      row.addEventListener('click', () => revealComment(comment));
-      list.appendChild(row);
+      return {
+        id: comment.id,
+        author: first.author_name || 'User',
+        time: timeAgo(first.created_at),
+        where: comment.resolved ? `Løst · ${commentLabel(comment)}` : commentLabel(comment),
+        snippet: snippet(comment) || 'Kommentar',
+        resolved: !!comment.resolved,
+        active: openId === comment.id,
+      };
     });
+    commentsSidebar.onFilter = (id) => {
+      sidebarFilter = id;
+      paintSidebar();
+    };
+    commentsSidebar.onReveal = (id) => {
+      const comment = comments.find((item) => item.id === id);
 
-    panel.appendChild(list);
+      if (comment) {
+        revealComment(comment);
+      }
+    };
+
+    if (!sidebarApp) {
+      panel.replaceChildren();
+      sidebarApp = mountSurface(CommentsSidebar, panel);
+    }
   }
 
   function revealComment(comment) {
@@ -1282,24 +1304,37 @@ export function initComments() {
     card.style.top = `${top}px`;
   }
 
-  function startTick() {
-    if (ticking) {
+  function unbindPinFollow() {
+    if (!pinFollow) {
       return;
     }
 
-    ticking = true;
+    pinFollow.win?.removeEventListener('scroll', pinFollow.onMove);
+    window.removeEventListener('scroll', pinFollow.onMove);
+    pinFollow = null;
+  }
 
-    const tick = () => {
+  function bindPinFollow() {
+    unbindPinFollow();
+
+    if (!commentsPaneOpen()) {
+      return;
+    }
+
+    const ctx = previewCtx();
+    const onMove = () => {
       if (!commentsPaneOpen()) {
-        ticking = false;
+        unbindPinFollow();
         return;
       }
 
       layoutGeometry();
-      window.requestAnimationFrame(tick);
     };
 
-    window.requestAnimationFrame(tick);
+    pinFollow = { win: ctx?.win || null, onMove };
+    pinFollow.win?.addEventListener('scroll', onMove, { passive: true });
+    window.addEventListener('scroll', onMove, { passive: true });
+    layoutGeometry();
   }
 
   function isDark() {
@@ -1344,203 +1379,80 @@ export function initComments() {
   }
 
   function threadCard(comment, point) {
-    const card = document.createElement('div');
+    const host = document.createElement('div');
     const isDraft = comment.id === '__draft';
-    const theme = chromeTheme();
+    const theme = { ...chromeTheme(), radius: CHROME_RADIUS };
+    const options = pickerOptions(comment.visual_id);
 
-    card.dataset.scChrome = '';
-    card.dataset.scThread = comment.id;
-    card.style.cssText =
-      'position:fixed;width:280px;background:' +
-      theme.card +
-      ';color:' +
-      theme.text +
-      ';color-scheme:' +
-      theme.scheme +
-      ';border-radius:' +
-      CHROME_RADIUS +
-      ';box-shadow:0 10px 40px rgba(0,0,0,.22);pointer-events:auto;z-index:' +
+    host.dataset.scChrome = '';
+    host.dataset.scThread = String(comment.id);
+    host.style.cssText =
+      'position:fixed;width:280px;z-index:' +
       Z_THREAD +
-      ';overflow:hidden;font-family:ui-sans-serif,system-ui,sans-serif;';
-    isolatePointer(card);
+      ';pointer-events:auto;';
 
-    const header = document.createElement('header');
+    threadApp?.unmount();
+    threadApp = mountSurface(CommentThread, host, {
+      theme,
+      threadId: String(comment.id),
+      zIndex: Number(Z_THREAD),
+      title: isDraft ? 'Ny kommentar' : comment.resolved ? 'Løst' : 'Kommentar',
+      isDraft,
+      resolved: !!comment.resolved,
+      sectionLabel: 'Sektion',
+      sectionOptions: options,
+      sectionValue: comment.visual_id || '__page',
+      messages: (comment.messages || []).map((message) => ({
+        author: message.author_name || 'User',
+        time: timeAgo(message.created_at),
+        body: message.body || '',
+      })),
+      placeholder: isDraft ? 'Skriv en kommentar…' : 'Skriv et svar…',
+      draftBody: isDraft ? draft?.body || '' : '',
+      submitLabel: isDraft ? 'Send' : 'Svar',
+      resolveLabel: comment.resolved ? 'Åbn igen' : 'Marker som løst',
+      deleteLabel: 'Slet',
+      cancelLabel: 'Annuller',
+      onClose: () => {
+        openId = null;
+        draft = null;
+        paintUi();
+      },
+      onAssign: (value) => assignSection(comment, value),
+      onSend: (body) => {
+        const text = String(body || '').trim();
 
-    header.style.cssText =
-      'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px 8px;border-bottom:1px solid ' +
-      theme.line +
-      ';';
-    header.innerHTML = `<strong style="font-size:13px">${isDraft ? 'Ny kommentar' : comment.resolved ? 'Løst' : 'Kommentar'}</strong>`;
+        if (!text) {
+          return;
+        }
 
-    const close = document.createElement('button');
-
-    close.type = 'button';
-    close.style.cssText =
-      'all:unset;cursor:pointer;opacity:.55;font-size:16px;padding:0 4px;pointer-events:auto;';
-    close.textContent = '×';
-    close.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openId = null;
-      draft = null;
-      paintUi();
-    });
-    header.appendChild(close);
-    card.appendChild(header);
-    card.appendChild(sectionPicker(comment, theme));
-
-    if (!isDraft) {
-      const list = document.createElement('div');
-
-      list.style.cssText =
-        'max-height:220px;overflow:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px;';
-      (comment.messages || []).forEach((message) => {
-        const row = document.createElement('div');
-        const who = document.createElement('div');
-        const body = document.createElement('p');
-
-        who.innerHTML = `<span style="font-size:11px;font-weight:650"></span><span style="font-size:10px;opacity:.55;margin-left:6px"></span>`;
-        who.children[0].textContent = message.author_name || 'User';
-        who.children[1].textContent = timeAgo(message.created_at);
-        body.style.cssText = 'margin:3px 0 0;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-word;';
-        body.textContent = message.body || '';
-        row.append(who, body);
-        list.appendChild(row);
-      });
-      card.appendChild(list);
-    }
-
-    const form = document.createElement('form');
-    const input = document.createElement('textarea');
-    const actions = document.createElement('div');
-
-    form.style.cssText =
-      'display:flex;flex-direction:column;gap:8px;padding:10px 12px 12px;border-top:1px solid ' +
-      theme.line +
-      ';';
-    input.placeholder = isDraft ? 'Skriv en kommentar…' : 'Skriv et svar…';
-    input.required = true;
-    input.value = isDraft ? draft?.body || '' : '';
-    input.style.cssText =
-      'width:100%;min-height:64px;resize:vertical;border:1px solid ' +
-      theme.inputBorder +
-      ';border-radius:' +
-      CHROME_RADIUS +
-      ';padding:8px;font:inherit;font-size:13px;box-sizing:border-box;pointer-events:auto;background:' +
-      theme.input +
-      ';color:inherit;';
-    actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;';
-
-    input.addEventListener('mousedown', (event) => {
-      event.stopPropagation();
-
-      if (document.activeElement !== input) {
-        event.preventDefault();
-        input.focus();
-      }
-    });
-    input.addEventListener('pointerdown', (event) => event.stopPropagation());
-    input.addEventListener('keydown', (event) => event.stopPropagation());
-    input.addEventListener('input', () => {
-      if (isDraft && draft) {
-        draft.body = input.value;
-      }
-    });
-
-    const submit = document.createElement('button');
-
-    submit.type = 'button';
-    submit.textContent = isDraft ? 'Send' : 'Svar';
-    submit.style.cssText =
-      'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
-      CHROME_RADIUS +
-      ';background:' +
-      theme.primary +
-      ';color:#fff;pointer-events:auto;';
-    actions.appendChild(submit);
-
-    if (!isDraft) {
-      const resolve = document.createElement('button');
-
-      resolve.type = 'button';
-      resolve.textContent = comment.resolved ? 'Åbn igen' : 'Marker som løst';
-      resolve.style.cssText =
-        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
-      CHROME_RADIUS +
-      ';background:' +
-        theme.ghost +
-        ';color:inherit;pointer-events:auto;';
-      resolve.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        toggleResolved(comment);
-      });
-      actions.appendChild(resolve);
-
-      const remove = document.createElement('button');
-
-      remove.type = 'button';
-      remove.textContent = 'Slet';
-      remove.style.cssText =
-        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
-      CHROME_RADIUS +
-      ';background:' +
-        theme.ghost +
-        ';color:inherit;pointer-events:auto;';
-      remove.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-
+        if (isDraft) {
+          createComment(text);
+        } else {
+          replyTo(comment.id, text);
+        }
+      },
+      onResolve: () => toggleResolved(comment),
+      onDelete: () => {
         if (window.confirm('Slet denne kommentar?')) {
           deleteComment(comment.id);
         }
-      });
-      actions.appendChild(remove);
-    } else {
-      const cancel = document.createElement('button');
-
-      cancel.type = 'button';
-      cancel.textContent = 'Annuller';
-      cancel.style.cssText =
-        'cursor:pointer;font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border:0;border-radius:' +
-      CHROME_RADIUS +
-      ';background:' +
-        theme.ghost +
-        ';color:inherit;pointer-events:auto;';
-      cancel.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+      },
+      onCancel: () => {
         draft = null;
         openId = null;
         paintUi();
-      });
-      actions.appendChild(cancel);
-    }
+      },
+      onDraftInput: (value) => {
+        if (isDraft && draft) {
+          draft.body = value;
+        }
+      },
+    });
 
-    const send = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+    isolatePointer(host);
 
-      const body = input.value.trim();
-
-      if (!body) {
-        input.focus();
-        return;
-      }
-
-      if (isDraft) {
-        createComment(body);
-      } else {
-        replyTo(comment.id, body);
-      }
-    };
-
-    form.append(input, actions);
-    form.addEventListener('submit', send);
-    submit.addEventListener('click', send);
-    card.appendChild(form);
-
-    return card;
+    return host;
   }
 
   async function createComment(body) {
@@ -1654,7 +1566,6 @@ export function initComments() {
       loadComments();
     });
     window.addEventListener('resize', layoutGeometry);
-    window.setInterval(() => syncOrphanComments(), 600);
     let lastDark = isDark();
     new MutationObserver(() => {
       const next = isDark();
@@ -1673,7 +1584,11 @@ export function initComments() {
       const data = event.data;
 
       if (data?.name === 'statamic.preview.updated') {
-        syncOrphanComments({ force: true });
+        if (commentsPaneOpen()) {
+          syncOrphanComments({ force: true });
+          bindPinFollow();
+        }
+
         return;
       }
 

@@ -26,6 +26,16 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: page_activity
+            field:
+              type: toggle
+              display: 'Edit history'
+              instructions: 'An icon in the Live Preview top bar that opens this page''s revision list. It uses Statamic''s own revisions, not a separate log. Off, the icon is gone.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
             handle: pages
             field:
               type: toggle
@@ -96,7 +106,7 @@ tabs:
             field:
               type: toggle
               display: 'Block tree'
-              instructions: 'The page as a tree of sections and blocks, docked on the right. Heading outline is a tab inside it.'
+              instructions: 'The page as a tree of sections and blocks, docked on the right.'
               default: true
               width: 50
               if:
@@ -120,6 +130,15 @@ tabs:
               width: 50
               if:
                 enabled: 'equals true'
+          -
+            handle: outline_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: outline
+              if:
+                enabled: 'equals true'
+                outline: 'equals true'
           -
             handle: comments
             field:
@@ -165,11 +184,11 @@ tabs:
             field:
               type: toggle
               display: 'Open in the first section'
-              instructions: 'Skip the Page sections list. Opening an entry goes straight into the first section on the page and shows that section''s own fields, instead of the sidebar listing every section at once. The list is still there — the back arrow at the top of the panel goes to it. Off, the panel opens on the full list as Statamic renders it. Requires the focus panel.'
+              instructions: 'Parked. The code is still there; Live Preview opens on Page Settings instead, and Focus panel already shows one section at a time. Not shown on this screen.'
               default: false
+              visibility: hidden
               if:
-                enabled: 'equals true'
-                focus_panel: 'equals true'
+                enabled: 'equals never'
           -
             handle: template_dock
             field:

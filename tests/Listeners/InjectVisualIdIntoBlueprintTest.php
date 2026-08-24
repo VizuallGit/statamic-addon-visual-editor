@@ -112,6 +112,21 @@ class InjectVisualIdIntoBlueprintTest extends TestCase
         $this->assertContains('_visual_id', array_column($imageFields, 'handle'));
     }
 
+    public function test_replicator_sets_gain_sibling_sync_state_field(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'text_block' => $this->textSet('text_block'),
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $fields = $this->getSetsFields($blueprint, 'content', 'main', 'text_block');
+
+        $this->assertContains('_sve_sync', array_column($fields, 'handle'));
+    }
+
     public function test_bard_sets_gain_visual_id_on_entry_blueprint_found(): void
     {
         $blueprint = $this->makeBlueprint([

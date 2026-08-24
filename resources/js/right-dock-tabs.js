@@ -18,6 +18,10 @@
  */
 
 import { chromeGet, chromeSet } from './chrome-prefs.js';
+import { sve } from './cp-registry.js';
+import RightDockShell from './cp/surfaces/RightDockShell.vue';
+import { mountPane } from './cp/mount-pane.js';
+import dockCss from '../css/right-dock.css?inline';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -82,7 +86,7 @@ const PIN_ON =
   + 'stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1z"/></svg>';
 
 const CLOSE_ICON =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
   + 'stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 const CHEVRON_ICON =
@@ -320,7 +324,7 @@ export function persistVisibleRightPanes(win, keys = null) {
 
 /**
  * Panes to remount after a full reload: stack order, then pins, then last open.
- * Outline is a tab on the block tree, not its own shell pane.
+ * Outline is its own right-dock pane (heading list), beside the block tree.
  */
 export function rememberedRightPaneKeys(win) {
   const pinned = storedPinned(win);
@@ -329,26 +333,24 @@ export function rememberedRightPaneKeys(win) {
 
   for (const key of Object.keys(pinned)) {
     if (pinned[key]) {
-      want.add(key === 'outline' ? 'listview' : key);
+      want.add(key);
     }
   }
 
   for (const key of open) {
-    want.add(key === 'outline' ? 'listview' : key);
+    want.add(key);
   }
 
   const out = [];
   const seen = new Set();
 
   for (const key of [...storedOrder(win), ...open, ...want]) {
-    const next = key === 'outline' ? 'listview' : key;
-
-    if (!want.has(next) || seen.has(next)) {
+    if (!want.has(key) || seen.has(key)) {
       continue;
     }
 
-    seen.add(next);
-    out.push(next);
+    seen.add(key);
+    out.push(key);
   }
 
   return out;
@@ -415,306 +417,23 @@ function ensureStyle(doc) {
     doc.head.appendChild(style);
   }
 
-  style.textContent = `
-#${RIGHT_DOCK_ID} {
-  --sve-right-gutter: 12px;
-  --sve-right-header-gap: 10px;
-  --sve-right-header-pad-block: 10px;
-  --sve-right-body-pad-block: 12px;
-  position: fixed;
-  right: 0;
-  z-index: 41;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  overflow: hidden;
-  background: var(--theme-color-content-bg, #fff);
-  color: currentColor;
-  border-left: 1px solid rgba(128,128,128,.28);
-  box-shadow: -8px 0 24px rgba(0,0,0,.18);
-  font-family: ui-sans-serif, system-ui, sans-serif;
-}
-#${RIGHT_DOCK_ID}[data-sve-right-closed] {
-  visibility: hidden !important;
-  pointer-events: none !important;
-  z-index: -1 !important;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-slot] {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-resize] {
-  position: relative;
-  flex: 0 0 16px;
-  width: 16px;
-  align-self: stretch;
-  cursor: ew-resize;
-  z-index: 2;
-  ${splitterFill('ew')}
-}
-#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-slot] {
-  padding: 0;
-  gap: 0;
-}
-#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] {
-  border-radius: 0;
-  overflow: hidden;
-  width: 100%;
-  min-width: 0;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane] {
-  box-sizing: border-box;
-  padding-inline: var(--sve-right-gutter);
-}
-/* One gutter, owned by the pane. Nested lists used to add their own 10–14px
-   and the block tree sat narrower than comments / patterns / AI. */
-#${RIGHT_DOCK_ID} [data-sve-right-pane] > :not(:first-child),
-#${RIGHT_DOCK_ID} [data-sve-comments-host] > *,
-#${RIGHT_DOCK_ID} [data-sve-lv-body] > * {
-  padding-inline: 0 !important;
-  margin-inline: 0 !important;
-}
-#${RIGHT_DOCK_ID} [data-sve-lv-body],
-#${RIGHT_DOCK_ID} [data-sve-listview-list],
-#${RIGHT_DOCK_ID} [data-sve-outline-list] {
-  width: 100%;
-  box-sizing: border-box;
-}
-#${RIGHT_DOCK_ID} [data-sve-listview-list],
-#${RIGHT_DOCK_ID} [data-sve-outline-list] {
-  padding-inline: 0 !important;
-  padding-block: var(--sve-right-body-pad-block);
-}
-#${RIGHT_DOCK_ID} [data-sve-right-split] {
-  flex: 0 0 12px;
-  cursor: ns-resize;
-  z-index: 1;
-  margin: 0;
-  ${splitterFill('ns')}
-  background-size: 11px 5px;
-  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 5'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' x='3' rx='1'/><rect width='2' height='2' x='6' rx='1'/><rect width='2' height='2' x='9' rx='1'/><rect width='2' height='2' y='3' rx='1'/><rect width='2' height='2' x='3' y='3' rx='1'/><rect width='2' height='2' x='6' y='3' rx='1'/><rect width='2' height='2' x='9' y='3' rx='1'/></g></svg>");
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane] > :first-child {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  flex-wrap: nowrap;
-  gap: var(--sve-right-header-gap);
-  width: 100%;
-  align-self: stretch;
-  box-sizing: border-box;
-  min-width: 0;
-  flex: 0 0 auto;
-  padding-block: var(--sve-right-header-pad-block) !important;
-  padding-inline: 0 !important;
-  border-bottom: 1px solid rgba(128,128,128,.22);
-  background: transparent;
-}
-#${RIGHT_DOCK_ID} [data-sve-lv-chrome] {
-  align-items: stretch !important;
-  gap: var(--sve-right-header-gap);
-  padding: var(--sve-right-header-pad-block) 0 0 !important;
-}
-#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-lv-tabs] {
-  align-self: stretch;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-reorder],
-#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-fold],
-#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-actions],
-#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-right-pin],
-#${RIGHT_DOCK_ID} [data-sve-lv-chrome] [data-sve-close] {
-  align-self: center;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-title] {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.2;
-  overflow: hidden;
-}
-#${RIGHT_DOCK_ID} [data-sve-ai-name] {
-  flex: 0 0 auto;
-}
-#${RIGHT_DOCK_ID} [data-sve-ai-type] {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 500;
-  opacity: .55;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-}
-#${RIGHT_DOCK_ID} [data-sve-ai-modes] {
-  display: flex;
-  gap: 4px;
-  flex: 0 0 auto;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 2;
-}
-#${RIGHT_DOCK_ID} [data-sve-ai-modes] [data-sve-ai-mode] {
-  flex: 0 0 auto;
-  pointer-events: auto;
-  cursor: pointer;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-actions] {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  margin-left: 0;
-  flex: 0 0 auto;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pin],
-#${RIGHT_DOCK_ID} [data-sve-close],
-#${RIGHT_DOCK_ID} [data-sve-comments-place] {
-  all: unset;
-  cursor: pointer;
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  flex: 0 0 auto;
-  color: currentColor;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pin] {
-  opacity: .55;
-  background: transparent;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pin] svg {
-  width: 13px;
-  height: 13px;
-  display: block;
-}
-#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] > :first-child {
-  cursor: default;
-}
-#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] > :first-child :is(button, input, a, [data-lv-tab], [data-sve-panel-tab]):not([data-sve-right-reorder]):not([data-sve-right-fold]) {
-  cursor: pointer;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-reorder] {
-  all: unset;
-  cursor: grab !important;
-  width: 16px;
-  height: 20px;
-  margin-inline-end: 2px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  flex: 0 0 auto;
-  color: currentColor;
-  background-color: var(--theme-color-gray-300, #d4d4d8);
-}
-#${RIGHT_DOCK_ID} [data-sve-right-reorder] svg {
-  width: 12px;
-  height: 12px;
-  display: block;
-  opacity: .55;
-  pointer-events: none;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-reorder]:active {
-  cursor: grabbing !important;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-fold] {
-  all: unset;
-  cursor: pointer;
-  width: 16px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  flex: 0 0 auto;
-  color: currentColor;
-  opacity: .55;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-fold] svg {
-  width: 13px;
-  height: 13px;
-  display: block;
-  transition: transform .12s ease;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane]:not([data-sve-right-folded]) [data-sve-right-fold] svg {
-  transform: rotate(90deg);
-}
-#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-title] {
-  cursor: pointer;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] {
-  flex: 0 0 auto !important;
-  min-height: 0 !important;
-  height: auto !important;
-}
-#${RIGHT_DOCK_ID}[data-sve-right-stack] [data-sve-right-pane] ~ [data-sve-right-pane] > :first-child {
-  border-top: 1px solid rgba(128,128,128,.22);
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] > :first-child {
-  border-bottom: none;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] > :not(:first-child) {
-  display: none !important;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane][data-sve-right-folded] [data-sve-ai-modes] {
-  display: none !important;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pane][data-dragging] {
-  opacity: .55;
-}
-#${RIGHT_DOCK_ID} [data-sve-right-pin][aria-pressed="true"] {
-  opacity: 1;
-  color: currentColor;
-  background: transparent;
-}
-#${RIGHT_DOCK_ID} [data-sve-comments-place] {
-  opacity: .55;
-  background: transparent;
-}
-#${RIGHT_DOCK_ID} [data-sve-comments-place] svg {
-  width: 13px;
-  height: 13px;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.4;
-}
-#${RIGHT_DOCK_ID} [data-sve-comments-place][aria-pressed="true"] {
-  opacity: 1;
-  color: currentColor;
-  background: transparent;
-}
-#${RIGHT_DOCK_ID} [data-sve-comments-place][aria-pressed="true"] svg {
-  fill: currentColor;
-}
-#${RIGHT_DOCK_ID} [data-sve-close] {
-  opacity: .55;
-}
-#${RIGHT_DOCK_ID} [data-sve-close] svg {
-  width: 13px;
-  height: 13px;
-  display: block;
-}
-${splitterFillDark(`#${RIGHT_DOCK_ID} [data-sve-right-resize]`)}
-${splitterFillDark(`#${RIGHT_DOCK_ID} [data-sve-right-split]`)}
-${splitterFillDark(`#${RIGHT_DOCK_ID} [data-sve-right-reorder]`)}
-`;
+  style.textContent = dockCss;
 }
 
 function dockEl(doc) {
   return doc.getElementById(RIGHT_DOCK_ID);
+}
+
+function dockParent(doc) {
+  return doc.querySelector('.live-preview') || doc.body;
+}
+
+function attachDock(doc, dock) {
+  const parent = dockParent(doc);
+
+  if (dock.parentElement !== parent) {
+    parent.appendChild(dock);
+  }
 }
 
 function slotEl(dock) {
@@ -849,6 +568,15 @@ function paintPinButton(win, btn, key) {
   btn.innerHTML = on ? PIN_ON : PIN_OFF;
 }
 
+function paneHeader(panel) {
+  return (
+    panel.querySelector('[data-sve-lv-chrome]') ||
+    panel.querySelector('[data-sve-pane-bar]') ||
+    panel.querySelector('[data-sve-right-title]')?.parentElement ||
+    panel.firstElementChild
+  );
+}
+
 function ensurePinButton(win, panel) {
   if (!RIGHT_DOCK_PIN_STACK) {
     panel.querySelector('[data-sve-right-pin]')?.remove();
@@ -862,48 +590,93 @@ function ensurePinButton(win, panel) {
     return;
   }
 
-  const close = panel.querySelector('[data-sve-close]');
+  const header = paneHeader(panel);
+  let close = panel.querySelector('[data-sve-close]');
+
+  if (!close && header) {
+    close = win.document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('data-sve-close', '');
+    close.setAttribute('aria-label', 'Close');
+    close.innerHTML = CLOSE_ICON;
+    header.appendChild(close);
+  }
 
   if (!close) {
     return;
-  }
-
-  let actions = close.closest('[data-sve-right-actions]');
-
-  if (!actions) {
-    actions = win.document.createElement('div');
-    actions.setAttribute('data-sve-right-actions', '');
-    close.before(actions);
-  }
-
-  if (close.parentElement !== actions) {
-    actions.appendChild(close);
   }
 
   if (!close.querySelector('svg')) {
     close.innerHTML = CLOSE_ICON;
   }
 
-  panel.querySelectorAll('[data-sve-comments-place]').forEach((el) => {
-    if (el.parentElement !== actions) {
-      actions.insertBefore(el, close);
-    }
-  });
-
-  let btn = actions.querySelector('[data-sve-right-pin]');
+  const home = close.closest('[data-sve-right-actions]') || header;
+  let btn = home?.querySelector('[data-sve-right-pin]');
 
   if (!btn) {
     btn = win.document.createElement('button');
     btn.type = 'button';
-    btn.setAttribute('data-sve-right-pin', key);
-    actions.insertBefore(btn, close);
+    close.before(btn);
   }
 
+  btn.setAttribute('data-sve-right-pin', key);
   paintPinButton(win, btn, key);
+  ensureCloseButton(win, panel);
+}
+
+function closeDockPane(win, panel) {
+  const key = paneKeyOf(panel);
+
+  if (key === 'listview') {
+    sve.closeListViewPanel?.(win);
+  } else if (key === 'outline') {
+    sve.closeOutlinePanel?.(win);
+  } else if (key === 'comments') {
+    sve.closeCommentsPanel?.(win);
+  } else if (key === 'sections') {
+    sve.closeSectionPicker?.(win);
+  } else {
+    panel.remove();
+    releaseRightShellIfEmpty(win);
+  }
+}
+
+function ensureCloseButton(win, panel) {
+  const header = paneHeader(panel);
+  const pin = panel.querySelector('[data-sve-right-pin]');
+  let close = panel.querySelector('[data-sve-close]');
+
+  if (!close) {
+    close = win.document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('data-sve-close', '');
+    close.setAttribute('aria-label', 'Close');
+    close.innerHTML = CLOSE_ICON;
+    header?.appendChild(close);
+  }
+
+  if (!close.querySelector('svg')) {
+    close.innerHTML = CLOSE_ICON;
+  }
+
+  if (pin) {
+    pin.after(close);
+  } else if (header && close.parentElement !== header) {
+    header.appendChild(close);
+  }
+
+  if (!close._sveCloseBound) {
+    close._sveCloseBound = true;
+    close.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeDockPane(win, panel);
+    });
+  }
 }
 
 function ensureReorderGrip(win, panel, stacked) {
-  const header = panel.firstElementChild;
+  const header = paneHeader(panel);
 
   if (!header) {
     return;
@@ -930,7 +703,7 @@ function ensureReorderGrip(win, panel, stacked) {
 }
 
 function ensureFoldButton(win, panel, stacked) {
-  const header = panel.firstElementChild;
+  const header = paneHeader(panel);
 
   if (!header) {
     return;
@@ -1014,6 +787,8 @@ function layoutStack(win, dock) {
   kids.forEach((el) => {
     ensureReorderGrip(win, el, stacked);
     ensureFoldButton(win, el, stacked);
+    ensurePinButton(win, el);
+    ensureCloseButton(win, el);
   });
 
   if (!stacked) {
@@ -1139,6 +914,18 @@ function bindPinStack(win, dock) {
 
       if (pane) {
         toggleFold(win, pane);
+      }
+
+      return;
+    }
+
+    const closeBtn = event.target.closest('[data-sve-close]');
+
+    if (closeBtn && dock.contains(closeBtn)) {
+      const pane = closeBtn.closest('[data-sve-right-pane]');
+
+      if (pane && dock.contains(pane)) {
+        event.stopPropagation();
       }
 
       return;
@@ -1275,6 +1062,10 @@ export function placeRightDock(win) {
     return;
   }
 
+  attachDock(win.document, dock);
+  dock.style.position = 'fixed';
+  dock.style.zIndex = '';
+  dock.style.display = 'flex';
   dock.style.top = `${dockTop(win)}px`;
   dock.style.right = '0';
   dock.style.left = 'auto';
@@ -1292,12 +1083,9 @@ function buildDock(win) {
   dock.id = RIGHT_DOCK_ID;
   dock.setAttribute('data-sve-right-chrome', CHROME);
   dock.setAttribute('data-sve-right-closed', '');
-  dock.innerHTML = `
-    <div data-sve-right-resize></div>
-    <div data-sve-right-slot></div>
-  `;
+  mountPane(dock, RightDockShell, { chrome: CHROME });
   parkDockOffscreen(dock);
-  doc.body.appendChild(dock);
+  attachDock(doc, dock);
 
   return dock;
 }

@@ -46,4 +46,24 @@ class LivePreviewViteTest extends TestCase
         $this->assertStringNotContainsString('@vite/client', $html);
         $this->assertSame($this->hotFile, $clone->hotFile());
     }
+
+    public function test_strip_client_script_removes_the_hmr_client_and_leaves_the_rest()
+    {
+        $html = '<html><head>'
+            .'<script type="module" src="http://127.0.0.1:5173/@vite/client"></script>'
+            .'<script type="module" src="http://127.0.0.1:5173/resources/js/site.js"></script>'
+            .'</head></html>';
+
+        $out = LivePreviewVite::stripClientScript($html);
+
+        $this->assertStringNotContainsString('@vite/client', $out);
+        $this->assertStringContainsString('resources/js/site.js', $out);
+    }
+
+    public function test_strip_client_script_leaves_html_without_the_client_alone()
+    {
+        $html = '<html><head><link rel="stylesheet" href="/site.css"></head></html>';
+
+        $this->assertSame($html, LivePreviewVite::stripClientScript($html));
+    }
 }

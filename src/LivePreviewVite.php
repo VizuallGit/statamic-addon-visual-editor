@@ -67,6 +67,8 @@ class LivePreviewVite extends Vite
     /**
      * Same as Laravel's hot path, minus `@vite/client`. CSS/JS still come from
      * the Vite server; a missing hot file falls through to the build manifest.
+     *
+     * Statamic's `{{ vite }}` tag calls `toHtml()`, which calls this.
      */
     public function __invoke($entrypoints, $buildDirectory = null)
     {
@@ -86,5 +88,25 @@ class LivePreviewVite extends Vite
                 ))
                 ->join('')
         );
+    }
+
+    /**
+     * Last line of defence: if some other `{{ vite }}` / `@vite` path still
+     * printed `@vite/client`, cut that script out of the finished HTML.
+     * The public site is untouched — this only runs on Live Preview responses.
+     */
+    public static function stripClientScript(string $html): string
+    {
+        if (! str_contains($html, '@vite/client')) {
+            return $html;
+        }
+
+        $stripped = preg_replace(
+            '#<script\b[^>]*\bsrc=(["\'])[^"\']*@vite/client[^"\']*\1[^>]*>\s*</script>#i',
+            '',
+            $html
+        );
+
+        return is_string($stripped) ? $stripped : $html;
     }
 }

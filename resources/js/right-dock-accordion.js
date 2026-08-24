@@ -17,6 +17,9 @@
  * settings / pages / globals stay in the top bar. code is the bottom dock.
  */
 
+import RightDockAccordion from './cp/surfaces/RightDockAccordion.vue';
+import { mountPane } from './cp/mount-pane.js';
+
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
   pages: 'topbar',
@@ -339,7 +342,7 @@ function ensureStyle(doc) {
 #${RIGHT_DOCK_ID} {
   position: fixed;
   right: 0;
-  z-index: 41;
+  z-index: var(--z-index-above, 1);
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -890,21 +893,16 @@ function buildDock(win) {
   const dock = doc.createElement('div');
 
   dock.id = RIGHT_DOCK_ID;
-  dock.innerHTML = `
-    <div data-sve-right-resize></div>
-    <div data-sve-right-panes>${keys.map((key) => sectionMarkup(win, key)).join('')}</div>
-  `;
-
-  const commentsPane = dock.querySelector('[data-sve-right-pane="comments"]');
-
-  if (commentsPane && !commentsPane.querySelector('[data-sve-comments-host]')) {
-    const host = doc.createElement('div');
-
-    host.setAttribute('data-sve-comments-host', '');
-    host.style.cssText = 'flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;';
-    commentsPane.appendChild(host);
-  }
-
+  mountPane(dock, RightDockAccordion, {
+    sections: keys.map((key) => ({
+      key,
+      id: PANE_IDS[key] || '',
+      label: t(win, LABEL_KEYS[key]),
+    })),
+    grip: GRIP_6,
+    pin: PIN_OFF,
+    reorderTitle: t(win, 'right_dock_reorder'),
+  });
   doc.body.appendChild(dock);
 
   return dock;

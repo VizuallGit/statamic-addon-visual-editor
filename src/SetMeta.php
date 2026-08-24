@@ -89,8 +89,9 @@ class SetMeta
     /**
      * Walks any slice of blueprint/fieldset config, collecting sets wherever they
      * turn up: a top-level Replicator, a Bard inside a block, a Replicator nested
-     * in a set two levels down. Imports are followed once each — a fieldset that
-     * imports itself (directly or in a ring) would otherwise never bottom out.
+     * in a set two levels down. Imports are followed once each, from depth 0 — a
+     * fieldset that imports itself (directly or in a ring) would otherwise never
+     * bottom out, and inheriting the caller's depth hid nested Edit Set icons.
      *
      * @param  array<string, mixed>  $node
      * @param  array<string, array>  $sets   collected set meta, by handle
@@ -99,16 +100,21 @@ class SetMeta
      */
     protected static function walk(array $node, array &$sets, array &$grids, array &$seen, int $depth = 0): void
     {
-        if ($depth > static::MAX_DEPTH) {
-            return;
-        }
-
         if (isset($node['import']) && is_string($node['import']) && ! isset($seen[$node['import']])) {
             $seen[$node['import']] = true;
 
             if ($imported = Fieldset::find($node['import'])) {
-                static::walk($imported->contents(), $sets, $grids, $seen, $depth + 1);
+                // A fieldset is its own document. Counting the caller's YAML
+                // wrapping (blueprint tabs, the import node, the set that named
+                // it) made nested replicators run out of depth before their own
+                // Edit Set icon was recorded — and `seen` then skipped the
+                // shallower second pass. Loops are already stopped by `seen`.
+                static::walk($imported->contents(), $sets, $grids, $seen, 0);
             }
+        }
+
+        if ($depth > static::MAX_DEPTH) {
+            return;
         }
 
         $field = $node['field'] ?? null;

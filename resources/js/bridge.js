@@ -1,3 +1,6 @@
+// KERNEL — not Vue. Preview iframe bridge. Do not convert this file.
+// Do not import it from resources/js/cp/surfaces/.
+//
 // Bridge script — injected into the Live Preview iframe.
 // Only activates when running inside an iframe (window.self !== window.top).
 
@@ -97,9 +100,9 @@ export function injectStyles(doc) {
             outline-offset: 2px;
             transition: outline-color 0.15s ease;
         }
-        /* Iconify (and similar picker) fields: a persistent inner ring so the
-           graphic reads as its own target inside a selected row. Empty slots
-           keep a clickable box so "no icon yet" still opens the search. */
+        /* Iconify/iconamic: layout only. A filled icon uses the same
+           hover/active ring as a headline. Empty slots keep a clickable
+           dashed box so "no icon yet" still opens the search. */
         [data-sid-field][data-sid-fieldtype="iconify"],
         [data-sid-field][data-sid-fieldtype="iconamic"] {
             position: relative;
@@ -129,8 +132,8 @@ export function injectStyles(doc) {
         [${EDITING_ATTR}] [data-sve-placeholder] {
             display: none;
         }
-        [data-sid-field][data-sid-fieldtype="iconify"]:not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]),
-        [data-sid-field][data-sid-fieldtype="iconamic"]:not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]) {
+        [data-sid-field][data-sid-fieldtype="iconify"]:not(:has(svg, img, iconify-icon, picture)):not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]),
+        [data-sid-field][data-sid-fieldtype="iconamic"]:not(:has(svg, img, iconify-icon, picture)):not([data-sid-inner]):not([data-sid-hover]):not([data-sid-active]) {
             --sve-outline-color: var(--sve-outline-ambient, rgba(0, 0, 0, 0.18));
         }
         [data-sid-orderable] {
@@ -156,6 +159,24 @@ export function injectStyles(doc) {
             cursor: move !important;
             user-select: none !important;
             -webkit-user-select: none !important;
+        }
+        /* Drop slot while reordering: a solid 1px ring with a light fill,
+           sitting a little outside the row so the next place is obvious. */
+        [data-sve-drop-slot] {
+            position: fixed;
+            z-index: 2147483646;
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+        [data-sve-drop-slot="line"] {
+            border-radius: 2px;
+            background: var(--sve-drop-color, var(--sve-focus-color, #3b82f6));
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
+        }
+        [data-sve-drop-slot="box"] {
+            border-radius: 6px;
+            border: 1px solid color-mix(in srgb, var(--sve-drop-color, #fff) 70%, transparent);
+            background: color-mix(in srgb, var(--sve-drop-color, #fff) 12%, transparent);
         }
         .sve-col-resizing, .sve-col-resizing * {
             cursor: col-resize !important;
@@ -218,8 +239,8 @@ export function injectStyles(doc) {
         [data-sid-active]::before,
         [data-sid-outline="always"]:hover > [data-sid]::before,
         [data-sid-outline="always"][data-sid-outline-on] > [data-sid]::before,
-        [data-sid-field][data-sid-fieldtype="iconify"]::before,
-        [data-sid-field][data-sid-fieldtype="iconamic"]::before,
+        [data-sid-field][data-sid-fieldtype="iconify"]:not(:has(svg, img, iconify-icon, picture))::before,
+        [data-sid-field][data-sid-fieldtype="iconamic"]:not(:has(svg, img, iconify-icon, picture))::before,
         [${EDITING_ATTR}]::before {
             content: '';
             position: absolute;
@@ -1237,9 +1258,15 @@ function openToolbarMenu(win, anchor, key, rows) {
   const existing = doc.querySelector('[data-sve-menu]');
 
   if (existing) {
-    existing.remove();
+    const same = existing.dataset.for === key;
 
-    if (existing.dataset.for === key) {
+    if (typeof existing._sveTeardown === 'function') {
+      existing._sveTeardown();
+    } else {
+      existing.remove();
+    }
+
+    if (same) {
       return;
     }
   }
@@ -1256,6 +1283,35 @@ function openToolbarMenu(win, anchor, key, rows) {
     'font-size:13px;line-height:1;';
   // Same reason as the toolbar itself: never blur the editable.
   menu.addEventListener('mousedown', (e) => e.preventDefault());
+
+  const place = () => {
+    if (!menu.isConnected || !anchor.isConnected) {
+      teardown();
+
+      return;
+    }
+
+    const rect = anchor.getBoundingClientRect();
+
+    menu.style.left = `${Math.max(4, Math.min(rect.left, win.innerWidth - menu.offsetWidth - 4))}px`;
+    menu.style.top = `${rect.bottom + 4}px`;
+  };
+
+  const teardown = () => {
+    win.removeEventListener('scroll', place, true);
+    win.removeEventListener('resize', place);
+    doc.removeEventListener('mousedown', close, true);
+    delete menu._sveTeardown;
+    menu.remove();
+  };
+
+  const close = (e) => {
+    if (menu.contains(e.target) || anchor.contains(e.target)) {
+      return;
+    }
+
+    teardown();
+  };
 
   rows.forEach((item) => {
     if (item.dividerBefore && menu.childNodes.length) {
@@ -1288,7 +1344,7 @@ function openToolbarMenu(win, anchor, key, rows) {
       row.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        menu.remove();
+        teardown();
         item.run();
       });
     }
@@ -1296,23 +1352,14 @@ function openToolbarMenu(win, anchor, key, rows) {
     menu.appendChild(row);
   });
 
+  menu._sveTeardown = teardown;
   doc.body.appendChild(menu);
 
-  // Positioned after it is in the DOM, so its measured width can keep it on
-  // screen — a menu opened near the right edge would otherwise run off it.
-  const rect = anchor.getBoundingClientRect();
-
-  menu.style.left = `${Math.max(4, Math.min(rect.left, win.innerWidth - menu.offsetWidth - 4))}px`;
-  menu.style.top = `${rect.bottom + 4}px`;
-
-  const close = (e) => {
-    if (menu.contains(e.target) || anchor.contains(e.target)) {
-      return;
-    }
-
-    menu.remove();
-    doc.removeEventListener('mousedown', close, true);
-  };
+  // After mount so width can keep a right-edge menu on screen. Scroll/resize
+  // keep it under the icon (or toolbar button) instead of the viewport.
+  place();
+  win.addEventListener('scroll', place, true);
+  win.addEventListener('resize', place);
 
   setTimeout(() => doc.addEventListener('mousedown', close, true), 0);
 }
@@ -4848,8 +4895,17 @@ function pointerInMoveControlGap(event) {
   return false;
 }
 
-/** True when el's siblings flow horizontally (flex-row parent). */
+/** True when el's siblings sit side by side (flex-row, multi-column grid, …). */
 function isHorizontalFlow(win, el) {
+  const peers = orderablePeers(el);
+
+  if (peers.length >= 2) {
+    const a = peerRect(peers[0]);
+    const b = peerRect(peers[1]);
+
+    return Math.abs(a.left - b.left) > Math.abs(a.top - b.top);
+  }
+
   const parent = el.parentElement;
 
   if (!parent) {
@@ -4858,7 +4914,17 @@ function isHorizontalFlow(win, el) {
 
   const style = win.getComputedStyle(parent);
 
-  return style.display.includes('flex') && !style.flexDirection.startsWith('column');
+  if (style.display.includes('flex') && !style.flexDirection.startsWith('column')) {
+    return true;
+  }
+
+  if (style.display.includes('grid')) {
+    const cols = style.gridTemplateColumns;
+
+    return Boolean(cols) && cols !== 'none' && cols.trim().split(/\s+/).length > 1;
+  }
+
+  return false;
 }
 
 // --- Column builder: visual width drag + add column ------------------------------
@@ -5033,7 +5099,7 @@ function gridConfig(grid) {
  * have somewhere to go.
  */
 function gridTone(win, el) {
-  const parsed = parseCssColor(solidBackgroundFor(win, el));
+  const parsed = parseCssColor(solidBackgroundFor(win, el), win);
   const luminance = parsed ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255 : 1;
 
   // White gets a touch less than black: dark overlays on a light page read
@@ -5701,10 +5767,11 @@ function finishWidthDrag(win, cancelled) {
 // Rows opted in via orderable="true" can be dragged among their sibling rows
 // (grid/replicator items rendered in a loop). A pointer-based drag with a
 // threshold keeps clicks working: below the threshold the pointerdown is a
-// normal click (inline edit, focus); beyond it a drag starts, the row dims, an
-// insertion line marks the drop gap, and releasing posts the target index to
-// the CP, which reorders the underlying values array (same machinery as the
-// move arrows). The morphed re-render then shows the new order.
+// normal click (inline edit, focus); beyond it a drag starts, the row dims, a
+// dashed slot marks the landing place (same language as the hover rings; a
+// section drag still uses the thin insertion line), and releasing posts the
+// target index to the CP, which reorders the underlying values array (same
+// machinery as the move arrows). The morphed re-render then shows the new order.
 
 const ORDERABLE_ATTR = 'data-sid-orderable';
 const DRAG_THRESHOLD = 6; // px of movement before a press becomes a drag
@@ -5758,7 +5825,12 @@ function solidBackgroundFor(win, el) {
   for (let i = 0; node && i < 15; i++) {
     const colour = win.getComputedStyle(node).backgroundColor;
 
-    if (colour && colour !== 'transparent' && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(colour)) {
+    if (
+      colour &&
+      colour !== 'transparent' &&
+      !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(colour) &&
+      parseCssColor(colour, win)
+    ) {
       return colour;
     }
 
@@ -5768,13 +5840,14 @@ function solidBackgroundFor(win, el) {
   return '#ffffff';
 }
 
-/** Parse `rgb()`, `rgba()` or hex into `{r,g,b}` (0–255). */
-function parseCssColor(colour) {
+/** Parse hex, rgb/rgba (comma or space), color(srgb …), or any CSS colour via canvas. */
+function parseCssColor(colour, win) {
   if (!colour || typeof colour !== 'string') {
     return null;
   }
 
-  const hex = colour.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  const value = colour.trim();
+  const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
 
   if (hex) {
     let h = hex[1];
@@ -5790,13 +5863,63 @@ function parseCssColor(colour) {
     };
   }
 
-  const rgb = colour.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
+  const rgbComma = value.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/i);
 
-  if (rgb) {
-    return { r: Number(rgb[1]), g: Number(rgb[2]), b: Number(rgb[3]) };
+  if (rgbComma) {
+    return { r: Number(rgbComma[1]), g: Number(rgbComma[2]), b: Number(rgbComma[3]) };
   }
 
-  return null;
+  const rgbSpace = value.match(/rgba?\(\s*([\d.]+)(%?)\s+([\d.]+)(%?)\s+([\d.]+)(%?)/i);
+
+  if (rgbSpace) {
+    const channel = (n, pct) => (pct ? (Number(n) / 100) * 255 : Number(n));
+
+    return {
+      r: channel(rgbSpace[1], rgbSpace[2]),
+      g: channel(rgbSpace[3], rgbSpace[4]),
+      b: channel(rgbSpace[5], rgbSpace[6]),
+    };
+  }
+
+  const srgb = value.match(/color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/i);
+
+  if (srgb) {
+    return {
+      r: Number(srgb[1]) * 255,
+      g: Number(srgb[2]) * 255,
+      b: Number(srgb[3]) * 255,
+    };
+  }
+
+  return parseCssColorViaCanvas(value, win);
+}
+
+function parseCssColorViaCanvas(colour, win) {
+  if (!win?.document) {
+    return null;
+  }
+
+  try {
+    const canvas = win.document.createElement('canvas');
+
+    canvas.width = 1;
+    canvas.height = 1;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (!ctx) {
+      return null;
+    }
+
+    ctx.fillStyle = colour;
+    ctx.fillRect(0, 0, 1, 1);
+
+    const d = ctx.getImageData(0, 0, 1, 1).data;
+
+    return { r: d[0], g: d[1], b: d[2] };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -5808,7 +5931,7 @@ function applyOutlineTone(win, el) {
     return;
   }
 
-  const parsed = parseCssColor(solidBackgroundFor(win, el));
+  const parsed = parseCssColor(solidBackgroundFor(win, el), win);
   const luminance = parsed
     ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
     : 1;
@@ -5820,6 +5943,44 @@ function applyOutlineTone(win, el) {
   if (win.getComputedStyle(el).position === 'static') {
     el.style.position = 'relative';
   }
+}
+
+/**
+ * The ghost lives on <html>, outside the section's @scope / #id / contrast
+ * colour. Copy the live computed paint so white text stays white, dark text
+ * stays dark, and icons keep their fill — then one opacity on the card fades
+ * the whole thing together.
+ */
+function copyLiveAppearance(win, source, dest) {
+  const paint = (from, to) => {
+    const cs = win.getComputedStyle(from);
+
+    to.style.color = cs.color;
+    to.style.webkitTextFillColor = cs.webkitTextFillColor;
+
+    if (cs.backgroundColor && cs.backgroundColor !== 'transparent' && !/rgba\(\s*0,\s*0,\s*0,\s*0\s*\)/.test(cs.backgroundColor)) {
+      to.style.backgroundColor = cs.backgroundColor;
+    }
+
+    if (cs.fill && cs.fill !== 'none') {
+      to.style.fill = cs.fill;
+    }
+
+    if (cs.stroke && cs.stroke !== 'none') {
+      to.style.stroke = cs.stroke;
+    }
+  };
+
+  paint(source, dest);
+
+  const fromKids = source.querySelectorAll('*');
+  const toKids = dest.querySelectorAll('*');
+
+  fromKids.forEach((node, i) => {
+    if (toKids[i]) {
+      paint(node, toKids[i]);
+    }
+  });
 }
 
 /**
@@ -5845,14 +6006,18 @@ function buildDragGhost(win, el) {
     });
   });
   clone.style.margin = '0';
+  copyLiveAppearance(win, el, clone);
+
+  const live = win.getComputedStyle(el);
 
   ghost.setAttribute('data-sve-ghost', '');
   ghost.appendChild(clone);
   ghost.style.cssText =
     'position:fixed;left:0;top:0;z-index:2147483647;pointer-events:none;box-sizing:border-box;' +
     `width:${Math.ceil(rect.width)}px;padding:10px 14px;border-radius:10px;overflow:hidden;` +
-    `background:${solidBackgroundFor(win, el)};box-shadow:0 12px 32px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.06);` +
-    'opacity:.95;transform-origin:top left;will-change:transform;';
+    `background:${solidBackgroundFor(win, el)};color:${live.color};` +
+    'box-shadow:0 12px 32px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.06);' +
+    'opacity:.8;transform-origin:top left;will-change:transform;';
   // On <html>, not <body>: a section drag scales <body> down for the overview,
   // and a transformed ancestor both captures and scales position:fixed children.
   doc.documentElement.appendChild(ghost);
@@ -5931,6 +6096,70 @@ function endDrag(win) {
   dragState = null;
 }
 
+/** Outline that reads on the row's own background — the global focus colour
+ *  is a light-page grey and disappears on a dark section. */
+function dropMarkerColor(win, el) {
+  const parsed = parseCssColor(solidBackgroundFor(win, el), win);
+  const luminance = parsed
+    ? (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255
+    : 1;
+
+  return luminance < 0.45 ? '#ffffff' : '#000000';
+}
+
+function createDropIndicator(win, section) {
+  const indicator = win.document.createElement('div');
+
+  indicator.setAttribute('data-sve-drop-slot', section ? 'line' : 'box');
+  // On <html> — see buildDragGhost for why not <body>.
+  win.document.documentElement.appendChild(indicator);
+
+  return indicator;
+}
+
+function paintDropIndicator(state) {
+  const { peers, horizontal, indicator, insert, section } = state;
+
+  if (!indicator || insert === null) {
+    return;
+  }
+
+  const after = insert > peers.length - 1;
+  const target = after
+    ? peers[peers.length - 1]
+    : peers[Math.min(insert === 0 ? 0 : insert, peers.length - 1)];
+  const rect = peerRect(target);
+
+  if (section) {
+    if (horizontal) {
+      indicator.style.left = `${after ? rect.right + 2 : rect.left - 4}px`;
+      indicator.style.top = `${rect.top}px`;
+      indicator.style.width = '3px';
+      indicator.style.height = `${rect.height}px`;
+    } else {
+      indicator.style.left = `${rect.left}px`;
+      indicator.style.top = `${after ? rect.bottom + 2 : rect.top - 4}px`;
+      indicator.style.width = `${rect.width}px`;
+      indicator.style.height = '3px';
+    }
+
+    return;
+  }
+
+  const pad = 10;
+
+  indicator.style.width = `${Math.max(rect.width, 24) + pad * 2}px`;
+  indicator.style.height = `${Math.max(rect.height, 24) + pad * 2}px`;
+
+  if (horizontal) {
+    indicator.style.top = `${rect.top - pad}px`;
+    indicator.style.left = `${(after ? rect.right + 6 : rect.left) - pad}px`;
+  } else {
+    indicator.style.left = `${rect.left - pad}px`;
+    indicator.style.top = `${(after ? rect.bottom + 6 : rect.top) - pad}px`;
+  }
+}
+
 function createDragPointerDown(win) {
   return function onPointerDown(event) {
     if (event.button !== 0 || editing || dragState) {
@@ -5994,13 +6223,9 @@ function createDragPointerMove(win) {
       win.document.documentElement.classList.add('sve-dragging');
       hideMoveControl(win);
 
-      const indicator = win.document.createElement('div');
+      const indicator = createDropIndicator(win, dragState.section);
 
-      indicator.style.cssText =
-        'position:fixed;z-index:2147483646;pointer-events:none;border-radius:2px;' +
-        'background:var(--sve-focus-color, #3b82f6);box-shadow:0 0 0 1px rgba(255,255,255,.4);';
-      // On <html> — see buildDragGhost for why not <body>.
-      win.document.documentElement.appendChild(indicator);
+      indicator.style.setProperty('--sve-drop-color', dropMarkerColor(win, dragState.el));
       dragState.indicator = indicator;
 
       // Ghost first (it measures the element at natural size), then the zoom.
@@ -6017,7 +6242,7 @@ function createDragPointerMove(win) {
     event.preventDefault();
     moveDragGhost(dragState, event.clientX, event.clientY);
 
-    const { peers, horizontal, indicator } = dragState;
+    const { peers, horizontal } = dragState;
     const pos = horizontal ? event.clientX : event.clientY;
 
     // Insertion slot = number of peers whose midpoint the pointer has passed.
@@ -6033,23 +6258,7 @@ function createDragPointerMove(win) {
     });
 
     dragState.insert = insert;
-
-    // Draw the line in the gap the drop would land in.
-    const anchor = peers[Math.min(insert, peers.length - 1)];
-    const rect = peerRect(anchor);
-    const after = insert > peers.length - 1;
-
-    if (horizontal) {
-      indicator.style.left = `${(after ? rect.right + 2 : rect.left - 4)}px`;
-      indicator.style.top = `${rect.top}px`;
-      indicator.style.width = '3px';
-      indicator.style.height = `${rect.height}px`;
-    } else {
-      indicator.style.left = `${rect.left}px`;
-      indicator.style.top = `${(after ? rect.bottom + 2 : rect.top - 4)}px`;
-      indicator.style.width = `${rect.width}px`;
-      indicator.style.height = '3px';
-    }
+    paintDropIndicator(dragState);
   };
 }
 
@@ -7137,6 +7346,14 @@ function iconFieldHasValue(el) {
   return normText(el.textContent) !== '';
 }
 
+function iconFieldHasConfiguredDefault(el) {
+  return (
+    el.hasAttribute('data-sve-icon-has-default') ||
+    el.hasAttribute('data-sve-icon-default') ||
+    !!el.querySelector('[data-sve-icon-default], [data-sve-icon-has-default]')
+  );
+}
+
 function postIconEdit(win, wrapper, action) {
   win.parent.postMessage(
     {
@@ -7153,19 +7370,25 @@ function postIconEdit(win, wrapper, action) {
 /**
  * Change / Remove hung off the clicked icon — same two actions as the Iconify
  * field in the sidebar, but sitting on the preview so the panel can stay closed.
+ * If the fieldtype has a default, Remove is omitted: the icon cannot be cleared.
  */
 function openIconFieldMenu(win, wrapper) {
-  openToolbarMenu(win, wrapper, 'icon-picker', [
+  const items = [
     {
       label: t('icon_change'),
       run: () => postIconEdit(win, wrapper, 'change'),
     },
-    {
+  ];
+
+  if (!iconFieldHasConfiguredDefault(wrapper)) {
+    items.push({
       label: t('icon_remove'),
       danger: true,
       run: () => postIconEdit(win, wrapper, 'remove'),
-    },
-  ]);
+    });
+  }
+
+  openToolbarMenu(win, wrapper, 'icon-picker', items);
 }
 
 export function createClickHandler(win) {
@@ -8357,6 +8580,8 @@ export function initBridge(win = window) {
 
 const INSERT_ATTR = 'data-sid-insert';
 const INSERT_LAYER_ID = '__sve-inserters';
+// Sit the stacked "+" just below the last block, not straddling its bottom edge.
+const INSERT_AFTER_GAP = 8;
 let inserterInstances = [];
 
 function collectSidFieldDefaults(root) {
@@ -8490,15 +8715,18 @@ function setupInserters(win) {
     const field = container.getAttribute(INSERT_ATTR);
     const scope = container.getAttribute('data-sid-insert-scope');
 
-    // A block can be annotated two ways and is a block either way: as a set
-    // (data-sid) or as the field it edits (data-sid-field + orderable), which is
-    // what a template does when the block's own element has to be the row —
-    // no wrapper to hang data-sid on, because a wrapper would break the
-    // parent's `> * + *` rhythm. Counting only the first kind left containers
-    // full of blocks looking empty, and the "+" drew itself across the top as
-    // if there were nothing there.
+    // A block is a direct child of the insertable container, annotated three
+    // ways: as a set (data-sid), as an orderable row, or as the field it edits
+    // (data-sid-field). Headline/richtext put orderable on themselves so a
+    // wrapper is not needed (a wrapper breaks the parent's `> * + *` / flow-y).
+    // A links wrapper is only data-sid-field — the buttons inside are the
+    // orderable rows. Counting SID/orderable alone skipped that last block, so
+    // the "+" sat on the richtext. Only direct children, never nested fields.
     const blocks = [...container.children].filter(
-      (child) => child.hasAttribute(SID_ATTR) || child.hasAttribute(ORDERABLE_ATTR)
+      (child) =>
+        child.hasAttribute(SID_ATTR) ||
+        child.hasAttribute(ORDERABLE_ATTR) ||
+        child.hasAttribute(SID_FIELD_ATTR)
     );
 
     // A field that is full has nothing to offer. The Control Panel greys out its
@@ -8587,6 +8815,32 @@ function repositionInserters(win) {
   inserterInstances.forEach((inst) => positionInserter(win, inst));
 }
 
+function contentColumnRect(inst) {
+  const kids = [...(inst.container?.children || [])].filter(
+    (child) =>
+      child.hasAttribute(SID_ATTR) ||
+      child.hasAttribute(ORDERABLE_ATTR) ||
+      child.hasAttribute(SID_FIELD_ATTR)
+  );
+  const fallback = inst.block.getBoundingClientRect();
+
+  if (!kids.length) {
+    return { left: fallback.left, width: fallback.width };
+  }
+
+  let left = Infinity;
+  let right = -Infinity;
+
+  kids.forEach((child) => {
+    const box = child.getBoundingClientRect();
+
+    left = Math.min(left, box.left);
+    right = Math.max(right, box.right);
+  });
+
+  return { left, width: right - left };
+}
+
 function positionInserter(win, inst) {
   const el = inst.el;
   const line = el.__line;
@@ -8625,9 +8879,14 @@ function positionInserter(win, inst) {
       el.__btn.style.bottom = shared ? '0' : '';
     }
   } else {
-    el.style.left = `${r.left}px`;
-    el.style.top = `${r.bottom - 15}px`;
-    el.style.width = `${r.width}px`;
+    // Width of the blocks in the column (headline, text, links) — not the
+    // insertable container. That box is often the whole section: a hero image
+    // is `absolute`, so the container still stretches under it to the viewport.
+    const col = contentColumnRect(inst);
+
+    el.style.left = `${col.left}px`;
+    el.style.top = `${r.bottom + INSERT_AFTER_GAP}px`;
+    el.style.width = `${col.width}px`;
     el.style.height = '30px';
     el.style.flexDirection = 'row';
     line.style.cssText = 'height:2px;flex:1;background:rgba(99,102,241,.55);';
@@ -8699,7 +8958,7 @@ function buildInserter(win, opts) {
     // In a global section the CP opens Statamic's picker itself, over the
     // preview, because the section's own form is in the panel and its picker
     // would appear over there. It needs the list to do that.
-    send(inGlobal ? { sets: opts.sets || [] } : {});
+    send({ sets: opts.sets || [] });
   });
 
   wrap.appendChild(line);

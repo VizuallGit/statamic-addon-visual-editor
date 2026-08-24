@@ -1,16 +1,36 @@
 // Control Panel script — handles postMessage routing from the Live Preview iframe.
 
-import { gotoOverlay, openOverlay } from './overlay-host.js';
+import { sve } from './cp-registry.js';
+import { t } from './cp-t.js';
+import { sveState } from './cp-state.js';
+import {
+  ACTIVE_ATTR,
+  COLLAPSE_SETTLE_MS,
+  HIGHLIGHT_CLASS,
+  HIGHLIGHT_DURATION,
+  SELECTORS,
+} from './cp-selectors.js';
+import { enhanceSectionGroupsIn, revealSegmentsFor, settleUngroupedFieldLists, stampGridRows } from './cp-section-groups.js';
+export { t } from './cp-t.js';
+export { SELECTORS, GLOBALS_PANEL_PARAM } from './cp-selectors.js';
+export { enhanceSectionGroupsIn, settleUngroupedFieldLists, stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
+
+import NamePrompt from './cp/surfaces/NamePrompt.vue';
+import SaveSectionDialog from './cp/surfaces/SaveSectionDialog.vue';
+import { openCpOverlay } from './cp/open-overlay.js';
 import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock.js';
 import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
-import {
-  bindChromePrefsFlush,
-  chromeGet,
-  chromeRemove,
-  chromeSet,
-  clearChromePrefs,
-  hydrateChromePrefs,
-} from './chrome-prefs.js';
+import SectionLibraryPane from './cp/surfaces/SectionLibraryPane.vue';
+import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
+import LibraryCard from './cp/surfaces/LibraryCard.vue';
+import LibraryTabs from './cp/surfaces/LibraryTabs.vue';
+import LibraryGroups from './cp/surfaces/LibraryGroups.vue';
+import DeleteLibraryDialog from './cp/surfaces/DeleteLibraryDialog.vue';
+import LibraryEmpty from './cp/surfaces/LibraryEmpty.vue';
+import LibrarySaveButton from './cp/surfaces/LibrarySaveButton.vue';
+import { mountPane } from './cp/mount-pane.js';
+import { mountSurface } from './cp/mount.js';
+import { deleteLibraryUi } from './cp/library/delete-store.js';
 import {
   RIGHT_DOCK_ID,
   RIGHT_DOCK_PIN_STACK,
@@ -36,591 +56,29 @@ import {
   splitterFill,
   visiblePaneKeys,
 } from './right-dock.js';
+import {
+  bindChromePrefsFlush,
+  chromeGet,
+  chromeRemove,
+  chromeSet,
+  clearChromePrefs,
+  hydrateChromePrefs,
+} from './chrome-prefs.js';
+import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
+import OutlinePane from './cp/surfaces/OutlinePane.vue';
+import OutlineList from './cp/surfaces/OutlineList.vue';
+import { outlineUi } from './cp/outline/store.js';
+import CommentsPane from './cp/surfaces/CommentsPane.vue';
+import ListViewPane from './cp/surfaces/ListViewPane.vue';
+import ListViewBody from './cp/surfaces/ListViewBody.vue';
+import ListViewTree from './cp/surfaces/ListViewTree.vue';
+import ListViewMenu from './cp/surfaces/ListViewMenu.vue';
+import { listViewUi } from './cp/listview/store.js';
+import SoloPills from './cp/surfaces/SoloPills.vue';
+import { gotoOverlay, openOverlay } from './overlay-host.js';
 
-export const SELECTORS = {
-  visualIdInput: '[data-visual-id]',
-  replicatorSet: '[data-replicator-set]',
-  // Bard sets are Tiptap node views; Statamic 6 renders them with [data-node-view-wrapper].
-  // There is no [data-bard-set] attribute in the actual CP DOM.
-  bardSet: '[data-node-view-wrapper]',
-  // Grid rows are stamped with [data-grid-row] by stampGridRows() — they have no
-  // native Statamic attribute. Detection relies on the structural pattern: a
-  // parent element whose direct <header> child contains a [data-drag-handle] button.
-  gridRow: '[data-grid-row]',
-  anySet: '[data-replicator-set], [data-node-view-wrapper], [data-grid-row]',
-  // Actual toggle: a <button type="button"> that is a direct child of the <header>
-  // inside the set. Neither .replicator-set-header nor .bard-set-header exist.
-  headerToggle: 'header > button[type="button"]',
-};
 
-const HIGHLIGHT_CLASS = 'sve-highlight';
-const ACTIVE_ATTR = 'data-sve-active';
-const HIGHLIGHT_DURATION = 2000; // ms — matches the sve-highlight-pulse @keyframes animation duration
-// Matches the CSS collapse/expand transition duration on Statamic's Replicator/Bard sets.
-// Defer scroll/highlight until after this period so scrollIntoView uses the final layout.
-// Update this if Statamic's collapse transition duration ever changes.
-const COLLAPSE_SETTLE_MS = 300;
 
-/**
- * Walks up from a [data-visual-id] input looking for a Grid row container.
- *
- * Two cases are handled:
- * 1. Replicator/Bard sets: nearest ancestor with a direct <header> child
- *    containing a [data-drag-handle] button.
- * 2. Grid table rows (Statamic v6 GridTable): the <tr> element inside a
- *    <tbody> inside a <table class="grid-table">. The Grid's drag handle is
- *    rendered as <td class="drag-handle"> with no [data-drag-handle] attribute,
- *    so we match on the table class instead.
- */
-function findGridRow(input) {
-  let el = input.parentElement;
-
-  while (el) {
-    // Replicator/Bard style: direct <header> child with [data-drag-handle]
-    const header = el.querySelector(':scope > header');
-
-    if (header && header.querySelector('[data-drag-handle]')) {
-      return el;
-    }
-
-    // Grid table style: <tr> inside <tbody> inside <table class="grid-table">
-    if (
-      el.tagName === 'TR' &&
-      el.parentElement?.tagName === 'TBODY' &&
-      el.closest('table.grid-table')
-    ) {
-      return el;
-    }
-
-    el = el.parentElement;
-  }
-
-  return null;
-}
-
-/**
- * Stamps [data-grid-row] onto Grid row <tr> elements.
- *
- * WHY we cannot rely on [data-visual-id] for Grid rows:
- * The AutoUuid Vue component sets the data-visual-id attribute
- * asynchronously in onMounted(). When the MutationObserver fires for the
- * childList change (Vue adding <tr> elements), the attribute has no value
- * yet. Because the observer only watches childList (not attributes), it
- * never re-fires when the attribute is set — so the rows are never stamped.
- *
- * FIX: stamp all <tbody><tr> rows inside table.grid-table directly by DOM
- * structure. This runs as soon as Vue renders the <tr> elements, before
- * the UUID attribute is populated. By the time a user can click in the
- * preview, Vue has finished mounting and the UUID attribute is already set.
- *
- * Falls back to the drag-handle detection for non-table Grid layouts.
- *
- * Called eagerly in initCp and again via MutationObserver when the DOM
- * changes (e.g. Vue renders new Grid rows after navigation or field expansion).
- */
-
-// --- Field groups: a fieldset's own tabs as a segmented control ---------------
-//
-// One pill across the top of a list of fields, one segment per group.
-//
-// The groups come from how the fieldset is written. A `tab` field starts one and
-// the fields after it belong to it; a `tabby` is a group on its own, since it
-// already gathers its fields. Whatever sits outside both is the content, the one
-// group the fieldset never names — so it is named here, in the editor's language.
-//
-// The unit is the field list, never the thing around it. Statamic renders every
-// list of fields the same way — a `.publish-fields` grid with one row per field —
-// whether those fields belong to a replicator set, a Bard set, a Grid row, a
-// group, a tabby, or a publish form of its own: an entry, a term, a user, a
-// global set such as header and footer. Keying on the list is what lets a
-// fieldset carry its tabs wherever it is imported. Keyed on the replicator set,
-// as this first shipped, the very same fieldset came up divided inside a page
-// section and flat everywhere else — markers showing as bare chips, which is not
-// a different look but a broken one.
-//
-// Read from the rendered form rather than from the blueprint, for two reasons: a
-// field hidden by a condition is simply not there to group, and the fieldtype
-// wrapper class is the same signal the rest of this file already relies on. Add a
-// `tab` called Custom Code to a fieldset and the section grows that segment, with
-// no change here. `tab` stores no value, so marking up an existing section moves
-// no data and leaves the fieldset flat.
-
-const SECTION_TOGGLE_ATTR = 'data-sve-section-toggle';
-const SECTION_GROUP_ATTR = 'data-sve-section-group';
-const SECTION_SEG_ATTR = 'data-sve-section-seg';
-const SECTION_ACTIVE_ATTR = 'data-sve-section-active';
-const SECTION_CONTENT_KEY = '__content';
-
-// Accordion panels within a segment.
-const SECTION_PANEL_ATTR = 'data-sve-section-panel'; // a row's panel key
-const SECTION_PANEL_CARD_ATTR = 'data-sve-panel-card'; // the card we insert
-const SECTION_PANEL_HEAD_ATTR = 'data-sve-panel-head'; // its clickable header
-const SECTION_PANEL_BODY_ATTR = 'data-sve-panel-body'; // its field list
-const SECTION_PANEL_OPEN_ATTR = 'data-sve-panel-open'; // open key, on the list
-const SECTION_PANEL_OWNER_ATTR = 'data-sve-panel-owner'; // a group heading itself
-
-// Statamic's field list: a grid with one row per field. Every form in the CP is
-// built out of these, which is why it is the unit here.
-const FIELD_LIST = '.publish-fields';
-
-/**
- * The field list an element belongs to — the scope everything here works in.
- *
- * A row we have moved into an accordion card is still the list's own: the card's
- * body is not a field list, so this walks past it to the list the card sits in.
- * A nested group or tabby renders a list of its own and its rows answer with that
- * one, which is what stops an outer control from painting keys onto fields it
- * does not own — those fields get their own control instead.
- */
-function fieldListOf(el) {
-  return el?.closest?.(FIELD_LIST) || null;
-}
-
-/**
- * The set's own field lists — the grids its fields are laid out in.
- *
- * Depth is counted in .publish-fields ancestors rather than assumed: the markup
- * between a set and its fields differs by fieldtype, and only the shallowest run
- * is the set's own — anything deeper belongs to a nested set or to a tabby.
- */
-function sectionFieldLists(setEl) {
-  const depth = (el) => {
-    let levels = 0;
-
-    for (let node = el.parentElement; node && node !== setEl; node = node.parentElement) {
-      if (node.classList?.contains('publish-fields')) {
-        levels++;
-      }
-    }
-
-    return levels;
-  };
-
-  const lists = [...setEl.querySelectorAll(FIELD_LIST)].filter(
-    (el) => el.closest(SELECTORS.anySet) === setEl
-  );
-
-  if (!lists.length) {
-    return [];
-  }
-
-  const shallowest = Math.min(...lists.map(depth));
-
-  return lists.filter((el) => depth(el) === shallowest);
-}
-
-/** The fields of one list. */
-function sectionFieldRows(list) {
-  return (
-    [...list.children]
-      // Not the control itself. It is inserted into this very list, so a second
-      // pass would count it as a field, file it under the content group, and hide
-      // it along with that group the moment any other segment was active.
-      .filter((row) => !row.hasAttribute(SECTION_TOGGLE_ATTR))
-  );
-}
-
-/**
- * The element for a fieldtype rendered directly in this row, or null.
- *
- * Statamic wraps every fieldtype in a `<handle>-fieldtype` element — the same
- * convention the Grid accordion reads. Matches are confined to the row's own
- * field list so a nested replicator carrying its own tabs can't be mistaken for
- * one of this section's.
- */
-function rowFieldtype(row, name) {
-  const el = row.classList?.contains(name) ? row : row.querySelector(`.${name}`);
-
-  return el && fieldListOf(el) === row.parentElement ? el : null;
-}
-
-/**
- * Descendants of a list that belong to that list, not to one nested inside it.
- *
- * A nested list divides itself into its own groups and panels, keyed its own way.
- * Reaching into it from the outer one paints those with keys they never had —
- * which reads as a nested set's fields vanishing the moment an outer tab is used.
- */
-function ownDescendants(list, selector) {
-  return [...list.querySelectorAll(selector)].filter((el) => fieldListOf(el) === list);
-}
-
-/** The list's own first match for a selector, or null. */
-function ownDescendant(list, selector) {
-  return ownDescendants(list, selector)[0] || null;
-}
-
-/**
- * True while these fields are being edited beside the preview: the Live Preview
- * editor pane, or the stripped frame the panel loads a global / saved section
- * into.
- *
- * Both are a narrow column, where a control spanning it reads as part of the
- * panel. The ordinary publish form is as wide as the screen, where the same
- * control spanning it reads as a banner.
- */
-function inPreviewPanel(win, el) {
-  return (
-    !!el.closest('.live-preview-editor') ||
-    new URLSearchParams(win.location.search).has(GLOBALS_PANEL_PARAM)
-  );
-}
-
-/**
- * Marks the segmented control as filling its row — beside the preview, where the
- * panel is a narrow column — or as sized by its segments everywhere else. The
- * stylesheet does the rest. Re-applied on every pass rather than set once at
- * build time, so a control that outlives a move between the two is never left
- * wearing the other one's sizing.
- */
-function applyToggleWidth(row, fill) {
-  row.toggleAttribute('data-sve-fill', fill);
-}
-
-/**
- * What a tab marker says about itself.
- *
- * The chip carries its label, style and icon on data attributes (see the tabs
- * addon) because field config never reaches the rendered panel any other way.
- * Falling back to the chip's own text keeps older markers working — they simply
- * have no style and no icon, which is the default anyway.
- */
-function tabMarkerConfig(el) {
-  const chip = el.matches?.('[data-tab-marker]') ? el : el.querySelector('[data-tab-marker]');
-  const fallback = () => {
-    const spans = [...el.querySelectorAll('span')];
-
-    return ((spans.length ? spans[spans.length - 1] : el).textContent || '')
-      .replace(/^[^\p{L}\p{N}]+/u, '')
-      .trim();
-  };
-
-  return {
-    label: chip?.getAttribute('data-tab-label') || fallback(),
-    accordion: chip?.getAttribute('data-tab-style') === 'accordion',
-    icon: chip?.getAttribute('data-tab-icon') || null,
-  };
-}
-
-/** A field's own label, as Statamic renders it above the control. */
-function fieldLabel(row) {
-  return (row.querySelector('label')?.textContent || '').trim();
-}
-
-/**
- * Divides a list's rows into segments, each of which may hold accordion panels.
- *
- * A plain `tab` marker opens a segment. A marker with `style: accordion` opens a
- * panel inside the segment it sits in, and a `group` field is a panel too — it
- * already carries a name and its own fields, which is the whole shape. Rows
- * before a segment's first panel stay above the accordion, always visible.
- *
- * Returns null when the fieldset draws no line: one segment is not a choice, and
- * the fields are better left exactly as Statamic rendered them.
- */
-function sectionGroups(win, list) {
-  const rows = sectionFieldRows(list);
-
-  if (!rows.length) {
-    return null;
-  }
-
-  const groups = [];
-  const loose = [];
-  const markers = [];
-  let open = null;
-  let panel = null;
-  let seq = 0;
-
-  // Keyed by label, not by position: a card built on one pass has to be found
-  // again on the next, and by then the rows it holds have moved inside it —
-  // every counter would have shifted.
-  const panelKey = (label) => `p-${label.replace(/\s+/g, '-').toLowerCase()}`;
-
-  const openPanel = (key, label, icon, rows_ = [], card = null) => {
-    panel = { key, label, icon, rows: rows_, card };
-    (open ? open.panels : loose.panels).push(panel);
-  };
-
-  loose.panels = [];
-
-  rows.forEach((row) => {
-    // A card from an earlier pass *is* its panel. Rows that follow it are ones
-    // Vue has pulled back out of it, and belong to it again.
-    if (row.hasAttribute(SECTION_PANEL_CARD_ATTR)) {
-      const body = row.querySelector(`[${SECTION_PANEL_BODY_ATTR}]`);
-
-      openPanel(
-        row.getAttribute(SECTION_PANEL_ATTR),
-        row.getAttribute('data-sve-panel-label') || '',
-        row.getAttribute('data-sve-panel-icon') || null,
-        body ? [...body.children] : [],
-        row
-      );
-
-      return;
-    }
-
-    const marker = rowFieldtype(row, 'tab-fieldtype');
-
-    if (marker) {
-      const cfg = tabMarkerConfig(marker);
-
-      markers.push(row);
-
-      if (cfg.accordion) {
-        const key = panelKey(cfg.label);
-
-        // Its card is already in the list and will be met on its own; opening a
-        // second panel here would split the same group in two.
-        if (ownDescendant(list, `[${SECTION_PANEL_CARD_ATTR}][${SECTION_PANEL_ATTR}="${key}"]`)) {
-          panel = null;
-
-          return;
-        }
-
-        openPanel(key, cfg.label, cfg.icon, [], null);
-
-        return;
-      }
-
-      panel = null;
-      open = {
-        key: `tab-${seq++}`,
-        label: cfg.label,
-        icon: cfg.icon,
-        rows: [],
-        panels: [],
-      };
-      groups.push(open);
-
-      return;
-    }
-
-    // A group names itself and holds its own fields — a panel already, in every
-    // respect but the chevron. Only when it heads its own panel, though: one
-    // sitting inside an open accordion is just part of that panel's contents.
-    if (!panel && rowFieldtype(row, 'group-fieldtype')) {
-      const label = fieldLabel(row);
-
-      if (label) {
-        const key = panelKey(label);
-
-        if (!ownDescendant(list, `[${SECTION_PANEL_CARD_ATTR}][${SECTION_PANEL_ATTR}="${key}"]`)) {
-          openPanel(key, label, null, [row]);
-        }
-
-        row.setAttribute(SECTION_PANEL_OWNER_ATTR, '');
-        panel = null; // self-contained: the rows after it are not its body
-
-        return;
-      }
-    }
-
-    if (panel) {
-      panel.rows.push(row);
-
-      return;
-    }
-
-    if (open) {
-      open.rows.push(row);
-
-      return;
-    }
-
-    // A tabby with no marker ahead of it names a segment on its own: that is how
-    // sections were written before `tab` markers, and they keep working.
-    if (rowFieldtype(row, 'tabby-fieldtype')) {
-      groups.push({ key: `tabby-${seq++}`, label: fieldLabel(row), rows: [row], panels: [] });
-
-      return;
-    }
-
-    loose.push(row);
-  });
-
-  const named = groups.filter((group) => group.rows.length || group.panels.length);
-
-  // Whatever sits outside every tab is a group of its own — the one the fieldset
-  // never names. Merged before the counts below, because a fieldset written as
-  // accordions alone opens no segment at all: its panels are *all* loose, and
-  // counting first would throw them away before they were ever looked at.
-  if (loose.length || loose.panels.length) {
-    named.unshift({
-      key: SECTION_CONTENT_KEY,
-      label: t(win, 'section_content'),
-      rows: [...loose],
-      panels: loose.panels,
-    });
-  }
-
-  // Two or more segments are a choice worth a control. A single segment is not —
-  // but if it holds accordion panels, those are the choice, and the panels are
-  // drawn without one. Only a lone segment of plain rows is left exactly as
-  // Statamic rendered it.
-  const worthDrawing = named.length > 1 || named.some((group) => group.panels.length);
-
-  // Markers are returned whole, not per group: once the control exists, a chip
-  // saying where a group starts is noise, and one whose group came up empty
-  // would otherwise be left stranded on screen.
-  return worthDrawing ? { groups: named, markers } : null;
-}
-
-// A small outline set, drawn here rather than pulled from the Control Panel's
-// icon component — that lives in Vue and this builds raw DOM. An unknown name
-// falls through to whatever was written, so an emoji works as well.
-//
-// `box` is the glyph's own ink, widened by half a stroke, used as the viewBox in
-// place of the 24×24 grid it was drawn on. Each glyph fills that grid by a
-// different amount — `text` leaves 4 units of air a side, `settings` barely 2 —
-// so rendering them all through 0 0 24 24 gives every icon a different amount of
-// empty space around it. Beside a label that reads as uneven padding: the gap on
-// the icon's side looks larger than the gap on the text's, and by a different
-// amount per tab. Cropping to the ink makes one icon the same size as the next.
-const PANEL_ICONS = {
-  color: {
-    box: '2.15 2.15 19.7 19.7',
-    paths: '<path d="M12 3v18a6 6 0 0 0 0-12 6 6 0 0 1 0-6Z"/><circle cx="12" cy="12" r="9"/>',
-  },
-  spacing: {
-    box: '2.15 2.15 19.7 19.7',
-    paths: '<path d="M3 6h18M7 12h10M3 18h18"/>',
-  },
-  background: {
-    box: '2.15 2.15 19.7 19.7',
-    paths: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 15 5-5 4 4 3-3 6 6"/>',
-  },
-  text: {
-    box: '3.15 3.15 17.7 17.7',
-    paths: '<path d="M4 6h16M4 12h10M4 18h13"/>',
-  },
-  code: {
-    box: '3.15 3.15 17.7 17.7',
-    paths: '<path d="m8 8-4 4 4 4M16 8l4 4-4 4"/>',
-  },
-  layout: {
-    box: '2.15 2.15 19.7 19.7',
-    paths: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/>',
-  },
-  image: {
-    box: '2.15 2.15 19.7 19.7',
-    paths: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
-  },
-  // The stand-in for a set that declares no icon of its own. A plain slab: a row
-  // with nothing in the icon's place reads as something missing, and its label
-  // starts further left than every other row's, which is what makes a list of
-  // mixed blocks hard to read down.
-  block: {
-    box: '2.15 5.15 19.7 13.7',
-    paths: '<rect x="3" y="6" width="18" height="12" rx="2"/>',
-  },
-  settings: {
-    box: '1.45 1.45 21.1 21.1',
-    paths: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.6 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 11.5 4a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9 2 2 0 1 1 0 4Z"/>',
-  },
-};
-
-// Iconify SVGs already fetched, so a repaint or a second panel using the same
-// icon costs nothing. Keyed by name; the value is the markup, or a promise while
-// it is on its way.
-const iconifyCache = new Map();
-
-/** Strip an Iconify SVG down to something that inherits the header's colour. */
-function adoptSvg(el, markup) {
-  el.innerHTML = markup;
-
-  const svg = el.querySelector('svg');
-
-  if (!svg) {
-    return;
-  }
-
-  // The holder is the one place a size is decided; the stylesheet fills it.
-  svg.removeAttribute('width');
-  svg.removeAttribute('height');
-  // Iconify ships `fill="currentColor"` on most sets, which already follows the
-  // header. The ones drawn with strokes need telling.
-  svg.querySelectorAll('[stroke]:not([stroke="none"])').forEach((node) => {
-    node.setAttribute('stroke', 'currentColor');
-  });
-}
-
-/**
- * The icon element for a panel, or null when the marker named none.
- *
- * Four things count as a name, in the order they are recognised: SVG markup
- * pasted straight in, an Iconify name like `mdi:palette`, one of the built-in
- * outlines, and anything short enough to be an emoji. Iconify is fetched once
- * and swapped in when it lands, so a slow network delays the icon and nothing
- * else.
- */
-function panelIcon(doc, name) {
-  if (!name) {
-    return null;
-  }
-
-  const holder = doc.createElement('span');
-
-  // Sized and centred by [data-sve-icon] in the stylesheet — 1.3em square,
-  // whatever the icon turns out to be, so an emoji, a pasted SVG and a built-in
-  // outline all leave the label in the same place.
-  holder.setAttribute('data-sve-icon', '');
-
-  if (/^\s*<svg[\s>]/i.test(name)) {
-    adoptSvg(holder, name);
-
-    return holder;
-  }
-
-  if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(name)) {
-    const cached = iconifyCache.get(name);
-
-    if (typeof cached === 'string') {
-      adoptSvg(holder, cached);
-
-      return holder;
-    }
-
-    const [prefix, icon] = name.split(':');
-    const pending = cached ?? fetch(`https://api.iconify.design/${prefix}/${icon}.svg`)
-      .then((res) => (res.ok ? res.text() : ''))
-      .then((markup) => {
-        iconifyCache.set(name, markup);
-
-        return markup;
-      })
-      .catch(() => '');
-
-    iconifyCache.set(name, pending);
-    pending.then((markup) => markup && adoptSvg(holder, markup));
-
-    return holder;
-  }
-
-  const builtIn = PANEL_ICONS[name] ?? PANEL_ICONS[name.replace(/[-_ :].*$/, '')];
-
-  if (builtIn) {
-    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-
-    svg.setAttribute('viewBox', builtIn.box);
-    svg.setAttribute('fill', 'none');
-    svg.setAttribute('stroke', 'currentColor');
-    svg.setAttribute('stroke-width', '1.7');
-    svg.setAttribute('stroke-linecap', 'round');
-    svg.setAttribute('stroke-linejoin', 'round');
-    svg.innerHTML = builtIn.paths;
-    holder.appendChild(svg);
-
-    return holder;
-  }
-
-  // Anything left that is short enough to be a glyph; longer strings are a name
-  // nobody recognised, and printing it would be worse than showing nothing.
-  holder.textContent = [...name].length <= 2 ? name : '';
-
-  return holder;
-}
 
 /**
  * Statamic's Icon fieldtype only lists registered SVG sets. Authors also want
@@ -781,7 +239,7 @@ export function enhanceIconifyFieldtype() {
     setup(props, { attrs, slots, emit }) {
       const inst = getCurrentInstance();
 
-      const open = () => openIconifyStackFromInstance(inst);
+      const open = () => sve.openIconifyStackFromInstance(inst);
 
       onMounted(() => {
         const el = hostElement(inst);
@@ -824,7 +282,7 @@ export function enhanceIconifyFieldtype() {
   components.register('iconify-fieldtype', Enhanced);
 }
 
-function hostElement(inst) {
+export function hostElement(inst) {
   const el = inst?.vnode?.el;
 
   if (el?.nodeType === 1) {
@@ -834,419 +292,9 @@ function hostElement(inst) {
   return el?.parentElement || null;
 }
 
-function paintSectionToggle(list, active) {
-  ownDescendants(list, `[${SECTION_SEG_ATTR}]`).forEach((btn) => {
-    btn.setAttribute('aria-pressed', btn.getAttribute(SECTION_SEG_ATTR) === active ? 'true' : 'false');
-  });
 
-  const openPanel = list.getAttribute(SECTION_PANEL_OPEN_ATTR);
 
-  // Rows that are not inside a panel: shown with their segment.
-  ownDescendants(list, `[${SECTION_GROUP_ATTR}]`).forEach((row) => {
-    if (row.hasAttribute(SECTION_PANEL_CARD_ATTR)) {
-      return;
-    }
-
-    row.classList.toggle('sve-off', row.getAttribute(SECTION_GROUP_ATTR) !== active);
-  });
-
-  ownDescendants(list, `[${SECTION_PANEL_CARD_ATTR}]`).forEach((card) => {
-    // aria-expanded is the whole state: the stylesheet hangs the body, the
-    // divider and the chevron's rotation off it.
-    card.classList.toggle('sve-off', card.getAttribute(SECTION_GROUP_ATTR) !== active);
-    card
-      .querySelector(`[${SECTION_PANEL_HEAD_ATTR}]`)
-      ?.setAttribute('aria-expanded', card.getAttribute(SECTION_PANEL_ATTR) === openPanel ? 'true' : 'false');
-  });
-}
-
-function setSectionGroup(list, key) {
-  list.setAttribute(SECTION_ACTIVE_ATTR, key);
-  paintSectionToggle(list, key);
-}
-
-/**
- * Puts whatever is holding this element on show: its segment, its accordion panel,
- * and the same again for every list it sits inside.
- *
- * The segmented control hides the rows of every segment but the one selected. A
- * field clicked in the preview while the panel happens to sit on Design is duly
- * found, marked and scrolled to — behind a tab nobody switched. The panel follows
- * the click; the click does not have to guess which tab the panel is on.
- *
- * Walked all the way up, because a field can be two levels deep: the block's own
- * Content segment holds the field, and the section's Content segment holds the
- * block.
- */
-function revealSegmentsFor(el, doc) {
-  let node = el;
-
-  while (node && node !== doc.body) {
-    const row = node.closest(`[${SECTION_GROUP_ATTR}], [${SECTION_PANEL_ATTR}]`);
-    const list = row && fieldListOf(row);
-
-    if (!row || !list) {
-      return;
-    }
-
-    // A row inside an accordion names its panel; the card around it names the
-    // segment that panel belongs to.
-    const group = row.closest(`[${SECTION_GROUP_ATTR}]`)?.getAttribute(SECTION_GROUP_ATTR);
-    const panel = row.getAttribute(SECTION_PANEL_ATTR);
-
-    if (group) {
-      setSectionGroup(list, group);
-    }
-
-    // setSectionPanel toggles — guarded, so revealing an open panel doesn't shut it.
-    if (panel && list.getAttribute(SECTION_PANEL_OPEN_ATTR) !== panel) {
-      setSectionPanel(list, panel);
-    }
-
-    node = list.parentElement;
-  }
-}
-
-function setSectionPanel(list, key) {
-  // Clicking the open one closes it: with everything shut you can see the whole
-  // list of panels at once, which is the point of an accordion.
-  const next = list.getAttribute(SECTION_PANEL_OPEN_ATTR) === key ? '' : key;
-
-  list.setAttribute(SECTION_PANEL_OPEN_ATTR, next);
-  paintSectionToggle(list, list.getAttribute(SECTION_ACTIVE_ATTR) || '');
-}
-
-/**
- * One panel: a card holding its own header and its own field list.
- *
- * Header and body live inside one grid item rather than being two, because the
- * field grid puts 32px between its children — enough to break a card in half.
- * The body repeats the grid it was lifted out of, so fields keep the widths the
- * blueprint gave them.
- */
-function buildPanelCard(win, list, panel, groupKey, gridGap) {
-  const doc = win.document;
-  const card = doc.createElement('div');
-
-  card.setAttribute(SECTION_PANEL_CARD_ATTR, '');
-  card.setAttribute(SECTION_PANEL_ATTR, panel.key);
-  card.setAttribute(SECTION_GROUP_ATTR, groupKey);
-  card.setAttribute('data-sve-panel-label', panel.label);
-
-  if (panel.icon) {
-    card.setAttribute('data-sve-panel-icon', panel.icon);
-  }
-
-  // The live form's own row gap, handed to the body's grid through a variable —
-  // the one measurement here that isn't the stylesheet's to know.
-  card.style.setProperty('--sve-grid-gap', gridGap);
-
-  const head = doc.createElement('button');
-
-  head.type = 'button';
-  head.setAttribute(SECTION_PANEL_HEAD_ATTR, '');
-
-  const icon = panelIcon(doc, panel.icon);
-
-  if (icon) {
-    head.appendChild(icon);
-  }
-
-  const label = doc.createElement('span');
-
-  label.setAttribute('data-sve-panel-title', '');
-  label.textContent = panel.label;
-  head.appendChild(label);
-
-  const tile = doc.createElement('span');
-
-  tile.setAttribute('data-sve-panel-tile', '');
-
-  const chevron = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
-
-  chevron.setAttribute('data-sve-chevron', '');
-  chevron.setAttribute('viewBox', '0 0 24 24');
-  chevron.setAttribute('fill', 'none');
-  chevron.setAttribute('stroke', 'currentColor');
-  chevron.setAttribute('stroke-width', '2.2');
-  chevron.setAttribute('stroke-linecap', 'round');
-  chevron.setAttribute('stroke-linejoin', 'round');
-  chevron.innerHTML = '<path d="m6 9 6 6 6-6"/>';
-  tile.appendChild(chevron);
-  head.appendChild(tile);
-
-  head.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setSectionPanel(list, panel.key);
-  });
-
-  const body = doc.createElement('div');
-
-  body.setAttribute(SECTION_PANEL_BODY_ATTR, '');
-
-  card.appendChild(head);
-  card.appendChild(body);
-
-  return card;
-}
-
-/**
- * Builds the control for one field list. Re-entrant: a list already carrying the
- * toggle is only repainted, so the observer driving this can fire as often as it
- * likes — and Vue re-rendering a row is caught by the same repaint.
- */
-function enhanceSectionGroups(win, list) {
-  const divided = sectionGroups(win, list);
-
-  if (!divided) {
-    return;
-  }
-
-  const { groups, markers } = divided;
-
-  const active = list.getAttribute(SECTION_ACTIVE_ATTR);
-  const current = groups.some((group) => group.key === active) ? active : groups[0].key;
-
-  groups.forEach((group) => {
-    group.rows.forEach((row) => row.setAttribute(SECTION_GROUP_ATTR, group.key));
-
-    group.panels.forEach((panel) => {
-      const anchor = panel.rows[0];
-
-      if (!anchor) {
-        return;
-      }
-
-      let card = panel.card
-        || ownDescendant(list, `[${SECTION_PANEL_CARD_ATTR}][${SECTION_PANEL_ATTR}="${panel.key}"]`);
-
-      if (!card) {
-        const holder = anchor.parentElement;
-        const gap = win.getComputedStyle?.(holder)?.rowGap || '32px';
-
-        card = buildPanelCard(win, list, panel, group.key, gap);
-        holder.insertBefore(card, anchor);
-      }
-
-      const body = card.querySelector(`[${SECTION_PANEL_BODY_ATTR}]`);
-
-      // Moving, not copying — and re-checked on every pass, because Vue owns
-      // these rows and puts them back in its own list whenever it re-renders.
-      panel.rows.forEach((row) => {
-        row.setAttribute(SECTION_PANEL_ATTR, panel.key);
-        row.removeAttribute(SECTION_GROUP_ATTR);
-
-        if (row.parentElement !== body) {
-          body.appendChild(row);
-        }
-
-        // A group draws its own name inside the box; the header above it now
-        // says the same thing, and twice is once too many.
-        if (row.hasAttribute(SECTION_PANEL_OWNER_ATTR)) {
-          row.querySelector('label')?.classList.add('sve-off');
-        }
-      });
-    });
-  });
-
-  // The markers said where each group starts; the segments and panel headers now
-  // say it in a place you can click.
-  markers.forEach((row) => row.classList.add('sve-off'));
-
-  if (!list.hasAttribute(SECTION_PANEL_OPEN_ATTR)) {
-    // First panel of the opening segment starts open, so a tab never comes up as
-    // a stack of closed bars with nothing to read.
-    const first = groups.find((group) => group.panels.length)?.panels[0];
-
-    list.setAttribute(SECTION_PANEL_OPEN_ATTR, first ? first.key : '');
-  }
-
-  // One segment is not a choice: a fieldset written as accordions alone has a
-  // single implicit group, and a pill holding one button would only take up room.
-  // Its panels are the control.
-  if (groups.length < 2) {
-    setSectionGroup(list, current);
-
-    return;
-  }
-
-  let row = ownDescendant(list, `[${SECTION_TOGGLE_ATTR}]`);
-
-  if (!row) {
-    const doc = win.document;
-
-    row = doc.createElement('div');
-    // Statamic lays the field list out as a 12-column grid, so a child with no
-    // column of its own lands in one of them — an eighth of the width, which is
-    // how this first shipped invisible. `grid-column: 1 / -1` in the stylesheet
-    // is what makes it a bar across the panel.
-    row.setAttribute(SECTION_TOGGLE_ATTR, '');
-
-    const track = doc.createElement('div');
-
-    track.setAttribute('data-sve-section-track', '');
-
-    groups.forEach((group) => {
-      const btn = doc.createElement('button');
-
-      btn.type = 'button';
-      btn.setAttribute(SECTION_SEG_ATTR, group.key);
-
-      // Same icon vocabulary as an accordion header — a tab marker carries one
-      // just as an accordion marker does, and the two read as one system.
-      const segIcon = panelIcon(doc, group.icon);
-
-      if (segIcon) {
-        btn.appendChild(segIcon);
-      }
-
-      const segLabel = doc.createElement('span');
-
-      segLabel.textContent = group.label;
-      btn.appendChild(segLabel);
-
-      btn.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        setSectionGroup(list, group.key);
-      });
-      track.appendChild(btn);
-    });
-
-    row.appendChild(track);
-
-    // Straight into the list it divides, above everything in it. Nothing is
-    // looked up to place it: the list is the scope, so it is always there to
-    // hang the control on — which is one less way for the control to end up
-    // built but invisible.
-    list.insertBefore(row, list.firstChild);
-  }
-
-  applyToggleWidth(row, inPreviewPanel(win, list));
-
-  setSectionGroup(list, current);
-}
-
-/**
- * Every field list on the screen — a page section's, a widget's, a header's, an
- * entry's. Cheap for lists whose fieldset draws no line: sectionGroups() walks
- * the rows once and returns null.
- *
- * Deliberately not narrowed to the editor panel or to replicator sets. The same
- * fieldset is imported in all of those places, and it has to read the same in
- * each of them.
- */
-export function enhanceSectionGroupsIn(win, root = win.document) {
-  root.querySelectorAll(FIELD_LIST).forEach((list) => {
-    try {
-      enhanceSectionGroups(win, list);
-    } catch {
-      // One malformed list must not stop the rest of the form from working.
-    }
-  });
-}
-
-/**
- * Group a freshly mounted field list before the browser paints it.
- *
- * The ordinary pass is rate-limited — a quiet window, a settle timer — because
- * running it on every mutation of a form being typed into freezes the CP. But a
- * form being *mounted* cannot wait: for those 400-800ms the screen shows
- * Statamic's flat list with the markers still in it as chips, and then it
- * rearranges into tabs. Two layouts for one form is what reads as the panel
- * fixing itself after the fact.
- *
- * Called straight from the MutationObserver, which is a microtask: the grouping
- * lands in the same frame the fields do, so the flat layout is never painted at
- * all. It bounds itself — grouping consumes the marker chips, so a list that has
- * been grouped no longer matches and no longer costs anything.
- */
-export function settleUngroupedFieldLists(win, root = win.document) {
-  const chips = root.querySelectorAll('[data-tab-marker]');
-
-  if (!chips.length) {
-    return;
-  }
-
-  const lists = new Set();
-
-  chips.forEach((chip) => {
-    const list = fieldListOf(chip);
-
-    if (list) {
-      lists.add(list);
-    }
-  });
-
-  lists.forEach((list) => {
-    try {
-      enhanceSectionGroups(win, list);
-    } catch {
-      // One malformed list must not stop the rest of the form from settling.
-    }
-  });
-}
-
-export function stampGridRows(root = document) {
-  // Table-mode grids (mode: table): stamp every <tr> inside a grid table's <tbody>.
-  root.querySelectorAll('table.grid-table tbody tr').forEach((tr) => {
-    if (!tr.hasAttribute('data-grid-row')) {
-      tr.setAttribute('data-grid-row', '');
-    }
-  });
-
-  // Stacked-mode grids (mode: stacked): each row is a direct child element of
-  // the .grid-stacked container (the StackedRow root div, which carries the
-  // sortable item class). There is no <table>. We stamp these children directly
-  // by DOM structure — independent of [data-visual-id], which is set
-  // asynchronously by AutoUuid.vue and may not exist yet when this runs.
-  //
-  // NOTE: stacked grids are frequently nested inside a Replicator set. The old
-  // fallback skipped any input whose closest(anySet) matched — which always
-  // matched the surrounding Replicator set, so nested stacked grid rows were
-  // never stamped. Stamping by .grid-stacked structure avoids that trap.
-  root.querySelectorAll('.grid-stacked').forEach((container) => {
-    Array.from(container.children).forEach((child) => {
-      if (child.nodeType === 1 && !child.hasAttribute('data-grid-row')) {
-        child.setAttribute('data-grid-row', '');
-      }
-    });
-  });
-
-  hideAutoUuidGridColumns(root);
-}
-
-/**
- * Hides the _visual_id column in Grid table fields.
- *
- * Statamic's GridTable renders a <td class="auto_uuid-fieldtype"> for the
- * auto_uuid field. The column header (<th>) uses v-show="field.type !== 'hidden'",
- * which shows the header because our type is "auto_uuid", not "hidden".
- *
- * We use td.cellIndex to find the correct column position and hide both the
- * <th> header and all <td> cells in that column across the entire table.
- */
-export function hideAutoUuidGridColumns(root = document) {
-  root.querySelectorAll('table.grid-table td.auto_uuid-fieldtype').forEach((td) => {
-    if (td.hasAttribute('data-sve-col-hidden')) {
-      return;
-    }
-
-    const colIndex = td.cellIndex;
-    const table = td.closest('table.grid-table');
-
-    if (!table) {
-      return;
-    }
-
-    table.querySelectorAll(`tr > :nth-child(${colIndex + 1})`).forEach((cell) => {
-      cell.setAttribute('data-sve-col-hidden', '');
-      cell.style.display = 'none';
-    });
-  });
-}
-
+// ===== sets =====
 export function findSetByUid(uid, doc = document, index = 0) {
   const found = findSetByVisualIdInput(uid, doc, index);
 
@@ -1269,13 +317,13 @@ export function findSetByUid(uid, doc = document, index = 0) {
 
   // Saved (synced) sections strip `_visual_id` on save. Until AutoUuid remounts
   // a matching [data-visual-id] input, locate the set by its values path instead
-  // — otherwise bootSavedSectionSolo / focus never opens and the sidebar stays
+  // — otherwise sve.bootSavedSectionSolo / focus never opens and the sidebar stays
   // on empty entry meta (Published + title).
   return findSetByValuesPath(uid, doc, index);
 }
 
 /** Direct (non-nested) replicator sets under a field/set root. */
-function directReplicatorSets(root) {
+export function directReplicatorSets(root) {
   if (!root) {
     return [];
   }
@@ -1291,7 +339,7 @@ function directReplicatorSets(root) {
  * Walk a publish-values path (`page_sections.0.blocks.1`) into the CP DOM and
  * return the matching replicator set element.
  */
-function setElFromValuesPath(doc, path) {
+export function setElFromValuesPath(doc, path) {
   const parts = String(path || '').split('.').filter(Boolean);
 
   if (parts.length < 2) {
@@ -1335,17 +383,17 @@ function setElFromValuesPath(doc, path) {
 }
 
 /** Locate a set by matching row id / _visual_id through publish values → DOM. */
-function findSetByValuesPath(uid, doc, matchIndex = 0) {
+export function findSetByValuesPath(uid, doc, matchIndex = 0) {
   let seen = 0;
 
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = findPathByUid(values, uid);
+    const path = sve.findPathByUid(values, uid);
 
     if (path === null || path === '') {
       continue;
@@ -1367,7 +415,7 @@ function findSetByValuesPath(uid, doc, matchIndex = 0) {
   return null;
 }
 
-function findSetByVisualIdInput(uid, doc, index = 0) {
+export function findSetByVisualIdInput(uid, doc, index = 0) {
   const inputs = doc.querySelectorAll(SELECTORS.visualIdInput);
   let count = 0;
 
@@ -1396,7 +444,7 @@ function findSetByVisualIdInput(uid, doc, index = 0) {
  * kalder dem: bloktræet, værktøjslinjen på siden og et træk-og-slip er tre veje
  * til samme sted, og en lås der kun gælder på nogle af dem er ingen lås.
  */
-function rowIsLocked(uid, doc) {
+export function rowIsLocked(uid, doc) {
   if (!uid) {
     return false;
   }
@@ -1411,21 +459,21 @@ function rowIsLocked(uid, doc) {
  * `_visual_id` stored in the publish form — needed so nested blocks can be
  * found in the CP DOM the same way top-level sections are.
  */
-function resolveVisualIdFromValues(uid, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
+export function resolveVisualIdFromValues(uid, doc) {
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = findPathByUid(values, uid);
+    const path = sve.findPathByUid(values, uid);
 
     if (path === null) {
       continue;
     }
 
-    const row = dataGet(values, path);
+    const row = sve.dataGet(values, path);
 
     if (row && typeof row === 'object' && row._visual_id) {
       return row._visual_id;
@@ -1440,15 +488,15 @@ function resolveVisualIdFromValues(uid, doc) {
  * (e.g. page_sections.2). Field clicks should solo the section, while still
  * expanding the nested block that owns the field.
  */
-function topLevelSectionUid(uid, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
+export function topLevelSectionUid(uid, doc) {
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = findPathByUid(values, uid);
+    const path = sve.findPathByUid(values, uid);
 
     if (!path) {
       continue;
@@ -1460,7 +508,7 @@ function topLevelSectionUid(uid, doc) {
       continue;
     }
 
-    const section = dataGet(values, `${match[1]}.${match[2]}`);
+    const section = sve.dataGet(values, `${match[1]}.${match[2]}`);
 
     if (!section || typeof section !== 'object') {
       continue;
@@ -1571,7 +619,7 @@ export function expandSet(setEl) {
  * The step-into arrow lives in that same header and is a `<button type="button">`
  * too, so it is named out rather than counted on to come second.
  */
-function ownHeaderToggle(setEl) {
+export function ownHeaderToggle(setEl) {
   const header = [...setEl.children].find((el) => el.tagName === 'HEADER');
 
   if (!header) {
@@ -1580,7 +628,7 @@ function ownHeaderToggle(setEl) {
 
   return (
     [...header.children].find(
-      (el) => el.matches('button[type="button"]') && !el.hasAttribute(FOCUS_STEP_ATTR)
+      (el) => el.matches('button[type="button"]') && !el.hasAttribute(sve.FOCUS_STEP_ATTR)
     ) || null
   );
 }
@@ -1604,14 +652,14 @@ export function collapseSet(setEl) {
 
 // Breathing room (px) left below the sticky grid header when scrolling a row
 // into view, so the highlighted row isn't flush against the header.
-const GRID_HEADER_GAP = 12;
+export const GRID_HEADER_GAP = 12;
 
 /**
  * Height of the sticky <thead> in the grid table containing targetEl, or 0 when
  * targetEl is not inside a table-mode grid (e.g. stacked-mode grids have no
  * <thead>, so no offset is needed).
  */
-function getGridHeaderOffset(targetEl) {
+export function getGridHeaderOffset(targetEl) {
   const table = targetEl.closest('table.grid-table');
 
   if (!table) {
@@ -1958,10932 +1006,8 @@ export function handleFieldHover(fieldPath, doc = document, scopeUid = undefined
   fieldEl.setAttribute('data-sve-hover', '');
 }
 
-// --- Inline editing: write-back ---------------------------------------------
-//
-// The preview iframe sends edit-request / edit-input / edit-end messages
-// (see bridge.js). This side resolves the clicked field to a dotted value
-// path in the publish form, verifies the rendered text actually matches the
-// stored value (so modifier-transformed output can never be written back as
-// the wrong value), and writes edits via the container's setFieldValue().
-// Statamic's own reactivity does the rest: the deep values watcher marks the
-// form dirty and triggers the live preview re-render, and the Bard fieldtype's
-// value watcher updates its editor when the value changes from outside.
 
-/** Node types the inline editor may edit as a single contenteditable block. */
-const EDITABLE_NODE_TYPES = ['heading', 'paragraph'];
-
-// Publish containers captured from Statamic's `publish-container-created`
-// event (fired by Container.vue on mount; payload includes the reactive
-// `values` ref and `setFieldValue`). Registered in initCp, which runs inside
-// Statamic.booting() — before any container mounts.
-const publishContainers = [];
-
-// The active inline-edit session, keyed by the bridge's requestId.
-let editSession = null;
-
-export function registerContainerEvents(win = window) {
-  const events = win.Statamic?.$events;
-
-  if (!events?.$on) {
-    return;
-  }
-
-  events.$on('publish-container-created', (payload) => {
-    if (payload?.setFieldValue && payload?.values) {
-      publishContainers.push(payload);
-    }
-  });
-
-  events.$on('publish-container-destroyed', (payload) => {
-    const index = publishContainers.findIndex((c) => c.name === payload?.name);
-
-    if (index !== -1) {
-      publishContainers.splice(index, 1);
-    }
-  });
-}
-
-/** Unwraps a Vue ref (Container.vue provides `values` as a ref). */
-function unwrapRef(v) {
-  return v && v.__v_isRef ? v.value : v;
-}
-
-/**
- * Entry-form values considered "clean" when Live Preview opened (or after save).
- * Statamic's $dirty is sticky / noisy on mount — especially with revisions, where
- * Save stays enabled even when nothing changed — so the back button compares
- * against this snapshot instead of trusting $dirty alone.
- */
-let entryValuesBaseline = null;
-let entryBaselineTimer = null;
-// True between a successful save/publish response and the delayed re-baseline.
-// Statamic writes the response into the form with trackDirtyState off for 500ms,
-// so an immediate snapshot is the *pre*-response values — leave then thinks the
-// hydrated form is unsaved work. Suppress the warning until we catch up.
-let entrySaveSettling = false;
-
-/** The entry publish container ("base"), if we've seen it. */
-function entryPublishContainer() {
-  const named = publishContainers.find((container) => container.name === 'base');
-
-  if (named) {
-    return named;
-  }
-
-  return publishContainers.length ? publishContainers[publishContainers.length - 1] : null;
-}
-
-/** Stable JSON of the entry form values, or null when unavailable. */
-function serializeEntryValues() {
-  const container = entryPublishContainer();
-  const values = unwrapRef(container?.values);
-
-  if (!values || typeof values !== 'object') {
-    return null;
-  }
-
-  try {
-    return JSON.stringify(values);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Remember the current entry values as clean and clear hydration-induced dirty
- * marks. Called after Live Preview settles and again after a successful save.
- */
-function markEntryFormClean(win) {
-  const serialized = serializeEntryValues();
-
-  if (serialized == null) {
-    return false;
-  }
-
-  entryValuesBaseline = serialized;
-  discardChanges(win);
-  win.Statamic?.$dirty?.disableWarning?.();
-
-  return true;
-}
-
-/**
- * After Live Preview opens the form still mutates briefly (Bard, replicator,
- * visual ids). Wait for that to settle before taking the clean baseline.
- *
- * Take that snapshot once per session. ensureLpBackButton runs again on every
- * DOM settle (preview refresh, chrome, Vue patches), and rewriting the baseline
- * then treats the user's edits as "clean" — which is why × sometimes left
- * without the unsaved menu even though the page had changed. Saves call
- * scheduleEntryBaselineAfterSave; closing Live Preview clears the snapshot.
- */
-function scheduleEntryBaseline(win) {
-  if (entryValuesBaseline != null) {
-    return;
-  }
-
-  clearTimeout(entryBaselineTimer);
-
-  let attempts = 0;
-
-  const trySnap = () => {
-    attempts += 1;
-
-    if (markEntryFormClean(win)) {
-      entryBaselineTimer = null;
-
-      return;
-    }
-
-    if (attempts < 20) {
-      entryBaselineTimer = win.setTimeout(trySnap, 250);
-    } else {
-      entryBaselineTimer = null;
-    }
-  };
-
-  entryBaselineTimer = win.setTimeout(trySnap, 600);
-}
-
-/**
- * After save/publish: wait for Statamic to apply resetValuesFromResponse (it
- * keeps trackDirtyState off for 500ms) and for Bard/visual ids to catch up,
- * then treat the hydrated form as clean.
- */
-function scheduleEntryBaselineAfterSave(win) {
-  entrySaveSettling = true;
-  clearTimeout(entryBaselineTimer);
-
-  const delays = [600, 500];
-  let step = 0;
-
-  const run = () => {
-    markEntryFormClean(win);
-    step += 1;
-
-    if (step < delays.length) {
-      entryBaselineTimer = win.setTimeout(run, delays[step]);
-
-      return;
-    }
-
-    entrySaveSettling = false;
-    entryBaselineTimer = null;
-  };
-
-  entryBaselineTimer = win.setTimeout(run, delays[0]);
-}
-
-function clearEntryBaseline() {
-  clearTimeout(entryBaselineTimer);
-  entryBaselineTimer = null;
-  entryValuesBaseline = null;
-  entrySaveSettling = false;
-}
-
-/**
- * Push a Bard value into the mounted TipTap editor in the sidebar.
- *
- * Colour/mark writes sometimes leave TipTap stale after setFieldValue alone.
- * Typing must NOT hammer setContent — Vue already updates the editor, and
- * repeated setContent/blur is what made the sidebar flicker 4–5 times.
- *
- * Coalesce: only the latest pending value is applied, once, after a short wait
- * so Vue can catch up first. If TipTap already matches, we no-op.
- */
-let bardSyncTimer = null;
-let bardSyncPending = null;
-
-function syncBardEditorFromValue(doc, field, scope, value) {
-  if (!doc || !field || !Array.isArray(value)) {
-    return;
-  }
-
-  bardSyncPending = { doc, field, scope, value: JSON.parse(JSON.stringify(value)) };
-  clearTimeout(bardSyncTimer);
-  // Wait for Vue's setFieldValue → Bard watcher to settle. If TipTap already
-  // matches then, we skip setContent entirely (typing: no flicker). Colour
-  // marks that the watcher missed still get one corrective write.
-  bardSyncTimer = setTimeout(flushBardEditorSync, 100);
-}
-
-function flushBardEditorSync(attempt = 0) {
-  const job = bardSyncPending;
-
-  if (!job) {
-    return;
-  }
-
-  const { doc, field, scope, value } = job;
-  const fieldEl = findFieldElement(field, doc, scope);
-  const bardEl = fieldEl
-    ? fieldEl.closest('.bard-fieldtype') || fieldEl.querySelector('.bard-fieldtype') || fieldEl
-    : null;
-  const proxy = bardEl ? findBardVueProxy(bardEl) : null;
-
-  if (!proxy?.editor) {
-    // Editor not mounted yet (replicator tab, etc.) — one short retry, not a storm.
-    if (attempt < 5) {
-      bardSyncTimer = setTimeout(() => flushBardEditorSync(attempt + 1), 50);
-    }
-
-    return;
-  }
-
-  let currentContent = null;
-
-  try {
-    currentContent = proxy.editor.getJSON()?.content ?? null;
-  } catch {
-    currentContent = null;
-  }
-
-  // Vue already applied setFieldValue — leave TipTap alone (avoids flicker).
-  if (JSON.stringify(value) === JSON.stringify(currentContent)) {
-    bardSyncPending = null;
-
-    return;
-  }
-
-  try {
-    if ('debounceNextUpdate' in proxy) {
-      proxy.debounceNextUpdate = false;
-    }
-
-    if (proxy.editor?.commands?.setContent) {
-      const content = value.length
-        ? { type: 'doc', content: JSON.parse(JSON.stringify(value)) }
-        : null;
-
-      proxy.editor.commands.setContent(content, false);
-    }
-
-    if ('json' in proxy) {
-      proxy.json = JSON.parse(JSON.stringify(value));
-    }
-  } catch {
-    /* ignore */
-  }
-
-  bardSyncPending = null;
-}
-
-/** Write Bard JSON to the form AND force the sidebar TipTap view to match. */
-function writeBardFieldValue(container, path, value, doc, session) {
-  const next = JSON.parse(JSON.stringify(value));
-
-  container.setFieldValue(path, next);
-  syncBardEditorFromValue(doc, session?.field, session?.scope, next);
-}
-
-/**
- * Fallback when no container was captured via events (e.g. the CP script ran
- * after the container mounted): walk the Vue component chain from a
- * [data-visual-id] input to the PublishContainer's provided context, which
- * has the same { values, setFieldValue } shape as the event payload.
- */
-function containerFromDom(doc) {
-  // Synced-section forms often have no [data-visual-id] yet (stripped on save).
-  // Walk from any publish-form mount point, not only AutoUuid inputs.
-  const starters = [
-    doc.querySelector(SELECTORS.visualIdInput),
-    doc.querySelector('.publish-form'),
-    doc.querySelector('.publish-fields'),
-    doc.querySelector('[data-reka-tabs-root]'),
-    doc.querySelector('main'),
-  ].filter(Boolean);
-
-  for (const el of starters) {
-    let component = el.__vueParentComponent;
-
-    while (component) {
-      const ctx = component.provides?.['PublishContainerContext'];
-
-      if (ctx?.setFieldValue) {
-        return ctx;
-      }
-
-      component = component.parent;
-    }
-  }
-
-  return null;
-}
-
-function activeContainers(doc) {
-  // Most recently created first — matches the form the user is looking at.
-  const list = [...publishContainers].reverse();
-
-  if (!list.length) {
-    const ctx = containerFromDom(doc);
-
-    if (ctx) {
-      list.push(ctx);
-    }
-  }
-
-  // A global section's content belongs to the entry open in the panel — another
-  // window, so none of the containers above have ever heard of it. Appended last,
-  // so the page's own fields always win a name clash, this stands in for it: every
-  // caller (inline edit, findPathByUid, the settings panel) then treats a global
-  // section exactly like one of the page's own.
-  const panel = sectionPanelContainer(doc);
-
-  if (panel) {
-    list.push(panel);
-  }
-
-  return list;
-}
-
-/** data_get-style dotted path lookup ("page_sections.0.text"). */
-function dataGet(obj, path) {
-  return path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
-}
-
-/** The row a field path sits in ("…blocks.1.headline" → "…blocks.1"). */
-function rowPathOf(fieldPath) {
-  return fieldPath.includes('.') ? fieldPath.slice(0, fieldPath.lastIndexOf('.')) : '';
-}
-
-/**
- * Current values of the sibling fields the preview toolbar asked for
- * (controls="font_tag|size"), so it can render them pre-selected.
- */
-function controlValues(values, fieldPath, handles) {
-  if (!Array.isArray(handles) || !handles.length) {
-    return null;
-  }
-
-  const row = rowPathOf(fieldPath);
-  const out = {};
-
-  for (const handle of handles) {
-    if (typeof handle === 'string' && handle) {
-      out[handle] = dataGet(values, row ? `${row}.${handle}` : handle);
-    }
-  }
-
-  return out;
-}
-
-/**
- * Recursively finds the dotted path of the set whose _visual_id (or row id)
- * equals uid. Mirrors how the preview's scope uid identifies a section/row.
- *
- * Row ids match both `id` and `_id`: the front-end context exposes `id`
- * (Replicator.processRow renames _id → id), but the publish FORM values keep
- * the raw `_id` key — column builder rows are only findable through it.
- */
-function findPathByUid(value, uid, path = '') {
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) {
-      const found = findPathByUid(value[i], uid, path ? `${path}.${i}` : String(i));
-
-      if (found !== null) {
-        return found;
-      }
-    }
-
-    return null;
-  }
-
-  if (value && typeof value === 'object') {
-    if (value._visual_id === uid || value.id === uid || value._id === uid) {
-      return path;
-    }
-
-    for (const key of Object.keys(value)) {
-      const found = findPathByUid(value[key], uid, path ? `${path}.${key}` : key);
-
-      if (found !== null) {
-        return found;
-      }
-    }
-  }
-
-  return null;
-}
-
-/**
- * Whitespace-normalizes text for comparison across the preview DOM and the CP
- * form values: nbsp → space, collapse runs, trim. Duplicated in bridge.js
- * because the two files run in separate bundles (CP window vs. preview iframe).
- */
-export function normText(s) {
-  return (s || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Flattens a ProseMirror node to plain text for comparison with the preview
- * DOM's textContent. hardBreak maps to '' — <br> contributes nothing to
- * textContent, so both sides must agree ("råvarer.<br>Vi" reads "råvarer.Vi").
- */
-function bardNodeText(node) {
-  if (!node) {
-    return '';
-  }
-
-  if (node.type === 'text') {
-    return node.text || '';
-  }
-
-  if (node.type === 'hardBreak') {
-    return '';
-  }
-
-  return (node.content || []).map(bardNodeText).join('');
-}
-
-/** Unwrapped inline Bard root (text/hardBreak) — form may hold this after process(). */
-function isUnwrappedInlineBard(value) {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((node) => node && (node.type === 'text' || node.type === 'hardBreak'))
-  );
-}
-
-/**
- * Inline Bard values the CP can edit as one whole-field paragraph:
- * - legacy string (pre-Bard content)
- * - unwrapped text nodes (post-process / default)
- * - already-wrapped paragraph/heading docs
- */
-function normalizeInlineBardValue(value) {
-  if (typeof value === 'string') {
-    return [
-      {
-        type: 'paragraph',
-        content: value === '' ? [] : [{ type: 'text', text: value }],
-      },
-    ];
-  }
-
-  if (isUnwrappedInlineBard(value)) {
-    return [{ type: 'paragraph', content: value }];
-  }
-
-  return value;
-}
-
-/**
- * Find a Bard set (or other locked node) from the session original by its
- * preview `_visual_id` / attrs.id — used when whole-field edit re-serializes
- * text blocks but must keep set nodes in place.
- */
-function findPreservedBardNode(nodes, visualId) {
-  if (!Array.isArray(nodes) || !visualId) {
-    return null;
-  }
-
-  return (
-    nodes.find((node) => {
-      if (!node || node.type !== 'set') {
-        return false;
-      }
-
-      const values = node.attrs?.values || {};
-
-      return values._visual_id === visualId || node.attrs?.id === visualId;
-    }) || null
-  );
-}
-
-/**
- * Collects candidate edit targets for the clicked text within a field value.
- *
- * - string values match when their normalized text equals the clicked block's
- *   (or wrapper's) text.
- * - arrays are treated as Bard: heading/paragraph nodes match on flattened text.
- * - plain objects (group fields like section_heading) recurse one level so
- *   their string/Bard members are reachable.
- *
- * The caller requires EXACTLY one candidate — ambiguity means we cannot know
- * which value the user clicked, so editing is denied.
- */
-function resolveEditTargets(value, path, req, depth = 0) {
-  if (typeof value === 'string') {
-    const t = normText(value);
-
-    if ((req.blockText !== null && t === req.blockText) || t === req.wrapperText) {
-      return [{ mode: 'string', path }];
-    }
-
-    return [];
-  }
-
-  if (Array.isArray(value)) {
-    if (req.blockText === null) {
-      return [];
-    }
-
-    const out = [];
-
-    value.forEach((node, i) => {
-      if (
-        node &&
-        EDITABLE_NODE_TYPES.includes(node.type) &&
-        normText(bardNodeText(node)) === req.blockText
-      ) {
-        out.push({ mode: 'bard', path, index: i });
-      }
-    });
-
-    return out;
-  }
-
-  if (value && typeof value === 'object' && depth < 2) {
-    let out = [];
-
-    for (const key of Object.keys(value)) {
-      out = out.concat(resolveEditTargets(value[key], `${path}.${key}`, req, depth + 1));
-    }
-
-    return out;
-  }
-
-  return [];
-}
-
-/** HTML tag → ProseMirror mark type for inline content parsing. */
-const MARK_TAGS = {
-  STRONG: 'bold',
-  B: 'bold',
-  EM: 'italic',
-  I: 'italic',
-  U: 'underline',
-  S: 'strike',
-  STRIKE: 'strike',
-  DEL: 'strike',
-  CODE: 'code',
-  SUB: 'subscript',
-  SUP: 'superscript',
-};
-
-// bard-texstyle span-type styles that inline editing can toggle. A <span> whose
-// class is one of these maps to a btsSpan ProseMirror mark; any other span is
-// treated as transparent styling. Mirrors the span-type entries in
-// config/statamic/bard_texstyle.php — extend here if the site adds more.
-const BTS_SPAN_CLASSES = ['uppercase'];
-
-function sameMarks(a, b) {
-  return JSON.stringify(a || []) === JSON.stringify(b || []);
-}
-
-/**
- * Parses the innerHTML of an inline-edited block back into ProseMirror inline
- * content. Semantic tags become marks; everything else (site spans, styling
- * wrappers) is transparent — only its text survives. This intentionally
- * ignores presentation-only markup the site's own JS may have injected
- * (e.g. word-reveal <span>s around headline words).
- */
-export function parseInlineHtml(html, doc = document, spanClasses = BTS_SPAN_CLASSES) {
-  const root = doc.createElement('div');
-
-  root.innerHTML = html;
-
-  const out = [];
-
-  const pushText = (text, marks) => {
-    if (!text) {
-      return;
-    }
-
-    const last = out[out.length - 1];
-
-    if (last && last.type === 'text' && sameMarks(last.marks, marks)) {
-      last.text += text;
-
-      return;
-    }
-
-    const node = { type: 'text', text };
-
-    if (marks.length) {
-      node.marks = marks.map((m) => ({ ...m }));
-    }
-
-    out.push(node);
-  };
-
-  const walk = (node, marks) => {
-    for (const child of node.childNodes) {
-      if (child.nodeType === 3) {
-        // Collapse whitespace like HTML rendering does — pretty-printed
-        // template markup must not leak literal newlines/indentation into text.
-        pushText(child.nodeValue.replace(/\u00a0/g, ' ').replace(/\s+/g, ' '), marks);
-      } else if (child.nodeType === 1) {
-        if (child.tagName === 'BR') {
-          out.push({ type: 'hardBreak' });
-          continue;
-        }
-
-        let childMarks = marks;
-        const markType = MARK_TAGS[child.tagName];
-
-        if (markType) {
-          childMarks = [...marks, { type: markType }];
-        } else if (child.tagName === 'A') {
-          const attrs = { href: child.getAttribute('href') };
-
-          for (const attr of ['target', 'rel', 'title']) {
-            if (child.getAttribute(attr)) {
-              attrs[attr] = child.getAttribute(attr);
-            }
-          }
-
-          childMarks = [...marks, { type: 'link', attrs }];
-        } else if (child.tagName === 'SPAN') {
-          // Vizuall bard-style mark (span[data-vizu] style="prop: value").
-          // Also accept colour-only spans without data-vizu (inline colour from
-          // the preview toolbar / browser execCommand leftovers).
-          const style = child.getAttribute('style') || '';
-          const hasVizu = child.hasAttribute('data-vizu');
-          const colorOnly = !hasVizu && /(?:^|;)\s*color\s*:/i.test(style);
-
-          if ((hasVizu || colorOnly) && style) {
-            childMarks = [...marks, { type: 'vizuStyle', attrs: { style } }];
-          } else if (/(?:^|;)\s*font-weight\s*:\s*(bold|[6-9]00)/i.test(style)) {
-            childMarks = [...marks, { type: 'bold' }];
-          } else if (/(?:^|;)\s*font-style\s*:\s*italic/i.test(style)) {
-            childMarks = [...marks, { type: 'italic' }];
-          } else {
-            // bard-texstyle span marks (e.g. class="uppercase"). Only recognized
-            // classes become a btsSpan mark; other spans (site-injected styling
-            // wrappers like the hero word-reveal spans) stay transparent.
-            const btsClass = [...child.classList].find((c) => spanClasses.includes(c));
-
-            if (btsClass) {
-              childMarks = [...marks, { type: 'btsSpan', attrs: { class: btsClass } }];
-            }
-          }
-        }
-
-        walk(child, childMarks);
-      }
-    }
-  };
-
-  walk(root, []);
-
-  // Whitespace belongs between words, not inside a style.
-  //
-  // Dragging a selection across a word takes the spaces on either side of it far
-  // more often than not, and colouring that selection puts them inside the mark:
-  // `Indtast<span> din </span>overskrift` rather than `Indtast <span>din</span>
-  // overskrift`. Both read the same on the page the moment it is made, so the
-  // mistake is invisible — but the boundary is now whitespace, and every later
-  // pass over it (a re-render, a font-tag change, the next inline edit) trims and
-  // re-merges those edges, until the gap sits on the wrong side of the span or
-  // stops existing. It shows up as words running into a coloured word, and only
-  // for text somebody has styled.
-  //
-  // Pushed back out, the same words always produce the same nodes, and there is
-  // no edge left for a later pass to move.
-  const spaced = [];
-
-  for (const node of out) {
-    if (node.type !== 'text' || !node.marks?.length) {
-      spaced.push(node);
-
-      continue;
-    }
-
-    const lead = /^\s+/.exec(node.text)?.[0] || '';
-    const core = node.text.slice(lead.length).replace(/\s+$/, '');
-    const trail = node.text.slice(lead.length + core.length);
-
-    // A marked run of nothing but spaces is spacing, not styling.
-    if (!core) {
-      spaced.push({ type: 'text', text: node.text });
-
-      continue;
-    }
-
-    if (lead) {
-      spaced.push({ type: 'text', text: lead });
-    }
-
-    spaced.push({ ...node, text: core });
-
-    if (trail) {
-      spaced.push({ type: 'text', text: trail });
-    }
-  }
-
-  // The split can leave neighbours that belong together (an unmarked tail beside
-  // the unmarked text that followed it) — same merge `pushText` does on the way in.
-  out.length = 0;
-
-  for (const node of spaced) {
-    const last = out[out.length - 1];
-
-    if (node.type === 'text' && last?.type === 'text' && sameMarks(last.marks, node.marks || [])) {
-      last.text += node.text;
-
-      continue;
-    }
-
-    out.push(node);
-  }
-
-  // Trim block edges and collapse duplicate spaces across node boundaries.
-  for (let i = 0; i < out.length; i++) {
-    const node = out[i];
-
-    if (node.type !== 'text') {
-      continue;
-    }
-
-    if (i === 0) {
-      node.text = node.text.replace(/^\s+/, '');
-    }
-
-    if (i === out.length - 1) {
-      node.text = node.text.replace(/\s+$/, '');
-    }
-
-    const prev = out[i - 1];
-
-    if (prev && prev.type === 'text' && prev.text.endsWith(' ') && node.text.startsWith(' ')) {
-      node.text = node.text.replace(/^ +/, '');
-    }
-  }
-
-  return out.filter((n) => n.type !== 'text' || n.text !== '');
-}
-
-/** innerText → stored string: nbsp → space, strip the trailing newline(s). */
-function cleanEditedText(text) {
-  return (text || '').replace(/\u00a0/g, ' ').replace(/\n+$/, '');
-}
-
-export function handleEditRequest(data, doc, win) {
-  const reply = (message) =>
-    sendToPreview({ source: 'statamic-visual-editor', requestId: data.requestId, ...message }, win);
-
-  const req = {
-    blockText: data.blockText != null ? normText(data.blockText) : null,
-    wrapperText: normText(data.wrapperText || ''),
-  };
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    let basePath = '';
-
-    if (data.scope) {
-      basePath = findPathByUid(values, data.scope);
-
-      if (basePath === null) {
-        continue; // scope lives in another container
-      }
-    }
-
-    let path = [basePath, data.field].filter(Boolean).join('.');
-    let value = dataGet(values, path);
-
-    // Scope cascaded to a parent row (common on synced sections whose nested
-    // block ids were stripped): find the deepest row under basePath that owns
-    // this field handle and use that path instead.
-    if (value === undefined && data.field && basePath !== null && basePath !== '') {
-      const deepPath = deepestFieldPath(dataGet(values, basePath), data.field, basePath);
-
-      if (deepPath) {
-        path = deepPath;
-        value = dataGet(values, path);
-      }
-    }
-
-    if (value === undefined) {
-      // A new row often has no key yet (`title` missing, not `title: ''`).
-      // Treat that as empty so inline edit can start, instead of denying.
-      if (basePath && data.field) {
-        const row = dataGet(values, basePath);
-
-        if (row && typeof row === 'object' && !Array.isArray(row)) {
-          value = data.fieldtype === 'bard' ? [] : '';
-        }
-      }
-
-      if (value === undefined) {
-        continue;
-      }
-    }
-
-    // Inline Bard (headline): upgrade legacy strings / unwrapped text nodes to
-    // a single paragraph so whole-field edit + colour toolbar work like richtext.
-    if (
-      data.bardInline &&
-      (typeof value === 'string' || isUnwrappedInlineBard(value)) &&
-      normText(typeof value === 'string' ? value : bardNodeText({ type: 'doc', content: value })) ===
-        req.wrapperText
-    ) {
-      value = normalizeInlineBardValue(value);
-      container.setFieldValue(path, value);
-    }
-
-    // Empty Bard: nothing stored yet. `as="h3"` / the wrapper tag says what
-    // the first block should be, so a title can start as a heading rather than
-    // a paragraph — the same choice BlockStudio's RichText/InnerBlocks make.
-    const emptyBard =
-      data.fieldtype === 'bard' &&
-      (value === '' ||
-        value == null ||
-        (Array.isArray(value) && value.length === 0));
-
-    if (emptyBard) {
-      editSession = {
-        container,
-        requestId: data.requestId,
-        mode: 'bard-field',
-        path,
-        field: data.field,
-        scope: data.scope,
-        original: [],
-      };
-      reply({
-        type: 'edit-start',
-        mode: 'bard-field',
-        target: 'wrapper',
-        controls: controlValues(values, path, data.controls),
-        nodes: [],
-      });
-
-      return;
-    }
-
-    // Empty text (or any non-Bard scalar): start a string edit even when the
-    // preview has only ghost placeholder text, so wrapperText is '' and would
-    // otherwise fail the "rendered text matches stored value" check.
-    if (data.fieldtype !== 'bard' && (value === '' || value == null) && !Array.isArray(value)) {
-      editSession = {
-        container,
-        requestId: data.requestId,
-        mode: 'string',
-        path,
-        field: data.field,
-        scope: data.scope,
-        original: '',
-      };
-      reply({
-        type: 'edit-start',
-        mode: 'string',
-        target: 'wrapper',
-        hasLink: false,
-        controls: controlValues(values, path, data.controls),
-      });
-
-      return;
-    }
-
-    // Whole-field Bard editing: one toolbar for the entire field, caret moves
-    // freely between blocks, Enter splits blocks. Allowed when every node is
-    // either an editable text block (heading/paragraph) or a Bard set — sets
-    // render as locked siblings in the preview and are preserved on save.
-    // Other node types (lists, images, …) still fall back to per-block editing.
-    if (
-      Array.isArray(value) &&
-      value.length &&
-      value.every(
-        (node) =>
-          node && (EDITABLE_NODE_TYPES.includes(node.type) || node.type === 'set')
-      ) &&
-      value.some((node) => EDITABLE_NODE_TYPES.includes(node.type))
-    ) {
-      editSession = {
-        container,
-        requestId: data.requestId,
-        mode: 'bard-field',
-        path,
-        field: data.field,
-        scope: data.scope,
-        original: JSON.parse(JSON.stringify(value)),
-      };
-      reply({
-        type: 'edit-start',
-        mode: 'bard-field',
-        target: 'wrapper',
-        controls: controlValues(values, path, data.controls),
-        // Only text nodes — sets map onto locked DOM siblings automatically.
-        nodes: value
-          .filter((node) => EDITABLE_NODE_TYPES.includes(node.type))
-          .map((node) => ({
-            type: node.type,
-            level: node.attrs?.level ?? null,
-            className: node.attrs?.class ?? null,
-            text: normText(bardNodeText(node)),
-          })),
-      });
-
-      return;
-    }
-
-    // Fast path: Bard field where the clicked block's index maps directly to
-    // the ProseMirror node AND the rendered text matches the stored one.
-    if (Array.isArray(value) && data.blockIndex != null && req.blockText !== null) {
-      const node = value[data.blockIndex];
-
-      if (
-        node &&
-        EDITABLE_NODE_TYPES.includes(node.type) &&
-        normText(bardNodeText(node)) === req.blockText
-      ) {
-        editSession = {
-          container,
-          requestId: data.requestId,
-          mode: 'bard',
-          path,
-          index: data.blockIndex,
-          field: data.field,
-          scope: data.scope,
-          original: JSON.parse(JSON.stringify(value)),
-        };
-        reply({
-          type: 'edit-start',
-          mode: 'bard',
-          target: 'block',
-          controls: controlValues(values, path, data.controls),
-        });
-
-        return;
-      }
-    }
-
-    const candidates = resolveEditTargets(value, path, req);
-
-    if (candidates.length !== 1) {
-      reply({ type: 'edit-deny', reason: candidates.length ? 'ambiguous' : 'no-match' });
-
-      return;
-    }
-
-    const target = candidates[0];
-
-    if (target.mode === 'string') {
-      // Rows that pair a text with a link (button rows: { text, url }) get a
-      // link-edit shortcut in the preview toolbar.
-      const rowPath = target.path.includes('.')
-        ? target.path.slice(0, target.path.lastIndexOf('.'))
-        : '';
-      const row = rowPath ? dataGet(values, rowPath) : null;
-      const linkPath =
-        row && typeof row === 'object' && typeof row.url === 'string' ? `${rowPath}.url` : null;
-
-      editSession = {
-        container,
-        requestId: data.requestId,
-        mode: 'string',
-        path: target.path,
-        linkPath,
-        field: data.field,
-        scope: data.scope,
-        original: dataGet(values, target.path),
-      };
-      reply({
-        type: 'edit-start',
-        mode: 'string',
-        target: target.path === path ? 'wrapper' : 'block',
-        hasLink: !!linkPath,
-        controls: controlValues(values, target.path, data.controls),
-      });
-    } else {
-      editSession = {
-        container,
-        requestId: data.requestId,
-        mode: 'bard',
-        path: target.path,
-        index: target.index,
-        field: data.field,
-        scope: data.scope,
-        original: JSON.parse(JSON.stringify(dataGet(values, target.path))),
-      };
-      reply({
-        type: 'edit-start',
-        mode: 'bard',
-        target: 'block',
-        controls: controlValues(values, target.path, data.controls),
-      });
-    }
-
-    return;
-  }
-
-  // Panel is open but hasn't streamed values yet — keep the preview's pending
-  // edit alive and retry as soon as the form hydrates.
-  if (queueEditUntilPanelReady(data, doc, win)) {
-    reply({ type: 'edit-pending' });
-
-    return;
-  }
-
-  reply({ type: 'edit-deny', reason: 'not-found' });
-}
-
-/**
- * Inline edit on a focused global section needs the side panel's values. The
- * iframe can take a beat to hydrate — hold the request and retry once it does,
- * instead of denying and making the click feel dead.
- */
-function queueEditUntilPanelReady(data, doc, win) {
-  if (!globalSectionEditorOpen(doc) || sectionPanelValues?.values) {
-    return false;
-  }
-
-  pendingEditUntilPanel = { data, doc, win };
-
-  return true;
-}
-
-function flushPendingEditUntilPanel() {
-  if (!pendingEditUntilPanel || !sectionPanelValues?.values) {
-    return;
-  }
-
-  const { data, doc, win } = pendingEditUntilPanel;
-
-  pendingEditUntilPanel = null;
-  handleEditRequest(data, doc, win);
-}
-
-/**
- * A quick control in the preview toolbar changed (controls="font_tag|size"):
- * write the sibling field on the row being edited. The value poll streams the
- * re-render back out, so the block redraws with its new setting.
- */
-export function handleEditControl(data) {
-  if (!editSession || editSession.requestId !== data.requestId) {
-    return;
-  }
-
-  if (typeof data.handle !== 'string' || !data.handle) {
-    return;
-  }
-
-  const row = rowPathOf(editSession.path);
-
-  editSession.container.setFieldValue(row ? `${row}.${data.handle}` : data.handle, data.value);
-}
-
-let themeSwatchesPromise = null;
-
-/**
- * Preview asked for theme colour swatches (highlight colour control). Fetch from
- * the colour-scheme CP route and reply — cached for the CP page lifetime.
- */
-export function handleThemeSwatchesRequest(data, win) {
-  const reply = (swatches) =>
-    sendToPreview(
-      {
-        source: 'statamic-visual-editor',
-        type: 'theme-swatches',
-        requestId: data.requestId,
-        swatches,
-      },
-      win
-    );
-
-  if (!themeSwatchesPromise) {
-    const cpUrl =
-      win.Statamic?.$config?.get?.('cpUrl') ||
-      `/${win.Statamic?.$config?.get?.('cpRoute') || 'cp'}`;
-
-    themeSwatchesPromise = win
-      .fetch(`${cpUrl}/color-scheme/swatches`, {
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      })
-      .then(async (res) => {
-        if (!res.ok) {
-          return [];
-        }
-
-        const json = await res.json().catch(() => []);
-
-        return Array.isArray(json) ? json : [];
-      })
-      .catch(() => []);
-  }
-
-  themeSwatchesPromise.then(reply);
-}
-
-export function handleEditInput(data, doc) {
-  if (!editSession || editSession.requestId !== data.requestId) {
-    return;
-  }
-
-  const { container } = editSession;
-
-  if (editSession.mode === 'string') {
-    container.setFieldValue(editSession.path, cleanEditedText(data.text));
-
-    return;
-  }
-
-  // Whole-field Bard: rebuild the node array from the serialized blocks,
-  // preserving locked set nodes (kind: 'locked') at their DOM positions.
-  if (editSession.mode === 'bard-field') {
-    const values = unwrapRef(container.values);
-    const current = dataGet(values, editSession.path);
-    const original = Array.isArray(editSession.original) ? editSession.original : [];
-    const spanClasses =
-      Array.isArray(data.spanClasses) && data.spanClasses.length ? data.spanClasses : BTS_SPAN_CLASSES;
-
-    let textMergeIndex = 0;
-    const next = [];
-
-    const buildTextNode = (block) => {
-      const type = block.kind === 'heading' ? 'heading' : 'paragraph';
-      const pool = Array.isArray(current) ? current : original;
-      let orig = null;
-
-      for (let i = textMergeIndex; i < pool.length; i++) {
-        if (pool[i]?.type === type) {
-          orig = pool[i];
-          textMergeIndex = i + 1;
-          break;
-        }
-      }
-
-      const attrs = { ...(orig?.attrs || {}) };
-      const node = { type };
-
-      if (type === 'heading') {
-        attrs.level = block.level || 2;
-      }
-
-      if (block.vizuClass) {
-        attrs.vizuClass = block.vizuClass;
-      } else {
-        delete attrs.vizuClass;
-      }
-
-      if (block.vizuBlockStyle) {
-        attrs.vizuBlockStyle = block.vizuBlockStyle;
-      } else {
-        delete attrs.vizuBlockStyle;
-      }
-
-      if (block.className && !block.vizuClass) {
-        attrs.class = block.className;
-      } else {
-        delete attrs.class;
-      }
-
-      if (Object.keys(attrs).length) {
-        node.attrs = attrs;
-      }
-
-      const content = parseInlineHtml(block.html || '', doc, spanClasses);
-
-      if (content.length) {
-        node.content = content;
-      }
-
-      return node;
-    };
-
-    for (const block of data.blocks || []) {
-      if (block.kind === 'locked') {
-        const orig = findPreservedBardNode(original, block.visualId);
-
-        if (orig) {
-          next.push(JSON.parse(JSON.stringify(orig)));
-        }
-
-        continue;
-      }
-
-      if (block.kind === 'vizuDiv') {
-        next.push({
-          type: 'vizuDiv',
-          attrs: { class: block.className || null },
-          content: (block.children || []).map((child) => buildTextNode(child)),
-        });
-
-        continue;
-      }
-
-      next.push(buildTextNode(block));
-    }
-
-    writeBardFieldValue(container, editSession.path, next, doc, editSession);
-
-    return;
-  }
-
-  // Bard: swap the edited node's inline content inside a fresh copy of the
-  // current field value (other nodes/sets stay untouched).
-  const values = unwrapRef(container.values);
-  const current = dataGet(values, editSession.path);
-
-  if (!Array.isArray(current)) {
-    return;
-  }
-
-  const next = JSON.parse(JSON.stringify(current));
-  const node = next[editSession.index];
-
-  if (!node) {
-    return;
-  }
-
-  const content = parseInlineHtml(
-    data.html,
-    doc,
-    Array.isArray(data.spanClasses) && data.spanClasses.length ? data.spanClasses : BTS_SPAN_CLASSES
-  );
-
-  if (content.length) {
-    node.content = content;
-  } else {
-    delete node.content;
-  }
-
-  writeBardFieldValue(container, editSession.path, next, doc, editSession);
-}
-
-export function handleEditEnd(data, win = window) {
-  if (!editSession || editSession.requestId !== data.requestId) {
-    return;
-  }
-
-  if (data.cancelled) {
-    editSession.container.setFieldValue(editSession.path, editSession.original);
-  }
-
-  editSession = null;
-
-  // A global section's stash may have been written several times while this
-  // edit was open, with the re-render held back each time so the caret survived.
-  // Now that the page is nobody's text field again, let it catch up.
-  flushPendingSectionRefresh(win);
-}
-
-// command → CP Bard toolbar button title matcher. Core Statamic titles are
-// English even in a translated CP; addon buttons (colour) are localized.
-const BARD_CMD_TITLE = {
-  link: /^link$/i,
-  color: /farve|colou?r/i,
-  unorderedlist: /unordered list|bullet|punkt/i,
-  orderedlist: /ordered list|number|nummer/i,
-  quote: /blockquote|quote|citat/i,
-  code: /^code$/i,
-  codeblock: /code block|kodeblok/i,
-  table: /table|tabel/i,
-};
-
-/** Builds a DOM Range spanning [from,to] character offsets within blockEl. */
-function domRangeForOffsets(blockEl, from, to) {
-  const walker = blockEl.ownerDocument.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
-  let count = 0;
-  let startNode = null;
-  let startOff = 0;
-  let endNode = null;
-  let endOff = 0;
-  let node;
-
-  while ((node = walker.nextNode())) {
-    const len = node.nodeValue.length;
-
-    if (startNode === null && from <= count + len) {
-      startNode = node;
-      startOff = from - count;
-    }
-
-    if (to <= count + len) {
-      endNode = node;
-      endOff = to - count;
-      break;
-    }
-
-    count += len;
-  }
-
-  if (!startNode) {
-    return null;
-  }
-
-  if (!endNode) {
-    endNode = startNode;
-    endOff = startNode.nodeValue.length;
-  }
-
-  const range = blockEl.ownerDocument.createRange();
-
-  range.setStart(startNode, startOff);
-  range.setEnd(endNode, endOff);
-
-  return range;
-}
-
-/**
- * Link/colour/list/quote from the preview toolbar: open the editor panel,
- * select the same character range in the real CP Bard editor, and click its
- * native toolbar button — so Statamic's own popup (link dialog, colour palette)
- * appears, exactly as the user knows it from the panel. Runs after the inline
- * edit has committed; captures field/scope/index synchronously because the CP
- * edit session is torn down by the accompanying edit-end.
- */
-export function handleBardCommand(data, doc, win) {
-  if (!editSession || editSession.requestId !== data.requestId) {
-    return;
-  }
-
-  const titleRe = BARD_CMD_TITLE[data.command];
-
-  if (!titleRe) {
-    return;
-  }
-
-  const { field, scope } = editSession;
-  // Whole-field sessions carry the selection's block index in the message; the
-  // per-block session stored it at edit-start.
-  const index = Number.isInteger(data.blockIndex) ? data.blockIndex : editSession.index;
-  // link/colour open a Statamic popup; the rest (lists, quote, …) apply in place.
-  const opensPopup = data.command === 'link' || data.command === 'color';
-
-  // Keep the editor panel HIDDEN. It still has real (off-screen) layout, so the
-  // set expands, the toolbar button clicks and the popup opens — we then move
-  // just that popup over the preview, instead of revealing the whole sidebar.
-  // (Deliberately no setLpCollapsed(false) here.)
-
-  let attempts = 0;
-
-  const run = () => {
-    const setEl = scope ? findSetByUid(scope, doc) : null;
-
-    if (setEl) {
-      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-    }
-
-    const fieldEl = findFieldElement(field, doc, scope);
-    // The field id sits on the content wrapper; the toolbar lives on the
-    // enclosing .bard-fieldtype. Search from there for both toolbar and editor.
-    const bardEl =
-      fieldEl?.closest('.bard-fieldtype') || fieldEl?.querySelector('.bard-fieldtype') || fieldEl;
-    const ce = bardEl?.querySelector('.ProseMirror') || bardEl?.querySelector('[contenteditable="true"]');
-    const toolbar = bardEl?.querySelector('.bard-fixed-toolbar') || bardEl;
-    const btn = toolbar
-      ? [...toolbar.querySelectorAll('button')].find((b) =>
-          titleRe.test(b.getAttribute('title') || b.getAttribute('aria-label') || '')
-        )
-      : null;
-
-    if (!ce || !btn) {
-      if (++attempts < 12) {
-        setTimeout(run, 250);
-      }
-
-      return;
-    }
-
-    const block = ce.children[index];
-
-    if (block && data.to > data.from) {
-      const range = domRangeForOffsets(block, data.from, data.to);
-
-      if (range) {
-        ce.focus();
-        const sel = win.getSelection();
-
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    } else {
-      ce.focus();
-    }
-
-    // Let ProseMirror sync the DOM selection into its state before the button
-    // command reads editor.state.selection.
-    setTimeout(() => {
-      btn.click();
-
-      if (opensPopup) {
-        repositionBardPopup(data.command, data.anchorRect, doc, win);
-      }
-    }, 70);
-  };
-
-  setTimeout(run, 120);
-}
-
-/**
- * Finds the Statamic popup that a bard command just opened (link dialog or
- * colour palette) by a distinctive bit of its content, then climbs to the
- * floating (positioned) container.
- */
-function findBardPopupEl(command, doc) {
-  let anchorNode = null;
-
-  if (command === 'color') {
-    anchorNode = [...doc.querySelectorAll('*')].find(
-      (e) => e.children.length === 0 && /ingen farve|no colou?r/i.test(e.textContent || '')
-    );
-  } else if (command === 'link') {
-    anchorNode =
-      doc.querySelector('input[placeholder="https://"], input[placeholder*="http" i]') ||
-      [...doc.querySelectorAll('button, label, span, div, h1, h2, h3')].find(
-        (e) =>
-          e.children.length === 0 &&
-          /apply link|anvend link|update link|opdater link|indsæt link/i.test(e.textContent || '')
-      );
-  }
-
-  if (!anchorNode) {
-    return null;
-  }
-
-  let el = anchorNode;
-
-  for (let i = 0; el && i < 12; i++) {
-    const cs = doc.defaultView.getComputedStyle(el);
-    const w = el.getBoundingClientRect().width;
-
-    // A popover/palette is a small positioned box; skip full-screen overlays.
-    if ((cs.position === 'fixed' || cs.position === 'absolute') && w > 120 && w < 640) {
-      return el;
-    }
-
-    el = el.parentElement;
-  }
-
-  return anchorNode.closest('[data-popper-placement]') || anchorNode.parentElement;
-}
-
-/**
- * Pins the popup over the preview at the anchor sent by the bridge, keeping the
- * editor panel hidden. Uses !important so Statamic's floating-ui inline styles
- * (written without priority) can't drag it back to the off-screen button.
- */
-function repositionBardPopup(command, anchorRect, doc, win) {
-  const iframe = doc.getElementById('live-preview-iframe');
-
-  if (!iframe || !anchorRect) {
-    return;
-  }
-
-  const ir = iframe.getBoundingClientRect();
-  const targetLeft = ir.left + (anchorRect.left || 0);
-  const targetTop = ir.top + (anchorRect.bottom || 0) + 8;
-
-  const place = (popup) => {
-    const w = popup.offsetWidth || 320;
-    const left = Math.max(8, Math.min(targetLeft, win.innerWidth - w - 8));
-    const top = Math.max(8, targetTop);
-
-    popup.style.setProperty('position', 'fixed', 'important');
-    popup.style.setProperty('left', `${left}px`, 'important');
-    popup.style.setProperty('top', `${top}px`, 'important');
-    popup.style.setProperty('right', 'auto', 'important');
-    popup.style.setProperty('bottom', 'auto', 'important');
-    popup.style.setProperty('transform', 'none', 'important');
-    popup.style.setProperty('margin', '0', 'important');
-    popup.style.setProperty('z-index', '2147483000', 'important');
-    // Statamic's link editor renders as a full-height stack card — hug its
-    // content so it looks like a popover floating over the preview.
-    popup.style.setProperty('height', 'auto', 'important');
-    popup.style.setProperty('max-height', '85vh', 'important');
-    popup.style.setProperty('overflow', 'auto', 'important');
-    popup.style.setProperty('border-radius', '12px', 'important');
-    popup.style.setProperty('box-shadow', '0 12px 44px rgba(0,0,0,0.28)', 'important');
-  };
-
-  let tries = 0;
-
-  const findAndPlace = () => {
-    const popup = findBardPopupEl(command, doc);
-
-    if (!popup) {
-      if (++tries < 25) {
-        setTimeout(findAndPlace, 100);
-      }
-
-      return;
-    }
-
-    // Re-assert a few times to win against floating-ui's on-open positioning.
-    place(popup);
-    setTimeout(() => place(popup), 130);
-    setTimeout(() => place(popup), 320);
-  };
-
-  setTimeout(findAndPlace, 60);
-}
-
-/**
- * Toolbar tools the preview can't perform in place (lists, quote, color) send
- * this: open the editor panel and focus the Bard field so the user finishes
- * with the field's real toolbar. Runs after the inline edit has committed.
- */
-export function handleOpenPanelField(data, doc, win) {
-  if (!editSession || editSession.requestId !== data.requestId || !editSession.field) {
-    return;
-  }
-
-  const { field, scope } = editSession;
-
-  setLpCollapsed(win, false);
-  setTimeout(() => handleFieldFocus(field, doc, { scopeUid: scope }), 100);
-}
-
-/**
- * Changes the edited Bard node's block type/attrs (heading level, or paragraph
- * with an optional bard-texstyle class). Only touches type/attrs — the node's
- * inline content is preserved and updated separately via handleEditInput.
- */
-export function handleBlockFormat(data, doc = document) {
-  if (!editSession || editSession.requestId !== data.requestId || editSession.mode !== 'bard') {
-    return;
-  }
-
-  const { container } = editSession;
-  const values = unwrapRef(container.values);
-  const current = dataGet(values, editSession.path);
-
-  if (!Array.isArray(current)) {
-    return;
-  }
-
-  const next = JSON.parse(JSON.stringify(current));
-  const node = next[editSession.index];
-
-  if (!node) {
-    return;
-  }
-
-  if (data.node === 'heading') {
-    node.type = 'heading';
-    node.attrs = { ...(node.attrs || {}), level: data.level };
-    delete node.attrs.class;
-  } else {
-    node.type = 'paragraph';
-    node.attrs = { ...(node.attrs || {}), class: data.className ?? null };
-    delete node.attrs.level;
-  }
-
-  writeBardFieldValue(container, editSession.path, next, doc, editSession);
-}
-
-/**
- * Opens the asset browser for the clicked image field: locates the CP field
- * wrapper (retrying while the containing set expands — the accompanying click
- * message triggers that expansion) and clicks its Browse button. Statamic's
- * asset selector portals to the body, so it shows even while the editor panel
- * is collapsed off-screen.
- */
-export function handleAssetEdit(data, doc) {
-  let attempts = 0;
-
-  const tryOpen = () => {
-    const setEl = data.scope ? findSetByUid(data.scope, doc) : null;
-
-    // Collapsed sets don't render their field wrappers — expand the scoped set
-    // (and its ancestors) so the assets field mounts, then retry below.
-    if (setEl) {
-      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-    }
-
-    // Assets fields don't always render a field_{path} wrapper id (observed in
-    // replicator sets) — fall back to the fieldtype root inside the scoped set.
-    const fieldEl =
-      findFieldElement(data.field, doc, data.scope) ||
-      (setEl ? setEl.querySelector('.assets-fieldtype') : null) ||
-      (data.scope ? null : doc.querySelector('.assets-fieldtype'));
-
-    const browse = fieldEl
-      ? [...fieldEl.querySelectorAll('button, [role="button"]')].find((b) =>
-          /browse|gennemse/i.test(b.textContent)
-        )
-      : null;
-
-    if (browse) {
-      browse.click();
-
-      return;
-    }
-
-    if (++attempts < 8) {
-      setTimeout(tryOpen, 250);
-    }
-  };
-
-  tryOpen();
-}
-
-/**
- * Opens Iconify's own Stack ("Search and select an icon") from preview
- * Change/Browse — the same panel as the sidebar. Raise it above the live
- * preview so it is not hidden behind the iframe.
- */
-export function handleIconEdit(data, doc, win = window) {
-  if (data.action === 'remove') {
-    writeIconField(data, doc, null);
-
-    return;
-  }
-
-  let attempts = 0;
-
-  const tryOpen = () => {
-    const setEl = data.scope ? findSetByUid(data.scope, doc) : null;
-
-    if (setEl) {
-      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-    }
-
-    const fieldEl =
-      findFieldElement(data.field, doc, data.scope) ||
-      (setEl ? setEl.querySelector('.iconify-fieldtype') : null) ||
-      (data.scope ? null : doc.querySelector('.iconify-fieldtype'));
-
-    if (openIconifyFromField(fieldEl, doc)) {
-      return;
-    }
-
-    if (attempts === 2) {
-      setLpCollapsed(win, false);
-      handleFieldFocus(data.field, doc, { animate: false, scopeUid: data.scope });
-    }
-
-    if (++attempts < 12) {
-      setTimeout(tryOpen, 180);
-    }
-  };
-
-  tryOpen();
-}
-
-function openIconifyFromField(fieldEl, doc) {
-  if (!fieldEl) {
-    return false;
-  }
-
-  const root = fieldEl.querySelector('.iconify-fieldtype') || fieldEl;
-  const opener = [fieldEl, root, ...root.querySelectorAll('*')].find(
-    (el) => typeof el.__sveOpenIconify === 'function'
-  )?.__sveOpenIconify;
-  const opened = (opener && opener()) || openIconifyStack(root) || clickBrowseIconify(root);
-
-  if (!opened) {
-    return false;
-  }
-
-  watchAndRaiseIconifyDialog(doc);
-
-  return true;
-}
-
-function clickBrowseIconify(root) {
-  const browse = [...root.querySelectorAll('button, [role="button"]')].find((b) =>
-    /browse iconify/i.test(b.textContent || '')
-  );
-
-  if (!browse) {
-    return false;
-  }
-
-  browse.click();
-
-  return true;
-}
-
-function raiseIconifyDialog(doc) {
-  const bump = (start) => {
-    let node = start;
-
-    for (let i = 0; i < 14 && node && node !== doc.body; i++) {
-      const pos = node.ownerDocument.defaultView?.getComputedStyle(node).position;
-
-      if (
-        pos === 'fixed' ||
-        pos === 'absolute' ||
-        node.hasAttribute('data-reka-portal') ||
-        node.hasAttribute('data-reka-dialog-overlay') ||
-        node.hasAttribute('data-reka-dialog-content')
-      ) {
-        node.style.setProperty('z-index', '2147483600', 'important');
-      }
-
-      node = node.parentElement;
-    }
-  };
-
-  for (const el of doc.querySelectorAll('h2, h3, [role="dialog"]')) {
-    if (!/search and select an icon/i.test((el.textContent || '').trim().slice(0, 80))) {
-      continue;
-    }
-
-    const dialog =
-      el.closest('[role="dialog"], [data-reka-dialog-content], [data-reka-portal]') || el;
-
-    bump(dialog);
-    dialog.parentElement?.querySelectorAll('[data-reka-dialog-overlay]').forEach(bump);
-    break;
-  }
-}
-
-function watchAndRaiseIconifyDialog(doc) {
-  raiseIconifyDialog(doc);
-
-  const observer = new MutationObserver(() => raiseIconifyDialog(doc));
-
-  observer.observe(doc.body, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 2500);
-}
-
-function openIconifyStackFromInstance(inst) {
-  return openStackInTree(inst?.subTree, 0) || openStackInTree(inst?.vnode, 0);
-}
-
-/**
- * Iconify's Stack exposes open(); v-model:open also has onUpdate:open.
- * Title is never minified.
- */
-function openStackInTree(vnode, depth) {
-  if (!vnode || typeof vnode !== 'object' || depth > 36) {
-    return false;
-  }
-
-  const props = vnode.props || vnode.component?.props;
-  const isIconStack = /search and select an icon/i.test(String(props?.title || ''));
-  const exposed = vnode.component?.exposed || vnode.component?.proxy;
-
-  if (isIconStack) {
-    let called = false;
-
-    if (typeof exposed?.open === 'function') {
-      exposed.open();
-      called = true;
-    }
-
-    const update = props['onUpdate:open'] || props.onUpdateOpen;
-    const list = Array.isArray(update) ? update : [update];
-
-    for (const fn of list) {
-      if (typeof fn === 'function') {
-        fn(true);
-        called = true;
-      }
-    }
-
-    if (called) {
-      return true;
-    }
-  }
-
-  if (vnode.component?.subTree && openStackInTree(vnode.component.subTree, depth + 1)) {
-    return true;
-  }
-
-  const kids = [
-    ...(Array.isArray(vnode.children) ? vnode.children : []),
-    ...(Array.isArray(vnode.dynamicChildren) ? vnode.dynamicChildren : []),
-  ];
-
-  for (const child of kids) {
-    if (openStackInTree(child, depth + 1)) {
-      return true;
-    }
-
-    if (Array.isArray(child)) {
-      for (const nested of child) {
-        if (openStackInTree(nested, depth + 1)) {
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
-}
-
-function openIconifyStack(fieldEl) {
-  const root = fieldEl.querySelector('.iconify-fieldtype') || fieldEl;
-  const seen = new Set();
-
-  const fromComponent = (component) => {
-    if (!component || seen.has(component)) {
-      return false;
-    }
-
-    seen.add(component);
-
-    return openStackInTree(component.subTree, 0) || openStackInTree(component.vnode, 0);
-  };
-
-  for (const el of [root, ...root.querySelectorAll('*')]) {
-    if (fromComponent(el.__vueParentComponent)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function resolveIconField(data, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    let basePath = '';
-
-    if (data.scope) {
-      basePath = findPathByUid(values, data.scope);
-
-      if (basePath === null) {
-        continue;
-      }
-    }
-
-    let path = [basePath, data.field].filter(Boolean).join('.');
-    let value = dataGet(values, path);
-
-    if (value === undefined && data.field && basePath !== '') {
-      const deepPath = deepestFieldPath(dataGet(values, basePath), data.field, basePath);
-
-      if (deepPath) {
-        path = deepPath;
-        value = dataGet(values, path);
-      }
-    }
-
-    if (value === undefined && !basePath) {
-      continue;
-    }
-
-    return { container, path, value };
-  }
-
-  return null;
-}
-
-function writeIconField(data, doc, value) {
-  const found = resolveIconField(data, doc);
-
-  if (found) {
-    found.container.setFieldValue(found.path, value);
-  }
-}
-
-/**
- * Link-edit shortcut from the preview toolbar: opens the editor panel and
- * focuses the row's url/link field so the user can change the URL or pick
- * another entry with Statamic's own link fieldtype UI.
- */
-export function handleLinkEdit(data, doc, win) {
-  if (!editSession || editSession.requestId !== data.requestId || !editSession.linkPath) {
-    return;
-  }
-
-  const { linkPath, scope } = editSession;
-
-  setLpCollapsed(win, false);
-
-  setTimeout(() => {
-    // Preferred: the url field's own wrapper (stacked grids render one).
-    let target = findFieldElement(linkPath, doc);
-
-    // Table-mode grid cells carry no field wrapper id — locate the row via its
-    // _visual_id and use the link fieldtype cell (or the row itself).
-    if (!target && scope) {
-      const rowEl = findSetByUid(scope, doc);
-
-      if (rowEl) {
-        target = rowEl.querySelector('.link-fieldtype') || rowEl;
-      }
-    }
-
-    if (!target) {
-      return;
-    }
-
-    doc.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => el.removeAttribute(ACTIVE_ATTR));
-    target.setAttribute(ACTIVE_ATTR, '');
-    switchToContainingTab(target, doc);
-    collectAncestorSets(target).forEach(expandSet);
-
-    setTimeout(() => {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      target.classList.add('sve-field-highlight');
-      setTimeout(() => target.classList.remove('sve-field-highlight'), 2000);
-    }, COLLAPSE_SETTLE_MS);
-  }, 100);
-}
-
-/**
- * Moves the set identified by uid one position up/down within its containing
- * array (page sections, replicator rows, …). Works generically: the uid is
- * resolved to a value path like "page_sections.2", and the two array items are
- * swapped via setFieldValue — dirty state, replicator re-render and the live
- * preview update all follow from Statamic's own reactivity.
- */
-/**
- * Reorders the array item carrying data.uid. Two callers: the hover arrows send
- * a relative `direction` (±1); drag & drop sends an absolute `toIndex`.
- */
-export function handleMove(data, doc) {
-  if (rowIsLocked(data.uid, doc)) {
-    return;
-  }
-
-  const direction = data.direction < 0 ? -1 : 1;
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, data.uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows: arr } = found;
-
-    const to = Number.isInteger(data.toIndex)
-      ? Math.max(0, Math.min(arr.length - 1, data.toIndex))
-      : index + direction;
-
-    if (to === index || to < 0 || to >= arr.length) {
-      return; // no movement (or already first/last)
-    }
-
-    const next = JSON.parse(JSON.stringify(arr));
-    const [item] = next.splice(index, 1);
-
-    next.splice(to, 0, item);
-    container.setFieldValue(parentPath, next);
-
-    return;
-  }
-}
-
-/**
- * Visual column resize: writes the col_w_* span classes the preview's width
- * drag produced. `changes` come in pairs (both columns at a boundary), and the
- * paths are looked up per uid — width writes never shift array indexes, so one
- * values snapshot serves both lookups.
- */
-export function handleColumnWidth(data, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    let applied = false;
-
-    for (const change of data.changes ?? []) {
-      if (typeof change?.field !== 'string' || !/^col_w_[mtd]$/.test(change.field)) {
-        continue;
-      }
-
-      const path = findPathByUid(values, change.uid);
-
-      if (path === null) {
-        continue;
-      }
-
-      container.setFieldValue(`${path}.${change.field}`, change.value);
-      applied = true;
-    }
-
-    if (applied) {
-      return;
-    }
-  }
-}
-
-/**
- * The effective span a breakpoint inherits, following the cascade up.
- *
- * Desktop-first, like the rest of the responsive work: a drawer that says
- * nothing says "the same as the one above". Null when nobody above said
- * anything either.
- */
-function inheritedSpan(drawers, bp, field) {
-  for (const key of BP_INHERITS[bp] ?? []) {
-    const value = drawers?.[key]?.[field];
-
-    if (value !== null && value !== undefined && value !== '') {
-      return Number(value);
-    }
-  }
-
-  return null;
-}
-
-/**
- * A width dragged in the preview, written to the row it belongs to.
- *
- * Which breakpoint it lands in is decided here and not in the preview, because
- * `currentBp` is the same answer the responsive fields give — one place to be
- * right about what "the screen size I am editing" means.
- *
- * Two shapes are accepted, told apart by what is already stored: a plain number
- * on the row, or the responsive wrapper's drawer per breakpoint (where the inner
- * field carries the same handle as the wrapper). In the second, a value equal to
- * what the breakpoint would have inherited anyway is written as empty — dragging
- * tablet back into step with laptop drops the override again, instead of
- * freezing today's laptop value into it forever.
- */
-export function handleGridSpan(data, doc, win) {
-  const field = typeof data.field === 'string' && data.field ? data.field : 'span';
-  const bp = currentBp(win);
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    let applied = false;
-
-    for (const change of data.changes ?? []) {
-      const span = Number(change?.span);
-
-      if (!Number.isFinite(span) || span < 1) {
-        continue;
-      }
-
-      const path = findPathByUid(values, change.uid);
-
-      if (path === null) {
-        continue;
-      }
-
-      const current = dataGet(values, `${path}.${field}`);
-      const responsive =
-        current &&
-        typeof current === 'object' &&
-        !Array.isArray(current) &&
-        Object.keys(BP_INHERITS).some((key) => key in current);
-
-      if (responsive) {
-        const inherited = inheritedSpan(current, bp, field);
-
-        container.setFieldValue(`${path}.${field}.${bp}.${field}`, inherited === span ? null : span);
-      } else {
-        container.setFieldValue(`${path}.${field}`, span);
-      }
-
-      applied = true;
-    }
-
-    if (applied) {
-      return;
-    }
-  }
-}
-
-/**
- * "+" on a columns section in the preview: append a column to the section's
- * columns array — mirroring the column builder's own addColumn() defaults —
- * and open the new card's edit popup so type and fields can be picked.
- *
- * Written through setFieldValue rather than by clicking the builder's own
- * "Add column" button: programmatic clicks reach the builder's edit buttons
- * fine (the popup flow below), but its add button doesn't respond to them.
- */
-export function handleAddColumn(data, doc, win) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const sectionPath = findPathByUid(values, data.uid);
-
-    if (sectionPath === null) {
-      continue;
-    }
-
-    const columns = dataGet(values, `${sectionPath}.columns`);
-
-    if (!Array.isArray(columns)) {
-      continue;
-    }
-
-    // Same id format and defaults as the builder's addColumn().
-    const newId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const count = columns.length + 1;
-    const newItem = {
-      _id: newId,
-      type: null,
-      enabled: true,
-      col_w_m: 'col-span-12',
-      col_w_t: 'md:col-span-6',
-      col_w_d: 'lg:col-span-4',
-      order_m: count,
-      order_t: count,
-      order_d: count,
-    };
-
-    container.setFieldValue(`${sectionPath}.columns`, [...JSON.parse(JSON.stringify(columns)), newItem]);
-
-    // The card only mounts (and the builder's picker machinery only measures
-    // real rects) in an expanded set — nudge once; Vue applies it asynchronously.
-    const setEl = findSetByUid(data.uid, doc) ?? sortableItemForUid(data.uid, doc);
-
-    if (setEl) {
-      [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-    }
-
-    openColumnTypePicker(newId, doc, win);
-
-    return;
-  }
-}
-
-/**
- * Opens the builder's type picker on a (typeless) column card once it has
- * mounted — the same flow the card's own plus icon runs. Cards that already
- * have a type get their edit popup instead.
- */
-function openColumnTypePicker(rowId, doc, win, attempts = 0) {
-  const card = doc.querySelector(`[data-cb-item-id="${rowId}"]`);
-  const trigger = card?.querySelector('.cb-col-plus') ?? card?.querySelector('.cb-edit-btn');
-
-  if (trigger && trigger.offsetParent !== null) {
-    trigger.click();
-    keepPickerOnScreen(doc, win);
-
-    return;
-  }
-
-  if (attempts < 25) {
-    setTimeout(() => openColumnTypePicker(rowId, doc, win, attempts + 1), 200);
-  }
-}
-
-/**
- * The builder positions its type-picker portal at the trigger's rect — with the
- * editor panel parked off-screen (Hide/Auto mode) that lands at left:-10000px.
- * Pull it back into view, centered, so picking a type happens over the preview.
- */
-function keepPickerOnScreen(doc, win, attempts = 0) {
-  const panel = [...doc.body.children].find(
-    (el) => el.style?.position === 'fixed' && el.style?.zIndex === '99999'
-  );
-
-  if (panel) {
-    const left = parseFloat(panel.style.left);
-
-    if (Number.isNaN(left) || left < 0 || left > win.innerWidth) {
-      panel.style.left = `${Math.max(8, (win.innerWidth - (panel.offsetWidth || 224)) / 2)}px`;
-      panel.style.top = '120px';
-    }
-
-    return;
-  }
-
-  if (attempts < 15) {
-    setTimeout(() => keepPickerOnScreen(doc, win, attempts + 1), 150);
-  }
-}
-
-/**
- * "Save as template": grab the clicked section's data from the form and store it
- * as a reusable section. A small dialog asks for a name and whether it should be
- * synced (edits propagate) or a copy (independent).
- *
- * Synced: after the library entry is created, replace THIS page's section with a
- * `global_section` reference so Live Preview shows the global badge immediately
- * (without a manual reload). Custom (unsynced): leave the page section as-is.
- */
-export function handleSaveSection(data, doc, win) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const path = findPathByUid(values, data.uid);
-
-    if (path === null) {
-      continue;
-    }
-
-    const section = dataGet(values, path);
-
-    if (!section || typeof section !== 'object') {
-      return;
-    }
-
-    saveSectionDialog(win, section, (name, synced) => {
-      win
-        .fetch('/!/sve/saved-sections', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': csrfToken(win),
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-          body: JSON.stringify({
-            title: name,
-            section_type: section.type,
-            section_data: stripSavedSectionData(section),
-            synced,
-          }),
-        })
-        .then(async (res) => {
-          const body = await res.json().catch(() => ({}));
-
-          win.Statamic?.$toast?.[res.ok ? 'success' : 'error'](
-            res.ok ? t(win, 'saved_toast', { name }) : t(win, 'save_failed')
-          );
-
-          if (res.ok) {
-            libraryWentStale(win);
-          }
-
-          if (!res.ok || !synced || !body.id) {
-            return;
-          }
-
-          rememberSavedSection(body.id, { title: name, section_type: section.type });
-
-          // Swap the local section for a synced reference — LP morphs from setFieldValue.
-          await replaceSectionWithGlobalReference(win, doc, data.uid, body.id);
-        })
-        .catch(() => win.Statamic?.$toast?.error(t(win, 'save_failed')));
-    });
-
-    return;
-  }
-}
-
-/**
- * Replace the page section at `uid` with a `global_section` row pointing at the
- * newly saved synced entry — same shape as dropping a Global card from the library.
- */
-async function replaceSectionWithGlobalReference(win, doc, uid, savedEntryId) {
-  const set = globalSectionSet(win);
-  const meta = await fetchSetMeta(win, set);
-  const newId = newRowId();
-  const row = buildSectionRow(win, 'global', { id: savedEntryId }, meta?.defaults, newId);
-  const field = sectionField(win);
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows } = found;
-    const next = JSON.parse(JSON.stringify(rows));
-
-    next[index] = row;
-    writeSetMeta(container, field, row, meta?.new || null);
-    container.setFieldValue(parentPath, next);
-
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * "Save this page as a template": every section on the page, stored as one entry
- * you can drop onto another page.
- *
- * The page's own field is read straight off the publish container, so it captures
- * what's on screen — including edits not yet saved to the page itself.
- */
-function savePageAsTemplate(win, onSaved = () => {}) {
-  const doc = win.document;
-  const field = sectionField(win);
-
-  let sections = null;
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-    const rows = values && typeof values === 'object' ? values[field] : null;
-
-    if (Array.isArray(rows) && rows.length) {
-      sections = rows;
-
-      break;
-    }
-  }
-
-  if (!sections) {
-    win.Statamic?.$toast?.error(t(win, 'template_needs_sections'));
-
-    return;
-  }
-
-  promptForName(win, t(win, 'save_page_as_template'), t(win, 'template_name'), (name) => {
-    win
-      .fetch('/!/sve/templates', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': csrfToken(win),
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({
-          title: name,
-          // Ids are per-page. A template is a stencil: it gets fresh ones every
-          // time it's dropped, or two pages would claim the same section.
-          sections: sections.map((section) => stripSavedSectionData(section)),
-        }),
-      })
-      .then((res) => {
-        win.Statamic?.$toast?.[res.ok ? 'success' : 'error'](
-          res.ok ? t(win, 'template_saved', { name }) : t(win, 'save_failed')
-        );
-
-        if (res.ok) {
-          libraryWentStale(win);
-          onSaved();
-        }
-      })
-      .catch(() => win.Statamic?.$toast?.error(t(win, 'save_failed')));
-  });
-}
-
-/**
- * Prepare a section for the saved-sections library.
- *
- * Strips CP-only keys (`_visual_id`, `_id`) but KEEPS (or assigns) stable `id`
- * on every set row. Preview templates use `scope="{{ id }}"` on blocks — without
- * nested ids Antlers cascades to the section id and inline edit resolves the
- * wrong path (`page_sections.0.headline` instead of `….blocks.N.headline`).
- */
-function stripSavedSectionData(section) {
-  const clone = JSON.parse(JSON.stringify(section));
-
-  const walk = (node) => {
-    if (Array.isArray(node)) {
-      node.forEach(walk);
-    } else if (node && typeof node === 'object') {
-      delete node._visual_id;
-      delete node._id;
-
-      // Replicator/grid set rows only — not Bard nodes (paragraph/text/…).
-      if (
-        typeof node.type === 'string' &&
-        node.type &&
-        !node.id &&
-        ('enabled' in node || 'blocks' in node || node.type.includes('/'))
-      ) {
-        node.id = newRowId();
-      }
-
-      Object.values(node).forEach(walk);
-    }
-  };
-
-  walk(clone);
-
-  return clone;
-}
-
-/** Minimal "what should it be called?" prompt, themed to the CP. */
-function promptForName(win, heading, placeholder, onOk) {
-  const doc = win.document;
-  const overlay = doc.createElement('div');
-
-  overlay.style.cssText =
-    'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
-    'background:rgba(0,0,0,.45);';
-
-  const card = doc.createElement('div');
-
-  card.style.cssText =
-    'width:380px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-radius:12px;padding:20px;box-shadow:0 24px 64px rgba(0,0,0,.35);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;';
-  card.innerHTML = `
-    <div style="font-size:15px;font-weight:600;margin-bottom:14px;">${heading}</div>
-    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'name')}</label>
-    <input type="text" data-sve-name placeholder="${placeholder}"
-      style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius:8px;
-      border:1px solid rgba(128,128,128,.4);background:transparent;color:currentColor;font-size:14px;margin-bottom:18px;">
-    <div style="display:flex;justify-content:flex-end;gap:8px;">
-      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:7px 14px;border-radius:8px;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
-      <button type="button" data-sve-ok style="all:unset;cursor:pointer;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'save')}</button>
-    </div>
-  `;
-
-  overlay.appendChild(card);
-  doc.body.appendChild(overlay);
-
-  const name = card.querySelector('[data-sve-name]');
-  const close = () => overlay.remove();
-
-  name.focus();
-
-  const submit = () => {
-    const value = name.value.trim();
-
-    if (!value) {
-      name.focus();
-
-      return;
-    }
-
-    close();
-    onOk(value);
-  };
-
-  card.querySelector('[data-sve-cancel]').addEventListener('click', close);
-  card.querySelector('[data-sve-ok]').addEventListener('click', submit);
-  overlay.addEventListener('click', (event) => event.target === overlay && close());
-  name.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      submit();
-    } else if (event.key === 'Escape') {
-      close();
-    }
-  });
-}
-
-/** Minimal name + synced prompt, themed to the CP, appended to the body. */
-function saveSectionDialog(win, section, onSave) {
-  const doc = win.document;
-  const overlay = doc.createElement('div');
-
-  overlay.style.cssText =
-    'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
-    'background:rgba(0,0,0,.45);';
-
-  const card = doc.createElement('div');
-
-  card.style.cssText =
-    'width:380px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-radius:12px;padding:20px;box-shadow:0 24px 64px rgba(0,0,0,.35);' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;';
-  card.innerHTML = `
-    <div style="font-size:15px;font-weight:600;margin-bottom:14px;">${t(win, 'save_section_heading')}</div>
-    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'name')}</label>
-    <input type="text" data-sve-name placeholder="${t(win, 'name_placeholder')}"
-      style="width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius:8px;
-      border:1px solid rgba(128,128,128,.4);background:transparent;color:currentColor;font-size:14px;margin-bottom:14px;">
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:18px;">
-      <input type="checkbox" data-sve-synced style="width:16px;height:16px;">
-      <span>${t(win, 'synced_hint')}</span>
-    </label>
-    <div style="display:flex;justify-content:flex-end;gap:8px;">
-      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:7px 14px;border-radius:8px;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
-      <button type="button" data-sve-save style="all:unset;cursor:pointer;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'save')}</button>
-    </div>
-  `;
-
-  overlay.appendChild(card);
-  doc.body.appendChild(overlay);
-
-  const name = card.querySelector('[data-sve-name]');
-  const synced = card.querySelector('[data-sve-synced]');
-  const close = () => overlay.remove();
-
-  name.focus();
-
-  const submit = () => {
-    const value = name.value.trim();
-
-    if (!value) {
-      name.focus();
-
-      return;
-    }
-
-    close();
-    onSave(value, synced.checked);
-  };
-
-  card.querySelector('[data-sve-cancel]').addEventListener('click', close);
-  card.querySelector('[data-sve-save]').addEventListener('click', submit);
-  overlay.addEventListener('click', (event) => event.target === overlay && close());
-  name.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      submit();
-    } else if (event.key === 'Escape') {
-      close();
-    }
-  });
-}
-
-// --- Section picker (visual "Add section") ---------------------------------------
-//
-// The "+" on a section opens this instead of Statamic's native Add Set picker, so
-// we can offer three tabs: the built-in section types, and the saved templates
-// split into Custom (insert a copy) and Global (insert a reference). Each is shown
-// with its preview image. Insertion writes straight into the page_sections array,
-// after the section the "+" was clicked on.
-
-/**
- * A translated string, in the language the CP user picked (resolved server-side,
- * see ServiceProvider::strings()). Falls back to the key, so a missing string is
- * visible rather than blank.
- */
-function t(win, key, replacements = {}) {
-  const strings = win.Statamic?.$config?.get?.('sveStrings') || {};
-  let out = strings[key] ?? key;
-
-  for (const [name, value] of Object.entries(replacements)) {
-    out = out.replaceAll(`:${name}`, value);
-  }
-
-  return out;
-}
-
-const SECTION_PICKER_ID = '__sve-section-picker';
-const CHROME_DESIGNS_ID = '__sve-chrome-designs';
-const COMMENTS_PANEL_ID = '__sve-comments-pane';
-
-// The type list is handed over at page render. Deleting one replaces it here for
-// the rest of the session — the config is a snapshot, and reloading the CP just
-// to drop a card from the picker isn't worth asking for.
-let sectionTypesOverride = null;
-
-function sectionTypes(win) {
-  if (sectionTypesOverride) {
-    return sectionTypesOverride;
-  }
-
-  const list = win.Statamic?.$config?.get?.('sveSectionTypes');
-
-  return Array.isArray(list) ? list : [];
-}
-
-/**
- * Fetches the section types with their preview images as they are on disk.
- *
- * One request when Patterns opens, and one when something actually changed
- * (theme save, template save, a section saved into the library). Not a timer:
- * polling every 1.5s rebuilt the Live Preview header and Theme Settings with
- * every picture that landed.
- */
-let sectionTypesGen = 0;
-let lastTypeHandles = '';
-let lastTypeImages = '';
-let libraryCatchupTimer = 0;
-
-function refreshSectionTypes(win, onUpdated) {
-  const gen = ++sectionTypesGen;
-
-  win
-    .fetch('/!/sve/section-types', {
-      credentials: 'same-origin',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .then((res) => res.json())
-    .then((data) => {
-      if (gen !== sectionTypesGen) {
-        return;
-      }
-
-      if (!Array.isArray(data.types) || !data.types.length) {
-        return;
-      }
-
-      const handles = data.types.map((type) => `${type.handle}\t${type.display || ''}`).join('\n');
-      const images = data.types.map((type) => type.image_url || '').join('\n');
-
-      sectionTypesOverride = data.types;
-
-      const listChanged = handles !== lastTypeHandles;
-      const imagesChanged = images !== lastTypeImages;
-
-      lastTypeHandles = handles;
-      lastTypeImages = images;
-
-      if ((listChanged || imagesChanged) && typeof onUpdated === 'function') {
-        onUpdated({ listChanged, imagesChanged });
-      }
-    })
-    .catch(() => {});
-}
-
-/**
- * Tells an open section library that what it is showing is out of date.
- *
- * Saving a section from the editor happens outside the library's own code, so it
- * has no way of knowing. Without this the designer saves "hero with the red
- * background", switches to the Custom tab, and it isn't there — because the tab
- * still holds the list it fetched before the save.
- *
- * Screenshots finish a few seconds after the save. One follow-up refetch picks
- * those pictures up. It is not a loop: it fires once, for this change.
- */
-function libraryWentStale(win) {
-  savedSectionIndex = null;
-  win.document
-    .getElementById(SECTION_PICKER_ID)
-    ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
-}
-
-/**
- * Loads a library list once.
- *
- * A section saved from the editor is on screen before its screenshot exists —
- * photographing it takes a few seconds in a real browser, which is deliberately
- * not done while the save is waiting. The card appears immediately; the one
- * follow-up from `libraryWentStale` fills the picture in. Asking every 1.5s
- * while sitting still rebuilt the rest of Live Preview with it.
- */
-function pollLibrary(win, url, take, onItems, onFailed) {
-  win
-    .fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-    .then((res) => res.json())
-    .then((data) => onItems(take(data)))
-    .catch(() => onFailed());
-}
-
-/** A new uuid for a re-id'd copy. */
-function newUuid(win) {
-  return win.crypto?.randomUUID ? win.crypto.randomUUID() : `${newRowId()}-${newRowId()}`;
-}
-
-/** Gives a section (and everything in it) fresh ids, so a copy is independent. */
-function reidSection(win, section) {
-  const clone = JSON.parse(JSON.stringify(section));
-
-  const walk = (node) => {
-    if (Array.isArray(node)) {
-      node.forEach(walk);
-    } else if (node && typeof node === 'object') {
-      if ('id' in node || '_id' in node) {
-        if ('_id' in node) {
-          node._id = newRowId();
-        } else {
-          node.id = newRowId();
-        }
-      }
-
-      if ('_visual_id' in node) {
-        node._visual_id = newUuid(win);
-      }
-
-      Object.values(node).forEach(walk);
-    }
-  };
-
-  walk(clone);
-
-  return clone;
-}
-
-/**
- * Inserts a section into page_sections. `afterUid` = the section to drop after;
- * null drops at the very top. `rowMeta` is the set's fresh meta (from the
- * section-meta endpoint): without it the Replicator has no way to render the new
- * row, so it would show in the preview but never in the CP's own section list.
- * Returns false when the field can't be located (e.g. nothing has focus yet).
- */
-function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) {
-  const field = sectionField(win);
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    // No uid → drop at the top of the page_sections array.
-    if (afterUid == null) {
-      const rows = dataGet(values, field);
-
-      if (!Array.isArray(rows)) {
-        continue;
-      }
-
-      writeSetMeta(container, field, section, rowMeta);
-      container.setFieldValue(field, [section, ...JSON.parse(JSON.stringify(rows))]);
-
-      return true;
-    }
-
-    const found = rowLocation(values, afterUid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows } = found;
-    const next = JSON.parse(JSON.stringify(rows));
-
-    next.splice(index + 1, 0, section);
-    // Sections live at the top level, so the meta always belongs to `field`.
-    writeSetMeta(container, field, section, rowMeta);
-    container.setFieldValue(parentPath, next);
-
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Registers a new row's meta on the container so the Replicator can render it.
- * The Replicator reads each row's fields from `meta.<field>.existing[<_id>]`;
- * merging the fresh meta under the row's id is what makes the row appear in the
- * CP list (not just the preview).
- */
-function writeSetMeta(container, field, section, rowMeta) {
-  if (!rowMeta || !section._id || typeof container.setFieldMeta !== 'function') {
-    return;
-  }
-
-  const allMeta = unwrapRef(container.meta) || {};
-  const fieldMeta = allMeta[field] || { existing: {}, new: null, defaults: null, collapsed: [] };
-
-  container.setFieldMeta(field, {
-    ...fieldMeta,
-    existing: { ...(fieldMeta.existing || {}), [section._id]: rowMeta },
-  });
-}
-
-// Site-specific handles all come from the server config (provideToScript), never
-// from a literal here — the addon has to work as installed on any site.
-
-/** The Replicator field the page builder lives in. */
-function sectionField(win) {
-  return win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections';
-}
-
-/**
- * Is a tool switched on for this site? (Addons > Statamic Visual Editor.)
- *
- * Unknown keys — and a config that hasn't arrived yet — read as on: the editor
- * showing a tool it could have hidden is a smaller failure than it hiding one
- * the site depends on.
- */
-function featureOn(win, key) {
-  return win.Statamic?.$config?.get?.('sveFeatures')?.[key] !== false;
-}
-
-/** The Replicator set a page uses to reference a synced ("global") saved section. */
-function globalSectionSet(win) {
-  return win.Statamic?.$config?.get?.('sveGlobalSectionSet') || 'global_section';
-}
-
-/** The collection saved sections live in. */
-function savedSectionsCollection(win) {
-  return win.Statamic?.$config?.get?.('sveSavedSectionsCollection') || 'saved_sections';
-}
-
-/**
- * What each saved (global) section is, keyed by entry id.
- *
- * Seeded from the CP config so the block tree can name a referenced section
- * without waiting on a fetch. Grows during the session when one is saved or
- * dropped from the library — the config is a snapshot from page load.
- */
-let savedSectionIndex = null;
-
-function rememberSavedSection(id, info) {
-  if (!id || typeof id !== 'string') {
-    return;
-  }
-
-  if (!savedSectionIndex) {
-    savedSectionIndex = new Map();
-  }
-
-  savedSectionIndex.set(id, {
-    title: info?.title || '',
-    section_type: info?.section_type || '',
-  });
-}
-
-function savedSectionLookup(win) {
-  if (savedSectionIndex) {
-    return savedSectionIndex;
-  }
-
-  savedSectionIndex = new Map();
-  const raw = win.Statamic?.$config?.get?.('sveSavedSectionLabels');
-
-  if (raw && typeof raw === 'object') {
-    Object.entries(raw).forEach(([id, info]) => {
-      savedSectionIndex.set(id, {
-        title: info?.title || '',
-        section_type: info?.section_type || '',
-      });
-    });
-  }
-
-  return savedSectionIndex;
-}
-
-function savedSectionInfo(win, id) {
-  return id ? savedSectionLookup(win).get(id) || null : null;
-}
-
-/** First entry id from an Entries field value (array, string, or `{id}`). */
-function firstEntryId(value) {
-  if (typeof value === 'string' && value !== '') {
-    return value;
-  }
-
-  if (Array.isArray(value) && value.length) {
-    const first = value[0];
-
-    if (typeof first === 'string' && first !== '') {
-      return first;
-    }
-
-    if (first && typeof first === 'object' && typeof first.id === 'string') {
-      return first.id;
-    }
-  }
-
-  return '';
-}
-
-/** The Replicator set handle a library card of the given kind inserts. */
-function setHandleFor(win, kind, item) {
-  if (kind === 'global') {
-    return globalSectionSet(win);
-  }
-
-  if (kind === 'custom') {
-    return item.section_type;
-  }
-
-  return item.handle;
-}
-
-// Fresh set meta + defaults, per set handle, cached for the session (the
-// blueprint doesn't change while the form is open).
-const sectionMetaCache = new Map();
-
-/** The collection being edited, read from the CP URL. */
-function currentCollection(win) {
-  const match = win.location.pathname.match(/\/collections\/([^/]+)\//);
-
-  return match ? match[1] : null;
-}
-
-/** Fetches (and caches) a set's fresh meta + default values from the addon. */
-/**
- * Meta + defaults for a set in a NESTED replicator field (a section's own
- * `blocks`), for the in-preview block inserter. Same endpoint as sections, with a
- * `field` so it resolves the nested replicator instead of the top-level one.
- */
-async function fetchNestedSetMeta(win, field, setHandle, sectionType = '') {
-  const key = `${field}::${setHandle}::${sectionType}`;
-
-  if (sectionMetaCache.has(key)) {
-    return sectionMetaCache.get(key);
-  }
-
-  const collection = currentCollection(win);
-
-  if (!collection) {
-    return null;
-  }
-
-  const url =
-    `/!/sve/section-meta?collection=${encodeURIComponent(collection)}` +
-    `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}` +
-    (sectionType ? `&section=${encodeURIComponent(sectionType)}` : '');
-
-  const res = await win.fetch(url, {
-    credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-  });
-
-  const data = res.ok ? await res.json() : null;
-
-  sectionMetaCache.set(key, data);
-
-  return data;
-}
-
-/**
- * Registers a new row's meta in a NESTED replicator/grid field, so the row
- * renders in the Control Panel form (the sidebar), not only the preview.
- *
- * The meta for a top-level field is set with `setFieldMeta(field, …)`, but a
- * nested field's meta lives deep inside the top field's — so we clone the top
- * field's meta, walk into the nested field within the clone, add the row there,
- * and write the whole top field back. `parentPath` is like `page_sections.2.blocks`.
- */
-function writeNestedRowMeta(container, values, parentPath, rowId, rowMeta) {
-  if (!rowMeta || !rowId || typeof container.setFieldMeta !== 'function') {
-    return;
-  }
-
-  const fullMeta = unwrapRef(container.meta) || {};
-  const segments = parentPath.split('.');
-  const topField = segments[0];
-
-  if (!fullMeta[topField]) {
-    return;
-  }
-
-  const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
-  // metaForPath walks meta keyed by row _id — pass the top field's own meta and
-  // values, and the path below it (e.g. "2.blocks").
-  const nested = metaForPath(clone, dataGet(values, topField), segments.slice(1).join('.'));
-
-  if (!nested || typeof nested !== 'object') {
-    return;
-  }
-
-  nested.existing = { ...(nested.existing || {}), [rowId]: rowMeta };
-  container.setFieldMeta(topField, clone);
-}
-
-/**
- * Drops a row's meta from a nested replicator/grid field after the row itself
- * was removed from values — keeps `existing` from accumulating orphans.
- */
-function removeNestedRowMeta(container, values, parentPath, rowId) {
-  if (!rowId || typeof container.setFieldMeta !== 'function') {
-    return;
-  }
-
-  const fullMeta = unwrapRef(container.meta) || {};
-  const segments = parentPath.split('.');
-  const topField = segments[0];
-
-  if (!fullMeta[topField]) {
-    return;
-  }
-
-  const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
-  const nested = metaForPath(clone, dataGet(values, topField), segments.slice(1).join('.'));
-
-  if (!nested?.existing || !(rowId in nested.existing)) {
-    return;
-  }
-
-  delete nested.existing[rowId];
-  container.setFieldMeta(topField, clone);
-}
-
-/**
- * Fresh row meta for a grid/replicator row: prefer the field's blank `new`
- * template (what Statamic's own "Add row" uses), else clone a sibling's.
- */
-function rowMetaTemplate(container, values, parentPath, sampleRow) {
-  const fullMeta = unwrapRef(container.meta);
-  const fieldMeta = fullMeta ? metaForPath(fullMeta, values, parentPath) : null;
-
-  if (!fieldMeta || typeof fieldMeta !== 'object') {
-    return null;
-  }
-
-  if (fieldMeta.new && typeof fieldMeta.new === 'object') {
-    return JSON.parse(JSON.stringify(fieldMeta.new));
-  }
-
-  const sampleId = sampleRow?._id;
-
-  if (sampleId && fieldMeta.existing?.[sampleId]) {
-    return JSON.parse(JSON.stringify(fieldMeta.existing[sampleId]));
-  }
-
-  return null;
-}
-
-/**
- * `template="icon|title:Enter a title"` from the preview — starting inner sets
- * for a new row, declared in Antlers where the replicator is used. Same idea as
- * `controls="tag:h1"`: the fieldset stays reusable; the template says what a
- * fresh row contains at this place.
- *
- * Pipe-separated set types, optional `:text` on the field named like the set
- * (`title:Hello`) or `type.field:text`. JSON is accepted too — BlockStudio's
- * InnerBlocks shape `[['title', { title: 'Hello' }]]`.
- */
-function parseSidTemplate(spec) {
-  const trimmed = String(spec || '').trim();
-
-  if (!trimmed) {
-    return [];
-  }
-
-  if (trimmed.startsWith('[')) {
-    try {
-      const json = JSON.parse(trimmed);
-
-      return (Array.isArray(json) ? json : []).map(normalizeSidTemplateItem).filter(Boolean);
-    } catch {
-      return [];
-    }
-  }
-
-  return trimmed
-    .split('|')
-    .map((part) => {
-      const raw = part.trim();
-
-      if (!raw) {
-        return null;
-      }
-
-      // `3:item` — N starting rows of that set, not a field value named "3".
-      const counted = raw.match(/^(\d+):([A-Za-z_][\w-]*)$/);
-
-      if (counted) {
-        return { type: counted[2], count: Number(counted[1]) };
-      }
-
-      const colon = raw.indexOf(':');
-
-      if (colon === -1) {
-        return { type: raw };
-      }
-
-      const left = raw.slice(0, colon).trim();
-      const value = raw.slice(colon + 1).trim();
-      const dot = left.indexOf('.');
-
-      if (dot !== -1) {
-        return { type: left.slice(0, dot), field: left.slice(dot + 1), value };
-      }
-
-      return { type: left, field: left, value };
-    })
-    .filter(Boolean);
-}
-
-function normalizeSidTemplateItem(raw) {
-  if (typeof raw === 'string') {
-    return raw.trim() ? { type: raw.trim() } : null;
-  }
-
-  if (Array.isArray(raw)) {
-    const type = String(raw[0] || '')
-      .trim()
-      .replace(/^core\//, '');
-
-    if (!type) {
-      return null;
-    }
-
-    const attrs = raw[1] && typeof raw[1] === 'object' && !Array.isArray(raw[1]) ? { ...raw[1] } : {};
-
-    delete attrs.placeholder;
-
-    return { type, attrs };
-  }
-
-  if (raw && typeof raw === 'object' && typeof raw.type === 'string') {
-    const { type, ...attrs } = raw;
-
-    return { type, attrs };
-  }
-
-  return null;
-}
-
-function isBardValue(value) {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value[0] &&
-    typeof value[0] === 'object' &&
-    ['paragraph', 'heading', 'text', 'set', 'bulletList', 'orderedList'].includes(value[0].type)
-  );
-}
-
-function looksLikeBardSpec(spec) {
-  return typeof spec === 'string' && /^(heading:\d+:|paragraph:|h[1-6]:)/i.test(spec.trim());
-}
-
-function specToBard(spec) {
-  if (Array.isArray(spec)) {
-    return spec;
-  }
-
-  return String(spec)
-    .split('|')
-    .map((part) => {
-      const p = part.trim();
-      const heading = p.match(/^heading:([1-6]):(.*)$/i) || p.match(/^h([1-6]):(.*)$/i);
-
-      if (heading) {
-        const text = heading[2];
-
-        return {
-          type: 'heading',
-          attrs: { level: Number(heading[1]) },
-          content: text ? [{ type: 'text', text }] : [],
-        };
-      }
-
-      if (/^paragraph:/i.test(p)) {
-        const text = p.slice(p.indexOf(':') + 1);
-
-        return { type: 'paragraph', content: text ? [{ type: 'text', text }] : [] };
-      }
-
-      return { type: 'paragraph', content: p ? [{ type: 'text', text: p }] : [] };
-    });
-}
-
-function coerceSidValue(current, spec) {
-  if (isBardValue(current) || looksLikeBardSpec(spec)) {
-    return specToBard(spec);
-  }
-
-  return spec;
-}
-
-function applySidFieldDefaults(row, defaults) {
-  if (!row || !defaults || typeof defaults !== 'object') {
-    return;
-  }
-
-  for (const [handle, value] of Object.entries(defaults)) {
-    if (handle === 'type' || value == null || value === '') {
-      continue;
-    }
-
-    const current = row[handle];
-    const blank =
-      current === undefined ||
-      current === null ||
-      current === '' ||
-      (Array.isArray(current) && !current.length);
-
-    if (blank) {
-      row[handle] = coerceSidValue(current, value);
-    }
-  }
-}
-
-function assignSidTemplateValues(row, item, fieldDefaults) {
-  if (item.attrs && typeof item.attrs === 'object') {
-    for (const [key, value] of Object.entries(item.attrs)) {
-      if (key === 'type' || key === 'placeholder' || value == null) {
-        continue;
-      }
-
-      row[key] = coerceSidValue(row[key], value);
-    }
-  }
-
-  const field = item.field || item.type;
-
-  if (item.value != null && item.value !== '' && field) {
-    row[field] = coerceSidValue(row[field], item.value);
-  }
-
-  applySidFieldDefaults(row, fieldDefaults);
-}
-
-function nestedReplicatorHandle(row, metaNew) {
-  const keys = new Set();
-
-  if (row && typeof row === 'object') {
-    for (const [key, value] of Object.entries(row)) {
-      if (['id', '_id', '_visual_id', 'type', 'enabled'].includes(key)) {
-        continue;
-      }
-
-      if (Array.isArray(value)) {
-        keys.add(key);
-      }
-    }
-  }
-
-  if (metaNew && typeof metaNew === 'object') {
-    for (const [key, value] of Object.entries(metaNew)) {
-      if (value && typeof value === 'object' && !Array.isArray(value) && 'existing' in value) {
-        keys.add(key);
-      }
-    }
-  }
-
-  const list = [...keys];
-
-  if (list.includes('blocks')) {
-    return 'blocks';
-  }
-
-  return list[0] || null;
-}
-
-async function buildSidTemplateRow(win, field, item, fieldDefaults) {
-  const meta = await fetchNestedSetMeta(win, field, item.type);
-  const rowId = newRowId();
-  const row = {
-    ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
-    _id: rowId,
-    _visual_id: newUuid(win),
-    type: item.type,
-  };
-
-  assignSidTemplateValues(row, item, fieldDefaults);
-
-  return { row, meta: meta?.new ? JSON.parse(JSON.stringify(meta.new)) : {} };
-}
-
-function attachSidNestedMeta(parentMeta, nestedField, nestedBuilt) {
-  if (!parentMeta || !nestedField || !nestedBuilt.length) {
-    return parentMeta;
-  }
-
-  parentMeta[nestedField] = parentMeta[nestedField] || { existing: {} };
-  parentMeta[nestedField].existing = { ...(parentMeta[nestedField].existing || {}) };
-
-  for (const built of nestedBuilt) {
-    parentMeta[nestedField].existing[built.row._id] = built.meta || {};
-  }
-
-  return parentMeta;
-}
-
-/**
- * Fill a newly created row from an Antlers `template` / `default`.
- *
- * `template="icon|title"` — inner sets for this row (typically `blocks`).
- * `template="3:item"` on the parent — N child rows, each filled from
- * `rowTemplate` (the `<li>`'s `template="icon|title"`).
- */
-async function applySidTemplate(win, row, template, fieldDefaults, parentMeta, rowTemplate = '', fieldTemplates = {}) {
-  const items = parseSidTemplate(template);
-  const nested = [];
-  let nestedField = null;
-
-  if (items.some((item) => item.count)) {
-    const nestedHandle = nestedReplicatorHandle(row, parentMeta);
-
-    if (nestedHandle) {
-      nestedField = nestedHandle;
-
-      for (const spec of items) {
-        const times = spec.count || 1;
-
-        for (let n = 0; n < times; n++) {
-          const built = await buildSidTemplateRow(win, nestedHandle, { type: spec.type }, fieldDefaults);
-          const inner = await applySidTemplate(win, built.row, rowTemplate, fieldDefaults, built.meta, '', fieldTemplates);
-          const meta = attachSidNestedMeta(built.meta, inner.nestedField, inner.nested);
-
-          nested.push({ row: inner.row, meta: meta || built.meta });
-        }
-      }
-
-      row[nestedHandle] = nested.map((built) => built.row);
-    } else {
-      applySidFieldDefaults(row, fieldDefaults);
-    }
-  } else if (items.length) {
-    const types = items.map((item) => item.type);
-    const nestedHandle = nestedReplicatorHandle(row, parentMeta);
-
-    if (nestedHandle && row.type && !types.includes(row.type)) {
-      nestedField = nestedHandle;
-
-      for (const item of items) {
-        nested.push(await buildSidTemplateRow(win, nestedHandle, item, fieldDefaults));
-      }
-
-      row[nestedHandle] = nested.map((built) => built.row);
-    } else {
-      const match = items.find((item) => item.type === row.type) || (items.length === 1 ? items[0] : null);
-
-      if (match) {
-        assignSidTemplateValues(row, match, fieldDefaults);
-      } else {
-        applySidFieldDefaults(row, fieldDefaults);
-      }
-    }
-  } else {
-    applySidFieldDefaults(row, fieldDefaults);
-  }
-
-  if (nested.length && fieldTemplates && typeof fieldTemplates === 'object') {
-    for (let i = 0; i < nested.length; i++) {
-      const spec = fieldTemplates[nested[i].row?.type];
-
-      if (!spec || !(spec.template || spec.rowTemplate)) {
-        continue;
-      }
-
-      const inner = await applySidTemplate(
-        win,
-        nested[i].row,
-        spec.template || '',
-        fieldDefaults,
-        nested[i].meta || {},
-        spec.rowTemplate || '',
-        fieldTemplates
-      );
-
-      nested[i] = {
-        row: inner.row,
-        meta: attachSidNestedMeta(nested[i].meta, inner.nestedField, inner.nested) || nested[i].meta,
-      };
-    }
-
-    if (nestedField) {
-      row[nestedField] = nested.map((built) => built.row);
-    }
-  }
-
-  return { row, nested, nestedField };
-}
-
-function countedTemplateTypes(template) {
-  return parseSidTemplate(template)
-    .filter((item) => item.count)
-    .map((item) => item.type);
-}
-
-function sectionTypeFromPath(values, parentPath) {
-  const parts = String(parentPath || '').split('.');
-
-  if (parts.length < 2 || !Number.isInteger(Number(parts[1]))) {
-    return '';
-  }
-
-  const section = dataGet(values, `${parts[0]}.${parts[1]}`);
-
-  return section && typeof section === 'object' ? String(section.type || '') : '';
-}
-
-async function overlaySidTemplate(win, container, _values, parentPath, added, template, fieldDefaults, rowTemplate = '') {
-  if (!added?._id) {
-    return;
-  }
-
-  const values = unwrapRef(container.values);
-
-  const rows = dataGet(values, parentPath);
-
-  if (!Array.isArray(rows)) {
-    return;
-  }
-
-  const index = rows.findIndex((row) => row && row._id === added._id);
-
-  if (index < 0) {
-    return;
-  }
-
-  const sectionType = sectionTypeFromPath(values, parentPath);
-  const field = parentPath.slice(parentPath.lastIndexOf('.') + 1);
-  const addedMeta =
-    added.type && field
-      ? await fetchNestedSetMeta(win, field, added.type, sectionType)
-      : null;
-
-  // `3:item` seeds a new *list*. A single new *item* (the native picker, or +
-  // on an empty ul) should only get the row template — icon|title — not 3 rows.
-  let applyTemplate = template || addedMeta?.template || '';
-  let applyRowTemplate = rowTemplate || addedMeta?.rowTemplate || '';
-
-  if (added.type && countedTemplateTypes(applyTemplate).includes(added.type)) {
-    applyTemplate = applyRowTemplate;
-    applyRowTemplate = '';
-  }
-
-  if (!applyTemplate && !applyRowTemplate && !(fieldDefaults && Object.keys(fieldDefaults).length)) {
-    return;
-  }
-
-  const row = JSON.parse(JSON.stringify(rows[index]));
-  const parentMeta =
-    (addedMeta?.new ? JSON.parse(JSON.stringify(addedMeta.new)) : null) ||
-    rowMetaTemplate(container, values, parentPath, row) ||
-    {};
-  const built = await applySidTemplate(
-    win,
-    row,
-    applyTemplate,
-    fieldDefaults,
-    parentMeta,
-    applyRowTemplate,
-    addedMeta?.fieldTemplates || {}
-  );
-  const next = JSON.parse(JSON.stringify(rows));
-
-  next[index] = built.row;
-  container.setFieldValue(parentPath, next);
-
-  if (built.nestedField && built.nested.length) {
-    const updated = unwrapRef(container.values);
-    const rowPath = `${parentPath}.${index}`;
-    const fullMeta = unwrapRef(container.meta) || {};
-    const segments = rowPath.split('.');
-    const topField = segments[0];
-
-    if (!fullMeta[topField] || typeof container.setFieldMeta !== 'function') {
-      return;
-    }
-
-    const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
-    const rowMeta = metaForPath(clone, dataGet(updated, topField), segments.slice(1).join('.'));
-
-    if (!rowMeta) {
-      return;
-    }
-
-    attachSidNestedMeta(rowMeta, built.nestedField, built.nested);
-    container.setFieldMeta(topField, clone);
-  }
-}
-
-function watchNewRow(doc, win, data, onAdded) {
-  const { uid, anchorUid, sectionUid, field } = data;
-  const around = uid || anchorUid;
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    let parentPath = null;
-    let startIds = new Set();
-
-    if (around) {
-      const loc = rowLocation(values, around);
-
-      if (!loc) {
-        continue;
-      }
-
-      parentPath = loc.parentPath;
-      startIds = new Set(loc.rows.map((row) => row?._id).filter(Boolean));
-    } else if (sectionUid && field) {
-      const sectionPath = findPathByUid(values, sectionUid);
-
-      if (sectionPath === null) {
-        continue;
-      }
-
-      parentPath = `${sectionPath}.${field}`;
-      const existing = dataGet(values, parentPath);
-
-      startIds = new Set((Array.isArray(existing) ? existing : []).map((row) => row?._id).filter(Boolean));
-    } else {
-      continue;
-    }
-
-    let attempts = 0;
-
-    const poll = () => {
-      const current = dataGet(unwrapRef(container.values), parentPath);
-
-      if (!Array.isArray(current)) {
-        return;
-      }
-
-      const added = current.find((row) => row && row._id && !startIds.has(row._id));
-
-      if (added) {
-        onAdded(container, unwrapRef(container.values), parentPath, added);
-
-        return;
-      }
-
-      if (++attempts < 240) {
-        setTimeout(poll, 150);
-      }
-    };
-
-    setTimeout(poll, 150);
-
-    return;
-  }
-}
-
-/**
- * "+" between a replicator's blocks: insert a new set of the chosen type, next to
- * the block the "+" sits by (or as the first block when the field is empty). The
- * row is written into the nested array with its meta, so it shows in both the
- * preview and the CP form.
- */
-async function handleInsertBlock(data, doc, win) {
-  const { field, set, anchorUid, position, scope } = data;
-
-  if (!field || !set) {
-    return;
-  }
-
-  const meta = await fetchNestedSetMeta(win, field, set, data.sectionType || '');
-  const rowId = newRowId();
-  const row = {
-    ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
-    _id: rowId,
-    _visual_id: newUuid(win),
-    type: set,
-  };
-  const built = await applySidTemplate(
-    win,
-    row,
-    data.template || meta?.template || '',
-    data.fieldDefaults,
-    meta?.new ? JSON.parse(JSON.stringify(meta.new)) : {},
-    data.rowTemplate || meta?.rowTemplate || ''
-  );
-  const rowMeta = attachSidNestedMeta(
-    meta?.new ? JSON.parse(JSON.stringify(meta.new)) : {},
-    built.nestedField,
-    built.nested
-  );
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    // Anchored to a sibling block: splice in beside it.
-    if (anchorUid) {
-      const loc = rowLocation(values, anchorUid);
-
-      if (!loc) {
-        continue;
-      }
-
-      const next = JSON.parse(JSON.stringify(loc.rows));
-
-      next.splice(position === 'before' ? loc.index : loc.index + 1, 0, built.row);
-      writeNestedRowMeta(container, values, loc.parentPath, rowId, rowMeta);
-      container.setFieldValue(loc.parentPath, next);
-
-      return;
-    }
-
-    // Empty field: no sibling to anchor to — seed the section's own field array.
-    if (scope) {
-      const sectionPath = findPathByUid(values, scope);
-
-      if (sectionPath === null) {
-        continue;
-      }
-
-      const fieldPath = `${sectionPath}.${field}`;
-      const existing = dataGet(values, fieldPath);
-      const next = Array.isArray(existing) ? JSON.parse(JSON.stringify(existing)) : [];
-
-      next.push(built.row);
-      writeNestedRowMeta(container, values, fieldPath, rowId, rowMeta);
-      container.setFieldValue(fieldPath, next);
-
-      return;
-    }
-  }
-}
-
-/**
- * Insert a Bard set node into a Bard field's value array (ProseMirror JSON).
- * Used by the whole-field inline editor's "+" on an empty paragraph.
- *
- * `index` is the text-block index in the serialized preview (locked sets also
- * count in the final array — the bridge sends the absolute splice index).
- */
-async function handleInsertBardSet(data, doc, win) {
-  const { field, set, scope, index } = data;
-
-  if (!field || !set) {
-    return;
-  }
-
-  const meta = await fetchNestedSetMeta(win, field, set);
-  const setId = newRowId();
-  const visualId = newUuid(win);
-  const valuesPayload = {
-    ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
-    type: set,
-    _visual_id: visualId,
-  };
-
-  const setNode = {
-    type: 'set',
-    attrs: {
-      id: setId,
-      enabled: true,
-      values: valuesPayload,
-    },
-  };
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    let fieldPath = field;
-
-    if (scope) {
-      const sectionPath = findPathByUid(values, scope);
-
-      if (sectionPath === null) {
-        continue;
-      }
-
-      fieldPath = `${sectionPath}.${field}`;
-    }
-
-    const existing = dataGet(values, fieldPath);
-
-    if (!Array.isArray(existing)) {
-      continue;
-    }
-
-    const next = JSON.parse(JSON.stringify(existing));
-    const at = Number.isInteger(index) ? Math.max(0, Math.min(index, next.length)) : next.length;
-
-    next.splice(at, 0, setNode);
-    writeNestedRowMeta(container, values, fieldPath, setId, meta?.new);
-    container.setFieldValue(fieldPath, next);
-
-    return;
-  }
-}
-
-async function fetchSetMeta(win, setHandle) {
-  if (sectionMetaCache.has(setHandle)) {
-    return sectionMetaCache.get(setHandle);
-  }
-
-  const collection = currentCollection(win);
-
-  if (!collection) {
-    return null;
-  }
-
-  const url =
-    `/!/sve/section-meta?collection=${encodeURIComponent(collection)}&set=${encodeURIComponent(setHandle)}`;
-
-  const res = await win.fetch(url, {
-    credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-  });
-
-  if (!res.ok) {
-    return null;
-  }
-
-  const data = await res.json();
-
-  sectionMetaCache.set(setHandle, data);
-
-  return data;
-}
-
-/** The section object to insert for a library card of the given kind. */
-function buildSectionRow(win, kind, item, defaults, newId) {
-  const base = {
-    ...JSON.parse(JSON.stringify(defaults || {})),
-    _id: newId,
-    _visual_id: newUuid(win),
-    enabled: true,
-  };
-
-  if (kind === 'page') {
-    return { ...base, type: item.handle };
-  }
-
-  if (kind === 'global') {
-    // A reference — the template renders the source's current sections. The set
-    // and its entries field share one handle, so the row is built from it.
-    const set = globalSectionSet(win);
-
-    rememberSavedSection(item.id, { title: item.title, section_type: item.section_type });
-
-    return { ...base, type: set, [set]: [item.id] };
-  }
-
-  // custom: an independent copy with fresh ids, laid over the type's defaults so
-  // any fields added since it was saved still get sensible values.
-  return {
-    ...base,
-    ...reidSection(win, item.section_data || {}),
-    _id: newId,
-    _visual_id: newUuid(win),
-    enabled: true,
-    type: item.section_type,
-  };
-}
-
-/**
- * Inserts a library card's section: fetches the set's fresh meta, builds the
- * row from it, and drops it in at `afterUid` (null = top). Async because the
- * meta round-trip is what lets the row render in the CP list, not only the
- * preview.
- */
-async function insertSection(win, doc, afterUid, kind, item) {
-  if (kind === 'template') {
-    return insertTemplate(win, doc, afterUid, item);
-  }
-
-  const meta = await fetchSetMeta(win, setHandleFor(win, kind, item));
-  const newId = newRowId();
-  const row = buildSectionRow(win, kind, item, meta?.defaults, newId);
-
-  insertSectionAfter(win, doc, afterUid, row, meta?.new || null);
-}
-
-/**
- * Drops a whole template onto the page.
- *
- * Every section in it is copied — a template is a stencil, never a reference —
- * and each one is laid over its type's current defaults, so a template saved
- * before a field existed still gets a sensible value for it.
- *
- * Meta is fetched per section *type*, not per row: the Replicator renders each row
- * from `meta.<field>.existing[<_id>]`, so without it the sections would appear in
- * the preview and be missing from the CP list.
- */
-async function insertTemplate(win, doc, afterUid, item) {
-  const sections = (item.sections || []).filter((section) => section && section.type);
-
-  if (!sections.length) {
-    win.Statamic?.$toast?.error(t(win, 'template_empty'));
-
-    return;
-  }
-
-  const mode = await askTemplateMode(win, item);
-
-  if (!mode) {
-    return; // cancelled
-  }
-
-  const rows = [];
-  const metas = [];
-
-  for (const section of sections) {
-    const meta = await fetchSetMeta(win, section.type);
-    const newId = newRowId();
-
-    rows.push(
-      buildSectionRow(win, 'custom', { section_data: section, section_type: section.type }, meta?.defaults, newId)
-    );
-    metas.push(meta?.new || null);
-  }
-
-  insertSectionsAfter(win, doc, afterUid, rows, metas, mode === 'replace');
-}
-
-/**
- * The multi-row sibling of `insertSectionAfter`: all of a template's sections in
- * one write.
- *
- * One `setFieldValue` for the lot, not one per section — each call re-renders the
- * Replicator, so inserting fifteen sections one at a time would be fifteen
- * re-renders and fifteen preview reloads.
- */
-function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace) {
-  const field = sectionField(win);
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const existing = dataGet(values, field);
-
-    if (!Array.isArray(existing)) {
-      continue;
-    }
-
-    rows.forEach((row, index) => writeSetMeta(container, field, row, rowMetas[index]));
-
-    if (replace) {
-      container.setFieldValue(field, rows);
-
-      return true;
-    }
-
-    if (afterUid == null) {
-      container.setFieldValue(field, [...rows, ...JSON.parse(JSON.stringify(existing))]);
-
-      return true;
-    }
-
-    const found = rowLocation(values, afterUid);
-
-    if (!found) {
-      continue;
-    }
-
-    const next = JSON.parse(JSON.stringify(found.rows));
-
-    next.splice(found.index + 1, 0, ...rows);
-    container.setFieldValue(found.parentPath, next);
-
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Replace what's on the page, or add to it?
- *
- * Asked every time rather than remembered: dropping a template on an empty page
- * and dropping one onto a page you've already built are different intentions, and
- * replacing is not undoable from here.
- */
-function askTemplateMode(win, item) {
-  return new Promise((resolve) => {
-    const doc = win.document;
-    const overlay = doc.createElement('div');
-
-    overlay.style.cssText =
-      'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
-      'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
-
-    const card = doc.createElement('div');
-
-    card.style.cssText =
-      'width:420px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-      'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
-    card.innerHTML =
-      `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${item.title}</div>` +
-      `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, 'template_mode_body', {
-        count: (item.sections || []).length,
-      })}</div>` +
-      '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
-
-    const actions = card.querySelector('[data-sve-actions]');
-    const close = (value) => {
-      overlay.remove();
-      resolve(value);
-    };
-
-    const button = (label, style, value) => {
-      const btn = doc.createElement('button');
-
-      btn.type = 'button';
-      btn.textContent = label;
-      btn.style.cssText = `all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;${style}`;
-      btn.addEventListener('click', () => close(value));
-      actions.appendChild(btn);
-    };
-
-    button(t(win, 'cancel'), 'opacity:.7;color:currentColor;', null);
-    button(t(win, 'template_replace'), 'color:currentColor;background:rgba(128,128,128,.16);font-weight:500;', 'replace');
-    button(t(win, 'template_append'), 'background:var(--theme-color-primary,#4f46e5);color:#fff;font-weight:600;', 'append');
-
-    overlay.addEventListener('click', (event) => event.target === overlay && close(null));
-    overlay.appendChild(card);
-    doc.body.appendChild(overlay);
-  });
-}
-
-function closeSectionPicker(win) {
-  const panel = win.document.getElementById(SECTION_PICKER_ID);
-
-  panel?._sveLibRo?.disconnect?.();
-  panel?.remove();
-  releaseRightShellIfEmpty(win);
-  syncPreviewInset(win);
-}
-
-/** True while editing header/footer chrome or a global section. */
-function isSectionLibraryLocked(win) {
-  return !!activeChromeKind || globalSectionEditorOpen(win.document);
-}
-
-/**
- * The top-bar tools that belong to the page rather than to what is being edited
- * inside it.
- *
- * Stepping into a header, a footer or a global section locks the page around it:
- * the other sections fade, and a click out there does nothing. These four reach
- * straight past that lock — another page, another global set, the section
- * library, the block tree — so while you are inside, they have nothing to act on.
- *
- * The panel tool is deliberately not among them. The left-sidebar icon is how you
- * get at the fields you stepped in for, and taking it away would lock the way in
- * along with the way out.
- */
-const FOCUS_LOCKED_TABS = ['pages', 'globals', 'sections', 'listview'];
-
-/**
- * Dim and disable those tools while chrome or a global section owns the editor.
- *
- * Painted from applyHeaderTab, which runs on the header loop — so the state
- * survives Vue rebuilding the bar underneath it, the same way the icons' own
- * colours do.
- */
-function paintFocusLockedTabs(win, btn, tab, on) {
-  const off = isSectionLibraryLocked(win) && FOCUS_LOCKED_TABS.includes(tab);
-
-  btn.disabled = off;
-  btn.style.pointerEvents = off ? 'none' : '';
-  btn.style.cursor = off ? 'default' : 'pointer';
-  // A merged tool wears its surface on the frame around the glyph, and it is the
-  // frame that goes out — see applyHeaderTab. Fading the glyph here as well would
-  // fade it twice over, leaving it far darker than the standalone icons it stands
-  // in a row with.
-  btn.style.opacity = off
-    ? (MERGED_TABS.includes(tab) ? '1' : LP_ICON_LOCKED_OPACITY)
-    : on
-      ? '1'
-      : LP_ICON_IDLE_OPACITY;
-
-  if (off) {
-    btn.setAttribute('aria-disabled', 'true');
-  } else {
-    btn.removeAttribute('aria-disabled');
-  }
-
-  return off;
-}
-
-/**
- * Hide/disable the Sections header button (and close what those tools have open)
- * while chrome or a global section owns the editor — dragging sections there is
- * a no-op, and a panel left standing would sit over the fields you came for.
- */
-function syncSectionLibraryAvailability(win) {
-  const doc = win.document;
-  const locked = isSectionLibraryLocked(win);
-  const btn = doc.getElementById(LIBRARY_BUTTON_ID);
-
-  if (locked) {
-    closeSectionPicker(win);
-    closeListViewPanel(win);
-    closeOutlinePanel(win);
-
-    if (btn) {
-      btn.style.display = 'none';
-      btn.setAttribute('aria-disabled', 'true');
-      btn.disabled = true;
-    }
-
-    // An unfolded Pages or Globals control is the same tool, one state further
-    // out — folded away with the rest so the bar reads as one locked row.
-    if (FOCUS_LOCKED_TABS.includes(headerTab)) {
-      setHeaderTab(win, null);
-    }
-
-    applyHeaderTab(win);
-
-    return;
-  }
-
-  if (btn) {
-    btn.style.display = '';
-    btn.removeAttribute('aria-disabled');
-    btn.disabled = false;
-  }
-
-  applyHeaderTab(win);
-}
-
-/** True while Theme Settings / Site settings covers the left editor. */
-function isGlobalsOverlayOpen(win) {
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-
-  return !!(panel && !panel.hidden && !panel.hasAttribute('data-sve-chrome-hidden'));
-}
-
-/**
- * Park Theme Settings off-screen on document.body.
- *
- * Never reparent the iframe (that reloads it). Never put it in the right dock —
- * that is where the block tree / comments / library stack, and Theme Settings
- * is a full form, not one more pane in that stack.
- */
-function parkGlobalsOverlay(panel) {
-  if (!panel) {
-    return;
-  }
-
-  panel.hidden = true;
-  panel.setAttribute('data-sve-chrome-hidden', '1');
-  panel.style.cssText =
-    'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
-}
-
-/** Keep the iframe on body so showing it never moves it in the DOM. */
-function attachGlobalsOverlay(win, panel) {
-  if (!panel || panel.parentElement === win.document.body) {
-    return;
-  }
-
-  win.document.body.appendChild(panel);
-}
-
-/**
- * Cover the left Live Preview editor with Theme Settings.
- *
- * Same form as before (tabs, colour pickers, …) — just over Page Settings
- * instead of stacked in the right sidebar. Sits under the width-handle (z 62)
- * and over the Page Settings/SEO tab bar (z 60).
- */
-function placeGlobalsOverlay(win) {
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-
-  if (!panel || panel.hidden || panel.hasAttribute('data-sve-chrome-hidden')) {
-    return;
-  }
-
-  const editor = livePreviewEditorEl(win.document);
-
-  if (!editor || lpCollapsed) {
-    return;
-  }
-
-  const rect = editor.getBoundingClientRect();
-  const handle = win.document.querySelector('.live-preview-resizer');
-  const grip = handle ? Math.round(handle.getBoundingClientRect().width) || 16 : 16;
-  const width = Math.max(0, Math.round(rect.width) - grip);
-
-  panel.hidden = false;
-  panel.removeAttribute('data-sve-chrome-hidden');
-  panel.style.cssText =
-    'position:fixed;z-index:61;display:flex;flex-direction:column;overflow:hidden;' +
-    'background:var(--theme-color-content-bg,#fff);color:currentColor;border:0;box-shadow:none;' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;box-sizing:border-box;';
-  panel.style.left = `${Math.round(rect.left)}px`;
-  panel.style.top = `${Math.round(rect.top)}px`;
-  panel.style.width = `${width}px`;
-  panel.style.height = `${Math.round(rect.height)}px`;
-
-  const tabs = win.document.getElementById(LP_WIDTH_ID);
-
-  if (tabs) {
-    tabs.style.visibility = 'hidden';
-  }
-}
-
-function bindGlobalsOverlayLayout(win) {
-  const editor = livePreviewEditorEl(win.document);
-
-  if (!editor || typeof win.ResizeObserver !== 'function' || editor._sveGlobalsRo) {
-    return;
-  }
-
-  editor._sveGlobalsRo = new win.ResizeObserver(() => placeGlobalsOverlay(win));
-  editor._sveGlobalsRo.observe(editor);
-}
-
-/** Hide Theme Settings without destroying it (stash + form stay alive). */
-function hideGlobalsPanel(win, { release = true } = {}) {
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-
-  if (!panel) {
-    return;
-  }
-
-  parkGlobalsOverlay(panel);
-
-  const tabs = win.document.getElementById(LP_WIDTH_ID);
-
-  if (tabs) {
-    tabs.style.visibility = '';
-  }
-
-  if (release) {
-    releaseLeftEdgeIfFree(win);
-  }
-
-  syncPreviewInset(win);
-}
-
-/** Show Theme Settings again (left overlay). Page section form stays mounted underneath. */
-function showGlobalsPanel(win) {
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-
-  if (!panel) {
-    return;
-  }
-
-  // Never reparent the iframe — moving it in the DOM reloads it and refreshes
-  // the Live Preview. It lives on body; we only change its box.
-  pinGlobalsPanelLeft(win, panel);
-
-  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
-
-  if (designs) {
-    designs.style.cssText =
-      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
-    designs.setAttribute('data-sve-chrome-hidden', '1');
-  }
-
-  syncPreviewInset(win);
-}
-
-/**
- * Docked panels on the RIGHT: sections library, block tree, comments, AI.
- * Theme Settings lives on the left and is not closed from here.
- * `keep` is id(s) to leave open. Called with nothing to close them all (leaving Live Preview).
- */
-function closeRightPanels(win, keep = null) {
-  const keepIds = keep == null ? [] : Array.isArray(keep) ? keep : [keep];
-  const extra = keepIds.length && RIGHT_DOCK_PIN_STACK ? pinnedKeepIds(win) : [];
-  const allKeep = [...new Set([...keepIds, ...extra])];
-
-  beginRightShellSwap();
-
-  try {
-    closeRightPanelsInner(win, allKeep);
-  } finally {
-    endRightShellSwap();
-  }
-
-  if (!allKeep.length) {
-    hideRightDock(win);
-  }
-}
-
-function closeRightPanelsInner(win, keepIds) {
-  if (!keepIds.includes(SECTION_PICKER_ID)) {
-    closeSectionPicker(win);
-  }
-
-  if (!keepIds.includes(OUTLINE_PANEL_ID)) {
-    closeOutlinePanel(win);
-  }
-
-  if (!keepIds.includes(LISTVIEW_PANEL_ID)) {
-    closeListViewPanel(win);
-  }
-
-  if (!keepIds.includes(COMMENTS_PANEL_ID)) {
-    closeCommentsPanel(win);
-  }
-
-  if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(GLOBAL_SECTION_HOST_ID)) {
-    closeGlobalSectionPanel(win);
-  }
-
-  if (!keepIds.includes(CHROME_DESIGNS_ID)) {
-    closeChromeDesignsPanel(win);
-  }
-
-  if (!keepIds.includes('__sve-ai-panel')) {
-    closeAiPanel(win);
-  }
-}
-
-/**
- * Push the preview away from RIGHT-docked panels (Theme Settings, sections library, …).
- */
-function syncPreviewInset(win) {
-  if (isRightDockResizing()) {
-    return;
-  }
-
-  const doc = win.document;
-  const el = doc.querySelector('.live-preview-contents');
-
-  if (!el) {
-    return;
-  }
-
-  const right = dockedPanelWidth(doc, [
-    RIGHT_DOCK_ID,
-    SECTION_PICKER_ID,
-    OUTLINE_PANEL_ID,
-    LISTVIEW_PANEL_ID,
-    COMMENTS_PANEL_ID,
-    '__sve-ai-panel',
-  ]);
-
-  el.style.transition = 'padding-right .2s ease';
-  el.style.paddingRight = right ? `${right}px` : '';
-  el.style.paddingLeft = '';
-  relayoutCodeDock(win);
-
-  if (LP_SCALE_DEVICE_TO_PANE) {
-    applyLpDevice(win);
-    applyLpZoom(win);
-    paintLpPreviewChrome(win);
-    win.setTimeout(() => {
-      applyLpDevice(win);
-      applyLpZoom(win);
-      paintLpPreviewChrome(win);
-    }, 220);
-  }
-
-  positionLpBackButton(win);
-}
-
-function livePreviewEditorEl(doc) {
-  return doc.querySelector('.live-preview-editor');
-}
-
-/**
- * Dock Theme Settings over the LEFT Live Preview editor.
- * Stays on document.body — reparenting an iframe reloads it (preview flicker).
- */
-function pinGlobalsPanelLeft(win, panel) {
-  attachGlobalsOverlay(win, panel);
-  forcePanelOpen = true;
-  setLpCollapsed(win, false);
-  applyHeaderTab(win);
-
-  const editor = livePreviewEditorEl(win.document);
-
-  if (editor && win.getComputedStyle(editor).position === 'static') {
-    editor.style.position = 'relative';
-  }
-
-  panel.hidden = false;
-  panel.removeAttribute('data-sve-chrome-hidden');
-  bindGlobalsOverlayLayout(win);
-  placeGlobalsOverlay(win);
-  applyHeaderTab(win);
-}
-
-/** @deprecated alias — Theme Settings docks left now. */
-function pinGlobalsPanelRight(win, panel) {
-  pinGlobalsPanelLeft(win, panel);
-}
-
-/** @deprecated alias */
-function pinGlobalsPanelToEditor(win, panel) {
-  pinGlobalsPanelLeft(win, panel);
-}
-
-/** Absolute fill CSS — only for designs cards that are not an iframe form. */
-function editorOverlayCss() {
-  return (
-    'position:absolute;inset:0;width:auto;height:auto;z-index:50;overflow:hidden;' +
-    'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
-    'color:currentColor;border:0;box-shadow:none;font-family:ui-sans-serif,system-ui,sans-serif;'
-  );
-}
-
-/**
- * Open Statamic's left Live Preview editor and keep it open. Chrome UI mounts
- * inside it so switching footer ↔ hero never changes sidebar width.
- */
-function claimLivePreviewEditor(win) {
-  clearSolo(win.document);
-
-  if (headerTab === 'settings') {
-    setHeaderTab(win, null);
-  }
-
-  forcePanelOpen = true;
-  setLpCollapsed(win, false);
-  applyHeaderTab(win);
-
-  const editor = livePreviewEditorEl(win.document);
-
-  if (editor && win.getComputedStyle(editor).position === 'static') {
-    editor.style.position = 'relative';
-  }
-}
-
-/** @deprecated name — now claims the shared LP editor instead of collapsing it. */
-function borrowLeftEdge(win) {
-  claimLivePreviewEditor(win);
-}
-
-/** Designs panel (no iframe) can still mount inside the editor. */
-function mountInLivePreviewEditor(win, panel) {
-  claimLivePreviewEditor(win);
-
-  const doc = win.document;
-  const editor = livePreviewEditorEl(doc);
-  const visible = panel.style.display !== 'none' && !panel.hasAttribute('data-sve-chrome-hidden');
-
-  panel.style.cssText = editorOverlayCss();
-  panel.style.display = visible ? 'flex' : 'none';
-
-  if (!editor) {
-    doc.body.appendChild(panel);
-
-    return;
-  }
-
-  if (win.getComputedStyle(editor).position === 'static') {
-    editor.style.position = 'relative';
-  }
-
-  if (panel.parentElement !== editor) {
-    editor.appendChild(panel);
-  }
-}
-
-/** After chrome overlays close, follow LP mode — unless a solo section needs the pane. */
-function releaseLeftEdgeIfFree(win) {
-  const doc = win.document;
-
-  if (dockedPanelWidth(doc, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]) > 0) {
-    return;
-  }
-
-  forcePanelOpen = false;
-
-  if (!lpHeader(doc)) {
-    return;
-  }
-
-  if (soloUid) {
-    setLpCollapsed(win, false);
-
-    return;
-  }
-
-  setLpCollapsed(win, lpMode(win) !== 'show');
-}
-
-/**
- * Leave header/footer chrome focus so a page section can use the left editor.
- * Theme Settings overlay is parked (form + stash intact) — only chrome designs
- * and tab-lock are cleared.
- */
-function dismissChromeForPageEdit(win) {
-  hideGlobalsPanel(win, { release: false });
-  win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
-  removeChromeModeToggles(win);
-  setActiveChromeKind(null);
-  // In this window the chrome form IS the left editor, so a page section can only
-  // have it once that form is out of the way. Its stash stays until the section
-  // click that got us here has been answered — the preview is still rendering the
-  // header as it is being typed.
-  closeChromeInline(win, { refresh: false });
-  unlockChromeGlobalsTabs(win);
-  forcePanelOpen = false;
-  syncPreviewInset(win);
-  syncSectionLibraryAvailability(win);
-}
-
-/** Visible width of the widest panel in `ids` (0 if none). */
-function dockedPanelWidth(doc, ids) {
-  let px = 0;
-
-  for (const id of ids) {
-    const panel = doc.getElementById(id);
-
-    if (
-      !panel ||
-      panel.style.display === 'none' ||
-      panel.hasAttribute('data-sve-chrome-hidden') ||
-      panel.hasAttribute('data-sve-right-closed')
-    ) {
-      continue;
-    }
-
-    px = Math.max(px, Math.round(panel.getBoundingClientRect().width));
-  }
-
-  return px;
-}
-
-/** @deprecated use dockedPanelWidth — kept for call sites that mean "right edge" */
-function rightPanelWidth(doc) {
-  return dockedPanelWidth(doc, [
-    SECTION_PICKER_ID,
-    GLOBAL_SECTION_PANEL_ID,
-    GLOBALS_PANEL_ID,
-  ]);
-}
-
-// The section library is a docked panel, not a popup: it stays open while you
-// work, and you drag a card straight into the preview to place it (or click to
-// drop it at the end). The pending drag lives here so the ext-drop reply from
-// the bridge knows what to insert.
-let libraryDrag = null;
-
-/**
- * Chip group for the section library: the type prefix (`hero/style_1` → `hero`,
- * `featured_section/style_2` → `featured_section`). A site can dump every set
- * into one fieldset tab (`Items`); that tab is not the filter the picker shows.
- * Bare handles (`code_block`) keep their own chip. YAML `group` is only used
- * when the handle has no prefix of its own.
- */
-function libraryGroupKey(type) {
-  const handle = type?.handle;
-
-  if (handle && typeof handle === 'string' && handle.includes('/')) {
-    return handle.split('/')[0].toLowerCase();
-  }
-
-  if (handle && typeof handle === 'string' && handle.length) {
-    return handle.toLowerCase();
-  }
-
-  if (type && typeof type.group === 'string' && type.group.length) {
-    return type.group;
-  }
-
-  return 'other';
-}
-
-/** Handle-prefix label (`Hero`), fieldset tab when it matches, then "Other". */
-function libraryGroupLabel(win, key, types) {
-  const fromYaml = (types || []).find(
-    (type) => type.group === key && type.group_display && libraryGroupKey(type) === key
-  );
-
-  if (fromYaml?.group_display) {
-    return fromYaml.group_display;
-  }
-
-  if (key === 'other') {
-    return t(win, 'library_group_other');
-  }
-
-  const spaced = key.replace(/[_-]+/g, ' ');
-
-  return spaced.replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Unique group keys in fieldset order (first seen), not alphabetically. */
-function libraryGroupKeys(types) {
-  const keys = [];
-
-  (types || []).forEach((type) => {
-    const key = libraryGroupKey(type);
-
-    if (!keys.includes(key)) {
-      keys.push(key);
-    }
-  });
-
-  return keys;
-}
-
-/** Case-insensitive match against display/title and handle. */
-function libraryMatchesQuery(item, query) {
-  const q = (query || '').trim().toLowerCase();
-
-  if (!q) {
-    return true;
-  }
-
-  const haystack = [item.display, item.title, item.handle]
-    .filter((v) => typeof v === 'string' && v.length)
-    .join(' ')
-    .toLowerCase();
-
-  return haystack.includes(q);
-}
-
-/** Opens/creates the docked section library. Toggles closed if already open. */
-function openSectionPicker(win, options = {}) {
-  const doc = win.document;
-  const initialTab = options.tab || null;
-
-  // Switched off for this site. Checked here rather than only where the toolbar
-  // icon is built, because the "add a section below" control in the preview opens
-  // the library too — one gate covers every way in.
-  if (!featureOn(win, 'sections')) {
-    return;
-  }
-
-  // Header/footer chrome and global-section edit own the page — no section drops.
-  if (isSectionLibraryLocked(win)) {
-    closeSectionPicker(win);
-    syncSectionLibraryAvailability(win);
-
-    return;
-  }
-
-  if (doc.getElementById(SECTION_PICKER_ID)) {
-    if (initialTab) {
-      doc.getElementById(SECTION_PICKER_ID).dispatchEvent(
-        new CustomEvent('sve-set-tab', { detail: { tab: initialTab } })
-      );
-
-      return;
-    }
-
-    closeSectionPicker(win);
-
-    return;
-  }
-
-  // Theme Settings is on the left now — the library can open beside it.
-  mountSectionPicker(win, options);
-
-  if (initialTab) {
-    doc.getElementById(SECTION_PICKER_ID)?.dispatchEvent(
-      new CustomEvent('sve-set-tab', { detail: { tab: initialTab } })
-    );
-  }
-}
-
-/** Build the sections library panel. Caller has already handled globals. */
-function mountSectionPicker(win, options = {}) {
-  const doc = win.document;
-  const initialTab = options.tab || null;
-
-  if (doc.getElementById(SECTION_PICKER_ID)) {
-    return;
-  }
-
-  closeRightPanels(win, [SECTION_PICKER_ID, CHROME_DESIGNS_ID]);
-
-  const panel = doc.createElement('div');
-
-  panel.id = SECTION_PICKER_ID;
-  panel.style.cssText = RIGHT_PANEL_FILL;
-
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;flex:0 0 auto;gap:6px;">
-      <div data-sve-right-title>${t(win, 'sections')}</div>
-      <button type="button" data-sve-close>✕</button>
-    </div>
-    <div data-sve-hint style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'library_hint')}</div>
-    <div data-sve-tabs style="display:flex;gap:3px;padding:2px 0 0;flex:0 0 auto;"></div>
-    <div data-sve-search-wrap style="padding:var(--sve-right-body-pad-block) 0 0;flex:0 0 auto;">
-      <input data-sve-search type="text" autocomplete="sve-off" placeholder="${t(win, 'library_search_placeholder')}"
-        style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
-        background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
-    </div>
-    <div data-sve-groups-wrap style="display:none;position:relative;flex:0 0 auto;align-self:stretch;width:100%;max-width:100%;min-width:0;">
-      <div data-sve-groups style="display:flex;flex-wrap:nowrap;gap:4px;padding:var(--sve-right-body-pad-block) 0 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;"></div>
-      <div data-sve-groups-fade aria-hidden="true" style="display:none;position:absolute;top:var(--sve-right-body-pad-block);right:0;bottom:0;width:36px;pointer-events:none;background:linear-gradient(to right,transparent,var(--theme-color-content-bg,Canvas));"></div>
-    </div>
-    <style>[data-sve-groups]::-webkit-scrollbar{display:none}</style>
-    <div data-sve-scroll style="flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;margin-top:var(--sve-right-body-pad-block);padding:0 0 var(--sve-right-body-pad-block);">
-      <div data-sve-grid style="column-gap:12px;"></div>
-    </div>
-  `;
-
-  // Fade sits on a sibling, not on the scroller. Setting mask-image on a
-  // scrollable element resets scrollLeft in Chrome.
-  const syncGroupsFade = () => {
-    const groups = panel.querySelector('[data-sve-groups]');
-    const fade = panel.querySelector('[data-sve-groups-fade]');
-
-    if (!groups || !fade) {
-      return;
-    }
-
-    const more = groups.scrollWidth - groups.clientWidth - groups.scrollLeft > 1;
-
-    fade.style.display = more ? 'block' : 'none';
-  };
-
-  const applyLibraryLayout = () => {
-    const w = panel.getBoundingClientRect().width || rightDockWidth(win);
-    const cols = w >= 720 ? 3 : w >= 480 ? 2 : 1;
-    const grid = panel.querySelector('[data-sve-grid]');
-    const next = String(cols);
-
-    syncGroupsFade();
-
-    if (!grid || grid.style.columnCount === next) {
-      return;
-    }
-
-    // Masonry lives on an unconstrained inner box; the outer [data-sve-scroll]
-    // scrolls. Putting column-count on the scroll box itself overflows sideways.
-    grid.style.columnCount = next;
-  };
-
-  showInRightShell(win, panel);
-  applyLibraryLayout();
-  syncPreviewInset(win);
-
-  try {
-    const ro = new win.ResizeObserver(() => applyLibraryLayout());
-
-    ro.observe(panel);
-    panel._sveLibRo = ro;
-  } catch {
-    win.addEventListener('resize', applyLibraryLayout);
-  }
-
-  const tabsEl = panel.querySelector('[data-sve-tabs]');
-  const searchEl = panel.querySelector('[data-sve-search]');
-  const groupsWrap = panel.querySelector('[data-sve-groups-wrap]');
-  const groupsEl = panel.querySelector('[data-sve-groups]');
-  const gridEl = panel.querySelector('[data-sve-grid]');
-
-  panel.querySelector('[data-sve-close]')?.addEventListener('click', () => {
-    closeSectionPicker(win);
-
-    if (headerTab === 'sections') {
-      setHeaderTab(win, null);
-    }
-
-    persistDockedPanel(win);
-    applyHeaderTab(win);
-  });
-  groupsEl.addEventListener('scroll', syncGroupsFade);
-
-  const tabs = [
-    { key: 'page', feature: 'library_page', label: t(win, 'tab_page') },
-    { key: 'custom', feature: 'library_custom', label: t(win, 'tab_custom') },
-    { key: 'global', feature: 'library_global', label: t(win, 'tab_global') },
-    { key: 'template', feature: 'library_templates', label: t(win, 'tab_templates') },
-  ].filter((tab) => featureOn(win, tab.feature));
-
-  // 'page' is the natural landing tab, but a site can switch it off — then the
-  // first tab that survived is what opens.
-  const fallbackTab = tabs.some((tab) => tab.key === 'page') ? 'page' : tabs[0]?.key;
-  let active = initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : fallbackTab;
-  let saved = null;
-  let templates = null;
-  let query = '';
-  let group = null; // null = all groups
-  let typesAsked = false;
-
-
-  // Natural-height preview cards in a CSS-columns masonry grid. The image sets
-  // the card height (no fixed crop); break-inside keeps a card in one column.
-  const card = (title, imageUrl, kind, item) => {
-    const el = doc.createElement('div');
-
-    el.setAttribute('data-sve-lib-handle', String(item?.handle || item?.id || title));
-    el.style.cssText =
-      'cursor:grab;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
-      'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
-      'user-select:none;vertical-align:top;';
-    el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
-    el.addEventListener('mouseleave', () => (el.style.borderColor = 'rgba(128,128,128,.25)'));
-    el.innerHTML = `
-      <div style="width:100%;background:rgba(128,128,128,.12);pointer-events:none;">
-        ${
-          imageUrl
-            ? `<img src="${imageUrl}" alt="" style="width:100%;height:auto;display:block;">`
-            : `<div style="width:100%;aspect-ratio:3/1;min-height:56px;display:flex;align-items:center;justify-content:center;opacity:.4;font-size:12px;">${t(win, 'no_preview')}</div>`
-        }
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;padding:8px 10px;">
-        <div data-sve-card-title style="flex:1 1 auto;min-width:0;font-size:12px;font-weight:500;pointer-events:none;
-          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
-      </div>
-    `;
-
-    el.querySelector('[data-sve-card-title]').textContent = title;
-
-    // Whether the trash appears at all is the server's call, per item: content
-    // needs delete rights on the entry, a section type needs `configure fields`.
-    if (item?.can_delete) {
-      el.querySelector('[data-sve-card-title]').after(
-        libraryDeleteButton(win, kind, item, () => {
-          // Whichever list it came from is now stale — drop both so the tab
-          // refetches, and re-render what's on screen. (A section type needs no
-          // refetch: the delete handed back the fresh list.)
-          saved = null;
-          templates = null;
-          renderActive();
-        })
-      );
-    }
-
-    beginCardDrag(win, el, kind, item);
-
-    return el;
-  };
-
-  const empty = (text) => {
-    const el = doc.createElement('div');
-
-    el.style.cssText =
-      'padding:30px 6px;text-align:center;opacity:.55;font-size:12px;column-span:all;break-inside:avoid;';
-    el.textContent = text;
-
-    return el;
-  };
-
-  const styleChip = (btn, on) => {
-    btn.style.background = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.22)';
-    btn.style.color = on ? '#fff' : 'currentColor';
-    btn.style.fontWeight = on ? '600' : '500';
-    btn.style.opacity = '1';
-  };
-
-  const renderGroups = () => {
-    if (active !== 'page') {
-      groupsWrap.style.display = 'none';
-      groupsEl.innerHTML = '';
-
-      return;
-    }
-
-    const types = sectionTypes(win);
-    const ordered = libraryGroupKeys(types);
-
-    if (group && !ordered.includes(group)) {
-      group = null;
-    }
-
-    if (ordered.length < 2) {
-      groupsWrap.style.display = 'none';
-      groupsEl.innerHTML = '';
-      group = null;
-
-      return;
-    }
-
-    const existing = [...groupsEl.querySelectorAll('[data-sve-group]')];
-    const sameChips =
-      groupsWrap.style.display !== 'none' &&
-      existing.length === ordered.length + 1 &&
-      existing[0]?.getAttribute('data-sve-group') === '' &&
-      ordered.every((key, i) => existing[i + 1]?.getAttribute('data-sve-group') === key);
-
-    if (sameChips) {
-      existing.forEach((btn) => {
-        const key = btn.getAttribute('data-sve-group');
-
-        styleChip(btn, key === '' ? group === null : group === key);
-      });
-      syncGroupsFade();
-
-      return;
-    }
-
-    const scrollLeft = groupsEl.scrollLeft;
-
-    groupsEl.innerHTML = '';
-    groupsWrap.style.display = 'block';
-
-    const chipStyle =
-      'all:unset;cursor:pointer;flex:0 0 auto;white-space:nowrap;padding:4px 10px;border-radius:999px;font-size:11px;color:currentColor;';
-
-    const allBtn = doc.createElement('button');
-
-    allBtn.type = 'button';
-    allBtn.setAttribute('data-sve-group', '');
-    allBtn.textContent = t(win, 'library_group_all');
-    allBtn.style.cssText = chipStyle;
-    styleChip(allBtn, group === null);
-    allBtn.addEventListener('click', () => {
-      group = null;
-      renderActive();
-    });
-    groupsEl.appendChild(allBtn);
-
-    ordered.forEach((key) => {
-      const btn = doc.createElement('button');
-
-      btn.type = 'button';
-      btn.setAttribute('data-sve-group', key);
-      btn.textContent = libraryGroupLabel(win, key, types);
-      btn.style.cssText = chipStyle;
-      styleChip(btn, group === key);
-      btn.addEventListener('click', () => {
-        group = key;
-        renderActive();
-      });
-      groupsEl.appendChild(btn);
-    });
-
-    groupsEl.scrollLeft = scrollLeft;
-    requestAnimationFrame(syncGroupsFade);
-  };
-
-  const gridScrollEl = () => panel.querySelector('[data-sve-scroll]');
-
-  /**
-   * Fill the masonry without snapping scroll back to the top.
-   *
-   * Preview polling used to wipe `innerHTML` every 1.5s. Emptying the grid
-   * collapses the scroll box, so `scrollTop` clamps to 0 — and the group chips
-   * were rebuilt the same way. Same cards in the same order only get their
-   * picture/title updated.
-   */
-  const paintGrid = (rows, before) => {
-    const existing = [...gridEl.querySelectorAll(':scope > [data-sve-lib-handle]')];
-    const sameOrder =
-      existing.length === rows.length &&
-      rows.length > 0 &&
-      rows.every((row, i) => existing[i].getAttribute('data-sve-lib-handle') === row.key);
-
-    if (sameOrder) {
-      rows.forEach((row, i) => {
-        const el = existing[i];
-        const titleEl = el.querySelector('[data-sve-card-title]');
-
-        if (titleEl && titleEl.textContent !== row.title) {
-          titleEl.textContent = row.title;
-        }
-
-        const img = el.querySelector('img');
-
-        if (row.imageUrl) {
-          if (img) {
-            if (img.getAttribute('src') !== row.imageUrl) {
-              const h = img.getBoundingClientRect().height;
-
-              if (h) {
-                img.style.minHeight = `${Math.round(h)}px`;
-                img.addEventListener('load', () => {
-                  img.style.minHeight = '';
-                }, { once: true });
-              }
-
-              img.setAttribute('src', row.imageUrl);
-            }
-          } else {
-            el.replaceWith(card(row.title, row.imageUrl, row.kind, row.item));
-          }
-        }
-      });
-
-      return;
-    }
-
-    const scrollEl = gridScrollEl();
-    const top = scrollEl?.scrollTop ?? 0;
-
-    gridEl.innerHTML = '';
-    before?.();
-    rows.forEach((row) => gridEl.appendChild(card(row.title, row.imageUrl, row.kind, row.item)));
-
-    if (scrollEl) {
-      scrollEl.scrollTop = top;
-    }
-  };
-
-  const renderPage = () => {
-    const types = sectionTypes(win);
-
-    if (!types.length) {
-      gridEl.innerHTML = '';
-      gridEl.appendChild(empty(t(win, 'no_section_types')));
-
-      return;
-    }
-
-    const filtered = types.filter((type) => {
-      if (group && libraryGroupKey(type) !== group) {
-        return false;
-      }
-
-      return libraryMatchesQuery(type, query);
-    });
-
-    if (!filtered.length) {
-      gridEl.innerHTML = '';
-      gridEl.appendChild(empty(t(win, 'library_no_matches')));
-
-      return;
-    }
-
-    paintGrid(
-      filtered.map((type) => ({
-        key: String(type.handle),
-        title: type.display,
-        imageUrl: type.image_url,
-        kind: 'page',
-        item: type,
-      }))
-    );
-  };
-
-  const applyTypeRefresh = (diff = { listChanged: true, imagesChanged: true }) => {
-    if (active !== 'page') {
-      return;
-    }
-
-    if (diff.listChanged) {
-      renderGroups();
-    }
-
-    if (diff.listChanged || diff.imagesChanged) {
-      renderPage();
-    }
-  };
-
-  const renderSaved = (synced) => {
-    const items = (saved || []).filter((s) => !!s.synced === synced);
-
-    if (!items.length) {
-      gridEl.innerHTML = '';
-      gridEl.appendChild(
-        empty(
-          synced
-            ? t(win, 'no_global_sections')
-            : t(win, 'no_saved_sections')
-        )
-      );
-
-      return;
-    }
-
-    const filtered = items.filter((item) => libraryMatchesQuery(item, query));
-
-    if (!filtered.length) {
-      gridEl.innerHTML = '';
-      gridEl.appendChild(empty(t(win, 'library_no_matches')));
-
-      return;
-    }
-
-    paintGrid(
-      filtered.map((item) => ({
-        key: String(item.id),
-        title: item.title,
-        imageUrl: item.preview_url,
-        kind: synced ? 'global' : 'custom',
-        item,
-      }))
-    );
-  };
-
-  // A template's card carries the whole page, so it says how many sections that
-  // is — the picture alone can't tell you whether you're about to drop three
-  // sections or fifteen.
-  const renderTemplates = () => {
-    const saveBtn = () => {
-      const save = doc.createElement('button');
-
-      save.type = 'button';
-      save.textContent = t(win, 'save_page_as_template');
-      save.style.cssText =
-        'all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;column-span:all;break-inside:avoid;' +
-        'text-align:center;padding:10px;margin:0 0 12px;border-radius:8px;font-size:12px;' +
-        'font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;';
-      save.addEventListener('click', () => savePageAsTemplate(win, () => {
-        templates = null;
-        renderActive();
-      }));
-
-      return save;
-    };
-
-    if (!(templates || []).length) {
-      gridEl.innerHTML = '';
-      gridEl.appendChild(saveBtn());
-      gridEl.appendChild(empty(t(win, 'no_templates')));
-
-      return;
-    }
-
-    const filtered = templates.filter((item) => libraryMatchesQuery(item, query));
-
-    if (!filtered.length) {
-      gridEl.innerHTML = '';
-      gridEl.appendChild(saveBtn());
-      gridEl.appendChild(empty(t(win, 'library_no_matches')));
-
-      return;
-    }
-
-    paintGrid(
-      filtered.map((item) => ({
-        key: String(item.id),
-        title: `${item.title} · ${t(win, 'template_count', { count: item.count })}`,
-        imageUrl: item.preview_url,
-        kind: 'template',
-        item,
-      })),
-      () => gridEl.appendChild(saveBtn())
-    );
-  };
-
-  // Design cards for header/footer live in the LEFT chrome-designs panel now —
-  // not in this sections library.
-
-  const renderActive = () => {
-    tabsEl.querySelectorAll('button').forEach((b) => {
-      const on = b.dataset.tab === active;
-
-      b.style.background = on ? 'rgba(128,128,128,.2)' : 'transparent';
-      b.style.fontWeight = on ? '600' : '500';
-      b.style.opacity = on ? '1' : '.7';
-    });
-
-    const hintEl = panel.querySelector('[data-sve-hint]');
-
-    if (hintEl) {
-      hintEl.textContent = t(win, 'library_hint');
-    }
-
-    if (searchEl) {
-      searchEl.placeholder = t(win, 'library_search_placeholder');
-    }
-
-    renderGroups();
-
-    if (active === 'page') {
-      if (!typesAsked) {
-        typesAsked = true;
-        refreshSectionTypes(win, applyTypeRefresh);
-      }
-
-      renderPage();
-
-      return;
-    }
-
-    if (active === 'template') {
-      if (templates === null) {
-        gridEl.innerHTML = '';
-        gridEl.appendChild(empty(t(win, 'loading')));
-
-        pollLibrary(
-          win,
-          '/!/sve/templates',
-          (data) => data.templates || [],
-          (items) => {
-            templates = items;
-
-            if (active === 'template') {
-              renderTemplates();
-            }
-          },
-          () => {
-            templates = [];
-            gridEl.innerHTML = '';
-            gridEl.appendChild(empty(t(win, 'templates_failed')));
-          }
-        );
-
-        return;
-      }
-
-      renderTemplates();
-
-      return;
-    }
-
-    if (saved === null) {
-      gridEl.innerHTML = '';
-      gridEl.appendChild(empty(t(win, 'loading')));
-
-      pollLibrary(
-        win,
-        '/!/sve/saved-sections',
-        (data) => data.sections || [],
-        (items) => {
-          saved = items;
-
-          if (active === 'custom' || active === 'global') {
-            renderSaved(active === 'global');
-          }
-        },
-        () => {
-          saved = [];
-          gridEl.innerHTML = '';
-          gridEl.appendChild(empty(t(win, 'saved_sections_failed')));
-        }
-      );
-
-      return;
-    }
-
-    renderSaved(active === 'global');
-  };
-
-  searchEl.addEventListener('input', () => {
-    query = searchEl.value;
-    renderActive();
-  });
-
-  tabs.forEach((tab) => {
-    const b = doc.createElement('button');
-
-    b.type = 'button';
-    b.dataset.tab = tab.key;
-    b.textContent = tab.label;
-    b.style.cssText = 'all:unset;cursor:pointer;padding:6px 12px;border-radius:8px;font-size:12px;color:currentColor;';
-    b.addEventListener('click', () => {
-      active = tab.key;
-      if (active !== 'page') {
-        group = null;
-      }
-      renderActive();
-    });
-    tabsEl.appendChild(b);
-  });
-
-  // Something was added to a library while this panel was open — a section just
-  // saved from the editor, most often. The lists it has are from before that, so
-  // it drops them and asks again. A screenshot follows the save; one catch-up
-  // event (not a 1.5s loop) fills the picture in.
-  panel.addEventListener('sve-library-stale', () => {
-    saved = null;
-    templates = null;
-    sectionTypesOverride = null;
-    typesAsked = false;
-    renderActive();
-
-    win.clearTimeout(libraryCatchupTimer);
-    libraryCatchupTimer = win.setTimeout(() => {
-      panel.dispatchEvent(new win.CustomEvent('sve-library-preview-ready'));
-    }, 8000);
-  });
-
-  panel.addEventListener('sve-library-preview-ready', () => {
-    refreshSectionTypes(win, applyTypeRefresh);
-
-    if (saved !== null) {
-      pollLibrary(
-        win,
-        '/!/sve/saved-sections',
-        (data) => data.sections || [],
-        (items) => {
-          saved = items;
-
-          if (active === 'custom' || active === 'global') {
-            renderSaved(active === 'global');
-          }
-        },
-        () => {}
-      );
-    }
-
-    if (templates !== null) {
-      pollLibrary(
-        win,
-        '/!/sve/templates',
-        (data) => data.templates || [],
-        (items) => {
-          templates = items;
-
-          if (active === 'template') {
-            renderTemplates();
-          }
-        },
-        () => {}
-      );
-    }
-  });
-
-  panel.addEventListener('sve-set-tab', (event) => {
-    const next = event.detail?.tab;
-
-    if (!next || !tabs.some((tab) => tab.key === next)) {
-      return;
-    }
-
-    active = next;
-    group = null;
-    renderActive();
-
-    const activeBtn = tabsEl.querySelector(`[data-tab="${next}"]`);
-
-    activeBtn?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
-  });
-
-  renderActive();
-  searchEl.focus();
-}
-
-const LIBRARY_DELETE_ID = '__sve-library-delete';
-
-const TRASH_ICON =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" ' +
-  'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' +
-  'style="display:block;pointer-events:none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>' +
-  '<path d="M10 11v6M14 11v6"/></svg>';
-
-/**
- * The trash on a library card.
- *
- * Its pointerdown is swallowed so the card's drag handler never starts: without
- * that, aiming for the trash would pick the card up and — under the drag
- * threshold — drop the section onto the page instead of deleting it.
- */
-function libraryDeleteButton(win, kind, item, onDeleted) {
-  const btn = win.document.createElement('button');
-
-  btn.type = 'button';
-  btn.title = t(win, 'delete_item');
-  btn.setAttribute('aria-label', t(win, 'delete_item'));
-  btn.innerHTML = TRASH_ICON;
-  btn.style.cssText =
-    'all:unset;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;' +
-    'width:24px;height:24px;border-radius:6px;color:currentColor;opacity:.45;transition:opacity .12s,color .12s;';
-  btn.addEventListener('mouseenter', () => {
-    btn.style.opacity = '1';
-    btn.style.color = '#dc2626';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.opacity = '.45';
-    btn.style.color = 'currentColor';
-  });
-  btn.addEventListener('pointerdown', (event) => event.stopPropagation());
-  btn.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    confirmDeleteLibraryItem(win, kind, item, onDeleted);
-  });
-
-  return btn;
-}
-
-/**
- * "Are you sure?" for deleting something out of the library.
- *
- * Three different things, three different costs. A template and a custom section
- * are only ever *copied* onto a page, so the pages built from one keep what they
- * have and the question is simple. A global section is a live reference: the
- * dialog looks first, and if pages point at it they're named, because confirming
- * takes the section off all of them. A section *type* is heavier still — the set
- * leaves the fieldset, so no page can ever add one again, and the pages that
- * have one lose it along with its content.
- */
-function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
-  const doc = win.document;
-  const isTemplate = kind === 'template';
-  const isType = kind === 'page';
-  const name = item.display || item.title;
-
-  doc.getElementById(LIBRARY_DELETE_ID)?.remove();
-
-  const overlay = createPreviewCenteredOverlay(doc, LIBRARY_DELETE_ID);
-  const card = doc.createElement('div');
-
-  card.style.cssText = dialogCardStyle(win);
-  card.innerHTML =
-    '<div data-sve-title style="font-size:15px;font-weight:600;margin-bottom:6px;"></div>' +
-    '<div data-sve-body style="font-size:13px;opacity:.75;line-height:1.45;margin-bottom:18px;"></div>' +
-    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
-
-  const titleEl = card.querySelector('[data-sve-title]');
-  const bodyEl = card.querySelector('[data-sve-body]');
-  const actions = card.querySelector('[data-sve-actions]');
-  const close = () => overlay.remove();
-
-  const titleKey = isTemplate
-    ? 'delete_template_title'
-    : isType
-      ? 'delete_section_type_title'
-      : 'delete_saved_section_title';
-
-  titleEl.textContent = t(win, titleKey, { name });
-  bodyEl.textContent = t(win, isTemplate ? 'delete_template_body' : 'delete_checking');
-
-  const button = (label, style, onClick) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.style.cssText = style;
-    btn.addEventListener('click', () => {
-      close();
-      onClick();
-    });
-    actions.appendChild(btn);
-  };
-
-  const cancelOnly = () => {
-    actions.textContent = '';
-    button(t(win, 'cancel'), dialogCancelButtonStyle(win), () => {});
-  };
-
-  const withConfirm = (confirmKey, removeUsages) => {
-    cancelOnly();
-    button(t(win, confirmKey), dialogDangerButtonStyle(), () =>
-      deleteLibraryItem(win, kind, item, removeUsages, onDeleted)
-    );
-  };
-
-  overlay.addEventListener('click', (event) => event.target === overlay && close());
-  overlay.appendChild(card);
-  doc.body.appendChild(overlay);
-
-  if (isTemplate) {
-    withConfirm('delete_confirm', false);
-
-    return;
-  }
-
-  // Cancel only until we know what it costs — the delete button arrives with the
-  // answer, so nothing can be confirmed before the question is complete.
-  cancelOnly();
-
-  const usageUrl = isType
-    ? `/!/sve/section-types/usage?handle=${encodeURIComponent(item.handle)}`
-    : `/!/sve/saved-sections/${encodeURIComponent(item.id)}/usage`;
-
-  win
-    .fetch(usageUrl, {
-      credentials: 'same-origin',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-    .then((data) => {
-      const usages = data.usages || [];
-
-      if (!usages.length) {
-        // A custom section's copies live on regardless; a synced one that nobody
-        // points at simply goes; a type leaves the fieldset either way. Three
-        // different reasons for "nothing else changes", so three sentences.
-        bodyEl.textContent = t(
-          win,
-          isType
-            ? 'delete_section_type_body'
-            : item.synced
-              ? 'delete_global_section_unused_body'
-              : 'delete_saved_section_body'
-        );
-        withConfirm('delete_confirm', false);
-
-        return;
-      }
-
-      bodyEl.textContent = '';
-      bodyEl.appendChild(
-        usageList(win, usages, isType ? ['delete_section_type_body', 'delete_section_type_used'] : ['delete_global_section_body'])
-      );
-      withConfirm('delete_confirm_everywhere', true);
-    })
-    .catch(() => {
-      bodyEl.textContent = t(win, 'delete_usage_failed');
-    });
-}
-
-/** The pages something sits on, listed under whatever the warning is. */
-function usageList(win, usages, leadKeys) {
-  const doc = win.document;
-  const wrap = doc.createElement('div');
-
-  leadKeys.forEach((key) => {
-    const warning = doc.createElement('div');
-
-    warning.textContent = t(win, key);
-    warning.style.cssText = 'margin-bottom:10px;';
-    wrap.appendChild(warning);
-  });
-
-  const heading = doc.createElement('div');
-
-  heading.textContent =
-    usages.length === 1
-      ? t(win, 'delete_usage_heading_one')
-      : t(win, 'delete_usage_heading', { count: usages.length });
-  heading.style.cssText = 'font-weight:600;opacity:.9;margin-bottom:4px;';
-  wrap.appendChild(heading);
-
-  const list = doc.createElement('ul');
-
-  list.style.cssText = 'margin:0;padding:0;list-style:none;max-height:180px;overflow-y:auto;';
-
-  usages.forEach((usage) => {
-    const li = doc.createElement('li');
-
-    li.style.cssText =
-      'display:flex;gap:6px;align-items:baseline;padding:3px 0;border-top:1px solid rgba(128,128,128,.18);';
-
-    const name = doc.createElement('span');
-
-    name.textContent = usage.title;
-    name.style.cssText = 'flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-
-    const where = doc.createElement('span');
-
-    // The collection, so two pages with the same name are still tellable apart —
-    // and so a template holding the section doesn't read as a page.
-    where.textContent =
-      usage.count > 1
-        ? `${usage.collection_title} · ${t(win, 'delete_usage_count', { count: usage.count })}`
-        : usage.collection_title;
-    where.style.cssText = 'flex:0 0 auto;opacity:.6;font-size:12px;';
-
-    li.append(name, where);
-    list.appendChild(li);
-  });
-
-  wrap.appendChild(list);
-
-  return wrap;
-}
-
-/** Sends the delete, then tells the picker to reload the list it came from. */
-function deleteLibraryItem(win, kind, item, removeUsages, onDeleted) {
-  const name = item.display || item.title;
-  const suffix = removeUsages ? 'remove_usages=1' : '';
-
-  const url =
-    kind === 'template'
-      ? `/!/sve/templates/${encodeURIComponent(item.id)}`
-      : kind === 'page'
-        ? `/!/sve/section-types?handle=${encodeURIComponent(item.handle)}${suffix ? `&${suffix}` : ''}`
-        : `/!/sve/saved-sections/${encodeURIComponent(item.id)}${suffix ? `?${suffix}` : ''}`;
-
-  win
-    .fetch(url, {
-      method: 'DELETE',
-      credentials: 'same-origin',
-      headers: {
-        'X-CSRF-TOKEN': csrfToken(win),
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-    })
-    .then(async (res) => {
-      const body = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        win.Statamic?.$toast?.error(t(win, 'delete_failed'));
-
-        return;
-      }
-
-      // The page open in the editor holds its own copy of the form. The server
-      // took the rows out of the entry on disk, but not out of this — and saving
-      // the page would write them straight back.
-      if (kind === 'global') {
-        stripSectionsFromForm(win, sectionReferenceMatcher(win, item.id));
-      } else if (kind === 'page') {
-        stripSectionsFromForm(win, (row) => row?.type === item.handle);
-        // The picker's type list came from the page render, and one of them no
-        // longer exists. The server sent the fresh list back with the delete.
-        if (Array.isArray(body.section_types)) {
-          sectionTypesOverride = body.section_types;
-        }
-      }
-
-      win.Statamic?.$toast?.success(
-        body.removed_from
-          ? t(win, 'deleted_toast_everywhere', { name, count: body.removed_from })
-          : t(win, 'deleted_toast', { name })
-      );
-
-      onDeleted();
-    })
-    .catch(() => win.Statamic?.$toast?.error(t(win, 'delete_failed')));
-}
-
-/** Matches a `global_section` row pointing at a given saved-section entry. */
-function sectionReferenceMatcher(win, savedEntryId) {
-  const set = globalSectionSet(win);
-  const id = String(savedEntryId);
-
-  return (row) =>
-    row !== null &&
-    typeof row === 'object' &&
-    row.type === set &&
-    [].concat(row[set] ?? []).map(String).includes(id);
-}
-
-/** Takes every matching section row out of the form open in the editor. */
-function stripSectionsFromForm(win, matches) {
-  const doc = win.document;
-  const field = sectionField(win);
-
-  const strip = (node) => {
-    if (Array.isArray(node)) {
-      return node.filter((entry) => !matches(entry)).map(strip);
-    }
-
-    if (node !== null && typeof node === 'object') {
-      return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, strip(value)]));
-    }
-
-    return node;
-  };
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-    const rows = values && typeof values === 'object' ? values[field] : null;
-
-    if (!Array.isArray(rows)) {
-      continue;
-    }
-
-    const before = JSON.parse(JSON.stringify(rows));
-    const next = strip(before);
-
-    if (JSON.stringify(next) !== JSON.stringify(before)) {
-      container.setFieldValue(field, next);
-    }
-  }
-}
-
-/**
- * True when the pointer is over the live-preview iframe and not over a CP
- * overlay that sits on top of it (code dock, right sidebar, left editor, Theme Settings).
- * The iframe has pointer-events:none for the drag, so the box is the source
- * of truth; elementFromPoint only vetoes overlays.
- */
-function pointerOverLivePreview(win, frame, event) {
-  if (!frame) {
-    return false;
-  }
-
-  const r = frame.getBoundingClientRect();
-
-  if (
-    event.clientX < r.left ||
-    event.clientX > r.right ||
-    event.clientY < r.top ||
-    event.clientY > r.bottom
-  ) {
-    return false;
-  }
-
-  const hit = win.document.elementFromPoint(event.clientX, event.clientY);
-
-  if (!hit || hit === frame || frame.contains(hit)) {
-    return true;
-  }
-
-  return !hit.closest(
-    '#__sve-right-dock, #__sve-code-dock, #__sve-globals-panel, .live-preview-editor, .live-preview-header, #__sve-toolbar'
-  );
-}
-
-/**
- * Pointer drag on a library card. Below the threshold it's a click (drop at the
- * end). Beyond it, the preview zooms out and shows a drop line — but only a
- * release over the live preview inserts. Letting go halfway (library, editor,
- * chrome) cancels; nothing is added.
- */
-function beginCardDrag(win, cardEl, kind, item) {
-  cardEl.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0 || libraryDrag) {
-      return;
-    }
-
-    const doc = win.document;
-    const frame = previewFrame(doc);
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let active = false;
-    let ghost = null;
-    let aborted = false;
-
-    const toPreview = (e) => {
-      const r = frame.getBoundingClientRect();
-
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
-    };
-
-    const stopListen = () => {
-      win.removeEventListener('pointermove', onMove);
-      win.removeEventListener('pointerup', onUp);
-      win.removeEventListener('pointercancel', onUp);
-    };
-
-    const start = () => {
-      active = true;
-      cardEl.setPointerCapture(event.pointerId);
-      // The iframe would swallow the pointer once we're over it — let this window
-      // keep the events, and map the coordinates ourselves.
-      frame.style.pointerEvents = 'none';
-      frame.contentWindow.postMessage({ source: 'statamic-visual-editor', type: 'ext-drag-start' }, win.location.origin);
-
-      ghost = cardEl.cloneNode(true);
-      ghost.style.cssText +=
-        ';position:fixed;z-index:2147483647;pointer-events:none;width:220px;opacity:.9;transform:rotate(1.5deg);box-shadow:0 12px 32px rgba(0,0,0,.3);';
-      doc.body.appendChild(ghost);
-    };
-
-    const onMove = (e) => {
-      if (aborted) {
-        return;
-      }
-
-      if (!active) {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        if (Math.hypot(dx, dy) < 6) {
-          return;
-        }
-
-        // Vertical drag inside the list is a scroll, not a section drag.
-        const scrollEl = cardEl.closest('[data-sve-scroll]');
-
-        if (scrollEl && Math.abs(dy) >= Math.abs(dx)) {
-          aborted = true;
-          stopListen();
-
-          return;
-        }
-
-        start();
-      }
-
-      const p = toPreview(e);
-
-      frame.contentWindow.postMessage(
-        { source: 'statamic-visual-editor', type: 'ext-drag-move', x: p.x, y: p.y },
-        win.location.origin
-      );
-
-      if (ghost) {
-        ghost.style.left = `${e.clientX - 110}px`;
-        ghost.style.top = `${e.clientY - 16}px`;
-      }
-    };
-
-    const onUp = (e) => {
-      stopListen();
-      ghost?.remove();
-
-      try {
-        cardEl.releasePointerCapture(e.pointerId);
-      } catch {
-        /* already released */
-      }
-
-      if (aborted || !active) {
-        if (!aborted && !active) {
-          // A click: drop at the end of the page.
-          insertSection(win, doc, lastSectionUid(doc), kind, item);
-        }
-
-        return;
-      }
-
-      const overPreview =
-        e.type !== 'pointercancel' && pointerOverLivePreview(win, frame, e);
-
-      if (overPreview) {
-        // The bridge replies with ext-drop → the message listener inserts.
-        libraryDrag = { kind, item };
-      } else {
-        libraryDrag = null;
-      }
-
-      if (frame) {
-        frame.style.pointerEvents = '';
-        frame.contentWindow?.postMessage(
-          {
-            source: 'statamic-visual-editor',
-            type: 'ext-drag-end',
-            cancelled: !overPreview,
-          },
-          win.location.origin
-        );
-      }
-    };
-
-    win.addEventListener('pointermove', onMove);
-    win.addEventListener('pointerup', onUp);
-    win.addEventListener('pointercancel', onUp);
-  });
-}
-
-/** The uid of the last top-level page section in the preview (for click-append). */
-function lastSectionUid(doc) {
-  const frame = previewFrame(doc);
-  const inner = frame?.contentDocument;
-  const sections = inner ? [...inner.querySelectorAll('section[data-sid], article[data-sid]')] : [];
-
-  return sections.length ? sections[sections.length - 1].getAttribute('data-sid') : null;
-}
-
-/** A fresh row id in the same shape Statamic uses for replicator/grid rows. */
-function newRowId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-}
-
-/**
- * A blank row modelled on an existing one.
- *
- * Copying the row's shape rather than building one from the blueprint: the
- * blueprint isn't reachable from here, and a row that's missing keys renders
- * wrong. Text is cleared, ids are regenerated, and everything else is kept —
- * so a new button arrives with the same styling and an empty label, ready to
- * fill in, rather than as something the template can't render.
- */
-function blankRowFrom(row) {
-  const next = {};
-
-  for (const [key, value] of Object.entries(row)) {
-    if (key === 'id' || key === '_id') {
-      next[key] = newRowId();
-    } else if (key === '_visual_id') {
-      next[key] = crypto?.randomUUID ? crypto.randomUUID() : `${newRowId()}-${newRowId()}`;
-    } else if (key === 'type' || key === 'enabled') {
-      // Replicator sets need their type intact — clearing it yields
-      // "Undefined array key type" when the preview augments the field.
-      next[key] = value;
-    } else if (typeof value === 'string') {
-      next[key] = '';
-    } else {
-      next[key] = JSON.parse(JSON.stringify(value ?? null));
-    }
-  }
-
-  return next;
-}
-
-/**
- * Walks the container meta alongside the values to the field meta at `path`.
- * Meta mirrors the values tree but keys array rows by their `_id`
- * (`existing[<_id>]`) rather than by index, so numeric path segments are
- * resolved through the value at that index. Returns null if the path can't be
- * followed.
- */
-function metaForPath(fullMeta, values, path) {
-  let meta = fullMeta;
-  let val = values;
-
-  for (const seg of path.split('.')) {
-    if (meta == null) {
-      return null;
-    }
-
-    if (/^\d+$/.test(seg)) {
-      const row = Array.isArray(val) ? val[Number(seg)] : null;
-
-      if (!row || !meta.existing) {
-        return null;
-      }
-
-      meta = meta.existing[row._id];
-      val = row;
-    } else {
-      meta = meta[seg];
-      val = val ? val[seg] : null;
-    }
-  }
-
-  return meta;
-}
-
-/**
- * A new row for an orderable field, pre-filled with the field's DEFAULT values
- * (from the grid meta) so the CP inputs show them and inline editing works right
- * away — matching what Statamic's own "Add row" does. Text-only defaults live in
- * `meta.<field>.defaults`; replicators (per-set defaults) have none, so those
- * fall back to a blank clone of the neighbouring row.
- */
-function newRowFor(win, container, values, parentPath, sampleRow) {
-  const fullMeta = unwrapRef(container.meta);
-  const fieldMeta = fullMeta ? metaForPath(fullMeta, values, parentPath) : null;
-  const defaults = fieldMeta && typeof fieldMeta === 'object' ? fieldMeta.defaults : null;
-
-  let row;
-
-  if (!defaults || typeof defaults !== 'object' || Array.isArray(defaults)) {
-    row = blankRowFrom(sampleRow);
-  } else {
-    row = JSON.parse(JSON.stringify(defaults));
-    row._id = newRowId();
-  }
-
-  // Grid rows (and anything else we inject auto_uuid onto) need a stable
-  // _visual_id in the preview — without it Antlers cascades the parent block's
-  // id onto the button, and "Add another" would duplicate the whole block.
-  if (!row._id) {
-    row._id = newRowId();
-  }
-
-  row._visual_id = newUuid(win);
-
-  return row;
-}
-
-/** The array a row lives in, plus its index. */
-function rowLocation(values, uid) {
-  const path = findPathByUid(values, uid);
-
-  if (path === null || path === '') {
-    return null;
-  }
-
-  const parts = path.split('.');
-
-  // Bard set: uid lives on attrs.values (_visual_id) or attrs (id). Climb to the
-  // content-array index so hide/dup/delete/move operate on the set node itself.
-  if (parts.length >= 3 && parts[parts.length - 1] === 'values' && parts[parts.length - 2] === 'attrs') {
-    const index = Number(parts[parts.length - 3]);
-    const parentPath = parts.slice(0, -3).join('.');
-    const rows = dataGet(values, parentPath);
-
-    if (Array.isArray(rows) && Number.isInteger(index) && rows[index]?.type === 'set') {
-      return { parentPath, index, rows, kind: 'bard-set' };
-    }
-  }
-
-  if (parts.length >= 2 && parts[parts.length - 1] === 'attrs') {
-    const index = Number(parts[parts.length - 2]);
-    const parentPath = parts.slice(0, -2).join('.');
-    const rows = dataGet(values, parentPath);
-
-    if (Array.isArray(rows) && Number.isInteger(index) && rows[index]?.type === 'set') {
-      return { parentPath, index, rows, kind: 'bard-set' };
-    }
-  }
-
-  const dot = path.lastIndexOf('.');
-
-  if (dot === -1) {
-    return null;
-  }
-
-  const parentPath = path.slice(0, dot);
-  const index = Number(path.slice(dot + 1));
-  const rows = dataGet(values, parentPath);
-
-  if (!Array.isArray(rows) || !Number.isInteger(index)) {
-    return null;
-  }
-
-  return {
-    parentPath,
-    index,
-    rows,
-    kind: rows[index]?.type === 'set' ? 'bard-set' : 'row',
-  };
-}
-
-/**
- * What the blueprint allows for the field this row lives in (max_rows/min_rows,
- * or max_sets/min_sets on a replicator). Looked up by the containing set's type
- * first, since the same handle appears in several sets with different limits.
- */
-function rowLimits(values, parentPath, win) {
-  const all = win.Statamic?.$config?.get?.('sveRowLimits') ?? {};
-  const handle = parentPath.slice(parentPath.lastIndexOf('.') + 1);
-  const dot = parentPath.lastIndexOf('.');
-  const set = dot === -1 ? null : dataGet(values, parentPath.slice(0, dot));
-  const type = set && typeof set === 'object' ? set.type : null;
-
-  return (type ? all[`${type}.${handle}`] : null) ?? all[handle] ?? {};
-}
-
-/** "+" on an orderable row: add another one just after it, within the field's max. */
-export async function handleAddRow(data, doc, win) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, data.uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows } = found;
-    const { max } = rowLimits(values, parentPath, win);
-
-    if (max && rows.length >= max) {
-      return; // the field is full — the CP wouldn't allow it either
-    }
-
-    const row = newRowFor(win, container, values, parentPath, rows[index]);
-    const rowMeta = rowMetaTemplate(container, values, parentPath, rows[index]) || {};
-    const built = await applySidTemplate(win, row, data.template, data.fieldDefaults, rowMeta);
-    const next = JSON.parse(JSON.stringify(rows));
-
-    next.splice(index + 1, 0, built.row);
-
-    // Without meta.existing[row._id] the Grid/Replicator Vue UI ignores the row:
-    // Live Preview (values) shows it, the sidebar does not. Same requirement as
-    // handleInsertBlock / insertSectionAfter.
-    writeNestedRowMeta(
-      container,
-      values,
-      parentPath,
-      built.row._id,
-      attachSidNestedMeta(rowMeta, built.nestedField, built.nested)
-    );
-    container.setFieldValue(parentPath, next);
-
-    return;
-  }
-}
-
-/**
- * The last row of a block's field was just taken away, so the block goes too —
- * a links block with no links draws nothing, and an empty block that draws
- * nothing can't be hovered, so it could never be reached again from the page.
- *
- * `uid` is the block the preview found around the row (see blockHolding() in
- * bridge.js — always a set of an insertable container, never a page section).
- * Returns true when the block was removed, and then the caller has nothing left
- * to do: the row went with it.
- */
-function removeEmptiedBlock(container, values, uid, rows, win) {
-  const block = rowLocation(values, uid);
-
-  if (!block || block.rows === rows) {
-    return false;
-  }
-
-  const { min } = rowLimits(values, block.parentPath, win);
-
-  if (min && block.rows.length <= min) {
-    return false; // the section needs this block — leave it, empty
-  }
-
-  const next = JSON.parse(JSON.stringify(block.rows));
-
-  next.splice(block.index, 1);
-  container.setFieldValue(block.parentPath, next);
-
-  return true;
-}
-
-/** "−" on an orderable row: take it out, unless the field's min needs it. */
-export function handleRemoveRow(data, doc, win) {
-  if (rowIsLocked(data.uid, doc)) {
-    return false;
-  }
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, data.uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows } = found;
-    const { min } = rowLimits(values, parentPath, win);
-
-    if (min && rows.length <= min) {
-      return; // removing it would take the field below its minimum
-    }
-
-    const removedId = rows[index]?._id;
-    const next = JSON.parse(JSON.stringify(rows));
-
-    next.splice(index, 1);
-
-    if (!next.length && data.emptyRemovesBlock) {
-      // Drop the emptied row's meta first; removeEmptiedBlock then takes the
-      // whole parent set out of values (its own meta cleanup is a separate path).
-      removeNestedRowMeta(container, values, parentPath, removedId);
-
-      if (removeEmptiedBlock(container, values, data.emptyRemovesBlock, rows, win)) {
-        return;
-      }
-    }
-
-    removeNestedRowMeta(container, values, parentPath, removedId);
-    container.setFieldValue(parentPath, next);
-
-    return;
-  }
-}
-
-/**
- * Duplicate an orderable row (replicator set, Bard set, or grid row), keeping
- * its content but giving every id a fresh value — same idea as Statamic's
- * "Duplicate Set".
- */
-export async function handleDuplicateRow(data, doc, win) {
-  if (rowIsLocked(data.uid, doc)) {
-    return false;
-  }
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, data.uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows, kind } = found;
-    const { max } = rowLimits(values, parentPath, win);
-
-    if (max && rows.length >= max) {
-      return;
-    }
-
-    const copy = reidSection(win, rows[index]);
-
-    if (copy && typeof copy === 'object' && 'enabled' in copy) {
-      copy.enabled = true;
-    }
-
-    if (kind === 'bard-set' && copy?.type === 'set' && copy.attrs) {
-      copy.attrs = { ...copy.attrs, enabled: true };
-
-      const setHandle = copy.attrs.values?.type;
-      const rowId = copy.attrs.id;
-
-      if (setHandle && rowId) {
-        const field = parentPath.slice(parentPath.lastIndexOf('.') + 1);
-        const meta = await fetchNestedSetMeta(win, field, setHandle);
-
-        writeNestedRowMeta(container, values, parentPath, rowId, meta?.new);
-      }
-    } else if (copy?._id) {
-      // Grid / replicator rows: same meta registration as handleAddRow — otherwise
-      // the duplicate appears in the preview and nowhere in the sidebar.
-      writeNestedRowMeta(
-        container,
-        values,
-        parentPath,
-        copy._id,
-        rowMetaTemplate(container, values, parentPath, rows[index])
-      );
-    }
-
-    const next = JSON.parse(JSON.stringify(rows));
-
-    next.splice(index + 1, 0, copy);
-    container.setFieldValue(parentPath, next);
-
-    return;
-  }
-}
-
-/**
- * Hide a replicator/Bard set (`enabled: false`) — same as the CP's blue toggle.
- * The set disappears from the preview; re-enable it from the sidebar.
- * No-ops on grid rows that have no `type` (they're not toggleable sets).
- */
-export function handleHideRow(data, doc, win) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, data.uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows, kind } = found;
-    const row = rows[index];
-
-    if (!row || typeof row !== 'object') {
-      return;
-    }
-
-    const next = JSON.parse(JSON.stringify(rows));
-
-    if (kind === 'bard-set' && row.type === 'set') {
-      next[index] = {
-        ...next[index],
-        attrs: { ...(next[index].attrs || {}), enabled: false },
-      };
-    } else if ('type' in row) {
-      next[index] = { ...next[index], enabled: false };
-    } else {
-      return;
-    }
-
-    container.setFieldValue(parentPath, next);
-
-    return;
-  }
-}
-
-/**
- * Answers the preview's row-caps request: whether the row's field can take
- * another row / lose this one, given its min/max. Lets the preview grey out the
- * +/− that would break the limit (the limit is still enforced here too).
- */
-export function handleRowCaps(data, doc, win) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, data.uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, rows } = found;
-    const { min, max } = rowLimits(values, parentPath, win);
-    const count = rows.length;
-
-    sendToPreview(
-      {
-        source: 'statamic-visual-editor',
-        type: 'row-caps-result',
-        uid: data.uid,
-        canAdd: !max || count < max,
-        canRemove: !min || count > min,
-      },
-      win
-    );
-
-    return;
-  }
-}
-
-/**
- * "Rediger global sektion": content belongs to the synced entry. Open its form
- * in the LEFT Live Preview editor (same place as a normal section) — not a
- * right-hand drawer. Values stream up so inline edit in the preview works.
- */
-export function handleOpenGlobalSection(data, win) {
-  if (!data.id) {
-    return;
-  }
-
-  openGlobalSectionPanel(win, data.id);
-  syncSectionLibraryAvailability(win);
-}
-
-/**
- * The gear on a section in the preview: open that section's own settings popup
- * (spacing, colours, …) — the very one the panel's "Show settings" button opens,
- * so every fieldtype and condition inside it behaves exactly as it always has.
- *
- * The set has to be expanded first: a collapsed set keeps its fields behind
- * v-show, and the popup measures layout as it opens — clicked while hidden it
- * does nothing at all.
- */
-export function handleSectionSettings(data, doc, win) {
-  const setEl = findSetByUid(data.uid, doc) ?? sortableItemForUid(data.uid, doc);
-
-  if (!setEl) {
-    return;
-  }
-
-  if (isGlobalsOverlayOpen(win) && hasUnsavedGlobals(win)) {
-    confirmLeaveGlobalsOverlay(win, () => {
-      dismissChromeForPageEdit(win);
-      handleSectionSettings(data, doc, win);
-    });
-
-    return;
-  }
-
-  dismissChromeForPageEdit(win);
-
-  // Expand ONCE. Expanding is a toggle and Vue applies it asynchronously, so a
-  // second nudge while the first is still pending closes the set right back up.
-  [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-
-  let attempts = 0;
-  let revealed = false;
-
-  const open = () => {
-    // Some sections hide their settings behind a revealer — open it first. It's a
-    // toggle, so it gets exactly one click.
-    if (!revealed) {
-      const revealer = settingsRevealer(setEl);
-
-      if (revealer && /^(show|vis)/i.test((revealer.textContent || '').trim())) {
-        revealer.click();
-        revealed = true;
-      }
-    }
-
-    // A collapsed set renders no fields, and revealing takes a beat — just wait.
-    if (!sectionSettingsFields(setEl).length) {
-      if (++attempts < 30) {
-        setTimeout(open, 200);
-      }
-
-      return;
-    }
-
-    // Let Vue settle before isolating; fall back to showing the whole section if
-    // the settings can't be pinned down.
-    setTimeout(() => {
-      // With the focus panel on, the section already comes up under its own name
-      // with its tabs across the top — the gear means "open it on the settings
-      // tab", not "show me the settings fields and nothing around them".
-      const opened = focusPanelOn(win)
-        ? soloSection(data.uid, doc, win, { kind: 'section', segment: 'settings' })
-        : soloSectionSettings(data.uid, doc, win);
-
-      if (!opened) {
-        soloSection(data.uid, doc, win);
-      }
-
-      forcePanelOpen = true;
-      setLpCollapsed(win, false);
-    }, 250);
-  };
-
-  open();
-}
-
-/**
- * The section's own "Show settings" revealer.
- *
- * Settings aren't a popup — `show_settings` is a `revealer` fieldtype that
- * unhides the section's `settings` fields in place. Sections are full of buttons
- * that say much the same thing (every button row and column has its own), so the
- * section's is picked by nesting: its fields sit in the set's own field list,
- * everything else's are one or more field lists further in.
- */
-function settingsRevealer(setEl) {
-  const depth = (el) => {
-    let levels = 0;
-
-    for (let node = el.parentElement; node && node !== setEl; node = node.parentElement) {
-      if (node.classList?.contains('publish-fields')) {
-        levels++;
-      }
-    }
-
-    return levels;
-  };
-
-  // Found by fieldtype, not by label: the field is *called* "Show settings", but
-  // the button Statamic renders inside it reads "Show Fields".
-  return [...setEl.querySelectorAll('.revealer-fieldtype button')].sort(
-    (a, b) => depth(a) - depth(b)
-  )[0];
-}
-
-/**
- * The panel row for a top-level array item, located via the form values: the
- * uid's path ("page_sections.3") gives the field handle and index, and the
- * sortable rows render in values order.
- */
-function sortableItemForUid(uid, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const path = findPathByUid(values, uid);
-    const match = path?.match(/^([^.]+)\.(\d+)$/);
-
-    if (!match) {
-      continue;
-    }
-
-    return doc.querySelectorAll(`.field_${match[1]}-sortable-item`)[Number(match[2])] ?? null;
-  }
-
-  return null;
-}
-
-// --- Live Preview: collapsible editor panel ----------------------------------
-//
-// Inline editing makes the publish form optional for everyday text tweaks, so
-// the editor pane starts collapsed — the preview gets the full width. A toggle
-// button injected into the live-preview header brings it back.
-//
-// Collapsing moves the pane off-screen (position:absolute; left:-10000px)
-// instead of display:none: the pane keeps real layout, which the column
-// builder's popup-opening machinery depends on (with display:none its
-// components report zero rects and the popup silently fails to open). The
-// popup itself portals to document.body, so it shows fine while collapsed.
-
-const LP_TOGGLE_ID = '__sve-lp-toggle';
-const LP_MODE_ID = '__sve-lp-mode';
-const LP_MODE_KEY = 'sve-lp-panel-mode';
-const LP_COLLAPSED_KEY = 'sve-lp-collapsed';
-const LP_DOCKED_KEY = 'sve-lp-docked';
-const KEEP_CHROME_KEY = 'sve-keep-chrome';
-
-const LP_WIDTH_ID = '__sve-lp-width';
-const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
-
-/**
- * Statamics egen nøgle, og med vilje.
- *
- * Panelets bredde trækkes også med håndtaget, og den ende gemmer her. Deler de
- * to ikke nøgle, ville et klik og et træk skrive hver sit sted, og den der blev
- * læst ved næste åbning ville være den der tilfældigvis blev læst først. Med
- * samme nøgle er der én bredde: knapperne sætter den, håndtaget sætter den, og
- * den der står, er den man sidst valgte — uanset hvordan.
- */
-const LP_WIDTH_KEY = 'statamic.live-preview.editor-width';
-
-/** Same rem bounds on the left editor and the right dock. */
-const LP_SIDE_MIN_REM = 16;
-const LP_SIDE_MAX_REM = 50;
-const LP_SIDE_DEFAULT_REM = 22;
-
-let lpWidthDragging = false;
-
-// The panel runs in one of three modes, chosen in the header and remembered
-// across sessions:
-//   hide — never opens, not even when something in the preview is clicked
-//   auto — closed until something in the preview is clicked, then opens on it
-//   show — always open
-const LP_MODES = ['hide', 'auto', 'show'];
-const LP_MODE_LABELS = { hide: 'Hidden', auto: 'Auto', show: 'Visible' };
-
-/**
- * Flat Save & Publish blue — lightest stop from Statamic’s primary gradient
- * (from-primary/90), no border / shadow / gradient.
- */
-const LP_PRIMARY_FLAT =
-  'color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent)';
-
-/** Count disc on the comments icon. Idle = same metal as the glyph, dark type; open = pale blue. */
-const COMMENTS_BADGE_FG = 'var(--theme-color-primary, #4530D8)';
-const COMMENTS_BADGE_IDLE_TYPE = '#18181b';
-const COMMENTS_BADGE_ACTIVE_BG =
-  'color-mix(in oklab, var(--theme-color-primary, #4530D8) 14%, white)';
-
-/** Idle icon opacity — same for toolbar + device chrome. */
-const LP_ICON_IDLE_OPACITY = '0.7';
-
-/**
- * A tool that cannot be used from where you are.
- *
- * Far enough below idle to read as off at a glance, not so far that the row
- * looks like it lost an icon — the bar keeps its shape, so nothing shifts under
- * the pointer on the way into a header and back out again.
- */
-const LP_ICON_LOCKED_OPACITY = '0.25';
-
-/** Paint a framed control as selected (flat primary) or idle. */
-function paintLpActiveControl(btn, on) {
-  const wantBg = on ? LP_PRIMARY_FLAT : 'transparent';
-  const wantFg = on ? '#fff' : 'currentColor';
-  const wantOpacity = on ? '1' : LP_ICON_IDLE_OPACITY;
-
-  if (btn.style.background !== wantBg) {
-    btn.style.background = wantBg;
-  }
-
-  if (btn.style.color !== wantFg) {
-    btn.style.color = wantFg;
-  }
-
-  if (btn.style.opacity !== wantOpacity) {
-    btn.style.opacity = wantOpacity;
-  }
-
-  if (btn.style.border && btn.style.border !== 'none' && btn.style.border !== '0px') {
-    btn.style.border = 'none';
-  }
-
-  if (btn.style.boxShadow && btn.style.boxShadow !== 'none') {
-    btn.style.boxShadow = 'none';
-  }
-
-  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-}
-
-/**
- * Flat primary fill matching our chrome pills — kills Statamic’s gradient + border
- * on the Live Preview “Save & Publish” (and plain “Save”) header button.
- */
-function isLpSaveLabel(text) {
-  const t = (text || '').replace(/\s+/g, ' ').trim();
-
-  return (
-    /save\s*&\s*publish|gem\s*&\s*public|save\s*and\s*publish|gem og public/i.test(t) ||
-    /^(save|gem)(\s+changes|\s+ændringer)?$/i.test(t)
-  );
-}
-
-function isLpPublishLabel(text) {
-  const t = (text || '').replace(/\s+/g, ' ').trim();
-
-  return /^(publish|publicér|publicer)(\.\.\.|…)?$/i.test(t);
-}
-
-function findLpSaveButton(header) {
-  if (!header) {
-    return null;
-  }
-
-  let save = null;
-
-  header.querySelectorAll('button').forEach((btn) => {
-    if (btn.id === LP_BACK_ID || btn.hasAttribute('data-sve-statamic-lp-close')) {
-      return;
-    }
-
-    if (isLpSaveLabel(btn.textContent || '')) {
-      save = btn;
-    }
-  });
-
-  return save;
-}
-
-/** Save, or Publish when Save & Publish is split (revisions). */
-function findLpRightActionTail(header) {
-  if (!header) {
-    return null;
-  }
-
-  let tail = findLpSaveButton(header);
-
-  header.querySelectorAll('button').forEach((btn) => {
-    if (btn.id === LP_BACK_ID || btn.hasAttribute('data-sve-statamic-lp-close')) {
-      return;
-    }
-
-    if (isLpPublishLabel(btn.textContent || '')) {
-      tail = btn;
-    }
-  });
-
-  return tail;
-}
-
-/**
- * Ét flex-gap mellem devices | zoom | Save | close.
- * Statamics egen × havde `ml-auto` der skubbede højre-gruppen ud —
- * den er skjult, så vi sætter `ml-auto` på chrome (eller Save) i stedet.
- * Ellers lander Save/Publish/Close til venstre med et hul foran vores ×.
- */
-function syncLpRightBarGaps(win) {
-  const doc = win.document;
-  const header = lpHeader(doc);
-  const chrome = doc.getElementById(LP_PREVIEW_CHROME_ID);
-  const back = doc.getElementById(LP_BACK_ID);
-  const save = findLpSaveButton(header);
-
-  if (!header || !save) {
-    return;
-  }
-
-  const parent = save.parentElement || header;
-  const gap = `${LP_TOOLBAR_GAP}px`;
-  const rightLead = chrome && parent.contains(chrome) ? chrome : save;
-
-  if (parent.style.display !== 'inline-flex' && parent.style.display !== 'flex') {
-    parent.style.display = 'inline-flex';
-  }
-
-  parent.style.alignItems = 'center';
-  parent.style.gap = gap;
-
-  // Skub hele højre-klyngen ud — også når Save er direkte barn af headeren.
-  if (parent === header) {
-    rightLead.style.setProperty('margin-left', 'auto', 'important');
-  } else if (parent.style.marginLeft !== 'auto') {
-    parent.style.marginLeft = 'auto';
-  }
-
-  // Rækkefølge: chrome → save → [publish] → back.
-  if (chrome) {
-    if (chrome.parentElement !== parent || chrome.nextElementSibling !== save) {
-      parent.insertBefore(chrome, save);
-    }
-
-    chrome.style.marginRight = '0';
-    chrome.style.gap = gap;
-
-    if (rightLead !== chrome) {
-      chrome.style.marginLeft = '0';
-    }
-  }
-
-  const actionTail = findLpRightActionTail(header) || save;
-
-  if (back) {
-    if (back.parentElement !== parent || back.previousElementSibling !== actionTail) {
-      actionTail.after(back);
-    }
-
-    back.style.marginLeft = '0';
-    back.style.marginRight = '0';
-  }
-
-  // Save må ikke selv have ml-auto (det ville skubbe Publish væk fra Save).
-  if (rightLead !== save) {
-    save.style.setProperty('margin-left', '0', 'important');
-  }
-
-  save.style.setProperty('margin-right', '0', 'important');
-}
-
-function paintLpSaveButton(win) {
-  const header = lpHeader(win.document);
-
-  if (!header) {
-    return;
-  }
-
-  const buttons = [...header.querySelectorAll('button')];
-  const hasPublish = buttons.some((btn) => isLpPublishLabel(btn.textContent || ''));
-
-  buttons.forEach((btn) => {
-    const text = (btn.textContent || '').replace(/\s+/g, ' ').trim();
-    const isSave = isLpSaveLabel(text);
-    const isPublish = isLpPublishLabel(text);
-
-    if (!isSave && !isPublish) {
-      return;
-    }
-
-    // Split Save + Publish: Publish is the action. Save Changes is a quiet write.
-    // Combined "Save & Publish" stays the primary button.
-    const highlight = isPublish || (isSave && !hasPublish);
-    const idleSurface = 'rgba(128,128,128,.16)';
-
-    btn.style.setProperty(
-      'background',
-      highlight ? LP_PRIMARY_FLAT : idleSurface,
-      'important'
-    );
-    btn.style.setProperty('background-image', 'none', 'important');
-    btn.style.setProperty('color', highlight ? '#fff' : 'currentColor', 'important');
-    btn.style.setProperty('opacity', highlight ? '1' : LP_ICON_IDLE_OPACITY, 'important');
-    btn.style.setProperty('border', 'none', 'important');
-    btn.style.setProperty('box-shadow', 'none', 'important');
-    btn.style.setProperty('border-radius', '0.5rem', 'important');
-    btn.style.setProperty('height', `${LP_CHROME_H}px`, 'important');
-    btn.style.setProperty('box-sizing', 'border-box', 'important');
-    btn.style.setProperty('margin-right', '0', 'important');
-  });
-}
-
-/** Så svag som en streg kan være og stadig dele to ord. */
-const LP_SEP_OPACITY = '.15';
-
-/** Gruppeboksens luft ud til kontrollerne i den. */
-const LP_CONTROL_PAD = 5;
-
-/**
- * Ydre højde for alle topbar-grupper og selvstændige ikonknapper (devices,
- * zoom, Hidden/Auto/Visible, pages/globals, go-back). Pad + kontrol = 32.
- */
-const LP_CHROME_H = 32;
-
-/** Indre kontrolhøjde inde i en gruppe (32 − 2×5). */
-const LP_CONTROL_H = LP_CHROME_H - LP_CONTROL_PAD * 2;
-
-let lpHeaderBgCache = null;
-
-/**
- * Topbarens egen baggrundsfarve, aflæst frem for gættet.
- *
- * Den valgte tilstand og sømmen efter ikonet er ikke grå oven på baren — de er
- * baren, der kommer til syne gennem kontrollen. Så farven skal være nøjagtig
- * dens, og den skifter med CP'ets tema. Derfor aflæses den, og der ledes opad
- * indtil noget er helt uigennemsigtigt: headeren selv er ofte gennemsigtig og
- * låner farven fra modalen bagved.
- */
-function lpHeaderBg(win) {
-  const header = lpHeader(win.document);
-
-  if (!header) {
-    return null;
-  }
-
-  if (lpHeaderBgCache?.el === header) {
-    return lpHeaderBgCache.value;
-  }
-
-  let el = header;
-  let value = null;
-
-  while (el && !value) {
-    const bg = win.getComputedStyle(el).backgroundColor;
-    const alpha = bg?.startsWith('rgba') ? Number(bg.split(',')[3]?.replace(')', '')) : bg ? 1 : 0;
-
-    if (alpha >= 0.99) {
-      value = bg;
-    }
-
-    el = el.parentElement;
-  }
-
-  lpHeaderBgCache = { el: header, value };
-
-  return value;
-}
-
-/**
- * Den tynde streg mellem to kontroller i samme gruppe.
- *
- * `data-sep-before` er navnet på det der står til højre for stregen; det til
- * venstre findes ud fra rækkefølgen. Det er nok til at afgøre om stregen støder
- * op til noget der har sin egen flade og derfor skal gemmes — se
- * ensureLpPanelToggle. Uden navn er den bare en streg og bliver stående.
- */
-function lpModeSeparator(doc, before) {
-  const sep = doc.createElement('span');
-
-  if (before) {
-    sep.dataset.sepBefore = before;
-  }
-
-  // Ingen egne marginer: knappernes luft er allerede der, og stregen står midt
-  // i den. Lægger man mere til, falder ordene fra hinanden.
-  sep.style.cssText =
-    'display:block;flex:0 0 auto;width:1px;height:.625rem;' +
-    `background:currentColor;opacity:${LP_SEP_OPACITY};transition:opacity .12s ease;`;
-
-  return sep;
-}
-
-// Collapse state for the current Live Preview session (auto mode moves it at
-// runtime). null = not initialized (live preview closed); derived from the
-// stored mode on next mount.
-let lpCollapsed = null;
-
-/** Snapshot: they had the editor sidebar closed when this Live Preview opened. */
-let lpEnterSidebarClosed = null;
-
-// Set while a section's settings are on show — see ensureLpPanelToggle.
-let forcePanelOpen = false;
-
-function lpMode(win) {
-  const stored = chromeGet(win, LP_MODE_KEY);
-
-  if (stored === 'auto' || !LP_MODES.includes(stored)) {
-    return 'hide';
-  }
-
-  return stored;
-}
-
-/** True while a page change is in flight — the next editor should keep the bar as it was. */
-function shouldKeepChrome(win) {
-  try {
-    return win.sessionStorage.getItem(KEEP_CHROME_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function storedLpCollapsed(win) {
-  const stored = chromeGet(win, LP_COLLAPSED_KEY);
-
-  if (stored === '1' || stored === '0') {
-    return stored === '1';
-  }
-
-  return lpMode(win) !== 'show';
-}
-
-function persistDockedPanel(win) {
-  if (!lpHeader(win.document)) {
-    return;
-  }
-
-  const keys = visiblePaneKeys(win);
-
-  persistVisibleRightPanes(win, keys);
-
-  let value = '';
-
-  if (keys.includes('listview')) {
-    value = 'listview';
-  } else if (keys.includes('sections')) {
-    value = 'sections';
-  } else if (keys.includes('comments')) {
-    value = 'comments';
-  } else if (keys.includes('ai')) {
-    value = 'ai';
-  }
-
-  if (value) {
-    chromeSet(win, LP_DOCKED_KEY, value);
-  } else {
-    chromeRemove(win, LP_DOCKED_KEY);
-  }
-}
-
-function setLpMode(win, mode) {
-  chromeSet(win, LP_MODE_KEY, mode);
-
-  // An explicit Show/Hide click is the user's choice — do not keep slamming
-  // the sidebar shut because it happened to be closed when Live Preview opened.
-  lpEnterSidebarClosed = false;
-
-  // Switching to Show reveals the FULL form, like the old open-toggle did.
-  if (mode === 'show') {
-    clearSolo(win.document);
-    setHeaderTab(win, 'settings');
-  } else if (headerTab === 'settings') {
-    setHeaderTab(win, null);
-  }
-
-  setLpCollapsed(win, mode !== 'show');
-}
-
-/**
- * A preview interaction (clicking a section, an inline field, …) wants the
- * panel open. Whether it gets it depends on the mode — in `hide` it never does.
- * Returns whether the panel is (now) available.
- */
-function autoOpenPanel(win) {
-  return lpCollapsed === false;
-}
-
-function setLpCollapsed(win, collapsed) {
-  lpCollapsed = collapsed;
-  chromeSet(win, LP_COLLAPSED_KEY, collapsed ? '1' : '0');
-
-  if (collapsed && isGlobalsOverlayOpen(win)) {
-    hideGlobalsPanel(win, { release: false });
-  }
-
-  ensureLpPanelToggle(win);
-}
-
-// --- Heading outline panel ------------------------------------------------------
-// The page's headings as one list, docked on the right: not the sections it is
-// built from, but the structure a reader — or a screen reader, or a search engine
-// — actually meets. Clicking one scrolls the preview to it and, where the heading
-// sits in an annotated block, opens that block in the editor panel: the outline is
-// a map and a way in at once.
-//
-// The list comes from the preview, because only the rendered page knows what its
-// headings are: one can come from a block, another from a global, a third from the
-// layout. The bridge keeps it in step while the panel is open and stops when it
-// closes.
-
-const OUTLINE_PANEL_ID = '__sve-outline-panel';
-
-/** The last list the preview sent. Redrawn whole; never edited in place. */
-let outlineItems = [];
-let outlineActive = -1;
-// Whether the preview has answered at all. An empty list means "no headings on
-// this page", which is a different thing from "no answer yet" — and saying the
-// first while waiting for the second is how a panel comes to lie about a page.
-let outlineAnswered = false;
-
-function outlinePanel(doc) {
-  return doc.getElementById(OUTLINE_PANEL_ID) || doc.getElementById(LISTVIEW_PANEL_ID);
-}
-
-/** Ask the preview to start (or stop) reporting its headings. */
-function watchOutlineInPreview(win, on) {
-  sendToPreview({ source: 'statamic-visual-editor', type: 'outline-watch', on }, win);
-}
-
-export function closeOutlinePanel(win) {
-  const panel = win.document.getElementById(OUTLINE_PANEL_ID);
-
-  if (!panel) {
-    if (!listViewPanel(win.document)) {
-      outlineItems = [];
-      outlineActive = -1;
-      outlineAnswered = false;
-      watchOutlineInPreview(win, false);
-    }
-
-    syncPreviewInset(win);
-
-    return;
-  }
-
-  panel.remove();
-  outlineItems = [];
-  outlineActive = -1;
-  outlineAnswered = false;
-  watchOutlineInPreview(win, false);
-  releaseRightShellIfEmpty(win);
-  syncPreviewInset(win);
-}
-
-function fillOutlinePane(win, pane) {
-  if (pane.querySelector('[data-sve-outline-list]')) {
-    return;
-  }
-
-  pane.id = OUTLINE_PANEL_ID;
-  pane.innerHTML = `
-    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
-    <div data-sve-outline-notice style="flex:0 0 auto;"></div>
-    <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
-  `;
-}
-
-function showOutlinePane(win) {
-  renderOutline(win);
-  watchOutlineInPreview(win, true);
-
-  [700, 2000].forEach((delay) => {
-    win.setTimeout(() => {
-      if (!outlineAnswered && (win.document.getElementById(OUTLINE_PANEL_ID) || listViewTab === 'outline')) {
-        watchOutlineInPreview(win, true);
-      }
-    }, delay);
-  });
-}
-
-/** Opens the panel, or closes it when it is already up. */
-function toggleOutlinePanel(win) {
-  const doc = win.document;
-
-  if (!featureOn(win, 'outline')) {
-    return;
-  }
-
-  if (doc.getElementById(OUTLINE_PANEL_ID)) {
-    closeOutlinePanel(win);
-
-    return;
-  }
-
-  closeRightPanels(win, [OUTLINE_PANEL_ID]);
-
-  const panel = doc.createElement('div');
-
-  panel.id = OUTLINE_PANEL_ID;
-  panel.style.cssText = RIGHT_PANEL_FILL;
-
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;flex:0 0 auto;gap:6px;">
-      <div data-sve-right-title>${t(win, 'outline')}</div>
-      <button type="button" data-sve-close>✕</button>
-    </div>
-    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
-    <div data-sve-outline-notice style="flex:0 0 auto;"></div>
-    <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
-  `;
-
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => closeOutlinePanel(win));
-  showInRightShell(win, panel);
-  syncPreviewInset(win);
-
-  renderOutline(win);
-  watchOutlineInPreview(win, true);
-
-  [700, 2000].forEach((delay) => {
-    win.setTimeout(() => {
-      if (!outlineAnswered && doc.getElementById(OUTLINE_PANEL_ID)) {
-        watchOutlineInPreview(win, true);
-      }
-    }, delay);
-  });
-}
-
-/** A fresh list from the preview. */
-export function handleOutline(data, win) {
-  outlineAnswered = true;
-  outlineItems = Array.isArray(data.items) ? data.items : [];
-
-  if (outlineActive >= outlineItems.length) {
-    outlineActive = -1;
-  }
-
-  renderOutline(win);
-}
-
-/**
- * What the outline says about itself.
- *
- * Three things go wrong with headings, and none of them shows on the page — the
- * text looks right whatever level it is written at. They only show here, which is
- * the argument for saying them here:
- *
- * - no H1 at all: nothing on the page says what the page is;
- * - more than one H1: several things claim to be what the page is;
- * - a level reached without passing through the one above it, and any heading
- *   standing before the page's own H1. Both are the same fault seen from two
- *   sides — the order read is not the order meant.
- *
- * The first two are `critical`, the third is a `warning`, and the difference is
- * what the reader can do with it. A skipped level is untidy — the page still says
- * what it is, just in a jumbled order. An H1 count that isn't one is an answer
- * that is wrong: the outline has no top, or several tops that disagree. Both are
- * reported the same way and told apart by colour, so a page with a few loose
- * headings doesn't shout as loudly as one with no subject.
- *
- * Nothing is stored and nothing is dismissed: the checks are run against the list
- * as it stands, and the list is rebuilt whenever the page changes. Put the
- * headings in order and the warnings are gone by the next render, because there is
- * nothing left to report.
- *
- * @returns {{
- *   page: {message: string, severity: 'critical'|'warning'}[],
- *   rows: Map<number, {messages: string[], severity: 'critical'|'warning'}>
- * }}
- */
-function outlineIssues(win, items) {
-  const rows = new Map();
-  const page = [];
-
-  if (!items.length) {
-    return { page, rows };
-  }
-
-  // Adds a fault to a row, keeping the worse of the two severities and both
-  // messages. The rules below are independent of each other, so nothing stops two
-  // of them landing on the same heading; as they stand today none of them can
-  // (an H1 can neither stand before the first H1 nor skip a level), but that is a
-  // property of the current rules, not something the row should depend on.
-  const flag = (index, message, severity) => {
-    const existing = rows.get(index);
-
-    if (!existing) {
-      rows.set(index, { messages: [message], severity });
-
-      return;
-    }
-
-    existing.messages.push(message);
-
-    if (severity === 'critical') {
-      existing.severity = 'critical';
-    }
-  };
-
-  const h1s = items.filter((item) => item.level === 1).length;
-
-  // Critical, both ways round. "Exactly one H1" is not a matter of taste like
-  // level order is: none, and nothing on the page says what it is about; several,
-  // and they contradict each other. Either way the answer is wrong, not untidy —
-  // so it is marked apart from the warnings rather than lost among them.
-  if (!h1s) {
-    page.push({ message: t(win, 'outline_issue_no_h1'), severity: 'critical' });
-  } else if (h1s > 1) {
-    page.push({ message: t(win, 'outline_issue_many_h1', { count: h1s }), severity: 'critical' });
-
-    // Every one of them, not just the extras: there is no telling which was meant
-    // to be THE heading, and marking the second onwards would quietly answer that
-    // question on the writer's behalf.
-    items.forEach((item, index) => {
-      if (item.level === 1) {
-        flag(index, t(win, 'outline_issue_duplicate_h1', { count: h1s }), 'critical');
-      }
-    });
-  }
-
-  const firstH1 = items.findIndex((item) => item.level === 1);
-  let previous = 0;
-
-  items.forEach((item, index) => {
-    if (firstH1 > 0 && index < firstH1) {
-      flag(index, t(win, 'outline_issue_before_h1'), 'warning');
-    } else if (previous && item.level > previous + 1) {
-      flag(
-        index,
-        t(win, 'outline_issue_skipped', {
-          from: previous,
-          to: item.level,
-          next: previous + 1,
-        }),
-        'warning'
-      );
-    }
-
-    previous = item.level;
-  });
-
-  return { page, rows };
-}
-
-/** The page-level notices, above the list. Empty when there is nothing to say. */
-function renderOutlineNotice(win, notices) {
-  const doc = win.document;
-  const box = outlinePanel(doc)?.querySelector('[data-sve-outline-notice]');
-
-  if (!box) {
-    return;
-  }
-
-  box.textContent = '';
-
-  notices.forEach((notice) => {
-    const note = doc.createElement('p');
-
-    note.setAttribute('data-sve-outline-note', notice.severity);
-    note.textContent = notice.message;
-    box.appendChild(note);
-  });
-}
-
-function renderOutline(win) {
-  const doc = win.document;
-  const list = outlinePanel(doc)?.querySelector('[data-sve-outline-list]');
-
-  if (!list) {
-    return;
-  }
-
-  const issues = outlineIssues(win, outlineItems);
-
-  renderOutlineNotice(win, issues.page);
-  list.textContent = '';
-
-  if (!outlineItems.length) {
-    const empty = doc.createElement('div');
-
-    empty.style.cssText = 'padding:30px 6px;text-align:center;opacity:.55;font-size:12px;';
-    empty.textContent = t(win, outlineAnswered ? 'outline_empty' : 'loading');
-    list.appendChild(empty);
-
-    return;
-  }
-
-  // Indented against the shallowest heading on the page, not against H1: a page
-  // whose top heading is an H2 is drawn flush, the way it reads, rather than
-  // pushed in under a level that isn't there.
-  const base = Math.min(...outlineItems.map((item) => item.level));
-
-  outlineItems.forEach((item, index) => {
-    const depth = Math.max(0, Math.min(item.level - base, 5));
-    const row = doc.createElement('button');
-
-    row.type = 'button';
-    row.setAttribute('data-sve-outline-item', '');
-    row.setAttribute('aria-current', index === outlineActive ? 'true' : 'false');
-
-    // One rail per level above this one, then the branch: the tree draws itself
-    // out of the depth, with no line to compute and nothing to keep in sync.
-    for (let i = 0; i < depth; i++) {
-      const rail = doc.createElement('span');
-
-      rail.setAttribute('data-sve-outline-rail', '');
-      row.appendChild(rail);
-    }
-
-    const branch = doc.createElement('span');
-
-    branch.setAttribute('data-sve-outline-branch', '');
-    row.appendChild(branch);
-
-    const label = doc.createElement('span');
-
-    label.setAttribute('data-sve-outline-level', '');
-    label.textContent = `H${item.level}`;
-
-    const text = doc.createElement('span');
-
-    text.setAttribute('data-sve-outline-text', '');
-    text.textContent = item.text || t(win, 'outline_blank');
-
-    if (!item.text) {
-      text.setAttribute('data-sve-outline-blank', '');
-    }
-
-    row.append(label, text);
-
-    // A heading in the wrong place says so where it stands, and explains itself on
-    // hover — the row is the one spot where both the fault and the thing at fault
-    // are in front of you.
-    const issue = issues.rows.get(index);
-
-    if (issue) {
-      const flag = doc.createElement('span');
-
-      flag.setAttribute('data-sve-outline-flag', '');
-      flag.textContent = '!';
-      row.appendChild(flag);
-      // The severity rides on the attribute's value, so the existing
-      // presence-selectors keep matching and the red layers on top of them.
-      row.setAttribute('data-sve-outline-warn', issue.severity);
-      // Every fault the row has, not just the worst one — the colour reports the
-      // severity, the tooltip reports what actually happened. Colour alone would
-      // leave anyone who can't see it with nothing.
-      row.title = issue.messages.join('\n');
-    }
-
-    row.addEventListener('click', () => jumpToOutlineEntry(win, index, item));
-    list.appendChild(row);
-  });
-}
-
-/**
- * Clicking an entry: the preview scrolls to the heading and marks it, and the
- * editor panel opens whatever owns it.
- *
- * The panel only follows where the mode allows it (`autoOpenPanel`) — someone who
- * has put the editor panel away is reading the page, and yanking it back open on
- * a click meant "take me there" would be the opposite of what was asked.
- */
-function jumpToOutlineEntry(win, index, item) {
-  sendToPreview({ source: 'statamic-visual-editor', type: 'outline-focus', index }, win);
-
-  outlineActive = index;
-  outlinePanel(win.document)
-    ?.querySelectorAll('[data-sve-outline-item]')
-    .forEach((row, i) => row.setAttribute('aria-current', i === index ? 'true' : 'false'));
-
-  if (!autoOpenPanel(win)) {
-    return;
-  }
-
-  // The same two routes a click in the preview takes: the field's own block where
-  // the template annotated one, the surrounding set otherwise.
-  if (item.field && item.scope && focusPanelOn(win)) {
-    focusFieldOwner(item.field, item.scope, win.document, win);
-
-    return;
-  }
-
-  if (item.uid) {
-    focusFromPreview(item.uid, win.document, win, { clampToSection: true });
-  }
-}
-
-// --- Block tree panel ("List View") ---------------------------------------------
-// The page as its blocks, docked on the right: the section, and everything nested
-// inside it, as one list you can click.
-//
-// The editor panel already shows one thing at a time and steps down into a block
-// by clicking it on the page. That is a good way to work and a poor way to get an
-// overview — you can only see where you are, never the shape of the whole page.
-// This is the other half: the shape, with every row a way in.
-//
-// Read from the publish form's own values rather than from the rendered DOM. The
-// values are the page; the DOM is one drawing of it, and a block scrolled out of
-// view, collapsed, or hidden behind a condition is missing from the drawing while
-// still being part of the page.
-//
-// A click hands the uid to the same `focusFromPreview` the outline uses. Rename
-// is the one write: it stores `_sve_label` on the row. The panel is redrawn from
-// scratch each time it opens.
-
-const LISTVIEW_PANEL_ID = '__sve-listview-panel';
-
-// Its own remembered width, and its own default. The tree is a column of short
-// labels, so it wants far less room than Theme Settings — sharing that panel's
-// 440px opened it twice as wide as it has anything to put there.
-const LISTVIEW_WIDTH_KEY = 'sve-listview-panel-width';
-const LISTVIEW_DEFAULT_WIDTH = 320; // 20rem
-const LISTVIEW_MIN_WIDTH = 220;
-
-function listViewPanelWidth(win) {
-  return rightDockWidth(win);
-}
-
-/** The tree as last built, nested. */
-let listViewRoots = [];
-
-/** Uids folded shut. Kept across redraws so a move doesn't reopen the page. */
-const listViewCollapsed = new Set();
-
-/** The row drawn as current — the last one clicked here. */
-let listViewActiveUid = null;
-
-/** The row being dragged, while a drag is in progress. */
-let listViewDragUid = null;
-
-/** Whether the opening state has been decided for this session of the panel. */
-let listViewStarted = false;
-
-/** Holder øje med om låsen skifter andetsteds — se watchListViewLocks. */
-let listViewLockObserver = null;
-
-/** Which of the panel's two views is showing — 'tree' or 'outline'. */
-let listViewTab = 'tree';
-
-/**
- * Folds every top-level section but one.
- *
- * The sections are an accordion: a page has enough of them that all open at once
- * is a wall of rows to scroll, and the one you are working in is the one worth
- * seeing whole. Blocks *within* a section are not — several open there is how you
- * compare two items — so this reaches only the roots.
- */
-/**
- * Opens a row and folds everything inside it.
- *
- * What a section shows when you go into it: its own blocks, and none of theirs.
- * Unfolding the whole subtree put twenty rows on screen for a section with two
- * blocks in it, and the list you came to read became the thing you had to read
- * past. Each block opens on its own when you click it.
- */
-function listViewOpenShallow(node) {
-  listViewCollapsed.delete(node.uid);
-
-  const shut = (child) => {
-    listViewCollapsed.add(child.uid);
-    child.children.forEach(shut);
-  };
-
-  node.children.forEach(shut);
-}
-
-function listViewSoloSection(uid) {
-  listViewRoots.forEach((root) => {
-    if (root.uid === uid) {
-      listViewCollapsed.delete(root.uid);
-    } else {
-      listViewCollapsed.add(root.uid);
-    }
-  });
-}
-
-function listViewPanel(doc) {
-  return doc.getElementById(LISTVIEW_PANEL_ID);
-}
-
-/** Last measured Live Preview header bottom — never pin a docked panel to 0. */
-let dockedPanelTopLast = 56;
-
-function dockedPanelTop(win) {
-  const header = lpHeader(win.document);
-
-  if (header) {
-    const bottom = Math.round(header.getBoundingClientRect().bottom);
-
-    if (bottom > 8) {
-      dockedPanelTopLast = bottom;
-
-      return bottom;
-    }
-  }
-
-  return dockedPanelTopLast;
-}
-
-/**
- * Keep right-docked panels under the Live Preview header.
- *
- * They are `position:fixed` with `top` set from the header's height. On a page
- * change the header is often still 0px tall when the panel is restored, so `top`
- * becomes 0 and the tree covers Save & Publish. Re-pin whenever the header loop
- * runs — once the bar has a real height, the panel drops under it.
- */
-function pinDockedPanelsUnderHeader(win) {
-  // Only follow the header's height. Restacking panes from the DOM pass
-  // reparented Theme Settings and made the top bar blink with Patterns.
-  if (isRightDockResizing()) {
-    return;
-  }
-
-  if (isRightDockOpen(win)) {
-    placeRightDock(win);
-  }
-
-  placeGlobalsOverlay(win);
-}
-
-export function closeListViewPanel(win) {
-  if (!listViewPanel(win.document)) {
-    return;
-  }
-
-  listViewPanel(win.document).remove();
-  listViewRoots = [];
-  listViewDragUid = null;
-  listViewStarted = false;
-  listViewCollapsed.clear();
-  watchOutlineInPreview(win, false);
-  releaseRightShellIfEmpty(win);
-  syncPreviewInset(win);
-}
-
-/**
- * Is this one row of a Replicator field — a block — rather than something else
- * that happens to carry a `type`?
- *
- * `type` alone is not enough, and that is the whole difficulty. A Bard field
- * stores its text as ProseMirror nodes, and those are objects with a `type` too:
- * a headline holds a `paragraph`, which holds a `text`. Drawn as blocks they fill
- * the tree with rows for the letters inside the block you were looking for.
- *
- * What separates them is what Statamic and this addon add to a *set*, and only to
- * a set: `enabled`, the switch on the row, and `_visual_id`, injected into every
- * set's blueprint so the preview can point at it. A ProseMirror node has neither,
- * because nothing in the editor treats it as a thing you can turn off or click.
- */
-function isBlockRow(value) {
-  return (
-    !!value
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && typeof value.type === 'string'
-    && ('enabled' in value || '_visual_id' in value)
-  );
-}
-
-/**
- * Is this one row of a Grid field?
- *
- * Grid rows have no `type` — they are not sets — so `isBlockRow` cannot see them.
- * What they do have is the same identity a set has: `_visual_id` (injected into
- * every grid), or Statamic's own `id` / `_id`. Without this the tree drew a Links
- * block as one row and hid the buttons inside it, while a List next to it (a
- * nested Replicator) showed every item. The two are the same kind of thing to
- * click; only the fieldtype differs.
- *
- * Named apart from the DOM helper `isGridRow` (a stacked row element). This one
- * reads publish values. Checked only on array items, never on nested objects, so
- * a Bard node's `attrs` (which can carry an `id`) is not mistaken for a row.
- */
-function isGridRowValue(value) {
-  return (
-    !!value
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && !isBlockRow(value)
-    && typeof value.type !== 'string'
-    && ('_visual_id' in value || typeof value.id === 'string' || typeof value._id === 'string')
-  );
-}
-
-function isTreeRow(value) {
-  return isBlockRow(value) || isGridRowValue(value);
-}
-
-/**
- * A label for a grid row that has no set name: the first short text it holds.
- *
- * A link's own "Læs mere" tells the buttons apart; falling back to the field's
- * display name would name every row "Links" under a block already called that.
- */
-function gridRowPreview(row) {
-  const keys = ['text', 'title', 'label', 'heading', 'name', 'headline'];
-
-  for (const key of keys) {
-    const value = row?.[key];
-
-    if (typeof value !== 'string') {
-      continue;
-    }
-
-    const text = value.replace(/\s+/g, ' ').trim();
-
-    if (!text) {
-      continue;
-    }
-
-    return text.length > 40 ? `${text.slice(0, 37)}…` : text;
-  }
-
-  return '';
-}
-
-/** The id a row is known by, in the order the rest of this file prefers them. */
-function blockRowUid(row) {
-  return row._visual_id || row.id || row._id || '';
-}
-
-/**
- * Every id a row answers to.
- *
- * A block is annotated in the preview with whichever one its template happened to
- * pass — `data-sid` carries `_visual_id`, `data-sid-field-uid` carries whatever
- * went into `scope`, which is conventionally `id` but need not be, and some rows
- * have no `id` at all. Picking one and hoping is what made this fail twice: the
- * tree held `_visual_id`, the click reported `id`, and neither side was wrong.
- *
- * So all of them are carried, and a match on any is a match. Nothing distinguishes
- * two rows by these ids, so a wider net cannot catch the wrong fish.
- */
-function blockRowIds(row) {
-  return [row._visual_id, row.id, row._id].filter((id) => typeof id === 'string' && id !== '');
-}
-
-/**
- * The page's blocks, flattened into rows with their depth.
- *
- * Walks every array under the page-builder field, at any depth, because nesting
- * is the thing being shown: a section holds blocks, a block holds rows — Replicator
- * sets and Grid rows alike — and how deep that goes is the fieldset's business,
- * not this panel's. Grid rows that sit directly on a section (Style, background
- * opacity, a responsive field's drawers) are skipped: those are the section's own
- * settings, not something you pick from a tree of blocks.
- *
- * Keys beginning with `_` are skipped. They hold the editor's own bookkeeping —
- * `_visual_id`, `_bp_order` — which is not part of the page and would otherwise
- * be walked into looking for blocks that cannot be there.
- */
-function listViewTree(win, doc) {
-  const field = sectionField(win);
-  const roots = [];
-
-  // `listKey` and `index` are what a drag needs: two rows may sit side by side in
-  // the tree and still belong to different arrays — a section with both a
-  // `blocks` field and a `content_boxes` field draws all of them as its children.
-  // Reordering only means something within one array, so both are carried.
-  const collect = (node, depth, parentUid, out, listKey) => {
-    if (depth > 12 || !node || typeof node !== 'object') {
-      return;
-    }
-
-    if (Array.isArray(node)) {
-      node.forEach((item, index) => {
-        if (!isTreeRow(item)) {
-          collect(item, depth, parentUid, out, listKey);
-
-          return;
-        }
-
-        const uid = blockRowUid(item);
-        const children = [];
-        const grid = isGridRowValue(item);
-
-        // Grid rows on a section itself are settings — Style, background,
-        // responsive drawers — not blocks. A Links set's buttons sit one level
-        // deeper, inside a content block, and those are the ones the tree is for.
-        if (grid && depth < 2) {
-          return;
-        }
-
-        collect(item, depth + 1, uid, children, listKey);
-
-        // Låst? Aflæst fra rækkens element i formularen — låsen er en indstilling
-        // på feltet, ikke en værdi på rækken, så værdierne alene kan ikke sige
-        // det. `data-row-locked` stemples af projektets LockedRows.js.
-        const el = uid ? findSetByVisualIdInput(uid, doc) : null;
-        const globalSet = globalSectionSet(win);
-        const isGlobal = !grid && item.type === globalSet;
-        const globalId = isGlobal ? firstEntryId(item[globalSet]) : '';
-        const custom =
-          typeof item._sve_label === 'string' ? item._sve_label.trim() : '';
-
-        out.push({
-          locked: !!el?.hasAttribute('data-row-locked'),
-          // Låst op ved et klik — her eller på hængelåsen i venstre panel. De to
-          // steder skriver i de samme attributter, så tilstanden er én.
-          unlocked: !!el?.hasAttribute('data-row-unlocked'),
-          uid,
-          // Every id this row answers to — see blockRowIds. Which one a given
-          // block is annotated with in the preview is the template's choice, not
-          // something a tree of values can know.
-          ids: blockRowIds(item),
-          type: item.type || null,
-          kind: grid ? 'grid' : 'set',
-          preview: grid ? gridRowPreview(item) : '',
-          label: custom,
-          global: isGlobal,
-          globalId,
-          globalType: isGlobal ? savedSectionInfo(win, globalId)?.section_type || '' : '',
-          depth,
-          index,
-          listKey,
-          parentUid,
-          enabled: item.enabled !== false,
-          children,
-        });
-      });
-
-      return;
-    }
-
-    Object.entries(node).forEach(([key, value]) => {
-      if (key.startsWith('_') || key === 'type' || key === 'id') {
-        return;
-      }
-
-      collect(value, depth, parentUid, out, key);
-    });
-  };
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object' || !Array.isArray(values[field])) {
-      continue;
-    }
-
-    collect(values[field], 0, null, roots, field);
-
-    // Låsen sidder på FELTET, ikke på rækken: `locked_rows` gør alle rækker i et
-    // felt låste. Aflæsningen ovenfor finder kun de rækker der tilfældigvis er
-    // tegnet i formularen netop nu, så én fundet lås smittes ud til resten af
-    // samme felt. Ellers var det tilfældigt hvilke rækker træet troede var låst.
-    const groups = new Map();
-    const key = (node) => `${node.parentUid || ''}::${node.listKey}`;
-
-    listViewFlat(roots).forEach((node) => {
-      const seen = groups.get(key(node)) || { locked: false, unlocked: false };
-
-      groups.set(key(node), {
-        locked: seen.locked || node.locked,
-        unlocked: seen.unlocked || node.unlocked,
-      });
-    });
-
-    listViewFlat(roots).forEach((node) => {
-      const seen = groups.get(key(node)) || { locked: false, unlocked: false };
-
-      node.locked = seen.locked;
-      node.unlocked = seen.unlocked;
-    });
-
-    // The first container holding the page builder is the page. A second one
-    // would be another form open beside it — a global section being edited, say —
-    // and its blocks belong to that panel, not to this tree.
-    break;
-  }
-
-  return roots;
-}
-
-const LISTVIEW_STYLE_ID = '__sve-listview-style';
-
-/**
- * The tree's own stylesheet, added once.
- *
- * Inline styles cannot express hover, focus or the drop line, and the panel is
- * built as raw DOM rather than through Vue, so there is no component stylesheet
- * to put them in. Everything is stated in terms of `currentColor` and the
- * Control Panel's own background variable, which is what makes one set of rules
- * serve both the light and the dark theme: the panel inherits the text colour of
- * whichever it is in, and every tint is mixed from that.
- */
-function ensureListViewStyles(doc) {
-  let style = doc.getElementById(LISTVIEW_STYLE_ID);
-
-  if (!style) {
-    style = doc.createElement('style');
-    style.id = LISTVIEW_STYLE_ID;
-    doc.head.appendChild(style);
-  }
-
-  style.textContent = `
-    [data-sve-lv-row] {
-      all: unset;
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      /* No width: the row is block-level, so it fills what is left after its own
-         left margin. That margin is the indent — set on the card rather than as
-         padding inside it, so a nested block steps in as a whole instead of
-         growing a wide empty shoulder. */
-      padding: 10px 8px;
-      /* Tall enough for the controls whether they are showing or not. They are
-         20px and the label is about 17, so without this the row grew the moment
-         the pointer arrived — and every row below it stepped down. Height is
-         reserved; the horizontal space is not, since five buttons' worth of it
-         would be taken from the label on every row at once. */
-      min-height: 40px;
-      margin-bottom: 5px;
-      background: rgba(128,128,128,.16);
-      border-radius: 6px;
-      font-size: 13px;
-      line-height: 1.3;
-      /* An open hand: the row can be picked up and moved. The controls inside it
-         take it back — they are pressed, not dragged. */
-      cursor: grab;
-      position: relative;
-      /* WebKit starts no drag on a plain element from the draggable attribute
-         alone — it has to be told the element itself is the thing being dragged. */
-      -webkit-user-drag: element;
-      /* Without it the pointer selects the label instead of taking hold, and the
-         drag never begins. */
-      user-select: none;
-    }
-    [data-sve-lv-row]:hover { background: rgba(128,128,128,.26); }
-    [data-sve-lv-row]:active,
-    [data-sve-lv-row][data-sve-lv-dragging] { cursor: grabbing; }
-    /* The dots and the buttons share one slot and swap: at rest the row shows
-       what it can do (be moved), under the pointer it shows what you can do to
-       it. Neither ever takes space from the other, so nothing shifts. */
-    [data-sve-lv-handle] { flex: none; width: 14px; margin-inline-start: 8px; display: inline-flex; align-items: center; justify-content: center; opacity: .55; pointer-events: none; }
-    /* Låst: en hængelås i stedet for prikkerne, og den bliver stående når
-       markøren er over rækken — den siger hvorfor der ikke er knapper. */
-    [data-sve-lv-handle][data-sve-lv-locked] svg { display: none; }
-    [data-sve-lv-handle][data-sve-lv-locked]::before {
-      content: "";
-      width: 12px;
-      height: 12px;
-      background: currentColor;
-      opacity: .9;
-      mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2a5 5 0 0 0-5 5v3H6.5A2.5 2.5 0 0 0 4 12.5v7A2.5 2.5 0 0 0 6.5 22h11a2.5 2.5 0 0 0 2.5-2.5v-7a2.5 2.5 0 0 0-2.5-2.5H17V7a5 5 0 0 0-5-5zm0 2a3 3 0 0 1 3 3v3H9V7a3 3 0 0 1 3-3z'/%3E%3C/svg%3E") center / contain no-repeat;
-    }
-    /* Kan låsen tages af, er hængelåsen en knap og skal kunne rammes — resten af
-       håndtaget siger bare hvad rækken kan og tager ingen klik. */
-    [data-sve-lv-handle][data-sve-lv-unlockable] { pointer-events: auto; cursor: pointer; }
-    [data-sve-lv-handle][data-sve-lv-unlockable]:hover { opacity: 1; }
-    [data-sve-lv-row]:hover [data-sve-lv-handle][data-sve-lv-locked] { display: inline-flex; }
-    [data-sve-lv-row]:hover [data-sve-lv-handle] { display: none; }
-    [data-sve-lv-row]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
-    /* One colour, two weights. Filled is the row you have selected; the box is
-       the section standing open. The same blue in both, deliberately: they are
-       two facts about the same place, and a second colour would make them look
-       like two unrelated things. */
-    [data-sve-lv-row][data-sve-lv-current] { background: #3858e9; color: #fff; }
-    [data-sve-lv-row][data-sve-lv-current]:hover { background: #4a68ee; }
-    /* The open section, drawn as one thing: the box holds the section's own row
-       and every row under it, so what is open reads as a place you are inside of
-       rather than a row that happens to be marked.
-       Quiet on purpose — it says where you are, and the blue is kept for what you
-       have actually chosen.
-       A border rather than a box-shadow — the box needs a real bottom edge to
-       stop the last row's margin collapsing out through it. */
-    [data-sve-lv-branch] {
-      border: 1px solid rgba(255,255,255,.15);
-      border-radius: 9px;
-      box-sizing: border-box;
-      width: 100%;
-      /* Same inset on every side — the selected row must not sit flush to the box. */
-      padding: 5px;
-      margin-bottom: 5px;
-    }
-    [data-sve-lv-branch] > [data-sve-lv-row]:last-child {
-      margin-bottom: 0;
-    }
-    /* Until the selection is one of the rows inside it — then the box is the
-       place you are working in, and it says so in the row's blue, held back a
-       little: the filled row is what you chose, the box only says where it is. */
-    [data-sve-lv-branch][data-sve-lv-here] { border-color: rgba(56,88,233,.6); }
-    [data-sve-lv-row][data-sve-lv-off] { opacity: .45; }
-    [data-sve-lv-row][data-sve-lv-dragging] { opacity: .4; }
-    /* The drop line sits inside the row, so it needs no space of its own and
-       cannot push the rows below it while a drag is under way. Which edge it
-       lands on is which half of the row the pointer is in — the line is where the
-       block will be, not merely which row it is near. */
-    [data-sve-lv-row][data-sve-lv-drop="above"] { box-shadow: inset 0 2px 0 0 #3858e9; }
-    [data-sve-lv-row][data-sve-lv-drop="below"] { box-shadow: inset 0 -2px 0 0 #3858e9; }
-    /* Shown on hover only: the whole row drags, and a handle that is always
-       visible reads as the only place that does. */
-    /* Out of the way until the row is under the pointer or is the current one.
-       Five controls on every row at once would read as the loudest thing in the
-       panel, and the panel is for finding your way around. */
-    [data-sve-lv-actions] { flex: none; display: none; align-items: center; gap: 1px; margin-inline-start: 8px; }
-    [data-sve-lv-row]:hover [data-sve-lv-actions],
-    [data-sve-lv-row][data-sve-lv-current] [data-sve-lv-actions] { display: inline-flex; }
-    [data-sve-lv-act] {
-      all: unset;
-      flex: none;
-      width: 20px;
-      height: 20px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-      cursor: pointer;
-      opacity: .7;
-    }
-    [data-sve-lv-act]:hover { opacity: 1; background: rgba(128,128,128,.28); }
-    [data-sve-lv-act][data-sve-lv-danger]:hover { background: rgba(229,72,77,.22); color: #e5484d; }
-    [data-sve-lv-twist] {
-      all: unset;
-      flex: none;
-      width: 16px;
-      height: 16px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 3px;
-      cursor: pointer;
-      opacity: .65;
-      transition: transform .12s ease;
-    }
-    [data-sve-lv-twist]:hover { opacity: 1; background: rgba(128,128,128,.28); }
-    [data-sve-lv-twist][data-sve-lv-shut] { transform: rotate(-90deg); }
-    [data-sve-lv-text] { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    [data-sve-lv-global] {
-      flex: none;
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: .02em;
-      line-height: 1;
-      padding: 3px 6px;
-      border-radius: 999px;
-      background: rgba(128,128,128,.22);
-      opacity: .9;
-    }
-    [data-sve-lv-row][data-sve-lv-current] [data-sve-lv-global] {
-      background: rgba(255,255,255,.22);
-    }
-    [data-sve-lv-rename] {
-      all: unset;
-      box-sizing: border-box;
-      flex: 1 1 auto;
-      min-width: 0;
-      font: inherit;
-      font-size: 13px;
-      line-height: 1.3;
-      padding: 1px 4px;
-      margin: -1px -4px;
-      border-radius: 3px;
-      background: rgba(255,255,255,.16);
-      outline: 2px solid currentColor;
-    }
-  `;
-}
-
-/** Every node in the tree, folded or not. */
-function listViewFlat(nodes, out = []) {
-  nodes.forEach((node) => {
-    out.push(node);
-    listViewFlat(node.children, out);
-  });
-
-  return out;
-}
-
-/**
- * Marks in the tree what was just clicked on the page.
- *
- * The other half of selection. Clicking a row already selects the block on the
- * page; without this the reverse was silent, and the tree quietly went on
- * pointing at whatever was last chosen *in it* — which is worse than pointing at
- * nothing, because it looks like an answer.
- *
- * Either id will do. The preview reports whichever the template annotated with,
- * and a tree built from stored values holds both.
- *
- * Ancestors are unfolded on the way, since a row inside a folded parent cannot
- * be shown as current while it is not shown at all.
- */
-function listViewSyncTo(win, ...candidates) {
-  const doc = win.document;
-  const wanted = candidates.filter((id) => typeof id === 'string' && id !== '');
-
-  if (!wanted.length || !listViewPanel(doc)) {
-    return;
-  }
-
-  let flat = listViewFlat(listViewRoots);
-
-  // Deepest first. A click on a block reports the block's own id *and* the
-  // section's, and the block is the more specific answer — matching in tree order
-  // would take the section every time and the tree would never point at anything
-  // but the outermost thing you touched.
-  const match = (node) => node.ids.some((id) => wanted.includes(id));
-  const byDepth = (a, b) => b.depth - a.depth;
-  let node = [...flat].sort(byDepth).find(match);
-
-  // Nothing by that id: the tree was built before the block existed. Rebuild once
-  // — the panel does not redraw on its own, and a block added since it opened is
-  // exactly the one somebody is most likely to have just clicked.
-  if (!node) {
-    listViewRoots = listViewTree(win, doc);
-    flat = listViewFlat(listViewRoots);
-    node = [...flat].sort(byDepth).find(match);
-
-    if (!node) {
-      return;
-    }
-  }
-
-  const byUid = new Map(flat.map((item) => [item.uid, item]));
-  let opened = false;
-  let root = node;
-
-  for (let parent = node.parentUid; parent; parent = byUid.get(parent)?.parentUid) {
-    opened = listViewCollapsed.delete(parent) || opened;
-    root = byUid.get(parent) || root;
-  }
-
-  // Clicking into a section on the page is opening it, so the accordion follows —
-  // otherwise the tree would unfold the clicked block while leaving whichever
-  // section was open before open too, and the rule would hold for the twist but
-  // not for the page.
-  if (root !== node || node.depth === 0) {
-    const shut = listViewCollapsed.has(root.uid) || listViewRoots.some((r) => r.uid !== root.uid && !listViewCollapsed.has(r.uid));
-
-    if (shut) {
-      listViewSoloSection(root.uid);
-      opened = true;
-    }
-  }
-
-  if (listViewActiveUid !== node.uid || opened) {
-    listViewActiveUid = node.uid;
-    renderListView(win);
-  }
-
-  // Into view, but never scrolling the page — `nearest` moves the list only as
-  // far as it has to, and not at all when the row is already on screen.
-  listViewPanel(doc)?.querySelector('[data-sve-lv-current]')?.scrollIntoView({ block: 'nearest' });
-}
-
-/** Flattens the tree to the rows currently visible — folded ones stop the walk. */
-function listViewVisible(nodes, out = []) {
-  nodes.forEach((node) => {
-    out.push(node);
-
-    if (node.children.length && !listViewCollapsed.has(node.uid)) {
-      listViewVisible(node.children, out);
-    }
-  });
-
-  return out;
-}
-
-/**
- * The name a tree row falls back to when nobody has renamed it.
- *
- * A global section is a reference, so the set's own display name is always
- * "Global section". The row should name what it *is* — the source's type —
- * and wear a badge for the reference. A custom `_sve_label` is not this.
- */
-function listViewDefaultLabel(win, item) {
-  if (item.kind === 'grid' && item.preview) {
-    return item.preview;
-  }
-
-  if (item.global) {
-    const type = item.globalType || savedSectionInfo(win, item.globalId)?.section_type || '';
-
-    if (type) {
-      return setMeta(win, type)?.display || humanizeHandle(type);
-    }
-
-    const title = savedSectionInfo(win, item.globalId)?.title || '';
-
-    if (title) {
-      return title;
-    }
-  }
-
-  const meta = item.kind === 'grid' ? gridMeta(win, item.listKey) : setMeta(win, item.type);
-
-  return meta?.display || humanizeHandle(item.type || item.listKey) || t(win, 'listview_item');
-}
-
-function listViewRowLabel(win, item) {
-  return item.label || listViewDefaultLabel(win, item);
-}
-
-/** Icon/name meta for a tree row — a global section uses the source type's icon. */
-function listViewRowMeta(win, item) {
-  if (item.kind === 'grid') {
-    return gridMeta(win, item.listKey);
-  }
-
-  const type = item.global
-    ? item.globalType || savedSectionInfo(win, item.globalId)?.section_type || item.type
-    : item.type;
-
-  return setMeta(win, type);
-}
-
-function writeRowLabel(win, uid, label) {
-  const doc = win.document;
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const found = rowLocation(values, uid);
-
-    if (!found) {
-      continue;
-    }
-
-    const { parentPath, index, rows, kind } = found;
-    const next = JSON.parse(JSON.stringify(rows));
-    const value = label.trim();
-
-    if (kind === 'bard-set' && next[index]?.type === 'set') {
-      const valuesNode = { ...(next[index].attrs?.values || {}) };
-
-      if (value) {
-        valuesNode._sve_label = value;
-      } else {
-        delete valuesNode._sve_label;
-      }
-
-      next[index] = {
-        ...next[index],
-        attrs: { ...(next[index].attrs || {}), values: valuesNode },
-      };
-    } else {
-      next[index] = { ...next[index] };
-
-      if (value) {
-        next[index]._sve_label = value;
-      } else {
-        delete next[index]._sve_label;
-      }
-    }
-
-    container.setFieldValue(parentPath, next);
-
-    return;
-  }
-}
-
-/**
- * Puts the current name on the left panel, if it is showing this row or a
- * block inside it. The tree already redraws; the header does not, unless asked.
- */
-function refreshFocusName(win) {
-  const doc = win.document;
-
-  if (!soloUid) {
-    return;
-  }
-
-  const kind = doc.documentElement.getAttribute(FOCUS_ROOT_ATTR) || 'section';
-
-  paintFocusHeader(
-    win,
-    doc,
-    focusRowMeta(win, soloUid, doc),
-    focusBack(win, doc, soloUid, kind)
-  );
-}
-
-/**
- * Turns the row's name into an input. Enter keeps it, Escape throws it away,
- * an empty name (or the type's own name again) goes back to the default.
- */
-function beginListViewRename(win, rowEl, item) {
-  if (!rowEl || !item?.uid || item.kind === 'grid' || rowEl.querySelector('[data-sve-lv-rename]')) {
-    return;
-  }
-
-  const doc = win.document;
-  const text = rowEl.querySelector('[data-sve-lv-text]');
-
-  if (!text) {
-    return;
-  }
-
-  const input = doc.createElement('input');
-  let closed = false;
-
-  input.type = 'text';
-  input.setAttribute('data-sve-lv-rename', '');
-  input.value = listViewRowLabel(win, item);
-  rowEl.draggable = false;
-
-  const finish = (save) => {
-    if (closed) {
-      return;
-    }
-
-    closed = true;
-    rowEl.draggable = !item.locked;
-
-    if (save) {
-      const next = input.value.replace(/\s+/g, ' ').trim();
-      const fallback = listViewDefaultLabel(win, item);
-      const stored = next && next !== fallback ? next : '';
-
-      writeRowLabel(win, item.uid, stored);
-      sendToPreview(
-        {
-          source: 'statamic-visual-editor',
-          type: 'sve-row-label',
-          ids: item.ids,
-          label: stored || fallback,
-        },
-        win
-      );
-    }
-
-    win.setTimeout(() => {
-      renderListView(win);
-      refreshFocusName(win);
-    }, 0);
-  };
-
-  ['mousedown', 'click', 'dblclick', 'pointerdown'].forEach((name) => {
-    input.addEventListener(name, (event) => event.stopPropagation());
-  });
-  input.addEventListener('keydown', (event) => {
-    event.stopPropagation();
-
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      finish(true);
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
-      finish(false);
-    }
-  });
-  input.addEventListener('blur', () => finish(true));
-
-  text.replaceWith(input);
-  input.focus();
-  input.select();
-}
-
-const LISTVIEW_MENU_ID = '__sve-listview-menu';
-
-/**
- * The row's own menu — the same four things a Replicator set offers, reached
- * from the tree instead of from the form.
- *
- * Appended to `document.body` rather than to the row. The panel clips its
- * contents and the list scrolls inside it, so a menu built where it is anchored
- * would be cut off at the row's own edge. Statamic's CP has the same problem and
- * solves it the same way.
- */
-function openListViewMenu(win, anchor, item) {
-  const doc = win.document;
-
-  doc.getElementById(LISTVIEW_MENU_ID)?.remove();
-
-  const menu = doc.createElement('div');
-  const box = anchor.getBoundingClientRect();
-
-  menu.id = LISTVIEW_MENU_ID;
-  menu.style.cssText =
-    `position:fixed;top:${Math.round(box.bottom + 4)}px;left:${Math.round(box.right - 180)}px;width:180px;z-index:99999;`
-    + 'padding:4px;border-radius:8px;background:var(--theme-color-content-bg,#fff);color:currentColor;'
-    + 'border:1px solid rgba(128,128,128,.3);box-shadow:0 8px 24px rgba(0,0,0,.28);'
-    + 'font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;';
-
-  const close = () => {
-    menu.remove();
-    win.removeEventListener('scroll', close, true);
-    win.removeEventListener('resize', close);
-    doc.removeEventListener('pointerdown', onOutside, true);
-  };
-
-  function onOutside(event) {
-    if (!menu.contains(event.target) && event.target !== anchor) {
-      close();
-    }
-  }
-
-  const add = (label, run, danger = false) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.style.cssText =
-      'all:unset;display:block;box-sizing:border-box;width:100%;padding:7px 10px;border-radius:5px;cursor:pointer;'
-      + (danger ? 'color:#e5484d;' : '');
-    btn.addEventListener('mouseenter', () => {
-      btn.style.background = 'rgba(128,128,128,.16)';
-    });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.background = '';
-    });
-    btn.addEventListener('click', () => {
-      close();
-      const skipRedraw = run() === false;
-
-      // Redrawn after Vue has taken the write — the tree this row came from
-      // describes the page as it was before it.
-      if (!skipRedraw) {
-        win.setTimeout(() => renderListView(win), 0);
-      }
-    });
-
-    menu.appendChild(btn);
-  };
-
-  if (item.kind !== 'grid') {
-    add(t(win, 'listview_rename'), () => {
-      beginListViewRename(win, anchor.closest('[data-sve-lv-row]') || listViewPanel(doc)?.querySelector(`[data-sve-lv-uid="${item.uid}"]`), item);
-
-      return false;
-    });
-  }
-  if (!item.locked) {
-    add(t(win, 'listview_move_up'), () => handleMove({ uid: item.uid, direction: -1 }, doc));
-    add(t(win, 'listview_move_down'), () => handleMove({ uid: item.uid, direction: 1 }, doc));
-    add(t(win, 'listview_duplicate'), () => handleDuplicateRow({ uid: item.uid }, doc, win));
-  }
-  // Grid rows have no `enabled` switch — hiding is a Replicator/Bard set thing.
-  if (item.kind !== 'grid') {
-    add(t(win, item.enabled ? 'listview_hide' : 'listview_show'), () =>
-      handleHideRow({ uid: item.uid }, doc, win)
-    );
-  }
-  if (!item.locked) {
-    add(t(win, 'listview_delete'), () => handleRemoveRow({ uid: item.uid }, doc, win), true);
-  }
-
-  doc.body.appendChild(menu);
-
-  // Keep it on screen when the row sits near the bottom.
-  const menuBox = menu.getBoundingClientRect();
-
-  if (menuBox.bottom > win.innerHeight - 8) {
-    menu.style.top = `${Math.max(8, Math.round(box.top - menuBox.height - 4))}px`;
-  }
-
-  win.addEventListener('scroll', close, true);
-  win.addEventListener('resize', close);
-  doc.addEventListener('pointerdown', onOutside, true);
-}
-
-/** Draws the tree. Redrawn whole; never edited in place. */
-/**
- * Må den her bruger tage låsen af?
- *
- * Samme svar som i formularen, hvor hængelåsen på rækken er en knap for super
- * admins og en kendsgerning for alle andre. Låsen er et værn mod uheld.
- */
-function mayUnlockRows(win) {
-  return !!win.Statamic?.$permissions?.has?.('super');
-}
-
-/**
- * Sætter låsen på — eller tager den af — for hele den liste rækken hører til.
- *
- * Ikke kun den ene række, og det er med vilje: `locked_rows` er en indstilling på
- * FELTET, så alle rækker i listen er låst af samme grund. Træet kan i forvejen
- * bare aflæse de rækker der tilfældigvis er tegnet i formularen netop nu og
- * smitter fundet ud til resten af listen (se listViewTree) — låste man én række
- * op, ville dens søskende låse den igen i næste optegning.
- *
- * Skrives på formularens rækker, hvor projektets LockedRows.js læser dem. Det er
- * det ene sted tilstanden bor, så hængelåsen her og hængelåsen i venstre panel er
- * to visninger af samme kendsgerning — hvad man end klikker på, følger det andet
- * med. Intet gemmes: låsen er på igen næste gang siden åbnes.
- */
-function setListViewListLock(doc, item, locked) {
-  listViewFlat(listViewRoots)
-    .filter((node) => node.parentUid === item.parentUid && node.listKey === item.listKey)
-    .forEach((node) => {
-      const el = node.uid ? findSetByVisualIdInput(node.uid, doc) : null;
-
-      if (!el) {
-        return;
-      }
-
-      el.toggleAttribute('data-row-locked', locked);
-      el.toggleAttribute('data-row-unlocked', !locked);
-    });
-}
-
-/**
- * Tegner træet om når låsen skifter et andet sted.
- *
- * Hængelåsen i venstre panel skriver i de samme attributter, og træet er råt DOM
- * uden reaktivitet — uden dette stod det med den lås der var da det sidst blev
- * tegnet. Kun de to attributter aflyttes, og kun mens panelet er åbent.
- */
-function watchListViewLocks(win) {
-  if (listViewLockObserver) {
-    return;
-  }
-
-  const doc = win.document;
-  let queued = false;
-
-  listViewLockObserver = new MutationObserver(() => {
-    if (queued || !listViewPanel(doc)) {
-      return;
-    }
-
-    queued = true;
-    win.requestAnimationFrame(() => {
-      queued = false;
-
-      if (listViewPanel(doc)) {
-        renderListView(win);
-      }
-    });
-  });
-
-  listViewLockObserver.observe(doc.body, {
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['data-row-locked', 'data-row-unlocked'],
-  });
-}
-
-function renderListView(win) {
-  const doc = win.document;
-  const list = listViewPanel(doc)?.querySelector('[data-sve-listview-list]');
-
-  if (!list) {
-    return;
-  }
-
-  ensureListViewStyles(doc);
-  watchListViewLocks(win);
-
-  listViewRoots = listViewTree(win, doc);
-
-  // How the panel opens: the first section unfolded, the rest shut. Decided once
-  // per opening rather than on every draw, so a section you fold by hand stays
-  // folded through a move, a click on the page, or anything else that redraws.
-  if (!listViewStarted && listViewRoots.length) {
-    listViewSoloSection(listViewRoots[0].uid);
-    listViewOpenShallow(listViewRoots[0]);
-
-    // And marked, not merely unfolded. The panel opens showing the first
-    // section's blocks, so that is where you are — a tree with nothing blue in
-    // it reads as though nothing has been chosen yet.
-    //
-    // Only the mark. Nothing is opened on the page from here: this runs while
-    // the editor is still settling, and reaching into it at that moment is what
-    // left the panel and the preview blank once already.
-    listViewActiveUid ??= listViewRoots[0].uid;
-
-    listViewStarted = true;
-  }
-
-  list.textContent = '';
-
-  const visible = listViewVisible(listViewRoots);
-
-  // The box the open section is drawn in. Only one section can be open — they
-  // are an accordion — but this is built per root anyway, so nothing here
-  // depends on that staying true.
-  //
-  // Keyed by the node itself rather than by its uid: some rows have no uid at
-  // all, and those still have to land inside the box with their siblings, or
-  // the order breaks around them.
-  const branchBoxes = new Map();
-
-  listViewRoots.forEach((root) => {
-    if (listViewCollapsed.has(root.uid)) {
-      return;
-    }
-
-    const box = doc.createElement('div');
-    const inside = listViewVisible([root]);
-
-    box.setAttribute('data-sve-lv-branch', '');
-
-    // Blue only when what is selected is in *this* box. A section can stand open
-    // while the selection sits in a folded one — then the box is still where you
-    // are looking, but not where you are, and the blue would say otherwise.
-    if (inside.some((node) => node.uid && node.uid === listViewActiveUid)) {
-      box.setAttribute('data-sve-lv-here', '');
-    }
-
-    inside.forEach((node) => branchBoxes.set(node, box));
-  });
-
-  // Where a row goes: into its section's box, or straight into the list when the
-  // section is folded. The box is put in place by the first row that asks for it
-  // — the section's own — which is what keeps the sections in their order
-  // without a second pass over the tree.
-  const parentFor = (item) => {
-    const box = branchBoxes.get(item);
-
-    if (!box) {
-      return list;
-    }
-
-    if (!box.parentNode) {
-      list.appendChild(box);
-    }
-
-    return box;
-  };
-
-  if (!visible.length) {
-    const empty = doc.createElement('div');
-
-    empty.style.cssText = 'padding:30px 6px;text-align:center;opacity:.55;font-size:12px;';
-    empty.textContent = t(win, 'listview_empty');
-    list.appendChild(empty);
-
-    return;
-  }
-
-  visible.forEach((item) => {
-    const meta = listViewRowMeta(win, item);
-    const row = doc.createElement('div');
-
-    row.setAttribute('data-sve-lv-row', '');
-    row.setAttribute('role', 'button');
-    row.tabIndex = 0;
-    row.style.marginLeft = `${item.depth * 14}px`;
-
-    if (item.uid) {
-      row.setAttribute('data-sve-lv-uid', item.uid);
-    }
-
-    if (item.uid === listViewActiveUid) {
-      row.setAttribute('data-sve-lv-current', '');
-    }
-
-    if (!item.enabled) {
-      row.setAttribute('data-sve-lv-off', '');
-      row.title = t(win, 'listview_hidden');
-    }
-
-    // The arrow opens and shuts; the row selects. Two jobs, two targets — so
-    // looking at a block and unfolding it are separate acts, and neither is a
-    // side effect of the other.
-    //
-    // Nothing in its place when there are no children: the indent already says
-    // which level the row is on, so a reserved gap for an absent control just
-    // makes the row look like it is missing one.
-    if (item.children.length) {
-      const twist = doc.createElement('button');
-
-      twist.type = 'button';
-      twist.setAttribute('data-sve-lv-twist', '');
-      twist.title = t(win, 'listview_toggle');
-      twist.innerHTML =
-        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        + 'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
-
-      if (listViewCollapsed.has(item.uid)) {
-        twist.setAttribute('data-sve-lv-shut', '');
-      }
-
-      twist.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation(); // unfolds; does not select
-
-        if (!listViewCollapsed.has(item.uid)) {
-          listViewCollapsed.add(item.uid);
-        } else if (item.depth === 0) {
-          // A section opens onto its own blocks, with theirs folded, and the
-          // other sections shut — the accordion.
-          listViewSoloSection(item.uid);
-          listViewOpenShallow(item);
-        } else {
-          listViewCollapsed.delete(item.uid);
-        }
-
-        renderListView(win);
-      });
-
-      row.appendChild(twist);
-    }
-
-    // `block` is the stand-in, and it has to be a name `panelIcon` knows: it
-    // passes anything unrecognised straight through, which is what lets an emoji
-    // work — and what would otherwise have drawn the literal word here.
-    const icon = panelIcon(doc, meta?.icon || 'block');
-
-    if (icon) {
-      icon.style.flex = 'none';
-      row.appendChild(icon);
-    }
-
-    const text = doc.createElement('span');
-
-    text.setAttribute('data-sve-lv-text', '');
-    text.textContent = listViewRowLabel(win, item);
-    row.appendChild(text);
-
-    if (item.kind !== 'grid') {
-      text.title = t(win, 'listview_rename');
-      text.addEventListener('dblclick', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        beginListViewRename(win, row, item);
-      });
-    }
-
-    if (item.global) {
-      const badge = doc.createElement('span');
-
-      badge.setAttribute('data-sve-lv-global', '');
-      badge.textContent = t(win, 'listview_global');
-      badge.title = t(win, 'global_badge');
-      row.appendChild(badge);
-    }
-
-    // The section toolbar's own controls, on the row. The same four things the
-    // bar in the preview offers, calling the same functions — so a block can be
-    // moved, copied or thrown away from whichever of the two you happen to be
-    // looking at. The rest stays in the menu beside them.
-    const actions = doc.createElement('span');
-
-    actions.setAttribute('data-sve-lv-actions', '');
-
-    const action = (title, svg, run, danger = false) => {
-      const btn = doc.createElement('button');
-
-      btn.type = 'button';
-      btn.setAttribute('data-sve-lv-act', '');
-      btn.title = title;
-
-      if (danger) {
-        btn.setAttribute('data-sve-lv-danger', '');
-      }
-
-      btn.innerHTML =
-        `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" `
-        + `stroke-linecap="round" stroke-linejoin="round">${svg}</svg>`;
-      btn.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation(); // the action runs; the row is not selected
-
-        run();
-        win.setTimeout(() => renderListView(win), 0);
-      });
-
-      actions.appendChild(btn);
-    };
-
-    // En låst række kan hverken flyttes, dubleres eller slettes — så den får
-    // ingen af knapperne. Kun menuen, hvorfra den stadig kan skjules og vises.
-    if (item.uid && item.locked) {
-      const dots = doc.createElement('button');
-
-      dots.type = 'button';
-      dots.setAttribute('data-sve-lv-act', '');
-      dots.title = t(win, 'listview_actions');
-      dots.innerHTML =
-        '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/>'
-        + '<circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
-      dots.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        openListViewMenu(win, dots, item);
-      });
-
-      actions.appendChild(dots);
-    } else if (item.uid) {
-      // Åben hængelås: listen er låst op ved et klik, her eller i venstre panel.
-      // Den vej tilbage hører hjemme samme sted som vejen ud — ellers kunne låsen
-      // kun sættes på igen ved at hente siden.
-      if (item.unlocked && mayUnlockRows(win)) {
-        action(
-          t(win, 'listview_relock'),
-          '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
-          () => setListViewListLock(doc, item, true)
-        );
-      }
-
-      action(t(win, 'listview_move_up'), '<path d="M12 19V5M5 12l7-7 7 7"/>', () =>
-        handleMove({ uid: item.uid, direction: -1 }, doc)
-      );
-      action(t(win, 'listview_move_down'), '<path d="M12 5v14M19 12l-7 7-7-7"/>', () =>
-        handleMove({ uid: item.uid, direction: 1 }, doc)
-      );
-      action(
-        t(win, 'listview_duplicate'),
-        '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
-        () => handleDuplicateRow({ uid: item.uid }, doc, win)
-      );
-      action(
-        t(win, 'listview_delete'),
-        '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
-        () => handleRemoveRow({ uid: item.uid }, doc, win),
-        true
-      );
-
-      const dots = doc.createElement('button');
-
-      dots.type = 'button';
-      dots.setAttribute('data-sve-lv-act', '');
-      dots.title = t(win, 'listview_actions');
-      dots.innerHTML =
-        '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/>'
-        + '<circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
-      dots.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        openListViewMenu(win, dots, item);
-      });
-
-      actions.appendChild(dots);
-    }
-
-    row.appendChild(actions);
-
-    // The six dots, in the slot the action buttons take over on hover. It says
-    // the row can be moved; the row itself is what you take hold of, so this
-    // never needs to be hit — hence no pointer events on it.
-    if (item.uid) {
-      const handle = doc.createElement('span');
-
-      handle.setAttribute('data-sve-lv-handle', '');
-
-      if (item.locked) {
-        handle.setAttribute('data-sve-lv-locked', '');
-        handle.title = t(win, mayUnlockRows(win) ? 'listview_unlock' : 'listview_locked');
-
-        // Hængelåsen er en knap for den der satte låsen. Låsen er et værn mod
-        // uheld, ikke mod udvikleren: et klik tager den af listen, og rækkerne
-        // kan flyttes og slettes som alle andre — indtil siden hentes igen.
-        if (mayUnlockRows(win)) {
-          handle.setAttribute('data-sve-lv-unlockable', '');
-          handle.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation(); // låser op; vælger ikke rækken
-
-            setListViewListLock(doc, item, false);
-            renderListView(win);
-          });
-        }
-      }
-      handle.innerHTML =
-        '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.7"/>'
-        + '<circle cx="15" cy="6" r="1.7"/><circle cx="9" cy="12" r="1.7"/><circle cx="15" cy="12" r="1.7"/>'
-        + '<circle cx="9" cy="18" r="1.7"/><circle cx="15" cy="18" r="1.7"/></svg>';
-      row.appendChild(handle);
-    }
-
-    if (!item.uid) {
-      // No id to point at. Statamic gives every replicator row one, so this is a
-      // shape we don't expect — drawn, because leaving a hole in the tree would
-      // misrepresent the page, but neither clickable nor draggable.
-      row.style.opacity = '.4';
-      row.style.cursor = 'default';
-      parentFor(item).appendChild(row);
-
-      return;
-    }
-
-    const select = () => {
-      listViewActiveUid = item.uid;
-
-      // Selecting only selects. Folding is the arrow's job.
-      list.querySelectorAll('[data-sve-lv-current]').forEach((el) => el.removeAttribute('data-sve-lv-current'));
-      row.setAttribute('data-sve-lv-current', '');
-
-      // And the box the row is in follows the selection with it. Done here as
-      // well as in the draw, because a click on a row does not redraw the tree —
-      // it moves the mark — so the box would otherwise keep the colour it was
-      // given when the panel was last built.
-      list.querySelectorAll('[data-sve-lv-here]').forEach((el) => el.removeAttribute('data-sve-lv-here'));
-      row.closest('[data-sve-lv-branch]')?.setAttribute('data-sve-lv-here', '');
-
-      // Two halves of one click. This one opens the block in the editor panel,
-      // which is what the outline panel has always done.
-      focusFromPreview(item.uid, doc, win, { clampToSection: true });
-
-      // And this one does it on the page: the outline around the block, and its
-      // toolbar, exactly as clicking it there would. Without it the tree could
-      // only ever half-select — the panel knew, the page did not.
-      sendToPreview(
-        { source: 'statamic-visual-editor', type: 'sve-activate', ids: item.ids },
-        win
-      );
-    };
-
-    row.addEventListener('click', select);
-    row.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        select();
-      }
-    });
-
-    // --- Reordering ---------------------------------------------------------
-    // Only among true siblings: same parent row AND same field on it. Two rows
-    // can sit at the same depth under the same parent and still live in
-    // different arrays, and moving between those is not a reorder — it is a move
-    // to somewhere else, which this panel does not offer.
-    // The whole row is the handle. No separate chip to aim at — the open hand
-    // over the row says it can be picked up, which is the affordance a dedicated
-    // control was standing in for.
-    row.draggable = !item.locked;
-
-    row.addEventListener('dragstart', (event) => {
-      listViewDragUid = item.uid;
-      row.setAttribute('data-sve-lv-dragging', '');
-      event.dataTransfer.effectAllowed = 'move';
-      // Firefox starts no drag at all without something on the transfer.
-      event.dataTransfer.setData('text/plain', item.uid);
-    });
-
-    row.addEventListener('dragend', () => {
-      listViewDragUid = null;
-      row.removeAttribute('data-sve-lv-dragging');
-      list.querySelectorAll('[data-sve-lv-drop]').forEach((el) => el.removeAttribute('data-sve-lv-drop'));
-    });
-
-    const sameList = () => {
-      const dragged = listViewVisible(listViewRoots).find((node) => node.uid === listViewDragUid);
-
-      return (
-        dragged
-        && dragged.uid !== item.uid
-        && dragged.parentUid === item.parentUid
-        && dragged.listKey === item.listKey
-      );
-    };
-
-    /** Which half of the row the pointer is in — the edge the block would land on. */
-    const dropSide = (event) => {
-      const box = row.getBoundingClientRect();
-
-      return event.clientY < box.top + box.height / 2 ? 'above' : 'below';
-    };
-
-    row.addEventListener('dragover', (event) => {
-      if (!sameList()) {
-        return;
-      }
-
-      event.preventDefault();
-      event.dataTransfer.dropEffect = 'move';
-      row.setAttribute('data-sve-lv-drop', dropSide(event));
-    });
-
-    row.addEventListener('dragleave', () => row.removeAttribute('data-sve-lv-drop'));
-
-    row.addEventListener('drop', (event) => {
-      const side = row.getAttribute('data-sve-lv-drop') || dropSide(event);
-
-      row.removeAttribute('data-sve-lv-drop');
-
-      if (!sameList()) {
-        return;
-      }
-
-      event.preventDefault();
-
-      const moved = listViewDragUid;
-      const from = listViewVisible(listViewRoots).find((node) => node.uid === moved).index;
-
-      // `handleMove` takes the row out first and then puts it back, so the index
-      // it wants is one in the array as it will be *after* the removal. Everything
-      // below the old position has shifted up by one by then, which is the whole
-      // of the arithmetic here — and the reason dragging down by one used to look
-      // like nothing happening.
-      const target = item.index - (from < item.index ? 1 : 0);
-
-      handleMove({ uid: moved, toIndex: side === 'above' ? target : target + 1 }, doc);
-
-      listViewDragUid = null;
-      listViewActiveUid = moved;
-
-      // Redrawn from the values after Vue has taken the write, not from the tree
-      // this row was built from — that one describes the old order.
-      win.setTimeout(() => renderListView(win), 0);
-    });
-
-    parentFor(item).appendChild(row);
-  });
-}
-
-function fillListViewPane(win, pane) {
-  if (pane.querySelector('[data-sve-listview-list]')) {
-    return;
-  }
-
-  pane.id = LISTVIEW_PANEL_ID;
-  pane.innerHTML = `
-    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'listview_hint')}</div>
-    <div data-sve-listview-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
-  `;
-}
-
-function showListViewPane(win) {
-  renderListView(win);
-}
-
-function registerRightDockContent() {
-  registerRightDockHook('listview', {
-    fill: fillListViewPane,
-    show: showListViewPane,
-  });
-  registerRightDockHook('outline', {
-    fill: fillOutlinePane,
-    show: showOutlinePane,
-    hide: (win) => watchOutlineInPreview(win, false),
-  });
-  registerRightDockHook('sections', {
-    fill: (win) => mountSectionPicker(win),
-  });
-}
-
-function toggleListViewPanel(win) {
-  const doc = win.document;
-
-  if (listViewPanel(doc)) {
-    closeListViewPanel(win);
-
-    return;
-  }
-
-  closeRightPanels(win, [LISTVIEW_PANEL_ID]);
-
-  const panel = doc.createElement('div');
-
-  panel.id = LISTVIEW_PANEL_ID;
-  panel.style.cssText = RIGHT_PANEL_FILL;
-
-  panel.innerHTML = `
-    <div data-sve-lv-chrome>
-      <div data-sve-lv-tabs></div>
-      <button type="button" data-sve-close>✕</button>
-    </div>
-    <div data-sve-lv-body style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column;"></div>
-  `;
-
-  const tabsEl = panel.querySelector('[data-sve-lv-tabs]');
-
-  [
-    { key: 'tree', label: t(win, 'listview') },
-    { key: 'outline', label: t(win, 'outline') },
-  ].forEach((tab) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.dataset.lvTab = tab.key;
-    btn.setAttribute('data-sve-panel-tab', '');
-    btn.textContent = tab.label;
-    btn.addEventListener('click', () => setListViewTab(win, tab.key));
-    tabsEl.appendChild(btn);
-  });
-
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
-    closeListViewPanel(win);
-
-    if (headerTab === 'listview') {
-      setHeaderTab(win, null);
-    }
-
-    persistDockedPanel(win);
-    applyHeaderTab(win);
-  });
-  showInRightShell(win, panel);
-  syncPreviewInset(win);
-
-  setListViewTab(win, listViewTab);
-}
-
-function commentsPanel(doc) {
-  return doc.getElementById(COMMENTS_PANEL_ID);
-}
-
-function closeCommentsPanel(win) {
-  if (!commentsPanel(win.document)) {
-    return;
-  }
-
-  commentsPanel(win.document).remove();
-  releaseRightShellIfEmpty(win);
-  win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
-  syncPreviewInset(win);
-}
-
-function toggleCommentsPanel(win) {
-  const doc = win.document;
-
-  if (commentsPanel(doc)) {
-    closeCommentsPanel(win);
-
-    return;
-  }
-
-  closeRightPanels(win, [COMMENTS_PANEL_ID]);
-
-  const panel = doc.createElement('div');
-
-  panel.id = COMMENTS_PANEL_ID;
-  panel.style.cssText = RIGHT_PANEL_FILL;
-
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;flex:0 0 auto;gap:6px;">
-      <div data-sve-right-title>${t(win, 'comments_pane')}</div>
-      <button type="button" data-sve-comments-place title="${t(win, 'comments_place')}" aria-pressed="false">${TOOLBAR_ICONS.comments}</button>
-      <button type="button" data-sve-close>✕</button>
-    </div>
-  `;
-
-  const host = doc.createElement('div');
-
-  host.setAttribute('data-sve-comments-host', '');
-  host.style.cssText = 'flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;';
-  panel.appendChild(host);
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => {
-    closeCommentsPanel(win);
-    persistDockedPanel(win);
-    applyHeaderTab(win);
-  });
-  showInRightShell(win, panel);
-  persistDockedPanel(win);
-  applyHeaderTab(win);
-  syncPreviewInset(win);
-}
-
-/**
- * Shows one of the panel's two views.
- *
- * Each tab owns its own body markup, and the outline's is exactly what its
- * standalone panel builds — the same containers, so `renderOutline` fills them
- * without knowing it has moved house.
- *
- * The preview is only asked to report its headings while that tab is showing.
- * Watching costs a message per change, and a panel showing blocks has no use
- * for them.
- */
-function setListViewTab(win, tab) {
-  const doc = win.document;
-  const panel = listViewPanel(doc);
-
-  if (!panel) {
-    return;
-  }
-
-  listViewTab = tab;
-  chromeSet(win, 'sve-listview-tab', tab);
-
-  panel.querySelectorAll('[data-lv-tab]').forEach((btn) => {
-    btn.setAttribute('aria-pressed', btn.dataset.lvTab === tab ? 'true' : 'false');
-  });
-
-  const body = panel.querySelector('[data-sve-lv-body]');
-
-  if (tab === 'outline') {
-    body.innerHTML = `
-      <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'outline_hint')}</div>
-      <div data-sve-outline-notice style="flex:0 0 auto;"></div>
-      <div data-sve-outline-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
-    `;
-
-    renderOutline(win); // "Loading…", until the preview answers
-    watchOutlineInPreview(win, true);
-
-    // A preview still booting has no listener yet, and a message posted into it
-    // is simply gone. Two more asks, then the silence is taken for an answer.
-    [700, 2000].forEach((delay) => {
-      win.setTimeout(() => {
-        if (!outlineAnswered && listViewPanel(win.document) && listViewTab === 'outline') {
-          watchOutlineInPreview(win, true);
-        }
-      }, delay);
-    });
-
-    return;
-  }
-
-  watchOutlineInPreview(win, false);
-
-  body.innerHTML = `
-    <div style="padding:var(--sve-right-body-pad-block) 0 0;font-size:11px;opacity:.6;flex:0 0 auto;">${t(win, 'listview_hint')}</div>
-    <div data-sve-listview-list style="flex:1 1 auto;min-height:0;overflow-y:auto;"></div>
-  `;
-
-  renderListView(win);
-}
-
-// --- Single-section ("solo") panel ---------------------------------------------
-// Clicking a section in the preview opens the editor panel showing ONLY that
-// section's fields — instead of the whole page_sections list. Isolation is done
-// the Vue-safe way: mark the path from the section's set up to the editor root
-// with attributes, then hide everything else via an injected <style>. We never
-// insert nodes into, or set inline display on, Statamic's Vue-managed field
-// tree — doing so corrupts Vue's virtual-DOM diffing and tears the whole form
-// down. A MutationObserver re-applies the marks whenever Vue re-renders the
-// fields (e.g. when a set is expanded), so isolation survives re-renders.
-
-const SOLO_STYLE_ID = 'sve-solo-style';
-const SOLO_BACK_ID = 'sve-solo-back';
-const SOLO_SAVE_ID = 'sve-solo-save';
-const SOLO_PARENT_ATTR = 'data-sve-solo-parent';
-const SOLO_KEEP_ATTR = 'data-sve-solo-keep';
-/** Panel-iframe isolation: mark nodes to hide, instead of parent>child solo CSS. */
-const PANEL_AWAY_ATTR = 'data-sve-panel-away';
-const PANEL_COLUMN_ATTR = 'data-sve-panel-column'; // the sve-panel frame's scrolling column
-
-let soloUid = null;
-let soloObserver = null;
-// The set whose blocks this visit has already folded. Cleared on the way to
-// another one, so stepping out of a block and back into its section folds again.
-let foldedFor = null;
-
-/** Removes all solo marks, the injected style, the observer and the back button. */
-export function clearSolo(doc) {
-  soloUid = null;
-  soloBackAction = null;
-  foldedFor = null;
-
-  const win = doc.defaultView || window;
-  const lpOpen = !!doc.querySelector('.live-preview-editor');
-
-  if (lpOpen && isCodeDockArmed(win) && templateDockAllowed(win)) {
-    syncCodeDock(win, doc, null);
-  } else {
-    closeCodeDock(doc);
-  }
-  relayoutAiPanel(doc.defaultView || window);
-  clearFocus(doc);
-
-  if (soloObserver) {
-    soloObserver.disconnect();
-    soloObserver = null;
-  }
-
-  doc.getElementById(SOLO_STYLE_ID)?.remove();
-  doc.getElementById(SOLO_BACK_ID)?.remove();
-  doc.getElementById(SOLO_SAVE_ID)?.remove();
-  doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
-  doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
-  doc.querySelectorAll(`[${PANEL_AWAY_ATTR}]`).forEach((el) => el.removeAttribute(PANEL_AWAY_ATTR));
-}
-
-/**
- * How far up the isolation reaches: the panel's scrolling column, not the pane
- * around it.
- *
- * The editor pane holds two things — the column of fields and the handle that
- * drags its width. Marking up to the pane makes the handle an off-path child of a
- * marked parent, and the stylesheet below hides it: the panel could be resized
- * while showing the whole page and not while showing one section of it. Stopping
- * at the column leaves everything beside it alone.
- */
-function soloRoot(doc) {
-  if (panelFrameDoc(doc)) {
-    // Prefer a root that actually contains the section set. The first
-    // `.publish-fields` on the page can be a nested/empty wrapper that does
-    // NOT contain page_sections — markPanelIsolate then fails (set not
-    // contained), soloSection still returned true, and the sidebar stayed on
-    // title/Published forever.
-    const section = doc.querySelector(SELECTORS.replicatorSet);
-    const fromSet =
-      section?.closest('.publish-form') ||
-      section?.closest('main') ||
-      section?.closest('.publish-fields');
-
-    if (fromSet) {
-      return fromSet;
-    }
-
-    return (
-      doc.querySelector('.publish-form') ||
-      doc.querySelector('main') ||
-      doc.querySelector('.publish-fields')
-    );
-  }
-
-  return (
-    doc.querySelector('.live-preview-fields') ||
-    doc.querySelector('.live-preview-editor')
-  );
-}
-
-/** True when this document is the sve-panel iframe (globals / saved section). */
-function panelFrameDoc(doc) {
-  try {
-    return new URLSearchParams(doc.defaultView?.location?.search || '').has('sve-panel');
-  } catch {
-    return false;
-  }
-}
-
-function ensureSoloStyle(doc) {
-  const existing = doc.getElementById(SOLO_STYLE_ID);
-
-  // Panel iframe uses away-marks (safe under Vue re-renders). Live Preview keeps
-  // the classic parent>keep path CSS.
-  const css = panelFrameDoc(doc)
-    ? `[${PANEL_AWAY_ATTR}] { display: none !important; }`
-    : `[${SOLO_PARENT_ATTR}] > *:not([${SOLO_KEEP_ATTR}]) { display: none !important; }`;
-
-  if (existing) {
-    if (existing.textContent !== css) {
-      existing.textContent = css;
-    }
-
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = SOLO_STYLE_ID;
-  style.textContent = css;
-  doc.head.appendChild(style);
-}
-
-/** What the back pill does, when it is not simply leaving the solo view. */
-let soloBackAction = null;
-
-/** Leaves the solo view: back to the whole form, in whatever mode is selected. */
-function leaveSolo(doc, win) {
-  // Synced-section panel: "back" means leave the global edit, not the entry meta form.
-  if (panelFrameDoc(doc) && win.location.pathname.includes('/collections/')) {
-    win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'request-close-global' },
-      win.location.origin
-    );
-
-    return;
-  }
-
-  // Same when the synced entry's form is mounted here: "all sections" means the
-  // page's sections. Dropping the solo would instead show the library entry's own
-  // form — Navn, Synkroniseret, Published — which is not a place to step back to.
-  if (globalSectionHost(doc)) {
-    handleRequestCloseGlobal(win);
-
-    return;
-  }
-
-  // Stepping out of a widget inside the header goes back to the header, the way
-  // a block steps back into the section holding it. Leaving the header itself is
-  // the bar's job, not this one's.
-  if (chromeHost(doc) && chromeInlineKind) {
-    const kind = chromeInlineKind;
-
-    clearSolo(doc);
-    soloChromeTab(win, doc, kind);
-    watchChromeSolo(win, doc, kind);
-
-    return;
-  }
-
-  // Leaving a settings view hands the panel back to whatever mode is selected;
-  // leaving an ordinary solo view leaves the panel exactly as it was.
-  const wasSettings = forcePanelOpen;
-
-  forcePanelOpen = false;
-  clearSolo(doc);
-
-  if (wasSettings) {
-    setLpCollapsed(win, lpMode(win) !== 'show');
-  }
-}
-
-/**
- * Back-to-full-form control, appended to the body (outside the Vue tree). When a
- * `saveUid` is given (settings view), a "Gem sektion" button is placed beside it
- * so the section can be saved as a template right from the panel — the same
- * action as the hover control's bookmark, offered "begge steder".
- *
- * `back` re-points it: a focused block goes back to the section it sits in, named
- * after that section, rather than all the way out. The pill is built once and
- * relabelled on later passes — a step deeper is a new destination, not a new
- * button, and rebuilding it would lose its place in the header.
- */
-function addSoloBackButton(doc, win, saveUid = null, back = null) {
-  soloBackAction = back?.onBack ?? null;
-
-  // No way back to a list that isn't there. With "Open in the first section" on,
-  // the page-sections field is not in the panel, so the outermost back button
-  // would lead to an empty view. A block inside a section still has somewhere to
-  // go — its section — and keeps its button; only the last step out is dropped.
-  if (!back && featureOn(win, 'open_first_section')) {
-    doc.getElementById(SOLO_BACK_ID)?.remove();
-
-    return;
-  }
-
-  const label = back?.label || t(win, 'all_sections');
-  const existing = doc.getElementById(SOLO_BACK_ID);
-
-  if (existing) {
-    const text = existing.querySelector('[data-sve-back-label]');
-
-    if (text && text.textContent !== label) {
-      text.textContent = label;
-    }
-
-    return;
-  }
-
-  const header = lpHeader(doc);
-  // A header pill, styled like the others — grey, not a floating white button.
-  const pill =
-    'display:inline-flex;align-items:center;gap:0.55em;height:28px;padding:0 12px;border:none;' +
-    'border-radius:8px;background:rgba(128,128,128,.16);color:currentColor;cursor:pointer;' +
-    'font-size:12px;font-weight:500;font-family:inherit;';
-  // Drop it into the header right after the panel's own frame, so "back to all
-  // sections" reads as part of the same row of controls. Ikke fanerne som anker
-  // længere — de bor nede i panelets bundlinje nu.
-  const anchor =
-    doc.getElementById(frameId('settings')) ||
-    doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="settings"]');
-
-  const btn = doc.createElement('button');
-
-  btn.id = SOLO_BACK_ID;
-  btn.type = 'button';
-  btn.innerHTML =
-    '<span style="display:inline-flex;align-items:center;justify-content:center;font-size:1.2rem;line-height:1;font-weight:600;transform:translateY(-1.5px);">&#8249;</span>' +
-    `<span data-sve-back-label>${label}</span>`;
-  btn.style.cssText = pill;
-  btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(128,128,128,.28)'));
-  btn.addEventListener('mouseleave', () => (btn.style.background = 'rgba(128,128,128,.16)'));
-  btn.addEventListener('click', () => {
-    // Read at click time, not at build time: the pill outlives the view it was
-    // built in, and by then it points somewhere else.
-    const step = soloBackAction;
-
-    if (step) {
-      step();
-
-      return;
-    }
-
-    leaveSolo(doc, win);
-  });
-
-  if (anchor) {
-    anchor.after(btn);
-  } else if (header) {
-    header.insertBefore(btn, header.firstChild);
-  } else {
-    doc.body.appendChild(btn);
-  }
-
-  if (!saveUid) {
-    return;
-  }
-
-  const save = doc.createElement('button');
-
-  save.id = SOLO_SAVE_ID;
-  save.type = 'button';
-  save.innerHTML =
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    `<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg><span>${t(win, 'save_section')}</span>`;
-  save.style.cssText = pill;
-  save.addEventListener('mouseenter', () => (save.style.background = 'rgba(128,128,128,.28)'));
-  save.addEventListener('mouseleave', () => (save.style.background = 'rgba(128,128,128,.16)'));
-  save.addEventListener('click', () => handleSaveSection({ uid: saveUid }, doc, win));
-
-  btn.after(save);
-}
-
-/**
- * Marks the path from the target set up to the editor root: each parent gets
- * SOLO_PARENT_ATTR, each child on the path gets SOLO_KEEP_ATTR. Combined with
- * the injected style, this hides every off-path element. Returns true on success.
- */
-function markSoloPath(uid, editor, doc) {
-  // Synced-section panel: never use parent>keep CSS — Vue replaces wrappers and
-  // leaves an empty sidebar with only the focus header. Away-marks are remade
-  // from scratch on every pass and do not depend on surviving attributes.
-  if (panelFrameDoc(doc)) {
-    return markPanelIsolate(uid, editor, doc);
-  }
-
-  doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
-  doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
-
-  const setEl = findSetByUid(uid, doc);
-
-  if (!setEl || !editor.contains(setEl)) {
-    return false;
-  }
-
-  let node = setEl;
-
-  while (node && node !== editor && node.parentElement) {
-    node.setAttribute(SOLO_KEEP_ATTR, '');
-    node.parentElement.setAttribute(SOLO_PARENT_ATTR, '');
-    node = node.parentElement;
-  }
-
-  // Focus header lives outside Vue — remake must not leave it un-kept, or the
-  // solo stylesheet hides it until paintFocus runs (and on a failed expand it
-  // never does).
-  doc.getElementById(FOCUS_HEADER_ID)?.setAttribute(SOLO_KEEP_ATTR, '');
-
-  // Expand the set (and any ancestor sets) so its fields show.
-  [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-
-  return true;
-}
-
-/**
- * Panel-iframe isolation: hide every sibling along the path to the focused set.
- * Fully cleared and rebuilt each call — safe when Vue swaps intermediate nodes.
- */
-function markPanelIsolate(uid, editor, doc) {
-  doc.querySelectorAll(`[${PANEL_AWAY_ATTR}]`).forEach((el) => el.removeAttribute(PANEL_AWAY_ATTR));
-
-  const setEl = findSetByUid(uid, doc);
-
-  if (!setEl || !editor?.contains(setEl)) {
-    return false;
-  }
-
-  [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-
-  const keep = new Set();
-  const header = doc.getElementById(FOCUS_HEADER_ID);
-
-  if (header) {
-    keep.add(header);
-  }
-
-  let node = setEl;
-
-  while (node && node !== editor) {
-    keep.add(node);
-    node = node.parentElement;
-  }
-
-  keep.forEach((el) => {
-    const parent = el.parentElement;
-
-    if (!parent) {
-      return;
-    }
-
-    for (const child of parent.children) {
-      if (keep.has(child) || child.contains(setEl)) {
-        continue;
-      }
-
-      // Never hide the focus header or sticky chrome we inject.
-      if (child.id === FOCUS_HEADER_ID || child.hasAttribute('data-sve-focus-header')) {
-        continue;
-      }
-
-      child.setAttribute(PANEL_AWAY_ATTR, '');
-    }
-  });
-
-  return true;
-}
-
-/**
- * Sidder markeringen stadig på det den blev sat på?
- *
- * At spørge om der overhovedet findes en keep-markering i dokumentet er ikke
- * nok. Focus-headeren bærer selv en, og den ligger uden for Vue's træ og
- * forsvinder aldrig. Bygger Vue feltkolonnen om — hvilket den gør når panelet
- * trækkes forbi en vis bredde — kommer rækkerne tilbage umarkerede, mens
- * headeren stadig har sin. Den gamle vagt læste det som "markeringen overlevede"
- * og lod være med at markere igen, og stilarket skjulte så hele kolonnen: kun
- * headeren stod tilbage, og panelet var tomt indtil man forlod solo-visningen.
- *
- * Spørgsmålet skal stilles til de elementer markeringen faktisk hører til. Er de
- * væk, eller er de kommet igen uden den, skal stien sættes op på ny.
- */
-function soloMarksIntact(targets) {
-  return targets.length > 0 && targets.every((el) => el?.isConnected && el.hasAttribute(SOLO_KEEP_ATTR));
-}
-
-/**
- * Synced-section iframe: the focus header can paint while the set is still
- * collapsed — header paints, fields never mount → empty sidebar. Re-assert
- * expand + away-marks for a short window after each solo.
- */
-function ensurePanelSoloVisible(win, doc, uid) {
-  let tries = 0;
-
-  const tick = () => {
-    if (soloUid !== uid || !panelFrameDoc(doc)) {
-      return;
-    }
-
-    const setEl = findSetByUid(uid, doc);
-    const editor = soloRoot(doc);
-
-    if (!setEl || !editor) {
-      if (tries++ < 25) {
-        win.setTimeout(tick, 120);
-      }
-
-      return;
-    }
-
-    if (isSetCollapsed(setEl)) {
-      expandSet(setEl);
-    }
-
-    markPanelIsolate(uid, editor, doc);
-
-    const hasFields =
-      setEl.querySelector('.publish-field, [class*="-fieldtype"], .bard-fieldtype, input, textarea, select') &&
-      !isSetCollapsed(setEl);
-
-    if (!hasFields && tries++ < 25) {
-      win.setTimeout(tick, 120);
-    }
-  };
-
-  win.setTimeout(tick, 50);
-  win.setTimeout(tick, 200);
-  win.setTimeout(tick, 500);
-  win.setTimeout(tick, 1000);
-}
-
-/**
- * Is the full solo keep/parent chain still intact from the set up to the editor?
- *
- * Checking only the set is not enough: Vue often replaces intermediate wrappers
- * while leaving the set node alone. Solo CSS then hides everything under the
- * break, and only the focus header (kept outside Vue) remains — empty sidebar
- * with a title. Same failure mode on the synced-section sve-panel iframe.
- */
-function soloPathIntact(uid, editor, doc) {
-  const setEl = findSetByUid(uid, doc);
-
-  if (!setEl || !editor?.isConnected || !editor.contains(setEl)) {
-    return false;
-  }
-
-  if (!editor.hasAttribute(SOLO_PARENT_ATTR)) {
-    return false;
-  }
-
-  let node = setEl;
-
-  while (node && node !== editor) {
-    if (!node.hasAttribute(SOLO_KEEP_ATTR)) {
-      return false;
-    }
-
-    const parent = node.parentElement;
-
-    if (!parent?.hasAttribute(SOLO_PARENT_ATTR)) {
-      return false;
-    }
-
-    node = parent;
-  }
-
-  return node === editor;
-}
-
-/**
- * Isolates a section's settings — and nothing else — in the editor panel.
- *
- * Reuses the solo marking, only starting deeper: instead of keeping the path down
- * to the whole set, it keeps the path down to the set's own `settings` fields, so
- * the panel shows the spacing/colour controls alone. Several fields can be kept
- * at once (settings plus its per-breakpoint siblings) — the style only hides
- * children that aren't marked, so marked siblings all survive.
- */
-export function soloSectionSettings(uid, doc, win) {
-  const setEl = findSetByUid(uid, doc);
-  const editor = soloRoot(doc);
-
-  if (!setEl || !editor || !editor.contains(setEl)) {
-    return false;
-  }
-
-  soloUid = uid;
-
-  // Sættet slås op forfra hver gang. Elementet fra før er kun gyldigt indtil Vue
-  // bygger kolonnen om, og markeringer sat på et element der ikke længere står i
-  // dokumentet, gør ingenting.
-  const apply = () => {
-    const current = findSetByUid(uid, doc) || setEl;
-    const root = soloRoot(doc) || editor;
-    const targets = sectionSettingsFields(current);
-
-    if (!targets.length || !root) {
-      return false;
-    }
-
-    ensureSoloStyle(doc);
-
-    doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
-    doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
-
-    targets.forEach((target) => {
-      for (let node = target; node && node !== root && node.parentElement; node = node.parentElement) {
-        node.setAttribute(SOLO_KEEP_ATTR, '');
-        node.parentElement.setAttribute(SOLO_PARENT_ATTR, '');
-      }
-    });
-
-    addSoloBackButton(doc, win, uid);
-
-    return true;
-  };
-
-  if (!apply()) {
-    return false;
-  }
-
-  if (soloObserver) {
-    soloObserver.disconnect();
-  }
-
-  const target = doc.querySelector('.live-preview-fields') || editor;
-
-  soloObserver = new MutationObserver(() => {
-    if (soloUid !== uid) {
-      return;
-    }
-
-    const current = findSetByUid(uid, doc);
-
-    if (!current || !soloMarksIntact(sectionSettingsFields(current))) {
-      apply();
-    }
-  });
-  soloObserver.observe(target, { childList: true, subtree: true });
-
-  return true;
-}
-
-// A section's settings are a tabby field (the Farver / Spacing / Custom css tabs),
-// sometimes alongside a breakpoint switcher for the per-device values. Targeting
-// the fieldtypes, not field ids: in Statamic 6 the `field_…` ids are on the inputs
-// themselves, not on any wrapper, so there is nothing to match a handle against.
-const SETTINGS_FIELDTYPES = '.tabby-fieldtype, [class*="breakpoint-fieldtype"]';
-
-/**
- * The section's own settings fields.
- *
- * Everything nested in a section brings settings of its own — every button row,
- * every column — and they render the same fieldtypes. The section's are the least
- * deeply nested: they sit in the set's own field list, the rest one or more field
- * lists further in.
- */
-function sectionSettingsFields(setEl) {
-  const depth = (el) => {
-    let levels = 0;
-
-    for (let node = el.parentElement; node && node !== setEl; node = node.parentElement) {
-      if (node.classList?.contains('publish-fields')) {
-        levels++;
-      }
-    }
-
-    return levels;
-  };
-
-  const fields = [...setEl.querySelectorAll(SETTINGS_FIELDTYPES)];
-
-  if (!fields.length) {
-    return [];
-  }
-
-  const shallowest = Math.min(...fields.map(depth));
-
-  return fields.filter((el) => depth(el) === shallowest);
-}
-
-/**
- * Isolates one section in the editor panel. Returns false when the set can't be
- * located at all (caller falls back to normal focus). Marks are re-applied on
- * every field re-render via a MutationObserver.
- */
-/**
- * Make the sections tab the one on screen.
- *
- * Sections live in the first publish tab. If another tab (SEO, Sidebar) is
- * selected when you open a section, its fields sit in a tab panel the CP has
- * hidden — so isolating them shows nothing. Switching back first is what keeps the
- * section from opening into a blank panel.
- */
-function activateSectionsTab(win) {
-  const first = nativeTabButtons(win.document)[0];
-
-  if (first && first.getAttribute('aria-selected') !== 'true') {
-    fireTabClick(win, 0);
-  }
-}
-
-// --- Focus panel ---------------------------------------------------------------
-// The panel as one thing at a time. A soloed section already shows only itself,
-// but it shows itself as it sits in the list: inside its card, under its header
-// bar, with every block nested in it unfolded below. What is left here is what was
-// clicked — named at the top with its own icon and instructions, its fields under
-// it, and the blocks it contains reached by clicking them on the page instead of
-// by opening a list.
-//
-// Nothing new is isolated: the marking is the solo marking, and the tabs are the
-// section's own segmented control, already built from its `tab` markers. This adds
-// a header of its own above the fields, four attributes, and the stylesheet that
-// reads them.
-
-const FOCUS_HEADER_ID = '__sve-focus-header';
-const FOCUS_ROOT_ATTR = 'data-sve-focus'; // on <html>: which kind is on show
-const FOCUS_SET_ATTR = 'data-sve-focus-set'; // the set the panel is showing
-const FOCUS_HIDE_ATTR = 'data-sve-focus-hide'; // a row this view leaves out
-const FOCUS_FLAT_ATTR = 'data-sve-focus-flat'; // a wrapper stripped of what it draws
-const FOCUS_FLUSH_ATTR = 'data-sve-focus-flush'; // the field list, out to the panel's own gutter
-const FOCUS_STEP_ATTR = 'data-sve-focus-step'; // the arrow into a block's own view
-
-// Segment to open once the control exists — the gear on a section means
-// "settings", which is not the segment a section opens on.
-let focusSegment = null;
-let focusRepaintPending = false;
-
-/** Labels a settings segment goes by, in the languages the editor is used in. */
-const FOCUS_SETTINGS_SEGMENT = /style|design|settings|advance|avanc|indstil|udseende/i;
-
-/** Is the simplified panel switched on for this site? */
-function focusPanelOn(win) {
-  return featureOn(win, 'focus_panel');
-}
-
-/** What a set calls itself: display name, icon and instructions. */
-function setMeta(win, handle) {
-  const map = win.Statamic?.$config?.get?.('sveSetMeta');
-
-  return (handle && map?.[handle]) || null;
-}
-
-/** What a Grid field calls its rows: display name and the icon on the field. */
-function gridMeta(win, handle) {
-  const map = win.Statamic?.$config?.get?.('sveGridMeta');
-
-  return (handle && map?.[handle]) || null;
-}
-
-/** The set handle ("hero/style_2") of the row a uid points at. */
-function setTypeForUid(uid, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const path = findPathByUid(values, uid);
-
-    if (path === null) {
-      continue;
-    }
-
-    const row = dataGet(values, path);
-
-    if (row && typeof row === 'object' && typeof row.type === 'string') {
-      return row.type;
-    }
-  }
-
-  return null;
-}
-
-/**
- * The row one level up from a nested one — a block's section.
- *
- * A row's path names the field it sits in and its index in it
- * ("page_sections.0.blocks.1"), so its parent row is two segments shorter. A path
- * with nothing left after that is a top-level section, which has no row above it.
- */
-function parentRowUid(uid, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const path = findPathByUid(values, uid);
-
-    if (!path) {
-      continue;
-    }
-
-    const parts = path.split('.');
-
-    if (parts.length < 4) {
-      return null;
-    }
-
-    const row = dataGet(values, parts.slice(0, -2).join('.'));
-
-    if (row && typeof row === 'object') {
-      return row._visual_id || row._id || row.id || null;
-    }
-  }
-
-  return null;
-}
-
-/** 'section' for a top-level set, 'block' for one nested inside another. */
-function focusKindOf(setEl) {
-  return collectAncestorSets(setEl).length ? 'block' : 'section';
-}
-
-/** The sets nested directly in this one — a section's blocks, a block's rows. */
-function childSets(setEl) {
-  return [...setEl.querySelectorAll(SELECTORS.anySet)].filter(
-    (el) => el.parentElement?.closest(SELECTORS.anySet) === setEl
-  );
-}
-
-/**
- * Folds the blocks a set holds, on the way into it.
- *
- * A view of a section opens on its list of blocks, and a list is only a list while
- * every row of it is the same size: one block left standing open — the one added
- * last, or the one just stepped out of — is a wall of fields where the row above
- * it is a name, and the block under it has been pushed off the screen. So the way
- * in folds them, every time, and what the editor opens from there stays open for
- * as long as that view lasts.
- *
- * Reports whether it had a list to fold: called before the panel has drawn one it
- * says so, and the pass after the fields have settled tries again.
- */
-function foldChildSets(doc, uid) {
-  const setEl = findSetByUid(uid, doc);
-
-  if (!setEl) {
-    return false;
-  }
-
-  const kids = childSets(setEl);
-
-  if (!kids.length) {
-    return false;
-  }
-
-  kids.forEach((kid) => {
-    try {
-      collapseSet(kid);
-    } catch {
-      // One set that won't fold must not leave the rest of the view unpainted.
-    }
-  });
-
-  return true;
-}
-
-/**
- * The arrow that opens a set on its own.
- *
- * Sits in the set's own header, beside the chevron that unfolds it in place — the
- * two are the same choice put twice: work on it here, in the run of the list, or
- * step into it and have the panel to yourself. Guarded on its own presence, so a
- * re-render puts it back rather than twice.
- */
-function addStepInto(win, doc, setEl) {
-  const header = [...setEl.children].find((el) => el.tagName === 'HEADER');
-
-  if (!header || header.querySelector(`[${FOCUS_STEP_ATTR}]`)) {
-    return;
-  }
-
-  const uid = getUidFromSet(setEl);
-
-  if (!uid) {
-    return;
-  }
-
-  const btn = doc.createElement('button');
-
-  btn.type = 'button';
-  btn.setAttribute(FOCUS_STEP_ATTR, '');
-  btn.title = t(win, 'focus_step_in');
-  btn.innerHTML =
-    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
-  btn.addEventListener('click', (event) => {
-    // The header is the collapse toggle; this button is not.
-    event.preventDefault();
-    event.stopPropagation();
-    // No kind given: a top-level set is a section, a nested one is a block, and
-    // the set itself is what says which.
-    soloSection(uid, doc, win);
-  });
-
-  header.appendChild(btn);
-}
-
-/**
- * The arrow on every set in the editor panel — the sections in the whole-page
- * list as much as the blocks inside one.
- *
- * Every set, because the list of sections is a list like any other: the way into
- * Hero style 1 from the page's own list should be the way into the Headline inside
- * it, and one arrow that always means the same thing is easier to learn than two
- * that nearly do.
- *
- * Confined to the panel beside the preview. The ordinary publish form is not a
- * place you can step into anything from — there is nothing to step into it *for*
- * — and it stays exactly as Statamic renders it.
- */
-function markStepIntoAll(win) {
-  const doc = win.document;
-  const editor = soloRoot(doc);
-
-  if (!editor || !focusPanelOn(win)) {
-    return;
-  }
-
-  editor.querySelectorAll(SELECTORS.anySet).forEach((setEl) => {
-    try {
-      addStepInto(win, doc, setEl);
-    } catch {
-      // One malformed set must not stop the rest of the panel from working.
-    }
-  });
-}
-
-/** A readable name for a set nobody described: "hero/style_2" → "Style 2". */
-function humanizeHandle(handle) {
-  const name = String(handle || '').split('/').pop().replace(/[-_]+/g, ' ').trim();
-
-  return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
-}
-
-/** Removes the header and every focus mark. The solo marking is cleared with it. */
-function clearFocus(doc) {
-  focusSegment = null;
-
-  doc.documentElement.removeAttribute(FOCUS_ROOT_ATTR);
-  doc.getElementById(FOCUS_HEADER_ID)?.remove();
-
-  // The step-in arrows stay: they belong to the panel, not to this view, and the
-  // whole-page list is exactly where the next one is stepped into from.
-  [FOCUS_SET_ATTR, FOCUS_HIDE_ATTR, FOCUS_FLAT_ATTR, FOCUS_FLUSH_ATTR].forEach((attr) => {
-    doc.querySelectorAll(`[${attr}]`).forEach((el) => el.removeAttribute(attr));
-  });
-}
-
-/**
- * Strips every wrapper between the panel and the fields of everything it draws.
- *
- * A block's fields are a dozen elements deep — the portal, the entry's tab pane,
- * the page builder's field, the list its sections are rows of, the section's card
- * and field grid, the block list, the block's card — and each of those draws
- * itself: a border, a rounding, a background, an indent, a divider. Named one by
- * one they come back the moment a fieldset nests differently, so they are found by
- * walking rather than guessed at.
- *
- * The walk goes up from the fields, never down from the panel: only that direction
- * knows which of Statamic's nested divs are on the way to *these* fields, and it
- * stops at the panel's own scrolling column, whose padding is the panel's. Bounded
- * by containment as well as by identity — a field list that isn't in the panel at
- * all (a popped-out preview, a form that hasn't been portalled in yet) marks
- * nothing, rather than walking out of the editor and stripping the page.
- *
- * What is stripped is decoration only. The boxes stay in the layout, laid out
- * exactly as Statamic lays them out — nothing here can make a field disappear.
- *
- * The list at the end of the walk is marked too, but only to give up its side
- * padding. A set's field list is rendered with `p-4` — an inset that reads as
- * "inside this card" in a list of cards, and as a step out of line the moment the
- * card is gone: the header naming what is on show sits at the panel's gutter, and
- * the fields under it sat a further 1rem in. Its top and bottom stay, so the
- * fields still breathe under the header.
- */
-function flattenWrappers(doc, setEl) {
-  // The column, not the pane: its padding is the panel's own gutter, and the
-  // walk that strips every wrapper on the way to the fields must not strip that
-  // too. In Live Preview the two are the same element; in the sve-panel frame
-  // `soloRoot` reaches up to <main> — past the column — and flattening it left
-  // the panel reading edge to edge.
-  const stop = focusHeaderHost(doc);
-  const wanted = new Set();
-  const flush = new Set();
-
-  if (stop) {
-    sectionFieldLists(setEl).forEach((list) => {
-      if (!stop.contains(list)) {
-        return;
-      }
-
-      flush.add(list);
-
-      for (let node = list.parentElement; node && node !== stop; node = node.parentElement) {
-        wanted.add(node);
-      }
-    });
-  }
-
-  doc.querySelectorAll(`[${FOCUS_FLAT_ATTR}]`).forEach((el) => {
-    if (!wanted.has(el)) {
-      el.removeAttribute(FOCUS_FLAT_ATTR);
-    }
-  });
-
-  doc.querySelectorAll(`[${FOCUS_FLUSH_ATTR}]`).forEach((el) => {
-    if (!flush.has(el)) {
-      el.removeAttribute(FOCUS_FLUSH_ATTR);
-    }
-  });
-
-  wanted.forEach((el) => el.setAttribute(FOCUS_FLAT_ATTR, ''));
-  flush.forEach((el) => el.setAttribute(FOCUS_FLUSH_ATTR, ''));
-}
-
-/**
- * The header element, at the top of the panel's scrolling column.
- *
- * `.live-preview-fields` and not `.live-preview-editor`: the editor pane is a flex
- * row holding the field column and the drag handle that resizes it, so a child
- * added there lands beside the fields rather than above them. It also wears the
- * solo keep-mark, or the stylesheet that hides everything off the soloed path
- * would hide the header describing it.
- */
-/** Does this element lay its children out one under the other? */
-function stacksChildren(style) {
-  if (style.display === 'block' || style.display === 'flow-root') {
-    return true;
-  }
-
-  return (
-    (style.display === 'flex' || style.display === 'inline-flex') &&
-    style.flexDirection.startsWith('column')
-  );
-}
-
-/**
- * Where the focus header goes: the column the fields scroll in.
- *
- * In Live Preview that is `soloRoot` itself, and the header is simply its first
- * child. The sve-panel frame is a whole CP screen, where `soloRoot` reaches all
- * the way up to `<main>` because it has to — that is the isolation boundary, the
- * level at which the nav beside the form gets hidden. But `<main>` is a flex ROW
- * holding exactly that nav beside the form, so a header inserted as its first
- * child does not sit above the fields: it becomes a column standing next to
- * them, full height, with the fields squeezed into what is left.
- *
- * The two jobs are not the same one. Isolation reaches as high as the things it
- * must hide; the header belongs as deep as the column it names. So the frame is
- * asked for its scrolling column — the outermost thing above the form that
- * scrolls and stacks what it holds, found by what it does rather than by the
- * class it happens to wear.
- */
-function focusHeaderHost(doc) {
-  const editor = soloRoot(doc);
-
-  if (!editor || !panelFrameDoc(doc)) {
-    return editor;
-  }
-
-  const start = doc.querySelector(SELECTORS.replicatorSet) || doc.querySelector('.publish-fields');
-  const win = doc.defaultView;
-
-  if (!start || !win) {
-    return editor;
-  }
-
-  let column = null;
-
-  for (let node = start.parentElement; node && node !== editor; node = node.parentElement) {
-    const style = win.getComputedStyle(node);
-
-    if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && stacksChildren(style)) {
-      column = node;
-    }
-  }
-
-  if (!column) {
-    return editor;
-  }
-
-  // The gutter the panel is read in. Everything the focus view draws is stripped
-  // flat and flush — that is right in Live Preview, whose own column holds the
-  // margin the fields stand in, and wrong here, where the frame is a CP screen
-  // laid out for the full width of a window. Marked rather than styled by class
-  // so the rule follows whichever element turned out to be the column.
-  column.setAttribute(PANEL_COLUMN_ATTR, '');
-
-  return column;
-}
-
-function ensureFocusHeader(doc) {
-  const host = focusHeaderHost(doc);
-
-  if (!host) {
-    return null;
-  }
-
-  let header = doc.getElementById(FOCUS_HEADER_ID);
-
-  if (!header) {
-    header = doc.createElement('div');
-    header.id = FOCUS_HEADER_ID;
-    header.setAttribute('data-sve-focus-header', '');
-  }
-
-  header.setAttribute(SOLO_KEEP_ATTR, '');
-
-  if (header.parentElement !== host || host.firstChild !== header) {
-    host.insertBefore(header, host.firstChild);
-  }
-
-  return header;
-}
-
-/**
- * Draws the name of the thing on show: its icon, its display name, the way back
- * out, and whatever its instructions say.
- *
- * The way back sits here rather than in the Live Preview header, where it began.
- * It says where it goes — "Hero style 1", "All sections" — and a label naming what
- * the panel is showing belongs beside what the panel is showing, not in the row of
- * icons above it.
- *
- * Rebuilt only when one of the four changes, so the observer driving the repaint
- * can fire as often as it likes.
- */
-function paintFocusHeader(win, doc, meta, back) {
-  const header = ensureFocusHeader(doc);
-
-  if (!header) {
-    return;
-  }
-
-  const closeInstead =
-    !back && panelFrameDoc(doc) && win.location.pathname.includes('/collections/');
-  // The page-sections list is not in the panel when "Open in the first section"
-  // is on, so "All sections" leads nowhere. A block still names its section.
-  const hideBack = !back && !closeInstead && featureOn(win, 'open_first_section');
-  const label = back?.label || (closeInstead ? t(win, 'close') : t(win, 'all_sections'));
-  const key = `${meta.icon || ''}|${meta.display}|${meta.instructions || ''}|${hideBack ? '' : label}`;
-
-  if (header.getAttribute('data-sve-focus-key') === key) {
-    return;
-  }
-
-  header.setAttribute('data-sve-focus-key', key);
-  header.textContent = '';
-
-  const line = doc.createElement('div');
-
-  line.setAttribute('data-sve-focus-id', '');
-
-  const tile = doc.createElement('span');
-
-  tile.setAttribute('data-sve-focus-tile', '');
-
-  const icon = panelIcon(doc, meta.icon);
-
-  if (icon) {
-    tile.appendChild(icon);
-  } else {
-    // No icon named: the initial of the name, which at least tells one block from
-    // the next at a glance.
-    tile.textContent = (meta.display || '?').trim().charAt(0).toUpperCase();
-  }
-
-  const title = doc.createElement('h2');
-
-  title.setAttribute('data-sve-focus-title', '');
-  title.textContent = meta.display;
-
-  line.append(tile, title);
-
-  if (!hideBack) {
-    const out = doc.createElement('button');
-
-    out.type = 'button';
-    out.setAttribute('data-sve-focus-back', '');
-    out.innerHTML =
-      '<span aria-hidden="true" data-sve-focus-back-arrow>&#8249;</span><span>' + label + '</span>';
-    out.addEventListener('click', () => {
-      if (back?.onBack) {
-        back.onBack();
-
-        return;
-      }
-
-      leaveSolo(doc, win);
-    });
-
-    line.append(out);
-  }
-
-  header.appendChild(line);
-
-  if (!meta.instructions) {
-    return;
-  }
-
-  const description = doc.createElement('p');
-
-  description.setAttribute('data-sve-focus-desc', '');
-  description.textContent = meta.instructions;
-  header.appendChild(description);
-}
-
-/**
- * Opens the segment the gear asked for, once the control it lives in has been
- * built. Named rather than counted where the fieldset says so — "Style", "Design",
- * "Indstillinger" — and otherwise the second segment, which is where a section
- * that separates content from design puts the design.
- */
-function applyFocusSegment(setEl) {
-  if (!focusSegment) {
-    return;
-  }
-
-  // The control lives in the set's own field list, which is where its segments
-  // are to be found — the set element itself only holds it.
-  const list = sectionFieldLists(setEl).find(
-    (el) => ownDescendants(el, `[${SECTION_SEG_ATTR}]`).length
-  );
-
-  if (!list) {
-    return; // the control isn't built yet — the next repaint tries again
-  }
-
-  const buttons = ownDescendants(list, `[${SECTION_SEG_ATTR}]`);
-
-  const wanted =
-    buttons.find((btn) => FOCUS_SETTINGS_SEGMENT.test(btn.textContent || '')) || buttons[1];
-
-  focusSegment = null;
-
-  if (wanted) {
-    setSectionGroup(list, wanted.getAttribute(SECTION_SEG_ATTR));
-  }
-}
-
-/** Has this segment anything left to show once the view has hidden its rows? */
-function segmentHasContent(list, key) {
-  return ownDescendants(list, `[${SECTION_GROUP_ATTR}="${key}"]`).some(
-    (row) => !row.hasAttribute(FOCUS_HIDE_ATTR)
-  );
-}
-
-/**
- * Drops the segments this view empties.
- *
- * A section whose content tab holds nothing but its block list has nothing to put
- * under that tab once the list is gone — and a tab that opens on nothing is worse
- * than no tab. The button goes, and if it was the one on show the first segment
- * with something in it takes over.
- */
-function hideEmptySegments(setEl) {
-  sectionFieldLists(setEl).forEach((list) => {
-    const buttons = ownDescendants(list, `[${SECTION_SEG_ATTR}]`);
-
-    if (buttons.length < 2) {
-      return;
-    }
-
-    let fallback = null;
-
-    buttons.forEach((btn) => {
-      const key = btn.getAttribute(SECTION_SEG_ATTR);
-      const filled = segmentHasContent(list, key);
-
-      btn.toggleAttribute(FOCUS_HIDE_ATTR, !filled);
-
-      if (filled && !fallback) {
-        fallback = key;
-      }
-    });
-
-    const active = list.getAttribute(SECTION_ACTIVE_ATTR);
-
-    if (fallback && active && !segmentHasContent(list, active)) {
-      setSectionGroup(list, fallback);
-    }
-  });
-}
-
-/**
- * Paints the focus view over an already-soloed set. Idempotent: every mark is set
- * to what it should be rather than toggled, so a repaint costs nothing and a
- * re-render is caught by the next one.
- */
-/** The field handle a row sits in (`links` in `page_sections.0.blocks.2.links.0`). */
-function fieldHandleFromPath(path) {
-  const parts = String(path || '').split('.');
-  const last = parts[parts.length - 1];
-
-  return /^\d+$/.test(last) && parts.length >= 2 ? parts[parts.length - 2] : null;
-}
-
-/**
- * What the focus header should say for this uid: a set's own name, or a grid
- * row's text (and the grid field's icon), so stepping into a link is not a
- * blank title.
- */
-function focusRowMeta(win, uid, doc) {
-  const handle = setTypeForUid(uid, doc);
-  let row = null;
-  let listKey = null;
-  let preview = '';
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const path = findPathByUid(values, uid);
-
-    if (path === null) {
-      continue;
-    }
-
-    listKey = fieldHandleFromPath(path);
-    row = dataGet(values, path);
-    break;
-  }
-
-  if (row && typeof row === 'object') {
-    preview = isGridRowValue(row) ? gridRowPreview(row) : '';
-  }
-
-  if (handle) {
-    const globalSet = globalSectionSet(win);
-    const sourceType =
-      handle === globalSet && row && typeof row === 'object'
-        ? savedSectionInfo(win, firstEntryId(row[globalSet]))?.section_type || ''
-        : '';
-    const type = sourceType || handle;
-    const meta = setMeta(win, type);
-    const custom = typeof row?._sve_label === 'string' ? row._sve_label.trim() : '';
-
-    return {
-      display: custom || (sourceType ? meta?.display || humanizeHandle(sourceType) : '')
-        || meta?.display || humanizeHandle(handle),
-      icon: meta?.icon || setMeta(win, handle)?.icon || null,
-      instructions: meta?.instructions || '',
-    };
-  }
-
-  const meta = gridMeta(win, listKey);
-
-  return {
-    display: preview || meta?.display || humanizeHandle(listKey) || t(win, 'listview_item'),
-    icon: meta?.icon || null,
-    instructions: meta?.instructions || '',
-  };
-}
-
-function paintFocus(win, doc, uid, kind) {
-  const setEl = findSetByUid(uid, doc);
-
-  if (!setEl) {
-    return false;
-  }
-
-  doc.documentElement.setAttribute(FOCUS_ROOT_ATTR, kind);
-
-  doc.querySelectorAll(`[${FOCUS_SET_ATTR}]`).forEach((el) => {
-    if (el !== setEl) {
-      el.removeAttribute(FOCUS_SET_ATTR);
-    }
-  });
-
-  setEl.setAttribute(FOCUS_SET_ATTR, kind);
-
-  // Marks left by the view before this one. A step into a block would otherwise
-  // inherit the section's hidden block list — the very row the block is inside —
-  // and open on nothing at all.
-  doc.querySelectorAll(`[${FOCUS_HIDE_ATTR}]`).forEach((el) => {
-    if (!setEl.contains(el)) {
-      el.removeAttribute(FOCUS_HIDE_ATTR);
-    }
-  });
-
-
-  // Everything the set holds is shown, blocks included: a section is its fields
-  // *and* what is built inside it, and a list of blocks that can be unfolded where
-  // they stand is how you work down a section without losing your place in it.
-  // Each one keeps an arrow out to a view of its own, for when one thing at a time
-  // is what's wanted.
-  markStepIntoAll(win);
-
-  paintFocusHeader(win, doc, focusRowMeta(win, uid, doc), focusBack(win, doc, uid, kind));
-
-  applyFocusSegment(setEl);
-  hideEmptySegments(setEl);
-  flattenWrappers(doc, setEl);
-
-  return true;
-}
-
-/** Repaints at most once a frame, however many mutations arrive in it. */
-function scheduleFocusRepaint(win, doc, uid, kind) {
-  if (focusRepaintPending) {
-    return;
-  }
-
-  focusRepaintPending = true;
-
-  win.requestAnimationFrame(() => {
-    focusRepaintPending = false;
-
-    if (soloUid === uid) {
-      paintFocus(win, doc, uid, kind);
-    }
-  });
-}
-
-/**
- * Where the back pill goes from here. A block steps back into the section holding
- * it, named after that section; anything else leaves the solo view altogether,
- * which is what the pill does with no action of its own.
- */
-function focusBack(win, doc, uid, kind) {
-  if (kind !== 'block') {
-    return null;
-  }
-
-  const parent = parentRowUid(uid, doc);
-
-  if (!parent || !findSetByUid(parent, doc)) {
-    return null;
-  }
-
-  const label = focusRowMeta(win, parent, doc).display;
-
-  // A step back the pill can't name is a step back nobody can predict. Left
-  // unnamed, it says "all sections" and does exactly that instead.
-  if (!label) {
-    return null;
-  }
-
-  return {
-    label,
-    onBack: () => soloSection(parent, doc, win),
-  };
-}
-
-/**
- * Opens what was clicked in the preview.
- *
- * With the focus panel on that is the thing itself, however deep it sits — a block
- * opens as a block. Clicking a heading on the page means "let me at this", and the
- * panel answers with it and nothing else; the section around it is one back-arrow
- * away, and every block in that section is one arrow deeper.
- *
- * With the panel off the behaviour is what it always was: a field click opens the
- * section around it, a set click opens the set.
- */
-function focusFromPreview(uid, doc, win, { clampToSection = false } = {}) {
-  if (focusPanelOn(win)) {
-    return soloSection(uid, doc, win);
-  }
-
-  return soloSection(clampToSection ? topLevelSectionUid(uid, doc) || uid : uid, doc, win);
-}
-
-/**
- * The set a field renders in — the block that owns it, not the section around it.
- *
- * Two ways of asking, because neither works on its own. The rendered panel knows
- * exactly where a field is, but only while it is rendered: blocks are collapsed
- * until opened, and a collapsed set has no fields in the DOM at all. The form's
- * values always have them, but hold no elements. So: the DOM first, where it can
- * answer, and the values behind it.
- *
- * The DOM answer is checked against the scope it was asked for. `findFieldElement`
- * falls back to an unscoped lookup by handle, which in a form holding four blocks
- * that each have a `headline` returns whichever renders first — the right answer
- * to a different question.
- */
-function fieldOwnerUid(field, scope, doc) {
-  const scoped = scope ? findSetByUid(scope, doc) : null;
-  const el = findFieldElement(field, doc, scope);
-  const setEl = el && (!scoped || scoped.contains(el)) ? el.closest(SELECTORS.anySet) : null;
-
-  return setEl ? getUidFromSet(setEl) : fieldOwnerUidFromValues(field, scope, doc);
-}
-
-/** The same question asked of the form's values, for a block that isn't rendered. */
-function fieldOwnerUidFromValues(field, scope, doc) {
-  const handle = String(field || '').split('.').pop();
-
-  if (!handle || !scope) {
-    return null;
-  }
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-
-    if (!values || typeof values !== 'object') {
-      continue;
-    }
-
-    const path = findPathByUid(values, scope);
-
-    if (path === null) {
-      continue;
-    }
-
-    const row = dataGet(values, path);
-    const found = rowOwningField(row, handle);
-
-    if (found) {
-      return found;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Deepest dotted path to `handle` under `node` (children before self), so a
- * section that wraps a headline block resolves to the block field — not a
- * missing `section.headline`.
- */
-function deepestFieldPath(node, handle, path = '') {
-  if (node == null || typeof handle !== 'string' || !handle) {
-    return null;
-  }
-
-  const field = handle.includes('.') ? handle.split('.').pop() : handle;
-
-  if (Array.isArray(node)) {
-    for (let i = 0; i < node.length; i++) {
-      const found = deepestFieldPath(node[i], field, path ? `${path}.${i}` : String(i));
-
-      if (found) {
-        return found;
-      }
-    }
-
-    return null;
-  }
-
-  if (typeof node !== 'object') {
-    return null;
-  }
-
-  for (const [key, value] of Object.entries(node)) {
-    if (key === field) {
-      continue;
-    }
-
-    const found = deepestFieldPath(value, field, path ? `${path}.${key}` : key);
-
-    if (found) {
-      return found;
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(node, field)) {
-    return path ? `${path}.${field}` : field;
-  }
-
-  return null;
-}
-
-/**
- * The deepest row in a value tree carrying this field handle, by its id.
- *
- * Deepest, not first: a section holding a `headline` block has the handle twice
- * over — once on the block that owns it, once on the section that contains the
- * block — and the block is the answer. Children are searched before the node
- * itself, so the innermost owner wins.
- */
-function rowOwningField(node, handle, depth = 0) {
-  if (depth > 12 || !node || typeof node !== 'object') {
-    return null;
-  }
-
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      const found = rowOwningField(item, handle, depth + 1);
-
-      if (found) {
-        return found;
-      }
-    }
-
-    return null;
-  }
-
-  for (const value of Object.values(node)) {
-    const found = rowOwningField(value, handle, depth + 1);
-
-    if (found) {
-      return found;
-    }
-  }
-
-  const id = node._visual_id || node._id || node.id;
-
-  return Object.prototype.hasOwnProperty.call(node, handle) && id ? id : null;
-}
-
-/**
- * Opens the set the clicked field actually belongs to.
- *
- * A block that passes no `scope` of its own reports the section's uid — the
- * section's `_visual_id` cascades down through the whole set in Antlers — so the
- * scope alone cannot tell a section's own field from one belonging to a block
- * inside it. The field can: it is stored on the block's row, and rendered inside
- * the block's set.
- *
- * When neither way finds it, the scope itself is opened — for a template that
- * passes `scope="{{ id }}"` that *is* the block — and the lookup is tried once
- * more after the panel has settled, in case the block was still being drawn.
- *
- * The synced-section panel took the same path as the page until it was made to
- * stop at the section: stepping into a block there came up as an empty
- * "Richtext"/"Headline" header. That was never the step-in — it was the panel's
- * whole field column being hidden, and the pass that draws the segments being
- * dropped. With both fixed a block in a synced section opens exactly as a block
- * on a page does, which is the only behaviour worth having.
- */
-function focusFieldOwner(field, scope, doc, win) {
-  const direct = fieldOwnerUid(field, scope, doc);
-
-  if (direct) {
-    return soloSection(direct, doc, win);
-  }
-
-  const opened = soloSection(scope, doc, win);
-
-  setTimeout(() => {
-    const owner = fieldOwnerUid(field, scope, doc);
-
-    if (owner && owner !== soloUid) {
-      soloSection(owner, doc, win);
-    }
-  }, COLLAPSE_SETTLE_MS + 60);
-
-  return opened;
-}
-
-export function soloSection(uid, doc, win, { kind = null, segment = null } = {}) {
-  const setEl = uid && findSetByUid(uid, doc);
-
-  if (!setEl) {
-    return false;
-  }
-
-  // Page section owns the left edge — park Theme Settings / Designs so they
-  // don't cover the solo editor.
-  //
-  // Unless the set is one of the chrome form's own: a widget in the header is
-  // reached by clicking it on the page, exactly like a block in a section, and
-  // stepping into it is not leaving the header — it IS editing the header.
-  if (win && !chromeHost(doc)?.contains(setEl)) {
-    if (isGlobalsOverlayOpen(win) && hasUnsavedGlobals(win)) {
-      confirmLeaveGlobalsOverlay(win, () => {
-        dismissChromeForPageEdit(win);
-        soloSection(uid, doc, win, { kind, segment });
-      });
-
-      return false;
-    }
-
-    dismissChromeForPageEdit(win);
-  }
-
-  // A different set is a new visit, and a new visit folds what it holds. Asked for
-  // the set already on show — a repaint, a second click on the same thing — it is
-  // the same visit, and the blocks the editor opened in it stay open.
-  if (soloUid !== uid) {
-    foldedFor = null;
-  }
-
-  soloUid = uid;
-  focusSegment = segment;
-
-  // Read once, from the set as it stands now: a re-render replaces the element
-  // but never moves the row to another depth.
-  const focusKind = kind || focusKindOf(setEl);
-
-  let isolated = false;
-
-  const apply = (settled = false) => {
-    const editor = soloRoot(doc);
-
-    if (!editor) {
-      return false;
-    }
-
-    activateSectionsTab(win); // guarded — only clicks when it isn't already showing
-
-    ensureSoloStyle(doc);
-
-    if (!markSoloPath(uid, editor, doc)) {
-      return false;
-    }
-
-    // A block sits in one of its section's segments — the content one, normally.
-    // Leave the section on Style, step into a block, and the very row the block is
-    // in is still marked `sve-off`: display:none, and !important, so the solo
-    // marking cannot bring it back. The view opens on its own header and nothing
-    // under it. Stepping into something is a click like the one in the preview, so
-    // it answers the same way — the panel follows what was opened, up through every
-    // set holding it.
-    revealSegmentsFor(findSetByUid(uid, doc) || setEl, doc);
-
-    isolated = true;
-
-    if (win) {
-      syncCodeDock(win, doc, uid);
-      relayoutAiPanel(win);
-    }
-
-    if (!focusPanelOn(win)) {
-      addSoloBackButton(doc, win);
-
-      return true;
-    }
-
-    // Once per visit. `settled` closes the question for a set that turned out to
-    // hold no blocks at all — otherwise every later pass would go looking again.
-    if (foldedFor !== uid && (foldChildSets(doc, uid) || settled)) {
-      foldedFor = uid;
-    }
-
-    // No pill in the Live Preview header: the focus header draws its own way out,
-    // under the name of what it is showing.
-    paintFocus(win, doc, uid, focusKind);
-
-    // Synced-section panel: Vue/accordion often leave the focused set collapsed
-    // for a beat after solo — header paints, fields never mount → empty sidebar.
-    // Keep expanding + remaking the path until the set actually has field DOM.
-    if (panelFrameDoc(doc)) {
-      ensurePanelSoloVisible(win, doc, uid);
-    }
-
-    return true;
-  };
-
-  apply();
-  setTimeout(() => apply(true), 180); // once the tab switch above has re-rendered the fields
-
-  // Re-apply whenever Vue rebuilds the field tree (expanding a set, live-preview
-  // refresh, dragging the panel wider, …).
-  if (soloObserver) {
-    soloObserver.disconnect();
-  }
-
-  // Live Preview uses .live-preview-fields; the synced-section sve-panel iframe
-  // observes body so Vue replacing wrappers still triggers a remake.
-  const isPanel = panelFrameDoc(doc);
-  const target = isPanel
-    ? doc.body
-    : doc.querySelector('.live-preview-fields') ||
-      doc.querySelector('.live-preview-editor') ||
-      soloRoot(doc);
-
-  let panelRemakeQueued = false;
-
-  if (target) {
-    soloObserver = new MutationObserver(() => {
-      if (soloUid !== uid) {
-        return;
-      }
-
-      // Panel: remake away-marks (debounced). Always-remake without debounce
-      // loops on focus-header insertBefore / field mounts.
-      if (isPanel) {
-        if (panelRemakeQueued) {
-          return;
-        }
-
-        panelRemakeQueued = true;
-        win.requestAnimationFrame(() => {
-          panelRemakeQueued = false;
-
-          if (soloUid !== uid) {
-            return;
-          }
-
-          const editor = soloRoot(doc);
-          const setEl = findSetByUid(uid, doc);
-
-          if (!setEl || !editor) {
-            apply();
-
-            return;
-          }
-
-          if (isSetCollapsed(setEl)) {
-            expandSet(setEl);
-          }
-
-          markPanelIsolate(uid, editor, doc);
-
-          if (focusPanelOn(win)) {
-            scheduleFocusRepaint(win, doc, uid, focusKind);
-          }
-        });
-
-        return;
-      }
-
-      const editor = soloRoot(doc);
-
-      if (!soloPathIntact(uid, editor, doc)) {
-        apply();
-
-        return;
-      }
-
-      if (win) {
-        syncCodeDock(win, doc, uid);
-      }
-
-      if (focusPanelOn(win)) {
-        scheduleFocusRepaint(win, doc, uid, focusKind);
-      }
-    });
-    soloObserver.observe(target, { childList: true, subtree: true });
-  }
-
-  // Only report success when isolation actually marked a path. Returning true
-  // after a failed markSoloPath made bootSavedSectionSolo stop retrying while
-  // the sidebar still showed entry meta (Published + title).
-  return isolated;
-}
-
-// Tracks whether Live Preview was open, so teardown (and stash clear) runs once
-// when leaving — not on every MutationObserver tick outside LP.
-let lpWasOpen = false;
-
-// Den gemte bredde sættes én gang pr. besøg i Live Preview, ikke på hvert tjek.
-// Håndtaget skriver i den samme inline-style mens der trækkes, og en regel der
-// blev hævdet hvert øjeblik ville trække tilbage under fingeren.
-let lpWidthApplied = false;
-
-/**
- * Injects the panel toggle when the Live Preview screen is (re)mounted, and
- * enforces the desired collapse state. Called from initCp's MutationObserver:
- * the editor pane mounts AFTER the header, so the state must be re-asserted on
- * subsequent mutations rather than applied once at injection time.
- */
-/** rem → px, målt på dokumentets egen rodstørrelse frem for et gættet 16. */
-function remToPx(win, rem) {
-  const root = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
-
-  return Math.round(rem * root);
-}
-
-function clampSideWidth(win, px) {
-  return Math.round(
-    Math.min(remToPx(win, LP_SIDE_MAX_REM), Math.max(remToPx(win, LP_SIDE_MIN_REM), px))
-  );
-}
-
-/** Bredden panelet står i, som den er gemt. Intet gemt: standarden. */
-function lpStoredWidth(win) {
-  const stored = parseInt(chromeGet(win, LP_WIDTH_KEY) ?? '', 10);
-  const fallback = remToPx(win, LP_SIDE_DEFAULT_REM);
-
-  return clampSideWidth(win, Number.isFinite(stored) && stored > 0 ? stored : fallback);
-}
-
-function persistLpWidth(win, px) {
-  const next = clampSideWidth(win, px);
-
-  chromeSet(win, LP_WIDTH_KEY, String(next));
-
-  return next;
-}
-
-function applyLpEditorWidth(win, px) {
-  const editor = win.document.querySelector('.live-preview-editor');
-
-  if (!editor || lpCollapsed) {
-    return persistLpWidth(win, px);
-  }
-
-  const next = persistLpWidth(win, px);
-
-  editor.style.width = `${next}px`;
-
-  return next;
-}
-
-/**
- * Own the left resizer so we can sit at 16–50 rem. Statamic's own handle
- * floors at 350px and would ignore a narrower stored width.
- */
-function bindLpEditorResize(win) {
-  const doc = win.document;
-  const handle = doc.querySelector('.live-preview-resizer');
-  const editor = doc.querySelector('.live-preview-editor');
-
-  if (!handle || !editor || handle._sveWidthBound) {
-    return;
-  }
-
-  handle._sveWidthBound = true;
-
-  handle.addEventListener(
-    'mousedown',
-    (event) => {
-      if (event.button !== 0) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      const startX = event.clientX;
-      const startW = editor.getBoundingClientRect().width;
-      let next = startW;
-      const frames = [...doc.querySelectorAll('iframe')];
-
-      frames.forEach((frame) => {
-        frame.style.pointerEvents = 'none';
-      });
-
-      lpWidthDragging = true;
-      doc.body.style.cursor = 'ew-resize';
-      doc.body.style.userSelect = 'none';
-
-      const move = (e) => {
-        next = applyLpEditorWidth(win, startW + (e.clientX - startX));
-        placeLpWidthPicker(win);
-        placeGlobalsOverlay(win);
-      };
-
-      const up = () => {
-        lpWidthDragging = false;
-        doc.body.style.cursor = '';
-        doc.body.style.userSelect = '';
-        frames.forEach((frame) => {
-          frame.style.pointerEvents = '';
-        });
-        doc.removeEventListener('mousemove', move, true);
-        doc.removeEventListener('mouseup', up, true);
-        applyLpEditorWidth(win, next);
-        win.dispatchEvent(new Event('resize'));
-      };
-
-      doc.addEventListener('mousemove', move, true);
-      doc.addEventListener('mouseup', up, true);
-    },
-    true
-  );
-}
-
-/**
- * Fanerne sidder over panelet, så de følger med når det ændrer bredde.
- * Drag-striben går i fuld højde (inkl. fanerækken) — baren stopper før den.
- */
-function placeLpWidthPicker(win) {
-  const doc = win.document;
-  const bar = doc.getElementById(LP_WIDTH_ID);
-  const editor = doc.querySelector('.live-preview-editor');
-
-  if (!bar || !editor) {
-    if (editor && !bar) {
-      editor.style.paddingTop = '';
-    }
-
-    placeLpResizer(win);
-
-    return;
-  }
-
-  const rect = editor.getBoundingClientRect();
-  const handle = doc.querySelector('.live-preview-resizer');
-  const grip = handle ? Math.round(handle.getBoundingClientRect().width) || 16 : 16;
-  const width = Math.max(0, Math.round(rect.width) - grip);
-
-  bar.style.left = `${Math.round(rect.left)}px`;
-  bar.style.top = `${Math.round(rect.top)}px`;
-  bar.style.width = `${width}px`;
-  bar.style.maxWidth = `${width}px`;
-  bar.style.background = win.getComputedStyle(editor).backgroundColor;
-  editor.style.paddingTop = `${Math.round(bar.offsetHeight)}px`;
-  placeLpResizer(win);
-}
-
-/**
- * Statamic's drag strip sits in the flex content box under our tab padding.
- * Pin it absolute so it runs from the editor top (under the header) to the bottom.
- */
-function placeLpResizer(win) {
-  const handle = win.document.querySelector('.live-preview-resizer');
-  const editor = win.document.querySelector('.live-preview-editor');
-
-  if (!handle || !editor || lpCollapsed) {
-    if (handle) {
-      handle.style.position = '';
-      handle.style.top = '';
-      handle.style.right = '';
-      handle.style.bottom = '';
-      handle.style.height = '';
-      handle.style.marginTop = '';
-      handle.style.paddingTop = '';
-      handle.style.zIndex = '';
-      handle.style.alignSelf = '';
-    }
-
-    return;
-  }
-
-  handle.style.position = 'absolute';
-  handle.style.top = '0';
-  handle.style.right = '0';
-  handle.style.bottom = '0';
-  handle.style.height = 'auto';
-  handle.style.marginTop = '0';
-  handle.style.paddingTop = '0';
-  handle.style.zIndex = '62';
-  handle.style.alignSelf = 'stretch';
-}
-
-/**
- * Publish-fanerne (Page Settings, SEO, …) øverst i venstre panel.
- *
- * S/M/L-bredderne er væk — panelet husker det sidste træk i stedet. Fanerne
- * ligger på `document.body`, så solo-visningen ikke kan skjule dem.
- */
-function ensureLpWidthPicker(win) {
-  const doc = win.document;
-  const editor = doc.querySelector('.live-preview-editor');
-  const bar = doc.getElementById(LP_WIDTH_ID);
-
-  if (!editor || lpCollapsed) {
-    bar?.remove();
-
-    if (editor) {
-      editor.style.paddingTop = '';
-    }
-
-    placeLpResizer(win);
-
-    return;
-  }
-
-  bindLpEditorResize(win);
-  ensureSettingsTabs(win);
-  placeLpWidthPicker(win);
-}
-
-let lpPanelToggleBusy = false;
-
-export function ensureLpPanelToggle(win) {
-  // Re-entry guard: our own DOM writes (toolbar, chrome, width bar) fire the
-  // body MutationObserver that calls us. Without this the stack re-enters on
-  // every tick and Live Preview freezes — including the open-preview button.
-  if (lpPanelToggleBusy) {
-    return;
-  }
-
-  lpPanelToggleBusy = true;
-
-  try {
-    ensureLpPanelToggleInner(win);
-  } catch (err) {
-    console.error('[sve] ensureLpPanelToggle', err);
-  } finally {
-    lpPanelToggleBusy = false;
-  }
-}
-
-function ensureLpPanelToggleInner(win) {
-  const doc = win.document;
-  const header = lpHeader(doc);
-
-  if (!header) {
-    if (lpWasOpen) {
-      lpWasOpen = false;
-      lpWidthApplied = false;
-      lpCollapsed = null;
-      lpHeaderBgCache = null; // næste åbning kan være i et andet CP-tema
-      doc.getElementById(LP_WIDTH_ID)?.remove();
-      chromePrefetchArmed = false;
-      persistDockedPanel(win);
-      clearSolo(doc);
-      closeRightPanels(win);
-      parkGlobalsPanel(win);
-      dockedHeaderRestored = false;
-      headerTab = undefined;
-      lpEnterSidebarClosed = null;
-      removeLpBackButton(doc);
-      lpCloseHideObserver?.disconnect();
-      lpCloseHideObserver = null;
-    }
-
-    // Outside LP: still keep Theme Settings warming in the background.
-    if (!doc.getElementById(GLOBALS_PANEL_ID)) {
-      scheduleChromeGlobalsPrefetch(win);
-    }
-
-    return;
-  }
-
-  // Fresh Live Preview session — keep this user's device, collapse choice, pins.
-  if (!lpWasOpen) {
-    lpEnterSidebarClosed = storedLpCollapsed(win);
-  }
-
-  lpWasOpen = true;
-
-  if (lpCollapsed === null) {
-    lpCollapsed = storedLpCollapsed(win);
-  }
-
-  // Opening a section's settings holds the panel open for as long as they're
-  // shown, whatever the mode says — otherwise the observer that re-applies the
-  // mode on every Vue re-render slams it shut again a moment later.
-  if (forcePanelOpen) {
-    lpCollapsed = false;
-  }
-
-  // Ensure Theme Settings is warming (may already be from CP boot).
-  if (!chromePrefetchArmed) {
-    chromePrefetchArmed = true;
-    scheduleChromeGlobalsPrefetch(win);
-  }
-
-  doc.getElementById(LP_TOGGLE_ID)?.remove();
-  doc.getElementById(LP_MODE_ID)?.remove();
-
-  ensureGlobalsPicker(win);
-  ensureSectionLibraryButton(win);
-  ensureCollectionPicker(win);
-  enhanceGrids(win);
-
-  // Collapse all of the above into the icon toolbar — one control at a time.
-  ensureHeaderToolbar(win);
-  applyHeaderTab(win);
-  if (!shouldKeepChrome(win)) {
-    openFirstSectionOnce(win);
-  }
-
-  // First-section auto-open must not override "they started with it closed".
-  // forcePanelOpen (chrome / global) and setLpMode (the toolbar icon) win.
-  if (!forcePanelOpen && lpEnterSidebarClosed && lpCollapsed === false) {
-    lpCollapsed = true;
-    chromeSet(win, LP_COLLAPSED_KEY, '1');
-  }
-
-  restoreDockedHeaderPanels(win);
-  pinDockedPanelsUnderHeader(win);
-  applyHeaderTab(win);
-  openSettingsTab(win);
-  applySectionsFieldVisibility(win);
-
-  const editor = doc.querySelector('.live-preview-editor');
-
-  if (editor) {
-    const want = lpCollapsed ? '-10000px' : '';
-
-    editor.style.position = lpCollapsed ? 'absolute' : '';
-    editor.style.left = want;
-    editor.style.top = lpCollapsed ? '0' : '';
-
-    // Den sidst trukne bredde, klemmet til 16–50 rem. Under træk lader vi
-    // håndtaget styre, ellers ville loopet trække tilbage under fingeren.
-    if (!lpWidthDragging) {
-      editor.style.width = `${lpStoredWidth(win)}px`;
-    }
-  }
-
-  ensureLpWidthPicker(win);
-  placeGlobalsOverlay(win);
-  ensureLpBackButton(win);
-  positionLpBackButton(win);
-  watchStatamicLpClose(win);
-  ensureLpPreviewChrome(win);
-  // Closing parks the editor off-screen, so the dock goes full-width. Opening
-  // it again has to re-measure — otherwise the dock stays at left:0 and the
-  // sidebar footer sits on top of HTML/CSS/JS.
-  relayoutCodeDock(win);
-}
-
+// ===== preview-chrome =====
 // --- Preview chrome: devices + zoom, no Pop out --------------------------------
 //
 // Statamic's own header shows a "Pop out" button and a text device <Select…>.
@@ -12898,15 +1022,15 @@ function ensureLpPanelToggleInner(win) {
 // Restore the old behaviour: set this to false and `npm run cp:build`,
 // or `git checkout checkpoint-fit-follows-pane`.
 
-const LP_SCALE_DEVICE_TO_PANE = true;
+export const LP_SCALE_DEVICE_TO_PANE = true;
 
-const LP_PREVIEW_CHROME_ID = '__sve-preview-chrome';
-const LP_DEVICE_KEY = 'sve-lp-device';
-const LP_ZOOM_KEY = 'sve-lp-zoom';
-const LP_ZOOM_STEPS = [50, 75, 90, 100];
-const LP_ZOOM_DEFAULT = 100;
+export const LP_PREVIEW_CHROME_ID = '__sve-preview-chrome';
+export const LP_DEVICE_KEY = 'sve-lp-device';
+export const LP_ZOOM_KEY = 'sve-lp-zoom';
+export const LP_ZOOM_STEPS = [50, 75, 90, 100];
+export const LP_ZOOM_DEFAULT = 100;
 
-const LP_DEVICE_ICONS = {
+export const LP_DEVICE_ICONS = {
   Mobile:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
   Tablet:
@@ -12918,7 +1042,7 @@ const LP_DEVICE_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><line x1="21" y1="3" x2="14" y2="10"/><polyline points="9 21 3 21 3 15"/><line x1="3" y1="21" x2="10" y2="14"/><polyline points="21 15 21 21 15 21"/><line x1="21" y1="21" x2="14" y2="14"/><polyline points="3 9 3 3 9 3"/><line x1="3" y1="3" x2="10" y2="10"/></svg>',
 };
 
-function lpConfiguredDevices(win) {
+export function lpConfiguredDevices(win) {
   const raw = win.Statamic?.$config?.get?.('livePreview.devices');
 
   return raw && typeof raw === 'object' ? raw : {};
@@ -12930,7 +1054,7 @@ function lpConfiguredDevices(win) {
  *
  * Responsive and Laptop are always present. Tablet/Mobile only if configured.
  */
-function lpDeviceKeys(win) {
+export function lpDeviceKeys(win) {
   const configured = lpConfiguredDevices(win);
   const keys = [];
 
@@ -12948,7 +1072,7 @@ function lpDeviceKeys(win) {
   return keys;
 }
 
-function lpStoredDevice(win) {
+export function lpStoredDevice(win) {
   let stored = chromeGet(win, LP_DEVICE_KEY);
 
   if (stored === 'Desktop') {
@@ -12968,14 +1092,14 @@ function lpStoredDevice(win) {
  * Scale-to-fit: the icon you clicked stays lit — opening a sidebar must not
  * pretend you switched to tablet. Old Fit: the highlight follows pane width.
  */
-function lpChromeActiveDevice(win) {
+export function lpChromeActiveDevice(win) {
   const device = lpStoredDevice(win);
 
   if (LP_SCALE_DEVICE_TO_PANE || device !== 'Responsive') {
     return device;
   }
 
-  const iframe = previewFrame(win.document);
+  const iframe = sve.previewFrame(win.document);
   const w = iframe?.clientWidth || iframe?.offsetWidth || 0;
 
   // Before the iframe has a real size (or while LP is still mounting), don't
@@ -12997,6 +1121,8 @@ function lpChromeActiveDevice(win) {
   return 'Responsive';
 }
 
+
+// ===== block-order =====
 // --- Per-breakpoint block order ---------------------------------------------
 //
 // A block field is one array, and one array is one order for every screen size.
@@ -13022,13 +1148,13 @@ function lpChromeActiveDevice(win) {
 // `array` fieldtype reshapes what it is given into key/value pairs, so a map of
 // lists comes back out the other side as an error; `list` is the fieldtype that
 // stores exactly a list of strings and hands it back unchanged.
-const BLOCK_ORDER_PREFIX = 'block_order_';
-const BLOCK_ORDER_FIELD = 'blocks';
+export const BLOCK_ORDER_PREFIX = 'block_order_';
+export const BLOCK_ORDER_FIELD = 'blocks';
 
-const orderField = (bp) => BLOCK_ORDER_PREFIX + bp;
+export const orderField = (bp) => BLOCK_ORDER_PREFIX + bp;
 
 /** Desktop-first, like the rest of the responsive work: no order = inherit up. */
-const BP_INHERITS = { laptop: [], tablet: ['laptop'], mobile: ['tablet', 'laptop'] };
+export const BP_INHERITS = { laptop: [], tablet: ['laptop'], mobile: ['tablet', 'laptop'] };
 
 /**
  * The breakpoint being edited — the same answer the responsive fields give.
@@ -13036,7 +1162,7 @@ const BP_INHERITS = { laptop: [], tablet: ['laptop'], mobile: ['tablet', 'laptop
  * Full-width is not a synonym for laptop: it fills the pane, and at a narrow
  * pane that is tablet or mobile. Laptop stays laptop even when scaled down.
  */
-function currentBp(win) {
+export function currentBp(win) {
   let device = chromeGet(win, LP_DEVICE_KEY) || 'Responsive';
 
   if (device === 'Tablet') {
@@ -13056,11 +1182,11 @@ function currentBp(win) {
 }
 
 /** Does this list name exactly the blocks that exist right now? */
-function describesBlocks(list, ids) {
+export function describesBlocks(list, ids) {
   return (
     Array.isArray(list) &&
     list.length === ids.length &&
-    [...list].sort().join(' ') === [...ids].sort().join(' ')
+    [...list].sort().join('') === [...ids].sort().join('')
   );
 }
 
@@ -13074,7 +1200,7 @@ function describesBlocks(list, ids) {
  * from where they put it. Ignored instead, the field's own order stands until
  * the next drag writes a list that fits.
  */
-function orderFor(row, bp) {
+export function orderFor(row, bp) {
   if (!row || typeof row !== 'object') {
     return null;
   }
@@ -13099,11 +1225,11 @@ function orderFor(row, bp) {
  * exactly as it was, which is what keeps this off every other section on the
  * site — and off every site that has never asked for it.
  */
-function orderableSections(doc) {
+export function orderableSections(doc) {
   const found = [];
 
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       return found;
@@ -13143,11 +1269,11 @@ function orderableSections(doc) {
 }
 
 /** Row ids in their current on-screen order. */
-function blockIds(row) {
+export function blockIds(row) {
   return (row[BLOCK_ORDER_FIELD] || []).map((block) => block?._id).filter(Boolean);
 }
 
-function sameOrder(a, b) {
+export function sameOrder(a, b) {
   return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
@@ -13158,7 +1284,7 @@ function sameOrder(a, b) {
  * merely looking at mobile never gives mobile an order of its own, and dragging
  * it back into step drops the override again and resumes inheriting.
  */
-function recordBlockOrder(doc, bp) {
+export function recordBlockOrder(doc, bp) {
   orderableSections(doc).forEach(({ container, path, row }) => {
     const ids = blockIds(row);
 
@@ -13186,7 +1312,7 @@ function recordBlockOrder(doc, bp) {
 }
 
 /** Sorts each section's blocks into `bp`'s order, so the panel shows it too. */
-function sortBlockOrder(doc, bp) {
+export function sortBlockOrder(doc, bp) {
   orderableSections(doc).forEach(({ container, path, row }) => {
     const rows = row[BLOCK_ORDER_FIELD];
 
@@ -13229,7 +1355,7 @@ function sortBlockOrder(doc, bp) {
  * forever. Laptop's own order is written once, on the way out, by `setLpDevice`.
  * Everywhere else this only writes when the order actually changed.
  */
-function watchBlockOrder(win) {
+export function watchBlockOrder(win) {
   if (win.__sveBlockOrderWatch) {
     return;
   }
@@ -13259,9 +1385,9 @@ function watchBlockOrder(win) {
 }
 
 /** Set on a device switch; the watcher holds off until the sort has landed. */
-let blockOrderSettleUntil = 0;
+export let blockOrderSettleUntil = 0;
 
-function setLpDevice(win, key) {
+export function setLpDevice(win, key) {
   // Read while nothing has moved yet: this is the breakpoint whose order the
   // array currently is, and the only moment it can still be identified.
   const from = currentBp(win);
@@ -13301,7 +1427,7 @@ function setLpDevice(win, key) {
 }
 
 /** Map a preview width to the responsive field drawer (desktop-first). */
-function lpWidthToBp(width) {
+export function lpWidthToBp(width) {
   if (width >= 1024) {
     return 'laptop';
   }
@@ -13317,11 +1443,11 @@ function lpWidthToBp(width) {
  * Full-width fills the pane and never auto-zooms. Device presets lock a CSS
  * width and scale down when the pane is narrower than that frame.
  */
-function lpShouldFillPane(win) {
+export function lpShouldFillPane(win) {
   return lpStoredDevice(win) === 'Responsive';
 }
 
-function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
+export function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
   let bp = 'laptop';
 
   if (deviceKey === 'Mobile') {
@@ -13343,9 +1469,9 @@ function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
   }
 }
 
-function applyLpDevice(win, key = lpStoredDevice(win)) {
+export function applyLpDevice(win, key = lpStoredDevice(win)) {
   const doc = win.document;
-  const iframe = previewFrame(doc);
+  const iframe = sve.previewFrame(doc);
 
   if (!iframe) {
     return;
@@ -13452,11 +1578,11 @@ function applyLpDevice(win, key = lpStoredDevice(win)) {
 }
 
 /** When Fit/Responsive is active, re-broadcast breakpoint as the pane resizes. */
-let lpResponsiveWidthObserver = null;
-let lpResponsiveWidthTarget = null;
-let lpResponsiveWidthLastBp = null;
+export let lpResponsiveWidthObserver = null;
+export let lpResponsiveWidthTarget = null;
+export let lpResponsiveWidthLastBp = null;
 
-function lpDeviceCssWidth(win, key = lpStoredDevice(win)) {
+export function lpDeviceCssWidth(win, key = lpStoredDevice(win)) {
   const devices = lpConfiguredDevices(win);
 
   if (key === 'Tablet' && devices.Tablet) {
@@ -13470,14 +1596,14 @@ function lpDeviceCssWidth(win, key = lpStoredDevice(win)) {
   return devices.Laptop?.width || 1440;
 }
 
-function watchLpResponsiveWidth(win) {
+export function watchLpResponsiveWidth(win) {
   if (LP_SCALE_DEVICE_TO_PANE) {
     watchLpPreviewFit(win);
 
     return;
   }
 
-  const iframe = previewFrame(win.document);
+  const iframe = sve.previewFrame(win.document);
 
   if (!iframe) {
     return;
@@ -13525,7 +1651,7 @@ function watchLpResponsiveWidth(win) {
 }
 
 /** Keep the scaled preview fitted when sidebars open or the window resizes. */
-function watchLpPreviewFit(win) {
+export function watchLpPreviewFit(win) {
   const contents = win.document.querySelector('.live-preview-contents');
 
   if (!contents) {
@@ -13559,7 +1685,7 @@ function watchLpPreviewFit(win) {
   tick();
 }
 
-function lpPaneInnerSize(win) {
+export function lpPaneInnerSize(win) {
   const pane = win.document.querySelector('.live-preview-contents');
 
   if (!pane) {
@@ -13578,7 +1704,7 @@ function lpPaneInnerSize(win) {
   };
 }
 
-function lpFitScale(win) {
+export function lpFitScale(win) {
   const deviceW = lpDeviceCssWidth(win);
   const paneW = lpPaneInnerSize(win).width;
 
@@ -13590,15 +1716,15 @@ function lpFitScale(win) {
 }
 
 /** Zoom never goes past 100% — on any device, including full-width. */
-function lpMaxStoredZoom(_win) {
+export function lpMaxStoredZoom(_win) {
   return 100;
 }
 
-function lpZoomInAllowed(win) {
+export function lpZoomInAllowed(win) {
   return lpStoredZoom(win) < lpMaxStoredZoom(win);
 }
 
-function lpNextZoomIn(win) {
+export function lpNextZoomIn(win) {
   const cur = lpStoredZoom(win);
   const max = lpMaxStoredZoom(win);
   const next = LP_ZOOM_STEPS.find((step) => step > cur && step <= max);
@@ -13610,7 +1736,7 @@ function lpNextZoomIn(win) {
   return cur < max ? max : cur;
 }
 
-function lpZoomIsAuto(win) {
+export function lpZoomIsAuto(win) {
   if (!LP_SCALE_DEVICE_TO_PANE || lpShouldFillPane(win)) {
     return false;
   }
@@ -13619,7 +1745,7 @@ function lpZoomIsAuto(win) {
 }
 
 /** The zoom the preview actually shows — fit-to-pane times the user's zoom. */
-function lpVisualZoom(win, percent = lpStoredZoom(win)) {
+export function lpVisualZoom(win, percent = lpStoredZoom(win)) {
   const used = Math.min(percent, lpMaxStoredZoom(win));
 
   if (!LP_SCALE_DEVICE_TO_PANE || lpShouldFillPane(win)) {
@@ -13629,7 +1755,7 @@ function lpVisualZoom(win, percent = lpStoredZoom(win)) {
   return Math.max(1, Math.round(lpFitScale(win) * used));
 }
 
-function lpStoredZoom(win) {
+export function lpStoredZoom(win) {
   const n = parseInt(chromeGet(win, LP_ZOOM_KEY) ?? '', 10);
 
   if (Number.isFinite(n) && n >= 25 && n <= 300) {
@@ -13645,7 +1771,7 @@ function lpStoredZoom(win) {
   return LP_ZOOM_DEFAULT;
 }
 
-function setLpZoom(win, percent) {
+export function setLpZoom(win, percent) {
   const max = lpMaxStoredZoom(win);
   const clamped = Math.max(25, Math.min(max, Math.round(percent)));
 
@@ -13655,8 +1781,8 @@ function setLpZoom(win, percent) {
   paintLpPreviewChrome(win);
 }
 
-function applyLpZoom(win, percent = lpStoredZoom(win)) {
-  const iframe = previewFrame(win.document);
+export function applyLpZoom(win, percent = lpStoredZoom(win)) {
+  const iframe = sve.previewFrame(win.document);
   const contents = win.document.querySelector('.live-preview-contents');
 
   if (!iframe) {
@@ -13743,7 +1869,7 @@ function applyLpZoom(win, percent = lpStoredZoom(win)) {
 }
 
 /** Hide Statamic's Pop out / device <Select…> — our chrome replaces them. */
-function hideStatamicLpChrome(header) {
+export function hideStatamicLpChrome(header) {
   const ours = (el) =>
     el?.closest?.(`#${LP_PREVIEW_CHROME_ID}`) || el?.closest?.(`#${HEADER_TOOLBAR_ID}`);
 
@@ -13797,9 +1923,9 @@ function hideStatamicLpChrome(header) {
   });
 }
 
-function ensureLpPreviewChrome(win) {
+export function ensureLpPreviewChrome(win) {
   const doc = win.document;
-  const header = lpHeader(doc);
+  const header = sve.lpHeader(doc);
 
   if (!header) {
     doc.getElementById(LP_PREVIEW_CHROME_ID)?.remove();
@@ -13885,9 +2011,9 @@ function ensureLpPreviewChrome(win) {
     });
 
     zoom.appendChild(zoomOut);
-    zoom.appendChild(lpModeSeparator(doc));
+    zoom.appendChild(sve.lpModeSeparator(doc));
     zoom.appendChild(zoomLabel);
-    zoom.appendChild(lpModeSeparator(doc));
+    zoom.appendChild(sve.lpModeSeparator(doc));
     zoom.appendChild(zoomIn);
 
     chrome.appendChild(zoom);
@@ -13949,7 +2075,7 @@ function ensureLpPreviewChrome(win) {
   }
 
   // Ét gap devices↔zoom↔Save↔go-back (ingen stablede margins).
-  syncLpRightBarGaps(win);
+  sve.syncLpRightBarGaps(win);
 
   applyLpDevice(win);
   applyLpZoom(win);
@@ -13963,7 +2089,7 @@ function ensureLpPreviewChrome(win) {
   dispatchLpBreakpoint(win);
 }
 
-function paintLpPreviewChrome(win) {
+export function paintLpPreviewChrome(win) {
   const doc = win.document;
   const chrome = doc.getElementById(LP_PREVIEW_CHROME_ID);
 
@@ -13975,7 +2101,7 @@ function paintLpPreviewChrome(win) {
   const zoom = lpVisualZoom(win);
 
   chrome.querySelectorAll('[data-device]').forEach((btn) => {
-    paintLpActiveControl(btn, btn.dataset.device === device);
+    sve.paintLpActiveControl(btn, btn.dataset.device === device);
   });
 
   // Zoom controls: same idle opacity as other chrome icons (label stays readable).
@@ -13990,7 +2116,7 @@ function paintLpPreviewChrome(win) {
 
     if (btn.dataset.zoom === 'in') {
       const allowed = lpZoomInAllowed(win);
-      const want = allowed ? LP_ICON_IDLE_OPACITY : LP_ICON_LOCKED_OPACITY;
+      const want = allowed ? sve.LP_ICON_IDLE_OPACITY : sve.LP_ICON_LOCKED_OPACITY;
 
       btn.disabled = !allowed;
       btn.setAttribute('aria-disabled', allowed ? 'false' : 'true');
@@ -14003,13 +2129,13 @@ function paintLpPreviewChrome(win) {
       return;
     }
 
-    if (btn.style.opacity !== LP_ICON_IDLE_OPACITY) {
-      btn.style.opacity = LP_ICON_IDLE_OPACITY;
+    if (btn.style.opacity !== sve.LP_ICON_IDLE_OPACITY) {
+      btn.style.opacity = sve.LP_ICON_IDLE_OPACITY;
     }
   });
 
-  paintLpSaveButton(win);
-  syncLpRightBarGaps(win);
+  sve.paintLpSaveButton(win);
+  sve.syncLpRightBarGaps(win);
 
   const zoomBox = chrome.querySelector('[data-sve-zoom]');
 
@@ -14051,11 +2177,11 @@ function paintLpPreviewChrome(win) {
 }
 
 /** Re-apply device size / zoom when Statamic Vue resets the iframe attributes. */
-let lpIframeChromeObserver = null;
-let lpIframeChromeTarget = null;
+export let lpIframeChromeObserver = null;
+export let lpIframeChromeTarget = null;
 
-function watchLpIframeChrome(win) {
-  const iframe = previewFrame(win.document);
+export function watchLpIframeChrome(win) {
+  const iframe = sve.previewFrame(win.document);
 
   if (!iframe) {
     return;
@@ -14093,6 +2219,8 @@ function watchLpIframeChrome(win) {
   });
 }
 
+
+// ===== header-toolbar =====
 // --- Header toolbar: one control at a time -------------------------------------
 //
 // The header used to show every control at once — the panel mode, the collection
@@ -14103,15 +2231,15 @@ function watchLpIframeChrome(win) {
 // renamed tab just follows) into the header, plus a Save — so "edit the SEO" is
 // one obvious click, not a hunt.
 
-const HEADER_TOOLBAR_ID = '__sve-toolbar';
+export const HEADER_TOOLBAR_ID = '__sve-toolbar';
 
-const SETTINGS_TABS_ID = '__sve-settings-tabs';
+export const SETTINGS_TABS_ID = '__sve-settings-tabs';
 
 /**
  * Ikoner der folder en kontrol ud ved siden af sig. De øvrige (sektioner,
  * disposition) åbner et panel i siden og står helt frit.
  */
-const FRAMED_TABS = ['pages', 'globals'];
+export const FRAMED_TABS = ['pages', 'globals'];
 
 /**
  * De to der samler ikon og kontrol i ét felt, delt op af gennemgående streger.
@@ -14121,23 +2249,41 @@ const FRAMED_TABS = ['pages', 'globals'];
  * sammenhængende værktøj, hvor stregerne siger hvor det ene stopper og det
  * næste begynder.
  */
-const MERGED_TABS = ['pages', 'globals'];
+export const MERGED_TABS = ['pages', 'globals'];
 
-const frameId = (key) => `__sve-frame-${key}`;
-const seamId = (key) => `__sve-seam-${key}`;
+export const frameId = (key) => `__sve-frame-${key}`;
+export const seamId = (key) => `__sve-seam-${key}`;
 
 /** Fladen bag både ikonknappen og kontrolgruppen — samme, så de hører sammen. */
-const HEADER_SURFACE = 'rgba(128,128,128,.16)';
+export const HEADER_SURFACE = 'rgba(128,128,128,.16)';
 
 /** Hover-flade på venstre toolbar-ikoner — idle-flade på close, så den læses som en knap. */
-const HEADER_ICON_HOVER = 'rgba(128, 128, 128, .28)';
+export const HEADER_ICON_HOVER = 'rgba(128, 128, 128, .28)';
+
+/** Gruppeboksens luft ud til kontrollerne i den. */
+export const LP_CONTROL_PAD = 5;
+
+/**
+ * Ydre højde for alle topbar-grupper og selvstændige ikonknapper (devices,
+ * zoom, Hidden/Auto/Visible, pages/globals, go-back). Pad + kontrol = 32.
+ */
+export const LP_CHROME_H = 32;
+
+/** Indre kontrolhøjde inde i en gruppe (32 − 2×5). */
+export const LP_CONTROL_H = LP_CHROME_H - LP_CONTROL_PAD * 2;
+
+/** Count disc on the comments icon. Idle = same metal as the glyph, dark type; open = pale blue. */
+export const COMMENTS_BADGE_FG = 'var(--theme-color-primary, #4530D8)';
+export const COMMENTS_BADGE_IDLE_TYPE = '#18181b';
+export const COMMENTS_BADGE_ACTIVE_BG =
+  'color-mix(in oklab, var(--theme-color-primary, #4530D8) 14%, white)';
 
 /**
  * Kvadratisk ikonknap i topbaren — samme flade/højde som device/zoom-grupperne
  * når den står alene (fx go-back). Ikoner inde i en gruppe bruger
  * LP_TOOLBAR_ICON_STYLE.
  */
-const LP_ICON_BTN_STYLE =
+export const LP_ICON_BTN_STYLE =
   `box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;` +
   'display:inline-flex;align-items:center;justify-content:center;padding:0;' +
   `border:none;border-radius:.5rem;cursor:pointer;background:${HEADER_SURFACE};color:currentColor;`;
@@ -14149,28 +2295,28 @@ const LP_ICON_BTN_STYLE =
  * ikke kunne forveksles. Et felt man vælger i og en knap man trykker på gør ikke
  * det samme, så de skal heller ikke se ens ud.
  */
-const HEADER_FIELD_SURFACE = 'rgba(128,128,128,.3)';
+export const HEADER_FIELD_SURFACE = 'rgba(128,128,128,.3)';
 
 /** Luften mellem ikonknappen og dens kontrolgruppe, når de er to bokse. */
-const LP_ICON_GAP = 8;
+export const LP_ICON_GAP = 8;
 
 /**
  * Ens mellemrum mellem topbar-items (ikoner, device/zoom, Save, go-back).
  * Ikke ekstra margin på udvidede felter — det gav skæve huller omkring Globals.
  */
-const LP_TOOLBAR_GAP = 8;
+export const LP_TOOLBAR_GAP = 8;
 
 /** Luften på hver side af en gennemgående streg. */
-const LP_SEAM_GAP = 6;
+export const LP_SEAM_GAP = 6;
 
 /** Pilen i vores egne selects. Native-pilen står klods op ad kanten. */
-const SELECT_CHEVRON =
+export const SELECT_CHEVRON =
   'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' ' +
   "viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2.2' stroke-linecap='round' " +
   'stroke-linejoin=\'round\'%3E%3Cpath d=\'m6 9 6 6 6-6\'/%3E%3C/svg%3E")';
 
 /** Selve gruppen om et sæt kontroller: fladen, hjørnerne og luften ud til dem. */
-const HEADER_GROUP_STYLE =
+export const HEADER_GROUP_STYLE =
   `display:inline-flex;align-items:center;box-sizing:border-box;height:${LP_CHROME_H}px;` +
   `padding:${LP_CONTROL_PAD}px;border-radius:.5rem;` +
   `background:${HEADER_SURFACE};font-family:inherit;`;
@@ -14179,13 +2325,13 @@ const HEADER_GROUP_STYLE =
  * En kontrol inde i en gruppe. Lavere end gruppens indre mål, så den valgte
  * flade ikke går helt ud til kanten — den skal ligge i gruppen, ikke fylde den.
  */
-const FRAMED_CONTROL_STYLE =
+export const FRAMED_CONTROL_STYLE =
   `box-sizing:border-box;height:${LP_CONTROL_H}px;border:none;border-radius:.375rem;` +
   'background:transparent;cursor:pointer;color:currentColor;' +
   'font-size:12px;font-weight:500;font-family:inherit;line-height:1;';
 
 /** Ikon inde i en topbar-gruppe — samme mål som device-knapperne. */
-const LP_TOOLBAR_ICON_STYLE =
+export const LP_TOOLBAR_ICON_STYLE =
   `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
 
 /**
@@ -14197,7 +2343,7 @@ const LP_TOOLBAR_ICON_STYLE =
  * der er noget at folde ud. Den luft passer med stregens egen, så afstanden ind
  * til stregen bliver den samme fra begge sider.
  */
-const FRAMED_SELECT_STYLE =
+export const FRAMED_SELECT_STYLE =
   `${FRAMED_CONTROL_STYLE}padding:0 1.375rem 0 .375rem;appearance:none;-webkit-appearance:none;` +
   `background-image:${SELECT_CHEVRON};background-repeat:no-repeat;` +
   'background-position:right .375rem center;background-size:12px;';
@@ -14205,12 +2351,12 @@ const FRAMED_SELECT_STYLE =
 /**
  * Sømmen mellem to dele af samme felt — ikke i brug i topbaren.
  */
-function headerSeam(doc) {
-  return lpModeSeparator(doc);
+export function headerSeam(doc) {
+  return sve.lpModeSeparator(doc);
 }
 
 /** Fjern lyse ikon-streger i topbaren, hvis en ældre session har sat dem ind. */
-function syncToolbarIconSeps(bar) {
+export function syncToolbarIconSeps(bar) {
   bar?.querySelectorAll('[data-sve-toolbar-sep]').forEach((el) => el.remove());
 }
 
@@ -14222,16 +2368,15 @@ function syncToolbarIconSeps(bar) {
  * fladt gradient-lag oven på panelfarven giver præcis samme nuance som oppe i
  * topbaren, bare uigennemsigtig.
  */
-const FLOATING_GROUP_STYLE =
+export const FLOATING_GROUP_STYLE =
   `${HEADER_GROUP_STYLE}background:linear-gradient(${HEADER_SURFACE},${HEADER_SURFACE}),` +
   'var(--theme-color-content-bg,#fff);box-shadow:0 1px 4px rgba(0,0,0,.18);color:currentColor;';
 
 // null = nothing expanded (the simplest header). Persisted so it survives the
 // header being rebuilt on every preview update.
-let headerTab = undefined;
 
 /** The feature toggle behind each header tab — see ensureHeaderToolbar. */
-const HEADER_TAB_FEATURE = {
+export const HEADER_TAB_FEATURE = {
   settings: 'panel',
   pages: 'pages',
   globals: 'globals',
@@ -14239,22 +2384,21 @@ const HEADER_TAB_FEATURE = {
   outline: 'outline',
 };
 
-function headerTabAvailable(win, tab) {
-  return !tab || featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);
+export function headerTabAvailable(win, tab) {
+  return !tab || sve.featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);
 }
 
-function loadHeaderTab(win) {
-  if (headerTab !== undefined) {
+export function loadHeaderTab(win) {
+  if (sveState.headerTab !== undefined) {
     return;
   }
 
   const stored = chromeGet(win, 'sve-header-tab');
 
-  headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
+  sveState.headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
 }
 
 /** Re-open docked right panels that were showing last time — pins, order, extras. */
-let dockedHeaderRestored = false;
 
 /**
  * While Live Preview is still booting inside the site overlay, remounting every
@@ -14262,40 +2406,43 @@ let dockedHeaderRestored = false;
  * can prevent `lp-ready` — the host then looks like login failed. Pause until
  * the preview has painted.
  */
-let dockRestorePaused = false;
 
-function restoreRememberedCodeDock(win) {
+export function restoreRememberedCodeDock(win) {
   try {
     if (isCodeDockArmed(win) && templateDockAllowed(win)) {
-      syncCodeDock(win, win.document, soloUid);
+      syncCodeDock(win, win.document, sveState.soloUid);
     }
   } catch (err) {
     console.error('[sve] restore code dock', err);
   }
 }
 
-function restoreDockedHeaderPanels(win) {
-  if (dockRestorePaused) {
+export function restoreDockedHeaderPanels(win) {
+  if (sveState.dockRestorePaused) {
     return;
   }
 
   // Once restored this session, stop. Re-running on every MutationObserver tick
   // remounts AI/tree/comments and races the frontend overlay open.
-  if (dockedHeaderRestored) {
+  if (sveState.dockedHeaderRestored) {
     return;
   }
 
   const showing = (key) => {
-    if (key === 'listview' || key === 'outline') {
-      return !!listViewPanel(win.document);
+    if (key === 'listview') {
+      return !!sve.listViewPanel(win.document);
+    }
+
+    if (key === 'outline') {
+      return !!win.document.getElementById(sve.OUTLINE_PANEL_ID);
     }
 
     if (key === 'sections') {
-      return !!win.document.getElementById(SECTION_PICKER_ID);
+      return !!win.document.getElementById(sve.SECTION_PICKER_ID);
     }
 
     if (key === 'comments') {
-      return !!commentsPanel(win.document);
+      return !!sve.commentsPanel(win.document);
     }
 
     if (key === 'ai') {
@@ -14309,13 +2456,21 @@ function restoreDockedHeaderPanels(win) {
 
   try {
     keys = rememberedRightPaneKeys(win);
-    const docked = chromeGet(win, LP_DOCKED_KEY) || '';
+    const docked = chromeGet(win, sve.LP_DOCKED_KEY) || '';
 
     if (docked && docked !== 'right') {
-      const extra = docked === 'outline' ? 'listview' : docked;
+      const extra = docked;
 
       if (!keys.includes(extra)) {
         keys = [...keys, extra];
+      }
+    }
+
+    if (rememberedListViewTab(win) === 'outline' && !keys.includes('outline')) {
+      keys = keys.map((k) => (k === 'listview' ? 'outline' : k));
+
+      if (!keys.includes('outline')) {
+        keys = [...keys, 'outline'];
       }
     }
   } catch {
@@ -14323,25 +2478,21 @@ function restoreDockedHeaderPanels(win) {
   }
 
   if (!keys.length) {
-    dockedHeaderRestored = true;
+    sveState.dockedHeaderRestored = true;
     restoreRememberedCodeDock(win);
 
     return;
   }
 
   if (keys.every(showing)) {
-    dockedHeaderRestored = true;
+    sveState.dockedHeaderRestored = true;
     restoreRememberedCodeDock(win);
-
-    if (rememberedListViewTab(win) === 'outline' && listViewPanel(win.document)) {
-      setListViewTab(win, 'outline');
-    }
 
     return;
   }
 
-  dockedHeaderRestored = true;
-  listViewTab = rememberedListViewTab(win);
+  sveState.dockedHeaderRestored = true;
+  sveState.listViewTab = 'tree';
 
   beginRightShellSwap();
 
@@ -14357,35 +2508,39 @@ function restoreDockedHeaderPanels(win) {
     endRightShellSwap();
   }
 
-  if (listViewTab === 'outline' && listViewPanel(win.document)) {
-    setListViewTab(win, 'outline');
-  }
-
   relayoutRightDock(win);
-  persistDockedPanel(win);
+  sve.persistDockedPanel(win);
   restoreRememberedCodeDock(win);
 }
 
-function ensureRightTool(win, key) {
-  if (key === 'listview' || key === 'outline') {
-    if (!listViewPanel(win.document)) {
-      toggleListViewPanel(win);
+export function ensureRightTool(win, key) {
+  if (key === 'listview') {
+    if (!sve.listViewPanel(win.document)) {
+      sve.toggleListViewPanel(win);
+    }
+
+    return;
+  }
+
+  if (key === 'outline') {
+    if (!win.document.getElementById(sve.OUTLINE_PANEL_ID)) {
+      sve.toggleOutlinePanel(win);
     }
 
     return;
   }
 
   if (key === 'sections') {
-    if (!win.document.getElementById(SECTION_PICKER_ID)) {
-      openSectionPicker(win);
+    if (!win.document.getElementById(sve.SECTION_PICKER_ID)) {
+      sve.openSectionPicker(win);
     }
 
     return;
   }
 
   if (key === 'comments') {
-    if (!commentsPanel(win.document)) {
-      toggleCommentsPanel(win);
+    if (!sve.commentsPanel(win.document)) {
+      sve.toggleCommentsPanel(win);
     }
 
     return;
@@ -14396,8 +2551,8 @@ function ensureRightTool(win, key) {
   }
 }
 
-function setHeaderTab(win, tab) {
-  headerTab = tab;
+export function setHeaderTab(win, tab) {
+  sveState.headerTab = tab;
 
   if (tab) {
     chromeSet(win, 'sve-header-tab', tab);
@@ -14406,7 +2561,7 @@ function setHeaderTab(win, tab) {
   }
 }
 
-const TOOLBAR_ICONS = {
+export const TOOLBAR_ICONS = {
   // Soft panel-left — same stroke language as pages/globe/grid (not the old heavy box).
   settings:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -14429,18 +2584,21 @@ const TOOLBAR_ICONS = {
     'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="7" height="7" rx="1"/>' +
     '<rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>' +
     '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-  // A trunk with branches off it — nesting, which is what the tree shows and the
-  // outline's stepped lines deliberately do not.
+  // The bars you sent — nesting, no page frame around them.
   listview:
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M5 4v13a2 2 0 0 0 2 2h3"/>' +
-    '<path d="M7 11h3"/><line x1="13" y1="5" x2="20" y2="5"/><line x1="13" y1="11" x2="20" y2="11"/>' +
-    '<line x1="13" y1="19" x2="20" y2="19"/></svg>',
-  // Lines stepping in, the shape the panel itself draws.
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<line x1="3" y1="6" x2="13" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/>' +
+    '<line x1="11" y1="18" x2="21" y2="18"/></svg>',
+  // Table of contents: markers + title lines getting shorter (H1, H2, H3).
   outline:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><line x1="4" y1="6" x2="20" y2="6"/>' +
-    '<line x1="9" y1="12" x2="20" y2="12"/><line x1="14" y1="18" x2="20" y2="18"/></svg>',
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<circle cx="4.5" cy="6" r="1.4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="4.5" cy="12" r="1.4" fill="currentColor" stroke="none"/>' +
+    '<circle cx="4.5" cy="18" r="1.4" fill="currentColor" stroke="none"/>' +
+    '<line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="17.5" y2="12"/>' +
+    '<line x1="9" y1="18" x2="14" y2="18"/></svg>',
   code:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:block" aria-hidden="true">' +
     '<path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.565-2.438L1.5 0zm7.031 9.75-.232-2.718h10.059l.23-2.622H5.412l.698 8.01h9.02l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.157H8.531z"/></svg>',
@@ -14448,6 +2606,11 @@ const TOOLBAR_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<path d="M7 4h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4H9.5L5 21.5V18H7a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z"/></svg>',
+  edits:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>' +
+    '<path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>',
   ai:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
@@ -14456,7 +2619,7 @@ const TOOLBAR_ICONS = {
 };
 
 /** Keep toolbar glyphs in sync after icon redesigns (toolbar mounts once). */
-function syncToolbarIcons(doc) {
+export function syncToolbarIcons(doc) {
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
   if (!bar) {
@@ -14467,14 +2630,14 @@ function syncToolbarIcons(doc) {
     const key = btn.dataset.tab;
     const html = TOOLBAR_ICONS[key];
 
-    if (!html || btn.dataset.iconVer === 'cursor-bubble-1') {
+    if (!html || btn.dataset.iconVer === 'stairs-toc-20260821') {
       return;
     }
 
     const badge = btn.querySelector('[data-sc-badge]');
 
     btn.innerHTML = html;
-    btn.dataset.iconVer = 'cursor-bubble-1';
+    btn.dataset.iconVer = 'stairs-toc-20260821';
 
     if (badge) {
       btn.appendChild(badge);
@@ -14483,15 +2646,17 @@ function syncToolbarIcons(doc) {
 }
 
 /** The icon row at the far left of the Live Preview header. */
-function ensureHeaderToolbar(win) {
+export function ensureHeaderToolbar(win) {
   const doc = win.document;
-  const header = lpHeader(doc);
+  const header = sve.lpHeader(doc);
 
   if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
     doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="rightdock"]')?.remove();
     ensureCodeDockToolbarButton(win);
     ensureAiToolbarButton(win);
     ensureCommentsToolbarButton(win);
+    ensurePageEditsToolbarButton(win);
+    ensureOutlineToolbarButton(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
@@ -14513,9 +2678,11 @@ function ensureHeaderToolbar(win) {
     { key: 'globals', feature: 'globals', title: t(win, 'globals') },
     { key: 'sections', feature: 'sections', title: t(win, 'sections') },
     { key: 'listview', feature: 'listview', title: t(win, 'listview') },
+    { key: 'outline', feature: 'outline', title: t(win, 'outline') },
     { key: 'code', title: t(win, 'code_dock_toggle') },
     { key: 'ai', title: t(win, 'ai_panel') },
     { key: 'comments', feature: 'comments', title: t(win, 'comments_pane') },
+    { key: 'edits', feature: 'page_activity', title: t(win, 'page_edits_title') },
   ].forEach((tab) => {
     if (isToolbarShortcut(tab.key) && isRightDockTool(tab.key)) {
       // Right-dock pane with a header shortcut (comments badge).
@@ -14530,10 +2697,14 @@ function ensureHeaderToolbar(win) {
         return;
       }
     } else if (tab.key === 'comments') {
-      if (!featureOn(win, 'comments')) {
+      if (!sve.featureOn(win, 'comments')) {
         return;
       }
-    } else if (!featureOn(win, tab.feature)) {
+    } else if (tab.key === 'edits') {
+      if (!sve.featureOn(win, 'page_activity')) {
+        return;
+      }
+    } else if (!sve.featureOn(win, tab.feature)) {
       return;
     }
 
@@ -14543,17 +2714,17 @@ function ensureHeaderToolbar(win) {
     btn.dataset.tab = tab.key;
     btn.title = tab.title;
     btn.innerHTML = TOOLBAR_ICONS[tab.key];
-    btn.dataset.iconVer = 'cursor-bubble-1';
+    btn.dataset.iconVer = 'stairs-toc-20260821';
     // Same outer size as devices / zoom / go-back — one height across the bar.
     btn.style.cssText = LP_TOOLBAR_ICON_STYLE + (tab.key === 'comments' ? 'position:relative;' : '');
     btn.querySelector('svg')?.setAttribute('width', '15');
     btn.querySelector('svg')?.setAttribute('height', '15');
     btn.addEventListener('click', () => {
       if (tab.key === 'comments') {
-        toggleCommentsPanel(win);
-        persistDockedPanel(win);
+        sve.toggleCommentsPanel(win);
+        sve.persistDockedPanel(win);
         applyHeaderTab(win);
-        syncPreviewInset(win);
+        sve.syncPreviewInset(win);
 
         return;
       }
@@ -14570,6 +2741,13 @@ function ensureHeaderToolbar(win) {
         return;
       }
 
+      if (tab.key === 'edits') {
+        sve.togglePageEdits?.(win);
+        applyHeaderTab(win);
+
+        return;
+      }
+
       toggleHeaderTab(win, tab.key);
     });
 
@@ -14582,7 +2760,7 @@ function ensureHeaderToolbar(win) {
         wrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;';
         wrap.appendChild(btn);
 
-        const seam = lpModeSeparator(doc);
+        const seam = sve.lpModeSeparator(doc);
 
         seam.id = seamId(tab.key);
         seam.style.display = 'none';
@@ -14606,13 +2784,13 @@ function ensureHeaderToolbar(win) {
   syncToolbarIconSeps(bar);
 }
 
-function toggleCodeDockButton(win) {
+export function toggleCodeDockButton(win) {
   const next = !isCodeDockArmed(win);
 
   setCodeDockArmed(win, next);
 
   if (next) {
-    syncCodeDock(win, win.document, soloUid);
+    syncCodeDock(win, win.document, sveState.soloUid);
   } else {
     closeCodeDock(win.document);
   }
@@ -14624,7 +2802,7 @@ function toggleCodeDockButton(win) {
  * The code icon is added after the toolbar first mounts (feature flags can
  * arrive late) and sits after the block tree, last in the icon row.
  */
-function ensureCodeDockToolbarButton(win) {
+export function ensureCodeDockToolbarButton(win) {
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
@@ -14673,7 +2851,8 @@ function ensureCodeDockToolbarButton(win) {
   }
 }
 
-function ensureCommentsToolbarButton(win) {
+
+export function ensureOutlineToolbarButton(win) {
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
@@ -14681,7 +2860,52 @@ function ensureCommentsToolbarButton(win) {
     return;
   }
 
-  if (!featureOn(win, 'comments')) {
+  if (!sve.featureOn(win, 'outline')) {
+    bar.querySelector('button[data-tab="outline"]')?.remove();
+
+    return;
+  }
+
+  if (bar.querySelector('button[data-tab="outline"]')) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'outline';
+  btn.dataset.iconVer = 'stairs-toc-20260821';
+  btn.title = t(win, 'outline');
+  btn.innerHTML = TOOLBAR_ICONS.outline;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => toggleHeaderTab(win, 'outline'));
+
+  const listview = bar.querySelector('button[data-tab="listview"]');
+
+  if (listview) {
+    listview.after(btn);
+  } else {
+    const code = bar.querySelector('button[data-tab="code"]');
+
+    if (code) {
+      code.before(btn);
+    } else {
+      bar.appendChild(btn);
+    }
+  }
+}
+
+export function ensureCommentsToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  if (!sve.featureOn(win, 'comments')) {
     bar.querySelector('button[data-tab="comments"]')?.remove();
 
     return;
@@ -14704,7 +2928,7 @@ function ensureCommentsToolbarButton(win) {
 
     btn.type = 'button';
     btn.dataset.tab = 'comments';
-    btn.dataset.iconVer = 'cursor-bubble-1';
+    btn.dataset.iconVer = 'stairs-toc-20260821';
     btn.title = t(win, 'comments_pane');
     btn.innerHTML = TOOLBAR_ICONS.comments;
     btn.style.cssText = `${LP_TOOLBAR_ICON_STYLE}position:relative;`;
@@ -14712,9 +2936,9 @@ function ensureCommentsToolbarButton(win) {
     btn.querySelector('svg')?.setAttribute('height', '15');
     btn.addEventListener('click', () => {
       revealRightPane(win, 'comments');
-      persistDockedPanel(win);
+      sve.persistDockedPanel(win);
       applyHeaderTab(win);
-      syncPreviewInset(win);
+      sve.syncPreviewInset(win);
     });
     bar.appendChild(btn);
     win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
@@ -14729,21 +2953,63 @@ function ensureCommentsToolbarButton(win) {
   }
 }
 
-function toggleAiPanelButton(win) {
+export function ensurePageEditsToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  if (!sve.featureOn(win, 'page_activity')) {
+    bar.querySelector('button[data-tab="edits"]')?.remove();
+
+    return;
+  }
+
+  if (bar.querySelector('button[data-tab="edits"]')) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'edits';
+  btn.dataset.iconVer = 'stairs-toc-20260821';
+  btn.title = t(win, 'page_edits_title');
+  btn.innerHTML = TOOLBAR_ICONS.edits;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => {
+    sve.togglePageEdits?.(win);
+    applyHeaderTab(win);
+  });
+
+  const comments = bar.querySelector('button[data-tab="comments"]');
+
+  if (comments) {
+    comments.after(btn);
+  } else {
+    bar.appendChild(btn);
+  }
+}
+
+export function toggleAiPanelButton(win) {
   if (!aiPanelAllowed(win)) {
     return;
   }
 
   if (!isAiPanelOpen(win.document)) {
-    closeRightPanels(win, ['__sve-ai-panel']);
+    sve.closeRightPanels(win, ['__sve-ai-panel']);
   }
 
   toggleAiPanel(win);
-  syncPreviewInset(win);
+  sve.syncPreviewInset(win);
   applyHeaderTab(win);
 }
 
-function ensureAiToolbarButton(win) {
+export function ensureAiToolbarButton(win) {
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
@@ -14758,7 +3024,7 @@ function ensureAiToolbarButton(win) {
 
     if (isAiPanelOpen(doc)) {
       closeAiPanel(win);
-      syncPreviewInset(win);
+      sve.syncPreviewInset(win);
     }
 
     return;
@@ -14789,16 +3055,34 @@ function ensureAiToolbarButton(win) {
   }
 }
 
-function toggleHeaderTab(win, key) {
-  const active = headerTab === key;
+export function toggleHeaderTab(win, key) {
+  const active = sveState.headerTab === key;
 
   if (key === 'settings') {
     // The icon follows the panel, not the remembered tab. Hidden leaves the tab
     // as "settings" while the sidebar is gone — using that as `active` made the
     // next click close a panel that was already closed.
-    const open = lpCollapsed === false;
+    const open = sveState.lpCollapsed === false;
+    const solo =
+      sveState.soloUid != null ||
+      !!win.document.querySelector(
+        `[${sve.SOLO_KEEP_ATTR || 'data-sve-solo-keep'}], [${sve.SOLO_PARENT_ATTR || 'data-sve-solo-parent'}]`
+      );
 
-    setLpMode(win, open ? 'hide' : 'show');
+    // A section is selected: this icon is Page settings, so the first click
+    // leaves the section and shows the page — not hide. A second click hides.
+    if (open && solo) {
+      fireTabClick(win, 1);
+      settingsTabPressedAt = Date.now();
+      settingsTabTries = 0;
+      sve.leaveSolo(win.document, win);
+      applySectionsFieldVisibility(win);
+      applyHeaderTab(win);
+
+      return;
+    }
+
+    sve.setLpMode(win, open ? 'hide' : 'show');
     applyHeaderTab(win);
 
     return;
@@ -14808,18 +3092,19 @@ function toggleHeaderTab(win, key) {
     // A docked panel, like the section library — the icon is the whole control,
     // there is nothing to unfold into the header beside it.
     setHeaderTab(win, active ? null : 'outline');
-    toggleOutlinePanel(win);
+    sve.toggleOutlinePanel(win);
+    sve.persistDockedPanel(win);
     applyHeaderTab(win);
 
     return;
   }
 
   if (key === 'listview') {
-    const open = !!listViewPanel(win.document);
+    const open = !!sve.listViewPanel(win.document);
 
     setHeaderTab(win, open ? null : 'listview');
-    toggleListViewPanel(win);
-    persistDockedPanel(win);
+    sve.toggleListViewPanel(win);
+    sve.persistDockedPanel(win);
     applyHeaderTab(win);
 
     return;
@@ -14830,19 +3115,19 @@ function toggleHeaderTab(win, key) {
     // opens. The lock only means something still owns the editor — leave it
     // first (chrome, a global section, or both) instead of going dead on the
     // click, which left the icon looking alive but doing nothing.
-    if (isSectionLibraryLocked(win)) {
-      dismissChromeForPageEdit(win);
-      closeGlobalSectionPanel(win);
+    if (sve.isSectionLibraryLocked(win)) {
+      sve.dismissChromeForPageEdit(win);
+      sve.closeGlobalSectionPanel(win);
       sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
       sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
-      syncSectionLibraryAvailability(win);
+      sve.syncSectionLibraryAvailability(win);
     }
 
-    const open = !!win.document.getElementById(SECTION_PICKER_ID);
+    const open = !!win.document.getElementById(sve.SECTION_PICKER_ID);
 
     setHeaderTab(win, open ? null : 'sections');
-    openSectionPicker(win); // toggles
-    persistDockedPanel(win);
+    sve.openSectionPicker(win); // toggles
+    sve.persistDockedPanel(win);
     applyHeaderTab(win);
 
     return;
@@ -14862,7 +3147,7 @@ function toggleHeaderTab(win, key) {
  * have different tabs. The panel must be open for the native tabs to exist, which
  * is why this only shows under the settings tab.
  */
-function ensureSettingsTabs(win) {
+export function ensureSettingsTabs(win) {
   const doc = win.document;
   const editor = doc.querySelector('.live-preview-editor');
   const nativeTabs = nativeTabButtons(doc);
@@ -14870,27 +3155,34 @@ function ensureSettingsTabs(win) {
 
   hideNativePublishTabList(doc);
 
-  let bar = doc.getElementById(LP_WIDTH_ID);
+  let bar = doc.getElementById(sve.LP_WIDTH_ID);
 
-  if (!editor || lpCollapsed || extra.length === 0) {
+  if (!editor || sveState.lpCollapsed) {
     bar?.remove();
 
     if (editor) {
       editor.style.paddingTop = '';
+      delete editor.dataset.sveTabPad;
     }
 
     return null;
   }
 
+  // Tabs not found this tick (chrome form mid-mount). Keep the last bar —
+  // removing it collapses padding and is the jump in the sidebar.
+  if (extra.length === 0) {
+    return doc.getElementById(SETTINGS_TABS_ID);
+  }
+
   if (!bar) {
     bar = doc.createElement('div');
-    bar.id = LP_WIDTH_ID;
+    bar.id = sve.LP_WIDTH_ID;
     bar.setAttribute('data-sve-settings-bar', '');
     bar.style.cssText =
-      'position:fixed;z-index:60;display:flex;align-items:stretch;' +
+      'position:fixed;z-index:4;display:flex;align-items:stretch;' +
       'color:currentColor;font-family:inherit;box-sizing:border-box;';
-    doc.body.appendChild(bar);
-    win.addEventListener('resize', () => placeLpWidthPicker(win));
+    (doc.querySelector('.live-preview') || doc.body).appendChild(bar);
+    win.addEventListener('resize', () => sve.placeLpWidthPicker(win));
   }
 
   bar.setAttribute('data-sve-settings-bar', '');
@@ -14931,10 +3223,17 @@ function ensureSettingsTabs(win) {
     });
   }
 
-  const panelOpen = !lpCollapsed;
+  const panelOpen = !sveState.lpCollapsed;
+  const inSection =
+    sveState.soloUid != null ||
+    !!doc.querySelector(
+      `[${sve.SOLO_KEEP_ATTR || 'data-sve-solo-keep'}], [${sve.SOLO_PARENT_ATTR || 'data-sve-solo-parent'}]`
+    );
 
   group.querySelectorAll('[data-tab-index]').forEach((btn) => {
-    const selected = nativeTabs[Number(btn.dataset.tabIndex)]?.getAttribute('aria-selected') === 'true';
+    const selected =
+      !inSection &&
+      nativeTabs[Number(btn.dataset.tabIndex)]?.getAttribute('aria-selected') === 'true';
 
     btn.setAttribute('aria-pressed', panelOpen && selected ? 'true' : 'false');
   });
@@ -14942,22 +3241,20 @@ function ensureSettingsTabs(win) {
   return group;
 }
 
-function nativePublishTabList(doc) {
+export function nativePublishTabList(doc) {
   const editor = doc.querySelector('.live-preview-editor');
 
   if (!editor) {
     return null;
   }
 
-  return (
-    editor.querySelector('.live-preview-fields [role="tablist"]') ||
-    [...editor.querySelectorAll('[role="tablist"]')].find((list) => {
-      if (list.closest('.replicator-fieldtype, .bard-fieldtype, .grid-fieldtype, .grid-table')) {
-        return false;
-      }
+  const skip = (list) =>
+    list.closest('.replicator-fieldtype, .bard-fieldtype, .grid-fieldtype, .grid-table') ||
+    list.closest('#__sve-chrome-host, #__sve-global-section-host');
 
-      return true;
-    }) ||
+  return (
+    [...editor.querySelectorAll('.live-preview-fields [role="tablist"]')].find((list) => !skip(list)) ||
+    [...editor.querySelectorAll('[role="tablist"]')].find((list) => !skip(list)) ||
     null
   );
 }
@@ -14968,7 +3265,7 @@ function nativePublishTabList(doc) {
  * reka-ui renders a hidden measurement copy of the tab list, so we take the
  * first real tablist in the editor and skip fieldtype-internal tabs.
  */
-function nativeTabButtons(doc) {
+export function nativeTabButtons(doc) {
   const list = nativePublishTabList(doc);
 
   if (!list) {
@@ -14978,7 +3275,7 @@ function nativeTabButtons(doc) {
   return [...list.querySelectorAll('button[role="tab"]')];
 }
 
-function hideNativePublishTabList(doc) {
+export function hideNativePublishTabList(doc) {
   const list = nativePublishTabList(doc);
 
   if (list && list.style.display !== 'none') {
@@ -14992,7 +3289,7 @@ function hideNativePublishTabList(doc) {
  * reka-ui's tabs switch on the full pointer sequence, not a bare .click(), and
  * they want real PointerEvents. Returns whether there was a tab to press.
  */
-function fireTabClick(win, index) {
+export function fireTabClick(win, index) {
   const el = nativeTabButtons(win.document)[index];
 
   if (!el) {
@@ -15007,33 +3304,58 @@ function fireTabClick(win, index) {
 }
 
 /** Switch the editor panel to a publish tab by clicking its real tab button. */
-function clickNativeTab(win, index) {
+export function clickNativeTab(win, index) {
+  const notePress = () => {
+    settingsTabPressedAt = Date.now();
+    settingsTabTries = 0;
+  };
+
   const fire = () => {
+    const tabs = nativeTabButtons(win.document);
+
+    if (tabs[index]?.getAttribute('aria-selected') === 'true') {
+      notePress();
+      ensureSettingsTabs(win);
+
+      return;
+    }
+
     if (!fireTabClick(win, index)) {
       return;
     }
 
+    notePress();
     setTimeout(() => ensureSettingsTabs(win), 60); // re-highlight the new selection
   };
 
   // At bede om SEO mens man står inde i en overskrift er også at bede om at komme
   // ud af den: felterne hører til siden, ikke til blokken. Og solo-visningen
   // skjuler fanelisten, så der ville ikke være nogen fane at ramme.
-  const leavingSolo = soloUid !== null;
+  const leavingSolo = sveState.soloUid !== null;
+  let asked = false;
+
+  // Ask for the destination tab while isolation is still on. Dropping solo
+  // first painted the sections list (or an empty Main tab) for a frame, and
+  // the delayed click then hit Page Settings a second time — a visible jank.
+  if (leavingSolo && index > 0) {
+    asked = fireTabClick(win, index);
+    notePress();
+  }
 
   if (leavingSolo) {
-    leaveSolo(win.document, win);
+    sve.leaveSolo(win.document, win);
+    applySectionsFieldVisibility(win);
   }
 
   // Asking for a tab means asking to see it — so an open panel is implied. On
   // Hide the panel is closed and its tabs aren't even rendered yet, so switch to
   // Show first and let them mount before clicking. Leaving the mode on Hide while
   // showing a tab would just be a contradiction.
-  if (lpMode(win) === 'hide' || lpCollapsed) {
-    setLpMode(win, 'show');
+  if (sve.lpMode(win) === 'hide' || sveState.lpCollapsed) {
+    sve.setLpMode(win, 'show');
     setTimeout(fire, 140);
-  } else if (leavingSolo) {
-    setTimeout(fire, 60); // lad panelet folde sig ud igen, før der klikkes
+  } else if (asked) {
+    setTimeout(() => ensureSettingsTabs(win), 60);
   } else {
     fire();
   }
@@ -15041,8 +3363,8 @@ function clickNativeTab(win, index) {
 
 /** Show the control for the active tab, hide the rest, light up the active icon. */
 /** Hide Statamic's "Live Preview" header label — it names the obvious. */
-function hideLpLabel(doc) {
-  const header = lpHeader(doc);
+export function hideLpLabel(doc) {
+  const header = sve.lpHeader(doc);
 
   if (!header) {
     return;
@@ -15057,45 +3379,47 @@ function hideLpLabel(doc) {
   }
 }
 
-function applyHeaderTab(win) {
+export function applyHeaderTab(win) {
   const doc = win.document;
 
   loadHeaderTab(win);
   hideLpLabel(doc);
   ensureCodeDockToolbarButton(win);
   ensureCommentsToolbarButton(win);
+  ensurePageEditsToolbarButton(win);
   ensureAiToolbarButton(win);
+  ensureOutlineToolbarButton(win);
 
   // The standalone panel glyph and the old Hide/Auto/Show group are gone.
-  const glyph = doc.getElementById(LP_TOGGLE_ID);
+  const glyph = doc.getElementById(sve.LP_TOGGLE_ID);
 
   if (glyph) {
     glyph.style.display = 'none';
   }
 
-  doc.getElementById(LP_MODE_ID)?.remove();
+  doc.getElementById(sve.LP_MODE_ID)?.remove();
 
   // The sections icon in the toolbar replaces the old "Sektioner" text button.
-  const lib = doc.getElementById(LIBRARY_BUTTON_ID);
+  const lib = doc.getElementById(sve.LIBRARY_BUTTON_ID);
 
   if (lib) {
     lib.style.display = 'none';
   }
 
   // Publish-fanerne er ikke med her: de er flyttet ned i panelets bundlinje, ved
-  // siden af breddevælgeren — se ensureLpWidthPicker.
+  // siden af breddevælgeren — se sve.ensureLpWidthPicker.
   const controls = {
-    pages: doc.getElementById(COLLECTION_PICKER_ID)?.parentElement,
-    globals: doc.getElementById(GLOBALS_PICKER_ID)?.parentElement,
+    pages: doc.getElementById(sve.COLLECTION_PICKER_ID)?.parentElement,
+    globals: doc.getElementById(sve.GLOBALS_PICKER_ID)?.parentElement,
   };
 
-  const headerBg = lpHeaderBg(win) || 'rgba(0,0,0,.35)';
+  const headerBg = sve.lpHeaderBg(win) || 'rgba(0,0,0,.35)';
 
   // A control whose tool is off stays hidden whatever the active tab is — its
   // icon is gone, so there would be no way back out of it.
   Object.entries(controls).forEach(([key, el]) => {
     if (el) {
-      el.style.display = headerTab === key && headerTabAvailable(win, key) ? 'inline-flex' : 'none';
+      el.style.display = sveState.headerTab === key && headerTabAvailable(win, key) ? 'inline-flex' : 'none';
     }
   });
 
@@ -15104,7 +3428,7 @@ function applyHeaderTab(win) {
   FRAMED_TABS.forEach((key) => {
     const frame = doc.getElementById(frameId(key));
     const seam = doc.getElementById(seamId(key));
-    const expanded = headerTab === key && headerTabAvailable(win, key);
+    const expanded = sveState.headerTab === key && headerTabAvailable(win, key);
 
     if (frame) {
       // Kun toolbar-gap mellem items — ingen ekstra margin når feltet er foldet ud.
@@ -15122,9 +3446,9 @@ function applyHeaderTab(win) {
       // som oplyste piller ved siden af et sektionsikon der var gået helt ud:
       // halvdelen af rækken så ud til stadig at kunne klikkes. Værktøjet er feltet,
       // så det er feltet der går ud.
-      const locked = isSectionLibraryLocked(win) && FOCUS_LOCKED_TABS.includes(key);
+      const locked = sve.isSectionLibraryLocked(win) && sve.FOCUS_LOCKED_TABS.includes(key);
 
-      frame.style.opacity = locked ? LP_ICON_LOCKED_OPACITY : '';
+      frame.style.opacity = locked ? sve.LP_ICON_LOCKED_OPACITY : '';
       frame.style.pointerEvents = locked ? 'none' : '';
     }
 
@@ -15137,17 +3461,17 @@ function applyHeaderTab(win) {
   // og ikke der hvor de bygges, så et CP-temaskift rammer dem alle samtidig.
   // New-page bruger flat primary (ikke inset) — spring den over.
   doc.querySelectorAll('[data-sve-inset],[data-sve-seam]').forEach((el) => {
-    if (el.id === NEW_ENTRY_ID) {
+    if (el.id === sve.NEW_ENTRY_ID) {
       return;
     }
 
     el.style.backgroundColor = headerBg;
   });
 
-  const newEntry = doc.getElementById(NEW_ENTRY_ID);
+  const newEntry = doc.getElementById(sve.NEW_ENTRY_ID);
 
   if (newEntry) {
-    newEntry.style.background = LP_PRIMARY_FLAT;
+    newEntry.style.background = sve.LP_PRIMARY_FLAT;
     newEntry.style.color = '#fff';
     newEntry.style.border = 'none';
     newEntry.style.boxShadow = 'none';
@@ -15190,10 +3514,10 @@ function applyHeaderTab(win) {
   // a reload, and a closed panel under a lit icon is the icon telling a lie about
   // what is in front of you.
   const docked = {
-    sections: !!doc.getElementById(SECTION_PICKER_ID),
-    listview: !!listViewPanel(doc),
-    outline: !!doc.getElementById(OUTLINE_PANEL_ID),
-    comments: !!commentsPanel(doc),
+    sections: !!doc.getElementById(sve.SECTION_PICKER_ID),
+    listview: !!sve.listViewPanel(doc),
+    outline: !!doc.getElementById(sve.OUTLINE_PANEL_ID),
+    comments: !!sve.commentsPanel(doc),
     ai: isAiPanelOpen(doc),
   };
 
@@ -15203,7 +3527,7 @@ function applyHeaderTab(win) {
   // panelikonet ligger et niveau nede i sin egen ramme.
   syncToolbarIcons(doc);
 
-  const sidebarOpen = lpCollapsed === false;
+  const sidebarOpen = sveState.lpCollapsed === false;
 
   bar?.querySelectorAll('button[data-tab]').forEach((btn) => {
     const tab = btn.dataset.tab;
@@ -15212,11 +3536,13 @@ function applyHeaderTab(win) {
         ? sidebarOpen
         : tab === 'code'
           ? isCodeDockArmed(win)
+          : tab === 'edits'
+            ? !!sve.pageEditsOpen?.()
           : tab === 'globals'
-            ? headerTab === 'globals' || isGlobalsOverlayOpen(win)
+            ? sveState.headerTab === 'globals' || sve.isGlobalsOverlayOpen(win)
           : tab in docked
             ? docked[tab]
-            : tab === headerTab;
+            : tab === sveState.headerTab;
 
     if (btn.style.width !== '28px') {
       btn.style.width = '28px';
@@ -15225,8 +3551,8 @@ function applyHeaderTab(win) {
       btn.style.padding = '0';
     }
 
-    paintLpActiveControl(btn, on);
-    paintFocusLockedTabs(win, btn, tab, on);
+    sve.paintLpActiveControl(btn, on);
+    sve.paintFocusLockedTabs(win, btn, tab, on);
   });
 
   syncToolbarIconSeps(bar);
@@ -15239,7 +3565,7 @@ function applyHeaderTab(win) {
  * than shifting only the toolbar, which drifted when the mode group expanded.
  */
 /** Whether this opening of the editor has already been sent into a section. */
-let firstSectionOpened = false;
+export let firstSectionOpened = false;
 
 /**
  * The page-sections field's own wrapper in the editor panel.
@@ -15250,7 +3576,7 @@ let firstSectionOpened = false;
  * guessed at a class name: `replicator-fieldtype` is on the nested replicators
  * too, and hiding one of those would take a section's own blocks with it.
  */
-function sectionsFieldWrapper(doc) {
+export function sectionsFieldWrapper(doc) {
   const editor = doc.querySelector('.live-preview-editor');
   const set = editor?.querySelector(SELECTORS.replicatorSet);
 
@@ -15278,7 +3604,7 @@ function sectionsFieldWrapper(doc) {
  * wrapper, so hiding it whenever the flag is on would hide the section you are
  * editing along with the list of the ones you are not.
  */
-function applySectionsFieldVisibility(win) {
+export function applySectionsFieldVisibility(win) {
   const doc = win.document;
   const wrapper = sectionsFieldWrapper(doc);
 
@@ -15287,9 +3613,9 @@ function applySectionsFieldVisibility(win) {
   }
 
   const hide =
-    featureOn(win, 'open_first_section')
-    && focusPanelOn(win)
-    && !doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`);
+    sve.featureOn(win, 'open_first_section')
+    && sve.focusPanelOn(win)
+    && !doc.querySelector(`[${sve.SOLO_KEEP_ATTR}], [${sve.SOLO_PARENT_ATTR}]`);
 
   wrapper.style.display = hide ? 'none' : '';
 }
@@ -15304,7 +3630,7 @@ function applySectionsFieldVisibility(win) {
  * Once per opening, and never over a choice already made — a click that arrives
  * before this runs is the editor's answer to where you want to be, and it wins.
  */
-function openFirstSectionOnce(win) {
+export function openFirstSectionOnce(win) {
   const doc = win.document;
   const editor = doc.querySelector('.live-preview-editor');
 
@@ -15315,22 +3641,22 @@ function openFirstSectionOnce(win) {
     return;
   }
 
-  if (firstSectionOpened || !featureOn(win, 'open_first_section') || !focusPanelOn(win)) {
+  if (firstSectionOpened || !sve.featureOn(win, 'open_first_section') || !sve.focusPanelOn(win)) {
     return;
   }
 
   // Something is already soloed — a click got here first, and it says more about
   // where the author wants to be than a default does.
-  if (doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`)) {
+  if (doc.querySelector(`[${sve.SOLO_KEEP_ATTR}], [${sve.SOLO_PARENT_ATTR}]`)) {
     firstSectionOpened = true;
 
     return;
   }
 
-  const field = sectionField(win);
+  const field = sve.sectionField(win);
 
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
     const rows = values && typeof values === 'object' ? values[field] : null;
 
     if (!Array.isArray(rows)) {
@@ -15342,7 +3668,7 @@ function openFirstSectionOnce(win) {
     // itself until there is something to edit.
     if (!rows.length) {
       firstSectionOpened = true;
-      setLpMode(win, 'hide');
+      sve.setLpMode(win, 'show');
 
       return;
     }
@@ -15355,24 +3681,24 @@ function openFirstSectionOnce(win) {
       return;
     }
 
-    const uid = blockRowUid(rows[0]);
+    const uid = sve.blockRowUid(rows[0]);
 
     if (!uid) {
       return;
     }
 
     firstSectionOpened = true;
-    focusFromPreview(uid, doc, win);
+    sve.focusFromPreview(uid, doc, win);
 
     return;
   }
 }
 
 /** When the panel was last moved off the sections tab — see openSettingsTab. */
-let settingsTabPressedAt = 0;
+export let settingsTabPressedAt = 0;
 
 /** Presses in a row that didn't take. Cleared the moment one does. */
-let settingsTabTries = 0;
+export let settingsTabTries = 0;
 
 /**
  * With nothing open in the panel, keeps it off the sections tab.
@@ -15388,7 +3714,7 @@ let settingsTabTries = 0;
  * the header, arriving on another page — and the panel should be useful every
  * time it does, not only the first.
  */
-function openSettingsTab(win) {
+export function openSettingsTab(win) {
   const doc = win.document;
 
   if (!doc.querySelector('.live-preview-editor')) {
@@ -15405,7 +3731,7 @@ function openSettingsTab(win) {
   // header, the footer and the globals panel, and that was simply wrong: the
   // globals panel is built and parked off screen the moment Live Preview opens,
   // so its element is always in the document and the rule never ran once.
-  if (soloUid !== null || doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`)) {
+  if (sveState.soloUid !== null || doc.querySelector(`[${sve.SOLO_KEEP_ATTR}], [${sve.SOLO_PARENT_ATTR}]`)) {
     settingsTabTries = 0; // closing this again is a fresh question, not a retry
 
     return;
@@ -15459,7 +3785,7 @@ function openSettingsTab(win) {
  * question — "where does the editor start?" — and answering it twice is how the
  * two drift apart.
  */
-function rearmFirstSection() {
+export function rearmFirstSection() {
   firstSectionOpened = false;
 }
 
@@ -15482,7 +3808,7 @@ function rearmFirstSection() {
  * It marks the entry dirty, which is honest: the block now holds a value it did
  * not hold before, and it should be saved.
  */
-function applyDeclaredDefaults(data, doc) {
+export function applyDeclaredDefaults(data, doc) {
   const declared = Array.isArray(data.controlDefaults) ? data.controlDefaults : [];
   const uid = data.scope || data.uid;
 
@@ -15490,14 +3816,14 @@ function applyDeclaredDefaults(data, doc) {
     return;
   }
 
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const found = rowLocation(values, uid);
+    const found = sve.rowLocation(values, uid);
 
     if (!found) {
       continue;
@@ -15541,12 +3867,12 @@ function applyDeclaredDefaults(data, doc) {
  * Page Settings/SEO-fanerne), så ikonerne står på linje med det der er
  * under dem — ikke Statamics gamle 1.75rem/1rem til "Live Preview"-etiketten.
  */
-const LP_TOOLBAR_LEFT = '12px';
-const LP_TOOLBAR_EDGE = '12px';
+export const LP_TOOLBAR_LEFT = '12px';
+export const LP_TOOLBAR_EDGE = '12px';
 
-function alignHeaderToolbarWithSidebar(win) {
+export function alignHeaderToolbarWithSidebar(win) {
   const doc = win.document;
-  const header = lpHeader(doc);
+  const header = sve.lpHeader(doc);
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
   const editor = doc.querySelector('.live-preview-editor');
 
@@ -15615,6 +3941,8 @@ function alignHeaderToolbarWithSidebar(win) {
   }
 }
 
+
+// ===== grid-rows =====
 // --- Grid rows: collapse to a title, one open at a time ------------------------
 //
 // Statamic's Grid (stacked) shows every row's fields in full, which eats the
@@ -15625,12 +3953,12 @@ function alignHeaderToolbarWithSidebar(win) {
 // `<header>` (drag handle + duplicate/delete) and a fields body beside it. We
 // only mark and toggle; Vue keeps owning the DOM.
 
-const GRID_ROW_ATTR = 'data-sve-grid-row';
-const GRID_COLLAPSED_ATTR = 'data-sve-grid-collapsed';
-const GRID_DONE_ATTR = 'data-sve-grid-done';
-const GRID_STYLE_ID = 'sve-grid-accordion-style';
+export const GRID_ROW_ATTR = 'data-sve-grid-row';
+export const GRID_COLLAPSED_ATTR = 'data-sve-grid-collapsed';
+export const GRID_DONE_ATTR = 'data-sve-grid-done';
+export const GRID_STYLE_ID = 'sve-grid-accordion-style';
 
-function ensureGridStyle(doc) {
+export function ensureGridStyle(doc) {
   if (doc.getElementById(GRID_STYLE_ID)) {
     return;
   }
@@ -15657,7 +3985,7 @@ function ensureGridStyle(doc) {
 }
 
 /** Prefer text / textarea / Bard — skip icons, assets, empty controls, etc. */
-const GRID_TITLE_SKIP = [
+export const GRID_TITLE_SKIP = [
   'assets-fieldtype',
   'button_group-fieldtype',
   'button-group-fieldtype',
@@ -15681,7 +4009,7 @@ const GRID_TITLE_SKIP = [
  * Collapsed-row label: first non-empty text, textarea or Bard value.
  * (The previous "first input" approach hit empty icon fields and showed "—".)
  */
-function gridRowTitle(row) {
+export function gridRowTitle(row) {
   try {
     const fields = row.querySelectorAll('.publish-fields input, .publish-fields textarea');
 
@@ -15724,7 +4052,7 @@ function gridRowTitle(row) {
   return '—';
 }
 
-function setGridRowCollapsed(row, collapsed) {
+export function setGridRowCollapsed(row, collapsed) {
   if (collapsed) {
     row.setAttribute(GRID_COLLAPSED_ATTR, '');
   } else {
@@ -15747,11 +4075,11 @@ function setGridRowCollapsed(row, collapsed) {
 }
 
 /** True for a real Grid stacked row panel — it carries a header of its own. */
-function isGridRow(el) {
+export function isGridRow(el) {
   return el.matches('div') && !!el.querySelector(':scope > header');
 }
 
-function enhanceGridRow(win, row, stacked) {
+export function enhanceGridRow(win, row, stacked) {
   if (row.hasAttribute(GRID_ROW_ATTR)) {
     return;
   }
@@ -15838,7 +4166,7 @@ function enhanceGridRow(win, row, stacked) {
  * LP re-render; already-enhanced rows are skipped, so user-chosen open/closed
  * states survive. A freshly seen grid starts with only its first row open.
  */
-function enhanceGrids(win) {
+export function enhanceGrids(win) {
   const doc = win.document;
   const editor = doc.querySelector('.live-preview-editor');
 
@@ -15871,10 +4199,10 @@ function enhanceGrids(win) {
   });
 }
 
-const LP_BACK_ID = '__sve-lp-back';
+export const LP_BACK_ID = '__sve-lp-back';
 
 /** How long to wait for a save to come back before giving the button up again. */
-const LP_SAVE_TIMEOUT = 15000;
+export const LP_SAVE_TIMEOUT = 15000;
 
 /**
  * Leaving the editor publishes what you changed. Clicking Statamic's own
@@ -15890,17 +4218,17 @@ const LP_SAVE_TIMEOUT = 15000;
  * Nothing changed → leave straight away (unless save-only). A save that fails
  * puts the button back and keeps you in the editor, where the error is.
  */
-function leaveEditor(win, link, leave, { publish = true } = {}) {
+export function leaveEditor(win, link, leave, { publish = true } = {}) {
   if (link.dataset.busy) {
     return;
   }
 
-  const save = saveButtonIn(win.document);
-  const hasPublish = !!publishButtonIn(win.document);
+  const save = sve.saveButtonIn(win.document);
+  const hasPublish = !!sve.publishButtonIn(win.document);
   const saveOnly = hasPublish && !publish;
-  const entryDirty = hasUnsavedChanges(win);
-  const globalsDirty = hasUnsavedGlobals(win);
-  const sectionDirty = hasUnsavedGlobalSection(win);
+  const entryDirty = sve.hasUnsavedChanges(win);
+  const globalsDirty = sve.hasUnsavedGlobals(win);
+  const sectionDirty = sve.hasUnsavedGlobalSection(win);
 
   if (!save && !globalsDirty && !sectionDirty) {
     if (!saveOnly) {
@@ -15940,7 +4268,7 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
       if (saveOnly) {
         release();
       } else {
-        leaveQuietly(win, leave);
+        sve.leaveQuietly(win, leave);
       }
     };
 
@@ -15953,7 +4281,7 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
 
       let settled = false;
 
-      const stop = onEntrySave((ok) => {
+      const stop = sve.onEntrySave((ok) => {
         if (settled) {
           return;
         }
@@ -15981,10 +4309,10 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
 
         // Save just succeeded — refresh the clean baseline so leave isn't
         // blocked by sticky $dirty, and value-diff matches the saved form.
-        markEntryFormClean(win);
+        sve.markEntryFormClean(win);
 
         publishWorkingCopy(win, {
-          onSuccess: () => leaveQuietly(win, leave),
+          onSuccess: () => sve.leaveQuietly(win, leave),
           onFailure: release,
           onPublishing: () => setLabel(t(win, 'publishing')),
           afterSave: true,
@@ -16005,14 +4333,14 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
     };
 
     // Theme Settings / global section first — entry save can navigate away.
-    saveGlobalsPanel(win, (ok) => {
+    sve.saveGlobalsPanel(win, (ok) => {
       if (!ok) {
         release();
 
         return;
       }
 
-      saveGlobalSectionPanel(win, (sectionOk) => {
+      sve.saveGlobalSectionPanel(win, (sectionOk) => {
         if (!sectionOk) {
           release();
 
@@ -16026,7 +4354,7 @@ function leaveEditor(win, link, leave, { publish = true } = {}) {
 }
 
 /** Marks the back-pill busy, runs `work`, and gives it release/setLabel helpers. */
-function runBusy(win, link, work) {
+export function runBusy(win, link, work) {
   const label = link.querySelector('span');
   const original = label?.textContent;
 
@@ -16059,7 +4387,7 @@ function runBusy(win, link, work) {
  * Statamic's publish endpoint for the open entry — same URL the Publish dialog
  * posts to (`…/entries/{id}/publish`).
  */
-function entryPublishUrl(win) {
+export function entryPublishUrl(win) {
   return `${win.location.pathname.replace(/\/$/, '')}/publish`;
 }
 
@@ -16071,7 +4399,7 @@ function entryPublishUrl(win) {
  * Save Changes. Pass `afterSave: true` when the working copy was just written
  * — then skip the dirty-form wait (sticky $dirty used to block leave forever).
  */
-function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, afterSave = false } = {}) {
+export function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, afterSave = false } = {}) {
   let settled = false;
   let enableTimer = null;
   let attempts = 0;
@@ -16092,12 +4420,12 @@ function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, afterSave
       return;
     }
 
-    const button = publishButtonIn(win.document);
+    const button = sve.publishButtonIn(win.document);
     // After an explicit save we already cleared dirty marks — only wait for the
     // Publish button to enable (Statamic may still be finishing its UI update).
     const blocked = afterSave
       ? button?.disabled === true
-      : hasUnsavedChanges(win) || button?.disabled === true;
+      : sve.hasUnsavedChanges(win) || button?.disabled === true;
 
     if (blocked) {
       if (++attempts > 50) {
@@ -16115,7 +4443,7 @@ function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, afterSave
 
     onPublishing?.();
 
-    const rearm = disarmUnloadWarning(win);
+    const rearm = sve.disarmUnloadWarning(win);
 
     win
       .fetch(entryPublishUrl(win), {
@@ -16124,7 +4452,7 @@ function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, afterSave
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'X-CSRF-TOKEN': csrfToken(win),
+          'X-CSRF-TOKEN': sve.csrfToken(win),
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ message: null }),
@@ -16155,28 +4483,48 @@ function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, afterSave
  * (save/publish menu when dirty). Styled like the left icon pills so the whole
  * bar shares one height and surface.
  */
-const LP_BACK_MENU_ID = '__sve-lp-back-menu';
+export const LP_BACK_MENU_ID = '__sve-lp-back-menu';
 
-const LP_BACK_ICON_SVG =
+export const LP_BACK_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
   'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>';
 
-let lpCloseHideObserver = null;
+const LP_MENU_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
+  'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 
-function isOurLpChromeButton(button) {
+const LP_BACK_ADMIN_ICON_SVG =
+  LP_MENU_ICON +
+  '<rect width="20" height="14" x="2" y="3" rx="2"></rect>' +
+  '<path d="M8 21h8"></path>' +
+  '<path d="M12 17v4"></path></svg>';
+
+const LP_BACK_SITE_ICON_SVG =
+  LP_MENU_ICON +
+  '<rect x="3" y="3" width="18" height="18" rx="2"></rect>' +
+  '<path d="M3 8h18"></path>' +
+  '<path d="M7 14h7"></path>' +
+  '<path d="m11 11 3 3-3 3"></path></svg>';
+
+
+export function isOurLpChromeButton(button) {
   return (
     !button ||
     button.id === LP_BACK_ID ||
+    button.id === '__sve-lp-more' ||
     !!button.closest?.(`#${LP_BACK_ID}`) ||
+    !!button.closest?.('#__sve-lp-more') ||
     !!button.closest?.(`#${HEADER_TOOLBAR_ID}`) ||
     !!button.closest?.(`#${LP_PREVIEW_CHROME_ID}`) ||
-    !!button.closest?.(`#${LP_MODE_ID}`)
+    !!button.closest?.(`#${sve.LP_MODE_ID}`) ||
+    !!button.closest?.(`#${RIGHT_DOCK_ID}`) ||
+    button.hasAttribute?.('data-sve-close')
   );
 }
 
 /** True for Statamic’s Live Preview exit (×) — not Save / devices / our close. */
-function isStatamicLpCloseButton(button) {
+export function isStatamicLpCloseButton(button) {
   if (isOurLpChromeButton(button)) {
     return false;
   }
@@ -16211,7 +4559,7 @@ function isStatamicLpCloseButton(button) {
 }
 
 /** Statamic’s header close (×) — kept in the DOM so leaveLivePreview can click it. */
-function findLpCloseButton(header) {
+export function findLpCloseButton(header) {
   if (!header) {
     return null;
   }
@@ -16227,12 +4575,12 @@ function findLpCloseButton(header) {
   return candidates[candidates.length - 1] || null;
 }
 
-function collectStatamicLpCloseButtons(header) {
+export function collectStatamicLpCloseButtons(header) {
   if (!header) {
     return [];
   }
 
-  const save = findLpSaveButton(header);
+  const save = sve.findLpSaveButton(header);
   const scope =
     header.closest('.live-preview, [data-live-preview], .live-preview-ui') || header;
   const buttons = [...scope.querySelectorAll('button')].filter((button) => !isOurLpChromeButton(button));
@@ -16251,8 +4599,8 @@ function collectStatamicLpCloseButtons(header) {
   });
 }
 
-function markStatamicLpCloseHidden(close) {
-  if (!close || close.id === LP_BACK_ID) {
+export function markStatamicLpCloseHidden(close) {
+  if (!close || close.id === LP_BACK_ID || isOurLpChromeButton(close)) {
     return;
   }
 
@@ -16274,7 +4622,7 @@ function markStatamicLpCloseHidden(close) {
   close.tabIndex = -1;
 }
 
-function hideStatamicLpClose(header) {
+export function hideStatamicLpClose(header) {
   if (!header) {
     return;
   }
@@ -16284,7 +4632,7 @@ function hideStatamicLpClose(header) {
   collectStatamicLpCloseButtons(header).forEach(markStatamicLpCloseHidden);
 
   // Fallback: last icon button in the header after Save (even without a label).
-  const save = findLpSaveButton(header);
+  const save = sve.findLpSaveButton(header);
 
   if (!save) {
     return;
@@ -16302,25 +4650,25 @@ function hideStatamicLpClose(header) {
 }
 
 /** Keep Statamic’s × gone across Vue re-renders of the Live Preview header. */
-function watchStatamicLpClose(win) {
-  const header = lpHeader(win.document);
+export function watchStatamicLpClose(win) {
+  const header = sve.lpHeader(win.document);
 
   if (!header) {
-    lpCloseHideObserver?.disconnect();
-    lpCloseHideObserver = null;
+    sveState.lpCloseHideObserver?.disconnect();
+    sveState.lpCloseHideObserver = null;
 
     return;
   }
 
   hideStatamicLpClose(header);
 
-  if (lpCloseHideObserver) {
+  if (sveState.lpCloseHideObserver) {
     return;
   }
 
   let scheduled = false;
 
-  lpCloseHideObserver = new win.MutationObserver(() => {
+  sveState.lpCloseHideObserver = new win.MutationObserver(() => {
     if (scheduled) {
       return;
     }
@@ -16328,11 +4676,11 @@ function watchStatamicLpClose(win) {
     scheduled = true;
     win.requestAnimationFrame(() => {
       scheduled = false;
-      const live = lpHeader(win.document);
+      const live = sve.lpHeader(win.document);
 
       if (!live) {
-        lpCloseHideObserver?.disconnect();
-        lpCloseHideObserver = null;
+        sveState.lpCloseHideObserver?.disconnect();
+        sveState.lpCloseHideObserver = null;
 
         return;
       }
@@ -16341,7 +4689,7 @@ function watchStatamicLpClose(win) {
     });
   });
 
-  lpCloseHideObserver.observe(header, {
+  sveState.lpCloseHideObserver.observe(header, {
     childList: true,
     subtree: true,
     attributes: true,
@@ -16353,10 +4701,10 @@ function watchStatamicLpClose(win) {
  * Keep the back control after Save & Publish (where × sat). No floating geometry —
  * the preview no longer needs to dodge a pill over the canvas.
  */
-function positionLpBackButton(win) {
+export function positionLpBackButton(win) {
   const doc = win.document;
   const pill = doc.getElementById(LP_BACK_ID);
-  const header = lpHeader(doc);
+  const header = sve.lpHeader(doc);
 
   if (!pill || !header) {
     return;
@@ -16364,7 +4712,7 @@ function positionLpBackButton(win) {
 
   hideStatamicLpClose(header);
 
-  const save = findLpSaveButton(header);
+  const save = sve.findLpSaveButton(header);
 
   if (save && pill.previousElementSibling !== save) {
     save.after(pill);
@@ -16379,7 +4727,7 @@ function positionLpBackButton(win) {
     }
   });
 
-  syncLpRightBarGaps(win);
+  sve.syncLpRightBarGaps(win);
   tellPreviewWherePillIs(win, pill);
 }
 
@@ -16387,8 +4735,8 @@ function positionLpBackButton(win) {
  * Hands the preview the pill's box. When the control lives in the header it does
  * not overlap the iframe — send an empty box so hover chrome stops dodging.
  */
-function tellPreviewWherePillIs(win, pill) {
-  const frame = previewFrame(win.document);
+export function tellPreviewWherePillIs(win, pill) {
+  const frame = sve.previewFrame(win.document);
 
   if (!frame) {
     return;
@@ -16429,19 +4777,21 @@ function tellPreviewWherePillIs(win, pill) {
 }
 
 /** Tear down the back control (and its menu) when Live Preview closes. */
-function removeLpBackButton(doc) {
+export function removeLpBackButton(doc) {
   doc.getElementById(LP_BACK_MENU_ID)?.remove();
   doc.getElementById(LP_BACK_ID)?.remove();
-  clearEntryBaseline();
+  doc.getElementById('__sve-lp-more-menu')?.remove();
+  doc.getElementById('__sve-lp-more')?.remove();
+  sve.clearEntryBaseline();
 }
 
 /**
  * Close control in the top bar after Save & Publish. Opens a short menu:
  * back to admin, or back to the live site. Unsaved work is asked about after.
  */
-function ensureLpBackButton(win) {
+export function ensureLpBackButton(win) {
   const doc = win.document;
-  const header = lpHeader(doc);
+  const header = sve.lpHeader(doc);
 
   if (!header) {
     return;
@@ -16461,8 +4811,10 @@ function ensureLpBackButton(win) {
       event.preventDefault();
       event.stopPropagation();
 
+      sve.dismissLpMoreMenu?.();
+
       if (doc.getElementById(LP_BACK_MENU_ID)) {
-        doc.getElementById(LP_BACK_MENU_ID).remove();
+        dropMenu(doc.getElementById(LP_BACK_MENU_ID));
 
         return;
       }
@@ -16481,7 +4833,7 @@ function ensureLpBackButton(win) {
   pill.title = t(win, 'close_live_preview_title');
   pill.setAttribute('aria-label', pill.title);
   pill.style.opacity = '1';
-  pill.style.background = HEADER_ICON_HOVER;
+  pill.style.background = '#3f3f46';
   pill.style.width = `${LP_CHROME_H}px`;
   pill.style.height = `${LP_CHROME_H}px`;
   pill.style.borderRadius = '.5rem';
@@ -16490,7 +4842,7 @@ function ensureLpBackButton(win) {
 
   positionLpBackButton(win);
   // Idempotent: no-ops once the session already has a clean snapshot.
-  scheduleEntryBaseline(win);
+  sve.scheduleEntryBaseline(win);
 }
 
 /**
@@ -16499,7 +4851,7 @@ function ensureLpBackButton(win) {
  * - Opened from a listing → back to that listing.
  * - Otherwise → close Live Preview and stay in admin.
  */
-function leaveLivePreview(win, fallbackUrl = null) {
+export function leaveLivePreview(win, fallbackUrl = null) {
   if (isEmbeddedInSite(win)) {
     const visitNow = [...win.document.querySelectorAll('a')].find((a) =>
       /visit url|besøg url/i.test(a.textContent || '')
@@ -16513,10 +4865,10 @@ function leaveLivePreview(win, fallbackUrl = null) {
 
   // Never reached the publish form on the way in, so it is not somewhere to be
   // put down on the way out: the way back is the list the entry was clicked in.
-  const origin = originForCurrentEntry(win);
+  const origin = sve.originForCurrentEntry(win);
 
   if (origin) {
-    forgetOrigin(win);
+    sve.forgetOrigin(win);
     leaveToOrigin(win, origin);
 
     return;
@@ -16532,10 +4884,10 @@ function leaveLivePreview(win, fallbackUrl = null) {
  * path into `leave()` does that first — so the only thing left in the way is
  * Statamic's own guard, which is still holding the marks it was answered about.
  */
-function leaveToOrigin(win, url) {
+export function leaveToOrigin(win, url) {
   const router = win.__STATAMIC__?.inertia?.router;
 
-  dismissDirtyWarning(win);
+  sve.dismissDirtyWarning(win);
 
   if (!router?.visit) {
     win.location.href = url;
@@ -16547,13 +4899,13 @@ function leaveToOrigin(win, url) {
 }
 
 /** Click Statamic's Live Preview × so we stay on the admin entry form. */
-function closeLivePreviewUi(win) {
-  const header = lpHeader(win.document);
+export function closeLivePreviewUi(win) {
+  const header = sve.lpHeader(win.document);
   const close = findLpCloseButton(header);
 
   // Settling on the form is an answer to "where does this end", so a later × on
   // a preview reopened by hand should not still be pointing at a listing.
-  forgetOrigin(win);
+  sve.forgetOrigin(win);
 
   // Temporarily reveal so .click() works even while we keep × hidden in the UI.
   if (close) {
@@ -16572,7 +4924,7 @@ function closeLivePreviewUi(win) {
 }
 
 /** Public URL of the open entry, from Visit URL or the preview iframe. */
-function visitUrlOf(win) {
+export function visitUrlOf(win) {
   const visit = [...win.document.querySelectorAll('a')].find((a) =>
     /visit url|besøg url/i.test(a.textContent || '')
   );
@@ -16601,7 +4953,7 @@ function visitUrlOf(win) {
 }
 
 /** Overlay host is the Control Panel listing/form, not the live site. */
-function hostIsControlPanel(win) {
+export function hostIsControlPanel(win) {
   try {
     return /\/cp(\/|$)/.test(win.top.location.pathname);
   } catch {
@@ -16609,7 +4961,7 @@ function hostIsControlPanel(win) {
   }
 }
 
-function goTop(win, url) {
+export function goTop(win, url) {
   try {
     win.top.location.href = url;
   } catch {
@@ -16623,14 +4975,14 @@ function goTop(win, url) {
  * With open-in-preview, the form is not a place anyone came from. The way
  * back to admin is the collection (or the listing that opened the overlay).
  */
-function collectionListingUrl(win) {
-  const origin = originForCurrentEntry(win);
+export function collectionListingUrl(win) {
+  const origin = sve.originForCurrentEntry(win);
 
   if (origin) {
     try {
       const path = new URL(origin, win.location.origin).pathname;
 
-      if (/\/cp(\/|$)/.test(path) && !ENTRY_EDIT_PATH.test(path)) {
+      if (/\/cp(\/|$)/.test(path) && !sve.ENTRY_EDIT_PATH.test(path)) {
         return origin;
       }
     } catch {
@@ -16648,8 +5000,8 @@ function collectionListingUrl(win) {
 }
 
 /** Leave the visual editor and land on the collection listing. */
-function leaveToAdmin(win) {
-  dismissDirtyWarning(win);
+export function leaveToAdmin(win) {
+  sve.dismissDirtyWarning(win);
 
   // Overlay sits on the CP listing (or dashboard): just lift it.
   if (isEmbeddedInSite(win) && hostIsControlPanel(win)) {
@@ -16660,7 +5012,7 @@ function leaveToAdmin(win) {
 
   const listing = collectionListingUrl(win);
 
-  forgetOrigin(win);
+  sve.forgetOrigin(win);
 
   if (isEmbeddedInSite(win)) {
     postToHost(win, 'lp-close', listing ? { url: listing } : {});
@@ -16672,8 +5024,8 @@ function leaveToAdmin(win) {
 }
 
 /** Leave the visual editor and land on the public page. */
-function leaveToFrontend(win) {
-  dismissDirtyWarning(win);
+export function leaveToFrontend(win) {
+  sve.dismissDirtyWarning(win);
   const url = visitUrlOf(win);
 
   if (isEmbeddedInSite(win) && !hostIsControlPanel(win)) {
@@ -16692,40 +5044,40 @@ function leaveToFrontend(win) {
 }
 
 /** Save or discard first when the form is dirty, then run `leave`. */
-function confirmLeaveIfDirty(win, leave) {
-  if (!hasUnsavedWork(win)) {
+export function confirmLeaveIfDirty(win, leave) {
+  if (!sve.hasUnsavedWork(win)) {
     leave();
 
     return;
   }
 
-  confirmUnsaved(
+  sve.confirmUnsaved(
     win,
     () => {
-      saveGlobalsPanel(win, (ok) => {
+      sve.saveGlobalsPanel(win, (ok) => {
         if (!ok) {
           return;
         }
 
-        saveGlobalSectionPanel(win, (sectionOk) => {
+        sve.saveGlobalSectionPanel(win, (sectionOk) => {
           if (!sectionOk) {
             return;
           }
 
-          if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
-            leaveQuietly(win, leave);
+          if (!sve.hasUnsavedChanges(win) || !sve.saveButtonIn(win.document)) {
+            sve.leaveQuietly(win, leave);
 
             return;
           }
 
-          saveThenNavigate(win, leave);
+          sve.saveThenNavigate(win, leave);
         });
       });
     },
     () => {
-      discardChanges(win);
-      discardGlobalsChanges(win);
-      clearSectionsStash(win, { refresh: false });
+      sve.discardChanges(win);
+      sve.discardGlobalsChanges(win);
+      sve.clearSectionsStash(win, { refresh: false });
       leave();
     }
   );
@@ -16735,16 +5087,16 @@ function confirmLeaveIfDirty(win, leave) {
  * Widths, pins and docks only — not the page. Does not reload, so unsaved
  * work in the form stays put.
  */
-function resetEditorLayout(win) {
+export function resetEditorLayout(win) {
   closeCodeDock(win.document);
   setCodeDockArmed(win, false);
-  closeRightPanels(win);
+  sve.closeRightPanels(win);
 
-  listViewTab = 'tree';
-  headerTab = null;
-  lpEnterSidebarClosed = true;
-  lpCollapsed = true;
-  dockedHeaderRestored = true;
+  sveState.listViewTab = 'tree';
+  sveState.headerTab = null;
+  sveState.lpEnterSidebarClosed = true;
+  sveState.lpCollapsed = true;
+  sveState.dockedHeaderRestored = true;
 
   const editor = win.document.querySelector('.live-preview-editor');
 
@@ -16752,15 +5104,15 @@ function resetEditorLayout(win) {
     editor.style.position = 'absolute';
     editor.style.left = '-10000px';
     editor.style.top = '0';
-    editor.style.width = `${remToPx(win, LP_SIDE_DEFAULT_REM)}px`;
+    editor.style.width = `${sve.remToPx(win, sve.LP_SIDE_DEFAULT_REM)}px`;
   }
 
   applyLpDevice(win, 'Responsive');
   applyLpZoom(win, LP_ZOOM_DEFAULT);
   clearChromePrefs(win);
-  persistLpWidth(win, remToPx(win, LP_SIDE_DEFAULT_REM));
-  chromeSet(win, LP_MODE_KEY, 'hide');
-  chromeSet(win, LP_COLLAPSED_KEY, '1');
+  sve.persistLpWidth(win, sve.remToPx(win, sve.LP_SIDE_DEFAULT_REM));
+  chromeSet(win, sve.LP_MODE_KEY, 'hide');
+  chromeSet(win, sve.LP_COLLAPSED_KEY, '1');
   chromeSet(win, LP_DEVICE_KEY, 'Responsive');
   chromeSet(win, LP_ZOOM_KEY, String(LP_ZOOM_DEFAULT));
   chromeSet(win, 'sve-listview-tab', 'tree');
@@ -16768,77 +5120,78 @@ function resetEditorLayout(win) {
   relayoutRightDock(win);
   relayoutCodeDock(win);
   relayoutAiPanel(win);
-  syncPreviewInset(win);
+  sve.syncPreviewInset(win);
   applyHeaderTab(win);
   paintLpPreviewChrome(win);
-  ensureLpPanelToggle(win);
+  sve.ensureLpPanelToggle(win);
 }
 
 /** Close menu: admin or the live site — Save/Publish stay on the header buttons. */
-function openLpBackMenu(win, pill) {
+export function openLpBackMenu(win, pill) {
   const doc = win.document;
+
+  sve.dismissLpMoreMenu?.();
+  dropMenu(doc.getElementById(LP_BACK_MENU_ID));
   const menu = doc.createElement('div');
   const rect = pill.getBoundingClientRect();
 
   menu.id = LP_BACK_MENU_ID;
   menu.style.cssText =
     `position:fixed;z-index:2147483001;top:${Math.round(rect.bottom + 8)}px;` +
-    `right:${Math.round(win.innerWidth - rect.right)}px;min-width:220px;` +
-    'display:flex;flex-direction:column;padding:5px;border-radius:10px;background:#18181b;' +
-    'box-shadow:0 12px 32px rgba(0,0,0,.4);font:500 13px/1.2 ui-sans-serif,system-ui,sans-serif;';
+    `right:${Math.round(win.innerWidth - rect.right)}px;width:max-content;` +
+    'display:flex;flex-direction:column;padding:5px;border-radius:10px;' +
+    'background:#343439;box-shadow:0 12px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.12);' +
+    'font:500 13px/1.2 ui-sans-serif,system-ui,sans-serif;';
 
-  const item = (label, title, onClick) => {
+  const item = (label, title, iconSvg, onClick) => {
     const btn = doc.createElement('button');
+    const icon = doc.createElement('span');
+    const text = doc.createElement('span');
 
     btn.type = 'button';
-    btn.textContent = label;
     btn.title = title;
     btn.style.cssText =
-      'all:unset;cursor:pointer;padding:9px 12px;border-radius:7px;white-space:nowrap;color:rgba(255,255,255,.88);';
-    btn.addEventListener('mouseenter', () => (btn.style.background = 'rgba(255,255,255,.12)'));
+      'all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;' +
+      'padding:9px 12px;border-radius:7px;white-space:nowrap;color:rgba(255,255,255,.88);';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.style.cssText = 'display:inline-flex;flex-shrink:0;opacity:.85;';
+    icon.innerHTML = iconSvg;
+    text.textContent = label;
+    btn.append(icon, text);
+    btn.addEventListener('mouseenter', () => (btn.style.background = '#2c2c31'));
     btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
-      menu.remove();
+      dropMenu(menu);
       onClick();
     });
     menu.appendChild(btn);
   };
 
-  item(t(win, 'back_to_admin'), t(win, 'back_to_admin_title'), () => {
+  item(t(win, 'back_to_admin'), t(win, 'back_to_admin_title'), LP_BACK_ADMIN_ICON_SVG, () => {
     confirmLeaveIfDirty(win, () => leaveToAdmin(win));
   });
-  item(t(win, 'back_to_site'), t(win, 'back_to_site_title'), () => {
+  item(t(win, 'back_to_site'), t(win, 'back_to_site_title'), LP_BACK_SITE_ICON_SVG, () => {
     confirmLeaveIfDirty(win, () => leaveToFrontend(win));
   });
 
-  const sep = doc.createElement('div');
-
-  sep.setAttribute('aria-hidden', 'true');
-  sep.style.cssText = 'height:1px;margin:5px 8px;background:rgba(255,255,255,.1);';
-  menu.appendChild(sep);
-
-  item(t(win, 'reset_layout'), t(win, 'reset_layout_title'), () => {
-    resetEditorLayout(win);
-  });
-  menu.lastElementChild.style.opacity = '.5';
-  menu.lastElementChild.style.fontSize = '12px';
-
   doc.body.appendChild(menu);
+  menu.tabIndex = -1;
+  menu.style.outline = 'none';
 
-  const away = (event) => {
-    if (menu.contains(event.target) || pill.contains(event.target)) {
-      return;
-    }
+  const dismiss = () => dropMenu(menu);
 
-    menu.remove();
-    pill.sveCollapse?.();
-    doc.removeEventListener('click', away, true);
-  };
+  menu._sveUnbind = bindMenuDismiss(
+    win,
+    (target) => menu.contains(target) || pill.contains(target),
+    dismiss
+  );
 
-  setTimeout(() => doc.addEventListener('click', away, true), 0);
+  menu.focus();
 }
 
+
+// ===== add-section =====
 // --- Add section ("+" in the preview) -------------------------------------------
 // Each Replicator row carries an "insert a set before me" button (a popover
 // trigger) at its top. Clicking the row AFTER the clicked section therefore opens
@@ -16851,7 +5204,7 @@ function openLpBackMenu(win, pill) {
  * Tried by id first, then by class, then by structure — the row also contains
  * many other buttons, so we must not just grab the first one.
  */
-function insertButtonOf(item) {
+export function insertButtonOf(item) {
   const holder =
     item.querySelector(':scope > [id^="reka-popover-trigger"]') ??
     [...item.children].find((c) => c.classList?.contains('justify-center')) ??
@@ -16866,13 +5219,13 @@ function insertButtonOf(item) {
  * including list↔grid toggles, which remount the popover onto the CP trigger.
  * Admin-panel Add Set never sets this, so it stays in the sidebar.
  */
-let previewPickerSession = null; // { doc, win, anchorRect, observer, goneTimer }
+export let previewPickerSession = null; // { doc, win, anchorRect, observer, goneTimer }
 
 /**
  * Only the Add Set picker — never "Search sections..." or other CP search
  * fields (those live in docked sidebars we must not reposition).
  */
-function findSetPickerSearchInput(doc) {
+export function findSetPickerSearchInput(doc) {
   const nodes = doc.querySelectorAll(
     '[data-set-picker-search-input], input[placeholder*="Search Sets" i]'
   );
@@ -16891,7 +5244,7 @@ function findSetPickerSearchInput(doc) {
   return nodes[0] || null;
 }
 
-function findSetPickerEl(doc, win) {
+export function findSetPickerEl(doc, win) {
   const input = findSetPickerSearchInput(doc);
 
   if (!input) {
@@ -16943,7 +5296,7 @@ function findSetPickerEl(doc, win) {
   return input.closest('[data-popper-placement]') || input.parentElement;
 }
 
-function placeSetPicker(el, doc, win, anchorRect) {
+export function placeSetPicker(el, doc, win, anchorRect) {
   if (anchorRect) {
     const iframe = doc.getElementById('live-preview-iframe');
 
@@ -17001,7 +5354,7 @@ function placeSetPicker(el, doc, win, anchorRect) {
   el.style.setProperty('z-index', '2147483000', 'important');
 }
 
-function stopPreviewPickerSession() {
+export function stopPreviewPickerSession() {
   if (!previewPickerSession) {
     return;
   }
@@ -17032,7 +5385,7 @@ function stopPreviewPickerSession() {
 }
 
 /** Close the open list Set picker (Escape, then toggle its trigger if needed). */
-function dismissOpenSetPicker(doc) {
+export function dismissOpenSetPicker(doc) {
   doc.dispatchEvent(
     new KeyboardEvent('keydown', {
       key: 'Escape',
@@ -17067,9 +5420,13 @@ function dismissOpenSetPicker(doc) {
  * Clicks in the live-preview iframe never reach Statamic's popover
  * click-outside — so we dismiss list view ourselves on outside pointerdown.
  */
-function startPreviewPickerSession(doc, win, anchorRect) {
+export function startPreviewPickerSession(doc, win, anchorRect) {
   stopPreviewPickerSession();
 
+  // placeSetPicker writes style attributes. After the Vue split the CP panes
+  // also stamp data-* attrs on every tick. Watching attributes here retriggers
+  // that write and freezes the page. List↔grid remounts are childList.
+  let placing = false;
   const ignoreUntil = Date.now() + 350;
 
   const isListPicker = (el) => {
@@ -17157,8 +5514,21 @@ function startPreviewPickerSession(doc, win, anchorRect) {
     if (el) {
       clearTimeout(previewPickerSession.goneTimer);
       previewPickerSession.goneTimer = null;
-      placeSetPicker(el, doc, win, anchorRect);
-      silenceSetPickerSearch(doc);
+      placing = true;
+      try {
+        // Hidden until pinned under the "+" — otherwise Statamic first paints
+        // the popover on the sidebar Add Set trigger.
+        if (!el.dataset.svePickerPlaced) {
+          el.style.setProperty('visibility', 'hidden', 'important');
+        }
+
+        placeSetPicker(el, doc, win, anchorRect);
+        el.style.setProperty('visibility', 'visible', 'important');
+        el.dataset.svePickerPlaced = '1';
+        silenceSetPickerSearch(doc);
+      } finally {
+        placing = false;
+      }
       bindIframe();
 
       return;
@@ -17172,9 +5542,15 @@ function startPreviewPickerSession(doc, win, anchorRect) {
     }
   };
 
-  const observer = new MutationObserver(() => tick());
+  const observer = new MutationObserver(() => {
+    if (placing) {
+      return;
+    }
 
-  observer.observe(doc.body, { childList: true, subtree: true, attributes: true });
+    tick();
+  });
+
+  observer.observe(doc.body, { childList: true, subtree: true });
   doc.addEventListener('pointerdown', onDocPointer, true);
 
   const iframe = doc.getElementById('live-preview-iframe');
@@ -17203,7 +5579,7 @@ function startPreviewPickerSession(doc, win, anchorRect) {
  * (list↔grid included). Without an anchorRect we only rescue off-screen
  * popovers — admin-panel Add Set is left alone.
  */
-function isSetPickerSearchField(el) {
+export function isSetPickerSearchField(el) {
   if (!el || el.tagName !== 'INPUT') {
     return false;
   }
@@ -17215,7 +5591,7 @@ function isSetPickerSearchField(el) {
   return /search sets/i.test(el.getAttribute('placeholder') || '');
 }
 
-function applySetPickerSearchAttrs(input) {
+export function applySetPickerSearchAttrs(input) {
   // Safari stores previous searches per origin for type=search and shows them
   // even with autocomplete=off. Chrome also ignores "off" on search fields.
   if ((input.getAttribute('type') || '').toLowerCase() === 'search') {
@@ -17239,7 +5615,7 @@ function applySetPickerSearchAttrs(input) {
   }
 }
 
-function onSetPickerSearchFocus(event) {
+export function onSetPickerSearchFocus(event) {
   const input = event.target;
 
   applySetPickerSearchAttrs(input);
@@ -17256,7 +5632,7 @@ function onSetPickerSearchFocus(event) {
   });
 }
 
-function silenceSetPickerSearch(doc) {
+export function silenceSetPickerSearch(doc) {
   const input = findSetPickerSearchInput(doc);
 
   if (!input || input.tagName !== 'INPUT') {
@@ -17273,7 +5649,7 @@ function silenceSetPickerSearch(doc) {
   input.addEventListener('focus', onSetPickerSearchFocus);
 }
 
-function armSetPickerSearchSilence(win) {
+export function armSetPickerSearchSilence(win) {
   if (win.__sveSetPickerSilence) {
     return;
   }
@@ -17297,7 +5673,7 @@ function armSetPickerSearchSilence(win) {
   );
 }
 
-function ensurePickerVisible(doc, win, anchorRect = null) {
+export function ensurePickerVisible(doc, win, anchorRect = null) {
   closeCodeDockPopups(doc);
 
   if (anchorRect) {
@@ -17348,15 +5724,15 @@ function ensurePickerVisible(doc, win, anchorRect = null) {
   setTimeout(run, 80);
 }
 
-function repositionAfterAdd(uid, doc) {
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
+export function repositionAfterAdd(uid, doc) {
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = findPathByUid(values, uid);
+    const path = sve.findPathByUid(values, uid);
 
     if (path === null) {
       continue;
@@ -17370,7 +5746,7 @@ function repositionAfterAdd(uid, doc) {
 
     const parentPath = path.slice(0, dot);
     const index = Number(path.slice(dot + 1));
-    const initial = dataGet(values, parentPath);
+    const initial = sve.dataGet(values, parentPath);
 
     if (!Array.isArray(initial) || !Number.isInteger(index)) {
       return;
@@ -17380,7 +5756,7 @@ function repositionAfterAdd(uid, doc) {
     let attempts = 0;
 
     const poll = () => {
-      const current = dataGet(unwrapRef(container.values), parentPath);
+      const current = sve.dataGet(sve.unwrapRef(container.values), parentPath);
 
       if (!Array.isArray(current)) {
         return;
@@ -17412,10 +5788,10 @@ function repositionAfterAdd(uid, doc) {
 export function handleAddSet(data, doc, win) {
   // The "+" on a section opens the section library (docked panel). You place a
   // section by dragging a card into the preview, so no insert position is passed.
-  openSectionPicker(win);
+  sve.openSectionPicker(win);
 }
 
-function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null, position = 'after') {
+export function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null, position = 'after') {
   const item = setEl.closest('[class*="sortable-item"]');
 
   if (!item?.parentElement) {
@@ -17497,7 +5873,7 @@ function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null, position = 'aft
  * section's are in here. So the picker is opened as usual and the answer is
  * given to it, which keeps the insert itself entirely native.
  */
-function autoPickSet(doc, win, label) {
+export function autoPickSet(doc, win, label) {
   const wanted = String(label || '').trim().toLowerCase();
 
   if (!wanted) {
@@ -17533,37 +5909,109 @@ function autoPickSet(doc, win, label) {
  * out here cannot reach the fields in there reliably. Kept, and switched on
  * again, once the section is edited in this window like any other.
  */
-const PICKER_OVER_PREVIEW = false;
+export const PICKER_OVER_PREVIEW = false;
+
+/** Plus-button rect in the innermost preview → coordinates in `win.top`. */
+export function previewRectInTop(doc, win, localRect) {
+  if (!localRect) {
+    return null;
+  }
+
+  let left = localRect.left || 0;
+  let top = localRect.top || 0;
+  let iframe = doc.getElementById('live-preview-iframe');
+
+  try {
+    const nested = iframe?.contentDocument?.getElementById('live-preview-iframe');
+
+    if (nested) {
+      iframe = nested;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  let el = iframe;
+
+  while (el) {
+    const r = el.getBoundingClientRect();
+
+    left += r.left;
+    top += r.top;
+
+    const owner = el.ownerDocument?.defaultView;
+
+    if (!owner || owner === owner.top) {
+      break;
+    }
+
+    el = owner.frameElement;
+  }
+
+  const width = localRect.width || 0;
+  const height = localRect.height || 0;
+
+  return {
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+  };
+}
+
+function groupedPickerSets(sets) {
+  if (!Array.isArray(sets) || !sets.length) {
+    return [];
+  }
+
+  if (sets[0]?.sets) {
+    return sets;
+  }
+
+  return [{ handle: 'all', display: '', sets }];
+}
 
 /**
- * Statamic's own Add Set picker, opened over the preview.
- *
- * A global section's fields live in the panel, so the picker Statamic would open
- * for them appears in there — not where the "+" was clicked. `set-picker` is a
- * registered component though, so it can be mounted here instead, in the same
- * document as the preview, and pinned exactly like the picker of a page's own
- * section. The chosen set is then handed to the panel, which does the insert.
- *
- * Returns false if it could not be mounted, so the caller can fall back.
+ * Statamic's own `set-picker`, mounted on the top CP document at the plus.
+ * The trigger sits on the plus — the popover opens there. The sidebar Add Set
+ * button is never clicked, so nothing flashes in the left panel.
  */
-function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
+let previewSetPickerApp = null;
+
+export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
   const Vue = win.Vue;
   const app = win.Statamic?.$app;
+  const Picker = app?.component?.('set-picker');
+  const grouped = groupedPickerSets(sets);
 
-  if (!Vue?.createApp || !app || !Array.isArray(sets) || !sets.length) {
+  if (!Vue?.createApp || !Picker || !grouped.length) {
     return false;
   }
 
+  if (previewSetPickerApp) {
+    try {
+      previewSetPickerApp.unmount();
+    } catch {
+      /* ignore */
+    }
+
+    previewSetPickerApp = null;
+  }
+
+  doc.querySelectorAll('[data-sve-set-picker-host]').forEach((el) => el.remove());
+
   const host = doc.createElement('div');
+  const left = Math.round(anchorRect?.left || 0);
+  const top = Math.round(anchorRect?.bottom || anchorRect?.top || 0);
 
   host.dataset.sveSetPickerHost = '';
-  host.style.cssText = 'position:fixed;z-index:2147483000;left:0;top:0;';
+  host.style.cssText = `position:fixed;z-index:2147483647;left:${left}px;top:${top}px;width:1px;height:1px;`;
   doc.body.appendChild(host);
 
   let mounted = null;
-  // The picker opens itself from a trigger; there is none here, so its own
-  // `isOpen` is set instead — the same flag its trigger would flip.
-  const instance = Vue.ref(null);
+  let vm = null;
 
   const close = () => {
     try {
@@ -17572,101 +6020,231 @@ function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
       /* ignore */
     }
 
+    if (previewSetPickerApp === mounted) {
+      previewSetPickerApp = null;
+    }
+
     host.remove();
   };
 
   try {
-    const picker = Vue.defineComponent({
+    const wrapper = Vue.defineComponent({
       setup() {
         return () =>
           Vue.h(
-            'set-picker',
+            Picker,
             {
-              ref: instance,
-              sets: [{ handle: 'all', display: '', sets }],
+              ref: (el) => {
+                vm = el;
+              },
+              sets: grouped,
               enabled: true,
               align: 'start',
               onAdded: (set) => {
-                onChoose(set);
+                onChoose(typeof set === 'string' ? { handle: set } : set);
                 setTimeout(close, 0);
               },
               onClickedAway: () => setTimeout(close, 0),
             },
-            { trigger: () => Vue.h('span', { style: 'display:block;width:0;height:0;' }) }
+            {
+              trigger: () =>
+                Vue.h('button', {
+                  type: 'button',
+                  style: 'width:1px;height:1px;padding:0;border:0;opacity:0;',
+                  'aria-hidden': 'true',
+                }),
+            }
           );
       },
     });
 
-    mounted = Vue.createApp(picker);
+    mounted = Vue.createApp(wrapper);
 
-    // Borrow Statamic's own registry: the picker resolves other components,
-    // directives (tooltip) and $config/$translate off the app it lives in.
     Object.assign(mounted._context.components, app._context.components);
     Object.assign(mounted._context.directives, app._context.directives);
     Object.assign(mounted._context.provides, app._context.provides);
     Object.assign(mounted.config.globalProperties, app.config.globalProperties);
 
     mounted.mount(host);
+    previewSetPickerApp = mounted;
 
-    // Open it, and close everything down again when it closes.
-    setTimeout(() => {
-      const vm = instance.value;
+    const tryOpen = (n = 0) => {
+      const inst = vm;
 
-      if (!vm) {
-        close();
+      if (inst && typeof inst.open === 'function') {
+        inst.open();
 
         return;
       }
 
-      vm.isOpen = true;
+      if (n < 20) {
+        setTimeout(() => tryOpen(n + 1), 40);
 
-      const watch = setInterval(() => {
-        if (!vm.isOpen) {
-          clearInterval(watch);
-          close();
-        }
-      }, 200);
+        return;
+      }
 
-      // Never leave a picker hanging over the preview.
-      setTimeout(() => clearInterval(watch), 120000);
-    }, 0);
+      close();
+    };
+
+    tryOpen();
   } catch {
     close();
 
     return false;
   }
 
-  // Pin it where the "+" is, the same way a page section's picker is pinned.
-  if (anchorRect) {
-    let attempts = 0;
-
-    const place = () => {
-      const el = findSetPickerEl(doc, win);
-
-      if (el) {
-        placeSetPicker(el, doc, win, anchorRect);
-        setTimeout(() => placeSetPicker(el, doc, win, anchorRect), 140);
-
-        return;
-      }
-
-      if (++attempts < 25) {
-        setTimeout(place, 80);
-      }
-    };
-
-    setTimeout(place, 60);
-  }
-
   return true;
 }
 
-function handleAddBlockNative(data, doc, win) {
+/** Replicator Vue instance that owns this row — the one with addSet. */
+export function replicatorOwningUid(uid, rootDoc) {
+  if (!uid) {
+    return null;
+  }
+
+  const docs = [rootDoc];
+
+  rootDoc.querySelectorAll?.('iframe').forEach((frame) => {
+    try {
+      if (frame.contentDocument) {
+        docs.push(frame.contentDocument);
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+
+  for (const doc of docs) {
+    const found = replicatorOwningUidIn(uid, doc);
+
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+function replicatorOwningUidIn(uid, doc) {
+  const el = findSetByUid(uid, doc);
+
+  if (!el) {
+    return null;
+  }
+
+  let vn = el.__vueParentComponent;
+
+  for (let i = 0; vn && i < 50; i++) {
+    const proxy = vn.proxy;
+
+    if (proxy && typeof proxy.addSet === 'function' && (proxy.config?.sets || proxy.setConfigs)) {
+      return proxy;
+    }
+
+    vn = vn.parent;
+  }
+
+  let cur = el;
+
+  for (let i = 0; cur && i < 30; i++) {
+    const proxy = cur.__vueParentComponent?.proxy;
+
+    if (proxy && typeof proxy.addSet === 'function' && (proxy.config?.sets || proxy.setConfigs)) {
+      return proxy;
+    }
+
+    cur = cur.parentElement;
+  }
+
+  return null;
+}
+
+/** Flat [{handle, display}] for openSetPickerOverPreview. */
+export function pickerSetsFrom(sent, field) {
+  if (Array.isArray(sent) && sent.length && sent[0]?.handle) {
+    return sent;
+  }
+
+  return flattenPickerSets(field?.setConfigs ?? field?.config?.sets ?? []);
+}
+
+export function flattenPickerSets(raw) {
+  if (!raw) {
+    return [];
+  }
+
+  if (Array.isArray(raw)) {
+    if (raw[0]?.handle && !raw[0]?.sets) {
+      return raw;
+    }
+
+    const out = [];
+
+    raw.forEach((group) => {
+      const inner = group?.sets ?? group;
+
+      if (Array.isArray(inner)) {
+        inner.forEach((set) => {
+          if (set?.handle) {
+            out.push(set);
+          }
+        });
+      } else if (inner && typeof inner === 'object') {
+        Object.entries(inner).forEach(([handle, set]) => {
+          out.push({ handle, display: set?.display || handle, ...(set || {}) });
+        });
+      }
+    });
+
+    return out;
+  }
+
+  if (typeof raw === 'object') {
+    const out = [];
+
+    Object.entries(raw).forEach(([key, val]) => {
+      if (val?.sets) {
+        out.push(...flattenPickerSets(val.sets));
+      } else {
+        out.push({ handle: val?.handle || key, display: val?.display || key, ...(val || {}) });
+      }
+    });
+
+    return out;
+  }
+
+  return [];
+}
+
+function nativeAddSetAtFallback(anchorUid, sectionUid, doc, win, anchorRect, position, handle) {
+  const section = sectionUid ? findSetByUid(sectionUid, doc) : null;
+  const block = anchorUid ? findSetByUid(anchorUid, doc) : null;
+
+  if (block) {
+    nativeAddSetAt(block, anchorUid, doc, win, anchorRect, position);
+    if (handle) {
+      autoPickSet(doc, win, handle);
+    }
+  } else if (section) {
+    const addButton = [...section.querySelectorAll('button')].find((b) =>
+      /add set|add block|tilføj/i.test(b.textContent || '')
+    );
+
+    addButton?.click();
+    ensurePickerVisible(doc, win, anchorRect);
+
+    if (handle) {
+      autoPickSet(doc, win, handle);
+    }
+  }
+}
+
+export function handleAddBlockNative(data, doc, win) {
   const { anchorUid, sectionUid, anchorRect = null, position = 'after' } = data;
 
   if (data.template || (data.fieldDefaults && Object.keys(data.fieldDefaults).length)) {
-    watchNewRow(doc, win, data, (container, values, parentPath, added) => {
-      overlaySidTemplate(win, container, values, parentPath, added, data.template, data.fieldDefaults);
+    sve.watchNewRow(doc, win, data, (container, values, parentPath, added) => {
+      sve.overlaySidTemplate(win, container, values, parentPath, added, data.template, data.fieldDefaults);
     });
   }
 
@@ -17680,7 +6258,7 @@ function handleAddBlockNative(data, doc, win) {
   // page section's does, and Statamic's own picker opens over the preview,
   // pinned under the button. That is what the missing panel means here.
   if (data.global) {
-    const frame = doc.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
+    const frame = doc.getElementById(sve.GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
 
     if (frame?.contentWindow) {
       const forward = (extra = {}) =>
@@ -17704,6 +6282,36 @@ function handleAddBlockNative(data, doc, win) {
       return;
     }
   }
+
+  // Preview "+": Statamic's set-picker on the top document, at the plus.
+  // Never click Add Set in the left form — that painted the popover there first.
+  if (anchorRect && !data.global) {
+    const topWin = win.top || win;
+    const topDoc = topWin.document;
+    const field =
+      replicatorOwningUid(anchorUid, doc) ||
+      replicatorOwningUid(sectionUid, doc) ||
+      replicatorOwningUid(anchorUid, topDoc) ||
+      replicatorOwningUid(sectionUid, topDoc);
+    const sets = pickerSetsFrom(data.sets, field);
+    const rect = previewRectInTop(doc, win, anchorRect) || anchorRect;
+    const vueWin = topWin.Statamic?.$app ? topWin : win;
+
+    openSetPickerOverPreview(topDoc, vueWin, sets, rect, (set) => {
+      const handle = set?.handle;
+
+      if (handle && field && typeof field.addSet === 'function') {
+        field.addSet(handle);
+
+        if (anchorUid) {
+          repositionAfterAdd(anchorUid, doc);
+        }
+      }
+    });
+
+    return;
+  }
+
   const section = sectionUid ? findSetByUid(sectionUid, doc) : null;
 
   if (section) {
@@ -17746,7 +6354,7 @@ function handleAddBlockNative(data, doc, win) {
  * Walk the Vue parent chain from el looking for Bard's fieldtype proxy
  * (openSetPicker / editor / showAddSetButton).
  */
-function findBardVueProxy(el) {
+export function findBardVueProxy(el) {
   let vn = el?.__vueParentComponent;
 
   if (!vn && el?.querySelector) {
@@ -17793,7 +6401,7 @@ function findBardVueProxy(el) {
  * Place TipTap's selection inside the top-level child at index (required for
  * Bard's floating SetPicker to mount — DOM Selection alone is not enough).
  */
-function placeBardTipTapAtIndex(editor, index) {
+export function placeBardTipTapAtIndex(editor, index) {
   if (!editor?.state?.doc) {
     return false;
   }
@@ -17843,7 +6451,7 @@ function placeBardTipTapAtIndex(editor, index) {
  * Place the caret in the Bard ProseMirror at a top-level child index (matching
  * the preview wrapper's children, including set node-views).
  */
-function placeBardCaretAtIndex(pm, index, win) {
+export function placeBardCaretAtIndex(pm, index, win) {
   if (!pm) {
     return false;
   }
@@ -17880,7 +6488,7 @@ function placeBardCaretAtIndex(pm, index, win) {
  * CP-side fallback when Bard's SetPicker isn't mounted yet: same Search Sets
  * UX (search + list), pinned under the preview "+", inserting via insert-bard-set.
  */
-function openBardSetPickerFallback(doc, win, data) {
+export function openBardSetPickerFallback(doc, win, data) {
   const sets = Array.isArray(data.sets) ? data.sets : [];
 
   if (!sets.length) {
@@ -17949,7 +6557,7 @@ function openBardSetPickerFallback(doc, win, data) {
         btn.addEventListener('click', () => {
           panel.remove();
           stopPreviewPickerSession();
-          handleInsertBardSet(
+          sve.handleInsertBardSet(
             {
               field: data.field,
               set: s.handle,
@@ -17995,15 +6603,15 @@ function openBardSetPickerFallback(doc, win, data) {
  * textblock via TipTap). We drive TipTap selection, then open; if the native
  * picker never mounts we fall back to a Search Sets list with the field's sets.
  */
-function handleAddBardSetNative(data, doc, win) {
+export function handleAddBardSetNative(data, doc, win) {
   const { field, scope, index = null, anchorRect = null, sets = [] } = data;
 
   if (!field) {
     return;
   }
 
-  if (scope && autoOpenPanel(win)) {
-    soloSection(topLevelSectionUid(scope, doc) || scope, doc, win);
+  if (scope && sve.autoOpenPanel(win)) {
+    sve.soloSection(topLevelSectionUid(scope, doc) || scope, doc, win);
   }
 
   handleFieldFocus(field, doc, { scopeUid: scope || undefined });
@@ -18113,12 +6721,12 @@ function handleAddBardSetNative(data, doc, win) {
 /**
  * When a synced section panel is open, field DOM (focus, assets, link UI) lives
  * in that iframe — not the page publish form. Value writes still go through
- * sectionPanelContainer on the parent.
+ * sve.sectionPanelContainer on the parent.
  */
-function globalSectionEditorDoc(doc) {
+export function globalSectionEditorDoc(doc) {
   // Edited in this window there is no panel, so this is null and every caller
   // works in `doc` — exactly as it does for one of the page's own sections.
-  const frame = doc.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
+  const frame = doc.getElementById(sve.GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
 
   try {
     return frame?.contentDocument || null;
@@ -18127,8 +6735,8 @@ function globalSectionEditorDoc(doc) {
   }
 }
 
-function globalSectionEditorWin(win) {
-  const frame = win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
+export function globalSectionEditorWin(win) {
+  const frame = win.document.getElementById(sve.GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
 
   try {
     return frame?.contentWindow || null;
@@ -18156,15 +6764,15 @@ export function createMessageListener(doc = document, win = window) {
     if (data.type === 'click') {
       // Synced section: focus/solo runs inside the left iframe (source entry),
       // not the page form — those uids are not on this page.
-      if (forwardGlobalSectionFocus(data, doc, win)) {
+      if (sve.forwardGlobalSectionFocus(data, doc, win)) {
         return;
       }
 
       // Normal page click while the synced-section editor is still up: put the
       // page form back so the sidebar matches the section being edited.
-      if (globalSectionEditorOpen(doc) && !data.global) {
-        closeGlobalSectionPanel(win);
-        previewFrame(doc)?.contentWindow?.postMessage(
+      if (sve.globalSectionEditorOpen(doc) && !data.global) {
+        sve.closeGlobalSectionPanel(win);
+        sve.previewFrame(doc)?.contentWindow?.postMessage(
           { source: 'statamic-visual-editor', type: 'sve-force-exit-global' },
           win.location.origin
         );
@@ -18173,9 +6781,9 @@ export function createMessageListener(doc = document, win = window) {
       // Whatever the click turns out to mean below, the tree should show where it
       // landed. Placed here, before the branching, because the branches lead to
       // different functions — a field click with the focus panel on never reaches
-      // `focusFromPreview` — and "the preview reported a click" is true of all of
+      // `sve.focusFromPreview` — and "the preview reported a click" is true of all of
       // them exactly once.
-      listViewSyncTo(win, data.scope, data.uid);
+      sve.listViewSyncTo(win, data.scope, data.uid);
       applyDeclaredDefaults(data, doc);
 
       if (data.field) {
@@ -18183,11 +6791,11 @@ export function createMessageListener(doc = document, win = window) {
         // block holding it; without it, the top-level section — a nested block
         // passes its row id as scope, which still expands below via
         // handleFieldFocus.
-        if (data.scope && autoOpenPanel(win)) {
-          if (focusPanelOn(win)) {
-            focusFieldOwner(data.field, data.scope, doc, win);
+        if (data.scope && sve.autoOpenPanel(win)) {
+          if (sve.focusPanelOn(win)) {
+            sve.focusFieldOwner(data.field, data.scope, doc, win);
           } else {
-            focusFromPreview(data.scope, doc, win, { clampToSection: true });
+            sve.focusFromPreview(data.scope, doc, win, { clampToSection: true });
           }
         }
 
@@ -18201,40 +6809,40 @@ export function createMessageListener(doc = document, win = window) {
             COLLAPSE_SETTLE_MS
           );
         }
-      } else if (autoOpenPanel(win)) {
+      } else if (sve.autoOpenPanel(win)) {
         // Clicking a section opens the panel showing ONLY that section. Falls
         // back to plain focus (e.g. nested rows without a resolvable set).
-        if (!focusFromPreview(data.uid, doc, win)) {
+        if (!sve.focusFromPreview(data.uid, doc, win)) {
           handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
         }
       }
     } else if (data.type === 'edit-request') {
-      handleEditRequest(data, doc, win);
+      sve.handleEditRequest(data, doc, win);
     } else if (data.type === 'edit-input') {
-      handleEditInput(data, doc);
+      sve.handleEditInput(data, doc);
     } else if (data.type === 'edit-control') {
-      handleEditControl(data);
+      sve.handleEditControl(data);
     } else if (data.type === 'theme-swatches-request') {
-      handleThemeSwatchesRequest(data, win);
+      sve.handleThemeSwatchesRequest(data, win);
     } else if (data.type === 'edit-end') {
-      handleEditEnd(data, win);
+      sve.handleEditEnd(data, win);
     } else if (data.type === 'block-format') {
-      handleBlockFormat(data, doc);
+      sve.handleBlockFormat(data, doc);
     } else if (data.type === 'outline') {
-      handleOutline(data, win);
+      sve.handleOutline(data, win);
     } else if (data.type === 'open-panel-field') {
       // Pencil / "finish in panel": focus the field in the synced-section iframe
       // when that is the active editor — same path as a preview click.
       const iwin = globalSectionEditorWin(win);
 
-      if (iwin && editSession?.container?.name === 'sve-global-section' && editSession.field) {
-        setLpCollapsed(win, false);
+      if (iwin && sve.editSession?.container?.name === 'sve-global-section' && sve.editSession.field) {
+        sve.setLpCollapsed(win, false);
         iwin.postMessage(
           {
             source: 'statamic-visual-editor',
             type: 'sve-section-focus',
-            uid: editSession.scope || null,
-            field: editSession.field,
+            uid: sve.editSession.scope || null,
+            field: sve.editSession.field,
           },
           win.location.origin
         );
@@ -18242,71 +6850,71 @@ export function createMessageListener(doc = document, win = window) {
         return;
       }
 
-      handleOpenPanelField(data, doc, win);
+      sve.handleOpenPanelField(data, doc, win);
     } else if (data.type === 'bard-command') {
       const idoc = globalSectionEditorDoc(doc);
 
-      if (idoc && editSession?.container?.name === 'sve-global-section') {
-        handleBardCommand(data, idoc, globalSectionEditorWin(win) || win);
+      if (idoc && sve.editSession?.container?.name === 'sve-global-section') {
+        sve.handleBardCommand(data, idoc, globalSectionEditorWin(win) || win);
       } else {
-        handleBardCommand(data, doc, win);
+        sve.handleBardCommand(data, doc, win);
       }
     } else if (data.type === 'asset-edit') {
       const idoc = globalSectionEditorDoc(doc);
 
-      handleAssetEdit(data, idoc || doc);
+      sve.handleAssetEdit(data, idoc || doc);
     } else if (data.type === 'icon-edit') {
       const idoc = globalSectionEditorDoc(doc);
 
-      handleIconEdit(data, idoc || doc, win);
+      sve.handleIconEdit(data, idoc || doc, win);
     } else if (data.type === 'link-edit') {
       const idoc = globalSectionEditorDoc(doc);
       const iwin = globalSectionEditorWin(win);
 
-      if (idoc && iwin && editSession?.container?.name === 'sve-global-section') {
-        handleLinkEdit(data, idoc, iwin);
+      if (idoc && iwin && sve.editSession?.container?.name === 'sve-global-section') {
+        sve.handleLinkEdit(data, idoc, iwin);
       } else {
-        handleLinkEdit(data, doc, win);
+        sve.handleLinkEdit(data, doc, win);
       }
     } else if (data.type === 'move') {
-      handleMove(data, doc);
+      sve.handleMove(data, doc);
     } else if (data.type === 'add-set') {
       handleAddSet(data, doc, win);
     } else if (data.type === 'cb-col-width') {
-      handleColumnWidth(data, doc);
+      sve.handleColumnWidth(data, doc);
     } else if (data.type === 'sve-grid-span') {
-      handleGridSpan(data, doc, win);
+      sve.handleGridSpan(data, doc, win);
     } else if (data.type === 'open-global') {
-      handleOpenGlobal(data, doc, win);
+      sve.handleOpenGlobal(data, doc, win);
     } else if (data.type === 'open-chrome') {
-      handleOpenChrome(data, doc, win);
+      sve.handleOpenChrome(data, doc, win);
     } else if (data.type === 'open-chrome-designs') {
-      setChromeSidebarMode(win, 'design');
+      sve.setChromeSidebarMode(win, 'design');
     } else if (data.type === 'open-chrome-settings') {
-      setChromeSidebarMode(win, 'settings');
+      sve.setChromeSidebarMode(win, 'settings');
     } else if (data.type === 'close-chrome') {
       // Stepping out of header/footer (e.g. clicking a page section): free the
       // left edge so the section editor isn't stacked under Theme Settings.
-      dismissChromeForPageEdit(win);
+      sve.dismissChromeForPageEdit(win);
     } else if (data.type === 'request-close-chrome') {
-      handleRequestCloseChrome(win);
+      sve.handleRequestCloseChrome(win);
     } else if (data.type === 'sve-chrome-dirty-query') {
-      notifyChromeDirty(win);
+      sve.notifyChromeDirty(win);
     } else if (data.type === 'save-chrome') {
       // The bar's Save, driving whichever form is actually holding the edits.
       // Sent straight to the panel iframe, it went to Theme Settings as the
       // background prefetch had loaded it — a form that had never seen the edit
       // — and saved that instead.
-      saveGlobalsPanel(win, () => {});
+      sve.saveGlobalsPanel(win, () => {});
     } else if (data.type === 'add-row') {
-      handleAddRow(data, doc, win);
+      sve.handleAddRow(data, doc, win);
     } else if (data.type === 'add-block-native') {
       // Preview "+": open Statamic's real SetPicker, pin list under the plus.
       handleAddBlockNative(data, doc, win);
     } else if (data.type === 'add-bard-set-native') {
       handleAddBardSetNative(data, doc, win);
     } else if (data.type === 'insert-bard-set') {
-      handleInsertBardSet(data, doc, win);
+      sve.handleInsertBardSet(data, doc, win);
     } else if (data.type === 'remove-row') {
       // A section is asked about first. It takes one click to remove and holds
       // everything inside it, and the page it leaves behind looks like a page
@@ -18314,26 +6922,26 @@ export function createMessageListener(doc = document, win = window) {
       // is gone. A row is small and sits in view of its siblings, so it goes
       // straight away, as it always has.
       if (data.confirm) {
-        confirmCloseDiscard(
+        sve.confirmCloseDiscard(
           win,
           {
             titleKey: 'remove_section_title',
             bodyKey: 'remove_section_body',
             confirmKey: 'remove_section_confirm',
           },
-          () => handleRemoveRow(data, doc, win)
+          () => sve.handleRemoveRow(data, doc, win)
         );
       } else {
-        handleRemoveRow(data, doc, win);
+        sve.handleRemoveRow(data, doc, win);
       }
     } else if (data.type === 'duplicate-row') {
-      handleDuplicateRow(data, doc, win);
+      sve.handleDuplicateRow(data, doc, win);
     } else if (data.type === 'hide-row') {
-      handleHideRow(data, doc, win);
+      sve.handleHideRow(data, doc, win);
     } else if (data.type === 'row-caps') {
-      handleRowCaps(data, doc, win);
+      sve.handleRowCaps(data, doc, win);
     } else if (data.type === 'open-global-section') {
-      handleOpenGlobalSection(data, win);
+      sve.handleOpenGlobalSection(data, win);
     } else if (data.type === 'sve-pill-box-request') {
       const pill = doc.getElementById(LP_BACK_ID);
 
@@ -18341,27 +6949,27 @@ export function createMessageListener(doc = document, win = window) {
         tellPreviewWherePillIs(win, pill);
       }
         } else if (data.type === 'close-global-section') {
-      closeGlobalSectionPanel(win);
+      sve.closeGlobalSectionPanel(win);
     } else if (data.type === 'request-close-global') {
-      handleRequestCloseGlobal(win);
+      sve.handleRequestCloseGlobal(win);
     } else if (data.type === 'sve-global-dirty-query') {
-      notifyGlobalSectionDirty(win);
+      sve.notifyGlobalSectionDirty(win);
     } else if (data.type === 'save-global-section') {
       // The bar's Save, driving the entry form's real one — wherever it lives.
-      saveGlobalSectionPanel(win, () => {});
+      sve.saveGlobalSectionPanel(win, () => {});
     } else if (data.type === 'section-settings') {
-      handleSectionSettings(data, doc, win);
+      sve.handleSectionSettings(data, doc, win);
     } else if (data.type === 'save-section') {
-      handleSaveSection(data, doc, win);
+      sve.handleSaveSection(data, doc, win);
     } else if (data.type === 'ext-drop') {
       // A section dragged in from the library was released — insert it where the
       // preview's drop line ended up (data.afterUid, null = at the top).
-      if (libraryDrag) {
-        insertSection(win, doc, data.afterUid ?? null, libraryDrag.kind, libraryDrag.item);
-        libraryDrag = null;
+      if (sveState.libraryDrag) {
+        sve.insertSection(win, doc, data.afterUid ?? null, sveState.libraryDrag.kind, sveState.libraryDrag.item);
+        sveState.libraryDrag = null;
       }
     } else if (data.type === 'cb-add-column') {
-      handleAddColumn(data, doc, win);
+      sve.handleAddColumn(data, doc, win);
     } else if (data.type === 'popup') {
       // A column popup is opening (the column-builder addon handles that) —
       // expand and scroll the publish form to the containing section, so the
@@ -18379,7 +6987,7 @@ export function createMessageListener(doc = document, win = window) {
   };
 }
 
-const CP_STYLES = `
+export const CP_STYLES = `
 /* Match sidebar inset (12px) — Statamic ships 1.75rem / 1rem on the header. */
 .live-preview-header {
   padding-inline: 12px !important;
@@ -18529,14 +7137,6 @@ const CP_STYLES = `
   padding-inline: 0 !important;
 }
 
-/* Code dock is unlayered z-index 45, which beats Tailwind z-50. Statamic
-   Publish/revision dialogs must sit above it. The right sidebar stays open. */
-[data-reka-dialog-overlay],
-[data-reka-dialog-content],
-[data-reka-alert-dialog-overlay],
-[data-reka-alert-dialog-content] {
-  z-index: 200 !important;
-}
 /* The page's own fields, while the field column belongs to a global section.
    The solo view hides them too once it has a set to isolate; this covers the
    moment before that, when the synced entry's form is still mounting. */
@@ -18708,7 +7308,7 @@ const CP_STYLES = `
 }
 /* Statamic Live Preview × — always gone; our header close replaces it. */
 .live-preview-header button[data-sve-statamic-lp-close],
-[data-sve-statamic-lp-close] {
+[data-sve-statamic-lp-close]:not([data-sve-close]):not(#__sve-right-dock *) {
   display: none !important;
   visibility: hidden !important;
   pointer-events: none !important;
@@ -19082,7 +7682,7 @@ export function sendToPreview(message, win) {
   }
 }
 
-function getUidFromSet(setEl) {
+export function getUidFromSet(setEl) {
   const inputs = setEl.querySelectorAll(SELECTORS.visualIdInput);
 
   for (const input of inputs) {
@@ -19099,7 +7699,7 @@ function getUidFromSet(setEl) {
  * nearest preceding [data-node-view-wrapper] sibling — i.e. the last Bard
  * set node before the text. Returns null for text before any set.
  */
-function findPrecedingBardSetNode(el, contentEditable) {
+export function findPrecedingBardSetNode(el, contentEditable) {
   if (el === contentEditable) {
     return null;
   }
@@ -19135,7 +7735,7 @@ function findPrecedingBardSetNode(el, contentEditable) {
  * Using targetEl (not an outer container) ensures we find the toolbar that
  * actually overlaps the element we're about to scroll into view.
  */
-function getToolbarOffset(targetEl) {
+export function getToolbarOffset(targetEl) {
   const bardFieldtype = targetEl.closest('.bard-fieldtype');
 
   if (!bardFieldtype) {
@@ -19157,7 +7757,7 @@ function getToolbarOffset(targetEl) {
  * Scrolls targetEl into view, adding a top margin equal to the nearest Bard
  * fixed toolbar height so the element is not hidden behind the sticky toolbar.
  */
-function scrollToWithBardOffset(targetEl) {
+export function scrollToWithBardOffset(targetEl) {
   const offset = getToolbarOffset(targetEl);
 
   if (offset > 0) {
@@ -19177,7 +7777,7 @@ function scrollToWithBardOffset(targetEl) {
  * Scrolls the Bard contenteditable inside containerEl to the text that
  * follows the set identified by afterSetUid (or to the top when null).
  */
-function scrollBardToTextAfterSet(afterSetUid, containerEl) {
+export function scrollBardToTextAfterSet(afterSetUid, containerEl) {
   const editor = containerEl.querySelector('[contenteditable="true"]');
 
   if (!editor) {
@@ -19209,12 +7809,12 @@ function scrollBardToTextAfterSet(afterSetUid, containerEl) {
  * True when the CP is running inside the front end's edit overlay (a full-screen
  * iframe on the site) rather than as a page of its own.
  */
-function isEmbeddedInSite(win) {
+export function isEmbeddedInSite(win) {
   return win.parent !== win.self;
 }
 
 /** Tell the hosting site something happened. No-op when we aren't embedded. */
-function postToHost(win, type, data = {}) {
+export function postToHost(win, type, data = {}) {
   if (!isEmbeddedInSite(win)) {
     return;
   }
@@ -19233,7 +7833,7 @@ function postToHost(win, type, data = {}) {
  * Live Preview has genuinely rendered — not just "the iframe element exists".
  * Revealing on the element alone can crossfade to an empty frame.
  */
-function previewPainted(doc) {
+export function previewPainted(doc) {
   const frame = doc.getElementById('live-preview-iframe');
 
   if (!frame) {
@@ -19254,7 +7854,7 @@ function previewPainted(doc) {
  * speaking — matching the English label alone left every other locale waiting on
  * the failsafe, staring at a blank cover.
  */
-function livePreviewButton(doc) {
+export function livePreviewButton(doc) {
   return [...doc.querySelectorAll('button, a')].find((el) => {
     const text = `${el.textContent || ''} ${el.getAttribute('title') || ''}`;
 
@@ -19268,11 +7868,11 @@ function livePreviewButton(doc) {
  * iframe the front-end button uses. Inside the overlay the click must still
  * reach Statamic, or the preview never paints.
  */
-function interceptLivePreviewOpen(win) {
+export function interceptLivePreviewOpen(win) {
   win.document.addEventListener(
     'click',
     (event) => {
-      if (isEmbeddedInSite(win) || livePreviewEditorEl(win.document)) {
+      if (isEmbeddedInSite(win) || sve.livePreviewEditorEl(win.document)) {
         return;
       }
 
@@ -19319,9 +7919,9 @@ function interceptLivePreviewOpen(win) {
  * Null when there is nothing to copy — no preview open, or a document the browser
  * won't let us read. The cover then falls back to flat colour, as it always did.
  */
-function buildPreviewStill(win) {
+export function buildPreviewStill(win) {
   try {
-    const frame = previewFrame(win.document);
+    const frame = sve.previewFrame(win.document);
     const inner = frame?.contentDocument;
     const root = inner?.documentElement;
 
@@ -19375,10 +7975,10 @@ function buildPreviewStill(win) {
   }
 }
 
-function buildLpCover(doc, background, { blocking = false, still = null, label = null } = {}) {
+export function buildLpCover(doc, background, { blocking = false, still = null, label = null } = {}) {
   const cover = doc.createElement('div');
 
-  cover.id = LP_COVER_ID;
+  cover.id = sve.LP_COVER_ID;
   cover.style.cssText =
     'position:fixed;inset:0;z-index:2147483647;opacity:1;' +
     // On a page load there's nothing behind this worth hitting, so clicks pass
@@ -19452,11 +8052,11 @@ function buildLpCover(doc, background, { blocking = false, still = null, label =
  * — which is the whole reason switching pages felt like a trip through the
  * dashboard rather than a step sideways.
  */
-function previewBackground(win) {
+export function previewBackground(win) {
   let background = '#fff';
 
   try {
-    const frame = previewFrame(win.document);
+    const frame = sve.previewFrame(win.document);
     const body = frame?.contentDocument?.body;
     const colour = body ? win.getComputedStyle(body).backgroundColor : null;
 
@@ -19485,7 +8085,7 @@ function previewBackground(win) {
  * from a listing there is no preview to take a colour from. Stashed under the
  * same key, so a page that boots fresh finds it waiting.
  */
-function cpBackground(win) {
+export function cpBackground(win) {
   let background = '#fff';
 
   try {
@@ -19513,7 +8113,7 @@ function cpBackground(win) {
  * only shown once the copy is painted. Nothing moves on screen during the wait:
  * the real page is still there, live, underneath.
  */
-function coverForNavigation(win, { blocking = false, background = null, then = null } = {}) {
+export function coverForNavigation(win, { blocking = false, background = null, then = null } = {}) {
   const doc = win.document;
 
   // Copied before anything else: the moment the router starts a visit, the page
@@ -19527,7 +8127,7 @@ function coverForNavigation(win, { blocking = false, background = null, then = n
   const colour = background ?? (still ? cpBackground(win) : previewBackground(win));
   const cover = buildLpCover(doc, colour, { blocking, still, label: t(win, 'loading') });
 
-  doc.getElementById(LP_COVER_ID)?.remove();
+  doc.getElementById(sve.LP_COVER_ID)?.remove();
 
   cover.style.transition = 'none';
   cover.style.opacity = still ? '0' : '1';
@@ -19616,13 +8216,13 @@ function coverForNavigation(win, { blocking = false, background = null, then = n
   // opens, this is what still lifts it — long enough after the ordinary reveal
   // (and its own 12s failsafe) to never race them.
   win.setTimeout(() => {
-    if (doc.getElementById(LP_COVER_ID) === cover) {
+    if (doc.getElementById(sve.LP_COVER_ID) === cover) {
       cover.remove();
     }
   }, 15000);
 }
 
-function autoOpenLivePreview(win) {
+export function autoOpenLivePreview(win) {
   const params = new URLSearchParams(win.location.search);
 
   if (params.get('live-preview') !== '1') {
@@ -19632,7 +8232,7 @@ function autoOpenLivePreview(win) {
   // Inside the overlay iframe this is the one remaining job: click Statamic's
   // own Live Preview control so the preview paints, then tell the host.
   if (isEmbeddedInSite(win)) {
-    claimOrigin(win);
+    sve.claimOrigin(win);
     openLivePreviewCovered(win);
 
     return;
@@ -19655,12 +8255,12 @@ function autoOpenLivePreview(win) {
  * entry picker swaps pages without a reload, so there's no boot to hook into,
  * but the same "hide the CP, open the preview, fade in" is exactly what's wanted.
  */
-function openLivePreviewCovered(win, { closePanels = false } = {}) {
+export function openLivePreviewCovered(win, { closePanels = false } = {}) {
   const doc = win.document;
   const embedded = isEmbeddedInSite(win);
 
   // Kick Theme Settings load as early as possible (cover is up — free bandwidth).
-  scheduleChromeGlobalsPrefetch(win);
+  sve.scheduleChromeGlobalsPrefetch(win);
 
   let cover = null;
 
@@ -19669,7 +8269,7 @@ function openLivePreviewCovered(win, { closePanels = false } = {}) {
   // the site's overlay, this is the only code that ever takes that cover down, and
   // it blocks clicks while it's up. Missing it here strands the whole editor
   // behind a photograph.
-  cover = doc.getElementById(LP_COVER_ID);
+  cover = doc.getElementById(sve.LP_COVER_ID);
 
   if (!cover && !embedded) {
     // The front-end button stashes the colour it was sitting on. (It uses
@@ -19696,17 +8296,17 @@ function openLivePreviewCovered(win, { closePanels = false } = {}) {
 
   const reveal = () => {
     stripParams(); // Statamic rewrites the URL as it opens — clean it once more.
-    hideNavSpinner(win);
+    sve.hideNavSpinner(win);
 
     if (embedded) {
       // Chrome must already be in place when the overlay fades in — otherwise
       // the right sidebar / bottom dock jumps in a beat later.
-      dockRestorePaused = false;
-      dockedHeaderRestored = false;
+      sveState.dockRestorePaused = false;
+      sveState.dockedHeaderRestored = false;
 
       try {
         restoreDockedHeaderPanels(win);
-        pinDockedPanelsUnderHeader(win);
+        sve.pinDockedPanelsUnderHeader(win);
       } catch (err) {
         console.error('[sve] restoreDockedHeaderPanels', err);
       }
@@ -19728,13 +8328,13 @@ function openLivePreviewCovered(win, { closePanels = false } = {}) {
     // editor pane, the globals or section panel on the right — so they all go,
     // whatever the remembered mode says. The mode itself is left alone: it's a
     // preference about this page, not a verdict on the next one.
-    closeRightPanels(win);
-    setLpCollapsed(win, true);
+    sve.closeRightPanels(win);
+    sve.setLpCollapsed(win, true);
   } else {
     // Live Preview opens with the editor panel following the remembered mode —
     // hide/auto arrive closed (looking like the site, not a CMS); an explicitly
     // chosen `show` is respected.
-    setLpCollapsed(win, lpMode(win) !== 'show');
+    sve.setLpCollapsed(win, sve.lpMode(win) !== 'show');
   }
 
   // Never leave anyone stranded behind an opaque cover (or an overlay that never
@@ -19774,6330 +8374,8 @@ function openLivePreviewCovered(win, { closePanels = false } = {}) {
   open();
 }
 
-// --- Opening an entry straight into the preview -------------------------------
-//
-// For the collections named on the settings screen, clicking an entry lands in
-// Live Preview instead of the publish form behind it. Closing "back to admin"
-// returns to the collection listing — never the entry form. Collections left
-// off the list open exactly as Statamic ships them.
-//
-// The one thing every route in shares is the entry's own edit URL: the listing,
-// the page tree, search, the dashboard. So that URL is what's watched, in two
-// places, because a click is not always what makes the move. Both end in the
-// same `?live-preview=1` the front-end edit button already uses.
 
-/** `/cp/collections/{handle}/entries/{id}` — the screen this feature is about. */
-const ENTRY_EDIT_PATH = /\/collections\/([^/]+)\/entries\/(?!create(?:\/|$))[^/?#]+/;
-
-function openInPreviewCollections(win) {
-  const list = win.Statamic?.$config?.get?.('sveOpenInPreview');
-
-  return Array.isArray(list) ? list : [];
-}
-
-/**
- * The URL to open instead, or null to leave the move alone.
- *
- * Already inside Live Preview, the answer is always null: moving between entries
- * in there is the picker's job, and it knows things this doesn't — whether there
- * is unsaved work, and what to do about it.
- */
-function previewUrlFor(win, href, collections) {
-  if (livePreviewEditorEl(win.document)) {
-    return null;
-  }
-
-  let url;
-
-  try {
-    url = new URL(href, win.location.origin);
-  } catch {
-    return null;
-  }
-
-  if (url.origin !== win.location.origin || url.searchParams.get('live-preview') === '1') {
-    return null;
-  }
-
-  const match = url.pathname.match(ENTRY_EDIT_PATH);
-
-  if (!match || !collections.includes(match[1])) {
-    return null;
-  }
-
-  url.searchParams.set('live-preview', '1');
-
-  return url.toString();
-}
-
-// Where the entry was opened from, so the way out leads back there.
-//
-// Written to sessionStorage by the page making the move and claimed by the page
-// arriving: the fallback path is a full page load, which takes any variable with
-// it, so the note has to survive one document boundary — but no more than one.
-const OPEN_IN_PREVIEW_ORIGIN = 'sve-open-in-preview-origin';
-
-// The note, once claimed: this document's preview and where it came from.
-let openedFrom = null;
-
-function rememberOrigin(win, entryPath, from) {
-  try {
-    win.sessionStorage.setItem(OPEN_IN_PREVIEW_ORIGIN, JSON.stringify({ entry: entryPath, from }));
-  } catch {
-    /* private mode — the way out is then the ordinary one */
-  }
-}
-
-/**
- * Take the note left by the page that made the move, if this is the arrival it
- * was left for.
- *
- * Read once and deleted whether or not it matched. A note that outlived its own
- * arrival is worse than no note: open the same entry by hand a while later, press
- * ×, and you would be sent to a list you never came from.
- */
-function claimOrigin(win) {
-  let note = null;
-
-  try {
-    note = JSON.parse(win.sessionStorage.getItem(OPEN_IN_PREVIEW_ORIGIN) ?? 'null');
-    win.sessionStorage.removeItem(OPEN_IN_PREVIEW_ORIGIN);
-  } catch {
-    return;
-  }
-
-  if (note?.from && note.entry === win.location.pathname) {
-    openedFrom = note;
-  }
-}
-
-/**
- * The screen this entry was opened from, or null if it wasn't opened that way.
- *
- * Checked against the entry on screen, not just the session: the picker moves to
- * another entry without leaving the preview, and that one was not clicked in any
- * list.
- */
-function originForCurrentEntry(win) {
-  return openedFrom?.entry === win.location.pathname ? openedFrom.from : null;
-}
-
-function forgetOrigin(win) {
-  openedFrom = null;
-
-  try {
-    win.sessionStorage.removeItem(OPEN_IN_PREVIEW_ORIGIN);
-  } catch {
-    /* nothing was stored either */
-  }
-}
-
-/**
- * Opens the editor in the overlay iframe. The listing (or form) stays put
- * underneath — the same host the front-end edit button uses.
- */
-function goToPreview(win, url, fromEl) {
-  try {
-    const parsed = new URL(url, win.location.origin);
-
-    rememberOrigin(win, parsed.pathname, win.location.href);
-  } catch {
-    /* ignore */
-  }
-
-  showEntryOpening(win.document, fromEl, url);
-  openOverlay(win, url);
-}
-
-const ENTRY_OPEN_STYLE_ID = '__sve-entry-open-style';
-const ENTRY_OPEN_ATTR = 'data-sve-entry-loading';
-
-function ensureEntryOpenStyles(doc) {
-  if (doc.getElementById(ENTRY_OPEN_STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = ENTRY_OPEN_STYLE_ID;
-  style.textContent = `
-[${ENTRY_OPEN_ATTR}] {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-inline-start: 8px;
-  height: 8px;
-  pointer-events: none;
-  flex: 0 0 auto;
-}
-[${ENTRY_OPEN_ATTR}] i {
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: .22;
-  animation: sve-entry-dots 1s ease-in-out infinite;
-}
-[${ENTRY_OPEN_ATTR}] i:nth-child(2) { animation-delay: .15s; }
-[${ENTRY_OPEN_ATTR}] i:nth-child(3) { animation-delay: .3s; }
-[${ENTRY_OPEN_ATTR}] i:nth-child(4) { animation-delay: .45s; }
-@keyframes sve-entry-dots {
-  0%, 100% { opacity: .22; }
-  50% { opacity: .88; }
-}
-`;
-  doc.head.appendChild(style);
-}
-
-function clearEntryOpening(doc) {
-  doc.querySelectorAll(`[${ENTRY_OPEN_ATTR}]`).forEach((el) => el.remove());
-}
-
-function entryTitleAnchor(doc, fromEl, url) {
-  if (fromEl?.closest) {
-    const branch = fromEl.closest('.page-tree-branch');
-    const inBranch = branch?.querySelector('a[href*="/entries/"]');
-
-    if (inBranch) {
-      return inBranch;
-    }
-
-    if (fromEl.matches?.('a[href]')) {
-      return fromEl;
-    }
-
-    const nested = fromEl.querySelector?.('a[href*="/entries/"]');
-
-    if (nested) {
-      return nested;
-    }
-  }
-
-  let path = '';
-
-  try {
-    path = new URL(url, doc.defaultView.location.origin).pathname;
-  } catch {
-    return null;
-  }
-
-  const links = [...doc.querySelectorAll(`a[href*="/entries/"]`)];
-
-  return links.find((a) => {
-    try {
-      return new URL(a.href, doc.defaultView.location.origin).pathname === path;
-    } catch {
-      return false;
-    }
-  }) || null;
-}
-
-function showEntryOpening(doc, fromEl, url) {
-  ensureEntryOpenStyles(doc);
-  clearEntryOpening(doc);
-
-  const anchor = entryTitleAnchor(doc, fromEl, url);
-
-  if (!anchor) {
-    return;
-  }
-
-  const dots = doc.createElement('span');
-
-  dots.setAttribute(ENTRY_OPEN_ATTR, '');
-  dots.setAttribute('aria-hidden', 'true');
-  dots.innerHTML = '<i></i><i></i><i></i><i></i>';
-  anchor.after(dots);
-}
-
-function initOpenInPreview(win) {
-  const collections = openInPreviewCollections(win);
-
-  if (!collections.length) {
-    return;
-  }
-
-  // The link, caught on the way down so it never reaches Inertia's own handler.
-  win.document.addEventListener(
-    'click',
-    (event) => {
-      // Anything but a plain left click belongs to the browser: a middle click or
-      // ⌘-click is asking for a tab, and a tab should open what the link says.
-      if (event.defaultPrevented || event.button !== 0) {
-        return;
-      }
-
-      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        return;
-      }
-
-      const anchor = event.target?.closest?.('a[href]');
-
-      if (!anchor || (anchor.target && anchor.target !== '_self')) {
-        return;
-      }
-
-      const url = previewUrlFor(win, anchor.href, collections);
-
-      if (!url) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-
-      goToPreview(win, url, anchor);
-    },
-    true
-  );
-
-  // And the move that no link made: a row that navigates from JavaScript never
-  // produces a click on an `<a>`, so it would otherwise slip past. Cancelled and
-  // re-issued from the next tick, so the router isn't asked to start a visit
-  // while it is still calling one off.
-  //
-  // Waited for rather than read once: this runs as the CP boots, and the router
-  // is put on `__STATAMIC__` by Inertia's own start-up. Asking too early and
-  // giving up would lose the net for the whole session.
-  const hookRouter = (attempts = 0) => {
-    const router = win.__STATAMIC__?.inertia?.router;
-
-    if (typeof router?.on !== 'function') {
-      if (attempts < 50) {
-        win.setTimeout(() => hookRouter(attempts + 1), 100);
-      }
-
-      return;
-    }
-
-    router.on('before', (event) => {
-      const visit = event.detail?.visit;
-
-      if (!visit || (visit.method && String(visit.method).toLowerCase() !== 'get')) {
-        return;
-      }
-
-      const url = previewUrlFor(win, String(visit.url), collections);
-
-      if (!url) {
-        return;
-      }
-
-      win.setTimeout(() => goToPreview(win, url), 0);
-
-      return false;
-    });
-  };
-
-  hookRouter();
-
-  win.addEventListener('sve-overlay-idle', () => clearEntryOpening(win.document));
-}
-
-// Notified with `true`/`false` whenever the entry is written back (or fails to
-// be). Watching the network rather than a Statamic event: `saved` is emitted on
-// the publish component, not on a global bus, so there is nothing to listen to
-// from out here.
-const saveListeners = [];
-
-function onEntrySave(callback) {
-  saveListeners.push(callback);
-
-  return () => {
-    const index = saveListeners.indexOf(callback);
-
-    if (index !== -1) {
-      saveListeners.splice(index, 1);
-    }
-  };
-}
-
-/**
- * Watch for the entry being written back.
- *
- * Statamic saves an entry to the very URL its edit screen lives at, and publishes
- * to a path just below it. Anchoring on that path is what keeps the CP's other
- * chatter — Live Preview's own render POST, preference writes — from reading as a
- * save.
- */
-function watchEntrySaves(win) {
-  const entryPath = win.location.pathname;
-
-  const isSave = (url, method) => {
-    if (!url || !/^(POST|PUT|PATCH)$/i.test(method || 'GET')) {
-      return false;
-    }
-
-    let path;
-
-    try {
-      path = new URL(url, win.location.origin).pathname;
-    } catch {
-      return false;
-    }
-
-    return path.startsWith(entryPath) && !path.includes('/preview');
-  };
-
-  const announce = (ok, rearm) => {
-    if (ok) {
-      // The site under the editor overlay is now showing stale content.
-      postToHost(win, 'lp-saved');
-      scheduleEntryBaselineAfterSave(win);
-    } else {
-      rearm();
-    }
-
-    [...saveListeners].forEach((listener) => listener(ok));
-  };
-
-  const { fetch: originalFetch } = win;
-
-  win.fetch = function (input, init = {}) {
-    const url = typeof input === 'string' ? input : input?.url;
-    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
-
-    if (!isSave(url, method)) {
-      return originalFetch.call(this, input, init);
-    }
-
-    const rearm = disarmUnloadWarning(win);
-
-    return originalFetch.call(this, input, init).then(
-      (response) => {
-        announce(response.ok, rearm);
-
-        return response;
-      },
-      (error) => {
-        announce(false, rearm);
-
-        throw error;
-      }
-    );
-  };
-
-  const { open: originalOpen } = win.XMLHttpRequest.prototype;
-
-  win.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    if (isSave(url, method)) {
-      const rearm = disarmUnloadWarning(win);
-
-      this.addEventListener('load', () => announce(this.status >= 200 && this.status < 300, rearm));
-      this.addEventListener('error', () => announce(false, rearm));
-    }
-
-    return originalOpen.call(this, method, url, ...rest);
-  };
-}
-
-/**
- * Statamic guards against losing unsaved edits with beforeunload handlers. From
- * the moment a save request is in flight, that guard can only misfire: the
- * content is already written server-side by the time anything reacts to it — and
- * things do react. In dev, Vite's full-reload sees the content file change and
- * reloads the site (this page's host) before the save response is even back,
- * which put up a "changes you made may not be saved" prompt about changes that
- * were being saved.
- *
- * So: stand the guard down when a save starts. Returns a re-arm function for
- * when the save fails and the edits genuinely are unsaved again.
- */
-function disarmUnloadWarning(win) {
-  const dirty = win.Statamic?.$dirty;
-
-  if (!dirty) {
-    return () => {};
-  }
-
-  let names = [];
-
-  try {
-    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = unwrapRef(raw);
-
-    names = Array.isArray(list) ? [...list] : [];
-    dirty.disableWarning?.();
-    names.forEach((name) => dirty.remove(name));
-  } catch {
-    /* best effort — worst case the browser asks */
-  }
-
-  return () => {
-    try {
-      names.forEach((name) => dirty.add(name));
-    } catch {
-      /* same */
-    }
-  };
-}
-
-/**
- * True when the open entry has edits that haven't been written back.
- *
- * Prefer a value snapshot taken when Live Preview settled (see
- * scheduleEntryBaseline). Statamic's $dirty alone is unreliable here:
- * with revisions enabled, Save stays clickable even when clean (canSave ≠
- * isDirty), and mount/hydration often leaves a sticky dirty.has('base').
- */
-function hasUnsavedChanges(win) {
-  // Save just landed; the form is being rewritten from the response. That
-  // rewrite is not unsaved work — it's the saved values arriving.
-  if (entrySaveSettling) {
-    return false;
-  }
-
-  // Value-diff against the clean baseline — the authoritative signal for the
-  // back button. Falls through only before the baseline exists.
-  if (entryValuesBaseline != null) {
-    const now = serializeEntryValues();
-
-    if (now != null) {
-      return now !== entryValuesBaseline;
-    }
-  }
-
-  const dirty = win.Statamic?.$dirty;
-
-  if (typeof dirty?.has !== 'function') {
-    // No dirty API and no baseline yet — assume clean so Back doesn't trap.
-    return false;
-  }
-
-  try {
-    if (typeof dirty.count === 'function' && dirty.count() === 0) {
-      return false;
-    }
-
-    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = unwrapRef(raw);
-
-    if (Array.isArray(list)) {
-      if (!list.length) {
-        return false;
-      }
-
-      const tracked = new Set(
-        publishContainers.map((container) => container.name).filter(Boolean)
-      );
-
-      tracked.add('base');
-
-      return list.some((name) => tracked.has(name) && dirty.has(name));
-    }
-  } catch {
-    /* fall through */
-  }
-
-  const tracked = new Set(
-    publishContainers.map((container) => container.name).filter(Boolean)
-  );
-
-  tracked.add('base');
-
-  return [...tracked].some((name) => dirty.has(name));
-}
-
-/**
- * Drops the dirty marks — what discarding means. Left up, they'd re-arm the
- * warning on the *next* navigation, long after the edits they stood for are gone.
- */
-function discardChanges(win) {
-  const dirty = win.Statamic?.$dirty;
-
-  if (typeof dirty?.remove !== 'function') {
-    return;
-  }
-
-  const names = new Set(publishContainers.map((container) => container.name).filter(Boolean));
-
-  names.add('base');
-
-  // Statamic's own list — it knows about containers we never saw.
-  if (typeof dirty.names === 'function') {
-    (dirty.names() ?? []).forEach((name) => names.add(name));
-  }
-
-  names.forEach((name) => dirty.remove(name));
-}
-
-/**
- * Calls off Statamic's own unsaved-changes confirm for the navigation we're about
- * to make. We've already asked — in our own dialog, in the middle of the screen —
- * and a second, native "Are you sure?" on top of that is just the same question
- * twice.
- *
- * Clearing the dirty marks is not enough on its own: the guard is a router
- * listener that fires its confirm unconditionally, and it's only unhooked by a
- * Vue watcher on the dirty list — which flushes on the next tick, after our visit
- * has already been cancelled. This is Statamic's own synchronous escape hatch,
- * the one its actions use for `bypassesDirtyWarning`.
- */
-function dismissDirtyWarning(win) {
-  win.Statamic?.$dirty?.disableWarning?.();
-}
-
-function saveButtonIn(doc) {
-  const header = lpHeader(doc);
-
-  return [...(header?.querySelectorAll('button') ?? [])].find((button) => {
-    const text = (button.textContent || '').trim();
-
-    if (isPublishButtonLabel(text)) {
-      return false;
-    }
-
-    return /^(save|gem)\b/i.test(text);
-  });
-}
-
-/**
- * "Publish…" / "Publicér…" — present only when revisions are enabled.
- */
-function publishButtonIn(doc) {
-  const header = lpHeader(doc);
-
-  return [...(header?.querySelectorAll('button') ?? [])].find((button) =>
-    isPublishButtonLabel((button.textContent || '').trim())
-  );
-}
-
-function isPublishButtonLabel(text) {
-  return /^(publish|udgiv|public[eé]r)\b/i.test(text);
-}
-
-/**
- * Leaving right when the save response lands races Statamic's own handling of
- * it: the dirty flag is still up for a beat, and unloading in that window makes
- * the browser ask "changes you made may not be saved" — about changes that WERE
- * just saved. So wait for the flag to drop, and disarm Statamic's unload warning
- * (its own switch for exactly this) as a backstop before leaving.
- */
-function leaveQuietly(win, leave, attempts = 0) {
-  if (hasUnsavedChanges(win) && attempts < 30) {
-    setTimeout(() => leaveQuietly(win, leave, attempts + 1), 100);
-
-    return;
-  }
-
-  try {
-    // Force-clear leftover dirty marks so the browser / Statamic don't block leave.
-    if (hasUnsavedChanges(win)) {
-      discardChanges(win);
-    }
-
-    win.Statamic?.$dirty?.disableWarning?.();
-  } catch {
-    /* best effort — worst case the browser asks */
-  }
-
-  leave();
-}
-
-// --- Globals beside Live Preview -------------------------------------------------
-//
-// A picker in the Live Preview header lists the global sets. Choosing one opens
-// it over the left editor — as an iframe of Statamic's own globals screen, so
-// every fieldtype, replicator and validation works exactly as it does in the CP.
-// (The left editor pane belongs to Statamic's Vue tree; putting a second publish
-// form in there tears the entry form down. An iframe overlay does not.)
-//
-// The right sidebar is left alone, so the block tree / comments / library can
-// stay open. Closing the overlay parks the iframe off-screen; the page section
-// form underneath is still there.
-//
-// Typing in that form re-renders the preview immediately: the values are posted
-// to the addon, which stashes them for the session, and the preview is asked to
-// render again with `sve_globals=1` — the middleware then swaps the saved globals
-// for these unsaved ones. Statamic itself only re-renders when the ENTRY changes,
-// so the re-render is triggered by replaying the last preview URL.
-
-const GLOBALS_PANEL_ID = '__sve-globals-panel';
-const GLOBALS_PICKER_ID = '__sve-globals-picker';
-const GLOBALS_PANEL_PARAM = 'sve-panel';
-const GLOBALS_DEBOUNCE = 200;
-
-// The URL of the most recent preview render, replayed whenever a global changes.
-let lastPreviewUrl = null;
-let globalsSaveTimer = null;
-
-function globalSets(win) {
-  const sets = win.Statamic?.$config?.get?.('sveGlobalSets');
-
-  return Array.isArray(sets) ? sets : [];
-}
-
-/** Global sets the globe menu lists — not every set the editor can still open. */
-function pickerGlobalSets(win) {
-  const sets = globalSets(win);
-  const allowed = win.Statamic?.$config?.get?.('sveGlobalsPicker');
-  const off = win.Statamic?.$config?.get?.('sveGlobalsPickerOff') || [];
-
-  if (!Array.isArray(allowed)) {
-    return sets.filter((set) => !off.includes(set.handle));
-  }
-
-  return sets.filter((set) => allowed.includes(set.handle));
-}
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
-
-/**
- * The live Live Preview header — never the frozen copy of it.
- *
- * While a move is in flight there are two on the page: the real bar, and the
- * still on the cover that keeps it from blinking out. They match selector for
- * selector, so anything reaching for the header by class alone stands a good
- * chance of finding the photograph — and our own pollers would then build the
- * pickers into a bar that's about to be thrown away.
- */
-function lpHeader(doc) {
-  return (
-    [...doc.querySelectorAll('.live-preview-header')].find((el) => !el.closest(`#${LP_COVER_ID}`)) ??
-    null
-  );
-}
-
-function previewFrame(doc) {
-  return doc.getElementById('live-preview-iframe');
-}
-
-/**
- * Clicking the page closes what the sidebar has open.
- *
- * Every popover in the CP — the colour picker, the select and dropdown menus —
- * closes on a pointerdown somewhere else in the CP document. A click inside the
- * preview is a pointerdown in the *iframe's* document, which that check never
- * sees, so a picker opened in the sidebar stayed on screen over the panel while
- * you carried on working on the page. The iframe is same-origin, so the fix is
- * to let the CP have the event too: forward it as a bare pointerdown on the CP
- * body, which every one of those popovers reads as "outside" and dismisses.
- *
- * pointerdown only, never click. The CP's own click handler treats a click that
- * lands on no set as "nothing is selected any more" and clears the outline —
- * which is the outline the preview click just put there.
- */
-function ensurePreviewOutsideDismiss(win) {
-  const frame = previewFrame(win.document);
-
-  if (!frame) {
-    return;
-  }
-
-  const forward = () => {
-    try {
-      win.document.body?.dispatchEvent(
-        new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true })
-      );
-    } catch {
-      /* nothing to dismiss with */
-    }
-  };
-
-  // Re-armed per document: the preview reloads on every render, and the new
-  // document carries none of the old one's listeners.
-  const arm = () => {
-    let doc;
-
-    try {
-      doc = frame.contentDocument;
-    } catch {
-      return; // cross-origin — nothing we can read
-    }
-
-    if (!doc || doc.__sveOutsideDismiss) {
-      return;
-    }
-
-    doc.__sveOutsideDismiss = true;
-    doc.addEventListener('pointerdown', forward, true);
-  };
-
-  arm();
-
-  if (!frame.__sveOutsideDismiss) {
-    frame.__sveOutsideDismiss = true;
-    frame.addEventListener('load', arm);
-  }
-}
-
-/** Ask the preview to render again, with or without the unsaved globals. */
-function refreshPreview(win, active) {
-  const frame = previewFrame(win.document);
-
-  if (!frame?.contentWindow || !lastPreviewUrl) {
-    return;
-  }
-
-  frame.contentWindow.postMessage(
-    {
-      name: 'sve.globals',
-      active,
-      url: lastPreviewUrl,
-      // Authoritative for surgical morph — don't rely on html class races alone.
-      chromeKind: active ? activeChromeKind : null,
-    },
-    win.location.origin
-  );
-}
-
-/** The URL the preview iframe is actually showing, not a remembered one. */
-function frameDocumentUrl(frame) {
-  try {
-    const href = frame?.contentWindow?.location?.href;
-
-    if (href && href !== 'about:blank') {
-      return href;
-    }
-  } catch {
-    /* cross-origin — Live Preview is same-origin */
-  }
-
-  return frame?.getAttribute('src') || frame?.src || '';
-}
-
-/**
- * A tokenised Live Preview document — never a screenshot route or the public site.
- *
- * Replaying those into the iframe paints the front end (with Rediger) over the
- * preview and looks exactly like Live Preview closed.
- */
-function isLivePreviewDocumentUrl(url, origin) {
-  if (!url) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(url, origin);
-
-    if (parsed.origin !== origin) {
-      return false;
-    }
-
-    if (parsed.pathname.includes('/!/sve/')) {
-      return false;
-    }
-
-    return (
-      parsed.searchParams.has('token') ||
-      parsed.searchParams.has('live-preview') ||
-      parsed.searchParams.has('preview')
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Replay the current Live Preview URL into the iframe.
- *
- * Must morph, never `location.reload()`: a full reload of the front-end in the
- * iframe ejects Live Preview (same failure Vite `refresh: true` used to cause).
- */
-export function replayLivePreview(win) {
-  const frame = previewFrame(win.document);
-
-  if (!frame?.contentWindow) {
-    return;
-  }
-
-  const origin = win.location.origin;
-  let url = frameDocumentUrl(frame);
-
-  if (!isLivePreviewDocumentUrl(url, origin)) {
-    url = lastPreviewUrl || '';
-  }
-
-  if (!isLivePreviewDocumentUrl(url, origin)) {
-    return;
-  }
-
-  frame.contentWindow.postMessage({ name: 'statamic.preview.updated', url }, '*');
-}
-
-/** Header/footer currently stepped into from Live Preview (null when not). */
-let activeChromeKind = null;
-
-function setActiveChromeKind(kind) {
-  activeChromeKind = kind === 'footer' || kind === 'header' ? kind : null;
-}
-
-/** Tell the preview iframe to keep header/footer chrome focus (soft rebind). */
-function assertChromeFocusInPreview(win) {
-  if (!activeChromeKind) {
-    return;
-  }
-
-  const kind = activeChromeKind;
-
-  // One quiet ping after morph settles — not a burst (that caused flicker).
-  clearTimeout(assertChromeFocusInPreview._timer);
-  assertChromeFocusInPreview._timer = setTimeout(() => {
-    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-restore-chrome', kind }, win);
-  }, 120);
-}
-
-/**
- * Records the URL of each preview render. Statamic POSTs the entry's values and
- * gets back a tokenised URL; that URL is what the preview iframe loads, and what
- * we replay to re-render after a global changes.
- */
-function watchPreviewRenders(win) {
-  const isPreviewCall = (url, method) => {
-    if (typeof url !== 'string' || !/^POST$/i.test(method || 'GET')) {
-      return false;
-    }
-
-    let path;
-
-    try {
-      path = new URL(url, win.location.origin).pathname;
-    } catch {
-      return false;
-    }
-
-    // Statamic's entry-preview POST. Addon routes also contain "/preview"
-    // (`/!/sve/globals-preview`, screenshot URLs) and must not overwrite this.
-    return path.includes('/preview') && !path.includes('/!/sve/');
-  };
-
-  const remember = (payload) => {
-    try {
-      const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
-      const url = data?.url;
-
-      if (typeof url === 'string' && isLivePreviewDocumentUrl(url, win.location.origin)) {
-        lastPreviewUrl = url;
-      }
-    } catch {
-      /* not the payload we expected */
-    }
-  };
-
-  const { fetch: originalFetch } = win;
-
-  win.fetch = function (input, init = {}) {
-    const url = typeof input === 'string' ? input : input?.url;
-    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
-    const request = originalFetch.call(this, input, init);
-
-    if (!isPreviewCall(url, method)) {
-      return request;
-    }
-
-    return request.then((response) => {
-      response.clone().json().then(remember).catch(() => {});
-
-      return response;
-    });
-  };
-
-  // Statamic's CP talks to the server through axios, i.e. XMLHttpRequest — the
-  // preview render never goes through fetch at all.
-  const { open: originalOpen } = win.XMLHttpRequest.prototype;
-
-  win.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    if (isPreviewCall(url, method)) {
-      this.addEventListener('load', () => {
-        if (this.status >= 200 && this.status < 300) {
-          remember(this.response ?? this.responseText);
-        }
-      });
-    }
-
-    return originalOpen.call(this, method, url, ...rest);
-  };
-}
-
-function postGlobals(win, handle, values) {
-  clearTimeout(globalsSaveTimer);
-
-  const epoch = globalsStashEpoch;
-
-  globalsSaveTimer = setTimeout(() => {
-    if (epoch !== globalsStashEpoch || !globalsAcceptValues) {
-      return;
-    }
-
-    globalsStashActive = true;
-    notifyChromeDirty(win);
-    win
-      .fetch('/!/sve/globals-preview', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': csrfToken(win),
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ handle, values }),
-      })
-      .then(() => {
-        refreshPreview(win, true);
-        // The render that just went out replaces nodes in the preview. Chrome
-        // focus is the fade, the outline and the bar that says what you are
-        // editing and whether it is saved — all of it lives on those nodes, and
-        // a render that lands without this leaves you editing the header with
-        // nothing on screen saying so. Entering chrome asserts it once; typing
-        // is what renders after that, so it has to assert it too.
-        assertChromeFocusInPreview(win);
-      })
-      .catch(() => {
-        /* the preview simply keeps the last render */
-      });
-  }, GLOBALS_DEBOUNCE);
-}
-
-/** True after we've pushed unsaved globals into the preview stash. */
-let globalsStashActive = false;
-
-/** Bumped on discard/save-clear so late polls can't resurrect "unsaved". */
-let globalsStashEpoch = 0;
-
-/** False while discarding/reloading so in-flight value polls are ignored. */
-let globalsAcceptValues = true;
-
-/** Serialized form snapshot considered "saved" while chrome focus is active. */
-let chromeValuesBaseline = null;
-
-/** Ignore value polls until this timestamp (tab-lock settle after chrome open). */
-let chromeIgnoreValuePostsUntil = 0;
-
-/** Cancel pending stash POSTs and ignore value polls until re-enabled. */
-function invalidateGlobalsPreviewStash() {
-  clearTimeout(globalsSaveTimer);
-  globalsSaveTimer = null;
-  globalsStashEpoch += 1;
-  globalsStashActive = false;
-  globalsAcceptValues = false;
-  chromeValuesBaseline = null;
-}
-
-/** Mark chrome form clean after open/save/discard settle. */
-function markChromeFormClean(win) {
-  globalsStashActive = false;
-  clearGlobalsDirtyMarks(win);
-
-  // Edited in this window the form is right here, and what it holds a moment
-  // after a save is the saved thing: Statamic replaces its values with what the
-  // server sent back, and that lands a beat after the request resolves. Read as
-  // an edit, it put the bar back to "unsaved changes" a quarter of a second
-  // after saving — and then Close asked whether to discard work that was already
-  // on disk. The window covers the echo; the poll adopts it as the new baseline.
-  const container = chromeHost(win.document) ? chromeContainer() : null;
-
-  if (container) {
-    const values = unwrapRef(container.values);
-
-    if (values && typeof values === 'object') {
-      chromeValuesBaseline = JSON.stringify(values);
-      chromeValuesSeen = chromeValuesBaseline;
-    }
-
-    chromeIgnoreValuePostsUntil = Date.now() + 2000;
-    notifyChromeDirty(win);
-
-    return;
-  }
-
-  try {
-    const iwin = globalsPanelFrame(win)?.contentWindow;
-    const doc = iwin?.document;
-
-    if (doc) {
-      for (const container of activeContainers(doc)) {
-        const values = unwrapRef(container.values);
-
-        if (values && typeof values === 'object') {
-          chromeValuesBaseline = JSON.stringify(values);
-        }
-
-        break;
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-
-  notifyChromeDirty(win);
-}
-
-/** Tell the preview whether the chrome Save button should show. */
-function notifyChromeDirty(win) {
-  const dirty = hasUnsavedGlobals(win);
-  const saveBtn = win.document.querySelector('[data-sve-globals-save-btn]');
-
-  if (saveBtn) {
-    saveBtn.style.display = '';
-    saveBtn.style.opacity = dirty ? '1' : LP_ICON_IDLE_OPACITY;
-  }
-
-  sendToPreview(
-    {
-      source: 'statamic-visual-editor',
-      type: 'sve-chrome-dirty',
-      dirty,
-    },
-    win
-  );
-}
-
-/**
- * What the open global section calls itself, for the bar in the preview.
- *
- * Read off the values the panel streams up rather than the entry's own title:
- * the bar names the same thing the panel's header does — "Hero style 5" — and
- * that is the set's display name, not what the section was filed under in the
- * library.
- */
-function globalSectionLabel(win) {
-  const rows = sectionPanelValues?.values?.[sectionField(win)];
-  const row = Array.isArray(rows) && rows.length ? rows[0] : null;
-  const type = row?.type;
-
-  if (typeof type !== 'string' || !type) {
-    return null;
-  }
-
-  const custom = typeof row._sve_label === 'string' ? row._sve_label.trim() : '';
-
-  if (custom) {
-    return custom;
-  }
-
-  return setMeta(win, type)?.display || humanizeHandle(type);
-}
-
-/** Tell the preview whether the global-section Save button should show. */
-function notifyGlobalSectionDirty(win) {
-  sendToPreview(
-    {
-      source: 'statamic-visual-editor',
-      type: 'sve-global-dirty',
-      dirty: hasUnsavedGlobalSection(win),
-      label: globalSectionLabel(win),
-    },
-    win
-  );
-}
-
-/** Listeners for Theme Settings / globals-panel save results (iframe). */
-const globalsSaveListeners = [];
-
-function onGlobalsSave(callback) {
-  globalsSaveListeners.push(callback);
-
-  return () => {
-    const index = globalsSaveListeners.indexOf(callback);
-
-    if (index !== -1) {
-      globalsSaveListeners.splice(index, 1);
-    }
-  };
-}
-
-function globalsPanelFrame(win) {
-  return win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe') || null;
-}
-
-/**
- * Theme Settings (and other globals panels) live in a separate iframe, so the
- * entry form's Statamic.$dirty never sees them. The preview stash is the other
- * signal: any keystroke that refreshed the preview left unsaved globals in cache.
- */
-function hasUnsavedGlobals(win) {
-  // Edited in this window there is no second $dirty to ask — the form shares the
-  // page's — so the value poll's stash is the whole answer, exactly as it is for
-  // the docked panel while chrome focus is on.
-  if (chromeHost(win.document)) {
-    return globalsStashActive;
-  }
-
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-  const hidden =
-    !panel ||
-    panel.hasAttribute('data-sve-chrome-hidden') ||
-    panel.style.visibility === 'hidden';
-
-  // Prefetch loads Theme Settings off-screen; its hydrate must not count as edits.
-  if (hidden) {
-    return false;
-  }
-
-  if (globalsStashActive) {
-    return true;
-  }
-
-  // Header/footer chrome: Statamic $dirty stays sticky after tab-lock / remount
-  // and falsely shows Save. Only our value-poll stash counts as real edits.
-  if (activeChromeKind) {
-    return false;
-  }
-
-  const iwin = globalsPanelFrame(win)?.contentWindow;
-
-  if (!iwin) {
-    return false;
-  }
-
-  try {
-    const dirty = iwin.Statamic?.$dirty;
-
-    if (typeof dirty?.has !== 'function') {
-      return false;
-    }
-
-    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = unwrapRef(raw);
-
-    // Empty names ⇒ clean. Don't fall through to a bare `has('base')` which
-    // can stay true after discard and falsely keep the chrome Save bar on.
-    if (Array.isArray(list)) {
-      return list.some((name) => dirty.has(name));
-    }
-
-    return dirty.has('base');
-  } catch {
-    return false;
-  }
-}
-
-/** Entry form and/or Theme Settings / globals panel have edits not on disk. */
-function hasUnsavedWork(win) {
-  return hasUnsavedChanges(win) || hasUnsavedGlobals(win) || hasUnsavedGlobalSection(win);
-}
-
-/** Clear Statamic.$dirty marks inside the Theme Settings iframe. */
-function clearGlobalsDirtyMarks(win) {
-  const iwin = globalsPanelFrame(win)?.contentWindow;
-
-  if (!iwin) {
-    return;
-  }
-
-  try {
-    const dirty = iwin.Statamic?.$dirty;
-
-    if (typeof dirty?.remove === 'function') {
-      const names = new Set(['base']);
-      const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-      const list = unwrapRef(raw);
-
-      if (Array.isArray(list)) {
-        list.forEach((name) => names.add(name));
-      }
-
-      names.forEach((name) => dirty.remove(name));
-    }
-
-    dirty?.disableWarning?.();
-  } catch {
-    /* best effort */
-  }
-
-  // Re-baseline the iframe value poll so the post-save form snapshot
-  // doesn't immediately re-mark chrome as dirty.
-  try {
-    iwin.postMessage(
-      { source: 'statamic-visual-editor', type: 'sve-globals-saved' },
-      win.location.origin
-    );
-  } catch {
-    /* ignore */
-  }
-}
-
-/** Drop Theme Settings dirty marks + preview stash (discard path). */
-function discardGlobalsChanges(win, { refresh = false, reloadForm = false } = {}) {
-  // Stop late value polls / debounced stash POSTs from re-marking dirty.
-  invalidateGlobalsPreviewStash();
-
-  if (reloadForm) {
-    // In this window the form is rebuilt from the CP's own answer next time, so
-    // taking it down IS the reload — and it takes every dirty mark with it.
-    if (closeChromeInline(win, { refresh })) {
-      globalsAcceptValues = true;
-
-      return clearGlobalsStash(win, { refresh, force: true }).then(() => notifyChromeDirty(win));
-    }
-
-    // Destroy the dirty iframe entirely. In-place reload left Statamic.$dirty
-    // (and stale polls) sticky, so re-entering chrome still showed Save.
-    const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-
-    panel?._svePinRo?.disconnect?.();
-    panel?.remove();
-    globalsAcceptValues = true;
-    releaseLeftEdgeIfFree(win);
-    syncPreviewInset(win);
-
-    return clearGlobalsStash(win, { refresh, force: true }).then(() => {
-      notifyChromeDirty(win);
-      scheduleChromeGlobalsPrefetch(win);
-    });
-  }
-
-  clearGlobalsDirtyMarks(win);
-  globalsAcceptValues = true;
-
-  return clearGlobalsStash(win, { refresh, force: true }).then(() => {
-    notifyChromeDirty(win);
-  });
-}
-
-/**
- * Click Theme Settings' Save (via the panel iframe) and wait for the network
- * result. Resolves true on success / nothing to save, false on failure/timeout.
- */
-function saveGlobalsPanel(win, done) {
-  if (!hasUnsavedGlobals(win)) {
-    done(true);
-
-    return;
-  }
-
-  const host = chromeHost(win.document);
-  const iwin = globalsPanelFrame(win)?.contentWindow;
-
-  // Nothing open to save into: whatever the stash still holds is not backed by a
-  // form any more, so it goes.
-  if (!host && !iwin) {
-    clearGlobalsStash(win, { refresh: false }).finally(() => done(true));
-
-    return;
-  }
-
-  let settled = false;
-
-  const finish = (ok) => {
-    if (settled) {
-      return;
-    }
-
-    settled = true;
-    stop();
-    clearTimeout(timer);
-    done(ok);
-  };
-
-  const stop = onGlobalsSave(finish);
-  const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
-
-  if (host) {
-    pressChromeSave(win);
-
-    return;
-  }
-
-  iwin.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-globals-save' },
-    win.location.origin
-  );
-}
-
-/**
- * Watch POSTs to the globals edit URL inside the Theme Settings iframe so we
- * know when Save actually landed (and can clear the preview stash).
- * Must be installed from the parent CP window (stash + listeners live there).
- * Statamic saves via axios → XMLHttpRequest; also wrap fetch for completeness.
- */
-function watchGlobalsPanelSaves(iwin, parentWin, entryPath = null) {
-  if (!iwin || !parentWin || iwin.__sveGlobalsSaveWatch) {
-    return;
-  }
-
-  iwin.__sveGlobalsSaveWatch = true;
-
-  // A function, not a string, because the window being watched can be this one:
-  // the CP is not reloaded between one global and the next, so which path counts
-  // as "the save" changes while the same patched fetch stays in place.
-  const globalsPath = entryPath ?? (() => iwin.location.pathname);
-
-  const isSave = (url, method) => {
-    if (!url || !/^(POST|PUT|PATCH)$/i.test(method || 'GET')) {
-      return false;
-    }
-
-    const base = globalsPath();
-
-    if (!base) {
-      return false;
-    }
-
-    let path;
-
-    try {
-      path = new URL(url, iwin.location.origin).pathname;
-    } catch {
-      return false;
-    }
-
-    return path.startsWith(base) && !path.includes('/preview');
-  };
-
-  const announce = (ok) => {
-    if (ok) {
-      // What the form holds is now what is on disk, so every read taken on the
-      // way here is stale — including the debounced stash POST that may still be
-      // waiting to go out. Dropped by bumping the epoch, and the reads that
-      // arrive while the save settles are covered by the window below; without
-      // both, the bar went back to "unsaved changes" moments after saving and
-      // Close then offered to discard work that was already saved.
-      globalsStashEpoch += 1;
-      clearTimeout(globalsSaveTimer);
-      chromeIgnoreValuePostsUntil = Date.now() + 2500;
-
-      // Keep flag true so clearGlobalsStash still hits the server endpoint.
-      globalsStashActive = true;
-      globalsAcceptValues = true;
-      clearGlobalsDirtyMarks(parentWin);
-      clearGlobalsStash(parentWin, { refresh: false }).then(() => {
-        markChromeFormClean(parentWin);
-      });
-
-      // Theme Settings are part of every preview's fingerprint, so saving them
-      // makes every picture in the library wrong at once — and the server starts
-      // retaking them. The library hears that here, asks once, and asks once more
-      // when the screenshot for this save has had time to land.
-      libraryWentStale(parentWin);
-    }
-
-    [...globalsSaveListeners].forEach((listener) => listener(ok));
-  };
-
-  const { fetch: originalFetch } = iwin;
-
-  iwin.fetch = function (input, init = {}) {
-    const url = typeof input === 'string' ? input : input?.url;
-    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
-
-    if (!isSave(url, method)) {
-      return originalFetch.call(this, input, init);
-    }
-
-    return originalFetch.call(this, input, init).then(
-      (response) => {
-        announce(response.ok);
-
-        return response;
-      },
-      (error) => {
-        announce(false);
-
-        throw error;
-      }
-    );
-  };
-
-  // Axios uses XHR — without this, chrome Save never clears dirty UI.
-  const { open: originalOpen, send: originalSend } = iwin.XMLHttpRequest.prototype;
-
-  iwin.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    this.__sveGlobalsMethod = method;
-    this.__sveGlobalsUrl = url;
-
-    return originalOpen.call(this, method, url, ...rest);
-  };
-
-  iwin.XMLHttpRequest.prototype.send = function (...args) {
-    if (isSave(this.__sveGlobalsUrl, this.__sveGlobalsMethod)) {
-      this.addEventListener('load', () => {
-        announce(this.status >= 200 && this.status < 300);
-      });
-      this.addEventListener('error', () => announce(false));
-    }
-
-    return originalSend.apply(this, args);
-  };
-}
-
-function ensureGlobalsPanelSaveWatch(win) {
-  const frame = globalsPanelFrame(win);
-
-  if (!frame) {
-    return;
-  }
-
-  const arm = () => {
-    try {
-      if (frame.contentWindow) {
-        globalsAcceptValues = true;
-        watchGlobalsPanelSaves(frame.contentWindow, win);
-      }
-    } catch {
-      /* iframe not ready */
-    }
-  };
-
-  arm();
-  frame.addEventListener('load', arm);
-}
-
-function clearGlobalsStash(win, { refresh = true, force = false } = {}) {
-  if (!globalsStashActive && !force) {
-    if (refresh) {
-      // Nothing stashed — don't bounce the preview.
-    }
-
-    notifyChromeDirty(win);
-
-    return Promise.resolve();
-  }
-
-  globalsStashActive = false;
-
-  return win
-    .fetch('/!/sve/globals-preview/clear', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .catch(() => {})
-    .then(() => {
-      notifyChromeDirty(win);
-
-      if (refresh) {
-        refreshPreview(win, false);
-      }
-    });
-}
-
-function closeGlobalsPanel(win) {
-  // Whichever one is open. Only one ever is.
-  if (closeChromeInline(win)) {
-    return;
-  }
-
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-
-  if (!panel) {
-    return;
-  }
-
-  panel._svePinRo?.disconnect?.();
-  panel.remove();
-
-  const tabs = win.document.getElementById(LP_WIDTH_ID);
-
-  if (tabs) {
-    tabs.style.visibility = '';
-  }
-
-  releaseLeftEdgeIfFree(win);
-  syncPreviewInset(win);
-  clearGlobalsStash(win, { refresh: true });
-
-  // Warm the next open so footer/header clicks stay instant after close.
-  scheduleChromeGlobalsPrefetch(win);
-}
-
-/**
- * Keep the Theme Settings iframe mounted (off-screen) so the next open is
- * instant. Does NOT clear the preview stash — that only happens on explicit
- * discard / close / save-clear.
- */
-function parkGlobalsPanel(win) {
-  const doc = win.document;
-
-  // Nothing to park in this window: the form is built from the Control Panel's
-  // own answer in a few hundred milliseconds, so stepping back in is quick
-  // without keeping a copy of it alive behind the page.
-  if (closeChromeInline(win)) {
-    return;
-  }
-
-  const panel = doc.getElementById(GLOBALS_PANEL_ID);
-
-  if (!panel) {
-    return;
-  }
-
-  parkGlobalsOverlay(panel);
-  forcePanelOpen = false;
-  syncPreviewInset(win);
-}
-
-const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
-const GLOBALS_MIN_WIDTH = 320;
-
-function globalsPanelWidth(win) {
-  return rightDockWidth(win);
-}
-
-/**
- * Drag handle on a docked panel's inner edge; the width is remembered.
- * `side: 'right'` = panel on the right (handle on its left). `side: 'left'` =
- * panel on the left (handle on its right).
- */
-function panelResizer(win, panel, { side = 'right', storageKey = GLOBALS_WIDTH_KEY, onResize } = {}) {
-  const handle = win.document.createElement('div');
-  const grip = splitterFill('ew');
-
-  handle.style.cssText =
-    side === 'left'
-      ? `position:absolute;right:-8px;top:0;bottom:0;width:16px;cursor:ew-resize;z-index:2;touch-action:none;${grip}`
-      : `position:absolute;left:-8px;top:0;bottom:0;width:16px;cursor:ew-resize;z-index:2;touch-action:none;${grip}`;
-  handle.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    handle.setPointerCapture(event.pointerId);
-
-    const frame = panel.querySelector('iframe');
-
-    if (frame) {
-      frame.style.pointerEvents = 'none';
-    }
-
-    const onMove = (move) => {
-      const max = Math.max(GLOBALS_MIN_WIDTH, win.innerWidth - 360);
-      const width =
-        side === 'left'
-          ? Math.min(Math.max(move.clientX, GLOBALS_MIN_WIDTH), max)
-          : Math.min(Math.max(win.innerWidth - move.clientX, GLOBALS_MIN_WIDTH), max);
-
-      panel.style.width = `${width}px`;
-      syncPreviewInset(win);
-      onResize?.(width);
-    };
-
-    const onUp = () => {
-      win.removeEventListener('pointermove', onMove);
-      win.removeEventListener('pointerup', onUp);
-
-      if (frame) {
-        frame.style.pointerEvents = '';
-      }
-
-      chromeSet(win, storageKey, String(parseInt(panel.style.width, 10)));
-    };
-
-    win.addEventListener('pointermove', onMove);
-    win.addEventListener('pointerup', onUp);
-  });
-
-  return handle;
-}
-
-/** @deprecated alias — right-docked panels */
-function globalsResizer(win, panel, onResize) {
-  return panelResizer(win, panel, { side: 'right', onResize });
-}
-
-function globalsPanelUrl(win, set) {
-  const url = new URL(set.url, win.location.origin);
-
-  url.searchParams.set(GLOBALS_PANEL_PARAM, '1');
-
-  return url.toString();
-}
-
-/** Prefetch Theme Settings as early as possible (even before Live Preview). */
-let chromePrefetchArmed = false;
-
-function scheduleChromeGlobalsPrefetch(win) {
-  win.setTimeout(() => prefetchChromeGlobals(win), 0);
-}
-
-/**
- * Background-load theme_settings into a hidden iframe. Page sections feel instant
- * because their form is already mounted; chrome needs the same head start —
- * ideally before the user opens Live Preview at all.
- */
-function prefetchChromeGlobals(win) {
-  const doc = win.document;
-
-  // Don't run inside the panel iframe itself.
-  if (new URLSearchParams(win.location.search).has(GLOBALS_PANEL_PARAM)) {
-    return;
-  }
-
-  // What a click actually opens is the in-window form, and until now this warmed
-  // the docked iframe instead — the fallback, the one path a click almost never
-  // takes. So the head start went to the wrong door and the panel was a second
-  // or two behind the click, every time.
-  if (CHROME_INLINE) {
-    warmChromeInlinePages(win);
-
-    return;
-  }
-
-  if (doc.getElementById(GLOBALS_PANEL_ID)) {
-    return;
-  }
-
-  const handle = chromeGlobalHandle(win);
-  const sets = globalSets(win);
-  const set = sets.find((candidate) => candidate.handle === handle);
-
-  if (!set) {
-    return;
-  }
-
-  openGlobalsPanel(win, set, { prefetch: true });
-}
-
-function openGlobalsPanel(win, set, options = {}) {
-  const doc = win.document;
-  const existing = doc.getElementById(GLOBALS_PANEL_ID);
-  const prefetch = options.prefetch === true;
-  const chromeLock = options.chromeLock === 'footer' || options.chromeLock === 'header' ? options.chromeLock : null;
-
-  // Switching sets reuses the panel rather than replacing it. Tearing an iframe
-  // out of the page discards its session-history entries, and the browser then
-  // traverses the joint history to recover — which fires `popstate` on the top
-  // window. In the front-end edit overlay that reads as "the user pressed Back",
-  // and the whole editor closes a few seconds after you pick a second global set.
-  if (existing) {
-    if (prefetch) {
-      return;
-    }
-
-    const frame = existing.querySelector('iframe');
-    const title = existing.querySelector('[data-sve-globals-title]');
-
-    if (frame && title) {
-      const label = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
-
-      title.textContent = label;
-      existing.querySelector('[data-sve-focus-tile]') &&
-        (existing.querySelector('[data-sve-focus-tile]').textContent = (label || '?').trim().charAt(0).toUpperCase());
-      frame.title = set.title;
-      showGlobalsPanel(win);
-      ensureGlobalsPanelSaveWatch(win);
-
-      // Same set already loaded: do NOT location.replace — a dirty form inside
-      // the iframe triggers Chrome's "Leave site?" dialog and blocks the editor.
-      if (existing.getAttribute('data-sve-globals-handle') === set.handle) {
-        if (chromeLock) {
-          lockChromeGlobalsTab(win, chromeLock);
-        } else {
-          setActiveChromeKind(null);
-          unlockChromeGlobalsTabs(win);
-        }
-
-        return;
-      }
-
-      const previousHandle = existing.getAttribute('data-sve-globals-handle');
-      const switchSet = () => {
-        existing.setAttribute('data-sve-globals-handle', set.handle);
-        // New document → need a fresh save watch on the next load.
-        try {
-          delete frame.contentWindow.__sveGlobalsSaveWatch;
-        } catch {
-          /* ignore */
-        }
-        frame.contentWindow.location.replace(globalsPanelUrl(win, set));
-
-        if (chromeLock) {
-          lockChromeGlobalsTab(win, chromeLock);
-        } else {
-          setActiveChromeKind(null);
-          unlockChromeGlobalsTabs(win);
-        }
-      };
-
-      confirmLeaveGlobalsOverlay(
-        win,
-        switchSet,
-        () => {
-          const picker = win.document.getElementById(GLOBALS_PICKER_ID);
-
-          if (picker && previousHandle) {
-            picker.value = previousHandle;
-          }
-        }
-      );
-
-      return;
-    }
-
-    existing.remove();
-  }
-
-  const panel = doc.createElement('div');
-
-  panel.id = GLOBALS_PANEL_ID;
-  panel.setAttribute('data-sve-globals-handle', set.handle);
-  panel.setAttribute('data-sve-chrome-hidden', '1');
-
-  const bar = doc.createElement('div');
-
-  bar.style.cssText =
-    'display:flex;align-items:center;gap:10px;padding:11px 12px 9px;' +
-    'border-bottom:1px solid rgba(128,128,128,.16);flex:0 0 auto;';
-
-  const tile = doc.createElement('span');
-
-  tile.setAttribute('data-sve-focus-tile', '');
-  tile.textContent = (set.title || '?').trim().charAt(0).toUpperCase();
-  bar.appendChild(tile);
-
-  const title = doc.createElement('h2');
-
-  title.setAttribute('data-sve-globals-title', '');
-  title.setAttribute('data-sve-focus-title', '');
-  title.textContent = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
-  title.style.cssText = 'flex:1 1 auto;min-width:0;';
-  bar.appendChild(title);
-
-  // The CP's own Save sits in the page header, which the panel strips away — so
-  // the panel carries its own, wired to the real button inside the frame.
-  const actions = doc.createElement('div');
-
-  actions.style.cssText = 'display:flex;align-items:center;gap:6px;';
-
-  const save = doc.createElement('button');
-
-  save.type = 'button';
-  save.setAttribute('data-sve-globals-save-btn', '');
-  save.textContent = t(win, 'save');
-  save.title = t(win, 'save_globals');
-  save.style.cssText =
-    'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
-    'color:#fff;font-size:12px;font-weight:600;line-height:1;';
-  save.style.display = '';
-  save.style.opacity = hasUnsavedGlobals(win) ? '1' : LP_ICON_IDLE_OPACITY;
-  save.addEventListener('click', () => {
-    const frame = doc.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
-
-    frame?.contentWindow?.postMessage(
-      { source: 'statamic-visual-editor', type: 'sve-globals-save' },
-      win.location.origin
-    );
-  });
-  actions.appendChild(save);
-
-  const close = doc.createElement('button');
-
-  close.type = 'button';
-  close.textContent = '✕';
-  close.title = t(win, 'close');
-  close.style.cssText =
-    'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-    'justify-content:center;border-radius:6px;color:currentColor;opacity:.7;';
-  close.addEventListener('mouseenter', () => (close.style.background = 'rgba(128,128,128,.18)'));
-  close.addEventListener('mouseleave', () => (close.style.background = 'transparent'));
-  close.addEventListener('click', () => {
-    // Same close rules as the preview chrome bar (warn if dirty).
-    if (activeChromeKind) {
-      handleRequestCloseChrome(win);
-
-      return;
-    }
-
-    const picker = doc.getElementById(GLOBALS_PICKER_ID);
-
-    confirmLeaveGlobalsOverlay(
-      win,
-      () => {
-        if (picker) {
-          picker.value = '';
-        }
-
-        closeGlobalsPanel(win);
-      },
-      () => {}
-    );
-  });
-  actions.appendChild(close);
-  bar.appendChild(actions);
-
-  const frame = doc.createElement('iframe');
-
-  frame.src = globalsPanelUrl(win, set);
-  frame.title = set.title;
-  frame.style.cssText = 'flex:1 1 auto;width:100%;border:0;background:transparent;';
-
-  panel.appendChild(bar);
-  panel.appendChild(frame);
-  ensureGlobalsPanelSaveWatch(win);
-
-  // Stay on body so the iframe is never reparented. Prefetch parks off-screen;
-  // a real open covers the left editor.
-  attachGlobalsOverlay(win, panel);
-
-  if (prefetch) {
-    parkGlobalsOverlay(panel);
-  } else {
-    pinGlobalsPanelLeft(win, panel);
-    syncPreviewInset(win);
-
-    if (chromeLock) {
-      lockChromeGlobalsTab(win, chromeLock);
-    }
-  }
-}
-
-/** The global-set picker, sat beside the panel-mode buttons in the LP header. */
-function ensureGlobalsPicker(win) {
-  const doc = win.document;
-  const header = lpHeader(doc);
-  const sets = pickerGlobalSets(win);
-
-  if (!header || !sets.length || doc.getElementById(GLOBALS_PICKER_ID)) {
-    return;
-  }
-
-  const select = doc.createElement('select');
-
-  select.id = GLOBALS_PICKER_ID;
-  select.title = 'Rediger globale indstillinger ved siden af previewet';
-  select.style.cssText = FRAMED_SELECT_STYLE;
-
-  const placeholder = doc.createElement('option');
-
-  placeholder.value = '';
-  placeholder.textContent = t(win, 'globals');
-  select.appendChild(placeholder);
-
-  sets.forEach((set) => {
-    const option = doc.createElement('option');
-
-    option.value = set.handle;
-    option.textContent = set.title;
-    select.appendChild(option);
-  });
-
-  select.addEventListener('change', () => {
-    const previous = doc.getElementById(GLOBALS_PANEL_ID)?.getAttribute('data-sve-globals-handle') || '';
-    const set = sets.find((candidate) => candidate.handle === select.value);
-
-    if (set) {
-      openGlobalsPanel(win, set);
-    } else {
-      confirmLeaveGlobalsOverlay(
-        win,
-        () => closeGlobalsPanel(win),
-        () => {
-          select.value = previous;
-        }
-      );
-    }
-  });
-
-  // Same option already selected does not fire `change` — click re-shows a
-  // parked Theme Settings panel without reloading the iframe.
-  select.addEventListener('click', () => {
-    const set = sets.find((candidate) => candidate.handle === select.value);
-
-    if (!set) {
-      return;
-    }
-
-    const panel = doc.getElementById(GLOBALS_PANEL_ID);
-
-    if (!panel || panel.hasAttribute('data-sve-chrome-hidden')) {
-      openGlobalsPanel(win, set);
-    }
-  });
-
-  // Wrapperen bliver stående selv om der kun er én kontrol i den: applyHeaderTab
-  // viser og skjuler kontrollerne på `parentElement`, og uden den ville selecten
-  // selv være det der blev slået til og fra.
-  const wrap = doc.createElement('div');
-
-  wrap.style.cssText = 'display:inline-flex;align-items:center;font-family:inherit;';
-  wrap.appendChild(select);
-  header.appendChild(wrap);
-}
-
-const LIBRARY_BUTTON_ID = '__sve-library-btn';
-
-/** A "Sektioner" toggle in the LP header that opens/closes the section library. */
-function ensureSectionLibraryButton(win) {
-  const doc = win.document;
-  const group = doc.getElementById(LP_MODE_ID);
-
-  if (!group || doc.getElementById(LIBRARY_BUTTON_ID)) {
-    return;
-  }
-
-  const btn = doc.createElement('button');
-
-  btn.id = LIBRARY_BUTTON_ID;
-  btn.type = 'button';
-  btn.title = t(win, 'sections');
-  btn.innerHTML =
-    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="3" y="3" width="7" height="7" rx="1"/>' +
-    '<rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>' +
-    '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
-  btn.style.cssText =
-    'height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;cursor:pointer;' +
-    'color:currentColor;background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';
-  btn.append(t(win, 'sections'));
-  btn.addEventListener('click', () => openSectionPicker(win));
-
-  // After the globals picker if it exists, otherwise right after the mode group.
-  (doc.getElementById(GLOBALS_PICKER_ID) || group).after(btn);
-  syncSectionLibraryAvailability(win);
-}
-
-/**
- * Runs inside the globals panel's iframe: strips the CP chrome down to the form,
- * and streams the form's values up to the Live Preview window as they're typed.
- */
-function initGlobalsPanelFrame(win) {
-  const doc = win.document;
-
-  if (!new URLSearchParams(win.location.search).has(GLOBALS_PANEL_PARAM)) {
-    return false;
-  }
-
-  const style = doc.createElement('style');
-
-  style.textContent = `
-    html, body {
-      background: transparent !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      height: 100% !important;
-    }
-    [data-sve-panel-hide] {
-      display: none !important;
-      height: 0 !important;
-      max-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      border: 0 !important;
-      min-height: 0 !important;
-    }
-    /* Synced-section entry: always hide library meta + Published, even before
-       JS finds the exact wrappers (Statamic 6 markup varies / may omit field_*). */
-    html[data-sve-entry-panel] #field_title,
-    html[data-sve-entry-panel] #field_synced,
-    html[data-sve-entry-panel] #field_section_type,
-    html[data-sve-entry-panel] #field_preview_image,
-    html[data-sve-entry-panel] [name="published"],
-    html[data-sve-entry-panel] input[name="published"] {
-      display: none !important;
-    }
-    /* Top-level title (library name) — not titles inside the section set. */
-    html[data-sve-entry-panel] .publish-fields > [class*="title-fieldtype"],
-    html[data-sve-entry-panel] .publish-form > * > [class*="title-fieldtype"] {
-      display: none !important;
-    }
-    /* Hide the CP shell so the form is the panel. Do not restyle Statamic cards. */
-    .h-14.bg-global-header-bg {
-      display: none !important;
-      height: 0 !important;
-      max-height: 0 !important;
-      min-height: 0 !important;
-      overflow: hidden !important;
-    }
-    #main {
-      top: 0 !important;
-    }
-    [data-ui-header] {
-      display: none !important;
-      height: 0 !important;
-      max-height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      border: 0 !important;
-    }
-    /* Only extra: 26px above the tabs. Left/right stay Statamic default. */
-    #content-card {
-      padding-top: 26px !important;
-    }
-    main {
-      margin: 0 !important;
-      padding-block: 0 !important;
-      padding-inline: 0 !important;
-    }
-    main > *:first-child {
-      margin-block-start: 0 !important;
-      padding-block-start: 0 !important;
-    }
-    [role="tablist"],
-    nav[role="tablist"],
-    .tabs {
-      margin-block: 0 !important;
-      padding-block: 0 !important;
-    }
-    /* Chrome lock: kill every spacer above the fields — toggle sits outside the iframe. */
-    html[data-sve-chrome-locked] [role="tablist"],
-    html[data-sve-chrome-locked] [data-sve-chrome-tablist-lock],
-    html[data-sve-chrome-locked] [data-sve-chrome-spacer] {
-      display: none !important;
-      height: 0 !important;
-      max-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      border: 0 !important;
-      min-height: 0 !important;
-    }
-    html[data-sve-chrome-locked],
-    html[data-sve-chrome-locked] body {
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    html[data-sve-chrome-locked] main,
-    html[data-sve-chrome-locked] main > *,
-    html[data-sve-chrome-locked] .publish-form,
-    html[data-sve-chrome-locked] .publish-sections,
-    html[data-sve-chrome-locked] .tabs-container,
-    html[data-sve-chrome-locked] [data-reka-tabs-root],
-    html[data-sve-chrome-locked] [data-orientation] {
-      margin-top: 0 !important;
-      margin-block-start: 0 !important;
-      padding-top: 0 !important;
-      padding-block-start: 0 !important;
-      gap: 0 !important;
-      row-gap: 0 !important;
-    }
-    html[data-sve-chrome-locked] .publish-sections > .card,
-    html[data-sve-chrome-locked] main .card {
-      margin: 0 !important;
-      margin-top: 0 !important;
-      padding-top: 10px !important;
-      border-top-left-radius: 0 !important;
-      border-top-right-radius: 0 !important;
-    }
-    html[data-sve-chrome-locked] .publish-fields {
-      padding-top: 0 !important;
-      margin-top: 0 !important;
-    }
-    html[data-sve-chrome-locked] .publish-section-header,
-    html[data-sve-chrome-locked] .section-header,
-    html[data-sve-chrome-locked] [data-section-header],
-    html[data-sve-chrome-locked] .publish-fields > h2,
-    html[data-sve-chrome-locked] .publish-fields > h3,
-    html[data-sve-chrome-locked] .card > header,
-    html[data-sve-chrome-locked] .card > .flex.items-center:first-child:has(h1),
-    html[data-sve-chrome-locked] .card > .flex.items-center:first-child:has(h2),
-    html[data-sve-chrome-locked] .card > .flex.items-center:first-child:has(h3) {
-      display: none !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      height: 0 !important;
-      overflow: hidden !important;
-    }
-  `;
-  doc.head.appendChild(style);
-
-  // The same panel serves a global SET (/cp/globals/<handle>) and a global
-  // SECTION (/cp/collections/<c>/entries/<id>) — both are just a publish form in
-  // an iframe. The path says which; each stashes through its own channel, and
-  // only an entry brings its own Save button along.
-  const isEntry = win.location.pathname.includes('/collections/');
-
-  if (isEntry) {
-    doc.documentElement.setAttribute('data-sve-entry-panel', '');
-  }
-
-  // Strip the CP's own chrome (top bar, main nav) but nothing else: the publish
-  // form lives inside <main>, and it has plenty of its own <header>s (every
-  // replicator set) and <nav>s (the tab bar) that must survive.
-  const hideChrome = () => {
-    const main = doc.querySelector('main');
-
-    doc.querySelectorAll('nav, header').forEach((el) => {
-      if (main && (main.contains(el) || el.contains(main))) {
-        return;
-      }
-
-      el.setAttribute('data-sve-panel-hide', '');
-    });
-
-    // Inside <main>: hide the publish page toolbar (globe + title + Save) — the
-    // outer SVE panel already has title/Save/✕. Leave replicator/Bard set headers
-    // alone (they carry [data-drag-handle]).
-    if (main) {
-      main.querySelectorAll('h1').forEach((el) => {
-        if (el.closest('[data-drag-handle], [data-replicator-set], [data-grid-row]')) {
-          return;
-        }
-
-        el.setAttribute('data-sve-panel-hide', '');
-      });
-
-      main.querySelectorAll('header').forEach((el) => {
-        if (el.querySelector('[data-drag-handle]')) {
-          return;
-        }
-
-        const hasSave = [...el.querySelectorAll('button')].some((button) =>
-          /^(save|gem)\b/i.test((button.textContent || '').trim())
-        );
-
-        if (hasSave) {
-          el.setAttribute('data-sve-panel-hide', '');
-        }
-      });
-    }
-
-    // Statamic 6 page Header is a padded flex div (`data-ui-header`, py-6/py-8),
-    // not <header>/h1 — hiding the title left the padding as an empty band.
-    doc.querySelectorAll('[data-ui-header]').forEach((el) => {
-      el.setAttribute('data-sve-panel-hide', '');
-    });
-    doc.querySelectorAll('button').forEach((button) => {
-      if (!/^(save|gem)\b/i.test((button.textContent || '').trim())) {
-        return;
-      }
-
-      button.setAttribute('data-sve-panel-hide', '');
-      button.nextElementSibling?.setAttribute('data-sve-panel-hide', '');
-
-      let node = button.parentElement;
-
-      for (let depth = 0; node && node !== main && depth < 6; depth += 1, node = node.parentElement) {
-        if (node.querySelector('[data-drag-handle]')) {
-          break;
-        }
-
-        const hasTitle = node.querySelector('h1, h2');
-
-        if (hasTitle) {
-          node.setAttribute('data-sve-panel-hide', '');
-          break;
-        }
-      }
-    });
-
-    // Synced-section entry: hide library meta + publish chrome so the panel
-    // matches a normal section focus view (not Navn/Synced/Published/SEO).
-    if (isEntry) {
-      hideSavedSectionEntryChrome(doc);
-    }
-  };
-
-  // When set (e.g. "header"), chrome focus hides every other publish tab so you
-  // can't jump to Colors / Typography while editing the site header/footer.
-  let lockedTabNeedle = null;
-
-  // Tabs this global set never shows in the docked panel (see the addon's
-  // `chrome.hidden_tabs`). Header and footer are edited by clicking them on the
-  // page; the tab is a second way in that shows you nothing while you type.
-  //
-  // Hidden here only — the ordinary Control Panel globals screen is untouched,
-  // so nothing becomes unreachable. And chrome focus still LOCKS to these tabs,
-  // which is why they're only hidden while unlocked: a `display:none` tab has no
-  // offsetParent, and the lock finds its tab among the visible ones.
-  // Read per call, not once at boot: `Statamic.$config` is populated while the
-  // CP boots, and this runs early enough that caching it could catch an empty
-  // one and then never look again. A config get and an array lookup are cheap.
-  const hiddenTabNeedles = () => {
-    if (isEntry) {
-      return [];
-    }
-
-    const map = win.Statamic?.$config?.get?.('sveHiddenGlobalsTabs') || {};
-    const handle = win.location.pathname.split('/').filter(Boolean).pop();
-
-    return Array.isArray(map[handle]) ? map[handle] : [];
-  };
-
-  const isHiddenTab = (tab, needles = hiddenTabNeedles()) => {
-    const text = (tab.textContent || '').trim().toLowerCase();
-
-    return needles.some((needle) => text === needle || text.startsWith(needle));
-  };
-
-  const activatePublishTab = (needle) => {
-    if (!needle) {
-      return false;
-    }
-
-    const tabs = [...doc.querySelectorAll('button[role="tab"]')].filter(
-      (el) => el.offsetParent !== null
-    );
-    const tab = tabs.find((el) => {
-      const text = (el.textContent || '').trim().toLowerCase();
-
-      return text === needle || text.startsWith(needle);
-    });
-
-    if (!tab) {
-      return false;
-    }
-
-    if (tab.getAttribute('aria-selected') !== 'true') {
-      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-        tab.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true }));
-      });
-    }
-
-    return tab.getAttribute('aria-selected') === 'true';
-  };
-
-  const applyTabLock = () => {
-    const tabs = [...doc.querySelectorAll('button[role="tab"]')];
-
-    if (!lockedTabNeedle) {
-      const needles = hiddenTabNeedles();
-
-      doc.documentElement.removeAttribute('data-sve-chrome-locked');
-
-      // Decided before anything is hidden, and from the tabs actually on screen:
-      // reka-ui keeps a hidden measurement copy of every tab, and a tab we hide
-      // ourselves stops being findable the same way.
-      const visible = tabs.filter((tab) => tab.offsetParent !== null);
-      const selected = visible.find((tab) => tab.getAttribute('aria-selected') === 'true');
-      const fallback = visible.find((tab) => !isHiddenTab(tab, needles));
-      const moveOff = selected && isHiddenTab(selected, needles) && fallback;
-
-      tabs.forEach((tab) => {
-        if (tab.hasAttribute('data-sve-chrome-tab-lock')) {
-          tab.removeAttribute('data-sve-panel-hide');
-          tab.removeAttribute('data-sve-chrome-tab-lock');
-        }
-
-        if (isHiddenTab(tab, needles)) {
-          tab.setAttribute('data-sve-panel-hide', '');
-          tab.setAttribute('data-sve-globals-tab-hide', '');
-        }
-      });
-
-      // Statamic opens on the first tab — which is one of the ones just hidden.
-      // Without this the panel shows the header's fields under no visible tab.
-      if (moveOff) {
-        ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-          fallback.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true }));
-        });
-      }
-      doc.querySelectorAll('[data-sve-chrome-tablist-lock]').forEach((el) => {
-        el.removeAttribute('data-sve-panel-hide');
-        el.removeAttribute('data-sve-chrome-tablist-lock');
-      });
-      doc.querySelectorAll('[data-sve-chrome-section-title]').forEach((el) => {
-        el.removeAttribute('data-sve-panel-hide');
-        el.removeAttribute('data-sve-chrome-section-title');
-      });
-      doc.querySelectorAll('[data-sve-chrome-spacer]').forEach((el) => {
-        el.removeAttribute('data-sve-panel-hide');
-        el.removeAttribute('data-sve-chrome-spacer');
-      });
-
-      return;
-    }
-
-    const matchesLock = (tab) => {
-      const text = (tab.textContent || '').trim().toLowerCase();
-
-      return text === lockedTabNeedle || text.startsWith(lockedTabNeedle);
-    };
-
-    // Is the tab we lock to already the open one? Asked first, and this is the
-    // ordinary case: the observer runs on every mutation, and typing in the form
-    // is a stream of them. Only a pass that has somewhere to go may disturb the
-    // lock — undoing and redoing it on each keystroke drops the panel out of
-    // chrome focus between renders, which reads as a flicker.
-    const selected = tabs.find((tab) => tab.getAttribute('aria-selected') === 'true');
-
-    if (!selected || !matchesLock(selected)) {
-      // Everything that hides a tab comes off before the tab is looked for, and
-      // the lock's own marker last of all — `html[data-sve-chrome-locked]` hides
-      // every `[role="tablist"]` by stylesheet, so with it set there is no
-      // visible tab left to find. That matters because `activatePublishTab`
-      // searches the tabs actually on screen: reka-ui keeps a hidden measurement
-      // twin of each one, and off-screen the real tab can't be told from its twin.
-      doc.documentElement.removeAttribute('data-sve-chrome-locked');
-
-      doc.querySelectorAll('[data-sve-globals-tab-hide]').forEach((tab) => {
-        tab.removeAttribute('data-sve-panel-hide');
-        tab.removeAttribute('data-sve-globals-tab-hide');
-      });
-
-      doc.querySelectorAll('[data-sve-chrome-tablist-lock]').forEach((el) => {
-        el.removeAttribute('data-sve-panel-hide');
-        el.removeAttribute('data-sve-chrome-tablist-lock');
-      });
-
-      // Not mounted yet, or renamed away — or reka-ui hasn't settled the
-      // selection this tick. Leave the panel as Statamic renders it, tabs and
-      // all, and try again on the next mutation: a visible tab row the reader
-      // can steer with beats a hidden one over the wrong fields.
-      if (!activatePublishTab(lockedTabNeedle)) {
-        return;
-      }
-    }
-
-    doc.documentElement.setAttribute('data-sve-chrome-locked', '1');
-
-    tabs.forEach((tab) => {
-      if (matchesLock(tab)) {
-        tab.removeAttribute('data-sve-panel-hide');
-        tab.removeAttribute('data-sve-chrome-tab-lock');
-
-        return;
-      }
-
-      tab.setAttribute('data-sve-panel-hide', '');
-      tab.setAttribute('data-sve-chrome-tab-lock', '');
-    });
-
-    // Hide the whole tab row (incl. overflow "…" / lone "Design") so fields sit tight.
-    doc.querySelectorAll('[role="tablist"]').forEach((list) => {
-      const wrap = list.closest('nav') || list.parentElement || list;
-
-      wrap.setAttribute('data-sve-panel-hide', '');
-      wrap.setAttribute('data-sve-chrome-tablist-lock', '');
-    });
-
-    // Blueprint section titles like "Design" — redundant under chrome Design|Settings toggle.
-    doc.querySelectorAll('h1, h2, h3').forEach((heading) => {
-      const text = (heading.textContent || '').trim().toLowerCase();
-
-      if (text !== 'design') {
-        return;
-      }
-
-      const wrap = heading.closest('.publish-section-header, .section-header, header, .flex') || heading;
-
-      wrap.setAttribute('data-sve-panel-hide', '');
-      wrap.setAttribute('data-sve-chrome-section-title', '');
-    });
-
-    // Collapse every sibling above the first publish card — that empty band was the gap
-    // under Design|Settings.
-    const main = doc.querySelector('main');
-    const card = main?.querySelector('.card, .publish-fields, .publish-sections');
-
-    if (card) {
-      let node = card;
-
-      while (node && node !== main) {
-        let sib = node.previousElementSibling;
-
-        while (sib) {
-          const prev = sib.previousElementSibling;
-
-          if (!sib.hasAttribute('data-sve-chrome-spacer')) {
-            sib.setAttribute('data-sve-panel-hide', '');
-            sib.setAttribute('data-sve-chrome-spacer', '');
-          }
-
-          sib = prev;
-        }
-
-        node = node.parentElement;
-      }
-    }
-  };
-
-  hideChrome();
-  applyTabLock();
-  new win.MutationObserver(() => {
-    hideChrome();
-    applyTabLock();
-  }).observe(doc.documentElement, { childList: true, subtree: true });
-
-  // Style picks / tab jumps must not trip "Leave site?" from Statamic's dirty check.
-  try {
-    win.Statamic?.$dirty?.disableWarning?.();
-  } catch {
-    /* ignore */
-  }
-
-  // Statamic's own Save button lives in the page header the panel strips away.
-  // It still works — it just can't be seen — so the panel's Save clicks it, and
-  // the normal save (validation, revisions, toast) runs untouched.
-  win.addEventListener('message', (event) => {
-    if (event.origin !== win.location.origin) {
-      return;
-    }
-
-    if (event.data?.source !== 'statamic-visual-editor') {
-      return;
-    }
-
-    // An inline edit in the page, on content this form owns: apply it to the real
-    // container here. The value poll below streams it straight back out, so the
-    // page re-renders with it — the edit never has to know it crossed a window.
-    if (event.data.type === 'sve-section-set-value') {
-      for (const container of activeContainers(doc)) {
-        container.setFieldValue(event.data.path, event.data.value);
-
-        return;
-      }
-
-      return;
-    }
-
-    // The preview's "+" inside this global section. The blocks belong to this
-    // form, so Statamic's own Add Set picker is opened here — the same call the
-    // CP makes for a page's own sections, just in the document that has them.
-    if (event.data.type === 'sve-section-add-block') {
-      handleAddBlockNative(event.data, doc, win);
-      autoPickSet(doc, win, event.data.setLabel);
-
-      return;
-    }
-
-    // Header/footer design picker: write flattened `header_style` / `footer_style`.
-    if (event.data.type === 'sve-chrome-set-style') {
-      const kind = event.data.kind === 'footer' ? 'footer' : 'header';
-      const style = event.data.style;
-
-      for (const container of activeContainers(doc)) {
-        container.setFieldValue(`${kind}_style`, style);
-
-        return;
-      }
-
-      return;
-    }
-
-    // Open the matching publish tab (Header / Footer / …). reka-ui ignores a
-    // bare click() and keeps a hidden twin of each tab — only the visible one.
-    if (event.data.type === 'sve-activate-tab') {
-      activatePublishTab(
-        String(event.data.label || event.data.kind || '')
-          .trim()
-          .toLowerCase()
-      );
-
-      return;
-    }
-
-    // Live Preview header/footer: only that tab's fields — hide Colors, etc.
-    if (event.data.type === 'sve-lock-tab') {
-      lockedTabNeedle = String(event.data.label || event.data.kind || '')
-        .trim()
-        .toLowerCase();
-
-      if (lockedTabNeedle) {
-        activatePublishTab(lockedTabNeedle);
-        applyTabLock();
-      }
-
-      return;
-    }
-
-    if (event.data.type === 'sve-unlock-tabs') {
-      lockedTabNeedle = null;
-      applyTabLock();
-
-      return;
-    }
-
-    // Parent confirmed a successful Save — treat current values as clean baseline.
-    if (event.data.type === 'sve-globals-saved') {
-      for (const container of activeContainers(doc)) {
-        const values = unwrapRef(container.values);
-
-        if (values && typeof values === 'object') {
-          previous = JSON.stringify(values);
-          seeded = true;
-        }
-
-        break;
-      }
-
-      return;
-    }
-
-    if (event.data.type !== 'sve-globals-save') {
-      return;
-    }
-
-    // A global set's button reads "Save"; an entry's reads "Save & Publish" — so
-    // match the start, not the whole label, or the panel's Save silently does
-    // nothing for a global section. Clicking works even though it's hidden.
-    [...doc.querySelectorAll('button')]
-      .find((button) => /^(save|gem)\b/i.test((button.textContent || '').trim()))
-      ?.click();
-  });
-
-  const handle = win.location.pathname.split('/').filter(Boolean).pop();
-  let previous = null;
-  let seeded = false;
-
-  // Polled rather than watched: the container's `values` is a Vue ref, and a
-  // 200ms compare is both cheaper and far more robust than reaching into Vue's
-  // reactivity from outside its bundle.
-  win.setInterval(() => {
-    for (const container of activeContainers(doc)) {
-      const values = unwrapRef(container.values);
-
-      if (!values || typeof values !== 'object') {
-        continue;
-      }
-
-      const serialized = JSON.stringify(values);
-
-      if (serialized === previous) {
-        return;
-      }
-
-      const changed = previous !== null;
-      previous = serialized;
-
-      // First snapshot: still push for entries so the parent can resolve inline
-      // edit (sectionPanelContainer). Parent treats the first poll as baseline
-      // and does not mark dirty / stash. Globals keep the old "seed silent" path
-      // — pushing them refreshed the Live Preview on every panel open.
-      if (!seeded) {
-        seeded = true;
-
-        if (!isEntry) {
-          return;
-        }
-      } else if (!changed) {
-        return;
-      }
-
-      try {
-        win.parent.postMessage(
-          isEntry
-            ? { source: 'statamic-visual-editor', type: 'sve-section-values', id: handle, values: JSON.parse(serialized) }
-            : { source: 'statamic-visual-editor', type: 'sve-globals-values', handle, values: JSON.parse(serialized) },
-          win.location.origin
-        );
-      } catch {
-        /* the panel was closed */
-      }
-
-      return;
-    }
-  }, 250);
-
-  // Preview asked to focus a field/block inside this synced section — same as
-  // clicking it on a normal page (solo + field focus in THIS form).
-  win.addEventListener('message', (event) => {
-    if (event.origin !== win.location.origin || event.data?.source !== 'statamic-visual-editor') {
-      return;
-    }
-
-    if (event.data.type === 'sve-section-focus') {
-      const applyFocus = (attempt = 0) => {
-        hideSavedSectionEntryChrome(doc);
-
-        // Same path as a normal page click: open the block that owns the field,
-        // not just the section scope (which may be a parent when block ids were
-        // missing from saved YAML).
-        if (event.data.field) {
-          let opened = false;
-
-          if (event.data.uid) {
-            if (focusPanelOn(win)) {
-              opened = focusFieldOwner(event.data.field, event.data.uid, doc, win);
-            } else {
-              opened = soloSection(event.data.uid, doc, win);
-            }
-          }
-
-          handleFieldFocus(event.data.field, doc, { scopeUid: event.data.uid });
-
-          if (event.data.uid) {
-            win.setTimeout(
-              () => handleFieldFocus(event.data.field, doc, { animate: false, scopeUid: event.data.uid }),
-              COLLAPSE_SETTLE_MS
-            );
-          }
-
-          // Form still mounting / set collapsed — expand and retry a few times
-          // so the sidebar does not stick on an empty Headline header.
-          if (!opened && event.data.uid && attempt < 12) {
-            expandTopLevelSectionSets(doc, sectionField(win));
-            win.setTimeout(() => applyFocus(attempt + 1), 120);
-          }
-        } else if (event.data.uid) {
-          const opened = soloSection(event.data.uid, doc, win);
-
-          if (!opened && attempt < 12) {
-            expandTopLevelSectionSets(doc, sectionField(win));
-            win.setTimeout(() => applyFocus(attempt + 1), 120);
-          }
-        }
-      };
-
-      applyFocus();
-    }
-  });
-
-  // Entry form for a saved section: jump straight into the first page section so
-  // the left panel matches a normal Hero/… focus view (not Navn/Synced meta).
-  if (isEntry) {
-    injectPanelFocusStyles(doc);
-    bootSavedSectionSolo(win, doc);
-    // Parent may have queued a click before this frame's listener existed.
-    try {
-      win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'sve-section-panel-ready' },
-        win.location.origin
-      );
-    } catch {
-      /* panel closed */
-    }
-  }
-
-  return true;
-}
-
-/** Focus-panel CSS lives on the parent CP; the sve-panel iframe needs its own copy. */
-function injectPanelFocusStyles(doc) {
-  if (doc.getElementById('__sve-panel-focus-styles')) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = '__sve-panel-focus-styles';
-  style.textContent = `
-    [data-sve-focus-header] {
-      position: sticky; top: 0; z-index: 3; display: flex; flex-direction: column;
-      gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.875rem 0 1rem;
-      border-bottom: 1px solid rgba(128,128,128,.16);
-      background: var(--theme-color-content-bg, var(--color-white, #fff));
-    }
-    [data-sve-focus-id] { display: flex; align-items: center; gap: 0.7rem; }
-    [data-sve-focus-tile] {
-      flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-      width: 2.1rem; height: 2.1rem; border-radius: 0.6rem;
-      background: rgba(128,128,128,.16); font-size: 0.9rem; font-weight: 600; line-height: 1;
-    }
-    [data-sve-focus-title] { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.25; }
-    [data-sve-focus-back] {
-      all: unset; cursor: pointer; flex: 0 0 auto; display: inline-flex; align-items: center;
-      gap: 0.55em; margin-left: auto; padding: 0.55em 0.95em; border-radius: 0.55rem;
-      background: rgba(128,128,128,.16); font-size: 0.75rem; font-weight: 500; line-height: 1;
-      white-space: nowrap;
-    }
-    [data-sve-focus-back]:hover { background: rgba(128,128,128,.28); }
-    [data-sve-focus-back-arrow] {
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 1.2rem; line-height: 1; font-weight: 600;
-      transform: translateY(-1.5px);
-    }
-    [data-sve-focus-desc] { margin: 0; font-size: 0.8125rem; line-height: 1.5; opacity: .6; }
-    [data-sve-focus] [data-sve-focus-hide] { display: none !important; }
-    [data-sve-focus] [data-sve-focus-set] > header { display: none !important; }
-    [data-sve-focus-step] {
-      all: unset; cursor: pointer; flex: 0 0 auto; display: inline-flex; align-items: center;
-      justify-content: center; width: 1.6rem; height: 1.6rem; margin-left: 0.25rem;
-      border-radius: 0.4rem; opacity: .45;
-    }
-    header:hover > [data-sve-focus-step] { opacity: .9; }
-    [data-sve-focus] [data-sve-focus-flat] {
-      border: 0 !important; border-radius: 0 !important; background: none !important;
-      box-shadow: none !important; padding: 0 !important; margin: 0 !important;
-    }
-    [data-sve-focus] [data-sve-focus-flat] > hr { display: none !important; }
-    [data-sve-focus] [data-sve-focus-flush] { padding-inline: 0 !important; }
-    /* Entry Main/Sidebar tabs — redundant once we're inside the section. */
-    [data-sve-focus] [role="tablist"] { display: none !important; }
-  `;
-  doc.head.appendChild(style);
-}
-
-/** Library-only fields on a saved_sections entry — not part of a normal section edit. */
-const SAVED_SECTION_META_HANDLES = ['title', 'synced', 'section_type', 'preview_image'];
-
-/**
- * Hide entry chrome that a normal Live Preview section never shows: library
- * meta (Navn/Synced/…), Published, and SEO/Sidebar/Page settings tabs.
- */
-function hideSavedSectionEntryChrome(doc) {
-  const hideRow = (el) => {
-    if (!el) {
-      return;
-    }
-
-    // Never hide fields that live inside the section being edited.
-    if (el.closest?.(SELECTORS.replicatorSet)) {
-      return;
-    }
-
-    // `[class*="publish-field"]` is deliberately not in this list. Statamic 6
-    // renders no singular `.publish-field` at all — a field is a `*-fieldtype`
-    // wrapper — so the substring match only ever found `.publish-fields`, the
-    // whole field column, and hiding one meta field took the entire panel with
-    // it: header showing, nothing under it.
-    const row =
-      el.closest('.publish-field') ||
-      el.closest('[class*="-fieldtype"]') ||
-      el.closest('label') ||
-      (el.parentElement?.children.length === 1 ? el.parentElement : el);
-
-    // A row holding the section itself is not a row — it is the column around
-    // it. Asked in terms of what must survive rather than what to climb past,
-    // so the next markup change cannot bring the blank panel back.
-    if (!row || row.querySelector?.(SELECTORS.replicatorSet)) {
-      return;
-    }
-
-    row.setAttribute('data-sve-panel-hide', '');
-  };
-
-  for (const handle of SAVED_SECTION_META_HANDLES) {
-    const el =
-      doc.getElementById(`field_${handle}`) ||
-      doc.querySelector(`.publish-field-${handle}`) ||
-      doc.querySelector(`[data-field="${handle}"]`) ||
-      doc.querySelector(`[data-handle="${handle}"]`);
-
-    if (el) {
-      el.setAttribute('data-sve-panel-hide', '');
-      hideRow(el);
-    }
-
-    // Statamic 6 often omits field_* ids — match bare name attributes outside sets.
-    doc.querySelectorAll(`[name="${handle}"]`).forEach((input) => hideRow(input));
-  }
-
-  // Published toggle — Statamic 6 may render it outside field_* ids (switch /
-  // reka). Match by label text, name, or aria.
-  doc.querySelectorAll('label, .toggle-fieldtype, [class*="toggle-fieldtype"], [role="switch"]').forEach((el) => {
-    if (el.closest?.(SELECTORS.replicatorSet)) {
-      return;
-    }
-
-    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-    const name = el.getAttribute('name') || el.querySelector?.('input')?.getAttribute('name') || '';
-
-    if (
-      /^(published|udgivet)\b/i.test(text) ||
-      name === 'published' ||
-      el.querySelector?.('input[name="published"]')
-    ) {
-      hideRow(el);
-    }
-  });
-
-  doc.querySelectorAll('input[name="published"], [name="published"]').forEach(hideRow);
-
-  // Extra publish tabs (Sidebar / SEO / Page settings) — keep Main only.
-  // Section Content/Style use data-sve-section-seg, not role=tab.
-  const tabs = [...doc.querySelectorAll('button[role="tab"]')];
-
-  if (tabs.length > 1) {
-    const first = tabs[0];
-
-    if (first.getAttribute('aria-selected') !== 'true') {
-      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-        first.dispatchEvent(
-          new (doc.defaultView?.PointerEvent || PointerEvent)(type, {
-            bubbles: true,
-            cancelable: true,
-          })
-        );
-      });
-    }
-
-    tabs.forEach((tab, index) => {
-      if (index > 0) {
-        tab.setAttribute('data-sve-panel-hide', '');
-      }
-    });
-
-    const tablist = first.closest('[role="tablist"]');
-
-    if (tablist) {
-      tablist.setAttribute('data-sve-panel-hide', '');
-    }
-  }
-}
-
-/**
- * Expand top-level page_sections sets so their _visual_id inputs exist in the DOM.
- * Collapsed replicator sets render no fields — findSetByUid would otherwise fail.
- */
-function expandTopLevelSectionSets(doc, field) {
-  const fieldEl = doc.getElementById(`field_${field}`);
-  const root = fieldEl || doc.querySelector('main') || doc;
-  let expanded = false;
-
-  root.querySelectorAll(SELECTORS.replicatorSet).forEach((setEl) => {
-    const ancestor = setEl.parentElement?.closest(SELECTORS.replicatorSet);
-
-    if (ancestor && root.contains(ancestor)) {
-      return; // nested block — leave for focusFieldOwner / solo later
-    }
-
-    if (isSetCollapsed(setEl)) {
-      expandSet(setEl);
-      expanded = true;
-    }
-  });
-
-  return expanded;
-}
-
-/** Solo the first page_sections row so the panel matches a normal section edit. */
-function bootSavedSectionSolo(win, doc) {
-  const field = sectionField(win);
-  let attempts = 0;
-
-  hideSavedSectionEntryChrome(doc);
-
-  const tryBoot = () => {
-    hideSavedSectionEntryChrome(doc);
-
-    // Prefer event-captured containers; fall back to walking the Vue tree from
-    // any mounted visual-id input (form may have mounted before we listened).
-    const containers = activeContainers(doc);
-
-    for (const container of containers) {
-      const values = unwrapRef(container.values);
-      const rows = values && typeof values === 'object' ? values[field] : null;
-
-      if (!Array.isArray(rows) || !rows.length) {
-        continue;
-      }
-
-      // Legacy synced entries stripped nested ids — assign them once so preview
-      // scope="{{ id }}" and focusFieldOwner can target Headline blocks.
-      const next = JSON.parse(JSON.stringify(rows));
-
-      if (ensureNestedRowIds(next)) {
-        container.setFieldValue(field, next);
-
-        // Wait for the write + value poll before soloing.
-        win.setTimeout(tryBoot, 150);
-
-        return;
-      }
-
-      const row = next[0];
-      const uid = row?._visual_id || row?.id || row?._id;
-
-      if (!uid) {
-        // Section row with no id yet — mint one and retry.
-        row.id = newRowId();
-        container.setFieldValue(field, next);
-        win.setTimeout(tryBoot, 150);
-
-        return;
-      }
-
-      // Collapsed sets have no visual-id inputs — expand first, then retry.
-      if (!findSetByUid(uid, doc)) {
-        expandTopLevelSectionSets(doc, field);
-        // Also expand every replicator set we can see (ids may live on nested inputs).
-        doc.querySelectorAll(SELECTORS.replicatorSet).forEach((setEl) => {
-          if (isSetCollapsed(setEl)) {
-            expandSet(setEl);
-          }
-        });
-
-        if (attempts++ < 60) {
-          win.setTimeout(tryBoot, COLLAPSE_SETTLE_MS);
-
-          return;
-        }
-
-        continue;
-      }
-
-      const opened = soloSection(uid, doc, win, { kind: 'section' });
-
-      if (opened) {
-        doc.documentElement.setAttribute('data-sve-boot', 'ok');
-
-        return;
-      }
-    }
-
-    // Form still mounting — keep expanding anything that appeared and retry.
-    expandTopLevelSectionSets(doc, field);
-
-    if (attempts++ < 60) {
-      win.setTimeout(tryBoot, 120);
-    } else {
-      doc.documentElement.setAttribute('data-sve-boot', 'fail');
-    }
-  };
-
-  tryBoot();
-}
-
-/**
- * Assign stable `id` on every set row that lacks one (synced sections saved
- * before nested ids were preserved). Returns true when anything changed.
- *
- * Only replicator/grid rows (`enabled` and/or section handles like `hero/style_1`)
- * — never Bard/ProseMirror nodes (`paragraph`, `text`, …).
- */
-function ensureNestedRowIds(node) {
-  let changed = false;
-
-  const isSetRow = (n) =>
-    n &&
-    typeof n === 'object' &&
-    typeof n.type === 'string' &&
-    n.type &&
-    ('enabled' in n || 'blocks' in n || n.type.includes('/'));
-
-  const walk = (n) => {
-    if (Array.isArray(n)) {
-      n.forEach(walk);
-    } else if (n && typeof n === 'object') {
-      if (isSetRow(n) && !n.id && !n._id) {
-        n.id = newRowId();
-        changed = true;
-      }
-
-      Object.values(n).forEach(walk);
-    }
-  };
-
-  walk(node);
-
-  return changed;
-}
-
-/**
- * Clicking content that comes from a global (global_edit="site_settings.phone"):
- * open that set in the panel and jump to the field. Editing it there updates the
- * preview as you type — the same live path the panel already uses.
- */
-export function handleOpenGlobal(data, doc, win) {
-  const sets = globalSets(win);
-
-  if (!sets.length) {
-    return;
-  }
-
-  const [handle, field] = String(data.target || '').split('.');
-  const set = sets.find((candidate) => candidate.handle === handle) ?? sets[0];
-  const picker = doc.getElementById(GLOBALS_PICKER_ID);
-
-  if (picker) {
-    picker.value = set.handle;
-  }
-
-  openGlobalsPanel(win, set);
-
-  if (field) {
-    focusGlobalField(win, field);
-  }
-}
-
-/**
- * The global set holding one half of the site frame.
- *
- * The two halves may share one set (`global`) or have one each
- * (`header.global` / `footer.global`). Every caller asks per half, and a shared
- * set simply answers with the same handle twice — so which layout the site uses
- * stops being something the rest of the file has to know.
- */
-function chromeGlobalHandle(win, kind = null) {
-  const cfg = chromeConfig(win);
-  const own = kind === 'footer' || kind === 'header' ? cfg[kind]?.global : null;
-
-  // Asked without a half — a warm-up, not an open. A site that only names the two
-  // separately still gets a real handle rather than the theme's.
-  return own || cfg.global || cfg.header?.global || cfg.footer?.global || 'theme_settings';
-}
-
-function chromeConfig(win) {
-  const cfg = win.Statamic?.$config?.get?.('sveChrome');
-
-  return cfg && typeof cfg === 'object' ? cfg : {};
-}
-
-/** Configured layout cards for header/footer (`sveChrome.header.styles` etc.). */
-function chromeStyles(win, kind) {
-  const list = chromeConfig(win)[kind]?.styles;
-
-  return Array.isArray(list) ? list : [];
-}
-
-function closeChromeDesignsPanel(win) {
-  win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
-  releaseLeftEdgeIfFree(win);
-  syncPreviewInset(win);
-}
-
-const CHROME_MODE_TOGGLE_ATTR = 'data-sve-chrome-mode-toggle';
-
-/** Which chrome sidebar view is visible: design picker vs Theme Settings. */
-function currentChromeSidebarMode(win) {
-  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
-
-  if (designs && !designs.hasAttribute('data-sve-chrome-hidden') && designs.style.display !== 'none') {
-    return 'design';
-  }
-
-  return 'settings';
-}
-
-function paintChromeModeToggle(row, mode) {
-  if (!row) {
-    return;
-  }
-
-  row.querySelectorAll('[data-sve-chrome-mode]').forEach((btn) => {
-    const on = btn.getAttribute('data-sve-chrome-mode') === mode;
-
-    btn.style.background = on ? 'rgba(128,128,128,.22)' : 'transparent';
-    btn.style.fontWeight = on ? '600' : '500';
-    btn.style.opacity = on ? '1' : '.72';
-    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-  });
-}
-
-function paintAllChromeModeToggles(win, mode) {
-  win.document.querySelectorAll(`[${CHROME_MODE_TOGGLE_ATTR}]`).forEach((row) => {
-    paintChromeModeToggle(row, mode);
-  });
-}
-
-function removeChromeModeToggles(win) {
-  win.document.querySelectorAll(`[${CHROME_MODE_TOGGLE_ATTR}]`).forEach((el) => el.remove());
-}
-
-/**
- * Segmented Design | Settings control for the chrome sidebar.
- * Replaces the old Designs/Settings buttons on the preview bottom bar.
- */
-function buildChromeModeToggle(win, mode) {
-  const doc = win.document;
-  const row = doc.createElement('div');
-
-  row.setAttribute(CHROME_MODE_TOGGLE_ATTR, '');
-  row.style.cssText =
-    'display:flex;gap:4px;padding:2px 10px 0;flex:0 0 auto;';
-
-  const track = doc.createElement('div');
-
-  track.style.cssText =
-    'display:flex;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
-    'background:rgba(128,128,128,.12);';
-
-  const makeBtn = (key, label) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.setAttribute('data-sve-chrome-mode', key);
-    btn.style.cssText =
-      'all:unset;cursor:pointer;flex:1 1 0;text-align:center;padding:7px 10px;' +
-      'border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
-    btn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      setChromeSidebarMode(win, key);
-    });
-    track.appendChild(btn);
-  };
-
-  makeBtn('design', t(win, 'chrome_designs'));
-  // Key stays 'settings' — it names the sidebar mode, which is the global set's
-  // own form. The label says what that form is for: the header's content.
-  makeBtn('settings', t(win, 'chrome_content'));
-  row.appendChild(track);
-  paintChromeModeToggle(row, mode);
-
-  return row;
-}
-
-/** Insert (or refresh) the Design/Settings toggle under a panel header. */
-function ensureChromeModeToggle(win, panel, mode) {
-  if (!panel) {
-    return;
-  }
-
-  let row = panel.querySelector(`[${CHROME_MODE_TOGGLE_ATTR}]`);
-
-  if (!row) {
-    row = buildChromeModeToggle(win, mode);
-    const header = panel.firstElementChild;
-
-    if (header?.nextSibling) {
-      panel.insertBefore(row, header.nextSibling);
-    } else {
-      panel.appendChild(row);
-    }
-  } else {
-    paintChromeModeToggle(row, mode);
-  }
-}
-
-/** Switch chrome sidebar between design picker and Theme Settings. */
-function setChromeSidebarMode(win, mode) {
-  const kind =
-    activeChromeKind ||
-    win.document.getElementById(GLOBALS_PANEL_ID)?.getAttribute('data-sve-chrome-kind') ||
-    win.document.getElementById(CHROME_DESIGNS_ID)?.getAttribute('data-sve-chrome-kind') ||
-    'header';
-  const chromeKind = kind === 'footer' ? 'footer' : 'header';
-
-  if (mode === 'design') {
-    openChromeDesignsPanel(win, chromeKind);
-    paintAllChromeModeToggles(win, 'design');
-
-    return;
-  }
-
-  // Keep designs mounted (hidden) so toggling back is instant.
-  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
-
-  if (designs) {
-    designs.style.cssText =
-      'position:fixed;left:-10000px;top:0;width:440px;height:100vh;z-index:-1;display:none;';
-    designs.setAttribute('data-sve-chrome-hidden', '1');
-  }
-
-  // Edited in this window "settings" is simply the chrome's own tab again — the
-  // fields never left, the design drawer was only sitting over them.
-  if (chromeHost(win.document)) {
-    soloUid = null;
-    soloChromeTab(win, win.document, chromeKind);
-    watchChromeSolo(win, win.document, chromeKind);
-    paintAllChromeModeToggles(win, 'settings');
-
-    return;
-  }
-
-  showGlobalsPanel(win);
-  lockChromeGlobalsTab(win, chromeKind);
-  ensureChromeModeToggle(win, win.document.getElementById(GLOBALS_PANEL_ID), 'settings');
-  paintAllChromeModeToggles(win, 'settings');
-}
-
-/**
- * Design picker for header/footer — same shared LP editor as Theme Settings /
- * page sections. Hides Theme Settings while open; form stays mounted for writes.
- */
-function openChromeDesignsPanel(win, kind) {
-  const doc = win.document;
-  const chromeKind = kind === 'footer' ? 'footer' : 'header';
-  const existing = doc.getElementById(CHROME_DESIGNS_ID);
-
-  if (existing) {
-    existing.setAttribute('data-sve-chrome-kind', chromeKind);
-    existing.dispatchEvent(new CustomEvent('sve-chrome-render'));
-    hideGlobalsPanel(win);
-    existing.style.display = 'flex';
-    existing.removeAttribute('data-sve-chrome-hidden');
-    mountInLivePreviewEditor(win, existing);
-    ensureChromeModeToggle(win, existing, 'design');
-    paintAllChromeModeToggles(win, 'design');
-    syncPreviewInset(win);
-
-    return;
-  }
-
-  // Keep Theme Settings mounted (hidden) + sections library if open on the right.
-  closeRightPanels(win, [CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, SECTION_PICKER_ID]);
-  hideGlobalsPanel(win);
-
-  const panel = doc.createElement('div');
-
-  panel.id = CHROME_DESIGNS_ID;
-  panel.setAttribute('data-sve-chrome-kind', chromeKind);
-  panel.style.cssText = editorOverlayCss();
-
-  panel.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
-      <div style="font-size:14px;font-weight:600;" data-sve-title></div>
-    </div>
-    <div data-sve-hint style="padding:6px 14px;font-size:11px;opacity:.6;flex:0 0 auto;"></div>
-    <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
-      <input data-sve-search type="text" autocomplete="sve-off"
-        style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
-        background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
-    </div>
-    <div data-sve-scroll style="flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;">
-      <div data-sve-grid style="column-gap:12px;"></div>
-    </div>
-  `;
-
-  const applyLayout = () => {
-    const w = panel.getBoundingClientRect().width || 400;
-    const cols = w >= 720 ? 3 : w >= 480 ? 2 : 1;
-    const grid = panel.querySelector('[data-sve-grid]');
-
-    if (grid) {
-      grid.style.columnCount = String(cols);
-    }
-  };
-
-  mountInLivePreviewEditor(win, panel);
-  ensureChromeModeToggle(win, panel, 'design');
-  applyLayout();
-  syncPreviewInset(win);
-
-  // Recalc columns when the shared editor is resized.
-  try {
-    const ro = new win.ResizeObserver(() => applyLayout());
-
-    ro.observe(panel);
-  } catch {
-    /* older browsers */
-  }
-
-  const titleEl = panel.querySelector('[data-sve-title]');
-  const hintEl = panel.querySelector('[data-sve-hint]');
-  const searchEl = panel.querySelector('[data-sve-search]');
-  const gridEl = panel.querySelector('[data-sve-grid]');
-  let query = '';
-
-  const empty = (msg) => {
-    const el = doc.createElement('div');
-
-    el.style.cssText =
-      'padding:24px 8px;text-align:center;opacity:.55;font-size:13px;column-span:all;break-inside:avoid;';
-    el.textContent = msg;
-
-    return el;
-  };
-
-  const markSelected = (style) => {
-    gridEl.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
-      const on = el.getAttribute('data-sve-chrome-style') === style;
-
-      el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
-      el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
-    });
-  };
-
-  const render = () => {
-    const activeKind = panel.getAttribute('data-sve-chrome-kind') === 'footer' ? 'footer' : 'header';
-
-    titleEl.textContent =
-      activeKind === 'footer' ? t(win, 'tab_footer') : t(win, 'tab_header');
-    hintEl.textContent = t(win, 'chrome_library_hint');
-    searchEl.placeholder = t(win, 'chrome_search_placeholder');
-    gridEl.innerHTML = '';
-
-    const styles = chromeStyles(win, activeKind);
-
-    if (!styles.length) {
-      gridEl.appendChild(empty(t(win, 'chrome_no_styles')));
-
-      return;
-    }
-
-    const filtered = styles.filter((item) =>
-      libraryMatchesQuery({ ...item, title: item.label || item.title }, query)
-    );
-
-    if (!filtered.length) {
-      gridEl.appendChild(empty(t(win, 'library_no_matches')));
-
-      return;
-    }
-
-    filtered.forEach((item) => {
-      const el = doc.createElement('div');
-      const title = item.label || item.handle;
-      const imageUrl = item.preview_url || item.image || '';
-
-      el.setAttribute('data-sve-chrome-style', item.handle);
-      el.style.cssText =
-        'cursor:pointer;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
-        'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
-        'user-select:none;vertical-align:top;';
-      el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
-      el.addEventListener('mouseleave', () => {
-        const selected = el.style.boxShadow && el.style.boxShadow !== 'none';
-
-        el.style.borderColor = selected ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
-      });
-      el.innerHTML = `
-        <div style="width:100%;background:rgba(128,128,128,.12);pointer-events:none;">
-          ${
-            imageUrl
-              ? `<img src="${imageUrl}" alt="" style="width:100%;height:auto;display:block;">`
-              : `<div style="width:100%;aspect-ratio:16/5;min-height:56px;display:flex;align-items:center;justify-content:center;opacity:.45;font-size:12px;">${title}</div>`
-          }
-        </div>
-        <div style="padding:8px 10px;font-size:12px;font-weight:500;pointer-events:none;">${title}</div>
-      `;
-      el.addEventListener('click', () => {
-        markSelected(item.handle);
-        setChromeStyle(win, activeKind, item.handle);
-      });
-      gridEl.appendChild(el);
-    });
-  };
-
-  searchEl.addEventListener('input', () => {
-    query = searchEl.value || '';
-    render();
-  });
-
-  panel.addEventListener('sve-chrome-render', render);
-  render();
-  searchEl.focus();
-}
-
-/**
- * Clicking the site header/footer in Live Preview: open Theme Settings locked
- * to that chrome tab only (no Colors / Typography while you're in the header).
- */
-export function handleOpenChrome(data, doc, win) {
-  const kind = data.kind === 'footer' ? 'footer' : 'header';
-  const handle = chromeGlobalHandle(win, kind);
-  const sets = globalSets(win);
-  const set = sets.find((candidate) => candidate.handle === handle);
-
-  if (!set) {
-    return;
-  }
-
-  const picker = doc.getElementById(GLOBALS_PICKER_ID);
-
-  if (picker) {
-    picker.value = set.handle;
-  }
-
-  closeChromeDesignsPanel(win);
-
-  if (CHROME_INLINE) {
-    openChromeInline(win, kind);
-  } else {
-    openGlobalsPanel(win, set, { chromeLock: kind });
-    showGlobalsPanel(win);
-    lockChromeGlobalsTab(win, kind);
-  }
-
-  assertChromeFocusInPreview(win);
-
-  // Entering chrome always starts clean — tab-lock must not look like user edits.
-  globalsStashActive = false;
-  chromeIgnoreValuePostsUntil = Date.now() + 900;
-  chromeValuesBaseline = null;
-  clearGlobalsDirtyMarks(win);
-  notifyChromeDirty(win);
-  syncSectionLibraryAvailability(win);
-
-  win.setTimeout(() => markChromeFormClean(win), 500);
-  win.setTimeout(() => markChromeFormClean(win), 1000);
-}
-
-/** Writes header.style / footer.style into the open globals panel form. */
-function setChromeStyle(win, kind, style, attempt = 0) {
-  const handle = chromeGlobalHandle(win, kind);
-  const sets = globalSets(win);
-  const set = sets.find((candidate) => candidate.handle === handle);
-
-  // Edited in this window the field is right here — the same write the panel is
-  // asked to make over postMessage, made directly.
-  const container = chromeHost(win.document) ? chromeContainer() : null;
-
-  if (container) {
-    container.setFieldValue(`${kind === 'footer' ? 'footer' : 'header'}_style`, style);
-
-    win.document.getElementById(CHROME_DESIGNS_ID)?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
-      const on = el.getAttribute('data-sve-chrome-style') === style;
-
-      el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
-      el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
-    });
-
-    return;
-  }
-
-  const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
-
-  // Designs panel alone isn't enough — style changes must hit the theme_settings
-  // form so the globals stash + preview refresh run. Keep the form mounted (hidden).
-  if (!frame?.contentWindow) {
-    if (set) {
-      openGlobalsPanel(win, set, { keepLibrary: true, chromeLock: kind === 'footer' ? 'footer' : 'header' });
-      hideGlobalsPanel(win);
-    }
-
-    if (attempt < 25) {
-      setTimeout(() => setChromeStyle(win, kind, style, attempt + 1), 200);
-    }
-
-    return;
-  }
-
-  frame.contentWindow.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-chrome-set-style', kind, style },
-    win.location.origin
-  );
-
-  // Form may still be mounting — retry a few times.
-  if (attempt < 15) {
-    setTimeout(() => {
-      const again = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
-
-      again?.contentWindow?.postMessage(
-        { source: 'statamic-visual-editor', type: 'sve-chrome-set-style', kind, style },
-        win.location.origin
-      );
-    }, 250 * (attempt + 1));
-  }
-
-  // Mark the chosen card in the open designs panel.
-  const panel = win.document.getElementById(CHROME_DESIGNS_ID);
-
-  panel?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
-    const on = el.getAttribute('data-sve-chrome-style') === style;
-
-    el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
-    el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
-  });
-}
-
-/**
- * Lock Theme Settings to Header or Footer only (chrome focus from Live Preview).
- * reka-ui keeps a hidden measurement copy of each tab — only the visible one
- * switches — and it needs the full pointer sequence, not a bare `.click()`.
- */
-function lockChromeGlobalsTab(win, kind, attempts = 0) {
-  const chromeKind = kind === 'footer' ? 'footer' : 'header';
-  const label = chromeKind === 'footer' ? 'Footer' : 'Header';
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-  const frame = panel?.querySelector('iframe');
-  const iwin = frame?.contentWindow;
-  const inner = frame?.contentDocument;
-  const title = panel?.querySelector('[data-sve-globals-title]');
-
-  if (panel) {
-    panel.setAttribute('data-sve-chrome-kind', chromeKind);
-    panel.setAttribute('data-sve-chrome-locked', '1');
-    ensureChromeModeToggle(win, panel, currentChromeSidebarMode(win));
-  }
-
-  setActiveChromeKind(chromeKind);
-
-  if (title) {
-    title.textContent = label;
-  }
-
-  if (!iwin || !inner) {
-    if (attempts < 40) {
-      setTimeout(() => lockChromeGlobalsTab(win, chromeKind, attempts + 1), 150);
-    }
-
-    return;
-  }
-
-  iwin.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-lock-tab', label, kind: chromeKind },
-    win.location.origin
-  );
-
-  const tabs = [...inner.querySelectorAll('button[role="tab"]')].filter((el) => el.offsetParent !== null);
-  const tab = tabs.find((el) => {
-    const text = (el.textContent || '').trim().toLowerCase();
-    const needle = label.toLowerCase();
-
-    return text === needle || text.startsWith(needle);
-  });
-
-  if (tab?.getAttribute('aria-selected') === 'true') {
-    // Tablist should already be hidden by the iframe lock — done.
-    return;
-  }
-
-  if (tab) {
-    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-      tab.dispatchEvent(new iwin.PointerEvent(type, { bubbles: true, cancelable: true }));
-    });
-  }
-
-  if (attempts < 40) {
-    setTimeout(() => lockChromeGlobalsTab(win, chromeKind, attempts + 1), 150);
-  }
-}
-
-/** Full Theme Settings again — all publish tabs visible. */
-function unlockChromeGlobalsTabs(win) {
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-  const frame = panel?.querySelector('iframe');
-  const title = panel?.querySelector('[data-sve-globals-title]');
-  const handle = panel?.getAttribute('data-sve-globals-handle');
-  const set = globalSets(win).find((candidate) => candidate.handle === handle);
-
-  panel?.removeAttribute('data-sve-chrome-locked');
-  panel?.removeAttribute('data-sve-chrome-kind');
-  removeChromeModeToggles(win);
-
-  if (title && set) {
-    title.textContent = set.title;
-  }
-
-  frame?.contentWindow?.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-unlock-tabs' },
-    win.location.origin
-  );
-}
-
-/** @deprecated — use lockChromeGlobalsTab */
-function activateGlobalsTab(win, label, attempts = 0) {
-  lockChromeGlobalsTab(win, String(label || '').toLowerCase() === 'footer' ? 'footer' : 'header', attempts);
-}
-
-/** Waits for the panel's form to mount, then scrolls the field into view. */
-function focusGlobalField(win, field, attempts = 0) {
-  const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
-  const inner = frame?.contentDocument;
-
-  const input = inner?.querySelector(`[name="${field}"], #${CSS.escape(field)}`);
-
-  if (input) {
-    input.scrollIntoView({ block: 'center' });
-    input.focus?.();
-
-    return;
-  }
-
-  if (attempts < 30) {
-    setTimeout(() => focusGlobalField(win, field, attempts + 1), 200);
-  }
-}
-
-/** In the Live Preview window: take the values streamed up by the panel. */
-
-// --- Collection picker: move between entries without leaving the preview -------
-//
-// Live Preview is bound to one entry, so "staying in it" is really: navigate, and
-// land back in it. `?live-preview=1` (autoOpenLivePreview) reopens it on arrival,
-// so the seam doesn't show. Collections without a route have no page to render —
-// they still appear, because jumping to "new blog post" is worth having, but they
-// open the ordinary editor and say so.
-
-const COLLECTION_PICKER_ID = '__sve-collection-picker';
-const ENTRY_PICKER_ID = '__sve-entry-picker';
-const NEW_ENTRY_ID = '__sve-new-entry';
-
-const LP_COVER_ID = 'sve-lp-cover';
-
-function pickerCollections(win) {
-  const list = win.Statamic?.$config?.get?.('sveCollections');
-
-  return Array.isArray(list) ? list : [];
-}
-
-/** The entry currently open, from the CP URL. */
-function currentEntryId(win) {
-  const match = win.location.pathname.match(/\/entries\/([^/]+)/);
-
-  return match ? match[1] : null;
-}
-
-/**
- * Overlay that covers only the Live Preview iframe (falls back to full viewport).
- * Keeps confirms visually centered in the preview pane, not the whole CP.
- */
-function createPreviewCenteredOverlay(doc, id) {
-  const overlay = doc.createElement('div');
-
-  if (id) {
-    overlay.id = id;
-  }
-
-  const iframe = doc.getElementById('live-preview-iframe');
-  const rect = iframe?.getBoundingClientRect?.();
-
-  if (rect && rect.width > 0 && rect.height > 0) {
-    overlay.style.cssText =
-      `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;` +
-      'z-index:2147483646;display:flex;align-items:center;justify-content:center;' +
-      'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
-  } else {
-    overlay.style.cssText =
-      'position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;' +
-      'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
-  }
-
-  return overlay;
-}
-
-function dialogCardStyle(win) {
-  return (
-    'width:400px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);'
-  );
-}
-
-/** Subtle Cancel chip — 10% white on dark CP, 10% black on light. */
-function dialogCancelButtonStyle(win) {
-  const dark = win.document.documentElement.classList.contains('dark');
-
-  return (
-    `all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;` +
-    `color:currentColor;background:${dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)'};`
-  );
-}
-
-/** Statamic primary — same as CP “Save & Publish”. */
-function dialogPrimaryButtonStyle() {
-  return (
-    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;' +
-    'background:var(--theme-color-primary,#4f46e5);color:#fff;'
-  );
-}
-
-/** Destructive discard. */
-function dialogDangerButtonStyle() {
-  return (
-    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;' +
-    'background:#dc2626;color:#fff;'
-  );
-}
-
-/**
- * Asks about unsaved work before leaving — a dialog, not a dropdown hanging off
- * whatever you happened to click. Losing edits is the kind of thing that deserves
- * the middle of the screen.
- */
-function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
-  const doc = win.document;
-  const overlay = createPreviewCenteredOverlay(doc);
-
-  const card = doc.createElement('div');
-
-  card.style.cssText =
-    dialogCardStyle(win).replace('width:400px', 'width:560px');
-  card.innerHTML =
-    `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${t(win, 'unsaved_title')}</div>` +
-    `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, 'unsaved_body')}</div>` +
-    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:nowrap;"></div>';
-
-  const actions = card.querySelector('[data-sve-actions]');
-  const close = () => overlay.remove();
-
-  const button = (label, style, onClick) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.style.cssText = style;
-    btn.addEventListener('click', () => {
-      close();
-      onClick();
-    });
-    actions.appendChild(btn);
-  };
-
-  button(t(win, 'cancel'), dialogCancelButtonStyle(win), onCancel);
-  button(
-    t(win, 'unsaved_discard'),
-    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;color:currentColor;background:rgba(128,128,128,.16);',
-    onDiscard
-  );
-  button(t(win, 'unsaved_save'), dialogPrimaryButtonStyle(), onSave);
-
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) {
-      close();
-      onCancel();
-    }
-  });
-
-  overlay.appendChild(card);
-  doc.body.appendChild(overlay);
-}
-
-/**
- * Asks before leaving Theme Settings / a globals overlay with unsaved edits.
- * Save · discard · cancel. Clean overlay (or none) runs `onLeave` immediately.
- */
-function confirmLeaveGlobalsOverlay(win, onLeave, onCancel = () => {}) {
-  if (!isGlobalsOverlayOpen(win) || !hasUnsavedGlobals(win)) {
-    onLeave();
-
-    return;
-  }
-
-  confirmCloseDiscard(
-    win,
-    { titleKey: 'globals_close_title', bodyKey: 'globals_close_body' },
-    () => {
-      discardGlobalsChanges(win, { refresh: true, reloadForm: false }).then(onLeave);
-    },
-    onCancel,
-    () => {
-      saveGlobalsPanel(win, (ok) => {
-        if (ok) {
-          onLeave();
-        }
-      });
-    }
-  );
-}
-
-/**
- * Close chrome / global focus with unsaved edits.
- * Cancel · Save (optional) · Close without saving.
- */
-function confirmCloseDiscard(
-  win,
-  { titleKey, bodyKey, confirmKey = 'discard_close' },
-  onDiscard,
-  onCancel = () => {},
-  onSave = null
-) {
-  const doc = win.document;
-
-  doc.getElementById('__sve-close-discard')?.remove();
-
-  const overlay = createPreviewCenteredOverlay(doc, '__sve-close-discard');
-
-  const card = doc.createElement('div');
-
-  card.style.cssText = dialogCardStyle(win);
-  card.innerHTML =
-    `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${t(win, titleKey)}</div>` +
-    `<div style="font-size:13px;opacity:.7;line-height:1.45;margin-bottom:18px;">${t(win, bodyKey)}</div>` +
-    '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
-
-  const actions = card.querySelector('[data-sve-actions]');
-  const close = () => overlay.remove();
-
-  const button = (label, style, onClick) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.textContent = label;
-    btn.style.cssText = style;
-    btn.addEventListener('click', () => {
-      close();
-      onClick();
-    });
-    actions.appendChild(btn);
-  };
-
-  button(t(win, 'cancel'), dialogCancelButtonStyle(win), onCancel);
-
-  if (typeof onSave === 'function') {
-    button(t(win, 'save'), dialogPrimaryButtonStyle(), onSave);
-  }
-
-  button(t(win, confirmKey), dialogDangerButtonStyle(), onDiscard);
-
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) {
-      close();
-      onCancel();
-    }
-  });
-
-  overlay.appendChild(card);
-  doc.body.appendChild(overlay);
-}
-
-/**
- * Preview asked to leave header/footer focus. Warn if Theme Settings is dirty.
- */
-function handleRequestCloseChrome(win) {
-  const finish = () => {
-    dismissChromeForPageEdit(win);
-    // Closing the header/footer closes the drawer describing it. Parked, not
-    // destroyed — form and stash survive, so stepping back in is instant. Only
-    // on this deliberate exit: stepping sideways into a page section goes
-    // through dismissChromeForPageEdit alone and leaves the drawer alone.
-    parkGlobalsPanel(win);
-    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
-  };
-
-  if (!hasUnsavedGlobals(win)) {
-    finish();
-
-    return;
-  }
-
-  confirmCloseDiscard(
-    win,
-    { titleKey: 'chrome_close_title', bodyKey: 'chrome_close_body' },
-    () => {
-      discardGlobalsChanges(win, { refresh: true, reloadForm: true }).then(finish);
-    },
-    () => {},
-    () => {
-      saveGlobalsPanel(win, (ok) => {
-        if (ok) {
-          finish();
-        }
-      });
-    }
-  );
-}
-
-/**
- * Preview asked to leave a global section. Warn if that section is dirty.
- */
-function handleRequestCloseGlobal(win) {
-  const finish = () => {
-    closeGlobalSectionPanel(win);
-    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
-  };
-
-  if (!hasUnsavedGlobalSection(win)) {
-    finish();
-
-    return;
-  }
-
-  confirmCloseDiscard(
-    win,
-    { titleKey: 'global_close_title', bodyKey: 'global_close_body' },
-    () => finish()
-  );
-}
-
-const LP_NAV_SPINNER_ID = '__sve-nav-spinner';
-
-/**
- * Dims the Live Preview canvas while the next page is on its way — overlay and
- * spinner fade in together, centred on the preview, not perched on the header.
- */
-function showNavSpinner(win) {
-  const doc = win.document;
-
-  if (doc.getElementById(LP_NAV_SPINNER_ID)) {
-    return;
-  }
-
-  const overlay = createPreviewCenteredOverlay(doc, LP_NAV_SPINNER_ID);
-
-  overlay.style.background = 'rgba(0,0,0,.6)';
-  overlay.style.opacity = '0';
-  overlay.style.transition = 'opacity .38s cubic-bezier(.4, 0, .2, 1)';
-  overlay.style.pointerEvents = 'auto';
-  overlay.setAttribute('aria-hidden', 'true');
-  overlay.innerHTML =
-    '<span style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;' +
-    'border-radius:999px;background:#000;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.35);">' +
-    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
-    'stroke-linecap="round" style="animation:sve-lp-spin 1s linear infinite;">' +
-    '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg></span>' +
-    '<style>@keyframes sve-lp-spin{to{transform:rotate(360deg)}}</style>';
-  doc.body.appendChild(overlay);
-  void overlay.offsetWidth;
-  overlay.style.opacity = '1';
-}
-
-function hideNavSpinner(win) {
-  const el = win.document.getElementById(LP_NAV_SPINNER_ID);
-
-  if (!el || el.dataset.hiding) {
-    return;
-  }
-
-  el.dataset.hiding = '1';
-  el.style.opacity = '0';
-
-  const remove = () => el.remove();
-
-  el.addEventListener('transitionend', remove, { once: true });
-  win.setTimeout(remove, 400);
-}
-
-/**
- * Saves, then goes where the user actually asked to go.
- *
- * Without revisions, Statamic answers a save with a redirect to the collection
- * listing — we swallow that and go ourselves, or we'd lose the race and land
- * in admin. With revisions there is no redirect (the form stays open), so
- * waiting for one left the spinner up forever after "Save and continue".
- *
- * If the save fails we stay put, because the error is in here.
- */
-function saveThenNavigate(win, go) {
-  const router = win.__STATAMIC__?.inertia?.router;
-  const save = saveButtonIn(win.document);
-
-  if (!save) {
-    go();
-
-    return;
-  }
-
-  if (typeof router?.on !== 'function') {
-    leaveQuietly(win, go); // no router to head off; a full load outruns the redirect
-
-    return;
-  }
-
-  showNavSpinner(win);
-
-  let settled = false;
-  let redirectWait = null;
-  let offBefore = () => {};
-  let stop = () => {};
-
-  const finish = (ok) => {
-    if (settled) {
-      return;
-    }
-
-    settled = true;
-    stop();
-    offBefore();
-    clearTimeout(timer);
-    clearTimeout(redirectWait);
-
-    if (!ok) {
-      hideNavSpinner(win);
-
-      return;
-    }
-
-    leaveQuietly(win, go);
-  };
-
-  // Listing redirect only (GET). The save itself is PATCH/POST — must not cancel it.
-  offBefore = router.on('before', (event) => {
-    const visit = event.detail?.visit;
-
-    if (visit?.method && String(visit.method).toLowerCase() !== 'get') {
-      return;
-    }
-
-    win.setTimeout(() => finish(true), 0);
-
-    return false;
-  });
-
-  stop = onEntrySave((ok) => {
-    if (settled) {
-      return;
-    }
-
-    if (!ok) {
-      finish(false);
-
-      return;
-    }
-
-    // Revisions stay on the form. Give a listing-redirect a beat, then leave.
-    redirectWait = win.setTimeout(() => finish(true), 200);
-  });
-
-  const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
-
-  save.click();
-}
-
-/**
- * Moves to another entry without the page going out from under you.
- *
- * Always the overlay: the host boots the next editor hidden and swaps once it
- * has painted. Same from the front-end button and from the collection picker.
- */
-function navigateFromLp(win, anchor, url, onCancel = () => {}) {
-
-  const go = () => {
-    // By the time anything calls this, the unsaved question has been put to the
-    // user and answered — on every path into it.
-    dismissDirtyWarning(win);
-    win.document.getElementById(LP_NAV_SPINNER_ID)?.remove();
-
-    // The editor always lives in the overlay iframe. The host (site or CP)
-    // boots the next page hidden and swaps once it has painted — same move
-    // from the front-end button and from the collection picker. The dim
-    // overlay lives on the host so it can fade out over the new page.
-    if (isEmbeddedInSite(win)) {
-      const onFail = (event) => {
-        if (event.origin !== win.location.origin) {
-          return;
-        }
-
-        if (event.data?.source !== 'statamic-visual-editor' || event.data.type !== 'lp-goto-failed') {
-          return;
-        }
-
-        win.removeEventListener('message', onFail);
-        hideNavSpinner(win);
-        coverForNavigation(win, { blocking: true, then: () => (win.location.href = url) });
-      };
-
-      win.addEventListener('message', onFail);
-      gotoOverlay(win, url);
-
-      return;
-    }
-
-    gotoOverlay(win, url);
-  };
-
-  if (!hasUnsavedWork(win) || (!saveButtonIn(win.document) && !hasUnsavedGlobals(win) && !hasUnsavedGlobalSection(win))) {
-    go();
-
-    return;
-  }
-
-  confirmUnsaved(
-    win,
-    () => {
-      // Globals / synced sections first, then the entry.
-      saveGlobalsPanel(win, (ok) => {
-        if (!ok) {
-          onCancel();
-
-          return;
-        }
-
-        saveGlobalSectionPanel(win, (sectionOk) => {
-          if (!sectionOk) {
-            onCancel();
-
-            return;
-          }
-
-          if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
-            go();
-
-            return;
-          }
-
-          saveThenNavigate(win, go);
-        });
-      });
-    },
-    () => {
-      discardChanges(win);
-      discardGlobalsChanges(win);
-      clearSectionsStash(win, { refresh: false });
-      go();
-    },
-    onCancel
-  );
-}
-
-/**
- * "New page": a title and a slug, and you're in it.
- *
- * The Control Panel's create screen would do this too, but it's a whole form on a
- * whole other page — and there is nothing to fill in yet. This asks the two things
- * that can't be guessed and creates the entry bare, so the next thing you see is
- * the page itself, ready to build.
- */
-function newEntryDialog(win, collection, onCreated) {
-  const doc = win.document;
-  const overlay = doc.createElement('div');
-
-  overlay.style.cssText =
-    'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
-    'background:rgba(0,0,0,.45);font-family:ui-sans-serif,system-ui,sans-serif;';
-
-  const card = doc.createElement('div');
-  const input =
-    'width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius:8px;' +
-    'border:1px solid rgba(128,128,128,.4);background:transparent;color:currentColor;font-size:14px;';
-
-  card.style.cssText =
-    'width:420px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
-  card.innerHTML = `
-    <div style="font-size:15px;font-weight:600;margin-bottom:16px;">${t(win, 'new_in', { collection: collection.title })}</div>
-    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'title')}</label>
-    <input type="text" data-sve-title style="${input}margin-bottom:12px;">
-    <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'slug')}</label>
-    <input type="text" data-sve-slug style="${input}">
-    <div data-sve-error style="display:none;font-size:12px;color:#dc2626;margin-top:8px;"></div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
-      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
-      <button type="button" data-sve-create style="all:unset;cursor:pointer;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'create')}</button>
-    </div>
-  `;
-
-  overlay.appendChild(card);
-  doc.body.appendChild(overlay);
-
-  const title = card.querySelector('[data-sve-title]');
-  const slug = card.querySelector('[data-sve-slug]');
-  const error = card.querySelector('[data-sve-error]');
-  const create = card.querySelector('[data-sve-create]');
-  const close = () => overlay.remove();
-
-  title.focus();
-
-  // The slug follows the title until it's touched, and then it's yours — retyping
-  // the title shouldn't quietly undo a slug you chose on purpose.
-  let slugOwned = false;
-
-  slug.addEventListener('input', () => (slugOwned = true));
-  title.addEventListener('input', () => {
-    if (!slugOwned) {
-      slug.value = slugify(title.value);
-    }
-  });
-
-  const submit = () => {
-    const name = title.value.trim();
-
-    if (!name) {
-      title.focus();
-
-      return;
-    }
-
-    create.style.opacity = '.6';
-    create.style.pointerEvents = 'none';
-    error.style.display = 'none';
-
-    win
-      .fetch(`/!/sve/collections/${encodeURIComponent(collection.handle)}/entries`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': csrfToken(win),
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-        body: JSON.stringify({ title: name, slug: slug.value.trim() }),
-      })
-      .then(async (res) => {
-        const body = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          // A taken slug is the one failure worth answering in place.
-          error.textContent = body.message || t(win, 'create_failed');
-          error.style.display = 'block';
-          create.style.opacity = '1';
-          create.style.pointerEvents = '';
-
-          return;
-        }
-
-        close();
-        onCreated(body.id);
-      })
-      .catch(() => {
-        error.textContent = t(win, 'create_failed');
-        error.style.display = 'block';
-        create.style.opacity = '1';
-        create.style.pointerEvents = '';
-      });
-  };
-
-  card.querySelector('[data-sve-cancel]').addEventListener('click', close);
-  create.addEventListener('click', submit);
-  overlay.addEventListener('click', (event) => event.target === overlay && close());
-  card.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      submit();
-    } else if (event.key === 'Escape') {
-      close();
-    }
-  });
-}
-
-/** The slug Statamic would make: lowercase, ascii-ish, hyphenated. */
-function slugify(value) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[æ]/g, 'ae')
-    .replace(/[ø]/g, 'oe')
-    .replace(/[å]/g, 'aa')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function ensureCollectionPicker(win) {
-  const doc = win.document;
-  const header = lpHeader(doc);
-  const collections = pickerCollections(win);
-
-  if (!header || !collections.length || doc.getElementById(COLLECTION_PICKER_ID)) {
-    return;
-  }
-
-  const wrap = doc.createElement('div');
-
-  // Ingen egen flade: den ligger i panelets sammensatte felt, og felterne her
-  // skilles ad af de samme lyse streger som i zoom.
-  wrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-family:inherit;';
-
-  const collectionSelect = doc.createElement('select');
-
-  collectionSelect.id = COLLECTION_PICKER_ID;
-  collectionSelect.style.cssText = FRAMED_SELECT_STYLE;
-
-  collections.forEach((collection) => {
-    const option = doc.createElement('option');
-
-    option.value = collection.handle;
-    // Say it in the option rather than only on hover: you shouldn't have to
-    // discover that a collection can't be previewed by picking it.
-    option.textContent = collection.previewable
-      ? collection.title
-      : `${collection.title} · ${t(win, 'no_preview_collection')}`;
-    collectionSelect.appendChild(option);
-  });
-
-  const entrySelect = doc.createElement('select');
-
-  entrySelect.id = ENTRY_PICKER_ID;
-  entrySelect.style.cssText = `${FRAMED_SELECT_STYLE}max-width:220px;`;
-
-  const newBtn = doc.createElement('button');
-
-  newBtn.type = 'button';
-  newBtn.id = NEW_ENTRY_ID;
-  newBtn.textContent = `+ ${t(win, 'new_entry')}`;
-  // Same flat primary as Visible / active device pills.
-  newBtn.style.cssText =
-    `${FRAMED_CONTROL_STYLE}padding:0 .75rem;font-weight:600;` +
-    `background:${LP_PRIMARY_FLAT};color:#fff;opacity:1;border:none;box-shadow:none;`;
-
-  const selected = () => collections.find((c) => c.handle === collectionSelect.value);
-
-  const fillEntries = async (keepCurrent) => {
-    const collection = selected();
-
-    entrySelect.innerHTML = '';
-    newBtn.title = t(win, 'new_in', { collection: collection?.title ?? '' });
-    collectionSelect.title = collection?.previewable
-      ? ''
-      : t(win, 'no_preview_hint', { collection: collection?.title ?? '' });
-
-    const placeholder = doc.createElement('option');
-
-    placeholder.value = '';
-    placeholder.textContent = t(win, 'choose_entry');
-    entrySelect.appendChild(placeholder);
-
-    let entries = [];
-
-    try {
-      const res = await win.fetch(`/!/sve/collections/${encodeURIComponent(collectionSelect.value)}/entries`, {
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      });
-
-      entries = res.ok ? (await res.json()).entries ?? [] : [];
-    } catch {
-      entries = [];
-    }
-
-    entries.forEach((entry) => {
-      const option = doc.createElement('option');
-
-      option.value = entry.id;
-      option.textContent = entry.published ? entry.title : `${entry.title} ·`;
-      entrySelect.appendChild(option);
-    });
-
-    if (keepCurrent) {
-      entrySelect.value = currentEntryId(win) ?? '';
-    }
-  };
-
-  collectionSelect.addEventListener('change', () => fillEntries(false));
-
-  entrySelect.addEventListener('change', () => {
-    if (!entrySelect.value || entrySelect.value === currentEntryId(win)) {
-      return;
-    }
-
-    const collection = selected();
-    const url =
-      `${win.location.origin}/cp/collections/${encodeURIComponent(collection.handle)}` +
-      `/entries/${encodeURIComponent(entrySelect.value)}${collection.previewable ? '?live-preview=1' : ''}`;
-
-    // Stay-put has to look like staying put: if the trip is called off, the
-    // picker goes back to naming the entry that's actually open.
-    navigateFromLp(win, entrySelect, url, () => {
-      entrySelect.value = currentEntryId(win) ?? '';
-    });
-  });
-
-  newBtn.addEventListener('click', () => {
-    const collection = selected();
-
-    newEntryDialog(win, collection, (id) => {
-      const url =
-        `${win.location.origin}/cp/collections/${encodeURIComponent(collection.handle)}` +
-        `/entries/${encodeURIComponent(id)}${collection.previewable ? '?live-preview=1' : ''}`;
-
-      // The entry already exists by now, so there is nothing unsaved to ask about
-      // — but this is the route that knows how to land in a preview.
-      navigateFromLp(win, newBtn, url);
-    });
-  });
-
-  wrap.appendChild(collectionSelect);
-  wrap.appendChild(entrySelect);
-  wrap.appendChild(newBtn);
-  header.appendChild(wrap);
-
-  // Open on whatever you're already editing, so the picker reads as "you are
-  // here" rather than an empty control.
-  collectionSelect.value = currentCollection(win) ?? collections[0].handle;
-  fillEntries(true);
-}
-
-// --- Global section panel -------------------------------------------------------
-//
-// A synced section's content lives in another entry, so the page's form has
-// nothing to edit — only a reference. This opens that entry's own editor in the
-// left Live Preview panel and stashes what's being typed, so the page around it
-// re-renders live: editing in context, without the section ever needing a URL of
-// its own.
-
-/**
- * Where the synced entry's form is built — the one switch between the two ways
- * of editing a global section.
- *
- * true (default) — in THIS window. Statamic renders the entry screen from a
- *   single component, `EntryPublishForm`, and registers it on the CP's Vue app,
- *   so the same form can be mounted straight into the Live Preview field column
- *   from the props the CP would have handed it. Its sets then sit in the very
- *   document the preview talks to, which is the whole point: `findSetByUid`
- *   finds them, Statamic's own Add Set picker opens over the "+" in the preview,
- *   the sidebar shows the section like any other, and Save is the entry form's
- *   own Save. A global section runs on the page's code, not a copy of it.
- *
- * false — the older way: the same form in an iframe covering the left panel,
- *   reached only over postMessage. Every piece of that route is still here
- *   (openGlobalSectionPanel, forwardGlobalSectionFocus, the sve-section-* message
- *   handlers, openSetPickerOverPreview, autoPickSet), so flipping this back
- *   restores it whole.
- */
-const GLOBAL_SECTION_INLINE = true;
-
-/**
- * The same question asked of the site's header and footer — one switch, same
- * shape as the one above.
- *
- * true (default) — Theme Settings' own publish form is mounted in the Live
- *   Preview field column, isolated to the Header (or Footer) tab. Its widgets are
- *   then sets in this document like any section's blocks: clicking one opens it
- *   in the panel, inline edit writes to a real publish container, and Save is the
- *   globals form's own Save.
- *
- * false — the docked Theme Settings iframe, driven over postMessage. That whole
- *   route is still here (openGlobalsPanel, lockChromeGlobalsTab, the sve-lock-tab
- *   and sve-chrome-set-style messages), and it is also what the in-window route
- *   falls back to when the globals page cannot be mounted — so flipping this back
- *   restores it whole.
- *
- * Goes on together with CHROME_LOCKS_PAGE in bridge.js: the page lock is part of
- * editing the header in the left panel, and one without the other is half a
- * behaviour.
- */
-const CHROME_INLINE = true;
-
-const GLOBAL_SECTION_PANEL_ID = '__sve-global-section-panel';
-
-/** The div the synced entry's form is mounted into, in this document. */
-const GLOBAL_SECTION_HOST_ID = '__sve-global-section-host';
-
-/** Publish-container name for that form — never "base", which is the page's. */
-const GLOBAL_SECTION_CONTAINER = 'sve-global-section';
-
-/** Marks the page's own fields while the field column belongs to a global section. */
-const GLOBAL_SECTION_AWAY_ATTR = 'data-sve-global-away';
-
-// The panel's latest values, as it streams them up: { id, values }. This is what
-// lets a global section be edited inline like any other — see activeContainers.
-let sectionPanelValues = null;
-
-/** First hydrate of the panel form — not a real edit. Same idea as chrome baseline. */
-let sectionValuesBaseline = null;
-
-/** True while the form holds exactly what it was opened with — nothing to save. */
-let sectionValuesMatchBaseline = true;
-
-/** True after we've pushed unsaved global-section values into the preview stash. */
-let sectionsStashActive = false;
-
-/** Edit-request that arrived before the panel streamed values — retry once ready. */
-let pendingEditUntilPanel = null;
-
-/** Preview click/focus that arrived before the panel iframe could receive it. */
-let pendingFocusUntilPanel = null;
-
-/**
- * How long after a save the next values still count as the save's own echo.
- *
- * Statamic replaces the form's values with what the server sent back, and that
- * lands a beat after the request resolves — so the first thing read after a save
- * is the saved entry, not an edit of it. Without this window the bar goes back to
- * "unsaved changes" a quarter of a second after saving, and the section is stashed
- * over a page that already has it.
- */
-let sectionBaselineUntil = 0;
-
-function globalSectionPanelFrame(win) {
-  return win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe') || null;
-}
-
-/**
- * Forward a preview click into the synced-section iframe. Returns true when the
- * click was handled (or queued) as a global-section focus — caller must not run
- * the page-form path.
- *
- * Only clicks *inside* a focused global section are forwarded. A click on a
- * normal page section while the panel is still open must hit the page form —
- * otherwise the sidebar shows an empty Headline header from the wrong document
- * while inline edit (correctly) updates the page.
- */
-function forwardGlobalSectionFocus(data, doc, win) {
-  // No panel means the form is in this window, and there is nowhere to forward
-  // to: the section's fields are in this document, so the click takes the same
-  // path a page section's does.
-  const panel = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-  if (!panel || !(data.field || data.uid) || !data.global) {
-    return false;
-  }
-
-  const frame = panel.querySelector('iframe');
-
-  if (frame?.contentWindow) {
-    pendingFocusUntilPanel = null;
-    frame.contentWindow.postMessage(
-      {
-        source: 'statamic-visual-editor',
-        type: 'sve-section-focus',
-        uid: data.scope || data.uid,
-        field: data.field || null,
-      },
-      win.location.origin
-    );
-
-    return true;
-  }
-
-  // Panel shell is up but the entry form has not mounted yet — hold the click.
-  pendingFocusUntilPanel = { field: data.field || null, uid: data.scope || data.uid || null };
-
-  return true;
-}
-
-function flushPendingFocusUntilPanel(win) {
-  if (!pendingFocusUntilPanel) {
-    return;
-  }
-
-  const frame = globalSectionPanelFrame(win);
-
-  if (!frame?.contentWindow) {
-    return;
-  }
-
-  const { field, uid } = pendingFocusUntilPanel;
-
-  pendingFocusUntilPanel = null;
-  frame.contentWindow.postMessage(
-    {
-      source: 'statamic-visual-editor',
-      type: 'sve-section-focus',
-      uid,
-      field,
-    },
-    win.location.origin
-  );
-}
-
-/**
- * Synced section panel lives in its own iframe — entry $dirty never sees it.
- * Stash activity is the other signal (same idea as Theme Settings).
- */
-function hasUnsavedGlobalSection(win) {
-  // A stash is only how the page is kept showing what the form holds, so its
-  // existence is not the question — whether what it holds differs from what was
-  // opened is. Undoing an edit by hand leaves the stash in place and the section
-  // with nothing to save.
-  if (sectionsStashActive && !sectionValuesMatchBaseline) {
-    return true;
-  }
-
-  // Edited in this window there is no second $dirty to ask — the form shares the
-  // page's, and the baseline compare above is the whole answer.
-  const iwin = globalSectionPanelFrame(win)?.contentWindow;
-
-  if (!iwin) {
-    return false;
-  }
-
-  try {
-    const dirty = iwin.Statamic?.$dirty;
-
-    if (typeof dirty?.has !== 'function') {
-      return false;
-    }
-
-    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = unwrapRef(raw);
-
-    if (Array.isArray(list) && list.length) {
-      return list.some((name) => dirty.has(name));
-    }
-
-    return dirty.has('base');
-  } catch {
-    return false;
-  }
-}
-
-/**
- * The open panel, dressed up as a publish container.
- *
- * Reads resolve against the copy of its values it streams us; writes are posted
- * into the panel, where the real container applies them — and its next poll
- * streams the change back, stashes it, and re-renders the page. So an inline edit
- * on a global section takes the same path as one on the page's own fields, and
- * nothing downstream needs to know the difference.
- */
-function sectionPanelContainer(doc) {
-  // Only ever a stand-in for a panel. Edited in this window the form registers a
-  // real publish container of its own (see registerContainerEvents), and the
-  // lookup below finds no panel and returns null — as it should.
-  const panel = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
-  const frame = panel?.querySelector('iframe');
-
-  if (!panel || !frame?.contentWindow || !sectionPanelValues?.values) {
-    return null;
-  }
-
-  const win = doc.defaultView;
-
-  return {
-    name: 'sve-global-section',
-    values: sectionPanelValues.values,
-    setFieldValue: (path, value) => {
-      frame.contentWindow.postMessage(
-        { source: 'statamic-visual-editor', type: 'sve-section-set-value', path, value },
-        win.location.origin
-      );
-    },
-  };
-}
-
-/** Tells the preview to re-render asking for (or forgetting) the stashed section. */
-function refreshSections(win, active) {
-  const frame = previewFrame(win.document);
-
-  if (!frame?.contentWindow || !lastPreviewUrl) {
-    return;
-  }
-
-  frame.contentWindow.postMessage({ name: 'sve.sections', active, url: lastPreviewUrl }, win.location.origin);
-}
-
-/** A stash landed while someone was typing — the page owes itself a re-render. */
-let sectionRefreshPending = false;
-
-/**
- * Re-render the page from the stash, unless someone is typing into it.
- *
- * The panel streams its values four times a second, and every one of them used
- * to force the preview to re-render. That is harmless while the panel is what
- * you are typing in, and destructive while the page is: an inline edit puts the
- * caret inside the very element this replaces, so the node goes, the selection
- * goes with it, and what was half-typed lands nowhere. It reads as flicker, as
- * spaces going missing around a styled span, and then as editing simply
- * stopping — and only sometimes, because it is a race against one's own typing.
- *
- * Nothing is lost by waiting. During an inline edit the page is already showing
- * the text as it is typed — that is what inline editing is — so the render being
- * withheld is the one it is already displaying. The debt is settled on the way
- * out of the edit.
- */
-function refreshSectionsUnlessEditing(win) {
-  if (editSession) {
-    sectionRefreshPending = true;
-
-    return;
-  }
-
-  sectionRefreshPending = false;
-  refreshSections(win, true);
-}
-
-/** An inline edit has ended — pay off a render that was deferred during it. */
-function flushPendingSectionRefresh(win) {
-  if (!sectionRefreshPending) {
-    return;
-  }
-
-  sectionRefreshPending = false;
-  refreshSections(win, true);
-}
-
-function postSectionValues(win, id, values) {
-  sectionsStashActive = true;
-  notifyGlobalSectionDirty(win);
-  win
-    .fetch('/!/sve/global-section-stash', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': csrfToken(win),
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: JSON.stringify({ id, values }),
-    })
-    .then(() => refreshSectionsUnlessEditing(win))
-    .catch(() => {});
-}
-
-function clearSectionsStash(win, { refresh = true } = {}) {
-  if (!sectionsStashActive) {
-    notifyGlobalSectionDirty(win);
-
-    return Promise.resolve();
-  }
-
-  sectionsStashActive = false;
-
-  return win
-    .fetch('/!/sve/global-section-stash/clear', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    .catch(() => {})
-    .then(() => {
-      notifyGlobalSectionDirty(win);
-
-      if (refresh) {
-        refreshSections(win, false);
-      }
-    });
-}
-
-/** Listeners for global-section panel save results. */
-const sectionSaveListeners = [];
-
-function onSectionSave(callback) {
-  sectionSaveListeners.push(callback);
-
-  return () => {
-    const index = sectionSaveListeners.indexOf(callback);
-
-    if (index !== -1) {
-      sectionSaveListeners.splice(index, 1);
-    }
-  };
-}
-
-function saveGlobalSectionPanel(win, done) {
-  if (!hasUnsavedGlobalSection(win)) {
-    done(true);
-
-    return;
-  }
-
-  const host = globalSectionHost(win.document);
-  const iwin = globalSectionPanelFrame(win)?.contentWindow;
-
-  // Nothing open to save into: whatever the stash still holds is not backed by a
-  // form any more, so it goes.
-  if (!host && !iwin) {
-    clearSectionsStash(win, { refresh: false }).finally(() => done(true));
-
-    return;
-  }
-
-  let settled = false;
-
-  const finish = (ok) => {
-    if (settled) {
-      return;
-    }
-
-    settled = true;
-    stop();
-    clearTimeout(timer);
-    done(ok);
-  };
-
-  const stop = onSectionSave(finish);
-  const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
-
-  if (host) {
-    pressGlobalSectionSave(win);
-
-    return;
-  }
-
-  iwin.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-globals-save' },
-    win.location.origin
-  );
-}
-
-/**
- * Announce the result of a synced-section save.
- *
- * `frame` is the window holding the form when that is somewhere else; edited in
- * this window there is none, and the baseline it would be asked to move is the
- * one right here.
- */
-function announceSectionSave(parentWin, ok, frame = null) {
-  if (ok) {
-    sectionsStashActive = true;
-    // Saved = new clean baseline (don't treat the next poll as a fresh edit).
-    if (sectionPanelValues?.values) {
-      sectionValuesBaseline = JSON.stringify(sectionPanelValues.values);
-    }
-    sectionValuesMatchBaseline = true;
-    sectionBaselineUntil = Date.now() + 2000;
-    clearSectionsStash(parentWin, { refresh: false });
-
-    // The panel form keeps its own "what was it when we last agreed" copy —
-    // without this it re-reports the very next poll as an edit and the bar
-    // goes back to "unsaved changes" a quarter of a second after saving.
-    if (frame) {
-      try {
-        frame.postMessage(
-          { source: 'statamic-visual-editor', type: 'sve-globals-saved' },
-          parentWin.location.origin
-        );
-      } catch {
-        /* panel closed while saving */
-      }
-    }
-  }
-
-  [...sectionSaveListeners].forEach((listener) => listener(ok));
-}
-
-/**
- * Watch a window for the entry save the synced section's form sends.
- *
- * `entryPath` is a function rather than a string because the window being
- * watched can be this one: the CP is not reloaded between global sections, so
- * which entry counts as "the save" changes while the same patched fetch stays in
- * place.
- */
-function watchGlobalSectionPanelSaves(iwin, parentWin, entryPath = null) {
-  if (!iwin || !parentWin || iwin.__sveSectionSaveWatch) {
-    return;
-  }
-
-  iwin.__sveSectionSaveWatch = true;
-
-  const savePath = entryPath ?? (() => iwin.location.pathname);
-  const frame = iwin === parentWin ? null : iwin;
-
-  const isSave = (url, method) => {
-    if (!url || !/^(POST|PUT|PATCH)$/i.test(method || 'GET')) {
-      return false;
-    }
-
-    const base = savePath();
-
-    if (!base) {
-      return false;
-    }
-
-    let path;
-
-    try {
-      path = new URL(url, iwin.location.origin).pathname;
-    } catch {
-      return false;
-    }
-
-    return path.startsWith(base) && !path.includes('/preview');
-  };
-
-  const announce = (ok) => announceSectionSave(parentWin, ok, frame);
-
-  const { fetch: originalFetch } = iwin;
-
-  iwin.fetch = function (input, init = {}) {
-    const url = typeof input === 'string' ? input : input?.url;
-    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
-
-    if (!isSave(url, method)) {
-      return originalFetch.call(this, input, init);
-    }
-
-    return originalFetch.call(this, input, init).then(
-      (response) => {
-        announce(response.ok);
-
-        return response;
-      },
-      (error) => {
-        announce(false);
-
-        throw error;
-      }
-    );
-  };
-
-  // The entry update is a PATCH sent by axios, i.e. XMLHttpRequest — it never
-  // goes through fetch at all. Watching only fetch is why saving a synced
-  // section left the bar reading "unsaved changes" for the rest of the session:
-  // the save happened, nothing ever heard about it, and the baseline that says
-  // what "saved" looks like was never moved.
-  const { open: originalOpen, send: originalSend } = iwin.XMLHttpRequest.prototype;
-
-  iwin.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    this.__sveSectionMethod = method;
-    this.__sveSectionUrl = url;
-
-    return originalOpen.call(this, method, url, ...rest);
-  };
-
-  iwin.XMLHttpRequest.prototype.send = function (...args) {
-    if (isSave(this.__sveSectionUrl, this.__sveSectionMethod)) {
-      this.addEventListener('load', () => {
-        announce(this.status >= 200 && this.status < 300);
-      });
-      this.addEventListener('error', () => announce(false));
-    }
-
-    return originalSend.apply(this, args);
-  };
-}
-
-function ensureGlobalSectionPanelSaveWatch(win) {
-  const frame = globalSectionPanelFrame(win);
-
-  if (!frame) {
-    return;
-  }
-
-  const arm = () => {
-    try {
-      if (frame.contentWindow) {
-        watchGlobalSectionPanelSaves(frame.contentWindow, win);
-      }
-    } catch {
-      /* iframe not ready */
-    }
-  };
-
-  arm();
-  frame.addEventListener('load', arm);
-}
-
-// How long the section panel may stay hidden waiting for its form to rebuild.
-// Long enough for a slow boot, short enough that a silent failure is a pause
-// rather than an empty panel.
-const SECTION_PANEL_REVEAL_MS = 2500;
-
-/**
- * Show the section panel's frame. Called both by the ready handshake and by a
- * fallback timer, so it has to be safe to run twice — setting an opacity that
- * is already 1 costs nothing.
- */
-function revealSectionPanelFrame(win) {
-  const frame = win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
-
-  if (frame) {
-    frame.style.opacity = '1';
-  }
-}
-
-export function closeGlobalSectionPanel(win) {
-  // Whichever one is open. Only one ever is.
-  if (closeGlobalSectionInline(win)) {
-    return;
-  }
-
-  const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-  if (!panel) {
-    return;
-  }
-
-  panel.remove();
-  sectionPanelValues = null;
-  sectionValuesBaseline = null;
-  sectionValuesMatchBaseline = true;
-  pendingEditUntilPanel = null;
-  pendingFocusUntilPanel = null;
-  // Left editor was covered — restore normal section editing surface.
-  const editor = win.document.querySelector('.live-preview-editor');
-
-  if (editor) {
-    editor.querySelectorAll('[data-sve-global-cover]').forEach((el) => el.remove());
-  }
-
-  syncPreviewInset(win);
-
-  clearSectionsStash(win, { refresh: true });
-  syncSectionLibraryAvailability(win);
-}
-
-/**
- * Mount the synced section's publish form in the LEFT Live Preview editor —
- * same slot a normal section uses. Keeps an iframe so values can stream for
- * inline edit; does NOT open a right-hand drawer.
- */
-export function openGlobalSectionPanel(win, id) {
-  if (GLOBAL_SECTION_INLINE) {
-    openGlobalSectionInline(win, id);
-
-    return;
-  }
-
-  openGlobalSectionPanelFrame(win, id);
-}
-
-/**
- * The docked-panel route: the same form, in an iframe covering the left editor,
- * reached only over postMessage. Kept whole — GLOBAL_SECTION_INLINE picks
- * between this and the in-window form, and this is also where the in-window one
- * falls back to when there is no Live Preview editor to mount into.
- */
-function openGlobalSectionPanelFrame(win, id) {
-  const doc = win.document;
-  const existing = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-  // Already showing this section — leave it be. Rebuilding would reload the form
-  // and throw away whatever is half-typed in it.
-  if (existing?.dataset.sveSectionId === id) {
-    setLpMode(win, 'show');
-
-    return;
-  }
-
-  // Close other right drawers; keep left editor free for this form.
-  closeRightPanels(win, []);
-
-  sectionValuesBaseline = null;
-  sectionValuesMatchBaseline = true;
-  pendingEditUntilPanel = null;
-  pendingFocusUntilPanel = null;
-
-  setLpMode(win, 'show');
-
-  const editor = doc.querySelector('.live-preview-editor');
-  const collection = encodeURIComponent(savedSectionsCollection(win));
-  const url = new URL(`/cp/collections/${collection}/entries/${encodeURIComponent(id)}`, win.location.origin);
-
-  url.searchParams.set(GLOBALS_PANEL_PARAM, '1');
-
-  const panel = doc.createElement('div');
-
-  panel.id = GLOBAL_SECTION_PANEL_ID;
-  panel.dataset.sveSectionId = id;
-  panel.setAttribute('data-sve-global-cover', '');
-  panel.style.cssText =
-    'position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;' +
-    'background:var(--theme-color-content-bg,#fff);';
-
-  // Docked in Live Preview the preview draws its own bar over the page — the one
-  // naming the section, saying whether it has unsaved work, and holding Save and
-  // Close. A second Save above the panel is the same button twice, and the strip
-  // it sits in is a band of nothing between the top of the panel and the section
-  // it is showing. Off the Live Preview screen there is no such bar, so the
-  // fallback keeps it: that is the only way to save from there.
-  const bar = editor ? null : doc.createElement('div');
-
-  if (bar) {
-    bar.style.cssText =
-      'display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:6px 10px;' +
-      'border-bottom:1px solid rgba(128,128,128,.24);flex:0 0 auto;';
-
-    const save = doc.createElement('button');
-
-    save.type = 'button';
-    save.textContent = t(win, 'save');
-    save.title = t(win, 'save_global_section');
-    save.style.cssText =
-      'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
-      'color:#fff;font-size:12px;font-weight:600;line-height:1;';
-    save.addEventListener('click', () => {
-      doc
-        .getElementById(GLOBAL_SECTION_PANEL_ID)
-        ?.querySelector('iframe')
-        ?.contentWindow?.postMessage({ source: 'statamic-visual-editor', type: 'sve-globals-save' }, win.location.origin);
-    });
-    bar.appendChild(save);
-  }
-
-  const frame = doc.createElement('iframe');
-
-  frame.src = url.toString();
-  frame.title = t(win, 'global_panel_title');
-  // The form arrives as the CP's raw publish view and is rebuilt in place —
-  // tabs become a segmented control, blocks become cards. Watching that rebuild
-  // is the flicker, so the frame stays invisible until the panel reports ready.
-  // The timer is the safety net: a boot that never reports still reveals
-  // itself, so a failure can never leave a permanently blank panel.
-  frame.style.cssText =
-    'flex:1 1 auto;width:100%;border:0;background:transparent;' +
-    'opacity:0;transition:opacity .12s ease;';
-  frame.addEventListener('load', () => flushPendingFocusUntilPanel(win));
-  win.setTimeout(() => revealSectionPanelFrame(win), SECTION_PANEL_REVEAL_MS);
-
-  if (bar) {
-    panel.appendChild(bar);
-  }
-
-  panel.appendChild(frame);
-
-  if (editor) {
-    const cs = win.getComputedStyle(editor);
-
-    if (cs.position === 'static') {
-      editor.style.position = 'relative';
-    }
-
-    editor.appendChild(panel);
-  } else {
-    // Fallback if LP editor isn't mounted yet — left-docked fixed panel.
-    const top = dockedPanelTop(win);
-
-    panel.style.cssText =
-      `position:fixed;top:${top}px;left:0;bottom:0;width:${lpStoredWidth(win)}px;z-index:40;` +
-      'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
-      'border-right:1px solid rgba(128,128,128,.28);box-shadow:8px 0 24px rgba(0,0,0,.12);';
-    doc.body.appendChild(panel);
-  }
-
-  ensureGlobalSectionPanelSaveWatch(win);
-  notifyGlobalSectionDirty(win);
-}
-
-// --- Global section, edited in this window ---------------------------------------
-//
-// Everything below builds the synced entry's form where the page's own form
-// already is: inside the Live Preview field column. That is the whole difference.
-// Once its sets are in this document, a global section is not a special case any
-// more — the "+" opens Statamic's picker over the preview, the sidebar solos the
-// section, the arrows move it, and inline edit writes to a real publish container.
-// Nothing here re-implements any of that; it only puts the fields within reach of
-// the code that already does it.
-
-/** The mounted form: its Vue app, the entry it shows, and how to save it. */
-let globalSectionApp = null;
-let globalSectionEntryPath = null;
-let globalSectionValuesTimer = null;
-let globalSectionValuesSeen = null;
-
-function globalSectionHost(doc) {
-  return doc.getElementById(GLOBAL_SECTION_HOST_ID);
-}
-
-/** True while a global section owns the editor, whichever way it was opened. */
-function globalSectionEditorOpen(doc) {
-  return !!(doc.getElementById(GLOBAL_SECTION_PANEL_ID) || globalSectionHost(doc));
-}
-
-/** The synced entry's own publish container, once its form has mounted. */
-function globalSectionContainer() {
-  return publishContainers.find((container) => container.name === GLOBAL_SECTION_CONTAINER) || null;
-}
-
-/**
- * Ask the Control Panel for a screen the way the Control Panel asks itself.
- *
- * Inertia answers an edit route with exactly the props its page component
- * expects — blueprint, values, meta, localizations and all — so a form can be
- * built here from the same answer, and none of it has to be kept in step by hand
- * with what Statamic's forms want next.
- */
-async function fetchInertiaPage(win, path) {
-  const version = win.Statamic?.$app?.config?.globalProperties?.$page?.version || '';
-
-  const response = await win.fetch(path, {
-    credentials: 'same-origin',
-    headers: {
-      'X-Inertia': 'true',
-      'X-Inertia-Version': version,
-      'X-Requested-With': 'XMLHttpRequest',
-      Accept: 'text/html, application/xhtml+xml',
-    },
-  });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const page = await response.json();
-
-  return page?.props ? { component: page.component, props: page.props, path } : null;
-}
-
-/** The synced entry's screen, as Inertia would have delivered it. */
-function fetchGlobalSectionProps(win, id) {
-  const collection = encodeURIComponent(savedSectionsCollection(win));
-
-  return fetchInertiaPage(win, `/cp/collections/${collection}/entries/${encodeURIComponent(id)}`);
-}
-
-/** Inertia props → the prop names EntryPublishForm declares. */
-function globalSectionFormProps(props) {
-  return {
-    publishContainer: GLOBAL_SECTION_CONTAINER,
-    method: 'patch',
-    // Statamic's own word for "this form is not the screen you are on". Without
-    // it a save obeys the after-save preference, which defaults to `listing` —
-    // so saving a global section navigated the whole Control Panel to the Global
-    // sections index and took Live Preview, the page and the preview with it.
-    // It also drops the after-save dropdown and the remembered tab, both of which
-    // belong to a form that owns its page.
-    isInline: true,
-    collectionHandle: props.collection,
-    initialActions: props.actions,
-    initialTitle: props.title,
-    initialReference: props.reference,
-    initialFieldset: props.blueprint,
-    initialValues: props.values,
-    initialExtraValues: props.extraValues,
-    initialLocalizedFields: props.localizedFields,
-    initialMeta: props.meta,
-    initialPermalink: props.permalink,
-    originBehavior: props.originBehavior,
-    initialLocalizations: props.localizations,
-    initialHasOrigin: props.hasOrigin,
-    initialOriginValues: props.originValues,
-    initialOriginMeta: props.originMeta,
-    initialSite: props.locale,
-    initialIsWorkingCopy: props.hasWorkingCopy,
-    revisionsEnabled: props.revisionsEnabled,
-    initialReadOnly: props.readOnly,
-    canEditBlueprint: props.canEditBlueprint,
-    canManagePublishState: props.canManagePublishState,
-    createAnotherUrl: props.createAnotherUrl,
-    initialListingUrl: props.initialListingUrl,
-    previewTargets: props.previewTargets,
-    autosaveInterval: props.autosaveInterval,
-    initialItemActions: props.itemActions,
-    itemActionUrl: props.itemActionUrl,
-  };
-}
-
-/**
- * Mount a Statamic form into a host of ours, in this window.
- *
- * A second Vue app rather than a node in the CP's own tree, because there is no
- * seam in the entry screen to hang one off. It borrows the CP app's registry so
- * every fieldtype, directive and injected service resolves exactly as it does on
- * the real screen — the form cannot tell the difference, which is the only way
- * this stays true as Statamic changes.
- */
-function mountBorrowedForm(win, host, renderRoot, label) {
-  const Vue = win.Vue;
-  const app = win.Statamic?.$app;
-
-  if (!Vue?.createApp || !app) {
-    return null;
-  }
-
-  try {
-    const sub = Vue.createApp(Vue.defineComponent({ setup: () => renderRoot(Vue) }));
-
-    Object.assign(sub._context.components, app._context.components);
-    Object.assign(sub._context.directives, app._context.directives);
-    Object.assign(sub._context.provides, app._context.provides);
-    Object.assign(sub.config.globalProperties, app.config.globalProperties);
-
-    sub.mount(host);
-
-    return sub;
-  } catch (err) {
-    console.error(`[sve] ${label}`, err);
-
-    return null;
-  }
-}
-
-function mountGlobalSectionForm(win, host, props) {
-  globalSectionApp = mountBorrowedForm(
-    win,
-    host,
-    (Vue) => {
-      // Resolved here, not by name in h(): a string type is an ELEMENT to Vue's
-      // runtime, so h('EntryPublishForm') renders a literal <entrypublishform>
-      // tag and nothing inside it ever mounts.
-      const Form = Vue.resolveComponent('EntryPublishForm');
-
-      return () => Vue.h(Form, globalSectionFormProps(props));
-    },
-    'global section form'
-  );
-
-  return !!globalSectionApp;
-}
-
-/**
- * Hide the page's own fields while the column belongs to a global section.
- *
- * The solo view does this too, once it has a set to isolate — but the form takes
- * a moment to mount, and without this the page's fields sit under the section's
- * for that moment. Marked rather than detached: the page's form keeps its state,
- * and stepping back out is one attribute removal away.
- */
-function hidePageFieldsForGlobalSection(host) {
-  const column = host.parentElement;
-
-  if (!column) {
-    return;
-  }
-
-  [...column.children].forEach((child) => {
-    if (child !== host) {
-      child.setAttribute(GLOBAL_SECTION_AWAY_ATTR, '');
-    }
-  });
-}
-
-function showPageFieldsAgain(doc) {
-  doc.querySelectorAll(`[${GLOBAL_SECTION_AWAY_ATTR}]`).forEach((el) =>
-    el.removeAttribute(GLOBAL_SECTION_AWAY_ATTR)
-  );
-}
-
-/**
- * Open the synced entry's form in the left Live Preview editor, in this window.
- */
-async function openGlobalSectionInline(win, id) {
-  const doc = win.document;
-  const existing = globalSectionHost(doc);
-
-  // Already showing this section — leave it be. Rebuilding would reload the form
-  // and throw away whatever is half-typed in it.
-  if (existing?.dataset.sveSectionId === id) {
-    setLpMode(win, 'show');
-
-    return;
-  }
-
-  closeGlobalSectionInline(win, { refresh: false });
-
-  // Close other drawers; the field column is this section's now.
-  closeRightPanels(win, []);
-  setLpMode(win, 'show');
-
-  const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
-
-  if (!column) {
-    // No Live Preview editor to mount into — fall back to the docked panel, which
-    // builds its own surface and does not need one.
-    openGlobalSectionPanelFrame(win, id);
-
-    return;
-  }
-
-  const host = doc.createElement('div');
-
-  host.id = GLOBAL_SECTION_HOST_ID;
-  host.dataset.sveSectionId = id;
-  // Invisible until the section has been soloed: the form mounts as a whole entry
-  // screen — title, Published, tabs — and watching that be pared down to one
-  // section is the flicker. Same reveal the docked panel used.
-  host.style.cssText = 'opacity:0;transition:opacity .12s ease;';
-  column.appendChild(host);
-  hidePageFieldsForGlobalSection(host);
-
-  const loaded = await fetchGlobalSectionProps(win, id).catch(() => null);
-
-  // Closed (or moved on) while the props were in flight.
-  if (globalSectionHost(doc) !== host) {
-    return;
-  }
-
-  if (!loaded?.props || !mountGlobalSectionForm(win, host, loaded.props)) {
-    closeGlobalSectionInline(win);
-
-    return;
-  }
-
-  globalSectionEntryPath = new URL(loaded.path, win.location.origin).pathname;
-  watchGlobalSectionInlineSaves(win);
-  watchGlobalSectionInlineValues(win, id);
-  bootGlobalSectionSolo(win, doc, host);
-  notifyGlobalSectionDirty(win);
-  syncSectionLibraryAvailability(win);
-}
-
-/** Solo the section the way a click on a page section would. */
-function bootGlobalSectionSolo(win, doc, host) {
-  const field = sectionField(win);
-  let attempts = 0;
-
-  const reveal = () => {
-    if (globalSectionHost(doc) === host) {
-      host.style.opacity = '1';
-    }
-  };
-
-  // Safety net: a boot that never settles still shows its form rather than
-  // leaving a blank column behind.
-  win.setTimeout(reveal, SECTION_PANEL_REVEAL_MS);
-
-  const tryBoot = () => {
-    if (globalSectionHost(doc) !== host) {
-      return;
-    }
-
-    const container = globalSectionContainer();
-    const values = container ? unwrapRef(container.values) : null;
-    const rows = values && typeof values === 'object' ? values[field] : null;
-
-    if (Array.isArray(rows) && rows.length) {
-      // Legacy synced entries stripped nested ids — assign them once so preview
-      // scope="{{ id }}" and focusFieldOwner can target the blocks inside.
-      const next = JSON.parse(JSON.stringify(rows));
-
-      if (ensureNestedRowIds(next)) {
-        container.setFieldValue(field, next);
-        win.setTimeout(tryBoot, 150);
-
-        return;
-      }
-
-      const uid = next[0]?._visual_id || next[0]?.id || next[0]?._id;
-
-      if (uid && findSetByUid(uid, doc) && soloSection(uid, doc, win, { kind: 'section' })) {
-        reveal();
-
-        return;
-      }
-
-      if (uid) {
-        expandTopLevelSectionSets(doc, field);
-      }
-    }
-
-    if (attempts++ < 80) {
-      win.setTimeout(tryBoot, 120);
-
-      return;
-    }
-
-    reveal();
-  };
-
-  tryBoot();
-}
-
-/**
- * Read what the form holds, four times a second.
- *
- * Polled rather than watched for the same reason the docked panel polled: the
- * container's `values` is a Vue ref, and a JSON compare is both cheaper and far
- * more robust than reaching into Vue's reactivity from outside its own bundle.
- */
-function watchGlobalSectionInlineValues(win, id) {
-  stopGlobalSectionInlineValues(win);
-  globalSectionValuesSeen = null;
-
-  globalSectionValuesTimer = win.setInterval(() => {
-    const container = globalSectionContainer();
-    const values = container ? unwrapRef(container.values) : null;
-
-    if (!values || typeof values !== 'object') {
-      return;
-    }
-
-    const serialized = JSON.stringify(values);
-
-    if (serialized === globalSectionValuesSeen) {
-      return;
-    }
-
-    globalSectionValuesSeen = serialized;
-    applySectionValues(win, id, JSON.parse(serialized));
-  }, 250);
-}
-
-function stopGlobalSectionInlineValues(win) {
-  if (globalSectionValuesTimer) {
-    win.clearInterval(globalSectionValuesTimer);
-    globalSectionValuesTimer = null;
-  }
-}
-
-/**
- * The entry's own Save, pressed for it.
- *
- * The button is in the form's own header, which the solo view hides — hidden is
- * not disabled, so clicking it runs Statamic's real save: validation, revisions,
- * toast and all. An entry's button reads "Save & Publish" and a global set's
- * reads "Save", so the match is on the start of the label.
- */
-function pressGlobalSectionSave(win) {
-  const host = globalSectionHost(win.document);
-
-  if (!host) {
-    return false;
-  }
-
-  const button = [...host.querySelectorAll('button')].find((el) =>
-    /^(save|gem)\b/i.test((el.textContent || '').trim())
-  );
-
-  if (!button) {
-    return false;
-  }
-
-  button.click();
-
-  return true;
-}
-
-/**
- * Hear the save go out.
- *
- * The form is in this window now, so the request it sends is this window's —
- * matched on the synced entry's own path, which is read live because the CP is
- * never reloaded between one global section and the next.
- */
-function watchGlobalSectionInlineSaves(win) {
-  watchGlobalSectionPanelSaves(win, win, () => globalSectionEntryPath);
-}
-
-/**
- * Take the form back down and hand the column back to the page. Returns whether
- * there was one — that is how the caller knows which of the two routes was open.
- */
-function closeGlobalSectionInline(win, { refresh = true } = {}) {
-  const doc = win.document;
-  const host = globalSectionHost(doc);
-
-  stopGlobalSectionInlineValues(win);
-
-  if (!host) {
-    return false;
-  }
-
-  if (globalSectionApp) {
-    try {
-      globalSectionApp.unmount();
-    } catch {
-      /* already gone */
-    }
-
-    globalSectionApp = null;
-  }
-
-  host.remove();
-  showPageFieldsAgain(doc);
-
-  // The solo marks point at a set that has just left the document. Cleared, or
-  // the page's own form comes back with every row hidden but one that no longer
-  // exists — an empty sidebar.
-  clearSolo(doc);
-
-  globalSectionEntryPath = null;
-  globalSectionValuesSeen = null;
-  sectionBaselineUntil = 0;
-  sectionPanelValues = null;
-  sectionValuesBaseline = null;
-  sectionValuesMatchBaseline = true;
-  pendingEditUntilPanel = null;
-  pendingFocusUntilPanel = null;
-
-  rearmFirstSection();
-  syncPreviewInset(win);
-  clearSectionsStash(win, { refresh });
-  syncSectionLibraryAvailability(win);
-
-  return true;
-}
-
-// --- Header / footer, edited in this window --------------------------------------
-//
-// The site's header and footer are fields on a global set (Theme Settings), not
-// on the page — so, like a synced section, the page's own form has nothing to
-// edit. Everything below does for that global what the block above does for a
-// synced entry: mounts Statamic's own globals form in the Live Preview field
-// column and isolates it to the one tab the chrome belongs to. From there the
-// header's widgets are sets in this document, and every piece of the editor that
-// works on a page section works on them — because it is the same code.
-
-/** The div Theme Settings' form is mounted into, in this document. */
-const CHROME_HOST_ID = '__sve-chrome-host';
-
-/** Publish-container name for that form — never "base", which is the page's. */
-const CHROME_CONTAINER = 'sve-chrome';
-
-let chromeApp = null;
-let chromeInlineKind = null;
-let chromeInlineHandle = null;
-let chromeValuesTimer = null;
-let chromeValuesSeen = null;
-
-function chromeHost(doc) {
-  return doc.getElementById(CHROME_HOST_ID);
-}
-
-/** True while header/footer owns the editor, whichever way it was opened. */
-function chromeEditorOpen(doc) {
-  return !!(doc.getElementById(GLOBALS_PANEL_ID) || chromeHost(doc));
-}
-
-/** Theme Settings' own publish container, once its form has mounted. */
-function chromeContainer() {
-  return publishContainers.find((container) => container.name === CHROME_CONTAINER) || null;
-}
-
-/**
- * Statamic's own page-component resolver, borrowed off the running app.
- *
- * The globals screen is an Inertia page, not one of the components registered on
- * the CP's Vue app, so there is no name to resolve it by. Inertia holds the
- * resolver that knows how to load it — asking that rather than reaching for a
- * hashed asset path means this keeps working across Statamic builds.
- */
-function inertiaPageResolver(win) {
-  const start = win.document.querySelector('main') || win.document.body;
-  let component = start?.__vueParentComponent;
-
-  while (component) {
-    if (typeof component.props?.resolveComponent === 'function') {
-      return component.props.resolveComponent;
-    }
-
-    component = component.parent;
-  }
-
-  return null;
-}
-
-/**
- * Mount Theme Settings' form, under a container name of our own.
- *
- * The globals page hardcodes `publish-container="base"` — the page entry's name —
- * and two containers answering to one name is a form writing into another form's
- * values. The page's render is therefore taken as it is built and the one prop
- * rewritten before Vue ever sees it. The same pass drops the page's <Head>
- * sibling: it wants Inertia's head manager, which a borrowed app has no business
- * providing, and the form is the only part of that screen we came for.
- */
-function mountChromeForm(win, host, Page, props) {
-  let form = null;
-
-  const findForm = (vnode) => {
-    if (!vnode || typeof vnode !== 'object' || form) {
-      return;
-    }
-
-    if (Array.isArray(vnode)) {
-      vnode.forEach(findForm);
-
-      return;
-    }
-
-    if (vnode.props && ('publish-container' in vnode.props || 'publishContainer' in vnode.props)) {
-      if ('publish-container' in vnode.props) {
-        vnode.props['publish-container'] = CHROME_CONTAINER;
-      }
-
-      if ('publishContainer' in vnode.props) {
-        vnode.props.publishContainer = CHROME_CONTAINER;
-      }
-
-      form = vnode;
-
-      return;
-    }
-
-    if (Array.isArray(vnode.children)) {
-      vnode.children.forEach(findForm);
-    }
-  };
-
-  const Patched = {
-    ...Page,
-    render(...args) {
-      form = null;
-
-      const tree = Page.render.apply(this, args);
-
-      findForm(tree);
-
-      return form || tree;
-    },
-  };
-
-  // A build that no longer renders the form this way would leave us mounting the
-  // whole globals screen under the page's own container name. Better to say so
-  // and let the docked panel take it.
-  if (typeof Page.render !== 'function') {
-    console.error('[sve] globals page has no render — chrome falls back to the panel');
-
-    return false;
-  }
-
-  chromeApp = mountBorrowedForm(win, host, (Vue) => () => Vue.h(Patched, props), 'chrome form');
-
-  return !!chromeApp;
-}
-
-/** The tab button in the mounted form whose label names this chrome. */
-function chromeTabButton(host, kind) {
-  const needle = kind === 'footer' ? 'footer' : 'header';
-
-  return [...host.querySelectorAll('button[role="tab"]')].find((tab) =>
-    (tab.textContent || '').trim().toLowerCase().startsWith(needle)
-  );
-}
-
-function activeChromeTabPanel(host) {
-  return (
-    host.querySelector('[role="tabpanel"][data-state="active"]') ||
-    [...host.querySelectorAll('[role="tabpanel"]')].find((panel) => panel.offsetParent !== null) ||
-    null
-  );
-}
-
-/**
- * Show one tab and nothing else.
- *
- * The isolation is the section view's isolation — the same keep/parent marking
- * `markSoloPath` does, started at the tab's own panel instead of at a set. So the
- * globals form arrives stripped of everything a section's card is stripped of:
- * its title bar, its Save, the row of other tabs, and the page's own fields
- * behind it. What is left is the header's fields under a header naming them.
- */
-/**
- * The form's own fields, for a set whose blueprint draws no tab bar.
- *
- * A set holding a single half has a single tab, and Statamic renders no tab
- * strip for one tab — so there is no tabpanel to isolate and no button to press.
- * The whole form is the half, which is the answer, not a failure.
- *
- * Saying "not yet" here is expensive in a way that is easy to miss: the boot
- * retries every 120ms and the host stays at opacity 0 until either the solo
- * lands or the blind reveal timer fires, and that timer is 2.5 seconds. A form
- * that could never be isolated therefore always cost the full 2.5s before it
- * appeared — the whole of the wait between clicking the header and seeing it.
- */
-function soleChromePanel(host) {
-  // A tab strip means the tabs are still rendering; that is genuinely "not yet",
-  // and answering with the whole form would isolate every half at once.
-  if (host.querySelector('[role="tabpanel"]') || host.querySelector('button[role="tab"]')) {
-    return null;
-  }
-
-  return host.querySelector('.publish-fields') || null;
-}
-
-function soloChromeTab(win, doc, kind) {
-  const host = chromeHost(doc);
-  const editor = soloRoot(doc);
-
-  if (!host || !editor || !editor.contains(host)) {
-    return false;
-  }
-
-  const tab = chromeTabButton(host, kind);
-  const tabs = host.querySelectorAll('button[role="tab"]');
-
-  // No tab by that name, and more than one to choose from: this is the other
-  // half's form, still mounted. Saying "not yet" keeps the caller's host at
-  // opacity 0 — isolating the active panel here is what used to leave the
-  // previous half on screen until the right form arrived.
-  if (!tab && tabs.length > 1) {
-    return false;
-  }
-
-  if (tab && tab.getAttribute('aria-selected') !== 'true') {
-    // reka-ui switches on the full pointer sequence, never a bare click().
-    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-      tab.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true }));
-    });
-  }
-
-  const panel = activeChromeTabPanel(host) || soleChromePanel(host);
-
-  if (!panel) {
-    return false;
-  }
-
-  ensureSoloStyle(doc);
-
-  doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
-  doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
-
-  for (let node = panel; node && node !== editor && node.parentElement; node = node.parentElement) {
-    node.setAttribute(SOLO_KEEP_ATTR, '');
-    node.parentElement.setAttribute(SOLO_PARENT_ATTR, '');
-  }
-
-  // Lives outside Vue's tree; without this the stylesheet hides it.
-  doc.getElementById(FOCUS_HEADER_ID)?.setAttribute(SOLO_KEEP_ATTR, '');
-
-  // The word is written for the middle of a sentence ("you are editing the
-  // header"); at the top of the panel it is a name, so it starts like one.
-  const word = t(win, kind === 'footer' ? 'chrome_footer' : 'chrome_header');
-
-  paintFocusHeader(
-    win,
-    doc,
-    {
-      display: word.charAt(0).toUpperCase() + word.slice(1),
-      icon: null,
-      instructions: '',
-    },
-    null
-  );
-
-  return true;
-}
-
-/**
- * Keep that view on screen while Vue rebuilds the form under it.
- *
- * Stored in `soloObserver` on purpose: it is the same slot a section's solo uses,
- * so stepping from the header into one of its widgets replaces this watch with
- * that one, and `clearSolo` takes down whichever is running.
- */
-function watchChromeSolo(win, doc, kind) {
-  if (soloObserver) {
-    soloObserver.disconnect();
-  }
-
-  const target = doc.querySelector('.live-preview-fields') || doc.body;
-  let queued = false;
-
-  soloObserver = new MutationObserver(() => {
-    if (chromeInlineKind !== kind || soloUid || queued) {
-      return;
-    }
-
-    queued = true;
-    win.requestAnimationFrame(() => {
-      queued = false;
-
-      if (chromeInlineKind === kind && !soloUid && chromeHost(doc)) {
-        soloChromeTab(win, doc, kind);
-      }
-    });
-  });
-  soloObserver.observe(target, { childList: true, subtree: true });
-}
-
-/**
- * The half that isn't open, fetched ahead of being asked for.
- *
- * Only for the case where the two halves have a global set each: stepping across
- * then means unmounting one form and building another, and a round trip in the
- * middle is a field column standing empty. Entries are taken, not read — one
- * mount consumes the page and warms the next one — so nothing here outlives a
- * save of the set it came from.
- */
-const chromeInlinePages = new Map();
-
-async function takeChromeInlinePage(win, handle) {
-  const pending = chromeInlinePages.get(handle);
-
-  chromeInlinePages.delete(handle);
-
-  // A warmed page that came back empty must never be handed on. It is
-  // indistinguishable from a real miss by the time the mount sees it, and the
-  // editor answers a failed mount by falling back to the docked panel — which
-  // opens the header on the RIGHT, in the panel meant for globals, instead of in
-  // the field column on the left. A warm miss is thrown away and the click pays
-  // for one honest fetch: slower than warm, still the right side of the screen.
-  const warmed = pending ? await pending : null;
-
-  return warmed ?? fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
-}
-
-function prefetchOtherChromeHalf(win, kind) {
-  const handle = chromeGlobalHandle(win, kind === 'footer' ? 'header' : 'footer');
-
-  // One shared set: the other half is a tab of the form already mounted.
-  if (handle === chromeGlobalHandle(win, kind) || chromeInlinePages.has(handle)) {
-    return;
-  }
-
-  chromeInlinePages.set(
-    handle,
-    fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null)
-  );
-}
-
-/**
- * Both halves' screens, fetched before either one is clicked.
- *
- * The click costs an Inertia page fetch, a component resolve and a mount, and
- * only the last two are unavoidable — so the fetch is done up front, while the
- * preview is still rendering and nothing is waiting on it. That is the whole
- * difference between a panel that opens and a panel that arrives.
- */
-function warmChromeInlinePages(win) {
-  ['header', 'footer'].forEach((kind) => {
-    const handle = chromeGlobalHandle(win, kind);
-
-    if (chromeInlinePages.has(handle)) {
-      return;
-    }
-
-    const pending = fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
-
-    chromeInlinePages.set(handle, pending);
-
-    // Warming runs early — early enough that Inertia may not have a version to
-    // send yet and the server answers with a conflict rather than a page. An
-    // empty answer is forgotten rather than kept, so the next warm-up can try
-    // again and a click never inherits it.
-    pending.then((page) => {
-      if (!page && chromeInlinePages.get(handle) === pending) {
-        chromeInlinePages.delete(handle);
-      }
-    });
-  });
-}
-
-/**
- * Forget the warmed screens.
- *
- * A saved set makes every page fetched before it wrong, and a warm page is
- * indistinguishable from a fresh one once it is mounted — the form would open on
- * the values as they were before the save. Cheaper to fetch again than to be
- * subtly wrong, so a save simply throws them away and warms them anew.
- */
-function resetChromeInlinePages(win) {
-  chromeInlinePages.clear();
-  warmChromeInlinePages(win);
-}
-
-/** Open header/footer in the left editor, in this window. */
-async function openChromeInline(win, kind) {
-  const doc = win.document;
-  const chromeKind = kind === 'footer' ? 'footer' : 'header';
-  const handle = chromeGlobalHandle(win, chromeKind);
-  const existing = chromeHost(doc);
-
-  setActiveChromeKind(chromeKind);
-  chromeInlineKind = chromeKind;
-  setLpMode(win, 'show');
-  hideGlobalsPanel(win, { release: false });
-
-  // Both halves in one set: they are two tabs of one form, and stepping across is
-  // a tab switch rather than a remount — nothing half-typed is lost.
-  if (existing && chromeInlineHandle === handle) {
-    soloUid = null;
-    soloChromeTab(win, doc, chromeKind);
-    watchChromeSolo(win, doc, chromeKind);
-    syncSectionLibraryAvailability(win);
-
-    return;
-  }
-
-  // A set each: the form standing there holds the other half's fields, and no tab
-  // of it is the one being asked for. It has to go before the right one is built
-  // — the page for that one is normally already in hand (see the prefetch at the
-  // end of this function), so the swap is one frame, not a fetch.
-  if (existing) {
-    closeChromeInline(win, { refresh: false });
-    setActiveChromeKind(chromeKind);
-    chromeInlineKind = chromeKind;
-  }
-
-  closeRightPanels(win, []);
-
-  const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
-  const resolver = inertiaPageResolver(win);
-
-  if (!column || !resolver) {
-    openGlobalsPanelFrameForChrome(win, chromeKind);
-
-    return;
-  }
-
-  const host = doc.createElement('div');
-
-  host.id = CHROME_HOST_ID;
-  host.dataset.sveChromeKind = chromeKind;
-  // Invisible until the tab has been isolated: the form mounts as the whole Theme
-  // Settings screen — title, Save, ten tabs — and watching that be pared back to
-  // one of them is the flicker.
-  host.style.cssText = 'opacity:0;transition:opacity .12s ease;';
-  column.appendChild(host);
-  hidePageFieldsForGlobalSection(host);
-
-  const loaded = await takeChromeInlinePage(win, handle);
-
-  if (chromeHost(doc) !== host) {
-    return;
-  }
-
-  let Page = null;
-
-  if (loaded?.component) {
-    try {
-      const mod = await resolver(loaded.component);
-
-      Page = mod?.default ?? mod;
-    } catch {
-      Page = null;
-    }
-  }
-
-  if (chromeHost(doc) !== host) {
-    return;
-  }
-
-  if (!Page || !mountChromeForm(win, host, Page, loaded.props)) {
-    closeChromeInline(win);
-    openGlobalsPanelFrameForChrome(win, chromeKind);
-
-    return;
-  }
-
-  chromeInlineHandle = handle;
-  watchChromeInlineSaves(win);
-  watchChromeInlineValues(win, handle);
-  bootChromeSolo(win, doc, host, chromeKind);
-  syncSectionLibraryAvailability(win);
-  // Both, not just the other one: this half was consumed on the way in, and
-  // re-opening it later should cost no more than stepping across does.
-  warmChromeInlinePages(win);
-}
-
-/** The docked Theme Settings route, for when the in-window one cannot be built. */
-function openGlobalsPanelFrameForChrome(win, kind) {
-  const set = globalSets(win).find((candidate) => candidate.handle === chromeGlobalHandle(win, kind));
-
-  if (!set) {
-    return;
-  }
-
-  openGlobalsPanel(win, set, { chromeLock: kind });
-  showGlobalsPanel(win);
-  lockChromeGlobalsTab(win, kind);
-}
-
-/** Isolate the tab once the form has rendered enough of itself to be isolated. */
-function bootChromeSolo(win, doc, host, kind) {
-  let attempts = 0;
-
-  const reveal = () => {
-    if (chromeHost(doc) === host) {
-      host.style.opacity = '1';
-    }
-  };
-
-  win.setTimeout(reveal, SECTION_PANEL_REVEAL_MS);
-
-  const tryBoot = () => {
-    if (chromeHost(doc) !== host || chromeInlineKind !== kind) {
-      return;
-    }
-
-    if (soloChromeTab(win, doc, kind)) {
-      watchChromeSolo(win, doc, kind);
-      reveal();
-
-      return;
-    }
-
-    if (attempts++ < 80) {
-      win.setTimeout(tryBoot, 120);
-
-      return;
-    }
-
-    reveal();
-  };
-
-  tryBoot();
-}
-
-/**
- * Read what the form holds, four times a second, and stash it for the preview.
- *
- * Same channel the docked panel used — `postGlobals` and its debounce — so the
- * render, the chrome bar and the discard path all behave exactly as they did.
- */
-function watchChromeInlineValues(win, handle) {
-  stopChromeInlineValues(win);
-  chromeValuesSeen = null;
-
-  chromeValuesTimer = win.setInterval(() => {
-    if (!chromeHost(win.document)) {
-      return;
-    }
-
-    const container = chromeContainer();
-    const values = container ? unwrapRef(container.values) : null;
-
-    if (!values || typeof values !== 'object') {
-      return;
-    }
-
-    const serialized = JSON.stringify(values);
-
-    if (serialized === chromeValuesSeen) {
-      return;
-    }
-
-    const first = chromeValuesSeen === null;
-
-    chromeValuesSeen = serialized;
-
-    // First read is what the form opened with — the baseline, not an edit.
-    if (first) {
-      chromeValuesBaseline = serialized;
-
-      return;
-    }
-
-    // Inside the settle window after an open or a save, what arrives is the form
-    // agreeing with what is on disk — that is the clean state, not an edit.
-    if (Date.now() < chromeIgnoreValuePostsUntil) {
-      chromeValuesBaseline = serialized;
-
-      return;
-    }
-
-    if (serialized === chromeValuesBaseline) {
-      return;
-    }
-
-    if (!globalsAcceptValues) {
-      return;
-    }
-
-    globalsStashActive = true;
-    notifyChromeDirty(win);
-    postGlobals(win, handle, JSON.parse(serialized));
-  }, 250);
-}
-
-function stopChromeInlineValues(win) {
-  if (chromeValuesTimer) {
-    win.clearInterval(chromeValuesTimer);
-    chromeValuesTimer = null;
-  }
-}
-
-/**
- * The globals form's own Save, pressed for it. Hidden by the solo view, which is
- * not the same as disabled — the click runs Statamic's real save, and that form
- * never navigates afterwards, so there is nothing to hold back.
- */
-function pressChromeSave(win) {
-  const host = chromeHost(win.document);
-
-  if (!host) {
-    return false;
-  }
-
-  const button = [...host.querySelectorAll('button')].find((el) =>
-    /^(save|gem)\b/i.test((el.textContent || '').trim())
-  );
-
-  if (!button) {
-    return false;
-  }
-
-  button.click();
-
-  return true;
-}
-
-/** Hear the globals save go out — it is this window's request now. */
-function watchChromeInlineSaves(win) {
-  watchGlobalsPanelSaves(win, win, () => (chromeInlineHandle ? `/cp/globals/${chromeInlineHandle}` : null));
-}
-
-/** Take the form down and hand the column back to the page. */
-function closeChromeInline(win, { refresh = true } = {}) {
-  const doc = win.document;
-  const host = chromeHost(doc);
-
-  // Nothing of ours is open — and nothing of ours may be forgotten either. This
-  // is called on the way IN as well (closeRightPanels clears the field column
-  // before the form is built), and clearing the kind there left the boot with
-  // nothing to isolate: the whole Theme Settings screen, ten tabs and all.
-  if (!host) {
-    return false;
-  }
-
-  stopChromeInlineValues(win);
-  chromeInlineKind = null;
-
-  // Leaving for real — as opposed to the internal swap that steps from one half
-  // to the other, which needs the half it is about to mount still warm. Whatever
-  // was saved in here has made the warmed screens wrong, so they go and are
-  // fetched again now, while nothing is waiting on them.
-  if (refresh) {
-    resetChromeInlinePages(win);
-  }
-
-  if (chromeApp) {
-    try {
-      chromeApp.unmount();
-    } catch {
-      /* already gone */
-    }
-
-    chromeApp = null;
-  }
-
-  host.remove();
-  showPageFieldsAgain(doc);
-
-  // The marks point into a form that has just left the document.
-  clearSolo(doc);
-
-  chromeInlineHandle = null;
-  chromeValuesSeen = null;
-  chromeValuesBaseline = null;
-
-  rearmFirstSection();
-  syncPreviewInset(win);
-  clearGlobalsStash(win, { refresh });
-  syncSectionLibraryAvailability(win);
-
-  return true;
-}
-
-/** The panel frame reports what's being typed → stash it → re-render the page. */
-function listenForSectionValues(win) {
-  win.addEventListener('message', (event) => {
-    if (event.origin !== win.location.origin) {
-      return;
-    }
-
-    const { data } = event;
-
-    if (data?.source !== 'statamic-visual-editor') {
-      return;
-    }
-
-    // Entry form finished booting — flush any preview click held while it loaded.
-    if (data.type === 'sve-section-panel-ready') {
-      const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-      if (panel && event.source === panel.querySelector('iframe')?.contentWindow) {
-        flushPendingFocusUntilPanel(win);
-        // The rebuild is done — this is the first moment the form is worth
-        // looking at, so it is the moment it becomes visible.
-        revealSectionPanelFrame(win);
-      }
-
-      return;
-    }
-
-    if (data.type !== 'sve-section-values') {
-      return;
-    }
-
-    const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-    if (!panel || event.source !== panel.querySelector('iframe')?.contentWindow) {
-      return;
-    }
-
-    applySectionValues(win, data.id, data.values);
-  });
-}
-
-/**
- * What the synced section's form now holds — however it was read.
- *
- * The docked panel posts it up; edited in this window it is read straight off the
- * form's own publish container. Both arrive here, so the baseline, the Save
- * button and the preview stash are decided in one place.
- */
-function applySectionValues(win, id, values) {
-  // Kept so the panel can stand in as a container — that's what lets a global
-  // section's text be edited inline in the page (see sectionPanelContainer).
-  sectionPanelValues = { id, values };
-
-  // Inline edit / focus clicked before hydrate finished — try again now.
-  flushPendingEditUntilPanel();
-  flushPendingFocusUntilPanel(win);
-
-  const serialized = JSON.stringify(values ?? {});
-
-  // First poll after open = baseline, not dirty. Otherwise Save (primary)
-  // lights up the moment you enter a global section with no real edits. The
-  // same is true of the first values to arrive after a save — see
-  // sectionBaselineUntil — and the window is closed as soon as it is used, so
-  // one echo is all it ever covers.
-  if (sectionValuesBaseline === null || Date.now() < sectionBaselineUntil) {
-    sectionBaselineUntil = 0;
-    sectionValuesBaseline = serialized;
-    sectionValuesMatchBaseline = true;
-    notifyGlobalSectionDirty(win);
-
-    return;
-  }
-
-  // Whether this is a change is a question about the Save button. Whether the
-  // page should be re-rendered is not — the preview shows what the form holds,
-  // and putting a value back to what it was when the section was opened is as
-  // much a thing to show as any other edit.
-  //
-  // It used to return here, and that is the "sometimes it doesn't update":
-  // a heading flipped H1 → H2 → H1 stayed on H2, because the last step matched
-  // the baseline and never reached the stash. The panel and the page then
-  // disagreed, and every later click was aimed at a page the form had moved on
-  // from — which is what made editing seem to break at random.
-  sectionValuesMatchBaseline = serialized === sectionValuesBaseline;
-
-  notifyGlobalSectionDirty(win);
-  postSectionValues(win, id, values);
-}
-
-function listenForGlobalsValues(win) {
-  win.addEventListener('message', (event) => {
-    if (event.origin !== win.location.origin) {
-      return;
-    }
-
-    const { data } = event;
-
-    // Theme Settings (iframe) → sektionens Theme Color Picker-swatches.
-    // Color-scheme dispatches også direkte på top; dette fanger postMessage.
-    if (data?.source === 'statamic-visual-editor' && data.type === 'sve-theme-scale-values' && data.values) {
-      win.dispatchEvent(new CustomEvent('sve-theme-colors', { detail: data.values }));
-
-      return;
-    }
-
-    if (data?.source !== 'statamic-visual-editor' || data.type !== 'sve-globals-values') {
-      return;
-    }
-
-    const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-
-    if (!panel || event.source !== panel.querySelector('iframe')?.contentWindow) {
-      return;
-    }
-
-    // Live palette i sektioner mens Theme Settings er åben (også prefetch/hidden).
-    if (data.values && data.handle === 'theme_settings') {
-      win.dispatchEvent(new CustomEvent('sve-theme-colors', { detail: data.values }));
-    }
-
-    // Hidden prefetch panel: Theme Settings hydrates in the background. Those
-    // value polls must NOT mark the editor dirty or the back button always
-    // offers "Save, publish and go back" with no real edits.
-    if (panel.hasAttribute('data-sve-chrome-hidden') || panel.style.visibility === 'hidden') {
-      return;
-    }
-
-    // Discard/reload in progress — ignore stale polls from the old form.
-    if (!globalsAcceptValues) {
-      return;
-    }
-
-    const serialized = JSON.stringify(data.values ?? {});
-
-    // Tab-lock / remount after entering chrome mutates the form once — treat as baseline, not dirty.
-    if (activeChromeKind && Date.now() < chromeIgnoreValuePostsUntil) {
-      chromeValuesBaseline = serialized;
-
-      return;
-    }
-
-    if (activeChromeKind && chromeValuesBaseline !== null && serialized === chromeValuesBaseline) {
-      return;
-    }
-
-    // Show Save on the chrome bar immediately (stash POST is still debounced).
-    globalsStashActive = true;
-    notifyChromeDirty(win);
-
-    postGlobals(win, data.handle, data.values);
-  });
-}
-
+// ===== boot =====
 // --- Asset browser: hard-enforce the field's file limit --------------------------
 //
 // A field with max_files: 1 can still end up holding several assets: the browser
@@ -26108,10 +8386,10 @@ function listenForGlobalsValues(win) {
 // extra rows are deselected — keeping the row that was clicked last, which is the
 // one the user meant.
 
-const ASSET_COUNT_RE = /^(\d+)\s*\/\s*(\d+)\s+selected$/i;
+export const ASSET_COUNT_RE = /^(\d+)\s*\/\s*(\d+)\s+selected$/i;
 
 /** The browser's "N/M selected" footer, if it's on screen. */
-function assetCounter(doc) {
+export function assetCounter(doc) {
   for (const el of doc.querySelectorAll('span, div, p, td')) {
     if (el.childElementCount !== 0) {
       continue;
@@ -26127,7 +8405,7 @@ function assetCounter(doc) {
   return null;
 }
 
-function checkedAssetToggles(doc) {
+export function checkedAssetToggles(doc) {
   return [...doc.querySelectorAll('[role="checkbox"], input[type="checkbox"]')].filter(
     (el) =>
       el.checked === true ||
@@ -26137,9 +8415,9 @@ function checkedAssetToggles(doc) {
 }
 
 // The row the user touched most recently — the selection we keep when trimming.
-let lastAssetRow = null;
+export let lastAssetRow = null;
 
-function enforceAssetLimit(doc) {
+export function enforceAssetLimit(doc) {
   const counter = assetCounter(doc);
 
   if (!counter || !counter.max || counter.selected <= counter.max) {
@@ -26171,7 +8449,7 @@ function enforceAssetLimit(doc) {
   toggles.filter((toggle) => !keep.has(toggle)).forEach((toggle) => toggle.click());
 }
 
-function guardAssetLimit(win) {
+export function guardAssetLimit(win) {
   const doc = win.document;
 
   const check = () => {
@@ -26209,7 +8487,7 @@ function guardAssetLimit(win) {
  * computed, so a ref is what makes them reactive. Without it a field would only
  * change places the next time some other value happened to change.
  */
-function registerPanelConditions(win) {
+export function registerPanelConditions(win) {
   const conditions = win.Statamic?.$conditions;
   const ref = win.Vue?.ref;
 
@@ -26229,112 +8507,6 @@ function registerPanelConditions(win) {
   conditions.add('onlyInLivePreview', () => inLivePreview.value);
 }
 
-/**
- * Do not raise `.portal-targets` — that full-viewport layer hides the docks.
- * Move `.stack-content` to body (Alpine teleport) and pin it `position:fixed`
- * at the same box, so the panel is in front and sidebar / code-dock stay put.
- */
-function watchPublishDialogStack(win) {
-  const HOST_ID = '__sve-publish-teleport';
-  const doc = win.document;
-  const homes = new WeakMap();
-  let scheduled = false;
-
-  const hostEl = () => {
-    let host = doc.getElementById(HOST_ID);
-
-    if (!host) {
-      host = doc.createElement('div');
-      host.id = HOST_ID;
-      doc.body.appendChild(host);
-    }
-
-    return host;
-  };
-
-  const pin = (panel) => {
-    const box = panel.getBoundingClientRect();
-    const gap = Math.round(box.top);
-
-    panel.style.setProperty('position', 'fixed', 'important');
-    panel.style.setProperty('top', `${gap}px`, 'important');
-    panel.style.setProperty('right', `${gap}px`, 'important');
-    panel.style.setProperty('left', 'auto', 'important');
-    panel.style.setProperty('width', `${Math.round(box.width)}px`, 'important');
-    panel.style.setProperty('height', `${Math.round(win.innerHeight - gap * 2)}px`, 'important');
-    panel.style.setProperty('z-index', '200', 'important');
-    panel.style.setProperty('margin', '0', 'important');
-    panel.style.setProperty('pointer-events', 'auto', 'important');
-  };
-
-  const unpin = (panel) => {
-    ['position', 'top', 'right', 'left', 'width', 'height', 'z-index', 'margin', 'pointer-events'].forEach(
-      (prop) => panel.style.removeProperty(prop)
-    );
-  };
-
-  const restore = (panel) => {
-    const home = homes.get(panel);
-
-    unpin(panel);
-
-    if (home?.parentNode) {
-      home.parentNode.insertBefore(panel, home);
-      home.remove();
-    }
-
-    homes.delete(panel);
-  };
-
-  const sync = () => {
-    // Live Preview only. Fieldset/blueprint stacks are the same markup
-    // (Display name, handle, select). Pinning them on every DOM mutation
-    // drops focus — text and select die, toggles still click.
-    const inLivePreview = !!doc.querySelector('.live-preview-header');
-    const open = inLivePreview && !!doc.querySelector('.portal-targets.stacks-on-stacks');
-    const host = doc.getElementById(HOST_ID);
-
-    if (!open) {
-      if (host) {
-        [...host.querySelectorAll('.stack-content')].forEach(restore);
-      }
-
-      return;
-    }
-
-    const target = hostEl();
-
-    doc.querySelectorAll('.portal-targets .stack-content, #__sve-publish-teleport .stack-content').forEach((panel) => {
-      if (panel.parentElement !== target) {
-        pin(panel);
-
-        const home = doc.createComment('sve-publish-home');
-
-        panel.parentNode.insertBefore(home, panel);
-        homes.set(panel, home);
-        target.appendChild(panel);
-      } else {
-        pin(panel);
-      }
-    });
-  };
-
-  const schedule = () => {
-    if (scheduled) {
-      return;
-    }
-
-    scheduled = true;
-    win.requestAnimationFrame(() => {
-      scheduled = false;
-      sync();
-    });
-  };
-
-  sync();
-  new win.MutationObserver(schedule).observe(doc.body, { childList: true, subtree: true });
-}
-
 export function initCp(win = window) {
   // Before anything else, and before the switch below: a field asking for a
   // condition that isn't there is hidden in both editors, so these are registered
@@ -26345,7 +8517,7 @@ export function initCp(win = window) {
   win.__SVE_BUILD__ = 'publish-gap-match-top-2026-08-20';
 
   if (win.__SVE_SCROLL_TEST) {
-    win.__sveOpenPatterns = (options) => openSectionPicker(win, options || {});
+    win.__sveOpenPatterns = (options) => sve.openSectionPicker(win, options || {});
   }
 
   armSetPickerSearchSilence(win);
@@ -26372,7 +8544,7 @@ export function initCp(win = window) {
       isEmbeddedInSite(win) &&
       new URLSearchParams(win.location.search).get('live-preview') === '1'
     ) {
-      dockRestorePaused = true;
+      sveState.dockRestorePaused = true;
     }
   } catch {
     /* ignore */
@@ -26385,58 +8557,57 @@ export function initCp(win = window) {
     const lvTab = chromeGet(win, 'sve-listview-tab');
 
     if (lvTab === 'outline' || lvTab === 'tree') {
-      listViewTab = lvTab;
+      sveState.listViewTab = lvTab;
     }
   } catch (err) {
     console.error('[sve] chrome prefs', err);
   }
 
-  registerRightDockContent();
+  sve.registerRightDockContent();
 
   const style = win.document.createElement('style');
   style.id = '__sve-cp-styles';
   style.textContent = CP_STYLES;
   win.document.head.appendChild(style);
 
-  watchPublishDialogStack(win);
   win.addEventListener('resize', () => {
     relayoutCodeDock(win);
     relayoutAiPanel(win);
     relayoutRightDock(win);
-    syncPreviewInset(win);
+    sve.syncPreviewInset(win);
   });
   win.addEventListener('sve-right-dock-change', () => {
-    persistDockedPanel(win);
-    syncPreviewInset(win);
+    sve.persistDockedPanel(win);
+    sve.syncPreviewInset(win);
     applyHeaderTab(win);
   });
   win.addEventListener('sve-ai-closed', () => {
-    syncPreviewInset(win);
+    sve.syncPreviewInset(win);
     applyHeaderTab(win);
   });
 
   autoOpenLivePreview(win);
   interceptLivePreviewOpen(win);
-  initOpenInPreview(win);
-  watchEntrySaves(win);
-  watchPreviewRenders(win);
+  sve.initOpenInPreview(win);
+  sve.watchEntrySaves(win);
+  sve.watchPreviewRenders(win);
   guardAssetLimit(win);
-  listenForGlobalsValues(win);
-  listenForSectionValues(win);
+  sve.listenForGlobalsValues(win);
+  sve.listenForSectionValues(win);
 
   // Capture publish containers BEFORE the sve-panel frame boots. The panel's
-  // bootSavedSectionSolo / value poll need activeContainers(); if we register
+  // sve.bootSavedSectionSolo / value poll need sve.activeContainers(); if we register
   // listeners after the panel starts, the container-created event is missed and
   // the sidebar stays on empty entry meta (Published + title) forever.
-  registerContainerEvents(win);
+  sve.registerContainerEvents(win);
 
   // Running as the globals panel inside Live Preview: strip to the form and
   // stream its values up. None of the Live Preview machinery below applies.
-  // The same frame serves a global section's editor — see initGlobalsPanelFrame.
-  if (!initGlobalsPanelFrame(win)) {
+  // The same frame serves a global section's editor — see sve.initGlobalsPanelFrame.
+  if (!sve.initGlobalsPanelFrame(win)) {
     // Parent CP window — start warming Theme Settings immediately on entry edit,
     // so it's ready before the user even opens Live Preview.
-    scheduleChromeGlobalsPrefetch(win);
+    sve.scheduleChromeGlobalsPrefetch(win);
   }
 
   // Stamp Grid rows immediately and re-stamp whenever the DOM changes
@@ -26456,14 +8627,14 @@ export function initCp(win = window) {
 
     try {
       stampGridRows(win.document);
-      ensureLpPanelToggle(win);
+      sve.ensureLpPanelToggle(win);
       // Live Preview mounts (and remounts) its iframe from here — bind the
       // click-outside forward to whichever one is on screen now.
-      ensurePreviewOutsideDismiss(win);
+      sve.ensurePreviewOutsideDismiss(win);
       // Segmented tabs + accordion cards (yesterday's Look). Quiet window above
       // stops Vue↔DOM move loops from freezing the CP.
       enhanceSectionGroupsIn(win);
-      markStepIntoAll(win);
+      sve.markStepIntoAll(win);
     } catch (err) {
       console.error('[sve] dom pass', err);
     }
@@ -26860,4 +9031,9 @@ export function initCp(win = window) {
     win.document.removeEventListener('click', removeThumb);
     removeThumb();
   };
+}
+
+/** Used by the template dock. Implementation lives in globals-panel.js (toggle `globals`). */
+export function replayLivePreview(win) {
+  return sve.replayLivePreview(win);
 }

@@ -30,10 +30,12 @@ class SectionTemplate
     }
 
     /**
-     * Real path to write the partial, creating parent folders. Null when the
-     * handle is unsafe. The file itself does not have to exist yet.
+     * Page sections live under `templates.partials`. Header/footer chrome
+     * uses `header/style_1` → `views/partials/header/style_1.antlers.html`.
+     *
+     * @return array{base: string, rel: string}|null
      */
-    public static function writablePath(string $handle): ?string
+    protected static function locate(string $handle): ?array
     {
         $handle = str_replace('\\', '/', trim($handle));
 
@@ -45,7 +47,32 @@ class SectionTemplate
             return null;
         }
 
-        $base = static::directory();
+        if (preg_match('#^(header|footer)/(.+)$#', $handle, $m)) {
+            return [
+                'base' => resource_path('views/partials/'.$m[1]),
+                'rel' => $m[2],
+            ];
+        }
+
+        return [
+            'base' => static::directory(),
+            'rel' => $handle,
+        ];
+    }
+
+    /**
+     * Real path to write the partial, creating parent folders. Null when the
+     * handle is unsafe. The file itself does not have to exist yet.
+     */
+    public static function writablePath(string $handle): ?string
+    {
+        $located = static::locate($handle);
+
+        if ($located === null) {
+            return null;
+        }
+
+        $base = $located['base'];
 
         if (! is_dir($base) && ! @mkdir($base, 0775, true) && ! is_dir($base)) {
             return null;
@@ -57,7 +84,7 @@ class SectionTemplate
             return null;
         }
 
-        $candidate = $baseReal.DIRECTORY_SEPARATOR.str_replace('.', '/', $handle).'.antlers.html';
+        $candidate = $baseReal.DIRECTORY_SEPARATOR.str_replace('.', '/', $located['rel']).'.antlers.html';
         $dir = dirname($candidate);
 
         if (! is_dir($dir) && ! @mkdir($dir, 0775, true) && ! is_dir($dir)) {
@@ -79,23 +106,19 @@ class SectionTemplate
 
     public static function path(string $handle): ?string
     {
-        $handle = str_replace('\\', '/', trim($handle));
+        $located = static::locate($handle);
 
-        if ($handle === '' || str_contains($handle, '..') || str_starts_with($handle, '/')) {
+        if ($located === null) {
             return null;
         }
 
-        if (! preg_match('/^[A-Za-z0-9][A-Za-z0-9_\/.-]*$/', $handle)) {
-            return null;
-        }
-
-        $base = realpath(static::directory());
+        $base = realpath($located['base']);
 
         if ($base === false) {
             return null;
         }
 
-        $candidate = $base.DIRECTORY_SEPARATOR.str_replace('.', '/', $handle).'.antlers.html';
+        $candidate = $base.DIRECTORY_SEPARATOR.str_replace('.', '/', $located['rel']).'.antlers.html';
 
         if (! is_file($candidate)) {
             return null;
@@ -470,14 +493,26 @@ class SectionTemplate
 
     public static function handleFromAbsolute(string $absolute): ?string
     {
-        $base = realpath(static::directory());
         $real = realpath($absolute);
 
-        if ($base === false || $real === false || ! str_ends_with($real, '.antlers.html')) {
+        if ($real === false || ! str_ends_with($real, '.antlers.html')) {
             return null;
         }
 
-        if ($real === $base || ! str_starts_with($real, $base.DIRECTORY_SEPARATOR)) {
+        foreach (['header', 'footer'] as $chrome) {
+            $chromeBase = realpath(resource_path('views/partials/'.$chrome));
+
+            if ($chromeBase && str_starts_with($real, $chromeBase.DIRECTORY_SEPARATOR)) {
+                $rel = substr($real, strlen($chromeBase) + 1);
+                $rel = preg_replace('/\.antlers\.html$/', '', str_replace('\\', '/', $rel)) ?? '';
+
+                return $rel !== '' ? $chrome.'/'.$rel : null;
+            }
+        }
+
+        $base = realpath(static::directory());
+
+        if ($base === false || $real === $base || ! str_starts_with($real, $base.DIRECTORY_SEPARATOR)) {
             return null;
         }
 

@@ -5,10 +5,12 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\GridIcon;
+use MarioHamann\StatamicVisualEditor\GridKeepTable;
 use MarioHamann\StatamicVisualEditor\IconifyDefault;
 use MarioHamann\StatamicVisualEditor\PanelVisibility;
 use MarioHamann\StatamicVisualEditor\ReplicatorSettings;
 use MarioHamann\StatamicVisualEditor\ResponsiveFields;
+use MarioHamann\StatamicVisualEditor\SiblingSync;
 
 /**
  * Adds CP field-config extras once per Control Panel request.
@@ -28,7 +30,9 @@ class RegisterPanelVisibility
     {
         PanelVisibility::register();
         GridIcon::register();
+        GridKeepTable::register();
         ResponsiveFields::register();
+        SiblingSync::register();
         ReplicatorSettings::register();
         IconifyDefault::register();
 

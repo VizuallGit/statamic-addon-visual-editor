@@ -1,0 +1,27 @@
+---
+description: Visual Editor-dist må ikke slettes, kopieres til public/vendor eller bygges i bidder
+alwaysApply: true
+---
+
+# Visual Editor dist er låst
+
+Det byggede editor-JS bor **kun** i `resources/dist/build`. Det er addonen. Ikke sitets `public/vendor`.
+
+`addon.js` importerer `overlay-host-XXXX.js` ved det nøjagtige hash-navn. Et Vite-build af overlay-host alene skriver et nyt hash og kan slette den gamle fil. Control Panel loader så ingenting — hele editoren er væk.
+
+## Forbudt
+
+- Skriv aldrig i sitets `public/vendor/visual-editor` eller `public/vendor/statamic-addon`
+- `vendor:publish` af dette dist — nej. Control Panel får en symlink, preview henter `/!/sve/build/…`
+- Vite med `configFile: false` eller kun ét input (`overlay-host.js`, `preview.js`, `bridge.js`)
+- Slet aldrig `overlay-host-*.js`, `addon-*.js`, `bridge-*.js`, `preview-*.js` i `resources/dist/build/assets`
+- Ret aldrig én hash i `manifest.json` uden at `addon.js` importerer præcis den samme overlay-host-fil
+- `npm run cp:build` kun når brugeren **eksplicit** beder om et fuldt build — og aldrig for at «lige fikse overlay-host»
+
+## Påkrævet efter dist-ændring
+
+```
+node scripts/assert-dist-integrity.mjs
+```
+
+Hvis den fejler, er editoren i stykker. Gendan den manglende fil fra `resources/dist/locked` eller git. Byg ikke «lidt om».

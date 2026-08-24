@@ -1,7 +1,5 @@
 import AutoUuid from './components/fieldtypes/AutoUuid.vue';
 import LibraryScan from './components/fieldtypes/LibraryScan.vue';
-// Melder sig selv ind fra deres egen Statamic.booting()/Statamic.configuring()
-// — derfor kun imports, og ingen component()-linjer nedenfor.
 import './components/fieldtypes/ResponsiveFieldtype.js';
 import './components/fieldtypes/ColumnSpanFieldtype.js';
 import './components/fieldtypes/IconButtonGroupFieldtype.js';
@@ -11,22 +9,27 @@ import './components/fieldtypes/ToolbarAccessFieldtype.js';
 import './components/fieldtypes/DefaultSetsFieldtype.js';
 import './components/fieldtypes/BardDefaultFieldtype.js';
 import './components/LockedRows.js';
+import './sibling-sync.js';
 import './components/UniqueSets.js';
 import './components/SectionAccordion.js';
-import { enhanceIconFieldtype, enhanceIconifyFieldtype, initCp } from './cp.js';
+import './inline-edit.js';
+import './section-library.js';
+import './lp-panel.js';
+import './page-activity.js';
+import './outline-panel.js';
+import './block-tree.js';
+import './focus-panel.js';
+import './open-in-preview.js';
+import './globals-panel.js';
+import './pages.js';
+import './global-section.js';
+import './chrome.js';
+import { initCp } from './cp.js';
 import { initComments } from './comments.js';
 
 Statamic.booting(() => {
   Statamic.component('auto_uuid-fieldtype', AutoUuid);
   Statamic.component('library_scan-fieldtype', LibraryScan);
-  // Parent Control Panel window.
   initCp();
   initComments();
-});
-
-// Icon fieldtype is registered on the Vue app during boot — wrap it afterwards
-// so Edit Set (and every other Icon field) can take Iconify / pasted SVG / custom files.
-Statamic.booted(() => {
-  enhanceIconFieldtype();
-  enhanceIconifyFieldtype();
 });

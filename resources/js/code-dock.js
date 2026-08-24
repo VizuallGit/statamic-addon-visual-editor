@@ -14,8 +14,18 @@
  */
 
 import { findSetByUid, replayLivePreview } from './cp.js';
+import { sve } from './cp-registry.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { splitterFill } from './right-dock.js';
+import { register } from './cp/bus.js';
+import { mountPane } from './cp/mount-pane.js';
+import CodeDockChrome from './cp/surfaces/CodeDockChrome.vue';
+import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
+import CodeDockHtmlTools from './cp/surfaces/CodeDockHtmlTools.vue';
+import CodeDockCssTools from './cp/surfaces/CodeDockCssTools.vue';
+import CodeDockMenu from './cp/surfaces/CodeDockMenu.vue';
+import { openCpOverlay } from './cp/open-overlay.js';
+import { mountSurface } from './cp/mount.js';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
 import { Compartment, EditorState } from '@codemirror/state';
 import { defaultKeymap, indentWithTab, historyKeymap, history } from '@codemirror/commands';
@@ -411,7 +421,8 @@ function ensureStyle(doc) {
   style.textContent = `
 #${DOCK_ID} {
   position: fixed;
-  z-index: 45;
+  /* Same band as the right dock: above the page, under Statamic stacks. */
+  z-index: var(--z-index-above, 1);
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -1227,50 +1238,25 @@ function bindLock(win, dock) {
 }
 
 function confirmUnlock(win) {
-  const doc = win.document;
+  win.document.getElementById(UNLOCK_ID)?.remove();
 
-  doc.getElementById(UNLOCK_ID)?.remove();
+  const overlay = openCpOverlay(win.document, ChoiceDialog, {
+    title: t(win, 'code_dock_unlock_title'),
+    body: t(win, 'code_dock_unlock_body'),
+    buttons: [
+      { value: 'cancel', label: t(win, 'cancel'), variant: 'ghost' },
+      { value: 'ok', label: t(win, 'code_dock_unlock_confirm'), variant: 'primary' },
+    ],
+    onPick: (value) => {
+      overlay.dismiss();
 
-  const overlay = doc.createElement('div');
-
-  overlay.id = UNLOCK_ID;
-  overlay.innerHTML = `
-    <div data-sve-unlock-card>
-      <div data-sve-unlock-title></div>
-      <div data-sve-unlock-body></div>
-      <div data-sve-unlock-actions>
-        <button type="button" data-sve-unlock-cancel></button>
-        <button type="button" data-sve-unlock-confirm></button>
-      </div>
-    </div>
-  `;
-
-  overlay.querySelector('[data-sve-unlock-title]').textContent = t(win, 'code_dock_unlock_title');
-  overlay.querySelector('[data-sve-unlock-body]').textContent = t(win, 'code_dock_unlock_body');
-  overlay.querySelector('[data-sve-unlock-cancel]').textContent = t(win, 'cancel');
-  overlay.querySelector('[data-sve-unlock-confirm]').textContent = t(win, 'code_dock_unlock_confirm');
-
-  const close = () => overlay.remove();
-
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) {
-      close();
-    }
-  });
-  overlay.querySelector('[data-sve-unlock-cancel]').addEventListener('click', close);
-  overlay.querySelector('[data-sve-unlock-confirm]').addEventListener('click', () => {
-    close();
-    setTemplateLock(win, false);
-  });
-  overlay.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      close();
-    }
+      if (value === 'ok') {
+        setTemplateLock(win, false);
+      }
+    },
   });
 
-  doc.body.appendChild(overlay);
-  overlay.querySelector('[data-sve-unlock-cancel]').focus();
+  overlay.host.id = UNLOCK_ID;
 }
 
 function setTemplateLock(win, locked) {
@@ -1933,7 +1919,10 @@ function paintCssToolStateInner(win) {
 }
 
 function closeCssMenu(doc) {
-  doc?.getElementById(CSS_MENU_ID)?.remove();
+  const menu = doc?.getElementById(CSS_MENU_ID);
+
+  menu?._sveApp?.unmount();
+  menu?.remove();
   doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-html-tool][data-open]').forEach((el) =>
     el.removeAttribute('data-open')
   );
@@ -2037,67 +2026,34 @@ function openCssColorMenu(win, anchor, property) {
   const menu = doc.createElement('div');
 
   menu.id = CSS_MENU_ID;
-  menu.innerHTML = `<div data-sve-css-swatches></div>`;
   doc.body.appendChild(menu);
   placeCssMenu(win, anchor, menu);
 
-  const grid = menu.querySelector('[data-sve-css-swatches]');
-
-  const addClear = () => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.setAttribute('data-sve-css-clear', '');
-    btn.title = 'Clear';
-    btn.innerHTML =
-      '<svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 2l6 6M8 2L2 8"/></svg>';
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      clearCssProperty(property);
-      closeCssMenu(doc);
+  const paint = (swatches) => {
+    menu._sveApp?.unmount();
+    menu._sveApp = mountSurface(CodeDockMenu, menu, {
+      kind: 'colors',
+      swatches,
+      onClear: () => {
+        clearCssProperty(property);
+        closeCssMenu(doc);
+      },
+      onPick: (name) => {
+        applyCssSnippet(`${property}: var(${name});`);
+        closeCssMenu(doc);
+      },
     });
-    grid.appendChild(btn);
+    markCssMenuActive(menu, property);
   };
 
-  const addSwatch = (name, hex) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.setAttribute('data-sve-css-swatch', '');
-    btn.setAttribute('data-sve-css-token', name);
-    btn.title = name;
-    btn.style.background = hex || 'transparent';
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      applyCssSnippet(`${property}: var(${name});`);
-      closeCssMenu(doc);
-    });
-    grid.appendChild(btn);
-  };
-
-  addClear();
-
-  for (const [name, hex] of CSS_GRAYS) {
-    addSwatch(name, hex);
-  }
-
-  markCssMenuActive(menu, property);
+  paint(CSS_GRAYS.map(([name, hex]) => ({ name, hex })));
 
   loadThemeColors(win).then((colors) => {
     if (!doc.getElementById(CSS_MENU_ID)) {
       return;
     }
 
-    grid.innerHTML = '';
-    addClear();
-
-    for (const color of colors) {
-      addSwatch(color.name, color.hex);
-    }
-
-    markCssMenuActive(menu, property);
+    paint(colors.map((color) => ({ name: color.name, hex: color.hex })));
   });
 }
 
@@ -2112,23 +2068,14 @@ function openCssSpacingMenu(win, anchor, property) {
   menu.id = CSS_MENU_ID;
   doc.body.appendChild(menu);
   placeCssMenu(win, anchor, menu);
-
-  for (const token of CSS_SPACING) {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.setAttribute('data-sve-css-choice', '');
-    btn.setAttribute('data-sve-css-token', token);
-    btn.textContent = token;
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: CSS_SPACING.map((token) => ({ value: token, token, label: token })),
+    onPick: (token) => {
       applyCssSnippet(`${property}: var(${token});`);
       closeCssMenu(doc);
-    });
-    menu.appendChild(btn);
-  }
-
+    },
+  });
   markCssMenuActive(menu, property);
 }
 
@@ -2482,26 +2429,18 @@ function openHtmlHeadingMenu(win, anchor) {
   menu.id = CSS_MENU_ID;
   doc.body.appendChild(menu);
   placeCssMenu(win, anchor, menu);
-
-  for (const tag of HTML_HEADINGS) {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.setAttribute('data-sve-css-choice', '');
-    btn.textContent = tag.toUpperCase();
-
-    if (current === tag) {
-      btn.setAttribute('data-active', '');
-    }
-
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: HTML_HEADINGS.map((tag) => ({
+      value: tag,
+      label: tag.toUpperCase(),
+      active: current === tag,
+    })),
+    onPick: (tag) => {
       applyHtmlTag(tag);
       closeCssMenu(doc);
-    });
-    menu.appendChild(btn);
-  }
+    },
+  });
 }
 
 function bindCssTools(win, dock) {
@@ -2513,90 +2452,66 @@ function bindCssTools(win, dock) {
 
   host._sveBound = true;
 
-  const makeBtn = (tool) => {
-    const btn = win.document.createElement('button');
+  const allCss = [...CSS_TOOLS, ...CSS_FLEX_EXTRAS];
+  const runCssTool = (id, btn) => {
+    const tool = allCss.find((item) => item.id === id);
 
-    btn.type = 'button';
-    btn.setAttribute('data-sve-css-tool', tool.id);
-    btn.setAttribute('data-tip', tool.title);
-    btn.setAttribute('aria-label', tool.title);
-    btn.innerHTML = CSS_TOOL_ICONS[tool.id] || '';
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      if (tool.flexDir) {
-        closeCssMenu(win.document);
-        applyFlexDirection(tool.flexDir);
-
-        return;
-      }
-
-      if (tool.property && tool.value) {
-        closeCssMenu(win.document);
-        applyFlexValue(tool.property, tool.value);
-
-        return;
-      }
-
-      if (tool.insert) {
-        closeCssMenu(win.document);
-        applyCssSnippet(tool.insert);
-
-        return;
-      }
-
-      if (tool.menu === 'colors') {
-        openCssColorMenu(win, btn, tool.property);
-
-        return;
-      }
-
-      if (tool.menu === 'spacing') {
-        openCssSpacingMenu(win, btn, tool.property);
-      }
-    });
-    btn.addEventListener('contextmenu', (event) => {
-      event.preventDefault();
-      btn.click();
-    });
-
-    return btn;
-  };
-
-  const makeSep = () => {
-    const sep = win.document.createElement('span');
-
-    sep.setAttribute('data-sve-css-sep', '');
-    sep.setAttribute('aria-hidden', 'true');
-
-    return sep;
-  };
-
-  for (const tool of CSS_TOOLS) {
-    host.appendChild(makeBtn(tool));
-
-    if (tool.id === 'flex-col') {
-      const extras = win.document.createElement('div');
-
-      extras.setAttribute('data-sve-css-flex-extras', '');
-      extras.appendChild(makeSep());
-
-      let alignSep = false;
-
-      for (const extra of CSS_FLEX_EXTRAS) {
-        if (extra.group === 'align' && !alignSep) {
-          extras.appendChild(makeSep());
-          alignSep = true;
-        }
-
-        extras.appendChild(makeBtn(extra));
-      }
-
-      extras.appendChild(makeSep());
-      host.appendChild(extras);
+    if (!tool) {
+      return;
     }
-  }
+
+    if (tool.flexDir) {
+      closeCssMenu(win.document);
+      applyFlexDirection(tool.flexDir);
+
+      return;
+    }
+
+    if (tool.property && tool.value) {
+      closeCssMenu(win.document);
+      applyFlexValue(tool.property, tool.value);
+
+      return;
+    }
+
+    if (tool.insert) {
+      closeCssMenu(win.document);
+      applyCssSnippet(tool.insert);
+
+      return;
+    }
+
+    if (tool.menu === 'colors') {
+      openCssColorMenu(win, btn, tool.property);
+
+      return;
+    }
+
+    if (tool.menu === 'spacing') {
+      openCssSpacingMenu(win, btn, tool.property);
+    }
+  };
+
+  let alignSep = false;
+  const extras = CSS_FLEX_EXTRAS.map((extra) => {
+    const row = {
+      ...extra,
+      icon: CSS_TOOL_ICONS[extra.id] || '',
+      sep: extra.group === 'align' && !alignSep,
+    };
+
+    if (row.sep) {
+      alignSep = true;
+    }
+
+    return row;
+  });
+
+  mountPane(host, CodeDockCssTools, {
+    tools: CSS_TOOLS.map((tool) => ({ ...tool, icon: CSS_TOOL_ICONS[tool.id] || '' })),
+    extras,
+    onTool: (id) => runCssTool(id, host.querySelector(`[data-sve-css-tool="${id}"]`)),
+  });
 
   win.document.addEventListener(
     'mousedown',
@@ -2620,24 +2535,18 @@ function bindHtmlTools(win, dock) {
 
   host._sveBound = true;
 
-  for (const tool of HTML_TOOLS) {
-    const btn = win.document.createElement('button');
+  mountPane(host, CodeDockHtmlTools, {
+    tools: HTML_TOOLS.map((tool) => ({
+      ...tool,
+      icon: HTML_TOOL_ICONS[tool.id] || '',
+    })),
+    onTool: (id) => {
+      const tool = HTML_TOOLS.find((item) => item.id === id);
+      const btn = host.querySelector(`[data-sve-html-tool="${id}"]`);
 
-    btn.type = 'button';
-    btn.setAttribute('data-sve-html-tool', tool.id);
-    btn.setAttribute('data-tip', tool.title);
-    btn.setAttribute('aria-label', tool.title);
-
-    if (tool.letter) {
-      btn.setAttribute('data-letter', '');
-      btn.textContent = tool.letter;
-    } else {
-      btn.innerHTML = HTML_TOOL_ICONS[tool.id] || '';
-    }
-
-    btn.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
+      if (!tool) {
+        return;
+      }
 
       if (tool.menu === 'heading') {
         openHtmlHeadingMenu(win, btn);
@@ -2647,13 +2556,8 @@ function bindHtmlTools(win, dock) {
 
       closeCssMenu(win.document);
       applyHtmlTag(tool.tag);
-    });
-    btn.addEventListener('contextmenu', (event) => {
-      event.preventDefault();
-      btn.click();
-    });
-    host.appendChild(btn);
-  }
+    },
+  });
 }
 
 function refreshPreview(win) {
@@ -2856,40 +2760,11 @@ function ensureDock(win) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
     dock.setAttribute('data-sve-code-chrome', 'lock-1');
-    dock.innerHTML = `
-      <div data-sve-code-grip aria-hidden="true"></div>
-      <div data-sve-code-bar>
-        <button type="button" data-sve-code-pane-btn="html">${t(win, 'code_dock_html')}</button>
-        <button type="button" data-sve-code-pane-btn="css">${t(win, 'code_dock_css')}</button>
-        <button type="button" data-sve-code-pane-btn="js">${t(win, 'code_dock_js')}</button>
-        <span data-sve-code-path></span>
-        <span data-sve-code-status></span>
-        <button type="button" data-sve-code-lock hidden></button>
-      </div>
-      <div data-sve-code-lock-banner></div>
-      <div data-sve-code-panes>
-        <div data-sve-code-pane="html">
-          <div data-sve-code-pane-label>
-            <span>${t(win, 'code_dock_html')}</span>
-            <div data-sve-html-tools></div>
-          </div>
-          <div data-sve-code-host></div>
-        </div>
-        <div data-sve-code-split data-sve-code-split-after="html"></div>
-        <div data-sve-code-pane="css">
-          <div data-sve-code-pane-label data-sve-css-chrome="flex-tools-1">
-            <span>${t(win, 'code_dock_css')}</span>
-            <div data-sve-css-tools></div>
-          </div>
-          <div data-sve-code-host></div>
-        </div>
-        <div data-sve-code-split data-sve-code-split-after="css"></div>
-        <div data-sve-code-pane="js">
-          <div data-sve-code-pane-label><span>${t(win, 'code_dock_js')}</span></div>
-          <div data-sve-code-host></div>
-        </div>
-      </div>
-    `;
+    mountPane(dock, CodeDockChrome, {
+      htmlLabel: t(win, 'code_dock_html'),
+      cssLabel: t(win, 'code_dock_css'),
+      jsLabel: t(win, 'code_dock_js'),
+    });
     attachDock(doc, dock);
     shieldDock(dock);
     paintPaneButtons(dock, storedPanes(win));
@@ -3151,6 +3026,33 @@ function firstSectionType(doc) {
  * Once armed, the window stays open even with nothing selected — last file, or
  * the first section on the page.
  */
+function chromeTemplateType(win, doc) {
+  const kind = sve.chromeInlineKind || sve.activeChromeKind;
+
+  if (kind !== 'header' && kind !== 'footer') {
+    return '';
+  }
+
+  if (!sve.chromeHost?.(doc) && !sve.chromeEditorOpen?.(doc)) {
+    return '';
+  }
+
+  const values = sve.unwrapRef?.(sve.chromeContainer?.()?.values) || {};
+  const style = values[kind === 'footer' ? 'footer_style' : 'header_style'] || 'style_1';
+
+  return `${kind}/${style}`;
+}
+
+function globalSectionTemplateType(doc) {
+  const host = sve.globalSectionHost?.(doc) || doc.getElementById('__sve-global-section-host');
+
+  if (!host) {
+    return '';
+  }
+
+  return host.querySelector('[data-replicator-set][data-type]')?.getAttribute('data-type') || '';
+}
+
 export function syncCodeDock(win, doc, uid) {
   if (dragging) {
     return;
@@ -3164,8 +3066,10 @@ export function syncCodeDock(win, doc, uid) {
     return;
   }
 
+  const chromeType = chromeTemplateType(win, doc);
+  const globalType = chromeType ? '' : globalSectionTemplateType(doc);
   const setEl = outermostSetOf(uid, doc);
-  const type = setEl?.getAttribute('data-type') || lastType || firstSectionType(doc);
+  const type = chromeType || globalType || setEl?.getAttribute('data-type') || lastType || firstSectionType(doc);
 
   lastWin = win;
 
@@ -3188,3 +3092,10 @@ export function syncCodeDock(win, doc, uid) {
   flushSave(doc);
   loadTemplate(win, type);
 }
+
+register('dock:is-open', (doc) => isCodeDockOpen(doc));
+register('dock:is-locked', () => isCodeDockLocked());
+register('dock:insert-snippet', ({ win, parts }) => insertAiSnippet(win, parts));
+register('dock:refresh', (win) => refreshCodeDockFromDisk(win));
+register('dock:current-type', () => currentTemplateType());
+

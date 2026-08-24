@@ -86,4 +86,74 @@ class IconifyDefaultTest extends TestCase
         $this->assertNull(IconifyDefault::render(null, fn () => 'nope'));
         $this->assertNull(IconifyDefault::render('', fn () => 'nope'));
     }
+
+    public function test_render_uses_explicit_fallback_when_empty(): void
+    {
+        Http::fake([
+            'api.iconify.design/simple-line-icons.json*' => Http::response([
+                'icons' => [
+                    'check' => [
+                        'body' => '<path d="M1 1"/>',
+                        'width' => 24,
+                        'height' => 24,
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $out = IconifyDefault::render(null, function (array $icon) {
+            return 'SVG:'.$icon['body'];
+        }, 'simple-line-icons:check');
+
+        $this->assertSame('SVG:<path d="M1 1"/>', $out);
+    }
+
+    public function test_fallback_name_prefers_the_current_set(): void
+    {
+        $blueprint = \Statamic\Facades\Blueprint::make()->setContents([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'fields' => [
+                                [
+                                    'handle' => 'blocks',
+                                    'field' => [
+                                        'type' => 'replicator',
+                                        'sets' => [
+                                            'icon' => [
+                                                'fields' => [
+                                                    [
+                                                        'handle' => 'icon',
+                                                        'field' => [
+                                                            'type' => 'iconify',
+                                                            'default' => 'simple-line-icons:check',
+                                                        ],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $page = new class($blueprint)
+        {
+            public function __construct(private mixed $blueprint) {}
+
+            public function blueprint(): mixed
+            {
+                return $this->blueprint;
+            }
+        };
+
+        $name = IconifyDefault::fallbackName(['page' => $page, 'type' => 'icon'], 'icon');
+
+        $this->assertSame('simple-line-icons:check', $name);
+    }
 }

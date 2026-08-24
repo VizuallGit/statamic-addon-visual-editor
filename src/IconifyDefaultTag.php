@@ -18,9 +18,22 @@ class IconifyDefaultTag extends IconifyTag
 
     public function wildcard($fieldName)
     {
-        return IconifyDefault::render(
-            Arr::get($this->context, $fieldName),
+        $fieldValue = Arr::get($this->context, $fieldName);
+        $fallback = IconifyDefault::storedValueIsEmpty($fieldValue)
+            ? IconifyDefault::fallbackName($this->context, $fieldName)
+            : null;
+        $html = IconifyDefault::render(
+            $fieldValue,
             fn (array $icon) => $this->renderSVG($icon),
+            $fallback,
         );
+
+        // So the preview menu can hide Remove while the default is showing,
+        // even if a morph left the wrapper's own attribute stale.
+        if (is_string($html) && IconifyDefault::storedValueIsEmpty($fieldValue) && $fallback) {
+            $html = preg_replace('/<svg\b/i', '<svg data-sve-icon-default', $html, 1) ?? $html;
+        }
+
+        return $html;
     }
 }

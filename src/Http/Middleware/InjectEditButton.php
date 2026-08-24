@@ -158,6 +158,7 @@ class InjectEditButton
         $host = e($this->resolveScriptUrl('resources/js/overlay-host.js'));
 
         return <<<HTML
+        <link rel="prefetch" href="{$url}" as="document">
         <a href="{$url}" id="sve-edit-button" title="Rediger denne side i Live Preview">
             <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -256,19 +257,6 @@ class InjectEditButton
 
     protected function resolveScriptUrl(string $entry): string
     {
-        $fallback = asset('vendor/visual-editor/'.basename($entry));
-        $manifestPath = public_path('vendor/visual-editor/build/manifest.json');
-
-        if (file_exists($manifestPath)) {
-            $manifest = json_decode((string) file_get_contents($manifestPath), true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($manifest)) {
-                $resolved = $manifest[$entry] ?? null;
-                if ($resolved && isset($resolved['file'])) {
-                    return asset('vendor/visual-editor/build/'.$resolved['file']);
-                }
-            }
-        }
-
-        return $fallback;
+        return \MarioHamann\StatamicVisualEditor\BuiltAssets::url($entry);
     }
 }

@@ -25,9 +25,13 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\GlobalsPickerFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ToolbarAccessFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
 use Illuminate\Support\Facades\Route;
+use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryActivityController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
@@ -180,11 +184,17 @@ class ServiceProvider extends AddonServiceProvider
     // Own file, never inlined into Blade (Vue `{{ }}` would compile as PHP
     // and kill every field in the Control Panel). Not bundled into addon.js.
     // Served from public/vendor/{packageName()}/js/ — that is visual-editor,
-    // not statamic-addon/visual-editor.
+    // not statamic-addon/visual-editor. registerScript() copies source → public
+    // on boot so a path-repo edit actually reaches the CP (Statamic otherwise
+    // keeps serving the last vendor:publish copy, cache-busted only by version).
     protected $scripts = [
         __DIR__.'/../resources/js/disable-publish-stack-pin.js',
-        __DIR__.'/../resources/js/publish-stack-lift.js',
         __DIR__.'/../resources/js/default-sets-count.js',
+        __DIR__.'/../resources/js/iconify-hide-remove.js',
+        __DIR__.'/../resources/js/icon-button-group-iconify.js',
+        __DIR__.'/../resources/js/grid-keep-table.js',
+        __DIR__.'/../resources/js/grid-collapse.js',
+        __DIR__.'/../resources/js/section-meta-prefetch.js',
     ];
 
     protected $commands = [
@@ -217,12 +227,46 @@ class ServiceProvider extends AddonServiceProvider
         Event::listen(EntryBlueprintFound::class, [WrapResponsiveFields::class, 'handle']);
     }
 
+    /**
+     * Keep public/vendor copies of $scripts in sync with the addon source, and
+     * cache-bust on file contents. Statamic's default only publishes on install
+     * and busts on package version.
+     */
+    public function registerScript(string $path)
+    {
+        $name = $this->getAddon()->packageName();
+        $filename = pathinfo($path, PATHINFO_FILENAME);
+        $dest = public_path("vendor/{$name}/js/{$filename}.js");
+
+        $this->publishes([
+            $path => $dest,
+        ], $this->getAddon()->slug());
+
+        if (is_file($path)) {
+            $dir = dirname($dest);
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir) && is_writable($dir) && (! is_file($dest) || md5_file($path) !== md5_file($dest))) {
+                @copy($path, $dest);
+            }
+        }
+
+        $bust = is_file($path) ? md5_file($path) : md5($this->getAddon()->version());
+        Statamic::script($name, "{$filename}.js?v={$bust}");
+    }
+
     public function bootAddon()
     {
         // Statamic only auto-merges an addon's config for the root app, so a
         // vendored addon never gets it. Merge it explicitly so config() reads
         // (e.g. the preview generator settings) resolve.
         $this->mergeConfigFrom(__DIR__.'/../config/statamic-visual-editor.php', 'statamic-visual-editor');
+
+        // Put back any hashed chunk addon.js still names, then refuse a
+        // silent blank toolbar. public/vendor is a pointer, not a second build.
+        BuiltAssets::recover();
+        BuiltAssets::linkForControlPanel();
 
         // After every addon has registered tags, so Iconify's `iconify` handle
         // is already there. A name in `{{ iconify:icon }}` becomes SVG. Not in
@@ -278,6 +322,8 @@ class ServiceProvider extends AddonServiceProvider
                 // rather than by the "Global section" set.
                 'sveSavedSectionLabels' => $this->savedSectionLabels(),
                 'sveChrome' => config('statamic-visual-editor.chrome', []),
+                'sveUserId' => User::current()?->id(),
+                'sveChromePrefs' => is_array($chrome = User::current()?->getPreference('sve_chrome')) ? $chrome : [],
                 'sveHiddenGlobalsTabs' => $this->hiddenGlobalsTabs(),
                 // Whether the editor runs here at all, and which of its tools this
                 // site gets (Addons > Statamic Visual Editor).
@@ -373,6 +419,9 @@ class ServiceProvider extends AddonServiceProvider
             });
 
         Route::middleware('web')->group(function () {
+            Route::get('/!/sve/build/{path}', [BuiltAssetController::class, 'show'])
+                ->where('path', '.*')
+                ->name('sve.build');
 
             // Saved sections (reusable section templates).
             Route::get('/!/sve/saved-sections', [SavedSectionsController::class, 'index'])
@@ -423,6 +472,14 @@ class ServiceProvider extends AddonServiceProvider
 
             Route::post('/!/sve/ai-chat', [AiChatController::class, 'store'])
                 ->name('sve.ai-chat');
+
+            Route::post('/!/sve/chrome-prefs', [ChromePrefsController::class, 'update'])
+                ->name('sve.chrome-prefs.update');
+            Route::delete('/!/sve/chrome-prefs', [ChromePrefsController::class, 'destroy'])
+                ->name('sve.chrome-prefs.destroy');
+
+            Route::get('/!/sve/entry-activity/{entry}', EntryActivityController::class)
+                ->name('sve.entry-activity');
 
             Route::get('/!/sve/comments/{entry}', [CommentsController::class, 'index'])
                 ->name('sve.comments.index');
@@ -783,4 +840,29 @@ class ServiceProvider extends AddonServiceProvider
         ],
         'publicDirectory' => 'resources/dist',
     ];
+
+    /**
+     * Statamic's default publishes a copy to public/vendor. That copy is
+     * what went missing when overlay-host was rebuilt alone. Do not publish.
+     * The Control Panel reads the addon's dist through a symlink.
+     */
+    public function registerVite($config)
+    {
+        $name = $this->getAddon()->packageName();
+        $directory = $this->getAddon()->directory();
+
+        if (is_string($config) || ! is_array($config) || array_is_list($config)) {
+            $config = ['input' => $config];
+        }
+
+        $publicDirectory = $config['publicDirectory'] ?? 'public';
+        $buildDirectory = $config['buildDirectory'] ?? 'build';
+        $hotFile = $config['hotFile'] ?? "{$directory}{$publicDirectory}/hot";
+
+        Statamic::vite($name, [
+            'hotFile' => $hotFile,
+            'buildDirectory' => "vendor/{$name}/{$buildDirectory}",
+            'input' => $config['input'],
+        ]);
+    }
 }

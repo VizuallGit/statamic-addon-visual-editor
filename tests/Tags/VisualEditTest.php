@@ -567,6 +567,52 @@ class VisualEditTest extends TestCase
         $this->assertStringContainsString('data-sid-field="icon"', $result);
         $this->assertStringContainsString('data-sid-fieldtype="iconify"', $result);
         $this->assertStringContainsString('data-sid-inline-edit', $result);
+        $this->assertStringNotContainsString('data-sve-icon-has-default', $result);
+    }
+
+    public function test_iconify_field_with_configured_default_marks_has_default(): void
+    {
+        $blueprint = Blueprint::make()->setContents([
+            'tabs' => [
+                'main' => [
+                    'sections' => [
+                        [
+                            'fields' => [
+                                [
+                                    'handle' => 'icon',
+                                    'field' => [
+                                        'type' => 'iconify',
+                                        'display' => 'Icon',
+                                        'default' => 'simple-line-icons:check',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        Blueprint::shouldReceive('find')
+            ->with('collections.pages')
+            ->andReturn($blueprint);
+
+        $tag = $this->makeTag(
+            livePreview: true,
+            context: [
+                'icon' => [
+                    'name' => 'mdi:home',
+                    'body' => '<path d="home"/>',
+                    'attributes' => ['viewBox' => '0 0 24 24'],
+                ],
+            ],
+            params: ['field' => 'icon', 'inline_edit' => 'true', 'blueprint' => 'collections.pages'],
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-fieldtype="iconify"', $result);
+        $this->assertStringContainsString('data-sve-icon-has-default', $result);
     }
 
     public function test_selfclosing_with_blueprint_param_falls_back_gracefully_when_blueprint_not_found(): void
@@ -925,6 +971,35 @@ class VisualEditTest extends TestCase
         );
 
         $this->assertStringNotContainsString('data-sid-template', $tag->index());
+    }
+
+    public function test_insertable_on_a_nested_set_also_emits_data_sid(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'list-1', 'type' => 'list', '_visual_id' => 'section-1'],
+            params: ['field' => 'list', 'insertable' => 'true'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid="list-1"', $result);
+        $this->assertStringContainsString('data-sid-type="list"', $result);
+        $this->assertStringContainsString('data-sid-insert="list"', $result);
+    }
+
+    public function test_insertable_on_a_section_stays_insert_only(): void
+    {
+        $tag = $this->makeTag(
+            context: ['id' => 'section-1', 'type' => 'hero/style_2', '_visual_id' => 'section-1'],
+            params: ['field' => 'blocks', 'insertable' => 'true'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-insert="blocks"', $result);
+        $this->assertStringNotContainsString('data-sid="section-1"', $result);
     }
 
     public function test_default_param_emits_on_a_field(): void

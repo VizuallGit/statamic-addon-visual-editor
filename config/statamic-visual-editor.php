@@ -41,6 +41,8 @@ return [
     | file worth deploying with.
     |
     | - panel:             the page-settings panel (Hide/Auto/Show + its tabs)
+    | - page_activity:     an icon in the Live Preview top bar that opens this
+    |                      page's revision list (Statamic revisions). On by default.
     | - pages:             the collection/entry picker, for moving between pages
     | - globals:           the globals picker (Theme Settings and friends)
     | - globals_picker:    which global sets that menu lists, by handle. Null
@@ -49,10 +51,10 @@ return [
     |                      empty array shows none. Addons > Visual Editor is
     |                      the usual place to change this per site.
     | - sections:          the section library panel as a whole
-    | - listview:          the block tree in the right dock (heading outline is
-    |                      a tab inside it). On by default.
-    | - outline:           the heading outline panel — the page's headings as one
-    |                      list, docked on the right, each one a jump to it
+    | - listview:          the block tree in the right dock. On by default.
+    | - outline:           the heading outline in the right dock — the page's
+    |                      headings as one list, each one a jump to it. Own
+    |                      toolbar icon, independent of the block tree.
     | - library_page:      its "Page" tab — the site's own section types
     | - library_custom:    its "Custom" tab — saved sections, inserted as copies
     | - library_global:    its "Global" tab — synced sections
@@ -72,9 +74,9 @@ return [
     |                      a block inside one) shows that one thing, named at the
     |                      top with its icon and instructions, and nothing else.
     |                      Off, the panel stays the section list Statamic renders.
-    | - open_first_section: open an entry in its first section rather than on the
-    |                      list of all of them. The back arrow goes to the list.
-    |                      Needs focus_panel; off by default.
+    | - open_first_section: parked — code remains, always off. Page Settings is
+    |                      the empty-panel default; Focus panel already shows
+    |                      one section at a time. Needs focus_panel if re-enabled.
     | - open_in_preview:    clicking an entry opens the preview instead of the
     |                      publish form. Which collections that covers is listed
     |                      beside it; a collection without a route is skipped,
@@ -102,6 +104,7 @@ return [
     */
     'features' => [
         'panel' => true,
+        'page_activity' => true,
         'pages' => true,
         'globals' => true,
         // Not a toggle: handles shown in the globe menu. Null = all except
@@ -124,6 +127,7 @@ return [
         'globals_access' => null,
         'sections_access' => null,
         'listview_access' => null,
+        'outline_access' => null,
         'template_dock_access' => null,
         'ai_panel_access' => null,
         'comments_access' => null,

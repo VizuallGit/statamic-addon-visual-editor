@@ -22,6 +22,9 @@ class IconifyDefault
 {
     public const KEY = 'default';
 
+    /** @var array<string, array<int, array{set: string, default: string}>> */
+    private static array $defaultsWalk = [];
+
     public static function register(): void
     {
         if (! class_exists(\StatamicIconify\Fieldtypes\IconifyFieldtype::class)) {
@@ -51,15 +54,24 @@ class IconifyDefault
         IconifyDefaultTag::register();
     }
 
+    public static function storedValueIsEmpty(mixed $fieldValue): bool
+    {
+        return self::isEmpty(self::raw($fieldValue));
+    }
+
     /**
      * @param  callable(array): mixed  $renderSvg
      */
-    public static function render(mixed $fieldValue, callable $renderSvg): mixed
+    public static function render(mixed $fieldValue, callable $renderSvg, mixed $fallbackName = null): mixed
     {
         $raw = self::raw($fieldValue);
 
         if (self::isEmpty($raw)) {
             $raw = self::fallback($fieldValue);
+        }
+
+        if (self::isEmpty($raw) && is_string($fallbackName) && $fallbackName !== '') {
+            $raw = $fallbackName;
         }
 
         if (is_string($raw) && self::isName($raw)) {
@@ -149,6 +161,48 @@ class IconifyDefault
         return $fieldValue;
     }
 
+    /**
+     * Blueprint / field default when the stored value is empty. Live preview
+     * may pass a raw null instead of a Value, so the Value fallback is not enough.
+     */
+    public static function fallbackName(mixed $context, string $fieldName): ?string
+    {
+        $fromValue = self::fallback(self::fromContext($context, $fieldName));
+
+        if (is_string($fromValue) && $fromValue !== '') {
+            return $fromValue;
+        }
+
+        $page = self::fromContext($context, 'page');
+        $blueprint = ($page && is_object($page) && method_exists($page, 'blueprint'))
+            ? $page->blueprint()
+            : null;
+
+        if (! $blueprint) {
+            return null;
+        }
+
+        $setType = (string) (self::fromContext($context, 'type') ?? '');
+        $walkKey = spl_object_id($blueprint).'|'.$fieldName;
+        $matches = self::$defaultsWalk[$walkKey] ?? null;
+
+        if ($matches === null) {
+            $matches = [];
+            self::collectIconifyDefaults($blueprint->contents(), $fieldName, $matches);
+            self::$defaultsWalk[$walkKey] = $matches;
+        }
+
+        if ($setType !== '') {
+            foreach ($matches as $match) {
+                if (($match['set'] ?? '') === $setType) {
+                    return $match['default'];
+                }
+            }
+        }
+
+        return $matches[0]['default'] ?? null;
+    }
+
     private static function fallback(mixed $fieldValue): mixed
     {
         if (! $fieldValue instanceof Value || ! $fieldValue->fieldtype()) {
@@ -163,5 +217,91 @@ class IconifyDefault
     private static function isEmpty(mixed $raw): bool
     {
         return $raw === null || $raw === '' || $raw === [];
+    }
+
+    private static function fromContext(mixed $context, string $key): mixed
+    {
+        if (is_array($context)) {
+            return $context[$key] ?? null;
+        }
+
+        if (is_object($context) && method_exists($context, 'get')) {
+            return $context->get($key);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, array{set: string, default: string}>  $matches
+     */
+    private static function collectIconifyDefaults(mixed $node, string $handle, array &$matches, string $enclosingSet = '', int $depth = 0): void
+    {
+        if ($depth > 14 || ! is_array($node)) {
+            return;
+        }
+
+        foreach (['tabs', 'sections'] as $group) {
+            foreach (($node[$group] ?? []) as $child) {
+                self::collectIconifyDefaults($child, $handle, $matches, $enclosingSet, $depth + 1);
+            }
+        }
+
+        foreach (($node['sets'] ?? []) as $setHandle => $set) {
+            if (! is_array($set)) {
+                continue;
+            }
+
+            $nextSet = is_string($setHandle) && ! is_numeric($setHandle)
+                ? $setHandle
+                : (string) ($set['handle'] ?? $enclosingSet);
+
+            self::collectIconifyDefaults($set, $handle, $matches, $nextSet, $depth + 1);
+        }
+
+        foreach ((array) ($node['fields'] ?? []) as $item) {
+            if (isset($item['import'])) {
+                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
+
+                if ($fieldset) {
+                    self::collectIconifyDefaults($fieldset->contents(), $handle, $matches, $enclosingSet, $depth + 1);
+                }
+
+                continue;
+            }
+
+            $field = $item['field'] ?? null;
+
+            if (is_string($field)) {
+                $fieldset = \Statamic\Facades\Fieldset::find($field)
+                    ?: \Statamic\Facades\Fieldset::find(strstr($field, '.', true) ?: '');
+
+                if ($fieldset) {
+                    self::collectIconifyDefaults($fieldset->contents(), $handle, $matches, $enclosingSet, $depth + 1);
+                }
+
+                continue;
+            }
+
+            if (! is_array($field)) {
+                continue;
+            }
+
+            if (
+                strcasecmp((string) ($item['handle'] ?? ''), $handle) === 0
+                && ($field['type'] ?? null) === 'iconify'
+            ) {
+                $default = $field['default'] ?? null;
+
+                if (is_string($default) && $default !== '') {
+                    $matches[] = [
+                        'set' => $enclosingSet,
+                        'default' => $default,
+                    ];
+                }
+            }
+
+            self::collectIconifyDefaults($field, $handle, $matches, $enclosingSet, $depth + 1);
+        }
     }
 }

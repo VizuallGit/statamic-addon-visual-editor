@@ -4,6 +4,8 @@ namespace MarioHamann\StatamicVisualEditor\Tags;
 
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveFieldtype as Responsive;
 use Statamic\Fields\Value;
+use Statamic\Fields\Values;
+use Statamic\Tags\Context;
 use Statamic\Tags\Tags;
 
 /**
@@ -40,57 +42,169 @@ use Statamic\Tags\Tags;
  *
  *     {{ responsive_css except="padding" }} … {{ /responsive_css }}
  *
- * Så står både elementet og skærmstørrelserne i skabelonen. Værdien hentes pr.
- * skærmstørrelse som `{{ padding.tablet.padding }}` — skuffen, og så feltet i den.
+ * Eller landes med `selector` og `only`, så tag'et selv skriver det:
+ *
+ *     {{ responsive_css selector="#id-{{ id }} .content" only="padding" }}
+ *     {{ /responsive_css }}
+ *
+ * Felter på en replicator-blok (fx listen) hentes med `from="list"` — typen,
+ * ikke et loop i CSS:
+ *
+ *     {{ responsive_css selector="#id-{{ id }} .list" only="padding,gap" from="list" }}
+ *     {{ /responsive_css }}
  */
 class ResponsiveCss extends Tags
 {
     public function index(): string
     {
         $selector = $this->params->get('selector') ?: '#id-'.$this->context->value('id');
-        $fields = $this->fields();
-        $base = Responsive::base();
+        $previous = $this->applyFrom();
 
-        // `except="padding"` tager et felt ud af automatikken, så skabelonen kan
-        // skrive det selv — typisk fordi det skal lande på et andet element end
-        // sektionen. Tag'et kender kun én selector; det den ikke skriver, kan
-        // skrives hvor som helst. Uden parameteren skrives alle felter som før.
-        if ($except = $this->params->explode('except', [])) {
-            $fields = array_diff_key($fields, array_flip($except));
-        }
+        try {
+            $fields = $this->filterFields($this->fields());
+            $base = Responsive::base();
 
-        $css = $selector.'{'
-            .$this->declarations($fields, $base)
-            .($this->isPair ? $this->parse() : '')
-            .'}';
-
-        foreach (Responsive::breakpoints() as $breakpoint) {
-            if ($breakpoint['handle'] === $base || empty($breakpoint['max'])) {
-                continue;
-            }
-
-            $declarations = $this->declarations($fields, $breakpoint['handle']);
-
-            // Ingen værdier, ingen media query. En tom `@media`-blok er ikke
-            // forkert, men den fortæller heller ikke nogen noget.
-            if ($declarations === '') {
-                continue;
-            }
-
-            $css .= '@media (max-width: '.$breakpoint['max'].'){'
-                .$selector.'{'.$declarations.'}'
+            $css = $selector.'{'
+                .$this->declarations($fields, $base)
+                .($this->isPair ? $this->parse() : '')
                 .'}';
-        }
 
-        return $css;
+            foreach (Responsive::breakpoints() as $breakpoint) {
+                if ($breakpoint['handle'] === $base || empty($breakpoint['max'])) {
+                    continue;
+                }
+
+                $declarations = $this->declarations($fields, $breakpoint['handle']);
+
+                if ($declarations === '') {
+                    continue;
+                }
+
+                $css .= '@media (max-width: '.$breakpoint['max'].'){'
+                    .$selector.'{'.$declarations.'}'
+                    .'}';
+            }
+
+            return $css;
+        } finally {
+            if ($previous) {
+                $this->context = $previous;
+            }
+        }
     }
 
     /**
-     * Sektionens responsive felter, som `handle => [breakpoint => værdi]`.
+     * `from="list"` skifter konteksten til den blok, så felterne dér er dem
+     * tag'et ser — ikke sektionens. Selectoren er allerede låst, før vi skifter.
+     */
+    protected function applyFrom(): ?Context
+    {
+        $from = $this->params->get('from');
+
+        if (! $from) {
+            return null;
+        }
+
+        $previous = $this->context;
+        $this->context = new Context($this->firstSetOfType((string) $from) ?? []);
+
+        return $previous;
+    }
+
+    /** @return array<string, mixed>|null */
+    protected function firstSetOfType(string $type): ?array
+    {
+        $blocks = $this->context->value('blocks');
+
+        if ($blocks instanceof Value) {
+            $blocks = $blocks->value();
+        }
+
+        if (! is_iterable($blocks)) {
+            return null;
+        }
+
+        foreach ($blocks as $set) {
+            $array = $this->setToArray($set);
+            $setType = $array['type'] ?? null;
+
+            if ($setType instanceof Value) {
+                $setType = $setType->value();
+            }
+
+            if ($setType === $type) {
+                return $array;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array<string, mixed> */
+    protected function setToArray(mixed $set): array
+    {
+        if ($set instanceof Values) {
+            $all = $set->all();
+
+            return is_array($all) ? $all : iterator_to_array($all);
+        }
+
+        if ($set instanceof Value) {
+            return $this->setToArray($set->value());
+        }
+
+        if (is_array($set)) {
+            $type = $set['type'] ?? null;
+
+            return array_merge($set, [
+                'type' => $type instanceof Value ? $type->value() : $type,
+            ]);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $fields
+     * @return array<string, array<string, mixed>>
+     */
+    protected function filterFields(array $fields): array
+    {
+        if ($except = $this->paramList('except')) {
+            $fields = array_diff_key($fields, array_flip($except));
+        }
+
+        if ($only = $this->paramList('only')) {
+            $fields = array_intersect_key($fields, array_flip($only));
+        }
+
+        return $fields;
+    }
+
+    /** @return array<int, string> */
+    protected function paramList(string $key): array
+    {
+        $raw = $this->params->get($key);
+
+        if ($raw === null || $raw === '' || $raw === []) {
+            return [];
+        }
+
+        if (is_array($raw)) {
+            return array_values($raw);
+        }
+
+        return preg_split('/[|,]/', (string) $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    }
+
+    /**
+     * Sektionens (eller blokkens) responsive felter, som `handle => [breakpoint => værdi]`.
      *
      * Kendes på fieldtypen frem for på værdiens form: et felt der tilfældigvis
      * har nøglerne laptop/tablet/mobil er ikke det samme som et felt der er
-     * erklæret responsivt, og forskellen er værd at holde fast i.
+     * erklæret responsivt, og forskellen er værd at holde fast i. Rå arrays fra
+     * en replicator-række tæller med, når formen matcher — ellers virker `from`
+     * ikke, når værdien ikke længere er et Value-objekt.
      *
      * @return array<string, array<string, mixed>>
      */
@@ -99,23 +213,16 @@ class ResponsiveCss extends Tags
         $out = [];
 
         foreach ($this->context->all() as $handle => $value) {
-            // Genkendt på fieldtypens handle, ikke på dens klasse. Under
-            // udflytningen fra projektet til addonet findes der to klasser med
-            // samme handle, og kun den ene vinder opslaget. Et `instanceof`
-            // ville da være falsk for hvert eneste felt, og al responsiv CSS
-            // ville forsvinde fra sitet uden en fejl nogen steder. Handlen er
-            // den samme uanset hvem der vandt — det er den der er kontrakten.
-            if (! $value instanceof Value || $value->fieldtype()?->handle() !== Responsive::handle()) {
+            $augmented = $this->responsiveValue($value);
+
+            if ($augmented === null) {
                 continue;
             }
 
-            $augmented = $value->value();
             $byBreakpoint = [];
 
             foreach (Responsive::handles() as $breakpoint) {
-                // Feltets eget handle står inde i skuffen igen — indpakningen
-                // gemmer det oprindelige felt under sit eget navn.
-                $inner = $augmented[$breakpoint][$handle] ?? null;
+                $inner = $this->innerAt($augmented, $breakpoint, $handle);
 
                 if ($inner === null || $inner === '' || $inner === []) {
                     continue;
@@ -132,6 +239,50 @@ class ResponsiveCss extends Tags
         return $out;
     }
 
+    protected function responsiveValue(mixed $value): mixed
+    {
+        if ($value instanceof Value) {
+            if ($value->fieldtype()?->handle() !== Responsive::handle()) {
+                return null;
+            }
+
+            return $value->value();
+        }
+
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $keys = array_keys($value);
+
+        return array_intersect($keys, Responsive::handles()) ? $value : null;
+    }
+
+    protected function innerAt(mixed $augmented, string $breakpoint, string $handle): mixed
+    {
+        if ($augmented instanceof Values) {
+            $bucket = $augmented[$breakpoint] ?? null;
+
+            if ($bucket instanceof Values || is_array($bucket)) {
+                return $bucket[$handle] ?? null;
+            }
+
+            return $bucket;
+        }
+
+        if (is_array($augmented)) {
+            $bucket = $augmented[$breakpoint] ?? null;
+
+            if (is_array($bucket) && array_key_exists($handle, $bucket)) {
+                return $bucket[$handle];
+            }
+
+            return $bucket;
+        }
+
+        return null;
+    }
+
     /** @param  array<string, array<string, mixed>>  $fields */
     protected function declarations(array $fields, string $breakpoint): string
     {
@@ -144,8 +295,6 @@ class ResponsiveCss extends Tags
 
             $value = $byBreakpoint[$breakpoint];
 
-            // Tomt = arver. En media query med `--x:` eller `--x:%` er værre
-            // end ingen regel — den overskriver forælderens rigtige værdi.
             if ($value === null || $value === '' || $value === []) {
                 continue;
             }
@@ -164,7 +313,6 @@ class ResponsiveCss extends Tags
         if (view()->exists($view)) {
             $css = trim(view($view, ['value' => $value, 'handle' => $handle])->render());
 
-            // Partialer kan stadig skrive tomme deklarationer (fx `--media-width:%`).
             if ($css === '' || preg_match('/:\s*;?\s*$/', $css) || preg_match('/:\s*%\s*;?\s*$/', $css)) {
                 return '';
             }
@@ -172,9 +320,6 @@ class ResponsiveCss extends Tags
             return $css;
         }
 
-        // En værdi med struktur — et grid, et spacing-felt — kan ikke skrives i
-        // en custom property uden at nogen har sagt hvordan. Det siges i en
-        // partial, og indtil den findes er der ikke noget rigtigt at skrive.
         if (is_array($value) || $value instanceof \Traversable) {
             return '';
         }
@@ -183,6 +328,12 @@ class ResponsiveCss extends Tags
             return '';
         }
 
-        return '--'.str_replace('_', '-', $handle).': '.$value.';';
+        $css = '--'.str_replace('_', '-', $handle).': '.$value.';';
+
+        if (preg_match('/:\s*;?\s*$/', $css) || preg_match('/:\s*%\s*;?\s*$/', $css)) {
+            return '';
+        }
+
+        return $css;
     }
 }

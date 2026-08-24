@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
 use MarioHamann\StatamicVisualEditor\PanelVisibility;
+use MarioHamann\StatamicVisualEditor\SiblingSync;
 use MarioHamann\StatamicVisualEditor\Traits\HandlesReplicatorSets;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\GlobalVariablesBlueprintFound;
@@ -43,6 +44,7 @@ class InjectVisualIdIntoBlueprint
             // second walk of the same tree would be the same code twice.
             if (isset($fieldDef['field']) && is_array($fieldDef['field'])) {
                 $fieldDef['field'] = PanelVisibility::apply($fieldDef['field']);
+                $fieldDef['field'] = SiblingSync::apply($fieldDef['field']);
             }
 
             // Inject visual IDs into imported fieldsets at runtime without expanding
@@ -110,9 +112,9 @@ class InjectVisualIdIntoBlueprint
             $inlined['handle'] = $fieldDef['handle'];
             // After the merge, so a set overriding the referenced field answers the
             // question for its own copy of it.
-            $inlined['field'] = PanelVisibility::apply(
+            $inlined['field'] = SiblingSync::apply(PanelVisibility::apply(
                 array_merge($fsField['field'], $fieldDef['config'] ?? [])
-            );
+            ));
 
             $type = $inlined['field']['type'] ?? null;
 
@@ -145,7 +147,8 @@ class InjectVisualIdIntoBlueprint
      * `_visual_id` is the click-target the preview uses. `_sve_label` is the
      * name a block wears in the tree when someone has renamed it — hidden so
      * it is not a field to fill in, but still a real field so a save keeps it.
-     * Grids skip the label: their tree row already names itself from content.
+     * `_sve_sync` remembers which sibling field is the source. Grids skip the
+     * label: their tree row already names itself from content.
      */
     private function injectEditorFields(array $fields, bool $withLabel): array
     {
@@ -161,6 +164,15 @@ class InjectVisualIdIntoBlueprint
 
         if ($withLabel && ! in_array('_sve_label', $handles, true)) {
             $fields[] = ['handle' => '_sve_label', 'field' => [
+                'type' => 'hidden',
+                'visibility' => 'hidden',
+                'replicator_preview' => false,
+                'listable' => false,
+            ]];
+        }
+
+        if (! in_array(SiblingSync::STATE_HANDLE, $handles, true)) {
+            $fields[] = ['handle' => SiblingSync::STATE_HANDLE, 'field' => [
                 'type' => 'hidden',
                 'visibility' => 'hidden',
                 'replicator_preview' => false,

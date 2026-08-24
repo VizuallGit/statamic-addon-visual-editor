@@ -51,7 +51,28 @@ class DisableViteHotReload
             }
         }
 
-        return $next($request);
+        $response = $next($request);
+
+        if ($this->isPreviewRender($request) || (Features::editorEnabled() && $this->isLivePreview($request))) {
+            $this->stripClientFromResponse($response);
+        }
+
+        return $response;
+    }
+
+    protected function stripClientFromResponse(Response $response): void
+    {
+        if (! method_exists($response, 'getContent') || ! method_exists($response, 'setContent')) {
+            return;
+        }
+
+        $content = $response->getContent();
+
+        if (! is_string($content) || ! str_contains($content, '@vite/client')) {
+            return;
+        }
+
+        $response->setContent(LivePreviewVite::stripClientScript($content));
     }
 
     protected function isLivePreview(Request $request): bool

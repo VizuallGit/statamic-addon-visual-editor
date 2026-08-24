@@ -1,0 +1,384 @@
+/**
+ * Shared chrome for the Live Preview right dock.
+ *
+ * Every pane (block tree, comments, patterns, AI) uses these attributes.
+ * Pane-only looks stay in that pane's Vue file.
+ */
+
+#__sve-right-dock {
+  --sve-right-gutter: 12px;
+  --sve-right-header-gap: 10px;
+  --sve-right-header-pad-block: 10px;
+  --sve-right-body-pad-block: 12px;
+  position: fixed;
+  right: 0;
+  /* Statamic portals/modals are 2–4. Stay above the page (0), under every
+     stack, Link field, asset browser, Publish, Revisions, and later addons. */
+  z-index: var(--z-index-above, 1);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--theme-color-content-bg, #fff);
+  color: currentColor;
+  border-left: 1px solid rgba(128,128,128,.28);
+  box-shadow: -8px 0 24px rgba(0,0,0,.18);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+#__sve-right-dock[data-sve-right-closed] {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+#__sve-right-dock [data-sve-right-slot] {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#__sve-right-dock [data-sve-right-resize] {
+  position: relative;
+  flex: 0 0 16px;
+  width: 16px;
+  align-self: stretch;
+  cursor: ew-resize;
+  z-index: 2;
+  background-color: var(--theme-color-gray-300, #d4d4d8);
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 17'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' y='5' rx='1'/><rect width='2' height='2' y='10' rx='1'/><rect width='2' height='2' y='15' rx='1'/><rect width='2' height='2' x='5' rx='1'/><rect width='2' height='2' x='5' y='5' rx='1'/><rect width='2' height='2' x='5' y='10' rx='1'/><rect width='2' height='2' x='5' y='15' rx='1'/></g></svg>");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 7px 17px;
+}
+#__sve-right-dock[data-sve-right-stack] [data-sve-right-slot] {
+  padding: 0;
+  gap: 0;
+}
+#__sve-right-dock[data-sve-right-stack] [data-sve-right-pane] {
+  border-radius: 0;
+  overflow-x: visible;
+  overflow-y: hidden;
+  width: 100%;
+  min-width: 0;
+}
+#__sve-right-dock [data-sve-right-pane] {
+  box-sizing: border-box;
+  padding-inline: var(--sve-right-gutter);
+}
+/* One gutter, owned by the pane. Nested lists used to add their own 10–14px
+   and the block tree sat narrower than comments / patterns / AI. */
+#__sve-right-dock [data-sve-right-pane] > :not(:first-child),
+#__sve-right-dock [data-sve-comments-host] > *,
+#__sve-right-dock [data-sve-lv-body] > * {
+  padding-inline: 0 !important;
+  margin-inline: 0 !important;
+}
+#__sve-right-dock [data-sve-lv-body],
+#__sve-right-dock [data-sve-listview-list],
+#__sve-right-dock [data-sve-outline-list] {
+  width: 100%;
+  box-sizing: border-box;
+}
+#__sve-right-dock [data-sve-listview-list],
+#__sve-right-dock [data-sve-outline-list] {
+  padding-inline: 0 !important;
+  padding-block: var(--sve-right-body-pad-block);
+}
+#__sve-right-dock [data-sve-right-split] {
+  flex: 0 0 12px;
+  cursor: ns-resize;
+  z-index: 1;
+  margin: 0;
+  background-color: var(--theme-color-gray-300, #d4d4d8);
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 7'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' x='5' rx='1'/><rect width='2' height='2' x='10' rx='1'/><rect width='2' height='2' x='15' rx='1'/><rect width='2' height='2' y='5' rx='1'/><rect width='2' height='2' x='5' y='5' rx='1'/><rect width='2' height='2' x='10' y='5' rx='1'/><rect width='2' height='2' x='15' y='5' rx='1'/></g></svg>");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 17px 7px;
+  background-size: 11px 5px;
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 5'><g fill='%23a1a1aa' fill-rule='evenodd'><rect width='2' height='2' rx='1'/><rect width='2' height='2' x='3' rx='1'/><rect width='2' height='2' x='6' rx='1'/><rect width='2' height='2' x='9' rx='1'/><rect width='2' height='2' y='3' rx='1'/><rect width='2' height='2' x='3' y='3' rx='1'/><rect width='2' height='2' x='6' y='3' rx='1'/><rect width='2' height='2' x='9' y='3' rx='1'/></g></svg>");
+}
+/* Vue mounts a wrapper as the pane's only child. That wrapper stacks header
+   + body. Header chrome used to BE the first child — these rules keep the
+   wrapper filling the pane instead of looking like a centered title row. */
+#__sve-right-dock [data-sve-right-pane] > :first-child {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap;
+  gap: 0;
+  width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  height: 100%;
+  padding: 0 !important;
+  border-bottom: none;
+  background: transparent;
+}
+#__sve-right-dock [data-sve-lv-chrome],
+#__sve-right-dock [data-sve-pane-bar] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap;
+  gap: var(--sve-right-header-gap);
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-block: var(--sve-right-header-pad-block) !important;
+  padding-inline: 0 !important;
+  border-bottom: 1px solid rgba(128,128,128,.22);
+  background: transparent;
+}
+#__sve-right-dock [data-sve-lv-chrome] {
+  align-items: stretch !important;
+  padding: var(--sve-right-header-pad-block) 0 0 !important;
+}
+#__sve-right-dock [data-sve-lv-chrome] [data-sve-lv-tabs] {
+  align-self: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#__sve-right-dock [data-sve-lv-chrome] [data-sve-right-reorder],
+#__sve-right-dock [data-sve-lv-chrome] [data-sve-right-fold],
+#__sve-right-dock [data-sve-lv-chrome] [data-sve-right-actions],
+#__sve-right-dock [data-sve-lv-chrome] [data-sve-right-pin],
+#__sve-right-dock [data-sve-lv-chrome] [data-sve-close],
+#__sve-right-dock [data-sve-pane-bar] [data-sve-right-reorder],
+#__sve-right-dock [data-sve-pane-bar] [data-sve-right-fold],
+#__sve-right-dock [data-sve-pane-bar] [data-sve-right-actions],
+#__sve-right-dock [data-sve-pane-bar] [data-sve-right-pin],
+#__sve-right-dock [data-sve-pane-bar] [data-sve-close] {
+  align-self: center;
+}
+#__sve-right-dock [data-sve-right-title] {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+}
+#__sve-right-dock [data-sve-ai-name] {
+  flex: 0 0 auto;
+}
+#__sve-right-dock [data-sve-ai-type] {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  opacity: .55;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+#__sve-right-dock [data-sve-ai-modes] {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+#__sve-right-dock [data-sve-ai-modes] [data-sve-ai-mode] {
+  flex: 0 0 auto;
+  pointer-events: auto;
+  cursor: pointer;
+}
+#__sve-right-dock [data-sve-right-actions] {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+}
+#__sve-right-dock [data-sve-right-pin],
+#__sve-right-dock [data-sve-close],
+#__sve-right-dock [data-sve-comments-place] {
+  all: unset;
+  cursor: pointer;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  color: currentColor;
+  visibility: visible !important;
+  opacity: .55;
+  font-size: 15px;
+  line-height: 1;
+}
+#__sve-right-dock [data-sve-right-pin] {
+  opacity: .55;
+  background: transparent;
+}
+#__sve-right-dock [data-sve-right-pin] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+#__sve-right-dock[data-sve-right-stack] [data-sve-lv-chrome],
+#__sve-right-dock[data-sve-right-stack] [data-sve-pane-bar] {
+  cursor: default;
+}
+#__sve-right-dock[data-sve-right-stack] [data-sve-lv-chrome] :is(button, input, a, [data-lv-tab], [data-sve-panel-tab]):not([data-sve-right-reorder]):not([data-sve-right-fold]),
+#__sve-right-dock[data-sve-right-stack] [data-sve-pane-bar] :is(button, input, a, [data-lv-tab], [data-sve-panel-tab]):not([data-sve-right-reorder]):not([data-sve-right-fold]) {
+  cursor: pointer;
+}
+#__sve-right-dock [data-sve-right-reorder] {
+  all: unset;
+  cursor: grab !important;
+  width: 16px;
+  height: 20px;
+  margin-inline-end: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  color: currentColor;
+  background-color: var(--theme-color-gray-300, #d4d4d8);
+}
+#__sve-right-dock [data-sve-right-reorder] svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  opacity: .55;
+  pointer-events: none;
+}
+#__sve-right-dock [data-sve-right-reorder]:active {
+  cursor: grabbing !important;
+}
+#__sve-right-dock [data-sve-right-fold] {
+  all: unset;
+  cursor: pointer;
+  width: 16px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex: 0 0 auto;
+  color: currentColor;
+  opacity: .55;
+}
+#__sve-right-dock [data-sve-right-fold] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  transition: transform .12s ease;
+}
+#__sve-right-dock [data-sve-right-pane]:not([data-sve-right-folded]) [data-sve-right-fold] svg {
+  transform: rotate(90deg);
+}
+#__sve-right-dock[data-sve-right-stack] [data-sve-right-title] {
+  cursor: pointer;
+}
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] > :first-child {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+/* Same 1px rule as before Vue: the next pane's header always draws the line. */
+#__sve-right-dock[data-sve-right-stack] [data-sve-right-pane] ~ [data-sve-right-pane] [data-sve-lv-chrome],
+#__sve-right-dock[data-sve-right-stack] [data-sve-right-pane] ~ [data-sve-right-pane] [data-sve-pane-bar] {
+  border-top: 1px solid rgba(128,128,128,.22);
+}
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] [data-sve-lv-chrome],
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] [data-sve-pane-bar] {
+  border-bottom: none;
+}
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] > :not(:first-child) {
+  display: none !important;
+}
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] [data-sve-lv-chrome] ~ *,
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] [data-sve-pane-bar] ~ * {
+  display: none !important;
+}
+#__sve-right-dock [data-sve-right-pane][data-sve-right-folded] [data-sve-ai-modes] {
+  display: none !important;
+}
+#__sve-right-dock [data-sve-right-pane][data-dragging] {
+  opacity: .55;
+}
+#__sve-right-dock [data-sve-right-pin][aria-pressed="true"] {
+  opacity: 1;
+  color: currentColor;
+  background: transparent;
+}
+#__sve-right-dock [data-sve-comments-place] {
+  opacity: .55;
+  background: transparent;
+}
+#__sve-right-dock [data-sve-comments-place] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+}
+#__sve-right-dock [data-sve-comments-place][aria-pressed="true"] {
+  opacity: 1;
+  color: currentColor;
+  background: transparent;
+}
+#__sve-right-dock [data-sve-comments-place][aria-pressed="true"] svg {
+  fill: currentColor;
+}
+#__sve-right-dock [data-sve-close] {
+  opacity: .55;
+}
+#__sve-right-dock [data-sve-close] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  stroke-width: 2.4;
+}
+html.dark #__sve-right-dock [data-sve-right-resize],
+.dark #__sve-right-dock [data-sve-right-resize],
+html.dark #__sve-right-dock [data-sve-right-split],
+.dark #__sve-right-dock [data-sve-right-split],
+html.dark #__sve-right-dock [data-sve-right-reorder],
+.dark #__sve-right-dock [data-sve-right-reorder] {
+  background-color: var(--theme-color-gray-800, #27272a);
+}
+
+#__sve-right-dock [data-sve-ai-mode] {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  background: rgba(128, 128, 128, 0.22);
+  color: currentColor;
+}
+#__sve-right-dock [data-sve-ai-mode].is-active,
+#__sve-right-dock [data-sve-ai-mode][aria-pressed="true"] {
+  font-weight: 600;
+  background: var(--theme-color-primary, #4f46e5);
+  color: #fff;
+}

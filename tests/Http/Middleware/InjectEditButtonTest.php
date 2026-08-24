@@ -73,6 +73,7 @@ class InjectEditButtonTest extends TestCase
 
         $this->assertStringContainsString('id="sve-edit-button"', $html);
         $this->assertStringContainsString('live-preview=1', $html);
+        $this->assertStringContainsString('rel="prefetch"', $html);
         $this->assertStringContainsString('overlay-host', $html);
         $this->assertStringContainsString('__sveWantEditor', $html);
     }

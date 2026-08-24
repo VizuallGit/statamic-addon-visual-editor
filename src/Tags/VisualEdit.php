@@ -13,6 +13,12 @@ class VisualEdit extends Tags
 {
     protected static $handle = 'visual_edit';
 
+    /** @var array<string, list<array{handle?: string, config?: array, set?: string, chain?: array}>> */
+    private static array $fieldsByHandle = [];
+
+    /** @var array<string, array|null> */
+    private static array $replicatorByHandle = [];
+
     /**
      * {{ visual_edit }} — Dual-mode tag.
      *
@@ -53,11 +59,17 @@ class VisualEdit extends Tags
         // type. Emits the field to insert into and the set types it allows
         // (read from the blueprint, so a new set type just shows up).
         //
+        // Inside a nested set (a list block, a content block) the same tag
+        // also marks the set itself — otherwise the click has no data-sid and
+        // lands on the page section. One {{ visual_edit field="list" insertable="true" }}
+        // is then enough; a bare {{ visual_edit }} beside it is not needed.
+        //
         // When also used with inline_edit (Bard whole-field), skip this early
         // return — insert attrs are merged into the field annotation below so
         // orderable Bard sets get the same hide/dup/delete toolbar as Style 2.
         if ($this->params->bool('insertable', false) && $field !== null && (string) $field !== '' && ! $this->inlineEditParam()) {
-            $attr = 'data-sid-insert="'.e((string) $field).'"';
+            $setAttr = $this->insertableSetAttr();
+            $attr = ($setAttr !== '' ? $setAttr.' ' : '').'data-sid-insert="'.e((string) $field).'"';
 
             // The section this replicator belongs to — its uid. Used to seed the
             // very first block when the field is empty (no sibling to anchor to).
@@ -176,6 +188,49 @@ class VisualEdit extends Tags
         }
 
         return $isPair ? '<div '.$attr.$grid.'>'.$content.'</div>' : $attr.$grid;
+    }
+
+    /**
+     * data-sid for the nested set an insertable container sits on.
+     *
+     * A section-level {{ visual_edit field="blocks" insertable="true" }} must
+     * stay insert-only: the <section> already has data-sid, and a second copy
+     * on the inner wrapper would shrink the outline. A set one loop down
+     * (type "list" inside hero/style_2) has no other annotation, so the
+     * insertable tag is the one that has to carry it.
+     */
+    private function insertableSetAttr(): string
+    {
+        $uid = (string) ($this->params->get('id') ?: $this->context->get('id') ?: '');
+
+        if ($uid === '') {
+            return '';
+        }
+
+        $setType = (string) $this->context->get('type', '');
+        $sectionType = $this->resolveSectionType();
+
+        if ($sectionType !== '' && ($setType === '' || $setType === $sectionType)) {
+            return '';
+        }
+
+        // No page in context (tests, or the section uid is missing): treat a
+        // slashless type as a nested set (`list`, `content`) and a slashed
+        // one as the page section (`hero/style_2`).
+        if ($sectionType === '' && ($setType === '' || str_contains($setType, '/'))) {
+            return '';
+        }
+
+        return $this->buildAttr(
+            $uid,
+            $this->resolveLabel(),
+            $setType,
+            $this->params->bool('outline_inside', $this->params->bool('outline-inside', false)),
+            false,
+            $this->params->bool('move', false),
+            $this->params->bool('orderable', false),
+            $this->resolveIcon()
+        );
     }
 
     /**
@@ -376,10 +431,22 @@ class VisualEdit extends Tags
         // Fieldtype so the preview can open the right picker (Iconify, assets, …)
         // instead of starting a text edit on a graphic. Omitted when the blueprint
         // cannot be resolved — the preview then falls back to DOM sniffing.
-        $fieldType = $this->resolveFieldType($fieldPath);
+        $fieldMatch = $this->resolveFieldMatch($fieldPath) ?? [];
+        $fieldType = is_string($fieldMatch['config']['type'] ?? null) ? (string) $fieldMatch['config']['type'] : '';
 
         if ($fieldType !== '') {
             $attr .= ' data-sid-fieldtype="'.e($fieldType).'"';
+        }
+
+        // A configured default means the icon cannot be cleared. Preview and
+        // sidebar then offer Change only — Remove would just paint the default
+        // again, or hollow out the wrapper.
+        if ($fieldType === 'iconify') {
+            $iconDefault = $fieldMatch['config']['default'] ?? null;
+
+            if (is_string($iconDefault) && trim($iconDefault) !== '') {
+                $attr .= ' data-sve-icon-has-default';
+            }
         }
 
         // inline_edit="true": opt-in for in-preview editing (contenteditable).
@@ -706,10 +773,11 @@ class VisualEdit extends Tags
     }
 
     /**
-     * The blueprint fieldtype for this handle (`iconify`, `assets`, `bard`, …).
-     * Empty when the field cannot be found — the preview then has no picker hint.
+     * The matching blueprint field for this handle, or null.
+     *
+     * @return  array{handle?: string, config?: array, set?: string, chain?: array}|null
      */
-    private function resolveFieldType(string $fieldPath): string
+    private function resolveFieldMatch(string $fieldPath): ?array
     {
         try {
             $blueprintHandle = $this->params->get('blueprint');
@@ -722,22 +790,29 @@ class VisualEdit extends Tags
             }
 
             if (! $blueprint) {
-                return '';
+                return null;
             }
 
             $handle = last(explode('.', $fieldPath));
-            $matches = [];
-            $this->collectFieldsByHandle($blueprint->contents(), $handle, $matches);
 
-            $match = $this->preferFieldMatch($matches);
-            $type = $match['config']['type'] ?? null;
-
-            return is_string($type) && $type !== '' ? $type : '';
+            return $this->preferFieldMatch($this->fieldsByHandle($blueprint, $handle));
         } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve field type for '.$fieldPath, ['exception' => $e]);
+            Log::debug('VisualEdit: failed to resolve field match for '.$fieldPath, ['exception' => $e]);
 
-            return '';
+            return null;
         }
+    }
+
+    /**
+     * The blueprint fieldtype for this handle (`iconify`, `assets`, `bard`, …).
+     * Empty when the field cannot be found — the preview then has no picker hint.
+     */
+    private function resolveFieldType(string $fieldPath): string
+    {
+        $match = $this->resolveFieldMatch($fieldPath);
+        $type = $match['config']['type'] ?? null;
+
+        return is_string($type) && $type !== '' ? $type : '';
     }
 
     /**
@@ -816,8 +891,7 @@ class VisualEdit extends Tags
             // (context 'type'). This disambiguates identically-named fields —
             // hero vs seo_text `text`, or a column-builder `text` block — without
             // the aggressive scoping that broke deeply nested (column) lookups.
-            $matches = [];
-            $this->collectFieldsByHandle($blueprint->contents(), $handle, $matches, 'bard');
+            $matches = $this->fieldsByHandle($blueprint, $handle, 'bard');
 
             if (empty($matches)) {
                 return null;
@@ -872,8 +946,7 @@ class VisualEdit extends Tags
             // and written back as ProseMirror nodes, and a string field holding
             // an array of nodes reads "[object Object]" in the Control Panel.
             if ($config === null && $setType !== '') {
-                $own = [];
-                $this->collectFieldsByHandle($blueprint->contents(), $handle, $own);
+                $own = $this->fieldsByHandle($blueprint, $handle);
 
                 foreach ($own as $match) {
                     if ($match['set'] === $setType && ($match['config']['type'] ?? null) !== 'bard') {
@@ -996,6 +1069,25 @@ class VisualEdit extends Tags
             'target' => $style['target'] ?? null,
             'cp_css' => $style['cp_css'] ?? null,
         ], fn ($v) => $v !== null);
+    }
+
+    /**
+     * Same walk as {@see collectFieldsByHandle}, once per handle per request.
+     *
+     * @return  list<array{handle?: string, config?: array, set?: string, chain?: array}>
+     */
+    private function fieldsByHandle($blueprint, string $handle, ?string $fieldType = null): array
+    {
+        $key = spl_object_id($blueprint).'|'.$handle.'|'.($fieldType ?? '*');
+
+        if (isset(self::$fieldsByHandle[$key])) {
+            return self::$fieldsByHandle[$key];
+        }
+
+        $matches = [];
+        $this->collectFieldsByHandle($blueprint->contents(), $handle, $matches, $fieldType);
+
+        return self::$fieldsByHandle[$key] = $matches;
     }
 
     /**
@@ -1275,7 +1367,6 @@ class VisualEdit extends Tags
                 return [];
             }
 
-            $contents = $blueprint->contents();
             $setType = (string) $this->context->get('type', '');
             $out = [];
 
@@ -1285,8 +1376,7 @@ class VisualEdit extends Tags
             $sectionType = $valueChain[0] ?? $this->resolveSectionType();
 
             foreach ($handles as $handle) {
-                $matches = [];
-                $this->collectFieldsByHandle($contents, $handle, $matches);
+                $matches = $this->fieldsByHandle($blueprint, $handle);
 
                 if (empty($matches)) {
                     Log::debug("VisualEdit: controls=\"{$handle}\" skipped — no field by that handle in the blueprint.");
@@ -1452,16 +1542,22 @@ class VisualEdit extends Tags
             return null;
         }
 
-        $contents = $blueprint->contents();
         $setType = (string) ($this->context->get('type') ?? '');
+        $cacheKey = spl_object_id($blueprint).'|'.$fieldHandle.'|'.$setType;
+
+        if (array_key_exists($cacheKey, self::$replicatorByHandle)) {
+            return self::$replicatorByHandle[$cacheKey];
+        }
+
+        $contents = $blueprint->contents();
 
         if ($setType !== '' && $set = $this->findSetConfig($contents, $setType)) {
             if ($found = $this->findReplicatorConfig($set, $fieldHandle)) {
-                return $found;
+                return self::$replicatorByHandle[$cacheKey] = $found;
             }
         }
 
-        return $this->findReplicatorConfig($contents, $fieldHandle);
+        return self::$replicatorByHandle[$cacheKey] = $this->findReplicatorConfig($contents, $fieldHandle);
     }
 
     /** A replicator set's own config, by set handle, anywhere in the tree. */
@@ -1640,13 +1736,21 @@ class VisualEdit extends Tags
             return (string) $icon;
         }
 
+        // `icon_from` before the set icon: `type` cascades in Antlers, so a
+        // grid row inside a Links *set* still reads type "links" and would
+        // otherwise wear the wrapping set's icon (lucide:square-stack) instead
+        // of the grid field's (add-link) — the one the focus panel already shows.
+        $from = $this->params->get('icon_from', $this->params->get('icon-from'));
+
+        if ($from && ($fieldIcon = $this->resolveFieldIcon((string) $from))) {
+            return $fieldIcon;
+        }
+
         if ($setIcon = $this->resolveSetIcon($this->resolveType())) {
             return $setIcon;
         }
 
-        $from = $this->params->get('icon_from', $this->params->get('icon-from'));
-
-        return $from ? $this->resolveFieldIcon((string) $from) : '';
+        return '';
     }
 
     /**

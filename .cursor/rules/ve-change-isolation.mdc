@@ -1,35 +1,18 @@
 ---
-description: VE kernel is locked — one surface per task, no neighbouring files
+description: Vue-fork of Visual Editor — never touch the live addon
 alwaysApply: true
 ---
 
-# Visual Editor — safe change
+# Visual Editor Vue-fork
 
-First action: write **Surface:** and **Files:**. Open only those files.
+This folder is `~/Sites/statamic-addon-visual-editor-vue`. It is a copy. The site still runs `~/Sites/statamic-addon-visual-editor`. **Never edit the original.**
 
-## Locked — do not open
+## Surfaces
 
-Unless the user **explicitly** says the bug is the kernel (overlay, morph, eject, bridge):
+- Kernel (not Vue): `preview.js`, `overlay-host.js`, `bridge.js`
+- A CP panel: one Vue app under `resources/js/cp/surfaces/`. No import of the kernel or `cp.js`.
+- Fieldtypes: own Vue files via `Statamic.component()`. Do not wrap Statamic's `replicator`, `icon`, `bard`, `grid`.
 
-- `resources/js/preview.js`
-- `resources/js/overlay-host.js`
-- `resources/js/bridge.js`
-- In `cp.js`: `replayLivePreview`, `watchPreviewRenders`, `gotoOverlay`, `openOverlay`
+One task = one surface. After a change: `npm run isolate`.
 
-A tweak to a panel, dock, AI, or comments does **not** touch those four.
-
-## One surface
-
-- Overlay / Rediger / ejected to the public site → `overlay-host.js` only
-- Morph / eject after dock «saved» → `preview.js` only (plus the three `cp.js` functions if the bug is there)
-- Template dock → `code-dock.js` only (+ PHP that **only** writes the file)
-- Right dock / publish popup → that panel, not overlay or preview
-- New feature → new isolated module/Vue component. No import of the kernel. postMessage only.
-
-## Stop and ask
-
-- Task needs two surfaces → stop, name both, wait
-- Drive-by edit in a neighbouring file → forbidden
-- New import from panel/dock into overlay/preview/`replayLivePreview` → forbidden
-
-After a change: state what was touched, and what was deliberately left alone.
+Never write the site's `public/vendor`. Never rebuild overlay-host, preview or bridge alone. `resources/dist/build` is the editor — if a hashed file addon.js imports is gone, the toolbar is gone.

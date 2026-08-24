@@ -1,6 +1,9 @@
 import morphPlugin from '@alpinejs/morph';
 
 /**
+ * KERNEL — not Vue. Morph for Live Preview. Do not convert this file.
+ * Do not import it from resources/js/cp/surfaces/.
+ *
  * Live Preview: hot reload via Alpine.morph
  *
  * Injected on live preview responses via InjectBridgeScript (same mechanism
@@ -47,6 +50,79 @@ function ensureAlpineMorph() {
 }
 
 ensureAlpineMorph();
+
+/**
+ * Vue-split renamed the CP postMessage to `sveState.globals` / `sveState.sections`.
+ * Preview still speaks `sve.globals`. Accept both so Theme Settings morphs again.
+ */
+function isGlobalsChannel(name) {
+  return name === 'sve.globals' || name === 'sveState.globals';
+}
+
+function isSectionsChannel(name) {
+  return name === 'sve.sections' || name === 'sveState.sections';
+}
+
+/**
+ * Backup if `@vite/client` still landed in this iframe. Swallow full-reload
+ * here — never by turning off `npm run dev` on the public site.
+ * CSS HMR still uses `update` and is left alone.
+ */
+function guardViteFullReload() {
+  if (window.__svePreviewReloadGuard) {
+    return;
+  }
+
+  window.__svePreviewReloadGuard = true;
+
+  try {
+    window.location.reload = function () {};
+  } catch {
+    /* some browsers freeze Location */
+  }
+
+  const wrapSocket = (ws) => {
+    if (!ws || ws.__svePreviewGuarded) {
+      return;
+    }
+
+    ws.__svePreviewGuarded = true;
+    ws.addEventListener('message', (event) => {
+      let data = event.data;
+
+      try {
+        data = typeof data === 'string' ? JSON.parse(data) : data;
+      } catch {
+        return;
+      }
+
+      if (data?.type === 'full-reload') {
+        event.stopImmediatePropagation();
+      }
+    });
+  };
+
+  try {
+    const Original = window.WebSocket;
+
+    if (Original && !Original.__svePreviewGuarded) {
+      window.WebSocket = function (url, protocols) {
+        const ws = protocols === undefined ? new Original(url) : new Original(url, protocols);
+
+        wrapSocket(ws);
+
+        return ws;
+      };
+      window.WebSocket.prototype = Original.prototype;
+      window.WebSocket.__svePreviewGuarded = true;
+      Object.setPrototypeOf(window.WebSocket, Original);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+guardViteFullReload();
 
 /** Last live theme scale from CP — re-applied after morph so server :root can't win. */
 let lastThemeScaleCss = '';
@@ -346,7 +422,7 @@ window.addEventListener('message', (event) => {
     return;
   }
 
-  if (event.data?.name === 'sve.globals') {
+  if (isGlobalsChannel(event.data?.name)) {
     globalsActive = !!event.data.active;
     chromeKindFromParent = event.data.active
       ? normalizeChromeKind(event.data.chromeKind)
@@ -359,7 +435,7 @@ window.addEventListener('message', (event) => {
     return;
   }
 
-  if (event.data?.name === 'sve.sections') {
+  if (isSectionsChannel(event.data?.name)) {
     sectionsActive = !!event.data.active;
 
     if (event.data.url) {

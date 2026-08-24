@@ -11,9 +11,8 @@
  * beskriver, og den betyder at et felt kan have ikoner på nogle muligheder og
  * ord på andre uden at nogen skal indstille noget.
  *
- * `Icon` slår navnet op i Statamics eget sæt, eller i det sæt der står foran
- * `::`. Findes ikonet ikke, advarer den i konsollen og tegner ingenting — så
- * står knappen tom, og det er tydeligere end en pladsholder ville være.
+ * Statamic-navne går til `Button`s `icon`. Iconify (`mdi:pin`) tegnes fra
+ * `icon_html` som PHP har hentet — Statamics Icon kender ikke det navn.
  */
 (function () {
     'use strict';
@@ -74,6 +73,11 @@
                     return !option.icon || this.showLabels ? this.label(option) : null;
                 },
 
+                /** Iconify tegnes i slottet; Statamic-navne går til `icon`. */
+                statamicIcon(option) {
+                    return option.icon_html ? null : option.icon || null;
+                },
+
                 focus() {
                     this.$refs.button?.[0]?.focus();
                 },
@@ -87,7 +91,8 @@
                         :key="option.value"
                         :aria-label="label(option)"
                         :disabled="config.disabled"
-                        :icon="option.icon || null"
+                        :icon="statamicIcon(option)"
+                        :icon-only="!!option.icon && !showLabels"
                         :name="name"
                         :read-only="isReadOnly"
                         :text="text(option)"
@@ -95,7 +100,13 @@
                         :value="option.value"
                         :variant="value == option.value ? 'pressed' : 'default'"
                         @click="updateSelectedOption(option.value)"
-                    />
+                    >
+                        <span
+                            v-if="option.icon_html"
+                            data-sve-ibg-iconify
+                            v-html="option.icon_html"
+                        />
+                    </Button>
                 </ButtonGroup>
             `,
         });
