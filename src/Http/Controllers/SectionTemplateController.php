@@ -5,7 +5,8 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
-use MarioHamann\StatamicVisualEditor\TailwindBake;
+// PARKED — Tailwind dock compile. Uncomment with the fromHtml() call below.
+// use MarioHamann\StatamicVisualEditor\TailwindBake;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
 
 /**
@@ -65,9 +66,11 @@ class SectionTemplateController
 
         abort_if(! empty($meta['locked']), 423);
 
-        $tw = Features::enabled('tailwind_dock')
-            ? TailwindBake::fromHtml($html)
-            : ($meta['tw'] ?? '');
+        // PARKED — Tailwind dock compile (leaked into style_push). Rewrite later.
+        // $tw = Features::enabled('tailwind_dock')
+        //     ? TailwindBake::fromHtml($html)
+        //     : ($meta['tw'] ?? '');
+        $tw = $meta['tw'] ?? '';
 
         $contents = SectionTemplate::join([
             'html' => $html,

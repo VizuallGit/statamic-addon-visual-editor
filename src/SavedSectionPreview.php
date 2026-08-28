@@ -8,7 +8,7 @@ use Statamic\Facades\AssetContainer;
 use Statamic\Fieldtypes\Sets;
 
 /**
- * Screenshots a saved section — or a whole page template — and stores it as that
+ * Screenshots a saved section — or a whole page composition — and stores it as that
  * entry's preview image, so the section library shows the thing itself rather
  * than a name in a list.
  *
@@ -127,11 +127,11 @@ class SavedSectionPreview
             return []; // the defaults
         }
 
-        if ($collection === config('statamic-visual-editor.templates.collection', 'saved_templates')) {
+        if ($collection === Stores::compositions()) {
             return [
-                'folder' => 'saved-templates',
+                'folder' => Stores::compositionsFolder(),
                 'route' => 'sve.saved-template-preview',
-                // The whole stack, not one section: that's what a template is.
+                // The whole stack, not one section: that's what a composition is.
                 'selector' => 'main',
             ];
         }

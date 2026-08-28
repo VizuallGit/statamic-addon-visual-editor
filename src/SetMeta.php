@@ -146,11 +146,9 @@ class SetMeta
     }
 
     /**
-     * Files one set — without overwriting an answer an earlier pass already had.
-     *
-     * A handle can be declared more than once (a block imported into two sections,
-     * one of which names an icon and the other doesn't). First non-empty wins, key
-     * by key, so the fullest description of a set is the one that survives.
+     * Files one set — without overwriting a fuller answer an earlier pass already
+     * had. Display/instructions: first non-empty wins. Icon: bare names the panel
+     * cannot draw lose to a later SVG (two `title` sets, Content vs Item).
      *
      * @param  array<string, array>  $map
      * @param  array<string, mixed>  $set
@@ -161,9 +159,34 @@ class SetMeta
 
         $map[$handle] = [
             'display' => $current['display'] ?: ($set['display'] ?? null) ?: Str::title(Str::deslugify(basename($handle))),
-            'icon' => $current['icon'] ?: static::icon($set['icon'] ?? null),
+            'icon' => static::preferIcon($current['icon'], static::icon($set['icon'] ?? null)),
             'instructions' => $current['instructions'] ?: ($set['instructions'] ?? null),
         ];
+    }
+
+    /**
+     * Two sets can share a handle (Content og Item begge har `title`). Den første
+     * med et ikon vandt før — også når det var et kort navn panelet ikke kan
+     * tegne (`text`), mens et senere sæt havde den rigtige SVG. Foretræk SVG.
+     */
+    protected static function preferIcon(?string $current, ?string $incoming): ?string
+    {
+        if (! $incoming) {
+            return $current;
+        }
+
+        if (! $current) {
+            return $incoming;
+        }
+
+        $currentSvg = str_starts_with(ltrim($current), '<');
+        $incomingSvg = str_starts_with(ltrim($incoming), '<');
+
+        if ($incomingSvg && ! $currentSvg) {
+            return $incoming;
+        }
+
+        return $current;
     }
 
     /**

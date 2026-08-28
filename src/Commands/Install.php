@@ -3,11 +3,12 @@
 namespace MarioHamann\StatamicVisualEditor\Commands;
 
 use Illuminate\Console\Command;
+use MarioHamann\StatamicVisualEditor\Stores;
 use Illuminate\Support\Facades\File;
 
 /**
  * Scaffolds the few content-model pieces the editor's saved-section, global-section
- * and template features need — so the addon works on a fresh Statamic site without
+ * composition and collection-template features need — so the addon works on a fresh Statamic site without
  * the starter kit, or any manual setup.
  *
  * Everything is derived from config (handles, the page-builder field), never
@@ -23,7 +24,7 @@ class Install extends Command
     public function handle(): int
     {
         $sections = config('statamic-visual-editor.saved_sections.collection', 'saved_sections');
-        $templates = config('statamic-visual-editor.templates.collection', 'saved_templates');
+        $templates = Stores::compositions();
         $set = config('statamic-visual-editor.saved_sections.set', 'global_section');
         $field = config('statamic-visual-editor.previews.field', 'page_sections');
 
@@ -41,13 +42,23 @@ class Install extends Command
         );
 
         $this->publish(
-            "saved-templates.collection.yaml",
+            "saved-compositions.collection.yaml",
             base_path("content/collections/{$templates}.yaml")
         );
         $this->publish(
-            "saved-template.blueprint.yaml",
-            resource_path("blueprints/collections/{$templates}/saved_template.yaml"),
+            "saved-composition.blueprint.yaml",
+            resource_path("blueprints/collections/{$templates}/saved_composition.yaml"),
             ['PAGE_BUILDER_FIELD' => $field]
+        );
+
+        $views = Stores::collectionTemplates();
+        $this->publish(
+            "collection-templates.collection.yaml",
+            base_path("content/collections/{$views}.yaml")
+        );
+        $this->publish(
+            "collection-template.blueprint.yaml",
+            resource_path("blueprints/collections/{$views}/template.yaml")
         );
 
         // The partial that renders a referenced (synced) global section. Named for

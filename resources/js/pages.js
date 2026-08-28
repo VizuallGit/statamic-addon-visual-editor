@@ -16,7 +16,12 @@ import {
   isEmbeddedInSite,
   sendToPreview,
 } from './cp.js';
-import { gotoOverlay } from './overlay-host.js';
+
+async function gotoOverlay(win, url) {
+  const overlay = await import('./overlay-host.js');
+
+  overlay.gotoOverlay(win, url);
+}
 
 // ===== collection-picker =====
 // --- Collection picker: move between entries without leaving the preview -------
@@ -165,7 +170,7 @@ export function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
  * Save · discard · cancel. Clean overlay (or none) runs `onLeave` immediately.
  */
 export function confirmLeaveGlobalsOverlay(win, onLeave, onCancel = () => {}) {
-  if (!sve.isGlobalsOverlayOpen(win) || !sve.hasUnsavedGlobals(win)) {
+  if (!sve.isGlobalsOverlayOpen?.(win) || !sve.hasUnsavedGlobals(win)) {
     onLeave();
 
     return;

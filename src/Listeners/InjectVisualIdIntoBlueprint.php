@@ -72,7 +72,7 @@ class InjectVisualIdIntoBlueprint
 
             $type = $fieldDef['field']['type'] ?? null;
 
-            if (in_array($type, ['replicator', 'bard'], true) && isset($fieldDef['field']['sets'])) {
+            if (in_array($type, ['replicator', 'bard', 'sve_lite_sections'], true) && isset($fieldDef['field']['sets'])) {
                 $fieldDef['field']['sets'] = $this->processReplicatorSets($fieldDef['field']['sets']);
             }
 
@@ -118,7 +118,7 @@ class InjectVisualIdIntoBlueprint
 
             $type = $inlined['field']['type'] ?? null;
 
-            if (in_array($type, ['replicator', 'bard'], true) && isset($inlined['field']['sets'])) {
+            if (in_array($type, ['replicator', 'bard', 'sve_lite_sections'], true) && isset($inlined['field']['sets'])) {
                 $inlined['field']['sets'] = $this->processReplicatorSets($inlined['field']['sets']);
             }
 
@@ -149,6 +149,10 @@ class InjectVisualIdIntoBlueprint
      * it is not a field to fill in, but still a real field so a save keeps it.
      * `_sve_sync` remembers which sibling field is the source. Grids skip the
      * label: their tree row already names itself from content.
+     *
+     * `block_order_*` is the per-breakpoint block order. It lives on the set
+     * the same way, never in the fieldset YAML — Edit Fieldset must not grow
+     * three extra rows for something the editor writes by itself.
      */
     private function injectEditorFields(array $fields, bool $withLabel): array
     {
@@ -180,6 +184,77 @@ class InjectVisualIdIntoBlueprint
             ]];
         }
 
+        return $this->injectBreakpointOrderFields($fields);
+    }
+
+    /**
+     * One `blocks` array is one order. A section that wants a different order
+     * on tablet or mobile opts in with `sve_breakpoint_order: true` on that
+     * field — a flag, not three extra rows in the fieldset.
+     *
+     * The lists are injected here so a save keeps them, the same reason
+     * `_visual_id` is a real field. They are hidden, so they never appear in
+     * Edit Fieldset (that screen reads the YAML on disk).
+     */
+    private function injectBreakpointOrderFields(array $fields): array
+    {
+        if (! $this->wantsBreakpointOrder($fields)) {
+            return $fields;
+        }
+
+        $handles = array_column($fields, 'handle');
+
+        foreach (['laptop', 'tablet', 'mobile'] as $bp) {
+            $handle = 'block_order_'.$bp;
+
+            if (in_array($handle, $handles, true)) {
+                continue;
+            }
+
+            $fields[] = ['handle' => $handle, 'field' => [
+                'type' => 'list',
+                'visibility' => 'hidden',
+                'replicator_preview' => false,
+                'listable' => false,
+            ]];
+        }
+
         return $fields;
+    }
+
+    private function wantsBreakpointOrder(array $fields): bool
+    {
+        if ($this->fieldsDeclareBreakpointOrder($fields)) {
+            return true;
+        }
+
+        foreach ($fields as $fieldDef) {
+            if (! isset($fieldDef['import'])) {
+                continue;
+            }
+
+            $fieldset = Fieldset::find($fieldDef['import']);
+
+            if ($fieldset && $this->fieldsDeclareBreakpointOrder($fieldset->contents()['fields'] ?? [])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function fieldsDeclareBreakpointOrder(array $fields): bool
+    {
+        foreach ($fields as $fieldDef) {
+            if (($fieldDef['handle'] ?? null) !== 'blocks' || ! is_array($fieldDef['field'] ?? null)) {
+                continue;
+            }
+
+            if (! empty($fieldDef['field']['sve_breakpoint_order'])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

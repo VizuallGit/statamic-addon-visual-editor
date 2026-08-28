@@ -94,14 +94,6 @@ export let listViewValuesTarget = null;
 /** Block tree only — heading outline is its own pane. */
 
 /**
- * Folds every top-level section but one.
- *
- * The sections are an accordion: a page has enough of them that all open at once
- * is a wall of rows to scroll, and the one you are working in is the one worth
- * seeing whole. Blocks *within* a section are not — several open there is how you
- * compare two items — so this reaches only the roots.
- */
-/**
  * Opens a row and folds everything inside it.
  *
  * What a section shows when you go into it: its own blocks, and none of theirs.
@@ -120,6 +112,70 @@ export function listViewOpenShallow(node) {
   node.children.forEach(shut);
 }
 
+/** Rows that sit beside `node` in the tree — same parent, same depth. */
+export function listViewSiblings(node) {
+  if (!node?.parentUid) {
+    return listViewRoots;
+  }
+
+  const parent = listViewFlat(listViewRoots).find((item) => item.uid === node.parentUid);
+
+  return parent?.children || [];
+}
+
+/**
+ * Accordion at this node's level: open it, fold every sibling.
+ *
+ * Same rule the page's sections already had, now at every depth — opening
+ * Item (1) shuts Item (2), opening Section heading shuts Content boxes, so
+ * the tree shows the place you are rather than every nested row at once.
+ */
+export function listViewSoloSiblings(node) {
+  listViewSiblings(node).forEach((sib) => {
+    if (sib.uid === node.uid) {
+      listViewCollapsed.delete(sib.uid);
+    } else {
+      listViewCollapsed.add(sib.uid);
+    }
+  });
+}
+
+/** Opens this row, folds its siblings, and shows only its own children. */
+export function listViewOpenExclusive(node) {
+  listViewSoloSiblings(node);
+  listViewOpenShallow(node);
+}
+
+/**
+ * Walks from the page down to `node`, accordion-opening each step.
+ *
+ * A click in live preview lands on one block. The path to it stays open; every
+ * sibling along the way shuts. Without this the twist would accordion and the
+ * page would not.
+ */
+export function listViewRevealPath(node) {
+  const byUid = new Map(listViewFlat(listViewRoots).map((item) => [item.uid, item]));
+  const path = [];
+
+  for (let current = node; current; current = byUid.get(current.parentUid)) {
+    path.unshift(current);
+  }
+
+  // Unfold the path and accordion each level. Do not shallow-reset a row the
+  // user already had open — clicking Item (1) in preview should shut Item (2),
+  // not fold the list they were just looking at inside Item (1).
+  path.forEach((current) => {
+    listViewSoloSiblings(current);
+    listViewCollapsed.delete(current.uid);
+  });
+}
+
+/**
+ * Folds every top-level section but one.
+ *
+ * Kept as the root-only helper the panel's first draw still uses. Nested
+ * accordion goes through listViewSoloSiblings.
+ */
 export function listViewSoloSection(uid) {
   listViewRoots.forEach((root) => {
     if (root.uid === uid) {
@@ -543,6 +599,15 @@ export function ensureListViewStyles(doc) {
        place you are working in, and it says so in the row's blue, held back a
        little: the filled row is what you chose, the box only says where it is. */
     [data-sve-lv-branch][data-sve-lv-here] { border-color: rgba(56,88,233,.6); }
+    /* Rows inside the open box take a little of that same blue, so the grey
+       chips read as belonging there. The filled row stays solid — that is
+       still the one you chose. Delete these two rules to go back. */
+    [data-sve-lv-branch][data-sve-lv-here] > [data-sve-lv-row]:not([data-sve-lv-current]) {
+      background: rgba(56, 88, 233, .10);
+    }
+    [data-sve-lv-branch][data-sve-lv-here] > [data-sve-lv-row]:not([data-sve-lv-current]):hover {
+      background: rgba(56, 88, 233, .18);
+    }
     [data-sve-lv-row][data-sve-lv-off] { opacity: .45; }
     [data-sve-lv-row][data-sve-lv-dragging] { opacity: .4; }
     /* The drop line sits inside the row, so it needs no space of its own and
@@ -642,7 +707,8 @@ export function listViewFlat(nodes, out = []) {
  * and a tree built from stored values holds both.
  *
  * Ancestors are unfolded on the way, since a row inside a folded parent cannot
- * be shown as current while it is not shown at all.
+ * be shown as current while it is not shown at all. Siblings along that path
+ * fold shut, same as twisting a row open in the tree.
  */
 export function listViewSyncTo(win, ...candidates) {
   const doc = win.document;
@@ -675,27 +741,11 @@ export function listViewSyncTo(win, ...candidates) {
     }
   }
 
-  const byUid = new Map(flat.map((item) => [item.uid, item]));
-  let opened = false;
-  let root = node;
+  const before = [...listViewCollapsed].sort().join('\0');
 
-  for (let parent = node.parentUid; parent; parent = byUid.get(parent)?.parentUid) {
-    opened = listViewCollapsed.delete(parent) || opened;
-    root = byUid.get(parent) || root;
-  }
+  listViewRevealPath(node);
 
-  // Clicking into a section on the page is opening it, so the accordion follows —
-  // otherwise the tree would unfold the clicked block while leaving whichever
-  // section was open before open too, and the rule would hold for the twist but
-  // not for the page.
-  if (root !== node || node.depth === 0) {
-    const shut = listViewCollapsed.has(root.uid) || listViewRoots.some((r) => r.uid !== root.uid && !listViewCollapsed.has(r.uid));
-
-    if (shut) {
-      listViewSoloSection(root.uid);
-      opened = true;
-    }
-  }
+  const opened = before !== [...listViewCollapsed].sort().join('\0');
 
   if (listViewActiveUid !== node.uid || opened) {
     listViewActiveUid = node.uid;
@@ -1379,11 +1429,8 @@ export function renderListView(win) {
 
     if (!listViewCollapsed.has(item.uid)) {
       listViewCollapsed.add(item.uid);
-    } else if (item.depth === 0) {
-      listViewSoloSection(item.uid);
-      listViewOpenShallow(item);
     } else {
-      listViewCollapsed.delete(item.uid);
+      listViewOpenExclusive(item);
     }
 
     renderListView(win);
@@ -1396,10 +1443,8 @@ export function renderListView(win) {
     }
 
     listViewActiveUid = item.uid;
-    list.querySelectorAll('[data-sve-lv-current]').forEach((el) => el.removeAttribute('data-sve-lv-current'));
-    list.querySelector(`[data-sve-lv-uid="${item.uid}"]`)?.setAttribute('data-sve-lv-current', '');
-    list.querySelectorAll('[data-sve-lv-here]').forEach((el) => el.removeAttribute('data-sve-lv-here'));
-    list.querySelector(`[data-sve-lv-uid="${item.uid}"]`)?.closest('[data-sve-lv-branch]')?.setAttribute('data-sve-lv-here', '');
+    listViewRevealPath(item);
+    renderListView(win);
     sve.focusFromPreview(item.uid, doc, win, { clampToSection: true });
     sendToPreview({ source: 'statamic-visual-editor', type: 'sve-activate', ids: item.ids }, win);
   };
@@ -1679,6 +1724,10 @@ Object.defineProperty(sve, 'listViewDragUid', { get() { return listViewDragUid; 
 Object.defineProperty(sve, 'listViewStarted', { get() { return listViewStarted; }, set(v) { listViewStarted = v; } });
 Object.defineProperty(sve, 'listViewLockObserver', { get() { return listViewLockObserver; }, set(v) { listViewLockObserver = v; } });
 sve.listViewOpenShallow = listViewOpenShallow;
+sve.listViewSiblings = listViewSiblings;
+sve.listViewSoloSiblings = listViewSoloSiblings;
+sve.listViewOpenExclusive = listViewOpenExclusive;
+sve.listViewRevealPath = listViewRevealPath;
 sve.listViewSoloSection = listViewSoloSection;
 sve.listViewPanel = listViewPanel;
 Object.defineProperty(sve, 'dockedPanelTopLast', { get() { return dockedPanelTopLast; }, set(v) { dockedPanelTopLast = v; } });

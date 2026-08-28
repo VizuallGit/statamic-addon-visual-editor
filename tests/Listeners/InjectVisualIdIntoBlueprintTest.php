@@ -85,6 +85,27 @@ class InjectVisualIdIntoBlueprintTest extends TestCase
         ];
     }
 
+    private function blocksField(bool $breakpointOrder): array
+    {
+        $field = [
+            'type' => 'replicator',
+            'sets' => [
+                'content' => [
+                    'display' => 'Content',
+                    'fields' => [
+                        ['handle' => 'text', 'field' => ['type' => 'text']],
+                    ],
+                ],
+            ],
+        ];
+
+        if ($breakpointOrder) {
+            $field['sve_breakpoint_order'] = true;
+        }
+
+        return ['handle' => 'blocks', 'field' => $field];
+    }
+
     private function getSetsFields(Blueprint $blueprint, string $fieldHandle, string $group, string $setHandle): array
     {
         return $blueprint->contents()['tabs']['main']['sections'][0]['fields'][0]['field']['sets'][$group]['sets'][$setHandle]['fields'] ?? [];
@@ -376,6 +397,110 @@ class InjectVisualIdIntoBlueprintTest extends TestCase
         $labelCount = count(array_filter(array_column($fields, 'handle'), fn ($h) => $h === '_sve_label'));
 
         $this->assertSame(1, $labelCount);
+    }
+
+    public function test_sets_with_breakpoint_order_flag_gain_hidden_block_order_fields(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'media' => [
+                    'display' => 'Media',
+                    'fields' => [
+                        $this->blocksField(breakpointOrder: true),
+                    ],
+                ],
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $fields = $this->getSetsFields($blueprint, 'content', 'main', 'media');
+        $handles = array_column($fields, 'handle');
+
+        $this->assertContains('block_order_laptop', $handles);
+        $this->assertContains('block_order_tablet', $handles);
+        $this->assertContains('block_order_mobile', $handles);
+
+        $laptop = collect($fields)->firstWhere('handle', 'block_order_laptop');
+        $this->assertSame('list', $laptop['field']['type']);
+        $this->assertSame('hidden', $laptop['field']['visibility']);
+    }
+
+    public function test_sets_without_breakpoint_order_flag_do_not_gain_block_order_fields(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'media' => [
+                    'display' => 'Media',
+                    'fields' => [
+                        $this->blocksField(breakpointOrder: false),
+                    ],
+                ],
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $handles = array_column($this->getSetsFields($blueprint, 'content', 'main', 'media'), 'handle');
+
+        $this->assertNotContains('block_order_laptop', $handles);
+        $this->assertNotContains('block_order_tablet', $handles);
+        $this->assertNotContains('block_order_mobile', $handles);
+    }
+
+    public function test_imported_fieldset_with_breakpoint_order_flag_gains_block_order_on_the_set(): void
+    {
+        $mockFieldset = (new FieldsetModel)->setHandle('media_textbox.style_1')->setContents([
+            'title' => 'Media textbox style 1',
+            'fields' => [
+                $this->blocksField(breakpointOrder: true),
+            ],
+        ]);
+
+        Fieldset::shouldReceive('find')
+            ->andReturnUsing(fn ($handle) => $handle === 'media_textbox.style_1' ? $mockFieldset : null);
+
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'media_textbox/style_1' => [
+                    'display' => 'Media textbox style 1',
+                    'fields' => [
+                        ['import' => 'media_textbox.style_1'],
+                    ],
+                ],
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $handles = array_column($this->getSetsFields($blueprint, 'content', 'main', 'media_textbox/style_1'), 'handle');
+
+        $this->assertContains('block_order_laptop', $handles);
+        $this->assertContains('block_order_tablet', $handles);
+        $this->assertContains('block_order_mobile', $handles);
+    }
+
+    public function test_existing_block_order_fields_are_not_duplicated(): void
+    {
+        $blueprint = $this->makeBlueprint([
+            $this->replicatorWithGroupedSets([
+                'media' => [
+                    'display' => 'Media',
+                    'fields' => [
+                        $this->blocksField(breakpointOrder: true),
+                        ['handle' => 'block_order_laptop', 'field' => ['type' => 'list', 'visibility' => 'hidden']],
+                    ],
+                ],
+            ]),
+        ]);
+
+        EntryBlueprintFound::dispatch($blueprint);
+        EntryBlueprintFound::dispatch($blueprint);
+
+        $handles = array_column($this->getSetsFields($blueprint, 'content', 'main', 'media'), 'handle');
+        $laptopCount = count(array_filter($handles, fn ($h) => $h === 'block_order_laptop'));
+
+        $this->assertSame(1, $laptopCount);
     }
 
     public function test_grid_fields_do_not_gain_a_label_field(): void

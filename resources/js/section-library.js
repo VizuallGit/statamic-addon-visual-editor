@@ -269,6 +269,102 @@ export function writeSetMeta(container, field, section, rowMeta) {
   });
 }
 
+/** Replicator/grid meta (object `existing`), not assets (`existing` is an array). */
+export function isNestedSetMeta(fieldMeta) {
+  return (
+    !!fieldMeta &&
+    typeof fieldMeta === 'object' &&
+    !Array.isArray(fieldMeta) &&
+    ('existing' in fieldMeta || 'new' in fieldMeta) &&
+    !Array.isArray(fieldMeta.existing)
+  );
+}
+
+function nestedMetaTemplate(fieldMeta) {
+  if (
+    fieldMeta.new &&
+    typeof fieldMeta.new === 'object' &&
+    !Array.isArray(fieldMeta.new) &&
+    Object.keys(fieldMeta.new).length
+  ) {
+    return fieldMeta.new;
+  }
+
+  return Object.values(fieldMeta.existing || {})[0] || {};
+}
+
+/**
+ * Re-keys a set's meta to the row ids actually in `row`.
+ *
+ * `meta.new` is built from fieldset defaults, so its nested `existing` keys
+ * belong to those default rows. A custom/duplicated section has different ids —
+ * without this the Replicator finds no meta for `blocks` / `list` and the
+ * sidebar is empty even though values are there. unique_sets then treats the
+ * types as present, so Add is dead too.
+ *
+ * `defaultsRow` is the same set's defaults (from the section-meta endpoint),
+ * used to pick the matching nested template by type (content vs list) instead
+ * of handing every child the first default's meta.
+ */
+export function hydrateExistingMeta(row, template, defaultsRow = null) {
+  const out =
+    template && typeof template === 'object' && !Array.isArray(template)
+      ? JSON.parse(JSON.stringify(template))
+      : {};
+
+  if (!row || typeof row !== 'object') {
+    return out;
+  }
+
+  for (const [handle, fieldMeta] of Object.entries(out)) {
+    if (!isNestedSetMeta(fieldMeta)) {
+      continue;
+    }
+
+    const children = row[handle];
+    const defaultChildren = Array.isArray(defaultsRow?.[handle]) ? defaultsRow[handle] : [];
+    const genericTemplate = nestedMetaTemplate(fieldMeta);
+    const existing = {};
+    const typeIndex = {};
+
+    if (Array.isArray(children)) {
+      children.forEach((child, index) => {
+        if (!child || typeof child !== 'object') {
+          return;
+        }
+
+        const id = child._id || child.id;
+
+        if (!id) {
+          return;
+        }
+
+        let match = null;
+
+        if (child.type) {
+          const n = typeIndex[child.type] || 0;
+          const same = defaultChildren.filter((d) => d && d.type === child.type);
+
+          match = same[n] || same[0] || null;
+          typeIndex[child.type] = n + 1;
+        } else {
+          match = defaultChildren[index] || defaultChildren[0] || null;
+        }
+
+        const matchId = match?._id || match?.id;
+        const typedTemplate =
+          (matchId && fieldMeta.existing && fieldMeta.existing[matchId]) || genericTemplate;
+
+        existing[id] = hydrateExistingMeta(child, typedTemplate, match);
+      });
+    }
+
+    fieldMeta.existing = existing;
+  }
+
+  return out;
+}
+
 // Site-specific handles all come from the server config (provideToScript), never
 // from a literal here — the addon has to work as installed on any site.
 
@@ -382,7 +478,12 @@ export function setHandleFor(win, kind, item) {
 
 // Fresh set meta + defaults, per set handle, cached for the session (the
 // blueprint doesn't change while the form is open).
-export const sectionMetaCache = new Map();
+export const sectionMetaCache =
+  (typeof window !== 'undefined' && window.__sveSectionMetaCache) || new Map();
+
+if (typeof window !== 'undefined') {
+  window.__sveSectionMetaCache = sectionMetaCache;
+}
 
 /** The collection being edited, read from the CP URL. */
 export function currentCollection(win) {
@@ -410,21 +511,45 @@ export async function fetchNestedSetMeta(win, field, setHandle, sectionType = ''
     return null;
   }
 
-  const url =
-    `/!/sve/section-meta?collection=${encodeURIComponent(collection)}` +
-    `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}` +
-    (sectionType ? `&section=${encodeURIComponent(sectionType)}` : '');
+  const pending = (async () => {
+    const url =
+      `/!/sve/section-meta?collection=${encodeURIComponent(collection)}` +
+      `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}` +
+      (sectionType ? `&section=${encodeURIComponent(sectionType)}` : '');
 
-  const res = await win.fetch(url, {
-    credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-  });
+    const primed = win.__sveSectionMetaJson?.get?.(url);
 
-  const data = res.ok ? await res.json() : null;
+    if (primed) {
+      return primed;
+    }
 
-  sectionMetaCache.set(key, data);
+    const res = await win.fetch(url, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
 
-  return data;
+    if (!res.ok) {
+      return null;
+    }
+
+    return res.json();
+  })();
+
+  sectionMetaCache.set(key, pending);
+
+  try {
+    const data = await pending;
+
+    if (!data) {
+      sectionMetaCache.delete(key);
+    }
+
+    return data;
+  } catch {
+    sectionMetaCache.delete(key);
+
+    return null;
+  }
 }
 
 /**
@@ -1040,6 +1165,7 @@ export async function handleInsertBlock(data, doc, win) {
   const row = {
     ...(meta?.defaults ? JSON.parse(JSON.stringify(meta.defaults)) : {}),
     _id: rowId,
+    id: rowId,
     _visual_id: newUuid(win),
     type: set,
   };
@@ -1064,24 +1190,23 @@ export async function handleInsertBlock(data, doc, win) {
       continue;
     }
 
-    // Anchored to a sibling block: splice in beside it.
+    // Anchored to a sibling block: splice in beside it. If the preview uid
+    // is not in values yet, fall through to `scope` instead of giving up.
     if (anchorUid) {
       const loc = rowLocation(values, anchorUid);
 
-      if (!loc) {
-        continue;
+      if (loc) {
+        const next = JSON.parse(JSON.stringify(loc.rows));
+
+        next.splice(position === 'before' ? loc.index : loc.index + 1, 0, built.row);
+        writeNestedRowMeta(container, values, loc.parentPath, rowId, rowMeta);
+        container.setFieldValue(loc.parentPath, next);
+
+        return;
       }
-
-      const next = JSON.parse(JSON.stringify(loc.rows));
-
-      next.splice(position === 'before' ? loc.index : loc.index + 1, 0, built.row);
-      writeNestedRowMeta(container, values, loc.parentPath, rowId, rowMeta);
-      container.setFieldValue(loc.parentPath, next);
-
-      return;
     }
 
-    // Empty field: no sibling to anchor to — seed the section's own field array.
+    // Empty field, or anchor uid missed: seed the section's own field array.
     if (scope) {
       const sectionPath = sve.findPathByUid(values, scope);
 
@@ -1171,6 +1296,10 @@ export async function handleInsertBardSet(data, doc, win) {
 }
 
 export async function fetchSetMeta(win, setHandle) {
+  if (!setHandle) {
+    return null;
+  }
+
   if (sectionMetaCache.has(setHandle)) {
     return sectionMetaCache.get(setHandle);
   }
@@ -1181,30 +1310,45 @@ export async function fetchSetMeta(win, setHandle) {
     return null;
   }
 
-  const url =
-    `/!/sve/section-meta?collection=${encodeURIComponent(collection)}&set=${encodeURIComponent(setHandle)}`;
+  const pending = (async () => {
+    const url =
+      `/!/sve/section-meta?collection=${encodeURIComponent(collection)}&set=${encodeURIComponent(setHandle)}`;
 
-  const res = await win.fetch(url, {
-    credentials: 'same-origin',
-    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-  });
+    const res = await win.fetch(url, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
 
-  if (!res.ok) {
+    if (!res.ok) {
+      return null;
+    }
+
+    return res.json();
+  })();
+
+  sectionMetaCache.set(setHandle, pending);
+
+  try {
+    const data = await pending;
+
+    if (!data) {
+      sectionMetaCache.delete(setHandle);
+    }
+
+    return data;
+  } catch {
+    sectionMetaCache.delete(setHandle);
+
     return null;
   }
-
-  const data = await res.json();
-
-  sectionMetaCache.set(setHandle, data);
-
-  return data;
 }
 
 /** The section object to insert for a library card of the given kind. */
 export function buildSectionRow(win, kind, item, defaults, newId) {
   const base = {
-    ...JSON.parse(JSON.stringify(defaults || {})),
+    ...reidSection(win, defaults || {}),
     _id: newId,
+    id: newId,
     _visual_id: newUuid(win),
     enabled: true,
   };
@@ -1225,14 +1369,72 @@ export function buildSectionRow(win, kind, item, defaults, newId) {
 
   // custom: an independent copy with fresh ids, laid over the type's defaults so
   // any fields added since it was saved still get sensible values.
-  return {
+  return alignCustomSetIds(win, {
     ...base,
     ...reidSection(win, item.section_data || {}),
     _id: newId,
+    id: newId,
     _visual_id: newUuid(win),
     enabled: true,
     type: item.section_type,
+  });
+}
+
+/**
+ * Custom YAML has `id` (not `_id`) and no `_visual_id`. After reid, plus and
+ * rowLocation look up the preview `data-sid` against form values — both keys
+ * and a visual id have to be present and equal. Only used on custom insert,
+ * not on Add-row / blankRowFrom.
+ */
+function isCustomSetRow(node) {
+  if (!node || typeof node !== 'object') {
+    return false;
+  }
+
+  if ('_id' in node || '_visual_id' in node) {
+    return true;
+  }
+
+  if (typeof node.type !== 'string') {
+    return false;
+  }
+
+  if (node.type === 'text' || node.type === 'paragraph' || node.type === 'hardBreak' || node.type === 'heading') {
+    return false;
+  }
+
+  return 'enabled' in node || 'id' in node;
+}
+
+export function alignCustomSetIds(win, row) {
+  const walk = (node) => {
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+
+      return;
+    }
+
+    if (!node || typeof node !== 'object') {
+      return;
+    }
+
+    if (isCustomSetRow(node)) {
+      const fresh = node._id || node.id || newRowId();
+
+      node._id = fresh;
+      node.id = fresh;
+
+      if (!node._visual_id) {
+        node._visual_id = newUuid(win);
+      }
+    }
+
+    Object.values(node).forEach(walk);
   };
+
+  walk(row);
+
+  return row;
 }
 
 /**
@@ -1246,11 +1448,12 @@ export async function insertSection(win, doc, afterUid, kind, item) {
     return insertTemplate(win, doc, afterUid, item);
   }
 
-  const meta = await fetchSetMeta(win, setHandleFor(win, kind, item));
+  const handle = setHandleFor(win, kind, item);
   const newId = newRowId();
+  const meta = await fetchSetMeta(win, handle);
   const row = buildSectionRow(win, kind, item, meta?.defaults, newId);
 
-  insertSectionAfter(win, doc, afterUid, row, meta?.new || null);
+  insertSectionAfter(win, doc, afterUid, row, hydrateExistingMeta(row, meta?.new || {}, meta?.defaults));
 }
 
 /**
@@ -1286,10 +1489,16 @@ export async function insertTemplate(win, doc, afterUid, item) {
     const meta = await fetchSetMeta(win, section.type);
     const newId = newRowId();
 
-    rows.push(
-      buildSectionRow(win, 'custom', { section_data: section, section_type: section.type }, meta?.defaults, newId)
+    const row = buildSectionRow(
+      win,
+      'custom',
+      { section_data: section, section_type: section.type },
+      meta?.defaults,
+      newId
     );
-    metas.push(meta?.new || null);
+
+    rows.push(row);
+    metas.push(hydrateExistingMeta(row, meta?.new || {}, meta?.defaults));
   }
 
   insertSectionsAfter(win, doc, afterUid, rows, metas, mode === 'replace');
@@ -1730,16 +1939,6 @@ export function pinGlobalsPanelLeft(win, panel) {
   applyHeaderTab(win);
 }
 
-/** @deprecated alias — Theme Settings docks left now. */
-export function pinGlobalsPanelRight(win, panel) {
-  pinGlobalsPanelLeft(win, panel);
-}
-
-/** @deprecated alias */
-export function pinGlobalsPanelToEditor(win, panel) {
-  pinGlobalsPanelLeft(win, panel);
-}
-
 /** Absolute fill CSS — only for designs cards that are not an iframe form. */
 export function editorOverlayCss() {
   return (
@@ -1769,11 +1968,6 @@ export function claimLivePreviewEditor(win) {
   if (editor && win.getComputedStyle(editor).position === 'static') {
     editor.style.position = 'relative';
   }
-}
-
-/** @deprecated name — now claims the shared LP editor instead of collapsing it. */
-export function borrowLeftEdge(win) {
-  claimLivePreviewEditor(win);
 }
 
 /** Designs panel (no iframe) can still mount inside the editor. */
@@ -1866,15 +2060,6 @@ export function dockedPanelWidth(doc, ids) {
   }
 
   return px;
-}
-
-/** @deprecated use dockedPanelWidth — kept for call sites that mean "right edge" */
-export function rightPanelWidth(doc) {
-  return dockedPanelWidth(doc, [
-    SECTION_PICKER_ID,
-    sve.GLOBAL_SECTION_PANEL_ID,
-    sve.GLOBALS_PANEL_ID,
-  ]);
 }
 
 // The section library is a docked panel, not a popup: it stays open while you
@@ -2109,6 +2294,11 @@ export function mountSectionPicker(win, options = {}) {
       const el = doc.createElement('div');
 
       el.setAttribute('data-sve-lib-handle', String(item?.handle || item?.id || title));
+      el.setAttribute('data-sve-lib-kind', kind);
+
+      if (kind === 'custom' && item?.section_type) {
+        el.setAttribute('data-sve-lib-set', String(item.section_type));
+      }
       mountPane(el, LibraryCard, {
         title,
         imageUrl: imageUrl || '',
@@ -2333,6 +2523,10 @@ export function mountSectionPicker(win, options = {}) {
         item,
       }))
     );
+
+    [...new Set(filtered.map((item) => item.section_type).filter(Boolean))].forEach((handle) => {
+      fetchSetMeta(win, handle);
+    });
   };
 
   // A template's card carries the whole page, so it says how many sections that
@@ -2849,21 +3043,33 @@ export function pointerOverLivePreview(win, frame, event) {
     return true;
   }
 
+  // During a library drag the iframe has pointer-events:none, so the hit is
+  // the preview shell underneath — that still counts. Only a panel covering
+  // the iframe (dock, toolbar) cancels. `.live-preview-editor` is the canvas.
   return !hit.closest(
-    '#__sve-right-dock, #__sve-code-dock, #__sve-globals-panel, .live-preview-editor, .live-preview-header, #__sve-toolbar'
+    '#__sve-right-dock, #__sve-code-dock, #__sve-globals-panel, .live-preview-header, #__sve-toolbar'
   );
 }
 
 /**
- * Pointer drag on a library card. Below the threshold it's a click (drop at the
- * end). Beyond it, the preview zooms out and shows a drop line — but only a
- * release over the live preview inserts. Letting go halfway (library, editor,
- * chrome) cancels; nothing is added.
+ * Pointer drag on a library card. A release over the live preview inserts.
+ * Letting go halfway (library, editor, chrome) cancels; nothing is added.
+ * A click without a drag does not insert.
  */
 export function beginCardDrag(win, cardEl, kind, item) {
   cardEl.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || sveState.libraryDrag) {
       return;
+    }
+
+    if (kind === 'template') {
+      (item.sections || []).forEach((section) => {
+        if (section?.type) {
+          fetchSetMeta(win, section.type);
+        }
+      });
+    } else {
+      fetchSetMeta(win, setHandleFor(win, kind, item));
     }
 
     const doc = win.document;
@@ -2872,7 +3078,7 @@ export function beginCardDrag(win, cardEl, kind, item) {
     const startY = event.clientY;
     let active = false;
     let ghost = null;
-    let aborted = false;
+    let moved = false;
 
     const toPreview = (e) => {
       const r = frame.getBoundingClientRect();
@@ -2887,6 +3093,10 @@ export function beginCardDrag(win, cardEl, kind, item) {
     };
 
     const start = () => {
+      if (!frame) {
+        return;
+      }
+
       active = true;
       cardEl.setPointerCapture(event.pointerId);
       // The iframe would swallow the pointer once we're over it — let this window
@@ -2901,10 +3111,6 @@ export function beginCardDrag(win, cardEl, kind, item) {
     };
 
     const onMove = (e) => {
-      if (aborted) {
-        return;
-      }
-
       if (!active) {
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
@@ -2913,17 +3119,22 @@ export function beginCardDrag(win, cardEl, kind, item) {
           return;
         }
 
-        // Vertical drag inside the list is a scroll, not a section drag.
+        moved = true;
+
+        // Vertical move inside the list is a scroll — don't start, but don't
+        // abort either: a later move toward the preview should still drop.
         const scrollEl = cardEl.closest('[data-sve-scroll]');
+        const overList = scrollEl?.contains(doc.elementFromPoint(e.clientX, e.clientY));
 
-        if (scrollEl && Math.abs(dy) >= Math.abs(dx)) {
-          aborted = true;
-          stopListen();
-
+        if (overList && Math.abs(dy) >= Math.abs(dx)) {
           return;
         }
 
         start();
+      }
+
+      if (!active || !frame) {
+        return;
       }
 
       const p = toPreview(e);
@@ -2949,12 +3160,7 @@ export function beginCardDrag(win, cardEl, kind, item) {
         /* already released */
       }
 
-      if (aborted || !active) {
-        if (!aborted && !active) {
-          // A click: drop at the end of the page.
-          insertSection(win, doc, lastSectionUid(doc), kind, item);
-        }
-
+      if (!active) {
         return;
       }
 
@@ -3341,14 +3547,22 @@ export async function handleDuplicateRow(data, doc, win) {
         writeNestedRowMeta(container, values, parentPath, rowId, meta?.new);
       }
     } else if (copy?._id) {
-      // Grid / replicator rows: same meta registration as handleAddRow — otherwise
-      // the duplicate appears in the preview and nowhere in the sidebar.
+      // Clone the original row's meta and re-key nested `existing` to the copy's
+      // new ids. `rowMetaTemplate` prefers blank `new`, whose nested keys belong
+      // to fieldset defaults — same empty-sidebar bug as a custom insert.
+      const fieldMeta = metaForPath(sve.unwrapRef(container.meta) || {}, values, parentPath);
+      const sampleId = rows[index]?._id;
+      const sampleMeta =
+        (sampleId && fieldMeta?.existing?.[sampleId]
+          ? JSON.parse(JSON.stringify(fieldMeta.existing[sampleId]))
+          : null) || rowMetaTemplate(container, values, parentPath, rows[index]) || {};
+
       writeNestedRowMeta(
         container,
         values,
         parentPath,
         copy._id,
-        rowMetaTemplate(container, values, parentPath, rows[index])
+        hydrateExistingMeta(copy, sampleMeta, rows[index])
       );
     }
 
@@ -3606,6 +3820,8 @@ sve.libraryWentStale = libraryWentStale;
 sve.pollLibrary = pollLibrary;
 sve.newUuid = newUuid;
 sve.reidSection = reidSection;
+sve.hydrateExistingMeta = hydrateExistingMeta;
+sve.isNestedSetMeta = isNestedSetMeta;
 sve.insertSectionAfter = insertSectionAfter;
 sve.writeSetMeta = writeSetMeta;
 sve.sectionField = sectionField;
@@ -3665,16 +3881,12 @@ sve.closeRightPanelsInner = closeRightPanelsInner;
 sve.syncPreviewInset = syncPreviewInset;
 sve.livePreviewEditorEl = livePreviewEditorEl;
 sve.pinGlobalsPanelLeft = pinGlobalsPanelLeft;
-sve.pinGlobalsPanelRight = pinGlobalsPanelRight;
-sve.pinGlobalsPanelToEditor = pinGlobalsPanelToEditor;
 sve.editorOverlayCss = editorOverlayCss;
 sve.claimLivePreviewEditor = claimLivePreviewEditor;
-sve.borrowLeftEdge = borrowLeftEdge;
 sve.mountInLivePreviewEditor = mountInLivePreviewEditor;
 sve.releaseLeftEdgeIfFree = releaseLeftEdgeIfFree;
 sve.dismissChromeForPageEdit = dismissChromeForPageEdit;
 sve.dockedPanelWidth = dockedPanelWidth;
-sve.rightPanelWidth = rightPanelWidth;
 sve.libraryGroupKey = libraryGroupKey;
 sve.libraryGroupLabel = libraryGroupLabel;
 sve.libraryGroupKeys = libraryGroupKeys;

@@ -379,7 +379,7 @@ class SetPreviewGenerator
 
         $stores = [
             config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
-            config('statamic-visual-editor.templates.collection', 'saved_templates'),
+            Stores::compositions(),
         ];
 
         $rest = Collection::all()

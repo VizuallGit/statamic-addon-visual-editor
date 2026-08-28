@@ -19,6 +19,7 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ColumnSpanFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\IconButtonGroupFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\Replicator;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\SveLiteSections;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\BardDefaultFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\DefaultSetsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\GlobalsPickerFieldtype;
@@ -62,6 +63,7 @@ use Statamic\Facades\Site;
 use Statamic\Facades\User;
 use MarioHamann\StatamicVisualEditor\Listeners\ExpandFromTheStart;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
+use MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections;
 use MarioHamann\StatamicVisualEditor\Listeners\RefreshPreviews;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
 use MarioHamann\StatamicVisualEditor\Listeners\WrapResponsiveFields;
@@ -99,6 +101,7 @@ class ServiceProvider extends AddonServiceProvider
         // ⚠️ Overtager Statamics egen `replicator`-handle — handlen udledes
         // af klassenavnet. ALT replicator-arbejde i CP'et går igennem den.
         Replicator::class,
+        SveLiteSections::class,
     ];
 
     protected $tags = [
@@ -121,6 +124,7 @@ class ServiceProvider extends AddonServiceProvider
             // gøre noget: et felt der allerede er pakket ind, røres ikke.
             WrapResponsiveFields::class,
             ExpandFromTheStart::class,
+            UseLiteSections::class,
         ],
         GlobalVariablesBlueprintFound::class => [
             InjectVisualIdIntoBlueprint::class,
@@ -181,20 +185,41 @@ class ServiceProvider extends AddonServiceProvider
         __DIR__.'/../resources/css/addon.css',
     ];
 
-    // Own file, never inlined into Blade (Vue `{{ }}` would compile as PHP
-    // and kill every field in the Control Panel). Not bundled into addon.js.
+    // Own files, never inlined into Blade (Vue `{{ }}` would compile as PHP
+    // and kill every field in the Control Panel). Not bundled into addon.js —
+    // they run on every CP page and must not wrap Statamic's field Vue.
     // Served from public/vendor/{packageName()}/js/ — that is visual-editor,
     // not statamic-addon/visual-editor. registerScript() copies source → public
     // on boot so a path-repo edit actually reaches the CP (Statamic otherwise
     // keeps serving the last vendor:publish copy, cache-busted only by version).
+    //
+    //   disable-publish-stack-pin — keep the publish stack from pinning over LP
+    //   dedupe-cp-fetch           — one GET for iconify/config and colour swatches
+    //   default-sets-count        — "from the start" count on replicator config
+    //   iconify-hide-remove       — hide Iconify's remove when the field is empty
+    //   icon-button-group-iconify — Iconify picker inside button-group options
+    //   responsive-hide-label     — hide inner labels inside a responsive wrap
+    //   grid-keep-table           — keep Grid as a table (not stacked cards)
+    //   grid-collapse             — collapse Grid rows in the sidebar
+    //   section-meta-prefetch     — prefetch set meta (library, Search Sets hover, solo +)
+    //   inserter-reveal           — keep the "+" visible under a newly added block
+    //   toolbar-look              — trial 4px radius, no outline/shadow on edit toolbar
+    //   library-drop-focus        — after a library drop, zoom in on the new section
+    //   lite-sections             — mount one page_sections row in Live Preview
     protected $scripts = [
         __DIR__.'/../resources/js/disable-publish-stack-pin.js',
+        __DIR__.'/../resources/js/dedupe-cp-fetch.js',
         __DIR__.'/../resources/js/default-sets-count.js',
         __DIR__.'/../resources/js/iconify-hide-remove.js',
         __DIR__.'/../resources/js/icon-button-group-iconify.js',
+        __DIR__.'/../resources/js/responsive-hide-label.js',
         __DIR__.'/../resources/js/grid-keep-table.js',
         __DIR__.'/../resources/js/grid-collapse.js',
         __DIR__.'/../resources/js/section-meta-prefetch.js',
+        __DIR__.'/../resources/js/inserter-reveal.js',
+        __DIR__.'/../resources/js/toolbar-look.js',
+        __DIR__.'/../resources/js/library-drop-focus.js',
+        __DIR__.'/../resources/js/lite-sections.js',
     ];
 
     protected $commands = [
@@ -254,6 +279,35 @@ class ServiceProvider extends AddonServiceProvider
 
         $bust = is_file($path) ? md5_file($path) : md5($this->getAddon()->version());
         Statamic::script($name, "{$filename}.js?v={$bust}");
+    }
+
+    /**
+     * Samme som registerScript: Statamics default kopierer kun ved install og
+     * bust'er på pakkeversion, så en path-repo-ændring i addon.css aldrig
+     * nåede CP'et — hide_display så ud som om den var slået fra.
+     */
+    public function registerStylesheet(string $path)
+    {
+        $name = $this->getAddon()->packageName();
+        $filename = pathinfo($path, PATHINFO_FILENAME);
+        $dest = public_path("vendor/{$name}/css/{$filename}.css");
+
+        $this->publishes([
+            $path => $dest,
+        ], $this->getAddon()->slug());
+
+        if (is_file($path)) {
+            $dir = dirname($dest);
+            if (! is_dir($dir)) {
+                @mkdir($dir, 0755, true);
+            }
+            if (is_dir($dir) && is_writable($dir) && (! is_file($dest) || md5_file($path) !== md5_file($dest))) {
+                @copy($path, $dest);
+            }
+        }
+
+        $bust = is_file($path) ? md5_file($path) : md5($this->getAddon()->version());
+        Statamic::style($name, "{$filename}.css?v={$bust}");
     }
 
     public function bootAddon()
@@ -437,7 +491,7 @@ class ServiceProvider extends AddonServiceProvider
             Route::delete('/!/sve/saved-sections/{id}', [SavedSectionsController::class, 'destroy'])
                 ->name('sve.saved-sections.destroy');
 
-            // Page templates (a whole page's sections, saved to drop on another).
+            // Page compositions (a whole page's sections, saved to drop on another).
             Route::get('/!/sve/templates', [SavedTemplatesController::class, 'index'])
                 ->name('sve.templates.index');
             Route::post('/!/sve/templates', [SavedTemplatesController::class, 'store'])
@@ -522,6 +576,11 @@ class ServiceProvider extends AddonServiceProvider
             ->routes(function ($router) {
                 $router->post('generate', [SetPreviewsController::class, 'generate'])->name('generate');
             });
+
+        // After every other EntryBlueprintFound listener: visual id, responsive
+        // wrap and "from the start" must see `type: replicator` first. YAML on
+        // disk stays replicator; only the Live Preview form is swapped.
+        Event::listen(EntryBlueprintFound::class, [UseLiteSections::class, 'handle']);
     }
 
     /**
@@ -540,10 +599,7 @@ class ServiceProvider extends AddonServiceProvider
     /** The editor's own collections: stores of fragments, not content you browse. */
     protected static function stores(): array
     {
-        return [
-            config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
-            config('statamic-visual-editor.templates.collection', 'saved_templates'),
-        ];
+        return Stores::all();
     }
 
     protected function moveStoresOutOfCollections(): void

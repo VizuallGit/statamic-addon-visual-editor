@@ -9,12 +9,13 @@ use MarioHamann\StatamicVisualEditor\PreviewFingerprint;
 use MarioHamann\StatamicVisualEditor\PreviewRefresher;
 use MarioHamann\StatamicVisualEditor\SavedSectionPreview;
 use MarioHamann\StatamicVisualEditor\SetPreviewGenerator;
+use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Entry;
 use Statamic\Facades\Site;
 
 /**
  * Brings every preview image up to date: the section types in the Add Set picker,
- * the saved sections, and the page templates.
+ * the saved sections, and the page compositions.
  *
  * This is the one place screenshots are taken. Everything else — a save, a
  * fieldset change, the section library opening — asks for this to run, and the
@@ -25,13 +26,13 @@ use Statamic\Facades\Site;
 class GenerateSetPreviews extends Command
 {
     protected $signature = 'sve:previews
-        {--only= : A single set handle, or a saved section/template entry id}
+        {--only= : A single set handle, or a saved section/composition entry id}
         {--force : Re-shoot everything, even what the fingerprints say is current}
         {--watch : Stay running and regenerate whenever a section template, CSS, the build or the theme changes}
         {--interval=2 : Seconds between checks while watching}
         {--sync : Skip the lock — for running inside another process that holds it}';
 
-    protected $description = 'Regenerate the section, saved-section and template preview images.';
+    protected $description = 'Regenerate the section, saved-section and composition preview images.';
 
     /** How long one run may hold the lock before it's assumed dead. */
     protected const LOCK_SECONDS = 1800;
@@ -179,7 +180,7 @@ class GenerateSetPreviews extends Command
     }
 
     /**
-     * The saved sections and page templates.
+     * The saved sections and page compositions.
      *
      * Both are entries with a stack of sections on them, and both are photographed
      * the same way — the only difference is the render route and whether one
@@ -192,7 +193,7 @@ class GenerateSetPreviews extends Command
         $preview = app(SavedSectionPreview::class);
         $collections = array_filter([
             config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
-            config('statamic-visual-editor.templates.collection', 'saved_templates'),
+            Stores::compositions(),
         ]);
 
         $results = [];

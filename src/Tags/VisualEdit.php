@@ -1658,6 +1658,8 @@ class VisualEdit extends Tags
                 $out[] = [
                     'handle' => $handle,
                     'display' => $set['display'] ?? Str::headline($handle),
+                    'icon' => $set['icon'] ?? null,
+                    'image' => $set['image'] ?? null,
                 ];
             }
 

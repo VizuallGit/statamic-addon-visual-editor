@@ -1,27 +1,143 @@
 {
+  "_index-BpX_oTxp.js": {
+    "file": "assets/index-BpX_oTxp.js",
+    "name": "index",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/@codemirror/state/dist/index.js"
+    ]
+  },
+  "_index-CY0AOW5Y.js": {
+    "file": "assets/index-CY0AOW5Y.js",
+    "name": "index",
+    "imports": [
+      "_index-gYg9gdv3.js"
+    ]
+  },
+  "_index-gYg9gdv3.js": {
+    "file": "assets/index-gYg9gdv3.js",
+    "name": "index",
+    "isDynamicEntry": true
+  },
+  "node_modules/@codemirror/autocomplete/dist/index.js": {
+    "file": "assets/index-3LeTj6rZ.js",
+    "name": "index",
+    "src": "node_modules/@codemirror/autocomplete/dist/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/@codemirror/state/dist/index.js",
+      "_index-BpX_oTxp.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "_index-gYg9gdv3.js"
+    ]
+  },
+  "node_modules/@codemirror/commands/dist/index.js": {
+    "file": "assets/index-CSS38ZDG.js",
+    "name": "index",
+    "src": "node_modules/@codemirror/commands/dist/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "node_modules/@codemirror/state/dist/index.js",
+      "_index-BpX_oTxp.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "_index-gYg9gdv3.js"
+    ]
+  },
+  "node_modules/@codemirror/lang-css/dist/index.js": {
+    "file": "assets/index-B83oXo8N.js",
+    "name": "index",
+    "src": "node_modules/@codemirror/lang-css/dist/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_index-CY0AOW5Y.js",
+      "_index-gYg9gdv3.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "node_modules/@codemirror/state/dist/index.js",
+      "_index-BpX_oTxp.js"
+    ]
+  },
+  "node_modules/@codemirror/lang-html/dist/index.js": {
+    "file": "assets/index--OZC3PkO.js",
+    "name": "index",
+    "src": "node_modules/@codemirror/lang-html/dist/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_index-CY0AOW5Y.js",
+      "_index-gYg9gdv3.js",
+      "node_modules/@codemirror/lang-css/dist/index.js",
+      "node_modules/@codemirror/lang-javascript/dist/index.js",
+      "_index-BpX_oTxp.js",
+      "node_modules/@codemirror/state/dist/index.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "node_modules/@codemirror/autocomplete/dist/index.js"
+    ]
+  },
+  "node_modules/@codemirror/lang-javascript/dist/index.js": {
+    "file": "assets/index-uZ1Pazwl.js",
+    "name": "index",
+    "src": "node_modules/@codemirror/lang-javascript/dist/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_index-CY0AOW5Y.js",
+      "_index-gYg9gdv3.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "node_modules/@codemirror/state/dist/index.js",
+      "_index-BpX_oTxp.js",
+      "node_modules/@codemirror/autocomplete/dist/index.js"
+    ]
+  },
+  "node_modules/@codemirror/language/dist/index.js": {
+    "file": "assets/index-DAkOPP6u.js",
+    "name": "index",
+    "src": "node_modules/@codemirror/language/dist/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_index-gYg9gdv3.js",
+      "node_modules/@codemirror/state/dist/index.js",
+      "_index-BpX_oTxp.js"
+    ]
+  },
+  "node_modules/@codemirror/state/dist/index.js": {
+    "file": "assets/index-B5fiB6ig.js",
+    "name": "index",
+    "src": "node_modules/@codemirror/state/dist/index.js",
+    "isDynamicEntry": true
+  },
   "resources/js/addon.js": {
-    "file": "assets/addon-BDXkqAD1.js",
+    "file": "assets/addon-UwEyZ1nw.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
-    "imports": [
+    "dynamicImports": [
+      "_index-BpX_oTxp.js",
+      "node_modules/@codemirror/state/dist/index.js",
+      "node_modules/@codemirror/commands/dist/index.js",
+      "node_modules/@codemirror/autocomplete/dist/index.js",
+      "node_modules/@codemirror/lang-html/dist/index.js",
+      "node_modules/@codemirror/lang-css/dist/index.js",
+      "node_modules/@codemirror/lang-javascript/dist/index.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "_index-gYg9gdv3.js",
+      "resources/js/overlay-host.js",
+      "resources/js/overlay-host.js",
       "resources/js/overlay-host.js"
     ],
     "css": [
-      "assets/addon-esNzJFDX.css"
+      "assets/addon-CzXb4IEW.css"
     ]
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-CMZPuqfL.js",
+    "file": "assets/bridge-B8jd4hsF.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true
   },
   "resources/js/overlay-host.js": {
-    "file": "assets/overlay-host-BTVtlmkx.js",
+    "file": "assets/overlay-host-BbvwJmKQ.js",
     "name": "overlay-host",
     "src": "resources/js/overlay-host.js",
-    "isEntry": true
+    "isEntry": true,
+    "isDynamicEntry": true
   },
   "resources/js/preview.js": {
     "file": "assets/preview-C9Yj2jWK.js",

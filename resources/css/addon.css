@@ -217,6 +217,21 @@
 }
 
 /* ═══════════════════════════════════════════════════════
+   Responsive — Statamics egen label
+   Fieldtypen tegnede en egen label (anden font, ignorerede
+   hide_display). Skjul den, så navnet er det samme som
+   uden responsive. Prik/nulstil på laptop er tom streg.
+   ═══════════════════════════════════════════════════════ */
+
+.responsive-fieldtype > .responsive-fieldtype-header > .responsive-fieldtype-label {
+    display: none !important;
+}
+
+.responsive-fieldtype[data-bp="laptop"] > .responsive-fieldtype-header {
+    display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════
    Keep table layout
    Skjulte editor-kolonner (_visual_id, _sve_sync) tager ellers
    pladsen til højre for feltet. Kun gitre med fluebenet.
@@ -275,4 +290,18 @@
 .icon_button_group-fieldtype button[data-sve-ibg-selected],
 .icon-button-group-fieldtype button[data-sve-ibg-selected] {
     opacity: 1;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Block tree — open section box
+   Rækkerne inde i den blå ramme får 10 % af samme blå, så
+   det er tydeligt at man er inde i den sektion. Den valgte
+   række forbliver fyldt blå. Slet blokken for at gå tilbage.
+   ═══════════════════════════════════════════════════════ */
+
+[data-sve-lv-branch][data-sve-lv-here] > [data-sve-lv-row]:not([data-sve-lv-current]) {
+    background: rgba(56, 88, 233, 0.10);
+}
+[data-sve-lv-branch][data-sve-lv-here] > [data-sve-lv-row]:not([data-sve-lv-current]):hover {
+    background: rgba(56, 88, 233, 0.18);
 }

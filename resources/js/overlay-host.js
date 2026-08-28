@@ -14,6 +14,7 @@ const STYLE_ID = 'sve-overlay-host-styles';
 const LOADING_ID = 'sve-overlay-loading';
 const PREVIEW_LOADING_ID = 'sve-preview-loading';
 const KEEP_CHROME_KEY = 'sve-keep-chrome';
+const LAST_SRC_KEY = 'sve-overlay-src';
 const OPEN_IN_PREVIEW_ORIGIN = 'sve-open-in-preview-origin';
 const FADE_MS = 380;
 
@@ -46,12 +47,63 @@ function rememberCollectionOrigin(win, href) {
   }
 }
 
+function rememberOverlaySrc(win, url) {
+  try {
+    win.sessionStorage.setItem(LAST_SRC_KEY, String(url));
+  } catch {
+    /* private mode */
+  }
+}
+
+function hadOverlayThisSession(win) {
+  try {
+    return !!win.sessionStorage.getItem(LAST_SRC_KEY);
+  } catch {
+    return false;
+  }
+}
+
 const SPINNER_SVG =
   '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
   '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
 
 function isCpHost(win) {
   return /\/cp(\/|$)/.test(win.location.pathname);
+}
+
+/**
+ * Overlay close pops the `sveEditing` history entry. After an insert the form
+ * is dirty, and Statamic's popstate confirm would ask even though we stay on
+ * the same page. Stand the warning down for this back(), then re-arm if the
+ * form is still unsaved — real leave (× to the listing) still asks.
+ */
+function quietlyPopOverlayHistory(win) {
+  const dirty = win.Statamic?.$dirty;
+  let names = [];
+
+  try {
+    const raw = typeof dirty?.names === 'function' ? dirty.names() : dirty?.names;
+    const list = Array.isArray(raw) ? raw : raw?.value;
+    names = Array.isArray(list) ? [...list] : [];
+    dirty?.disableWarning?.();
+    names.forEach((name) => dirty?.remove?.(name));
+  } catch {
+    /* best effort */
+  }
+
+  try {
+    win.history.back();
+  } catch {
+    /* ignore */
+  }
+
+  win.setTimeout(() => {
+    try {
+      names.forEach((name) => dirty?.add?.(name));
+    } catch {
+      /* ignore */
+    }
+  }, 0);
 }
 
 /**
@@ -159,13 +211,22 @@ function ensureStyles(win) {
   style.id = STYLE_ID;
   style.textContent = `
     .sve-edit-overlay {
-      position: fixed; inset: 0; width: 100%; height: 100%;
+      position: fixed; top: 0; left: -12000px;
+      width: 1440px; height: 900px;
       border: 0; margin: 0; z-index: 2147483200;
       opacity: 0; pointer-events: none;
+      contain: strict;
       transition: opacity ${FADE_MS}ms cubic-bezier(.4, 0, .2, 1);
     }
-    .sve-edit-overlay[data-open] { opacity: 1; pointer-events: auto; }
+    .sve-edit-overlay[data-open] {
+      inset: 0; left: 0; width: 100%; height: 100%;
+      opacity: 1; pointer-events: auto; contain: none;
+    }
     html.sve-editing { overflow: hidden; }
+    html.sve-editing,
+    html.sve-editing body {
+      background: #18181b !important;
+    }
     html.sve-editing #sve-edit-button { display: none; }
     html.sve-morphing .sve-edit-overlay { transition: none; }
     html.sve-morphing::view-transition-old(root),
@@ -397,6 +458,7 @@ function createHost(win) {
 
   function boot(url) {
     rememberCollectionOrigin(win, url);
+    rememberOverlaySrc(win, url);
 
     if (frame) {
       try {
@@ -534,11 +596,7 @@ function createHost(win) {
       saved = false;
 
       if (!fromHistory) {
-        try {
-          win.history.back();
-        } catch {
-          /* ignore */
-        }
+        quietlyPopOverlayHistory(win);
       }
 
       morph(() => root.classList.remove('sve-editing'));
@@ -581,11 +639,7 @@ function createHost(win) {
     }
 
     if (!fromHistory) {
-      try {
-        win.history.back();
-      } catch {
-        /* ignore */
-      }
+      quietlyPopOverlayHistory(win);
     }
 
     morph(() => {
@@ -695,22 +749,26 @@ function createHost(win) {
     }
   });
 
-  win.addEventListener('popstate', () => {
-    if (!open) {
-      return;
-    }
+  // Capture: iframe/morph history must not reach Statamic's dirty confirm
+  // (`dirty_navigation_warning` on popstate). replaceState keeps one overlay
+  // entry; pushState here used to stack noise and fire the leave dialog.
+  win.addEventListener(
+    'popstate',
+    (event) => {
+      if (!open) {
+        return;
+      }
 
-    // The preview iframe (and Statamic replacing it on morph) pushes history
-    // entries without `sveEditing`. Treating those as Back used to lift the
-    // overlay onto the front end while typing in the template dock.
-    // Leave only via lp-close (the ×). Re-assert our history state so Back
-    // inside the iframe cannot eject the host.
-    try {
-      win.history.pushState({ sveEditing: true }, '', win.location.href);
-    } catch {
-      /* ignore */
-    }
-  });
+      event.stopImmediatePropagation();
+
+      try {
+        win.history.replaceState({ sveEditing: true }, '', win.location.href);
+      } catch {
+        /* ignore */
+      }
+    },
+    true
+  );
 
   return { boot, open: openEditor, goto, close };
 }
@@ -747,75 +805,33 @@ export function gotoOverlay(win, url) {
   installOverlayHost(win).goto(url);
 }
 
-/**
- * Skip the hidden editor warm-up on a constrained connection — the page the
- * user is reading comes first, and hover still boots if they reach for Rediger.
- */
-function shouldWarm(win) {
-  try {
-    const conn = win.navigator.connection;
-
-    if (conn?.saveData) {
-      return false;
-    }
-
-    if (conn?.effectiveType && /^(slow-2g|2g)$/.test(conn.effectiveType)) {
-      return false;
-    }
-  } catch {
-    /* ignore */
-  }
-
-  return true;
-}
-
-function prefetchEditor(win, url) {
-  const doc = win.document;
-
-  if (!url || doc.querySelector('link[data-sve-editor-prefetch]')) {
-    return;
-  }
-
-  const link = doc.createElement('link');
-
-  link.rel = 'prefetch';
-  link.as = 'document';
-  link.href = url;
-  link.setAttribute('data-sve-editor-prefetch', '');
-  doc.head.appendChild(link);
+function revealEditButton(win) {
+  win.document.getElementById('sve-edit-button')?.setAttribute('data-ready', '');
 }
 
 /**
- * Start the same hidden iframe hover already starts, once the page is quiet.
- * A click a few seconds later can then fade in a finished overlay instead of
- * waiting on a cold Control Panel.
+ * The front end (images, CSS, fonts) before the editor. InjectEditButton
+ * already waits for this before loading this file; keep the wait here too
+ * in case the script is present from the first paint.
  */
-function scheduleWarm(win, boot, url) {
-  if (!url || !shouldWarm(win)) {
-    return;
-  }
+function whenSitePainted(win) {
+  return new Promise((resolve) => {
+    const finish = () => {
+      const fonts = win.document.fonts?.ready;
 
-  prefetchEditor(win, url);
+      if (fonts && typeof fonts.then === 'function') {
+        Promise.resolve(fonts).then(() => resolve(), () => resolve());
+      } else {
+        resolve();
+      }
+    };
 
-  const start = () => {
-    if (shouldWarm(win)) {
-      boot(url);
-    }
-  };
-
-  const whenQuiet = () => {
-    if (typeof win.requestIdleCallback === 'function') {
-      win.requestIdleCallback(start, { timeout: 2000 });
+    if (win.document.readyState === 'complete') {
+      finish();
     } else {
-      win.setTimeout(start, 1200);
+      win.addEventListener('load', finish, { once: true });
     }
-  };
-
-  if (win.document.readyState === 'complete') {
-    whenQuiet();
-  } else {
-    win.addEventListener('load', whenQuiet, { once: true });
-  }
+  });
 }
 
 function bindEditButton(win) {
@@ -827,8 +843,6 @@ function bindEditButton(win) {
 
   const host = installOverlayHost(win);
   const url = btn.getAttribute('href');
-
-  scheduleWarm(win, host.boot, url);
 
   btn.addEventListener('pointerenter', () => host.boot(url));
   btn.addEventListener('pointerdown', () => host.boot(url));
@@ -847,8 +861,19 @@ function bindEditButton(win) {
   );
 
   if (win.__sveWantEditor) {
+    revealEditButton(win);
     host.open(url);
+
+    return;
   }
+
+  whenSitePainted(win).then(() => {
+    revealEditButton(win);
+
+    if (!isCpHost(win) && hadOverlayThisSession(win)) {
+      host.boot(url);
+    }
+  });
 }
 
 bindEditButton(window);

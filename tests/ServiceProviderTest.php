@@ -4,10 +4,12 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Support\Facades\Event;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\SveLiteSections;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
+use MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections;
 use MarioHamann\StatamicVisualEditor\ServiceProvider;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use Statamic\Events\EntryBlueprintFound;
@@ -33,6 +35,20 @@ class ServiceProviderTest extends TestCase
         $fieldtype = app(FieldtypeRepository::class)->find('auto_uuid');
 
         $this->assertInstanceOf(AutoUuidFieldtype::class, $fieldtype);
+    }
+
+    public function test_lite_sections_fieldtype_registered(): void
+    {
+        $fieldtype = app(FieldtypeRepository::class)->find('sve_lite_sections');
+
+        $this->assertInstanceOf(SveLiteSections::class, $fieldtype);
+    }
+
+    public function test_use_lite_sections_listener_registered(): void
+    {
+        Event::fake();
+
+        Event::assertListening(EntryBlueprintFound::class, UseLiteSections::class);
     }
 
     public function test_sve_tw_tag_registered(): void

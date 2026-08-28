@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\Stores;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -33,10 +34,7 @@ class HideStoresFromCollectionsList
             return $response;
         }
 
-        $stores = [
-            config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
-            config('statamic-visual-editor.templates.collection', 'saved_templates'),
-        ];
+        $stores = Stores::all();
 
         // The listing table asks for its rows as JSON; the page itself arrives as
         // an Inertia payload. Same list, two shapes.

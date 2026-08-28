@@ -40,4 +40,28 @@ class SiblingSyncTest extends TestCase
 
         $this->assertStringContainsString(SiblingSync::CLASS_NAME, $field['classes']);
     }
+
+    public function test_responsive_wrap_uses_the_fields_own_hide_display(): void
+    {
+        $hidden = ResponsiveFields::apply('align_text', [
+            'type' => 'icon_button_group',
+            'display' => 'Align text',
+            'sve_responsive' => true,
+            'hide_display' => true,
+        ]);
+
+        $this->assertTrue($hidden['hide_display']);
+        $this->assertSame('Align text', $hidden['display']);
+        $this->assertTrue($hidden['fields'][0]['field']['hide_display']);
+
+        $shown = ResponsiveFields::apply('padding', [
+            'type' => 'spacing',
+            'display' => 'Padding',
+            'sve_responsive' => true,
+        ]);
+
+        $this->assertFalse($shown['hide_display']);
+        $this->assertSame('Padding', $shown['display']);
+        $this->assertTrue($shown['fields'][0]['field']['hide_display']);
+    }
 }

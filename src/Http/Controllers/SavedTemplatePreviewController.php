@@ -5,16 +5,17 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use MarioHamann\StatamicVisualEditor\PreviewHost;
+use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Entry;
 
 /**
- * Renders a saved TEMPLATE — every section in it — so the preview generator can
+ * Renders a saved composition — every section in it — so the preview generator can
  * screenshot the whole stack.
  *
  * The sections need a real page around them for context (layout, globals, …), so a
  * published page is borrowed as the host and its page_sections are swapped, in
- * memory only, for the template's. Nothing is written, and the route is signed and
- * short-lived, so it is never a public URL.
+ * memory only, for the composition's. Nothing is written, and the route is signed
+ * and short-lived, so it is never a public URL.
  *
  * Kept separate from the saved-section preview rather than sharing it: that one
  * renders a single section and doubles as the Live Preview target the global
@@ -26,7 +27,7 @@ class SavedTemplatePreviewController extends Controller
     public function show(Request $request, string $id)
     {
         $template = Entry::find($id);
-        $collection = config('statamic-visual-editor.templates.collection', 'saved_templates');
+        $collection = Stores::compositions();
 
         abort_unless($template && $template->collectionHandle() === $collection, 404);
 

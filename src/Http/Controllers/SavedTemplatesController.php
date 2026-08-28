@@ -7,27 +7,28 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\LibraryAccess;
 use MarioHamann\StatamicVisualEditor\SavedSectionPreview;
+use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 use Statamic\Facades\Site;
 use Statamic\Facades\User;
 
 /**
- * Saves every section on a page as one reusable template.
+ * Saves every section on a page as one reusable composition.
  *
  * The saved-sections store's sibling, in its own collection: the two are separate
  * lists with their own place in the Control Panel nav, and they behave differently.
  * A saved section can be *synced*, so a page referencing it stays in step with the
- * source. A template is only ever copied — drop one and you own the sections
- * outright, and editing the template afterwards touches nothing already built
+ * source. A composition is only ever copied — drop one and you own the sections
+ * outright, and editing the composition afterwards touches nothing already built
  * from it.
  */
 class SavedTemplatesController
 {
-    /** The collection templates live in — configurable, never assumed. */
+    /** The collection compositions live in — configurable, never assumed. */
     protected static function collection(): string
     {
-        return config('statamic-visual-editor.templates.collection', 'saved_templates');
+        return Stores::compositions();
     }
 
     /** The page-builder field the sections are stored in (shared with the previews config). */

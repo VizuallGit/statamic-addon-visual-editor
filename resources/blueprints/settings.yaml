@@ -309,7 +309,7 @@ tabs:
             handle: library_templates
             field:
               type: toggle
-              display: Templates
+              display: Compositions
               instructions: 'Whole pages saved as a stack of sections to reuse.'
               default: true
               width: 50
@@ -325,7 +325,7 @@ tabs:
             field:
               type: toggle
               display: 'Limit the library to what the site already uses'
-              instructions: "Only the sections this site already has somewhere are offered. Section types and global sections are found by scanning the pages. Custom sections and templates are copied on insert and leave nothing behind to scan for, so they are judged by what they are built from — offered while every section in them is a design the site uses. Nothing is narrowed until the scan below has been run at least once."
+              instructions: "Only the sections this site already has somewhere are offered. Section types and global sections are found by scanning the pages. Custom sections and compositions are copied on insert and leave nothing behind to scan for, so they are judged by what they are built from — offered while every section in them is a design the site uses. Nothing is narrowed until the scan below has been run at least once."
               default: false
               if:
                 enabled: 'equals true'

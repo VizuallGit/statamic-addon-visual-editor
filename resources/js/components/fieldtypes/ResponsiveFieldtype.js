@@ -5,8 +5,9 @@
  * Laptop is the baseline. Tablet/mobile only keep real overrides; anything that
  * still matches the parent is stripped before emit (same rule as PHP process()).
  *
- * Switching Live Preview devices flips which drawer Fields bind to. Fields are
- * remounted with :key=breakpoint so a tablet edit can never write into laptop.
+ * Switching Live Preview devices flips which drawer Fields bind to. Same
+ * Fields instance — only the path prefix changes, like the other responsive
+ * fields. A remount made icon button groups flash as if they reloaded.
  */
 import { chromeGet } from '../../chrome-prefs.js';
 
@@ -77,7 +78,6 @@ import { chromeGet } from '../../chrome-prefs.js';
                 const breakpoints = computed(() => props.meta?._breakpoints || []);
                 const strings = computed(() => props.meta?._strings || {});
                 const activeBp = ref(bpFromStorage());
-                const fieldsReady = ref(true);
 
                 const rootPath = computed(() =>
                     props.fieldPathPrefix
@@ -307,19 +307,15 @@ import { chromeGet } from '../../chrome-prefs.js';
                     }
                 );
 
-                async function setBp(bp) {
+                function setBp(bp) {
                     if (!BP_ORDER.includes(bp) || bp === activeBp.value) {
                         return;
                     }
 
-                    // Tear down Fields before flipping the path, so a stale
-                    // tablet control cannot emit into laptop.
-                    fieldsReady.value = false;
-                    await nextTick();
-                    activeBp.value = bp;
+                    // Fill the drawer first so Fields keep their widgets and
+                    // only rebind the path — no unmount, no flash.
                     materializeDisplay(bp);
-                    await nextTick();
-                    fieldsReady.value = true;
+                    activeBp.value = bp;
                 }
 
                 function onSveBreakpoint(e) {
@@ -345,8 +341,6 @@ import { chromeGet } from '../../chrome-prefs.js';
                 const fieldPathPrefix = computed(() => `${rootPath.value}.${activeBp.value}`);
                 const metaPathPrefix = computed(() => `${metaRoot.value}.${activeBp.value}`);
 
-                const label = computed(() => props.config?.display || props.handle || '');
-
                 /**
                  * Lighter tint of the CP primary (active Style-tab / Save) —
                  * same token as Visual Editor: --theme-color-primary.
@@ -368,35 +362,23 @@ import { chromeGet } from '../../chrome-prefs.js';
 
                 return () => {
                     const accent = accentColor();
-                    // Dot + Reset only matter on tablet/mobile — laptop is the baseline.
+                    // Label is Statamic's. Dot + Reset only on tablet/mobile.
                     const showOverrideUi = activeBp.value !== 'laptop';
-                    const header = h(
-                        'div',
-                        {
-                            class: 'responsive-fieldtype-header',
-                            style: {
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                marginBottom: '6px',
-                                minHeight: '18px',
-                            },
-                        },
-                        [
-                            h(
-                                'span',
-                                {
-                                    class: 'responsive-fieldtype-label',
-                                    style: {
-                                        fontSize: '12px',
-                                        fontWeight: '500',
-                                        lineHeight: '1.25',
-                                    },
-                                },
-                                label.value
-                            ),
-                            showOverrideUi
-                                ? h('span', {
+                    const header = showOverrideUi
+                        ? h(
+                              'div',
+                              {
+                                  class: 'responsive-fieldtype-header',
+                                  style: {
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      marginBottom: '6px',
+                                      minHeight: '18px',
+                                  },
+                              },
+                              [
+                                  h('span', {
                                       class: 'responsive-fieldtype-dot',
                                       title: hasOverrides.value
                                           ? changedLabel.value
@@ -425,52 +407,49 @@ import { chromeGet } from '../../chrome-prefs.js';
                                               ? '0 0 4px 1px color-mix(in srgb, var(--theme-color-primary, #4f46e5) 30%, transparent)'
                                               : 'none',
                                       },
-                                  })
-                                : null,
-                            h('span', { style: { flex: '1' } }),
-                            showOverrideUi && hasOverrides.value
-                                ? h(
-                                      'button',
-                                      {
-                                          type: 'button',
-                                          class: 'responsive-fieldtype-reset',
-                                          title: resetTitle.value,
-                                          onClick: resetActive,
-                                          style: {
-                                              border: 'none',
-                                              background: 'transparent',
-                                              color: accent,
-                                              cursor: 'pointer',
-                                              fontSize: '12px',
-                                              fontWeight: '600',
-                                              padding: '0',
-                                              lineHeight: '1.25',
-                                              textDecoration: 'underline',
-                                              textUnderlineOffset: '2px',
-                                          },
-                                      },
-                                      strings.value.reset || 'Nulstil'
-                                  )
-                                : null,
-                        ]
-                    );
-
-                    const fieldsTree = fieldsReady.value
-                        ? h(
-                              FieldsProvider,
-                              {
-                                  key: activeBp.value,
-                                  fields: fields.value,
-                                  asConfig: false,
-                                  readOnly: props.readOnly,
-                                  fieldPathPrefix: fieldPathPrefix.value,
-                                  metaPathPrefix: metaPathPrefix.value,
-                              },
-                              {
-                                  default: () => h(Fields, { class: 'responsive-fieldtype-fields' }),
-                              }
+                                  }),
+                                  h('span', { style: { flex: '1' } }),
+                                  hasOverrides.value
+                                      ? h(
+                                            'button',
+                                            {
+                                                type: 'button',
+                                                class: 'responsive-fieldtype-reset',
+                                                title: resetTitle.value,
+                                                onClick: resetActive,
+                                                style: {
+                                                    border: 'none',
+                                                    background: 'transparent',
+                                                    color: accent,
+                                                    cursor: 'pointer',
+                                                    fontSize: '12px',
+                                                    fontWeight: '600',
+                                                    padding: '0',
+                                                    lineHeight: '1.25',
+                                                    textDecoration: 'underline',
+                                                    textUnderlineOffset: '2px',
+                                                },
+                                            },
+                                            strings.value.reset || 'Nulstil'
+                                        )
+                                      : null,
+                              ]
                           )
                         : null;
+
+                    const fieldsTree = h(
+                        FieldsProvider,
+                        {
+                            fields: fields.value,
+                            asConfig: false,
+                            readOnly: props.readOnly,
+                            fieldPathPrefix: fieldPathPrefix.value,
+                            metaPathPrefix: metaPathPrefix.value,
+                        },
+                        {
+                            default: () => h(Fields, { class: 'responsive-fieldtype-fields' }),
+                        }
+                    );
 
                     return h('div', { class: 'responsive-fieldtype', 'data-bp': activeBp.value }, [
                         header,

@@ -117,7 +117,7 @@ class FromTheStart
      */
     public static function apply(array $field): array
     {
-        if (($field['type'] ?? null) !== 'replicator') {
+        if (! in_array($field['type'] ?? null, ['replicator', 'sve_lite_sections'], true)) {
             return $field;
         }
 

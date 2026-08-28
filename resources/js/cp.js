@@ -1,4 +1,21 @@
-// Control Panel script — handles postMessage routing from the Live Preview iframe.
+/**
+ * Control Panel hub for Live Preview.
+ *
+ * Owns postMessage routing from the preview iframe, the LP toolbar, and
+ * helpers that several panels share (find a set by `_visual_id`, highlight,
+ * replay). Panel UIs are not mounted from here:
+ *
+ *   section-library.js  — Patterns / saved sections
+ *   outline-panel.js    — heading outline
+ *   block-tree.js       — list view + comments dock
+ *   focus-panel.js      — one-section editor beside the preview
+ *   inline-edit.js      — name prompts / save-section dialogs
+ *   code-dock.js        — template dock
+ *   ai-panel.js         — AI chat
+ *
+ * Overlay open/goto live in overlay-host.js (locked). This file loads them
+ * with import() so the CP bundle does not parse overlay-host at boot.
+ */
 
 import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
@@ -10,51 +27,23 @@ import {
   HIGHLIGHT_DURATION,
   SELECTORS,
 } from './cp-selectors.js';
-import { enhanceSectionGroupsIn, revealSegmentsFor, settleUngroupedFieldLists, stampGridRows } from './cp-section-groups.js';
+import { revealSegmentsFor, stampGridRows } from './cp-section-groups.js';
 export { t } from './cp-t.js';
 export { SELECTORS, GLOBALS_PANEL_PARAM } from './cp-selectors.js';
-export { enhanceSectionGroupsIn, settleUngroupedFieldLists, stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
+export { stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
 
-import NamePrompt from './cp/surfaces/NamePrompt.vue';
-import SaveSectionDialog from './cp/surfaces/SaveSectionDialog.vue';
-import { openCpOverlay } from './cp/open-overlay.js';
 import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock.js';
 import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
-import SectionLibraryPane from './cp/surfaces/SectionLibraryPane.vue';
-import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
-import LibraryCard from './cp/surfaces/LibraryCard.vue';
-import LibraryTabs from './cp/surfaces/LibraryTabs.vue';
-import LibraryGroups from './cp/surfaces/LibraryGroups.vue';
-import DeleteLibraryDialog from './cp/surfaces/DeleteLibraryDialog.vue';
-import LibraryEmpty from './cp/surfaces/LibraryEmpty.vue';
-import LibrarySaveButton from './cp/surfaces/LibrarySaveButton.vue';
-import { mountPane } from './cp/mount-pane.js';
-import { mountSurface } from './cp/mount.js';
-import { deleteLibraryUi } from './cp/library/delete-store.js';
 import {
   RIGHT_DOCK_ID,
-  RIGHT_DOCK_PIN_STACK,
-  RIGHT_PANEL_FILL,
   beginRightShellSwap,
   endRightShellSwap,
-  hideRightDock,
-  isRightDockOpen,
   isRightDockTool,
-  isRightDockResizing,
   isToolbarShortcut,
-  persistVisibleRightPanes,
-  pinnedKeepIds,
-  registerRightDockHook,
-  releaseRightShellIfEmpty,
-  placeRightDock,
   relayoutRightDock,
   rememberedListViewTab,
   rememberedRightPaneKeys,
   revealRightPane,
-  rightDockWidth,
-  showInRightShell,
-  splitterFill,
-  visiblePaneKeys,
 } from './right-dock.js';
 import {
   bindChromePrefsFlush,
@@ -65,234 +54,13 @@ import {
   hydrateChromePrefs,
 } from './chrome-prefs.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
-import OutlinePane from './cp/surfaces/OutlinePane.vue';
-import OutlineList from './cp/surfaces/OutlineList.vue';
-import { outlineUi } from './cp/outline/store.js';
-import CommentsPane from './cp/surfaces/CommentsPane.vue';
-import ListViewPane from './cp/surfaces/ListViewPane.vue';
-import ListViewBody from './cp/surfaces/ListViewBody.vue';
-import ListViewTree from './cp/surfaces/ListViewTree.vue';
-import ListViewMenu from './cp/surfaces/ListViewMenu.vue';
-import { listViewUi } from './cp/listview/store.js';
-import SoloPills from './cp/surfaces/SoloPills.vue';
-import { gotoOverlay, openOverlay } from './overlay-host.js';
+import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from './lazy-panels.js';
 
+async function openOverlay(win, url) {
+  const overlay = await import('./overlay-host.js');
 
-
-
-/**
- * Statamic's Icon fieldtype only lists registered SVG sets. Authors also want
- * Iconify names, pasted SVG and filenames from a custom folder — so we wrap the
- * fieldtype with a free-text override that writes the same value.
- *
- * Must run after the CP app has booted (`Statamic.booted`), when
- * `$components.app` exists and `icon-fieldtype` is already registered.
- */
-export function enhanceIconFieldtype() {
-  const components = window.Statamic?.$components;
-  const app = components?.app;
-  const Vue = window.Vue;
-
-  if (!app || !Vue?.h || !components?.register) {
-    return;
-  }
-
-  const Original = app.component('icon-fieldtype');
-
-  if (!Original || Original.__sveIconify) {
-    return;
-  }
-
-  const { h, ref, watch, computed } = Vue;
-
-  const isFreeform = (value) => {
-    const v = (value || '').trim();
-
-    if (!v) {
-      return false;
-    }
-
-    if (/^\s*<svg[\s>]/i.test(v)) {
-      return true;
-    }
-
-    if (/^[a-z0-9-]+:[a-z0-9-]+$/i.test(v)) {
-      return true;
-    }
-
-    // Emoji / short glyph — not a Statamic icon filename.
-    if ([...v].length <= 2 && !/^[a-z0-9_-]+$/i.test(v)) {
-      return true;
-    }
-
-    return false;
-  };
-
-  const Enhanced = {
-    name: 'IconFieldtype',
-    __sveIconify: true,
-    inheritAttrs: false,
-    props: Original.props,
-    emits: Original.emits || ['update:value', 'focus', 'blur'],
-    setup(props, { emit, attrs, slots }) {
-      const custom = ref(isFreeform(props.value) ? String(props.value) : '');
-      const pickerValue = computed(() => (isFreeform(props.value) ? null : props.value));
-
-      watch(
-        () => props.value,
-        (next) => {
-          if (isFreeform(next)) {
-            custom.value = String(next ?? '');
-          } else if (!next) {
-            custom.value = '';
-          }
-        }
-      );
-
-      const onPicker = (value) => {
-        custom.value = '';
-        emit('update:value', value || null);
-      };
-
-      const onCustom = (event) => {
-        const next = (event?.target?.value ?? '').trim();
-
-        custom.value = event?.target?.value ?? '';
-        emit('update:value', next || null);
-      };
-
-      return () =>
-        h('div', { class: 'sve-icon-field', style: 'display:flex;flex-direction:column;gap:0.75rem;' }, [
-          h(
-            Original,
-            {
-              ...attrs,
-              ...props,
-              value: pickerValue.value,
-              'onUpdate:value': onPicker,
-            },
-            slots
-          ),
-          h('div', { class: 'sve-icon-field-custom' }, [
-            h(
-              'label',
-              {
-                class: 'help-block mb-1',
-                style: 'display:block;font-size:0.75rem;font-weight:500;opacity:0.85;',
-              },
-              'Custom (Iconify / SVG)'
-            ),
-            h('input', {
-              type: 'text',
-              class: 'input-text',
-              value: custom.value,
-              placeholder: 'lucide:layout-template · mdi:home · paste SVG · or set-icons filename',
-              onInput: onCustom,
-              disabled: props.config?.disabled || props.readOnly,
-            }),
-            h(
-              'p',
-              {
-                class: 'help-block',
-                style: 'margin:0.35rem 0 0;font-size:0.7rem;opacity:0.7;line-height:1.35;',
-              },
-              'Overrides the picker when filled. Iconify name, emoji, pasted SVG, or a file from resources/svg/set-icons (without .svg).'
-            ),
-          ]),
-        ]);
-    },
-  };
-
-  components.register('icon-fieldtype', Enhanced);
+  overlay.openOverlay(win, url);
 }
-
-/**
- * Hook Iconify's fieldtype so preview Change/Browse can open *its* Stack —
- * the same "Search and select an icon" panel as the sidebar. We do not patch
- * the Iconify addon; we wrap the registered Vue component and call Stack.open.
- */
-export function enhanceIconifyFieldtype() {
-  const components = window.Statamic?.$components;
-  const app = components?.app;
-  const Vue = window.Vue;
-
-  if (!app || !Vue?.h || !components?.register) {
-    return;
-  }
-
-  const Original = app.component('iconify-fieldtype');
-
-  if (!Original || Original.__sveOpenHook) {
-    return;
-  }
-
-  Original.__sveOpenHook = true;
-
-  const { h, onMounted, onBeforeUnmount, getCurrentInstance } = Vue;
-
-  const Enhanced = {
-    name: 'iconify-fieldtype',
-    __sveOpenHook: true,
-    inheritAttrs: false,
-    props: Original.props,
-    emits: Original.emits || ['update:value'],
-    setup(props, { attrs, slots, emit }) {
-      const inst = getCurrentInstance();
-
-      const open = () => sve.openIconifyStackFromInstance(inst);
-
-      onMounted(() => {
-        const el = hostElement(inst);
-
-        if (!el) {
-          return;
-        }
-
-        el.__sveOpenIconify = open;
-        el.addEventListener('sve-open-iconify', open);
-      });
-
-      onBeforeUnmount(() => {
-        const el = hostElement(inst);
-
-        if (!el) {
-          return;
-        }
-
-        delete el.__sveOpenIconify;
-        el.removeEventListener('sve-open-iconify', open);
-      });
-
-      return () =>
-        h(
-          Original,
-          {
-            ...attrs,
-            ...props,
-            'onUpdate:value': (value) => {
-              emit('update:value', value);
-              attrs['onUpdate:value']?.(value);
-            },
-          },
-          slots
-        );
-    },
-  };
-
-  components.register('iconify-fieldtype', Enhanced);
-}
-
-export function hostElement(inst) {
-  const el = inst?.vnode?.el;
-
-  if (el?.nodeType === 1) {
-    return el;
-  }
-
-  return el?.parentElement || null;
-}
-
-
 
 // ===== sets =====
 export function findSetByUid(uid, doc = document, index = 0) {
@@ -1484,14 +1252,12 @@ export function applyLpDevice(win, key = lpStoredDevice(win)) {
     preset = { width: 1440, height: 900 };
   }
   const contents = doc.querySelector('.live-preview-contents');
-  const isDark = doc.documentElement.classList.contains('dark');
-  const canvasBg = isDark ? '#0a0a0a' : '#ffffff';
 
-  // Canvas behind the iframe: white in light mode, near-black in dark — never
-  // Statamic's default mid-grey gutter when a device frame is narrower than the pane.
   if (contents) {
-    if (contents.style.getPropertyValue('background-color') !== canvasBg) {
-      contents.style.setProperty('background-color', canvasBg, 'important');
+    // Keep Statamic's gutter (theme gray-500). Do not paint white/black over it —
+    // that flash shows when the window resizes and the pane reflows.
+    if (contents.style.getPropertyValue('background-color')) {
+      contents.style.removeProperty('background-color');
     }
 
     // Column flex: align-items = horizontal, justify-content = vertical.
@@ -2430,7 +2196,7 @@ export function restoreDockedHeaderPanels(win) {
 
   const showing = (key) => {
     if (key === 'listview') {
-      return !!sve.listViewPanel(win.document);
+      return !!sve.listViewPanel?.(win.document) || isRightPanelInDom(win, 'listview');
     }
 
     if (key === 'outline') {
@@ -2442,7 +2208,7 @@ export function restoreDockedHeaderPanels(win) {
     }
 
     if (key === 'comments') {
-      return !!sve.commentsPanel(win.document);
+      return !!sve.commentsPanel?.(win.document) || isRightPanelInDom(win, 'comments');
     }
 
     if (key === 'ai') {
@@ -2496,27 +2262,45 @@ export function restoreDockedHeaderPanels(win) {
 
   beginRightShellSwap();
 
-  try {
-    keys.forEach((key) => {
-      try {
-        ensureRightTool(win, key);
-      } catch (err) {
-        console.error('[sve] restore right pane', key, err);
+  void (async () => {
+    try {
+      for (const key of keys) {
+        try {
+          await ensureRightTool(win, key);
+        } catch (err) {
+          console.error('[sve] restore right pane', key, err);
+        }
       }
-    });
-  } finally {
-    endRightShellSwap();
-  }
+    } finally {
+      endRightShellSwap();
+    }
 
-  relayoutRightDock(win);
-  sve.persistDockedPanel(win);
-  restoreRememberedCodeDock(win);
+    relayoutRightDock(win);
+    sve.persistDockedPanel(win);
+    restoreRememberedCodeDock(win);
+  })();
 }
 
-export function ensureRightTool(win, key) {
+export async function ensureRightTool(win, key) {
+  if (key === 'ai') {
+    ensureAiPanel(win);
+
+    return;
+  }
+
+  if (!isRightPanelInDom(win, key) && key !== 'edits') {
+    showPanelWait(win, key);
+  }
+
+  try {
+    await ensurePanel(key);
+  } finally {
+    hidePanelWait(win);
+  }
+
   if (key === 'listview') {
-    if (!sve.listViewPanel(win.document)) {
-      sve.toggleListViewPanel(win);
+    if (!sve.listViewPanel?.(win.document)) {
+      sve.toggleListViewPanel?.(win);
     }
 
     return;
@@ -2524,7 +2308,7 @@ export function ensureRightTool(win, key) {
 
   if (key === 'outline') {
     if (!win.document.getElementById(sve.OUTLINE_PANEL_ID)) {
-      sve.toggleOutlinePanel(win);
+      sve.toggleOutlinePanel?.(win);
     }
 
     return;
@@ -2532,22 +2316,22 @@ export function ensureRightTool(win, key) {
 
   if (key === 'sections') {
     if (!win.document.getElementById(sve.SECTION_PICKER_ID)) {
-      sve.openSectionPicker(win);
+      sve.openSectionPicker?.(win);
     }
 
     return;
   }
 
   if (key === 'comments') {
-    if (!sve.commentsPanel(win.document)) {
-      sve.toggleCommentsPanel(win);
+    if (!sve.commentsPanel?.(win.document)) {
+      sve.toggleCommentsPanel?.(win);
     }
 
     return;
   }
 
-  if (key === 'ai') {
-    ensureAiPanel(win);
+  if (key === 'edits') {
+    sve.togglePageEdits?.(win);
   }
 }
 
@@ -2721,10 +2505,20 @@ export function ensureHeaderToolbar(win) {
     btn.querySelector('svg')?.setAttribute('height', '15');
     btn.addEventListener('click', () => {
       if (tab.key === 'comments') {
-        sve.toggleCommentsPanel(win);
-        sve.persistDockedPanel(win);
-        applyHeaderTab(win);
-        sve.syncPreviewInset(win);
+        void (async () => {
+          showPanelWait(win, 'comments');
+
+          try {
+            await ensurePanel('comments');
+          } finally {
+            hidePanelWait(win);
+          }
+
+          sve.toggleCommentsPanel?.(win);
+          sve.persistDockedPanel(win);
+          applyHeaderTab(win);
+          sve.syncPreviewInset(win);
+        })();
 
         return;
       }
@@ -2742,8 +2536,11 @@ export function ensureHeaderToolbar(win) {
       }
 
       if (tab.key === 'edits') {
-        sve.togglePageEdits?.(win);
-        applyHeaderTab(win);
+        void (async () => {
+          await ensurePanel('edits');
+          sve.togglePageEdits?.(win);
+          applyHeaderTab(win);
+        })();
 
         return;
       }
@@ -2982,8 +2779,11 @@ export function ensurePageEditsToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => {
-    sve.togglePageEdits?.(win);
-    applyHeaderTab(win);
+    void (async () => {
+      await ensurePanel('edits');
+      sve.togglePageEdits?.(win);
+      applyHeaderTab(win);
+    })();
   });
 
   const comments = bar.querySelector('button[data-tab="comments"]');
@@ -3092,20 +2892,40 @@ export function toggleHeaderTab(win, key) {
     // A docked panel, like the section library — the icon is the whole control,
     // there is nothing to unfold into the header beside it.
     setHeaderTab(win, active ? null : 'outline');
-    sve.toggleOutlinePanel(win);
-    sve.persistDockedPanel(win);
-    applyHeaderTab(win);
+    void (async () => {
+      showPanelWait(win, 'outline');
+
+      try {
+        await ensurePanel('outline');
+      } finally {
+        hidePanelWait(win);
+      }
+
+      sve.toggleOutlinePanel?.(win);
+      sve.persistDockedPanel(win);
+      applyHeaderTab(win);
+    })();
 
     return;
   }
 
   if (key === 'listview') {
-    const open = !!sve.listViewPanel(win.document);
+    const open = !!sve.listViewPanel?.(win.document) || isRightPanelInDom(win, 'listview');
 
     setHeaderTab(win, open ? null : 'listview');
-    sve.toggleListViewPanel(win);
-    sve.persistDockedPanel(win);
-    applyHeaderTab(win);
+    void (async () => {
+      showPanelWait(win, 'listview');
+
+      try {
+        await ensurePanel('listview');
+      } finally {
+        hidePanelWait(win);
+      }
+
+      sve.toggleListViewPanel?.(win);
+      sve.persistDockedPanel(win);
+      applyHeaderTab(win);
+    })();
 
     return;
   }
@@ -3115,20 +2935,30 @@ export function toggleHeaderTab(win, key) {
     // opens. The lock only means something still owns the editor — leave it
     // first (chrome, a global section, or both) instead of going dead on the
     // click, which left the icon looking alive but doing nothing.
-    if (sve.isSectionLibraryLocked(win)) {
-      sve.dismissChromeForPageEdit(win);
-      sve.closeGlobalSectionPanel(win);
-      sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
-      sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
-      sve.syncSectionLibraryAvailability(win);
-    }
-
     const open = !!win.document.getElementById(sve.SECTION_PICKER_ID);
 
     setHeaderTab(win, open ? null : 'sections');
-    sve.openSectionPicker(win); // toggles
-    sve.persistDockedPanel(win);
-    applyHeaderTab(win);
+    void (async () => {
+      showPanelWait(win, 'sections');
+
+      try {
+        await ensurePanel('sections');
+      } finally {
+        hidePanelWait(win);
+      }
+
+      if (sve.isSectionLibraryLocked?.(win)) {
+        sve.dismissChromeForPageEdit?.(win);
+        sve.closeGlobalSectionPanel(win);
+        sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
+        sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
+        sve.syncSectionLibraryAvailability(win);
+      }
+
+      sve.openSectionPicker?.(win); // toggles
+      sve.persistDockedPanel(win);
+      applyHeaderTab(win);
+    })();
 
     return;
   }
@@ -3382,6 +3212,7 @@ export function hideLpLabel(doc) {
 export function applyHeaderTab(win) {
   const doc = win.document;
 
+  warmLivePreviewCore(win);
   loadHeaderTab(win);
   hideLpLabel(doc);
   ensureCodeDockToolbarButton(win);
@@ -3446,7 +3277,7 @@ export function applyHeaderTab(win) {
       // som oplyste piller ved siden af et sektionsikon der var gået helt ud:
       // halvdelen af rækken så ud til stadig at kunne klikkes. Værktøjet er feltet,
       // så det er feltet der går ud.
-      const locked = sve.isSectionLibraryLocked(win) && sve.FOCUS_LOCKED_TABS.includes(key);
+      const locked = sve.isSectionLibraryLocked?.(win) && sve.FOCUS_LOCKED_TABS?.includes(key);
 
       frame.style.opacity = locked ? sve.LP_ICON_LOCKED_OPACITY : '';
       frame.style.pointerEvents = locked ? 'none' : '';
@@ -3515,9 +3346,9 @@ export function applyHeaderTab(win) {
   // what is in front of you.
   const docked = {
     sections: !!doc.getElementById(sve.SECTION_PICKER_ID),
-    listview: !!sve.listViewPanel(doc),
+    listview: !!sve.listViewPanel?.(doc),
     outline: !!doc.getElementById(sve.OUTLINE_PANEL_ID),
-    comments: !!sve.commentsPanel(doc),
+    comments: !!sve.commentsPanel?.(doc),
     ai: isAiPanelOpen(doc),
   };
 
@@ -3539,7 +3370,7 @@ export function applyHeaderTab(win) {
           : tab === 'edits'
             ? !!sve.pageEditsOpen?.()
           : tab === 'globals'
-            ? sveState.headerTab === 'globals' || sve.isGlobalsOverlayOpen(win)
+            ? sveState.headerTab === 'globals' || !!sve.isGlobalsOverlayOpen?.(win)
           : tab in docked
             ? docked[tab]
             : tab === sveState.headerTab;
@@ -3552,7 +3383,7 @@ export function applyHeaderTab(win) {
     }
 
     sve.paintLpActiveControl(btn, on);
-    sve.paintFocusLockedTabs(win, btn, tab, on);
+    sve.paintFocusLockedTabs?.(win, btn, tab, on);
   });
 
   syncToolbarIconSeps(bar);
@@ -3653,7 +3484,7 @@ export function openFirstSectionOnce(win) {
     return;
   }
 
-  const field = sve.sectionField(win);
+  const field = sve.sectionField?.(win) || 'page_sections';
 
   for (const container of sve.activeContainers(doc)) {
     const values = sve.unwrapRef(container.values);
@@ -3681,7 +3512,7 @@ export function openFirstSectionOnce(win) {
       return;
     }
 
-    const uid = sve.blockRowUid(rows[0]);
+    const uid = sve.blockRowUid?.(rows[0]) || rows[0]?._visual_id || rows[0]?.id || rows[0]?._id || '';
 
     if (!uid) {
       return;
@@ -3901,7 +3732,7 @@ export function alignHeaderToolbarWithSidebar(win) {
 
   const candidates = [
     doc.querySelector('[data-sve-focus-tile]'),
-    doc.querySelector('[data-sve-section-track]'),
+    doc.querySelector('[data-tabs-track], [data-sve-section-track]'),
     editor.querySelector('.replicator-set'),
     editor.querySelector('[data-sve-solo-back], [data-sve-focus-head]'),
   ].filter((el) => el && el.getClientRects().length);
@@ -5788,7 +5619,7 @@ export function repositionAfterAdd(uid, doc) {
 export function handleAddSet(data, doc, win) {
   // The "+" on a section opens the section library (docked panel). You place a
   // section by dragging a card into the preview, so no insert position is passed.
-  sve.openSectionPicker(win);
+  void ensurePanel('sections').then(() => sve.openSectionPicker?.(win));
 }
 
 export function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null, position = 'after') {
@@ -5961,6 +5792,56 @@ export function previewRectInTop(doc, win, localRect) {
   };
 }
 
+/** Same as previewRectInTop, but stop at `win` (the overlay editor), not the host. */
+export function previewRectInWindow(doc, win, localRect) {
+  if (!localRect) {
+    return null;
+  }
+
+  let left = localRect.left || 0;
+  let top = localRect.top || 0;
+  let iframe = doc.getElementById('live-preview-iframe');
+
+  try {
+    const nested = iframe?.contentDocument?.getElementById('live-preview-iframe');
+
+    if (nested) {
+      iframe = nested;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  let el = iframe;
+
+  while (el) {
+    const r = el.getBoundingClientRect();
+
+    left += r.left;
+    top += r.top;
+
+    const owner = el.ownerDocument?.defaultView;
+
+    if (!owner || owner === win || owner === owner.top) {
+      break;
+    }
+
+    el = owner.frameElement;
+  }
+
+  const width = localRect.width || 0;
+  const height = localRect.height || 0;
+
+  return {
+    left,
+    top,
+    width,
+    height,
+    right: left + width,
+    bottom: top + height,
+  };
+}
+
 function groupedPickerSets(sets) {
   if (!Array.isArray(sets) || !sets.length) {
     return [];
@@ -5970,7 +5851,9 @@ function groupedPickerSets(sets) {
     return sets;
   }
 
-  return [{ handle: 'all', display: '', sets }];
+  // No handle. `all` collided with Statamic's All tab (grid listed every set
+  // twice). A named handle added a second tab with the same items.
+  return [{ sets }];
 }
 
 /**
@@ -6003,8 +5886,20 @@ export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
   doc.querySelectorAll('[data-sve-set-picker-host]').forEach((el) => el.remove());
 
   const host = doc.createElement('div');
-  const left = Math.round(anchorRect?.left || 0);
-  const top = Math.round(anchorRect?.bottom || anchorRect?.top || 0);
+  const vw = doc.defaultView?.innerWidth || 1440;
+  const vh = doc.defaultView?.innerHeight || 900;
+  const pickerW = 280;
+  const pickerH = 340;
+  let left = Math.round(anchorRect?.left || 0);
+  let top = Math.round(anchorRect?.bottom || anchorRect?.top || 0);
+
+  if (left + pickerW > vw - 12) {
+    left = Math.max(12, vw - pickerW - 12);
+  }
+
+  if (top + pickerH > vh - 12) {
+    top = Math.max(12, Math.round((anchorRect?.top || top) - pickerH));
+  }
 
   host.dataset.sveSetPickerHost = '';
   host.style.cssText = `position:fixed;z-index:2147483647;left:${left}px;top:${top}px;width:1px;height:1px;`;
@@ -6012,6 +5907,7 @@ export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
 
   let mounted = null;
   let vm = null;
+  const ignoreAwayUntil = Date.now() + 450;
 
   const close = () => {
     try {
@@ -6044,7 +5940,15 @@ export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
                 onChoose(typeof set === 'string' ? { handle: set } : set);
                 setTimeout(close, 0);
               },
-              onClickedAway: () => setTimeout(close, 0),
+              // The plus click that opened us is still the current gesture.
+              // Treat it as "away" and the menu flashes open then shut.
+              onClickedAway: () => {
+                if (Date.now() < ignoreAwayUntil) {
+                  return;
+                }
+
+                setTimeout(close, 0);
+              },
             },
             {
               trigger: () =>
@@ -6283,33 +6187,84 @@ export function handleAddBlockNative(data, doc, win) {
     }
   }
 
-  // Preview "+": Statamic's set-picker on the top document, at the plus.
-  // Never click Add Set in the left form — that painted the popover there first.
+  // Preview "+": Statamic's set-picker in the *editor* document, at the plus.
+  // Mounting on win.top puts it behind the fullscreen overlay iframe — plus
+  // looks dead. The editor window has Vue + $app and sits over the preview.
   if (anchorRect && !data.global) {
-    const topWin = win.top || win;
-    const topDoc = topWin.document;
     const field =
       replicatorOwningUid(anchorUid, doc) ||
-      replicatorOwningUid(sectionUid, doc) ||
-      replicatorOwningUid(anchorUid, topDoc) ||
-      replicatorOwningUid(sectionUid, topDoc);
+      replicatorOwningUid(sectionUid, doc);
     const sets = pickerSetsFrom(data.sets, field);
-    const rect = previewRectInTop(doc, win, anchorRect) || anchorRect;
-    const vueWin = topWin.Statamic?.$app ? topWin : win;
+    const rect = previewRectInWindow(doc, win, anchorRect) || anchorRect;
+    const vueWin = win.Statamic?.$app ? win : win.top || win;
 
-    openSetPickerOverPreview(topDoc, vueWin, sets, rect, (set) => {
-      const handle = set?.handle;
+    const insertChosen = (handle) => {
+      if (!handle) {
+        return;
+      }
 
-      if (handle && field && typeof field.addSet === 'function') {
+      if (data.field) {
+        sve.handleInsertBlock(
+          {
+            field: data.field,
+            set: handle,
+            anchorUid: data.anchorUid,
+            position: data.position,
+            scope: data.scope || data.sectionUid,
+            template: data.template,
+            fieldDefaults: data.fieldDefaults,
+            rowTemplate: data.rowTemplate,
+            sectionType: data.sectionType,
+          },
+          doc,
+          win
+        );
+
+        return;
+      }
+
+      if (field && typeof field.addSet === 'function') {
         field.addSet(handle);
 
         if (anchorUid) {
           repositionAfterAdd(anchorUid, doc);
         }
+
+        return;
       }
+
+      sve.handleInsertBlock(
+        {
+          field: data.field,
+          set: handle,
+          anchorUid: data.anchorUid,
+          position: data.position,
+          scope: data.scope || data.sectionUid,
+          template: data.template,
+          fieldDefaults: data.fieldDefaults,
+          rowTemplate: data.rowTemplate,
+          sectionType: data.sectionType,
+        },
+        doc,
+        win
+      );
+    };
+
+    // List "+" only offers `item`. Opening a picker the overlay then hides is
+    // why the button looked dead — write the row immediately.
+    if (data.field && sets.length === 1 && sets[0]?.handle) {
+      insertChosen(sets[0].handle);
+
+      return;
+    }
+
+    const opened = openSetPickerOverPreview(win.document, vueWin, sets, rect, (set) => {
+      insertChosen(set?.handle);
     });
 
-    return;
+    if (opened) {
+      return;
+    }
   }
 
   const section = sectionUid ? findSetByUid(sectionUid, doc) : null;
@@ -6783,7 +6738,7 @@ export function createMessageListener(doc = document, win = window) {
       // different functions — a field click with the focus panel on never reaches
       // `sve.focusFromPreview` — and "the preview reported a click" is true of all of
       // them exactly once.
-      sve.listViewSyncTo(win, data.scope, data.uid);
+      sve.listViewSyncTo?.(win, data.scope, data.uid);
       applyDeclaredDefaults(data, doc);
 
       if (data.field) {
@@ -6895,7 +6850,7 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'close-chrome') {
       // Stepping out of header/footer (e.g. clicking a page section): free the
       // left edge so the section editor isn't stacked under Theme Settings.
-      sve.dismissChromeForPageEdit(win);
+      sve.dismissChromeForPageEdit?.(win);
     } else if (data.type === 'request-close-chrome') {
       sve.handleRequestCloseChrome(win);
     } else if (data.type === 'sve-chrome-dirty-query') {
@@ -6907,14 +6862,14 @@ export function createMessageListener(doc = document, win = window) {
       // — and saved that instead.
       sve.saveGlobalsPanel(win, () => {});
     } else if (data.type === 'add-row') {
-      sve.handleAddRow(data, doc, win);
+      sve.handleAddRow?.(data, doc, win);
     } else if (data.type === 'add-block-native') {
       // Preview "+": open Statamic's real SetPicker, pin list under the plus.
       handleAddBlockNative(data, doc, win);
     } else if (data.type === 'add-bard-set-native') {
       handleAddBardSetNative(data, doc, win);
     } else if (data.type === 'insert-bard-set') {
-      sve.handleInsertBardSet(data, doc, win);
+      sve.handleInsertBardSet?.(data, doc, win);
     } else if (data.type === 'remove-row') {
       // A section is asked about first. It takes one click to remove and holds
       // everything inside it, and the page it leaves behind looks like a page
@@ -6965,7 +6920,7 @@ export function createMessageListener(doc = document, win = window) {
       // A section dragged in from the library was released — insert it where the
       // preview's drop line ended up (data.afterUid, null = at the top).
       if (sveState.libraryDrag) {
-        sve.insertSection(win, doc, data.afterUid ?? null, sveState.libraryDrag.kind, sveState.libraryDrag.item);
+        sve.insertSection?.(win, doc, data.afterUid ?? null, sveState.libraryDrag.kind, sveState.libraryDrag.item);
         sveState.libraryDrag = null;
       }
     } else if (data.type === 'cb-add-column') {
@@ -7143,143 +7098,7 @@ export const CP_STYLES = `
 [data-sve-global-away] {
   display: none !important;
 }
-/* --- Section groups: the segmented control and its accordion panels ---------
-   Keyed on the data attributes the DOM already carries, so not one of these
-   elements needs an inline style. Sizes are relative throughout; px is left to
-   hairlines. */
-[data-sve-section-toggle] {
-  grid-column: 1 / -1;
-  display: flex;
-}
-/* One row, always. A narrow panel used to drop the third segment onto a second
-   line, which reads as two controls rather than one and moves every field below
-   it down; it scrolls sideways instead. The scrollbar is hidden — the control is
-   a row of tabs, not a scroller, and the segments run to the edge to say so. */
-[data-sve-section-track] {
-  display: flex;
-  flex: 0 1 auto;
-  flex-wrap: nowrap;
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  /* Match Live Preview top-bar mode group (Hidden / Auto / Visible). */
-  gap: 0;
-  padding: 5px;
-  border-radius: 0.5rem;
-  background: rgba(128, 128, 128, .16);
-}
-[data-sve-section-track]::-webkit-scrollbar {
-  display: none;
-}
-/* Beside the preview the panel is a narrow column and the control fills it; in
-   the publish form it is sized by its segments. */
-[data-sve-fill] [data-sve-section-track],
-[data-sve-fill] [data-sve-section-seg] {
-  flex: 1 1 auto;
-}
-[data-sve-section-seg] {
-  /* One line. It only became a wall of declarations when it sat in the style
-     attribute, where the browser has to write every property out; in a rule it
-     is just this. */
-  all: unset;
-  cursor: pointer;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65em;
-
-  flex: 0 0 auto;
-  box-sizing: border-box;
-  min-width: 0;
-  height: 28px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 0.375rem;
-  font-size: 12px;
-  font-weight: 500;
-  /* What puts the label and the icon on one centre. Any more and the label
-     carries half a line of leading above and below the letters: the box is
-     centred, the letters ride high. */
-  line-height: 1;
-  opacity: .75;
-}
-[data-sve-section-seg][aria-pressed="true"] {
-  /* Flat Save & Publish blue — lightest gradient stop, no border/shadow. */
-  background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
-  color: #fff;
-  border-color: transparent;
-  box-shadow: none;
-  opacity: 1;
-}
-[data-sve-panel-card] {
-  grid-column: 1 / -1;
-  overflow: hidden;
-  border: 1px solid rgba(128, 128, 128, .16);
-  border-radius: 0.75rem;
-  background: rgba(128, 128, 128, .08);
-}
-[data-sve-panel-head] {
-  all: unset;
-  cursor: pointer;
-  border-bottom: 1px solid transparent;
-
-  /* !important: Statamic's own button styling sets display on this one. */
-  display: flex !important;
-  align-items: center;
-  gap: 0.85em;
-
-  box-sizing: border-box;
-  width: 100%;
-  margin: 0;
-  padding: 1.05em;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1;
-  text-align: left;
-}
-[data-sve-panel-head][aria-expanded="true"] {
-  /* The divider only belongs there while something sits below it. */
-  border-bottom-color: rgba(128, 128, 128, .20);
-}
-[data-sve-panel-title] {
-  flex: 1 1 auto;
-}
-/* The chevron sits in its own tile, which gives the row a second anchor and
-   makes the whole header read as one control. */
-[data-sve-panel-tile] {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.15em;
-  height: 2.15em;
-  border-radius: 0.6em;
-  background: rgba(128, 128, 128, .16);
-}
-[data-sve-chevron] {
-  display: block;
-  width: 1em;
-  height: 1em;
-  transition: transform .18s;
-}
-[data-sve-panel-head][aria-expanded="true"] [data-sve-chevron] {
-  transform: rotate(180deg);
-}
-/* Repeats the grid the fields were lifted out of, so they keep the widths the
-   blueprint gave them. The gap is the live form's own, passed in as a variable. */
-[data-sve-panel-body] {
-  display: none;
-  grid-template-columns: repeat(12, 1fr);
-  gap: var(--sve-grid-gap, 2rem);
-  padding: 1.125rem 0.875rem;
-}
-[data-sve-panel-head][aria-expanded="true"] + [data-sve-panel-body] {
-  display: grid;
-}
-/* A square sized off the label beside it, so the icon tracks the type rather
-   than a number. Every kind of icon ends up in the same box. */
+/* Focus-panel / block-tree icons. Tab-bar icons live in the tabs addon. */
 [data-sve-icon] {
   flex: 0 0 auto;
   display: flex;
@@ -7296,7 +7115,6 @@ export const CP_STYLES = `
   width: 100%;
   height: 100%;
 }
-/* A row or card whose segment is not the one on show. */
 .sve-off {
   display: none !important;
 }
@@ -8507,6 +8325,42 @@ export function registerPanelConditions(win) {
   conditions.add('onlyInLivePreview', () => inLivePreview.value);
 }
 
+/**
+ * Statamic's leave confirm (`dirty_navigation_warning`) lives on this window —
+ * the publish form — not on the overlay host. Same-origin preview shares
+ * session history; a click that pops iframe history fires confirm here, and
+ * Cancel aborts the plus. Swallow that noise while Live Preview / the overlay
+ * iframe is open. Real leave still goes through Inertia and onbeforeunload.
+ */
+function guardEditorDirtyPopstate(win) {
+  if (win.__sveEditorPopstateGuard) {
+    return;
+  }
+
+  win.__sveEditorPopstateGuard = true;
+
+  win.addEventListener(
+    'popstate',
+    (event) => {
+      const editing =
+        !!win.document.querySelector('.live-preview-editor') || win.parent !== win;
+
+      if (!editing) {
+        return;
+      }
+
+      event.stopImmediatePropagation();
+
+      try {
+        win.history.replaceState(win.history.state, '', win.location.href);
+      } catch {
+        /* ignore */
+      }
+    },
+    true
+  );
+}
+
 export function initCp(win = window) {
   // Before anything else, and before the switch below: a field asking for a
   // condition that isn't there is hidden in both editors, so these are registered
@@ -8514,10 +8368,13 @@ export function initCp(win = window) {
   registerPanelConditions(win);
 
   // Boot marker — proves this build is loaded (DevTools: window.__SVE_BUILD__).
-  win.__SVE_BUILD__ = 'publish-gap-match-top-2026-08-20';
+  win.__SVE_BUILD__ = 'plus-picker-stay-2026-08-25';
+  guardEditorDirtyPopstate(win);
 
   if (win.__SVE_SCROLL_TEST) {
-    win.__sveOpenPatterns = (options) => sve.openSectionPicker(win, options || {});
+    win.__sveOpenPatterns = (options) => {
+      void ensurePanel('sections').then(() => sve.openSectionPicker?.(win, options || {}));
+    };
   }
 
   armSetPickerSearchSilence(win);
@@ -8563,7 +8420,7 @@ export function initCp(win = window) {
     console.error('[sve] chrome prefs', err);
   }
 
-  sve.registerRightDockContent();
+  sve.registerRightDockContent?.();
 
   const style = win.document.createElement('style');
   style.id = '__sve-cp-styles';
@@ -8615,7 +8472,7 @@ export function initCp(win = window) {
   // The same observer injects the Live Preview panel toggle when that screen
   // mounts (it lives in a portal that appears/disappears dynamically).
   //
-  // CRITICAL: never run the enhance pass synchronously inside the observer, and
+  // CRITICAL: never run a DOM rewrite synchronously inside the observer, and
   // ignore mutations we (or Vue's immediate follow-up patch) produce — otherwise
   // insert → observer → insert becomes an infinite loop that freezes the CP.
   let sveDomScheduled = false;
@@ -8631,9 +8488,6 @@ export function initCp(win = window) {
       // Live Preview mounts (and remounts) its iframe from here — bind the
       // click-outside forward to whichever one is on screen now.
       sve.ensurePreviewOutsideDismiss(win);
-      // Segmented tabs + accordion cards (yesterday's Look). Quiet window above
-      // stops Vue↔DOM move loops from freezing the CP.
-      enhanceSectionGroupsIn(win);
       sve.markStepIntoAll(win);
     } catch (err) {
       console.error('[sve] dom pass', err);
@@ -8657,23 +8511,6 @@ export function initCp(win = window) {
     win.requestAnimationFrame(runSveDomPass);
   };
 
-  /**
-   * The pass that runs once the DOM stops moving.
-   *
-   * The quiet window above drops every call that lands inside it, which is right
-   * for a stream that keeps coming — but a form mounts as one burst, and a burst
-   * fits inside a single window. The last mutation of it was therefore the one
-   * that never got a pass, and the panel settled half-built: fields rendered,
-   * but no segmented control and no accordion cards, because the pass that draws
-   * them had been dropped and nothing was left to ask for it again.
-   *
-   * So the mutation stream gets a trailing edge. Re-armed on every mutation and
-   * never fired before the quiet window is up, it leaves the loop guard exactly
-   * as it was and only adds the one thing missing: after the DOM goes still,
-   * something still runs. It settles because the pass is idempotent — a second
-   * one over a finished panel moves no nodes, so the observer never fires and
-   * nothing re-arms.
-   */
   let sveDomSettleTimer = null;
 
   const scheduleSveDomSettlePass = () => {
@@ -8691,15 +8528,6 @@ export function initCp(win = window) {
   };
 
   const onSveDomMutation = () => {
-    // Before anything scheduled: an observer callback runs as a microtask, so a
-    // list grouped here is grouped in the frame its fields arrived in. Anything
-    // deferred is a frame of the flat layout on screen — which is the jump.
-    try {
-      settleUngroupedFieldLists(win);
-    } catch {
-      // Never let this stop the passes below from running.
-    }
-
     scheduleSveDomPass();
     scheduleSveDomSettlePass();
   };

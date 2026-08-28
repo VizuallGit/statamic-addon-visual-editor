@@ -1,0 +1,15 @@
+title: Template
+tabs:
+  main:
+    display: Main
+    sections:
+      -
+        fields:
+          -
+            handle: title
+            field:
+              type: text
+              display: 'Navn'
+              instructions: 'Navnet du ser i listen.'
+              validate:
+                - required

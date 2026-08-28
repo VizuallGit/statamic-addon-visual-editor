@@ -3,6 +3,9 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 /**
+ * PARKED — not called. Compile is commented out in SectionTemplateController.
+ * Rewrite later; the last version leaked utilities into `{{ style_push }}`.
+ *
  * CSS for Tailwind classes in a section's HTML pane, without Vite or a CDN.
  *
  * Spacing, color, type and font utilities come from the site's `@theme` in

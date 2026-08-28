@@ -23,18 +23,89 @@ import CodeDockChrome from './cp/surfaces/CodeDockChrome.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import CodeDockHtmlTools from './cp/surfaces/CodeDockHtmlTools.vue';
 import CodeDockCssTools from './cp/surfaces/CodeDockCssTools.vue';
+import CodeDockCssBoxRow from './cp/surfaces/CodeDockCssBoxRow.vue';
+import CodeDockCssDisplayRow from './cp/surfaces/CodeDockCssDisplayRow.vue';
 import CodeDockMenu from './cp/surfaces/CodeDockMenu.vue';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { mountSurface } from './cp/mount.js';
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
-import { Compartment, EditorState } from '@codemirror/state';
-import { defaultKeymap, indentWithTab, historyKeymap, history } from '@codemirror/commands';
-import { autocompletion, closeBrackets, closeBracketsKeymap, closeCompletion, completionKeymap } from '@codemirror/autocomplete';
-import { html } from '@codemirror/lang-html';
-import { css } from '@codemirror/lang-css';
-import { javascript } from '@codemirror/lang-javascript';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { tags } from '@lezer/highlight';
+
+let EditorView;
+let keymap;
+let lineNumbers;
+let highlightActiveLine;
+let highlightActiveLineGutter;
+let Compartment;
+let EditorState;
+let defaultKeymap;
+let indentWithTab;
+let historyKeymap;
+let history;
+let autocompletion;
+let closeBrackets;
+let closeBracketsKeymap;
+let closeCompletion;
+let completionKeymap;
+let html;
+let css;
+let javascript;
+let HighlightStyle;
+let syntaxHighlighting;
+let tags;
+
+let cmReady = null;
+
+function loadCm() {
+  if (cmReady) {
+    return cmReady;
+  }
+
+  cmReady = Promise.all([
+    import('@codemirror/view'),
+    import('@codemirror/state'),
+    import('@codemirror/commands'),
+    import('@codemirror/autocomplete'),
+    import('@codemirror/lang-html'),
+    import('@codemirror/lang-css'),
+    import('@codemirror/lang-javascript'),
+    import('@codemirror/language'),
+    import('@lezer/highlight'),
+  ]).then(([view, state, commands, complete, langHtml, langCss, langJs, language, highlight]) => {
+    EditorView = view.EditorView;
+    keymap = view.keymap;
+    lineNumbers = view.lineNumbers;
+    highlightActiveLine = view.highlightActiveLine;
+    highlightActiveLineGutter = view.highlightActiveLineGutter;
+    Compartment = state.Compartment;
+    EditorState = state.EditorState;
+    defaultKeymap = commands.defaultKeymap;
+    indentWithTab = commands.indentWithTab;
+    historyKeymap = commands.historyKeymap;
+    history = commands.history;
+    autocompletion = complete.autocompletion;
+    closeBrackets = complete.closeBrackets;
+    closeBracketsKeymap = complete.closeBracketsKeymap;
+    closeCompletion = complete.closeCompletion;
+    completionKeymap = complete.completionKeymap;
+    html = langHtml.html;
+    css = langCss.css;
+    javascript = langJs.javascript;
+    HighlightStyle = language.HighlightStyle;
+    syntaxHighlighting = language.syntaxHighlighting;
+    tags = highlight.tags;
+
+    readOnlyOf.html = new Compartment();
+    readOnlyOf.css = new Compartment();
+    readOnlyOf.js = new Compartment();
+    editableOf.html = new Compartment();
+    editableOf.css = new Compartment();
+    editableOf.js = new Compartment();
+  }).catch((err) => {
+    cmReady = null;
+    throw err;
+  });
+
+  return cmReady;
+}
 
 const DOCK_ID = '__sve-code-dock';
 const STYLE_ID = '__sve-code-dock-style';
@@ -74,6 +145,15 @@ const CSS_SPACING = [
   '--size-900',
   '--gutter',
 ];
+const CSS_BOX_SIDES = [
+  { id: 'all', suffix: '', title: 'all' },
+  { id: 'block', suffix: '-block', title: 'block', sep: true },
+  { id: 'block-start', suffix: '-block-start', title: 'block start' },
+  { id: 'block-end', suffix: '-block-end', title: 'block end' },
+  { id: 'inline', suffix: '-inline', title: 'inline', sep: true },
+  { id: 'inline-start', suffix: '-inline-start', title: 'inline start' },
+  { id: 'inline-end', suffix: '-inline-end', title: 'inline end' },
+];
 const CSS_GRAYS = [
   ['--gray-50', '#fafafa'],
   ['--gray-100', '#f5f5f5'],
@@ -88,13 +168,17 @@ const CSS_GRAYS = [
   ['--gray-950', '#0a0a0a'],
 ];
 const CSS_TOOLS = [
-  { id: 'flex-row', title: 'flex row', flexDir: 'row' },
-  { id: 'flex-col', title: 'flex column', flexDir: 'column' },
+  { id: 'display', title: 'display', menu: 'display' },
   { id: 'absolute', title: 'absolute', insert: 'position: absolute;' },
   { id: 'color', title: 'color', property: 'color', menu: 'colors' },
   { id: 'bg', title: 'background color', property: 'background-color', menu: 'colors' },
-  { id: 'padding', title: 'padding', property: 'padding', menu: 'spacing' },
-  { id: 'margin', title: 'margin', property: 'margin', menu: 'spacing' },
+  { id: 'padding', title: 'padding', property: 'padding', menu: 'box' },
+  { id: 'margin', title: 'margin', property: 'margin', menu: 'box' },
+];
+const CSS_DISPLAY_ITEMS = [
+  { id: 'display-flex', title: 'flex', display: 'flex' },
+  { id: 'flex-row', title: 'row', flexDir: 'row', sep: true },
+  { id: 'flex-col', title: 'column', flexDir: 'column' },
 ];
 const CSS_FLEX_EXTRAS = [
   { id: 'justify-start', title: 'justify start', property: 'justify-content', value: 'flex-start' },
@@ -108,6 +192,10 @@ const CSS_FLEX_EXTRAS = [
   { id: 'align-stretch', title: 'align stretch', property: 'align-items', value: 'stretch', group: 'align' },
 ];
 const CSS_TOOL_ICONS = {
+  display:
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="1.2"/><path d="M5 6.5h6M5 9.5h4"/></svg>',
+  'display-flex':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3.5" width="3.4" height="9" rx=".4"/><rect x="6.3" y="3.5" width="3.4" height="9" rx=".4"/><rect x="10.6" y="3.5" width="3.4" height="9" rx=".4"/></svg>',
   'flex-row':
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h12"/><path d="M4.2 5.8 2 8l2.2 2.2"/><path d="M11.8 5.8 14 8l-2.2 2.2"/></svg>',
   'flex-col':
@@ -139,6 +227,20 @@ const CSS_TOOL_ICONS = {
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1"/><rect x="4.5" y="4.5" width="7" height="7" rx=".6"/></svg>',
   margin:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4.5" y="4.5" width="7" height="7" rx=".6"/><path d="M2 2.5h12M2 13.5h12M2.5 2v12M13.5 2v12" stroke-dasharray="1.4 1.2"/></svg>',
+  'box-all':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1"/><rect x="4.5" y="4.5" width="7" height="7" rx=".4"/></svg>',
+  'box-block':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="3.2" width="9.6" height="2.3" rx=".35" stroke="none"/><rect x="3.2" y="10.5" width="9.6" height="2.3" rx=".35" stroke="none"/></svg>',
+  'box-block-start':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="3.2" width="9.6" height="2.3" rx=".35" stroke="none"/></svg>',
+  'box-block-end':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="10.5" width="9.6" height="2.3" rx=".35" stroke="none"/></svg>',
+  'box-inline':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="3.2" width="2.3" height="9.6" rx=".35" stroke="none"/><rect x="10.5" y="3.2" width="2.3" height="9.6" rx=".35" stroke="none"/></svg>',
+  'box-inline-start':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="3.2" width="2.3" height="9.6" rx=".35" stroke="none"/></svg>',
+  'box-inline-end':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="10.5" y="3.2" width="2.3" height="9.6" rx=".35" stroke="none"/></svg>',
 };
 const HTML_TOOL_ICONS = {
   div: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="3.5" width="11" height="9" rx="1.2"/></svg>',
@@ -168,14 +270,14 @@ let observedRight = null;
 let layoutWatchBound = false;
 const editors = { html: null, css: null, js: null };
 const readOnlyOf = {
-  html: new Compartment(),
-  css: new Compartment(),
-  js: new Compartment(),
+  html: null,
+  css: null,
+  js: null,
 };
 const editableOf = {
-  html: new Compartment(),
-  css: new Compartment(),
-  js: new Compartment(),
+  html: null,
+  css: null,
+  js: null,
 };
 
 function t(win, key, replacements = {}) {
@@ -419,6 +521,7 @@ function ensureStyle(doc) {
   }
 
   style.textContent = `
+@keyframes sve-cm-wait { to { transform: rotate(360deg); } }
 #${DOCK_ID} {
   position: fixed;
   /* Same band as the right dock: above the page, under Statamic stacks. */
@@ -499,6 +602,7 @@ function ensureStyle(doc) {
   display: none;
 }
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-css-subrow],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-html-tools] {
   pointer-events: none;
   opacity: .28;
@@ -610,6 +714,7 @@ function ensureStyle(doc) {
   position: relative;
   z-index: 2;
   overflow: visible;
+  min-width: 0;
 }
 #${DOCK_ID} [data-sve-code-pane-label] > span {
   opacity: .38;
@@ -619,8 +724,39 @@ function ensureStyle(doc) {
   pointer-events: auto;
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
+  gap: 1px;
+  min-width: 0;
+  overflow-x: auto;
+}
+#${DOCK_ID} [data-sve-css-chrome] {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+#${DOCK_ID} [data-sve-css-subrow] {
+  display: none;
+  align-items: center;
+  padding: 4px 8px;
+  background: rgba(255,255,255,.12);
+  pointer-events: auto;
+  min-width: 0;
+}
+#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub] [data-sve-css-subrow] {
+  display: flex;
+}
+#${DOCK_ID} [data-sve-css-subrow] > [data-sve-css-sub] {
+  display: none;
+  align-items: center;
   flex-wrap: wrap;
   gap: 1px;
+  min-width: 0;
+}
+#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub="padding"] [data-sve-css-sub="box"],
+#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub="margin"] [data-sve-css-sub="box"],
+#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub="display"] [data-sve-css-sub="display"] {
+  display: flex;
 }
 #${DOCK_ID} [data-sve-css-flex-extras] {
   display: none;
@@ -628,8 +764,8 @@ function ensureStyle(doc) {
   flex-wrap: wrap;
   gap: 1px;
 }
-#${DOCK_ID} [data-sve-css-tools][data-sve-css-flex-on] [data-sve-css-flex-extras] {
-  display: flex;
+#${DOCK_ID} [data-sve-css-chrome][data-sve-css-flex-on] [data-sve-css-flex-extras] {
+  display: contents;
 }
 #${DOCK_ID} [data-sve-css-sep] {
   width: 1px;
@@ -639,6 +775,7 @@ function ensureStyle(doc) {
   flex: 0 0 auto;
 }
 #${DOCK_ID} [data-sve-css-tool],
+#${DOCK_ID} [data-sve-css-box-side],
 #${DOCK_ID} [data-sve-html-tool] {
   all: unset;
   cursor: pointer;
@@ -661,7 +798,17 @@ function ensureStyle(doc) {
   background: rgba(255,255,255,.12);
   opacity: 1;
 }
+#${DOCK_ID} [data-sve-css-box-side]:hover,
+#${DOCK_ID} [data-sve-css-box-side][data-open],
+#${DOCK_ID} [data-sve-css-box-side][data-active],
+#${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool]:hover,
+#${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool][data-open],
+#${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool][data-active] {
+  background: rgba(255,255,255,.22);
+  opacity: 1;
+}
 #${DOCK_ID} [data-sve-css-tool]::after,
+#${DOCK_ID} [data-sve-css-box-side]::after,
 #${DOCK_ID} [data-sve-html-tool]::after {
   content: attr(data-tip);
   position: absolute;
@@ -685,10 +832,12 @@ function ensureStyle(doc) {
   z-index: 8;
 }
 #${DOCK_ID} [data-sve-css-tool]:hover::after,
+#${DOCK_ID} [data-sve-css-box-side]:hover::after,
 #${DOCK_ID} [data-sve-html-tool]:hover::after {
   opacity: 1;
 }
 #${DOCK_ID} [data-sve-css-tool][data-open]::after,
+#${DOCK_ID} [data-sve-css-box-side][data-open]::after,
 #${DOCK_ID} [data-sve-html-tool][data-open]::after {
   display: none;
 }
@@ -794,6 +943,7 @@ function ensureStyle(doc) {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 `;
 }
@@ -1394,6 +1544,10 @@ function cssPropertyOf(text) {
   return match ? match[1].toLowerCase() : '';
 }
 
+function isCssBoxProperty(prop, prefix) {
+  return prop === prefix || prop.startsWith(`${prefix}-`);
+}
+
 function cssValueOf(text) {
   const decl = cssDeclaration(text);
   const idx = decl.indexOf(':');
@@ -1438,9 +1592,8 @@ function cssRuleAtCursor() {
 
   const pos = view.state.selection.main.head;
   const text = view.state.doc.toString();
+  const stack = [];
   const blocks = [];
-  let depth = 0;
-  let start = -1;
 
   for (let i = 0; i < text.length; i += 1) {
     if (text[i] === '{' && text[i + 1] === '{') {
@@ -1455,34 +1608,74 @@ function cssRuleAtCursor() {
     }
 
     if (text[i] === '{') {
-      if (depth === 0) {
-        start = i;
-      }
-
-      depth += 1;
+      stack.push(i);
     } else if (text[i] === '}') {
-      depth -= 1;
+      const open = stack.pop();
 
-      if (depth === 0 && start !== -1) {
-        blocks.push({ from: start + 1, to: i, text: text.slice(start + 1, i), open: start });
-        start = -1;
+      if (open != null) {
+        blocks.push({ from: open + 1, to: i, text: text.slice(open + 1, i), open });
       }
     }
   }
+
+  let inner = null;
 
   for (const block of blocks) {
-    if (pos >= block.open && pos <= block.to) {
-      return block;
+    if (pos < block.open || pos > block.to) {
+      continue;
+    }
+
+    if (!inner || block.to - block.open < inner.to - inner.open) {
+      inner = block;
     }
   }
 
-  return null;
+  return inner;
+}
+
+function cssFlatDecls(text) {
+  const chunk = String(text || '');
+  let out = '';
+  let depth = 0;
+
+  for (let i = 0; i < chunk.length; i += 1) {
+    if (chunk[i] === '{' && chunk[i + 1] === '{') {
+      const end = chunk.indexOf('}}', i + 2);
+
+      if (end === -1) {
+        break;
+      }
+
+      if (depth === 0) {
+        out += chunk.slice(i, end + 2);
+      }
+
+      i = end + 1;
+      continue;
+    }
+
+    if (chunk[i] === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (chunk[i] === '}') {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+
+    if (depth === 0) {
+      out += chunk[i];
+    }
+  }
+
+  return out;
 }
 
 function parseCssDecls(block) {
   const out = {};
 
-  for (const part of String(block || '').split(';')) {
+  for (const part of cssFlatDecls(block).split(';')) {
     const prop = cssPropertyOf(part);
 
     if (prop) {
@@ -1499,15 +1692,18 @@ function findDeclInRule(view, rule, property) {
   }
 
   let line = view.state.doc.lineAt(rule.from);
+  let depth = 0;
 
   while (line.from <= rule.to) {
     const from = Math.max(line.from, rule.from);
     const to = Math.min(line.to, rule.to);
     const text = view.state.doc.sliceString(from, to);
 
-    if (cssPropertyOf(text) === property) {
+    if (depth === 0 && cssPropertyOf(text) === property) {
       return { from, to, text };
     }
+
+    depth += cssBraceDelta(text);
 
     if (line.to >= view.state.doc.length || line.to >= rule.to) {
       break;
@@ -1517,6 +1713,28 @@ function findDeclInRule(view, rule, property) {
   }
 
   return null;
+}
+
+function cssBraceDelta(text) {
+  let delta = 0;
+  const chunk = String(text);
+
+  for (let i = 0; i < chunk.length; i += 1) {
+    if (chunk[i] === '{' && chunk[i + 1] === '{') {
+      const end = chunk.indexOf('}}', i + 2);
+
+      i = end === -1 ? chunk.length : end + 1;
+      continue;
+    }
+
+    if (chunk[i] === '{') {
+      delta += 1;
+    } else if (chunk[i] === '}') {
+      delta -= 1;
+    }
+  }
+
+  return delta;
 }
 
 function lineIndentOf(text) {
@@ -1709,6 +1927,23 @@ function applyFlexDirection(direction) {
   ]);
 }
 
+function applyDisplay(value) {
+  const decls = currentFlexDecls();
+
+  if (value === 'flex' && isFlexDisplay(decls.display)) {
+    applyRuleDecls([
+      { property: 'justify-content', value: null },
+      { property: 'align-items', value: null },
+      { property: 'flex-direction', value: null },
+      { property: 'display', value: null },
+    ]);
+
+    return;
+  }
+
+  applyRuleDecls([{ property: 'display', value }]);
+}
+
 function applyFlexValue(property, value) {
   const decls = currentFlexDecls();
 
@@ -1857,16 +2092,24 @@ function paintCssToolState(win) {
 
 function paintCssToolStateInner(win) {
   const dock = win?.document?.getElementById(DOCK_ID);
-  const line = currentCssLine();
-  const have = line ? cssDeclaration(line.text) : '';
-  const prop = cssPropertyOf(have);
   const decls = currentFlexDecls();
   const flexOn = isFlexDisplay(decls.display);
   const flexDir = normalizeFlexValue(decls['flex-direction']) || (flexOn ? 'row' : '');
   const host = dock?.querySelector('[data-sve-css-tools]');
+  const chrome = dock?.querySelector('[data-sve-css-chrome]');
+  const sub = chrome?.getAttribute('data-sve-css-sub') || '';
+  const boxPrefix = sub === 'padding' || sub === 'margin' ? sub : '';
 
   if (!dock) {
     return;
+  }
+
+  if (chrome) {
+    if (flexOn) {
+      chrome.setAttribute('data-sve-css-flex-on', '');
+    } else {
+      chrome.removeAttribute('data-sve-css-flex-on');
+    }
   }
 
   if (host) {
@@ -1877,7 +2120,7 @@ function paintCssToolStateInner(win) {
     }
   }
 
-  for (const tool of CSS_TOOLS) {
+  for (const tool of [...CSS_TOOLS, ...CSS_DISPLAY_ITEMS]) {
     const btn = dock.querySelector(`[data-sve-css-tool="${tool.id}"]`);
 
     if (!btn) {
@@ -1888,11 +2131,47 @@ function paintCssToolStateInner(win) {
 
     if (tool.flexDir) {
       on = flexOn && flexDir === tool.flexDir;
+    } else if (tool.display) {
+      on = tool.display === 'flex' ? flexOn : normalizeFlexValue(decls.display) === tool.display;
     } else if (tool.insert) {
-      on = cssLinesMatch(have, tool.insert);
-    } else {
-      on = prop === tool.property;
+      const property = cssPropertyOf(tool.insert);
+
+      on = Boolean(property) && normalizeFlexValue(decls[property]) === normalizeFlexValue(cssValueOf(tool.insert));
+    } else if (tool.menu === 'box') {
+      on = Object.keys(decls).some((key) => isCssBoxProperty(key, tool.property));
+
+      if (sub === tool.property) {
+        btn.setAttribute('data-open', '');
+      } else {
+        btn.removeAttribute('data-open');
+      }
+    } else if (tool.menu === 'display') {
+      on = Boolean(decls.display);
+
+      if (sub === 'display') {
+        btn.setAttribute('data-open', '');
+      } else {
+        btn.removeAttribute('data-open');
+      }
+    } else if (tool.property) {
+      on = tool.property in decls;
     }
+
+    if (on) {
+      btn.setAttribute('data-active', '');
+    } else {
+      btn.removeAttribute('data-active');
+    }
+  }
+
+  for (const side of CSS_BOX_SIDES) {
+    const btn = dock.querySelector(`[data-sve-css-box-side="${side.suffix}"]`);
+
+    if (!btn) {
+      continue;
+    }
+
+    const on = Boolean(boxPrefix) && `${boxPrefix}${side.suffix}` in decls;
 
     if (on) {
       btn.setAttribute('data-active', '');
@@ -1923,7 +2202,7 @@ function closeCssMenu(doc) {
 
   menu?._sveApp?.unmount();
   menu?.remove();
-  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-html-tool][data-open]').forEach((el) =>
+  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-css-box-side][data-open], [data-sve-html-tool][data-open]').forEach((el) =>
     el.removeAttribute('data-open')
   );
 }
@@ -1934,7 +2213,7 @@ export function closeCodeDockPopups(doc) {
 
   for (const handle of HANDLES) {
     if (editors[handle]) {
-      closeCompletion(editors[handle]);
+      closeCompletion?.(editors[handle]);
     }
   }
 }
@@ -1996,9 +2275,9 @@ function loadThemeColors(win) {
 }
 
 function markCssMenuActive(menu, property) {
-  const line = currentCssLine();
-  const have = line ? line.text : '';
-  const token = cssPropertyOf(have) === property ? cssVarToken(have) : '';
+  const value = currentFlexDecls()[property] || '';
+  const match = String(value).match(/^var\(\s*([^)]+?)\s*\)$/i);
+  const token = match ? match[1].trim() : '';
 
   for (const btn of menu.querySelectorAll('[data-sve-css-token]')) {
     if (token && btn.getAttribute('data-sve-css-token') === token) {
@@ -2035,11 +2314,11 @@ function openCssColorMenu(win, anchor, property) {
       kind: 'colors',
       swatches,
       onClear: () => {
-        clearCssProperty(property);
+        applyRuleDecls([{ property, value: null }]);
         closeCssMenu(doc);
       },
       onPick: (name) => {
-        applyCssSnippet(`${property}: var(${name});`);
+        applyRuleDecls([{ property, value: `var(${name})` }]);
         closeCssMenu(doc);
       },
     });
@@ -2072,11 +2351,34 @@ function openCssSpacingMenu(win, anchor, property) {
     kind: 'choices',
     choices: CSS_SPACING.map((token) => ({ value: token, token, label: token })),
     onPick: (token) => {
-      applyCssSnippet(`${property}: var(${token});`);
+      applyRuleDecls([{ property, value: `var(${token})` }]);
       closeCssMenu(doc);
     },
   });
   markCssMenuActive(menu, property);
+}
+
+function cssChrome(dock) {
+  return dock?.querySelector('[data-sve-css-chrome]');
+}
+
+function toggleCssSubrow(win, mode) {
+  const dock = win.document.getElementById(DOCK_ID);
+  const chrome = cssChrome(dock);
+
+  closeCssMenu(win.document);
+
+  if (!chrome) {
+    return;
+  }
+
+  if (chrome.getAttribute('data-sve-css-sub') === mode) {
+    chrome.removeAttribute('data-sve-css-sub');
+  } else {
+    chrome.setAttribute('data-sve-css-sub', mode);
+  }
+
+  paintCssToolState(win);
 }
 
 function skipHtmlNoise(text, i) {
@@ -2452,7 +2754,7 @@ function bindCssTools(win, dock) {
 
   host._sveBound = true;
 
-  const allCss = [...CSS_TOOLS, ...CSS_FLEX_EXTRAS];
+  const allCss = [...CSS_TOOLS, ...CSS_DISPLAY_ITEMS, ...CSS_FLEX_EXTRAS];
   const runCssTool = (id, btn) => {
     const tool = allCss.find((item) => item.id === id);
 
@@ -2467,6 +2769,13 @@ function bindCssTools(win, dock) {
       return;
     }
 
+    if (tool.display) {
+      closeCssMenu(win.document);
+      applyDisplay(tool.display);
+
+      return;
+    }
+
     if (tool.property && tool.value) {
       closeCssMenu(win.document);
       applyFlexValue(tool.property, tool.value);
@@ -2475,14 +2784,37 @@ function bindCssTools(win, dock) {
     }
 
     if (tool.insert) {
+      const property = cssPropertyOf(tool.insert);
+      const value = cssValueOf(tool.insert);
+      const decls = currentFlexDecls();
+
       closeCssMenu(win.document);
-      applyCssSnippet(tool.insert);
+      cssChrome(dock)?.removeAttribute('data-sve-css-sub');
+
+      if (property && normalizeFlexValue(decls[property]) === normalizeFlexValue(value)) {
+        applyRuleDecls([{ property, value: null }]);
+      } else {
+        applyRuleDecls([{ property, value }]);
+      }
 
       return;
     }
 
     if (tool.menu === 'colors') {
+      cssChrome(dock)?.removeAttribute('data-sve-css-sub');
       openCssColorMenu(win, btn, tool.property);
+
+      return;
+    }
+
+    if (tool.menu === 'box') {
+      toggleCssSubrow(win, tool.property);
+
+      return;
+    }
+
+    if (tool.menu === 'display') {
+      toggleCssSubrow(win, 'display');
 
       return;
     }
@@ -2493,14 +2825,14 @@ function bindCssTools(win, dock) {
   };
 
   let alignSep = false;
-  const extras = CSS_FLEX_EXTRAS.map((extra) => {
+  const extras = CSS_FLEX_EXTRAS.map((extra, i) => {
     const row = {
       ...extra,
       icon: CSS_TOOL_ICONS[extra.id] || '',
-      sep: extra.group === 'align' && !alignSep,
+      sep: i === 0 || (extra.group === 'align' && !alignSep),
     };
 
-    if (row.sep) {
+    if (extra.group === 'align' && !alignSep) {
       alignSep = true;
     }
 
@@ -2509,14 +2841,58 @@ function bindCssTools(win, dock) {
 
   mountPane(host, CodeDockCssTools, {
     tools: CSS_TOOLS.map((tool) => ({ ...tool, icon: CSS_TOOL_ICONS[tool.id] || '' })),
-    extras,
-    onTool: (id) => runCssTool(id, host.querySelector(`[data-sve-css-tool="${id}"]`)),
+    onTool: (id) => runCssTool(id, dock.querySelector(`[data-sve-css-tool="${id}"]`)),
   });
+
+  const boxHost = dock.querySelector('[data-sve-css-sub="box"]');
+
+  if (boxHost && !boxHost._sveBound) {
+    boxHost._sveBound = true;
+    mountPane(boxHost, CodeDockCssBoxRow, {
+      sides: CSS_BOX_SIDES.map((side) => ({
+        ...side,
+        icon: CSS_TOOL_ICONS[`box-${side.id}`] || '',
+      })),
+      onSide: (suffix) => {
+        const prefix = cssChrome(dock)?.getAttribute('data-sve-css-sub');
+        const btn = boxHost.querySelector(`[data-sve-css-box-side="${suffix}"]`);
+        const property = `${prefix}${suffix}`;
+        const decls = currentFlexDecls();
+
+        if ((prefix !== 'padding' && prefix !== 'margin') || !btn) {
+          return;
+        }
+
+        if (property in decls) {
+          closeCssMenu(win.document);
+          applyRuleDecls([{ property, value: null }]);
+          return;
+        }
+
+        openCssSpacingMenu(win, btn, property);
+        paintCssToolState(win);
+      },
+    });
+  }
+
+  const displayHost = dock.querySelector('[data-sve-css-sub="display"]');
+
+  if (displayHost && !displayHost._sveBound) {
+    displayHost._sveBound = true;
+    mountPane(displayHost, CodeDockCssDisplayRow, {
+      items: CSS_DISPLAY_ITEMS.map((item) => ({
+        ...item,
+        icon: CSS_TOOL_ICONS[item.id] || '',
+      })),
+      extras,
+      onTool: (id) => runCssTool(id, dock.querySelector(`[data-sve-css-tool="${id}"]`)),
+    });
+  }
 
   win.document.addEventListener(
     'mousedown',
     (event) => {
-      if (event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-html-tools]`)) {
+      if (event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-css-subrow], [data-sve-html-tools]`)) {
         return;
       }
 
@@ -2730,7 +3106,23 @@ function mountEditor(win, handle, parent) {
   });
 }
 
-function ensureDock(win) {
+function paintHostWait(host) {
+  if (!host || host.querySelector('.cm-editor')) {
+    return;
+  }
+
+  host.replaceChildren();
+
+  const spin = host.ownerDocument.createElement('span');
+
+  spin.style.cssText =
+    'width:16px;height:16px;margin:12px;border:2px solid #858585;border-right-color:transparent;border-radius:50%;display:block;animation:sve-cm-wait .6s linear infinite';
+  host.appendChild(spin);
+}
+
+let ensureDockWait = null;
+
+async function ensureDockAsync(win) {
   const doc = win.document;
 
   ensureStyle(doc);
@@ -2738,9 +3130,9 @@ function ensureDock(win) {
   let dock = doc.getElementById(DOCK_ID);
 
   if (dock) {
-    const cssLabel = dock.querySelector('[data-sve-code-pane="css"] [data-sve-code-pane-label]');
     const chromeOk =
-      cssLabel?.getAttribute('data-sve-css-chrome') === 'flex-tools-1' &&
+      dock.querySelector('[data-sve-css-chrome="subrow-2"]') &&
+      dock.querySelector('[data-sve-css-subrow]') &&
       dock.querySelector('[data-sve-html-tools]') &&
       dock.querySelector('[data-sve-code-lock]') &&
       dock.getAttribute('data-sve-code-chrome') === 'lock-1';
@@ -2778,7 +3170,7 @@ function ensureDock(win) {
     for (const handle of HANDLES) {
       const host = dock.querySelector(`[data-sve-code-pane="${handle}"] [data-sve-code-host]`);
 
-      mountEditor(win, handle, host);
+      paintHostWait(host);
     }
   }
 
@@ -2789,11 +3181,32 @@ function ensureDock(win) {
   observeDockLayout(win);
   paintLock(win);
 
+  await loadCm();
+
+  if (!editors.html) {
+    for (const handle of HANDLES) {
+      const host = dock.querySelector(`[data-sve-code-pane="${handle}"] [data-sve-code-host]`);
+
+      host?.replaceChildren();
+      mountEditor(win, handle, host);
+    }
+  }
+
   return dock;
 }
 
-function showMissing(win, type) {
-  const dock = ensureDock(win);
+function ensureDock(win) {
+  if (!ensureDockWait) {
+    ensureDockWait = ensureDockAsync(win).finally(() => {
+      ensureDockWait = null;
+    });
+  }
+
+  return ensureDockWait;
+}
+
+async function showMissing(win, type) {
+  const dock = await ensureDock(win);
 
   lastType = type;
   lastLocked = true;
@@ -2806,9 +3219,9 @@ function showMissing(win, type) {
   placeDock(win, dock);
 }
 
-function loadTemplate(win, type) {
+async function loadTemplate(win, type) {
   const gen = ++loadGen;
-  const dock = ensureDock(win);
+  const dock = await ensureDock(win);
 
   lastType = type;
   lastLocked = true;
@@ -3078,7 +3491,7 @@ export function syncCodeDock(win, doc, uid) {
   }
 
   if (!type) {
-    placeDock(win, ensureDock(win));
+    void ensureDock(win).then((dock) => placeDock(win, dock));
 
     return;
   }

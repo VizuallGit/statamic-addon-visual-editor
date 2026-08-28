@@ -21,6 +21,7 @@ import {
 } from './cp.js';
 import { rightDockWidth, splitterFill } from './right-dock.js';
 import { chromeSet } from './chrome-prefs.js';
+import { ensurePanel } from './lazy-panels.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -1014,11 +1015,6 @@ export function panelResizer(win, panel, { side = 'right', storageKey = GLOBALS_
   return handle;
 }
 
-/** @deprecated alias — right-docked panels */
-export function globalsResizer(win, panel, onResize) {
-  return panelResizer(win, panel, { side: 'right', onResize });
-}
-
 export function globalsPanelUrl(win, set) {
   const url = new URL(set.url, win.location.origin);
 
@@ -1030,6 +1026,16 @@ export function globalsPanelUrl(win, set) {
 /** Prefetch Theme Settings as early as possible (even before Live Preview). */
 
 export function scheduleChromeGlobalsPrefetch(win) {
+  if (
+    win.Statamic?.$config?.get?.('sveEnabled') === false ||
+    (typeof sve.featureOn === 'function' &&
+      !sve.featureOn(win, 'globals') &&
+      !sve.featureOn(win, 'chrome_header') &&
+      !sve.featureOn(win, 'chrome_footer'))
+  ) {
+    return;
+  }
+
   win.setTimeout(() => prefetchChromeGlobals(win), 0);
 }
 
@@ -1362,7 +1368,9 @@ export function ensureSectionLibraryButton(win) {
     'height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;cursor:pointer;' +
     'color:currentColor;background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';
   btn.append(t(win, 'sections'));
-  btn.addEventListener('click', () => sve.openSectionPicker(win));
+  btn.addEventListener('click', () => {
+    void ensurePanel('sections').then(() => sve.openSectionPicker(win));
+  });
 
   // After the globals picker if it exists, otherwise right after the mode group.
   (doc.getElementById(GLOBALS_PICKER_ID) || group).after(btn);
@@ -2200,7 +2208,7 @@ export function hideSavedSectionEntryChrome(doc) {
   doc.querySelectorAll('input[name="published"], [name="published"]').forEach(hideRow);
 
   // Extra publish tabs (Sidebar / SEO / Page settings) — keep Main only.
-  // Section Content/Style use data-sve-section-seg, not role=tab.
+  // Section Content/Style use data-sve-section-seg (tabs addon), not role=tab.
   const tabs = [...doc.querySelectorAll('button[role="tab"]')];
 
   if (tabs.length > 1) {
@@ -2953,11 +2961,6 @@ export function unlockChromeGlobalsTabs(win) {
   );
 }
 
-/** @deprecated — use lockChromeGlobalsTab */
-export function activateGlobalsTab(win, label, attempts = 0) {
-  lockChromeGlobalsTab(win, String(label || '').toLowerCase() === 'footer' ? 'footer' : 'header', attempts);
-}
-
 /** Waits for the panel's form to mount, then scrolls the field into view. */
 export function focusGlobalField(win, field, attempts = 0) {
   const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
@@ -3026,7 +3029,6 @@ sve.GLOBALS_WIDTH_KEY = GLOBALS_WIDTH_KEY;
 sve.GLOBALS_MIN_WIDTH = GLOBALS_MIN_WIDTH;
 sve.globalsPanelWidth = globalsPanelWidth;
 sve.panelResizer = panelResizer;
-sve.globalsResizer = globalsResizer;
 sve.globalsPanelUrl = globalsPanelUrl;
 sve.scheduleChromeGlobalsPrefetch = scheduleChromeGlobalsPrefetch;
 sve.prefetchChromeGlobals = prefetchChromeGlobals;
@@ -3059,5 +3061,4 @@ sve.handleOpenChrome = handleOpenChrome;
 sve.setChromeStyle = setChromeStyle;
 sve.lockChromeGlobalsTab = lockChromeGlobalsTab;
 sve.unlockChromeGlobalsTabs = unlockChromeGlobalsTabs;
-sve.activateGlobalsTab = activateGlobalsTab;
 sve.focusGlobalField = focusGlobalField;

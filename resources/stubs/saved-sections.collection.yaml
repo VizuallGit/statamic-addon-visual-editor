@@ -1,4 +1,5 @@
 title: 'Global sections'
+icon: puzzle-piece
 revisions: false
 # Deliberately NO route. A route is the only thing that unlocks Statamic's Live
 # Preview button — but it also gives every saved section a real URI, which means

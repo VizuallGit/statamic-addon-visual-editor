@@ -12,7 +12,7 @@ use Statamic\Facades\YAML;
  *
  * A site's design is the set of sections it actually has. Left open, the library
  * invites an editor to reach past that — a hero style nothing else on the site
- * uses, a template built for a page that was never made. This narrows the four
+ * uses, a composition built for a page that was never made. This narrows the four
  * tabs to what a scan found in the pages, for everyone except a super admin.
  *
  * The scan is deliberately a *snapshot*, taken when somebody presses the button
@@ -364,10 +364,7 @@ class LibraryAccess
     /** The editor's own collections — libraries, not pages. */
     protected static function stores(): array
     {
-        return [
-            config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
-            config('statamic-visual-editor.templates.collection', 'saved_templates'),
-        ];
+        return Stores::all();
     }
 
     /** Where the snapshot lives. Under resources/, so it deploys with the site. */

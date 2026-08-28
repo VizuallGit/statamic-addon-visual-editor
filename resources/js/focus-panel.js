@@ -1677,16 +1677,16 @@ export function soloSection(uid, doc, win, { kind = null, segment = null } = {})
   // reached by clicking it on the page, exactly like a block in a section, and
   // stepping into it is not leaving the header — it IS editing the header.
   if (win && !sve.chromeHost(doc)?.contains(setEl)) {
-    if (sve.isGlobalsOverlayOpen(win) && sve.hasUnsavedGlobals(win)) {
+    if (sve.isGlobalsOverlayOpen?.(win) && sve.hasUnsavedGlobals(win)) {
       sve.confirmLeaveGlobalsOverlay(win, () => {
-        sve.dismissChromeForPageEdit(win);
+        sve.dismissChromeForPageEdit?.(win);
         soloSection(uid, doc, win, { kind, segment });
       });
 
       return false;
     }
 
-    sve.dismissChromeForPageEdit(win);
+    sve.dismissChromeForPageEdit?.(win);
   }
 
   // A different set is a new visit, and a new visit folds what it holds. Asked for
@@ -1969,7 +1969,7 @@ export function bindLpEditorResize(win) {
       const move = (e) => {
         next = applyLpEditorWidth(win, startW + (e.clientX - startX));
         placeLpWidthPicker(win);
-        sve.placeGlobalsOverlay(win);
+        sve.placeGlobalsOverlay?.(win);
       };
 
       const up = () => {
@@ -2279,7 +2279,7 @@ export function ensureLpPanelToggleInner(win) {
   }
 
   ensureLpWidthPicker(win);
-  sve.placeGlobalsOverlay(win);
+  sve.placeGlobalsOverlay?.(win);
   ensureLpBackButton(win);
   ensureLpMoreButton(win);
   positionLpBackButton(win);

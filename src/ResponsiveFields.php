@@ -187,17 +187,15 @@ class ResponsiveFields
         $conditions = Arr::only($field, static::CONDITION_KEYS);
         $inner = Arr::except($inner, static::CONDITION_KEYS);
 
-        // Ydersiden bærer navnet. Uden det står "Padding" to gange under hinanden
-        // — én gang for indpakningen og én for feltet i den.
+        // Indre felt skjuler sit navn, så det ikke står to gange. Ydersiden
+        // bruger feltets egen hide_display, så Statamics label er den samme
+        // som uden responsive — skjul virker, fonten er urørt.
         $inner['hide_display'] = true;
 
         $wrapped = $conditions + [
             'type' => 'responsive',
-            // Label + override-dot + reset tegnes af fieldtypen selv, så Statamics
-            // egen label ikke står ovenover og forhindrer prikken i at sidde
-            // ved siden af navnet.
             'display' => $field['display'] ?? null,
-            'hide_display' => true,
+            'hide_display' => ! empty($field['hide_display']),
             'instructions' => $field['instructions'] ?? null,
             static::KEY => true,
             'fields' => [

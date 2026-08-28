@@ -73,6 +73,39 @@ class SavedSectionsController
         return is_array($value) ? $value : $sections;
     }
 
+    /**
+     * Storage values → Control Panel values, so a custom insert can be dropped
+     * into the publish form. The inverse of processed().
+     *
+     * Saved YAML has `id` (not `_id`) and asset paths as stored on disk. The
+     * Replicator keys field meta by `_id`; without this pass the sidebar has
+     * values it cannot render.
+     */
+    public static function forPublishForm(?array $section, string $collection): ?array
+    {
+        if (! $section) {
+            return $section;
+        }
+
+        $field = Collection::findByHandle($collection)
+            ?->entryBlueprint()
+            ?->field(static::field());
+
+        if (! $field) {
+            return $section;
+        }
+
+        try {
+            $value = $field->fieldtype()->preProcess([$section]);
+        } catch (\Throwable $e) {
+            return $section;
+        }
+
+        return is_array($value) && isset($value[0]) && is_array($value[0])
+            ? $value[0]
+            : $section;
+    }
+
     public function index(Request $request)
     {
         $user = User::current();
@@ -91,9 +124,9 @@ class SavedSectionsController
                 'section_type' => $entry->value('section_type'),
                 'synced' => (bool) $entry->value('synced'),
                 'preview_url' => optional($entry->augmentedValue('preview_image')->value())->url(),
-                // The raw section, so an unsynced one can be inserted as a copy
-                // client-side without a second round-trip.
-                'section_data' => static::sectionOf($entry),
+                // Publish-form shape (not storage YAML), so a custom copy can be
+                // dropped into the CP Replicator without a second round-trip.
+                'section_data' => static::forPublishForm(static::sectionOf($entry), static::collection()),
                 // Whether to offer the delete control at all. Decided here rather
                 // than in the browser: the client has no view of entry permissions.
                 'can_delete' => $user->can('delete', $entry),

@@ -58,7 +58,7 @@ return [
     | - library_page:      its "Page" tab — the site's own section types
     | - library_custom:    its "Custom" tab — saved sections, inserted as copies
     | - library_global:    its "Global" tab — synced sections
-    | - library_templates: its "Templates" tab — whole pages saved to reuse
+    | - library_templates: its "Compositions" tab — whole pages saved to reuse
     | - library_in_use_only: narrows all four tabs to what the site already uses.
     |                      The list comes from a scan you run yourself (Addons >
     |                      Statamic Visual Editor), so it never widens on its own.
@@ -315,26 +315,28 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Page templates
+    | Page compositions
     |--------------------------------------------------------------------------
     |
-    | Where whole-page section stacks live. Saving a page as a template copies
-    | every section on it into one entry here; dropping that template onto
+    | Where whole-page section stacks live. Saving a page as a composition copies
+    | every section on it into one entry here; dropping that composition onto
     | another page copies them back out.
     |
-    | - collection: the collection holding templates. It needs a blueprint with
-    |               title, preview_image and an imported page-builder field, and
-    |               NO route — a template is a stack of sections, never a page,
-    |               and a route would give it a public URL.
+    | - collection: the collection holding compositions. It needs a blueprint
+    |               with title, preview_image and an imported page-builder field,
+    |               and NO route — a composition is a stack of sections, never a
+    |               page, and a route would give it a public URL.
     |
     | Its own collection rather than a flag on the saved sections store: the two
     | are separate lists with their own place in the Control Panel nav, and they
     | behave differently — a saved section can be *synced*, which is what the
-    | global-section feature hangs off, while a template is always copied.
+    | global-section feature hangs off, while a composition is always copied.
+    |
+    | Config key stays `templates` so existing published configs keep working.
     |
     */
     'templates' => [
-        'collection' => 'saved_templates',
+        'collection' => 'saved_compositions',
 
         /*
         | Page-section Antlers partials. The template dock reads and writes
@@ -350,6 +352,20 @@ return [
         | (`custom_section` → `custom_section/style_1`).
         */
         'unlocked' => ['custom_section'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Collection templates
+    |--------------------------------------------------------------------------
+    |
+    | Index/show views for a collection blueprint, built in the template dock.
+    | Own collection so it sits under Compositions in the CP nav. No route —
+    | these are view files' CP entries, never public pages.
+    |
+    */
+    'collection_templates' => [
+        'collection' => 'templates',
     ],
 
     /*

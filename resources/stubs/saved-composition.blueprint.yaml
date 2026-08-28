@@ -1,4 +1,4 @@
-title: Template
+title: Composition
 tabs:
   main:
     display: Main
@@ -18,7 +18,7 @@ tabs:
             field:
               type: assets
               container: assets
-              folder: saved-templates
+              folder: saved-compositions
               max_files: 1
               display: 'Preview'
               visibility: read_only

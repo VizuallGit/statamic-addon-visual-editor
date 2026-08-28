@@ -8,7 +8,12 @@ import { t } from './cp-t.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { postToHost } from './cp.js';
-import { openOverlay } from './overlay-host.js';
+
+async function openOverlay(win, url) {
+  const overlay = await import('./overlay-host.js');
+
+  overlay.openOverlay(win, url);
+}
 
 // ===== open-in-preview =====
 // --- Opening an entry straight into the preview -------------------------------

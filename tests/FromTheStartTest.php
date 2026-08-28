@@ -69,6 +69,17 @@ class FromTheStartTest extends TestCase
         $this->assertSame($once, FromTheStart::apply($once));
     }
 
+    public function test_apply_expands_lite_sections_the_same_way(): void
+    {
+        $field = [
+            'type' => 'sve_lite_sections',
+            'default' => [['type' => 'item']],
+            FromTheStart::KEY => [['set' => 'item', 'count' => 3]],
+        ];
+
+        $this->assertCount(3, FromTheStart::apply($field)['default']);
+    }
+
     public function test_apply_is_idempotent(): void
     {
         $field = [

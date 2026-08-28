@@ -61,6 +61,22 @@ class SetMetaTest extends TestCase
         $this->assertNull($sets['content']['icon']);
     }
 
+    public function test_a_resolvable_svg_icon_wins_over_an_earlier_bare_name(): void
+    {
+        $method = new \ReflectionMethod(SetMeta::class, 'preferIcon');
+        $method->setAccessible(true);
+
+        $this->assertSame(
+            '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+            $method->invoke(null, 'text', '<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+        );
+        $this->assertSame('text', $method->invoke(null, 'text', null));
+        $this->assertSame(
+            '<svg></svg>',
+            $method->invoke(null, '<svg></svg>', 'text')
+        );
+    }
+
     protected function pageSections(): FieldsetModel
     {
         return (new FieldsetModel)->setHandle('page_sections')->setContents([

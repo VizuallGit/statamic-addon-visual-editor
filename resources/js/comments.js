@@ -12,6 +12,17 @@ import { mountSurface } from './cp/mount.js';
 import { mountPane } from './cp/mount-pane.js';
 
 export function initComments() {
+  // Settings toggle `comments` (and who may see it) — do not start the
+  // document-wide MutationObserver when the tool is off. Reload CP after
+  // turning it on; the feature is still in the bundle.
+  if (window.Statamic?.$config?.get?.('sveEnabled') === false) {
+    return;
+  }
+
+  if (window.Statamic?.$config?.get?.('sveFeatures')?.comments === false) {
+    return;
+  }
+
   const ROOT_ID = 'sc-cp-root';
   const HIT_ID = 'sc-cp-hit';
   const SIDEBAR_ID = 'sc-sidebar';

@@ -1,4 +1,9 @@
 /**
+ * PARKED — not imported. Do not wire this into addon.js / code-dock.js until
+ * the Tailwind dock is rewritten. The last version leaked compiled utilities
+ * into `{{ style_push }}`. Toggle `tailwind_dock` is off; compile is commented
+ * out in SectionTemplateController so this file costs nothing at runtime.
+ *
  * Compile Tailwind utilities from the template-dock HTML pane.
  *
  * The compiler itself is fetched from a CDN only when `tailwind_dock` is on

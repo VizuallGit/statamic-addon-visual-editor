@@ -14,7 +14,7 @@
  * to drop the experiment.
  *
  * Accordion snapshot (tools lived in the sidebar, not the top bar):
- * right-dock-accordion.js
+ * .restore/full-working-2026-08-27-1538/resources/js/right-dock-accordion.js
  */
 
 import { chromeGet, chromeSet } from './chrome-prefs.js';

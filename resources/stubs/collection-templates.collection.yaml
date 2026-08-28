@@ -1,0 +1,6 @@
+title: Templates
+icon: fieldtype-template
+revisions: false
+# Deliberately NO route. A collection template is an index or show view for a
+# blueprint, never a public page. The dock writes the Antlers file; this store
+# is the CP list under Compositions.

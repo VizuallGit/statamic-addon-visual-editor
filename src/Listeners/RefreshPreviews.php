@@ -22,7 +22,7 @@ use Statamic\Events\GlobalVariablesSaved;
  *
  * What is watched, and why:
  *
- * - a saved section or template saved — its own picture is now wrong
+ * - a saved section or composition saved — its own picture is now wrong
  * - a fieldset or blueprint saved — a section type's default values, which is
  *   what its preview is a picture of, may have changed
  * - the theme's global variables saved — colours and fonts, so every preview
@@ -46,7 +46,7 @@ class RefreshPreviews
         };
     }
 
-    /** A saved section or template — refresh that one entry, not the site. */
+    /** A saved section or composition — refresh that one entry, not the site. */
     protected function entry(EntrySaved $event): void
     {
         if (SavedSectionPreview::specFor($event->entry) === null) {

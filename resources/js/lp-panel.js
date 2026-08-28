@@ -450,7 +450,7 @@ export function setLpCollapsed(win, collapsed) {
   sveState.lpCollapsed = collapsed;
   chromeSet(win, LP_COLLAPSED_KEY, collapsed ? '1' : '0');
 
-  if (collapsed && sve.isGlobalsOverlayOpen(win)) {
+  if (collapsed && sve.isGlobalsOverlayOpen?.(win)) {
     sve.hideGlobalsPanel(win, { release: false });
   }
 

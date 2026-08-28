@@ -29,7 +29,7 @@ class PreviewStatus
                 config('statamic-visual-editor.saved_sections.collection', 'saved_sections')
             ),
             'templates' => static::store(
-                config('statamic-visual-editor.templates.collection', 'saved_templates')
+                Stores::compositions()
             ),
         ];
     }
@@ -52,7 +52,7 @@ class PreviewStatus
     }
 
     /**
-     * One of the stores (saved sections, page templates), each entry with whether
+     * One of the stores (saved sections, page compositions), each entry with whether
      * its screenshot still matches what is stored on it.
      */
     protected static function store(string $collection): array
