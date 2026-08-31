@@ -32,6 +32,7 @@ class Features
         'tailwind_dock',
         'ai_panel',
         'open_first_section',
+        'collection_templates',
     ];
 
     /**
@@ -51,11 +52,13 @@ class Features
         'sections',
         'listview',
         'outline',
+        'html_tree',
         'inline_edit',
         'focus_panel',
         'open_first_section',
         'open_in_preview',
         'template_dock',
+        'collection_templates',
         'tailwind_dock',
         'ai_panel',
         'comments',
@@ -95,6 +98,10 @@ class Features
                 );
 
             if (in_array($key, static::PARKED_OFF, true)) {
+                $map[$key] = false;
+            }
+
+            if (! SundayAug30::enabled() && $key === 'html_tree') {
                 $map[$key] = false;
             }
         }

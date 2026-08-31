@@ -13,3 +13,43 @@ tabs:
               instructions: 'Navnet du ser i listen.'
               validate:
                 - required
+          -
+            handle: kind
+            field:
+              type: select
+              display: Type
+              options:
+                - key: index
+                  value: Index
+                - key: show
+                  value: Show
+              validate:
+                - required
+              width: 50
+          -
+            handle: source_collection
+            field:
+              type: collections
+              display: Collection
+              max_items: 1
+              validate:
+                - required
+              width: 50
+          -
+            handle: view
+            field:
+              type: text
+              display: View
+              instructions: 'Stien under resources/views/, uden endelse. Fx cases/show.'
+              validate:
+                - required
+          -
+            handle: preview_as
+            field:
+              type: entries
+              display: 'Preview as'
+              instructions: 'Hvilken entry Live Preview tegner show-templaten med. Tom = første entry, eller sample-data hvis collectionen er tom.'
+              max_items: 1
+              collections: []
+              if:
+                kind: 'equals show'

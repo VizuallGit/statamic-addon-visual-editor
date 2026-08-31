@@ -1663,7 +1663,19 @@ export function focusFieldOwner(field, scope, doc, win) {
   return opened;
 }
 
-export function soloSection(uid, doc, win, { kind = null, segment = null } = {}) {
+/**
+ * Choose a section: load its template file from publish values, then isolate
+ * the left sidebar if that row is mounted. The file must not wait on the sidebar.
+ */
+export function soloSection(uid, doc, win, opts) {
+  if (win) {
+    syncCodeDock(win, doc, uid);
+  }
+
+  return isolateSoloSection(uid, doc, win, opts);
+}
+
+export function isolateSoloSection(uid, doc, win, { kind = null, segment = null } = {}) {
   const setEl = uid && findSetByUid(uid, doc);
 
   if (!setEl) {
@@ -1680,7 +1692,7 @@ export function soloSection(uid, doc, win, { kind = null, segment = null } = {})
     if (sve.isGlobalsOverlayOpen?.(win) && sve.hasUnsavedGlobals(win)) {
       sve.confirmLeaveGlobalsOverlay(win, () => {
         sve.dismissChromeForPageEdit?.(win);
-        soloSection(uid, doc, win, { kind, segment });
+        isolateSoloSection(uid, doc, win, { kind, segment });
       });
 
       return false;
@@ -1740,7 +1752,6 @@ export function soloSection(uid, doc, win, { kind = null, segment = null } = {})
     isolated = true;
 
     if (win) {
-      syncCodeDock(win, doc, uid);
       relayoutAiPanel(win);
     }
 
@@ -1851,10 +1862,6 @@ export function soloSection(uid, doc, win, { kind = null, segment = null } = {})
         apply();
 
         return;
-      }
-
-      if (win) {
-        syncCodeDock(win, doc, uid);
       }
 
       if (focusPanelOn(win)) {
@@ -2359,6 +2366,7 @@ sve.deepestFieldPath = deepestFieldPath;
 sve.rowOwningField = rowOwningField;
 sve.focusFieldOwner = focusFieldOwner;
 sve.soloSection = soloSection;
+sve.isolateSoloSection = isolateSoloSection;
 Object.defineProperty(sve, 'lpWasOpen', { get() { return lpWasOpen; }, set(v) { lpWasOpen = v; } });
 Object.defineProperty(sve, 'lpWidthApplied', { get() { return lpWidthApplied; }, set(v) { lpWidthApplied = v; } });
 sve.remToPx = remToPx;

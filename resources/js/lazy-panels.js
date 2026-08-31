@@ -13,6 +13,7 @@ import { registerRightDockHook, RIGHT_PANEL_FILL, showInRightShell } from './rig
 export const PANEL_IDS = {
   listview: '__sve-listview-panel',
   outline: '__sve-outline-panel',
+  html_tree: '__sve-html-tree-panel',
   comments: '__sve-comments-pane',
   sections: '__sve-section-picker',
 };
@@ -24,6 +25,7 @@ const loaders = {
   sections: () => import('./section-library.js'),
   listview: () => import('./block-tree.js'),
   outline: () => import('./outline-panel.js'),
+  html_tree: () => import('./html-tree.js'),
   edits: () => import('./page-activity.js'),
   comments: () => Promise.all([import('./block-tree.js'), import('./comments.js')]),
 };
@@ -33,6 +35,7 @@ let sectionsWarmed = false;
 
 sve.SECTION_PICKER_ID = sve.SECTION_PICKER_ID || PANEL_IDS.sections;
 sve.OUTLINE_PANEL_ID = sve.OUTLINE_PANEL_ID || PANEL_IDS.outline;
+sve.HTML_TREE_PANEL_ID = sve.HTML_TREE_PANEL_ID || PANEL_IDS.html_tree;
 sve.COMMENTS_PANEL_ID = sve.COMMENTS_PANEL_ID || PANEL_IDS.comments;
 sve.FOCUS_LOCKED_TABS = sve.FOCUS_LOCKED_TABS || [];
 
@@ -85,6 +88,11 @@ stubUntilLoaded('handleAddRow', 'sections');
 stubUntilLoaded('insertSection', 'sections');
 stubUntilLoaded('handleInsertBardSet', 'sections');
 stubUntilLoaded('handleInsertBlock', 'sections');
+stubUntilLoaded('fillHtmlTreePane', 'html_tree');
+stubUntilLoaded('showHtmlTreePane', 'html_tree');
+stubUntilLoaded('closeHtmlTreePanel', 'html_tree');
+stubUntilLoaded('toggleHtmlTreePanel', 'html_tree');
+stubUntilLoaded('renderHtmlTree', 'html_tree');
 
 function bindRightDockHooks() {
   if (typeof sve.fillListViewPane === 'function') {
@@ -99,6 +107,13 @@ function bindRightDockHooks() {
       fill: sve.fillOutlinePane,
       show: sve.showOutlinePane,
       hide: (win) => sve.watchOutlineInPreview?.(win, false),
+    });
+  }
+
+  if (typeof sve.fillHtmlTreePane === 'function') {
+    registerRightDockHook('html_tree', {
+      fill: sve.fillHtmlTreePane,
+      show: sve.showHtmlTreePane,
     });
   }
 

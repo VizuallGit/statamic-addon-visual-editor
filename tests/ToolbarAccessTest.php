@@ -15,7 +15,7 @@ class ToolbarAccessTest extends TestCase
 
     public function test_other_icons_default_to_everyone(): void
     {
-        foreach (['pages', 'globals', 'sections', 'listview', 'ai_panel', 'comments'] as $key) {
+        foreach (['pages', 'globals', 'sections', 'listview', 'html_tree', 'ai_panel', 'comments'] as $key) {
             $this->assertSame(ToolbarAccess::AUDIENCE_EVERYONE, ToolbarAccess::rule($key)['audience'], $key);
         }
     }

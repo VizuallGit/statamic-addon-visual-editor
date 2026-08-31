@@ -51,6 +51,90 @@ export function currentEntryId(win) {
   return match ? match[1] : null;
 }
 
+function fieldScalar(value) {
+  if (value == null || value === '') {
+    return '';
+  }
+
+  if (Array.isArray(value)) {
+    return fieldScalar(value[0]);
+  }
+
+  if (typeof value === 'object' && (value.id || value.handle)) {
+    return String(value.id || value.handle);
+  }
+
+  return typeof value === 'string' ? value : String(value);
+}
+
+function onCollectionTemplate(win) {
+  const features = win.Statamic?.$config?.get?.('sveFeatures') || {};
+
+  if (features.collection_templates !== true) {
+    return false;
+  }
+
+  const store = win.Statamic?.$config?.get?.('sveCollectionTemplatesCollection') || 'templates';
+  const path = win.location?.pathname || '';
+
+  return path.includes(`/collections/${store}/entries/`);
+}
+
+/** The template entry's form — source_collection / preview_as / kind. */
+function templateForm(win) {
+  if (!onCollectionTemplate(win)) {
+    return null;
+  }
+
+  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    if (values.kind !== 'index' && values.kind !== 'show') {
+      continue;
+    }
+
+    return { container, values };
+  }
+
+  return null;
+}
+
+/** Collection the pickers should name — the one being previewed, not Templates. */
+function pickerCollectionHandle(win) {
+  const form = templateForm(win);
+  const source = form ? fieldScalar(form.values.source_collection) : '';
+
+  return source || sve.currentCollection(win);
+}
+
+/** Entry the page picker should name on a show-template. */
+function pickerEntryId(win, entries) {
+  const form = templateForm(win);
+
+  if (!form) {
+    return currentEntryId(win) ?? '';
+  }
+
+  if (form.values.kind !== 'show') {
+    return '';
+  }
+
+  const picked = fieldScalar(form.values.preview_as);
+
+  if (picked && (entries || []).some((entry) => entry.id === picked)) {
+    return picked;
+  }
+
+  // Empty preview_as: the iframe uses the first real entry (or sample data).
+  return entries?.[0]?.id || '';
+}
+
 /**
  * Overlay that covers only the Live Preview iframe (falls back to full viewport).
  * Keeps confirms visually centered in the preview pane, not the whole CP.
@@ -670,10 +754,19 @@ export function ensureCollectionPicker(win) {
   const header = sve.lpHeader(doc);
   const collections = pickerCollections(win);
 
-  if (!header || !collections.length || doc.getElementById(COLLECTION_PICKER_ID)) {
+  if (!header || !collections.length) {
     return;
   }
 
+  if (!doc.getElementById(COLLECTION_PICKER_ID)) {
+    mountCollectionPicker(win, header, collections);
+  }
+
+  void syncCollectionPicker(win);
+}
+
+function mountCollectionPicker(win, header, collections) {
+  const doc = win.document;
   const wrap = doc.createElement('div');
 
   // Ingen egen flade: den ligger i panelets sammensatte felt, og felterne her
@@ -716,6 +809,7 @@ export function ensureCollectionPicker(win) {
 
   const fillEntries = async (keepCurrent) => {
     const collection = selected();
+    const form = templateForm(win);
 
     entrySelect.innerHTML = '';
     newBtn.title = t(win, 'new_in', { collection: collection?.title ?? '' });
@@ -751,13 +845,59 @@ export function ensureCollectionPicker(win) {
     });
 
     if (keepCurrent) {
-      entrySelect.value = currentEntryId(win) ?? '';
+      entrySelect.value = pickerEntryId(win, entries);
     }
+
+    entrySelect.style.display = form?.values?.kind === 'index' ? 'none' : '';
   };
 
-  collectionSelect.addEventListener('change', () => fillEntries(false));
+  collectionSelect.__sveFillEntries = fillEntries;
+
+  collectionSelect.addEventListener('change', () => {
+    const form = templateForm(win);
+
+    if (form) {
+      const next = collectionSelect.value;
+      const prev = fieldScalar(form.values.source_collection);
+
+      if (next && next !== prev) {
+        form.container.setFieldValue(
+          'source_collection',
+          Array.isArray(form.values.source_collection) ? [next] : next
+        );
+
+        if (form.values.kind === 'show') {
+          form.container.setFieldValue('preview_as', []);
+        }
+      }
+
+      collectionSelect.dataset.svePickerKey = '';
+      void fillEntries(true);
+
+      return;
+    }
+
+    fillEntries(false);
+  });
 
   entrySelect.addEventListener('change', () => {
+    const form = templateForm(win);
+
+    if (form) {
+      if (form.values.kind !== 'show' || !entrySelect.value) {
+        return;
+      }
+
+      if (entrySelect.value === fieldScalar(form.values.preview_as)) {
+        return;
+      }
+
+      form.container.setFieldValue('preview_as', [entrySelect.value]);
+      collectionSelect.dataset.svePickerKey = `${collectionSelect.value}|${entrySelect.value}|show`;
+
+      return;
+    }
+
     if (!entrySelect.value || entrySelect.value === currentEntryId(win)) {
       return;
     }
@@ -793,10 +933,44 @@ export function ensureCollectionPicker(win) {
   wrap.appendChild(newBtn);
   header.appendChild(wrap);
 
-  // Open on whatever you're already editing, so the picker reads as "you are
-  // here" rather than an empty control.
-  collectionSelect.value = sve.currentCollection(win) ?? collections[0].handle;
-  fillEntries(true);
+  // Templates are not in this list — leave blank until source_collection is known.
+  if (onCollectionTemplate(win)) {
+    const blank = doc.createElement('option');
+
+    blank.value = '';
+    blank.hidden = true;
+    collectionSelect.insertBefore(blank, collectionSelect.firstChild);
+    collectionSelect.value = '';
+  }
+}
+
+async function syncCollectionPicker(win) {
+  const collectionSelect = win.document.getElementById(COLLECTION_PICKER_ID);
+  const fillEntries = collectionSelect?.__sveFillEntries;
+
+  if (!collectionSelect || typeof fillEntries !== 'function') {
+    return;
+  }
+
+  const wanted = pickerCollectionHandle(win);
+  const hasOption = [...collectionSelect.options].some((option) => option.value === wanted);
+
+  if (!wanted || !hasOption) {
+    return;
+  }
+
+  const form = templateForm(win);
+  const key = form
+    ? `${fieldScalar(form.values.source_collection)}|${fieldScalar(form.values.preview_as)}|${form.values.kind}`
+    : `${sve.currentCollection(win) || ''}|${currentEntryId(win) || ''}|`;
+
+  if (collectionSelect.dataset.svePickerKey === key) {
+    return;
+  }
+
+  collectionSelect.value = wanted;
+  await fillEntries(true);
+  collectionSelect.dataset.svePickerKey = key;
 }
 
 

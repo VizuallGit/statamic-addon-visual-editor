@@ -17,6 +17,7 @@
  * with import() so the CP bundle does not parse overlay-host at boot.
  */
 
+import { ask } from './cp/bus.js';
 import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
 import { sveState } from './cp-state.js';
@@ -2148,10 +2149,44 @@ export const HEADER_TAB_FEATURE = {
   globals: 'globals',
   sections: 'sections',
   outline: 'outline',
+  html_tree: 'html_tree',
 };
 
+function formHasPageBuilder(win) {
+  if (typeof sve.formHasSectionField === 'function') {
+    return sve.formHasSectionField(win);
+  }
+
+  const field = sve.sectionField?.(win) || 'page_sections';
+  const doc = win.document;
+
+  if (doc.querySelector(`.publish-field-${field}, [data-field="${field}"], #field_${field}`)) {
+    return true;
+  }
+
+  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(doc) : [];
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+
+    if (values && Array.isArray(values[field])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export function headerTabAvailable(win, tab) {
-  return !tab || sve.featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);
+  if (!tab) {
+    return true;
+  }
+
+  if (tab === 'sections' && !formHasPageBuilder(win)) {
+    return false;
+  }
+
+  return sve.featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);
 }
 
 export function loadHeaderTab(win) {
@@ -2203,6 +2238,10 @@ export function restoreDockedHeaderPanels(win) {
       return !!win.document.getElementById(sve.OUTLINE_PANEL_ID);
     }
 
+    if (key === 'html_tree') {
+      return !!win.document.getElementById(sve.HTML_TREE_PANEL_ID);
+    }
+
     if (key === 'sections') {
       return !!win.document.getElementById(sve.SECTION_PICKER_ID);
     }
@@ -2242,6 +2281,8 @@ export function restoreDockedHeaderPanels(win) {
   } catch {
     keys = [];
   }
+
+  keys = keys.filter((key) => key !== 'sections' || headerTabAvailable(win, 'sections'));
 
   if (!keys.length) {
     sveState.dockedHeaderRestored = true;
@@ -2309,6 +2350,14 @@ export async function ensureRightTool(win, key) {
   if (key === 'outline') {
     if (!win.document.getElementById(sve.OUTLINE_PANEL_ID)) {
       sve.toggleOutlinePanel?.(win);
+    }
+
+    return;
+  }
+
+  if (key === 'html_tree') {
+    if (!win.document.getElementById(sve.HTML_TREE_PANEL_ID)) {
+      sve.toggleHtmlTreePanel?.(win);
     }
 
     return;
@@ -2383,6 +2432,10 @@ export const TOOLBAR_ICONS = {
     '<circle cx="4.5" cy="18" r="1.4" fill="currentColor" stroke="none"/>' +
     '<line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="17.5" y2="12"/>' +
     '<line x1="9" y1="18" x2="14" y2="18"/></svg>',
+  html_tree:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="4" y="3" width="16" height="7" rx="1.5"/>' +
+    '<rect x="8" y="14" width="12" height="7" rx="1.5"/></svg>',
   code:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:block" aria-hidden="true">' +
     '<path d="M1.5 0h21l-1.91 21.563L11.977 24l-8.565-2.438L1.5 0zm7.031 9.75-.232-2.718h10.059l.23-2.622H5.412l.698 8.01h9.02l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.157H8.531z"/></svg>',
@@ -2441,6 +2494,7 @@ export function ensureHeaderToolbar(win) {
     ensureCommentsToolbarButton(win);
     ensurePageEditsToolbarButton(win);
     ensureOutlineToolbarButton(win);
+    ensureHtmlTreeToolbarButton(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
@@ -2463,6 +2517,7 @@ export function ensureHeaderToolbar(win) {
     { key: 'sections', feature: 'sections', title: t(win, 'sections') },
     { key: 'listview', feature: 'listview', title: t(win, 'listview') },
     { key: 'outline', feature: 'outline', title: t(win, 'outline') },
+    { key: 'html_tree', feature: 'html_tree', title: t(win, 'html_tree') },
     { key: 'code', title: t(win, 'code_dock_toggle') },
     { key: 'ai', title: t(win, 'ai_panel') },
     { key: 'comments', feature: 'comments', title: t(win, 'comments_pane') },
@@ -2694,6 +2749,54 @@ export function ensureOutlineToolbarButton(win) {
   }
 }
 
+export function ensureHtmlTreeToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  if (!sve.featureOn(win, 'html_tree')) {
+    bar.querySelector('button[data-tab="html_tree"]')?.remove();
+
+    return;
+  }
+
+  if (bar.querySelector('button[data-tab="html_tree"]')) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'html_tree';
+  btn.dataset.iconVer = 'html-tree-20260829';
+  btn.title = t(win, 'html_tree');
+  btn.innerHTML = TOOLBAR_ICONS.html_tree;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => toggleHeaderTab(win, 'html_tree'));
+
+  const outline = bar.querySelector('button[data-tab="outline"]');
+  const listview = bar.querySelector('button[data-tab="listview"]');
+
+  if (outline) {
+    outline.after(btn);
+  } else if (listview) {
+    listview.after(btn);
+  } else {
+    const code = bar.querySelector('button[data-tab="code"]');
+
+    if (code) {
+      code.before(btn);
+    } else {
+      bar.appendChild(btn);
+    }
+  }
+}
+
 export function ensureCommentsToolbarButton(win) {
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
@@ -2856,6 +2959,10 @@ export function ensureAiToolbarButton(win) {
 }
 
 export function toggleHeaderTab(win, key) {
+  if (key === 'sections' && !headerTabAvailable(win, 'sections')) {
+    return;
+  }
+
   const active = sveState.headerTab === key;
 
   if (key === 'settings') {
@@ -2902,6 +3009,25 @@ export function toggleHeaderTab(win, key) {
       }
 
       sve.toggleOutlinePanel?.(win);
+      sve.persistDockedPanel(win);
+      applyHeaderTab(win);
+    })();
+
+    return;
+  }
+
+  if (key === 'html_tree') {
+    setHeaderTab(win, active ? null : 'html_tree');
+    void (async () => {
+      showPanelWait(win, 'html_tree');
+
+      try {
+        await ensurePanel('html_tree');
+      } finally {
+        hidePanelWait(win);
+      }
+
+      sve.toggleHtmlTreePanel?.(win);
       sve.persistDockedPanel(win);
       applyHeaderTab(win);
     })();
@@ -3220,6 +3346,7 @@ export function applyHeaderTab(win) {
   ensurePageEditsToolbarButton(win);
   ensureAiToolbarButton(win);
   ensureOutlineToolbarButton(win);
+  ensureHtmlTreeToolbarButton(win);
 
   // The standalone panel glyph and the old Hide/Auto/Show group are gone.
   const glyph = doc.getElementById(sve.LP_TOGGLE_ID);
@@ -3326,6 +3453,19 @@ export function applyHeaderTab(win) {
     );
   }
 
+  const sectionsBtn = bar?.querySelector('button[data-tab="sections"]');
+
+  if (sectionsBtn) {
+    const show = headerTabAvailable(win, 'sections');
+
+    sectionsBtn.style.display = show ? 'inline-flex' : 'none';
+
+    if (!show && sveState.headerTab === 'sections') {
+      setHeaderTab(win, null);
+      sve.closeSectionPicker?.(win);
+    }
+  }
+
   const iconOf = (tab) => bar?.querySelector(`button[data-tab="${tab}"]`);
   const place = (anchor, el) => {
     if (anchor && el && anchor.nextElementSibling !== el) {
@@ -3348,6 +3488,7 @@ export function applyHeaderTab(win) {
     sections: !!doc.getElementById(sve.SECTION_PICKER_ID),
     listview: !!sve.listViewPanel?.(doc),
     outline: !!doc.getElementById(sve.OUTLINE_PANEL_ID),
+    html_tree: !!doc.getElementById(sve.HTML_TREE_PANEL_ID),
     comments: !!sve.commentsPanel?.(doc),
     ai: isAiPanelOpen(doc),
   };
@@ -6717,6 +6858,12 @@ export function createMessageListener(doc = document, win = window) {
     }
 
     if (data.type === 'click') {
+      if (data.htmlPath) {
+        ask('html-tree:from-preview', { path: data.htmlPath });
+
+        return;
+      }
+
       // Synced section: focus/solo runs inside the left iframe (source entry),
       // not the page form — those uids are not on this page.
       if (sve.forwardGlobalSectionFocus(data, doc, win)) {
@@ -6740,6 +6887,15 @@ export function createMessageListener(doc = document, win = window) {
       // them exactly once.
       sve.listViewSyncTo?.(win, data.scope, data.uid);
       applyDeclaredDefaults(data, doc);
+
+      // Template dock follows the section in publish values. Opening the left
+      // panel is a different question (`autoOpenPanel`); collapsing that pane
+      // must not skip the file load.
+      const dockUid = data.uid || data.scope;
+
+      if (dockUid) {
+        sve.syncCodeDock?.(win, doc, dockUid);
+      }
 
       if (data.field) {
         // Open what the field belongs to. With the focus panel on that is the

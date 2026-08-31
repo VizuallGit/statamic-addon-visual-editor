@@ -1654,7 +1654,22 @@ export function paintFocusLockedTabs(win, btn, tab, on) {
 export function syncSectionLibraryAvailability(win) {
   const doc = win.document;
   const locked = isSectionLibraryLocked(win);
+  const noBuilder = !formHasSectionField(win);
   const btn = doc.getElementById(sve.LIBRARY_BUTTON_ID);
+
+  if (noBuilder) {
+    closeSectionPicker(win);
+
+    if (btn) {
+      btn.style.display = 'none';
+      btn.setAttribute('aria-disabled', 'true');
+      btn.disabled = true;
+    }
+
+    applyHeaderTab(win);
+
+    return;
+  }
 
   if (locked) {
     closeSectionPicker(win);
@@ -1848,6 +1863,10 @@ export function closeRightPanelsInner(win, keepIds) {
     sve.closeOutlinePanel(win);
   }
 
+  if (!keepIds.includes(sve.HTML_TREE_PANEL_ID)) {
+    sve.closeHtmlTreePanel?.(win);
+  }
+
   if (!keepIds.includes(sve.LISTVIEW_PANEL_ID)) {
     sve.closeListViewPanel(win);
   }
@@ -1888,6 +1907,7 @@ export function syncPreviewInset(win) {
     RIGHT_DOCK_ID,
     SECTION_PICKER_ID,
     sve.OUTLINE_PANEL_ID,
+    sve.HTML_TREE_PANEL_ID,
     sve.LISTVIEW_PANEL_ID,
     COMMENTS_PANEL_ID,
     '__sve-ai-panel',
@@ -2142,6 +2162,25 @@ export function libraryMatchesQuery(item, query) {
   return haystack.includes(q);
 }
 
+export function formHasSectionField(win) {
+  const field = sectionField(win);
+  const doc = win.document;
+
+  if (doc.querySelector(`.publish-field-${field}, [data-field="${field}"], #field_${field}`)) {
+    return true;
+  }
+
+  for (const container of sve.activeContainers(doc)) {
+    const values = sve.unwrapRef(container.values);
+
+    if (values && Array.isArray(values[field])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /** Opens/creates the docked section library. Toggles closed if already open. */
 export function openSectionPicker(win, options = {}) {
   const doc = win.document;
@@ -2151,6 +2190,14 @@ export function openSectionPicker(win, options = {}) {
   // icon is built, because the "add a section below" control in the preview opens
   // the library too — one gate covers every way in.
   if (!featureOn(win, 'sections')) {
+    return;
+  }
+
+  // No page-builder field on this blueprint — drops have nowhere to land.
+  if (!formHasSectionField(win)) {
+    closeSectionPicker(win);
+    syncSectionLibraryAvailability(win);
+
     return;
   }
 
@@ -3892,6 +3939,7 @@ sve.libraryGroupLabel = libraryGroupLabel;
 sve.libraryGroupKeys = libraryGroupKeys;
 sve.libraryMatchesQuery = libraryMatchesQuery;
 sve.openSectionPicker = openSectionPicker;
+sve.formHasSectionField = formHasSectionField;
 sve.mountSectionPicker = mountSectionPicker;
 sve.LIBRARY_DELETE_ID = LIBRARY_DELETE_ID;
 sve.TRASH_ICON = TRASH_ICON;

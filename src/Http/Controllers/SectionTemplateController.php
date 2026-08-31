@@ -3,6 +3,8 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\CollectionViewFile;
+use MarioHamann\StatamicVisualEditor\DockPartial;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
 // PARKED — Tailwind dock compile. Uncomment with the fromHtml() call below.
@@ -10,10 +12,10 @@ use MarioHamann\StatamicVisualEditor\SectionTemplate;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
 
 /**
- * Read and write a section type's Antlers partial from Live Preview.
+ * Read and write an Antlers file from Live Preview: a section partial, or a
+ * collection index/show view (`view:{path}`).
  *
- * The settings toggle and toolbar access both have to be on. The file is the
- * shared template for every page that uses the type.
+ * The settings toggle and toolbar access both have to be on.
  */
 class SectionTemplateController
 {
@@ -22,11 +24,9 @@ class SectionTemplateController
         $this->authorize();
 
         $handle = (string) $request->query('type', '');
-        $path = SectionTemplate::path($handle);
+        [$path, $splitHandle] = $this->locate($handle);
 
-        abort_unless($path, 404);
-
-        $parts = SectionTemplate::split((string) file_get_contents($path), $handle);
+        $parts = SectionTemplate::split((string) file_get_contents($path), $splitHandle);
 
         return response()->json([
             'type' => $handle,
@@ -47,6 +47,15 @@ class SectionTemplateController
         ]);
     }
 
+    public function partials(Request $request)
+    {
+        $this->authorize();
+
+        return response()->json([
+            'items' => DockPartial::resolve((string) $request->query('src', '')),
+        ]);
+    }
+
     public function update(Request $request)
     {
         $this->authorize();
@@ -58,11 +67,9 @@ class SectionTemplateController
 
         abort_unless(is_string($html) && is_string($css) && is_string($js), 422);
 
-        $path = SectionTemplate::path($handle);
+        [$path, $splitHandle] = $this->locate($handle);
 
-        abort_unless($path, 404);
-
-        $meta = SectionTemplate::split((string) file_get_contents($path), $handle);
+        $meta = SectionTemplate::split((string) file_get_contents($path), $splitHandle);
 
         abort_if(! empty($meta['locked']), 423);
 
@@ -81,7 +88,7 @@ class SectionTemplateController
             'css_tag' => $meta['css_tag'],
             'js_tag' => $meta['js_tag'],
             'locked' => false,
-        ], $handle);
+        ], $splitHandle);
 
         file_put_contents($path, $contents);
 
@@ -101,9 +108,7 @@ class SectionTemplateController
         $this->authorize();
 
         $handle = (string) $request->input('type', '');
-        $path = SectionTemplate::path($handle);
-
-        abort_unless($path, 404);
+        [$path] = $this->locate($handle);
 
         $locked = $request->boolean('locked');
 
@@ -114,6 +119,26 @@ class SectionTemplateController
             'locked' => $locked,
             'path' => SectionTemplate::relative($path),
         ]);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    protected function locate(string $handle): array
+    {
+        if ($view = CollectionViewFile::viewFromType($handle)) {
+            $path = CollectionViewFile::path($view);
+            abort_unless($path, 404);
+
+            // Empty split-handle: a view file is not a designed section type,
+            // so it must not start locked.
+            return [$path, ''];
+        }
+
+        $path = SectionTemplate::path($handle);
+        abort_unless($path, 404);
+
+        return [$path, $handle];
     }
 
     protected function authorize(): void

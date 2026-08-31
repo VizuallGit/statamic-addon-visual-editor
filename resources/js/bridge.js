@@ -4,6 +4,8 @@
 // Bridge script — injected into the Live Preview iframe.
 // Only activates when running inside an iframe (window.self !== window.top).
 
+import { findPickRoot, HT_PATH_ATTR, stampHtmlPick, unstampHtmlPick } from './html-pick-align.js';
+
 const ACTIVE_ATTR = 'data-sid-active';
 const HOVER_ATTR = 'data-sid-hover';
 const INNER_ATTR = 'data-sid-inner';
@@ -52,6 +54,21 @@ const EDIT_INPUT_DEBOUNCE = 150; // ms of typing pause before syncing the value 
 let pendingEdit = null;
 let editing = null;
 let requestSeq = 0;
+let htmlPick = null;
+
+function applyHtmlPick(win) {
+  if (!htmlPick) {
+    unstampHtmlPick(win.document);
+
+    return;
+  }
+
+  const root = findPickRoot(win.document, htmlPick);
+
+  if (root) {
+    stampHtmlPick(root, htmlPick.nodes);
+  }
+}
 
 /**
  * Whitespace-normalizes text for comparison across the preview DOM and the CP
@@ -7218,13 +7235,47 @@ export function createMouseMoveHandler(win) {
   return function handleMouseMove(event) {
     // Always keep block actions working — even while another field is being
     // inline-edited (that used to early-return and made "hover down" feel broken).
-    updateMoveControlFromPointer(win, event);
+    if (!htmlPick) {
+      updateMoveControlFromPointer(win, event);
+    }
 
     if (editing) {
       return;
     }
 
     win.document.documentElement.classList.add(MOUSE_ACTIVE_CLASS);
+
+    if (htmlPick) {
+      const current = win.document.querySelector(`[${INNER_ATTR}]`);
+      const target = event.target.closest?.(`[${HT_PATH_ATTR}]`) || null;
+
+      if (current !== target) {
+        if (current) {
+          current.removeAttribute(INNER_ATTR);
+        }
+
+        if (target) {
+          applyOutlineTone(win, target);
+          target.setAttribute(INNER_ATTR, '');
+        }
+      }
+
+      syncHoverOverride(target);
+
+      if (clearTimer) {
+        clearTimeout(clearTimer);
+      }
+
+      clearTimer = setTimeout(() => {
+        win.document.documentElement.classList.remove(MOUSE_ACTIVE_CLASS);
+        win.document.documentElement.classList.remove(HOVER_OVERRIDE);
+        win.document.querySelectorAll(`[${INNER_ATTR}]`).forEach((el) => {
+          el.removeAttribute(INNER_ATTR);
+        });
+      }, HOVER_CLEAR_DELAY);
+
+      return;
+    }
 
     // Track innermost [data-sid] or [data-sid-field] for hover outline
     const current = win.document.querySelector(`[${INNER_ATTR}]`);
@@ -7568,6 +7619,32 @@ export function createClickHandler(win) {
       );
 
       return;
+    }
+
+    if (htmlPick) {
+      const picked = event.target.closest?.(`[${HT_PATH_ATTR}]`);
+
+      if (picked) {
+        event.preventDefault();
+        event.stopPropagation();
+        win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+          el.removeAttribute(ACTIVE_ATTR);
+        });
+        hideHoverBelt(win);
+        hideMoveControl(win);
+        applyOutlineTone(win, picked);
+        picked.setAttribute(ACTIVE_ATTR, '');
+        win.parent.postMessage(
+          {
+            source: 'statamic-visual-editor',
+            type: 'click',
+            htmlPath: picked.getAttribute(HT_PATH_ATTR),
+          },
+          win.location.origin
+        );
+
+        return;
+      }
     }
 
     const target = resolveSidTarget(win, event);
@@ -8106,6 +8183,44 @@ export function createMessageReceiver(win) {
       return;
     }
 
+    if (data.type === 'sve-html-pick') {
+      if (!data.on) {
+        htmlPick = null;
+        unstampHtmlPick(win.document);
+
+        return;
+      }
+
+      htmlPick = {
+        uid: data.uid || '',
+        tag: data.tag || '',
+        klass: data.klass || '',
+        nodes: data.nodes || [],
+      };
+      applyHtmlPick(win);
+
+      return;
+    }
+
+    if (data.type === 'sve-html-pick-focus') {
+      win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+        el.removeAttribute(ACTIVE_ATTR);
+      });
+
+      const el = data.path
+        ? [...win.document.querySelectorAll(`[${HT_PATH_ATTR}]`)].find(
+            (node) => node.getAttribute(HT_PATH_ATTR) === data.path
+          )
+        : null;
+
+      if (el) {
+        applyOutlineTone(win, el);
+        el.setAttribute(ACTIVE_ATTR, '');
+      }
+
+      return;
+    }
+
     if (data.type === 'ext-drag-start') {
       extDragStart(win);
 
@@ -8489,6 +8604,10 @@ export function initBridge(win = window) {
   // never points at a detached node; the next hover recreates it. Same for a
   // drag in flight: its element and peers are about to be detached.
   win.addEventListener('statamic:preview-updated', () => {
+    if (htmlPick) {
+      applyHtmlPick(win);
+    }
+
     hideMoveControl(win);
     hideColumnChrome(win);
     win.document.querySelector('[data-sve-menu]')?.remove();

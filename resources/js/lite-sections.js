@@ -1496,18 +1496,26 @@
 
             sve.soloSection = function (uid, doc, win, opts) {
                 var args = arguments;
+                var view = win || window;
+                var isolate = sve.isolateSoloSection;
+
+                if (uid && view && typeof sve.syncCodeDock === 'function') {
+                    sve.syncCodeDock(view, doc, uid);
+                }
+
+                if (typeof isolate !== 'function') {
+                    return orig.apply(this, args);
+                }
 
                 if (!uid || !doc || !doc.querySelector('[data-sve-lite]')) {
-                    return orig.apply(this, args);
+                    return isolate.call(sve, uid, doc, win, opts);
                 }
 
                 window.dispatchEvent(new CustomEvent(FOCUS, { detail: { uid: uid } }));
 
-                waitForSet(uid, doc, win || window, function () {
-                    var view = win || window;
-
+                waitForSet(uid, doc, view, function () {
                     afterExpand(findSetByUid(uid, doc), view, function () {
-                        orig.apply(sve, args);
+                        isolate.apply(sve, args);
                     });
                 });
 

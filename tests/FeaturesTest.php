@@ -6,6 +6,11 @@ use MarioHamann\StatamicVisualEditor\Features;
 
 class FeaturesTest extends TestCase
 {
+    public function test_collection_templates_are_off_when_nothing_has_turned_them_on(): void
+    {
+        $this->assertFalse(Features::enabled('collection_templates'));
+    }
+
     public function test_template_dock_is_off_when_nothing_has_turned_it_on(): void
     {
         $this->assertFalse(Features::enabled('template_dock'));
@@ -31,6 +36,11 @@ class FeaturesTest extends TestCase
         $this->assertTrue(Features::enabled('listview'));
     }
 
+    public function test_html_tree_is_on_by_default(): void
+    {
+        $this->assertTrue(Features::enabled('html_tree'));
+    }
+
     public function test_ai_panel_stays_off_when_the_config_key_is_missing(): void
     {
         $features = config('statamic-visual-editor.features', []);
@@ -39,6 +49,16 @@ class FeaturesTest extends TestCase
         Features::flush();
 
         $this->assertFalse(Features::enabled('ai_panel'));
+    }
+
+    public function test_collection_templates_stay_off_when_the_config_key_is_missing(): void
+    {
+        $features = config('statamic-visual-editor.features', []);
+        unset($features['collection_templates']);
+        config(['statamic-visual-editor.features' => $features]);
+        Features::flush();
+
+        $this->assertFalse(Features::enabled('collection_templates'));
     }
 
     public function test_template_dock_stays_off_when_the_config_key_is_missing(): void

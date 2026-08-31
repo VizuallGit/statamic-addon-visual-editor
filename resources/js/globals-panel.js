@@ -210,6 +210,10 @@ export function isLivePreviewDocumentUrl(url, origin) {
       return false;
     }
 
+    if (parsed.pathname.includes('/!/sve/collection-view-preview/')) {
+      return true;
+    }
+
     if (parsed.pathname.includes('/!/sve/')) {
       return false;
     }

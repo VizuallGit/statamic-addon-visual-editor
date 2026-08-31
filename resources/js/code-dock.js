@@ -1,33 +1,57 @@
 /**
- * Bottom HTML / CSS / JS dock for a section type's Antlers file.
+ * Bottom HTML / CSS / JS dock for an Antlers file.
  *
  * Super admin, the settings toggle, and the Live Preview header button all
- * have to be on. The file is the shared template for every page that uses the
- * type — which is why editors never see it. The three panes map to markup,
- * `{{ style_push }}` and `{{ script_push }}`; saving writes them back as one
- * file and morphs Live Preview.
+ * have to be on. On a page it is the section you clicked. On a collection
+ * index/show template it is that view file, until you click a section.
+ * The three panes map to markup, `{{ style_push }}` and `{{ script_push }}`;
+ * saving writes them back as one file and morphs Live Preview.
  *
  * A super admin can lock a section type so the panes stay visible but
  * read-only. Unlocking asks first: the file is shared by every page that
  * uses the type. Designed types start locked; `custom_section` starts open.
- * The file may hold `{{# sve-locked #}}` or `{{# sve-unlocked #}}`.
+ * Collection views start unlocked. The file may hold `{{# sve-locked #}}`
+ * or `{{# sve-unlocked #}}`.
  */
 
-import { findSetByUid, replayLivePreview } from './cp.js';
+import { SUNDAY_AUG30 } from './sunday-aug30.js';
+import { replayLivePreview, topLevelSectionUid } from './cp.js';
 import { sve } from './cp-registry.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { splitterFill } from './right-dock.js';
-import { register } from './cp/bus.js';
+import { emit, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import CodeDockChrome from './cp/surfaces/CodeDockChrome.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import CodeDockHtmlTools from './cp/surfaces/CodeDockHtmlTools.vue';
+import CodeDockAntlersSelect from './cp/surfaces/CodeDockAntlersSelect.vue';
 import CodeDockCssTools from './cp/surfaces/CodeDockCssTools.vue';
 import CodeDockCssBoxRow from './cp/surfaces/CodeDockCssBoxRow.vue';
 import CodeDockCssDisplayRow from './cp/surfaces/CodeDockCssDisplayRow.vue';
 import CodeDockMenu from './cp/surfaces/CodeDockMenu.vue';
+import CodeDockAddClass from './cp/surfaces/CodeDockAddClass.vue';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { mountSurface } from './cp/mount.js';
+import { applyBracketClass, bracketClassTokens, buildScopedCss, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from './css-scope.js';
+import {
+  ANTLERS_SNIPPET_GROUPS,
+  ANTLERS_SNIPPETS,
+  antlersSnippet,
+  expandAntlersSnippet,
+  indentAntlersSnippet,
+} from './antlers-snippets.js';
+import {
+  PARTIAL_MENU_ID,
+  bindPartialNav,
+  closePartialMenu,
+  partialDecorations,
+} from './dock-partials.js';
+import {
+  CLASS_RENAME_CHIP_ID,
+  bindClassTokenNav,
+  classTokenDecorations,
+  closeClassTokenUi,
+} from './dock-class-tokens.js';
 
 let EditorView;
 let keymap;
@@ -36,6 +60,10 @@ let highlightActiveLine;
 let highlightActiveLineGutter;
 let Compartment;
 let EditorState;
+let StateField;
+let StateEffect;
+let RangeSetBuilder;
+let Decoration;
 let defaultKeymap;
 let indentWithTab;
 let historyKeymap;
@@ -77,6 +105,10 @@ function loadCm() {
     highlightActiveLineGutter = view.highlightActiveLineGutter;
     Compartment = state.Compartment;
     EditorState = state.EditorState;
+    StateField = state.StateField;
+    StateEffect = state.StateEffect;
+    RangeSetBuilder = state.RangeSetBuilder;
+    Decoration = view.Decoration;
     defaultKeymap = commands.defaultKeymap;
     indentWithTab = commands.indentWithTab;
     historyKeymap = commands.historyKeymap;
@@ -114,15 +146,27 @@ const HEIGHT_KEY = 'sve-code-dock-height';
 const PANES_KEY = 'sve-code-dock-panes';
 const WIDTHS_KEY = 'sve-code-dock-widths';
 const ARMED_KEY = 'sve-code-dock-armed';
+const SCOPE_KEY = 'sve-html-scope-v2';
+const AUTOSAVE_KEY = 'sve-code-dock-autosave';
 const DEFAULT_HEIGHT = 280;
 const MIN_HEIGHT = 120;
 const MIN_PANE = 140;
-const SAVE_MS = 700;
+const SAVE_MS = 250;
 const HANDLES = ['html', 'css', 'js'];
 const LOCK_CLOSED_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const LOCK_OPEN_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-1"/></svg>';
+const BACK_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
+const SCOPE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1"/></svg>';
+const AUTOSAVE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3"/><path d="M21 3.2v5.4h-5.4"/></svg>';
+const SAVE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>';
+const CSS_ADD_ICON =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 const CSS_MENU_ID = '__sve-css-menu';
 const HTML_HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 const HTML_TOOLS = [
@@ -254,15 +298,25 @@ let cssColorsPromise = null;
 
 let lastUid = null;
 let lastType = null;
+let typeStack = [];
 let lastParts = { html: '', css: '', js: '' };
 let lastLocked = false;
 let lockReady = false;
 let lastWin = null;
 let loadGen = 0;
 let saveTimer = null;
+let lastBracketNames = null;
+let lastCssSelectorNames = null;
 let saveInFlight = null;
 let dragging = false;
 let applying = false;
+let htmlScopePref = true;
+let htmlScopeActive = false;
+let htmlFocus = null;
+let htmlFull = '';
+let cssFull = '';
+let cssPane = 'full';
+let cssScopeSnapshot = '';
 let layoutObserver = null;
 let layoutWin = null;
 let observedEditor = null;
@@ -303,7 +357,7 @@ function vscTheme() {
   return [
     EditorView.theme(
       {
-        '&': { height: '100%', backgroundColor: '#1e1e1e', color: '#d4d4d4' },
+        '&': { height: 'auto', backgroundColor: '#1e1e1e', color: '#d4d4d4' },
         '.cm-content': {
           caretColor: '#aeafad',
           padding: '12px 0',
@@ -324,7 +378,7 @@ function vscTheme() {
           lineHeight: '1.55',
         },
         '.cm-lineNumbers .cm-gutterElement': { paddingLeft: '8px', paddingRight: '12px' },
-        '.cm-scroller': { overflow: 'auto', minHeight: 0, height: '100%' },
+        '.cm-scroller': { overflow: 'visible', height: 'auto', minHeight: 0 },
         '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
           backgroundColor: '#264f78 !important',
         },
@@ -435,26 +489,6 @@ export function setCodeDockArmed(win, on) {
   chromeSet(win, ARMED_KEY, on ? '1' : '0');
 }
 
-function outermostSetOf(uid, doc) {
-  let el = uid ? findSetByUid(uid, doc) : null;
-
-  if (!el) {
-    return null;
-  }
-
-  let current = el;
-
-  while (true) {
-    const parent = current.parentElement?.closest('[data-replicator-set]');
-
-    if (!parent) {
-      return current;
-    }
-
-    current = parent;
-  }
-}
-
 function storedHeight(win) {
   const n = parseInt(chromeGet(win, HEIGHT_KEY) ?? '', 10);
 
@@ -528,7 +562,7 @@ function ensureStyle(doc) {
   z-index: var(--z-index-above, 1);
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
   background: #1e1e1e;
   color: #d4d4d4;
   border-top: 1px solid rgba(255,255,255,.12);
@@ -567,7 +601,28 @@ function ensureStyle(doc) {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  margin-left: 4px;
+}
+#${DOCK_ID} [data-sve-code-back] {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   margin-left: 8px;
+  border-radius: 6px;
+  color: #d4d4d4;
+  opacity: .7;
+}
+#${DOCK_ID} [data-sve-code-back]:hover {
+  opacity: 1;
+  background: rgba(255,255,255,.1);
+}
+#${DOCK_ID} [data-sve-code-back][hidden] {
+  display: none;
 }
 #${DOCK_ID} [data-sve-code-status] {
   margin-left: auto;
@@ -601,9 +656,72 @@ function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-code-lock][hidden] {
   display: none;
 }
+#${DOCK_ID} [data-sve-html-scope] {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border-radius: 6px;
+  color: #d4d4d4;
+  opacity: .55;
+}
+#${DOCK_ID} [data-sve-html-scope]:hover {
+  opacity: 1;
+  background: rgba(255,255,255,.1);
+}
+#${DOCK_ID} [data-sve-html-scope][aria-pressed="true"] {
+  opacity: 1;
+  color: #93c5fd;
+  background: rgba(56,88,233,.22);
+}
+#${DOCK_ID} [data-sve-code-autosave],
+#${DOCK_ID} [data-sve-code-save] {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border-radius: 6px;
+  color: #d4d4d4;
+  opacity: .55;
+}
+#${DOCK_ID} [data-sve-code-autosave]:hover,
+#${DOCK_ID} [data-sve-code-save]:hover {
+  opacity: 1;
+  background: rgba(255,255,255,.1);
+}
+#${DOCK_ID} [data-sve-code-autosave][aria-pressed="true"] {
+  opacity: 1;
+  color: #93c5fd;
+  background: rgba(56,88,233,.22);
+}
+#${DOCK_ID} [data-sve-code-save][data-dirty] {
+  opacity: 1;
+  color: #93c5fd;
+  background: rgba(56,88,233,.22);
+}
+#${DOCK_ID} [data-sve-code-save][hidden] {
+  display: none;
+}
+#${DOCK_ID}[data-sve-code-locked] [data-sve-code-autosave],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-code-save] {
+  pointer-events: none;
+  opacity: .28;
+}
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-subrow],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-html-tools] {
+#${DOCK_ID}[data-sve-code-locked] [data-sve-html-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-antlers-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-css-add-class] {
   pointer-events: none;
   opacity: .28;
 }
@@ -685,10 +803,19 @@ function ensureStyle(doc) {
   ${splitterFill('ns')}
   background-color: var(--theme-color-gray-800, #27272a);
 }
-#${DOCK_ID} [data-sve-code-panes] {
+#${DOCK_ID} .sve-code-dock {
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+#${DOCK_ID} [data-sve-code-panes] {
+  flex: 1 1 0;
   min-height: 0;
   display: flex;
+  overflow: hidden;
 }
 #${DOCK_ID} [data-sve-code-pane] {
   flex: 1 1 0;
@@ -697,6 +824,7 @@ function ensureStyle(doc) {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
 }
 #${DOCK_ID} [data-sve-code-pane-label] {
   flex: 0 0 auto;
@@ -719,6 +847,27 @@ function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-code-pane-label] > span {
   opacity: .38;
 }
+#${DOCK_ID} [data-sve-css-add-class] {
+  all: unset;
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(255,255,255,.1);
+  color: #d4d4d4;
+  cursor: pointer;
+  opacity: .75;
+  flex: none;
+}
+#${DOCK_ID} [data-sve-css-add-class]:hover,
+#${DOCK_ID} [data-sve-css-add-class][data-open] {
+  background: rgba(255,255,255,.16);
+  opacity: 1;
+}
 #${DOCK_ID} [data-sve-css-tools],
 #${DOCK_ID} [data-sve-html-tools] {
   pointer-events: auto;
@@ -728,6 +877,39 @@ function ensureStyle(doc) {
   gap: 1px;
   min-width: 0;
   overflow-x: auto;
+}
+#${DOCK_ID} [data-sve-html-tools] {
+  flex: 1 1 auto;
+}
+#${DOCK_ID} [data-sve-antlers-tools] {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  align-self: stretch;
+  margin: -7px 0;
+  padding-right: 8px;
+  display: flex;
+  align-items: stretch;
+}
+#${DOCK_ID} [data-sve-antlers-select] {
+  box-sizing: border-box;
+  max-width: 148px;
+  height: auto;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-left: 1px solid rgba(255,255,255,.06);
+  border-radius: 0;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  color-scheme: dark;
+}
+#${DOCK_ID} [data-sve-antlers-select]:hover,
+#${DOCK_ID} [data-sve-antlers-select]:focus-visible {
+  background: transparent;
 }
 #${DOCK_ID} [data-sve-css-chrome] {
   flex: 0 0 auto;
@@ -914,6 +1096,27 @@ function ensureStyle(doc) {
   outline-offset: 1px;
   background: rgba(255,255,255,.1);
 }
+#${CSS_MENU_ID} [data-sve-css-add-label] {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .55;
+  margin-bottom: 6px;
+}
+#${CSS_MENU_ID} [data-sve-css-add-input] {
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 4px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
 #${DOCK_ID} [data-sve-code-split] {
   flex: 0 0 16px;
   cursor: col-resize;
@@ -928,22 +1131,107 @@ function ensureStyle(doc) {
   filter: brightness(1.15);
 }
 #${DOCK_ID} [data-sve-code-pane] .cm-editor {
-  flex: 1 1 auto;
-  height: 100%;
+  height: auto !important;
   min-height: 0;
+  overflow: visible;
 }
 #${DOCK_ID} [data-sve-code-pane] .cm-scroller {
-  overflow: auto;
-  min-height: 0;
-  height: 100%;
+  overflow: visible !important;
+  height: auto !important;
+  min-height: 0 !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 #${DOCK_ID} [data-sve-code-host] {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.35) transparent;
+}
+#${DOCK_ID} [data-sve-code-host]::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+#${DOCK_ID} [data-sve-code-host]::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.28);
+  border-radius: 6px;
+}
+#${DOCK_ID} .sve-cm-css-token {
+  background: rgba(215,186,125,.22);
+  border-radius: 2px;
+}
+#${CLASS_RENAME_CHIP_ID} {
+  all: unset;
+  position: fixed;
+  z-index: 90;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #3c3c3c;
+  color: #d7ba7d;
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  cursor: pointer;
+}
+#${CLASS_RENAME_CHIP_ID}:hover {
+  background: #4a4a4a;
+}
+#${DOCK_ID} .sve-cm-partial {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  background: rgba(251,191,36,.16);
+  cursor: pointer;
+}
+#${DOCK_ID} .sve-cm-partial-line {
+  background: rgba(251,191,36,.12);
+}
+#${DOCK_ID}[data-sve-code-locked] .sve-cm-partial {
+  text-decoration: none;
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+}
+#${DOCK_ID}[data-sve-code-locked] .sve-cm-partial-line {
+  background: transparent;
+}
+#${PARTIAL_MENU_ID} {
+  position: fixed;
+  z-index: 90;
+  min-width: 168px;
+  max-width: 280px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 8px;
+  background: #252526;
+  color: #d4d4d4;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+#${PARTIAL_MENU_ID} [data-sve-partial-choice] {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+#${PARTIAL_MENU_ID} [data-sve-partial-choice]:hover {
+  background: rgba(255,255,255,.1);
+}
+#${PARTIAL_MENU_ID} [data-sve-partial-empty] {
+  padding: 6px 8px;
+  font-size: 12px;
+  opacity: .55;
 }
 `;
 }
@@ -970,6 +1258,7 @@ function rightInset(doc) {
   for (const id of [
     '__sve-section-picker',
     '__sve-outline-panel',
+    '__sve-html-tree-panel',
     '__sve-listview-panel',
     '__sve-right-dock',
     '__sve-chrome-designs',
@@ -1067,7 +1356,104 @@ function previewBottomPad(doc, px) {
   }
 }
 
+function sizeEditorHosts(dock) {
+  if (!dock) {
+    return;
+  }
+
+  const dockH = dock.clientHeight;
+  const bar = dock.querySelector('[data-sve-code-bar]');
+  const banner = dock.querySelector('[data-sve-code-lock-banner]');
+  const bannerH = banner && winOf(dock)?.getComputedStyle(banner).display !== 'none'
+    ? banner.offsetHeight
+    : 0;
+  const panesH = Math.max(64, dockH - (bar?.offsetHeight || 0) - bannerH);
+  const panes = dock.querySelector('[data-sve-code-panes]');
+
+  if (panes) {
+    panes.style.height = `${panesH}px`;
+    panes.style.minHeight = '0';
+    panes.style.overflow = 'hidden';
+  }
+
+  dock.querySelectorAll('[data-sve-code-host]').forEach((host) => {
+    const pane = host.closest('[data-sve-code-pane]');
+
+    if (!pane || pane.style.display === 'none') {
+      return;
+    }
+
+    let chrome = 0;
+
+    for (const child of pane.children) {
+      if (child === host) {
+        continue;
+      }
+
+      chrome += child.offsetHeight;
+    }
+
+    const h = Math.max(64, panesH - chrome);
+
+    host.style.height = `${h}px`;
+    host.style.maxHeight = `${h}px`;
+    host.style.minHeight = '0';
+    host.style.overflow = 'auto';
+    bindHostWheel(host);
+  });
+}
+
+function winOf(el) {
+  return el.ownerDocument?.defaultView || lastWin;
+}
+
+function bindHostWheel(host) {
+  if (host._sveWheelBound) {
+    return;
+  }
+
+  host._sveWheelBound = true;
+  host.addEventListener(
+    'wheel',
+    (event) => {
+      const maxY = host.scrollHeight - host.clientHeight;
+      const maxX = host.scrollWidth - host.clientWidth;
+      let used = false;
+
+      if (event.deltaY && maxY > 0) {
+        const next = Math.min(maxY, Math.max(0, host.scrollTop + event.deltaY));
+
+        if (next !== host.scrollTop) {
+          host.scrollTop = next;
+          used = true;
+        }
+      }
+
+      if (event.deltaX && maxX > 0) {
+        const next = Math.min(maxX, Math.max(0, host.scrollLeft + event.deltaX));
+
+        if (next !== host.scrollLeft) {
+          host.scrollLeft = next;
+          used = true;
+        }
+      }
+
+      if (used) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    { passive: false }
+  );
+}
+
 function measureEditors() {
+  const dock = (layoutWin || lastWin)?.document?.getElementById(DOCK_ID);
+
+  if (dock) {
+    sizeEditorHosts(dock);
+  }
+
   for (const handle of HANDLES) {
     editors[handle]?.requestMeasure();
   }
@@ -1110,6 +1496,7 @@ function paintPaneButtons(dock, panes) {
   });
 
   applyPaneWidths(dock.ownerDocument.defaultView, dock);
+  sizeEditorHosts(dock);
 }
 
 function applyPaneWidths(win, dock) {
@@ -1140,6 +1527,7 @@ function placeDock(win, dock) {
   dock.style.bottom = '0';
   dock.style.height = `${height}px`;
   previewBottomPad(doc, height);
+  sizeEditorHosts(dock);
 }
 
 /**
@@ -1199,7 +1587,7 @@ function bindResize(win, dock) {
   dock._sveResizeBound = true;
 
   const startResize = (event) => {
-    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-lock], .cm-editor')) {
+    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-back], [data-sve-html-scope], [data-sve-code-lock], [data-sve-code-autosave], [data-sve-code-save], .cm-editor')) {
       return;
     }
 
@@ -1339,6 +1727,92 @@ function setPath(doc, path) {
   }
 }
 
+function paintBack(win) {
+  const btn = win?.document?.getElementById(DOCK_ID)?.querySelector('[data-sve-code-back]');
+
+  if (!btn) {
+    return;
+  }
+
+  btn.hidden = typeStack.length === 0;
+  btn.title = t(win, 'code_dock_back');
+  btn.setAttribute('aria-label', btn.title);
+  btn.innerHTML = BACK_ICON;
+}
+
+function bindBack(win, dock) {
+  const btn = dock.querySelector('[data-sve-code-back]');
+
+  if (!btn || btn._sveBound) {
+    return;
+  }
+
+  btn._sveBound = true;
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    goBackTemplate(win);
+  });
+}
+
+function currentSectionValues(win) {
+  const uid = lastUid;
+  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    if (uid && typeof sve.findPathByUid === 'function') {
+      const path = sve.findPathByUid(values, uid);
+
+      if (path) {
+        const parts = path.split('.');
+        const section = sve.dataGet?.(values, parts.slice(0, 2).join('.'));
+
+        if (section && typeof section === 'object') {
+          return section;
+        }
+      }
+    }
+  }
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+
+    if (values && typeof values === 'object') {
+      return values;
+    }
+  }
+
+  return null;
+}
+
+function openNestedTemplate(win, type) {
+  if (!type || type === lastType) {
+    return;
+  }
+
+  flushSave(win.document);
+  loadTemplate(win, type, 'push');
+}
+
+function goBackTemplate(win) {
+  const prev = typeStack.pop();
+
+  if (!prev) {
+    paintBack(win);
+
+    return;
+  }
+
+  flushSave(win.document);
+  loadTemplate(win, prev, 'keep');
+}
+
 function paintLock(win) {
   const dock = win.document.getElementById(DOCK_ID);
   const btn = dock?.querySelector('[data-sve-code-lock]');
@@ -1348,9 +1822,21 @@ function paintLock(win) {
     return;
   }
 
-  const locked = lastLocked && lockReady;
+  // lockReady only gates the toggle: you cannot lock/unlock until the file
+  // has answered. Visual lock follows lastLocked so a locked file never
+  // paints unlocked for a frame while that answer is in flight.
+  const locked = lastLocked;
 
   dock.toggleAttribute('data-sve-code-locked', locked);
+  if (locked) {
+    closePartialMenu(win.document);
+    closeClassTokenUi(win.document);
+    if (htmlPartialUi) {
+      htmlPartialUi.setHover(editors.html, null);
+      htmlPartialUi.setHover(editors.css, null);
+    }
+    htmlClassTokenUi?.setHover(editors.html, null);
+  }
   btn.hidden = !lockReady;
   btn.setAttribute('aria-pressed', lastLocked ? 'true' : 'false');
   btn.title = t(win, lastLocked ? 'code_dock_unlock' : 'code_dock_lock');
@@ -1360,6 +1846,436 @@ function paintLock(win) {
   if (banner) {
     banner.textContent = t(win, 'code_dock_locked_banner');
   }
+}
+
+function htmlScopeEnabled(win) {
+  if (!win) {
+    return htmlScopePref;
+  }
+
+  return chromeGet(win, SCOPE_KEY) !== '0';
+}
+
+function htmlFocusOk(from, to, length) {
+  return from != null && to != null && from >= 0 && to > from && to <= length;
+}
+
+function syncScopedHtml() {
+  const text = editors.html?.state.doc.toString() ?? '';
+
+  if (!htmlScopeActive || !htmlFocus) {
+    htmlFull = text;
+
+    return;
+  }
+
+  if (htmlFocus.from < 0 || htmlFocus.from > htmlFull.length || htmlFocus.to < htmlFocus.from) {
+    htmlScopeActive = false;
+    htmlFull = text;
+    htmlFocus = null;
+
+    return;
+  }
+
+  htmlFull = htmlFull.slice(0, htmlFocus.from) + text + htmlFull.slice(htmlFocus.to);
+  htmlFocus = { from: htmlFocus.from, to: htmlFocus.from + text.length };
+}
+
+function currentFullHtml() {
+  syncScopedHtml();
+
+  if (htmlScopeActive) {
+    return htmlFull;
+  }
+
+  return editors.html?.state.doc.toString() ?? lastParts.html ?? '';
+}
+
+function rememberBracketNames() {
+  lastBracketNames = bracketClassTokens(currentFullHtml()).map((token) => token.name);
+}
+
+function rememberCssSelectors() {
+  lastCssSelectorNames = cssClassSelectors(editors.css?.state.doc.toString() ?? cssFull);
+}
+
+function namesEqual(a, b) {
+  return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((name, i) => name === b[i]);
+}
+
+function harvestHtmlTreeCss() {
+  const html = htmlScopeActive ? htmlSnippet() : currentFullHtml();
+  const tree = tokenTreeFromHtml(html);
+
+  if (!tree.length) {
+    return;
+  }
+
+  cssFull = mergeScopedCss(cssFull, buildScopedCss(cssFull, tree), tree[0].className);
+}
+
+function applyBracketCssSync(prevNames, nextNames) {
+  cssFull = syncCssWithBrackets(cssFull, prevNames, nextNames);
+  harvestHtmlTreeCss();
+  cssFull = pruneBracketCss(cssFull, nextNames, prevNames);
+}
+
+function flushBracketSync(win) {
+  if (applying || lastLocked || lastBracketNames == null) {
+    return;
+  }
+
+  const nextNames = bracketClassTokens(currentFullHtml()).map((token) => token.name);
+
+  if (namesEqual(lastBracketNames, nextNames)) {
+    return;
+  }
+
+  applyBracketCssSync(lastBracketNames, nextNames);
+  lastBracketNames = nextNames;
+  applyCssScope();
+  rememberCssSelectors();
+}
+
+function flushCssToHtml() {
+  if (applying || lastLocked || lastCssSelectorNames == null || lastBracketNames == null || cssPane === 'empty') {
+    return;
+  }
+
+  const view = editors.html;
+  const nextSelectors = cssClassSelectors(editors.css?.state.doc.toString() ?? '');
+
+  if (!view || namesEqual(lastCssSelectorNames, nextSelectors)) {
+    return;
+  }
+
+  const owned = new Set(lastBracketNames);
+  const { renamed, removed } = diffBracketNames(lastCssSelectorNames, nextSelectors);
+  let html = view.state.doc.toString();
+  const prevHtml = html;
+
+  for (const pair of renamed) {
+    const name = sanitizeCssClassName(pair.to);
+
+    if (!owned.has(pair.from) || !name) {
+      continue;
+    }
+
+    html = rewriteBracketClassTokens(html, (token) => (token === pair.from ? name : token));
+  }
+
+  for (const name of removed) {
+    if (!owned.has(name) || nextSelectors.includes(name)) {
+      continue;
+    }
+
+    html = rewriteBracketClassTokens(html, (token) => (token === name ? '' : token));
+  }
+
+  if (html !== prevHtml) {
+    applying = true;
+
+    try {
+      writeHtmlEditor(html);
+    } finally {
+      applying = false;
+    }
+  }
+
+  rememberBracketNames();
+  lastCssSelectorNames = nextSelectors;
+}
+
+function renameBracketClassAt(token, raw) {
+  const name = sanitizeCssClassName(raw);
+  const view = editors.html;
+
+  if (!name || !view || view.state.readOnly || name === token.name) {
+    return;
+  }
+
+  applying = true;
+
+  try {
+    view.dispatch({
+      changes: { from: token.from, to: token.to, insert: name },
+    });
+  } finally {
+    applying = false;
+  }
+
+  const prev = lastBracketNames == null ? [] : lastBracketNames.slice();
+
+  rememberBracketNames();
+  applyBracketCssSync(prev, lastBracketNames);
+  applyCssScope();
+  rememberCssSelectors();
+
+  if (lastWin) {
+    onEditorInput(lastWin);
+    paintCssToolState(lastWin);
+  }
+}
+
+function openRenameClassMenu(win, token) {
+  const doc = win.document;
+  const view = editors.html;
+  const coords = view?.coordsAtPos(token.from);
+
+  closeCssMenu(doc);
+  closeClassTokenUi(doc);
+
+  const menu = doc.createElement('div');
+  const anchor = {
+    getBoundingClientRect: () => ({
+      left: coords?.left ?? 12,
+      right: coords?.right ?? 12,
+      top: coords?.top ?? 12,
+      bottom: coords?.bottom ?? 12,
+      width: 0,
+      height: 0,
+    }),
+  };
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockAddClass, menu, {
+    label: t(win, 'code_dock_css_rename_class'),
+    placeholder: t(win, 'code_dock_css_class_placeholder'),
+    initial: token.name,
+    onAdd: (value) => {
+      renameBracketClassAt(token, value);
+      closeCssMenu(doc);
+    },
+  });
+}
+
+function htmlEditorText() {
+  if (htmlScopePref && htmlFocusOk(htmlFocus?.from, htmlFocus?.to, htmlFull.length)) {
+    htmlScopeActive = true;
+
+    return htmlFull.slice(htmlFocus.from, htmlFocus.to);
+  }
+
+  htmlScopeActive = false;
+
+  return htmlFull;
+}
+
+function writeHandleEditor(handle, text, selection) {
+  const view = editors[handle];
+
+  if (!view) {
+    return;
+  }
+
+  const current = view.state.doc.toString();
+
+  applying = true;
+
+  try {
+    if (current !== text) {
+      view.dispatch({
+        changes: { from: 0, to: current.length, insert: text },
+        ...(selection ? { selection, scrollIntoView: true } : {}),
+      });
+    } else if (selection) {
+      view.dispatch({
+        selection,
+        scrollIntoView: true,
+      });
+    }
+  } finally {
+    applying = false;
+  }
+}
+
+function writeHtmlEditor(text, selection) {
+  writeHandleEditor('html', text, selection);
+}
+
+function htmlSnippet() {
+  if (htmlScopeActive) {
+    return editors.html?.state.doc.toString() ?? '';
+  }
+
+  if (htmlFocusOk(htmlFocus?.from, htmlFocus?.to, htmlFull.length)) {
+    return htmlFull.slice(htmlFocus.from, htmlFocus.to);
+  }
+
+  return '';
+}
+
+function flushCssScope() {
+  const current = editors.css?.state.doc.toString() ?? '';
+
+  if (cssPane === 'tree') {
+    if (current === cssScopeSnapshot) {
+      return;
+    }
+
+    const root =
+      tokenTreeFromHtml(htmlSnippet())[0]?.className || firstClassName(current);
+
+    cssFull = mergeScopedCss(cssFull, current, root);
+    cssScopeSnapshot = current;
+  } else if (cssPane === 'full') {
+    cssFull = current;
+  }
+}
+
+function tokenTreeNeedsCss(css, nodes) {
+  for (const node of nodes || []) {
+    if (!findClassRule(css, node.className) || tokenTreeNeedsCss(css, node.children)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function applyCssScope() {
+  let text = cssFull;
+  let tree = [];
+  let created = false;
+
+  if (!htmlScopePref || !htmlScopeActive) {
+    cssPane = 'full';
+    text = cssFull;
+  } else {
+    tree = tokenTreeFromHtml(htmlSnippet());
+
+    if (!tree.length) {
+      cssPane = 'empty';
+      text = '';
+    } else {
+      cssPane = 'tree';
+      text = buildScopedCss(cssFull, tree);
+
+      if (tokenTreeNeedsCss(cssFull, tree)) {
+        cssFull = mergeScopedCss(cssFull, text, tree[0].className);
+        created = true;
+      }
+    }
+  }
+
+  cssScopeSnapshot = text;
+  writeHandleEditor('css', text);
+  rememberCssSelectors();
+
+  if (lastWin) {
+    paintCssToolState(lastWin);
+
+    if (created) {
+      onEditorInput(lastWin);
+    }
+  }
+}
+
+function showHtmlScope() {
+  const view = editors.html;
+
+  if (!view || !htmlFocus) {
+    return;
+  }
+
+  if (!htmlScopeActive) {
+    htmlFull = view.state.doc.toString();
+  }
+
+  const length = htmlFull.length;
+  const from = Math.max(0, Math.min(htmlFocus.from, length));
+  const to = Math.max(from, Math.min(htmlFocus.to, length));
+
+  if (to <= from) {
+    return;
+  }
+
+  htmlFocus = { from, to };
+  htmlScopeActive = true;
+  writeHtmlEditor(htmlFull.slice(from, to), { anchor: 0, head: 0 });
+  applyCssScope();
+  view.focus();
+}
+
+function showHtmlFull(selectFocus = true) {
+  const view = editors.html;
+
+  if (!view) {
+    return;
+  }
+
+  flushCssScope();
+  syncScopedHtml();
+  htmlScopeActive = false;
+
+  const full = htmlFull || view.state.doc.toString();
+  const selection =
+    selectFocus && htmlFocusOk(htmlFocus?.from, htmlFocus?.to, full.length)
+      ? { anchor: htmlFocus.from, head: htmlFocus.to }
+      : null;
+
+  htmlFull = full;
+  writeHtmlEditor(full, selection);
+  cssPane = 'full';
+  cssScopeSnapshot = cssFull;
+  writeHandleEditor('css', cssFull);
+  rememberCssSelectors();
+}
+
+function clearHtmlScopeRange() {
+  htmlFocus = null;
+  htmlScopeActive = false;
+  htmlFull = '';
+  cssFull = '';
+  cssPane = 'full';
+  cssScopeSnapshot = '';
+  lastBracketNames = null;
+  lastCssSelectorNames = null;
+}
+
+function paintHtmlScope(win) {
+  const btn = win?.document.getElementById(DOCK_ID)?.querySelector('[data-sve-html-scope]');
+
+  if (!btn) {
+    return;
+  }
+
+  htmlScopePref = htmlScopeEnabled(win);
+  btn.setAttribute('aria-pressed', htmlScopePref ? 'true' : 'false');
+  btn.title = t(win, htmlScopePref ? 'code_dock_html_scope_off' : 'code_dock_html_scope');
+  btn.setAttribute('aria-label', btn.title);
+  btn.innerHTML = SCOPE_ICON;
+  win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', htmlScopeActive);
+}
+
+function bindHtmlScope(win, dock) {
+  if (dock._sveHtmlScopeBound) {
+    return;
+  }
+
+  dock._sveHtmlScopeBound = true;
+  htmlScopePref = htmlScopeEnabled(win);
+
+  dock.querySelector('[data-sve-html-scope]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    htmlScopePref = !htmlScopeEnabled(win);
+    chromeSet(win, SCOPE_KEY, htmlScopePref ? '1' : '0');
+
+    if (htmlScopePref) {
+      if (htmlFocus) {
+        flushCssScope();
+        showHtmlScope();
+      }
+    } else if (htmlScopeActive) {
+      showHtmlFull();
+    }
+
+    paintHtmlScope(win);
+  });
 }
 
 function bindLock(win, dock) {
@@ -1384,6 +2300,85 @@ function bindLock(win, dock) {
     }
 
     setTemplateLock(win, true);
+  });
+}
+
+function autosaveEnabled(win) {
+  if (!win) {
+    return true;
+  }
+
+  return chromeGet(win, AUTOSAVE_KEY) !== '0';
+}
+
+function dockIsDirty() {
+  const view = editors.html;
+
+  if (!view || view.state.readOnly || !lastType) {
+    return false;
+  }
+
+  return !sameParts(readParts(), lastParts);
+}
+
+function paintAutosave(win) {
+  const dock = win?.document.getElementById(DOCK_ID);
+  const autoBtn = dock?.querySelector('[data-sve-code-autosave]');
+  const saveBtn = dock?.querySelector('[data-sve-code-save]');
+
+  if (!autoBtn || !saveBtn) {
+    return;
+  }
+
+  const on = autosaveEnabled(win);
+  const dirty = dockIsDirty();
+
+  autoBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  autoBtn.title = t(win, on ? 'code_dock_autosave_on' : 'code_dock_autosave_off');
+  autoBtn.setAttribute('aria-label', autoBtn.title);
+  autoBtn.innerHTML = AUTOSAVE_ICON;
+
+  saveBtn.hidden = on;
+  saveBtn.title = t(win, 'code_dock_save');
+  saveBtn.setAttribute('aria-label', saveBtn.title);
+  saveBtn.innerHTML = SAVE_ICON;
+
+  if (dirty) {
+    saveBtn.setAttribute('data-dirty', '');
+  } else {
+    saveBtn.removeAttribute('data-dirty');
+  }
+}
+
+function bindAutosave(win, dock) {
+  if (dock._sveAutosaveBound) {
+    return;
+  }
+
+  dock._sveAutosaveBound = true;
+
+  dock.querySelector('[data-sve-code-autosave]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const next = !autosaveEnabled(win);
+
+    chromeSet(win, AUTOSAVE_KEY, next ? '1' : '0');
+
+    if (next) {
+      flushSave(win.document);
+    } else if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+
+    paintAutosave(win);
+  });
+
+  dock.querySelector('[data-sve-code-save]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    flushSave(win.document);
   });
 }
 
@@ -1442,8 +2437,9 @@ function setTemplateLock(win, locked) {
         }
 
         lastLocked = locked;
-        writeParts(lastParts, locked);
         paintLock(win);
+        writeParts(lastParts, locked);
+        paintHtmlScope(win);
         setStatus(win.document, locked ? t(win, 'code_dock_locked') : '');
       })
       .catch(() => {
@@ -1467,47 +2463,105 @@ function setTemplateLock(win, locked) {
 function readParts() {
   const parts = { html: '', css: '', js: '' };
 
+  syncScopedHtml();
+  flushCssScope();
+
   for (const handle of HANDLES) {
-    parts[handle] = editors[handle]?.state.doc.toString() ?? '';
+    if (handle === 'html') {
+      parts.html = htmlScopeActive ? htmlFull : (editors.html?.state.doc.toString() ?? '');
+    } else if (handle === 'css') {
+      parts.css = cssFull;
+    } else {
+      parts[handle] = editors[handle]?.state.doc.toString() ?? '';
+    }
   }
 
   return parts;
+}
+
+function cssEditorText() {
+  if (!(htmlScopePref && htmlFocusOk(htmlFocus?.from, htmlFocus?.to, htmlFull.length))) {
+    cssPane = 'full';
+    cssScopeSnapshot = cssFull;
+
+    return cssFull;
+  }
+
+  const tree = tokenTreeFromHtml(htmlFull.slice(htmlFocus.from, htmlFocus.to));
+
+  if (!tree.length) {
+    cssPane = 'empty';
+    cssScopeSnapshot = '';
+
+    return '';
+  }
+
+  cssPane = 'tree';
+
+  const text = buildScopedCss(cssFull, tree);
+
+  cssScopeSnapshot = text;
+
+  return text;
 }
 
 function writeParts(parts, disabled) {
   applying = true;
 
   try {
+    if (lastWin) {
+      htmlScopePref = htmlScopeEnabled(lastWin);
+    }
+
+    htmlFull = parts.html ?? '';
+    cssFull = parts.css ?? '';
+
     for (const handle of HANDLES) {
       const view = editors[handle];
-      const text = parts[handle] ?? '';
+      let text = parts[handle] ?? '';
+
+      try {
+        text = handle === 'html' ? htmlEditorText() : handle === 'css' ? cssEditorText() : text;
+      } catch {
+        text =
+          handle === 'html'
+            ? htmlFull || parts.html || ''
+            : handle === 'css'
+              ? cssFull || parts.css || ''
+              : text;
+      }
 
       if (!view) {
         continue;
       }
 
       const current = view.state.doc.toString();
+      const effects = [
+        readOnlyOf[handle].reconfigure(EditorState.readOnly.of(!!disabled)),
+        editableOf[handle].reconfigure(EditorView.editable.of(!disabled)),
+      ];
 
       if (current !== text) {
         view.dispatch({
           changes: { from: 0, to: current.length, insert: text },
+          effects,
         });
+      } else {
+        view.dispatch({ effects });
       }
-
-      view.dispatch({
-        effects: [
-          readOnlyOf[handle].reconfigure(EditorState.readOnly.of(!!disabled)),
-          editableOf[handle].reconfigure(EditorView.editable.of(!disabled)),
-        ],
-      });
     }
   } finally {
     applying = false;
   }
 
+  rememberBracketNames();
+  rememberCssSelectors();
+  emit('dock:html-changed');
+
   if (lastWin) {
     paintCssToolState(lastWin);
     paintHtmlToolState(lastWin);
+    paintHtmlScope(lastWin);
   }
 }
 
@@ -2202,7 +3256,7 @@ function closeCssMenu(doc) {
 
   menu?._sveApp?.unmount();
   menu?.remove();
-  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-css-box-side][data-open], [data-sve-html-tool][data-open]').forEach((el) =>
+  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-css-box-side][data-open], [data-sve-html-tool][data-open], [data-sve-css-add-class][data-open]').forEach((el) =>
     el.removeAttribute('data-open')
   );
 }
@@ -2210,6 +3264,7 @@ function closeCssMenu(doc) {
 /** Close CSS/HTML tool menus and CodeMirror suggestions — they sit above Statamic pickers. */
 export function closeCodeDockPopups(doc) {
   closeCssMenu(doc);
+  closeClassTokenUi(doc);
 
   for (const handle of HANDLES) {
     if (editors[handle]) {
@@ -2520,8 +3575,8 @@ function htmlElementAtCursor() {
   if (lastLt !== -1 && text.indexOf('>', lastLt) >= pos) {
     const tag = readHtmlTag(text, lastLt);
 
-    if (tag?.kind === 'open') {
-      const close = findHtmlClose(text, tag.name, tag.to);
+    if (tag?.kind === 'open' || tag?.kind === 'void') {
+      const close = tag.kind === 'void' ? null : findHtmlClose(text, tag.name, tag.to);
 
       return close ? { name: tag.name, open: tag, close } : { name: tag.name, open: tag, close: null };
     }
@@ -2745,6 +3800,90 @@ function openHtmlHeadingMenu(win, anchor) {
   });
 }
 
+function addCssClassName(raw) {
+  const name = sanitizeCssClassName(raw);
+  const htmlView = editors.html;
+  const cssView = editors.css;
+
+  if (!name || htmlView?.state.readOnly || cssView?.state.readOnly) {
+    return;
+  }
+
+  const el = htmlElementAtCursor();
+
+  if (el?.open && htmlView) {
+    const open = htmlView.state.doc.sliceString(el.open.from, el.open.to);
+    const next = applyBracketClass(open, name);
+
+    if (next !== open) {
+      htmlView.dispatch({
+        changes: { from: el.open.from, to: el.open.to, insert: next },
+      });
+    }
+  }
+
+  flushCssScope();
+
+  if (!findClassRule(cssFull, name)) {
+    cssFull = `${String(cssFull || '').trimEnd()}${cssFull?.trim() ? '\n' : ''}.${name} {\n}\n`;
+  }
+
+  applyCssScope();
+  rememberBracketNames();
+  rememberCssSelectors();
+
+  if (lastWin) {
+    onEditorInput(lastWin);
+    paintHtmlToolState(lastWin);
+    paintCssToolState(lastWin);
+  }
+}
+
+function openAddClassMenu(win, anchor) {
+  const doc = win.document;
+
+  if (anchor.hasAttribute('data-open')) {
+    closeCssMenu(doc);
+
+    return;
+  }
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockAddClass, menu, {
+    label: t(win, 'code_dock_css_class_name'),
+    placeholder: t(win, 'code_dock_css_class_placeholder'),
+    onAdd: (value) => {
+      addCssClassName(value);
+      closeCssMenu(doc);
+    },
+  });
+}
+
+function bindCssAddClass(win, dock) {
+  const btn = dock.querySelector('[data-sve-css-add-class]');
+
+  if (!btn || btn._sveBound) {
+    return;
+  }
+
+  btn._sveBound = true;
+  btn.innerHTML = CSS_ADD_ICON;
+  btn.title = t(win, 'code_dock_css_add_class');
+  btn.setAttribute('aria-label', btn.title);
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openAddClassMenu(win, btn);
+  });
+}
+
 function bindCssTools(win, dock) {
   const host = dock.querySelector('[data-sve-css-tools]');
 
@@ -2892,7 +4031,7 @@ function bindCssTools(win, dock) {
   win.document.addEventListener(
     'mousedown',
     (event) => {
-      if (event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-css-subrow], [data-sve-html-tools]`)) {
+      if (event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-css-subrow], [data-sve-html-tools], [data-sve-css-add-class]`)) {
         return;
       }
 
@@ -2934,6 +4073,50 @@ function bindHtmlTools(win, dock) {
       applyHtmlTag(tool.tag);
     },
   });
+
+  bindAntlersSnippets(win, dock);
+}
+
+function bindAntlersSnippets(win, dock) {
+  const host = dock.querySelector('[data-sve-antlers-tools]');
+
+  if (!host || host._sveBound) {
+    return;
+  }
+
+  host._sveBound = true;
+
+  mountPane(host, CodeDockAntlersSelect, {
+    label: t(win, 'code_dock_antlers'),
+    groups: ANTLERS_SNIPPET_GROUPS.map((group) => ({
+      id: group.id,
+      label: t(win, group.lang),
+      items: ANTLERS_SNIPPETS.filter((item) => item.group === group.id).map((item) => ({
+        id: item.id,
+        label: item.label,
+      })),
+    })),
+    onPick: (id) => insertAntlersSnippet(id),
+  });
+}
+
+function insertAntlersSnippet(id) {
+  const spec = antlersSnippet(id);
+  const view = editors.html;
+
+  if (!spec || !view || view.state.readOnly) {
+    return;
+  }
+
+  const pos = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(pos);
+  const indent = line.text.trim()
+    ? lineIndentOf(line.text)
+    : indentFromPrevious(view, line) || lineIndentOf(line.text);
+  const { text, cursor } = expandAntlersSnippet(spec.snippet);
+
+  insertHtmlSnippet(indentAntlersSnippet(text, indent), cursor);
+  finishHtmlEdit();
 }
 
 function refreshPreview(win) {
@@ -2962,8 +4145,9 @@ function postSave(win, type, parts) {
       if (res.status === 423) {
         lastLocked = true;
         lockReady = true;
-        writeParts(lastParts, true);
         paintLock(win);
+        writeParts(lastParts, true);
+        paintHtmlScope(win);
         setStatus(win.document, t(win, 'code_dock_locked'));
 
         return;
@@ -2976,6 +4160,7 @@ function postSave(win, type, parts) {
       if (lastType === type) {
         lastParts = parts;
         setStatus(win.document, t(win, 'code_dock_saved'));
+        paintAutosave(win);
         win.setTimeout(() => {
           const el = win.document.getElementById(DOCK_ID)?.querySelector('[data-sve-code-status]');
 
@@ -3043,11 +4228,51 @@ function onEditorInput(win) {
   const parts = readParts();
 
   if (sameParts(parts, lastParts)) {
+    paintAutosave(win);
+    return;
+  }
+
+  paintAutosave(win);
+
+  if (!autosaveEnabled(win)) {
+    setStatus(win.document, t(win, 'code_dock_unsaved'));
+
     return;
   }
 
   setStatus(win.document, t(win, 'code_dock_saving'));
   scheduleSave(win, win.document);
+}
+
+let htmlPartialUi = null;
+let htmlClassTokenUi = null;
+
+function partialUi() {
+  if (!htmlPartialUi) {
+    htmlPartialUi = partialDecorations({
+      Decoration,
+      StateField,
+      StateEffect,
+      RangeSetBuilder,
+      EditorView,
+    });
+  }
+
+  return htmlPartialUi;
+}
+
+function classTokenUi() {
+  if (!htmlClassTokenUi) {
+    htmlClassTokenUi = classTokenDecorations({
+      Decoration,
+      StateField,
+      StateEffect,
+      RangeSetBuilder,
+      EditorView,
+    });
+  }
+
+  return htmlClassTokenUi;
 }
 
 function mountEditor(win, handle, parent) {
@@ -3084,9 +4309,22 @@ function mountEditor(win, handle, parent) {
         ]),
         saveKey,
         EditorView.lineWrapping,
-        readOnlyOf[handle].of(EditorState.readOnly.of(false)),
-        editableOf[handle].of(EditorView.editable.of(true)),
+        ...(handle === 'html' || handle === 'css'
+          ? partialUi().extensions
+          : []),
+        ...(SUNDAY_AUG30 && handle === 'html' ? classTokenUi().extensions : []),
+        readOnlyOf[handle].of(EditorState.readOnly.of(!!lastLocked)),
+        editableOf[handle].of(EditorView.editable.of(!lastLocked)),
         EditorView.updateListener.of((update) => {
+          if (SUNDAY_AUG30 && handle === 'html' && update.docChanged && !applying) {
+            flushBracketSync(win);
+            emit('dock:html-changed');
+          }
+
+          if (SUNDAY_AUG30 && handle === 'css' && update.docChanged && !applying) {
+            flushCssToHtml();
+          }
+
           if (update.docChanged) {
             onEditorInput(win);
           }
@@ -3133,9 +4371,14 @@ async function ensureDockAsync(win) {
     const chromeOk =
       dock.querySelector('[data-sve-css-chrome="subrow-2"]') &&
       dock.querySelector('[data-sve-css-subrow]') &&
+      dock.querySelector('[data-sve-css-add-class]') &&
       dock.querySelector('[data-sve-html-tools]') &&
+      dock.querySelector('[data-sve-html-scope]') &&
       dock.querySelector('[data-sve-code-lock]') &&
-      dock.getAttribute('data-sve-code-chrome') === 'lock-1';
+      dock.querySelector('[data-sve-code-back]') &&
+      dock.querySelector('[data-sve-code-autosave]') &&
+      dock.querySelector('[data-sve-code-save]') &&
+      dock.getAttribute('data-sve-code-chrome') === 'scope-6';
 
     if (!chromeOk) {
       for (const handle of HANDLES) {
@@ -3151,7 +4394,7 @@ async function ensureDockAsync(win) {
   if (!dock) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
-    dock.setAttribute('data-sve-code-chrome', 'lock-1');
+    dock.setAttribute('data-sve-code-chrome', 'scope-6');
     mountPane(dock, CodeDockChrome, {
       htmlLabel: t(win, 'code_dock_html'),
       cssLabel: t(win, 'code_dock_css'),
@@ -3164,8 +4407,12 @@ async function ensureDockAsync(win) {
     bindPaneToggles(win, dock);
     bindSplitters(win, dock);
     bindCssTools(win, dock);
+    bindCssAddClass(win, dock);
     bindHtmlTools(win, dock);
+    bindHtmlScope(win, dock);
     bindLock(win, dock);
+    bindBack(win, dock);
+    bindAutosave(win, dock);
 
     for (const handle of HANDLES) {
       const host = dock.querySelector(`[data-sve-code-pane="${handle}"] [data-sve-code-host]`);
@@ -3176,10 +4423,16 @@ async function ensureDockAsync(win) {
 
   attachDock(doc, dock);
   shieldDock(dock);
+  bindHtmlScope(win, dock);
   bindLock(win, dock);
+  bindBack(win, dock);
+  bindAutosave(win, dock);
   bindLayoutWatch(win);
   observeDockLayout(win);
   paintLock(win);
+  paintHtmlScope(win);
+  paintBack(win);
+  paintAutosave(win);
 
   await loadCm();
 
@@ -3189,6 +4442,29 @@ async function ensureDockAsync(win) {
 
       host?.replaceChildren();
       mountEditor(win, handle, host);
+    }
+
+    for (const handle of ['html', 'css']) {
+      if (!editors[handle]) {
+        continue;
+      }
+
+      bindPartialNav(win, editors[handle], {
+        onOpen: (type) => openNestedTemplate(win, type),
+        emptyLabel: t(win, 'code_dock_partials_empty'),
+        sectionValues: () => currentSectionValues(win),
+        isLocked: () => isCodeDockLocked(),
+        setHover: (view, range) => htmlPartialUi?.setHover(view, range),
+      });
+    }
+
+    if (SUNDAY_AUG30) {
+      bindClassTokenNav(win, editors.html, {
+        onRename: (token) => openRenameClassMenu(win, token),
+        isLocked: () => isCodeDockLocked(),
+        setHover: (view, range) => htmlClassTokenUi?.setHover(view, range),
+        title: t(win, 'code_dock_css_rename_class'),
+      });
     }
   }
 
@@ -3210,26 +4486,39 @@ async function showMissing(win, type) {
 
   lastType = type;
   lastLocked = true;
-  lockReady = false;
+  lockReady = true;
   lastParts = { html: '', css: '', js: '' };
+  clearHtmlScopeRange();
+  paintLock(win);
   writeParts(lastParts, true);
   setPath(win.document, type);
   setStatus(win.document, t(win, 'code_dock_missing'));
-  paintLock(win);
+  paintHtmlScope(win);
+  paintBack(win);
+  paintAutosave(win);
   placeDock(win, dock);
 }
 
-async function loadTemplate(win, type) {
+async function loadTemplate(win, type, mode = 'replace') {
+  if (mode === 'replace') {
+    typeStack = [];
+  } else if (mode === 'push' && lastType && lastType !== type) {
+    typeStack.push(lastType);
+  }
+
   const gen = ++loadGen;
-  const dock = await ensureDock(win);
 
   lastType = type;
-  lastLocked = true;
   lockReady = false;
-  writeParts({ html: '', css: '', js: '' }, true);
-  setPath(win.document, type);
+  clearHtmlScopeRange();
   setStatus(win.document, t(win, 'code_dock_loading'));
+
+  const dock = await ensureDock(win);
+
   paintLock(win);
+  paintHtmlScope(win);
+  paintBack(win);
+  paintAutosave(win);
   placeDock(win, dock);
 
   win
@@ -3266,10 +4555,13 @@ async function loadTemplate(win, type) {
       lastType = type;
       lastLocked = !!data.locked;
       lockReady = true;
+      paintLock(win);
       writeParts(lastParts, lastLocked);
       setPath(win.document, data.path || type);
       setStatus(win.document, lastLocked ? t(win, 'code_dock_locked') : '');
-      paintLock(win);
+      paintHtmlScope(win);
+      paintBack(win);
+      paintAutosave(win);
       placeDock(win, dock);
     })
     .catch(() => {
@@ -3385,7 +4677,7 @@ export function refreshCodeDockFromDisk(win) {
   const type = lastType;
 
   lastType = null;
-  loadTemplate(win, type);
+  loadTemplate(win, type, 'keep');
 }
 
 export function closeCodeDock(doc) {
@@ -3393,11 +4685,17 @@ export function closeCodeDock(doc) {
   flushSave(doc);
   lastUid = null;
   lastType = null;
+  typeStack = [];
   lastParts = { html: '', css: '', js: '' };
   lastLocked = false;
   lockReady = false;
+  lastBracketNames = null;
+  lastCssSelectorNames = null;
+  clearHtmlScopeRange();
   lastWin = doc?.defaultView || lastWin;
   closeCssMenu(doc);
+  closePartialMenu(doc);
+  closeClassTokenUi(doc);
   doc?.getElementById(UNLOCK_ID)?.remove();
 
   for (const handle of HANDLES) {
@@ -3428,17 +4726,85 @@ export function relayoutCodeDock(win) {
   placeDock(win, dock);
 }
 
-function firstSectionType(doc) {
-  return doc.querySelector('[data-replicator-set][data-type]')?.getAttribute('data-type') || '';
+/**
+ * The Antlers file for a page section is keyed by the row's `type` in publish
+ * values. The left sidebar is a Vue mount of those rows — whether it is open
+ * or has painted a set must not decide which file the dock shows.
+ *
+ * Header/footer and a global-section host are separate forms, so those still
+ * read their own container. Collection index/show uses the entry's `view`.
+ */
+function pageSectionType(win, doc, uid) {
+  if (uid) {
+    const sectionUid =
+      topLevelSectionUid(uid, doc) || topLevelSectionUid(uid, win.document) || uid;
+
+    return String(
+      (typeof sve.setTypeForUid === 'function' &&
+        (sve.setTypeForUid(sectionUid, doc) || sve.setTypeForUid(sectionUid, win.document))) ||
+        ''
+    ).trim();
+  }
+
+  const field = typeof sve.sectionField === 'function' ? sve.sectionField(win) : 'page_sections';
+  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+    const sections = values?.[field];
+
+    if (!Array.isArray(sections)) {
+      continue;
+    }
+
+    for (const row of sections) {
+      const type = typeof row?.type === 'string' ? row.type.trim() : '';
+
+      if (type) {
+        return type;
+      }
+    }
+  }
+
+  return '';
 }
 
-/**
- * Show or hide the dock.
- *
- * The header button arms it. A nested block still belongs to its outer section.
- * Once armed, the window stays open even with nothing selected — last file, or
- * the first section on the page.
- */
+function collectionViewType(win) {
+  const features = win.Statamic?.$config?.get?.('sveFeatures') || {};
+
+  if (features.collection_templates !== true) {
+    return '';
+  }
+
+  const store = win.Statamic?.$config?.get?.('sveCollectionTemplatesCollection') || 'templates';
+  const path = win.location?.pathname || '';
+
+  if (!path.includes(`/collections/${store}/entries/`)) {
+    return '';
+  }
+
+  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+    const view = typeof values?.view === 'string' ? values.view.trim() : '';
+
+    if (!view || view.includes('..')) {
+      continue;
+    }
+
+    const normalised = view
+      .replace(/\.(antlers\.html|blade\.php)$/i, '')
+      .replace(/^\/+|\/+$/g, '');
+
+    if (normalised) {
+      return `view:${normalised}`;
+    }
+  }
+
+  return '';
+}
+
 function chromeTemplateType(win, doc) {
   const kind = sve.chromeInlineKind || sve.activeChromeKind;
 
@@ -3466,6 +4832,13 @@ function globalSectionTemplateType(doc) {
   return host.querySelector('[data-replicator-set][data-type]')?.getAttribute('data-type') || '';
 }
 
+/**
+ * Load the template file for the section the editor is on.
+ *
+ * `uid` is a visual id on the page (section or a block inside it). Type is
+ * always the outer page-section row in publish values. Do not wait for that
+ * row to exist as a replicator set in the left sidebar.
+ */
 export function syncCodeDock(win, doc, uid) {
   if (dragging) {
     return;
@@ -3479,10 +4852,13 @@ export function syncCodeDock(win, doc, uid) {
     return;
   }
 
-  const chromeType = chromeTemplateType(win, doc);
-  const globalType = chromeType ? '' : globalSectionTemplateType(doc);
-  const setEl = outermostSetOf(uid, doc);
-  const type = chromeType || globalType || setEl?.getAttribute('data-type') || lastType || firstSectionType(doc);
+  const type =
+    chromeTemplateType(win, doc) ||
+    globalSectionTemplateType(doc) ||
+    pageSectionType(win, doc, uid) ||
+    collectionViewType(win) ||
+    (!uid ? lastType : '');
+  const uidChanged = !!(uid && uid !== lastUid);
 
   lastWin = win;
 
@@ -3491,24 +4867,102 @@ export function syncCodeDock(win, doc, uid) {
   }
 
   if (!type) {
-    void ensureDock(win).then((dock) => placeDock(win, dock));
-
     return;
   }
 
   if (type === lastType && doc.getElementById(DOCK_ID)) {
-    placeDock(win, doc.getElementById(DOCK_ID));
-
     return;
   }
 
+  if (typeStack.length && lastType && lastType !== type) {
+    const root = typeStack[0];
+
+    if (type === root && !uidChanged) {
+      return;
+    }
+
+    typeStack = [];
+  }
+
   flushSave(doc);
-  loadTemplate(win, type);
+  loadTemplate(win, type, 'replace');
 }
 
 register('dock:is-open', (doc) => isCodeDockOpen(doc));
 register('dock:is-locked', () => isCodeDockLocked());
+register('dock:html', () => currentFullHtml());
+register('dock:reveal-html', ({ from, to } = {}) => {
+  const view = editors.html;
+
+  if (!view || from == null) {
+    return;
+  }
+
+  htmlScopePref = htmlScopeEnabled(lastWin);
+  syncScopedHtml();
+  flushCssScope();
+
+  const length = htmlFull.length;
+  const start = Math.max(0, Math.min(from, length));
+  const end = Math.max(start, Math.min(to ?? from, length));
+
+  htmlFocus = end > start ? { from: start, to: end } : null;
+
+  if (htmlScopePref && htmlFocus) {
+    showHtmlScope();
+    paintHtmlScope(lastWin);
+
+    return;
+  }
+
+  if (htmlScopeActive) {
+    showHtmlFull();
+    paintHtmlScope(lastWin);
+
+    return;
+  }
+
+  view.dispatch({
+    selection: { anchor: start, head: end },
+    scrollIntoView: true,
+  });
+  view.focus();
+});
 register('dock:insert-snippet', ({ win, parts }) => insertAiSnippet(win, parts));
 register('dock:refresh', (win) => refreshCodeDockFromDisk(win));
 register('dock:current-type', () => currentTemplateType());
+register('dock:current-uid', () => lastUid);
+register('dock:set-html', (html) => {
+  if (typeof html !== 'string' || isCodeDockLocked()) {
+    return false;
+  }
+
+  const view = editors.html;
+
+  if (!view || !lastWin) {
+    return false;
+  }
+
+  htmlFull = html;
+
+  if (htmlScopeActive) {
+    writeHtmlEditor(htmlEditorText());
+    onEditorInput(lastWin);
+    emit('dock:html-changed');
+
+    return true;
+  }
+
+  const current = view.state.doc.toString();
+
+  if (current !== html) {
+    view.dispatch({
+      changes: { from: 0, to: current.length, insert: html },
+    });
+  }
+
+  return true;
+});
+
+sve.syncCodeDock = syncCodeDock;
 

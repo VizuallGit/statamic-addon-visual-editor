@@ -1,6 +1,11 @@
 title: Templates
 icon: fieldtype-template
 revisions: false
-# Deliberately NO route. A collection template is an index or show view for a
-# blueprint, never a public page. The dock writes the Antlers file; this store
-# is the CP list under Compositions.
+entry_class: MarioHamann\StatamicVisualEditor\CollectionTemplateEntry
+# Deliberately NO route. Live Preview uses /!/sve/collection-view-preview/{id}
+# (attached by the addon when collection_templates is on). These are view files'
+# CP entries, never public pages.
+preview_targets:
+  - label: Template
+    url: '/!/sve/collection-view-preview/{id}'
+    refresh: true

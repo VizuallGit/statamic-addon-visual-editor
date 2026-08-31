@@ -29,6 +29,7 @@ export const TOOL_PLACEMENT = {
   globals: 'topbar',
   listview: 'topbar',
   outline: 'topbar',
+  html_tree: 'topbar',
   comments: 'topbar',
   sections: 'topbar',
   ai: 'topbar',
@@ -72,6 +73,7 @@ const GRIP_6 =
 const PANE_BY_ID = {
   '__sve-listview-panel': 'listview',
   '__sve-outline-panel': 'outline',
+  '__sve-html-tree-panel': 'html_tree',
   '__sve-comments-pane': 'comments',
   '__sve-section-picker': 'sections',
   '__sve-ai-panel': 'ai',
@@ -93,7 +95,7 @@ const CHEVRON_ICON =
   '<svg data-sve-right-chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
   + 'stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
 
-export const RIGHT_PANE_TOOLS = ['listview', 'outline', 'comments', 'sections', 'ai'];
+export const RIGHT_PANE_TOOLS = ['listview', 'outline', 'html_tree', 'comments', 'sections', 'ai'];
 
 /** Inner panel fill — the shell owns position, width, border and the grip. */
 export const RIGHT_PANEL_FILL =
@@ -631,6 +633,8 @@ function closeDockPane(win, panel) {
     sve.closeListViewPanel?.(win);
   } else if (key === 'outline') {
     sve.closeOutlinePanel?.(win);
+  } else if (key === 'html_tree') {
+    sve.closeHtmlTreePanel?.(win);
   } else if (key === 'comments') {
     sve.closeCommentsPanel?.(win);
   } else if (key === 'sections') {

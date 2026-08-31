@@ -29,6 +29,9 @@ export const CHROME_KEYS = [
   'sve-code-dock-panes',
   'sve-code-dock-widths',
   'sve-code-dock-armed',
+  'sve-html-scope',
+  'sve-html-scope-v2',
+  'sve-code-dock-autosave',
   'sve-ai-panel-mode',
   'sve-listview-tab',
 ];

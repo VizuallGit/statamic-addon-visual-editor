@@ -1,0 +1,26 @@
+import { reactive } from 'vue';
+
+export const htmlTreeUi = reactive({
+  emptyText: '',
+  rows: [],
+  editingId: null,
+  draft: '',
+  renameTitle: '',
+  hideTitle: '',
+  showTitle: '',
+  duplicateTitle: '',
+  deleteTitle: '',
+  canEdit: false,
+  dragging: false,
+  dropId: null,
+  dropPlace: null,
+  onSelect: null,
+  onTwist: null,
+  onRename: null,
+  onRenameCommit: null,
+  onRenameCancel: null,
+  onHide: null,
+  onDuplicate: null,
+  onDelete: null,
+  onPointerDown: null,
+});

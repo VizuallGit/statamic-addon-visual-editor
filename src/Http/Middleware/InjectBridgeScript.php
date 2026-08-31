@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\PreviewHost;
 use Symfony\Component\HttpFoundation\Response;
 
 class InjectBridgeScript
@@ -141,7 +142,7 @@ class InjectBridgeScript
 
     protected function isLivePreview(Request $request): bool
     {
-        return $request->isLivePreview();
+        return $request->isLivePreview() || PreviewHost::isCollectionViewPreview($request);
     }
 
     protected function resolveScriptUrl(string $entry): string

@@ -85,6 +85,15 @@ class PreviewHost
         return (bool) preg_match('#^!/sve/[a-z-]*preview#', $path);
     }
 
+    /**
+     * Live Preview of a collection index/show view — same document the dock
+     * remorphs after a save. Not a screenshot route.
+     */
+    public static function isCollectionViewPreview(Request $request): bool
+    {
+        return str_starts_with($request->decodedPath(), '!/sve/collection-view-preview/');
+    }
+
     /** Any published entry of the previews collection — purely a rendering shell. */
     public static function page(): ?EntryContract
     {

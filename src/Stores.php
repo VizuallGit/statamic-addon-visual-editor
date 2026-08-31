@@ -72,4 +72,26 @@ class Stores
             static::collectionTemplates(),
         ])));
     }
+
+    /**
+     * Stores that get their own Content nav item.
+     *
+     * Collection templates stay off this list until the settings toggle is on,
+     * so a site that only needs the page builder does not grow a Templates item.
+     *
+     * @return list<string>
+     */
+    public static function nav(): array
+    {
+        $handles = [
+            config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
+            static::compositions(),
+        ];
+
+        if (Features::enabled('collection_templates')) {
+            $handles[] = static::collectionTemplates();
+        }
+
+        return array_values(array_unique(array_filter($handles)));
+    }
 }

@@ -55,6 +55,9 @@ return [
     | - outline:           the heading outline in the right dock — the page's
     |                      headings as one list, each one a jump to it. Own
     |                      toolbar icon, independent of the block tree.
+    | - html_tree:         the HTML tags in the template dock, as a tree in the
+    |                      right sidebar. Own toolbar icon, independent of the
+    |                      block tree. Click a tag to jump to it in the HTML pane.
     | - library_page:      its "Page" tab — the site's own section types
     | - library_custom:    its "Custom" tab — saved sections, inserted as copies
     | - library_global:    its "Global" tab — synced sections
@@ -86,6 +89,10 @@ return [
     |                      writes the file on this server. Off by default.
     |                      Who sees the icon sits under the toggle — super admins
     |                      unless you name specific people.
+    | - collection_templates: Scaffold Views (Index / Show) also creates CP
+    |                      rows you open in Live Preview. Off by default — a
+    |                      site that only needs the page builder can leave it
+    |                      off, and the Templates nav item stays away.
     | - tailwind_dock:     compile Tailwind classes from the HTML pane into
     |                      {{ sve_tw }} when the dock saves. Needs template_dock.
     |                      Off by default — the dock then writes the file as today.
@@ -113,11 +120,13 @@ return [
         'sections' => true,
         'listview' => true,
         'outline' => true,
+        'html_tree' => true,
         'inline_edit' => true,
         'focus_panel' => true,
         'open_first_section' => false,
         'open_in_preview' => false,
         'template_dock' => false,
+        'collection_templates' => false,
         'tailwind_dock' => false,
         'ai_panel' => false,
         'comments' => true,
@@ -128,6 +137,7 @@ return [
         'sections_access' => null,
         'listview_access' => null,
         'outline_access' => null,
+        'html_tree_access' => null,
         'template_dock_access' => null,
         'ai_panel_access' => null,
         'comments_access' => null,
@@ -359,13 +369,26 @@ return [
     | Collection templates
     |--------------------------------------------------------------------------
     |
-    | Index/show views for a collection blueprint, built in the template dock.
-    | Own collection so it sits under Compositions in the CP nav. No route —
-    | these are view files' CP entries, never public pages.
+    | Index/show views for a collection, opened in Live Preview. Scaffold Views
+    | writes the Antlers files; this store holds the CP rows (Cases index,
+    | Cases show). No public route — CollectionTemplateEntry still unlocks
+    | the Live Preview button, and the iframe is
+    | /!/sve/collection-view-preview/{id}. Off until the collection_templates
+    | toggle is on.
+    |
+    | presets: folders you write in VS Code. Each pack is a folder:
+    |   {handle}/preset.yaml         title, optional description
+    |   {handle}/blueprint.yaml      optional
+    |   {handle}/index.antlers.html  optional
+    |   {handle}/show.antlers.html   optional
+    | Write __COLLECTION__ where the handle should go
+    | (`{{ collection:__COLLECTION__ }}`). Applying "cases" to a collection
+    | called work copies the files to work, not to cases.
     |
     */
     'collection_templates' => [
         'collection' => 'templates',
+        'presets' => resource_path('visual-editor/collection-presets'),
     ],
 
     /*

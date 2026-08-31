@@ -10,9 +10,15 @@ use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
 use MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections;
+use MarioHamann\StatamicVisualEditor\Listeners\PurgeCollectionViewTemplates;
+use MarioHamann\StatamicVisualEditor\Listeners\ScaffoldCollectionViewTemplates;
+use MarioHamann\StatamicVisualEditor\Listeners\SeedCollectionRouting;
 use MarioHamann\StatamicVisualEditor\ServiceProvider;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use Statamic\Events\EntryBlueprintFound;
+use Statamic\Events\CollectionCreating;
+use Statamic\Events\CollectionDeleted;
+use Statamic\Events\CollectionSaved;
 use Statamic\Events\EntrySaving;
 use Statamic\Events\GlobalVariablesBlueprintFound;
 use Statamic\Events\GlobalVariablesSaving;
@@ -42,6 +48,27 @@ class ServiceProviderTest extends TestCase
         $fieldtype = app(FieldtypeRepository::class)->find('sve_lite_sections');
 
         $this->assertInstanceOf(SveLiteSections::class, $fieldtype);
+    }
+
+    public function test_seed_collection_routing_listener_registered(): void
+    {
+        Event::fake();
+
+        Event::assertListening(CollectionCreating::class, SeedCollectionRouting::class);
+    }
+
+    public function test_purge_collection_view_templates_listener_registered(): void
+    {
+        Event::fake();
+
+        Event::assertListening(CollectionDeleted::class, PurgeCollectionViewTemplates::class);
+    }
+
+    public function test_scaffold_collection_view_templates_listener_registered(): void
+    {
+        Event::fake();
+
+        Event::assertListening(CollectionSaved::class, ScaffoldCollectionViewTemplates::class);
     }
 
     public function test_use_lite_sections_listener_registered(): void

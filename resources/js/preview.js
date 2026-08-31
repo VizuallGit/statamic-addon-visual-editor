@@ -336,7 +336,11 @@ function leftLivePreview(requested, finalUrl) {
       return true;
     }
 
-    if (to.pathname.includes('/!/sve/') && /preview/i.test(to.pathname)) {
+    if (
+      to.pathname.includes('/!/sve/') &&
+      /preview/i.test(to.pathname) &&
+      !to.pathname.includes('/!/sve/collection-view-preview/')
+    ) {
       return true;
     }
   } catch {

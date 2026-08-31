@@ -25,6 +25,7 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\DefaultSetsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\GlobalsPickerFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ToolbarAccessFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\TemplatePropsFieldtype;
 use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
@@ -32,6 +33,8 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionPresetController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionViewPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryActivityController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
@@ -40,6 +43,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionPreviewControl
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatePreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionDefaultsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
@@ -63,16 +67,25 @@ use Statamic\Facades\Site;
 use Statamic\Facades\User;
 use MarioHamann\StatamicVisualEditor\Listeners\ExpandFromTheStart;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
+use MarioHamann\StatamicVisualEditor\Listeners\InjectTemplatePropsIntoBlueprint;
 use MarioHamann\StatamicVisualEditor\Listeners\UseLiteSections;
 use MarioHamann\StatamicVisualEditor\Listeners\RefreshPreviews;
+use MarioHamann\StatamicVisualEditor\Listeners\PurgeCollectionViewTemplates;
+use MarioHamann\StatamicVisualEditor\Listeners\ScaffoldCollectionViewTemplates;
+use MarioHamann\StatamicVisualEditor\Listeners\SeedCollectionRouting;
+use MarioHamann\StatamicVisualEditor\Listeners\ScopeTemplatePreviewAs;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
 use MarioHamann\StatamicVisualEditor\Listeners\WrapResponsiveFields;
 use MarioHamann\StatamicVisualEditor\Modifiers\IsDefault;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
 use MarioHamann\StatamicVisualEditor\Tags\SveTw;
+use MarioHamann\StatamicVisualEditor\Tags\SveProp;
 use Statamic\Events\AddonSettingsSaved;
 use Statamic\Events\BlueprintSaved;
+use Statamic\Events\CollectionCreating;
+use Statamic\Events\CollectionDeleted;
+use Statamic\Events\CollectionSaved;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Events\EntryDeleted;
 use Statamic\Events\EntrySaved;
@@ -83,6 +96,7 @@ use Statamic\Events\GlobalVariablesSaved;
 use Statamic\Events\GlobalVariablesSaving;
 use Statamic\Facades\Utility;
 use Statamic\Providers\AddonServiceProvider;
+use Statamic\Contracts\View\Antlers\Parser as AntlersParser;
 use Statamic\Statamic;
 
 class ServiceProvider extends AddonServiceProvider
@@ -98,6 +112,7 @@ class ServiceProvider extends AddonServiceProvider
         ToolbarAccessFieldtype::class,
         DefaultSetsFieldtype::class,
         BardDefaultFieldtype::class,
+        TemplatePropsFieldtype::class,
         // ⚠️ Overtager Statamics egen `replicator`-handle — handlen udledes
         // af klassenavnet. ALT replicator-arbejde i CP'et går igennem den.
         Replicator::class,
@@ -108,6 +123,7 @@ class ServiceProvider extends AddonServiceProvider
         VisualEdit::class,
         ResponsiveCss::class,
         SveTw::class,
+        SveProp::class,
     ];
 
     protected $modifiers = [
@@ -115,8 +131,19 @@ class ServiceProvider extends AddonServiceProvider
     ];
 
     protected $listen = [
+        CollectionCreating::class => [
+            SeedCollectionRouting::class,
+        ],
+        CollectionSaved::class => [
+            ScaffoldCollectionViewTemplates::class,
+        ],
+        CollectionDeleted::class => [
+            PurgeCollectionViewTemplates::class,
+        ],
         EntryBlueprintFound::class => [
+            ScopeTemplatePreviewAs::class,
             InjectVisualIdIntoBlueprint::class,
+            InjectTemplatePropsIntoBlueprint::class,
             // Den rigtige registrering står i `register()` ovenfor, hvor den
             // kommer FØR de to her — se noten der om hvorfor rækkefølgen
             // afgøres et andet sted end i det her array. Den her linje er
@@ -128,6 +155,7 @@ class ServiceProvider extends AddonServiceProvider
         ],
         GlobalVariablesBlueprintFound::class => [
             InjectVisualIdIntoBlueprint::class,
+            InjectTemplatePropsIntoBlueprint::class,
         ],
         EntrySaving::class => [
             StripVisualIds::class,
@@ -206,6 +234,9 @@ class ServiceProvider extends AddonServiceProvider
     //   toolbar-look              — trial 4px radius, no outline/shadow on edit toolbar
     //   library-drop-focus        — after a library drop, zoom in on the new section
     //   lite-sections             — mount one page_sections row in Live Preview
+    //   collection-template-picker — Preview-as select on collection templates
+    //   collection-preset-scaffold  — preset picker on Scaffold Views
+    //   field-prop                  — map a template prop to a collection field
     protected $scripts = [
         __DIR__.'/../resources/js/disable-publish-stack-pin.js',
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
@@ -220,6 +251,9 @@ class ServiceProvider extends AddonServiceProvider
         __DIR__.'/../resources/js/toolbar-look.js',
         __DIR__.'/../resources/js/library-drop-focus.js',
         __DIR__.'/../resources/js/lite-sections.js',
+        __DIR__.'/../resources/js/collection-template-picker.js',
+        __DIR__.'/../resources/js/collection-preset-scaffold.js',
+        __DIR__.'/../resources/js/field-prop.js',
     ];
 
     protected $commands = [
@@ -247,9 +281,35 @@ class ServiceProvider extends AddonServiceProvider
      */
     public function register()
     {
+        if (! SundayAug30::enabled()) {
+            $this->scripts = array_values(array_filter(
+                $this->scripts,
+                fn (string $path) => ! str_ends_with($path, 'field-prop.js')
+                    && ! str_ends_with($path, 'collection-preset-scaffold.js')
+            ));
+        }
+
         parent::register();
 
+        // Stache caches entries in Laravel's file store, which only unserializes
+        // classes on the allowlist. Without this they come back incomplete and
+        // Live Preview stays hidden.
+        class_exists(CollectionTemplateEntry::class);
+        $this->registerSerializableClasses([CollectionTemplateEntry::class]);
+
         Event::listen(EntryBlueprintFound::class, [WrapResponsiveFields::class, 'handle']);
+
+        // `:handle ?? default` in a section template becomes Antlers the
+        // runtime can render. Official preparser hook — not a wrap of Engine.
+        if (SundayAug30::enabled()) {
+            $this->app->extend(AntlersParser::class, function ($parser) {
+                if (method_exists($parser, 'preparse')) {
+                    $parser->preparse([TemplateProps::class, 'compile']);
+                }
+
+                return $parser;
+            });
+        }
     }
 
     /**
@@ -391,6 +451,8 @@ class ServiceProvider extends AddonServiceProvider
                 // The collections whose entries open in the preview rather than
                 // the publish form (Addons > Statamic Visual Editor).
                 'sveOpenInPreview' => $this->openInPreviewCollections(),
+                'sveCollectionTemplatesCollection' => Stores::collectionTemplates(),
+                'sveCollectionPresets' => CollectionPresets::all(),
             ]);
         });
 
@@ -398,6 +460,10 @@ class ServiceProvider extends AddonServiceProvider
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'sve');
 
         $this->moveStoresOutOfCollections();
+
+        // After the Stache has read collections from yaml — setting entryClass
+        // earlier is wiped when the file is loaded.
+        Statamic::booted(fn () => $this->attachCollectionViewPreviewTargets());
 
         // Signed, short-lived route that renders a page with only one section in
         // it — the preview generator screenshots that. Registered explicitly:
@@ -429,6 +495,9 @@ class ServiceProvider extends AddonServiceProvider
         Route::middleware(['web', 'statamic.web'])->group(function () {
             Route::get('/!/sve/global-section-preview/{id}', [SavedSectionPreviewController::class, 'livePreview'])
                 ->name('sve.global-section-preview');
+
+            Route::get('/!/sve/collection-view-preview/{id}', CollectionViewPreviewController::class)
+                ->name('sve.collection-view-preview');
         });
 
         // Stashes the globals being edited beside Live Preview, so the preview
@@ -519,8 +588,12 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.section-meta');
 
             // Same query-parameter pattern as section-types: handles hold slashes.
+            Route::get('/!/sve/section-template/partials', [SectionTemplateController::class, 'partials'])
+                ->name('sve.section-template.partials');
             Route::get('/!/sve/section-template', [SectionTemplateController::class, 'show'])
                 ->name('sve.section-template.show');
+            Route::get('/!/sve/template-props', TemplatePropsController::class)
+                ->name('sve.template-props');
             Route::get('/!/sve/tailwind-theme', [SectionTemplateController::class, 'theme'])
                 ->name('sve.tailwind-theme');
 
@@ -555,6 +628,9 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.library-scan.show');
             Route::post('/!/sve/library-scan', [LibraryScanController::class, 'store'])
                 ->name('sve.library-scan.store');
+
+            Route::post('/!/sve/collection-presets/apply', CollectionPresetController::class)
+                ->name('sve.collection-presets.apply');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)
@@ -605,8 +681,9 @@ class ServiceProvider extends AddonServiceProvider
     protected function moveStoresOutOfCollections(): void
     {
         $stores = static::stores();
+        $navHandles = Stores::nav();
 
-        Nav::extend(function ($nav) use ($stores) {
+        Nav::extend(function ($nav) use ($stores, $navHandles) {
             $collections = collect($stores)
                 ->map(fn ($handle) => Collection::findByHandle($handle))
                 ->filter(); // whatever is not installed on this site is nothing to move
@@ -630,13 +707,48 @@ class ServiceProvider extends AddonServiceProvider
                 }
             }
 
-            $collections->each(function ($collection) use ($nav) {
-                $nav->content($collection->title())
-                    ->url($collection->showUrl())
-                    ->icon($collection->icon() ?: 'content-writing')
-                    ->can('view', $collection);
-            });
+            $collections
+                ->filter(fn ($collection) => in_array($collection->handle(), $navHandles, true))
+                ->each(function ($collection) use ($nav) {
+                    $nav->content($collection->title())
+                        ->url($collection->showUrl())
+                        ->icon($collection->icon() ?: 'content-writing')
+                        ->can('view', $collection);
+                });
         });
+    }
+
+    /**
+     * Live Preview without a public route.
+     *
+     * Statamic hides the button unless `livePreviewUrl()` is set, and that
+     * method returns null when the collection has no route. The custom entry
+     * class returns the CP preview endpoint anyway. Preview targets replace
+     * the default `{permalink}` (which would be empty) so the iframe loads
+     * `/!/sve/collection-view-preview/{id}`.
+     */
+    protected function attachCollectionViewPreviewTargets(): void
+    {
+        if (! Features::enabled('collection_templates')) {
+            return;
+        }
+
+        $handle = Stores::collectionTemplates();
+        $collection = Collection::findByHandle($handle);
+
+        if (! $collection) {
+            return;
+        }
+
+        $collection->entryClass(CollectionTemplateEntry::class);
+
+        $collection->previewTargets([
+            [
+                'label' => 'Template',
+                'format' => '/!/sve/collection-view-preview/{id}',
+                'refresh' => true,
+            ],
+        ]);
     }
 
     /**

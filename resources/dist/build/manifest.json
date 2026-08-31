@@ -1,4 +1,8 @@
 {
+  "_html-pick-align-gkRPeJkt.js": {
+    "file": "assets/html-pick-align-gkRPeJkt.js",
+    "name": "html-pick-align"
+  },
   "_index-BpX_oTxp.js": {
     "file": "assets/index-BpX_oTxp.js",
     "name": "index",
@@ -104,7 +108,7 @@
     "isDynamicEntry": true
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-UwEyZ1nw.js",
+    "file": "assets/addon-CJcFGwZG.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -118,6 +122,7 @@
       "node_modules/@codemirror/lang-javascript/dist/index.js",
       "node_modules/@codemirror/language/dist/index.js",
       "_index-gYg9gdv3.js",
+      "resources/js/html-tree.js",
       "resources/js/overlay-host.js",
       "resources/js/overlay-host.js",
       "resources/js/overlay-host.js"
@@ -127,10 +132,26 @@
     ]
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-B8jd4hsF.js",
+    "file": "assets/bridge-CUTB2VO9.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_html-pick-align-gkRPeJkt.js"
+    ]
+  },
+  "resources/js/html-tree.js": {
+    "file": "assets/html-tree-CIqSvjVw.js",
+    "name": "html-tree",
+    "src": "resources/js/html-tree.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/addon.js",
+      "_html-pick-align-gkRPeJkt.js"
+    ],
+    "css": [
+      "assets/html-tree-Dsb4PH4S.css"
+    ]
   },
   "resources/js/overlay-host.js": {
     "file": "assets/overlay-host-BbvwJmKQ.js",
@@ -140,7 +161,7 @@
     "isDynamicEntry": true
   },
   "resources/js/preview.js": {
-    "file": "assets/preview-C9Yj2jWK.js",
+    "file": "assets/preview-B_20-npx.js",
     "name": "preview",
     "src": "resources/js/preview.js",
     "isEntry": true

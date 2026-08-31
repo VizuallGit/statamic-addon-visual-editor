@@ -140,6 +140,25 @@ tabs:
                 enabled: 'equals true'
                 outline: 'equals true'
           -
+            handle: html_tree
+            field:
+              type: toggle
+              display: 'HTML tree'
+              instructions: 'The HTML tags in the template dock, as a tree in the right sidebar. Own toolbar icon — not the block tree. Click a tag to jump to it in the HTML pane.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: html_tree_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: html_tree
+              if:
+                enabled: 'equals true'
+                html_tree: 'equals true'
+          -
             handle: comments
             field:
               type: toggle
@@ -207,6 +226,15 @@ tabs:
               if:
                 enabled: 'equals true'
                 template_dock: 'equals true'
+          -
+            handle: collection_templates
+            field:
+              type: toggle
+              display: 'Collection templates'
+              instructions: 'After Scaffold Views, Index and Show become templates you open in Live Preview. You can also apply a preset you keep in VS Code (blueprint + views) — the collection name does not matter. Off by default — a site that only needs the page builder can leave this off.'
+              default: false
+              if:
+                enabled: 'equals true'
           -
             handle: tailwind_dock
             field:
