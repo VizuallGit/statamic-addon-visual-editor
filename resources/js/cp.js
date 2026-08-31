@@ -2322,6 +2322,7 @@ export function restoreDockedHeaderPanels(win) {
     keys = [];
   }
 
+  keys = keys.filter((key) => key !== 'html_tree');
   keys = keys.filter((key) => key !== 'sections' || headerTabAvailable(win, 'sections'));
 
   if (!keys.length) {
@@ -2557,7 +2558,6 @@ export function ensureHeaderToolbar(win) {
     { key: 'sections', feature: 'sections', title: t(win, 'sections') },
     { key: 'listview', feature: 'listview', title: t(win, 'listview') },
     { key: 'outline', feature: 'outline', title: t(win, 'outline') },
-    { key: 'html_tree', feature: 'html_tree', title: t(win, 'html_tree') },
     { key: 'code', title: t(win, 'code_dock_toggle') },
     { key: 'ai', title: t(win, 'ai_panel') },
     { key: 'comments', feature: 'comments', title: t(win, 'comments_pane') },
@@ -2789,52 +2789,11 @@ export function ensureOutlineToolbarButton(win) {
   }
 }
 
+/** HTML tree opens with the template dock — no top-bar icon. */
 export function ensureHtmlTreeToolbarButton(win) {
-  const doc = win.document;
-  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
-
-  if (!bar) {
-    return;
-  }
-
-  if (!sve.featureOn(win, 'html_tree')) {
-    bar.querySelector('button[data-tab="html_tree"]')?.remove();
-
-    return;
-  }
-
-  if (bar.querySelector('button[data-tab="html_tree"]')) {
-    return;
-  }
-
-  const btn = doc.createElement('button');
-
-  btn.type = 'button';
-  btn.dataset.tab = 'html_tree';
-  btn.dataset.iconVer = 'html-tree-20260829';
-  btn.title = t(win, 'html_tree');
-  btn.innerHTML = TOOLBAR_ICONS.html_tree;
-  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
-  btn.querySelector('svg')?.setAttribute('width', '15');
-  btn.querySelector('svg')?.setAttribute('height', '15');
-  btn.addEventListener('click', () => toggleHeaderTab(win, 'html_tree'));
-
-  const outline = bar.querySelector('button[data-tab="outline"]');
-  const listview = bar.querySelector('button[data-tab="listview"]');
-
-  if (outline) {
-    outline.after(btn);
-  } else if (listview) {
-    listview.after(btn);
-  } else {
-    const code = bar.querySelector('button[data-tab="code"]');
-
-    if (code) {
-      code.before(btn);
-    } else {
-      bar.appendChild(btn);
-    }
-  }
+  win.document.getElementById(HEADER_TOOLBAR_ID)
+    ?.querySelector('button[data-tab="html_tree"]')
+    ?.remove();
 }
 
 export function ensureCommentsToolbarButton(win) {
@@ -6032,9 +5991,13 @@ function groupedPickerSets(sets) {
     return sets;
   }
 
-  // No handle. `all` collided with Statamic's All tab (grid listed every set
-  // twice). A named handle added a second tab with the same items.
-  return [{ sets }];
+  // Statamic's picker, on open: `selectedGroupHandle = this.sets[0].handle`.
+  // Without a handle that assignment is `undefined`, Vue keeps `null`, and
+  // `visibleSets` is empty — Search Sets opens with no Headline/Richtext/Links.
+  // Do not use `all`: grid mode starts with a synthetic All tab, then writes
+  // `groups[handle]` and concats onto `groups.all`. Handle `all` overwrites
+  // that tab and concats the same sets onto themselves — Headline twice.
+  return [{ handle: 'sets', display: '', sets }];
 }
 
 /**
@@ -6054,6 +6017,18 @@ export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
     return false;
   }
 
+  // Plus click lives in the preview iframe. That document forwards pointerdown
+  // onto this overlay body so CP menus close. Mounting Search Sets in the same
+  // turn lets ui-popover treat that gesture as clicked-away — host is gone
+  // before paint. Wait until the click is finished. Do not remove this.
+  win.setTimeout(() => {
+    mountSetPickerOverPreview(doc, win, Vue, app, Picker, grouped, anchorRect, onChoose);
+  }, 0);
+
+  return true;
+}
+
+function mountSetPickerOverPreview(doc, win, Vue, app, Picker, grouped, anchorRect, onChoose) {
   if (previewSetPickerApp) {
     try {
       previewSetPickerApp.unmount();
@@ -6088,7 +6063,7 @@ export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
 
   let mounted = null;
   let vm = null;
-  const ignoreAwayUntil = Date.now() + 450;
+  const ignoreAwayUntil = Date.now() + 800;
 
   const close = () => {
     try {
@@ -6145,18 +6120,30 @@ export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
 
     mounted = Vue.createApp(wrapper);
 
-    Object.assign(mounted._context.components, app._context.components);
-    Object.assign(mounted._context.directives, app._context.directives);
-    Object.assign(mounted._context.provides, app._context.provides);
+    // Same registries as Statamic's app — a copy misses ui-popover / $keys
+    // on the prototype chain, and Search Sets never paints.
+    mounted._context.components = app._context.components;
+    mounted._context.directives = app._context.directives;
+    mounted._context.provides = app._context.provides;
     Object.assign(mounted.config.globalProperties, app.config.globalProperties);
 
     mounted.mount(host);
     previewSetPickerApp = mounted;
 
-    const tryOpen = (n = 0) => {
-      const inst = vm;
+    const pickerVm = (el) => {
+      if (el && typeof el.open === 'function') {
+        return el;
+      }
 
-      if (inst && typeof inst.open === 'function') {
+      const proxy = el?.$?.proxy ?? el?.$?.ctx ?? el?.__vueParentComponent?.proxy;
+
+      return proxy && typeof proxy.open === 'function' ? proxy : null;
+    };
+
+    const tryOpen = (n = 0) => {
+      const inst = pickerVm(vm);
+
+      if (inst) {
         inst.open();
 
         return;
@@ -6174,11 +6161,7 @@ export function openSetPickerOverPreview(doc, win, sets, anchorRect, onChoose) {
     tryOpen();
   } catch {
     close();
-
-    return false;
   }
-
-  return true;
 }
 
 /** Replicator Vue instance that owns this row — the one with addSet. */
@@ -6369,8 +6352,10 @@ export function handleAddBlockNative(data, doc, win) {
   }
 
   // Preview "+": Statamic's set-picker in the *editor* document, at the plus.
-  // Mounting on win.top puts it behind the fullscreen overlay iframe — plus
-  // looks dead. The editor window has Vue + $app and sits over the preview.
+  // The sidebar Add Set button is hidden behind the overlay — clicking it
+  // looks like plus does nothing. Mount the same Search Sets component here.
+  //
+  // LOCKED. Do not remove this. Only skip if the user asks in this message.
   if (anchorRect && !data.global) {
     const field =
       replicatorOwningUid(anchorUid, doc) ||
@@ -6881,13 +6866,97 @@ export function globalSectionEditorWin(win) {
   }
 }
 
+/** True when the message came from the preview iframe, including a nested one. */
+function isPreviewMessageSource(event, doc) {
+  const win = doc.defaultView;
+
+  // The plus click listener is created in this overlay script and bound onto
+  // the preview document. `parent.postMessage` then has event.source === this
+  // window, not the iframe. Rejecting that is why Search Sets never opened.
+  if (win && event.source === win) {
+    return true;
+  }
+
+  const frames = [...doc.querySelectorAll('#live-preview-iframe')];
+
+  if (!frames.length) {
+    return false;
+  }
+
+  const allowed = new Set();
+
+  try {
+    frames.forEach((iframe) => {
+      let frame = iframe;
+
+      while (frame) {
+        allowed.add(frame.contentWindow);
+        frame = frame.contentDocument?.getElementById('live-preview-iframe');
+      }
+    });
+  } catch {
+    /* cross-origin */
+  }
+
+  try {
+    let source = event.source;
+
+    while (source) {
+      if (allowed.has(source)) {
+        return true;
+      }
+
+      if (source === source.parent) {
+        break;
+      }
+
+      source = source.parent;
+    }
+  } catch {
+    /* cross-origin */
+  }
+
+  // WindowProxy identity fails after Live Preview replaces the iframe node:
+  // the plus still posts from the live document, getElementById holds a stale
+  // one, Search Sets never opens. Walk the posting window's frameElement, and
+  // accept a same-origin document that actually has the plus layer.
+  try {
+    let el = event.source?.frameElement;
+
+    while (el) {
+      if (el.id === 'live-preview-iframe') {
+        return true;
+      }
+
+      el = el.ownerDocument?.defaultView?.frameElement;
+    }
+  } catch {
+    /* cross-origin */
+  }
+
+  try {
+    if (event.origin !== doc.defaultView?.location.origin || !event.source) {
+      return false;
+    }
+
+    const srcDoc = event.source.document;
+
+    if (srcDoc?.getElementById('__sve-inserters') || srcDoc?.querySelector('[data-sid-insert]')) {
+      return true;
+    }
+  } catch {
+    /* cross-origin */
+  }
+
+  return false;
+}
+
 export function createMessageListener(doc = document, win = window) {
   return function handleMessage(event) {
-    // Guard: only accept messages from the live-preview iframe.
-    // This prevents cross-site message spoofing from third-party windows.
-    const previewIframe = doc.getElementById('live-preview-iframe');
-
-    if (!previewIframe || event.source !== previewIframe.contentWindow) {
+    // Guard: only accept messages from the live-preview iframe (and a nested
+    // one). Matching only the outer frame's contentWindow drops plus clicks
+    // from the inner document — Search Sets never opens.
+    if (!isPreviewMessageSource(event, doc)) {
       return;
     }
 

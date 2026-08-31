@@ -108,7 +108,7 @@
     "isDynamicEntry": true
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-CbU7iJgz.js",
+    "file": "assets/addon-BgMJbZoR.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -132,7 +132,7 @@
     ]
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-CUTB2VO9.js",
+    "file": "assets/bridge-CPEnyRvp.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true,
@@ -141,7 +141,7 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-DHZ8Qd7A.js",
+    "file": "assets/html-tree-BMVSpQK2.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,
@@ -150,7 +150,7 @@
       "_html-pick-align-gkRPeJkt.js"
     ],
     "css": [
-      "assets/html-tree-Dsb4PH4S.css"
+      "assets/html-tree-B8vUropJ.css"
     ]
   },
   "resources/js/overlay-host.js": {
@@ -161,7 +161,7 @@
     "isDynamicEntry": true
   },
   "resources/js/preview.js": {
-    "file": "assets/preview-D7888Yuk.js",
+    "file": "assets/preview-Du2uYiNC.js",
     "name": "preview",
     "src": "resources/js/preview.js",
     "isEntry": true

@@ -180,7 +180,19 @@ let sectionsActive = false;
 /** CP-authoritative chrome focus (header|footer|null). Beats racing html class. */
 let chromeKindFromParent = null;
 
-function withFlags(url) {
+function normalizeSectionUids(sectionUids) {
+  if (Array.isArray(sectionUids)) {
+    return sectionUids.filter((id) => typeof id === 'string' && id !== '');
+  }
+
+  if (typeof sectionUids === 'string' && sectionUids !== '') {
+    return [sectionUids];
+  }
+
+  return [];
+}
+
+function withFlags(url, sectionUids) {
   let out = url;
 
   if (globalsActive) {
@@ -189,6 +201,12 @@ function withFlags(url) {
 
   if (sectionsActive) {
     out += (out.includes('?') ? '&' : '?') + 'sve_sections=1';
+  }
+
+  const ids = normalizeSectionUids(sectionUids);
+
+  if (ids.length) {
+    out += (out.includes('?') ? '&' : '?') + 'sve_sid=' + encodeURIComponent(ids.join(','));
   }
 
   return out;
@@ -233,16 +251,18 @@ function isPreservedStyle(el) {
  * Diff head styles in place. Never wipe-then-readd — that FOUC'd the page every
  * keystroke even when only the footer chrome node changed.
  */
-function syncHeadStyles(updated) {
+function syncHeadStyles(updated, { additive = false } = {}) {
   const live = [...document.head.querySelectorAll('style')].filter((s) => !isPreservedStyle(s));
   const next = [...updated.head.querySelectorAll('style')];
   const nextTexts = next.map((s) => s.textContent);
 
-  live.forEach((s) => {
-    if (!nextTexts.includes(s.textContent)) {
-      s.remove();
-    }
-  });
+  if (!additive) {
+    live.forEach((s) => {
+      if (!nextTexts.includes(s.textContent)) {
+        s.remove();
+      }
+    });
+  }
 
   const remaining = new Set(
     [...document.head.querySelectorAll('style')].filter((s) => !isPreservedStyle(s)).map((s) => s.textContent)
@@ -404,6 +424,16 @@ function leftLivePreview(requested, finalUrl) {
   return false;
 }
 
+async function fetchPreviewHtml(url, sectionUids) {
+  const res = await fetch(withFlags(url, sectionUids), { credentials: 'same-origin' });
+
+  if (!res.ok || leftLivePreview(url, res.url)) {
+    return null;
+  }
+
+  return res.text();
+}
+
 async function applyUpdate(url, sectionUids) {
   if (!url) {
     return;
@@ -411,21 +441,18 @@ async function applyUpdate(url, sectionUids) {
 
   // Drop stale responses when rapid edits overtake each other.
   const seq = ++updateSeq;
+  const chromeKind = focusedChromeKind();
+  let ids = chromeKind ? [] : normalizeSectionUids(sectionUids);
+  let scoped = ids.length > 0;
   let text;
 
   try {
-    const res = await fetch(withFlags(url), { credentials: 'same-origin' });
-
-    if (!res.ok || leftLivePreview(url, res.url)) {
-      return;
-    }
-
-    text = await res.text();
+    text = await fetchPreviewHtml(url, ids);
   } catch {
     return;
   }
 
-  if (seq !== updateSeq) {
+  if (text == null || seq !== updateSeq) {
     return;
   }
 
@@ -437,7 +464,7 @@ async function applyUpdate(url, sectionUids) {
     return;
   }
 
-  const updated = new DOMParser().parseFromString(text, 'text/html');
+  let updated = new DOMParser().parseFromString(text, 'text/html');
 
   // Rediger lives on the public site, never in Live Preview. Morphing that
   // document in paints the front end into the iframe and looks like an eject.
@@ -445,11 +472,29 @@ async function applyUpdate(url, sectionUids) {
     return;
   }
 
+  if (scoped && !findSectionNode(updated.body, ids)) {
+    try {
+      text = await fetchPreviewHtml(url, []);
+    } catch {
+      return;
+    }
+
+    if (text == null || seq !== updateSeq) {
+      return;
+    }
+
+    scoped = false;
+    updated = new DOMParser().parseFromString(text, 'text/html');
+
+    if (updated.getElementById('sve-edit-button')) {
+      return;
+    }
+  }
+
   const savedScrollY = window.scrollY;
-  const chromeKind = focusedChromeKind();
 
   try {
-    syncHeadStyles(updated);
+    syncHeadStyles(updated, { additive: scoped });
     // Server HTML carries saved bias/sat in :root — put live scale back on top.
     applyThemeScaleCss();
 
@@ -461,7 +506,9 @@ async function applyUpdate(url, sectionUids) {
       surgical = morphSectionOnly(updated, sectionUids);
     }
 
-    if (!surgical) {
+    // A one-section document must not replace the whole body — that would drop
+    // header, footer and the other sections still sitting in the iframe.
+    if (!surgical && !scoped) {
       morphFullBody(updated);
     }
   } catch {

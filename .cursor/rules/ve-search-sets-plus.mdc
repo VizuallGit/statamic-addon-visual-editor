@@ -1,0 +1,24 @@
+---
+description: Live preview plus must open Statamic Search Sets — do not remove
+alwaysApply: true
+---
+
+# Search Sets on live-preview plus — locked
+
+The plus under a block in live preview must open **Statamic's own Search Sets** (Headline, Richtext, Links) over the preview. Same picker as sidebar Add Set.
+
+## Path — do not delete
+
+`add-block-native` → `handleAddBlockNative` → `openSetPickerOverPreview` (Statamic `set-picker` over the plus).
+
+Open the picker in `setTimeout(0)`. The plus click's pointerdown is forwarded onto the overlay body; mounting in the same turn closes Search Sets as clicked-away. `groupedPickerSets` needs a `handle` (empty list without one) — not `all` (grid lists every set twice).
+
+`isPreviewMessageSource` must accept `event.source === overlay` (the plus handler is overlay script bound on the preview document). Rejecting that drops the click.
+
+## Forbidden unless the user asks in THIS message
+
+- Delete or bypass `handleAddBlockNative` / `openSetPickerOverPreview`
+- Remove `handle` from `groupedPickerSets` (empty list) or set it to `all` (grid doubles)
+- Side-effect edits (icons, grid tab, prefetch, unique-sets) that skip plus → Search Sets
+
+The sidebar picker is the source. Preview plus opens that picker, not a copy.

@@ -811,7 +811,7 @@
             return;
         }
 
-        wrap = btn.parentElement;
+        wrap = btn.closest('#' + LAYER_ID + ' > *') || btn.parentElement;
         container = wrap && wrap.__sveInsertContainer;
 
         if (!container) {

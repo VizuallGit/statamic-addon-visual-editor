@@ -574,7 +574,7 @@ function ensureStyle(doc) {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 18px 12px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid rgba(255,255,255,.08);
   user-select: none;
   cursor: ns-resize;
@@ -793,13 +793,11 @@ function ensureStyle(doc) {
   color: #fff;
 }
 #${DOCK_ID} [data-sve-code-grip] {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -8px;
-  z-index: 3;
+  flex: 0 0 16px;
   height: 16px;
+  width: 100%;
   cursor: ns-resize;
+  z-index: 3;
   ${splitterFill('ns')}
   background-color: var(--theme-color-gray-800, #27272a);
 }
@@ -1126,8 +1124,7 @@ function ensureStyle(doc) {
   z-index: 1;
 }
 #${DOCK_ID} [data-sve-code-split]:hover,
-#${DOCK_ID} [data-sve-code-split][data-active],
-#${DOCK_ID} [data-sve-code-grip]:hover {
+#${DOCK_ID} [data-sve-code-split][data-active] {
   filter: brightness(1.15);
 }
 #${DOCK_ID} [data-sve-code-pane] .cm-editor {
@@ -4427,6 +4424,8 @@ async function ensureDockAsync(win) {
 
       paintHostWait(host);
     }
+
+    sve.openHtmlTreePanel?.(win);
   }
 
   attachDock(doc, dock);
@@ -4716,6 +4715,12 @@ export function closeCodeDock(doc) {
 
   if (doc) {
     previewBottomPad(doc, 0);
+  }
+
+  const win = doc?.defaultView || lastWin;
+
+  if (win?.document.getElementById(sve.HTML_TREE_PANEL_ID)) {
+    sve.closeHtmlTreePanel?.(win);
   }
 }
 

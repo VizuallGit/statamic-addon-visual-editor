@@ -44,6 +44,11 @@ import './global-section.js';
 import './chrome.js';
 import { initCp } from './cp.js';
 import { initComments } from './comments.js';
+import { sve } from './cp-registry.js';
+
+// Standalone CP scripts (lite-sections, wrapSolo, instantFocusHeader) look
+// up isolate/solo on window — the module object is not visible to them.
+window.sve = sve;
 
 Statamic.booting(() => {
   installResponsiveConditions();

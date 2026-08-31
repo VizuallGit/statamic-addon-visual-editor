@@ -962,6 +962,7 @@
                                 if (uid && !prevIds[String(uid)]) {
                                     this.activeUid = uid;
                                     this.keptUids = [];
+                                    focusInsertedSection(uid);
                                     return;
                                 }
                             }
@@ -977,6 +978,10 @@
 
                         this.activeUid = rows[0] ? uidOf(rows[0]) : null;
                         this.keptUids = [];
+
+                        if (this.activeUid) {
+                            focusInsertedSection(this.activeUid);
+                        }
                     },
                 },
             },
@@ -1301,6 +1306,42 @@
             if (proxy && id) {
                 proxy.expandSet(id);
             }
+        }
+    }
+
+    /**
+     * A new page section just appeared in values (library drop, duplicate,
+     * template). Lite already switches `activeUid` so the row mounts — the
+     * same isolate a preview click runs, so the sidebar is the section view
+     * (name, tabs, folded blocks) and not the hidden page_sections list.
+     */
+    function focusInsertedSection(uid) {
+        var Vue = window.Vue;
+        var doc = document;
+        var view = window;
+
+        function run() {
+            unpressSettingsTabs(doc);
+            instantFocusHeader(uid, doc, view);
+            waitForSet(uid, doc, view, function () {
+                afterExpand(findSetByUid(uid, doc), view, function () {
+                    isolateInsertedSection(uid, doc, view);
+                });
+            });
+        }
+
+        if (Vue && typeof Vue.nextTick === 'function') {
+            Vue.nextTick(run);
+        } else {
+            run();
+        }
+    }
+
+    function isolateInsertedSection(uid, doc, view) {
+        var sve = window.sve;
+
+        if (sve && typeof sve.isolateSoloSection === 'function') {
+            sve.isolateSoloSection(uid, doc, view, { kind: 'section' });
         }
     }
 

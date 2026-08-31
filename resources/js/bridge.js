@@ -2792,19 +2792,24 @@ function rowContextFor(win, el) {
   const horizontal = isHorizontalFlow(win, row);
   const moveActions = [];
 
-  if (peers.length > 1) {
-    moveActions.push(
-      {
+  const peerIndex = peers.indexOf(row);
+
+  if (peers.length > 1 && peerIndex >= 0) {
+    if (peerIndex > 0) {
+      moveActions.push({
         glyph: horizontal ? '←' : '↑',
         label: horizontal ? t('move_left') : t('move_up'),
         run: () => post('move', { direction: -1 }),
-      },
-      {
+      });
+    }
+
+    if (peerIndex < peers.length - 1) {
+      moveActions.push({
         glyph: horizontal ? '→' : '↓',
         label: horizontal ? t('move_right') : t('move_down'),
         run: () => post('move', { direction: 1 }),
-      }
-    );
+      });
+    }
   }
 
   // Insert on either side of this row. Both hand off to Statamic's own set
@@ -6486,13 +6491,28 @@ function showMoveControl(win, moveEl) {
     ctrl.appendChild(handle);
   }
 
-  if (peers.length > 1 || (isBlockSet && (moveEl.parentElement?.children.length || 0) > 1)) {
+  const peerIndex = peers.indexOf(peerEl);
+  const canStep = peers.length > 1 && peerIndex >= 0;
+  const canMovePrev = canStep && peerIndex > 0;
+  const canMoveNext = canStep && peerIndex < peers.length - 1;
+
+  if (canMovePrev || canMoveNext) {
     if (flowsSideways) {
-      addArrow('←', t('move_left'), -1);
-      addArrow('→', t('move_right'), 1);
+      if (canMovePrev) {
+        addArrow('←', t('move_left'), -1);
+      }
+
+      if (canMoveNext) {
+        addArrow('→', t('move_right'), 1);
+      }
     } else {
-      addArrow('↑', t('move_up'), -1);
-      addArrow('↓', t('move_down'), 1);
+      if (canMovePrev) {
+        addArrow('↑', t('move_up'), -1);
+      }
+
+      if (canMoveNext) {
+        addArrow('↓', t('move_down'), 1);
+      }
     }
   }
 

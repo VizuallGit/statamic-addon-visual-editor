@@ -90,6 +90,7 @@ stubUntilLoaded('handleInsertBardSet', 'sections');
 stubUntilLoaded('handleInsertBlock', 'sections');
 stubUntilLoaded('fillHtmlTreePane', 'html_tree');
 stubUntilLoaded('showHtmlTreePane', 'html_tree');
+stubUntilLoaded('openHtmlTreePanel', 'html_tree');
 stubUntilLoaded('closeHtmlTreePanel', 'html_tree');
 stubUntilLoaded('toggleHtmlTreePanel', 'html_tree');
 stubUntilLoaded('renderHtmlTree', 'html_tree');

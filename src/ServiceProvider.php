@@ -7,6 +7,7 @@ use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
+use Statamic\Facades\Cascade;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
 use MarioHamann\StatamicVisualEditor\Commands\Install;
@@ -50,6 +51,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SetPreviewsController;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableStaticCacheInLivePreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\EagerImagesInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsList;
@@ -194,8 +196,11 @@ class ServiceProvider extends AddonServiceProvider
 
     protected $middlewareGroups = [
         'web' => [
-            // First: it has to decide before the view renders, unlike the rest,
-            // which rewrite the response on the way back out.
+            // Before Statamic's static-cache middleware: Live Preview must not
+            // read or write `half`/`full`. The public site keeps `.env`.
+            DisableStaticCacheInLivePreview::class,
+            // First of the rest: it has to decide before the view renders, unlike
+            // the others, which rewrite the response on the way back out.
             DisableViteHotReload::class,
             EagerImagesInPreview::class,
             InjectBridgeScript::class,
@@ -231,7 +236,7 @@ class ServiceProvider extends AddonServiceProvider
     //   grid-collapse             — collapse Grid rows in the sidebar
     //   section-meta-prefetch     — prefetch set meta (library, Search Sets hover, solo +)
     //   inserter-reveal           — keep the "+" visible under a newly added block
-    //   toolbar-look              — trial 4px radius, no outline/shadow on edit toolbar
+    //   toolbar-look              — trial 4px pills, no shadow; light chrome on dark sections
     //   library-drop-focus        — after a library drop, zoom in on the new section
     //   lite-sections             — mount one page_sections row in Live Preview
     //   collection-template-picker — Preview-as select on collection templates
@@ -405,6 +410,19 @@ class ServiceProvider extends AddonServiceProvider
         // Busting ?t= on every <script type=module> forces Vite/site.js to
         // re-execute after each morph → full iframe reload ("Reload site?").
         config(['statamic.live_preview.force_reload_js_modules' => false]);
+
+        Cascade::hydrated(function ($cascade) {
+            $request = request();
+
+            if (! $request->isLivePreview()) {
+                return;
+            }
+
+            LivePreviewSectionScope::limitCascade(
+                $cascade,
+                LivePreviewSectionScope::idsFromRequest($request)
+            );
+        });
 
 
         // Provide the set preview-image map to the CP script. Bound to the CP

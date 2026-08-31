@@ -123,6 +123,22 @@ export function listViewSiblings(node) {
   return parent?.children || [];
 }
 
+/** Siblings that share the same array — the only ones a move can swap with. */
+export function listViewMovePeers(node) {
+  return listViewSiblings(node).filter((sib) => sib.listKey === node.listKey);
+}
+
+/** First of its list has no up; last has no down. */
+export function listViewMoveCaps(node) {
+  const peers = listViewMovePeers(node);
+  const index = peers.findIndex((sib) => sib.uid === node.uid);
+
+  return {
+    up: index > 0,
+    down: index >= 0 && index < peers.length - 1,
+  };
+}
+
 /**
  * Accordion at this node's level: open it, fold every sibling.
  *
@@ -991,11 +1007,17 @@ export function openListViewMenu(win, anchor, item) {
   }
 
   if (!item.locked) {
-    items.push(
-      { id: 'up', label: t(win, 'listview_move_up') },
-      { id: 'down', label: t(win, 'listview_move_down') },
-      { id: 'duplicate', label: t(win, 'listview_duplicate') }
-    );
+    const caps = listViewMoveCaps(item);
+
+    if (caps.up) {
+      items.push({ id: 'up', label: t(win, 'listview_move_up') });
+    }
+
+    if (caps.down) {
+      items.push({ id: 'down', label: t(win, 'listview_move_down') });
+    }
+
+    items.push({ id: 'duplicate', label: t(win, 'listview_duplicate') });
   }
 
   if (item.kind !== 'grid') {
@@ -1348,9 +1370,25 @@ export function renderListView(win) {
         });
       }
 
+      const caps = listViewMoveCaps(item);
+
+      if (caps.up) {
+        actions.push({
+          id: 'up',
+          title: t(win, 'listview_move_up'),
+          svg: actSvg('<path d="M12 19V5M5 12l7-7 7 7"/>'),
+        });
+      }
+
+      if (caps.down) {
+        actions.push({
+          id: 'down',
+          title: t(win, 'listview_move_down'),
+          svg: actSvg('<path d="M12 5v14M19 12l-7 7-7-7"/>'),
+        });
+      }
+
       actions.push(
-        { id: 'up', title: t(win, 'listview_move_up'), svg: actSvg('<path d="M12 19V5M5 12l7-7 7 7"/>') },
-        { id: 'down', title: t(win, 'listview_move_down'), svg: actSvg('<path d="M12 5v14M19 12l-7 7-7-7"/>') },
         {
           id: 'duplicate',
           title: t(win, 'listview_duplicate'),
@@ -1725,6 +1763,8 @@ Object.defineProperty(sve, 'listViewStarted', { get() { return listViewStarted; 
 Object.defineProperty(sve, 'listViewLockObserver', { get() { return listViewLockObserver; }, set(v) { listViewLockObserver = v; } });
 sve.listViewOpenShallow = listViewOpenShallow;
 sve.listViewSiblings = listViewSiblings;
+sve.listViewMovePeers = listViewMovePeers;
+sve.listViewMoveCaps = listViewMoveCaps;
 sve.listViewSoloSiblings = listViewSoloSiblings;
 sve.listViewOpenExclusive = listViewOpenExclusive;
 sve.listViewRevealPath = listViewRevealPath;

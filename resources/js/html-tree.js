@@ -1,6 +1,6 @@
 /**
  * Settings toggle: `html_tree`
- * HTML tag tree in the right dock — own toolbar icon, not the block tree.
+ * HTML tag tree in the right dock — opens with the template dock, not a top-bar icon.
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
 import { sve } from './cp-registry.js';
@@ -185,11 +185,6 @@ export function ensureHtmlTreeStyles(doc) {
       background: rgba(0,0,0,.22);
       font: inherit;
       color: inherit;
-    }
-    #${HTML_TREE_PANEL_ID} .sve-pane-hint {
-      font-size: 12px !important;
-      line-height: 1.35;
-      opacity: .55;
     }
   `;
 }
@@ -631,7 +626,6 @@ export function fillHtmlTreePane(win, pane) {
   pane.id = HTML_TREE_PANEL_ID;
   mountPane(pane, HtmlTreePane, {
     title: t(win, 'html_tree'),
-    hint: t(win, 'html_tree_hint'),
   });
   pane.querySelector('[data-sve-close]')?.addEventListener('click', () => closeHtmlTreePanel(win));
 }
@@ -641,7 +635,7 @@ export function showHtmlTreePane(win) {
   renderHtmlTree(win);
 }
 
-export function toggleHtmlTreePanel(win) {
+export function openHtmlTreePanel(win) {
   const doc = win.document;
 
   if (!sve.featureOn(win, 'html_tree')) {
@@ -649,8 +643,13 @@ export function toggleHtmlTreePanel(win) {
   }
 
   if (htmlTreePanel(doc)) {
-    closeHtmlTreePanel(win);
+    watchHtmlTreeDock(win);
+    renderHtmlTree(win);
 
+    return;
+  }
+
+  if (!dockIsOpen(doc)) {
     return;
   }
 
@@ -662,7 +661,6 @@ export function toggleHtmlTreePanel(win) {
   panel.style.cssText = RIGHT_PANEL_FILL;
   mountPane(panel, HtmlTreePane, {
     title: t(win, 'html_tree'),
-    hint: t(win, 'html_tree_hint'),
   });
 
   panel.querySelector('[data-sve-close]')?.addEventListener('click', () => closeHtmlTreePanel(win));
@@ -674,6 +672,16 @@ export function toggleHtmlTreePanel(win) {
   renderHtmlTree(win);
 }
 
+export function toggleHtmlTreePanel(win) {
+  if (htmlTreePanel(win.document)) {
+    closeHtmlTreePanel(win);
+
+    return;
+  }
+
+  openHtmlTreePanel(win);
+}
+
 register('html-tree:from-preview', ({ path } = {}) => {
   selectHtmlTreeByPath(window, path);
 });
@@ -683,5 +691,6 @@ sve.htmlTreePanel = htmlTreePanel;
 sve.closeHtmlTreePanel = closeHtmlTreePanel;
 sve.fillHtmlTreePane = fillHtmlTreePane;
 sve.showHtmlTreePane = showHtmlTreePane;
+sve.openHtmlTreePanel = openHtmlTreePanel;
 sve.toggleHtmlTreePanel = toggleHtmlTreePanel;
 sve.renderHtmlTree = renderHtmlTree;

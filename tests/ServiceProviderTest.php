@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 use Illuminate\Support\Facades\Event;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\SveLiteSections;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableStaticCacheInLivePreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Listeners\InjectVisualIdIntoBlueprint;
@@ -127,6 +128,7 @@ class ServiceProviderTest extends TestCase
     {
         $middleware = $this->app['router']->getMiddlewareGroups()['web'] ?? [];
 
+        $this->assertContains(DisableStaticCacheInLivePreview::class, $middleware);
         $this->assertContains(InjectBridgeScript::class, $middleware);
         $this->assertContains(DisableViteHotReload::class, $middleware);
     }

@@ -1,10 +1,9 @@
 /**
- * Trial look for the inline-edit toolbar (T-chip + controls).
+ * Trial look for the inline-edit toolbar and the section move bar.
  *
  * Original (bridge): 9px radius, 1px border, drop shadow, CP light/dark theme.
- * Trial: 4px radius, no border/outline, no shadow. Background follows the
- * section — light chrome on a dark surface, dark chrome on a light one —
- * the same reading as the plus inserter.
+ * Trial: 4px radius, no border, no shadow. The pills themselves follow the
+ * section — light chrome on a dark surface, dark chrome on a light one.
  *
  * Set ENABLED to false and hard-refresh CP to restore the original.
  *
@@ -15,12 +14,68 @@
 
     var ENABLED = true;
     var STYLE_ID = '__sve-toolbar-look';
-    var BARS = '#__sve-edit-toolbar,#__sve-hover-belt';
 
     if (window.__sveToolbarLook) {
         return;
     }
     window.__sveToolbarLook = true;
+
+    // Each ID gets its own suffix. Concatenating a comma-list then appending
+    // ` > *` only attaches the child selector to the last ID, so the wrapper
+    // was painted (white glow behind the bar) while the pills stayed dark.
+    function pills(attr) {
+        attr = attr || '';
+
+        // Edit/hover bars are a transparent wrapper; the move bar *is* the pill.
+        return (
+            '#__sve-edit-toolbar' +
+            attr +
+            ' > *,' +
+            '#__sve-hover-belt' +
+            attr +
+            ' > *,' +
+            '#__sve-move-ctrl' +
+            attr +
+            ',' +
+            '[data-sve-menu]' +
+            attr
+        );
+    }
+
+    function buttons(attr) {
+        attr = attr || '';
+
+        return (
+            '#__sve-edit-toolbar' +
+            attr +
+            ' button,' +
+            '#__sve-hover-belt' +
+            attr +
+            ' button,' +
+            '#__sve-move-ctrl' +
+            attr +
+            ' button,' +
+            '[data-sve-menu]' +
+            attr +
+            ' button'
+        );
+    }
+
+    function seps(attr) {
+        attr = attr || '';
+
+        return (
+            '#__sve-edit-toolbar' +
+            attr +
+            ' [data-sve-sep],' +
+            '#__sve-hover-belt' +
+            attr +
+            ' [data-sve-sep],' +
+            '[data-sve-menu]' +
+            attr +
+            ' [data-sve-sep]'
+        );
+    }
 
     function css() {
         if (!ENABLED) {
@@ -28,50 +83,53 @@
         }
 
         return (
-            BARS +
-            ' > *,[data-sve-menu]{' +
-            'border:none!important;outline:none!important;box-shadow:none!important;border-radius:4px!important;' +
+            pills() +
+            '{' +
+            'border:none!important;outline:none!important;box-shadow:none!important;' +
+            'filter:none!important;border-radius:4px!important;' +
             '}' +
-            BARS +
-            ' button,[data-sve-menu] button{' +
+            buttons() +
+            '{' +
             'border-radius:4px!important;outline:none!important;box-shadow:none!important;' +
             '}' +
-            BARS +
-            '[data-sve-tb-tone="dark"],[data-sve-menu][data-sve-tb-tone="dark"]{color:#111!important;}' +
-            BARS +
-            '[data-sve-tb-tone="dark"] > *,[data-sve-menu][data-sve-tb-tone="dark"]{' +
-            'background:#fff!important;color:#111!important;' +
+            pills('[data-sve-tb-tone="dark"]') +
+            '{' +
+            'background:#ececee!important;color:#18181b!important;' +
             '}' +
-            BARS +
-            '[data-sve-tb-tone="dark"] button,[data-sve-menu][data-sve-tb-tone="dark"] button{color:#111!important;}' +
-            BARS +
-            '[data-sve-tb-tone="dark"] [data-sve-sep],[data-sve-menu][data-sve-tb-tone="dark"] [data-sve-sep]{' +
-            'background:rgba(0,0,0,.12)!important;' +
-            '}' +
-            BARS +
-            '[data-sve-tb-tone="dark"] button:hover:not([data-sve-on="1"]),[data-sve-menu][data-sve-tb-tone="dark"] button:hover{' +
+            buttons('[data-sve-tb-tone="dark"]') +
+            '{color:#18181b!important;}' +
+            seps('[data-sve-tb-tone="dark"]') +
+            '{background:rgba(0,0,0,.12)!important;}' +
+            '#__sve-edit-toolbar[data-sve-tb-tone="dark"] button:hover:not([data-sve-on="1"]),' +
+            '#__sve-hover-belt[data-sve-tb-tone="dark"] button:hover:not([data-sve-on="1"]),' +
+            '#__sve-move-ctrl[data-sve-tb-tone="dark"] button:hover:not([data-sve-on="1"]),' +
+            '[data-sve-menu][data-sve-tb-tone="dark"] button:hover{' +
             'background:rgba(0,0,0,.06)!important;' +
             '}' +
-            BARS +
-            '[data-sve-tb-tone="dark"] button[data-sve-on="1"]{background:#e4e4e7!important;}' +
-            BARS +
-            '[data-sve-tb-tone="light"],[data-sve-menu][data-sve-tb-tone="light"]{color:#fff!important;}' +
-            BARS +
-            '[data-sve-tb-tone="light"] > *,[data-sve-menu][data-sve-tb-tone="light"]{' +
-            'background:#111!important;color:#fff!important;' +
+            '#__sve-edit-toolbar[data-sve-tb-tone="dark"] button[data-sve-on="1"],' +
+            '#__sve-hover-belt[data-sve-tb-tone="dark"] button[data-sve-on="1"],' +
+            '#__sve-move-ctrl[data-sve-tb-tone="dark"] button[data-sve-on="1"]{' +
+            'background:#e4e4e7!important;' +
             '}' +
-            BARS +
-            '[data-sve-tb-tone="light"] button,[data-sve-menu][data-sve-tb-tone="light"] button{color:#fff!important;}' +
-            BARS +
-            '[data-sve-tb-tone="light"] [data-sve-sep],[data-sve-menu][data-sve-tb-tone="light"] [data-sve-sep]{' +
-            'background:rgba(255,255,255,.16)!important;' +
+            pills('[data-sve-tb-tone="light"]') +
+            '{' +
+            'background:#27272a!important;color:#e4e4e7!important;' +
             '}' +
-            BARS +
-            '[data-sve-tb-tone="light"] button:hover:not([data-sve-on="1"]),[data-sve-menu][data-sve-tb-tone="light"] button:hover{' +
+            buttons('[data-sve-tb-tone="light"]') +
+            '{color:#e4e4e7!important;}' +
+            seps('[data-sve-tb-tone="light"]') +
+            '{background:rgba(255,255,255,.16)!important;}' +
+            '#__sve-edit-toolbar[data-sve-tb-tone="light"] button:hover:not([data-sve-on="1"]),' +
+            '#__sve-hover-belt[data-sve-tb-tone="light"] button:hover:not([data-sve-on="1"]),' +
+            '#__sve-move-ctrl[data-sve-tb-tone="light"] button:hover:not([data-sve-on="1"]),' +
+            '[data-sve-menu][data-sve-tb-tone="light"] button:hover{' +
             'background:rgba(255,255,255,.10)!important;' +
             '}' +
-            BARS +
-            '[data-sve-tb-tone="light"] button[data-sve-on="1"]{background:rgba(255,255,255,.20)!important;}'
+            '#__sve-edit-toolbar[data-sve-tb-tone="light"] button[data-sve-on="1"],' +
+            '#__sve-hover-belt[data-sve-tb-tone="light"] button[data-sve-on="1"],' +
+            '#__sve-move-ctrl[data-sve-tb-tone="light"] button[data-sve-on="1"]{' +
+            'background:rgba(255,255,255,.20)!important;' +
+            '}'
         );
     }
 
@@ -187,28 +245,49 @@
         return false;
     }
 
-    function sourceForBar(win, bar) {
+    function sampleUnder(win, bar) {
         var doc = win.document;
-        var el =
-            doc.querySelector('[data-sid-inner]') ||
-            doc.querySelector('[data-sve-editing]') ||
-            doc.querySelector('[data-sid-hover]');
         var rect;
         var x;
         var y;
+        var prev;
         var hit;
 
-        if (!el && bar && bar.getBoundingClientRect) {
-            rect = bar.getBoundingClientRect();
-            x = rect.left + Math.min(24, rect.width / 2);
-            y = rect.bottom + 12;
-            hit = doc.elementFromPoint(x, y);
+        if (!bar || !bar.getBoundingClientRect) {
+            return null;
+        }
 
-            if (hit && bar.contains(hit)) {
-                hit = null;
-            }
+        rect = bar.getBoundingClientRect();
+        x = rect.left + Math.min(40, Math.max(8, rect.width / 2));
+        y = rect.bottom + 8;
+        prev = bar.style.pointerEvents;
+        bar.style.pointerEvents = 'none';
+        hit = doc.elementFromPoint(x, y);
 
-            el = hit;
+        if (!hit || hit === bar || (bar.contains && bar.contains(hit))) {
+            hit = doc.elementFromPoint(x, Math.max(0, rect.top - 8));
+        }
+
+        bar.style.pointerEvents = prev;
+
+        if (hit && (hit === bar || (bar.contains && bar.contains(hit)))) {
+            return null;
+        }
+
+        return hit;
+    }
+
+    function sourceForBar(win, bar) {
+        var doc = win.document;
+        var el;
+
+        if (bar && bar.id === '__sve-move-ctrl') {
+            el = sampleUnder(win, bar);
+        } else {
+            el =
+                doc.querySelector('[data-sve-editing]') ||
+                doc.querySelector('[data-sid-hover]') ||
+                sampleUnder(win, bar);
         }
 
         if (el && el.closest) {
@@ -240,6 +319,7 @@
         var doc;
         var edit;
         var hover;
+        var move;
         var menu;
         var tone;
 
@@ -250,11 +330,16 @@
         doc = win.document;
         edit = doc.getElementById('__sve-edit-toolbar');
         hover = doc.getElementById('__sve-hover-belt');
+        move = doc.getElementById('__sve-move-ctrl');
+        menu = doc.querySelector('[data-sve-menu]');
+
+        if (!edit && !hover && !move && !menu) {
+            return;
+        }
 
         applyTone(win, edit);
         applyTone(win, hover);
-
-        menu = doc.querySelector('[data-sve-menu]');
+        applyTone(win, move);
 
         if (menu) {
             tone =
@@ -348,8 +433,13 @@
 
     bindFrames();
     document.addEventListener('sve-chrome-render', schedule);
-    new MutationObserver(schedule).observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-    });
+    document.addEventListener(
+        'load',
+        function (event) {
+            if (event.target && event.target.id === 'live-preview-iframe') {
+                schedule();
+            }
+        },
+        true
+    );
 })();

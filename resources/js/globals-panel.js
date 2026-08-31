@@ -7,6 +7,7 @@ import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
 import { sveState } from './cp-state.js';
 import { COLLAPSE_SETTLE_MS, GLOBALS_PANEL_PARAM, SELECTORS } from './cp-selectors.js';
+import { captureSectionPreviewScope, watchSectionPreviewScope, wrapSectionPreviewFrame } from './preview-section-scope.js';
 import {
   FRAMED_SELECT_STYLE,
   LP_SAVE_TIMEOUT,
@@ -120,7 +121,11 @@ export function ensurePreviewOutsideDismiss(win) {
     return;
   }
 
-  const forward = () => {
+  const forward = (event) => {
+    if (event?.target?.closest?.('#__sve-inserters button')) {
+      return;
+    }
+
     try {
       win.document.body?.dispatchEvent(
         new win.PointerEvent('pointerdown', { bubbles: true, cancelable: true })
@@ -296,6 +301,8 @@ export function assertChromeFocusInPreview(win) {
  * we replay to re-render after a global changes.
  */
 export function watchPreviewRenders(win) {
+  watchSectionPreviewScope(win);
+
   const isPreviewCall = (url, method) => {
     if (typeof url !== 'string' || !/^POST$/i.test(method || 'GET')) {
       return false;
@@ -321,6 +328,7 @@ export function watchPreviewRenders(win) {
 
       if (typeof url === 'string' && isLivePreviewDocumentUrl(url, win.location.origin)) {
         lastPreviewUrl = url;
+        wrapSectionPreviewFrame(win);
       }
     } catch {
       /* not the payload we expected */
@@ -332,6 +340,11 @@ export function watchPreviewRenders(win) {
   win.fetch = function (input, init = {}) {
     const url = typeof input === 'string' ? input : input?.url;
     const method = init.method ?? (typeof input === 'object' ? input?.method : null);
+
+    if (isPreviewCall(url, method)) {
+      captureSectionPreviewScope(win);
+    }
+
     const request = originalFetch.call(this, input, init);
 
     if (!isPreviewCall(url, method)) {
@@ -351,6 +364,7 @@ export function watchPreviewRenders(win) {
 
   win.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     if (isPreviewCall(url, method)) {
+      captureSectionPreviewScope(win);
       this.addEventListener('load', () => {
         if (this.status >= 200 && this.status < 300) {
           remember(this.response ?? this.responseText);

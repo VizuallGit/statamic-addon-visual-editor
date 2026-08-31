@@ -1,7 +1,6 @@
 <script setup>
 defineProps({
   title: { type: String, default: '' },
-  hint: { type: String, required: true },
 });
 </script>
 
@@ -16,7 +15,6 @@ defineProps({
         </button>
       </div>
     </div>
-    <div class="sve-pane-hint">{{ hint }}</div>
     <div data-sve-html-tree-list></div>
   </div>
 </template>
@@ -27,13 +25,6 @@ defineProps({
   flex-direction: column;
   min-height: 0;
   height: 100%;
-}
-.sve-pane-hint {
-  padding: var(--sve-right-body-pad-block, 8px) 0 6px;
-  font-size: 12px;
-  line-height: 1.35;
-  opacity: 0.55;
-  flex: 0 0 auto;
 }
 [data-sve-html-tree-list] {
   flex: 1 1 auto;
