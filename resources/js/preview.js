@@ -21,6 +21,7 @@ import morphPlugin from '@alpinejs/morph';
 const STYLE_ID = '__sve-preview-styles';
 const THEME_SCALE_STYLE_ID = '__sve-theme-scale';
 const CHROME_ATTR = 'data-sve-chrome';
+const SID_ATTR = 'data-sid';
 
 function injectPreviewStyles(doc) {
   if (doc.getElementById(STYLE_ID)) {
@@ -163,6 +164,7 @@ function applyThemeScaleCss(css) {
 
 let updateSeq = 0;
 let pendingUrl = null;
+let pendingSectionUids = null;
 
 // True while a global set is open beside the preview. Renders then have to ask
 // for the unsaved globals — otherwise the server uses what's on disk and the
@@ -290,6 +292,58 @@ function morphChromeOnly(updated, kind) {
   return true;
 }
 
+/**
+ * Morph only the page section the template dock just saved (`data-sid`).
+ * Theme settings and ordinary Live Preview still use the full body.
+ *
+ * `visual_edit` writes the row `id` onto `data-sid`. The dock may send
+ * `_visual_id`. Try every identity until both documents have the node.
+ */
+function sectionSidSelector(uid) {
+  return `[${SID_ATTR}="${CSS.escape(String(uid))}"]`;
+}
+
+function findSectionNode(root, uids) {
+  const ids = Array.isArray(uids) ? uids : [uids];
+
+  for (const uid of ids) {
+    if (!uid) {
+      continue;
+    }
+
+    const el = root.querySelector(sectionSidSelector(uid));
+
+    if (el) {
+      return el;
+    }
+  }
+
+  return null;
+}
+
+function morphSectionOnly(updated, uids) {
+  ensureAlpineMorph();
+
+  const live = findSectionNode(document, uids);
+  const next = findSectionNode(updated.body, uids);
+
+  if (!live || !next) {
+    return false;
+  }
+
+  try {
+    if (window.Alpine?.morph) {
+      window.Alpine.morph(live, next.outerHTML);
+    } else {
+      live.replaceWith(document.importNode(next, true));
+    }
+  } catch (e) {
+    return false;
+  }
+
+  return true;
+}
+
 function morphFullBody(updated) {
   ensureAlpineMorph();
 
@@ -350,7 +404,7 @@ function leftLivePreview(requested, finalUrl) {
   return false;
 }
 
-async function applyUpdate(url) {
+async function applyUpdate(url, sectionUids) {
   if (!url) {
     return;
   }
@@ -378,6 +432,7 @@ async function applyUpdate(url) {
   // An inline edit may have started while the fetch was in flight — defer.
   if (editingActive()) {
     pendingUrl = url;
+    pendingSectionUids = sectionUids || null;
 
     return;
   }
@@ -402,6 +457,8 @@ async function applyUpdate(url) {
 
     if (chromeKind) {
       surgical = morphChromeOnly(updated, chromeKind);
+    } else if (sectionUids) {
+      surgical = morphSectionOnly(updated, sectionUids);
     }
 
     if (!surgical) {
@@ -455,22 +512,26 @@ window.addEventListener('message', (event) => {
 
   if (editingActive()) {
     pendingUrl = event.data.url;
+    pendingSectionUids = event.data.sectionUids || event.data.sectionUid || null;
 
     return;
   }
 
-  applyUpdate(event.data.url);
+  applyUpdate(event.data.url, event.data.sectionUids || event.data.sectionUid || null);
 });
 
 window.addEventListener('sve:clear-pending-preview', () => {
   pendingUrl = null;
+  pendingSectionUids = null;
 });
 
 window.addEventListener('sve:inline-edit-end', () => {
   if (pendingUrl) {
     const url = pendingUrl;
+    const uids = pendingSectionUids;
 
     pendingUrl = null;
-    applyUpdate(url);
+    pendingSectionUids = null;
+    applyUpdate(url, uids);
   }
 });

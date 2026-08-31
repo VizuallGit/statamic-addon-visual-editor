@@ -253,11 +253,13 @@ export function resolveVisualIdFromValues(uid, doc) {
 }
 
 /**
- * Walks up from a (possibly nested) set uid to the top-level section uid
- * (e.g. page_sections.2). Field clicks should solo the section, while still
- * expanding the nested block that owns the field.
+ * Walks up from a (possibly nested) set uid to the top-level page_sections row.
  */
-export function topLevelSectionUid(uid, doc) {
+function topLevelSectionRow(uid, doc) {
+  if (!uid) {
+    return null;
+  }
+
   for (const container of sve.activeContainers(doc)) {
     const values = sve.unwrapRef(container.values);
 
@@ -279,14 +281,52 @@ export function topLevelSectionUid(uid, doc) {
 
     const section = sve.dataGet(values, `${match[1]}.${match[2]}`);
 
-    if (!section || typeof section !== 'object') {
-      continue;
+    if (section && typeof section === 'object') {
+      return section;
     }
-
-    return section._visual_id || section._id || section.id || null;
   }
 
   return null;
+}
+
+/**
+ * Walks up from a (possibly nested) set uid to the top-level section uid
+ * (e.g. page_sections.2). Field clicks should solo the section, while still
+ * expanding the nested block that owns the field.
+ */
+export function topLevelSectionUid(uid, doc) {
+  const section = topLevelSectionRow(uid, doc);
+
+  if (!section) {
+    return null;
+  }
+
+  return section._visual_id || section._id || section.id || null;
+}
+
+/**
+ * Every identity the section row has. `data-sid` on the preview uses `id` first;
+ * the dock often holds `_visual_id`. Morph has to try all of them or it falls
+ * back to the full body.
+ */
+export function topLevelSectionIds(uid, doc) {
+  const ids = [];
+  const push = (value) => {
+    if (typeof value === 'string' && value !== '' && !ids.includes(value)) {
+      ids.push(value);
+    }
+  };
+  const section = topLevelSectionRow(uid, doc);
+
+  if (section) {
+    push(section.id);
+    push(section._id);
+    push(section._visual_id);
+  }
+
+  push(uid);
+
+  return ids;
 }
 
 export function collectAncestorSets(setEl) {
@@ -9018,6 +9058,6 @@ export function initCp(win = window) {
 }
 
 /** Used by the template dock. Implementation lives in globals-panel.js (toggle `globals`). */
-export function replayLivePreview(win) {
-  return sve.replayLivePreview(win);
+export function replayLivePreview(win, opts) {
+  return sve.replayLivePreview(win, opts);
 }

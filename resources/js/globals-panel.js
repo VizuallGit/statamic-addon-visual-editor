@@ -234,7 +234,7 @@ export function isLivePreviewDocumentUrl(url, origin) {
  * Must morph, never `location.reload()`: a full reload of the front-end in the
  * iframe ejects Live Preview (same failure Vite `refresh: true` used to cause).
  */
-export function replayLivePreview(win) {
+export function replayLivePreview(win, opts) {
   const frame = previewFrame(win.document);
 
   if (!frame?.contentWindow) {
@@ -252,7 +252,20 @@ export function replayLivePreview(win) {
     return;
   }
 
-  frame.contentWindow.postMessage({ name: 'statamic.preview.updated', url }, '*');
+  const sectionUids = Array.isArray(opts?.sectionUids)
+    ? opts.sectionUids.filter((id) => typeof id === 'string' && id !== '')
+    : opts && typeof opts.sectionUid === 'string' && opts.sectionUid !== ''
+      ? [opts.sectionUid]
+      : [];
+
+  frame.contentWindow.postMessage(
+    {
+      name: 'statamic.preview.updated',
+      url,
+      ...(sectionUids.length ? { sectionUids } : {}),
+    },
+    '*'
+  );
 }
 
 /** Header/footer currently stepped into from Live Preview (null when not). */

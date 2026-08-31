@@ -108,7 +108,7 @@
     "isDynamicEntry": true
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-CJcFGwZG.js",
+    "file": "assets/addon-CbU7iJgz.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -141,7 +141,7 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-CIqSvjVw.js",
+    "file": "assets/html-tree-DHZ8Qd7A.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,
@@ -161,7 +161,7 @@
     "isDynamicEntry": true
   },
   "resources/js/preview.js": {
-    "file": "assets/preview-B_20-npx.js",
+    "file": "assets/preview-D7888Yuk.js",
     "name": "preview",
     "src": "resources/js/preview.js",
     "isEntry": true

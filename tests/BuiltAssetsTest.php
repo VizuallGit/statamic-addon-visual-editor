@@ -13,6 +13,10 @@ class BuiltAssetsTest extends TestCase
         $imports = BuiltAssets::addonImports();
 
         $this->assertNotEmpty($imports, 'addon.js must import overlay-host by hashed name');
+        $this->assertTrue(
+            collect($imports)->contains(fn ($name) => str_starts_with($name, 'overlay-host-')),
+            'the live addon.js must name overlay-host'
+        );
 
         foreach ($imports as $name) {
             $this->assertFileExists(BuiltAssets::assetsDir().'/'.$name);

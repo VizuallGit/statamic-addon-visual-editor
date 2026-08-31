@@ -193,8 +193,9 @@ class BuiltAssets
     }
 
     /**
-     * After a good boot, keep a copy of every file addon.js imports.
-     * The next half-build can delete the live chunk; recover() puts it back.
+     * After a good boot, keep a copy of the live addon.js and every file it
+     * imports. Not every leftover hashed addon-*.js in the folder — reading
+     * those on each request made Live Preview open slower after many builds.
      */
     public static function refreshLock(): void
     {
@@ -213,12 +214,14 @@ class BuiltAssets
             return;
         }
 
-        foreach (static::addonImports() as $name) {
-            static::lockFile($assets.'/'.$name, $locked.'/'.$name);
+        $addon = static::liveAddonPath();
+
+        if ($addon) {
+            static::lockFile($addon, $locked.'/'.basename($addon));
         }
 
-        foreach (glob($assets.'/addon-*.js') ?: [] as $addon) {
-            static::lockFile($addon, $locked.'/'.basename($addon));
+        foreach (static::addonImports() as $name) {
+            static::lockFile($assets.'/'.$name, $locked.'/'.$name);
         }
     }
 
@@ -243,27 +246,38 @@ class BuiltAssets
     }
 
     /**
-     * File names `addon-*.js` imports with `from "./name.js"`.
+     * The hashed addon.js the manifest is serving now.
+     */
+    public static function liveAddonPath(): ?string
+    {
+        try {
+            $path = static::pathFor('resources/js/addon.js');
+        } catch (\RuntimeException $e) {
+            return null;
+        }
+
+        return is_file($path) ? $path : null;
+    }
+
+    /**
+     * File names the live `addon.js` imports (`from "./name.js"` or `import("./name.js")`).
      *
      * @return list<string>
      */
     public static function addonImports(): array
     {
-        $dir = static::assetsDir();
+        $path = static::liveAddonPath();
 
-        if (! is_dir($dir)) {
+        if (! $path) {
             return [];
         }
 
+        $source = (string) file_get_contents($path);
         $names = [];
 
-        foreach (glob($dir.'/addon-*.js') ?: [] as $file) {
-            $source = (string) file_get_contents($file);
-
-            if (preg_match_all('#from\s*["\']\\./([^"\']+\\.js)["\']#', $source, $matches)) {
-                foreach ($matches[1] as $name) {
-                    $names[] = $name;
-                }
+        if (preg_match_all('#(?:from\s*["\']\\./|import\(["\']\\./)([^"\']+\.js)#', $source, $matches)) {
+            foreach ($matches[1] as $name) {
+                $names[] = $name;
             }
         }
 

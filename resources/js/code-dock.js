@@ -15,7 +15,7 @@
  */
 
 import { SUNDAY_AUG30 } from './sunday-aug30.js';
-import { replayLivePreview, topLevelSectionUid } from './cp.js';
+import { replayLivePreview, topLevelSectionIds, topLevelSectionUid } from './cp.js';
 import { sve } from './cp-registry.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { splitterFill } from './right-dock.js';
@@ -4120,7 +4120,15 @@ function insertAntlersSnippet(id) {
 }
 
 function refreshPreview(win) {
-  replayLivePreview(win);
+  if (!lastUid || !lastType || String(lastType).startsWith('view:')) {
+    replayLivePreview(win);
+
+    return;
+  }
+
+  const sectionUids = topLevelSectionIds(lastUid, win.document);
+
+  replayLivePreview(win, sectionUids.length ? { sectionUids } : undefined);
 }
 
 function postSave(win, type, parts) {
@@ -4668,7 +4676,7 @@ function appendPane(handle, text) {
 }
 
 export function refreshCodeDockFromDisk(win) {
-  replayLivePreview(win);
+  refreshPreview(win);
 
   if (!lastType || !win.document.getElementById(DOCK_ID)) {
     return;
