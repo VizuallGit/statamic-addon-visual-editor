@@ -11,6 +11,7 @@ class ToolbarAccessTest extends TestCase
     public function test_custom_html_defaults_to_super_admins(): void
     {
         $this->assertSame(ToolbarAccess::AUDIENCE_SUPER, ToolbarAccess::rule('template_dock')['audience']);
+        $this->assertSame(ToolbarAccess::AUDIENCE_SUPER, ToolbarAccess::rule('site_css')['audience']);
     }
 
     public function test_other_icons_default_to_everyone(): void
@@ -103,6 +104,7 @@ class ToolbarAccessTest extends TestCase
         $this->assertSame('super', $rules['pages']['audience']);
         $this->assertSame('everyone', $rules['globals']['audience']);
         $this->assertSame('super', $rules['template_dock']['audience']);
+        $this->assertSame('super', $rules['site_css']['audience']);
         $this->assertSame([], $rules['pages']['users']);
     }
 

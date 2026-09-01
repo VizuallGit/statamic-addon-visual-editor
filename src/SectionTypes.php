@@ -49,6 +49,12 @@ class SectionTypes
                     continue;
                 }
 
+                // Empty Statamic placeholders (`New Set` with no fields) are not
+                // insertable section types — they would otherwise get their own card.
+                if (empty($set['fields'] ?? [])) {
+                    continue;
+                }
+
                 // Narrowed to what the site already uses — unless the site never
                 // asked for that, or a super admin is asking.
                 if (! LibraryAccess::allowsType($setHandle)) {

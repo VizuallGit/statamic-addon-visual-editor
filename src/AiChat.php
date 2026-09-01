@@ -269,7 +269,7 @@ A new page-section type (only when they ask for one) needs three things:
 {{ /script_push }}
 
 Do not put `{{ _class = type | replace... }}` in the section file. `_class` is passed from the page_sections loop.
-3. Register it in resources/fieldsets/page_sections.yaml under the matching group (hero, entries, featured, media, content, layout, more). Read that file first, then write the full YAML. Example:
+3. Register it in resources/fieldsets/page_sections.yaml under an existing replicator tab (the `sets:` groups already in that file — do not guess names). Read the file first, pick the matching group, and write the full YAML back (no existing set may disappear). If no tab fits, add a new group with `display:` — Patterns chips follow these tabs automatically. Example:
             hero:
               display: Hero
               sets:

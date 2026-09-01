@@ -591,6 +591,13 @@ class VisualEdit extends Tags
             $attr .= ' data-sid-orderable';
         }
 
+        // toolbar="true" without a field: a click bar (icon, drag, delete) and
+        // no typing. Same belt as a wrap-up. Distinct from inline_edit, which
+        // only applies to a field annotation.
+        if ($this->params->bool('toolbar', false)) {
+            $attr .= ' data-sid-toolbar';
+        }
+
         $attr .= $this->templateAttr();
 
         return $attr;

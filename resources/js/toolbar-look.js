@@ -207,7 +207,6 @@
         var cs;
         var parsed;
         var lum;
-        var text;
 
         for (i = 0; node && i < 16; i++) {
             cs = win.getComputedStyle(node);
@@ -220,26 +219,12 @@
 
                 lum = (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255;
 
-                return lum < 0.45;
+                // Light chrome only on a really dark surface (≈ 70% dark).
+                // Same cut as inserter-reveal.js. Text/outline stays in bridge.js.
+                return lum < 0.3;
             }
 
             node = node.parentElement;
-        }
-
-        parsed = el ? parseRgb(win.getComputedStyle(el).getPropertyValue('--sve-outline-color')) : null;
-
-        if (parsed && parsed.a > 0) {
-            lum = (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255;
-
-            return lum > 0.5;
-        }
-
-        text = el ? parseRgb(win.getComputedStyle(el).color) : null;
-
-        if (text) {
-            lum = (0.2126 * text.r + 0.7152 * text.g + 0.0722 * text.b) / 255;
-
-            return lum > 0.55;
         }
 
         return false;

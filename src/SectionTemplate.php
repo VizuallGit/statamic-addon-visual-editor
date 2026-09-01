@@ -216,6 +216,16 @@ class SectionTemplate
         }
 
         $html .= $suffix;
+
+        $embedded = static::extractPair($html, 'sve_tw');
+
+        if ($embedded !== null) {
+            $html = $embedded['rest'];
+            $tw = static::joinBlocks($embedded['inner'], $tw);
+        }
+
+        $html = preg_replace('/\{\{\s*sve_tw\s*\}\}/', '', $html) ?? $html;
+
         $htmlTag = null;
         $wrapped = static::unwrapPair($html, 'sve_html');
 
@@ -260,14 +270,23 @@ class SectionTemplate
             $html = '{{ '.$htmlTag." }}\n".$html."\n{{ /".$htmlTag.' }}';
         }
 
-        $out = rtrim($html);
+        $html = rtrim($html);
+
+        if ($handle !== '' && trim($tw) !== '') {
+            TailwindStore::write($handle, $tw);
+        }
+
+        $out = $html;
+
+        // CSS lives in resources/visual-editor/tw/{handle}.css. The tag sits
+        // after the section (before style_push) so authored CSS wins cascade;
+        // SveTw pushes onto the head stack — not a <style> in the markup.
+        if ($handle !== '' && TailwindStore::has($handle)) {
+            $out .= "\n\n{{ sve_tw }}";
+        }
 
         if (trim($css) !== '') {
             $out .= static::wrapPair($cssTag, static::wrapTagged($css, 'style'));
-        }
-
-        if (trim($tw) !== '') {
-            $out .= static::wrapPair('sve_tw', static::wrapTagged($tw, 'style'));
         }
 
         if (trim($js) !== '') {
@@ -520,6 +539,26 @@ class SectionTemplate
         $rel = preg_replace('/\.antlers\.html$/', '', str_replace('\\', '/', $rel)) ?? '';
 
         return $rel !== '' ? $rel : null;
+    }
+
+    /**
+     * @return array{rest: string, inner: string}|null
+     */
+    protected static function extractPair(string $html, string $tag): ?array
+    {
+        $open = '\{\{\s*'.preg_quote($tag, '~').'\s*\}\}';
+        $close = '\{\{\s*/'.preg_quote($tag, '~').'\s*\}\}';
+
+        if (! preg_match('~^(.*)('.$open.')(.*?)('.$close.')(.*)$~s', $html, $m)) {
+            return null;
+        }
+
+        $rest = rtrim($m[1]).ltrim($m[5]);
+
+        return [
+            'rest' => preg_replace('/\n{3,}/', "\n\n", $rest) ?? $rest,
+            'inner' => $m[3],
+        ];
     }
 
     /**

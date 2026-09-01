@@ -231,4 +231,9 @@ ANTLERS);
             ], trusted: true))
         );
     }
+
+    public function test_compile_accepts_null_from_antlers_preparse(): void
+    {
+        $this->assertSame('', TemplateProps::compile(null));
+    }
 }

@@ -2088,13 +2088,16 @@ export function dockedPanelWidth(doc, ids) {
 // the bridge knows what to insert.
 
 /**
- * Chip group for the section library: the type prefix (`hero/style_1` → `hero`,
- * `featured_section/style_2` → `featured_section`). A site can dump every set
- * into one fieldset tab (`Items`); that tab is not the filter the picker shows.
- * Bare handles (`code_block`) keep their own chip. YAML `group` is only used
- * when the handle has no prefix of its own.
+ * Chip group for the section library: the replicator tab the set sits in
+ * (`group` from page_sections.yaml). A new tab in the fieldset becomes a chip
+ * on its own, in fieldset order. Handle prefix (`hero/style_1` → `hero`) is
+ * only used when the type has no YAML group — a flat, ungrouped fieldset.
  */
 export function libraryGroupKey(type) {
+  if (type && typeof type.group === 'string' && type.group.length) {
+    return type.group;
+  }
+
   const handle = type?.handle;
 
   if (handle && typeof handle === 'string' && handle.includes('/')) {
@@ -2105,17 +2108,13 @@ export function libraryGroupKey(type) {
     return handle.toLowerCase();
   }
 
-  if (type && typeof type.group === 'string' && type.group.length) {
-    return type.group;
-  }
-
   return 'other';
 }
 
-/** Handle-prefix label (`Hero`), fieldset tab when it matches, then "Other". */
+/** Fieldset tab label (`Content sections`), then title-cased key, then "Other". */
 export function libraryGroupLabel(win, key, types) {
   const fromYaml = (types || []).find(
-    (type) => type.group === key && type.group_display && libraryGroupKey(type) === key
+    (type) => type.group === key && type.group_display
   );
 
   if (fromYaml?.group_display) {

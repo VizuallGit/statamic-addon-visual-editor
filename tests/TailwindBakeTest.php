@@ -92,4 +92,32 @@ CSS);
     {
         $this->assertSame('', TailwindBake::fromHtml('<section></section>'));
     }
+
+    public function test_it_bakes_breakpoint_and_hover_variants(): void
+    {
+        $css = TailwindBake::fromHtml(
+            '<p class="md:text-800 hover:bg-primary max-lg:py-900">'
+        );
+
+        $this->assertStringContainsString(
+            '@media (min-width:768px){.md\\:text-800{font-size:var(--text-800)}}',
+            $css
+        );
+        $this->assertStringContainsString(
+            '.hover\\:bg-primary:hover{background-color:var(--color-primary)}',
+            $css
+        );
+        $this->assertStringContainsString(
+            '@media (max-width:1023px){.max-lg\\:py-900{padding-block:var(--spacing-900)}}',
+            $css
+        );
+    }
+
+    public function test_hover_before_breakpoint_still_peels(): void
+    {
+        [$variants, $utility] = TailwindBake::peelVariants('hover:md:text-800');
+
+        $this->assertSame(['hover', 'md'], $variants);
+        $this->assertSame('text-800', $utility);
+    }
 }

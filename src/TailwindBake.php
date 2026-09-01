@@ -3,15 +3,16 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 /**
- * PARKED — not called. Compile is commented out in SectionTemplateController.
- * Rewrite later; the last version leaked utilities into `{{ style_push }}`.
- *
  * CSS for Tailwind classes in a section's HTML pane, without Vite or a CDN.
  *
  * Spacing, color, type and font utilities come from the site's `@theme` in
  * `site.css` — `py-900` is `var(--spacing-900)`, not default Tailwind
- * `spacing × 900`. Arbitrary values (`bg-[#333]`) still compile. Custom
- * `@utility` names stay with `site.css` and are skipped here.
+ * `spacing × 900`. Variants (`md:`, `hover:`, `max-lg:`) wrap the same
+ * utilities. Arbitrary values (`bg-[#333]`) still compile. Custom `@utility`
+ * names stay with `site.css` and are skipped here.
+ *
+ * Written to `resources/visual-editor/tw/{handle}.css` — never into the
+ * CSS pane or the Antlers file.
  */
 class TailwindBake
 {
@@ -110,24 +111,145 @@ class TailwindBake
         'caret' => 'caret-color',
     ];
 
+    /** @var array<string, string> */
+    protected const VARIANT_MEDIA = [
+        'sm' => '(min-width:640px)',
+        'md' => '(min-width:768px)',
+        'lg' => '(min-width:1024px)',
+        'xl' => '(min-width:1280px)',
+        '2xl' => '(min-width:1536px)',
+        'max-sm' => '(max-width:639px)',
+        'max-md' => '(max-width:767px)',
+        'max-lg' => '(max-width:1023px)',
+        'max-xl' => '(max-width:1279px)',
+        'max-2xl' => '(max-width:1535px)',
+        'dark' => '(prefers-color-scheme:dark)',
+    ];
+
+    /** @var array<string, string> */
+    protected const VARIANT_PSEUDO = [
+        'hover' => ':hover',
+        'focus' => ':focus',
+        'focus-visible' => ':focus-visible',
+        'active' => ':active',
+        'disabled' => ':disabled',
+        'group-hover' => ':is(:where(.group):hover *)',
+    ];
+
     public static function fromHtml(string $html): string
     {
         $skip = static::customUtilities();
         $rules = [];
 
         foreach (static::classes($html) as $class) {
-            if (isset($skip[$class]) || isset($rules[$class])) {
+            if (isset($rules[$class])) {
                 continue;
             }
 
-            $decl = static::declaration($class);
+            [$variants, $utility] = static::peelVariants($class);
+            [$utility, $important] = static::peelImportant($utility);
 
-            if ($decl !== null) {
-                $rules[$class] = static::selector($class).'{'.$decl.'}';
+            if (isset($skip[$utility]) || isset($skip[$class])) {
+                continue;
             }
+
+            $decl = static::declaration($utility);
+
+            if ($decl === null) {
+                continue;
+            }
+
+            if ($important) {
+                $decl .= '!important';
+            }
+
+            $rules[$class] = static::wrapVariants($class, $decl, $variants);
         }
 
         return implode('', $rules);
+    }
+
+    /**
+     * @return array{0: list<string>, 1: string}
+     */
+    public static function peelVariants(string $class): array
+    {
+        $variants = [];
+        $rest = $class;
+        $changed = true;
+
+        while ($changed) {
+            $changed = false;
+
+            foreach (static::variantNames() as $name) {
+                $needle = $name.':';
+
+                if (str_starts_with($rest, $needle)) {
+                    $variants[] = $name;
+                    $rest = substr($rest, strlen($needle));
+                    $changed = true;
+                    break;
+                }
+            }
+        }
+
+        return [$variants, $rest];
+    }
+
+    /**
+     * @return array{0: string, 1: bool}
+     */
+    protected static function peelImportant(string $utility): array
+    {
+        if (str_starts_with($utility, '!')) {
+            return [substr($utility, 1), true];
+        }
+
+        if (str_ends_with($utility, '!')) {
+            return [substr($utility, 0, -1), true];
+        }
+
+        return [$utility, false];
+    }
+
+    /**
+     * @param  list<string>  $variants
+     */
+    protected static function wrapVariants(string $class, string $decl, array $variants): string
+    {
+        $pseudos = '';
+        $media = [];
+
+        foreach ($variants as $name) {
+            if (isset(static::VARIANT_MEDIA[$name])) {
+                $media[] = static::VARIANT_MEDIA[$name];
+            } elseif (isset(static::VARIANT_PSEUDO[$name])) {
+                $pseudos .= static::VARIANT_PSEUDO[$name];
+            }
+        }
+
+        $rule = static::selector($class).$pseudos.'{'.$decl.'}';
+
+        foreach (array_reverse($media) as $query) {
+            $rule = '@media '.$query.'{'.$rule.'}';
+        }
+
+        return $rule;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected static function variantNames(): array
+    {
+        $keys = array_merge(
+            array_keys(static::VARIANT_MEDIA),
+            array_keys(static::VARIANT_PSEUDO)
+        );
+
+        usort($keys, fn (string $a, string $b) => strlen($b) <=> strlen($a));
+
+        return $keys;
     }
 
     /**

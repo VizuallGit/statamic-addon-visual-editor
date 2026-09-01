@@ -227,6 +227,24 @@ tabs:
                 enabled: 'equals true'
                 template_dock: 'equals true'
           -
+            handle: site_css
+            field:
+              type: toggle
+              display: 'Site CSS'
+              instructions: 'An icon in Live Preview that opens this site''s stylesheets (`resources/css`). Saving writes the file on this server. Off by default. Super admins see the icon unless you name specific people — same as the section template dock.'
+              default: false
+              if:
+                enabled: 'equals true'
+          -
+            handle: site_css_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: site_css
+              if:
+                enabled: 'equals true'
+                site_css: 'equals true'
+          -
             handle: collection_templates
             field:
               type: toggle
@@ -239,8 +257,8 @@ tabs:
             handle: tailwind_dock
             field:
               type: toggle
-              display: 'Compile Tailwind in the template dock'
-              instructions: 'When you type a Tailwind class in the HTML pane — including one this site has never used, like `bg-[#333333]` — the editor compiles the CSS and saves it with the section. Works without `npm run dev`. Off, the dock writes the file exactly as it does today. Needs the template dock.'
+              display: 'Tailwind in the template dock'
+              instructions: 'Suggestions in the HTML pane (like `md:text-900`) from this site’s theme. Compiled CSS is stored under `resources/visual-editor/tw`, not in the Antlers file. Does not change `site.css` or `npm run dev`. Off, the dock saves exactly as it does today. Needs the template dock.'
               default: false
               if:
                 enabled: 'equals true'

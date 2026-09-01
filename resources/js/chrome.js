@@ -242,7 +242,7 @@ export function soloChromeTab(win, doc, kind) {
     doc,
     {
       display: word.charAt(0).toUpperCase() + word.slice(1),
-      icon: null,
+      icon: 'layout',
       instructions: '',
     },
     null

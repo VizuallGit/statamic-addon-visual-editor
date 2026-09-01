@@ -29,6 +29,7 @@ class Features
      */
     protected const DEFAULT_OFF = [
         'template_dock',
+        'site_css',
         'tailwind_dock',
         'ai_panel',
         'open_first_section',
@@ -58,6 +59,7 @@ class Features
         'open_first_section',
         'open_in_preview',
         'template_dock',
+        'site_css',
         'collection_templates',
         'tailwind_dock',
         'ai_panel',

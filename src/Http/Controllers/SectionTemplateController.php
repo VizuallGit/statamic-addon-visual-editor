@@ -7,8 +7,8 @@ use MarioHamann\StatamicVisualEditor\CollectionViewFile;
 use MarioHamann\StatamicVisualEditor\DockPartial;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
-// PARKED — Tailwind dock compile. Uncomment with the fromHtml() call below.
-// use MarioHamann\StatamicVisualEditor\TailwindBake;
+use MarioHamann\StatamicVisualEditor\TailwindBake;
+use MarioHamann\StatamicVisualEditor\TailwindStore;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
 
 /**
@@ -73,17 +73,16 @@ class SectionTemplateController
 
         abort_if(! empty($meta['locked']), 423);
 
-        // PARKED — Tailwind dock compile (leaked into style_push). Rewrite later.
-        // $tw = Features::enabled('tailwind_dock')
-        //     ? TailwindBake::fromHtml($html)
-        //     : ($meta['tw'] ?? '');
-        $tw = $meta['tw'] ?? '';
+        if (Features::enabled('tailwind_dock')) {
+            TailwindStore::write($splitHandle, TailwindBake::fromHtml($html));
+        } elseif (trim((string) ($meta['tw'] ?? '')) !== '') {
+            TailwindStore::write($splitHandle, (string) $meta['tw']);
+        }
 
         $contents = SectionTemplate::join([
             'html' => $html,
             'css' => $css,
             'js' => $js,
-            'tw' => $tw,
             'html_tag' => $meta['html_tag'],
             'css_tag' => $meta['css_tag'],
             'js_tag' => $meta['js_tag'],

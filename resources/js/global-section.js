@@ -918,9 +918,20 @@ export function hidePageFieldsForGlobalSection(host) {
   host.dataset.sveReady = '1';
 
   [...column.children].forEach((child) => {
-    if (child !== host) {
-      child.setAttribute(GLOBAL_SECTION_AWAY_ATTR, '');
+    if (child === host) {
+      return;
     }
+
+    // The focus header names what the column is showing. It is not a page field —
+    // same skip as markPanelIsolate. Hiding it left Header/Footer (and a synced
+    // section) without the icon+title every ordinary section has.
+    if (child.id === sve.FOCUS_HEADER_ID || child.hasAttribute('data-sve-focus-header')) {
+      child.removeAttribute(GLOBAL_SECTION_AWAY_ATTR);
+
+      return;
+    }
+
+    child.setAttribute(GLOBAL_SECTION_AWAY_ATTR, '');
   });
 
   const win = host.ownerDocument.defaultView;

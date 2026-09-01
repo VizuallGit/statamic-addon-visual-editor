@@ -51,7 +51,7 @@ let awayHandler = null;
 function featureOn(win, key) {
   const features = win.Statamic?.$config?.get?.('sveFeatures') || {};
 
-  if (key === 'ai_panel' || key === 'template_dock') {
+  if (key === 'ai_panel' || key === 'template_dock' || key === 'site_css') {
     return features[key] === true;
   }
 

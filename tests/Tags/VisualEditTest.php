@@ -962,6 +962,21 @@ class VisualEditTest extends TestCase
         $this->assertStringContainsString('data-sid-template="icon|title"', $result);
     }
 
+    public function test_orderable_row_toolbar_emits_without_inline_edit(): void
+    {
+        $tag = $this->makeTag(
+            context: ['_visual_id' => 'row-1', 'type' => 'item'],
+            params: ['orderable' => 'true', 'toolbar' => 'true', 'inline_edit' => 'true'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        $this->assertStringContainsString('data-sid-toolbar', $result);
+        $this->assertStringContainsString('data-sid-orderable', $result);
+        $this->assertStringNotContainsString('data-sid-inline-edit', $result);
+    }
+
     public function test_empty_template_param_is_omitted(): void
     {
         $tag = $this->makeTag(

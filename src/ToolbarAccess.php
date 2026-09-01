@@ -10,9 +10,9 @@ use Statamic\Facades\User as Users;
  *
  * The site-wide feature toggles still decide whether a tool exists at all.
  * This decides *who* sees it when it does: everyone with CP access, super
- * admins, or named users and groups. Custom HTML defaults to super admins
- * so a customer who is also super does not get the disk-writing dock unless
- * you name them.
+ * admins, or named users and groups. Custom HTML and site CSS default to
+ * super admins so a customer who is also super does not get the disk-writing
+ * tools unless you name them.
  */
 class ToolbarAccess
 {
@@ -25,6 +25,7 @@ class ToolbarAccess
         'outline',
         'html_tree',
         'template_dock',
+        'site_css',
         'ai_panel',
         'comments',
     ];
@@ -44,6 +45,7 @@ class ToolbarAccess
         'outline' => self::AUDIENCE_EVERYONE,
         'html_tree' => self::AUDIENCE_EVERYONE,
         'template_dock' => self::AUDIENCE_SUPER,
+        'site_css' => self::AUDIENCE_SUPER,
         'ai_panel' => self::AUDIENCE_EVERYONE,
         'comments' => self::AUDIENCE_EVERYONE,
     ];

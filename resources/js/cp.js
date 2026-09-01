@@ -11,6 +11,7 @@
  *   focus-panel.js      — one-section editor beside the preview
  *   inline-edit.js      — name prompts / save-section dialogs
  *   code-dock.js        — template dock
+ *   site-css.js         — site stylesheets (resources/css)
  *   ai-panel.js         — AI chat
  *
  * Overlay open/goto live in overlay-host.js (locked). This file loads them
@@ -35,6 +36,7 @@ export { stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
 
 import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock.js';
 import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
+import { closeSiteCss, isSiteCssOpen, siteCssAllowed, toggleSiteCss } from './site-css.js';
 import {
   RIGHT_DOCK_ID,
   beginRightShellSwap,
@@ -2494,6 +2496,11 @@ export const TOOLBAR_ICONS = {
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/>' +
     '<path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>',
+  site_css:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M8 4c-3 1-4 3-4 6v1c0 1.2-1 2-2 2 1 0 2 .8 2 2v1c0 3 1 5 4 6"/>' +
+    '<path d="M16 4c3 1 4 3 4 6v1c0 1.2 1 2 2 2-1 0-2 .8-2 2v1c0 3-1 5-4 6"/></svg>',
 };
 
 /** Keep toolbar glyphs in sync after icon redesigns (toolbar mounts once). */
@@ -2531,6 +2538,7 @@ export function ensureHeaderToolbar(win) {
   if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
     doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="rightdock"]')?.remove();
     ensureCodeDockToolbarButton(win);
+    ensureSiteCssToolbarButton(win);
     ensureAiToolbarButton(win);
     ensureCommentsToolbarButton(win);
     ensurePageEditsToolbarButton(win);
@@ -2559,6 +2567,7 @@ export function ensureHeaderToolbar(win) {
     { key: 'listview', feature: 'listview', title: t(win, 'listview') },
     { key: 'outline', feature: 'outline', title: t(win, 'outline') },
     { key: 'code', title: t(win, 'code_dock_toggle') },
+    { key: 'site_css', title: t(win, 'site_css_toggle') },
     { key: 'ai', title: t(win, 'ai_panel') },
     { key: 'comments', feature: 'comments', title: t(win, 'comments_pane') },
     { key: 'edits', feature: 'page_activity', title: t(win, 'page_edits_title') },
@@ -2569,6 +2578,10 @@ export function ensureHeaderToolbar(win) {
       return;
     } else if (tab.key === 'code') {
       if (!templateDockAllowed(win)) {
+        return;
+      }
+    } else if (tab.key === 'site_css') {
+      if (!siteCssAllowed(win)) {
         return;
       }
     } else if (tab.key === 'ai') {
@@ -2620,6 +2633,12 @@ export function ensureHeaderToolbar(win) {
 
       if (tab.key === 'code') {
         toggleCodeDockButton(win);
+
+        return;
+      }
+
+      if (tab.key === 'site_css') {
+        toggleSiteCssButton(win);
 
         return;
       }
@@ -2690,6 +2709,15 @@ export function toggleCodeDockButton(win) {
   applyHeaderTab(win);
 }
 
+export function toggleSiteCssButton(win) {
+  if (!siteCssAllowed(win)) {
+    return;
+  }
+
+  toggleSiteCss(win);
+  applyHeaderTab(win);
+}
+
 /**
  * The code icon is added after the toolbar first mounts (feature flags can
  * arrive late) and sits after the block tree, last in the icon row.
@@ -2743,6 +2771,50 @@ export function ensureCodeDockToolbarButton(win) {
   }
 }
 
+export function ensureSiteCssToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  const existing = bar.querySelector('button[data-tab="site_css"]');
+
+  if (!siteCssAllowed(win)) {
+    existing?.remove();
+
+    if (isSiteCssOpen(doc)) {
+      closeSiteCss(win);
+    }
+
+    return;
+  }
+
+  if (existing) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'site_css';
+  btn.dataset.iconVer = 'css-braces-20260831';
+  btn.title = t(win, 'site_css_toggle');
+  btn.innerHTML = TOOLBAR_ICONS.site_css;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => toggleSiteCssButton(win));
+
+  const code = bar.querySelector('button[data-tab="code"]');
+
+  if (code) {
+    code.after(btn);
+  } else {
+    bar.appendChild(btn);
+  }
+}
 
 export function ensureOutlineToolbarButton(win) {
   const doc = win.document;
@@ -3341,6 +3413,7 @@ export function applyHeaderTab(win) {
   loadHeaderTab(win);
   hideLpLabel(doc);
   ensureCodeDockToolbarButton(win);
+  ensureSiteCssToolbarButton(win);
   ensureCommentsToolbarButton(win);
   ensurePageEditsToolbarButton(win);
   ensureAiToolbarButton(win);
@@ -3507,6 +3580,8 @@ export function applyHeaderTab(win) {
         ? sidebarOpen
         : tab === 'code'
           ? isCodeDockArmed(win)
+          : tab === 'site_css'
+            ? isSiteCssOpen(win.document)
           : tab === 'edits'
             ? !!sve.pageEditsOpen?.()
           : tab === 'globals'

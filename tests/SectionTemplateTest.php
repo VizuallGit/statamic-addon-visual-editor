@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
+use MarioHamann\StatamicVisualEditor\TailwindStore;
 
 class SectionTemplateTest extends TestCase
 {
@@ -15,11 +16,20 @@ class SectionTemplateTest extends TestCase
         $this->dir = sys_get_temp_dir().'/sve-templates-'.uniqid('', true);
         mkdir($this->dir.'/hero', 0777, true);
         file_put_contents($this->dir.'/hero/style_2.antlers.html', "<section>\n  hi\n</section>\n");
-        config(['statamic-visual-editor.templates.partials' => $this->dir]);
+        config([
+            'statamic-visual-editor.templates.partials' => $this->dir,
+            'statamic-visual-editor.tailwind.store' => $this->dir.'/tw',
+        ]);
     }
 
     protected function tearDown(): void
     {
+        $tw = $this->dir.'/tw/hero/style_2.css';
+
+        if (is_file($tw)) {
+            unlink($tw);
+        }
+
         $files = [
             $this->dir.'/hero/style_2.antlers.html',
             $this->dir.'/faq/style_1.antlers.html',
@@ -32,9 +42,16 @@ class SectionTemplateTest extends TestCase
             }
         }
 
-        foreach ([$this->dir.'/hero', $this->dir.'/faq', $this->dir.'/custom_section', $this->dir] as $dir) {
+        foreach ([
+            $this->dir.'/tw/hero',
+            $this->dir.'/tw',
+            $this->dir.'/hero',
+            $this->dir.'/faq',
+            $this->dir.'/custom_section',
+            $this->dir,
+        ] as $dir) {
             if (is_dir($dir)) {
-                rmdir($dir);
+                @rmdir($dir);
             }
         }
 
@@ -185,7 +202,7 @@ class SectionTemplateTest extends TestCase
         $this->assertSame('', $parts['js']);
     }
 
-    public function test_join_writes_sve_tw_after_the_css_pane(): void
+    public function test_join_places_sve_tw_after_the_section_not_the_compiled_sheet(): void
     {
         $out = SectionTemplate::join([
             'html' => '<section>hi</section>',
@@ -193,12 +210,61 @@ class SectionTemplateTest extends TestCase
             'js' => '',
             'tw' => '.p-4{padding:1rem}',
             'css_tag' => 'style_push',
-        ]);
+        ], 'hero/style_2');
 
-        $this->assertStringContainsString('{{ style_push }}', $out);
-        $this->assertStringContainsString('{{ sve_tw }}', $out);
-        $this->assertTrue(strpos($out, '{{ style_push }}') < strpos($out, '{{ sve_tw }}'));
-        $this->assertStringContainsString('.p-4{padding:1rem}', $out);
+        $sectionEnd = strpos($out, '</section>');
+        $twPos = strpos($out, '{{ sve_tw }}');
+        $cssPos = strpos($out, '{{ style_push }}');
+
+        $this->assertNotFalse($sectionEnd);
+        $this->assertNotFalse($twPos);
+        $this->assertNotFalse($cssPos);
+        $this->assertTrue($twPos > $sectionEnd);
+        $this->assertTrue($cssPos > $twPos);
+        $this->assertStringNotContainsString('.p-4{padding:1rem}', $out);
+        $this->assertSame('.p-4{padding:1rem}', TailwindStore::read('hero/style_2'));
+    }
+
+    public function test_split_reads_sve_tw_nested_in_the_section(): void
+    {
+        $parts = SectionTemplate::split(
+            "<section>hi\n\n{{ sve_tw }}\n<style>.a{}</style>\n{{ /sve_tw }}\n</section>\n\n{{ style_push }}\n<style>.x{}</style>\n{{ /style_push }}\n"
+        );
+
+        $this->assertSame('<section>hi</section>', $parts['html']);
+        $this->assertSame('.x{}', $parts['css']);
+        $this->assertSame('.a{}', $parts['tw']);
+    }
+
+    public function test_nested_sve_tw_round_trips_to_the_store(): void
+    {
+        $joined = SectionTemplate::join([
+            'html' => '<section>hi</section>',
+            'css' => '.x{}',
+            'js' => '',
+            'tw' => '.p-4{padding:1rem}',
+            'css_tag' => 'style_push',
+        ], 'hero/style_2');
+        $parts = SectionTemplate::split($joined);
+
+        $this->assertStringNotContainsString('sve_tw', $parts['html']);
+        $this->assertStringContainsString('<section>hi', $parts['html']);
+        $this->assertSame('.x{}', $parts['css']);
+        $this->assertSame('', $parts['tw']);
+        $this->assertSame('.p-4{padding:1rem}', TailwindStore::read('hero/style_2'));
+        $this->assertStringContainsString('{{ sve_tw }}', $joined);
+        $this->assertStringNotContainsString('.p-4', $joined);
+    }
+
+    public function test_split_strips_a_self_closing_sve_tw_from_the_html_pane(): void
+    {
+        $parts = SectionTemplate::split(
+            "<section>hi\n{{ sve_tw }}\n</section>\n"
+        );
+
+        $this->assertStringNotContainsString('sve_tw', $parts['html']);
+        $this->assertStringContainsString('<section>hi', $parts['html']);
+        $this->assertSame('', $parts['tw']);
     }
 
     public function test_join_omits_empty_sve_tw(): void

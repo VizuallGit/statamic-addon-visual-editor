@@ -11,6 +11,7 @@ const HOVER_ATTR = 'data-sid-hover';
 const INNER_ATTR = 'data-sid-inner';
 const SID_ATTR = 'data-sid';
 const SID_FIELD_ATTR = 'data-sid-field';
+const TOOLBAR_ATTR = 'data-sid-toolbar';
 /** Opt-in from `{{ visual_edit section-orderable="true" }}` — tag-agnostic page section. */
 const SECTION_ORDERABLE_ATTR = 'data-sid-section-orderable';
 const STYLES_ID = '__sve-bridge-styles';
@@ -3310,6 +3311,20 @@ function showHoverBelt(win, rowEl) {
   win.addEventListener('resize', hoverBeltReposition);
 }
 
+/**
+ * toolbar="true" on a row/set, without inline_edit: the same belt as a wrap-up
+ * (icon, drag, more → move / delete), opened on click. A field that asked to be
+ * typed into keeps the edit toolbar instead.
+ */
+function openRowToolbar(win, el) {
+  if (!el.hasAttribute(TOOLBAR_ATTR) || el.hasAttribute('data-sid-inline-edit')) {
+    return;
+  }
+
+  hideMoveControl(win);
+  showHoverBelt(win, el);
+}
+
 function createEditToolbar(win, session) {
   removeEditToolbar();
   hideHoverBelt(win);
@@ -3438,7 +3453,7 @@ function createEditToolbar(win, session) {
   // orderable — that is what lets the boxes be rearranged — but being movable is
   // not a reason to hang a bar over a field that did not ask for one. The badge,
   // the drag handle and the actions menu all belong to the same answer.
-  const rowCtx = session.el.hasAttribute('data-sid-toolbar')
+  const rowCtx = session.el.hasAttribute(TOOLBAR_ATTR)
     ? rowContextFor(win, session.el)
     : null;
 
@@ -7832,7 +7847,11 @@ export function createClickHandler(win) {
         }
 
         requestInlineEdit(win, target, event);
+
+        return;
       }
+
+      openRowToolbar(win, target);
 
       return;
     }
@@ -7866,6 +7885,7 @@ export function createClickHandler(win) {
     }
 
     win.parent.postMessage(message, win.location.origin);
+    openRowToolbar(win, target);
   };
 }
 
@@ -8525,6 +8545,8 @@ function activateByUid(win, data) {
     : [...el.querySelectorAll(`[${SID_FIELD_ATTR}]`)];
 
   if (fields.length !== 1) {
+    openRowToolbar(win, el);
+
     return;
   }
 

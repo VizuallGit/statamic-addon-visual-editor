@@ -401,6 +401,24 @@ return [
     'code_dock_save' => 'Gem',
     'code_dock_unsaved' => 'Ikke gemt',
 
+    // Super-admin site-CSS (resources/css) i Live Preview
+    'site_css_toggle' => 'Site CSS',
+    'site_css_title' => 'Stylesheets',
+    'site_css_add' => 'Tilføj stylesheet',
+    'site_css_add_title' => 'Nyt stylesheet',
+    'site_css_add_label' => 'Filnavn',
+    'site_css_add_placeholder' => 'colors.css eller utilities/foo.css',
+    'site_css_save' => 'Gem',
+    'site_css_reload' => 'Hent fra disk',
+    'site_css_loading' => 'Indlæser…',
+    'site_css_saving' => 'Gemmer…',
+    'site_css_saved' => 'Gemt',
+    'site_css_error' => 'Kunne ikke gemme',
+    'site_css_unsaved' => 'Ikke gemt',
+    'site_css_empty' => 'Vælg en fil',
+    'site_css_not_imported' => 'Ikke importeret i site.css — siden indlæser ikke denne fil.',
+    'site_css_import' => 'Importér i site.css',
+
     // Super-admin AI-chat i Live Preview
     'ai_panel' => 'AI',
     'ai_panel_title' => 'AI',

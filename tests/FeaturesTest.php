@@ -16,6 +16,11 @@ class FeaturesTest extends TestCase
         $this->assertFalse(Features::enabled('template_dock'));
     }
 
+    public function test_site_css_is_off_when_nothing_has_turned_it_on(): void
+    {
+        $this->assertFalse(Features::enabled('site_css'));
+    }
+
     public function test_tailwind_dock_is_off_when_nothing_has_turned_it_on(): void
     {
         $this->assertFalse(Features::enabled('tailwind_dock'));
@@ -69,6 +74,16 @@ class FeaturesTest extends TestCase
         Features::flush();
 
         $this->assertFalse(Features::enabled('template_dock'));
+    }
+
+    public function test_site_css_stays_off_when_the_config_key_is_missing(): void
+    {
+        $features = config('statamic-visual-editor.features', []);
+        unset($features['site_css']);
+        config(['statamic-visual-editor.features' => $features]);
+        Features::flush();
+
+        $this->assertFalse(Features::enabled('site_css'));
     }
 
     public function test_tailwind_dock_stays_off_when_the_config_key_is_missing(): void

@@ -40,6 +40,8 @@ import {
   expandAntlersSnippet,
   indentAntlersSnippet,
 } from './antlers-snippets.js';
+import { expandHtmlTab, htmlEmmetExtensions } from './html-emmet.js';
+import { htmlTagSync } from './html-tag-sync.js';
 import {
   PARTIAL_MENU_ID,
   bindPartialNav,
@@ -52,6 +54,10 @@ import {
   classTokenDecorations,
   closeClassTokenUi,
 } from './dock-class-tokens.js';
+import {
+  tailwindClassCompletions,
+  tailwindHoverExtension,
+} from './tailwind-complete.js';
 
 let EditorView;
 let keymap;
@@ -73,6 +79,8 @@ let closeBrackets;
 let closeBracketsKeymap;
 let closeCompletion;
 let completionKeymap;
+let hoverTooltip;
+let htmlLanguage;
 let html;
 let css;
 let javascript;
@@ -118,6 +126,8 @@ function loadCm() {
     closeBracketsKeymap = complete.closeBracketsKeymap;
     closeCompletion = complete.closeCompletion;
     completionKeymap = complete.completionKeymap;
+    hoverTooltip = view.hoverTooltip;
+    htmlLanguage = langHtml.htmlLanguage;
     html = langHtml.html;
     css = langCss.css;
     javascript = langJs.javascript;
@@ -1229,6 +1239,80 @@ function ensureStyle(doc) {
   padding: 6px 8px;
   font-size: 12px;
   opacity: .55;
+}
+.sve-tw-info {
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  padding: 6px 8px;
+  max-width: 320px;
+  color: #d4d4d4;
+}
+.sve-tw-info pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+}
+.sve-tw-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid rgba(255,255,255,.25);
+  margin: 0 6px 4px 0;
+  vertical-align: middle;
+}
+.cm-tooltip.sve-tw-complete {
+  background: #1e1e1e !important;
+  color: #d4d4d4;
+  border: 1px solid #454545 !important;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.45);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  font-size: 12px !important;
+  line-height: 18px !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.cm-tooltip.sve-tw-complete > ul {
+  font: inherit !important;
+  max-height: 240px;
+  padding: 2px 0;
+  margin: 0;
+}
+.cm-tooltip.sve-tw-complete > ul > li {
+  padding: 1px 8px 1px 6px !important;
+  line-height: 22px !important;
+  font: inherit !important;
+}
+.cm-tooltip.sve-tw-complete > ul > li[aria-selected] {
+  background: rgba(255,255,255,.1) !important;
+}
+.cm-tooltip.sve-tw-complete .cm-completionLabel {
+  color: #9cdcfe;
+  font-size: 12px !important;
+}
+.cm-tooltip.sve-tw-complete .cm-completionMatchedText {
+  text-decoration: none;
+  font-weight: 600;
+}
+.cm-tooltip.sve-tw-complete .cm-completionDetail {
+  display: none;
+  color: #808080 !important;
+  font-size: 11px !important;
+  font-style: normal !important;
+  margin-left: 16px;
+}
+.cm-tooltip.sve-tw-complete > ul > li[aria-selected] .cm-completionDetail {
+  display: inline;
+}
+.cm-tooltip.sve-tw-complete .cm-completionIcon {
+  width: 14px;
+  height: 14px;
+  opacity: .65;
+  font-size: 11px !important;
+  margin-right: 6px;
+}
+#${DOCK_ID} .emmet-tracker {
+  text-decoration: underline 1px #4ade80;
 }
 `;
 }
@@ -4304,9 +4388,19 @@ function mountEditor(win, handle, parent) {
         history(),
         languageOf(handle),
         closeBrackets(),
-        autocompletion(),
+        autocompletion({ tooltipClass: () => 'sve-tw-complete' }),
+        ...(handle === 'html'
+          ? [
+              htmlLanguage.data.of({
+                autocomplete: tailwindClassCompletions(win),
+              }),
+              tailwindHoverExtension(hoverTooltip, win),
+            ]
+          : []),
+        ...(handle === 'html' ? [...htmlEmmetExtensions(), htmlTagSync()] : []),
         keymap.of([
           ...defaultKeymap,
+          ...(handle === 'html' ? [{ key: 'Tab', run: expandHtmlTab }] : []),
           indentWithTab,
           ...historyKeymap,
           ...completionKeymap,

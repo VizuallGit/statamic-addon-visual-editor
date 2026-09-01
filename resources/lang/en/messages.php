@@ -407,6 +407,24 @@ return [
     'code_dock_save' => 'Save',
     'code_dock_unsaved' => 'Unsaved',
 
+    // Super-admin site CSS (resources/css) in Live Preview
+    'site_css_toggle' => 'Site CSS',
+    'site_css_title' => 'Stylesheets',
+    'site_css_add' => 'Add stylesheet',
+    'site_css_add_title' => 'New stylesheet',
+    'site_css_add_label' => 'File name',
+    'site_css_add_placeholder' => 'colors.css or utilities/foo.css',
+    'site_css_save' => 'Save',
+    'site_css_reload' => 'Reload from disk',
+    'site_css_loading' => 'Loading…',
+    'site_css_saving' => 'Saving…',
+    'site_css_saved' => 'Saved',
+    'site_css_error' => 'Could not save',
+    'site_css_unsaved' => 'Unsaved',
+    'site_css_empty' => 'Select a file',
+    'site_css_not_imported' => 'Not imported in site.css — the page will not load this file.',
+    'site_css_import' => 'Import into site.css',
+
     // Super-admin AI chat in Live Preview
     'ai_panel' => 'AI',
     'ai_panel_title' => 'AI',

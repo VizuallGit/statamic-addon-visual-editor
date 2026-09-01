@@ -49,6 +49,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionDefaultsPreviewCont
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SetPreviewsController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableStaticCacheInLivePreview;
@@ -557,6 +558,12 @@ class ServiceProvider extends AddonServiceProvider
                     ->name('sve.section-template.update');
                 Route::post('/!/sve/section-template/lock', [SectionTemplateController::class, 'lock'])
                     ->name('sve.section-template.lock');
+                Route::post('/!/sve/site-css', [SiteCssController::class, 'update'])
+                    ->name('sve.site-css.update');
+                Route::post('/!/sve/site-css/create', [SiteCssController::class, 'store'])
+                    ->name('sve.site-css.store');
+                Route::post('/!/sve/site-css/import', [SiteCssController::class, 'import'])
+                    ->name('sve.site-css.import');
             });
 
         Route::middleware('web')->group(function () {
@@ -610,6 +617,10 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.section-template.partials');
             Route::get('/!/sve/section-template', [SectionTemplateController::class, 'show'])
                 ->name('sve.section-template.show');
+            Route::get('/!/sve/site-css', [SiteCssController::class, 'index'])
+                ->name('sve.site-css.index');
+            Route::get('/!/sve/site-css/file', [SiteCssController::class, 'show'])
+                ->name('sve.site-css.show');
             Route::get('/!/sve/template-props', TemplatePropsController::class)
                 ->name('sve.template-props');
             Route::get('/!/sve/tailwind-theme', [SectionTemplateController::class, 'theme'])

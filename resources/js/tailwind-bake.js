@@ -1,13 +1,8 @@
 /**
- * PARKED — not imported. Do not wire this into addon.js / code-dock.js until
- * the Tailwind dock is rewritten. The last version leaked compiled utilities
- * into `{{ style_push }}`. Toggle `tailwind_dock` is off; compile is commented
- * out in SectionTemplateController so this file costs nothing at runtime.
- *
- * Compile Tailwind utilities from the template-dock HTML pane.
- *
- * The compiler itself is fetched from a CDN only when `tailwind_dock` is on
- * and a save runs. Off, the save path is the three panes as they already were.
+ * Compile is PHP (`TailwindBake`) when `tailwind_dock` is on.
+ * This file is unused — kept as the in-browser compiler if we need it later.
+ * Do not import it into the CSS pane; compiled CSS belongs in
+ * `resources/visual-editor/tw`, read by `{{ sve_tw }}`.
  */
 
 let buildCss = null;

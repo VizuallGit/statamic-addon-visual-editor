@@ -89,13 +89,18 @@ return [
     |                      writes the file on this server. Off by default.
     |                      Who sees the icon sits under the toggle — super admins
     |                      unless you name specific people.
+    | - site_css:          an icon that opens this site's stylesheets
+    |                      (`resources/css`). Saving writes those files. Off by
+    |                      default. Who sees the icon sits under the toggle —
+    |                      super admins unless you name specific people.
     | - collection_templates: Scaffold Views (Index / Show) also creates CP
     |                      rows you open in Live Preview. Off by default — a
     |                      site that only needs the page builder can leave it
     |                      off, and the Templates nav item stays away.
-    | - tailwind_dock:     compile Tailwind classes from the HTML pane into
-    |                      {{ sve_tw }} when the dock saves. Needs template_dock.
-    |                      Off by default — the dock then writes the file as today.
+    | - tailwind_dock:     HTML-pane Tailwind suggestions plus compile into
+    |                      resources/visual-editor/tw when the dock saves. Needs
+    |                      template_dock. Off by default — the dock then writes
+    |                      the file as today. Does not change the site stylesheet.
     | - ai_panel:          a Live Preview chat that runs a local Cursor agent.
     |                      Off by default. Who sees the icon sits under the toggle.
     | - comments:          Figma-style pins in Live Preview. Threads live in
@@ -104,7 +109,8 @@ return [
     | - *_access:          who sees that toolbar icon (except Page settings).
     |                      Nested under the matching toggle: everyone, super
     |                      admins, or named users/groups. template_dock_access
-    |                      defaults to super; the rest to everyone.
+    |                      and site_css_access default to super; the rest to
+    |                      everyone.
     |                      toolbar_access is the old all-in-one blob and is still
     |                      read if a per-tool key is missing.
     |
@@ -126,12 +132,13 @@ return [
         'open_first_section' => false,
         'open_in_preview' => false,
         'template_dock' => false,
+        'site_css' => false,
         'collection_templates' => false,
         'tailwind_dock' => false,
         'ai_panel' => false,
         'comments' => true,
         // Nested under each toolbar toggle. Null = defaults
-        // (template_dock = super, everything else = everyone).
+        // (template_dock and site_css = super, everything else = everyone).
         'pages_access' => null,
         'globals_access' => null,
         'sections_access' => null,
@@ -139,6 +146,7 @@ return [
         'outline_access' => null,
         'html_tree_access' => null,
         'template_dock_access' => null,
+        'site_css_access' => null,
         'ai_panel_access' => null,
         'comments_access' => null,
         // Legacy all-in-one blob from the old settings screen. Still read
@@ -188,6 +196,21 @@ return [
     */
     'tailwind' => [
         'css' => resource_path('css/site.css'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Site CSS (Live Preview style manager)
+    |--------------------------------------------------------------------------
+    |
+    | The icon opens these files. `site.css` is the Vite entry; other sheets
+    | only reach the page if that file imports them. `cp.css` is Control
+    | Panel CSS and stays out of the tree.
+    |
+    */
+    'site_css' => [
+        'root' => resource_path('css'),
+        'exclude' => ['cp.css'],
     ],
 
     /*
@@ -362,6 +385,20 @@ return [
         | (`custom_section` → `custom_section/style_1`).
         */
         'unlocked' => ['custom_section'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tailwind bake (template dock)
+    |--------------------------------------------------------------------------
+    |
+    | Compiled utilities for HTML-pane classes, one file per section type.
+    | The Antlers partial has `{{ sve_tw }}` after the section; the tag
+    | pushes onto style_push. The sheet is here, not in the markup.
+    |
+    */
+    'tailwind' => [
+        'store' => resource_path('visual-editor/tw'),
     ],
 
     /*

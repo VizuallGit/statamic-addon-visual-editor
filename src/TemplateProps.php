@@ -116,8 +116,13 @@ class TemplateProps
         return array_values($found);
     }
 
-    public static function compile(string $antlers): string
+    /**
+     * Statamic's Antlers preparser can pass null (empty field, settings save).
+     */
+    public static function compile(?string $antlers): string
     {
+        $antlers ??= '';
+
         if (! SundayAug30::enabled()) {
             return $antlers;
         }
