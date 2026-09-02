@@ -468,11 +468,22 @@ export function listViewTree(win, doc) {
   for (const container of sve.activeContainers(doc)) {
     const values = sve.unwrapRef(container.values);
 
-    if (!values || typeof values !== 'object' || !Array.isArray(values[field])) {
+    if (!values || typeof values !== 'object') {
       continue;
     }
 
-    collect(values[field], 0, null, roots, field);
+    // Header/footer, edited inline, is a site global — its blueprint has never
+    // heard of `field` (the page builder's own handle) and may not even agree
+    // between the two of them (site_head's blocks live in `blocks`; site_foot
+    // has no such field at all). Walk its own values instead of looking for
+    // the page's field, so the tree still finds whatever it does have.
+    if (container.name === sve.CHROME_CONTAINER) {
+      collect(values, 0, null, roots, null);
+    } else if (Array.isArray(values[field])) {
+      collect(values[field], 0, null, roots, field);
+    } else {
+      continue;
+    }
 
     // Låsen sidder på FELTET, ikke på rækken: `locked_rows` gør alle rækker i et
     // felt låste. Aflæsningen ovenfor finder kun de rækker der tilfældigvis er

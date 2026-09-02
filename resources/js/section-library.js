@@ -1604,15 +1604,20 @@ export function isSectionLibraryLocked(win) {
  * inside it.
  *
  * Stepping into a header, a footer or a global section locks the page around it:
- * the other sections fade, and a click out there does nothing. These four reach
+ * the other sections fade, and a click out there does nothing. These three reach
  * straight past that lock — another page, another global set, the section
- * library, the block tree — so while you are inside, they have nothing to act on.
+ * library — so while you are inside, they have nothing to act on.
  *
- * The panel tool is deliberately not among them. The left-sidebar icon is how you
- * get at the fields you stepped in for, and taking it away would lock the way in
- * along with the way out.
+ * The block tree used to be a fourth: it only ever knew how to read the page's
+ * own builder field, so inside chrome it had nothing to show either. It now
+ * reads whichever container is open (see listViewTree), including chrome's own
+ * — the reason to lock it out is gone.
+ *
+ * The panel tool is deliberately not among them either. The left-sidebar icon is
+ * how you get at the fields you stepped in for, and taking it away would lock
+ * the way in along with the way out.
  */
-export const FOCUS_LOCKED_TABS = ['pages', 'globals', 'sections', 'listview'];
+export const FOCUS_LOCKED_TABS = ['pages', 'globals', 'sections'];
 
 /**
  * Dim and disable those tools while chrome or a global section owns the editor.
@@ -1673,7 +1678,6 @@ export function syncSectionLibraryAvailability(win) {
 
   if (locked) {
     closeSectionPicker(win);
-    sve.closeListViewPanel(win);
     sve.closeOutlinePanel(win);
 
     if (btn) {

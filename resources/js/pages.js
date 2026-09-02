@@ -445,6 +445,18 @@ export function hideNavSpinner(win) {
 }
 
 /**
+ * Same little spinner as switching entries, for switching what a `view:`
+ * template previews as. There's no navigation here to hang the spinner off
+ * of (and no completion signal back from the iframe's own morph), so it's
+ * shown for a fixed beat — long enough to cover a local fetch + morph.
+ */
+function refreshTemplatePreviewWithSpinner(win) {
+  showNavSpinner(win);
+  sve.replayLivePreview(win);
+  win.setTimeout(() => hideNavSpinner(win), 450);
+}
+
+/**
  * Saves, then goes where the user actually asked to go.
  *
  * Without revisions, Statamic answers a save with a redirect to the collection
@@ -807,21 +819,21 @@ function mountCollectionPicker(win, header, collections) {
 
   const selected = () => collections.find((c) => c.handle === collectionSelect.value);
 
+  // The Live Preview MutationObserver re-runs this on nearly every re-render,
+  // so calls overlap: fetch and DOM writes must stay together, or a slower
+  // earlier call can append onto what a faster later call already appended
+  // (duplicate options), or overwrite the value a newer call just set.
+  let fillGeneration = 0;
+
   const fillEntries = async (keepCurrent) => {
+    const generation = ++fillGeneration;
     const collection = selected();
     const form = templateForm(win);
 
-    entrySelect.innerHTML = '';
     newBtn.title = t(win, 'new_in', { collection: collection?.title ?? '' });
     collectionSelect.title = collection?.previewable
       ? ''
       : t(win, 'no_preview_hint', { collection: collection?.title ?? '' });
-
-    const placeholder = doc.createElement('option');
-
-    placeholder.value = '';
-    placeholder.textContent = t(win, 'choose_entry');
-    entrySelect.appendChild(placeholder);
 
     let entries = [];
 
@@ -835,6 +847,18 @@ function mountCollectionPicker(win, header, collections) {
     } catch {
       entries = [];
     }
+
+    if (generation !== fillGeneration) {
+      return;
+    }
+
+    entrySelect.innerHTML = '';
+
+    const placeholder = doc.createElement('option');
+
+    placeholder.value = '';
+    placeholder.textContent = t(win, 'choose_entry');
+    entrySelect.appendChild(placeholder);
 
     entries.forEach((entry) => {
       const option = doc.createElement('option');
@@ -869,6 +893,11 @@ function mountCollectionPicker(win, header, collections) {
         if (form.values.kind === 'show') {
           form.container.setFieldValue('preview_as', []);
         }
+
+        // Only Live Preview's own field-watcher would normally catch this, and
+        // for a `view:` template preview it doesn't — same reason code-dock.js
+        // has to nudge it after a section-template save.
+        refreshTemplatePreviewWithSpinner(win);
       }
 
       collectionSelect.dataset.svePickerKey = '';
@@ -894,6 +923,7 @@ function mountCollectionPicker(win, header, collections) {
 
       form.container.setFieldValue('preview_as', [entrySelect.value]);
       collectionSelect.dataset.svePickerKey = `${collectionSelect.value}|${entrySelect.value}|show`;
+      refreshTemplatePreviewWithSpinner(win);
 
       return;
     }

@@ -35,9 +35,9 @@ class CollectionViewPreviewController extends Controller
 
         abort_unless($template && $template->collectionHandle() === $store, 404);
 
-        $kind = (string) $template->get('kind');
-        $sourceHandle = static::scalar($template->get('source_collection'));
-        $view = CollectionViewTemplates::normalizeView((string) $template->get('view'));
+        $kind = (string) static::raw($template, 'kind');
+        $sourceHandle = static::scalar(static::raw($template, 'source_collection'));
+        $view = CollectionViewTemplates::normalizeView((string) static::raw($template, 'view'));
 
         abort_unless($view && in_array($kind, ['index', 'show'], true), 404);
         abort_unless(static::viewExists($view), 404);
@@ -98,7 +98,7 @@ class CollectionViewPreviewController extends Controller
 
     protected static function host(EntryContract $template, $source): EntryContract
     {
-        $picked = $template->get('preview_as');
+        $picked = static::raw($template, 'preview_as');
         $id = is_array($picked) ? ($picked[0] ?? null) : $picked;
 
         if (is_string($id) && $id !== '') {
@@ -145,5 +145,18 @@ class CollectionViewPreviewController extends Controller
         }
 
         return is_string($value) ? $value : '';
+    }
+
+    /**
+     * Plain `get()` only ever sees saved data. Live Preview's unsaved edits
+     * arrive as a supplement (Statamic\Tokens\Handlers\LivePreview calls
+     * `setSupplement()`, never `set()`), which only the augmented accessor
+     * checks — see Statamic\Data\AbstractAugmented::getFromData(). Reading
+     * this template entry with `get()` is why the picker never changed what
+     * rendered: it was always the saved value, live edits or not.
+     */
+    protected static function raw(EntryContract $entry, string $handle): mixed
+    {
+        return $entry->augmentedValue($handle)->raw();
     }
 }

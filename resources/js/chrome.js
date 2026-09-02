@@ -569,10 +569,6 @@ export function watchChromeInlineValues(win, handle) {
       return;
     }
 
-    if (serialized === sveState.chromeValuesBaseline) {
-      return;
-    }
-
     if (!sve.globalsAcceptValues) {
       return;
     }
