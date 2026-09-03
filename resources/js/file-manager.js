@@ -666,17 +666,22 @@ function toggleDir(path) {
 }
 
 /**
- * Fill what is left of the window.
+ * Fill what is left of the page — across as well as down.
  *
- * The page is Inertia-rendered inside Statamic's own layout, so how far down
- * this element starts is not something CSS here can know — it depends on the
- * header, the breadcrumb, and whatever the layout does at this width. Measured
- * instead, and written back as a custom property.
+ * The page is Inertia-rendered inside Statamic's own layout, so neither how far
+ * down this frame starts nor how wide its wrapper lets it be is something CSS
+ * here can know. Both are measured.
+ *
+ * Width matters more than it looks: the wrapper caps and centres, so on a narrow
+ * window the frame fills and on a wide one it sits in the middle with a gap on
+ * either side — the same page, two different layouts, depending on the monitor.
+ * The frame is pulled out to the content column with margins of its own rather
+ * than by editing the wrapper, which belongs to Statamic.
  *
  * In rem, because a viewport measurement is the one number that has to be taken
- * in pixels and everything downstream of it should not have to be.
+ * in pixels and nothing downstream of it should have to be.
  */
-function fitHeight(win, el) {
+function fitFrame(win, el) {
   const frame = el.isConnected ? el.querySelector('[data-sve-files-frame]') : null;
 
   if (!frame) {
@@ -684,15 +689,53 @@ function fitHeight(win, el) {
   }
 
   const rootSize = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
-  // Below the frame, matching the inset at its sides.
-  const trailing = rootSize;
-  const available = win.innerHeight - frame.getBoundingClientRect().top - trailing;
+  const inset = rootSize;
+
+  // Measured with its own margins out of the way, so the numbers describe where
+  // the wrapper puts it rather than where the last measurement left it.
+  frame.style.marginLeft = '0px';
+  frame.style.marginRight = '0px';
+
+  const rect = frame.getBoundingClientRect();
+  const band = bandFor(win, frame);
+
+  if (band) {
+    frame.style.marginLeft = `${(band.left + inset - rect.left) / rootSize}rem`;
+    frame.style.marginRight = `${(rect.right - (band.right - inset)) / rootSize}rem`;
+  } else {
+    frame.style.marginLeft = '';
+    frame.style.marginRight = '';
+  }
+
+  const available = win.innerHeight - frame.getBoundingClientRect().top - inset;
 
   frame.style.setProperty('--sve-files-height', `${Math.max(20, available / rootSize)}rem`);
 }
 
+/**
+ * The column the page actually has, inside its padding.
+ *
+ * `main` is the content column in Statamic's Control Panel layout — the box
+ * beside the sidebar, not the whole window. Falling back to the frame's own
+ * parent keeps a layout that has no `main` looking exactly as it does today.
+ */
+function bandFor(win, frame) {
+  const el = frame.closest('main') || frame.parentElement;
+
+  if (!el) {
+    return null;
+  }
+
+  const rect = el.getBoundingClientRect();
+  const style = win.getComputedStyle(el);
+  const left = rect.left + (parseFloat(style.paddingLeft) || 0);
+  const right = rect.right - (parseFloat(style.paddingRight) || 0);
+
+  return right - left > 0 ? { left, right } : null;
+}
+
 function bindFit(win, el) {
-  const run = () => fitHeight(win, el);
+  const run = () => fitFrame(win, el);
 
   run();
   // Twice: once now, and once after the layout has settled — a webfont or a
