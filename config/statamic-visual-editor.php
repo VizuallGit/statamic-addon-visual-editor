@@ -236,10 +236,15 @@ return [
     | page. The extension whitelist in FileManager still refuses `.php`, but it
     | is the second wall, not the first — leave the root where it is.
     |
+    | `users` is excluded for a different reason: `resources/users/roles.yaml`
+    | is where CP permissions are written, so a named non-super person with this
+    | screen could grant themselves super. Statamic edits both files on its own
+    | screen, behind its own permission.
+    |
     */
     'file_manager' => [
         'root' => resource_path(),
-        'exclude' => ['dist', 'boost', 'stubs', 'node_modules', 'vendor'],
+        'exclude' => ['dist', 'boost', 'stubs', 'node_modules', 'vendor', 'users'],
     ],
 
     /*

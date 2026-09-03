@@ -46,13 +46,22 @@ class FileManager
         'txt',
     ];
 
-    /** Folders that are built output or someone else's bookkeeping. */
+    /**
+     * Folders that are built output, someone else's bookkeeping — or a way in.
+     *
+     * `users` is the one that is not obvious: it holds `roles.yaml` and
+     * `groups.yaml`, so a named non-super person given this screen could write
+     * themselves a super role and walk out with the site. Statamic has its own
+     * screen for both files, behind its own permission. Take it out of the
+     * config list if you want it back.
+     */
     public const DEFAULT_EXCLUDE = [
         'dist',
         'boost',
         'stubs',
         'node_modules',
         'vendor',
+        'users',
     ];
 
     /**

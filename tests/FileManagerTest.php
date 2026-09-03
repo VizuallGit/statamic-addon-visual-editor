@@ -110,6 +110,16 @@ class FileManagerTest extends TestCase
         }
     }
 
+    public function test_the_roles_file_is_not_reachable()
+    {
+        mkdir($this->dir.'/users', 0777, true);
+        file_put_contents($this->dir.'/users/roles.yaml', "super:\n  super: true\n");
+
+        $this->assertNull(FileManager::existingPath('users/roles.yaml'));
+        $this->assertNull(FileManager::write('users/roles.yaml', 'anything'));
+        $this->assertNotContains('users', $this->paths(FileManager::listing()['tree']));
+    }
+
     public function test_excluded_folders_are_unreachable_even_by_name()
     {
         file_put_contents($this->dir.'/dist/assets/style.css', "a{}\n");
