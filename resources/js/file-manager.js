@@ -715,27 +715,40 @@ function fitFrame(win, el) {
 /**
  * The column the page actually has, inside its padding.
  *
- * `main` is the content column in Statamic's Control Panel layout — the box
- * beside the sidebar, not the whole window. Falling back to the frame's own
- * parent keeps a layout that has no `main` looking exactly as it does today.
+ * Not `main`: on a wide window that element is itself the capped, centred
+ * container, so measuring it hands back the very width we are trying to escape.
+ * What we want is the box the cap sits inside — the column beside the sidebar.
+ *
+ * So: the widest ancestor that starts clear of the window's left edge. Clear of
+ * the edge is what says "beside the sidebar rather than behind it", and widest
+ * is what steps over the cap to the column holding it. Ancestors that clip are
+ * skipped, since reaching past one of those only hides the frame.
  */
 function bandFor(win, frame) {
-  const main = frame.closest('main');
-  // Only when `main` starts clear of the left edge — that is what tells us it is
-  // the column beside the sidebar rather than a box the sidebar sits inside.
-  // Where it is not, the frame's own parent is used and nothing moves.
-  const el = main && main.getBoundingClientRect().left > 0 ? main : frame.parentElement;
+  let best = null;
 
-  if (!el) {
-    return null;
+  for (let el = frame.parentElement; el && el !== win.document.body; el = el.parentElement) {
+    const style = win.getComputedStyle(el);
+
+    if (style.overflowX !== 'visible' || style.position === 'fixed') {
+      break;
+    }
+
+    const rect = el.getBoundingClientRect();
+
+    if (rect.left <= 0 || rect.width <= 0) {
+      continue;
+    }
+
+    const left = rect.left + (parseFloat(style.paddingLeft) || 0);
+    const right = rect.right - (parseFloat(style.paddingRight) || 0);
+
+    if (right - left > 0 && (!best || right - left > best.right - best.left)) {
+      best = { left, right };
+    }
   }
 
-  const rect = el.getBoundingClientRect();
-  const style = win.getComputedStyle(el);
-  const left = rect.left + (parseFloat(style.paddingLeft) || 0);
-  const right = rect.right - (parseFloat(style.paddingRight) || 0);
-
-  return right - left > 0 ? { left, right } : null;
+  return best;
 }
 
 function bindFit(win, el) {
