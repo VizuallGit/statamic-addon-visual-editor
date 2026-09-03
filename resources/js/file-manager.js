@@ -12,6 +12,8 @@
  */
 import { mountSurface } from './cp/mount.js';
 import { openCpOverlay } from './cp/open-overlay.js';
+import { expandHtmlTab, htmlEmmetExtensions } from './html-emmet.js';
+import { htmlTagSync } from './html-tag-sync.js';
 import { t } from './cp-t.js';
 import FileManagerPane from './cp/surfaces/FileManagerPane.vue';
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
@@ -160,10 +162,16 @@ function vscTheme() {
  * Antlers is HTML with braces in it, so it opens in the HTML mode. YAML and
  * plain text get no mode at all — a wrong grammar colours a file as if it were
  * broken, which is worse than no colour.
+ *
+ * HTML also gets what the template dock's HTML pane has, from the same modules:
+ * tags close themselves, renaming `<h4>` renames its `</h4>` in one undo step,
+ * and Tab expands Emmet and Antlers abbreviations. An Antlers file is an Antlers
+ * file wherever it is opened — the two editors should not feel like two
+ * different products.
  */
 function languageExtension(name) {
   if (name === 'html') {
-    return htmlLang();
+    return [htmlLang({ autoCloseTags: true }), htmlEmmetExtensions(), htmlTagSync()];
   }
 
   if (name === 'css') {
@@ -271,6 +279,12 @@ function mountEditor(win, el) {
         tooltips({ parent: win.document.body }),
         keymap.of([
           ...defaultKeymap,
+          // Before indentWithTab, and only where an abbreviation can mean
+          // something. Returning false hands Tab on to indenting.
+          {
+            key: 'Tab',
+            run: (view) => (ui.language === 'html' ? expandHtmlTab(view) : false),
+          },
           indentWithTab,
           ...historyKeymap,
           ...completionKeymap,
@@ -517,6 +531,7 @@ async function removeFile(win, path) {
     if (ui.path === path) {
       ui.path = '';
       ui.name = '';
+      ui.language = 'text';
       setContents('', 'text');
     }
 
@@ -538,6 +553,7 @@ async function removeFolder(win, path) {
     if (ui.path.startsWith(`${path}/`)) {
       ui.path = '';
       ui.name = '';
+      ui.language = 'text';
       setContents('', 'text');
     }
 
