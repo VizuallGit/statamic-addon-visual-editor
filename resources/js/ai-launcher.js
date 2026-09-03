@@ -90,13 +90,19 @@ const CSS = `
   transform: translateY(-1px);
 }
 #${ROOT_ID} [data-sve-ai-button] svg {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.625rem;
+  height: 1.625rem;
   display: block;
 }
 `;
 
-const CHAT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+/*
+ * Statamic's own `ai-spark` icon, inlined. A speech bubble would read as the
+ * support chat every site has in that corner; a spark says which of the two
+ * this is. Inlined rather than resolved through Statamic's icon component
+ * because this button is plain DOM, built before Vue has anything to say.
+ */
+const SPARK_ICON = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m.75.75 1.809 1.809M.75 13.25l1.809-1.809M13.25.75l-1.809 1.809M13.25 13.25l-1.809-1.809M5.296 5.308C6.358 4.247 6.557 2.25 7 2.25s.642 1.997 1.704 3.058c1.061 1.062 3.045 1.174 3.045 1.69 0 .518-1.984.63-3.045 1.691C7.642 9.751 7.443 11.748 7 11.748S6.358 9.75 5.296 8.689C4.235 7.628 2.251 7.516 2.251 7s1.984-.63 3.045-1.69"/></svg>';
 const CLOSE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 function ensureStyles(win) {
@@ -114,7 +120,7 @@ function ensureStyles(win) {
 }
 
 function paintButton(win) {
-  button.innerHTML = open ? CLOSE_ICON : CHAT_ICON;
+  button.innerHTML = open ? CLOSE_ICON : SPARK_ICON;
 
   const label = t(win, open ? 'ai_launcher_close' : 'ai_launcher_open');
 
