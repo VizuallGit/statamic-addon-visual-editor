@@ -39,7 +39,7 @@ const target = computed(() => ui.path || ui.dir);
 </script>
 
 <template>
-  <div class="sve-files">
+  <div class="sve-files" data-sve-files-frame>
     <div class="sve-files__bar">
       <span class="sve-files__title">{{ ui.title }}</span>
       <span class="sve-files__path">{{ ui.path ? ui.root + '/' + ui.path : ui.root }}</span>
@@ -99,19 +99,31 @@ const target = computed(() => ui.path || ui.dir);
  * code editors in one Control Panel should not look like two different
  * products. Sizes in rem rather than that file's px.
  */
+/*
+ * A frame that sits away from the Control Panel around it.
+ *
+ * Flush against Statamic's own sidebar, in the same dark grey, the two read as
+ * one surface and it is not obvious that the sidebar belongs to the CP and this
+ * does not. Inset on three sides, a border all the way round, and a shade
+ * lighter than the CP behind it.
+ */
 .sve-files {
+  --sve-files-inset: 1rem;
+
   display: flex;
   flex-direction: column;
+  margin: 0.75rem var(--sve-files-inset) 0;
   /*
-   * Whatever is left below the page header. file-manager.js measures where this
-   * lands and writes --sve-files-height; the fallback is only what shows for the
-   * instant before it does.
+   * Whatever is left below. file-manager.js measures where this frame lands —
+   * after the margin above — and writes --sve-files-height; the fallback is only
+   * what shows for the instant before it does.
    */
   height: var(--sve-files-height, 60vh);
   min-height: 20rem;
-  border-radius: 0.5rem;
+  border: 1px solid #3c3c3c;
+  border-radius: 0.625rem;
   overflow: hidden;
-  background: #1e1e1e;
+  background: #242424;
   color: #d4d4d4;
   font: 500 0.8125rem/1.3 ui-sans-serif, system-ui, sans-serif;
 }
@@ -210,7 +222,7 @@ const target = computed(() => ui.path || ui.dir);
   display: flex;
   flex-direction: column;
   border-right: 1px solid #3c3c3c;
-  background: #181818;
+  background: #1e1e1e;
 }
 .sve-files__side-label {
   padding: 0.75rem 1rem 0.5rem;

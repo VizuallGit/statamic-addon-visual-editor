@@ -109,7 +109,7 @@ function vscTheme() {
   return [
     EditorView.theme(
       {
-        '&': { height: '100%', backgroundColor: '#1e1e1e', color: '#d4d4d4' },
+        '&': { height: '100%', backgroundColor: '#242424', color: '#d4d4d4' },
         '.cm-content': {
           caretColor: '#aeafad',
           padding: '12px 0',
@@ -121,7 +121,7 @@ function vscTheme() {
         '.cm-activeLine': { backgroundColor: '#ffffff0d' },
         '.cm-activeLineGutter': { backgroundColor: '#ffffff0d' },
         '.cm-gutters': {
-          backgroundColor: '#1e1e1e',
+          backgroundColor: '#242424',
           color: '#858585',
           border: 'none',
           borderRight: '1px solid #3c3c3c',
@@ -675,15 +675,18 @@ function toggleDir(path) {
  * in pixels and everything downstream of it should not have to be.
  */
 function fitHeight(win, el) {
-  if (!el.isConnected) {
+  const frame = el.isConnected ? el.querySelector('[data-sve-files-frame]') : null;
+
+  if (!frame) {
     return;
   }
 
   const rootSize = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
-  const gap = 1.5 * rootSize;
-  const available = win.innerHeight - el.getBoundingClientRect().top - gap;
+  // Below the frame, matching the inset at its sides.
+  const trailing = rootSize;
+  const available = win.innerHeight - frame.getBoundingClientRect().top - trailing;
 
-  el.style.setProperty('--sve-files-height', `${Math.max(20, available / rootSize)}rem`);
+  frame.style.setProperty('--sve-files-height', `${Math.max(20, available / rootSize)}rem`);
 }
 
 function bindFit(win, el) {
