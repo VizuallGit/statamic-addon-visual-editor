@@ -179,12 +179,12 @@ const LOCK_OPEN_ICON =
 const BACK_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 /*
- * The same two stacked panels the toolbar's HTML tree icon uses. The button
- * opens that tree, so it should look like it — the old crop-marks square drew
- * "focus", which is the mechanism rather than the thing.
+ * A hierarchy: one node above, two below, joined. The button opens the HTML
+ * tree, so it should look like a tree — the old crop-marks square drew "focus",
+ * which is the mechanism rather than the thing.
  */
 const SCOPE_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="7" rx="1.5"/><rect x="8" y="14" width="12" height="7" rx="1.5"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="2" y="16" width="6" height="5" rx="1"/><rect x="16" y="16" width="6" height="5" rx="1"/><path d="M12 8v3"/><path d="M5 16v-3h14v3"/></svg>';
 const AUTOSAVE_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3"/><path d="M21 3.2v5.4h-5.4"/></svg>';
 const SAVE_ICON =
@@ -737,6 +737,7 @@ function ensureStyle(doc) {
   display: none;
 }
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-autosave],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-html-scope],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-save] {
   pointer-events: none;
   opacity: .28;
