@@ -2349,6 +2349,8 @@ function clearHtmlScopeRange() {
  *
  * Only ever asked when the site has the tree switched on at all.
  */
+let treeOpening = false;
+
 function htmlTreeOpen(win) {
   return !!win?.document.getElementById(sve.HTML_TREE_PANEL_ID);
 }
@@ -2371,6 +2373,10 @@ function syncHtmlTree(win, open) {
   }
 
   // The tree is one of the lazily loaded panels, so it may not be here yet.
+  // While that is in flight the panel is legitimately absent, and the watcher
+  // below must not read that as the reader having closed it.
+  treeOpening = true;
+
   void ensurePanel('html_tree')
     .then(() => {
       if (!htmlTreeOpen(win)) {
@@ -2379,6 +2385,10 @@ function syncHtmlTree(win, open) {
     })
     .catch(() => {
       /* the tree is not available on this site */
+    })
+    .finally(() => {
+      treeOpening = false;
+      paintHtmlScope(win);
     });
 }
 
@@ -2390,8 +2400,17 @@ function paintHtmlScope(win) {
   }
 
   htmlScopePref = htmlScopeEnabled(win);
-  btn.setAttribute('aria-pressed', htmlScopePref ? 'true' : 'false');
-  btn.title = t(win, htmlScopePref ? 'code_dock_html_scope_off' : 'code_dock_html_scope');
+
+  // Pressed means the tree is on screen. Reading the panel rather than the
+  // stored setting is what keeps the two from drifting: the tree can also be
+  // closed from its own ✕, or pushed aside when another pane takes the dock,
+  // and neither of those comes through this button.
+  const shown = sve.featureOn?.(win, 'html_tree') === false
+    ? htmlScopePref
+    : (htmlTreeOpen(win) || treeOpening);
+
+  btn.setAttribute('aria-pressed', shown ? 'true' : 'false');
+  btn.title = t(win, shown ? 'code_dock_html_scope_off' : 'code_dock_html_scope');
   btn.setAttribute('aria-label', btn.title);
   btn.innerHTML = SCOPE_ICON;
   win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', htmlScopeActive);
@@ -2404,6 +2423,7 @@ function bindHtmlScope(win, dock) {
 
   dock._sveHtmlScopeBound = true;
   htmlScopePref = htmlScopeEnabled(win);
+  bindHtmlTreeWatch(win, dock);
 
   // The dock has just opened: put the tree where the remembered setting says.
   // On a fresh install that is on.
@@ -2413,7 +2433,11 @@ function bindHtmlScope(win, dock) {
     event.preventDefault();
     event.stopPropagation();
 
-    htmlScopePref = !htmlScopeEnabled(win);
+    // From what is on screen, not from what was last stored — otherwise a tree
+    // closed by its own ✕ needs two clicks to come back.
+    const shown = htmlTreeOpen(win) || treeOpening;
+
+    htmlScopePref = !shown;
     chromeSet(win, SCOPE_KEY, htmlScopePref ? '1' : '0');
 
     if (htmlScopePref) {
@@ -2426,6 +2450,52 @@ function bindHtmlScope(win, dock) {
     }
 
     syncHtmlTree(win, htmlScopePref);
+    paintHtmlScope(win);
+  });
+}
+
+/**
+ * Keep the button and the tree in step when the tree changes without it.
+ *
+ * The panel has its own ✕, and another pane taking the right dock puts it away
+ * too. Neither goes through this button, so both used to leave it lit with
+ * nothing behind it — and the panes still narrowed to a tag the reader could no
+ * longer see in a tree.
+ */
+function bindHtmlTreeWatch(win, dock) {
+  if (dock._sveTreeWatchBound) {
+    return;
+  }
+
+  dock._sveTreeWatchBound = true;
+
+  win.addEventListener('sve-right-dock-change', () => {
+    if (treeOpening || sve.featureOn?.(win, 'html_tree') === false) {
+      return;
+    }
+
+    if (!win.document.getElementById(DOCK_ID)) {
+      return;
+    }
+
+    const shown = htmlTreeOpen(win);
+
+    if (shown === htmlScopeEnabled(win)) {
+      return;
+    }
+
+    htmlScopePref = shown;
+    chromeSet(win, SCOPE_KEY, shown ? '1' : '0');
+
+    if (shown) {
+      if (htmlFocus) {
+        flushCssScope();
+        showHtmlScope();
+      }
+    } else if (htmlScopeActive) {
+      showHtmlFull();
+    }
+
     paintHtmlScope(win);
   });
 }
