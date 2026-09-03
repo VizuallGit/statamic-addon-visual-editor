@@ -484,4 +484,32 @@ return [
     'template_prop_media' => 'Billede / media',
     'template_prop_empty' => 'Ingen felter af den type på denne collection',
     'template_props' => 'Felter',
+
+    // AI-chatten på sin egen side i Control Panel (Værktøjer).
+    'ai_utility_title' => 'AI-assistent',
+    'ai_utility_intro' => 'Samme chat som i Live Preview, uden at have en side åben. Byg-tilstand må oprette og rette fieldsets, blueprints og sektionsskabeloner på denne server; Skriv-tilstand svarer kun med kode, du selv kopierer ind.',
+
+    // Sitets filer (Værktøjer).
+    'files_title' => 'Sitets filer',
+    'files_intro' => 'Sitets egen kode — skabeloner, stylesheets, scripts og sprogfiler under `resources`. Når du gemmer, skrives filen på denne server. PHP, routes, config, `.env` og vendor-kode kan ikke nås herfra.',
+    'files_new_file' => 'Ny fil',
+    'files_new_folder' => 'Ny mappe',
+    'files_create' => 'Opret',
+    'files_delete' => 'Slet',
+    'files_save' => 'Gem',
+    'files_reload' => 'Hent igen fra disken',
+    'files_empty' => 'Vælg en fil',
+    'files_loading' => 'Henter…',
+    'files_saving' => 'Gemmer…',
+    'files_saved' => 'Gemt',
+    'files_unsaved' => 'Ikke gemt',
+    'files_deleted' => 'Slettet',
+    'files_error' => 'Det virkede ikke.',
+    'files_create_error' => 'Kunne ikke oprette. Tjek navnet og filtypen.',
+    'files_too_big' => 'Filen er for stor til at åbne her.',
+    'files_folder_made' => 'Mappen er oprettet. Den vises i træet, når der ligger en fil i den.',
+    'files_folder_not_empty' => 'Mappen indeholder filer, denne skærm ikke kan vise, så den blev ikke rørt.',
+    'files_delete_file_title' => 'Slet denne fil?',
+    'files_delete_folder_title' => 'Slet denne mappe?',
+    'files_delete_folder_body' => ':path og de :count fil(er), der ligger i den. Det kan ikke fortrydes.',
 ];

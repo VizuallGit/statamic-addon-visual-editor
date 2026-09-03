@@ -44,6 +44,8 @@ import './global-section.js';
 import './chrome.js';
 import { initCp } from './cp.js';
 import { initComments } from './comments.js';
+import { initAiUtility } from './ai-utility.js';
+import { initFileManager } from './file-manager.js';
 import { sve } from './cp-registry.js';
 
 // Standalone CP scripts (lite-sections, wrapSolo, instantFocusHeader) look
@@ -56,4 +58,6 @@ Statamic.booting(() => {
   Statamic.component('library_scan-fieldtype', LibraryScan);
   initCp();
   initComments();
+  initAiUtility();
+  initFileManager();
 });

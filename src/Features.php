@@ -32,6 +32,7 @@ class Features
         'site_css',
         'tailwind_dock',
         'ai_panel',
+        'file_manager',
         'open_first_section',
         'collection_templates',
     ];
@@ -60,6 +61,7 @@ class Features
         'open_in_preview',
         'template_dock',
         'site_css',
+        'file_manager',
         'collection_templates',
         'tailwind_dock',
         'ai_panel',

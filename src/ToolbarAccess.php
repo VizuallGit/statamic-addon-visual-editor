@@ -16,7 +16,13 @@ use Statamic\Facades\User as Users;
  */
 class ToolbarAccess
 {
-    /** Toolbar icons this governs — not `panel`, which is always shown. */
+    /**
+     * What this governs — not `panel`, which is always shown.
+     *
+     * Mostly Live Preview toolbar icons. `file_manager` is a Control Panel page
+     * rather than an icon, but the question it answers is the same one, so it is
+     * asked and saved the same way instead of growing a second mechanism.
+     */
     public const KEYS = [
         'pages',
         'globals',
@@ -26,6 +32,7 @@ class ToolbarAccess
         'html_tree',
         'template_dock',
         'site_css',
+        'file_manager',
         'ai_panel',
         'comments',
     ];
@@ -46,6 +53,7 @@ class ToolbarAccess
         'html_tree' => self::AUDIENCE_EVERYONE,
         'template_dock' => self::AUDIENCE_SUPER,
         'site_css' => self::AUDIENCE_SUPER,
+        'file_manager' => self::AUDIENCE_SUPER,
         'ai_panel' => self::AUDIENCE_EVERYONE,
         'comments' => self::AUDIENCE_EVERYONE,
     ];

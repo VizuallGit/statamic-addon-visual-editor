@@ -9,6 +9,10 @@ const MODE_KEY = 'sve-ai-panel-mode';
 const props = defineProps({
   win: { type: Object, required: true },
   onClose: { type: Function, default: null },
+  // On its own page in the Control Panel rather than docked beside Live
+  // Preview: no close button, and the bar styles itself — right-dock.css only
+  // reaches inside #__sve-right-dock.
+  standalone: { type: Boolean, default: false },
 });
 
 const win = computed(() => props.win);
@@ -278,7 +282,7 @@ watch(mode, refreshType);
 </script>
 
 <template>
-  <div class="sve-ai">
+  <div class="sve-ai" :class="{ 'sve-ai--standalone': standalone }">
     <div data-sve-pane-bar>
       <div data-sve-right-title>
         <span data-sve-ai-name>{{ strings('ai_panel_title') }}</span>
@@ -297,7 +301,7 @@ watch(mode, refreshType);
           {{ strings(id === 'build' ? 'ai_panel_mode_build' : 'ai_panel_mode_write') }}
         </button>
       </div>
-      <div data-sve-right-actions>
+      <div v-if="!standalone" data-sve-right-actions>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close" @click="props.onClose?.()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -477,5 +481,67 @@ watch(mode, refreshType);
   color: #fff;
   font-size: 13px;
   font-weight: 600;
+}
+
+/*
+ * On its own Control Panel page. The docked version borrows its bar from
+ * right-dock.css, which is scoped to #__sve-right-dock and never loaded here,
+ * so the bar is dressed from scratch — same shape, CP colours.
+ */
+.sve-ai--standalone {
+  height: min(calc(100vh - 15rem), 60rem);
+  min-height: 30rem;
+  border: 1px solid rgba(128, 128, 128, 0.24);
+  border-radius: 0.75rem;
+  padding: 0 1rem 1rem;
+  background: var(--theme-bg-color, transparent);
+}
+.sve-ai--standalone [data-sve-pane-bar] {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+}
+.sve-ai--standalone [data-sve-right-title] {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.sve-ai--standalone [data-sve-ai-name] {
+  font-weight: 600;
+  font-size: 0.875em;
+}
+.sve-ai--standalone [data-sve-ai-type] {
+  font-size: 0.75em;
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sve-ai--standalone [data-sve-ai-modes] {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.125rem;
+  border-radius: 0.5rem;
+  background: rgba(128, 128, 128, 0.14);
+  flex: 0 0 auto;
+}
+.sve-ai--standalone [data-sve-ai-mode] {
+  all: unset;
+  cursor: pointer;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+  font-size: 0.75em;
+  font-weight: 600;
+  opacity: 0.7;
+}
+.sve-ai--standalone [data-sve-ai-mode].is-active {
+  background: var(--theme-bg-color, #fff);
+  opacity: 1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 </style>

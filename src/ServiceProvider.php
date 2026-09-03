@@ -39,6 +39,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionViewPreviewContr
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryActivityController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
@@ -562,6 +563,17 @@ class ServiceProvider extends AddonServiceProvider
                     ->name('sve.site-css.update');
                 Route::post('/!/sve/site-css/create', [SiteCssController::class, 'store'])
                     ->name('sve.site-css.store');
+                Route::post('/!/sve/file-manager/file', [FileManagerController::class, 'update'])
+                    ->name('sve.file-manager.update');
+                Route::post('/!/sve/file-manager/file/create', [FileManagerController::class, 'store'])
+                    ->name('sve.file-manager.store');
+                Route::post('/!/sve/file-manager/folder/create', [FileManagerController::class, 'storeFolder'])
+                    ->name('sve.file-manager.store-folder');
+                Route::delete('/!/sve/file-manager/file', [FileManagerController::class, 'destroy'])
+                    ->name('sve.file-manager.destroy');
+                Route::delete('/!/sve/file-manager/folder', [FileManagerController::class, 'destroyFolder'])
+                    ->name('sve.file-manager.destroy-folder');
+
                 Route::post('/!/sve/site-css/import', [SiteCssController::class, 'import'])
                     ->name('sve.site-css.import');
             });
@@ -621,6 +633,15 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.site-css.index');
             Route::get('/!/sve/site-css/file', [SiteCssController::class, 'show'])
                 ->name('sve.site-css.show');
+            // The site's own code files (Utilities > Site Files). Off by default;
+            // FileManager decides which paths exist at all.
+            Route::get('/!/sve/file-manager', [FileManagerController::class, 'index'])
+                ->name('sve.file-manager.index');
+            Route::get('/!/sve/file-manager/file', [FileManagerController::class, 'show'])
+                ->name('sve.file-manager.show');
+            Route::get('/!/sve/file-manager/folder', [FileManagerController::class, 'folder'])
+                ->name('sve.file-manager.folder');
+
             Route::get('/!/sve/template-props', TemplatePropsController::class)
                 ->name('sve.template-props');
             Route::get('/!/sve/tailwind-theme', [SectionTemplateController::class, 'theme'])
@@ -681,6 +702,35 @@ class ServiceProvider extends AddonServiceProvider
             ->routes(function ($router) {
                 $router->post('generate', [SetPreviewsController::class, 'generate'])->name('generate');
             });
+
+        // The addon's own Utility pages: the AI chat away from Live Preview,
+        // and the site's code files.
+        //
+        // Registered through Utility::extend() rather than straight away, so the
+        // callback runs from the BootUtilities middleware — after the CP has
+        // authenticated. Features::allows() needs the signed-in user to answer,
+        // and Statamic builds both the Utilities index and the nav from whatever
+        // is registered, so a page this user may not open is never registered at
+        // all rather than listed and then refused.
+        Utility::extend(function () {
+            if (Features::allows('ai_panel')) {
+                Utility::register('ai-assistant')
+                    ->view('sve::utilities.ai-assistant', fn () => [])
+                    ->title(__('sve::messages.ai_utility_title'))
+                    ->navTitle(__('sve::messages.ai_utility_title'))
+                    ->icon('ai-chat-spark')
+                    ->description(__('sve::messages.ai_utility_intro'));
+            }
+
+            if (Features::allows('file_manager')) {
+                Utility::register('site-files')
+                    ->view('sve::utilities.site-files', fn () => [])
+                    ->title(__('sve::messages.files_title'))
+                    ->navTitle(__('sve::messages.files_title'))
+                    ->icon('folder-edit')
+                    ->description(__('sve::messages.files_intro'));
+            }
+        });
 
         // After every other EntryBlueprintFound listener: visual id, responsive
         // wrap and "from the start" must see `type: replicator` first. YAML on

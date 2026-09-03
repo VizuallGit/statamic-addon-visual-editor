@@ -490,4 +490,32 @@ return [
     'template_prop_media' => 'Image / media',
     'template_prop_empty' => 'No matching fields on this collection',
     'template_props' => 'Fields',
+
+    // The AI chat on its own Control Panel page (Utilities).
+    'ai_utility_title' => 'AI Assistant',
+    'ai_utility_intro' => 'The same chat as in Live Preview, without having a page open. Build mode may create and edit fieldsets, blueprints and section templates on this server; Write mode only answers with code you can copy.',
+
+    // Site files (Utilities).
+    'files_title' => 'Site Files',
+    'files_intro' => 'This site\'s own code — views, stylesheets, scripts and language files under `resources`. Saving writes the file on this server. PHP, routes, config, `.env` and vendor code are not reachable from here.',
+    'files_new_file' => 'New file',
+    'files_new_folder' => 'New folder',
+    'files_create' => 'Create',
+    'files_delete' => 'Delete',
+    'files_save' => 'Save',
+    'files_reload' => 'Reload from disk',
+    'files_empty' => 'Pick a file',
+    'files_loading' => 'Loading…',
+    'files_saving' => 'Saving…',
+    'files_saved' => 'Saved',
+    'files_unsaved' => 'Unsaved changes',
+    'files_deleted' => 'Deleted',
+    'files_error' => 'That did not work.',
+    'files_create_error' => 'Could not create that. Check the name and the file type.',
+    'files_too_big' => 'That file is too big to open here.',
+    'files_folder_made' => 'Folder created. It shows in the tree once it has a file in it.',
+    'files_folder_not_empty' => 'That folder holds files this screen cannot show, so it was left alone.',
+    'files_delete_file_title' => 'Delete this file?',
+    'files_delete_folder_title' => 'Delete this folder?',
+    'files_delete_folder_body' => ':path and the :count file(s) in it. This cannot be undone.',
 ];

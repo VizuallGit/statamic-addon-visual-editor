@@ -245,6 +245,24 @@ tabs:
                 enabled: 'equals true'
                 site_css: 'equals true'
           -
+            handle: file_manager
+            field:
+              type: toggle
+              display: 'Site files'
+              instructions: 'A page under Utilities that browses and edits this site''s own code files — `resources/views`, `resources/css`, `resources/js`, `resources/lang` — with new file, new folder and delete. Saving writes on this server. `app`, `routes`, `config`, `.env` and `vendor` are never reachable. Off by default. Super admins unless you name specific people.'
+              default: false
+              if:
+                enabled: 'equals true'
+          -
+            handle: file_manager_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: file_manager
+              if:
+                enabled: 'equals true'
+                file_manager: 'equals true'
+          -
             handle: collection_templates
             field:
               type: toggle

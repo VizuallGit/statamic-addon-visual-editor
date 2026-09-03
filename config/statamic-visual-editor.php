@@ -101,8 +101,15 @@ return [
     |                      resources/visual-editor/tw when the dock saves. Needs
     |                      template_dock. Off by default — the dock then writes
     |                      the file as today. Does not change the site stylesheet.
-    | - ai_panel:          a Live Preview chat that runs a local Cursor agent.
-    |                      Off by default. Who sees the icon sits under the toggle.
+    | - ai_panel:          a chat that runs a local Cursor agent — in Live
+    |                      Preview, and on its own page under Utilities. Off by
+    |                      default. Who gets it sits under the toggle.
+    | - file_manager:      a Utilities page that browses and edits this site's
+    |                      own code files under `resources` (views, css, js,
+    |                      lang), with new file / new folder / delete. Saving
+    |                      writes on this server. `app/`, `routes/`, `config/`,
+    |                      `.env` and `vendor/` are never reachable. Off by
+    |                      default, super admins unless you name people.
     | - comments:          Figma-style pins in Live Preview. Threads live in
     |                      storage/statamic-visual-editor/comments. On by default.
     |                      Who sees the icon sits under the toggle.
@@ -133,12 +140,13 @@ return [
         'open_in_preview' => false,
         'template_dock' => false,
         'site_css' => false,
+        'file_manager' => false,
         'collection_templates' => false,
         'tailwind_dock' => false,
         'ai_panel' => false,
         'comments' => true,
         // Nested under each toolbar toggle. Null = defaults
-        // (template_dock and site_css = super, everything else = everyone).
+        // (template_dock, site_css and file_manager = super, the rest everyone).
         'pages_access' => null,
         'globals_access' => null,
         'sections_access' => null,
@@ -147,6 +155,7 @@ return [
         'html_tree_access' => null,
         'template_dock_access' => null,
         'site_css_access' => null,
+        'file_manager_access' => null,
         'ai_panel_access' => null,
         'comments_access' => null,
         // Legacy all-in-one blob from the old settings screen. Still read
@@ -211,6 +220,26 @@ return [
     'site_css' => [
         'root' => resource_path('css'),
         'exclude' => ['cp.css'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Site files (Utilities > Site Files)
+    |--------------------------------------------------------------------------
+    |
+    | Which folder the file browser opens, and which folders inside it never
+    | appear. `resources` covers views, css, js and lang — the files a site is
+    | actually built from.
+    |
+    | Widening `root` to base_path() would put `.env`, `routes/` and every PHP
+    | file this server executes one click away from anyone who can reach the
+    | page. The extension whitelist in FileManager still refuses `.php`, but it
+    | is the second wall, not the first — leave the root where it is.
+    |
+    */
+    'file_manager' => [
+        'root' => resource_path(),
+        'exclude' => ['dist', 'boost', 'stubs', 'node_modules', 'vendor'],
     ],
 
     /*
