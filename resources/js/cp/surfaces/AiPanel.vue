@@ -19,6 +19,8 @@ const win = computed(() => props.win);
 const mode = ref(chromeGet(props.win, MODE_KEY) === 'build' ? 'build' : 'write');
 const messages = ref([]);
 const sending = ref(false);
+// The in-flight request, so it can be let go of. Null when nothing is running.
+let pending = null;
 const draft = ref('');
 const insertNote = ref({});
 const copyNote = ref({});
@@ -217,11 +219,15 @@ function send() {
   messages.value = [...messages.value, { role: 'user', content: text }];
   draft.value = '';
   sending.value = true;
+  pending = new AbortController();
   scrollLog();
+
+  const signal = pending.signal;
 
   win.value
     .fetch('/!/sve/ai-chat', {
       method: 'POST',
+      signal,
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
@@ -253,15 +259,36 @@ function send() {
       }
     })
     .catch((err) => {
+      // Stopping is a choice, not a failure — it reads as one in the log too.
+      const stopped = err?.name === 'AbortError';
+
       messages.value = [
         ...messages.value,
-        { role: 'assistant', content: err?.message || strings('ai_panel_error') },
+        {
+          role: 'assistant',
+          content: stopped
+            ? strings(sendMode === 'build' ? 'ai_panel_stopped_build' : 'ai_panel_stopped')
+            : err?.message || strings('ai_panel_error'),
+        },
       ];
     })
     .finally(() => {
+      pending = null;
       sending.value = false;
       scrollLog();
     });
+}
+
+/**
+ * Let go of the answer.
+ *
+ * This is the browser's end of the conversation: it stops waiting and the reply
+ * is discarded. In Write mode that is the whole of it, since nothing was going
+ * to be written. In Build mode the agent may already have edited a file, and no
+ * button here can un-edit it — which is what the stopped message says.
+ */
+function stop() {
+  pending?.abort();
 }
 
 function onKeydown(event) {
@@ -349,7 +376,8 @@ watch(mode, refreshType);
         :placeholder="strings(mode === 'build' ? 'ai_panel_placeholder_build' : 'ai_panel_placeholder')"
         @keydown="onKeydown"
       />
-      <button type="submit">{{ strings('ai_panel_send') }}</button>
+      <button v-if="!sending" type="submit">{{ strings('ai_panel_send') }}</button>
+      <button v-else type="button" class="is-stop" @click="stop">{{ strings('ai_panel_stop') }}</button>
     </form>
   </div>
 </template>
@@ -468,6 +496,23 @@ watch(mode, refreshType);
   color: inherit;
   font: inherit;
   font-size: 13px;
+}
+.sve-ai__form button.is-stop {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  width: 100%;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sve-ai__form button.is-stop:hover {
+  background: rgba(128, 128, 128, 0.14);
 }
 .sve-ai__form button[type='submit'] {
   all: unset;
