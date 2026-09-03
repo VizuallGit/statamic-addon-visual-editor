@@ -4,7 +4,7 @@
     "name": "html-pick-align"
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-vFkuFWMS.js",
+    "file": "assets/addon-BI9g1vyF.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -28,7 +28,7 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-BZ7z1EBw.js",
+    "file": "assets/html-tree-Cnm0OQfM.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,

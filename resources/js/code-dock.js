@@ -179,16 +179,19 @@ const LOCK_OPEN_ICON =
 const BACK_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
 /*
- * Fluent's `list-bar-tree-16-regular`, inlined. The button opens the HTML tree,
- * so it should look like one — the old crop-marks square drew "focus", which is
- * the mechanism rather than the thing.
+ * Fluent's list-bar-tree, inlined. The button opens the HTML tree, so it should
+ * look like one — the old crop-marks square drew "focus", which is the mechanism
+ * rather than the thing.
  *
  * Filled rather than stroked, unlike its neighbours in the row: it inherits
  * `currentColor` from the button either way, so pressed and dimmed states are
  * unaffected.
+ *
+ * The only copy. The dock's markup takes it as a prop rather than repeating it,
+ * because a button drawn in two places is a button that ends up drawn two ways.
  */
 const SCOPE_ICON =
-  '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.75 2A1.75 1.75 0 0 0 2 3.75v1c0 .966.784 1.75 1.75 1.75h.418A1.74 1.74 0 0 0 4 7.25v1.5c0 .49.201.932.525 1.25c-.324.318-.525.76-.525 1.25v1c0 .966.784 1.75 1.75 1.75h6.5A1.75 1.75 0 0 0 14 12.25v-1c0-.49-.201-.932-.525-1.25c.324-.318.525-.76.525-1.25v-1.5c0-.49-.201-.932-.525-1.25c.324-.318.525-.76.525-1.25v-1A1.75 1.75 0 0 0 12.25 2zm8.5 7.5H8v-3h4.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75M7 6.5v3H5.75A.75.75 0 0 1 5 8.75v-1.5a.75.75 0 0 1 .75-.75zm1 4h4.25a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-.75.75H8zm-1 0V13H5.75a.75.75 0 0 1-.75-.75v-1a.75.75 0 0 1 .75-.75zm-1-5V3h6.25a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-.75.75zm-1 0H3.75A.75.75 0 0 1 3 4.75v-1A.75.75 0 0 1 3.75 3H5z"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M8 7h7.5A1.5 1.5 0 0 0 17 5.5v-1A1.5 1.5 0 0 0 15.5 3H8zM7 3H4.5A1.5 1.5 0 0 0 3 4.5v1A1.5 1.5 0 0 0 4.5 7H7zm3 9h5.5a1.5 1.5 0 0 0 1.5-1.5v-1A1.5 1.5 0 0 0 15.5 8H10zM9 8H6.5A1.5 1.5 0 0 0 5 9.5v1A1.5 1.5 0 0 0 6.5 12H9zm6.5 9H12v-4h3.5a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5m-7-4H11v4H8.5A1.5 1.5 0 0 1 7 15.5v-1A1.5 1.5 0 0 1 8.5 13"/></svg>';
 const AUTOSAVE_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3"/><path d="M21 3.2v5.4h-5.4"/></svg>';
 const SAVE_ICON =
@@ -4683,6 +4686,7 @@ async function ensureDockAsync(win) {
       htmlLabel: t(win, 'code_dock_html'),
       cssLabel: t(win, 'code_dock_css'),
       jsLabel: t(win, 'code_dock_js'),
+      treeIcon: SCOPE_ICON,
     });
     attachDock(doc, dock);
     shieldDock(dock);
