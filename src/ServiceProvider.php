@@ -706,25 +706,41 @@ class ServiceProvider extends AddonServiceProvider
         // The addon's own Utility pages: the AI chat away from Live Preview,
         // and the site's code files.
         //
-        // Registered through Utility::extend() rather than straight away, so the
-        // callback runs from the BootUtilities middleware — after the CP has
-        // authenticated. Features::allows() needs the signed-in user to answer,
-        // and Statamic builds both the Utilities index and the nav from whatever
-        // is registered, so a page this user may not open is never registered at
-        // all rather than listed and then refused.
+        // Registered through Utility::extend() so the callback runs wherever
+        // Statamic boots the repository. One of those places is routes/cp.php,
+        // which calls Utility::routes() while routes are being *registered* —
+        // long before any middleware, so there is no signed-in user yet. The
+        // condition here is therefore the site-wide toggle, which needs none:
+        // Features::allows() would answer false for want of a user, no route
+        // would be built, and the page would 404 for everybody while still
+        // showing in the nav (the middleware boots the repository a second
+        // time, when there *is* a user).
+        //
+        // Who may open it is settled per request instead: Statamic's own
+        // `can:access <handle> utility` middleware on the route, and the
+        // Features::allows() check in the view closure below, which runs when
+        // the page is asked for.
         Utility::extend(function () {
-            if (Features::allows('ai_panel')) {
+            if (Features::enabled('ai_panel')) {
                 Utility::register('ai-assistant')
-                    ->view('sve::utilities.ai-assistant', fn () => [])
+                    ->view('sve::utilities.ai-assistant', function () {
+                        abort_unless(Features::allows('ai_panel'), 403);
+
+                        return [];
+                    })
                     ->title(__('sve::messages.ai_utility_title'))
                     ->navTitle(__('sve::messages.ai_utility_title'))
                     ->icon('ai-chat-spark')
                     ->description(__('sve::messages.ai_utility_intro'));
             }
 
-            if (Features::allows('file_manager')) {
+            if (Features::enabled('file_manager')) {
                 Utility::register('site-files')
-                    ->view('sve::utilities.site-files', fn () => [])
+                    ->view('sve::utilities.site-files', function () {
+                        abort_unless(Features::allows('file_manager'), 403);
+
+                        return [];
+                    })
                     ->title(__('sve::messages.files_title'))
                     ->navTitle(__('sve::messages.files_title'))
                     ->icon('folder-edit')
@@ -732,10 +748,57 @@ class ServiceProvider extends AddonServiceProvider
             }
         });
 
+        $this->hideUtilitiesFromNav();
+
         // After every other EntryBlueprintFound listener: visual id, responsive
         // wrap and "from the start" must see `type: replicator` first. YAML on
         // disk stays replicator; only the Live Preview form is swapped.
         Event::listen(EntryBlueprintFound::class, [UseLiteSections::class, 'handle']);
+    }
+
+    /**
+     * Take the addon's Utility pages back out of the nav for people who may
+     * not open them.
+     *
+     * The route has to exist for the whole site — it is built before anyone has
+     * signed in — so "may this person use it" is answered here instead, where
+     * there is a user to ask about. Statamic matches a nav child by its display
+     * name, and the URL is the only thing that can name one page and no other.
+     *
+     * The Utilities index page can still list a page this user will be refused:
+     * Statamic builds that list from the `access <handle> utility` permission
+     * alone, and clicking through gives them the 403 the view closure raises.
+     * A tool the site has switched off is never registered at all, so that case
+     * does not arise.
+     */
+    protected function hideUtilitiesFromNav(): void
+    {
+        Nav::extend(function ($nav) {
+            // Only pages that were registered: a feature the site has switched
+            // off has no nav item to take away. The URL is built the way
+            // Utility::url() builds it, off the index route, so nothing here
+            // depends on a named route that may not exist.
+            $hidden = collect([
+                'ai-assistant' => 'ai_panel',
+                'site-files' => 'file_manager',
+            ])
+                ->filter(fn ($feature) => Features::enabled($feature) && ! Features::allows($feature))
+                ->keys()
+                ->map(fn ($slug) => cp_route('utilities.index').'/'.$slug)
+                ->all();
+
+            if ($hidden === []) {
+                return;
+            }
+
+            if (! $parent = $nav->find('Tools', 'Utilities')) {
+                return;
+            }
+
+            if ($children = $parent->resolveChildren()->children()) {
+                $parent->children($children->reject(fn ($child) => in_array($child->url(), $hidden, true)));
+            }
+        });
     }
 
     /**
