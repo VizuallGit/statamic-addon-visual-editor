@@ -17,6 +17,7 @@
 import AiPanel from './cp/surfaces/AiPanel.vue';
 import { mountSurface } from './cp/mount.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
+import { TOOLBAR_ICONS } from './cp.js';
 import { t } from './cp-t.js';
 
 const ROOT_ID = '__sve-ai-launcher';
@@ -97,12 +98,11 @@ const CSS = `
 `;
 
 /*
- * Statamic's own `ai-spark` icon, inlined. A speech bubble would read as the
- * support chat every site has in that corner; a spark says which of the two
- * this is. Inlined rather than resolved through Statamic's icon component
- * because this button is plain DOM, built before Vue has anything to say.
+ * The same spark the Live Preview toolbar uses, imported rather than copied —
+ * two buttons that open the same chat must not be able to drift apart. Sized by
+ * CSS here; the toolbar sets its own 15px on the element.
  */
-const SPARK_ICON = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m.75.75 1.809 1.809M.75 13.25l1.809-1.809M13.25.75l-1.809 1.809M13.25 13.25l-1.809-1.809M5.296 5.308C6.358 4.247 6.557 2.25 7 2.25s.642 1.997 1.704 3.058c1.061 1.062 3.045 1.174 3.045 1.69 0 .518-1.984.63-3.045 1.691C7.642 9.751 7.443 11.748 7 11.748S6.358 9.75 5.296 8.689C4.235 7.628 2.251 7.516 2.251 7s1.984-.63 3.045-1.69"/></svg>';
+const SPARK_ICON = TOOLBAR_ICONS.ai;
 const CLOSE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 function ensureStyles(win) {
