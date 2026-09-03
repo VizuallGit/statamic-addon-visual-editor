@@ -156,6 +156,20 @@ TXT;
 
         $rules = AiRules::text();
         $modeBlock = static::modeInstructions($mode);
+
+        // What Statamic says about itself, from the installed version. Framed as
+        // background rather than instruction: it describes a CMS, while the
+        // site's own rules describe how this site is built, and where the two
+        // ever disagree the site wins.
+        $framework = StatamicGuidelines::text();
+        $framework = $framework === '' ? '' : <<<TXT
+
+
+HOW STATAMIC IS PUT TOGETHER — background, from the version installed here.
+Where this and the site's rules above disagree, the site's rules win.
+
+{$framework}
+TXT;
         $scope = $handle !== ''
             ? ($mode === 'write'
                 ? <<<TXT
@@ -233,6 +247,7 @@ Follow these rules. They outrank a vague request to "make a heading" or "improve
 {$scope}
 
 {$folders}
+{$framework}
 
 When filling a new fieldset, first read resources/fieldsets/ai_demo/section.yaml as a guideline for tabs (Content, Style, Farver accordion, Spacing accordion) and fieldtypes (theme_color_picker, common.section_spacing, sve_responsive). Do not copy that file. Build the fields the user asked for — a hero with heading, image and buttons gets those fields, not only the demo's. Never register ai_demo in page_sections.yaml.
 

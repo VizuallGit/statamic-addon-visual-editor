@@ -265,6 +265,21 @@ return [
         'rules' => env('STATAMIC_VISUAL_EDITOR_AI_RULES'),
 
         /*
+         * Hand the chat Statamic's own description of itself — the guidelines
+         * file the installed statamic/cms ships for Laravel Boost. Folder
+         * structure, collections vs. taxonomies, blueprints vs. fieldsets.
+         *
+         * Read straight from vendor, so it always matches the Statamic running
+         * here and there is no copy to keep current. Laravel Boost is not
+         * required; it reads the same file from the same place.
+         *
+         * Turn it off if you would rather keep the prompt short, or point
+         * `statamic_guidelines_path` at a file of your own to say it differently.
+         */
+        'statamic_guidelines' => true,
+        'statamic_guidelines_path' => null,
+
+        /*
          * MCP servers to attach to each run, keyed by name. Config only, never
          * the settings screen: each entry is a command this server runs, or a
          * URL it hands credentials to.
