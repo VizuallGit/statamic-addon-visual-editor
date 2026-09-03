@@ -30,6 +30,46 @@ class CursorAgent
     }
 
     /**
+     * Ambient Cursor settings the agent may load from disk.
+     *
+     * The SDK loads none unless asked, which is why the site's own
+     * `.cursor/rules` and `AGENTS.md` have never reached this chat. Turning
+     * "Project rules" on hands it the `project` layer — the rules, skills and
+     * MCP servers the repository already carries for the editor its developer
+     * uses.
+     *
+     * Off by default, and off means the payload is byte for byte what it was
+     * before this setting existed: a site that liked the old behaviour keeps it
+     * without having to say so.
+     *
+     * @return list<string>
+     */
+    public static function settingSources(): array
+    {
+        return Features::setting('ai_project_rules', false) ? ['project'] : [];
+    }
+
+    /**
+     * MCP servers to attach to the run, by name.
+     *
+     * Config only — a server is a command this server executes, or a URL it
+     * hands credentials to, and neither belongs behind a text field on a
+     * settings screen. Empty means the key is not sent at all.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function mcpServers(): array
+    {
+        $servers = config('statamic-visual-editor.ai.mcp_servers', []);
+
+        if (! is_array($servers)) {
+            return [];
+        }
+
+        return array_filter($servers, fn ($server) => is_array($server) && $server !== []);
+    }
+
+    /**
      * @return array{status: string, reply: string}
      */
     public static function run(string $prompt): array
@@ -44,12 +84,24 @@ class CursorAgent
             'Run npm install in the Visual Editor addon so @cursor/sdk is available.',
         );
 
-        $payload = json_encode([
+        $payload = [
             'apiKey' => AiChat::apiKey(),
             'cwd' => base_path(),
             'model' => (string) config('statamic-visual-editor.ai.model', 'composer-2.5'),
             'prompt' => $prompt,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        ];
+
+        // Added only when there is something to add, so the runner sees the
+        // same object it always saw unless the site asked for more.
+        if ($sources = static::settingSources()) {
+            $payload['settingSources'] = $sources;
+        }
+
+        if ($servers = static::mcpServers()) {
+            $payload['mcpServers'] = $servers;
+        }
+
+        $payload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         abort_unless(is_string($payload), 500);
 

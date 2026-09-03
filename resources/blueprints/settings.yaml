@@ -300,6 +300,16 @@ tabs:
                 enabled: 'equals true'
                 ai_panel: 'equals true'
           -
+            handle: ai_project_rules
+            field:
+              type: toggle
+              display: 'Let the AI read this project''s rules'
+              instructions: 'Hands the AI the repository''s own `.cursor/rules`, `AGENTS.md` and MCP servers — the same context the developer''s editor uses. Off, it only knows the rules in `resources/visual-editor/ai-rules.md`, which is how it has always worked. Turn it on if this project keeps notes for AI that the editor should follow too. Rules meant for something else (addon development, deployment) will be sent along as well, so keep an eye on what is in there.'
+              default: false
+              if:
+                enabled: 'equals true'
+                ai_panel: 'equals true'
+          -
             handle: ai_api_key
             field:
               type: text

@@ -263,6 +263,22 @@ return [
         'model' => env('STATAMIC_VISUAL_EDITOR_AI_MODEL', 'composer-2.5'),
         'node' => env('STATAMIC_VISUAL_EDITOR_NODE'),
         'rules' => env('STATAMIC_VISUAL_EDITOR_AI_RULES'),
+
+        /*
+         * MCP servers to attach to each run, keyed by name. Config only, never
+         * the settings screen: each entry is a command this server runs, or a
+         * URL it hands credentials to.
+         *
+         * Empty means the option is not sent at all. Two shapes, as the Cursor
+         * SDK defines them:
+         *
+         *   'statamic' => ['command' => 'php', 'args' => ['artisan', 'boost:mcp']],
+         *   'docs'     => ['url' => 'https://example.test/mcp', 'headers' => [...]],
+         *
+         * Worth knowing before adding one: the agent may call these tools on
+         * its own, so a server that can write is a second way into this site.
+         */
+        'mcp_servers' => [],
     ],
 
     /*
