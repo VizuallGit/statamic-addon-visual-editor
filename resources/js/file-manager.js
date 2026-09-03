@@ -720,7 +720,11 @@ function fitFrame(win, el) {
  * parent keeps a layout that has no `main` looking exactly as it does today.
  */
 function bandFor(win, frame) {
-  const el = frame.closest('main') || frame.parentElement;
+  const main = frame.closest('main');
+  // Only when `main` starts clear of the left edge — that is what tells us it is
+  // the column beside the sidebar rather than a box the sidebar sits inside.
+  // Where it is not, the frame's own parent is used and nothing moves.
+  const el = main && main.getBoundingClientRect().left > 0 ? main : frame.parentElement;
 
   if (!el) {
     return null;
