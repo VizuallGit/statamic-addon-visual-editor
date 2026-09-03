@@ -40,8 +40,8 @@ const target = computed(() => ui.path || ui.dir);
 <template>
   <div class="sve-files">
     <div class="sve-files__bar">
-      <span class="sve-files__root">{{ ui.root }}</span>
-      <span v-if="ui.path" class="sve-files__path">/ {{ ui.path }}</span>
+      <span class="sve-files__title">{{ ui.title }}</span>
+      <span class="sve-files__path">{{ ui.path ? ui.root + '/' + ui.path : ui.root }}</span>
       <span class="sve-files__status">{{ ui.status }}</span>
       <button type="button" class="sve-files__icon" :title="ui.reloadTitle" :disabled="!ui.path" @click="onReload">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.8"/><path d="M21 3v6h-6"/></svg>
@@ -51,6 +51,7 @@ const target = computed(() => ui.path || ui.dir);
     </div>
     <div class="sve-files__body">
       <aside class="sve-files__side">
+        <div class="sve-files__side-label">{{ ui.root }}</div>
         <div class="sve-files__tree">
           <template v-for="row in rows" :key="row.type + row.path">
             <button
@@ -90,12 +91,18 @@ const target = computed(() => ui.path || ui.dir);
 </template>
 
 <style scoped>
+/*
+ * Same palette and type scale as the Live Preview style manager
+ * (cp/surfaces/SiteCssPane.vue) — this is the second pane of its kind, and two
+ * code editors in one Control Panel should not look like two different
+ * products. Sizes in rem rather than that file's px.
+ */
 .sve-files {
   display: flex;
   flex-direction: column;
   height: min(calc(100vh - 15rem), 60rem);
   min-height: 30rem;
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
   overflow: hidden;
   background: #1e1e1e;
   color: #d4d4d4;
@@ -105,14 +112,15 @@ const target = computed(() => ui.path || ui.dir);
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  height: 2.75rem;
+  height: 2.5rem;
   padding: 0 0.625rem;
   border-bottom: 1px solid #3c3c3c;
   flex: none;
 }
-.sve-files__root {
+.sve-files__title {
   font-weight: 600;
   color: #fff;
+  flex: none;
 }
 .sve-files__path {
   opacity: 0.55;
@@ -181,12 +189,20 @@ const target = computed(() => ui.path || ui.dir);
   flex: 1;
 }
 .sve-files__side {
-  width: 16rem;
+  width: 15rem;
   flex: none;
   display: flex;
   flex-direction: column;
   border-right: 1px solid #3c3c3c;
   background: #181818;
+}
+.sve-files__side-label {
+  padding: 0.75rem 1rem 0.5rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  flex: none;
 }
 .sve-files__tree {
   flex: 1;
@@ -197,25 +213,31 @@ const target = computed(() => ui.path || ui.dir);
 .sve-files__file {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
   width: 100%;
   text-align: left;
   border: 0;
   background: transparent;
   color: inherit;
-  padding: 0.3125rem 0.75rem;
+  padding: 0.375rem 1rem;
   cursor: pointer;
   font: inherit;
 }
+/*
+ * Folders read as the small grey headings the style manager uses for its
+ * groups, rather than as another row of file names.
+ */
 .sve-files__dir {
-  color: rgba(255, 255, 255, 0.72);
-  font-weight: 600;
+  gap: 0.375rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.6875rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 .sve-files__caret {
   display: inline-flex;
-  width: 0.75rem;
+  width: 0.625rem;
   line-height: 1;
-  opacity: 0.6;
+  opacity: 0.7;
   transition: transform 0.12s ease;
 }
 .sve-files__caret.is-open {
@@ -233,20 +255,21 @@ const target = computed(() => ui.path || ui.dir);
 .sve-files__adds {
   display: flex;
   gap: 0.5rem;
-  padding: 0.625rem 0.75rem 0.75rem;
+  margin: 0.625rem 0.75rem 0.75rem;
+  flex: none;
 }
 .sve-files__adds button {
   flex: 1;
   height: 2.25rem;
   border: 0;
   border-radius: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  color: inherit;
+  background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
+  color: #fff;
   font: 600 0.75rem/1 ui-sans-serif, system-ui, sans-serif;
   cursor: pointer;
 }
 .sve-files__adds button:hover {
-  background: rgba(255, 255, 255, 0.16);
+  filter: brightness(1.08);
 }
 .sve-files__main {
   flex: 1;

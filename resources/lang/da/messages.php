@@ -485,9 +485,9 @@ return [
     'template_prop_empty' => 'Ingen felter af den type på denne collection',
     'template_props' => 'Felter',
 
-    // AI-chatten på sin egen side i Control Panel (Værktøjer).
-    'ai_utility_title' => 'AI-assistent',
-    'ai_utility_intro' => 'Samme chat som i Live Preview, uden at have en side åben. Byg-tilstand må oprette og rette fieldsets, blueprints og sektionsskabeloner på denne server; Skriv-tilstand svarer kun med kode, du selv kopierer ind.',
+    // AI-chatten der svæver i hjørnet af Control Panel.
+    'ai_launcher_open' => 'Spørg AI\'en',
+    'ai_launcher_close' => 'Luk chatten',
 
     // Sitets filer (Værktøjer).
     'files_title' => 'Sitets filer',

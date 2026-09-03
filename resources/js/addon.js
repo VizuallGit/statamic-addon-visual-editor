@@ -44,7 +44,7 @@ import './global-section.js';
 import './chrome.js';
 import { initCp } from './cp.js';
 import { initComments } from './comments.js';
-import { initAiUtility } from './ai-utility.js';
+import { initAiLauncher } from './ai-launcher.js';
 import { initFileManager } from './file-manager.js';
 import { sve } from './cp-registry.js';
 
@@ -58,6 +58,6 @@ Statamic.booting(() => {
   Statamic.component('library_scan-fieldtype', LibraryScan);
   initCp();
   initComments();
-  initAiUtility();
+  initAiLauncher();
   initFileManager();
 });

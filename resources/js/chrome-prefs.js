@@ -33,6 +33,7 @@ export const CHROME_KEYS = [
   'sve-html-scope-v2',
   'sve-code-dock-autosave',
   'sve-ai-panel-mode',
+  'sve-ai-launcher-open',
   'sve-listview-tab',
 ];
 

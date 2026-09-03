@@ -491,9 +491,9 @@ return [
     'template_prop_empty' => 'No matching fields on this collection',
     'template_props' => 'Fields',
 
-    // The AI chat on its own Control Panel page (Utilities).
-    'ai_utility_title' => 'AI Assistant',
-    'ai_utility_intro' => 'The same chat as in Live Preview, without having a page open. Build mode may create and edit fieldsets, blueprints and section templates on this server; Write mode only answers with code you can copy.',
+    // The AI chat floating in the corner of the Control Panel.
+    'ai_launcher_open' => 'Ask the AI',
+    'ai_launcher_close' => 'Close the chat',
 
     // Site files (Utilities).
     'files_title' => 'Site Files',

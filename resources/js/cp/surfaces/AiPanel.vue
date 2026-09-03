@@ -9,9 +9,9 @@ const MODE_KEY = 'sve-ai-panel-mode';
 const props = defineProps({
   win: { type: Object, required: true },
   onClose: { type: Function, default: null },
-  // On its own page in the Control Panel rather than docked beside Live
-  // Preview: no close button, and the bar styles itself — right-dock.css only
-  // reaches inside #__sve-right-dock.
+  // Outside the Live Preview dock — the floating chat in the Control Panel.
+  // right-dock.css only reaches inside #__sve-right-dock, so the bar has to
+  // dress itself. The host element decides the size.
   standalone: { type: Boolean, default: false },
 });
 
@@ -301,7 +301,7 @@ watch(mode, refreshType);
           {{ strings(id === 'build' ? 'ai_panel_mode_build' : 'ai_panel_mode_write') }}
         </button>
       </div>
-      <div v-if="!standalone" data-sve-right-actions>
+      <div v-if="props.onClose" data-sve-right-actions>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close" @click="props.onClose?.()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -484,38 +484,39 @@ watch(mode, refreshType);
 }
 
 /*
- * On its own Control Panel page. The docked version borrows its bar from
+ * Outside the Live Preview dock. The docked version borrows its bar from
  * right-dock.css, which is scoped to #__sve-right-dock and never loaded here,
- * so the bar is dressed from scratch — same shape, CP colours.
+ * so the bar is dressed from scratch — same shape, Control Panel colours.
+ *
+ * Height comes from the host element, not from here: the floating chat sizes
+ * itself against the viewport, and this component should not have an opinion
+ * about where it has been put.
  */
 .sve-ai--standalone {
-  height: min(calc(100vh - 15rem), 60rem);
-  min-height: 30rem;
-  border: 1px solid rgba(128, 128, 128, 0.24);
-  border-radius: 0.75rem;
-  padding: 0 1rem 1rem;
-  background: var(--theme-bg-color, transparent);
+  height: 100%;
+  padding: 0 0.875rem 0.875rem;
+  box-sizing: border-box;
 }
 .sve-ai--standalone [data-sve-pane-bar] {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.625rem;
   flex: 0 0 auto;
   padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+  border-bottom: 1px solid var(--theme-color-content-border, rgba(128, 128, 128, 0.24));
 }
 .sve-ai--standalone [data-sve-right-title] {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.0625rem;
   min-width: 0;
 }
 .sve-ai--standalone [data-sve-ai-name] {
   font-weight: 600;
-  font-size: 0.875em;
+  font-size: 0.8125rem;
 }
 .sve-ai--standalone [data-sve-ai-type] {
-  font-size: 0.75em;
+  font-size: 0.6875rem;
   opacity: 0.6;
   white-space: nowrap;
   overflow: hidden;
@@ -524,24 +525,48 @@ watch(mode, refreshType);
 .sve-ai--standalone [data-sve-ai-modes] {
   margin-left: auto;
   display: flex;
-  gap: 0.25rem;
+  gap: 0.125rem;
   padding: 0.125rem;
   border-radius: 0.5rem;
-  background: rgba(128, 128, 128, 0.14);
+  background: rgba(128, 128, 128, 0.16);
   flex: 0 0 auto;
 }
 .sve-ai--standalone [data-sve-ai-mode] {
   all: unset;
   cursor: pointer;
-  padding: 0.25rem 0.625rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.75em;
+  font-size: 0.6875rem;
   font-weight: 600;
   opacity: 0.7;
 }
 .sve-ai--standalone [data-sve-ai-mode].is-active {
-  background: var(--theme-bg-color, #fff);
+  background: var(--theme-color-content-bg, #fff);
   opacity: 1;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.sve-ai--standalone [data-sve-right-actions] {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+/* The dock has a pin; a floating window that follows you everywhere does not. */
+.sve-ai--standalone [data-sve-right-pin] {
+  display: none;
+}
+.sve-ai--standalone [data-sve-close] {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  opacity: 0.6;
+}
+.sve-ai--standalone [data-sve-close]:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.16);
 }
 </style>

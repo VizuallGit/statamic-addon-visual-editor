@@ -703,8 +703,9 @@ class ServiceProvider extends AddonServiceProvider
                 $router->post('generate', [SetPreviewsController::class, 'generate'])->name('generate');
             });
 
-        // The addon's own Utility pages: the AI chat away from Live Preview,
-        // and the site's code files.
+        // The addon's own Utility page: the site's code files. (The AI chat
+        // outside Live Preview is not a page — it floats in the corner of every
+        // CP screen instead; see resources/js/ai-launcher.js.)
         //
         // Registered through Utility::extend() so the callback runs wherever
         // Statamic boots the repository. One of those places is routes/cp.php,
@@ -721,19 +722,6 @@ class ServiceProvider extends AddonServiceProvider
         // Features::allows() check in the view closure below, which runs when
         // the page is asked for.
         Utility::extend(function () {
-            if (Features::enabled('ai_panel')) {
-                Utility::register('ai-assistant')
-                    ->view('sve::utilities.ai-assistant', function () {
-                        abort_unless(Features::allows('ai_panel'), 403);
-
-                        return [];
-                    })
-                    ->title(__('sve::messages.ai_utility_title'))
-                    ->navTitle(__('sve::messages.ai_utility_title'))
-                    ->icon('ai-chat-spark')
-                    ->description(__('sve::messages.ai_utility_intro'));
-            }
-
             if (Features::enabled('file_manager')) {
                 Utility::register('site-files')
                     ->view('sve::utilities.site-files', function () {
@@ -757,8 +745,8 @@ class ServiceProvider extends AddonServiceProvider
     }
 
     /**
-     * Take the addon's Utility pages back out of the nav for people who may
-     * not open them.
+     * Take the addon's Utility page back out of the nav for people who may
+     * not open it.
      *
      * The route has to exist for the whole site — it is built before anyone has
      * signed in — so "may this person use it" is answered here instead, where
@@ -779,7 +767,6 @@ class ServiceProvider extends AddonServiceProvider
             // Utility::url() builds it, off the index route, so nothing here
             // depends on a named route that may not exist.
             $hidden = collect([
-                'ai-assistant' => 'ai_panel',
                 'site-files' => 'file_manager',
             ])
                 ->filter(fn ($feature) => Features::enabled($feature) && ! Features::allows($feature))
