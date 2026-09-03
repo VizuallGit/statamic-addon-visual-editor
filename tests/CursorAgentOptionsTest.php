@@ -11,6 +11,21 @@ use MarioHamann\StatamicVisualEditor\CursorAgent;
  */
 class CursorAgentOptionsTest extends TestCase
 {
+    public function test_the_sdk_is_looked_for_where_node_would_look()
+    {
+        // The addon repo has its own node_modules, so this resolves here. What
+        // the test pins is the walk itself: the answer is a path under a
+        // node_modules directory, not a guess at one fixed location.
+        $found = CursorAgent::sdkPath();
+
+        if ($found === null) {
+            $this->markTestSkipped('@cursor/sdk is not installed in this checkout.');
+        }
+
+        $this->assertStringEndsWith('node_modules/@cursor/sdk', $found);
+        $this->assertDirectoryExists($found);
+    }
+
     public function test_no_settings_layers_unless_the_site_asks()
     {
         $this->assertSame([], CursorAgent::settingSources());

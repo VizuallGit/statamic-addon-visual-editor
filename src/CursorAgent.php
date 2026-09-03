@@ -70,19 +70,62 @@ class CursorAgent
     }
 
     /**
+     * Where the SDK the runner imports actually is, or null.
+     *
+     * Node resolves a bare import by walking up from the importing file
+     * through every `node_modules` on the way. This looks in the same places,
+     * in the same order, so the guard below answers the question Node will
+     * actually be asked rather than a narrower one.
+     *
+     * That distinction matters here: `node_modules` is gitignored, so the
+     * Composer package never carries it. Installed from a path repo the addon
+     * has its own; installed from Packagist it has none, and the SDK has to
+     * come from the site's own `node_modules` — which Node finds by walking up,
+     * but the old check did not.
+     */
+    public static function sdkPath(): ?string
+    {
+        $dir = dirname(static::script());
+        $root = realpath(base_path()) ?: base_path();
+
+        for ($i = 0; $i < 12; $i++) {
+            $candidate = $dir.'/node_modules/@cursor/sdk';
+
+            if (is_dir($candidate)) {
+                return $candidate;
+            }
+
+            $parent = dirname($dir);
+
+            if ($parent === $dir) {
+                break;
+            }
+
+            $dir = $parent;
+        }
+
+        // The site root need not be an ancestor of the script (a path repo puts
+        // the addon outside the project), so it is asked separately.
+        return is_dir($root.'/node_modules/@cursor/sdk')
+            ? $root.'/node_modules/@cursor/sdk'
+            : null;
+    }
+
+    /**
      * @return array{status: string, reply: string}
      */
     public static function run(string $prompt): array
     {
         $script = static::script();
-        $addonRoot = dirname($script, 2);
 
         abort_unless(is_file($script), 500, 'Cursor agent script is missing.');
         abort_unless(
-            is_dir($addonRoot.'/node_modules/@cursor/sdk'),
+            static::sdkPath(),
             500,
-            'Run npm install in the Visual Editor addon so @cursor/sdk is available.',
+            'The AI needs the Cursor SDK. Run `npm install @cursor/sdk` in this site.',
         );
+
+        $addonRoot = dirname($script, 2);
 
         $payload = [
             'apiKey' => AiChat::apiKey(),
