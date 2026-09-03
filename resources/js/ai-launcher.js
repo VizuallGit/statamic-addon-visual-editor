@@ -12,11 +12,12 @@
  *
  * Appended to document.body, which Inertia keeps across CP navigation, so the
  * window survives moving from one screen to the next. Only its visibility is
- * re-checked.
+ * re-checked, and only when the page actually changes.
  */
 import AiPanel from './cp/surfaces/AiPanel.vue';
 import { mountSurface } from './cp/mount.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
+import { watchPage } from './cp/page-watch.js';
 import { TOOLBAR_ICONS } from './cp.js';
 import { t } from './cp-t.js';
 
@@ -191,17 +192,5 @@ function sync(win) {
 }
 
 export function initAiLauncher(win = window) {
-  let timer = 0;
-
-  const schedule = () => {
-    win.clearTimeout(timer);
-    timer = win.setTimeout(() => sync(win), 60);
-  };
-
-  schedule();
-
-  new win.MutationObserver(schedule).observe(win.document.documentElement, {
-    childList: true,
-    subtree: true,
-  });
+  watchPage(win, () => sync(win));
 }

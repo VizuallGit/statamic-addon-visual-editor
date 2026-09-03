@@ -7,10 +7,12 @@
  * shared one, because those two work today and pulling them onto a common base
  * would put the template dock at risk for a tidier diff.
  *
- * Utility pages are Inertia-rendered, so the host element arrives after boot
- * and leaves again on the next CP navigation. Hence the observer.
+ * Utility pages are Inertia-rendered, so the host element arrives after boot and
+ * leaves again on the next CP navigation — hence watchPage, which listens for
+ * that navigation rather than for every DOM change on the page.
  */
 import { mountSurface } from './cp/mount.js';
+import { watchPage } from './cp/page-watch.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { expandHtmlTab, htmlEmmetExtensions } from './html-emmet.js';
 import { htmlTagSync } from './html-tag-sync.js';
@@ -777,17 +779,5 @@ function sync(win) {
 }
 
 export function initFileManager(win = window) {
-  let timer = 0;
-
-  const schedule = () => {
-    win.clearTimeout(timer);
-    timer = win.setTimeout(() => sync(win), 60);
-  };
-
-  schedule();
-
-  new win.MutationObserver(schedule).observe(win.document.documentElement, {
-    childList: true,
-    subtree: true,
-  });
+  watchPage(win, () => sync(win));
 }
