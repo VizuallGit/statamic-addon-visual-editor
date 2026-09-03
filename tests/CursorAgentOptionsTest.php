@@ -11,6 +11,43 @@ use MarioHamann\StatamicVisualEditor\CursorAgent;
  */
 class CursorAgentOptionsTest extends TestCase
 {
+    public function test_the_result_is_found_even_when_the_sdk_prints_first()
+    {
+        // What loading settings layers actually looked like: two INFO lines on
+        // stdout, then the result. Before this, a working run read as a failure.
+        $noisy = "16:20:26.807 INFO  LocalCursorRulesService load completed meta={ruleCount: 14}\n"
+            ."16:20:26.813 INFO  AgentSkillsCursorRulesService load completed meta={skillCount: 21}\n"
+            .'{"status":"finished","reply":"OK","error":null}';
+
+        $out = $this->decode($noisy);
+
+        $this->assertSame('finished', $out['status']);
+        $this->assertSame('OK', $out['reply']);
+    }
+
+    public function test_clean_output_still_decodes()
+    {
+        $out = $this->decode('{"status":"finished","reply":"Hi","error":null}');
+
+        $this->assertSame('Hi', $out['reply']);
+    }
+
+    public function test_output_with_no_result_in_it_is_a_failure()
+    {
+        $this->assertNull($this->decode("INFO something\nINFO something else"));
+        $this->assertNull($this->decode(''));
+        // JSON, but not the runner's answer.
+        $this->assertNull($this->decode('{"ruleCount": 14}'));
+    }
+
+    protected function decode(string $output): ?array
+    {
+        $method = new \ReflectionMethod(CursorAgent::class, 'decode');
+        $method->setAccessible(true);
+
+        return $method->invoke(null, $output);
+    }
+
     public function test_the_sdk_is_looked_for_where_node_would_look()
     {
         // The addon repo has its own node_modules, so this resolves here. What

@@ -50,8 +50,18 @@ if (input.mcpServers && Object.keys(input.mcpServers).length) {
   options.mcpServers = input.mcpServers;
 }
 
+// stdout is this script's result channel: PHP parses the whole of it as JSON.
+// The SDK logs to stdout too — loading settings layers prints "LocalCursorRulesService
+// load completed …" — which turns a working run into an unparseable one. Library
+// output goes to stderr for the duration; stdout is handed back for the result.
+const stdoutWrite = stdout.write.bind(stdout);
+
+stdout.write = (chunk, encoding, callback) => stderr.write(chunk, encoding, callback);
+
 try {
   const result = await Agent.prompt(input.prompt, options);
+
+  stdout.write = stdoutWrite;
 
   stdout.write(
     JSON.stringify({
@@ -63,6 +73,7 @@ try {
 
   exit(result.status === 'finished' ? 0 : 1);
 } catch (err) {
+  stdout.write = stdoutWrite;
   stderr.write(err?.message || String(err));
   exit(1);
 }

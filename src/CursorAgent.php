@@ -70,6 +70,37 @@ class CursorAgent
     }
 
     /**
+     * The runner's JSON result, from output that may not be only JSON.
+     *
+     * The script keeps stdout clean, and this is the second lock on the same
+     * door: an SDK release that finds another way to print would otherwise turn
+     * every answer into "the Cursor agent failed". The result is one line, so
+     * the last line that parses is it.
+     */
+    protected static function decode(string $output): ?array
+    {
+        $whole = json_decode($output, true);
+
+        // `status` is what makes it the runner's answer rather than some other
+        // object that happens to be JSON.
+        if (is_array($whole) && array_key_exists('status', $whole)) {
+            return $whole;
+        }
+
+        $lines = array_reverse(array_filter(array_map('trim', explode("\n", $output))));
+
+        foreach ($lines as $line) {
+            $row = json_decode($line, true);
+
+            if (is_array($row) && array_key_exists('status', $row)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Where the SDK the runner imports actually is, or null.
      *
      * Node resolves a bare import by walking up from the importing file
@@ -161,7 +192,7 @@ class CursorAgent
 
         $process->run();
 
-        $out = json_decode($process->getOutput(), true);
+        $out = static::decode($process->getOutput());
 
         if (! is_array($out)) {
             $err = trim($process->getErrorOutput()) ?: 'The Cursor agent failed.';
