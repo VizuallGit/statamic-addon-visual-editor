@@ -29,6 +29,7 @@ defineProps({
         <div data-sve-code-pane-label>
           <span>{{ htmlLabel }}</span>
           <div data-sve-html-tools></div>
+          <div data-sve-visual-edit-tools></div>
           <div data-sve-antlers-tools></div>
         </div>
         <div data-sve-code-host></div>

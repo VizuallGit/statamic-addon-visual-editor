@@ -40,6 +40,14 @@ import {
   expandAntlersSnippet,
   indentAntlersSnippet,
 } from './antlers-snippets.js';
+import {
+  VISUAL_EDIT_SNIPPET_GROUPS,
+  VISUAL_EDIT_SNIPPETS,
+  VISUAL_EDIT_TAG,
+  findVisualEditInRange,
+  hasAttr,
+  visualEditSnippet,
+} from './visual-edit-snippets.js';
 import { expandHtmlTab, htmlEmmetExtensions } from './html-emmet.js';
 import { htmlTagSync } from './html-tag-sync.js';
 import {
@@ -731,6 +739,7 @@ function ensureStyle(doc) {
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-subrow],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-html-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-antlers-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-visual-edit-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-add-class] {
   pointer-events: none;
   opacity: .28;
@@ -889,7 +898,8 @@ function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-html-tools] {
   flex: 1 1 auto;
 }
-#${DOCK_ID} [data-sve-antlers-tools] {
+#${DOCK_ID} [data-sve-antlers-tools],
+#${DOCK_ID} [data-sve-visual-edit-tools] {
   pointer-events: auto;
   flex: 0 0 auto;
   align-self: stretch;
@@ -4156,6 +4166,7 @@ function bindHtmlTools(win, dock) {
   });
 
   bindAntlersSnippets(win, dock);
+  bindVisualEditSnippets(win, dock);
 }
 
 function bindAntlersSnippets(win, dock) {
@@ -4195,6 +4206,121 @@ function insertAntlersSnippet(id) {
     ? lineIndentOf(line.text)
     : indentFromPrevious(view, line) || lineIndentOf(line.text);
   const { text, cursor } = expandAntlersSnippet(spec.snippet);
+
+  insertHtmlSnippet(indentAntlersSnippet(text, indent), cursor);
+  finishHtmlEdit();
+}
+
+function bindVisualEditSnippets(win, dock) {
+  const host = dock.querySelector('[data-sve-visual-edit-tools]');
+
+  if (!host || host._sveBound) {
+    return;
+  }
+
+  host._sveBound = true;
+
+  mountPane(host, CodeDockAntlersSelect, {
+    label: t(win, 'code_dock_visual_edit'),
+    groups: VISUAL_EDIT_SNIPPET_GROUPS.map((group) => ({
+      id: group.id,
+      label: t(win, group.lang),
+      items: VISUAL_EDIT_SNIPPETS.filter((item) => item.group === group.id).map((item) => ({
+        id: item.id,
+        label: item.label,
+      })),
+    })),
+    onPick: (id) => insertVisualEditSnippet(id),
+  });
+}
+
+/**
+ * Merges `spec.attr` into an already-found {{ visual_edit ... }} tag, right
+ * before its closing `}}`, instead of opening a new pair of braces — the
+ * whole point being that picking `inline_edit` after `visual_edit` doesn't
+ * repeat `{{ }}`. A no-op (just refocuses) when the attribute is already
+ * there.
+ */
+function mergeVisualEditAttr(view, doc, tag, spec) {
+  if (hasAttr(tag.inner, spec.attr)) {
+    view.focus();
+
+    return;
+  }
+
+  const { text: attrText, cursor: attrCursor } = expandAntlersSnippet(spec.attr);
+  let trimEnd = tag.closeIdx;
+
+  while (trimEnd > tag.openIdx + 2 && /\s/.test(doc[trimEnd - 1])) {
+    trimEnd--;
+  }
+
+  view.dispatch({
+    changes: { from: trimEnd, to: tag.closeIdx, insert: ` ${attrText} ` },
+    selection: { anchor: trimEnd + 1 + attrCursor },
+  });
+  finishHtmlEdit();
+}
+
+/**
+ * Picking an item from the "Visual edit" dropdown annotates the HTML element
+ * the cursor/selection is on or inside — the same element htmlElementAtCursor()
+ * finds for the other HTML toolbar buttons (bold, heading, …) — not wherever
+ * the raw text cursor happens to sit. Clicking inside a <div>'s attributes or
+ * its content, or with a <h1>'s text selected, targets that div or h1.
+ *
+ * If that element already has a {{ visual_edit }} tag, the attribute is
+ * merged into it (see mergeVisualEditAttr); otherwise a fresh
+ * {{ visual_edit <attr> }} is opened right after the tag name, inside its
+ * opening tag — `<h1 {{ visual_edit … }} class="...">`, matching how it's
+ * written by hand. Only when the cursor sits outside any HTML element at all
+ * does this fall back to inserting loose text at the cursor.
+ */
+function insertVisualEditSnippet(id) {
+  const spec = visualEditSnippet(id);
+  const view = editors.html;
+
+  if (!spec || !view || view.state.readOnly) {
+    return;
+  }
+
+  const doc = view.state.doc.toString();
+  const el = htmlElementAtCursor();
+
+  if (el?.open) {
+    const existing = findVisualEditInRange(doc, el.open.from, el.open.to, VISUAL_EDIT_TAG);
+
+    if (existing) {
+      if (spec.attr) {
+        mergeVisualEditAttr(view, doc, existing, spec);
+      } else {
+        view.dispatch({ selection: { anchor: existing.openIdx + 2 + VISUAL_EDIT_TAG.length } });
+        view.focus();
+      }
+
+      return;
+    }
+
+    const insertAt = el.open.from + 1 + el.name.length;
+    const raw = spec.standalone || `{{ ${VISUAL_EDIT_TAG} ${spec.attr} }}`;
+    const { text, cursor } = expandAntlersSnippet(raw);
+
+    view.dispatch({
+      changes: { from: insertAt, to: insertAt, insert: ` ${text}` },
+      selection: { anchor: insertAt + 1 + cursor },
+    });
+    finishHtmlEdit();
+
+    return;
+  }
+
+  const pos = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(pos);
+  const indent = line.text.trim()
+    ? lineIndentOf(line.text)
+    : indentFromPrevious(view, line) || lineIndentOf(line.text);
+  const raw = spec.standalone || `{{ ${VISUAL_EDIT_TAG} ${spec.attr} }}`;
+  const { text, cursor } = expandAntlersSnippet(raw);
 
   insertHtmlSnippet(indentAntlersSnippet(text, indent), cursor);
   finishHtmlEdit();
@@ -4472,12 +4598,13 @@ async function ensureDockAsync(win) {
       dock.querySelector('[data-sve-css-subrow]') &&
       dock.querySelector('[data-sve-css-add-class]') &&
       dock.querySelector('[data-sve-html-tools]') &&
+      dock.querySelector('[data-sve-visual-edit-tools]') &&
       dock.querySelector('[data-sve-html-scope]') &&
       dock.querySelector('[data-sve-code-lock]') &&
       dock.querySelector('[data-sve-code-back]') &&
       dock.querySelector('[data-sve-code-autosave]') &&
       dock.querySelector('[data-sve-code-save]') &&
-      dock.getAttribute('data-sve-code-chrome') === 'scope-6';
+      dock.getAttribute('data-sve-code-chrome') === 'scope-7';
 
     if (!chromeOk) {
       for (const handle of HANDLES) {
@@ -4493,7 +4620,7 @@ async function ensureDockAsync(win) {
   if (!dock) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
-    dock.setAttribute('data-sve-code-chrome', 'scope-6');
+    dock.setAttribute('data-sve-code-chrome', 'scope-7');
     mountPane(dock, CodeDockChrome, {
       htmlLabel: t(win, 'code_dock_html'),
       cssLabel: t(win, 'code_dock_css'),
