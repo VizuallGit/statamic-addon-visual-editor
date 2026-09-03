@@ -427,6 +427,11 @@ return [
     'site_css_empty' => 'Select a file',
     'site_css_not_imported' => 'Not imported in site.css — the page will not load this file.',
     'site_css_import' => 'Import into site.css',
+    'site_css_rename' => 'Rename',
+    'site_css_rename_error' => 'Could not rename that stylesheet.',
+    'site_css_delete' => 'Delete',
+    'site_css_delete_title' => 'Delete this stylesheet?',
+    'site_css_delete_error' => 'Could not delete that stylesheet.',
 
     // Super-admin AI chat in Live Preview
     'ai_panel' => 'AI',
@@ -501,6 +506,11 @@ return [
     'files_new_file' => 'New file',
     'files_new_folder' => 'New folder',
     'files_create' => 'Create',
+    'files_rename' => 'Rename',
+    'files_rename_file' => 'Rename or move this file',
+    'files_rename_folder' => 'Rename or move this folder',
+    'files_renamed' => 'Renamed',
+    'files_rename_error' => 'Could not rename that. Check the name and that nothing is already called it.',
     'files_delete' => 'Delete',
     'files_save' => 'Save',
     'files_reload' => 'Reload from disk',

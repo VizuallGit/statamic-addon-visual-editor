@@ -94,6 +94,119 @@ class SiteCss
         return static::read($rel);
     }
 
+    /**
+     * Delete a stylesheet, and take its `@import` out of the entry with it.
+     *
+     * `site.css` itself is refused: it is the Vite entry, and a site without one
+     * has no stylesheet at all.
+     */
+    public static function delete(string $relative): bool
+    {
+        $path = static::existingPath($relative);
+
+        if (! $path) {
+            return false;
+        }
+
+        $rel = static::relativeFrom($path);
+
+        if ($rel === self::ENTRY) {
+            return false;
+        }
+
+        // Import first: a file removed from disk while the entry still names it
+        // breaks the build, and that is the half nobody would think to check.
+        static::removeImport($rel);
+
+        return unlink($path);
+    }
+
+    /**
+     * Rename a stylesheet, and rewrite the `@import` that names it.
+     *
+     * @return array{path: string, css: string, imported: bool}|null
+     */
+    public static function rename(string $from, string $to): ?array
+    {
+        $source = static::existingPath($from);
+        $rel = static::normalize($to, creating: true);
+
+        if (! $source || ! $rel || static::excluded($rel)) {
+            return null;
+        }
+
+        $was = static::relativeFrom($source);
+
+        if ($was === self::ENTRY || $rel === self::ENTRY) {
+            return null;
+        }
+
+        $root = realpath(static::root());
+
+        if (! $root) {
+            return null;
+        }
+
+        $target = $root.'/'.$rel;
+
+        if (file_exists($target) && str_replace('\\', '/', realpath($target) ?: $target) !== $source) {
+            return null;
+        }
+
+        $dir = dirname($target);
+
+        if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+            return null;
+        }
+
+        $wasImported = static::isImported($was);
+
+        if (! rename($source, $target)) {
+            return null;
+        }
+
+        static::removeImport($was);
+
+        if ($wasImported) {
+            static::ensureImport($rel);
+        }
+
+        return static::read($rel);
+    }
+
+    /** Take a sheet's `@import` line out of the entry. */
+    public static function removeImport(string $relative): bool
+    {
+        $rel = static::normalize($relative);
+
+        if (! $rel || $rel === self::ENTRY) {
+            return false;
+        }
+
+        $entry = static::existingPath(self::ENTRY);
+
+        if (! $entry) {
+            return false;
+        }
+
+        $css = (string) file_get_contents($entry);
+        $stem = preg_replace('/\.css$/', '', $rel);
+
+        $patched = preg_replace(
+            '/^@import[^\n]*(?:"\.\/'.preg_quote($stem, '/').'(?:\.css)?"|\x27\.\/'.preg_quote($stem, '/').'(?:\.css)?\x27)[^\n]*\n?/m',
+            '',
+            $css
+        );
+
+        if (! is_string($patched) || $patched === $css) {
+            return false;
+        }
+
+        file_put_contents($entry, $patched);
+
+        return true;
+    }
+
     public static function ensureImport(string $relative): bool
     {
         $rel = static::normalize($relative);

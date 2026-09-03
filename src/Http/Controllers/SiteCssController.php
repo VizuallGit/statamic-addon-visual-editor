@@ -78,6 +78,32 @@ class SiteCssController
         ]);
     }
 
+    public function rename(Request $request)
+    {
+        $this->authorize();
+
+        $file = SiteCss::rename(
+            (string) $request->input('from', ''),
+            (string) $request->input('to', '')
+        );
+
+        abort_unless($file, 422);
+
+        return response()->json([
+            ...$file,
+            ...SiteCss::listing(),
+        ]);
+    }
+
+    public function destroy(Request $request)
+    {
+        $this->authorize();
+
+        abort_unless(SiteCss::delete((string) $request->input('path', '')), 422);
+
+        return response()->json(SiteCss::listing());
+    }
+
     protected function authorize(): void
     {
         abort_unless(Features::allows('site_css'), 403);

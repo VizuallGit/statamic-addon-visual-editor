@@ -87,6 +87,25 @@ class FileManagerController
         ]);
     }
 
+    public function rename(Request $request)
+    {
+        $this->authorize();
+
+        $from = (string) $request->input('from', '');
+        $to = (string) $request->input('to', '');
+
+        $out = $request->boolean('folder')
+            ? FileManager::renameFolder($from, $to)
+            : FileManager::rename($from, $to);
+
+        abort_unless($out, 422);
+
+        return response()->json([
+            ...$out,
+            ...FileManager::listing(),
+        ]);
+    }
+
     public function destroy(Request $request)
     {
         $this->authorize();

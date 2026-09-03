@@ -11,6 +11,7 @@ import { t } from './cp-t.js';
 import { sve } from './cp-registry.js';
 import SiteCssPane from './cp/surfaces/SiteCssPane.vue';
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
+import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { siteCssUi as ui } from './cp/site-css/store.js';
 
 const PANEL_ID = '__sve-site-css';
@@ -254,6 +255,8 @@ function paintLabels(win) {
   ui.emptyLabel = t(win, 'site_css_empty');
   ui.notImported = t(win, 'site_css_not_imported');
   ui.importLabel = t(win, 'site_css_import');
+  ui.renameLabel = t(win, 'site_css_rename');
+  ui.deleteLabel = t(win, 'site_css_delete');
 }
 
 function setCss(text) {
@@ -493,6 +496,91 @@ async function importFile(win) {
   }
 }
 
+/**
+ * Rename the open stylesheet. `site.css` is refused server-side — it is the
+ * Vite entry, and everything else only reaches the page through it.
+ */
+function renameFile(win) {
+  if (!ui.path) {
+    return;
+  }
+
+  const from = ui.path;
+
+  const overlay = openCpOverlay(win.document, NamePrompt, {
+    heading: t(win, 'site_css_rename'),
+    nameLabel: ui.root,
+    placeholder: from,
+    value: from,
+    cancelLabel: t(win, 'cancel'),
+    saveLabel: t(win, 'site_css_rename'),
+    onOk: async (next) => {
+      overlay.dismiss();
+
+      if (!next || next === from) {
+        return;
+      }
+
+      try {
+        const data = await request(win, '/!/sve/site-css/rename', {
+          method: 'POST',
+          body: JSON.stringify({ from, to: next }),
+        });
+
+        applyListing(data);
+        ui.path = '';
+        await openFile(win, data.path);
+        bumpPreviewCss(win);
+      } catch {
+        ui.status = t(win, 'site_css_rename_error');
+      }
+    },
+  });
+}
+
+/**
+ * Delete the open stylesheet, and its `@import` with it. Asked first: this is
+ * the one button here that cannot be undone.
+ */
+function deleteFile(win) {
+  if (!ui.path) {
+    return;
+  }
+
+  const path = ui.path;
+
+  const overlay = openCpOverlay(win.document, ChoiceDialog, {
+    title: t(win, 'site_css_delete_title'),
+    body: `${ui.root}/${path}`,
+    buttons: [
+      { value: 'cancel', label: t(win, 'cancel'), variant: 'muted' },
+      { value: 'ok', label: t(win, 'site_css_delete'), variant: 'danger' },
+    ],
+    onPick: async (value) => {
+      overlay.dismiss();
+
+      if (value !== 'ok') {
+        return;
+      }
+
+      try {
+        const data = await request(win, '/!/sve/site-css', {
+          method: 'DELETE',
+          body: JSON.stringify({ path }),
+        });
+
+        applyListing(data);
+        ui.path = '';
+        ui.dirty = false;
+        setCss('');
+        bumpPreviewCss(win);
+      } catch {
+        ui.status = t(win, 'site_css_delete_error');
+      }
+    },
+  });
+}
+
 function panelParent(doc) {
   return doc.querySelector('.live-preview') || doc.body;
 }
@@ -565,6 +653,8 @@ function openSiteCss(win) {
     onSave: () => void saveFile(win),
     onReload: () => void reloadFile(win),
     onImport: () => void importFile(win),
+    onRename: () => renameFile(win),
+    onDelete: () => deleteFile(win),
   });
 
   const host = panel.querySelector('[data-sve-site-css-host]');

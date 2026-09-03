@@ -10,6 +10,8 @@ export const siteCssUi = reactive({
   dirty: false,
   title: '',
   addLabel: '',
+  renameLabel: '',
+  deleteLabel: '',
   saveLabel: '',
   reloadTitle: '',
   emptyLabel: '',

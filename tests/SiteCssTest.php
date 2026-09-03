@@ -127,4 +127,66 @@ class SiteCssTest extends TestCase
     {
         return array_column($tree, 'name');
     }
+
+    public function test_deleting_a_sheet_also_removes_its_import()
+    {
+        SiteCss::ensureImport('custom.css');
+        $this->assertTrue(SiteCss::isImported('custom.css'));
+
+        $this->assertTrue(SiteCss::delete('custom.css'));
+        $this->assertFileDoesNotExist($this->dir.'/custom.css');
+        // The entry must not be left naming a file that is gone.
+        $this->assertStringNotContainsString('custom', file_get_contents($this->dir.'/site.css'));
+    }
+
+    public function test_the_entry_itself_cannot_be_deleted()
+    {
+        $this->assertFalse(SiteCss::delete(SiteCss::ENTRY));
+        $this->assertFileExists($this->dir.'/site.css');
+    }
+
+    public function test_deleting_refuses_what_it_would_not_open()
+    {
+        $this->assertFalse(SiteCss::delete('cp.css'));
+        $this->assertFalse(SiteCss::delete('../outside.css'));
+        $this->assertFileExists($this->dir.'/cp.css');
+    }
+
+    public function test_renaming_a_sheet_carries_its_import_across()
+    {
+        SiteCss::ensureImport('custom.css');
+
+        $out = SiteCss::rename('custom.css', 'brand.css');
+
+        $this->assertSame('brand.css', $out['path']);
+        $this->assertFileExists($this->dir.'/brand.css');
+        $this->assertFileDoesNotExist($this->dir.'/custom.css');
+        $this->assertTrue(SiteCss::isImported('brand.css'));
+        $this->assertStringNotContainsString('"./custom"', file_get_contents($this->dir.'/site.css'));
+
+        @unlink($this->dir.'/brand.css');
+    }
+
+    public function test_renaming_a_sheet_that_was_never_imported_stays_that_way()
+    {
+        $this->assertFalse(SiteCss::isImported('custom.css'));
+
+        $out = SiteCss::rename('custom.css', 'unused.css');
+
+        $this->assertSame('unused.css', $out['path']);
+        $this->assertFalse(SiteCss::isImported('unused.css'));
+
+        @unlink($this->dir.'/unused.css');
+    }
+
+    public function test_the_entry_cannot_be_renamed_or_replaced()
+    {
+        $this->assertNull(SiteCss::rename(SiteCss::ENTRY, 'main.css'));
+        $this->assertNull(SiteCss::rename('custom.css', SiteCss::ENTRY));
+        $this->assertNull(SiteCss::rename('custom.css', 'base.css'));
+        $this->assertNull(SiteCss::rename('custom.css', '../escaped.css'));
+
+        $this->assertFileExists($this->dir.'/site.css');
+        $this->assertFileExists($this->dir.'/custom.css');
+    }
 }

@@ -421,6 +421,11 @@ return [
     'site_css_empty' => 'Vælg en fil',
     'site_css_not_imported' => 'Ikke importeret i site.css — siden indlæser ikke denne fil.',
     'site_css_import' => 'Importér i site.css',
+    'site_css_rename' => 'Omdøb',
+    'site_css_rename_error' => 'Kunne ikke omdøbe stylesheetet.',
+    'site_css_delete' => 'Slet',
+    'site_css_delete_title' => 'Slet dette stylesheet?',
+    'site_css_delete_error' => 'Kunne ikke slette stylesheetet.',
 
     // Super-admin AI-chat i Live Preview
     'ai_panel' => 'AI',
@@ -495,6 +500,11 @@ return [
     'files_new_file' => 'Ny fil',
     'files_new_folder' => 'Ny mappe',
     'files_create' => 'Opret',
+    'files_rename' => 'Omdøb',
+    'files_rename_file' => 'Omdøb eller flyt denne fil',
+    'files_rename_folder' => 'Omdøb eller flyt denne mappe',
+    'files_renamed' => 'Omdøbt',
+    'files_rename_error' => 'Kunne ikke omdøbe. Tjek navnet, og at der ikke allerede findes noget med det navn.',
     'files_delete' => 'Slet',
     'files_save' => 'Gem',
     'files_reload' => 'Hent igen fra disken',

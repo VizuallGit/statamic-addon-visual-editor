@@ -50,6 +50,7 @@ let tags;
 let cmReady = null;
 let app = null;
 let host = null;
+let unbindFit = null;
 let editor = null;
 let langBox = null;
 let applying = false;
@@ -222,6 +223,7 @@ function paintLabels(win) {
   ui.title = t(win, 'files_title');
   ui.newFile = t(win, 'files_new_file');
   ui.newFolder = t(win, 'files_new_folder');
+  ui.renameLabel = t(win, 'files_rename');
   ui.deleteLabel = t(win, 'files_delete');
   ui.saveLabel = t(win, 'files_save');
   ui.reloadTitle = t(win, 'files_reload');
@@ -433,16 +435,17 @@ async function reloadFile(win) {
   await openFile(win, ui.path);
 }
 
-function prompt(win, { heading, label, placeholder, ok }) {
+function prompt(win, { heading, label, placeholder, value = '', saveLabel, ok }) {
   const overlay = openCpOverlay(win.document, NamePrompt, {
     heading,
     nameLabel: label,
     placeholder,
+    value,
     cancelLabel: t(win, 'cancel'),
-    saveLabel: t(win, 'files_create'),
-    onOk: (value) => {
+    saveLabel: saveLabel || t(win, 'files_create'),
+    onOk: (next) => {
       overlay.dismiss();
-      void ok(value);
+      void ok(next);
     },
   });
 }
@@ -496,6 +499,56 @@ function addFolder(win) {
         flash(win, t(win, 'files_folder_made'), 2400);
       } catch {
         flash(win, t(win, 'files_create_error'));
+      }
+    },
+  });
+}
+
+/**
+ * Rename the open file, or the selected folder.
+ *
+ * The prompt holds the whole path from the root, not just the last part, so the
+ * same box moves a file as well as renames it — typing a different folder in
+ * front of the name is the move.
+ */
+function renameEntry(win) {
+  const folder = !ui.path;
+  const path = ui.path || ui.dir;
+
+  if (!path) {
+    return;
+  }
+
+  prompt(win, {
+    heading: t(win, folder ? 'files_rename_folder' : 'files_rename_file'),
+    label: ui.root,
+    placeholder: path,
+    value: path,
+    saveLabel: t(win, 'files_rename'),
+    ok: async (next) => {
+      if (!next || next === path) {
+        return;
+      }
+
+      try {
+        const data = await request(win, `${API}/rename`, {
+          method: 'POST',
+          body: JSON.stringify({ from: path, to: next, folder }),
+        });
+
+        applyListing(data);
+        revealPath(data.path);
+
+        if (folder) {
+          ui.dir = data.path;
+        } else {
+          ui.path = '';
+          await openFile(win, data.path);
+        }
+
+        flash(win, t(win, 'files_renamed'), 1600);
+      } catch {
+        flash(win, t(win, 'files_rename_error'));
       }
     },
   });
@@ -610,7 +663,44 @@ function toggleDir(path) {
   ui.open = { ...ui.open, [path]: !ui.open[path] };
 }
 
+/**
+ * Fill what is left of the window.
+ *
+ * The page is Inertia-rendered inside Statamic's own layout, so how far down
+ * this element starts is not something CSS here can know — it depends on the
+ * header, the breadcrumb, and whatever the layout does at this width. Measured
+ * instead, and written back as a custom property.
+ *
+ * In rem, because a viewport measurement is the one number that has to be taken
+ * in pixels and everything downstream of it should not have to be.
+ */
+function fitHeight(win, el) {
+  if (!el.isConnected) {
+    return;
+  }
+
+  const rootSize = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
+  const gap = 1.5 * rootSize;
+  const available = win.innerHeight - el.getBoundingClientRect().top - gap;
+
+  el.style.setProperty('--sve-files-height', `${Math.max(20, available / rootSize)}rem`);
+}
+
+function bindFit(win, el) {
+  const run = () => fitHeight(win, el);
+
+  run();
+  // Twice: once now, and once after the layout has settled — a webfont or a
+  // late-loading header moves the top edge after the first measurement.
+  win.requestAnimationFrame(run);
+  win.addEventListener('resize', run);
+
+  return () => win.removeEventListener('resize', run);
+}
+
 function unmount() {
+  unbindFit?.();
+  unbindFit = null;
   editor?.destroy();
   editor = null;
   app?.unmount();
@@ -638,10 +728,13 @@ function mount(win, el) {
     onToggleDir: toggleDir,
     onAddFile: () => addFile(win),
     onAddFolder: () => addFolder(win),
+    onRename: () => renameEntry(win),
     onDelete: () => void remove(win),
     onSave: () => void saveFile(win),
     onReload: () => void reloadFile(win),
   });
+
+  unbindFit = bindFit(win, el);
 
   const editorHost = el.querySelector('[data-sve-files-host]');
 

@@ -8,6 +8,7 @@ defineProps({
   onToggleDir: { type: Function, required: true },
   onAddFile: { type: Function, required: true },
   onAddFolder: { type: Function, required: true },
+  onRename: { type: Function, required: true },
   onDelete: { type: Function, required: true },
   onSave: { type: Function, required: true },
   onReload: { type: Function, required: true },
@@ -46,6 +47,7 @@ const target = computed(() => ui.path || ui.dir);
       <button type="button" class="sve-files__icon" :title="ui.reloadTitle" :disabled="!ui.path" @click="onReload">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.8"/><path d="M21 3v6h-6"/></svg>
       </button>
+      <button type="button" class="sve-files__plain" :disabled="!target" @click="onRename">{{ ui.renameLabel }}</button>
       <button type="button" class="sve-files__danger" :disabled="!target" @click="onDelete">{{ ui.deleteLabel }}</button>
       <button type="button" class="sve-files__save" :disabled="!ui.path || !ui.dirty" @click="onSave">{{ ui.saveLabel }}</button>
     </div>
@@ -100,8 +102,13 @@ const target = computed(() => ui.path || ui.dir);
 .sve-files {
   display: flex;
   flex-direction: column;
-  height: min(calc(100vh - 15rem), 60rem);
-  min-height: 30rem;
+  /*
+   * Whatever is left below the page header. file-manager.js measures where this
+   * lands and writes --sve-files-height; the fallback is only what shows for the
+   * instant before it does.
+   */
+  height: var(--sve-files-height, 60vh);
+  min-height: 20rem;
   border-radius: 0.5rem;
   overflow: hidden;
   background: #1e1e1e;
@@ -138,6 +145,7 @@ const target = computed(() => ui.path || ui.dir);
 }
 .sve-files__icon,
 .sve-files__save,
+.sve-files__plain,
 .sve-files__danger {
   border: 0;
   background: transparent;
@@ -154,15 +162,23 @@ const target = computed(() => ui.path || ui.dir);
   border-radius: 0.375rem;
 }
 .sve-files__icon:hover:not(:disabled),
+.sve-files__plain:hover:not(:disabled),
 .sve-files__danger:hover:not(:disabled),
 .sve-files__save:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
 }
 .sve-files__icon:disabled,
 .sve-files__save:disabled,
+.sve-files__plain:disabled,
 .sve-files__danger:disabled {
   opacity: 0.35;
   cursor: default;
+}
+.sve-files__plain {
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border-radius: 0.375rem;
+  font-weight: 600;
 }
 .sve-files__danger {
   height: 1.75rem;

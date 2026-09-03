@@ -5,16 +5,23 @@ const props = defineProps({
   heading: { type: String, required: true },
   nameLabel: { type: String, required: true },
   placeholder: { type: String, default: '' },
+  // Renaming starts from the name you have; creating starts from nothing.
+  value: { type: String, default: '' },
   cancelLabel: { type: String, required: true },
   saveLabel: { type: String, required: true },
   onOk: { type: Function, required: true },
   onClose: { type: Function, required: true },
 });
 
-const name = ref('');
+const name = ref(props.value);
 const input = ref(null);
 
-onMounted(() => nextTick(() => input.value?.focus()));
+onMounted(() =>
+  nextTick(() => {
+    input.value?.focus();
+    input.value?.select();
+  })
+);
 
 function submit() {
   const value = name.value.trim();

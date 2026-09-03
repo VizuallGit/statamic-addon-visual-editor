@@ -20,6 +20,7 @@ export const fileManagerUi = reactive({
   title: '',
   newFile: '',
   newFolder: '',
+  renameLabel: '',
   deleteLabel: '',
   saveLabel: '',
   reloadTitle: '',

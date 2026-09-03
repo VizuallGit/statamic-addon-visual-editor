@@ -170,6 +170,64 @@ class FileManagerTest extends TestCase
         $this->assertNull(FileManager::createFolder('../outside'));
     }
 
+    public function test_renaming_a_file()
+    {
+        $file = FileManager::rename('site.css', 'brand.css');
+
+        $this->assertSame('brand.css', $file['path']);
+        $this->assertFileExists($this->dir.'/brand.css');
+        $this->assertFileDoesNotExist($this->dir.'/site.css');
+    }
+
+    public function test_renaming_can_move_into_a_folder_that_is_not_there_yet()
+    {
+        $file = FileManager::rename('site.css', 'css/brand/site.css');
+
+        $this->assertSame('css/brand/site.css', $file['path']);
+        $this->assertFileExists($this->dir.'/css/brand/site.css');
+    }
+
+    public function test_renaming_will_not_overwrite_or_escape()
+    {
+        // A name already taken.
+        $this->assertNull(FileManager::rename('site.css', 'danger.php'));
+        $this->assertNull(FileManager::rename('site.css', 'views/page.antlers.html'));
+        // Out of the root, into an excluded folder, or into a refused extension.
+        $this->assertNull(FileManager::rename('site.css', '../escaped.css'));
+        $this->assertNull(FileManager::rename('site.css', 'dist/site.css'));
+        $this->assertNull(FileManager::rename('site.css', 'shell.php'));
+        // The source has to be something this tool can see in the first place.
+        $this->assertNull(FileManager::rename('danger.php', 'safe.css'));
+
+        $this->assertFileExists($this->dir.'/site.css');
+        $this->assertSame("<h1>Page</h1>\n", file_get_contents($this->dir.'/views/page.antlers.html'));
+    }
+
+    public function test_renaming_a_folder()
+    {
+        $out = FileManager::renameFolder('views/partials', 'views/blocks');
+
+        $this->assertSame(['path' => 'views/blocks'], $out);
+        $this->assertFileExists($this->dir.'/views/blocks/hero.antlers.html');
+        $this->assertDirectoryDoesNotExist($this->dir.'/views/partials');
+    }
+
+    public function test_a_folder_with_something_invisible_in_it_will_not_move()
+    {
+        mkdir($this->dir.'/views/mixed', 0777, true);
+        file_put_contents($this->dir.'/views/mixed/ok.antlers.html', "ok\n");
+        file_put_contents($this->dir.'/views/mixed/hidden.php', "<?php\n");
+
+        $this->assertNull(FileManager::renameFolder('views/mixed', 'views/moved'));
+        $this->assertDirectoryExists($this->dir.'/views/mixed');
+    }
+
+    public function test_a_folder_cannot_be_moved_inside_itself()
+    {
+        $this->assertNull(FileManager::renameFolder('views', 'views/inner'));
+        $this->assertDirectoryExists($this->dir.'/views');
+    }
+
     public function test_deleting_a_file()
     {
         $this->assertTrue(FileManager::delete('site.css'));

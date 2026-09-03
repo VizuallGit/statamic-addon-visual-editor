@@ -9,6 +9,8 @@ defineProps({
   onSave: { type: Function, required: true },
   onReload: { type: Function, required: true },
   onImport: { type: Function, required: true },
+  onRename: { type: Function, required: true },
+  onDelete: { type: Function, required: true },
 });
 
 function flatten(nodes, depth = 0) {
@@ -37,6 +39,8 @@ const rows = computed(() => flatten(ui.tree));
       <button type="button" class="sve-site-css__icon" :title="ui.reloadTitle" :disabled="!ui.path" @click="onReload">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3.2-6.8"/><path d="M21 3v6h-6"/></svg>
       </button>
+      <button type="button" class="sve-site-css__plain" :disabled="!ui.path" @click="onRename">{{ ui.renameLabel }}</button>
+      <button type="button" class="sve-site-css__danger" :disabled="!ui.path" @click="onDelete">{{ ui.deleteLabel }}</button>
       <button type="button" class="sve-site-css__save" :disabled="!ui.path || !ui.dirty" @click="onSave">{{ ui.saveLabel }}</button>
       <button type="button" class="sve-site-css__icon" title="Close" @click="onClose">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -106,6 +110,8 @@ const rows = computed(() => flatten(ui.tree));
   opacity: 0.7;
 }
 .sve-site-css__icon,
+.sve-site-css__plain,
+.sve-site-css__danger,
 .sve-site-css__save {
   border: 0;
   background: transparent;
@@ -121,13 +127,27 @@ const rows = computed(() => flatten(ui.tree));
   border-radius: 6px;
 }
 .sve-site-css__icon:hover:not(:disabled),
+.sve-site-css__plain:hover:not(:disabled),
+.sve-site-css__danger:hover:not(:disabled),
 .sve-site-css__save:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
 }
 .sve-site-css__icon:disabled,
+.sve-site-css__plain:disabled,
+.sve-site-css__danger:disabled,
 .sve-site-css__save:disabled {
   opacity: 0.35;
   cursor: default;
+}
+.sve-site-css__plain,
+.sve-site-css__danger {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.sve-site-css__danger {
+  color: #f2a2a2;
 }
 .sve-site-css__save {
   height: 28px;

@@ -565,6 +565,8 @@ class ServiceProvider extends AddonServiceProvider
                     ->name('sve.site-css.store');
                 Route::post('/!/sve/file-manager/file', [FileManagerController::class, 'update'])
                     ->name('sve.file-manager.update');
+                Route::post('/!/sve/file-manager/rename', [FileManagerController::class, 'rename'])
+                    ->name('sve.file-manager.rename');
                 Route::post('/!/sve/file-manager/file/create', [FileManagerController::class, 'store'])
                     ->name('sve.file-manager.store');
                 Route::post('/!/sve/file-manager/folder/create', [FileManagerController::class, 'storeFolder'])
@@ -573,6 +575,11 @@ class ServiceProvider extends AddonServiceProvider
                     ->name('sve.file-manager.destroy');
                 Route::delete('/!/sve/file-manager/folder', [FileManagerController::class, 'destroyFolder'])
                     ->name('sve.file-manager.destroy-folder');
+
+                Route::post('/!/sve/site-css/rename', [SiteCssController::class, 'rename'])
+                    ->name('sve.site-css.rename');
+                Route::delete('/!/sve/site-css', [SiteCssController::class, 'destroy'])
+                    ->name('sve.site-css.destroy');
 
                 Route::post('/!/sve/site-css/import', [SiteCssController::class, 'import'])
                     ->name('sve.site-css.import');

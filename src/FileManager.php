@@ -201,6 +201,103 @@ class FileManager
         return ['path' => $rel];
     }
 
+    /**
+     * Rename or move a file. The target folder is created if it is missing, so
+     * this doubles as "move into a new folder".
+     *
+     * @return array{path: string, name: string, contents: string, language: string}|null
+     */
+    public static function rename(string $from, string $to): ?array
+    {
+        $source = static::existingPath($from);
+        $rel = static::normalize($to);
+
+        if (! $source || ! $rel) {
+            return null;
+        }
+
+        $root = realpath(static::root());
+
+        if (! $root) {
+            return null;
+        }
+
+        $target = $root.'/'.$rel;
+
+        // Refused rather than silently overwriting whatever is already called
+        // that. Case-only renames on a case-insensitive disk are the exception:
+        // there the target *is* the source.
+        if (file_exists($target) && str_replace('\\', '/', realpath($target) ?: $target) !== $source) {
+            return null;
+        }
+
+        $dir = dirname($target);
+
+        if (! static::insideRoot($dir, $root, allowRoot: true)) {
+            return null;
+        }
+
+        if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+            return null;
+        }
+
+        return rename($source, $target) ? static::read($rel) : null;
+    }
+
+    /**
+     * Rename or move a folder, with everything under it.
+     *
+     * Refused when it holds something this tool cannot see — same rule as
+     * deleting. A move that carries along files the screen never showed is a
+     * move nobody agreed to.
+     *
+     * @return array{path: string}|null
+     */
+    public static function renameFolder(string $from, string $to): ?array
+    {
+        $source = static::existingFolder($from);
+        $rel = static::normalizeFolder($to);
+
+        if (! $source || ! $rel) {
+            return null;
+        }
+
+        $stats = static::folderStats($from);
+
+        if (! $stats || $stats['hidden'] > 0) {
+            return null;
+        }
+
+        $root = realpath(static::root());
+
+        if (! $root) {
+            return null;
+        }
+
+        $target = $root.'/'.$rel;
+
+        if (file_exists($target) && str_replace('\\', '/', realpath($target) ?: $target) !== $source) {
+            return null;
+        }
+
+        // Moving a folder inside itself would take the tree with it.
+        if (str_starts_with(str_replace('\\', '/', $target).'/', $source.'/')) {
+            return null;
+        }
+
+        $dir = dirname($target);
+
+        if (! static::insideRoot($dir, $root, allowRoot: true)) {
+            return null;
+        }
+
+        if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+            return null;
+        }
+
+        return rename($source, $target) ? ['path' => $rel] : null;
+    }
+
     public static function delete(string $relative): bool
     {
         $path = static::existingPath($relative);
