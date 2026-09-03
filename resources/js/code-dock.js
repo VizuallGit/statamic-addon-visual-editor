@@ -19,6 +19,7 @@ import { replayLivePreview, topLevelSectionIds, topLevelSectionUid } from './cp.
 import { sve } from './cp-registry.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { splitterFill } from './right-dock.js';
+import { ensurePanel } from './lazy-panels.js';
 import { emit, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import CodeDockChrome from './cp/surfaces/CodeDockChrome.vue';
@@ -177,8 +178,13 @@ const LOCK_OPEN_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-1"/></svg>';
 const BACK_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>';
+/*
+ * The same two stacked panels the toolbar's HTML tree icon uses. The button
+ * opens that tree, so it should look like it — the old crop-marks square drew
+ * "focus", which is the mechanism rather than the thing.
+ */
 const SCOPE_ICON =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect x="7.5" y="7.5" width="9" height="9" rx="1"/></svg>';
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="7" rx="1.5"/><rect x="8" y="14" width="12" height="7" rx="1.5"/></svg>';
 const AUTOSAVE_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3"/><path d="M21 3.2v5.4h-5.4"/></svg>';
 const SAVE_ICON =
@@ -2326,6 +2332,48 @@ function clearHtmlScopeRange() {
   lastCssSelectorNames = null;
 }
 
+/**
+ * The button stands for the HTML tree as well as the scoping it drives.
+ *
+ * The two belong together: scoping the panes to one element, with no tree to
+ * pick that element in, is a setting pointing at nothing. So pressing it opens
+ * the tree and unpressing it puts the tree away.
+ *
+ * Only ever asked when the site has the tree switched on at all.
+ */
+function htmlTreeOpen(win) {
+  return !!win?.document.getElementById(sve.HTML_TREE_PANEL_ID);
+}
+
+function syncHtmlTree(win, open) {
+  if (!win || sve.featureOn?.(win, 'html_tree') === false) {
+    return;
+  }
+
+  if (!open) {
+    if (htmlTreeOpen(win)) {
+      sve.closeHtmlTreePanel?.(win);
+    }
+
+    return;
+  }
+
+  if (htmlTreeOpen(win)) {
+    return;
+  }
+
+  // The tree is one of the lazily loaded panels, so it may not be here yet.
+  void ensurePanel('html_tree')
+    .then(() => {
+      if (!htmlTreeOpen(win)) {
+        sve.toggleHtmlTreePanel?.(win);
+      }
+    })
+    .catch(() => {
+      /* the tree is not available on this site */
+    });
+}
+
 function paintHtmlScope(win) {
   const btn = win?.document.getElementById(DOCK_ID)?.querySelector('[data-sve-html-scope]');
 
@@ -2349,6 +2397,10 @@ function bindHtmlScope(win, dock) {
   dock._sveHtmlScopeBound = true;
   htmlScopePref = htmlScopeEnabled(win);
 
+  // The dock has just opened: put the tree where the remembered setting says.
+  // On a fresh install that is on.
+  syncHtmlTree(win, htmlScopePref);
+
   dock.querySelector('[data-sve-html-scope]')?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -2365,6 +2417,7 @@ function bindHtmlScope(win, dock) {
       showHtmlFull();
     }
 
+    syncHtmlTree(win, htmlScopePref);
     paintHtmlScope(win);
   });
 }
