@@ -2187,22 +2187,57 @@ export function handleColumnWidth(data, doc) {
 }
 
 /**
- * The effective span a breakpoint inherits, following the cascade up.
+ * A stored width, read the same way whichever of its two shapes it has.
+ *
+ * A plain number is a width with no opinion about where it sits — how every
+ * value written before starting columns existed still looks, and how one is
+ * still written when nobody has said where the block begins. An object carries
+ * both. Null is "no opinion at all".
+ */
+export function placementOf(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const source = typeof value === 'object' ? value : { span: value };
+  const span = Number(source.span ?? source.value);
+
+  if (!Number.isFinite(span) || span < 1) {
+    return null;
+  }
+
+  const start = Number(source.start);
+
+  return { span, start: Number.isFinite(start) && start > 0 ? start : null };
+}
+
+/** Same placement, or not — both numbers have to agree, including "no start". */
+export function samePlacement(a, b) {
+  return a !== null && b !== null && a.span === b.span && a.start === b.start;
+}
+
+/**
+ * The effective placement a breakpoint inherits, following the cascade up.
  *
  * Desktop-first, like the rest of the responsive work: a drawer that says
  * nothing says "the same as the one above". Null when nobody above said
  * anything either.
  */
-export function inheritedSpan(drawers, bp, field) {
+export function inheritedPlacement(drawers, bp, field) {
   for (const key of BP_INHERITS[bp] ?? []) {
-    const value = drawers?.[key]?.[field];
+    const placement = placementOf(drawers?.[key]?.[field]);
 
-    if (value !== null && value !== undefined && value !== '') {
-      return Number(value);
+    if (placement !== null) {
+      return placement;
     }
   }
 
   return null;
+}
+
+/** The inherited width alone, for callers that only ever cared about that. */
+export function inheritedSpan(drawers, bp, field) {
+  return inheritedPlacement(drawers, bp, field)?.span ?? null;
 }
 
 /**
@@ -2218,6 +2253,11 @@ export function inheritedSpan(drawers, bp, field) {
  * what the breakpoint would have inherited anyway is written as empty — dragging
  * tablet back into step with laptop drops the override again, instead of
  * freezing today's laptop value into it forever.
+ *
+ * A change may also carry `start`: the column the block now begins in, sent only
+ * by a leading-edge drag where the container allows blocks to overlap. Without
+ * it the block keeps the start it had, and a block that never had one keeps
+ * flowing — the width alone is written, as a plain number, exactly as before.
  */
 export function handleGridSpan(data, doc, win) {
   const field = typeof data.field === 'string' && data.field ? data.field : 'span';
@@ -2252,12 +2292,38 @@ export function handleGridSpan(data, doc, win) {
         !Array.isArray(current) &&
         Object.keys(BP_INHERITS).some((key) => key in current);
 
-      if (responsive) {
-        const inherited = inheritedSpan(current, bp, field);
+      const start = Number(change?.start);
+      const path_ = responsive ? `${path}.${field}.${bp}.${field}` : `${path}.${field}`;
 
-        container.setFieldValue(`${path}.${field}.${bp}.${field}`, inherited === span ? null : span);
+      // A drag that was only about width says nothing about where the block
+      // begins, so whatever it began with stands. Only a leading-edge drag in a
+      // container that allows overlap sends a start at all — and it is the one
+      // gesture that is actually about moving the block.
+      const stored = placementOf(dataGet(values, path_));
+      const next = {
+        span,
+        start: Number.isFinite(start) && start > 0 ? start : (stored?.start ?? null),
+      };
+
+      // Written back the way it came in: a width with no start is a plain
+      // number, which is what every value written before starting columns
+      // existed still looks like.
+      const value = next.start === null ? next.span : { ...next };
+
+      if (responsive) {
+        const inherited = inheritedPlacement(current, bp, field);
+
+        // A drawer left empty means "the same as the one above", so a value that
+        // matches what would have been inherited is written as empty instead —
+        // dragging tablet back into step with laptop drops the override again,
+        // rather than freezing today's laptop value into it forever. What would
+        // be inherited includes the start, which is why it is compared here and
+        // not left to the caller.
+        const effective = { span: next.span, start: next.start ?? inherited?.start ?? null };
+
+        container.setFieldValue(path_, samePlacement(inherited, effective) ? null : value);
       } else {
-        container.setFieldValue(`${path}.${field}`, span);
+        container.setFieldValue(path_, value);
       }
 
       applied = true;
@@ -2682,6 +2748,9 @@ sve.handleLinkEdit = handleLinkEdit;
 sve.handleMove = handleMove;
 sve.handleColumnWidth = handleColumnWidth;
 sve.inheritedSpan = inheritedSpan;
+sve.inheritedPlacement = inheritedPlacement;
+sve.placementOf = placementOf;
+sve.samePlacement = samePlacement;
 sve.handleGridSpan = handleGridSpan;
 sve.handleAddColumn = handleAddColumn;
 sve.openColumnTypePicker = openColumnTypePicker;

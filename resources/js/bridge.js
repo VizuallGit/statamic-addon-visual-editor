@@ -4992,6 +4992,7 @@ const GRID_MIN_ATTR = 'data-sid-grid-min';
 const GRID_RESIZE_ATTR = 'data-sid-grid-resize';
 const GRID_HANDLES_ATTR = 'data-sid-grid-handles';
 const GRID_PREVIEW_ATTR = 'data-sid-grid-preview';
+const GRID_OVERLAP_ATTR = 'data-sid-grid-overlap';
 
 let colChrome = null; // { handle, addBtn, pair, grid, mode, lines }
 let widthDrag = null;
@@ -5024,6 +5025,19 @@ function columnGridInfo(win, grid) {
 
 function spanOf(el, info) {
   return Math.max(1, Math.round((el.getBoundingClientRect().width + info.gap) / info.unit));
+}
+
+/**
+ * Which column a block currently begins in, counted from 1.
+ *
+ * Measured off the screen like the span is, and for the same reason: where the
+ * block *is* covers both the case where someone put it there and the case where
+ * the row simply flowed it there — and the second is what a first drag starts
+ * from. Read once at the start of a drag; the pointer moves far too often for
+ * this to belong anywhere near it.
+ */
+function startOf(el, info) {
+  return Math.max(1, Math.round((el.getBoundingClientRect().left - info.left) / info.unit) + 1);
 }
 
 function onSameRow(a, b) {
@@ -5123,6 +5137,10 @@ function gridConfig(grid) {
     // alone until you let go. Steadier to aim with, at the cost of not seeing
     // what the row does until it is done.
     preview: (grid.getAttribute(GRID_PREVIEW_ATTR) || 'live') === 'outline' ? 'outline' : 'live',
+    // Blocks may lie on top of each other, so the leading edge moves the block's
+    // starting column instead of only resizing it. Off, a left-edge drag is what
+    // it has always been: the same width written with the sign turned round.
+    overlap: grid.hasAttribute(GRID_OVERLAP_ATTR),
   };
 }
 
@@ -5295,11 +5313,18 @@ function showGridLines(win, grid, info) {
     `left:${info.left}px;top:${rect.top}px;` +
     `width:${info.unit * info.tracks - info.gap}px;height:${rect.height}px;`;
 
+  // The seam between two tracks is what makes them readable as separate columns.
+  // Normally the grid's own gap draws it, but a grid with no gap would leave the
+  // tracks touching — six of them in one tone is one flat field, and you cannot
+  // aim at a column you cannot see the edge of. Below that, the seam is drawn
+  // anyway; the tracks stay where they are and only give up a hair of width.
+  const seam = Math.max(info.gap, 2);
+
   for (let i = 0; i < info.tracks; i++) {
     const track = doc.createElement('div');
 
     track.style.cssText =
-      `position:absolute;top:0;bottom:0;left:${i * info.unit}px;width:${info.unit - info.gap}px;` +
+      `position:absolute;top:0;bottom:0;left:${i * info.unit}px;width:${info.unit - seam}px;` +
       `background:${tone.fill};`;
     box.appendChild(track);
   }
@@ -5377,6 +5402,35 @@ function positionColumnChrome() {
 }
 
 /**
+ * Stay on the block the chrome belongs to while the pointer is still inside it.
+ *
+ * Where blocks may overlap, the block under the pointer is the topmost one, and
+ * that is the wrong answer as soon as one block lies over another: reaching for
+ * the handle on the lower block's edge means crossing the upper block, the
+ * chrome switches, and the handle is taken down in the very moment you go for
+ * it. It cannot be grabbed at all.
+ *
+ * So the block being worked on keeps the chrome until the pointer leaves its
+ * box, whatever is painted on top. Getting to the upper block's own handle means
+ * moving into the part of it that isn't shared — which is most of it, since two
+ * blocks that overlapped completely would leave nothing to aim at anyway.
+ *
+ * Only asked where the template opted into overlapping. Everywhere else the
+ * topmost block is the only block, and this measures nothing.
+ */
+function stayOnOverlappedBlock(chrome, event) {
+  if (!chrome.grid?.hasAttribute(GRID_OVERLAP_ATTR) || !chrome.block) {
+    return false;
+  }
+
+  const rect = chrome.block.getBoundingClientRect();
+
+  return (
+    event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom
+  );
+}
+
+/**
  * Hovering a column block summons its chrome: the resize handle on the boundary
  * to its row neighbour (right one preferred) and the add-column pill.
  */
@@ -5387,7 +5441,9 @@ function maybeShowColumnChrome(win, event) {
 
   if (
     colChrome &&
-    (colChrome.handles.some(({ el }) => el.contains(event.target)) || colChrome.addBtn?.contains(event.target))
+    (colChrome.handles.some(({ el }) => el.contains(event.target)) ||
+      colChrome.addBtn?.contains(event.target) ||
+      stayOnOverlappedBlock(colChrome, event))
   ) {
     return;
   }
@@ -5614,6 +5670,13 @@ function beginWidthDrag(win, pair, grid, mode = 'columns', startX = 0, side = 'r
   const config = mode === 'span' ? gridConfig(grid) : { field: null, min: 1, preview: 'live' };
   const rectA = pair.a.getBoundingClientRect();
 
+  // Dragging the leading edge of a block in a container that allows overlap
+  // moves where the block begins and leaves its trailing edge alone. Only then
+  // is the starting column worth measuring — everywhere else the block flows,
+  // and where it happens to sit right now is not something to write down.
+  const movesStart = mode === 'span' && config.overlap && side === 'left' && !pair.b;
+  const startA = movesStart ? startOf(pair.a, info) : null;
+
   // Only a block resized on its own gets the outline. A paired drag is about the
   // boundary between two blocks, and one of the two standing still while the
   // other is outlined says nothing useful.
@@ -5653,9 +5716,12 @@ function beginWidthDrag(win, pair, grid, mode = 'columns', startX = 0, side = 'r
     // wide as the whole row. Paired, it has to leave the other half room to
     // exist — its ceiling is what the two of them share.
     min: mode === 'span' ? Math.min(config.min, info.tracks) : 1,
+    // Moving the leading edge, the block runs out of room at the grid's first
+    // column: its trailing edge stands still, so how much wider it can get is
+    // exactly how far its left edge has left to travel.
     max: pair.b
       ? spanA + spanB - (mode === 'span' ? Math.min(config.min, info.tracks) : 1)
-      : Math.min(info.tracks, config.columns ?? info.tracks),
+      : Math.min(info.tracks, config.columns ?? info.tracks, movesStart ? startA + spanA - 1 : Infinity),
     total: spanA + spanB,
     spanA,
     applied: spanA,
@@ -5665,6 +5731,8 @@ function beginWidthDrag(win, pair, grid, mode = 'columns', startX = 0, side = 'r
     // Both edges write the same number; the side only says which way is bigger.
     sign: side === 'left' ? -1 : 1,
     side,
+    movesStart,
+    startA,
     ghost,
     handleEl,
     anchorLeft: rectA.left,
@@ -5682,7 +5750,12 @@ function beginWidthDrag(win, pair, grid, mode = 'columns', startX = 0, side = 'r
 }
 
 function updateWidthDrag(win, event) {
-  const { a, b, info, total, aLeft, badge, min, max, spanA, startX, sign } = widthDrag;
+  const { a, b, info, total, aLeft, badge, min, max, spanA, startX, sign, movesStart, startA } = widthDrag;
+
+  // Where the block would begin at a given width, with its trailing edge nailed
+  // down. Arithmetic on numbers read once at the start of the drag — nothing
+  // here measures the page, which is the whole point of doing it this way.
+  const placed = (span) => (movesStart ? `${startA + spanA - span} / span ${span}` : `span ${span} / span ${span}`);
 
   event.preventDefault();
 
@@ -5706,7 +5779,7 @@ function updateWidthDrag(win, event) {
       // Inline styles for instant feedback — they also don't depend on every
       // col-span-* class being present in the site's compiled CSS. The morph
       // after the CP write replaces them with the real classes.
-      a.style.gridColumn = `span ${next} / span ${next}`;
+      a.style.gridColumn = placed(next);
 
       if (b) {
         b.style.gridColumn = `span ${total - next} / span ${total - next}`;
@@ -5727,7 +5800,11 @@ function updateWidthDrag(win, event) {
 }
 
 function finishWidthDrag(win, cancelled) {
-  const { a, b, total, spanA, applied, badge, mode, field, ghost } = widthDrag;
+  const { a, b, total, spanA, applied, badge, mode, field, ghost, movesStart, startA } = widthDrag;
+
+  // The column the block ends up beginning in: its trailing edge stayed put, so
+  // every column it gained, it gained on the left.
+  const start = movesStart ? startA + spanA - applied : null;
 
   badge.remove();
   ghost?.remove();
@@ -5738,7 +5815,7 @@ function finishWidthDrag(win, cancelled) {
   // mode trades for: the block takes its width now, in one move, and the write
   // that follows only confirms what is already on screen.
   if (ghost && !cancelled && applied !== spanA) {
-    a.style.gridColumn = `span ${applied} / span ${applied}`;
+    a.style.gridColumn = movesStart ? `${start} / span ${applied}` : `span ${applied} / span ${applied}`;
   }
 
   positionColumnChrome();
@@ -5767,7 +5844,10 @@ function finishWidthDrag(win, cancelled) {
   // and one landing mid-request leaves a promise unsettled — which is a spinner
   // that never stops. During the drag the inline grid-column is the whole story.
   if (mode === 'span') {
-    const changes = [{ uid: a.getAttribute(SID_ATTR), span: applied }];
+    // `start` only travels when the drag was about where the block begins. Left
+    // out, the CP keeps whatever start the block already had and writes the
+    // width alone — which is every drag that has ever been made until now.
+    const changes = [{ uid: a.getAttribute(SID_ATTR), span: applied, ...(start === null ? {} : { start }) }];
 
     if (b) {
       changes.push({ uid: b.getAttribute(SID_ATTR), span: total - applied });

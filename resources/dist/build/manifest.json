@@ -4,7 +4,7 @@
     "name": "html-pick-align"
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-BuCIqnKx.js",
+    "file": "assets/addon-C6uQF_zX.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -19,7 +19,7 @@
     ]
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-DTn8iR0C.js",
+    "file": "assets/bridge-Eg3kLL8I.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true,
@@ -28,7 +28,7 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-CwdLV-GA.js",
+    "file": "assets/html-tree-BeauNT7k.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,

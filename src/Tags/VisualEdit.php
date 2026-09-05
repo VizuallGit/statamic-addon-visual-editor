@@ -281,6 +281,17 @@ class VisualEdit extends Tags
      *                     one wraps underneath, to be set on its own.
      *   split           — the boundary between two blocks moves; what one gains
      *                     the other gives up and the row stays full.
+     *
+     * `grid_overlap="true"` says the blocks may lie on top of each other, which
+     * changes what the leading edge means. Without it, dragging a block's left
+     * edge only makes the block wider or narrower, and the row re-flows around
+     * it — the only thing a flowing block can do. With it, the left edge moves
+     * the block's starting column and leaves its trailing edge where it is, so
+     * a block can be pulled in over its neighbour.
+     *
+     * It is opt-in per container because it is not free: a block that has been
+     * given a starting column stops flowing, and a section whose layout depends
+     * on blocks flowing should not be able to acquire one by accident.
      */
     private function gridAttr(): string
     {
@@ -322,6 +333,10 @@ class VisualEdit extends Tags
 
         if ((string) $preview === 'outline') {
             $attr .= ' data-sid-grid-preview="outline"';
+        }
+
+        if ($this->params->bool('grid_overlap', $this->params->bool('grid-overlap', false))) {
+            $attr .= ' data-sid-grid-overlap';
         }
 
         return $attr;
