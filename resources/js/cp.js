@@ -2466,15 +2466,19 @@ export const TOOLBAR_ICONS = {
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<line x1="3" y1="6" x2="13" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/>' +
     '<line x1="11" y1="18" x2="21" y2="18"/></svg>',
-  // Table of contents: markers + title lines getting shorter (H1, H2, H3).
+  // The accessibility mark. The panel behind it started as the heading outline
+  // and still opens on it, but the tool is the wider one now — and an icon that
+  // says "table of contents" would send people looking for a different thing.
+  // Key stays `outline`: the toggle, the stored panel and the dock all know it
+  // by that name, and renaming it would only mean a migration nobody asked for.
   outline:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
-    '<circle cx="4.5" cy="6" r="1.4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="4.5" cy="12" r="1.4" fill="currentColor" stroke="none"/>' +
-    '<circle cx="4.5" cy="18" r="1.4" fill="currentColor" stroke="none"/>' +
-    '<line x1="9" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="17.5" y2="12"/>' +
-    '<line x1="9" y1="18" x2="14" y2="18"/></svg>',
+    '<circle cx="12" cy="12" r="9.2"/>' +
+    '<circle cx="12" cy="7.1" r="1.15" fill="currentColor" stroke="none"/>' +
+    '<path d="M6.9 10.3 12 11.6l5.1-1.3"/>' +
+    '<path d="M12 11.6v3.1"/>' +
+    '<path d="m9.3 19.2 2.7-4.5 2.7 4.5"/></svg>',
   html_tree:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="4" y="3" width="16" height="7" rx="1.5"/>' +

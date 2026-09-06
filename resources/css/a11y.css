@@ -1,0 +1,352 @@
+/*
+ * The accessibility panel's own styles.
+ *
+ * A plain stylesheet rather than scoped blocks in the components, because the
+ * components live in a lazily imported chunk and Vite emits that chunk's CSS as
+ * a separate file fetched from `/build/` — a path that does not exist on a site
+ * where the addon is published under /vendor/visual-editor/. The link 404s
+ * without an error and the panel renders naked. Imported `?inline` instead, the
+ * CSS travels inside the chunk as a string and is put in a <style> when the tab
+ * opens: still nothing loaded until then, and nothing to resolve at all.
+ */
+
+.sve-a11y-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.sve-a11y-hint {
+  padding: var(--sve-right-body-pad-block, 8px) 0 0;
+  font-size: 11px;
+  opacity: 0.6;
+  flex: 0 0 auto;
+}
+.sve-a11y-counts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 6px;
+  font-size: 11px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+.sve-a11y-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.sve-a11y-count i,
+.sve-a11y-swatch {
+  width: 0.7em;
+  height: 0.7em;
+  border-radius: 99px;
+  display: inline-block;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+}
+.sve-a11y-count[data-level="fail"] i,
+.sve-a11y-count[data-level="error"] i {
+  background: #dc2626;
+}
+.sve-a11y-count[data-level="warn"] i,
+.sve-a11y-count[data-level="warning"] i {
+  background: #d97706;
+}
+.sve-a11y-count[data-level="pass"] i {
+  background: #16a34a;
+}
+.sve-a11y-count[data-level="unknown"] i,
+.sve-a11y-count[data-level="info"] i {
+  background: #9ca3af;
+}
+.sve-a11y-toggle {
+  all: unset;
+  cursor: pointer;
+  margin-left: auto;
+  font-size: 11px;
+  opacity: 0.6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sve-a11y-toggle[aria-pressed="true"] {
+  opacity: 1;
+}
+/* The category pills, cut from the same cloth as the Patterns library: one row
+   that scrolls sideways, with a fade saying there is more. The fade sits on a
+   sibling rather than on the scroller itself — a mask-image on a scrollable
+   element resets scrollLeft in Chrome. */
+.sve-a11y-groups-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.sve-a11y-groups-wrap[hidden] {
+  display: none;
+}
+.sve-a11y-groups {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 2px 0 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.sve-a11y-groups::-webkit-scrollbar {
+  display: none;
+}
+.sve-a11y-groups button {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  color: currentColor;
+  background: rgba(128, 128, 128, 0.22);
+  font-weight: 500;
+}
+.sve-a11y-groups button.is-on {
+  background: var(--theme-color-primary, #4f46e5);
+  color: #fff;
+  font-weight: 600;
+}
+.sve-a11y-groups-fade {
+  display: none;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 6px;
+  width: 36px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--theme-color-content-bg, Canvas));
+}
+
+.sve-a11y-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.sve-a11y-empty {
+  padding: 30px 6px;
+  text-align: center;
+  opacity: 0.55;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sve-a11y-row {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.sve-a11y-row:hover,
+.sve-a11y-row[aria-current="true"] {
+  background: rgba(128, 128, 128, 0.14);
+}
+.sve-a11y-tag {
+  flex: 0 0 auto;
+  min-width: 2.9em;
+  text-align: center;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: #9ca3af;
+}
+.sve-a11y-row[data-level="fail"] .sve-a11y-tag,
+.sve-a11y-row[data-level="error"] .sve-a11y-tag {
+  background: #dc2626;
+}
+.sve-a11y-row[data-level="warn"] .sve-a11y-tag,
+.sve-a11y-row[data-level="warning"] .sve-a11y-tag {
+  background: #d97706;
+}
+.sve-a11y-row[data-level="pass"] .sve-a11y-tag {
+  background: #16a34a;
+}
+.sve-a11y-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sve-a11y-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sve-a11y-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  opacity: 0.55;
+}
+.sve-a11y-help {
+  font-size: 10px;
+  opacity: 0.55;
+  white-space: normal;
+}
+.sve-a11y-n {
+  flex: 0 0 auto;
+  font-size: 10px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The pills over the preview. Fixed to the viewport and placed by the panel;
+   nothing else in the page may move them. */
+.sve-a11y-badge {
+  all: unset;
+  position: fixed;
+  cursor: pointer;
+  transform: translateY(-50%);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font: 700 10px/1.2 ui-sans-serif, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: #9ca3af;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  white-space: nowrap;
+}
+.sve-a11y-badge[data-level="fail"],
+.sve-a11y-badge[data-level="error"] {
+  background: #dc2626;
+}
+.sve-a11y-badge[data-level="warn"],
+.sve-a11y-badge[data-level="warning"] {
+  background: #d97706;
+}
+.sve-a11y-badge[data-level="pass"] {
+  background: #16a34a;
+}
+.sve-a11y-badge[data-dim] {
+  opacity: 0.3;
+}
+.sve-a11y-badge:hover {
+  opacity: 1;
+  outline: 2px solid #fff;
+}
+
+
+/* --- The accessibility tree ------------------------------------------------
+   Same shape of row as the HTML tree next door: indent for nesting, a twist
+   where there is something to fold away, then what the node is followed by what
+   it is called. A node that cannot do its job carries a dot, because the point
+   of seeing the tree is seeing where it goes quiet. */
+.sve-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 3px 6px 3px 2px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sve-tree-row:hover,
+.sve-tree-row[aria-current="true"] {
+  background: rgba(128, 128, 128, 0.16);
+}
+.sve-tree-twist,
+.sve-tree-twist-gap {
+  all: unset;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+}
+.sve-tree-twist {
+  cursor: pointer;
+}
+.sve-tree-twist:hover {
+  opacity: 1;
+}
+.sve-tree-twist[data-shut] svg {
+  transform: rotate(-90deg);
+}
+.sve-tree-role {
+  flex: 0 0 auto;
+  font-weight: 600;
+  font-size: 11px;
+  opacity: 0.9;
+}
+.sve-tree-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.75;
+}
+.sve-tree-name::before {
+  content: '\201C';
+}
+.sve-tree-name::after {
+  content: '\201D';
+}
+.sve-tree-missing {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.75;
+}
+.sve-tree-tag {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 10px;
+  opacity: 0.35;
+}
+/* The dot sits before the role, so a scan down the left edge finds every node
+   with something wrong without reading a word. */
+.sve-tree-row[data-issue] .sve-tree-role::before {
+  content: '';
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 99px;
+  margin-right: 0.4em;
+  vertical-align: 0.05em;
+  background: #d97706;
+}
+.sve-tree-row[data-issue="error"] .sve-tree-role::before {
+  background: #dc2626;
+}
+.sve-tree-row[data-issue="error"] .sve-tree-missing {
+  color: #dc2626;
+  opacity: 1;
+}
+.sve-tree-row[data-issue="warning"] .sve-tree-missing {
+  color: #d97706;
+  opacity: 1;
+}

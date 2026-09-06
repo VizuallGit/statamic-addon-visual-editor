@@ -1,6 +1,12 @@
 /**
  * Settings toggle: `outline`
- * Heading outline in the right dock.
+ * The accessibility panel in the right dock.
+ *
+ * One tool, several readings of the same page. The heading outline is the first
+ * of them and the only one that was ever here on its own; contrast is the
+ * second, and it lives behind its own import so that opening this panel to look
+ * at headings loads no more code than it did before there was a second tab.
+ *
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { sve } from './cp-registry.js';
@@ -12,7 +18,9 @@ import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import OutlinePane from './cp/surfaces/OutlinePane.vue';
 import OutlineList from './cp/surfaces/OutlineList.vue';
+import A11yTabs from './cp/surfaces/A11yTabs.vue';
 import { outlineUi } from './cp/outline/store.js';
+import { a11yUi } from './cp/a11y/store.js';
 
 // ===== outline =====
 // --- Heading outline panel ------------------------------------------------------
@@ -191,8 +199,139 @@ export function watchOutlineValues(win) {
   }
 }
 
+
+// --- Tabs ----------------------------------------------------------------------
+// Each tab is a different question asked of the same rendered page, and only the
+// open one is allowed to cost anything: switching away stops its watcher, and a
+// tab that has never been opened has never been downloaded.
+
+export const A11Y_TABS = ['headings', 'contrast', 'checks', 'tree'];
+
+/** The tabs that read the page. Their code arrives with the first click. */
+const SCAN_TABS = ['contrast', 'checks', 'tree'];
+
+/** The scanning module, once something has asked for it. Never eagerly. */
+let scanMod = null;
+let scanLoading = null;
+
+export function a11yBody(doc, key) {
+  return outlinePanel(doc)?.querySelector(`[data-sve-a11y-body="${key}"]`) || null;
+}
+
+export function mountA11yTabs(win, panel) {
+  const host = panel.querySelector('[data-sve-a11y-tabs]');
+
+  if (!host) {
+    return;
+  }
+
+  a11yUi.tabs = A11Y_TABS.map((key) => ({ key, label: t(win, `a11y_tab_${key}`) }));
+  a11yUi.onTab = (key) => pickA11yTab(win, key);
+  mountPane(host, A11yTabs);
+}
+
+export function pickA11yTab(win, key) {
+  if (!A11Y_TABS.includes(key) || a11yUi.tab === key) {
+    return;
+  }
+
+  a11yUi.tab = key;
+  applyA11yTab(win);
+}
+
+/** Show the open tab, hide the others, and start or stop what sits behind them. */
+export function applyA11yTab(win) {
+  const doc = win.document;
+  const panel = outlinePanel(doc);
+
+  if (!panel) {
+    return;
+  }
+
+  A11Y_TABS.forEach((key) => {
+    const body = a11yBody(doc, key);
+
+    if (body) {
+      body.hidden = key !== a11yUi.tab;
+    }
+  });
+
+  if (!SCAN_TABS.includes(a11yUi.tab)) {
+    scanMod?.closeA11yTab(win);
+    renderOutline(win);
+    watchOutlineInPreview(win, true);
+    watchOutlineValues(win);
+
+    [700, 2000].forEach((delay) => {
+      win.setTimeout(() => {
+        if (!outlineAnswered && !SCAN_TABS.includes(a11yUi.tab) && doc.getElementById(OUTLINE_PANEL_ID)) {
+          watchOutlineInPreview(win, true);
+        }
+      }, delay);
+    });
+
+    return;
+  }
+
+  // The outline is a message loop through the bridge; leaving it running behind
+  // a tab nobody is looking at is work done for a list nobody can see.
+  watchOutlineInPreview(win, false);
+  stopWatchOutlineValues(win);
+  openScanTabLazily(win, a11yUi.tab);
+}
+
+/**
+ * The one import in this file that is allowed to be slow, because it only
+ * happens when someone opens a reading tab — and then only once per session.
+ */
+function openScanTabLazily(win, which) {
+  const body = a11yBody(win.document, which);
+
+  if (!body) {
+    return;
+  }
+
+  if (scanMod) {
+    scanMod.openA11yTab(win, body, which);
+
+    return;
+  }
+
+  if (!scanLoading) {
+    scanLoading = import('./a11y-scan.js').catch((err) => {
+      scanLoading = null;
+      console.error('[sve] load accessibility scan', err);
+
+      throw err;
+    });
+  }
+
+  void scanLoading.then((mod) => {
+    scanMod = mod;
+
+    // Opened and closed again while the chunk was in flight: nothing to mount,
+    // and mounting anyway would leave a scanner running behind a shut panel.
+    if (a11yUi.tab !== which) {
+      return;
+    }
+
+    const el = a11yBody(win.document, which);
+
+    if (el) {
+      mod.openA11yTab(win, el, which);
+    }
+  });
+}
+
+export function closeA11yTabs(win) {
+  scanMod?.closeA11yTab(win);
+}
+
+
 export function closeOutlinePanel(win) {
   const panel = win.document.getElementById(OUTLINE_PANEL_ID);
+
+  closeA11yTabs(win);
 
   if (!panel) {
     outlineItems = [];
@@ -233,21 +372,12 @@ export function fillOutlinePane(win, pane) {
     hint: t(win, 'outline_hint'),
     withChrome: true,
   });
+  mountA11yTabs(win, pane);
   pane.querySelector('[data-sve-close]')?.addEventListener('click', () => closeOutlinePanel(win));
 }
 
 export function showOutlinePane(win) {
-  renderOutline(win);
-  watchOutlineInPreview(win, true);
-  watchOutlineValues(win);
-
-  [700, 2000].forEach((delay) => {
-    win.setTimeout(() => {
-      if (!outlineAnswered && win.document.getElementById(OUTLINE_PANEL_ID)) {
-        watchOutlineInPreview(win, true);
-      }
-    }, delay);
-  });
+  applyA11yTab(win);
 }
 
 /** Opens the panel, or closes it when it is already up. */
@@ -276,23 +406,14 @@ export function toggleOutlinePanel(win) {
     withChrome: true,
   });
 
+  mountA11yTabs(win, panel);
   panel.querySelector('[data-sve-close]').addEventListener('click', () => closeOutlinePanel(win));
   showInRightShell(win, panel);
   sve.persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
 
-  renderOutline(win);
-  watchOutlineInPreview(win, true);
-  watchOutlineValues(win);
-
-  [700, 2000].forEach((delay) => {
-    win.setTimeout(() => {
-      if (!outlineAnswered && doc.getElementById(OUTLINE_PANEL_ID)) {
-        watchOutlineInPreview(win, true);
-      }
-    }, delay);
-  });
+  applyA11yTab(win);
 }
 
 /** A fresh list from the preview. */
@@ -426,6 +547,15 @@ export function renderOutline(win) {
 
   const issues = outlineIssues(win, outlineItems);
 
+  // What the tab badge counts: page-level notices plus flagged headings. The
+  // colour follows the worst of them, so "no H1" never hides behind an amber.
+  const critical =
+    issues.page.some((notice) => notice.severity === 'critical') ||
+    [...issues.rows.values()].some((row) => row.severity === 'critical');
+
+  a11yUi.headingIssues = issues.page.length + issues.rows.size;
+  a11yUi.headingLevel = critical ? 'critical' : 'warning';
+
   renderOutlineNotice(win, issues.page);
 
   outlineUi.emptyText = t(win, outlineAnswered ? 'outline_empty' : 'loading');
@@ -511,3 +641,6 @@ sve.outlineIssues = outlineIssues;
 sve.renderOutlineNotice = renderOutlineNotice;
 sve.renderOutline = renderOutline;
 sve.jumpToOutlineEntry = jumpToOutlineEntry;
+sve.pickA11yTab = pickA11yTab;
+sve.applyA11yTab = applyA11yTab;
+sve.closeA11yTabs = closeA11yTabs;

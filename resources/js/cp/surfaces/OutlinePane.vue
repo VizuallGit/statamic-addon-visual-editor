@@ -17,9 +17,15 @@ defineProps({
         </button>
       </div>
     </div>
-    <div class="sve-pane-hint">{{ hint }}</div>
-    <div data-sve-outline-notice></div>
-    <div data-sve-outline-list></div>
+    <div data-sve-a11y-tabs></div>
+    <div class="sve-a11y-body" data-sve-a11y-body="headings">
+      <div class="sve-pane-hint">{{ hint }}</div>
+      <div data-sve-outline-notice></div>
+      <div data-sve-outline-list></div>
+    </div>
+    <div class="sve-a11y-body" data-sve-a11y-body="contrast" hidden></div>
+    <div class="sve-a11y-body" data-sve-a11y-body="checks" hidden></div>
+    <div class="sve-a11y-body" data-sve-a11y-body="tree" hidden></div>
   </div>
 </template>
 
@@ -29,6 +35,17 @@ defineProps({
   flex-direction: column;
   min-height: 0;
   height: 100%;
+}
+/* Tabs swap by `hidden`, so the flex display has to yield to it — an explicit
+   display on the body would otherwise keep both panes on screen at once. */
+.sve-a11y-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.sve-a11y-body[hidden] {
+  display: none;
 }
 .sve-pane-hint {
   padding: var(--sve-right-body-pad-block, 8px) 0 0;

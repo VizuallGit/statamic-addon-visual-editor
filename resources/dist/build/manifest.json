@@ -3,19 +3,29 @@
     "file": "assets/html-pick-align-gkRPeJkt.js",
     "name": "html-pick-align"
   },
+  "resources/js/a11y-scan.js": {
+    "file": "assets/a11y-scan-ChRj2Zsx.js",
+    "name": "a11y-scan",
+    "src": "resources/js/a11y-scan.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/addon.js"
+    ]
+  },
   "resources/js/addon.js": {
-    "file": "assets/addon-C6uQF_zX.js",
+    "file": "assets/addon-B4NXYcbK.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
     "dynamicImports": [
       "resources/js/html-tree.js",
       "resources/js/overlay-host.js",
+      "resources/js/a11y-scan.js",
       "resources/js/overlay-host.js",
       "resources/js/overlay-host.js"
     ],
     "css": [
-      "assets/addon-Ba_X1B9p.css"
+      "assets/addon-BZ7zq8vE.css"
     ]
   },
   "resources/js/bridge.js": {
@@ -28,7 +38,7 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-BeauNT7k.js",
+    "file": "assets/html-tree-D_K3yCVI.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,
