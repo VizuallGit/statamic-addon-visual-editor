@@ -19,9 +19,12 @@ function chipBind(chip) {
 <template>
   <div class="sve-tw">
     <div v-if="ui.tag" class="sve-tw-head">
-      <span class="sve-tw-tag">&lt;{{ ui.tag }}&gt;</span>
-      <span v-if="ui.scope" class="sve-tw-scope" :title="ui.scopeTitle">{{ ui.scope }}</span>
-      <span class="sve-tw-gap"></span>
+      <button
+        type="button"
+        class="sve-tw-tag"
+        :disabled="!ui.canEdit"
+        @click.prevent.stop="ui.onTag?.($event)"
+      >&lt;{{ ui.tag }}&gt;</button>
       <button
         v-for="item in ui.breakpoints"
         :key="item.index"
@@ -42,6 +45,18 @@ function chipBind(chip) {
         {{ ui.stateLabel }}
         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
+      <button
+        type="button"
+        data-sve-tw-sort
+        :title="ui.sortTitle"
+        :disabled="!ui.canEdit"
+        @click.prevent.stop="ui.onSort?.()"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2.5 4h9M2.5 8h6M2.5 12h3"/><path d="M13 5v7M11.4 10.4 13 12l1.6-1.6"/>
+        </svg>
+      </button>
+      <span class="sve-tw-gap"></span>
     </div>
     <div v-if="!ui.groups.length" class="sve-tw-empty">{{ ui.emptyText }}</div>
     <div v-for="group in ui.groups" :key="group.key" class="sve-tw-group">
@@ -53,17 +68,24 @@ function chipBind(chip) {
         {{ group.key === '' ? ui.baseLabel : group.key }}
       </span>
       <div class="sve-tw-chips">
-        <button
-          v-for="chip in group.chips"
-          :key="chip.id"
-          type="button"
-          v-bind="chipBind(chip)"
-          :title="chip.title"
-          @click.prevent.stop="ui.onChip?.($event, chip.id)"
-        >
-          <span v-if="chip.color" class="sve-tw-dot" :style="{ background: chip.color }"></span>
-          {{ chip.raw }}
-        </button>
+        <span v-for="chip in group.chips" :key="chip.id" class="sve-tw-chip-wrap">
+          <button
+            type="button"
+            v-bind="chipBind(chip)"
+            :title="chip.title"
+            @click.prevent.stop="ui.onChip?.($event, chip.id)"
+          >
+            <span v-if="chip.color" class="sve-tw-dot" :style="{ background: chip.color }"></span>
+            {{ chip.raw }}
+          </button>
+          <button
+            v-if="!chip.locked"
+            type="button"
+            class="sve-tw-drop"
+            :title="ui.dropTitle"
+            @click.prevent.stop="ui.onDrop?.(chip.id)"
+          >−</button>
+        </span>
       </div>
     </div>
   </div>
@@ -90,11 +112,20 @@ function chipBind(chip) {
 }
 .sve-tw-gap { flex: 1 1 auto; min-width: 0; }
 .sve-tw-tag {
+  all: unset;
   flex: none;
+  box-sizing: border-box;
+  padding: 0.2em 0.45em;
+  margin-right: 0.35rem;
+  border-radius: 0.36em;
+  cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
   opacity: .8;
 }
+.sve-tw-tag:hover { opacity: 1; background: rgba(128, 128, 128, .2); }
+.sve-tw-tag:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
+.sve-tw-tag[disabled] { cursor: default; }
 .sve-tw-scope {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   opacity: .55;
@@ -115,6 +146,19 @@ function chipBind(chip) {
   line-height: 1.4;
   opacity: .7;
 }
+[data-sve-tw-sort] {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.25em 0.4em;
+  border-radius: 0.36em;
+  opacity: .6;
+}
+[data-sve-tw-sort]:hover { opacity: 1; background: rgba(128, 128, 128, .18); }
+[data-sve-tw-sort]:focus-visible { outline: 2px solid #3858e9; outline-offset: -2px; }
+[data-sve-tw-sort][disabled] { cursor: default; opacity: .3; }
 [data-sve-tw-bp]:hover,
 [data-sve-tw-state]:hover { opacity: 1; background: rgba(128, 128, 128, .18); }
 [data-sve-tw-bp]:focus-visible,
@@ -162,11 +206,13 @@ function chipBind(chip) {
 .sve-tw-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  padding-left: 0.5rem;
+  /* Room for the badge on the corner of a chip. */
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem 0 0.5rem;
 }
 [data-sve-tw-chip] {
   all: unset;
+  position: relative;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -187,6 +233,37 @@ function chipBind(chip) {
 [data-sve-tw-chip][data-open] { background: #3858e9; color: #fff; }
 [data-sve-tw-chip][data-sve-tw-locked] { cursor: default; opacity: .55; }
 [data-sve-tw-chip][data-sve-tw-locked]:hover { background: rgba(128, 128, 128, .16); }
+/* The wrap is what the badge is positioned against — the chip keeps its own
+   box, and the badge sits on the corner without pushing the text around. */
+.sve-tw-chip-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+.sve-tw-drop {
+  all: unset;
+  position: absolute;
+  top: -0.5em;
+  right: -0.5em;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  border: 2px solid #1E1E21;
+  background: #e11d48;
+  color: #fff;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.85em;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+}
+.sve-tw-chip-wrap:hover .sve-tw-drop,
+.sve-tw-chip-wrap:focus-within .sve-tw-drop { opacity: 1; }
+.sve-tw-drop:hover { background: #f43f5e; }
 .sve-tw-dot {
   flex: none;
   width: 0.82em;

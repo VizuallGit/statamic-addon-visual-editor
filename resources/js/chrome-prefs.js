@@ -35,6 +35,7 @@ export const CHROME_KEYS = [
   'sve-ai-panel-mode',
   'sve-ai-launcher-open',
   'sve-listview-tab',
+  'sve-tw-strip',
 ];
 
 const MIGRATED_KEY = 'sve-chrome-legacy-migrated';

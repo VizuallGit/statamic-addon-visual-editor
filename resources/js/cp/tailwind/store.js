@@ -15,5 +15,10 @@ export const twUi = reactive({
   state: '',
   stateLabel: '',
   onState: null,
+  onTag: null,
+  dropTitle: '',
+  onDrop: null,
+  sortTitle: '',
+  onSort: null,
   siteClasses: [],
 });

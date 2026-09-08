@@ -18,6 +18,7 @@ defineProps({
       <button type="button" data-sve-code-back hidden></button>
       <span data-sve-code-path></span>
       <span data-sve-code-status></span>
+      <button type="button" data-sve-code-strip></button>
       <button type="button" data-sve-code-history></button>
       <button type="button" data-sve-style-mode></button>
       <button type="button" data-sve-html-scope aria-pressed="true">

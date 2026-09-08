@@ -35,9 +35,11 @@ import CodeDockAddClass from './cp/surfaces/CodeDockAddClass.vue';
 import { flattenHtmlTree, parseHtmlTree } from './html-tree-parse.js';
 import { twCandidates } from './tw-candidates.js';
 import { tailwindDockOn } from './tailwind-complete.js';
+import { setTwOverlayOn, twOverlayOn } from './tw-overlay.js';
 import {
   closeTwMenu,
   renderTwClasses,
+  twRepaintOverlay,
   twActiveClass,
   twHasNode,
   twOpenAddMenu,
@@ -365,6 +367,12 @@ const TW_BOX_SIDE = {
   '-inline-start': '-left',
   '-inline-end': '-right',
 };
+
+const STRIP_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<rect x="3" y="10" width="18" height="11" rx="2"/>'
+  + '<rect x="6" y="3" width="9" height="4" rx="1.4" fill="currentColor" stroke="none"/></svg>';
 
 const HISTORY_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
@@ -876,6 +884,7 @@ function ensureStyle(doc) {
   color: #93c5fd;
   background: rgba(56,88,233,.22);
 }
+#${DOCK_ID} [data-sve-code-strip],
 #${DOCK_ID} [data-sve-code-history] {
   all: unset;
   cursor: pointer;
@@ -890,10 +899,16 @@ function ensureStyle(doc) {
   color: #d4d4d4;
   opacity: .55;
 }
+#${DOCK_ID} [data-sve-code-strip]:hover,
 #${DOCK_ID} [data-sve-code-history]:hover,
 #${DOCK_ID} [data-sve-code-history][data-open] {
   opacity: 1;
   background: rgba(255,255,255,.1);
+}
+#${DOCK_ID} [data-sve-code-strip][aria-pressed="true"] {
+  opacity: 1;
+  color: #7dd3fc;
+  background: rgba(56,189,248,.16);
 }
 #${DOCK_ID} [data-sve-style-mode] {
   all: unset;
@@ -972,6 +987,7 @@ function ensureStyle(doc) {
 #${DOCK_ID}[data-sve-code-locked] [data-sve-html-scope],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-style-mode],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-history],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-code-strip],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-save] {
   pointer-events: none;
   opacity: .28;
@@ -1939,7 +1955,7 @@ function bindResize(win, dock) {
   dock._sveResizeBound = true;
 
   const startResize = (event) => {
-    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-back], [data-sve-style-mode], [data-sve-code-history], [data-sve-html-scope], [data-sve-code-lock], [data-sve-code-autosave], [data-sve-code-save], .cm-editor')) {
+    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-back], [data-sve-style-mode], [data-sve-code-history], [data-sve-code-strip], [data-sve-html-scope], [data-sve-code-lock], [data-sve-code-autosave], [data-sve-code-save], .cm-editor')) {
       return;
     }
 
@@ -4541,6 +4557,40 @@ async function restoreVersion(win, type, id) {
   syncTwTarget(win);
 }
 
+/** The class strip over the preview: on, off, and remembered. */
+function paintStrip(win) {
+  const btn = win?.document.getElementById(DOCK_ID)?.querySelector('[data-sve-code-strip]');
+
+  if (!btn) {
+    return;
+  }
+
+  const on = twOverlayOn(win);
+
+  btn.innerHTML = STRIP_ICON;
+  btn.title = t(win, on ? 'tw_strip_on' : 'tw_strip_off');
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
+function bindStrip(win, dock) {
+  const btn = dock.querySelector('[data-sve-code-strip]');
+
+  if (!btn || btn._sveBound) {
+    return;
+  }
+
+  btn._sveBound = true;
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setTwOverlayOn(win, !twOverlayOn(win));
+    paintStrip(win);
+    twRepaintOverlay(win);
+  });
+  paintStrip(win);
+}
+
 function bindHistory(win, dock) {
   const btn = dock.querySelector('[data-sve-code-history]');
 
@@ -5584,6 +5634,7 @@ async function ensureDockAsync(win) {
     bindCssAddClass(win, dock);
     bindStyleMode(win, dock);
     bindHistory(win, dock);
+    bindStrip(win, dock);
     bindTips(win, dock);
     bindHtmlTools(win, dock);
     bindHtmlScope(win, dock);
@@ -5613,6 +5664,7 @@ async function ensureDockAsync(win) {
   paintBack(win);
   paintAutosave(win);
   paintStyleMode(win);
+  paintStrip(win);
 
   await loadCm();
 
@@ -5700,6 +5752,7 @@ async function loadTemplate(win, type, mode = 'replace') {
   paintBack(win);
   paintAutosave(win);
   paintStyleMode(win);
+  paintStrip(win);
   placeDock(win, dock);
 
   win

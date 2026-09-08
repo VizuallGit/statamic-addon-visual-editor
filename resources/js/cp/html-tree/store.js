@@ -16,6 +16,8 @@ export const htmlTreeUi = reactive({
   dropPlace: null,
   onSelect: null,
   onTwist: null,
+  tagTitle: '',
+  onTagChange: null,
   onRename: null,
   onRenameCommit: null,
   onRenameCancel: null,

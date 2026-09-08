@@ -295,6 +295,64 @@ export function appendToken(value, raw) {
 }
 
 /**
+ * The same classes in a new order.
+ *
+ * Each token is written back into the slot it came from, last slot first so
+ * the offsets ahead of it still hold. Nothing between the tokens is touched,
+ * so a class attribute written over several lines keeps its shape.
+ *
+ * @param {Array<{from: number, to: number}>} slots in the order they appear
+ * @param {string[]} order the raw class names to put in them
+ */
+export function reorderTokens(value, slots, order) {
+  const text = String(value || '');
+
+  if (!Array.isArray(slots) || slots.length !== order?.length) {
+    return text;
+  }
+
+  let out = text;
+
+  for (let i = slots.length - 1; i >= 0; i -= 1) {
+    out = out.slice(0, slots[i].from) + order[i] + out.slice(slots[i].to);
+  }
+
+  return out;
+}
+
+/**
+ * The same element under a different tag name.
+ *
+ * Both ends are rewritten, and the closing one first: editing the opening tag
+ * moves every offset after it, and the closing tag is one of them. A void
+ * element has no closing tag, so only the opening one changes.
+ */
+export function renameTag(source, node, next) {
+  const text = String(source || '');
+  const name = String(next || '').trim().toLowerCase();
+
+  if (!/^[a-z][a-z0-9-]*$/.test(name) || !node?.tag || name === node.tag.toLowerCase()) {
+    return text;
+  }
+
+  const tag = node.tag.toLowerCase();
+  const head = text.slice(node.from, node.openTo);
+
+  if (!new RegExp(`^<${tag}(?=[\\s/>])`, 'i').test(head)) {
+    return text;
+  }
+
+  let out = text;
+  const closeAt = out.toLowerCase().lastIndexOf(`</${tag}`, node.to);
+
+  if (closeAt > node.from && closeAt < node.to) {
+    out = out.slice(0, closeAt) + `</${name}` + out.slice(closeAt + 2 + tag.length);
+  }
+
+  return out.slice(0, node.from) + `<${name}` + out.slice(node.from + 1 + tag.length);
+}
+
+/**
  * The file with this tag's class attribute rewritten.
  *
  * A tag with no class attribute gets one, right after the tag name — a picked

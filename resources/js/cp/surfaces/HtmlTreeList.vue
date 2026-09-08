@@ -74,7 +74,14 @@ function canHide(row) {
       <span v-if="row.letter" data-sve-ht-letter>{{ row.letter }}</span>
       <span v-else data-sve-ht-icon v-html="row.svg"></span>
       <span data-sve-ht-text :title="ui.renameTitle">
-        <span data-sve-ht-tag>{{ row.tag }}</span>
+        <button
+          type="button"
+          data-sve-ht-tag
+          :title="ui.tagTitle"
+          @click.stop.prevent="ui.onTagChange?.($event, row.id)"
+          @pointerdown.stop
+          @dblclick.stop
+        >{{ row.tag }}</button>
         <input
           v-if="ui.editingId === row.id"
           data-sve-ht-rename

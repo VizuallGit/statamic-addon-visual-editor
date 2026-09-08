@@ -17,7 +17,7 @@ import { flattenHtmlTree, isVoidTag, parseHtmlTree } from './html-tree-parse.js'
 import { dropPlace, duplicateHtml, deleteHtml, moveHtml, toggleHiddenHtml } from './html-tree-edit.js';
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
 import { htmlTreeIcon } from './html-tree-icons.js';
-import { closeTwMenu } from './tw-classes.js';
+import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
 import { serializePickTree } from './html-pick-align.js';
 
 export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
@@ -165,8 +165,21 @@ export function ensureHtmlTreeStyles(doc) {
       font-size: 11px;
     }
     [data-sve-ht-tag] {
+      all: unset;
+      box-sizing: border-box;
       flex: none;
+      padding: 0 3px;
+      border-radius: 3px;
+      cursor: pointer;
       opacity: .55;
+    }
+    [data-sve-ht-tag]:hover {
+      opacity: 1;
+      background: rgba(255,255,255,.18);
+    }
+    [data-sve-ht-tag]:focus-visible {
+      outline: 2px solid #3858e9;
+      outline-offset: -2px;
     }
     [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-tag] { opacity: .72; }
     [data-sve-ht-name] {
@@ -229,6 +242,7 @@ export function renderHtmlTree(win) {
   }
 
   htmlTreeUi.renameTitle = t(win, 'html_tree_rename');
+  htmlTreeUi.tagTitle = t(win, 'tw_tag');
   htmlTreeUi.hideTitle = t(win, 'html_tree_hide');
   htmlTreeUi.showTitle = t(win, 'html_tree_show');
   htmlTreeUi.duplicateTitle = t(win, 'html_tree_duplicate');
@@ -243,6 +257,13 @@ export function renderHtmlTree(win) {
     }
 
     renderHtmlTree(win);
+  };
+  htmlTreeUi.onTagChange = (event, id) => {
+    const row = htmlTreeUi.rows.find((item) => item.id === id);
+
+    if (row) {
+      twOpenTagMenuAt(win, event.currentTarget, row);
+    }
   };
   htmlTreeUi.onRename = (id) => beginHtmlTreeRename(win, id);
   htmlTreeUi.onRenameCommit = () => finishHtmlTreeRename(win, true);

@@ -28,16 +28,35 @@ import {
   buildClass,
   groupClassTokens,
   readClassAttr,
+  renameTag,
+  reorderTokens,
   replaceToken,
+  splitClass,
+  splitUtility,
   writeClassValue,
 } from './tw-parse.js';
 import { colorFor, cssFor, familyFor, loadFamilies } from './tw-families.js';
 import { twUi } from './cp/tailwind/store.js';
+import { hideTwOverlay, paintTwOverlay, twPreviewBox } from './tw-overlay.js';
 import TwClassList from './cp/surfaces/TwClassList.vue';
 import TwClassMenu from './cp/surfaces/TwClassMenu.vue';
 import TwAddClass from './cp/surfaces/TwAddClass.vue';
+import TwTagMenu from './cp/surfaces/TwTagMenu.vue';
 
 const MENU_ID = '__sve-tw-menu';
+const ANCHOR_NAME = '--sve-tw-anchor';
+
+/**
+ * CSS anchor positioning where the browser has it.
+ *
+ * The menu is then tied to the button itself: it follows when the strip moves
+ * and flips on its own when it runs out of room, without a line of geometry
+ * here. `placeMenu` stays as the fallback for browsers without it, and for
+ * every menu opened from the panel rather than the strip.
+ */
+const CAN_ANCHOR = typeof CSS !== 'undefined' && CSS.supports?.('anchor-name: --x');
+
+let anchored = null;
 const STYLE_ID = '__sve-tw-style';
 
 /**
@@ -52,9 +71,9 @@ const STYLE_ID = '__sve-tw-style';
  */
 const BREAKPOINTS = [
   { key: '', all: true, device: 'Responsive', label: 'tw_size_all' },
-  { key: '', device: 'Laptop', label: 'tw_size_base' },
-  { key: 'max-lg', device: 'Tablet', word: 'responsive_tablet', under: 1024 },
-  { key: 'max-md', device: 'Mobile', word: 'responsive_mobile', under: 768 },
+  { key: '', device: 'Laptop', label: 'tw_size_laptop', prefix: '' },
+  { key: 'max-lg', device: 'Tablet', label: 'responsive_tablet', under: 1024 },
+  { key: 'max-md', device: 'Mobile', label: 'responsive_mobile', under: 768 },
 ];
 const STATES = ['', 'dark', 'hover', 'focus', 'active', 'before', 'after'];
 
@@ -67,6 +86,14 @@ const STATES = ['', 'dark', 'hover', 'focus', 'active', 'before', 'after'];
  * all, because that is where a section is designed.
  */
 const DEVICE_BP = { Mobile: 'max-md', Tablet: 'max-lg', Laptop: '', Desktop: '' };
+
+/** The tags worth offering. Anything else can still be typed. */
+const TAGS = [
+  'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'a', 'button', 'label',
+  'ul', 'ol', 'li', 'figure', 'figcaption', 'blockquote', 'strong', 'em',
+  'small', 'picture', 'img', 'video', 'form', 'table', 'tr', 'td', 'th',
+];
 
 /**
  * What new classes are written under: a screen size, a state, or both —
@@ -442,6 +469,11 @@ function chipColor(win, name) {
 export function closeTwMenu(win) {
   const menu = win?.document.getElementById(MENU_ID);
 
+  if (anchored) {
+    anchored.style.removeProperty('anchor-name');
+    anchored = null;
+  }
+
   menuUnhook?.();
   menuUnhook = null;
   openChipId = '';
@@ -467,13 +499,22 @@ function placeMenu(win, anchor, menu) {
   const width = menu.offsetWidth || 176;
   const pad = 8;
   const min = 140;
+
+  // Opened from the strip over the preview, it stays over the preview: a menu
+  // that spills onto the sidebar or the dock reads as belonging to them.
+  const box = anchor.closest?.('#__sve-tw-strip') ? twPreviewBox(win) : null;
+  const edgeTop = box ? box.top : 0;
+  const edgeBottom = box ? box.bottom : win.innerHeight;
+  const edgeLeft = box ? box.left : 0;
+  const edgeRight = box ? box.right : win.innerWidth;
+
   const below = rect.bottom + 4;
-  const room = win.innerHeight - below - pad;
+  const room = edgeBottom - below - pad;
   const height = Math.max(min, Math.min(room, 420));
 
-  menu.style.left = `${Math.max(pad, Math.min(rect.left, win.innerWidth - width - pad))}px`;
+  menu.style.left = `${Math.max(edgeLeft + pad, Math.min(rect.left, edgeRight - width - pad))}px`;
   menu.style.maxHeight = `${height}px`;
-  menu.style.top = `${room >= min ? below : Math.max(pad, win.innerHeight - pad - height)}px`;
+  menu.style.top = `${room >= min ? below : Math.max(edgeTop + pad, edgeBottom - pad - height)}px`;
 }
 
 /** One popover, wherever it is anchored: chip, tool icon or the + button. */
@@ -488,9 +529,30 @@ function openMenu(win, anchor, component, props) {
   menu.id = MENU_ID;
   doc.body.appendChild(menu);
   menu._sveApp = mountSurface(component, menu, props);
-  placeMenu(win, anchor, menu);
 
-  const reposition = () => placeMenu(win, anchor, menu);
+  const tether = CAN_ANCHOR && !!anchor.closest?.('#__sve-tw-strip');
+
+  if (tether) {
+    anchored = anchor;
+    anchor.style.setProperty('anchor-name', ANCHOR_NAME);
+    menu.style.setProperty('position', 'absolute');
+    menu.style.setProperty('position-anchor', ANCHOR_NAME);
+    menu.style.setProperty('position-area', 'block-end span-inline-start');
+    menu.style.setProperty(
+      'position-try-fallbacks',
+      'flip-block, flip-inline, flip-block flip-inline'
+    );
+    menu.style.setProperty('margin', '4px 0 0 0');
+    menu.style.setProperty('max-height', '20rem');
+  } else {
+    placeMenu(win, anchor, menu);
+  }
+
+  const reposition = () => {
+    if (!tether) {
+      placeMenu(win, anchor, menu);
+    }
+  };
   const onDown = (event) => {
     if (!menu.contains(event.target) && !anchor.contains(event.target)) {
       closeTwMenu(win);
@@ -585,6 +647,87 @@ function commit(win, html, nextValue, from, to) {
   ask('dock:set-html', next);
   resyncNode(next);
   render(win);
+}
+
+/**
+ * One order for the classes, by what they do.
+ *
+ * The sequence people tend to think in: what the box is, where it sits, how
+ * big, how it reads, how it looks. The site's own names come first — `wrapper`
+ * and `cluster` say what the element *is*, and the utilities adjust it.
+ *
+ * Only used when the reader asks for it. Dragging is the other way, and the
+ * file keeps whatever order it has until one of the two is used.
+ */
+const ORDER = [
+  'display', 'position', 'inset', 'top', 'right', 'bottom', 'left', 'z-index',
+  'flex-direction', 'flex-wrap', 'justify-content', 'align-items',
+  'gap', 'column-gap', 'row-gap',
+  'margin', 'margin-inline', 'margin-block',
+  'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+  'padding', 'padding-inline', 'padding-block',
+  'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+  'width', 'min-width', 'max-width', 'height', 'min-height', 'max-height',
+  'font-family', 'font-size', 'font-weight', 'line-height', 'text-align',
+  'text-transform', 'text-decoration-line', 'font-style',
+  'color', 'background-color', 'border-color', 'border-radius',
+  'fill', 'stroke', 'outline-color', 'overflow',
+];
+
+function rankOf(name) {
+  const property = propertyOf(name);
+
+  if (!property) {
+    return -1;
+  }
+
+  const at = ORDER.indexOf(property);
+
+  return at === -1 ? ORDER.length : at;
+}
+
+/**
+ * Sort every class on the tag, in the file.
+ *
+ * `{{ … }}` classes and the `[ … ]` scope keep their places: one cannot be
+ * ranked and the other is the CSS pane's, not Tailwind's. Variants stay
+ * together in the order they first appear, with the bare ones first.
+ */
+export function twSortClasses(win) {
+  if (locked()) {
+    return;
+  }
+
+  const current = currentValue();
+
+  if (!current) {
+    return;
+  }
+
+  const parsed = groupClassTokens(current.value);
+  const items = parsed.groups.flatMap((group) => group.items).filter((item) => !item.dynamic);
+
+  if (items.length < 2) {
+    return;
+  }
+
+  const groupAt = new Map();
+
+  parsed.groups.forEach((group, index) => groupAt.set(group.key, group.key === '' ? -1 : index));
+
+  const sorted = [...items].sort((a, b) => {
+    const left = groupAt.get(a.variants.join(':')) ?? 0;
+    const right = groupAt.get(b.variants.join(':')) ?? 0;
+
+    return left - right || rankOf(a.name) - rankOf(b.name) || a.name.localeCompare(b.name);
+  });
+
+  const slots = [...items].sort((a, b) => a.from - b.from).map((item) => ({ from: item.from, to: item.to }));
+  const next = reorderTokens(current.value, slots, sorted.map((item) => item.raw));
+
+  if (next !== current.value) {
+    commit(win, current.html, next, '', '');
+  }
 }
 
 /** The CSS property a utility sets, or '' when the catalog has never met it. */
@@ -687,6 +830,25 @@ export function twAddClass(win, raw) {
     return;
   }
 
+  // One per family, per variant: picking `bg-white` when `bg-primary-600` is
+  // already there should be a change of background, not a second one. A name
+  // the catalog does not know — a composition, one of the site's own — has no
+  // family to collide with and simply joins the others.
+  const { variants, base } = splitClass(value);
+  const property = propertyOf(splitUtility(base).name);
+  const key = variants.join(':');
+  const existing = property
+    ? currentChips(current.value).find(
+      (chip) => !chip.dynamic && chip.variants.join(':') === key && propertyOf(chip.name) === property
+    )
+    : null;
+
+  if (existing) {
+    commit(win, current.html, replaceToken(current.value, existing, value), existing.raw, value);
+
+    return;
+  }
+
   commit(win, current.html, appendToken(current.value, value), '', value.includes(':') ? '' : value);
 }
 
@@ -718,6 +880,143 @@ function applyChip(win, chip, nextName) {
 /* ------------------------------------------------------------------ *
  * What the dock's icon row asks
  * ------------------------------------------------------------------ */
+
+/**
+ * Change the tag itself.
+ *
+ * The path a node is found by carries its tag name, so after a rename it no
+ * longer matches. The opening offset does not move, though, so that is what
+ * the node is found by again.
+ */
+export function twSetTag(win, name) {
+  if (locked() || !node) {
+    return;
+  }
+
+  const html = ask('dock:html');
+
+  if (typeof html !== 'string' || html[node.from] !== '<') {
+    return;
+  }
+
+  const next = renameTag(html, node, name);
+
+  if (next === html) {
+    return;
+  }
+
+  const at = node.from;
+
+  ask('dock:set-html', next);
+
+  const rows = flattenHtmlTree(parseHtmlTree(next), new Set());
+  const row = rows.find((item) => item.from === at);
+
+  if (row) {
+    node = { from: row.from, openTo: row.openTo, path: row.path, tag: row.tag };
+  }
+
+  render(win);
+  emit('tw:changed');
+}
+
+/**
+ * The same menu for a row in the tree.
+ *
+ * It works on the row it was opened from and leaves the panel's own picked
+ * tag alone — changing a tag in the tree should not move what the class list
+ * is looking at.
+ */
+export function twOpenTagMenuAt(win, anchor, target) {
+  if (!target?.tag) {
+    return;
+  }
+
+  openMenu(win, anchor, TwTagMenu, {
+    label: t(win, 'tw_tag'),
+    placeholder: t(win, 'tw_tag_placeholder'),
+    current: String(target.tag).toLowerCase(),
+    tags: TAGS,
+    onPick: (name) => {
+      renameAt(win, target, name);
+      closeTwMenu(win);
+    },
+  });
+}
+
+function renameAt(win, target, name) {
+  if (ask('dock:is-locked') === true) {
+    return;
+  }
+
+  const html = ask('dock:html');
+
+  if (typeof html !== 'string' || html[target.from] !== '<') {
+    return;
+  }
+
+  const next = renameTag(html, target, name);
+
+  if (next !== html) {
+    ask('dock:set-html', next);
+  }
+}
+
+export function twOpenTagMenu(win, anchor) {
+  openMenu(win, anchor, TwTagMenu, {
+    label: t(win, 'tw_tag'),
+    placeholder: t(win, 'tw_tag_placeholder'),
+    current: (node?.tag || '').toLowerCase(),
+    tags: TAGS,
+    onPick: (name) => {
+      twSetTag(win, name);
+      closeTwMenu(win);
+    },
+  });
+}
+
+/**
+ * Put the shown classes in a new order.
+ *
+ * Only the slots the reader can see are rewritten — a class hidden by the
+ * size filter keeps its place in the file, so dragging under one filter does
+ * not quietly shuffle what another one shows.
+ */
+export function twReorder(win, ids) {
+  if (locked()) {
+    return;
+  }
+
+  const current = currentValue();
+
+  if (!current) {
+    return;
+  }
+
+  const picked = ids.map((id) => chips.get(id)).filter(Boolean);
+
+  if (picked.length < 2) {
+    return;
+  }
+
+  const slots = [...picked].sort((a, b) => a.from - b.from).map((chip) => ({ from: chip.from, to: chip.to }));
+  const next = reorderTokens(current.value, slots, picked.map((chip) => chip.raw));
+
+  if (next === current.value) {
+    return;
+  }
+
+  commit(win, current.html, next, '', '');
+}
+
+export function twHideOverlay(win) {
+  hideTwOverlay(win);
+}
+
+/** Draw the strip again — the toolbar calls this after switching it on. */
+export function twRepaintOverlay(win) {
+  paintTwOverlay(win, node?.path || '');
+}
 
 export function twHasNode() {
   return !!node;
@@ -875,8 +1174,19 @@ export function twOpenAddMenu(win, anchor) {
         return [];
       }
 
-      return model.catalog.items
-        .filter((item) => item.label.toLowerCase().includes(query))
+      // `p` has to reach `p-100` before `uppercase`: a name that starts with
+      // what was typed comes first, and only then the ones that merely
+      // contain it. Without that the cut at 40 was all coincidence.
+      const hits = model.catalog.items.filter((item) => item.label.toLowerCase().includes(query));
+
+      hits.sort((a, b) => {
+        const first = a.label.toLowerCase().startsWith(query) ? 0 : 1;
+        const second = b.label.toLowerCase().startsWith(query) ? 0 : 1;
+
+        return first - second || a.label.length - b.label.length;
+      });
+
+      return hits
         .slice(0, 40)
         .map((item) => ({ label: item.label, css: item.css, color: item.color, active: false }));
     },
@@ -964,6 +1274,7 @@ function render(win) {
 
   twUi.baseLabel = t(win, 'tw_size_base');
   twUi.scopeTitle = t(win, 'tw_classes_scope');
+  twUi.dropTitle = t(win, 'tw_classes_remove');
   twUi.variant = variantKey();
   twUi.onBreakpoint = (index) => setBreakpoint(win, index);
   twUi.onState = (event) => openStateMenu(win, event.currentTarget);
@@ -972,11 +1283,13 @@ function render(win) {
   // The button says what gets written, because that is what ends up in the
   // file and what has to be recognised again later. The hover says which
   // screen that is, in the words the responsive field uses.
+  // The button says the screen; the hover says the prefix it writes, so the
+  // class in the file can still be recognised later.
   twUi.breakpoints = BREAKPOINTS.map((item, index) => ({
     index,
-    label: item.word ? `${item.key}` : t(win, item.label),
-    title: item.word
-      ? `${t(win, item.word)}  ·  < ${item.under}px`
+    label: t(win, item.label),
+    title: item.under
+      ? `${item.key}:  ·  < ${item.under}px`
       : t(win, item.all ? 'tw_size_all_title' : 'tw_size_base_title'),
     active: item.all ? !filtering : filtering && item.key === activeBp(),
   }));
@@ -984,8 +1297,23 @@ function render(win) {
   twUi.stateLabel = variantState || t(win, 'tw_state');
   twUi.canEdit = !locked();
   twUi.onChip = (event, id) => onChip(win, event, id);
+  twUi.onTag = (event) => twOpenTagMenu(win, event.currentTarget);
+  twUi.sortTitle = t(win, 'tw_sort');
+  twUi.onSort = () => twSortClasses(win);
+  twUi.onDrop = (id) => {
+    const chip = chips.get(id);
+
+    if (chip && !chip.locked) {
+      closeTwMenu(win);
+      applyChip(win, chip, '');
+    }
+  };
   twUi.tag = node?.tag || '';
-  twUi.scope = parsed.scope?.label || '';
+  // `[ ]` with nothing in it is a scope nobody has named yet — not worth a
+  // line in a panel meant to show what this tag actually has.
+  const scope = parsed.scope?.label || '';
+
+  twUi.scope = /^\[\s*\]$/.test(scope) ? '' : scope;
   twUi.emptyText = t(
     win,
     !node ? 'tw_classes_pick' : parsed.groups.length ? 'tw_classes_none_size' : 'tw_classes_none'
@@ -1019,6 +1347,7 @@ function render(win) {
   }
 
   paint();
+  paintTwOverlay(win, node?.path || '');
   emit('tw:changed');
 }
 
