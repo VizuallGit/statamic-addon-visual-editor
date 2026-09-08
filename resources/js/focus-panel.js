@@ -50,7 +50,7 @@ import {
   relayoutCodeDock,
   syncCodeDock,
   templateDockAllowed,
-} from './code-dock.js';
+} from './code-dock-lazy.js';
 import { ensureLpMoreButton } from './lp-more-menu.js';
 import { relayoutAiPanel } from './ai-panel.js';
 import { mountPane } from './cp/mount-pane.js';

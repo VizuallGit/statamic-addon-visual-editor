@@ -7739,9 +7739,18 @@ export function createClickHandler(win) {
     if (htmlPick) {
       const picked = event.target.closest?.(`[${HT_PATH_ATTR}]`);
 
+      // Picking a tag for the tree and editing the text in it are not rivals:
+      // the click can say which tag it was and still open the field. Only a
+      // click that lands somewhere with nothing to edit is swallowed here.
+      const editable =
+        featureOn('inline_edit') && !!event.target.closest?.('[data-sid-inline-edit]');
+
       if (picked) {
-        event.preventDefault();
-        event.stopPropagation();
+        if (!editable) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
         win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
           el.removeAttribute(ACTIVE_ATTR);
         });
@@ -7758,7 +7767,9 @@ export function createClickHandler(win) {
           win.location.origin
         );
 
-        return;
+        if (!editable) {
+          return;
+        }
       }
     }
 

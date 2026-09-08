@@ -124,6 +124,13 @@ class InjectEditButton
             return false;
         }
 
+        // A performance reading. The button is only ever shown to signed-in
+        // editors, so leaving it in would weigh a page no visitor is served —
+        // and it is the panel doing the asking, not a person browsing.
+        if ($request->query('sve_perf') !== null) {
+            return false;
+        }
+
         if ($response->getStatusCode() !== 200) {
             return false;
         }

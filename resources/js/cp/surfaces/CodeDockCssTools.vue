@@ -6,15 +6,19 @@ defineProps({
 </script>
 
 <template>
-  <button
+  <li
     v-for="tool in tools"
     :key="tool.id"
-    type="button"
-    :data-sve-css-tool="tool.id"
-    :data-tip="tool.title"
-    :aria-label="tool.title"
-    v-html="tool.icon"
-    @click.prevent.stop="onTool(tool.id)"
-    @contextmenu.prevent="onTool(tool.id)"
-  ></button>
+    :data-sve-css-item="tool.id"
+  >
+    <button
+      type="button"
+      :data-sve-css-tool="tool.id"
+      :data-tip="tool.title"
+      :aria-label="tool.title"
+      v-html="tool.icon"
+      @click.prevent.stop="onTool(tool.id)"
+      @contextmenu.prevent="onTool(tool.id)"
+    ></button>
+  </li>
 </template>

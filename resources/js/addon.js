@@ -23,7 +23,10 @@ import './components/fieldtypes/IconButtonGroupFieldtype.js';
 import './components/fieldtypes/UniqueSetsFieldtype.js';
 import './components/fieldtypes/GlobalsPickerFieldtype.js';
 import './components/fieldtypes/ToolbarAccessFieldtype.js';
-import './components/fieldtypes/DefaultSetsFieldtype.js';
+// DefaultSetsFieldtype.js is not imported: default-sets-count.js registers the
+// same `default-sets-fieldtype` on Statamic.booted, after this file's
+// Statamic.booting, so the count version was already the one on screen —
+// the bundled one only added a "has already been registered" warning.
 import './components/fieldtypes/BardDefaultFieldtype.js';
 import './components/LockedRows.js';
 import './sibling-sync.js';
@@ -31,11 +34,12 @@ import './components/UniqueSets.js';
 import './components/SectionAccordion.js';
 import './inline-edit.js';
 import './lazy-panels.js';
+// Not a panel. Patterns is only its front: the rest of the editor reaches into
+// this file for row ids, set meta, the section-message handlers and a dozen
+// other helpers, unguarded, from the first render onwards. Deferring it left
+// those calls hitting undefined and took the toolbar down with them.
 import './section-library.js';
 import './lp-panel.js';
-import './page-activity.js';
-import './outline-panel.js';
-import './block-tree.js';
 import './focus-panel.js';
 import './open-in-preview.js';
 import './globals-panel.js';
@@ -43,9 +47,8 @@ import './pages.js';
 import './global-section.js';
 import './chrome.js';
 import { initCp } from './cp.js';
-import { initComments } from './comments.js';
 import { initAiLauncher } from './ai-launcher.js';
-import { initFileManager } from './file-manager.js';
+import { initFileManager } from './file-manager-boot.js';
 import { sve } from './cp-registry.js';
 
 // Standalone CP scripts (lite-sections, wrapSolo, instantFocusHeader) look
@@ -57,7 +60,6 @@ Statamic.booting(() => {
   Statamic.component('auto_uuid-fieldtype', AutoUuid);
   Statamic.component('library_scan-fieldtype', LibraryScan);
   initCp();
-  initComments();
   initAiLauncher();
   initFileManager();
 });

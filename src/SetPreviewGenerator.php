@@ -91,6 +91,14 @@ class SetPreviewGenerator
                 continue;
             }
 
+            // Same idea for a browser that errored at this fingerprint. --force
+            // is how you retry once the machine is fixed.
+            if ($target['status'] === 'failed' && ! $force) {
+                $results[$handle] = 'skipped: last attempt failed (--force to retry)';
+
+                continue;
+            }
+
             $results[$handle] = $this->shoot($handle, $target, $filesystem, $folder, $changed);
         }
 
@@ -139,6 +147,13 @@ class SetPreviewGenerator
             } catch (\Throwable $e) {
                 @unlink($tmp);
 
+                // Remembered like the empty-render memo, but briefly: a browser
+                // that failed is usually a browser that will fail again at this
+                // fingerprint, and without this every refresh spends one finding
+                // out. An hour, not thirty days, because the cause is as likely
+                // to be the machine as the section.
+                Cache::put(static::failedKey($handle), $target['filename'], now()->addHour());
+
                 return 'error: '.trim($e->getMessage());
             }
         }
@@ -162,6 +177,12 @@ class SetPreviewGenerator
     protected static function emptyKey(string $handle): string
     {
         return 'sve-previews:empty:'.md5($handle);
+    }
+
+    /** Where the "the browser could not do this one" memo lives. */
+    protected static function failedKey(string $handle): string
+    {
+        return 'sve-previews:failed:'.md5($handle);
     }
 
     /**
@@ -222,11 +243,13 @@ class SetPreviewGenerator
             $filename = $this->handleBase($handle).'-'.$fingerprint.'.png';
             $exists = $current === $filename && $filesystem && $filesystem->exists($folder.$current);
             $drewNothing = Cache::get(static::emptyKey($handle)) === $filename;
+            $lastFailed = Cache::get(static::failedKey($handle)) === $filename;
 
             $targets[$handle] = array_merge($base, [
                 'status' => match (true) {
                     $exists => 'fresh',
                     $drewNothing => 'renders_nothing',
+                    $lastFailed => 'failed',
                     (bool) $current => 'stale',
                     default => 'missing',
                 },

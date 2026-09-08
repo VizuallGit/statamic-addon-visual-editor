@@ -18,9 +18,10 @@ import { SUNDAY_AUG30 } from './sunday-aug30.js';
 import { replayLivePreview, topLevelSectionIds, topLevelSectionUid } from './cp.js';
 import { sve } from './cp-registry.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
+import { ARMED_KEY, isCodeDockArmed, setCodeDockArmed, templateDockAllowed } from './code-dock-state.js';
 import { splitterFill } from './right-dock.js';
 import { ensurePanel } from './lazy-panels.js';
-import { emit, register } from './cp/bus.js';
+import { emit, on, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import CodeDockChrome from './cp/surfaces/CodeDockChrome.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
@@ -31,6 +32,19 @@ import CodeDockCssBoxRow from './cp/surfaces/CodeDockCssBoxRow.vue';
 import CodeDockCssDisplayRow from './cp/surfaces/CodeDockCssDisplayRow.vue';
 import CodeDockMenu from './cp/surfaces/CodeDockMenu.vue';
 import CodeDockAddClass from './cp/surfaces/CodeDockAddClass.vue';
+import { flattenHtmlTree, parseHtmlTree } from './html-tree-parse.js';
+import { twCandidates } from './tw-candidates.js';
+import { tailwindDockOn } from './tailwind-complete.js';
+import {
+  closeTwMenu,
+  renderTwClasses,
+  twActiveClass,
+  twHasNode,
+  twOpenAddMenu,
+  twOpenToolMenu,
+  twSetClass,
+} from './tw-classes.js';
+import { bindTips } from './cp/tip.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { mountSurface } from './cp/mount.js';
 import { applyBracketClass, bracketClassTokens, buildScopedCss, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from './css-scope.js';
@@ -164,9 +178,9 @@ const UNLOCK_ID = '__sve-code-dock-unlock';
 const HEIGHT_KEY = 'sve-code-dock-height';
 const PANES_KEY = 'sve-code-dock-panes';
 const WIDTHS_KEY = 'sve-code-dock-widths';
-const ARMED_KEY = 'sve-code-dock-armed';
 const SCOPE_KEY = 'sve-html-scope-v2';
 const AUTOSAVE_KEY = 'sve-code-dock-autosave';
+const STYLE_MODE_KEY = 'sve-code-dock-style-mode';
 const DEFAULT_HEIGHT = 280;
 const MIN_HEIGHT = 120;
 const MIN_PANE = 140;
@@ -221,14 +235,155 @@ const CSS_SPACING = [
   '--gutter',
 ];
 const CSS_BOX_SIDES = [
-  { id: 'all', suffix: '', title: 'all' },
-  { id: 'block', suffix: '-block', title: 'block', sep: true },
-  { id: 'block-start', suffix: '-block-start', title: 'block start' },
-  { id: 'block-end', suffix: '-block-end', title: 'block end' },
-  { id: 'inline', suffix: '-inline', title: 'inline', sep: true },
-  { id: 'inline-start', suffix: '-inline-start', title: 'inline start' },
-  { id: 'inline-end', suffix: '-inline-end', title: 'inline end' },
+  { id: 'all', suffix: '', title: 'All sides' },
+  { id: 'block', suffix: '-block', title: 'Top and bottom', sep: true },
+  { id: 'block-start', suffix: '-block-start', title: 'Top' },
+  { id: 'block-end', suffix: '-block-end', title: 'Bottom' },
+  { id: 'inline', suffix: '-inline', title: 'Left and right', sep: true },
+  { id: 'inline-start', suffix: '-inline-start', title: 'Left' },
+  { id: 'inline-end', suffix: '-inline-end', title: 'Right' },
 ];
+/**
+ * The same six icons, pointed at Tailwind.
+ *
+ * A tool is a CSS property either way. In CSS mode it writes a declaration
+ * into the rule under the cursor; in Tailwind mode it writes the class that
+ * sets that property on the picked tag, taken from this site's `@theme`.
+ */
+const TW_TOOL_PROPERTY = {
+  display: 'display',
+  absolute: 'position',
+  color: 'color',
+  bg: 'background-color',
+  padding: 'padding',
+  margin: 'margin',
+  'tw-text': 'font-size',
+  'tw-leading': 'line-height',
+  'tw-font': 'font-family',
+  'tw-radius': 'border-radius',
+  'tw-gap': 'gap',
+  'tw-align': 'text-align',
+  'tw-w': 'width',
+  'tw-h': 'height',
+  'tw-maxw': 'max-width',
+  'tw-overflow': 'overflow',
+  'tw-border': 'border-color',
+};
+
+/**
+ * Buttons only Tailwind mode shows.
+ *
+ * Type scale, leading, typeface, radius and gap are families the theme
+ * already declares — the CSS row never grew a button for them because you
+ * would write the declaration by hand.
+ */
+/**
+ * The display row's buttons, in Tailwind.
+ *
+ * Same buttons, same order, same icons — only what they write differs. Every
+ * name here is in the catalog, so `twSetClass` sorts add, replace and toggle
+ * out by family on its own: one `justify-*` at a time, one direction at a
+ * time.
+ */
+const TW_DISPLAY_CLASS = {
+  'display-flex': 'flex',
+  'flex-row': 'flex-row',
+  'flex-col': 'flex-col',
+  'justify-start': 'justify-start',
+  'justify-center': 'justify-center',
+  'justify-end': 'justify-end',
+  'justify-between': 'justify-between',
+  'justify-around': 'justify-around',
+  'align-start': 'items-start',
+  'align-center': 'items-center',
+  'align-end': 'items-end',
+  'align-stretch': 'items-stretch',
+};
+
+const TW_EXTRA_TOOLS = [
+  { id: 'tw-text', title: 'Font size' },
+  { id: 'tw-leading', title: 'Line height' },
+  { id: 'tw-font', title: 'Font family' },
+  { id: 'tw-align', title: 'Text align' },
+  { id: 'tw-border', title: 'Border color' },
+  { id: 'tw-radius', title: 'Radius' },
+  { id: 'tw-gap', title: 'Gap' },
+  { id: 'tw-w', title: 'Width' },
+  { id: 'tw-h', title: 'Height' },
+  { id: 'tw-maxw', title: 'Max width' },
+  { id: 'tw-overflow', title: 'Overflow' },
+];
+
+const TW_TOOL_ICONS = {
+  'tw-text':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M1.5 13 5 3l3.5 10M2.7 10h4.6"/><path d="M12.5 3.5v9M11 5l1.5-1.5L14 5M11 11l1.5 1.5L14 11"/></svg>',
+  'tw-leading':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M6 3.5h8.5M6 8h8.5M6 12.5h8.5"/><path d="M2.5 4.5v7M1.4 5.6 2.5 4.5l1.1 1.1M1.4 10.4l1.1 1.1 1.1-1.1"/></svg>',
+  'tw-font':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M3 4.2V3h10v1.2M8 3v10M6 13h4"/></svg>',
+  'tw-radius':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M2.5 13.5v-6a5 5 0 0 1 5-5h6"/><path d="M13.5 6.5v7h-7" stroke-dasharray="2 2"/></svg>',
+  'tw-gap':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<rect x="1.6" y="3" width="4.2" height="10" rx=".6"/><rect x="10.2" y="3" width="4.2" height="10" rx=".6"/><path d="M8 4.5v7"/></svg>',
+  'tw-align':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">'
+    + '<path d="M2 3.5h12M2 8h8M2 12.5h10"/></svg>',
+  'tw-w':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M2 3.5v9M14 3.5v9"/><path d="M4.5 8h7"/><path d="M6 6.2 4.2 8 6 9.8M10 6.2 11.8 8 10 9.8"/></svg>',
+  'tw-h':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M3.5 2h9M3.5 14h9"/><path d="M8 4.5v7"/><path d="M6.2 6 8 4.2 9.8 6M6.2 10 8 11.8 9.8 10"/></svg>',
+  'tw-maxw':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M1.5 3v10M14.5 3v10"/><path d="M5 8h6"/><path d="M6.6 6.2 4.8 8l1.8 1.8M9.4 6.2 11.2 8l-1.8 1.8"/></svg>',
+  'tw-overflow':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">'
+    + '<rect x="1.8" y="4.5" width="8.6" height="9.7" rx="1.2"/><path d="M6.5 1.8h7.7v7.7" stroke-linecap="round"/></svg>',
+  'tw-border':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">'
+    + '<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.6"/>'
+    + '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" stroke-width="1" opacity=".45"/></svg>',
+};
+
+/**
+ * Box sides, from the logical properties the CSS row uses to the physical
+ * ones Tailwind's own scale is built on: `pt-*` is padding-top, and there is
+ * no `padding-block-start` utility to point at.
+ */
+const TW_BOX_SIDE = {
+  '': '',
+  '-block': '-block',
+  '-inline': '-inline',
+  '-block-start': '-top',
+  '-block-end': '-bottom',
+  '-inline-start': '-left',
+  '-inline-end': '-right',
+};
+
+const HISTORY_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M3.1 12a8.9 8.9 0 1 0 2.8-6.5L3 8"/><path d="M3 3.4V8h4.6"/>'
+  + '<path d="M12 7.4V12l3 1.8"/></svg>';
+
+const CSS_MODE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/>'
+  + '<path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>';
+
+const TW_MODE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M3 10.5c1.5-4 3.8-5 6-3.5 1.4 1 1.7 2.5 3.4 2.9 2.2.5 3.6-.9 4.6-2.4"/>'
+  + '<path d="M3 17c1.5-4 3.8-5 6-3.5 1.4 1 1.7 2.5 3.4 2.9 2.2.5 3.6-.9 4.6-2.4"/></svg>';
+
 const CSS_GRAYS = [
   ['--gray-50', '#fafafa'],
   ['--gray-100', '#f5f5f5'],
@@ -243,28 +398,28 @@ const CSS_GRAYS = [
   ['--gray-950', '#0a0a0a'],
 ];
 const CSS_TOOLS = [
-  { id: 'display', title: 'display', menu: 'display' },
-  { id: 'absolute', title: 'absolute', insert: 'position: absolute;' },
-  { id: 'color', title: 'color', property: 'color', menu: 'colors' },
-  { id: 'bg', title: 'background color', property: 'background-color', menu: 'colors' },
-  { id: 'padding', title: 'padding', property: 'padding', menu: 'box' },
-  { id: 'margin', title: 'margin', property: 'margin', menu: 'box' },
+  { id: 'display', title: 'Display', menu: 'display' },
+  { id: 'absolute', title: 'Position', insert: 'position: absolute;' },
+  { id: 'color', title: 'Text color', property: 'color', menu: 'colors' },
+  { id: 'bg', title: 'Background color', property: 'background-color', menu: 'colors' },
+  { id: 'padding', title: 'Padding', property: 'padding', menu: 'box' },
+  { id: 'margin', title: 'Margin', property: 'margin', menu: 'box' },
 ];
 const CSS_DISPLAY_ITEMS = [
-  { id: 'display-flex', title: 'flex', display: 'flex' },
-  { id: 'flex-row', title: 'row', flexDir: 'row', sep: true },
-  { id: 'flex-col', title: 'column', flexDir: 'column' },
+  { id: 'display-flex', title: 'Flex', display: 'flex' },
+  { id: 'flex-row', title: 'Direction: row', flexDir: 'row', sep: true },
+  { id: 'flex-col', title: 'Direction: column', flexDir: 'column' },
 ];
 const CSS_FLEX_EXTRAS = [
-  { id: 'justify-start', title: 'justify start', property: 'justify-content', value: 'flex-start' },
-  { id: 'justify-center', title: 'justify center', property: 'justify-content', value: 'center' },
-  { id: 'justify-end', title: 'justify end', property: 'justify-content', value: 'flex-end' },
-  { id: 'justify-between', title: 'space between', property: 'justify-content', value: 'space-between' },
-  { id: 'justify-around', title: 'space around', property: 'justify-content', value: 'space-around' },
-  { id: 'align-start', title: 'align start', property: 'align-items', value: 'flex-start', group: 'align' },
-  { id: 'align-center', title: 'align center', property: 'align-items', value: 'center', group: 'align' },
-  { id: 'align-end', title: 'align end', property: 'align-items', value: 'flex-end', group: 'align' },
-  { id: 'align-stretch', title: 'align stretch', property: 'align-items', value: 'stretch', group: 'align' },
+  { id: 'justify-start', title: 'Justify: start', property: 'justify-content', value: 'flex-start' },
+  { id: 'justify-center', title: 'Justify: center', property: 'justify-content', value: 'center' },
+  { id: 'justify-end', title: 'Justify: end', property: 'justify-content', value: 'flex-end' },
+  { id: 'justify-between', title: 'Justify: between', property: 'justify-content', value: 'space-between' },
+  { id: 'justify-around', title: 'Justify: around', property: 'justify-content', value: 'space-around' },
+  { id: 'align-start', title: 'Align: start', property: 'align-items', value: 'flex-start', group: 'align' },
+  { id: 'align-center', title: 'Align: center', property: 'align-items', value: 'center', group: 'align' },
+  { id: 'align-end', title: 'Align: end', property: 'align-items', value: 'flex-end', group: 'align' },
+  { id: 'align-stretch', title: 'Align: stretch', property: 'align-items', value: 'stretch', group: 'align' },
 ];
 const CSS_TOOL_ICONS = {
   display:
@@ -296,14 +451,27 @@ const CSS_TOOL_ICONS = {
   absolute:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="1" stroke-dasharray="2 1.5"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/></svg>',
   color:
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 13.5 L8 2.5 L12 13.5"/><path d="M5.4 10h5.2"/></svg>',
-  bg: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="2" width="12" height="12" rx="2" opacity=".85"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">'
+    + '<path d="M3.4 11.2 7.4 2.4l4 8.8"/><path d="M4.7 8.4h5.4"/>'
+    + '<rect x="1.6" y="12.8" width="12.8" height="2.2" rx=".6" fill="currentColor" stroke="none"/></svg>',
+  bg:
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">'
+    + '<path d="M8 1.9a6.1 6.1 0 1 0 0 12.2c.85 0 1.35-.55 1.35-1.25 0-.38-.18-.66-.4-.88a1.2 1.2 0 0 1 .85-2.05h1.3A3.5 3.5 0 0 0 14.1 6.1C14.1 3.75 11.4 1.9 8 1.9Z"/>'
+    + '<circle cx="4.9" cy="6.5" r=".95" fill="currentColor" stroke="none"/>'
+    + '<circle cx="8" cy="4.8" r=".95" fill="currentColor" stroke="none"/>'
+    + '<circle cx="11.1" cy="6.5" r=".95" fill="currentColor" stroke="none"/>'
+    + '<circle cx="4.7" cy="9.9" r=".95" fill="currentColor" stroke="none"/></svg>',
   padding:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1"/><rect x="4.5" y="4.5" width="7" height="7" rx=".6"/></svg>',
   margin:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4.5" y="4.5" width="7" height="7" rx=".6"/><path d="M2 2.5h12M2 13.5h12M2.5 2v12M13.5 2v12" stroke-dasharray="1.4 1.2"/></svg>',
+  // Every side. Same silhouette as the tool that opens the group, but filled
+  // rather than outlined — the parent stands right next to it, and two thin
+  // squares beside each other read as the same icon twice.
   'box-all':
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1"/><rect x="4.5" y="4.5" width="7" height="7" rx=".4"/></svg>',
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">'
+    + '<rect x="1.5" y="1.5" width="13" height="13" rx="1"/>'
+    + '<rect x="4.5" y="4.5" width="7" height="7" rx=".4" fill="currentColor" stroke="none"/></svg>',
   'box-block':
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="3.2" width="9.6" height="2.3" rx=".35" stroke="none"/><rect x="3.2" y="10.5" width="9.6" height="2.3" rx=".35" stroke="none"/></svg>',
   'box-block-start':
@@ -343,6 +511,17 @@ let dragging = false;
 let applying = false;
 let htmlScopePref = true;
 let htmlScopeActive = false;
+/** Which language the CSS pane is in: 'css' or 'tw'. */
+let styleMode = 'css';
+
+/** Redraws the icon row for the mode it is now in. Set by bindCssTools. */
+let cssToolRow = null;
+
+/** The compiled Tailwind for the classes in `twKey`, ready to be saved. */
+let twCss = null;
+let twKey = '';
+let twBusy = false;
+let twDirty = false;
 let htmlFocus = null;
 let htmlFull = '';
 let cssFull = '';
@@ -388,7 +567,7 @@ function vscTheme() {
   return [
     EditorView.theme(
       {
-        '&': { height: 'auto', backgroundColor: '#1e1e1e', color: '#d4d4d4' },
+        '&': { height: 'auto', backgroundColor: '#1E1E21', color: '#d4d4d4' },
         '.cm-content': {
           caretColor: '#aeafad',
           padding: '12px 0',
@@ -400,7 +579,7 @@ function vscTheme() {
         '.cm-activeLine': { backgroundColor: '#ffffff0d' },
         '.cm-activeLineGutter': { backgroundColor: '#ffffff0d' },
         '.cm-gutters': {
-          backgroundColor: '#1e1e1e',
+          backgroundColor: '#1E1E21',
           color: '#858585',
           border: 'none',
           borderRight: '1px solid #3c3c3c',
@@ -504,21 +683,7 @@ function isPanelFrame(doc) {
  * Missing or stale feature maps must stay off — `featureOn()` treats unknown
  * keys as on, which would open a disk-writing dock by accident.
  */
-export function templateDockAllowed(win) {
-  return win.Statamic?.$config?.get?.('sveFeatures')?.template_dock === true;
-}
-
-export function isCodeDockArmed(win) {
-  if (!win) {
-    return false;
-  }
-
-  return chromeGet(win, ARMED_KEY) === '1';
-}
-
-export function setCodeDockArmed(win, on) {
-  chromeSet(win, ARMED_KEY, on ? '1' : '0');
-}
+export { ARMED_KEY, isCodeDockArmed, setCodeDockArmed, templateDockAllowed };
 
 function storedHeight(win) {
   const n = parseInt(chromeGet(win, HEIGHT_KEY) ?? '', 10);
@@ -594,10 +759,11 @@ function ensureStyle(doc) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #1e1e1e;
+  background: #1E1E21;
   color: #d4d4d4;
   border-top: 1px solid rgba(255,255,255,.12);
-  box-shadow: 0 -8px 24px rgba(0,0,0,.28);
+  /* No shadow: the sidebars sit flat against the page and this is the same
+     kind of panel. The border is what marks the edge. */
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 #${DOCK_ID} [data-sve-code-bar] {
@@ -710,6 +876,65 @@ function ensureStyle(doc) {
   color: #93c5fd;
   background: rgba(56,88,233,.22);
 }
+#${DOCK_ID} [data-sve-code-history] {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border-radius: 6px;
+  color: #d4d4d4;
+  opacity: .55;
+}
+#${DOCK_ID} [data-sve-code-history]:hover,
+#${DOCK_ID} [data-sve-code-history][data-open] {
+  opacity: 1;
+  background: rgba(255,255,255,.1);
+}
+#${DOCK_ID} [data-sve-style-mode] {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  margin-left: 4px;
+  border-radius: 6px;
+  color: #d4d4d4;
+  opacity: .6;
+  font-size: 11px;
+  white-space: nowrap;
+}
+#${DOCK_ID} [data-sve-style-mode]:hover {
+  opacity: 1;
+  background: rgba(255,255,255,.1);
+}
+#${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
+  opacity: 1;
+  color: #7dd3fc;
+  background: rgba(56,189,248,.16);
+}
+/* The CSS pane holds two things and shows one: the editor, or the chips. */
+#${DOCK_ID} [data-sve-tw-host] {
+  display: none;
+}
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-code-pane="css"] [data-sve-code-host] {
+  display: none;
+}
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-tw-host] {
+  display: block;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
 #${DOCK_ID} [data-sve-code-autosave],
 #${DOCK_ID} [data-sve-code-save] {
   all: unset;
@@ -745,6 +970,8 @@ function ensureStyle(doc) {
 }
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-autosave],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-html-scope],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-style-mode],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-code-history],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-save] {
   pointer-events: none;
   opacity: .28;
@@ -758,7 +985,8 @@ function ensureStyle(doc) {
   pointer-events: none;
   opacity: .28;
 }
-#${DOCK_ID}[data-sve-code-locked] [data-sve-code-pane] .cm-editor {
+#${DOCK_ID}[data-sve-code-locked] [data-sve-code-pane] .cm-editor,
+#${DOCK_ID}[data-sve-code-locked] [data-sve-tw-host] {
   opacity: .62;
 }
 #${DOCK_ID} [data-sve-code-lock-banner] {
@@ -952,10 +1180,61 @@ function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-css-subrow] {
   display: none;
   align-items: center;
-  padding: 4px 8px;
+  padding: 2px 6px;
+  border-radius: 6px;
   background: rgba(255,255,255,.12);
   pointer-events: auto;
   min-width: 0;
+}
+/**
+ * Air between the tools themselves, not between a tool's children.
+ *
+ * A separate rule so the HTML pane's own row, which shares the one above,
+ * keeps the spacing it has. The children sit in their own containers inside
+ * the pill and keep their 1px.
+ */
+#${DOCK_ID} [data-sve-css-tools] {
+  gap: 3px;
+  scrollbar-width: none;
+}
+#${DOCK_ID} [data-sve-css-tools]::-webkit-scrollbar {
+  display: none;
+}
+
+/**
+ * A tool is one item, and its children live inside that item.
+ *
+ * The surface belongs to the item, so it wraps the icon and whatever it opens
+ * without a single offset: everything stays in flow, nothing is drawn over
+ * anything, and opening a group only makes its own item wider.
+ */
+#${DOCK_ID} [data-sve-css-item] {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  /* Same radius as the button's own highlight, so the shape around the icon
+     is identical open and closed. */
+  border-radius: 4px;
+}
+/* Only to the right: nothing may move the icon when the group opens. */
+#${DOCK_ID} [data-sve-css-item][data-sve-css-open] {
+  background: rgba(255,255,255,.12);
+}
+#${DOCK_ID} [data-sve-css-item][data-sve-css-open] > [data-sve-css-tool][data-open] {
+  background: transparent;
+}
+#${DOCK_ID} [data-sve-css-item] > [data-sve-css-subrow] {
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+#${DOCK_ID} [data-sve-css-item] > [data-sve-css-subrow]::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 1px;
+  height: 12px;
+  margin: 0 6px 0 4px;
+  background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub] [data-sve-css-subrow] {
   display: flex;
@@ -964,7 +1243,7 @@ function ensureStyle(doc) {
   display: none;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 #${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub="padding"] [data-sve-css-sub="box"],
@@ -976,7 +1255,7 @@ function ensureStyle(doc) {
   display: none;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1px;
+  gap: 2px;
 }
 #${DOCK_ID} [data-sve-css-chrome][data-sve-css-flex-on] [data-sve-css-flex-extras] {
   display: contents;
@@ -1018,43 +1297,11 @@ function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool]:hover,
 #${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool][data-open],
 #${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool][data-active] {
-  background: rgba(255,255,255,.22);
+  background: transparent;
   opacity: 1;
 }
-#${DOCK_ID} [data-sve-css-tool]::after,
-#${DOCK_ID} [data-sve-css-box-side]::after,
-#${DOCK_ID} [data-sve-html-tool]::after {
-  content: attr(data-tip);
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 6px);
-  transform: translateX(-50%);
-  padding: 3px 7px;
-  border-radius: 4px;
-  background: #1f1f1f;
-  color: #d4d4d4;
-  border: 1px solid rgba(255,255,255,.14);
-  box-shadow: 0 4px 12px rgba(0,0,0,.35);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0;
-  line-height: 1.3;
-  text-transform: none;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 8;
-}
-#${DOCK_ID} [data-sve-css-tool]:hover::after,
-#${DOCK_ID} [data-sve-css-box-side]:hover::after,
-#${DOCK_ID} [data-sve-html-tool]:hover::after {
-  opacity: 1;
-}
-#${DOCK_ID} [data-sve-css-tool][data-open]::after,
-#${DOCK_ID} [data-sve-css-box-side][data-open]::after,
-#${DOCK_ID} [data-sve-html-tool][data-open]::after {
-  display: none;
-}
+/* The hover label lives on the body — see bindTips. A row that scrolls
+   would clip anything drawn inside it. */
 #${DOCK_ID} [data-sve-html-tool][data-letter] {
   font-size: 11px;
   font-weight: 700;
@@ -1144,7 +1391,7 @@ function ensureStyle(doc) {
   padding: 0 8px;
   border: 1px solid rgba(255,255,255,.16);
   border-radius: 4px;
-  background: #1e1e1e;
+  background: #1E1E21;
   color: #d4d4d4;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -1285,7 +1532,7 @@ function ensureStyle(doc) {
   vertical-align: middle;
 }
 .cm-tooltip.sve-tw-complete {
-  background: #1e1e1e !important;
+  background: #1E1E21 !important;
   color: #d4d4d4;
   border: 1px solid #454545 !important;
   border-radius: 4px;
@@ -1692,7 +1939,7 @@ function bindResize(win, dock) {
   dock._sveResizeBound = true;
 
   const startResize = (event) => {
-    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-back], [data-sve-html-scope], [data-sve-code-lock], [data-sve-code-autosave], [data-sve-code-save], .cm-editor')) {
+    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-back], [data-sve-style-mode], [data-sve-code-history], [data-sve-html-scope], [data-sve-code-lock], [data-sve-code-autosave], [data-sve-code-save], .cm-editor')) {
       return;
     }
 
@@ -3368,6 +3615,19 @@ function paintCssToolState(win) {
 
 function paintCssToolStateInner(win) {
   const dock = win?.document?.getElementById(DOCK_ID);
+
+  if (dock) {
+    placeCssSubrow(dock);
+  }
+
+  if (styleMode === 'tw') {
+    if (dock) {
+      paintTwToolState(win, dock);
+    }
+
+    return;
+  }
+
   const decls = currentFlexDecls();
   const flexOn = isFlexDisplay(decls.display);
   const flexDir = normalizeFlexValue(decls['flex-direction']) || (flexOn ? 'row' : '');
@@ -3478,7 +3738,7 @@ function closeCssMenu(doc) {
 
   menu?._sveApp?.unmount();
   menu?.remove();
-  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-css-box-side][data-open], [data-sve-html-tool][data-open], [data-sve-css-add-class][data-open]').forEach((el) =>
+  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-css-box-side][data-open], [data-sve-html-tool][data-open], [data-sve-css-add-class][data-open], [data-sve-code-history][data-open]').forEach((el) =>
     el.removeAttribute('data-open')
   );
 }
@@ -3633,6 +3893,47 @@ function openCssSpacingMenu(win, anchor, property) {
     },
   });
   markCssMenuActive(menu, property);
+}
+
+/**
+ * Put the open tool's children next to the tool, inside its own highlight.
+ *
+ * The row is a strip of icons and the children belong to one of them, so a
+ * second line left the reader guessing which. Moved, not rebuilt: the box and
+ * display rows are Vue apps mounted inside this node, and recreating it would
+ * throw them away. When nothing is open it goes back to the label, out of the
+ * way of the tool row's own remount.
+ */
+function placeCssSubrow(dock) {
+  const chrome = cssChrome(dock);
+  const subrow = chrome?.querySelector('[data-sve-css-subrow]');
+
+  if (!chrome || !subrow) {
+    return;
+  }
+
+  chrome
+    .querySelectorAll('[data-sve-css-item][data-sve-css-open]')
+    .forEach((el) => el.removeAttribute('data-sve-css-open'));
+
+  const open = chrome.getAttribute('data-sve-css-sub') || '';
+  const item = open ? chrome.querySelector(`[data-sve-css-item="${open}"]`) : null;
+
+  if (item) {
+    if (subrow.parentElement !== item) {
+      item.appendChild(subrow);
+    }
+
+    item.setAttribute('data-sve-css-open', '');
+
+    return;
+  }
+
+  const label = chrome.querySelector('[data-sve-code-pane-label]');
+
+  if (label && subrow.parentElement !== label) {
+    label.appendChild(subrow);
+  }
 }
 
 function cssChrome(dock) {
@@ -4102,8 +4403,439 @@ function bindCssAddClass(win, dock) {
   btn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
+
+    if (styleMode === 'tw') {
+      closeCssMenu(win.document);
+      twOpenAddMenu(win, btn);
+
+      return;
+    }
+
     openAddClassMenu(win, btn);
   });
+}
+
+/**
+ * "20 minutes ago · 23:41" — the browser's own wording for the first half, so
+ * the list reads in the reader's language without a string to translate.
+ */
+function historyLabel(at) {
+  const seconds = Math.max(0, Math.round(Date.now() / 1000 - at));
+  const clock = new Date(at * 1000).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  let relative = clock;
+
+  try {
+    const format = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+
+    if (seconds < 90) {
+      relative = format.format(-seconds, 'second');
+    } else if (seconds < 5400) {
+      relative = format.format(-Math.round(seconds / 60), 'minute');
+    } else if (seconds < 86400) {
+      relative = format.format(-Math.round(seconds / 3600), 'hour');
+    } else {
+      relative = format.format(-Math.round(seconds / 86400), 'day');
+    }
+  } catch {
+    /* the clock time on its own will do */
+  }
+
+  return `${relative} · ${clock}`;
+}
+
+function sveFetch(win, url) {
+  return win.fetch(url, {
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+  });
+}
+
+async function openHistoryMenu(win, anchor) {
+  const doc = win.document;
+  const type = currentTemplateType();
+
+  closeCssMenu(doc);
+
+  if (!type) {
+    return;
+  }
+
+  let entries = [];
+
+  try {
+    const res = await sveFetch(win, `/!/sve/section-template/history?type=${encodeURIComponent(type)}`);
+
+    if (res.ok) {
+      entries = (await res.json())?.entries || [];
+    }
+  } catch {
+    entries = [];
+  }
+
+  // The dock can be gone by the time the list arrives.
+  if (!doc.getElementById(DOCK_ID) || !doc.contains(anchor)) {
+    return;
+  }
+
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: entries.length
+      ? entries.map((entry) => ({ value: entry.id, label: historyLabel(entry.at) }))
+      : [{ value: '', label: t(win, 'code_dock_history_empty') }],
+    onPick: (id) => {
+      closeCssMenu(doc);
+
+      if (id) {
+        void restoreVersion(win, type, id);
+      }
+    },
+  });
+}
+
+/**
+ * Put an earlier version back.
+ *
+ * Through the same door as a keystroke: the panes are written, the dock saves
+ * and Live Preview re-renders — and because it lands in the editor's own undo
+ * history, a restore you did not mean is one Cmd+Z away.
+ */
+async function restoreVersion(win, type, id) {
+  if (isCodeDockLocked()) {
+    return;
+  }
+
+  let parts = null;
+
+  try {
+    const res = await sveFetch(
+      win,
+      `/!/sve/section-template/history/entry?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`
+    );
+
+    if (res.ok) {
+      parts = await res.json();
+    }
+  } catch {
+    parts = null;
+  }
+
+  if (!parts || isCodeDockLocked()) {
+    return;
+  }
+
+  writeParts(
+    { html: parts.html ?? '', css: parts.css ?? '', js: parts.js ?? '' },
+    lastLocked
+  );
+  onEditorInput(win);
+  syncTwTarget(win);
+}
+
+function bindHistory(win, dock) {
+  const btn = dock.querySelector('[data-sve-code-history]');
+
+  if (!btn || btn._sveBound) {
+    return;
+  }
+
+  btn._sveBound = true;
+  btn.innerHTML = HISTORY_ICON;
+  btn.title = t(win, 'code_dock_history');
+  btn.setAttribute('aria-label', btn.title);
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (btn.hasAttribute('data-open')) {
+      closeCssMenu(win.document);
+
+      return;
+    }
+
+    void openHistoryMenu(win, btn);
+  });
+}
+
+export function codeDockStyleMode() {
+  return styleMode;
+}
+
+/**
+ * The tag the Tailwind row acts on: the one the HTML cursor is inside.
+ *
+ * Same rule as CSS mode, one pane over — there it is the rule under the
+ * cursor, here it is the tag. Clicking a row in the tree, or an element in
+ * the preview, moves that cursor, so all three ways of picking end up in the
+ * same place instead of fighting each other.
+ */
+function twTargetFromCursor(win) {
+  const view = editors.html;
+
+  if (!view || styleMode !== 'tw') {
+    return null;
+  }
+
+  const scoped = htmlScopeActive && !!htmlFocus;
+  const html = scoped ? htmlFull : view.state.doc.toString();
+  const offset = scoped ? htmlFocus.from : 0;
+  const pos = offset + view.state.selection.main.from;
+  const rows = flattenHtmlTree(parseHtmlTree(html), new Set());
+  let found = null;
+
+  // Pre-order, and a child always sits inside its parent's range, so the last
+  // row that still contains the cursor is the innermost tag.
+  for (const row of rows) {
+    if (row.from <= pos && pos < row.to) {
+      found = row;
+    }
+  }
+
+  return found;
+}
+
+function syncTwTarget(win) {
+  if (styleMode !== 'tw') {
+    return;
+  }
+
+  renderTwClasses(win, twTargetFromCursor(win));
+}
+
+function paintStyleMode(win) {
+  const dock = win?.document.getElementById(DOCK_ID);
+
+  if (!dock) {
+    return;
+  }
+
+  const tw = styleMode === 'tw';
+
+  dock.setAttribute('data-sve-style', styleMode);
+
+  const label = dock.querySelector('[data-sve-css-label]');
+
+  if (label) {
+    label.textContent = tw ? t(win, 'code_dock_style_tw') : t(win, 'code_dock_css');
+  }
+
+  const btn = dock.querySelector('[data-sve-style-mode]');
+
+  if (!btn) {
+    return;
+  }
+
+  const text = win.document.createElement('span');
+
+  text.textContent = tw ? t(win, 'code_dock_style_tw') : t(win, 'code_dock_css');
+  btn.innerHTML = tw ? TW_MODE_ICON : CSS_MODE_ICON;
+  btn.appendChild(text);
+  btn.title = t(win, tw ? 'code_dock_style_to_css' : 'code_dock_style_to_tw');
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', tw ? 'true' : 'false');
+}
+
+/**
+ * Tailwind mode points at the tag picked in the HTML tree, so the tree has to
+ * be on screen — an icon row aimed at nothing is the same trap the scope
+ * button already avoids.
+ */
+function applyStyleMode(win) {
+  const dock = win?.document.getElementById(DOCK_ID);
+
+  closeCssMenu(win.document);
+  closeTwMenu(win);
+  cssChrome(dock)?.removeAttribute('data-sve-css-sub');
+  paintStyleMode(win);
+  cssToolRow?.();
+
+  if (styleMode === 'tw') {
+    // Open it the way the tree button does, setting included. Opening it
+    // behind the setting's back left the tree on screen with scoping off,
+    // and then a click in it only selected the code instead of narrowing
+    // the pane to that tag.
+    htmlScopePref = true;
+    chromeSet(win, SCOPE_KEY, '1');
+    syncHtmlTree(win, true);
+  }
+
+  syncTwTarget(win);
+  paintCssToolState(win);
+}
+
+function setStyleMode(win, mode) {
+  styleMode = mode === 'tw' ? 'tw' : 'css';
+  chromeSet(win, STYLE_MODE_KEY, styleMode);
+  applyStyleMode(win);
+}
+
+function bindStyleMode(win, dock) {
+  if (dock._sveStyleModeBound) {
+    return;
+  }
+
+  dock._sveStyleModeBound = true;
+  styleMode = chromeGet(win, STYLE_MODE_KEY) === 'tw' ? 'tw' : 'css';
+
+  dock.querySelector('[data-sve-style-mode]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setStyleMode(win, styleMode === 'tw' ? 'css' : 'tw');
+  });
+
+  applyStyleMode(win);
+}
+
+/** The same click, answered in classes instead of declarations. */
+function runTwTool(win, dock, id, btn) {
+  const display = TW_DISPLAY_CLASS[id];
+
+  if (display) {
+    closeTwMenu(win);
+    twSetClass(win, display);
+    paintCssToolState(win);
+
+    return;
+  }
+
+  const property = TW_TOOL_PROPERTY[id];
+
+  if (!property || !btn) {
+    return;
+  }
+
+  // A group of values for one property reads as a list of names, not as a
+  // strip of pictures. What belongs to the chosen value — a flex container's
+  // direction and alignment — stays as icons, and follows the choice.
+  if (id === 'display') {
+    cssChrome(dock)?.removeAttribute('data-sve-css-sub');
+    twOpenToolMenu(win, btn, 'display', (label) => {
+      const chrome = cssChrome(dock);
+
+      if (label === 'flex' || label === 'inline-flex' || label === 'grid') {
+        chrome?.setAttribute('data-sve-css-sub', 'display');
+      } else {
+        chrome?.removeAttribute('data-sve-css-sub');
+      }
+
+      paintCssToolState(win);
+    });
+
+    return;
+  }
+
+
+  if (id === 'padding' || id === 'margin') {
+    closeTwMenu(win);
+    toggleCssSubrow(win, property);
+
+    return;
+  }
+
+  cssChrome(dock)?.removeAttribute('data-sve-css-sub');
+  twOpenToolMenu(win, btn, property);
+}
+
+/** The CSS property one of the display row's classes sets. */
+function propertyOfTwClass(name) {
+  if (name === 'flex') {
+    return 'display';
+  }
+
+  if (name.startsWith('justify-')) {
+    return 'justify-content';
+  }
+
+  if (name.startsWith('items-')) {
+    return 'align-items';
+  }
+
+  return 'flex-direction';
+}
+
+function paintTwToolState(win, dock) {
+  const chrome = dock.querySelector('[data-sve-css-chrome]');
+  const sub = chrome?.getAttribute('data-sve-css-sub') || '';
+  const boxPrefix = sub === 'padding' || sub === 'margin' ? sub : '';
+
+  // The justify and align buttons only mean something once the tag is a flex
+  // container, which is the same rule the CSS side follows.
+  const display = twHasNode() ? twActiveClass('display') : '';
+  const flexOn = display === 'flex' || display === 'inline-flex' || display === 'grid';
+
+  for (const el of [chrome, dock.querySelector('[data-sve-css-tools]')]) {
+    if (!el) {
+      continue;
+    }
+
+    if (flexOn) {
+      el.setAttribute('data-sve-css-flex-on', '');
+    } else {
+      el.removeAttribute('data-sve-css-flex-on');
+    }
+  }
+
+  for (const [id, name] of Object.entries(TW_DISPLAY_CLASS)) {
+    const btn = dock.querySelector(`[data-sve-css-tool="${id}"]`);
+
+    if (!btn) {
+      continue;
+    }
+
+    if (twHasNode() && twActiveClass(propertyOfTwClass(name)) === name) {
+      btn.setAttribute('data-active', '');
+    } else {
+      btn.removeAttribute('data-active');
+    }
+  }
+
+  for (const tool of [...CSS_TOOLS, ...TW_EXTRA_TOOLS]) {
+    const btn = dock.querySelector(`[data-sve-css-tool="${tool.id}"]`);
+
+    if (!btn) {
+      continue;
+    }
+
+    const property = TW_TOOL_PROPERTY[tool.id];
+    const on = twHasNode() && !!property && !!twActiveClass(property);
+
+    if (sub === property && (tool.id === 'padding' || tool.id === 'margin')) {
+      btn.setAttribute('data-open', '');
+    } else {
+      btn.removeAttribute('data-open');
+    }
+
+    if (on) {
+      btn.setAttribute('data-active', '');
+    } else {
+      btn.removeAttribute('data-active');
+    }
+  }
+
+  for (const side of CSS_BOX_SIDES) {
+    const btn = dock.querySelector(`[data-sve-css-box-side="${side.suffix}"]`);
+
+    if (!btn) {
+      continue;
+    }
+
+    const property = boxPrefix ? `${boxPrefix}${TW_BOX_SIDE[side.suffix] ?? side.suffix}` : '';
+
+    if (property && twActiveClass(property)) {
+      btn.setAttribute('data-active', '');
+    } else {
+      btn.removeAttribute('data-active');
+    }
+  }
 }
 
 function bindCssTools(win, dock) {
@@ -4117,6 +4849,12 @@ function bindCssTools(win, dock) {
 
   const allCss = [...CSS_TOOLS, ...CSS_DISPLAY_ITEMS, ...CSS_FLEX_EXTRAS];
   const runCssTool = (id, btn) => {
+    if (styleMode === 'tw') {
+      runTwTool(win, dock, id, btn);
+
+      return;
+    }
+
     const tool = allCss.find((item) => item.id === id);
 
     if (!tool) {
@@ -4200,10 +4938,22 @@ function bindCssTools(win, dock) {
     return row;
   });
 
-  mountPane(host, CodeDockCssTools, {
-    tools: CSS_TOOLS.map((tool) => ({ ...tool, icon: CSS_TOOL_ICONS[tool.id] || '' })),
-    onTool: (id) => runCssTool(id, dock.querySelector(`[data-sve-css-tool="${id}"]`)),
-  });
+  cssToolRow = () => {
+    const tools = styleMode === 'tw' ? [...CSS_TOOLS, ...TW_EXTRA_TOOLS] : CSS_TOOLS;
+
+    cssChrome(dock)?.removeAttribute('data-sve-css-sub');
+    placeCssSubrow(dock);
+
+    mountPane(host, CodeDockCssTools, {
+      tools: tools.map((tool) => ({
+        ...tool,
+        icon: CSS_TOOL_ICONS[tool.id] || TW_TOOL_ICONS[tool.id] || '',
+      })),
+      onTool: (id) => runCssTool(id, dock.querySelector(`[data-sve-css-tool="${id}"]`)),
+    });
+  };
+
+  cssToolRow();
 
   const boxHost = dock.querySelector('[data-sve-css-sub="box"]');
 
@@ -4218,9 +4968,15 @@ function bindCssTools(win, dock) {
         const prefix = cssChrome(dock)?.getAttribute('data-sve-css-sub');
         const btn = boxHost.querySelector(`[data-sve-css-box-side="${suffix}"]`);
         const property = `${prefix}${suffix}`;
-        const decls = currentFlexDecls();
+        const decls = styleMode === 'tw' ? {} : currentFlexDecls();
 
         if ((prefix !== 'padding' && prefix !== 'margin') || !btn) {
+          return;
+        }
+
+        if (styleMode === 'tw') {
+          twOpenToolMenu(win, btn, `${prefix}${TW_BOX_SIDE[suffix] ?? suffix}`);
+
           return;
         }
 
@@ -4546,13 +5302,68 @@ function flushSave(doc) {
   }
 
   const parts = readParts();
+  const twReady = twCss !== null && tailwindDockOn(win) && twKeyFor(parts.html) === twKey;
 
-  if (sameParts(parts, lastParts)) {
+  // A finished compile is worth a save of its own, even when not a character
+  // of the file has changed since the last one.
+  if (sameParts(parts, lastParts) && !(twReady && twDirty)) {
     return;
+  }
+
+  if (twReady) {
+    parts.tw = twCss;
+    twDirty = false;
   }
 
   setStatus(doc, t(win, 'code_dock_saving'));
   postSave(win, type, parts);
+}
+
+/** The classes in the file, in a stable order — the compile's cache key. */
+function twKeyFor(html) {
+  return twCandidates(html).sort().join(' ');
+}
+
+export function resetTailwindCompile() {
+  twCss = null;
+  twKey = '';
+  twDirty = false;
+}
+
+/**
+ * Compile this file's classes with Tailwind's own engine.
+ *
+ * Off the save path: the engine is a lazy chunk and the first load takes a
+ * moment, so the save goes ahead without it and the finished compile asks for
+ * one more save. Nothing recompiles while the class list is unchanged, which
+ * is most keystrokes.
+ */
+function ensureTwCss(win, html) {
+  if (!win || !tailwindDockOn(win)) {
+    return;
+  }
+
+  const key = twKeyFor(html);
+
+  if (key === twKey || twBusy) {
+    return;
+  }
+
+  twBusy = true;
+
+  void import('./tw-compile.js')
+    .then((mod) => mod.compileTailwind(win, html))
+    .then((css) => {
+      twBusy = false;
+      twCss = css;
+      twKey = key;
+      twDirty = true;
+      scheduleSave(win, win.document);
+    })
+    .catch((err) => {
+      twBusy = false;
+      console.error('[sve] tailwind compile', err);
+    });
 }
 
 function scheduleSave(win, doc) {
@@ -4579,6 +5390,7 @@ function onEditorInput(win) {
   }
 
   paintAutosave(win);
+  ensureTwCss(win, parts.html);
 
   if (!autosaveEnabled(win)) {
     setStatus(win.document, t(win, 'code_dock_unsaved'));
@@ -4691,6 +5503,10 @@ function mountEditor(win, handle, parent) {
 
           if (handle === 'html' && (update.docChanged || update.selectionSet)) {
             paintHtmlToolState(win);
+
+            if (!applying) {
+              syncTwTarget(win);
+            }
           }
         }),
         ...vscTheme(),
@@ -4766,6 +5582,9 @@ async function ensureDockAsync(win) {
     bindSplitters(win, dock);
     bindCssTools(win, dock);
     bindCssAddClass(win, dock);
+    bindStyleMode(win, dock);
+    bindHistory(win, dock);
+    bindTips(win, dock);
     bindHtmlTools(win, dock);
     bindHtmlScope(win, dock);
     bindLock(win, dock);
@@ -4793,6 +5612,7 @@ async function ensureDockAsync(win) {
   paintHtmlScope(win);
   paintBack(win);
   paintAutosave(win);
+  paintStyleMode(win);
 
   await loadCm();
 
@@ -4879,6 +5699,7 @@ async function loadTemplate(win, type, mode = 'replace') {
   paintHtmlScope(win);
   paintBack(win);
   paintAutosave(win);
+  paintStyleMode(win);
   placeDock(win, dock);
 
   win
@@ -4915,8 +5736,14 @@ async function loadTemplate(win, type, mode = 'replace') {
       lastType = type;
       lastLocked = !!data.locked;
       lockReady = true;
+      resetTailwindCompile();
       paintLock(win);
       writeParts(lastParts, lastLocked);
+
+      if (!lastLocked) {
+        ensureTwCss(win, lastParts.html);
+      }
+
       setPath(win.document, data.path || type);
       setStatus(win.document, lastLocked ? t(win, 'code_dock_locked') : '');
       paintHtmlScope(win);
@@ -5254,6 +6081,13 @@ export function syncCodeDock(win, doc, uid) {
   loadTemplate(win, type, 'replace');
 }
 
+// A different tag, or a class added to it, relights the icon row.
+on('tw:changed', () => {
+  if (lastWin && styleMode === 'tw') {
+    paintCssToolState(lastWin);
+  }
+});
+
 register('dock:is-open', (doc) => isCodeDockOpen(doc));
 register('dock:is-locked', () => isCodeDockLocked());
 register('dock:html', () => currentFullHtml());
@@ -5296,6 +6130,11 @@ register('dock:reveal-html', ({ from, to } = {}) => {
 });
 register('dock:insert-snippet', ({ win, parts }) => insertAiSnippet(win, parts));
 register('dock:refresh', (win) => refreshCodeDockFromDisk(win));
+register('dock:tw-follow', () => {
+  if (lastWin) {
+    syncTwTarget(lastWin);
+  }
+});
 register('dock:current-type', () => currentTemplateType());
 register('dock:current-uid', () => lastUid);
 register('dock:set-html', (html) => {

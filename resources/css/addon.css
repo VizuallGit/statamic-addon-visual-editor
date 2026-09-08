@@ -305,3 +305,17 @@
 [data-sve-lv-branch][data-sve-lv-here] > [data-sve-lv-row]:not([data-sve-lv-current]):hover {
     background: rgba(56, 88, 233, 0.18);
 }
+
+/**
+ * Rammen om siden i Live Preview.
+ *
+ * Statamics egen er lys grå, og en lys side på lys grå har ingen kant — man
+ * kan ikke se hvor sidens flade holder op. Mørk giver den kanten tilbage.
+ *
+ * Her og ikke i JS: `applyLpDevice` fjerner bevidst en inline background-color
+ * på det samme element, fordi maling derfra blinker når vinduet reflower. En
+ * regel i stilarket sættes én gang og har ikke det problem.
+ */
+.live-preview-contents {
+    background-color: #313134;
+}

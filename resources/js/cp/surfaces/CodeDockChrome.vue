@@ -18,6 +18,8 @@ defineProps({
       <button type="button" data-sve-code-back hidden></button>
       <span data-sve-code-path></span>
       <span data-sve-code-status></span>
+      <button type="button" data-sve-code-history></button>
+      <button type="button" data-sve-style-mode></button>
       <button type="button" data-sve-html-scope aria-pressed="true">
         <span v-html="treeIcon"></span>
       </button>
@@ -40,16 +42,17 @@ defineProps({
       <div data-sve-code-pane="css">
         <div data-sve-css-chrome="subrow-2">
           <div data-sve-code-pane-label>
-            <span>{{ cssLabel }}</span>
+            <span data-sve-css-label>{{ cssLabel }}</span>
             <button type="button" data-sve-css-add-class></button>
             <div data-sve-css-tools></div>
-          </div>
-          <div data-sve-css-subrow>
-            <div data-sve-css-sub="box"></div>
-            <div data-sve-css-sub="display"></div>
+            <div data-sve-css-subrow>
+              <div data-sve-css-sub="box"></div>
+              <div data-sve-css-sub="display"></div>
+            </div>
           </div>
         </div>
         <div data-sve-code-host></div>
+        <div data-sve-tw-host></div>
       </div>
       <div data-sve-code-split data-sve-code-split-after="css"></div>
       <div data-sve-code-pane="js">

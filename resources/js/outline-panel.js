@@ -406,9 +406,16 @@ export function toggleOutlinePanel(win) {
     withChrome: true,
   });
 
-  mountA11yTabs(win, panel);
-  panel.querySelector('[data-sve-close]').addEventListener('click', () => closeOutlinePanel(win));
+  // Into the sidebar first, then dressed.
+  //
+  // The close button used to be wired before the panel was shown, and without a
+  // `?.`: if the pane's chrome had not rendered, that line threw and took the
+  // whole open with it — the sidebar stood there empty with nothing to say for
+  // itself. Mounting first means the worst any of the rest can do is leave a
+  // button unbound, which is visible and fixable, rather than no panel at all.
   showInRightShell(win, panel);
+  mountA11yTabs(win, panel);
+  panel.querySelector('[data-sve-close]')?.addEventListener('click', () => closeOutlinePanel(win));
   sve.persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);

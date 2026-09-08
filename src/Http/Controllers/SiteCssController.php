@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\SiteClasses;
 use MarioHamann\StatamicVisualEditor\SiteCss;
 
 /**
@@ -18,6 +19,16 @@ class SiteCssController
         $this->authorize();
 
         return response()->json(SiteCss::listing());
+    }
+
+    /** The site's own class names, for the panel's add-class list. */
+    public function classes()
+    {
+        $this->authorize();
+
+        return response()->json([
+            'groups' => SiteClasses::grouped(),
+        ]);
     }
 
     public function show(Request $request)

@@ -150,6 +150,7 @@ function parseRange(source, masked, rangeStart, rangeEnd) {
       label: klass,
       from: i,
       to: gt + 1,
+      openTo: gt + 1,
       hidden: false,
       children: [],
     };
@@ -174,7 +175,7 @@ function parseRange(source, masked, rangeStart, rangeEnd) {
 }
 
 /**
- * @returns {Array<{ id: string, tag: string, klass: string, path: string, label: string, from: number, to: number, hidden: boolean, wrapFrom?: number, wrapTo?: number, children: Array }>}
+ * @returns {Array<{ id: string, tag: string, klass: string, path: string, label: string, from: number, to: number, openTo: number, hidden: boolean, wrapFrom?: number, wrapTo?: number, children: Array }>}
  */
 export function parseHtmlTree(html) {
   const source = String(html || '');
@@ -196,6 +197,7 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       label: node.label,
       from: node.from,
       to: node.to,
+      openTo: node.openTo,
       hidden: !!node.hidden,
       wrapFrom: node.wrapFrom,
       wrapTo: node.wrapTo,

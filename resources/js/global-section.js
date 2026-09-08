@@ -15,7 +15,7 @@ import {
   openSettingsTab,
   rearmFirstSection,
 } from './cp.js';
-import { syncCodeDock } from './code-dock.js';
+import { syncCodeDock } from './code-dock-lazy.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------

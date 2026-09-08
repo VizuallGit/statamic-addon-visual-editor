@@ -7,6 +7,7 @@ use MarioHamann\StatamicVisualEditor\CollectionViewFile;
 use MarioHamann\StatamicVisualEditor\DockPartial;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
+use MarioHamann\StatamicVisualEditor\TemplateHistory;
 use MarioHamann\StatamicVisualEditor\TailwindBake;
 use MarioHamann\StatamicVisualEditor\TailwindStore;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
@@ -44,6 +45,44 @@ class SectionTemplateController
 
         return response()->json([
             'css' => TailwindTheme::css(),
+            'plugins' => TailwindTheme::plugins(),
+        ]);
+    }
+
+    /**
+     * The versions this file has been through, newest first.
+     */
+    public function history(Request $request)
+    {
+        $this->authorize();
+
+        [$path] = $this->locate((string) $request->query('type', ''));
+
+        return response()->json([
+            'entries' => TemplateHistory::entries($path),
+        ]);
+    }
+
+    /**
+     * One earlier version, split the same way the panes are.
+     */
+    public function historyEntry(Request $request)
+    {
+        $this->authorize();
+
+        $handle = (string) $request->query('type', '');
+        [$path, $splitHandle] = $this->locate($handle);
+
+        $contents = TemplateHistory::read($path, (string) $request->query('id', ''));
+
+        abort_if($contents === null, 404);
+
+        $parts = SectionTemplate::split($contents, $splitHandle);
+
+        return response()->json([
+            'html' => $parts['html'],
+            'css' => $parts['css'],
+            'js' => $parts['js'],
         ]);
     }
 
@@ -74,7 +113,17 @@ class SectionTemplateController
         abort_if(! empty($meta['locked']), 423);
 
         if (Features::enabled('tailwind_dock')) {
-            TailwindStore::write($splitHandle, TailwindBake::fromHtml($html));
+            // The Control Panel compiles with Tailwind's own engine and sends
+            // the result. `TailwindBake` is only the net under that: it runs
+            // when no compile arrived — the very first save of a section, or a
+            // browser that failed to load the compiler — and its subset is
+            // replaced by the real thing on the next save.
+            $tw = $request->input('tw');
+
+            TailwindStore::write(
+                $splitHandle,
+                is_string($tw) ? $tw : TailwindBake::fromHtml($html)
+            );
         } elseif (trim((string) ($meta['tw'] ?? '')) !== '') {
             TailwindStore::write($splitHandle, (string) $meta['tw']);
         }
@@ -88,6 +137,9 @@ class SectionTemplateController
             'js_tag' => $meta['js_tag'],
             'locked' => false,
         ], $splitHandle);
+
+        // What the file says now, before this write replaces it.
+        TemplateHistory::record($path);
 
         file_put_contents($path, $contents);
 

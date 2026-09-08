@@ -252,27 +252,39 @@ function isPreservedStyle(el) {
  * keystroke even when only the footer chrome node changed.
  */
 function syncHeadStyles(updated, { additive = false } = {}) {
-  const live = [...document.head.querySelectorAll('style')].filter((s) => !isPreservedStyle(s));
+  const liveStyles = () => [...document.head.querySelectorAll('style')].filter((s) => !isPreservedStyle(s));
   const next = [...updated.head.querySelectorAll('style')];
   const nextTexts = next.map((s) => s.textContent);
 
   if (!additive) {
-    live.forEach((s) => {
+    liveStyles().forEach((s) => {
       if (!nextTexts.includes(s.textContent)) {
         s.remove();
       }
     });
   }
 
-  const remaining = new Set(
-    [...document.head.querySelectorAll('style')].filter((s) => !isPreservedStyle(s)).map((s) => s.textContent)
-  );
+  const live = liveStyles();
 
+  // Ligger denne renders styles allerede bagerst i den rigtige rækkefølge, er
+  // der intet at gøre. Det er langt det almindeligste tilfælde.
+  const settled =
+    live.length >= next.length &&
+    next.every((s, i) => live[live.length - next.length + i]?.textContent === s.textContent);
+
+  if (settled) {
+    return;
+  }
+
+  // Ellers skal denne render ende bagerst. En style-tekst der allerede findes
+  // må ikke bare springes over: i additiv tilstand bliver de gamle tags
+  // stående, så et ældre tag med samme selektorer ville blive ved med at vinde
+  // i kaskaden. Det er derfor en farve, man har brugt før i samme
+  // preview-session, ikke slog igennem før man gemte.
   next.forEach((s) => {
-    if (!remaining.has(s.textContent)) {
-      document.head.appendChild(s.cloneNode(true));
-      remaining.add(s.textContent);
-    }
+    const existing = liveStyles().find((el) => el.textContent === s.textContent);
+
+    document.head.appendChild(existing || s.cloneNode(true));
   });
 }
 

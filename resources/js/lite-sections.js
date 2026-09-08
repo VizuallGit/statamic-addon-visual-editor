@@ -36,6 +36,12 @@
         pointerEvents: 'none',
     };
 
+    // Per-instance config cache. Undeclared `this._x` on a Vue 3 public proxy
+    // warns on first read ("accessed during render but is not defined"), so it
+    // lives out here instead — and stays non-reactive, which the identity
+    // check below relies on.
+    var chunkCfgCache = new WeakMap();
+
     function rowsOf(value) {
         return Array.isArray(value) ? value : [];
     }
@@ -1122,10 +1128,15 @@
                     var opened = openedFor(uid);
                     var unlocked = unlockedTypes(row, opened);
                     var sig = String(uid) + ':' + Object.keys(opened.tabs || {}).sort().join(',') + ':' + Object.keys(opened.nests || {}).sort().join(',') + ':' + Object.keys(unlocked).sort().join(',');
+                    var cache = chunkCfgCache.get(this);
                     var cached;
 
-                    this._chunkCfgs = this._chunkCfgs || {};
-                    cached = this._chunkCfgs[sig];
+                    if (!cache) {
+                        cache = {};
+                        chunkCfgCache.set(this, cache);
+                    }
+
+                    cached = cache[sig];
 
                     if (cached && cached.full === full) {
                         return cached.config;
@@ -1137,7 +1148,7 @@
                             fields: filterConfigTree(full.fields || [], opened, unlocked),
                         }),
                     };
-                    this._chunkCfgs[sig] = cached;
+                    cache[sig] = cached;
 
                     return cached.config;
                 },

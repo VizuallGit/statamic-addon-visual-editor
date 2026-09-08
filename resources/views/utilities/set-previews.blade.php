@@ -10,6 +10,7 @@
         'missing' => [__('sve::messages.previews_status_missing'), 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'],
         'no_source' => [__('sve::messages.previews_status_no_source'), 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'],
         'renders_nothing' => [__('sve::messages.previews_status_renders_nothing'), 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'],
+        'failed' => [__('sve::messages.previews_status_failed'), 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'],
         'excluded' => [__('sve::messages.previews_status_excluded'), 'bg-gray-200 text-gray-500 dark:bg-gray-800 dark:text-gray-400'],
     ];
 
@@ -112,6 +113,8 @@
                                     <p class="text-[0.65rem] text-gray leading-snug">{{ __('sve::messages.previews_no_source_help') }}</p>
                                 @elseif ($row['status'] === 'renders_nothing')
                                     <p class="text-[0.65rem] text-gray leading-snug">{{ __('sve::messages.previews_renders_nothing_help') }}</p>
+                                @elseif ($row['status'] === 'failed')
+                                    <p class="text-[0.65rem] text-gray leading-snug">{{ __('sve::messages.previews_failed_help') }}</p>
                                 @endif
                             </div>
                         </div>

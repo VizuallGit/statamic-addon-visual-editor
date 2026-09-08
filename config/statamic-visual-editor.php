@@ -133,6 +133,8 @@ return [
         'sections' => true,
         'listview' => true,
         'outline' => true,
+        'performance' => true,
+        'psi' => false,
         'html_tree' => true,
         'inline_edit' => true,
         'focus_panel' => true,
@@ -152,6 +154,7 @@ return [
         'sections_access' => null,
         'listview_access' => null,
         'outline_access' => null,
+        'performance_access' => null,
         'html_tree_access' => null,
         'template_dock_access' => null,
         'site_css_access' => null,
@@ -169,6 +172,11 @@ return [
         'library_global' => true,
         'library_templates' => true,
         'library_in_use_only' => false,
+        // Keeps the Patterns panel's thumbnails current while it is open: every
+        // 5s it asks whether any preview has gone stale and, if so, starts the
+        // same detached generator a CP save would. Off by default — with it off
+        // the panel shows a button instead, so nothing runs unasked.
+        'previews_autowatch' => false,
         // Not toggles: who the limit above covers. 'everyone' means everyone,
         // super admins included — which is how you check what an editor sees
         // without a second account. 'roles' narrows it to the handles listed.
@@ -258,6 +266,19 @@ return [
     | is left empty.
     |
     */
+    /*
+     * Google PageSpeed Insights, behind the `psi` toggle.
+     *
+     * A key is free but effectively required: keyless requests share one small
+     * quota with everybody else calling the API anonymously, and it is usually
+     * already spent. Get one from the Google Cloud console with the PageSpeed
+     * Insights API enabled — or paste it on the addon's settings screen, which
+     * wins over this.
+     */
+    'psi' => [
+        'api_key' => env('PAGESPEED_API_KEY', env('STATAMIC_VISUAL_EDITOR_PSI_KEY')),
+    ],
+
     'ai' => [
         'api_key' => env('CURSOR_API_KEY', env('STATAMIC_VISUAL_EDITOR_AI_KEY')),
         'model' => env('STATAMIC_VISUAL_EDITOR_AI_MODEL', 'composer-2.5'),

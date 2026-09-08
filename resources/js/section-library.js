@@ -24,7 +24,7 @@ import {
   setHeaderTab,
 } from './cp.js';
 import { openCpOverlay } from './cp/open-overlay.js';
-import { relayoutCodeDock } from './code-dock.js';
+import { relayoutCodeDock } from './code-dock-lazy.js';
 import { closeAiPanel } from './ai-panel.js';
 import SectionLibraryPane from './cp/surfaces/SectionLibraryPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
@@ -145,6 +145,90 @@ export function libraryWentStale(win) {
   win.document
     .getElementById(SECTION_PICKER_ID)
     ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
+}
+
+/** How often an open Patterns panel asks whether a preview has gone stale. */
+const PREVIEW_TICK_MS = 5000;
+
+function csrfToken(win) {
+  return (
+    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+    win.Statamic?.$config?.get?.('csrfToken') ||
+    win.Statamic?.$config?.get?.('csrf_token') ||
+    ''
+  );
+}
+
+/**
+ * Asks the server whether any preview is out of date, and lets it start the
+ * generator if so.
+ *
+ * The automatic refreshes hang on Control Panel save events, so editing an
+ * Antlers partial or a fieldset in an editor leaves the thumbnails behind —
+ * no event fires for a file on disk. This is how an open panel notices.
+ *
+ * `onSettled` runs when a round of work finishes, so the caller can refetch the
+ * pictures. Nothing is redrawn while work is still outstanding: a half-finished
+ * run would swap thumbnails in one at a time.
+ */
+export function previewTick(win, state, onSettled) {
+  return win
+    .fetch('/!/sve/previews/tick', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': csrfToken(win),
+        Accept: 'application/json',
+      },
+    })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      if (!data) {
+        return null;
+      }
+
+      const busy = data.stale > 0 || data.running;
+
+      if (busy) {
+        state.busy = true;
+      } else if (state.busy) {
+        // Was working, now idle: the pictures on disk are new.
+        state.busy = false;
+        onSettled?.();
+      }
+
+      return data;
+    })
+    .catch(() => null);
+}
+
+/**
+ * Keeps an open Patterns panel's thumbnails current, on a timer.
+ *
+ * Only while the panel is open, and only when the site has asked for it — a
+ * fingerprint check is cheap but not free, and nobody wants a background timer
+ * running on a page they are not looking at. The timer is stored on the panel so
+ * closeSectionPicker() can stop it.
+ */
+export function startPreviewWatch(win, panel, onSettled) {
+  if (!featureOn(win, 'previews_autowatch')) {
+    return;
+  }
+
+  const state = { busy: false };
+
+  panel._svePreviewTick = win.setInterval(() => {
+    // A panel torn out from under the timer: stop rather than keep asking.
+    if (!win.document.getElementById(SECTION_PICKER_ID)) {
+      win.clearInterval(panel._svePreviewTick);
+      panel._svePreviewTick = 0;
+
+      return;
+    }
+
+    previewTick(win, state, onSettled);
+  }, PREVIEW_TICK_MS);
 }
 
 /**
@@ -280,6 +364,42 @@ export function isNestedSetMeta(fieldMeta) {
   );
 }
 
+/** A plain bag of keys — not an array, not null. */
+function isPlainBag(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * A field whose meta holds *other fields'* meta rather than its own rows.
+ * `responsive` is the one that matters here: one bag per breakpoint, each a
+ * normal handle-to-meta map, so a grid inside it keeps its `existing` two
+ * levels down.
+ *
+ * `reidSection` re-ids every row in the values, including those ones, and
+ * `isNestedSetMeta` says no to the wrapper — so without this the grid keeps
+ * the ids the server sent. The Grid then renders a row it has no meta for, the
+ * select inside it falls through to `Object.entries(undefined)`, and the whole
+ * page_sections render throws. Nothing below the throw gets patched, which is
+ * why an unrelated field (a colour swatch, say) stops following its value the
+ * moment a section with a responsive grid is dropped in.
+ *
+ * Only bags the values actually reach are touched: a breakpoint with no value
+ * of its own has no rows to key, so its meta is left as it came.
+ */
+function hydrateWrapperMeta(fieldMeta, value, defaults) {
+  if (!isPlainBag(fieldMeta) || !isPlainBag(value)) {
+    return;
+  }
+
+  for (const [key, nested] of Object.entries(fieldMeta)) {
+    if (!isPlainBag(nested) || !isPlainBag(value[key])) {
+      continue;
+    }
+
+    fieldMeta[key] = hydrateExistingMeta(value[key], nested, defaults?.[key] ?? null);
+  }
+}
+
 function nestedMetaTemplate(fieldMeta) {
   if (
     fieldMeta.new &&
@@ -318,6 +438,8 @@ export function hydrateExistingMeta(row, template, defaultsRow = null) {
 
   for (const [handle, fieldMeta] of Object.entries(out)) {
     if (!isNestedSetMeta(fieldMeta)) {
+      hydrateWrapperMeta(fieldMeta, row[handle], defaultsRow?.[handle]);
+
       continue;
     }
 
@@ -1589,6 +1711,12 @@ export function closeSectionPicker(win) {
   const panel = win.document.getElementById(SECTION_PICKER_ID);
 
   panel?._sveLibRo?.disconnect?.();
+
+  if (panel?._svePreviewTick) {
+    win.clearInterval(panel._svePreviewTick);
+    panel._svePreviewTick = 0;
+  }
+
   panel?.remove();
   releaseRightShellIfEmpty(win);
   syncPreviewInset(win);
@@ -1678,7 +1806,7 @@ export function syncSectionLibraryAvailability(win) {
 
   if (locked) {
     closeSectionPicker(win);
-    sve.closeOutlinePanel(win);
+    sve.closeOutlinePanel?.(win);
 
     if (btn) {
       btn.style.display = 'none';
@@ -1864,19 +1992,23 @@ export function closeRightPanelsInner(win, keepIds) {
   }
 
   if (!keepIds.includes(sve.OUTLINE_PANEL_ID)) {
-    sve.closeOutlinePanel(win);
+    sve.closeOutlinePanel?.(win);
   }
 
   if (!keepIds.includes(sve.HTML_TREE_PANEL_ID)) {
     sve.closeHtmlTreePanel?.(win);
   }
 
+  if (!keepIds.includes(sve.PERF_PANEL_ID)) {
+    sve.closePerformancePanel?.(win);
+  }
+
   if (!keepIds.includes(sve.LISTVIEW_PANEL_ID)) {
-    sve.closeListViewPanel(win);
+    sve.closeListViewPanel?.(win);
   }
 
   if (!keepIds.includes(COMMENTS_PANEL_ID)) {
-    sve.closeCommentsPanel(win);
+    sve.closeCommentsPanel?.(win);
   }
 
   if (!keepIds.includes(sve.GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(sve.GLOBAL_SECTION_HOST_ID)) {
@@ -1914,6 +2046,7 @@ export function syncPreviewInset(win) {
     sve.HTML_TREE_PANEL_ID,
     sve.LISTVIEW_PANEL_ID,
     COMMENTS_PANEL_ID,
+    sve.PERF_PANEL_ID,
     '__sve-ai-panel',
   ]);
 
@@ -2255,6 +2388,9 @@ export function mountSectionPicker(win, options = {}) {
     title: t(win, 'sections'),
     hint: t(win, 'library_hint'),
     searchPlaceholder: t(win, 'library_search_placeholder'),
+    // With the timer on there is nothing for a button to add.
+    showRefresh: !featureOn(win, 'previews_autowatch'),
+    refreshLabel: t(win, 'previews_refresh'),
   });
 
   // Fade sits on a sibling, not on the scroller. Setting mask-image on a
@@ -2798,6 +2934,42 @@ export function mountSectionPicker(win, options = {}) {
     const activeBtn = tabsEl.querySelector(`[data-tab="${next}"]`);
 
     activeBtn?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  });
+
+  // Both routes to "the pictures on disk changed" end in the same refetch the
+  // save events already use, so a timer tick and the button behave alike.
+  const previewsSettled = () =>
+    panel.dispatchEvent(new win.CustomEvent('sve-library-preview-ready'));
+
+  startPreviewWatch(win, panel, previewsSettled);
+
+  const refreshBtn = panel.querySelector('[data-sve-previews-refresh]');
+
+  refreshBtn?.addEventListener('click', () => {
+    if (refreshBtn.hasAttribute('data-sve-busy')) {
+      return;
+    }
+
+    // The button is the manual stand-in for the timer, so it waits for the work
+    // to finish rather than firing and forgetting: pressing it should visibly do
+    // something. `state` starts busy so the first idle answer counts as settled
+    // even when nothing was stale.
+    const state = { busy: true };
+
+    refreshBtn.setAttribute('data-sve-busy', '');
+
+    const poll = () =>
+      previewTick(win, state, previewsSettled).then((data) => {
+        if (data && (data.stale > 0 || data.running)) {
+          win.setTimeout(poll, PREVIEW_TICK_MS);
+
+          return;
+        }
+
+        refreshBtn.removeAttribute('data-sve-busy');
+      });
+
+    poll();
   });
 
   renderActive();

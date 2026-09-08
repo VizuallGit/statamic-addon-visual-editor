@@ -46,6 +46,33 @@ class TailwindTheme
     }
 
     /**
+     * The Tailwind plugins `site.css` loads.
+     *
+     * The browser compiler has to be handed the same ones, or a plugin's
+     * variants — `prose-p:` and friends — compile in a Vite build and not
+     * here, which is exactly the kind of quiet difference that wastes an
+     * afternoon.
+     *
+     * @return list<string>
+     */
+    public static function plugins(): array
+    {
+        $path = static::path();
+
+        if ($path === null) {
+            return [];
+        }
+
+        preg_match_all(
+            '/@plugin\s+["\']([^"\']+)["\']/',
+            (string) file_get_contents($path),
+            $matches
+        );
+
+        return array_values(array_unique($matches[1] ?? []));
+    }
+
+    /**
      * @return array{css: string, end: int}|null
      */
     protected static function nextBlock(string $src, string $at, int $from): ?array

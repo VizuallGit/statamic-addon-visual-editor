@@ -222,7 +222,7 @@ const target = computed(() => ui.path || ui.dir);
   display: flex;
   flex-direction: column;
   border-right: 1px solid #3c3c3c;
-  background: #1e1e1e;
+  background: #1E1E21;
 }
 .sve-files__side-label {
   padding: 0.75rem 1rem 0.5rem;

@@ -12,7 +12,6 @@
  * that navigation rather than for every DOM change on the page.
  */
 import { mountSurface } from './cp/mount.js';
-import { watchPage } from './cp/page-watch.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { expandHtmlTab, htmlEmmetExtensions } from './html-emmet.js';
 import { htmlTagSync } from './html-tag-sync.js';
@@ -838,6 +837,6 @@ function sync(win) {
   }
 }
 
-export function initFileManager(win = window) {
-  watchPage(win, () => sync(win));
+export function syncFileManager(win) {
+  sync(win);
 }

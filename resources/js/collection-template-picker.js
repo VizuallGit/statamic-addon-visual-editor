@@ -17,12 +17,22 @@
     var fetching = false;
     var timer = null;
 
+    // `$config.get` reads `this.all()`, so it must be called on $config — pulling
+    // the function off it threw on every DOM mutation the observer below saw.
     function cfg(key, fallback) {
-        var get = window.Statamic && window.Statamic.$config && window.Statamic.$config.get;
-        if (typeof get !== 'function') {
+        var config = window.Statamic && window.Statamic.$config;
+        var value;
+
+        if (!config || typeof config.get !== 'function') {
             return fallback;
         }
-        var value = get(key);
+
+        try {
+            value = config.get(key);
+        } catch (err) {
+            return fallback;
+        }
+
         return value == null ? fallback : value;
     }
 

@@ -47,6 +47,8 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatePreviewContro
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionDefaultsPreviewController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\PreviewTickController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
@@ -631,13 +633,25 @@ class ServiceProvider extends AddonServiceProvider
             Route::get('/!/sve/section-meta', SectionMetaController::class)
                 ->name('sve.section-meta');
 
+            // Patterns' own staleness check: cheap enough for a timer, and it
+            // starts the generator itself when a file edit left the thumbnails
+            // behind (no CP save event fires for that).
+            Route::post('/!/sve/previews/tick', PreviewTickController::class)
+                ->name('sve.previews.tick');
+
             // Same query-parameter pattern as section-types: handles hold slashes.
             Route::get('/!/sve/section-template/partials', [SectionTemplateController::class, 'partials'])
                 ->name('sve.section-template.partials');
+            Route::get('/!/sve/section-template/history', [SectionTemplateController::class, 'history'])
+                ->name('sve.section-template.history');
+            Route::get('/!/sve/section-template/history/entry', [SectionTemplateController::class, 'historyEntry'])
+                ->name('sve.section-template.history.entry');
             Route::get('/!/sve/section-template', [SectionTemplateController::class, 'show'])
                 ->name('sve.section-template.show');
             Route::get('/!/sve/site-css', [SiteCssController::class, 'index'])
                 ->name('sve.site-css.index');
+            Route::get('/!/sve/site-css/classes', [SiteCssController::class, 'classes'])
+                ->name('sve.site-css.classes');
             Route::get('/!/sve/site-css/file', [SiteCssController::class, 'show'])
                 ->name('sve.site-css.show');
             // The site's own code files (Utilities > Site Files). Off by default;
@@ -648,6 +662,11 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.file-manager.show');
             Route::get('/!/sve/file-manager/folder', [FileManagerController::class, 'folder'])
                 ->name('sve.file-manager.folder');
+
+            // What Google says about a page, and what its real visitors met.
+            // Slow on purpose: Lighthouse loads the page several times.
+            Route::get('/!/sve/pagespeed', PageSpeedController::class)
+                ->name('sve.pagespeed');
 
             Route::get('/!/sve/template-props', TemplatePropsController::class)
                 ->name('sve.template-props');

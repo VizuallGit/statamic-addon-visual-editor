@@ -34,6 +34,7 @@ export const TOOL_PLACEMENT = {
   sections: 'topbar',
   ai: 'topbar',
   code: 'topbar',
+  performance: 'topbar',
 };
 
 /** Right-dock tools that also keep an icon in the top bar. */
@@ -77,6 +78,7 @@ const PANE_BY_ID = {
   '__sve-comments-pane': 'comments',
   '__sve-section-picker': 'sections',
   '__sve-ai-panel': 'ai',
+  '__sve-perf-panel': 'performance',
 };
 
 const PIN_OFF =
@@ -95,7 +97,15 @@ const CHEVRON_ICON =
   '<svg data-sve-right-chevron viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" '
   + 'stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
 
-export const RIGHT_PANE_TOOLS = ['listview', 'outline', 'html_tree', 'comments', 'sections', 'ai'];
+export const RIGHT_PANE_TOOLS = [
+  'listview',
+  'outline',
+  'html_tree',
+  'comments',
+  'sections',
+  'ai',
+  'performance',
+];
 
 /** Inner panel fill — the shell owns position, width, border and the grip. */
 export const RIGHT_PANEL_FILL =

@@ -8,7 +8,7 @@ import { t } from './cp-t.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { openSettingsTab, rearmFirstSection } from './cp.js';
-import { syncCodeDock } from './code-dock.js';
+import { syncCodeDock } from './code-dock-lazy.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------

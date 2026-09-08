@@ -28,6 +28,7 @@ class Features
      * light up on sites that have not merged the config yet. List those here.
      */
     protected const DEFAULT_OFF = [
+        'psi',
         'template_dock',
         'site_css',
         'tailwind_dock',
@@ -35,6 +36,7 @@ class Features
         'file_manager',
         'open_first_section',
         'collection_templates',
+        'previews_autowatch',
     ];
 
     /**
@@ -54,6 +56,8 @@ class Features
         'sections',
         'listview',
         'outline',
+        'performance',
+        'psi',
         'html_tree',
         'inline_edit',
         'focus_panel',
@@ -71,6 +75,7 @@ class Features
         'library_global',
         'library_templates',
         'library_in_use_only',
+        'previews_autowatch',
         'chrome_header',
         'chrome_footer',
     ];

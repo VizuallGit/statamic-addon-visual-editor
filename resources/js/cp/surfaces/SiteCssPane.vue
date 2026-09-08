@@ -83,7 +83,7 @@ const rows = computed(() => flatten(ui.tree));
   z-index: 40;
   display: flex;
   flex-direction: column;
-  background: #1e1e1e;
+  background: #1E1E21;
   color: #d4d4d4;
   font: 500 13px/1.3 ui-sans-serif, system-ui, sans-serif;
 }

@@ -95,7 +95,7 @@ const STATIC = {
   'z-50': 'z-index: 50',
 };
 
-const BOX = {
+export const BOX = {
   p: 'padding',
   px: 'padding-inline',
   py: 'padding-block',
@@ -121,7 +121,7 @@ const BOX = {
   'max-h': 'max-height',
 };
 
-const COLOR = {
+export const COLOR = {
   bg: 'background-color',
   border: 'border-color',
   outline: 'outline-color',
@@ -282,7 +282,7 @@ export function catalogFromTheme(css) {
   return { items: [...byUtility.values()], byUtility };
 }
 
-function loadCatalog(win) {
+export function loadCatalog(win) {
   if (!catalogPromise) {
     catalogPromise = win
       .fetch('/!/sve/tailwind-theme', {

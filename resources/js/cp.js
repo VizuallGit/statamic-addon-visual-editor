@@ -18,7 +18,8 @@
  * with import() so the CP bundle does not parse overlay-host at boot.
  */
 
-import { ask } from './cp/bus.js';
+import { ask, emit, register } from './cp/bus.js';
+import { bindTips } from './cp/tip.js';
 import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
 import { sveState } from './cp-state.js';
@@ -34,7 +35,7 @@ export { t } from './cp-t.js';
 export { SELECTORS, GLOBALS_PANEL_PARAM } from './cp-selectors.js';
 export { stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
 
-import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock.js';
+import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock-lazy.js';
 import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
 import { closeSiteCss, isSiteCssOpen, siteCssAllowed, toggleSiteCss } from './site-css.js';
 import {
@@ -44,6 +45,7 @@ import {
   isRightDockTool,
   isToolbarShortcut,
   relayoutRightDock,
+  releaseRightShellIfEmpty,
   rememberedListViewTab,
   rememberedRightPaneKeys,
   revealRightPane,
@@ -58,6 +60,7 @@ import {
 } from './chrome-prefs.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from './lazy-panels.js';
+import { bindToolbarPrefetch } from './toolbar-prefetch.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -1213,6 +1216,10 @@ export function setLpDevice(win, key) {
 
   chromeSet(win, LP_DEVICE_KEY, String(key));
 
+  // Panels that follow the size being looked at — the Tailwind switch does —
+  // hear it here rather than polling the stored value.
+  emit('lp:device', String(key));
+
   // Before the sort, not after. In Fit the breakpoint is read off the preview's
   // width, and until this has run that width is still the one being left — so a
   // sort placed above it would quietly sort into the order it came from.
@@ -1238,6 +1245,17 @@ export function setLpDevice(win, key) {
 }
 
 /** Map a preview width to the responsive field drawer (desktop-first). */
+/**
+ * The same door the toolbar's own buttons use, for panels that offer the
+ * sizes too. Goes through setLpDevice so the block-order bookkeeping it does
+ * first is not skipped.
+ */
+register('lp:set-device', ({ win, key } = {}) => {
+  if (win && key) {
+    setLpDevice(win, key);
+  }
+});
+
 export function lpWidthToBp(width) {
   if (width >= 1024) {
     return 'laptop';
@@ -1758,6 +1776,7 @@ export function ensureLpPreviewChrome(win) {
     chrome.id = LP_PREVIEW_CHROME_ID;
     chrome.style.cssText =
       `display:inline-flex;align-items:center;gap:${LP_TOOLBAR_GAP}px;flex-shrink:0;`;
+    bindTips(win, chrome);
 
     const devices = doc.createElement('div');
 
@@ -2192,6 +2211,7 @@ export const HEADER_TAB_FEATURE = {
   sections: 'sections',
   outline: 'outline',
   html_tree: 'html_tree',
+  performance: 'performance',
 };
 
 function formHasPageBuilder(win) {
@@ -2284,6 +2304,10 @@ export function restoreDockedHeaderPanels(win) {
       return !!win.document.getElementById(sve.HTML_TREE_PANEL_ID);
     }
 
+    if (key === 'performance') {
+      return !!win.document.getElementById(sve.PERF_PANEL_ID);
+    }
+
     if (key === 'sections') {
       return !!win.document.getElementById(sve.SECTION_PICKER_ID);
     }
@@ -2329,6 +2353,10 @@ export function restoreDockedHeaderPanels(win) {
 
   if (!keys.length) {
     sveState.dockedHeaderRestored = true;
+    // The dock remembers being open. If it has nothing to be open for — the
+    // remembered tools are gone, switched off, or not this user's to see — then
+    // an open, empty sidebar is just a stripe of nothing taking up the page.
+    releaseRightShellIfEmpty(win);
     restoreRememberedCodeDock(win);
 
     return;
@@ -2360,6 +2388,7 @@ export function restoreDockedHeaderPanels(win) {
     }
 
     relayoutRightDock(win);
+    releaseRightShellIfEmpty(win);
     sve.persistDockedPanel(win);
     restoreRememberedCodeDock(win);
   })();
@@ -2401,6 +2430,14 @@ export async function ensureRightTool(win, key) {
   if (key === 'html_tree') {
     if (!win.document.getElementById(sve.HTML_TREE_PANEL_ID)) {
       sve.toggleHtmlTreePanel?.(win);
+    }
+
+    return;
+  }
+
+  if (key === 'performance') {
+    if (!win.document.getElementById(sve.PERF_PANEL_ID)) {
+      sve.togglePerformancePanel?.(win);
     }
 
     return;
@@ -2479,6 +2516,17 @@ export const TOOLBAR_ICONS = {
     '<path d="M6.9 10.3 12 11.6l5.1-1.3"/>' +
     '<path d="M12 11.6v3.1"/>' +
     '<path d="m9.3 19.2 2.7-4.5 2.7 4.5"/></svg>',
+  // A gauge: the tool answers "how heavy is this page", and a needle on a dial
+  // is the one picture everybody already reads as that. Deliberately unlike the
+  // accessibility mark beside it — two circles in a row would be one icon twice.
+  // A full dial rather than the half arc it was: the arc only filled the
+  // middle band, so it sat visibly shorter than every icon beside it.
+  performance:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<circle cx="12" cy="12" r="9"/>' +
+    '<path d="M12 12 16.2 7.8"/>' +
+    '<circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/></svg>',
   html_tree:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block"><rect x="4" y="3" width="16" height="7" rx="1.5"/>' +
@@ -2547,16 +2595,20 @@ export function ensureHeaderToolbar(win) {
     ensureCommentsToolbarButton(win);
     ensurePageEditsToolbarButton(win);
     ensureOutlineToolbarButton(win);
+    ensurePerformanceToolbarButton(win);
     ensureHtmlTreeToolbarButton(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
   }
 
+  bindToolbarPrefetch(win);
+
   const bar = doc.createElement('div');
 
   bar.id = HEADER_TOOLBAR_ID;
   bar.dataset.sveChrome = 'group-1';
+  bindTips(win, bar);
   bar.style.cssText =
     `${HEADER_GROUP_STYLE}gap:4px;margin-right:${LP_TOOLBAR_GAP}px;`;
 
@@ -2570,6 +2622,7 @@ export function ensureHeaderToolbar(win) {
     { key: 'sections', feature: 'sections', title: t(win, 'sections') },
     { key: 'listview', feature: 'listview', title: t(win, 'listview') },
     { key: 'outline', feature: 'outline', title: t(win, 'outline') },
+    { key: 'performance', feature: 'performance', title: t(win, 'performance') },
     { key: 'code', title: t(win, 'code_dock_toggle') },
     { key: 'site_css', title: t(win, 'site_css_toggle') },
     { key: 'ai', title: t(win, 'ai_panel') },
@@ -2865,6 +2918,51 @@ export function ensureOutlineToolbarButton(win) {
   }
 }
 
+export function ensurePerformanceToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  if (!sve.featureOn(win, 'performance')) {
+    bar.querySelector('button[data-tab="performance"]')?.remove();
+
+    return;
+  }
+
+  if (bar.querySelector('button[data-tab="performance"]')) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'performance';
+  btn.dataset.iconVer = 'stairs-toc-20260821';
+  btn.title = t(win, 'performance');
+  btn.innerHTML = TOOLBAR_ICONS.performance;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => toggleHeaderTab(win, 'performance'));
+
+  const outline = bar.querySelector('button[data-tab="outline"]');
+
+  if (outline) {
+    outline.after(btn);
+  } else {
+    const code = bar.querySelector('button[data-tab="code"]');
+
+    if (code) {
+      code.before(btn);
+    } else {
+      bar.appendChild(btn);
+    }
+  }
+}
+
 /** HTML tree opens with the template dock — no top-bar icon. */
 export function ensureHtmlTreeToolbarButton(win) {
   win.document.getElementById(HEADER_TOOLBAR_ID)
@@ -3033,6 +3131,60 @@ export function ensureAiToolbarButton(win) {
   }
 }
 
+/**
+ * Open or close a docked tool once its code has arrived.
+ *
+ * The click decides; the module turns up later. Before the panels were split
+ * into chunks that gap did not exist — every tool was in the bundle, so a
+ * toggle after the await was the same thing as a toggle at the click. Now the
+ * page can move in between: a preview render, a dock restore, a swap. A toggle
+ * applied to a state that has already changed undoes the click instead of
+ * performing it, which is a click that visibly does nothing.
+ *
+ * So the intent is taken before the wait and driven home after it, and the
+ * shell is held open across the gap — otherwise the spinner leaves and the
+ * sidebar collapses a moment before the panel is ready to fill it.
+ */
+async function runDockedTool(win, { key, want, isOpen, open, close }) {
+  beginRightShellSwap();
+  showPanelWait(win, key);
+
+  try {
+    await ensurePanel(key);
+  } catch (err) {
+    // A chunk that will not load must not take the click with it: the spinner
+    // has to come down and the shell has to be let go either way.
+    console.error('[sve] open right pane', key, err);
+  } finally {
+    hidePanelWait(win);
+    endRightShellSwap();
+  }
+
+  try {
+    if (want && !isOpen()) {
+      open();
+    } else if (!want && isOpen()) {
+      close();
+    }
+  } catch (err) {
+    // A tool that throws on the way up must not take the sidebar with it: the
+    // lines below still run, so an empty shell closes itself instead of sitting
+    // open around nothing.
+    console.error('[sve] open right pane', key, err);
+  }
+
+  // Said out loud, because the alternative is a click that looks ignored. If a
+  // pane reports itself missing here, the fault is in that tool's own open —
+  // not in the loading, which got far enough to call it.
+  if (want && !isOpen()) {
+    console.error('[sve] right pane did not mount', key);
+  }
+
+  sve.persistDockedPanel(win);
+  applyHeaderTab(win);
+  releaseRightShellIfEmpty(win);
+}
+
 export function toggleHeaderTab(win, key) {
   if (key === 'sections' && !headerTabAvailable(win, 'sections')) {
     return;
@@ -3074,38 +3226,41 @@ export function toggleHeaderTab(win, key) {
     // A docked panel, like the section library — the icon is the whole control,
     // there is nothing to unfold into the header beside it.
     setHeaderTab(win, active ? null : 'outline');
-    void (async () => {
-      showPanelWait(win, 'outline');
+    void runDockedTool(win, {
+      key: 'outline',
+      want: !active,
+      isOpen: () => !!win.document.getElementById(sve.OUTLINE_PANEL_ID),
+      open: () => sve.toggleOutlinePanel?.(win),
+      close: () => sve.closeOutlinePanel?.(win),
+    });
 
-      try {
-        await ensurePanel('outline');
-      } finally {
-        hidePanelWait(win);
-      }
+    return;
+  }
 
-      sve.toggleOutlinePanel?.(win);
-      sve.persistDockedPanel(win);
-      applyHeaderTab(win);
-    })();
+  if (key === 'performance') {
+    // Docked like the accessibility panel: the icon is the whole control, and
+    // the reading starts when the panel opens rather than when the page does.
+    setHeaderTab(win, active ? null : 'performance');
+    void runDockedTool(win, {
+      key: 'performance',
+      want: !active,
+      isOpen: () => !!win.document.getElementById(sve.PERF_PANEL_ID),
+      open: () => sve.togglePerformancePanel?.(win),
+      close: () => sve.closePerformancePanel?.(win),
+    });
 
     return;
   }
 
   if (key === 'html_tree') {
     setHeaderTab(win, active ? null : 'html_tree');
-    void (async () => {
-      showPanelWait(win, 'html_tree');
-
-      try {
-        await ensurePanel('html_tree');
-      } finally {
-        hidePanelWait(win);
-      }
-
-      sve.toggleHtmlTreePanel?.(win);
-      sve.persistDockedPanel(win);
-      applyHeaderTab(win);
-    })();
+    void runDockedTool(win, {
+      key: 'html_tree',
+      want: !active,
+      isOpen: () => !!win.document.getElementById(sve.HTML_TREE_PANEL_ID),
+      open: () => sve.toggleHtmlTreePanel?.(win),
+      close: () => sve.closeHtmlTreePanel?.(win),
+    });
 
     return;
   }
@@ -3114,19 +3269,14 @@ export function toggleHeaderTab(win, key) {
     const open = !!sve.listViewPanel?.(win.document) || isRightPanelInDom(win, 'listview');
 
     setHeaderTab(win, open ? null : 'listview');
-    void (async () => {
-      showPanelWait(win, 'listview');
-
-      try {
-        await ensurePanel('listview');
-      } finally {
-        hidePanelWait(win);
-      }
-
-      sve.toggleListViewPanel?.(win);
-      sve.persistDockedPanel(win);
-      applyHeaderTab(win);
-    })();
+    void runDockedTool(win, {
+      key: 'listview',
+      want: !open,
+      isOpen: () =>
+        !!sve.listViewPanel?.(win.document) || isRightPanelInDom(win, 'listview'),
+      open: () => sve.toggleListViewPanel?.(win),
+      close: () => sve.closeListViewPanel?.(win),
+    });
 
     return;
   }
@@ -3140,12 +3290,16 @@ export function toggleHeaderTab(win, key) {
 
     setHeaderTab(win, open ? null : 'sections');
     void (async () => {
+      beginRightShellSwap();
       showPanelWait(win, 'sections');
 
       try {
         await ensurePanel('sections');
+      } catch (err) {
+        console.error('[sve] open right pane', 'sections', err);
       } finally {
         hidePanelWait(win);
+        endRightShellSwap();
       }
 
       if (sve.isSectionLibraryLocked?.(win)) {
@@ -3565,6 +3719,7 @@ export function applyHeaderTab(win) {
     listview: !!sve.listViewPanel?.(doc),
     outline: !!doc.getElementById(sve.OUTLINE_PANEL_ID),
     html_tree: !!doc.getElementById(sve.HTML_TREE_PANEL_ID),
+    performance: !!doc.getElementById(sve.PERF_PANEL_ID),
     comments: !!sve.commentsPanel?.(doc),
     ai: isAiPanelOpen(doc),
   };
@@ -7128,7 +7283,7 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'block-format') {
       sve.handleBlockFormat(data, doc);
     } else if (data.type === 'outline') {
-      sve.handleOutline(data, win);
+      sve.handleOutline?.(data, win);
     } else if (data.type === 'open-panel-field') {
       // Pencil / "finish in panel": focus the field in the synced-section iframe
       // when that is the active editor — same path as a preview click.

@@ -17,6 +17,7 @@ import { flattenHtmlTree, isVoidTag, parseHtmlTree } from './html-tree-parse.js'
 import { dropPlace, duplicateHtml, deleteHtml, moveHtml, toggleHiddenHtml } from './html-tree-edit.js';
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
 import { htmlTreeIcon } from './html-tree-icons.js';
+import { closeTwMenu } from './tw-classes.js';
 import { serializePickTree } from './html-pick-align.js';
 
 export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
@@ -530,6 +531,13 @@ function selectHtmlTreeRow(win, id, rows) {
   });
 
   ask('dock:reveal-html', { from: row.from, to: row.to });
+
+  // The reveal has just put the cursor on this tag. The Tailwind pane cannot
+  // hear that for itself — the dock writes the pane with `applying` set, and
+  // nothing that follows the editor may run during those — so it is told here,
+  // once the reveal is done.
+  ask('dock:tw-follow');
+
   sendToPreview(
     {
       source: 'statamic-visual-editor',
@@ -596,6 +604,7 @@ export function closeHtmlTreePanel(win) {
   );
   stopWatchHtmlTreeDock(win);
   endHtmlTreeDrag();
+  closeTwMenu(win);
   htmlTreeActiveId = null;
   htmlTreeUi.editingId = null;
   htmlTreeUi.draft = '';

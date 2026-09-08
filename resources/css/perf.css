@@ -1,0 +1,423 @@
+/*
+ * The performance panel's own styles.
+ *
+ * A plain stylesheet imported `?inline`, for the same reason as a11y.css: the
+ * panel lives in a lazily imported chunk, and a chunk's own CSS file is fetched
+ * from a path that does not exist on a published addon. Carried inside the
+ * chunk as a string and put in a <style> when the panel opens — nothing loaded
+ * until then, and nothing to resolve at all.
+ */
+
+.sve-perf {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.sve-perf-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 0 2px;
+  flex: 0 0 auto;
+}
+.sve-perf-tabs button {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: currentColor;
+  opacity: 0.7;
+  font-weight: 500;
+}
+.sve-perf-tabs button.is-on {
+  background: rgba(128, 128, 128, 0.2);
+  font-weight: 600;
+  opacity: 1;
+}
+.sve-perf-tab-badge {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 99px;
+  color: #fff;
+  background: #9ca3af;
+}
+
+.sve-perf-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding-top: var(--sve-right-body-pad-block, 8px);
+  gap: 14px;
+}
+
+/* --- Waiting, and the two states that are not a reading --------------------- */
+.sve-perf-wait {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 30px 12px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.75;
+  /* A message may be two paragraphs: what went wrong, then what to do. */
+  white-space: pre-line;
+}
+.sve-perf-error {
+  opacity: 1;
+  color: #dc2626;
+}
+.sve-perf-spin {
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  display: block;
+  animation: sve-perf-spin 0.6s linear infinite;
+}
+@keyframes sve-perf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.sve-perf-run {
+  all: unset;
+  cursor: pointer;
+  align-self: center;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(128, 128, 128, 0.18);
+  color: currentColor;
+  flex: 0 0 auto;
+}
+.sve-perf-run:hover {
+  background: rgba(128, 128, 128, 0.3);
+}
+
+/* --- The one number --------------------------------------------------------- */
+.sve-perf-score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+.sve-perf-score-n {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #fff;
+  background: #9ca3af;
+}
+.sve-perf-score[data-grade="good"] .sve-perf-score-n {
+  background: #16a34a;
+}
+.sve-perf-score[data-grade="ok"] .sve-perf-score-n {
+  background: #d97706;
+}
+.sve-perf-score[data-grade="poor"] .sve-perf-score-n {
+  background: #dc2626;
+}
+.sve-perf-score-side {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.sve-perf-score-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+.sve-perf-score-url {
+  font-size: 11px;
+  opacity: 0.55;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Readings --------------------------------------------------------------- */
+.sve-perf-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.sve-perf-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.1);
+  border-left: 3px solid #9ca3af;
+}
+.sve-perf-metric[data-level="pass"] {
+  border-left-color: #16a34a;
+}
+.sve-perf-metric[data-level="warn"] {
+  border-left-color: #d97706;
+}
+.sve-perf-metric[data-level="fail"] {
+  border-left-color: #dc2626;
+}
+.sve-perf-metric-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+.sve-perf-metric-value {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sve-perf-metric-note {
+  font-size: 10px;
+  opacity: 0.55;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Where the weight is ---------------------------------------------------- */
+.sve-perf-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.sve-perf-bar {
+  display: grid;
+  grid-template-columns: 4.6em 1fr auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+}
+.sve-perf-bar-label {
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sve-perf-bar-track {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(128, 128, 128, 0.2);
+  overflow: hidden;
+}
+.sve-perf-bar-track i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--theme-color-primary, #4530d8);
+  min-width: 2px;
+}
+.sve-perf-bar-value {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.sve-perf-notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  opacity: 0.6;
+  flex: 0 0 auto;
+}
+
+/* --- Lists ------------------------------------------------------------------ */
+.sve-perf-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.sve-perf-groups button {
+  all: unset;
+  cursor: pointer;
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  opacity: 0.7;
+  background: rgba(128, 128, 128, 0.14);
+}
+.sve-perf-groups button.is-on {
+  opacity: 1;
+  font-weight: 600;
+  background: rgba(128, 128, 128, 0.28);
+}
+.sve-perf-list {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.sve-perf-empty {
+  padding: 30px 6px;
+  text-align: center;
+  opacity: 0.55;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sve-perf-row {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.sve-perf-row:hover,
+.sve-perf-row[aria-current="true"] {
+  background: rgba(128, 128, 128, 0.14);
+}
+.sve-perf-tag {
+  flex: 0 0 auto;
+  min-width: 4.2em;
+  text-align: center;
+  padding: 3px 5px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: #9ca3af;
+}
+.sve-perf-row[data-level="fail"] .sve-perf-tag {
+  background: #dc2626;
+}
+.sve-perf-row[data-level="warn"] .sve-perf-tag {
+  background: #d97706;
+}
+.sve-perf-row[data-level="pass"] .sve-perf-tag {
+  background: #16a34a;
+}
+.sve-perf-rowbody {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sve-perf-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sve-perf-help {
+  font-size: 11px;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- The Google tab --------------------------------------------------------- */
+.sve-perf-strategy {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.sve-perf-strategy button {
+  all: unset;
+  cursor: pointer;
+  padding: 3px 11px;
+  border-radius: 99px;
+  font-size: 11px;
+  opacity: 0.7;
+  background: rgba(128, 128, 128, 0.14);
+}
+.sve-perf-strategy button.is-on {
+  opacity: 1;
+  font-weight: 600;
+  background: rgba(128, 128, 128, 0.28);
+}
+.sve-perf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.sve-perf-section-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  font-weight: 600;
+}
+.sve-perf-kvs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+.sve-perf-kv {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: rgba(128, 128, 128, 0.1);
+  border-left: 3px solid #9ca3af;
+}
+.sve-perf-kv[data-level="pass"] {
+  border-left-color: #16a34a;
+}
+.sve-perf-kv[data-level="warn"] {
+  border-left-color: #d97706;
+}
+.sve-perf-kv[data-level="fail"] {
+  border-left-color: #dc2626;
+}
+.sve-perf-kv-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+.sve-perf-kv-value {
+  flex: 0 0 auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* A recommendation is something to read, not something to click. */
+.sve-perf-row.is-static {
+  cursor: default;
+}
+.sve-perf-row.is-static:hover {
+  background: transparent;
+}
+.sve-perf-row.is-static .sve-perf-help,
+.sve-perf-row.is-static .sve-perf-title {
+  white-space: normal;
+  overflow: visible;
+}

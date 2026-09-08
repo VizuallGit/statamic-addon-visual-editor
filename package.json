@@ -20,7 +20,9 @@
     "@cursor/sdk": "^1.0.28",
     "@emmetio/codemirror6-plugin": "^0.4.1",
     "@lezer/highlight": "^1.2.3",
-    "@statamic/cms": "file:../../vendor/statamic/cms/resources/dist-package"
+    "@statamic/cms": "file:../../vendor/statamic/cms/resources/dist-package",
+    "@tailwindcss/typography": "^0.5.19",
+    "tailwindcss": "^4.2.4"
   },
   "devDependencies": {
     "laravel-vite-plugin": "^2.0.0",

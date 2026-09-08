@@ -140,6 +140,47 @@ tabs:
                 enabled: 'equals true'
                 outline: 'equals true'
           -
+            handle: performance
+            field:
+              type: toggle
+              display: Performance
+              instructions: 'What the page weighs, docked on the right. Loads the public address in a frame of its own — not Live Preview, which carries the editor with it — and reports total weight, weight per kind, the vitals the browser recorded, and every image that is heavier or larger than the box it sits in.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: performance_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: performance
+              if:
+                enabled: 'equals true'
+                performance: 'equals true'
+          -
+            handle: psi
+            field:
+              type: toggle
+              display: 'Google PageSpeed'
+              instructions: 'A fourth tab in the Performance panel: the page run through Google PageSpeed Insights, with the score, the lab metrics and — where the page has enough visitors — what real Chrome users met over the last 28 days. Google has to be able to reach the address, so it stays quiet on a .test domain or a site behind a password. Off by default.'
+              default: false
+              width: 50
+              if:
+                enabled: 'equals true'
+                performance: 'equals true'
+          -
+            handle: psi_api_key
+            field:
+              type: text
+              display: 'PageSpeed API key'
+              input_type: password
+              instructions: 'In practice you need one. Without a key the request goes on a small shared quota that is usually already spent by somebody else, and Google answers "quota exceeded" instead of a score. The key is free: console.cloud.google.com, enable the PageSpeed Insights API, create an API key. If you leave this empty, PAGESPEED_API_KEY in .env is used instead.'
+              if:
+                enabled: 'equals true'
+                performance: 'equals true'
+                psi: 'equals true'
+          -
             handle: html_tree
             field:
               type: toggle
@@ -364,6 +405,17 @@ tabs:
               display: Custom
               instructions: 'Saved sections, inserted as an independent copy.'
               default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+                sections: 'equals true'
+          -
+            handle: previews_autowatch
+            field:
+              type: toggle
+              display: 'Auto-update previews'
+              instructions: 'While Patterns is open, check every 5 seconds and regenerate what has gone stale. Off: a button in the panel instead.'
+              default: false
               width: 50
               if:
                 enabled: 'equals true'

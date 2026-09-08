@@ -16,12 +16,20 @@ use Statamic\Facades\Site;
  *
  * Two inputs, kept apart on purpose so a run does the least work possible:
  *
- * - design(): everything shared by every preview — CSS/JS (Vite sources and the
- *   build manifest), the layout, the shared partials, the theme settings.
- *   Change a colour and every preview is stale, correctly.
- * - the section itself: its own partial(s) and its own data (for a section type,
- *   the resolved default values; for a saved section, what's stored on it).
- *   Change one section's template and only that one is rebuilt.
+ * - design(): what every preview shares and no single section owns — CSS/JS
+ *   (Vite sources and the build manifest), the layout, the page template, the
+ *   theme settings. Change a colour and every preview is stale, correctly.
+ * - the section itself: the templates it actually renders through — its own
+ *   partial(s) and every partial those include, from PreviewPartials — plus its
+ *   own data (for a section type, the resolved default values; for a saved
+ *   section, what's stored on it).
+ *
+ * The split between the two is drawn by reachability, not by a folder: design()
+ * hashes every watched file that no section reaches, and each section hashes the
+ * files it does reach. So editing `components/media_placeholder` retakes the
+ * three pictures that include it rather than all thirty, and editing the layout
+ * still retakes everything — with no file falling between the two and quietly
+ * ceasing to invalidate anything.
  *
  * CSS sources are watched as well as the build manifest: while `npm run dev`
  * runs, screenshots load from the Vite server, so a source edit that has not
@@ -36,6 +44,7 @@ class PreviewFingerprint
     public static function flush(): void
     {
         static::$design = null;
+        PreviewPartials::flush();
     }
 
     /** The design every section is drawn in: built assets, layout, theme settings. */
@@ -49,6 +58,7 @@ class PreviewFingerprint
             'files' => static::hashPaths(
                 (array) config('statamic-visual-editor.previews.watch', []),
                 (array) config('statamic-visual-editor.previews.watch_exclude', []),
+                PreviewPartials::reachable(),
             ),
             'theme' => static::themeSettings(),
         ]);
@@ -64,7 +74,7 @@ class PreviewFingerprint
             'design' => static::design(),
             'handle' => $handle,
             'section' => $section,
-            'partials' => static::hashPaths(static::sectionPaths($handle)),
+            'partials' => static::hashFiles(PreviewPartials::forSection($handle)),
         ]);
     }
 
@@ -78,43 +88,28 @@ class PreviewFingerprint
 
         foreach ($sections as $section) {
             if (is_array($section) && ! empty($section['type']) && is_string($section['type'])) {
-                $paths = array_merge($paths, static::sectionPaths($section['type']));
+                $paths = array_merge($paths, PreviewPartials::forSection($section['type']));
             }
         }
 
         return static::hash([
             'design' => static::design(),
             'sections' => $sections,
-            'partials' => static::hashPaths(array_values(array_unique($paths))),
+            'partials' => static::hashFiles(array_values(array_unique($paths))),
         ]);
-    }
-
-    /** The template file(s) a section type renders through. */
-    protected static function sectionPaths(string $handle): array
-    {
-        $base = rtrim(config(
-            'statamic-visual-editor.previews.section_partials',
-            'resources/views/partials/page_sections'
-        ), '/');
-
-        return [
-            $base.'/'.$handle.'.antlers.html',
-            $base.'/'.$handle.'.blade.php',
-            // A section whose markup is split across several files keeps them in a
-            // directory of its own name — include those too, or editing one of them
-            // would leave the preview claiming to be current.
-            $base.'/'.$handle,
-        ];
     }
 
     /**
      * Content hash of every file under the given paths (a file or a directory),
-     * ignoring anything under $exclude. Content, not mtime: a rebuild that
-     * produces byte-identical output must not invalidate a single preview.
+     * ignoring anything under $exclude and anything in $owned. Content, not
+     * mtime: a rebuild that produces byte-identical output must not invalidate a
+     * single preview.
      *
      * @param  array<int, string>  $paths  relative to the project root
+     * @param  array<int, string>  $exclude  relative to the project root
+     * @param  array<string, true>  $owned  absolute paths a section hashes itself
      */
-    protected static function hashPaths(array $paths, array $exclude = []): array
+    protected static function hashPaths(array $paths, array $exclude = [], array $owned = []): array
     {
         $excluded = array_map(fn ($path) => base_path($path), $exclude);
         $hashes = [];
@@ -123,6 +118,10 @@ class PreviewFingerprint
             $absolute = base_path($path);
 
             foreach (static::filesIn($absolute) as $file) {
+                if (isset($owned[$file])) {
+                    continue;
+                }
+
                 foreach ($excluded as $skip) {
                     if (str_starts_with($file, $skip)) {
                         continue 2;
@@ -134,6 +133,25 @@ class PreviewFingerprint
         }
 
         // Sorted: the same set of files must hash the same however it was walked.
+        ksort($hashes);
+
+        return $hashes;
+    }
+
+    /**
+     * Content hash of an explicit list of files, keyed by their path from the
+     * project root so the hash says which file moved, not just that one did.
+     *
+     * @param  array<int, string>  $files  absolute paths
+     */
+    protected static function hashFiles(array $files): array
+    {
+        $hashes = [];
+
+        foreach ($files as $file) {
+            $hashes[SectionTemplate::relative($file)] = @md5_file($file) ?: '';
+        }
+
         ksort($hashes);
 
         return $hashes;

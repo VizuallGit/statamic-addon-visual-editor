@@ -22,8 +22,20 @@
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
   border-left: 1px solid rgba(128,128,128,.28);
-  box-shadow: -8px 0 24px rgba(0,0,0,.18);
+  /* No shadow: the left sidebar sits flat against the page and this is the
+     same kind of panel. The border marks the edge. */
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+/**
+ * Same surface as the Control Panel's own left sidebar.
+ *
+ * Only in the dark theme: the light one keeps Statamic's content colour, so
+ * a site that has not gone dark does not get a black column down its side.
+ */
+html.dark #__sve-right-dock,
+.dark #__sve-right-dock {
+  background: #1E1E21;
 }
 #__sve-right-dock[data-sve-right-closed] {
   visibility: hidden !important;
@@ -205,6 +217,7 @@
 }
 #__sve-right-dock [data-sve-right-pin],
 #__sve-right-dock [data-sve-close],
+#__sve-right-dock [data-sve-previews-refresh],
 #__sve-right-dock [data-sve-comments-place] {
   all: unset;
   cursor: pointer;
@@ -355,6 +368,35 @@
   display: block;
   stroke-width: 2.4;
 }
+#__sve-right-dock [data-sve-previews-refresh] svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+  stroke-width: 2.2;
+}
+/* Working: the disc gives way to the same spinner the HTML dock uses, and the
+   button comes up to full opacity — the one control on the bar that is doing
+   something should not look like the two that are idle. */
+#__sve-right-dock [data-sve-previews-refresh][data-sve-busy] {
+  opacity: 1;
+  cursor: default;
+}
+#__sve-right-dock [data-sve-previews-refresh][data-sve-busy] svg {
+  display: none;
+}
+#__sve-right-dock [data-sve-previews-refresh] [data-sve-previews-spinner] {
+  display: none;
+  width: 13px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: sve-cm-wait .6s linear infinite;
+}
+#__sve-right-dock [data-sve-previews-refresh][data-sve-busy] [data-sve-previews-spinner] {
+  display: block;
+}
+@keyframes sve-cm-wait { to { transform: rotate(360deg); } }
 html.dark #__sve-right-dock [data-sve-right-resize],
 .dark #__sve-right-dock [data-sve-right-resize],
 html.dark #__sve-right-dock [data-sve-right-split],

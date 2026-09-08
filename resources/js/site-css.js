@@ -88,7 +88,7 @@ function vscTheme() {
   return [
     EditorView.theme(
       {
-        '&': { height: '100%', backgroundColor: '#1e1e1e', color: '#d4d4d4' },
+        '&': { height: '100%', backgroundColor: '#1E1E21', color: '#d4d4d4' },
         '.cm-content': {
           caretColor: '#aeafad',
           padding: '12px 0',
@@ -100,7 +100,7 @@ function vscTheme() {
         '.cm-activeLine': { backgroundColor: '#ffffff0d' },
         '.cm-activeLineGutter': { backgroundColor: '#ffffff0d' },
         '.cm-gutters': {
-          backgroundColor: '#1e1e1e',
+          backgroundColor: '#1E1E21',
           color: '#858585',
           border: 'none',
           borderRight: '1px solid #3c3c3c',
@@ -148,7 +148,7 @@ function ensureCompleteStyles(doc) {
   style.id = COMPLETE_STYLE_ID;
   style.textContent = `
 .cm-tooltip.sve-css-complete {
-  background: #1e1e1e !important;
+  background: #1E1E21 !important;
   color: #d4d4d4;
   border: 1px solid #454545 !important;
   border-radius: 4px;

@@ -8,7 +8,13 @@
  * (right dock never painted as active).
  */
 import { sve } from './cp-registry.js';
-import { registerRightDockHook, RIGHT_PANEL_FILL, showInRightShell } from './right-dock.js';
+import { syncCodeDock as syncCodeDockLazily } from './code-dock-lazy.js';
+import {
+  registerRightDockHook,
+  releaseRightShellIfEmpty,
+  RIGHT_PANEL_FILL,
+  showInRightShell,
+} from './right-dock.js';
 
 export const PANEL_IDS = {
   listview: '__sve-listview-panel',
@@ -16,6 +22,7 @@ export const PANEL_IDS = {
   html_tree: '__sve-html-tree-panel',
   comments: '__sve-comments-pane',
   sections: '__sve-section-picker',
+  performance: '__sve-perf-panel',
 };
 
 const WAIT_ID = '__sve-panel-wait';
@@ -26,9 +33,30 @@ const loaders = {
   listview: () => import('./block-tree.js'),
   outline: () => import('./outline-panel.js'),
   html_tree: () => import('./html-tree.js'),
+  performance: () => import('./performance-panel.js'),
   edits: () => import('./page-activity.js'),
-  comments: () => Promise.all([import('./block-tree.js'), import('./comments.js')]),
+  comments: () => Promise.all([import('./block-tree.js'), loadComments()]),
 };
+
+/**
+ * Comments is the one right-dock tool that draws outside its own panel: pins
+ * over the preview and a count on its toolbar button, both of which are there
+ * before anyone opens anything. So it loads with Live Preview rather than on
+ * the click — off every other Control Panel page, which is most of them, and
+ * still exactly as it behaves today once you are looking at a page.
+ */
+let commentsStarted = false;
+
+function loadComments() {
+  return import('./comments.js').then((mod) => {
+    if (!commentsStarted) {
+      commentsStarted = true;
+      mod.initComments();
+    }
+
+    return mod;
+  });
+}
 
 const inflight = {};
 let sectionsWarmed = false;
@@ -37,6 +65,7 @@ sve.SECTION_PICKER_ID = sve.SECTION_PICKER_ID || PANEL_IDS.sections;
 sve.OUTLINE_PANEL_ID = sve.OUTLINE_PANEL_ID || PANEL_IDS.outline;
 sve.HTML_TREE_PANEL_ID = sve.HTML_TREE_PANEL_ID || PANEL_IDS.html_tree;
 sve.COMMENTS_PANEL_ID = sve.COMMENTS_PANEL_ID || PANEL_IDS.comments;
+sve.PERF_PANEL_ID = sve.PERF_PANEL_ID || PANEL_IDS.performance;
 sve.FOCUS_LOCKED_TABS = sve.FOCUS_LOCKED_TABS || [];
 
 function noop() {}
@@ -84,6 +113,19 @@ stub('listViewSyncTo', noop);
 stub('sectionField', (win) => win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections');
 stub('blockRowUid', (row) => row?._visual_id || row?.id || row?._id || '');
 
+// Block tree helpers the eager code calls before anyone opens the block tree.
+// All four are cosmetic — where a docked panel sits, and how a grid row is
+// labelled — so the honest answer while the module is away is "nothing yet",
+// and the next render asks again once it is here.
+stub('pinDockedPanelsUnderHeader', noop);
+stub('dockedPanelTop', () => 0);
+stub('isGridRowValue', () => false);
+stub('gridRowPreview', () => '');
+
+// The template dock is asked to sync from lite-sections before it is loaded.
+// Route it through the lazy door, which knows whether the dock is even on.
+stub('syncCodeDock', (win, doc, uid) => syncCodeDockLazily(win, doc, uid));
+
 stubUntilLoaded('handleAddRow', 'sections');
 stubUntilLoaded('insertSection', 'sections');
 stubUntilLoaded('handleInsertBardSet', 'sections');
@@ -115,6 +157,13 @@ function bindRightDockHooks() {
     registerRightDockHook('html_tree', {
       fill: sve.fillHtmlTreePane,
       show: sve.showHtmlTreePane,
+    });
+  }
+
+  if (typeof sve.fillPerfPane === 'function') {
+    registerRightDockHook('performance', {
+      fill: sve.fillPerfPane,
+      show: sve.showPerfPane,
     });
   }
 
@@ -182,13 +231,28 @@ export function showPanelWait(win, key) {
 }
 
 export function hidePanelWait(win) {
-  win.document.getElementById(WAIT_ID)?.remove();
+  const el = win.document.getElementById(WAIT_ID);
+
+  if (!el) {
+    return;
+  }
+
+  el.remove();
+
+  // The spinner was the only thing in the sidebar. If the panel it stood in for
+  // is not coming — a tool that failed to load, or a click that turned into a
+  // close — the sidebar must not stay open around nothing. Bracketed swaps are
+  // exempt: there, the next panel really is on its way.
+  releaseRightShellIfEmpty(win);
 }
 
 /**
  * section-library.js is also globals overlay, insert, chrome-dismiss — not only
  * Patterns. Warm it once Live Preview is on screen so a headline click and a
  * Patterns click hit the real functions, not a race with the first import.
+ *
+ * Comments comes along for the reason in loadComments: it has work to do before
+ * anybody opens it. Nothing else does — every other tool waits for its click.
  */
 export function warmLivePreviewCore(win) {
   if (sectionsWarmed) {
@@ -201,6 +265,7 @@ export function warmLivePreviewCore(win) {
 
   sectionsWarmed = true;
   void ensurePanel('sections');
+  void loadComments().catch((err) => console.error('[sve] load comments', err));
 }
 
 export function ensurePanel(key) {
