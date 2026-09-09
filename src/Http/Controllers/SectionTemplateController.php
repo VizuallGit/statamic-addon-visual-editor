@@ -112,6 +112,8 @@ class SectionTemplateController
 
         abort_if(! empty($meta['locked']), 423);
 
+        $twHandle = $this->twHandle($handle, $splitHandle);
+
         if (Features::enabled('tailwind_dock')) {
             // The Control Panel compiles with Tailwind's own engine and sends
             // the result. `TailwindBake` is only the net under that: it runs
@@ -121,11 +123,11 @@ class SectionTemplateController
             $tw = $request->input('tw');
 
             TailwindStore::write(
-                $splitHandle,
+                $twHandle,
                 is_string($tw) ? $tw : TailwindBake::fromHtml($html)
             );
         } elseif (trim((string) ($meta['tw'] ?? '')) !== '') {
-            TailwindStore::write($splitHandle, (string) $meta['tw']);
+            TailwindStore::write($twHandle, (string) $meta['tw']);
         }
 
         $contents = SectionTemplate::join([
@@ -136,7 +138,7 @@ class SectionTemplateController
             'css_tag' => $meta['css_tag'],
             'js_tag' => $meta['js_tag'],
             'locked' => false,
-        ], $splitHandle);
+        ], $splitHandle, $twHandle);
 
         // What the file says now, before this write replaces it.
         TemplateHistory::record($path);
@@ -190,6 +192,25 @@ class SectionTemplateController
         abort_unless($path, 404);
 
         return [$path, $handle];
+    }
+
+    /**
+     * Key into the Tailwind store.
+     *
+     * A section reuses its own handle. A collection view file has an empty
+     * split-handle — that is what keeps it unlocked — so it would otherwise
+     * write to `TailwindStore::path('')`, which is null, and the compiled
+     * utilities would be dropped on every save. It gets a `view/` key instead.
+     */
+    protected function twHandle(string $type, string $splitHandle): string
+    {
+        if ($splitHandle !== '') {
+            return $splitHandle;
+        }
+
+        $view = CollectionViewFile::viewFromType($type);
+
+        return $view ? 'view/'.$view : '';
     }
 
     protected function authorize(): void

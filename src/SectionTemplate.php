@@ -224,7 +224,9 @@ class SectionTemplate
             $tw = static::joinBlocks($embedded['inner'], $tw);
         }
 
-        $html = preg_replace('/\{\{\s*sve_tw\s*\}\}/', '', $html) ?? $html;
+        // Bare in a section, `handle="…"` in a collection view file. Both forms
+        // are the dock's own output and never belong in the HTML pane.
+        $html = preg_replace('/\{\{\s*sve_tw(?:\s+[^}]*)?\}\}/', '', $html) ?? $html;
 
         $htmlTag = null;
         $wrapped = static::unwrapPair($html, 'sve_html');
@@ -254,10 +256,16 @@ class SectionTemplate
      * into the layout stack. `<style>` / `<script>` are added around the pane
      * text — the dock never shows those tags.
      *
+     * `$twHandle` is the key into the Tailwind store and defaults to `$handle`,
+     * so section partials keep their exact output. A collection view file passes
+     * one here while `$handle` stays empty — the empty handle is what keeps it
+     * from starting locked, so the two meanings must not share a variable.
+     *
      * @param  array{html: string, css: string, js: string, tw?: string, html_tag?: ?string, css_tag?: string, js_tag?: string, locked?: bool}  $parts
      */
-    public static function join(array $parts, string $handle = ''): string
+    public static function join(array $parts, string $handle = '', ?string $twHandle = null): string
     {
+        $twHandle = $twHandle ?? $handle;
         $html = (string) ($parts['html'] ?? '');
         $css = (string) ($parts['css'] ?? '');
         $js = (string) ($parts['js'] ?? '');
@@ -272,8 +280,8 @@ class SectionTemplate
 
         $html = rtrim($html);
 
-        if ($handle !== '' && trim($tw) !== '') {
-            TailwindStore::write($handle, $tw);
+        if ($twHandle !== '' && trim($tw) !== '') {
+            TailwindStore::write($twHandle, $tw);
         }
 
         $out = $html;
@@ -281,8 +289,14 @@ class SectionTemplate
         // CSS lives in resources/visual-editor/tw/{handle}.css. The tag sits
         // after the section (before style_push) so authored CSS wins cascade;
         // SveTw pushes onto the head stack — not a <style> in the markup.
-        if ($handle !== '' && TailwindStore::has($handle)) {
-            $out .= "\n\n{{ sve_tw }}";
+        //
+        // A section leaves the tag bare: SveTw resolves the key from `{{ type }}`
+        // in the set context. A view file has no such context, so its key is
+        // written out as a parameter.
+        if ($twHandle !== '' && TailwindStore::has($twHandle)) {
+            $out .= $twHandle === $handle
+                ? "\n\n{{ sve_tw }}"
+                : "\n\n{{ sve_tw handle=\"".$twHandle.'" }}';
         }
 
         if (trim($css) !== '') {
