@@ -323,6 +323,38 @@ tabs:
                 enabled: 'equals true'
                 template_dock: 'equals true'
           -
+            handle: component_props
+            field:
+              type: toggle
+              display: 'Fields on components'
+              instructions: 'A component declares what it takes — a name, a kind (text, media, rich text) and a default — edited above the tree while the component is open. Each place it is used then gets those fields in the panel, so the same card can say something different in every section. The declaration is an Antlers comment in the component file, so a rendered page never reads it. Off by default; off again and the file renders exactly as before. Needs the template dock.'
+              default: false
+              if:
+                enabled: 'equals true'
+                template_dock: 'equals true'
+          -
+            handle: component_props_buttons
+            field:
+              type: bard_buttons_setting
+              display: 'Rich text buttons'
+              instructions: 'What a rich text field on a component offers. The same picker Bard itself uses, so anything Bard can do is on the list. Left empty, the set below is what you get.'
+              full_width_setting: true
+              default:
+                - h2
+                - h3
+                - bold
+                - italic
+                - underline
+                - strikethrough
+                - unorderedlist
+                - orderedlist
+                - anchor
+                - removeformat
+              if:
+                enabled: 'equals true'
+                template_dock: 'equals true'
+                component_props: 'equals true'
+          -
             handle: ai_panel
             field:
               type: toggle
@@ -492,6 +524,121 @@ tabs:
                 enabled: 'equals true'
                 sections: 'equals true'
                 library_in_use_only: 'equals true'
+      -
+        display: 'Screen sizes'
+        instructions: "The sizes this site designs for. One list: the preview's device buttons, the responsive fields, the Tailwind row and the CSS panel all read it, so they can never offer different ones. Desktop-first — the widest is written with no media query at all, and the narrower ones are exceptions from it. Leave it empty to use the three that ship with the addon."
+        fields:
+          -
+            handle: breakpoints
+            field:
+              type: grid
+              display: Breakpoints
+              hide_display: true
+              mode: stacked
+              reorderable: false
+              instructions: "Order does not matter here — the list is sorted by width, widest first, and the widest becomes the base. **Handle is the key your content is stored under: add freely, but renaming or deleting one leaves every entry's saved values for that size with no owner.**"
+              add_row: 'Add a screen size'
+              default:
+                -
+                  handle: laptop
+                  label: desktop
+                  device: Desktop
+                  icon: desktop
+                  min: 64
+                  unit: em
+                  width: 1440
+                  height: 900
+                -
+                  handle: tablet
+                  label: tablet
+                  device: Tablet
+                  icon: tablet
+                  min: 48
+                  unit: em
+                  width: 810
+                  height: 1080
+                -
+                  handle: mobile
+                  label: mobile
+                  device: Mobile
+                  icon: mobile
+                  min: 0
+                  unit: em
+                  width: 375
+                  height: 812
+              fields:
+                -
+                  handle: handle
+                  field:
+                    type: text
+                    display: Handle
+                    instructions: 'Lowercase, no spaces. This is the storage key — `laptop`, `tablet` and `mobile` are the ones already in your content.'
+                    width: 33
+                    validate:
+                      - 'regex:/^[a-z][a-z0-9_]*$/'
+                -
+                  handle: label
+                  field:
+                    type: text
+                    display: Name
+                    instructions: 'What the button says. The three built-in ones translate themselves if you leave `desktop`, `tablet` or `mobile` here.'
+                    width: 33
+                -
+                  handle: icon
+                  field:
+                    type: select
+                    display: Icon
+                    instructions: 'The picture on the device button.'
+                    width: 34
+                    default: desktop
+                    options:
+                      desktop: Desktop
+                      laptop: Laptop
+                      tablet: Tablet
+                      mobile: Mobile
+                      watch: Watch
+                      tv: TV
+                -
+                  handle: min
+                  field:
+                    type: float
+                    display: 'From width'
+                    instructions: "The narrowest screen that still counts as this size. The media query is worked out from it and from the size above, so the two can never overlap. The narrowest size on the list should be 0."
+                    width: 17
+                -
+                  handle: unit
+                  field:
+                    type: select
+                    display: Unit
+                    instructions: "**em** unless you have a reason. A boundary in `em` moves with the reader's own font-size setting, so a page reflows when the text is big enough to need it; one in `px` never moves. In a media query `em` and `rem` are the same thing — both measure against the browser's initial font size, never against `html { font-size }` — so the choice between those two is convention, not behaviour."
+                    width: 17
+                    default: em
+                    options:
+                      em: em
+                      rem: rem
+                      px: px
+                -
+                  handle: width
+                  field:
+                    type: integer
+                    display: 'Preview width'
+                    instructions: 'How wide the preview frame is on this button.'
+                    width: 33
+                -
+                  handle: height
+                  field:
+                    type: integer
+                    display: 'Preview height'
+                    width: 33
+                -
+                  handle: device
+                  field:
+                    type: text
+                    display: 'Device name'
+                    instructions: "Live Preview's own name for the button. Leave it and the handle is used."
+                    width: 100
+              if:
+                enabled: 'equals true'
       -
         display: 'Header and footer'
         instructions: 'Stepping into the site chrome from the preview. Switch off where the header or footer is fixed and editors should leave it alone.'

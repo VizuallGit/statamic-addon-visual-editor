@@ -26,11 +26,13 @@ class TemplateHistory
     /**
      * Versions kept per file. Older ones are pruned on write.
      *
-     * A busy hour of editing writes one every 45 seconds, so 40 was half a
-     * working day. At roughly 5 KB a version this is a couple of megabytes
-     * per section at worst, for something you only miss when you need it.
+     * Twenty steps back, deliberately. At one version per `COALESCE` seconds
+     * this covers the last stretch of editing, not the whole project: the
+     * versions anyone ever restores are the recent ones, and a folder that
+     * grows without a ceiling turns a working site's storage into hundreds of
+     * files nobody reads. Older work has a better home — the repository.
      */
-    public const KEEP = 300;
+    public const KEEP = 20;
 
     public static function root(): string
     {

@@ -3,8 +3,11 @@ defineProps({
   htmlLabel: { type: String, required: true },
   cssLabel: { type: String, required: true },
   jsLabel: { type: String, required: true },
+  alpineLabel: { type: String, required: true },
   // Drawn from code-dock.js, which repaints this button as its state changes.
   treeIcon: { type: String, required: true },
+  dataIcon: { type: String, required: true },
+  dataLabel: { type: String, required: true },
 });
 </script>
 
@@ -14,6 +17,7 @@ defineProps({
     <div data-sve-code-bar>
       <button type="button" data-sve-code-pane-btn="html">{{ htmlLabel }}</button>
       <button type="button" data-sve-code-pane-btn="css">{{ cssLabel }}</button>
+      <button type="button" data-sve-code-pane-btn="alpine">{{ alpineLabel }}</button>
       <button type="button" data-sve-code-pane-btn="js">{{ jsLabel }}</button>
       <button type="button" data-sve-code-back hidden></button>
       <span data-sve-code-path></span>
@@ -21,6 +25,7 @@ defineProps({
       <button type="button" data-sve-code-strip></button>
       <button type="button" data-sve-code-history></button>
       <button type="button" data-sve-style-mode></button>
+      <button type="button" data-sve-values-mode></button>
       <button type="button" data-sve-html-scope aria-pressed="true">
         <span v-html="treeIcon"></span>
       </button>
@@ -34,6 +39,15 @@ defineProps({
         <div data-sve-code-pane-label>
           <span>{{ htmlLabel }}</span>
           <div data-sve-html-tools></div>
+          <!--
+            Tidy is not a thing to write, it is a thing to do to what is
+            written — so it stands with the other tools that act on the file,
+            not in the strip of tags you build with.
+          -->
+          <button type="button" data-sve-html-tidy></button>
+          <button type="button" data-sve-data-vars :title="dataLabel" :aria-label="dataLabel">
+            <span v-html="dataIcon"></span>
+          </button>
           <div data-sve-visual-edit-tools></div>
           <div data-sve-antlers-tools></div>
         </div>
@@ -46,16 +60,23 @@ defineProps({
             <span data-sve-css-label>{{ cssLabel }}</span>
             <button type="button" data-sve-css-add-class></button>
             <div data-sve-css-tools></div>
-            <div data-sve-css-subrow>
-              <div data-sve-css-sub="box"></div>
-              <div data-sve-css-sub="display"></div>
-            </div>
           </div>
         </div>
+        <div data-sve-css-head></div>
         <div data-sve-code-host></div>
         <div data-sve-tw-host></div>
       </div>
       <div data-sve-code-split data-sve-code-split-after="css"></div>
+      <!--
+        Alpine is not a fourth part of the file — it is the attributes on the
+        tags in the HTML — so this pane holds a panel, not an editor. It sits
+        beside the CSS it works with, before the JS nobody opens as often.
+      -->
+      <div data-sve-code-pane="alpine">
+        <div data-sve-code-pane-label><span>{{ alpineLabel }}</span></div>
+        <div data-sve-alpine-host></div>
+      </div>
+      <div data-sve-code-split data-sve-code-split-after="alpine"></div>
       <div data-sve-code-pane="js">
         <div data-sve-code-pane-label><span>{{ jsLabel }}</span></div>
         <div data-sve-code-host></div>

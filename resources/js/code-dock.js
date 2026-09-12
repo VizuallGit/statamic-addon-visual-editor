@@ -21,20 +21,46 @@ import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { ARMED_KEY, isCodeDockArmed, setCodeDockArmed, templateDockAllowed } from './code-dock-state.js';
 import { splitterFill } from './right-dock.js';
 import { ensurePanel } from './lazy-panels.js';
-import { emit, on, register } from './cp/bus.js';
+import { ask, emit, on, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import CodeDockChrome from './cp/surfaces/CodeDockChrome.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import CodeDockHtmlTools from './cp/surfaces/CodeDockHtmlTools.vue';
 import CodeDockAntlersSelect from './cp/surfaces/CodeDockAntlersSelect.vue';
 import CodeDockCssTools from './cp/surfaces/CodeDockCssTools.vue';
-import CodeDockCssBoxRow from './cp/surfaces/CodeDockCssBoxRow.vue';
-import CodeDockCssDisplayRow from './cp/surfaces/CodeDockCssDisplayRow.vue';
+import { cssToolsUi } from './cp/css/tools.js';
+import { alpineUi } from './cp/alpine/store.js';
+import AlpinePanel from './cp/surfaces/AlpinePanel.vue';
+import {
+  ALPINE_BEHAVIOURS,
+  ALPINE_GROUPS,
+  fillName,
+  stateNames,
+  tagAttrs,
+} from './alpine-behaviours.js';
+import CodeDockCssHead from './cp/surfaces/CodeDockCssHead.vue';
 import CodeDockMenu from './cp/surfaces/CodeDockMenu.vue';
 import CodeDockAddClass from './cp/surfaces/CodeDockAddClass.vue';
+import CodeDockDataVars from './cp/surfaces/CodeDockDataVars.vue';
+import {
+  cachedDataVars,
+  dataVarSnippet,
+  dataVarsCollection,
+  dataVarsKey,
+  dataVarsScope,
+  dataVarsSet,
+  fetchDataVars,
+  groupsWithValues,
+  withValues,
+} from './data-vars.js';
+import { loopScopeAt } from './antlers-blocks.js';
 import { flattenHtmlTree, parseHtmlTree } from './html-tree-parse.js';
+import { antlersDecorations } from './antlers-highlight.js';
+import { tidyHtml } from './html-tidy.js';
+import { HTML_ICONS, TEXT_TAGS } from './html-tree-icons.js';
 import { twCandidates } from './tw-candidates.js';
 import { tailwindDockOn } from './tailwind-complete.js';
+import { syncComponentFocus, syncComponentMap, watchComponentMap } from './component-focus.js';
 import { setTwOverlayOn, twOverlayOn } from './tw-overlay.js';
 import {
   closeTwMenu,
@@ -43,13 +69,28 @@ import {
   twActiveClass,
   twHasNode,
   twOpenAddMenu,
+  twOpenTagMenuAt,
   twOpenToolMenu,
   twSetClass,
+  twValueOptions,
+  twWantFamilies,
 } from './tw-classes.js';
+import { cssUi } from './cp/css/store.js';
+import { bpDevice, breakpoints } from './breakpoints.js';
+import { moveClassesIntoScope } from './css-scope-move.js';
+import {
+  blocksForSize,
+  cssMediaBlocks,
+  emptySizeBlocks,
+  foldRangesForSize,
+  foldRangesForValues,
+  idRuleBlocks,
+  stripEmptySizeBlocks,
+} from './css-sizes.js';
 import { bindTips } from './cp/tip.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { mountSurface } from './cp/mount.js';
-import { applyBracketClass, bracketClassTokens, buildScopedCss, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from './css-scope.js';
+import { applyBracketClass, bracketClassTokens, bracketToken, buildScopedCss, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, matchBraces, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from './css-scope.js';
 import {
   ANTLERS_SNIPPET_GROUPS,
   ANTLERS_SNIPPETS,
@@ -79,6 +120,8 @@ import {
   classTokenDecorations,
   closeClassTokenUi,
 } from './dock-class-tokens.js';
+import { componentPropsOn, forgetComponentProps } from './component-props.js';
+import { syncComponentProps } from './component-props-host.js';
 import {
   tailwindClassCompletions,
   tailwindHoverExtension,
@@ -110,6 +153,10 @@ let html;
 let css;
 let javascript;
 let HighlightStyle;
+let codeFolding;
+let foldEffect;
+let unfoldEffect;
+let foldedRanges;
 let syntaxHighlighting;
 let tags;
 
@@ -158,6 +205,10 @@ function loadCm() {
     javascript = langJs.javascript;
     HighlightStyle = language.HighlightStyle;
     syntaxHighlighting = language.syntaxHighlighting;
+    codeFolding = language.codeFolding;
+    foldEffect = language.foldEffect;
+    unfoldEffect = language.unfoldEffect;
+    foldedRanges = language.foldedRanges;
     tags = highlight.tags;
 
     readOnlyOf.html = new Compartment();
@@ -174,6 +225,15 @@ function loadCm() {
   return cmReady;
 }
 
+/**
+ * The class a section's design is scoped to, as it is written in the markup.
+ *
+ * `_class` is handed to every section partial by the page_sections loop and is
+ * the section type's own name, so it is the same for every instance and unique
+ * to the type. The templates put it in the class attribute and in `@scope(…)`.
+ */
+const SCOPE_CLASS = '{{ _class }}';
+
 const DOCK_ID = '__sve-code-dock';
 const STYLE_ID = '__sve-code-dock-style';
 const UNLOCK_ID = '__sve-code-dock-unlock';
@@ -183,11 +243,21 @@ const WIDTHS_KEY = 'sve-code-dock-widths';
 const SCOPE_KEY = 'sve-html-scope-v2';
 const AUTOSAVE_KEY = 'sve-code-dock-autosave';
 const STYLE_MODE_KEY = 'sve-code-dock-style-mode';
+const VALUES_MODE_KEY = 'sve-code-dock-values';
 const DEFAULT_HEIGHT = 280;
 const MIN_HEIGHT = 120;
 const MIN_PANE = 140;
 const SAVE_MS = 250;
 const HANDLES = ['html', 'css', 'js'];
+
+/**
+ * The panes the dock can show, which is the three file parts plus Alpine.
+ *
+ * Alpine is not a fourth part of the file — it is attributes on the tags in
+ * the HTML — so it has a pane and a button but no editor and nothing to save.
+ * `HANDLES` stays the three that are read from and written to disk.
+ */
+const PANES = ['html', 'css', 'alpine', 'js'];
 const LOCK_CLOSED_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const LOCK_OPEN_ICON =
@@ -208,6 +278,9 @@ const BACK_ICON =
  */
 const SCOPE_ICON =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.75 2A1.75 1.75 0 0 0 2 3.75v1c0 .966.784 1.75 1.75 1.75h.418A1.74 1.74 0 0 0 4 7.25v1.5c0 .49.201.932.525 1.25c-.324.318-.525.76-.525 1.25v1c0 .966.784 1.75 1.75 1.75h6.5A1.75 1.75 0 0 0 14 12.25v-1c0-.49-.201-.932-.525-1.25c.324-.318.525-.76.525-1.25v-1.5c0-.49-.201-.932-.525-1.25c.324-.318.525-.76.525-1.25v-1A1.75 1.75 0 0 0 12.25 2zm8.5 7.5H8v-3h4.25a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-.75.75M7 6.5v3H5.75A.75.75 0 0 1 5 8.75v-1.5a.75.75 0 0 1 .75-.75zm1 4h4.25a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-.75.75H8zm-1 0V13H5.75a.75.75 0 0 1-.75-.75v-1a.75.75 0 0 1 .75-.75zm-1-5V3h6.25a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-.75.75zm-1 0H3.75A.75.75 0 0 1 3 4.75v-1A.75.75 0 0 1 3.75 3H5z"/></svg>';
+/** The Data button: a small table, for the fields behind the template. */
+const DATA_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-6"/></svg>';
 const AUTOSAVE_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3"/><path d="M21 3.2v5.4h-5.4"/></svg>';
 const SAVE_ICON =
@@ -217,12 +290,24 @@ const CSS_ADD_ICON =
 const CSS_MENU_ID = '__sve-css-menu';
 const HTML_HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 const HTML_TOOLS = [
-  { id: 'heading', title: 'heading', menu: 'heading', letter: 'H' },
-  { id: 'p', title: 'paragraph', tag: 'p', letter: 'P' },
-  { id: 'div', title: 'div', tag: 'div' },
   { id: 'section', title: 'section', tag: 'section' },
+  { id: 'div', title: 'div', tag: 'div' },
+  { id: 'heading', title: 'heading', menu: 'heading' },
+  { id: 'text', title: 'text', menu: 'text' },
+  { id: 'a', title: 'link', tag: 'a' },
+  { id: 'img', title: 'image', snippet: '<img src="" alt="">', caret: 10 },
+  { id: 'svg', title: 'svg', tag: 'svg' },
   { id: 'ul', title: 'list', tag: 'ul' },
   { id: 'li', title: 'list item', tag: 'li' },
+  { id: 'component', title: 'component', menu: 'component' },
+  // Antlers, not tags: what renders, and how often.
+  //
+  // Both land with a working expression already in them. `{{ if }}` with an
+  // empty condition is not valid Antlers — it throws on the next render, so
+  // the preview would break between clicking the button and typing. The caret
+  // sits on that placeholder, selected, so typing still replaces it.
+  { id: 'loop', title: 'loop', snippet: '{{ items }}\n\n{{ /items }}\n', caret: 3, select: 5 },
+  { id: 'if', title: 'if', snippet: '{{ if true }}\n\n{{ /if }}\n', caret: 6, select: 4 },
 ];
 const CSS_SPACING = [
   '--size-100',
@@ -236,15 +321,6 @@ const CSS_SPACING = [
   '--size-900',
   '--gutter',
 ];
-const CSS_BOX_SIDES = [
-  { id: 'all', suffix: '', title: 'All sides' },
-  { id: 'block', suffix: '-block', title: 'Top and bottom', sep: true },
-  { id: 'block-start', suffix: '-block-start', title: 'Top' },
-  { id: 'block-end', suffix: '-block-end', title: 'Bottom' },
-  { id: 'inline', suffix: '-inline', title: 'Left and right', sep: true },
-  { id: 'inline-start', suffix: '-inline-start', title: 'Left' },
-  { id: 'inline-end', suffix: '-inline-end', title: 'Right' },
-];
 /**
  * The same six icons, pointed at Tailwind.
  *
@@ -252,26 +328,6 @@ const CSS_BOX_SIDES = [
  * into the rule under the cursor; in Tailwind mode it writes the class that
  * sets that property on the picked tag, taken from this site's `@theme`.
  */
-const TW_TOOL_PROPERTY = {
-  display: 'display',
-  absolute: 'position',
-  color: 'color',
-  bg: 'background-color',
-  padding: 'padding',
-  margin: 'margin',
-  'tw-text': 'font-size',
-  'tw-leading': 'line-height',
-  'tw-font': 'font-family',
-  'tw-radius': 'border-radius',
-  'tw-gap': 'gap',
-  'tw-align': 'text-align',
-  'tw-w': 'width',
-  'tw-h': 'height',
-  'tw-maxw': 'max-width',
-  'tw-overflow': 'overflow',
-  'tw-border': 'border-color',
-};
-
 /**
  * Buttons only Tailwind mode shows.
  *
@@ -287,35 +343,6 @@ const TW_TOOL_PROPERTY = {
  * out by family on its own: one `justify-*` at a time, one direction at a
  * time.
  */
-const TW_DISPLAY_CLASS = {
-  'display-flex': 'flex',
-  'flex-row': 'flex-row',
-  'flex-col': 'flex-col',
-  'justify-start': 'justify-start',
-  'justify-center': 'justify-center',
-  'justify-end': 'justify-end',
-  'justify-between': 'justify-between',
-  'justify-around': 'justify-around',
-  'align-start': 'items-start',
-  'align-center': 'items-center',
-  'align-end': 'items-end',
-  'align-stretch': 'items-stretch',
-};
-
-const TW_EXTRA_TOOLS = [
-  { id: 'tw-text', title: 'Font size' },
-  { id: 'tw-leading', title: 'Line height' },
-  { id: 'tw-font', title: 'Font family' },
-  { id: 'tw-align', title: 'Text align' },
-  { id: 'tw-border', title: 'Border color' },
-  { id: 'tw-radius', title: 'Radius' },
-  { id: 'tw-gap', title: 'Gap' },
-  { id: 'tw-w', title: 'Width' },
-  { id: 'tw-h', title: 'Height' },
-  { id: 'tw-maxw', title: 'Max width' },
-  { id: 'tw-overflow', title: 'Overflow' },
-];
-
 const TW_TOOL_ICONS = {
   'tw-text':
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">'
@@ -353,21 +380,6 @@ const TW_TOOL_ICONS = {
     + '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" stroke-width="1" opacity=".45"/></svg>',
 };
 
-/**
- * Box sides, from the logical properties the CSS row uses to the physical
- * ones Tailwind's own scale is built on: `pt-*` is padding-top, and there is
- * no `padding-block-start` utility to point at.
- */
-const TW_BOX_SIDE = {
-  '': '',
-  '-block': '-block',
-  '-inline': '-inline',
-  '-block-start': '-top',
-  '-block-end': '-bottom',
-  '-inline-start': '-left',
-  '-inline-end': '-right',
-};
-
 const STRIP_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
   + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
@@ -385,6 +397,11 @@ const CSS_MODE_ICON =
   + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
   + '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1"/>'
   + '<path d="M16 3h1a2 2 0 0 1 2 2v5a2 2 0 0 0 2 2 2 2 0 0 0-2 2v5a2 2 0 0 1-2 2h-1"/></svg>';
+
+const ID_MODE_ICON =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+  + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></svg>';
 
 const TW_MODE_ICON =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
@@ -405,30 +422,111 @@ const CSS_GRAYS = [
   ['--gray-900', '#171717'],
   ['--gray-950', '#0a0a0a'],
 ];
+/**
+ * Every tool in the CSS row, and the children each one opens.
+ *
+ * ONE shape, for all of them. A tool is an icon, what it sets, and a list of
+ * children — and a child is an icon, what it sets, and nothing else. Padding's
+ * sides, Flex's alignment, Border's edges and Radius's corners are the same
+ * list with different entries, drawn by the same loop, opened by the same
+ * click. There is no second kind of tool and no second kind of row.
+ *
+ * A child says what a click on it does, in one of three ways:
+ *
+ *   `menu`   open that menu for `css` (this site's scale, or its colours)
+ *   `value`  set `css` to it, or take it off again if it is already that
+ *   `kind`   one of the two that clear neighbours as well: display, direction
+ *
+ * `css` is the logical property written here; `tw` the physical one Tailwind's
+ * own scale is built on, because there is no `padding-block-start` utility.
+ */
+
+/** The seven parts of a box, built for whichever property owns them. */
+const boxKids = (prefix) => [
+  { id: `${prefix}-all`, icon: 'box-all', title: 'All sides', css: prefix, tw: prefix },
+  { id: `${prefix}-block`, icon: 'box-block', title: 'Top and bottom', css: `${prefix}-block`, tw: `${prefix}-block`, sep: true },
+  { id: `${prefix}-block-start`, icon: 'box-block-start', title: 'Top', css: `${prefix}-block-start`, tw: `${prefix}-top` },
+  { id: `${prefix}-block-end`, icon: 'box-block-end', title: 'Bottom', css: `${prefix}-block-end`, tw: `${prefix}-bottom` },
+  { id: `${prefix}-inline`, icon: 'box-inline', title: 'Left and right', css: `${prefix}-inline`, tw: `${prefix}-inline`, sep: true },
+  { id: `${prefix}-inline-start`, icon: 'box-inline-start', title: 'Left', css: `${prefix}-inline-start`, tw: `${prefix}-left` },
+  { id: `${prefix}-inline-end`, icon: 'box-inline-end', title: 'Right', css: `${prefix}-inline-end`, tw: `${prefix}-right` },
+];
+
+/** Flex's own children: what it is, which way it runs, how it lines up. */
+const DISPLAY_KIDS = [
+  { id: 'display-flex', twClass: 'flex', icon: 'display-flex', title: 'Flex', kind: 'display', value: 'flex', css: 'display' },
+  { id: 'flex-row', twClass: 'flex-row', icon: 'flex-row', title: 'Direction: row', kind: 'flexDir', value: 'row', css: 'flex-direction', sep: true },
+  { id: 'flex-col', twClass: 'flex-col', icon: 'flex-col', title: 'Direction: column', kind: 'flexDir', value: 'column', css: 'flex-direction' },
+  { id: 'justify-start', twClass: 'justify-start', icon: 'justify-start', title: 'Justify: start', css: 'justify-content', value: 'flex-start', when: 'flex', sep: true },
+  { id: 'justify-center', twClass: 'justify-center', icon: 'justify-center', title: 'Justify: center', css: 'justify-content', value: 'center', when: 'flex' },
+  { id: 'justify-end', twClass: 'justify-end', icon: 'justify-end', title: 'Justify: end', css: 'justify-content', value: 'flex-end', when: 'flex' },
+  { id: 'justify-between', twClass: 'justify-between', icon: 'justify-between', title: 'Justify: between', css: 'justify-content', value: 'space-between', when: 'flex' },
+  { id: 'justify-around', twClass: 'justify-around', icon: 'justify-around', title: 'Justify: around', css: 'justify-content', value: 'space-around', when: 'flex' },
+  { id: 'align-start', twClass: 'items-start', icon: 'align-start', title: 'Align: start', css: 'align-items', value: 'flex-start', when: 'flex', sep: true },
+  { id: 'align-center', twClass: 'items-center', icon: 'align-center', title: 'Align: center', css: 'align-items', value: 'center', when: 'flex' },
+  { id: 'align-end', twClass: 'items-end', icon: 'align-end', title: 'Align: end', css: 'align-items', value: 'flex-end', when: 'flex' },
+  { id: 'align-stretch', twClass: 'items-stretch', icon: 'align-stretch', title: 'Align: stretch', css: 'align-items', value: 'stretch', when: 'flex' },
+];
+
+const GAP_KIDS = [
+  { id: 'gap-all', icon: 'gap-all', title: 'Both', css: 'gap', tw: 'gap', menu: 'spacing' },
+  { id: 'gap-row', icon: 'gap-row', title: 'Between rows', css: 'row-gap', tw: 'row-gap', menu: 'spacing', sep: true },
+  { id: 'gap-col', icon: 'gap-col', title: 'Between columns', css: 'column-gap', tw: 'column-gap', menu: 'spacing' },
+];
+
+const BORDER_KIDS = [
+  { id: 'bd-all', icon: 'bd-all', title: 'All sides', css: 'border-color', tw: 'border-color', menu: 'colors' },
+  { id: 'bd-block', icon: 'bd-block', title: 'Top and bottom', css: 'border-block-color', tw: 'border-color', menu: 'colors', sep: true },
+  { id: 'bd-top', icon: 'bd-top', title: 'Top', css: 'border-block-start-color', tw: 'border-top-color', menu: 'colors' },
+  { id: 'bd-bottom', icon: 'bd-bottom', title: 'Bottom', css: 'border-block-end-color', tw: 'border-bottom-color', menu: 'colors' },
+  { id: 'bd-inline', icon: 'bd-inline', title: 'Left and right', css: 'border-inline-color', tw: 'border-color', menu: 'colors', sep: true },
+  { id: 'bd-left', icon: 'bd-left', title: 'Left', css: 'border-inline-start-color', tw: 'border-left-color', menu: 'colors' },
+  { id: 'bd-right', icon: 'bd-right', title: 'Right', css: 'border-inline-end-color', tw: 'border-right-color', menu: 'colors' },
+];
+
+const RADIUS_KIDS = [
+  { id: 'rd-all', icon: 'rd-all', title: 'All corners', css: 'border-radius', tw: 'border-radius', menu: 'values' },
+  { id: 'rd-tl', icon: 'rd-tl', title: 'Top left', css: 'border-start-start-radius', tw: 'border-top-left-radius', menu: 'values', sep: true },
+  { id: 'rd-tr', icon: 'rd-tr', title: 'Top right', css: 'border-start-end-radius', tw: 'border-top-right-radius', menu: 'values' },
+  { id: 'rd-br', icon: 'rd-br', title: 'Bottom right', css: 'border-end-end-radius', tw: 'border-bottom-right-radius', menu: 'values' },
+  { id: 'rd-bl', icon: 'rd-bl', title: 'Bottom left', css: 'border-end-start-radius', tw: 'border-bottom-left-radius', menu: 'values' },
+];
+
+/** The row, in order. `kids` is what unfolds under the icon. */
 const CSS_TOOLS = [
-  { id: 'display', title: 'Display', menu: 'display' },
-  { id: 'absolute', title: 'Position', insert: 'position: absolute;' },
-  { id: 'color', title: 'Text color', property: 'color', menu: 'colors' },
-  { id: 'bg', title: 'Background color', property: 'background-color', menu: 'colors' },
-  { id: 'padding', title: 'Padding', property: 'padding', menu: 'box' },
-  { id: 'margin', title: 'Margin', property: 'margin', menu: 'box' },
+  { id: 'display', title: 'Display', css: 'display', tw: 'display', kids: DISPLAY_KIDS },
+  { id: 'absolute', title: 'Position', css: 'position', tw: 'position', value: 'absolute' },
+  { id: 'color', title: 'Text color', css: 'color', tw: 'color', menu: 'colors' },
+  { id: 'bg', title: 'Background color', css: 'background-color', tw: 'background-color', menu: 'colors' },
+  { id: 'padding', title: 'Padding', css: 'padding', tw: 'padding', kids: boxKids('padding') },
+  { id: 'margin', title: 'Margin', css: 'margin', tw: 'margin', kids: boxKids('margin') },
+  { id: 'tw-text', title: 'Font size', css: 'font-size', tw: 'font-size', menu: 'values' },
+  { id: 'tw-leading', title: 'Line height', css: 'line-height', tw: 'line-height', menu: 'values' },
+  { id: 'tw-font', title: 'Font family', css: 'font-family', tw: 'font-family', menu: 'values' },
+  { id: 'tw-align', title: 'Text align', css: 'text-align', tw: 'text-align', menu: 'choices', choices: ['left', 'center', 'right', 'justify'] },
+  { id: 'tw-border', title: 'Border color', css: 'border-color', tw: 'border-color', kids: BORDER_KIDS },
+  { id: 'tw-radius', title: 'Radius', css: 'border-radius', tw: 'border-radius', kids: RADIUS_KIDS },
+  { id: 'tw-gap', title: 'Gap', css: 'gap', tw: 'gap', kids: GAP_KIDS },
+  { id: 'tw-w', title: 'Width', css: 'width', tw: 'width', menu: 'sizes' },
+  { id: 'tw-h', title: 'Height', css: 'height', tw: 'height', menu: 'sizes' },
+  { id: 'tw-maxw', title: 'Max width', css: 'max-width', tw: 'max-width', menu: 'sizes' },
+  { id: 'tw-overflow', title: 'Overflow', css: 'overflow', tw: 'overflow', menu: 'choices', choices: ['visible', 'hidden', 'clip', 'auto', 'scroll'] },
 ];
-const CSS_DISPLAY_ITEMS = [
-  { id: 'display-flex', title: 'Flex', display: 'flex' },
-  { id: 'flex-row', title: 'Direction: row', flexDir: 'row', sep: true },
-  { id: 'flex-col', title: 'Direction: column', flexDir: 'column' },
-];
-const CSS_FLEX_EXTRAS = [
-  { id: 'justify-start', title: 'Justify: start', property: 'justify-content', value: 'flex-start' },
-  { id: 'justify-center', title: 'Justify: center', property: 'justify-content', value: 'center' },
-  { id: 'justify-end', title: 'Justify: end', property: 'justify-content', value: 'flex-end' },
-  { id: 'justify-between', title: 'Justify: between', property: 'justify-content', value: 'space-between' },
-  { id: 'justify-around', title: 'Justify: around', property: 'justify-content', value: 'space-around' },
-  { id: 'align-start', title: 'Align: start', property: 'align-items', value: 'flex-start', group: 'align' },
-  { id: 'align-center', title: 'Align: center', property: 'align-items', value: 'center', group: 'align' },
-  { id: 'align-end', title: 'Align: end', property: 'align-items', value: 'flex-end', group: 'align' },
-  { id: 'align-stretch', title: 'Align: stretch', property: 'align-items', value: 'stretch', group: 'align' },
-];
+
+/** Lengths that are not on a scale — a box is as wide as it needs to be. */
+const CSS_LENGTHS = ['100%', 'auto', 'fit-content', 'min-content', 'max-content', '100vw', '100dvh', '0'];
+
+/** Every tool and every child, flat, for looking one up by id. */
+const CSS_TOOL_INDEX = new Map();
+
+for (const tool of CSS_TOOLS) {
+  CSS_TOOL_INDEX.set(tool.id, { tool, kid: null });
+
+  for (const kid of tool.kids || []) {
+    CSS_TOOL_INDEX.set(kid.id, { tool, kid });
+  }
+}
+
 const CSS_TOOL_ICONS = {
   display:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="2.5" width="13" height="11" rx="1.2"/><path d="M5 6.5h6M5 9.5h4"/></svg>',
@@ -492,13 +590,39 @@ const CSS_TOOL_ICONS = {
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="3.2" y="3.2" width="2.3" height="9.6" rx=".35" stroke="none"/></svg>',
   'box-inline-end':
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="none"/><rect x="10.5" y="3.2" width="2.3" height="9.6" rx=".35" stroke="none"/></svg>',
-};
-const HTML_TOOL_ICONS = {
-  div: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.5" y="3.5" width="11" height="9" rx="1.2"/></svg>',
-  section:
-    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2.5" width="12" height="11" rx="1.2"/><path d="M2 6.5h12"/></svg>',
-  ul: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.2" cy="4" r="1"/><circle cx="3.2" cy="8" r="1"/><circle cx="3.2" cy="12" r="1"/><rect x="5.5" y="3.2" width="8" height="1.5" rx=".4"/><rect x="5.5" y="7.2" width="8" height="1.5" rx=".4"/><rect x="5.5" y="11.2" width="8" height="1.5" rx=".4"/></svg>',
-  li: '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.2" cy="8" r="1.1"/><rect x="5.5" y="7.2" width="8" height="1.6" rx=".4"/></svg>',
+  // Gap: two plates with the run between them marked, turned each way.
+  'gap-all':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="1.6" y="3" width="4.2" height="10" rx=".6"/><rect x="10.2" y="3" width="4.2" height="10" rx=".6"/><path d="M8 4.5v7"/></svg>',
+  'gap-row':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="3" y="1.6" width="10" height="4.2" rx=".6"/><rect x="3" y="10.2" width="10" height="4.2" rx=".6"/><path d="M4.5 8h7"/></svg>',
+  'gap-col':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="1.6" y="3" width="4.2" height="10" rx=".6"/><rect x="10.2" y="3" width="4.2" height="10" rx=".6"/><path d="M8 4.5v7"/></svg>',
+  // Border: the box, with the edge being set drawn thick.
+  'bd-all':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.4"/></svg>',
+  'bd-block':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.4" stroke-width="1" opacity=".35"/><path d="M2.6 3.2h10.8M2.6 12.8h10.8" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  'bd-top':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.4" stroke-width="1" opacity=".35"/><path d="M2.6 3.2h10.8" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  'bd-bottom':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.4" stroke-width="1" opacity=".35"/><path d="M2.6 12.8h10.8" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  'bd-inline':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.4" stroke-width="1" opacity=".35"/><path d="M3.2 2.6v10.8M12.8 2.6v10.8" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  'bd-left':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.4" stroke-width="1" opacity=".35"/><path d="M3.2 2.6v10.8" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  'bd-right':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.4" stroke-width="1" opacity=".35"/><path d="M12.8 2.6v10.8" stroke-width="2.2" stroke-linecap="round"/></svg>',
+  // Radius: the box with one corner rounded and drawn thick.
+  'rd-all':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="3.4"/></svg>',
+  'rd-tl':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M13.4 2.6H6a3.4 3.4 0 0 0-3.4 3.4v7.4" stroke-width="1" opacity=".35"/><path d="M2.6 9V6A3.4 3.4 0 0 1 6 2.6h3" stroke-width="2.2"/></svg>',
+  'rd-tr':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M2.6 2.6h7.4a3.4 3.4 0 0 1 3.4 3.4v7.4" stroke-width="1" opacity=".35"/><path d="M7 2.6h3A3.4 3.4 0 0 1 13.4 6v3" stroke-width="2.2"/></svg>',
+  'rd-br':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M13.4 2.6v7.4a3.4 3.4 0 0 1-3.4 3.4H2.6" stroke-width="1" opacity=".35"/><path d="M13.4 7v3a3.4 3.4 0 0 1-3.4 3.4H7" stroke-width="2.2"/></svg>',
+  'rd-bl':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M2.6 2.6v7.4a3.4 3.4 0 0 0 3.4 3.4h7.4" stroke-width="1" opacity=".35"/><path d="M2.6 7v3A3.4 3.4 0 0 0 6 13.4h3" stroke-width="2.2"/></svg>',
 };
 
 let cssColorsPromise = null;
@@ -507,6 +631,16 @@ let lastUid = null;
 let lastType = null;
 let typeStack = [];
 let lastParts = { html: '', css: '', js: '' };
+
+/**
+ * What the open component declares, as the file has it.
+ *
+ * Held apart from the three panes because it is not one: the panes are text
+ * the reader types, this is a list the panel edits. It rides along on every
+ * save so the server never has to guess whether a save meant to change it.
+ */
+let lastProps = [];
+let propsDirty = false;
 let lastLocked = false;
 let lockReady = false;
 let lastWin = null;
@@ -524,6 +658,22 @@ let styleMode = 'css';
 
 /** Redraws the icon row for the mode it is now in. Set by bindCssTools. */
 let cssToolRow = null;
+
+/** Which tool has its children open — '' when none has. */
+let cssOpenTool = '';
+
+/** Which icon has its menu open. Held here so a second click on it closes. */
+let cssOpenMenu = '';
+
+/**
+ * Is the pane showing the section's own values rather than its design?
+ *
+ * The second layer: `#id-{{ id }}` holds what the editor filled in on THIS
+ * section, as custom properties the design reads with `var(…)`. Its own button
+ * rather than a third click on the language switch — three states on one
+ * button is a guess about what the next click gives you.
+ */
+let cssValues = false;
 
 /** The compiled Tailwind for the classes in `twKey`, ready to be saved. */
 let twCss = null;
@@ -716,13 +866,14 @@ function storedPanes(win) {
         html: raw.html !== false,
         css: raw.css !== false,
         js: raw.js === true,
+        alpine: raw.alpine === true,
       };
     }
   } catch {
     /* ignore */
   }
 
-  return { html: true, css: true, js: false };
+  return { html: true, css: true, js: false, alpine: false };
 }
 
 function storePanes(win, panes) {
@@ -736,13 +887,19 @@ function storedWidths(win) {
     if (raw && typeof raw === 'object') {
       const n = (v) => (Number.isFinite(v) && v > 0 ? v : 1);
 
-      return { html: n(raw.html), css: n(raw.css), js: n(raw.js) };
+      const out = {};
+
+      for (const pane of PANES) {
+        out[pane] = n(raw[pane]);
+      }
+
+      return out;
     }
   } catch {
     /* ignore */
   }
 
-  return { html: 1, css: 1, js: 1 };
+  return Object.fromEntries(PANES.map((pane) => [pane, 1]));
 }
 
 function storeWidths(win, widths) {
@@ -910,6 +1067,16 @@ function ensureStyle(doc) {
   color: #7dd3fc;
   background: rgba(56,189,248,.16);
 }
+/* Values is the section's own layer: one rule, no sizes, no state. Hiding the
+   two rather than greying them says there is nothing to pick, not that you
+   are not allowed to. */
+#${DOCK_ID}[data-sve-values="on"] [data-sve-css-head] [data-sve-css-size],
+#${DOCK_ID}[data-sve-values="on"] [data-sve-css-head] [data-sve-css-state],
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-values-mode],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode] {
+  display: none;
+}
+#${DOCK_ID} [data-sve-values-mode],
 #${DOCK_ID} [data-sve-style-mode] {
   all: unset;
   cursor: pointer;
@@ -926,10 +1093,12 @@ function ensureStyle(doc) {
   font-size: 11px;
   white-space: nowrap;
 }
+#${DOCK_ID} [data-sve-values-mode]:hover,
 #${DOCK_ID} [data-sve-style-mode]:hover {
   opacity: 1;
   background: rgba(255,255,255,.1);
 }
+#${DOCK_ID} [data-sve-values-mode][aria-pressed="true"],
 #${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
   opacity: 1;
   color: #7dd3fc;
@@ -938,6 +1107,28 @@ function ensureStyle(doc) {
 /* The CSS pane holds two things and shows one: the editor, or the chips. */
 #${DOCK_ID} [data-sve-tw-host] {
   display: none;
+}
+/* The head row belongs to the editor, so it goes with it: in Tailwind mode the
+   chips draw their own, and two rows asking the same question is one too many. */
+/* The Alpine pane has no editor to fill it, so its panel does. */
+#${DOCK_ID} [data-sve-alpine-host] {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+#${DOCK_ID} [data-sve-css-head] {
+  flex: 0 0 auto;
+}
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-css-head] {
+  display: none;
+}
+/* Locked: dimmed, not gone. The Tailwind row does the same, and a row that
+   disappears reads as broken — a row that is greyed out reads as locked. */
+#${DOCK_ID}[data-sve-code-locked] [data-sve-css-head] {
+  opacity: .5;
 }
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-code-pane="css"] [data-sve-code-host] {
   display: none;
@@ -993,8 +1184,8 @@ function ensureStyle(doc) {
   opacity: .28;
 }
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-tools],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-css-subrow],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-html-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-data-vars],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-antlers-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-visual-edit-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-add-class] {
@@ -1149,9 +1340,14 @@ function ensureStyle(doc) {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
   overflow-x: auto;
+  /* Scrolls like the Tailwind row, and without a bar across the buttons. */
+  scrollbar-width: none;
+}
+#${DOCK_ID} [data-sve-html-tools]::-webkit-scrollbar {
+  display: none;
 }
 #${DOCK_ID} [data-sve-html-tools] {
   flex: 1 1 auto;
@@ -1193,15 +1389,6 @@ function ensureStyle(doc) {
   flex-direction: column;
   min-width: 0;
 }
-#${DOCK_ID} [data-sve-css-subrow] {
-  display: none;
-  align-items: center;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: rgba(255,255,255,.12);
-  pointer-events: auto;
-  min-width: 0;
-}
 /**
  * Air between the tools themselves, not between a tool's children.
  *
@@ -1239,12 +1426,7 @@ function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-css-item][data-sve-css-open] > [data-sve-css-tool][data-open] {
   background: transparent;
 }
-#${DOCK_ID} [data-sve-css-item] > [data-sve-css-subrow] {
-  padding: 0;
-  background: transparent;
-  border-radius: 0;
-}
-#${DOCK_ID} [data-sve-css-item] > [data-sve-css-subrow]::before {
+#${DOCK_ID} [data-sve-css-kids]::before {
   content: '';
   flex: 0 0 auto;
   width: 1px;
@@ -1252,29 +1434,24 @@ function ensureStyle(doc) {
   margin: 0 6px 0 4px;
   background: rgba(255,255,255,.16);
 }
-#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub] [data-sve-css-subrow] {
-  display: flex;
+/* A tool's children, inside the tool's own list item — so they open beside the
+   icon they belong to, in its highlight, never somewhere else on the row. */
+/* A size block that is in the editor but not in the file. Faded says what a
+   dialog would have to explain: nothing here is saved until you write in it. */
+#${DOCK_ID} .sve-css-ghost {
+  opacity: .32;
 }
-#${DOCK_ID} [data-sve-css-subrow] > [data-sve-css-sub] {
-  display: none;
+#${DOCK_ID} [data-sve-css-kids] {
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 2px;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub="padding"] [data-sve-css-sub="box"],
-#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub="margin"] [data-sve-css-sub="box"],
-#${DOCK_ID} [data-sve-css-chrome][data-sve-css-sub="display"] [data-sve-css-sub="display"] {
-  display: flex;
-}
-#${DOCK_ID} [data-sve-css-flex-extras] {
+#${DOCK_ID} [data-sve-css-kids]::-webkit-scrollbar {
   display: none;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-#${DOCK_ID} [data-sve-css-chrome][data-sve-css-flex-on] [data-sve-css-flex-extras] {
-  display: contents;
 }
 #${DOCK_ID} [data-sve-css-sep] {
   width: 1px;
@@ -1289,6 +1466,10 @@ function ensureStyle(doc) {
   all: unset;
   cursor: pointer;
   position: relative;
+  /* Every button keeps its size and the row scrolls instead. Left to shrink,
+     the last few squeezed themselves into slivers rather than admitting there
+     was no room — and squeezed icons read as missing ones. */
+  flex: 0 0 auto;
   width: 22px;
   height: 22px;
   display: inline-flex;
@@ -1310,9 +1491,8 @@ function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-css-box-side]:hover,
 #${DOCK_ID} [data-sve-css-box-side][data-open],
 #${DOCK_ID} [data-sve-css-box-side][data-active],
-#${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool]:hover,
-#${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool][data-open],
-#${DOCK_ID} [data-sve-css-subrow] [data-sve-css-tool][data-active] {
+#${DOCK_ID} [data-sve-css-kids] [data-sve-css-kid]:hover,
+#${DOCK_ID} [data-sve-css-kids] [data-sve-css-kid][data-active] {
   background: transparent;
   opacity: 1;
 }
@@ -1324,6 +1504,39 @@ function ensureStyle(doc) {
   letter-spacing: 0;
   text-transform: none;
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+/* The last three buttons write Antlers, not a tag: a component call, a loop,
+   a condition. They decide what renders and how often, which is a different
+   kind of thing from adding a paragraph - so they carry a colour and read as
+   a group at the end of the row rather than as three more tags. Each keeps
+   its own hover, or a marked button would look dead under the pointer.
+   No backticks in here: this whole sheet is a template literal. */
+#${DOCK_ID} [data-sve-html-tool="component"] {
+  color: #5eead4;
+  background: rgba(45,212,191,.13);
+  opacity: 1;
+}
+#${DOCK_ID} [data-sve-html-tool="component"]:hover,
+#${DOCK_ID} [data-sve-html-tool="component"][data-open] {
+  background: rgba(45,212,191,.26);
+}
+#${DOCK_ID} [data-sve-html-tool="loop"] {
+  color: #a5b4fc;
+  background: rgba(129,140,248,.15);
+  opacity: 1;
+}
+#${DOCK_ID} [data-sve-html-tool="loop"]:hover,
+#${DOCK_ID} [data-sve-html-tool="loop"][data-open] {
+  background: rgba(129,140,248,.28);
+}
+#${DOCK_ID} [data-sve-html-tool="if"] {
+  color: #e8c468;
+  background: rgba(234,179,8,.13);
+  opacity: 1;
+}
+#${DOCK_ID} [data-sve-html-tool="if"]:hover,
+#${DOCK_ID} [data-sve-html-tool="if"][data-open] {
+  background: rgba(234,179,8,.26);
 }
 #${CSS_MENU_ID} {
   position: fixed;
@@ -1339,6 +1552,167 @@ function ensureStyle(doc) {
   border: 1px solid rgba(255,255,255,.12);
   box-shadow: 0 8px 24px rgba(0,0,0,.4);
   font-family: ui-sans-serif, system-ui, sans-serif;
+}
+#${DATA_MENU_ID} {
+  position: fixed;
+  z-index: 60;
+  box-sizing: border-box;
+  width: 23rem;
+  max-width: calc(100vw - 1.5rem);
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.5rem;
+  border-radius: 0.5em;
+  background: #252526;
+  color: #d4d4d4;
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 0.5em 1.5em rgba(0,0,0,.4);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+}
+#${DATA_MENU_ID} [data-sve-data-search] {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  box-sizing: border-box;
+  height: 2.2rem;
+  padding: 0 0.6em;
+  margin-bottom: 0.45rem;
+  border-radius: 0.45em;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.28);
+}
+#${DATA_MENU_ID} [data-sve-data-search]:focus-within {
+  border-color: rgba(147,197,253,.7);
+}
+#${DATA_MENU_ID} [data-sve-data-search] svg {
+  flex: 0 0 auto;
+  opacity: .5;
+}
+#${DATA_MENU_ID} [data-sve-data-input] {
+  all: unset;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+}
+#${DATA_MENU_ID} [data-sve-data-tabs] {
+  display: flex;
+  gap: 0.2rem;
+  margin-bottom: 0.45rem;
+  padding: 0.15rem;
+  border-radius: 0.45em;
+  background: rgba(0,0,0,.28);
+}
+#${DATA_MENU_ID} [data-sve-data-tab] {
+  all: unset;
+  flex: 1 1 0;
+  box-sizing: border-box;
+  padding: 0.35em 0;
+  border-radius: 0.35em;
+  cursor: pointer;
+  text-align: center;
+  font-size: 0.6875rem;
+  opacity: .65;
+}
+#${DATA_MENU_ID} [data-sve-data-tab]:hover { opacity: 1; }
+#${DATA_MENU_ID} [data-sve-data-tab][data-active] {
+  opacity: 1;
+  background: rgba(255,255,255,.14);
+}
+#${DATA_MENU_ID} [data-sve-data-group] {
+  padding: 0.6em 0.5em 0.25em;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  opacity: .45;
+}
+#${DATA_MENU_ID} [data-sve-data-option] {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  width: 100%;
+  padding: 0.35em 0.5em;
+  border-radius: 0.35em;
+  cursor: pointer;
+}
+#${DATA_MENU_ID} [data-sve-data-option]:hover,
+#${DATA_MENU_ID} [data-sve-data-option][data-cursor] {
+  background: rgba(255,255,255,.1);
+}
+#${DATA_MENU_ID} [data-sve-data-name] {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+#${DATA_MENU_ID} [data-sve-data-parent] {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.625rem;
+  opacity: .4;
+}
+#${DATA_MENU_ID} [data-sve-data-value] {
+  flex: 0 1 auto;
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 0.6875rem;
+  opacity: .5;
+}
+#${DATA_MENU_ID} [data-sve-data-loop] {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0.1em 0.45em;
+  border-radius: 0.3em;
+  background: rgba(255,255,255,.1);
+  font-size: 0.5625rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .6;
+}
+#${DATA_MENU_ID} [data-sve-data-empty] {
+  padding: 0.5em;
+  opacity: .55;
+}
+#${DOCK_ID} [data-sve-data-vars] {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 1.65em;
+  height: 1.65em;
+  margin-right: 0.35em;
+  padding: 0;
+  border: 0;
+  border-radius: 0.3em;
+  background: transparent;
+  color: #d4d4d4;
+  opacity: .62;
+  cursor: pointer;
+}
+#${DOCK_ID} [data-sve-data-vars] span {
+  display: flex;
+  line-height: 1;
+}
+#${DOCK_ID} [data-sve-data-vars]:hover,
+#${DOCK_ID} [data-sve-data-vars][data-open] {
+  background: rgba(255,255,255,.16);
+  opacity: 1;
 }
 #${CSS_MENU_ID} [data-sve-css-swatches] {
   display: grid;
@@ -1475,11 +1849,26 @@ function ensureStyle(doc) {
 #${CLASS_RENAME_CHIP_ID}:hover {
   background: #4a4a4a;
 }
+/* Antlers. The partial call keeps its own amber; everything else that decides
+   what renders is one colour, and what closes a block is that colour held back,
+   so an opening line and its closing line do not read as the same thing. */
+#${DOCK_ID} .sve-cm-antlers {
+  color: #b9a6ff;
+}
+#${DOCK_ID} .sve-cm-antlers-close {
+  color: #8d7fc4;
+}
+#${DOCK_ID} .sve-cm-antlers-comment {
+  color: #6b8f6b;
+  font-style: italic;
+}
 #${DOCK_ID} .sve-cm-partial {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
   background: rgba(251,191,36,.16);
-  cursor: pointer;
+  /* Text, because the left button writes here now. The underline still says
+     there is a file behind it; the right button is what opens it. */
+  cursor: text;
 }
 #${DOCK_ID} .sve-cm-partial-line {
   background: rgba(251,191,36,.12);
@@ -1516,8 +1905,10 @@ function ensureStyle(doc) {
   box-sizing: border-box;
   padding: 5px 8px;
   border-radius: 4px;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  /* A sentence now — "Open image" — not a file name, and the same face the
+     HTML tree's row menu uses. */
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }
 #${PARTIAL_MENU_ID} [data-sve-partial-choice]:hover {
   background: rgba(255,255,255,.1);
@@ -1831,7 +2222,7 @@ function panesOf(win, dock) {
   const stored = storedPanes(win);
   const out = {};
 
-  for (const handle of HANDLES) {
+  for (const handle of PANES) {
     const btn = dock.querySelector(`[data-sve-code-pane-btn="${handle}"]`);
 
     out[handle] = btn ? btn.getAttribute('aria-pressed') === 'true' : stored[handle];
@@ -1841,7 +2232,7 @@ function panesOf(win, dock) {
 }
 
 function paintPaneButtons(dock, panes) {
-  for (const handle of HANDLES) {
+  for (const handle of PANES) {
     const btn = dock.querySelector(`[data-sve-code-pane-btn="${handle}"]`);
     const pane = dock.querySelector(`[data-sve-code-pane="${handle}"]`);
 
@@ -1854,7 +2245,7 @@ function paintPaneButtons(dock, panes) {
     }
   }
 
-  const visible = HANDLES.filter((handle) => panes[handle]);
+  const visible = PANES.filter((handle) => panes[handle]);
 
   dock.querySelectorAll('[data-sve-code-split]').forEach((split) => {
     const after = split.getAttribute('data-sve-code-split-after');
@@ -1870,7 +2261,7 @@ function paintPaneButtons(dock, panes) {
 function applyPaneWidths(win, dock) {
   const widths = storedWidths(win);
 
-  for (const handle of HANDLES) {
+  for (const handle of PANES) {
     const pane = dock.querySelector(`[data-sve-code-pane="${handle}"]`);
 
     if (pane) {
@@ -2006,7 +2397,7 @@ function bindSplitters(win, dock) {
       event.stopPropagation();
 
       const after = split.getAttribute('data-sve-code-split-after');
-      const visible = HANDLES.filter((handle) => panesOf(win, dock)[handle]);
+      const visible = PANES.filter((handle) => panesOf(win, dock)[handle]);
       const i = visible.indexOf(after);
       const leftHandle = visible[i];
       const rightHandle = visible[i + 1];
@@ -2508,7 +2899,10 @@ function applyCssScope() {
   let tree = [];
   let created = false;
 
-  if (!htmlScopePref || !htmlScopeActive) {
+  // Values is about the file's own instance layer, not about the tag you have
+  // picked, and the tree scope rebuilds the pane from the picked tag's classes
+  // — a view the `#id-` rule is not in. So Values shows the file.
+  if (cssValues || !htmlScopePref || !htmlScopeActive) {
     cssPane = 'full';
     text = cssFull;
   } else {
@@ -2533,6 +2927,7 @@ function applyCssScope() {
   rememberCssSelectors();
 
   if (lastWin) {
+    applyCssFolds(lastWin, true);
     paintCssToolState(lastWin);
 
     if (created) {
@@ -2541,7 +2936,15 @@ function applyCssScope() {
   }
 }
 
-function showHtmlScope() {
+/**
+ * Show only the focused range in the HTML pane.
+ *
+ * `caret` is a position in the whole file — the point the tree asked to be put
+ * inside — and is translated into this slice. Without one the caret sits at the
+ * start of the slice, which is in front of the opening tag: everything written
+ * next then lands outside the very row that was picked.
+ */
+function showHtmlScope(caret) {
   const view = editors.html;
 
   if (!view || !htmlFocus) {
@@ -2562,12 +2965,15 @@ function showHtmlScope() {
 
   htmlFocus = { from, to };
   htmlScopeActive = true;
-  writeHtmlEditor(htmlFull.slice(from, to), { anchor: 0, head: 0 });
+
+  const at = caret == null ? 0 : Math.max(0, Math.min(caret - from, to - from));
+
+  writeHtmlEditor(htmlFull.slice(from, to), { anchor: at, head: at });
   applyCssScope();
   view.focus();
 }
 
-function showHtmlFull(selectFocus = true) {
+function showHtmlFull(selectFocus = true, caret = null) {
   const view = editors.html;
 
   if (!view) {
@@ -2579,10 +2985,14 @@ function showHtmlFull(selectFocus = true) {
   htmlScopeActive = false;
 
   const full = htmlFull || view.state.doc.toString();
+  // A caret beats the range: the tree asked to be put inside the row, not to
+  // have it selected.
   const selection =
-    selectFocus && htmlFocusOk(htmlFocus?.from, htmlFocus?.to, full.length)
-      ? { anchor: htmlFocus.from, head: htmlFocus.to }
-      : null;
+    caret != null
+      ? { anchor: Math.max(0, Math.min(caret, full.length)) }
+      : selectFocus && htmlFocusOk(htmlFocus?.from, htmlFocus?.to, full.length)
+        ? { anchor: htmlFocus.from, head: htmlFocus.to }
+        : null;
 
   htmlFull = full;
   writeHtmlEditor(full, selection);
@@ -2955,7 +3365,14 @@ function readParts() {
     if (handle === 'html') {
       parts.html = htmlScopeActive ? htmlFull : (editors.html?.state.doc.toString() ?? '');
     } else if (handle === 'css') {
-      parts.css = cssFull;
+      // A size block nobody wrote in is a door held open, not a rule. It is
+      // shown while you are looking around and taken out on the way to disk.
+      parts.css = lastWin ? stripEmptySizeBlocks(cssFull, cssSizeRows(lastWin)) : cssFull;
+
+      // And a class written at the top of the file belongs in the section's
+      // scope. Only moved where there is a scope on the element to move it
+      // into, and never a selector built with Antlers — see css-scope-move.js.
+      parts.css = moveClassesIntoScope(parts.css, parts.html, SCOPE_CLASS);
     } else {
       parts[handle] = editors[handle]?.state.doc.toString() ?? '';
     }
@@ -2965,7 +3382,7 @@ function readParts() {
 }
 
 function cssEditorText() {
-  if (!(htmlScopePref && htmlFocusOk(htmlFocus?.from, htmlFocus?.to, htmlFull.length))) {
+  if (cssValues || !(htmlScopePref && htmlFocusOk(htmlFocus?.from, htmlFocus?.to, htmlFull.length))) {
     cssPane = 'full';
     cssScopeSnapshot = cssFull;
 
@@ -3047,6 +3464,13 @@ function writeParts(parts, disabled) {
     paintCssToolState(lastWin);
     paintHtmlToolState(lastWin);
     paintHtmlScope(lastWin);
+    // The Tailwind row holds offsets into the file it was drawn from, and the
+    // whole file just changed under it. The editor's own update listener is no
+    // help here: it is skipped while `applying` is on, which is exactly when a
+    // load, an unlock or a refresh swaps the document. Without this the row
+    // kept pointing at the section's tag after a component was opened, and the
+    // + menu wrote nothing because those offsets no longer land on a `<`.
+    syncTwTarget(lastWin);
   }
 }
 
@@ -3356,6 +3780,90 @@ function finishCssEdit() {
   }
 }
 
+/**
+ * The selector in front of a rule's `{`.
+ *
+ * Read backwards to the previous `}`, `{` or `;` — whatever closed the last
+ * thing — which is where this rule's own prelude starts.
+ */
+function cssRuleSelector(view, rule) {
+  if (!rule) {
+    return '';
+  }
+
+  const text = view.state.doc.toString();
+  let from = 0;
+
+  for (let i = rule.open - 1; i >= 0; i -= 1) {
+    if (text[i] === '}' || text[i] === '{' || text[i] === ';') {
+      from = i + 1;
+      break;
+    }
+  }
+
+  return text.slice(from, rule.open).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+}
+
+/**
+ * The rule a state button points at — `.card:hover` beside `.card`.
+ *
+ * Made if it is not there yet, directly after the rule it belongs to, because
+ * that is where a person would have written it. Returns the rule to write into,
+ * or null when there is nothing to hang a state off.
+ */
+/**
+ * Find or make the nested block a state writes into — `&:hover` inside the rule.
+ *
+ * Nested, not a second rule beside it: that is how these stylesheets are
+ * written, and `&:hover` moves with the rule if the selector is ever renamed.
+ * A `.card:hover` written before is still recognised, so an older file is not
+ * given a second, nested one saying the same thing.
+ */
+function cssStateRule(view, rule) {
+  if (!cssState || !rule) {
+    return rule;
+  }
+
+  const found = cssExistingStateRule(view, rule);
+
+  if (found) {
+    return found;
+  }
+
+  const selector = cssRuleSelector(view, rule);
+
+  if (!selector || selector.startsWith('@')) {
+    return rule;
+  }
+
+  const text = view.state.doc.toString();
+  const outer = leadingCssIndent(text, rule.open);
+  const indent = leadingCssIndent(text, rule.to) || `${outer}    `;
+  const tail = (view.state.doc.sliceString(rule.from, rule.to).match(/\n([^\S\n]*)$/) || [null, null])[1];
+  const at = tail === null ? rule.to : rule.to - tail.length;
+  const insert = `\n${indent}&${cssStateSuffix()} {\n${indent}}\n${tail ?? outer}`;
+
+  view.dispatch({ changes: { from: at, to: rule.to, insert } });
+
+  // Offsets moved with the insert, so the new block is located in the new
+  // text rather than through the rule object, which is now stale.
+  const next = view.state.doc.toString();
+  const open = next.indexOf('{', at + insert.indexOf('&'));
+  const close = open === -1 ? -1 : matchBraces(next, open);
+
+  return close === -1
+    ? rule
+    : { from: open + 1, to: close, text: next.slice(open + 1, close), open };
+}
+
+/** The whitespace at the start of the line a position sits on. */
+function leadingCssIndent(text, pos) {
+  const start = text.lastIndexOf('\n', pos - 1) + 1;
+  const prefix = text.slice(start, pos);
+
+  return (prefix.match(/^\s*/) || [''])[0];
+}
+
 function applyRuleDecls(updates) {
   const view = editors.css;
 
@@ -3363,7 +3871,13 @@ function applyRuleDecls(updates) {
     return;
   }
 
-  const rule = cssRuleAtCursor();
+  const atCursor = cssRuleAtCursor();
+  // A state is a second rule, not a second declaration: `:hover` belongs on
+  // the selector. Only make one when there is something to put in it —
+  // clearing a property must never leave an empty `:hover` behind.
+  const rule = updates.some((item) => item.value != null)
+    ? cssStateRule(view, atCursor)
+    : atCursor;
 
   if (!rule) {
     const snippet = updates
@@ -3421,8 +3935,15 @@ function applyRuleDecls(updates) {
 
   if (inserts.length) {
     const prefix = !rule.text.includes('\n') || !/\n\s*$/.test(rule.text) ? '\n' : '';
+    // The closing brace usually sits on its own indented line. Writing *at*
+    // the brace leaves that indent in front of the new declaration and pushes
+    // the brace out to column nought — so swallow the whitespace and put the
+    // brace back on a line of its own.
+    const tail = (rule.text.match(/\n([^\S\n]*)$/) || [null, null])[1];
+    const from = tail === null ? rule.to : rule.to - tail.length;
+    const close = tail === null ? '' : tail;
 
-    changes.push({ from: rule.to, to: rule.to, insert: `${prefix}${inserts.join('\n')}\n` });
+    changes.push({ from, to: rule.to, insert: `${prefix}${inserts.join('\n')}\n${close}` });
   }
 
   if (changes.length) {
@@ -3434,9 +3955,72 @@ function applyRuleDecls(updates) {
 }
 
 function currentFlexDecls() {
+  const view = editors.css;
   const rule = cssRuleAtCursor();
 
-  return rule ? parseCssDecls(rule.text) : {};
+  if (!rule) {
+    return {};
+  }
+
+  // With a state picked, the row must light up for what `.card:hover` has —
+  // otherwise every button looks off the moment you switch to hover.
+  if (cssState && view) {
+    const stateRule = cssExistingStateRule(view, rule);
+
+    return stateRule ? parseCssDecls(stateRule.text) : {};
+  }
+
+  return parseCssDecls(rule.text);
+}
+
+/**
+ * The block a state already has — never made, only found.
+ *
+ * `&:hover` nested inside the rule first, because that is what gets written
+ * now; then `.card:hover` anywhere in the file, because that is what older
+ * files say. Either way it is one block, and there is never a second.
+ */
+function cssExistingStateRule(view, rule) {
+  const selector = cssRuleSelector(view, rule);
+  const suffix = cssStateSuffix();
+
+  if (!selector || selector.startsWith('@')) {
+    return null;
+  }
+
+  if (selector.endsWith(suffix)) {
+    return rule;
+  }
+
+  const text = view.state.doc.toString();
+  const block = (open) => {
+    const close = matchBraces(text, open);
+
+    return close === -1 ? null : { from: open + 1, to: close, text: text.slice(open + 1, close), open };
+  };
+
+  for (const wanted of [`&${suffix}`, `${selector}${suffix}`]) {
+    const re = new RegExp(`(^|[^\\w-])${wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{`, 'g');
+    let m;
+
+    while ((m = re.exec(text))) {
+      const open = text.indexOf('{', m.index);
+
+      // The nested one only counts inside this rule; a `&:hover` under some
+      // other selector is some other tag's hover.
+      if (wanted.startsWith('&') && (open < rule.from || open > rule.to)) {
+        continue;
+      }
+
+      const hit = block(open);
+
+      if (hit) {
+        return hit;
+      }
+    }
+  }
+
+  return null;
 }
 
 function applyFlexDirection(direction) {
@@ -3624,137 +4208,86 @@ function insertCssAtCursor(text) {
 function paintCssToolState(win) {
   try {
     paintCssToolStateInner(win);
+    // The head row answers the same three questions the tools do, off the same
+    // cursor, so it is repainted on the same beat rather than on a timer.
+    paintCssHead(win);
   } catch {
     /* invalid Antlers-in-CSS must not take down Live Preview */
   }
 }
 
+/**
+ * Redraw the row from what the file says — both languages, one model.
+ *
+ * Nothing here reaches into the DOM. It fills `cssToolsUi`, the component
+ * loops over it, and a tool and its children are lit, opened and clicked by
+ * exactly the same rules because they are the same kind of thing.
+ */
 function paintCssToolStateInner(win) {
-  const dock = win?.document?.getElementById(DOCK_ID);
-
-  if (dock) {
-    placeCssSubrow(dock);
-  }
-
-  if (styleMode === 'tw') {
-    if (dock) {
-      paintTwToolState(win, dock);
-    }
-
-    return;
-  }
-
-  const decls = currentFlexDecls();
-  const flexOn = isFlexDisplay(decls.display);
+  const tw = styleMode === 'tw';
+  const decls = tw ? {} : currentFlexDecls();
+  // Is this a flex container? Asked of whichever language is on screen, so
+  // alignment appears under the same condition in both.
+  const flexOn = tw
+    ? isFlexDisplay(twActiveClass('display'))
+    : isFlexDisplay(decls.display);
   const flexDir = normalizeFlexValue(decls['flex-direction']) || (flexOn ? 'row' : '');
-  const host = dock?.querySelector('[data-sve-css-tools]');
-  const chrome = dock?.querySelector('[data-sve-css-chrome]');
-  const sub = chrome?.getAttribute('data-sve-css-sub') || '';
-  const boxPrefix = sub === 'padding' || sub === 'margin' ? sub : '';
 
-  if (!dock) {
-    return;
-  }
-
-  if (chrome) {
-    if (flexOn) {
-      chrome.setAttribute('data-sve-css-flex-on', '');
-    } else {
-      chrome.removeAttribute('data-sve-css-flex-on');
-    }
-  }
-
-  if (host) {
-    if (flexOn) {
-      host.setAttribute('data-sve-css-flex-on', '');
-    } else {
-      host.removeAttribute('data-sve-css-flex-on');
-    }
-  }
-
-  for (const tool of [...CSS_TOOLS, ...CSS_DISPLAY_ITEMS]) {
-    const btn = dock.querySelector(`[data-sve-css-tool="${tool.id}"]`);
-
-    if (!btn) {
-      continue;
+  /** Is this property set on the rule under the cursor / the picked tag? */
+  const isSet = (item) => {
+    if (tw) {
+      return twHasNode() && !!item.tw && !!twActiveClass(item.tw);
     }
 
-    let on = false;
+    return !!item.css && item.css in decls;
+  };
 
-    if (tool.flexDir) {
-      on = flexOn && flexDir === tool.flexDir;
-    } else if (tool.display) {
-      on = tool.display === 'flex' ? flexOn : normalizeFlexValue(decls.display) === tool.display;
-    } else if (tool.insert) {
-      const property = cssPropertyOf(tool.insert);
+  cssToolsUi.tools = CSS_TOOLS.map((tool) => {
+    const kids = (tool.kids || [])
+      // Alignment belongs to a flex container. Offering it on something that is
+      // not one is offering to write a declaration that does nothing.
+      .filter((kid) => kid.when !== 'flex' || flexOn)
+      .map((kid) => ({
+        id: kid.id,
+        title: kid.title,
+        icon: CSS_TOOL_ICONS[kid.icon] || '',
+        sep: !!kid.sep,
+        open: cssOpenMenu === kid.id,
+        active: tw
+          ? isSet(kid)
+          : kid.kind === 'display'
+            ? flexOn
+            : kid.kind === 'flexDir'
+              ? flexOn && flexDir === kid.value
+              : kid.value
+                ? normalizeFlexValue(decls[kid.css]) === normalizeFlexValue(kid.value)
+                : isSet(kid),
+      }));
 
-      on = Boolean(property) && normalizeFlexValue(decls[property]) === normalizeFlexValue(cssValueOf(tool.insert));
-    } else if (tool.menu === 'box') {
-      on = Object.keys(decls).some((key) => isCssBoxProperty(key, tool.property));
-
-      if (sub === tool.property) {
-        btn.setAttribute('data-open', '');
-      } else {
-        btn.removeAttribute('data-open');
-      }
-    } else if (tool.menu === 'display') {
-      on = Boolean(decls.display);
-
-      if (sub === 'display') {
-        btn.setAttribute('data-open', '');
-      } else {
-        btn.removeAttribute('data-open');
-      }
-    } else if (tool.property) {
-      on = tool.property in decls;
-    }
-
-    if (on) {
-      btn.setAttribute('data-active', '');
-    } else {
-      btn.removeAttribute('data-active');
-    }
-  }
-
-  for (const side of CSS_BOX_SIDES) {
-    const btn = dock.querySelector(`[data-sve-css-box-side="${side.suffix}"]`);
-
-    if (!btn) {
-      continue;
-    }
-
-    const on = Boolean(boxPrefix) && `${boxPrefix}${side.suffix}` in decls;
-
-    if (on) {
-      btn.setAttribute('data-active', '');
-    } else {
-      btn.removeAttribute('data-active');
-    }
-  }
-
-  for (const tool of CSS_FLEX_EXTRAS) {
-    const btn = dock.querySelector(`[data-sve-css-tool="${tool.id}"]`);
-
-    if (!btn) {
-      continue;
-    }
-
-    const on = normalizeFlexValue(decls[tool.property]) === normalizeFlexValue(tool.value);
-
-    if (on) {
-      btn.setAttribute('data-active', '');
-    } else {
-      btn.removeAttribute('data-active');
-    }
-  }
+    return {
+      id: tool.id,
+      title: tool.title,
+      icon: CSS_TOOL_ICONS[tool.id] || TW_TOOL_ICONS[tool.id] || '',
+      open: cssOpenTool === tool.id || cssOpenMenu === tool.id,
+      kids,
+      // A parent is lit when it is set, or when any of its children is: Padding
+      // is on whether the file says `padding` or only `padding-block-start`.
+      active: tool.value
+        ? !tw && normalizeFlexValue(decls[tool.css]) === normalizeFlexValue(tool.value)
+        : isSet(tool) || kids.some((kid) => kid.active),
+    };
+  });
 }
+
 
 function closeCssMenu(doc) {
   const menu = doc?.getElementById(CSS_MENU_ID);
 
+  cssOpenMenu = '';
+
   menu?._sveApp?.unmount();
   menu?.remove();
-  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-css-box-side][data-open], [data-sve-html-tool][data-open], [data-sve-css-add-class][data-open], [data-sve-code-history][data-open]').forEach((el) =>
+  doc?.querySelectorAll('[data-sve-css-tool][data-open], [data-sve-html-tool][data-open], [data-sve-css-add-class][data-open], [data-sve-code-history][data-open]').forEach((el) =>
     el.removeAttribute('data-open')
   );
 }
@@ -3762,6 +4295,7 @@ function closeCssMenu(doc) {
 /** Close CSS/HTML tool menus and CodeMirror suggestions — they sit above Statamic pickers. */
 export function closeCodeDockPopups(doc) {
   closeCssMenu(doc);
+  closeDataMenu(doc);
   closeClassTokenUi(doc);
 
   for (const handle of HANDLES) {
@@ -3889,6 +4423,92 @@ function openCssColorMenu(win, anchor, property) {
   });
 }
 
+/**
+ * Pick a value for one property, from this site's own scale.
+ *
+ * `extra` is what the scale cannot answer — `auto`, `100%`, `fit-content`.
+ * They go at the top, because on Width they are the usual answer and the
+ * scale is the exception.
+ */
+/** A short, fixed list — `text-align` has four answers and always will. */
+function openCssChoiceMenu(win, anchor, property, choices) {
+  const doc = win.document;
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+  const current = currentFlexDecls()[property] || '';
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: (choices || []).map((value) => ({
+      value,
+      label: value,
+      active: normalizeFlexValue(value) === normalizeFlexValue(current),
+    })),
+    onPick: (value) => {
+      // Clicking what is already set takes it off again, the same as every
+      // other toggle in this row.
+      const same = normalizeFlexValue(value) === normalizeFlexValue(currentFlexDecls()[property] || '');
+
+      applyRuleDecls([{ property, value: same ? null : value }]);
+      closeCssMenu(doc);
+    },
+  });
+}
+
+function openCssValueMenu(win, anchor, property, extra = []) {
+  const doc = win.document;
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+  twWantFamilies(win);
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+
+  const paint = () => {
+    const rows = [
+      ...extra.map((value) => ({ value, label: value })),
+      ...twValueOptions(win, property).map((option) => ({
+        value: option.value,
+        label: option.value,
+      })),
+    ];
+    const current = currentFlexDecls()[property] || '';
+
+    menu._sveApp?.unmount();
+    menu._sveApp = mountSurface(CodeDockMenu, menu, {
+      kind: 'choices',
+      choices: rows.map((row) => ({
+        ...row,
+        active: normalizeFlexValue(row.value) === normalizeFlexValue(current),
+      })),
+      onPick: (value) => {
+        applyRuleDecls([{ property, value: value || null }]);
+        closeCssMenu(doc);
+      },
+    });
+  };
+
+  paint();
+
+  // The theme is one fetch. Draw what is known now, and again when it lands —
+  // the alternative is a menu that is empty the first time it is opened.
+  loadThemeColors(win).then(() => {
+    if (doc.getElementById(CSS_MENU_ID) === menu) {
+      paint();
+    }
+  });
+}
+
 function openCssSpacingMenu(win, anchor, property) {
   const doc = win.document;
 
@@ -3911,68 +4531,8 @@ function openCssSpacingMenu(win, anchor, property) {
   markCssMenuActive(menu, property);
 }
 
-/**
- * Put the open tool's children next to the tool, inside its own highlight.
- *
- * The row is a strip of icons and the children belong to one of them, so a
- * second line left the reader guessing which. Moved, not rebuilt: the box and
- * display rows are Vue apps mounted inside this node, and recreating it would
- * throw them away. When nothing is open it goes back to the label, out of the
- * way of the tool row's own remount.
- */
-function placeCssSubrow(dock) {
-  const chrome = cssChrome(dock);
-  const subrow = chrome?.querySelector('[data-sve-css-subrow]');
-
-  if (!chrome || !subrow) {
-    return;
-  }
-
-  chrome
-    .querySelectorAll('[data-sve-css-item][data-sve-css-open]')
-    .forEach((el) => el.removeAttribute('data-sve-css-open'));
-
-  const open = chrome.getAttribute('data-sve-css-sub') || '';
-  const item = open ? chrome.querySelector(`[data-sve-css-item="${open}"]`) : null;
-
-  if (item) {
-    if (subrow.parentElement !== item) {
-      item.appendChild(subrow);
-    }
-
-    item.setAttribute('data-sve-css-open', '');
-
-    return;
-  }
-
-  const label = chrome.querySelector('[data-sve-code-pane-label]');
-
-  if (label && subrow.parentElement !== label) {
-    label.appendChild(subrow);
-  }
-}
-
 function cssChrome(dock) {
   return dock?.querySelector('[data-sve-css-chrome]');
-}
-
-function toggleCssSubrow(win, mode) {
-  const dock = win.document.getElementById(DOCK_ID);
-  const chrome = cssChrome(dock);
-
-  closeCssMenu(win.document);
-
-  if (!chrome) {
-    return;
-  }
-
-  if (chrome.getAttribute('data-sve-css-sub') === mode) {
-    chrome.removeAttribute('data-sve-css-sub');
-  } else {
-    chrome.setAttribute('data-sve-css-sub', mode);
-  }
-
-  paintCssToolState(win);
 }
 
 function skipHtmlNoise(text, i) {
@@ -4154,7 +4714,7 @@ function dispatchHtmlChanges(view, changes, selection) {
   });
 }
 
-function insertHtmlSnippet(snippet, cursorFromStart) {
+function insertHtmlSnippet(snippet, cursorFromStart, selectLength) {
   const view = editors.html;
 
   if (!view || view.state.readOnly) {
@@ -4178,7 +4738,7 @@ function insertHtmlSnippet(snippet, cursorFromStart) {
     extra = indent.length;
     view.dispatch({
       changes: { from: line.from, to: line.to, insert },
-      selection: { anchor: line.from + extra + cursorFromStart },
+      selection: caretRange(line.from + extra + cursorFromStart, selectLength),
     });
 
     return;
@@ -4186,8 +4746,81 @@ function insertHtmlSnippet(snippet, cursorFromStart) {
 
   view.dispatch({
     changes: { from: pos, to: view.state.selection.main.to, insert },
-    selection: { anchor: pos + extra + cursorFromStart },
+    selection: caretRange(pos + extra + cursorFromStart, selectLength),
   });
+}
+
+/** A caret, or a selection over the placeholder the caret was put in front of. */
+function caretRange(anchor, length) {
+  return length ? { anchor, head: anchor + length } : { anchor };
+}
+
+/**
+ * Tags whose button leaves the caret inside what it just wrote.
+ *
+ * Only the sectioning ones. A section is made in order to be filled, so the
+ * next thing written belongs in it. Everything else stacks: click `div` four
+ * times and you want four boxes side by side, not four boxes inside each
+ * other — which is what leaving the caret between the tags gave you.
+ *
+ * Working *inside* an existing element is what picking its row in the tree is
+ * for, and that puts the caret in any row, whatever its tag.
+ */
+const FILLED_TAGS = new Set([
+  'section',
+  'article',
+  'header',
+  'footer',
+  'main',
+  'nav',
+  'aside',
+]);
+
+/**
+ * The opening tag a toolbar button writes.
+ *
+ * A section carries the attributes the site configures for it, so a new one is
+ * addressable and clickable in the preview from the moment it exists. Every
+ * other tag opens bare.
+ */
+function openTagFor(tag) {
+  if (tag !== 'section') {
+    return `<${tag}>`;
+  }
+
+  const attrs = lastWin?.Statamic?.$config?.get?.('sveSectionTag');
+
+  return typeof attrs === 'string' && attrs.trim() ? `<${tag} ${attrs.trim()}>` : `<${tag}>`;
+}
+
+/**
+ * Put the indentation back in the pane.
+ *
+ * Whatever the pane holds: the whole file, or the one element the scope button
+ * narrowed it to. A scoped pane is a fragment that starts somewhere indented,
+ * so its own first line's indent goes back in front of every line — tidying a
+ * piece of a file must not walk that piece to the left margin.
+ */
+function tidyHtmlPane() {
+  const view = editors.html;
+
+  if (!view || view.state.readOnly) {
+    return;
+  }
+
+  const text = view.state.doc.toString();
+  const lead = (text.match(/^[ \t]*/) || [''])[0];
+  const tidy = tidyHtml(text)
+    .split('\n')
+    .map((line) => (line ? lead + line : line))
+    .join('\n');
+
+  if (tidy === text) {
+    return;
+  }
+
+  dispatchHtmlChanges(view, [{ from: 0, to: text.length, insert: tidy }], { anchor: 0 });
+  finishHtmlEdit();
 }
 
 function applyHtmlTag(tag) {
@@ -4214,8 +4847,9 @@ function applyHtmlTag(tag) {
       return;
     }
 
-    let insert = `<${tag}>${selected}</${tag}>`;
-    let innerFrom = sel.from + tag.length + 2;
+    const open = openTagFor(tag);
+    let insert = `${open}${selected}</${tag}>`;
+    let innerFrom = sel.from + open.length;
 
     if (tag === 'ul') {
       insert = `<ul>\n  <li>${selected}</li>\n</ul>`;
@@ -4273,7 +4907,10 @@ function applyHtmlTag(tag) {
 
     insertHtmlSnippet(snippet, `<ul>\n${indent}  <li>`.length);
   } else {
-    insertHtmlSnippet(`<${tag}></${tag}>`, tag.length + 2);
+    const open = openTagFor(tag);
+    const snippet = `${open}</${tag}>`;
+
+    insertHtmlSnippet(snippet, FILLED_TAGS.has(tag) ? open.length : snippet.length);
   }
 
   finishHtmlEdit();
@@ -4313,7 +4950,14 @@ function paintHtmlToolStateInner(win) {
   }
 }
 
-function openHtmlHeadingMenu(win, anchor) {
+/**
+ * Pick which tag to write: the six headings, or the text tags.
+ *
+ * One button per kind, not one per tag. `h2` and `h3` are the same decision
+ * made twice, and so are `p` and `span` — the row of buttons stays short
+ * enough to read, and the choice is made where it is made.
+ */
+function openHtmlTagMenu(win, anchor, tags) {
   const doc = win.document;
   const current = htmlElementAtCursor()?.name || '';
 
@@ -4327,7 +4971,7 @@ function openHtmlHeadingMenu(win, anchor) {
   placeCssMenu(win, anchor, menu);
   menu._sveApp = mountSurface(CodeDockMenu, menu, {
     kind: 'choices',
-    choices: HTML_HEADINGS.map((tag) => ({
+    choices: tags.map((tag) => ({
       value: tag,
       label: tag.toUpperCase(),
       active: current === tag,
@@ -4337,6 +4981,65 @@ function openHtmlHeadingMenu(win, anchor) {
       closeCssMenu(doc);
     },
   });
+}
+
+/**
+ * Pick a component to write in at the cursor.
+ *
+ * The list is the folder, read fresh each time the button is used — a
+ * component made a moment ago in the tree has to be here without a reload.
+ */
+function openHtmlComponentMenu(win, anchor) {
+  const doc = win.document;
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+
+  const paint = (choices) => {
+    if (!doc.getElementById(CSS_MENU_ID)) {
+      return;
+    }
+
+    menu._sveApp?.unmount();
+    menu._sveApp = mountSurface(CodeDockMenu, menu, {
+      kind: 'choices',
+      choices,
+      onPick: (tag) => {
+        if (tag) {
+          insertHtmlSnippet(tag, tag.length);
+          finishHtmlEdit();
+        }
+
+        closeCssMenu(doc);
+      },
+    });
+    placeCssMenu(win, anchor, menu);
+  };
+
+  paint([{ value: '', label: t(win, 'code_dock_loading') }]);
+
+  win
+    .fetch('/!/sve/components', {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+    })
+    .then((res) => (res.ok ? res.json() : { items: [] }))
+    .then((data) => {
+      const items = Array.isArray(data.items) ? data.items : [];
+
+      paint(
+        items.length
+          ? items.map((item) => ({ value: item.tag, label: item.name }))
+          : [{ value: '', label: t(win, 'component_none') }]
+      );
+    })
+    .catch(() => paint([{ value: '', label: t(win, 'component_none') }]));
 }
 
 function addCssClassName(raw) {
@@ -4565,6 +5268,11 @@ function paintStrip(win) {
     return;
   }
 
+  // The strip shows the picked tag's Tailwind classes over the preview. In CSS
+  // mode there are no chips to show, so the button has nothing to switch — and
+  // a switch that does nothing is worse than no switch.
+  btn.hidden = styleMode !== 'tw';
+
   const on = twOverlayOn(win);
 
   btn.innerHTML = STRIP_ICON;
@@ -4629,9 +5337,19 @@ export function codeDockStyleMode() {
  * same place instead of fighting each other.
  */
 function twTargetFromCursor(win) {
+  return styleMode === 'tw' ? htmlTargetFromCursor(win) : null;
+}
+
+/**
+ * The tag the HTML cursor is inside, whichever language the style pane is in.
+ *
+ * Both rows point at the same thing and should say the same thing, so they ask
+ * the same function — the mode only decides who is listening.
+ */
+function htmlTargetFromCursor(win) {
   const view = editors.html;
 
-  if (!view || styleMode !== 'tw') {
+  if (!view) {
     return null;
   }
 
@@ -4659,6 +5377,82 @@ function syncTwTarget(win) {
   }
 
   renderTwClasses(win, twTargetFromCursor(win));
+}
+
+function paintValuesMode(win) {
+  const dock = win?.document.getElementById(DOCK_ID);
+  const btn = dock?.querySelector('[data-sve-values-mode]');
+
+  if (!dock || !btn) {
+    return;
+  }
+
+  dock.setAttribute('data-sve-values', cssValues ? 'on' : 'off');
+
+  const text = win.document.createElement('span');
+
+  text.textContent = t(win, 'code_dock_values');
+  btn.innerHTML = ID_MODE_ICON;
+  btn.appendChild(text);
+  btn.title = t(win, cssValues ? 'code_dock_values_off' : 'code_dock_values_on');
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', cssValues ? 'true' : 'false');
+}
+
+/**
+ * Make the section's own rule if it has none yet.
+ *
+ * Same promise the size blocks make: here is somewhere to write. Empty, it is
+ * faded and never saved — so switching to ID and back leaves the file exactly
+ * as it was, and a section that has no values yet still has a door to them.
+ */
+function enterValuesRule(win) {
+  const view = editors.css;
+
+  if (!view || view.state.readOnly) {
+    return;
+  }
+
+  const text = view.state.doc.toString();
+  const found = idRuleBlocks(text);
+
+  if (found.length) {
+    const at = Math.min(found[0].bodyTo, found[0].bodyFrom
+      + (text.slice(found[0].bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length);
+
+    view.dispatch({ selection: { anchor: at }, scrollIntoView: true });
+
+    return;
+  }
+
+  // At the top of the file: the values come before the design that reads them.
+  const insert = `#id-{{ id }} {\n    \n}\n\n`;
+
+  view.dispatch({
+    changes: { from: 0, to: 0, insert },
+    selection: { anchor: insert.indexOf('    ') + 4 },
+    scrollIntoView: true,
+  });
+}
+
+function setValuesMode(win, on) {
+  cssValues = !!on;
+  chromeSet(win, VALUES_MODE_KEY, cssValues ? '1' : '0');
+  closeCssMenu(win.document);
+  cssOpenTool = '';
+  paintValuesMode(win);
+  // The pane's content changes, not just what is folded in it: leaving Values
+  // hands the tree scope back whatever it had.
+  flushCssScope();
+  applyCssScope();
+
+  if (cssValues) {
+    enterValuesRule(win);
+  }
+
+  applyCssFolds(win, true);
+  paintCssHead(win);
+  paintCssToolState(win);
 }
 
 function paintStyleMode(win) {
@@ -4704,8 +5498,22 @@ function applyStyleMode(win) {
 
   closeCssMenu(win.document);
   closeTwMenu(win);
-  cssChrome(dock)?.removeAttribute('data-sve-css-sub');
+  // Switching language closes whatever was open: the row is about to be the
+  // other language's, and a group left open would be pointing at nothing.
+  cssOpenTool = '';
+  cssOpenMenu = '';
+
+  // Tailwind has no per-instance layer — its classes are on the tag, not in a
+  // rule — so switching language leaves Values behind rather than showing a
+  // button that would point at nothing.
+  if (styleMode === 'tw' && cssValues) {
+    cssValues = false;
+    chromeSet(win, VALUES_MODE_KEY, '0');
+  }
+
   paintStyleMode(win);
+  paintValuesMode(win);
+  paintStrip(win);
   cssToolRow?.();
 
   if (styleMode === 'tw') {
@@ -4719,7 +5527,695 @@ function applyStyleMode(win) {
   }
 
   syncTwTarget(win);
+  paintAlpine(win);
   paintCssToolState(win);
+}
+
+/**
+ * Which screen size the CSS pane is looking at, and which state it writes for.
+ *
+ * `cssSize` is a breakpoint handle, or '' for "all of them". It does two
+ * things and no more: it puts the other sizes' `@media` blocks away, and it
+ * parks the cursor inside this size's block — and because every tool in the
+ * row writes into the rule the cursor is in, that is all it takes for a click
+ * on Padding to land under the right size.
+ *
+ * What it deliberately does NOT do is rewrite the pane. The text in front of
+ * you is the file on disk, every time. Folding is reversible; a filtered view
+ * that has to be merged back is one parse away from losing an edit.
+ */
+const CSS_SIZE_KEY = 'sve-css-size';
+const CSS_STATE_KEY = 'sve-css-state';
+
+/** Pseudo-classes worth a button. `before`/`after` are elements, and say so. */
+const CSS_STATES = ['hover', 'focus', 'focus-visible', 'active', 'disabled', 'before', 'after'];
+
+let cssSize = '';
+let cssState = '';
+
+/** The folds this panel made, so a reader's own folds are never undone. */
+let cssOwnFolds = new Set();
+
+/** Size + block positions, so unchanged text is not re-folded on every key. */
+let cssFoldSig = '';
+
+/** The size rows as `css-sizes.js` wants them: handle, base, edge. */
+function cssSizeRows(win) {
+  return breakpoints(win).map((row) => ({
+    handle: row.handle,
+    base: row.base,
+    max: row.max,
+    media: row.media,
+    media_px: row.media_px,
+    label: row.label,
+  }));
+}
+
+function cssSizeRow(win, handle) {
+  return cssSizeRows(win).find((row) => row.handle === handle) || null;
+}
+
+/** The pseudo as it is written in CSS — `::before`, but `:hover`. */
+function cssStateSuffix(state = cssState) {
+  if (!state) {
+    return '';
+  }
+
+  return state === 'before' || state === 'after' ? `::${state}` : `:${state}`;
+}
+
+/**
+ * Put the other sizes away, and open this one.
+ *
+ * Runs on every size switch and after every load, because the ranges move
+ * whenever the text does. Folds this code did not make are left alone — a
+ * reader who folded something by hand keeps it folded.
+ */
+function applyCssFolds(win, force = false) {
+  const view = editors.css;
+
+  if (!view || !foldEffect || !unfoldEffect) {
+    return;
+  }
+
+  const text = view.state.doc.toString();
+  const sig = `${cssValues ? 'v' : cssSize}|${cssMediaBlocks(text).map((b) => `${b.from}-${b.to}`).join(',')}`;
+
+  // Typing inside a rule moves nothing that is folded. Re-folding on every
+  // keystroke would be work for nothing, and a dispatch per character.
+  if (!force && sig === cssFoldSig) {
+    return;
+  }
+
+  cssFoldSig = sig;
+
+  const rows = cssSizeRows(win);
+  const wanted = new Map();
+  // Values is its own view of the file, not a size within it, so it answers
+  // first: in Values you are looking at one rule and nothing else.
+  const ranges = cssValues
+    ? foldRangesForValues(text)
+    : foldRangesForSize(text, rows, cssSize);
+
+  for (const range of ranges) {
+    if (range.to > range.from) {
+      wanted.set(`${range.from}:${range.to}`, { from: range.from, to: range.to });
+    }
+  }
+
+  const effects = [];
+  const present = new Set();
+
+  foldedRanges(view.state).between(0, text.length, (from, to) => {
+    const key = `${from}:${to}`;
+
+    present.add(key);
+
+    if (!wanted.has(key) && cssOwnFolds.has(key)) {
+      effects.push(unfoldEffect.of({ from, to }));
+    }
+  });
+
+  for (const [key, range] of wanted) {
+    if (!present.has(key)) {
+      effects.push(foldEffect.of(range));
+    }
+  }
+
+  cssOwnFolds = new Set(wanted.keys());
+
+  if (effects.length) {
+    view.dispatch({ effects });
+  }
+}
+
+/**
+ * Move the cursor into the size being looked at, making its block if needed.
+ *
+ * A size with nowhere to write is the whole reason this exists: clicking
+ * Tablet on a section that has never had a tablet rule should leave you with
+ * an empty tablet block and the cursor in it, not with a button that lit up
+ * and did nothing.
+ */
+function enterCssSize(win, handle) {
+  const view = editors.css;
+
+  if (!view || view.state.readOnly) {
+    return;
+  }
+
+  const rows = cssSizeRows(win);
+  const row = cssSizeRow(win, handle);
+  const text = view.state.doc.toString();
+
+  if (!row || row.base) {
+    // The base is what is left over when no size applies — it has no block of
+    // its own to step into. All that is needed is to step *out* of one, and
+    // only if the cursor is in one; otherwise the click moves nothing.
+    const head = view.state.selection.main.head;
+    const inside = cssMediaBlocks(text).find((block) => head >= block.from && head <= block.to);
+
+    if (inside) {
+      view.dispatch({ selection: { anchor: inside.from }, scrollIntoView: true });
+    }
+
+    return;
+  }
+
+  const existing = blocksForSize(text, rows, handle);
+
+  if (existing.length) {
+    const block = existing[0];
+    const at = Math.min(block.bodyTo, block.bodyFrom + (text.slice(block.bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length);
+
+    view.dispatch({ selection: { anchor: at }, scrollIntoView: true });
+
+    return;
+  }
+
+  // Written in the spelling the file already uses. A file that says
+  // `max-width: …px` throughout keeps saying it; everything else gets the
+  // site's own unit, which is `em` unless the breakpoint says otherwise.
+  //
+  // Judged on the whole file, not on the pane: with the tree scope on, the
+  // pane is a rebuilt view of one class and may hold no media query at all,
+  // and a file written in px would quietly gain its first em one.
+  const spelling = cssFull || text;
+  const query = /max-width/i.test(spelling) && !/width\s*</i.test(spelling)
+    ? row.media_px || row.media
+    : row.media;
+  const spot = newSizeBlockSpot(view, text);
+  const insert = `\n\n${spot.indent}@media ${query} {\n${spot.indent}    \n${spot.indent}}${spot.suffix}`;
+
+  view.dispatch({
+    changes: { from: spot.at, to: spot.at, insert },
+    selection: { anchor: spot.at + insert.lastIndexOf('    ') + 4 },
+    scrollIntoView: true,
+  });
+}
+
+/**
+ * Where a size that does not exist yet should be written.
+ *
+ * Beside its siblings if there are any — these templates keep the sizes
+ * together at the bottom of the rule they belong to, and one written somewhere
+ * else is one nobody finds again. With no siblings it goes at the end of the
+ * rule the cursor is in, which is the rule whose declarations it overrides.
+ * Only a cursor in no rule at all falls back to the end of the file.
+ */
+function newSizeBlockSpot(view, text) {
+  const blocks = cssMediaBlocks(text);
+
+  if (blocks.length) {
+    const last = blocks[blocks.length - 1];
+
+    return { at: last.to, indent: leadingCssIndent(text, last.from), suffix: '' };
+  }
+
+  const inside = (rule) => ({
+    // Just inside the closing brace, indented like the rule's own contents.
+    at: rule.to,
+    indent: leadingCssIndent(text, rule.to) || `${leadingCssIndent(text, rule.open)}    `,
+    // The brace we are writing in front of has to keep its own line, or the
+    // rule ends `}}` and the next reader has to count them.
+    suffix: `\n${leadingCssIndent(text, rule.open)}`,
+  });
+
+  const rule = cssRuleAtCursor();
+
+  if (rule) {
+    return inside(rule);
+  }
+
+  // No siblings, and the cursor is in none of them. These panes are almost
+  // always one rule — `#id-… { … }` in a section, the focused class with the
+  // tree scope on — and a size written outside it is a size that belongs to
+  // nothing. Only a pane with no single rule to speak of falls back to the end.
+  const only = soleTopLevelRule(text);
+
+  return only ? inside(only) : { at: text.length, indent: '', suffix: '' };
+}
+
+/** The one rule a pane consists of, or null when it is not shaped like that. */
+function soleTopLevelRule(text) {
+  const source = String(text || '');
+  let found = null;
+  let i = 0;
+  let chunkStart = 0;
+
+  while (i < source.length) {
+    if (source[i] === '}' || source[i] === ';') {
+      i += 1;
+      chunkStart = i;
+      continue;
+    }
+
+    if (source[i] !== '{') {
+      i += 1;
+      continue;
+    }
+
+    const close = matchBraces(source, i);
+
+    if (close === -1) {
+      return null;
+    }
+
+    if (found) {
+      // A second one: there is no "the" rule to put it in.
+      return null;
+    }
+
+    const prelude = source.slice(chunkStart, i).trim();
+
+    // An at-rule is not a home for a size — `@media` inside `@media` is a
+    // narrowing nobody asked for, and `@import` has no body to write in.
+    found = prelude.startsWith('@') ? null : { from: chunkStart, open: i, to: close };
+
+    if (!found) {
+      return null;
+    }
+
+    i = close + 1;
+    chunkStart = i;
+  }
+
+  return found;
+}
+
+function setCssSize(win, handle) {
+  const next = handle === cssSize ? '' : handle;
+
+  cssSize = next;
+  chromeSet(win, CSS_SIZE_KEY, next);
+
+  // Move the preview with it, the way the Tailwind row does. Through the
+  // toolbar's own door so the block-order bookkeeping it does still happens.
+  // "All" is Fit: no size filter on the row, no frame around the preview.
+  ask('lp:set-device', { win, key: next ? bpDevice(next, win) : 'Responsive' });
+
+  if (next) {
+    enterCssSize(win, next);
+  }
+
+  applyCssFolds(win, true);
+  paintCssHead(win);
+  paintCssToolState(win);
+}
+
+function setCssState(win, state) {
+  cssState = CSS_STATES.includes(state) ? state : '';
+  chromeSet(win, CSS_STATE_KEY, cssState);
+  closeCssMenu(win.document);
+  paintCssHead(win);
+  paintCssToolState(win);
+}
+
+function openCssStateMenu(win, anchor) {
+  const doc = win.document;
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: [
+      { value: '', label: t(win, 'css_state_none'), active: !cssState },
+      ...CSS_STATES.map((key) => ({
+        value: key,
+        label: cssStateSuffix(key),
+        active: key === cssState,
+      })),
+    ],
+    onPick: (key) => setCssState(win, key),
+  });
+}
+
+/**
+ * The row above the CSS editor: which tag, which size, which state.
+ *
+ * The tag is the one the HTML cursor is in — the same answer the Tailwind row
+ * gives, because it is the same question. Without it the CSS pane was the one
+ * place in the dock that never said what it was pointed at.
+ */
+function paintCssHead(win) {
+  const dock = win?.document.getElementById(DOCK_ID);
+  const host = dock?.querySelector('[data-sve-css-head]');
+
+  if (!host) {
+    return;
+  }
+
+  const target = htmlTargetFromCursor(win);
+  const rows = cssSizeRows(win);
+  const text = editors.css?.state.doc.toString() ?? '';
+
+  cssUi.tag = target?.tag || '';
+  cssUi.scope = bracketToken(target ? currentFullHtml().slice(target.from, target.openTo) : '') || '';
+  cssUi.canEdit = !lastLocked;
+  cssUi.onTag = (event) => twOpenTagMenuAt(win, event.currentTarget, target);
+  cssUi.state = cssState;
+  cssUi.stateLabel = cssState ? cssStateSuffix(cssState) : t(win, 'css_state');
+  cssUi.onState = (event) => openCssStateMenu(win, event.currentTarget);
+  cssUi.onSize = (key) => setCssSize(win, key);
+  cssUi.sizes = [
+    {
+      key: '',
+      label: t(win, 'tw_size_all'),
+      title: t(win, 'css_size_all_title'),
+      active: !cssSize,
+    },
+    ...rows.map((row) => {
+      const has = row.base || blocksForSize(text, rows, row.handle).length > 0;
+
+      return {
+        key: row.handle,
+        label: row.label,
+        title: row.base
+          ? t(win, 'css_size_base_title')
+          : `@media ${row.media}${has ? '' : `  ·  ${t(win, 'css_size_new')}`}`,
+        active: cssSize === row.handle,
+      };
+    }),
+  ];
+
+  // Mounted once. `cssUi` is reactive, so every later repaint is a write to
+  // the store — remounting on each keystroke would throw the row away and
+  // build it again sixty times a second.
+  if (!host._sveMounted) {
+    host._sveMounted = true;
+    mountPane(host, CodeDockCssHead);
+  }
+}
+
+/**
+ * The preview's device buttons move the CSS row with them.
+ *
+ * Same rule as the Tailwind row: the size you are looking at is the size you
+ * are editing. Fit is not a size, so it clears the filter rather than picking
+ * one — that is the view where you want to see the whole file.
+ */
+on('lp:device', (key) => {
+  const win = lastWin;
+
+  if (!win || !isCodeDockOpen(win.document)) {
+    return;
+  }
+
+  // Fit, and any name this site does not have, mean no filter at all.
+  const next = breakpoints(win).find((item) => item.device === key)?.handle || '';
+
+  if (next === cssSize) {
+    return;
+  }
+
+  cssSize = next;
+  chromeSet(win, CSS_SIZE_KEY, next);
+  applyCssFolds(win, true);
+  paintCssHead(win);
+  paintCssToolState(win);
+});
+
+/* ------------------------------------------------------------------ *
+ * Alpine — the fourth pane
+ * ------------------------------------------------------------------ */
+
+/**
+ * Write one attribute onto the tag the HTML cursor is in.
+ *
+ * Replaces it if the tag already has it, otherwise adds it right after the tag
+ * name — where a person would put it, and where it reads first. An empty value
+ * is written bare (`x-cloak`, `x-transition`), because that is how Alpine's own
+ * documentation writes them and a `=""` looks like something went wrong.
+ */
+function setAlpineAttr(win, name, value) {
+  const view = editors.html;
+  const target = htmlTargetFromCursor(win);
+
+  if (!view || view.state.readOnly || !target) {
+    return;
+  }
+
+  const scoped = htmlScopeActive && !!htmlFocus;
+  const offset = scoped ? htmlFocus.from : 0;
+  const html = scoped ? htmlFull : view.state.doc.toString();
+  const open = html.slice(target.from, target.openTo);
+  const written = value === '' ? name : `${name}="${value}"`;
+  const found = tagAttrs(open).find((attr) => attr.name === name);
+
+  let next;
+
+  if (found) {
+    next = open.slice(0, found.from) + written + open.slice(found.to);
+  } else {
+    // After the tag name: `<div |x-data="…" class="…">`.
+    const at = open.search(/\s|\/?>$/);
+
+    next = at === -1 ? open : `${open.slice(0, at)} ${written}${open.slice(at)}`;
+  }
+
+  if (next === open) {
+    return;
+  }
+
+  dispatchHtmlChanges(
+    view,
+    [{ from: target.from - offset, to: target.openTo - offset, insert: next }],
+    null
+  );
+  paintAlpine(win);
+}
+
+function removeAlpineAttr(win, name) {
+  const view = editors.html;
+  const target = htmlTargetFromCursor(win);
+
+  if (!view || view.state.readOnly || !target) {
+    return;
+  }
+
+  const scoped = htmlScopeActive && !!htmlFocus;
+  const offset = scoped ? htmlFocus.from : 0;
+  const html = scoped ? htmlFull : view.state.doc.toString();
+  const open = html.slice(target.from, target.openTo);
+  const found = tagAttrs(open).find((attr) => attr.name === name);
+
+  if (!found) {
+    return;
+  }
+
+  let from = found.from;
+
+  // Take the space in front with it, or the tag keeps widening.
+  while (from > 0 && /\s/.test(open[from - 1])) {
+    from -= 1;
+  }
+
+  const next = open.slice(0, from) + open.slice(found.to);
+
+  dispatchHtmlChanges(
+    view,
+    [{ from: target.from - offset, to: target.openTo - offset, insert: next }],
+    null
+  );
+  paintAlpine(win);
+}
+
+/** The `x-data` names in scope: this tag's, then whatever wraps it. */
+function alpineStatesInScope(win) {
+  const view = editors.html;
+
+  if (!view) {
+    return [];
+  }
+
+  const scoped = htmlScopeActive && !!htmlFocus;
+  const html = scoped ? htmlFull : view.state.doc.toString();
+  const target = htmlTargetFromCursor(win);
+  const out = [];
+  const rows = flattenHtmlTree(parseHtmlTree(html), new Set());
+
+  for (const row of rows) {
+    // An ancestor of the picked tag, or the tag itself: its state is readable
+    // from here. A sibling's is not, and offering it would write a name that
+    // resolves to nothing.
+    if (!target || row.from > target.from || row.to < target.to) {
+      continue;
+    }
+
+    const data = tagAttrs(html.slice(row.from, row.openTo)).find((attr) => attr.name === 'x-data');
+
+    if (data) {
+      out.push(...stateNames(data.value));
+    }
+  }
+
+  return [...new Set(out)];
+}
+
+function openAlpineMenu(win, anchor) {
+  const doc = win.document;
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const states = alpineStatesInScope(win);
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  // Flat, in group order. Twelve items is a list you read; a menu with
+  // headings in it would be a second kind of menu in a dock that has one.
+  const choices = ALPINE_GROUPS.flatMap((group) =>
+    ALPINE_BEHAVIOURS.filter((item) => item.group === group.id).map((item) => ({
+      value: item.id,
+      label: t(win, item.label),
+    })));
+
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices,
+    onPick: (id) => {
+      const behaviour = ALPINE_BEHAVIOURS.find((item) => item.id === id);
+
+      closeCssMenu(doc);
+
+      if (!behaviour) {
+        return;
+      }
+
+      if (!behaviour.needsName) {
+        for (const attr of behaviour.attrs) {
+          setAlpineAttr(win, attr.name, attr.value);
+        }
+
+        return;
+      }
+
+      askAlpineName(win, anchor, behaviour, states);
+    },
+  });
+}
+
+/**
+ * Which state this behaviour is about.
+ *
+ * The names already in scope are offered first, because picking the same name
+ * twice is how two tags end up talking to each other — and typing it a second
+ * time is where the typo goes.
+ */
+function askAlpineName(win, anchor, behaviour, states) {
+  const doc = win.document;
+  const apply = (name) => {
+    const clean = String(name || '').trim().replace(/[^\w$]/g, '');
+
+    closeCssMenu(doc);
+
+    if (!clean) {
+      return;
+    }
+
+    for (const attr of fillName(behaviour.attrs, clean)) {
+      setAlpineAttr(win, attr.name, attr.value.replace('|', ''));
+    }
+  };
+
+  if (!states.length) {
+    openAlpineNameInput(win, anchor, apply);
+
+    return;
+  }
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: [
+      ...states.map((name) => ({ value: name, label: name })),
+      { value: '\u0000new', label: t(win, 'alpine_new_name') },
+    ],
+    onPick: (value) => {
+      if (value === '\u0000new') {
+        openAlpineNameInput(win, anchor, apply);
+
+        return;
+      }
+
+      apply(value);
+    },
+  });
+}
+
+function openAlpineNameInput(win, anchor, onDone) {
+  const doc = win.document;
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockAddClass, menu, {
+    label: t(win, 'alpine_name'),
+    placeholder: t(win, 'alpine_name_placeholder'),
+    onAdd: (value) => onDone(value),
+  });
+}
+
+/** Draw the pane for whatever tag the HTML cursor is in. */
+function paintAlpine(win) {
+  const dock = win?.document.getElementById(DOCK_ID);
+  const host = dock?.querySelector('[data-sve-alpine-host]');
+
+  if (!host) {
+    return;
+  }
+
+  const target = htmlTargetFromCursor(win);
+  const view = editors.html;
+  const scoped = htmlScopeActive && !!htmlFocus;
+  const html = view ? (scoped ? htmlFull : view.state.doc.toString()) : '';
+  const attrs = target ? tagAttrs(html.slice(target.from, target.openTo)) : [];
+
+  alpineUi.tag = target?.tag || '';
+  alpineUi.canEdit = !lastLocked && !!target;
+  alpineUi.emptyText = t(win, target ? 'alpine_none' : 'alpine_pick');
+  alpineUi.addLabel = t(win, 'alpine_add');
+  alpineUi.dropTitle = t(win, 'alpine_remove');
+  alpineUi.states = alpineStatesInScope(win);
+  alpineUi.chips = attrs
+    .filter((attr) => attr.alpine)
+    .map((attr) => ({
+      id: attr.name,
+      name: attr.name,
+      value: attr.value,
+      title: attr.value ? `${attr.name}="${attr.value}"` : attr.name,
+    }));
+  alpineUi.onAdd = (event) => openAlpineMenu(win, event.currentTarget);
+  alpineUi.onDrop = (id) => removeAlpineAttr(win, id);
+  alpineUi.onChip = (event, id) => {
+    const chip = alpineUi.chips.find((item) => item.id === id);
+
+    if (chip) {
+      openAlpineNameInput(win, event.currentTarget, (value) => setAlpineAttr(win, id, value));
+    }
+  };
+
+  if (!host._sveMounted) {
+    host._sveMounted = true;
+    mountPane(host, AlpinePanel);
+  }
 }
 
 function setStyleMode(win, mode) {
@@ -4736,158 +6232,38 @@ function bindStyleMode(win, dock) {
   dock._sveStyleModeBound = true;
   styleMode = chromeGet(win, STYLE_MODE_KEY) === 'tw' ? 'tw' : 'css';
 
+  // The size and the state are where the reader left them. A size this site no
+  // longer has falls back to All rather than to a button that cannot light up.
+  const storedSize = chromeGet(win, CSS_SIZE_KEY) || '';
+
+  cssSize = breakpoints(win).some((row) => row.handle === storedSize) ? storedSize : '';
+  cssState = CSS_STATES.includes(chromeGet(win, CSS_STATE_KEY)) ? chromeGet(win, CSS_STATE_KEY) : '';
+
+  cssValues = chromeGet(win, VALUES_MODE_KEY) === '1';
+
   dock.querySelector('[data-sve-style-mode]')?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
     setStyleMode(win, styleMode === 'tw' ? 'css' : 'tw');
   });
 
+  dock.querySelector('[data-sve-values-mode]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setValuesMode(win, !cssValues);
+  });
+
   applyStyleMode(win);
+  paintValuesMode(win);
 }
 
-/** The same click, answered in classes instead of declarations. */
-function runTwTool(win, dock, id, btn) {
-  const display = TW_DISPLAY_CLASS[id];
-
-  if (display) {
-    closeTwMenu(win);
-    twSetClass(win, display);
-    paintCssToolState(win);
-
-    return;
-  }
-
-  const property = TW_TOOL_PROPERTY[id];
-
-  if (!property || !btn) {
-    return;
-  }
-
-  // A group of values for one property reads as a list of names, not as a
-  // strip of pictures. What belongs to the chosen value — a flex container's
-  // direction and alignment — stays as icons, and follows the choice.
-  if (id === 'display') {
-    cssChrome(dock)?.removeAttribute('data-sve-css-sub');
-    twOpenToolMenu(win, btn, 'display', (label) => {
-      const chrome = cssChrome(dock);
-
-      if (label === 'flex' || label === 'inline-flex' || label === 'grid') {
-        chrome?.setAttribute('data-sve-css-sub', 'display');
-      } else {
-        chrome?.removeAttribute('data-sve-css-sub');
-      }
-
-      paintCssToolState(win);
-    });
-
-    return;
-  }
-
-
-  if (id === 'padding' || id === 'margin') {
-    closeTwMenu(win);
-    toggleCssSubrow(win, property);
-
-    return;
-  }
-
-  cssChrome(dock)?.removeAttribute('data-sve-css-sub');
-  twOpenToolMenu(win, btn, property);
-}
-
-/** The CSS property one of the display row's classes sets. */
-function propertyOfTwClass(name) {
-  if (name === 'flex') {
-    return 'display';
-  }
-
-  if (name.startsWith('justify-')) {
-    return 'justify-content';
-  }
-
-  if (name.startsWith('items-')) {
-    return 'align-items';
-  }
-
-  return 'flex-direction';
-}
-
-function paintTwToolState(win, dock) {
-  const chrome = dock.querySelector('[data-sve-css-chrome]');
-  const sub = chrome?.getAttribute('data-sve-css-sub') || '';
-  const boxPrefix = sub === 'padding' || sub === 'margin' ? sub : '';
-
-  // The justify and align buttons only mean something once the tag is a flex
-  // container, which is the same rule the CSS side follows.
-  const display = twHasNode() ? twActiveClass('display') : '';
-  const flexOn = display === 'flex' || display === 'inline-flex' || display === 'grid';
-
-  for (const el of [chrome, dock.querySelector('[data-sve-css-tools]')]) {
-    if (!el) {
-      continue;
-    }
-
-    if (flexOn) {
-      el.setAttribute('data-sve-css-flex-on', '');
-    } else {
-      el.removeAttribute('data-sve-css-flex-on');
-    }
-  }
-
-  for (const [id, name] of Object.entries(TW_DISPLAY_CLASS)) {
-    const btn = dock.querySelector(`[data-sve-css-tool="${id}"]`);
-
-    if (!btn) {
-      continue;
-    }
-
-    if (twHasNode() && twActiveClass(propertyOfTwClass(name)) === name) {
-      btn.setAttribute('data-active', '');
-    } else {
-      btn.removeAttribute('data-active');
-    }
-  }
-
-  for (const tool of [...CSS_TOOLS, ...TW_EXTRA_TOOLS]) {
-    const btn = dock.querySelector(`[data-sve-css-tool="${tool.id}"]`);
-
-    if (!btn) {
-      continue;
-    }
-
-    const property = TW_TOOL_PROPERTY[tool.id];
-    const on = twHasNode() && !!property && !!twActiveClass(property);
-
-    if (sub === property && (tool.id === 'padding' || tool.id === 'margin')) {
-      btn.setAttribute('data-open', '');
-    } else {
-      btn.removeAttribute('data-open');
-    }
-
-    if (on) {
-      btn.setAttribute('data-active', '');
-    } else {
-      btn.removeAttribute('data-active');
-    }
-  }
-
-  for (const side of CSS_BOX_SIDES) {
-    const btn = dock.querySelector(`[data-sve-css-box-side="${side.suffix}"]`);
-
-    if (!btn) {
-      continue;
-    }
-
-    const property = boxPrefix ? `${boxPrefix}${TW_BOX_SIDE[side.suffix] ?? side.suffix}` : '';
-
-    if (property && twActiveClass(property)) {
-      btn.setAttribute('data-active', '');
-    } else {
-      btn.removeAttribute('data-active');
-    }
-  }
-}
-
+/**
+ * One click handler for the row, and one for the children.
+ *
+ * A tool with children opens them; a tool without does its own thing. A child
+ * does its own thing and nothing else — it never opens anything, which is why
+ * there is only one level to reason about.
+ */
 function bindCssTools(win, dock) {
   const host = dock.querySelector('[data-sve-css-tools]');
 
@@ -4897,169 +6273,141 @@ function bindCssTools(win, dock) {
 
   host._sveBound = true;
 
-  const allCss = [...CSS_TOOLS, ...CSS_DISPLAY_ITEMS, ...CSS_FLEX_EXTRAS];
-  const runCssTool = (id, btn) => {
+  const btnFor = (id) => dock.querySelector(`[data-sve-css-tool="${id}"], [data-sve-css-kid="${id}"]`);
+
+  /** What a click writes — the same for a tool and for one of its children. */
+  const run = (item) => {
+    const btn = btnFor(item.id);
+    // A second click on the icon that opened the menu closes it again. Read
+    // before closing, because closing is what forgets which one it was.
+    const wasOpen = cssOpenMenu === item.id;
+
+    closeCssMenu(win.document);
+
+    if (wasOpen) {
+      closeTwMenu(win);
+      paintCssToolState(win);
+
+      return;
+    }
+
+    if (!btn) {
+      return;
+    }
+
+    // Only a menu is "open". A toggle does its thing and is done, so marking it
+    // open would make the next click on it do nothing at all. Remembered AFTER
+    // the menu is up: every opener closes whatever was there first, and that
+    // is what forgets which icon it belonged to.
+    const opensMenu = styleMode === 'tw'
+      ? !item.twClass && !!item.tw
+      : !item.kind && !item.value && !(item.css in currentFlexDecls()) && !!item.menu;
+    const remember = () => {
+      if (opensMenu) {
+        cssOpenMenu = item.id;
+      }
+    };
+
     if (styleMode === 'tw') {
-      runTwTool(win, dock, id, btn);
+      closeTwMenu(win);
 
-      return;
-    }
-
-    const tool = allCss.find((item) => item.id === id);
-
-    if (!tool) {
-      return;
-    }
-
-    if (tool.flexDir) {
-      closeCssMenu(win.document);
-      applyFlexDirection(tool.flexDir);
-
-      return;
-    }
-
-    if (tool.display) {
-      closeCssMenu(win.document);
-      applyDisplay(tool.display);
-
-      return;
-    }
-
-    if (tool.property && tool.value) {
-      closeCssMenu(win.document);
-      applyFlexValue(tool.property, tool.value);
-
-      return;
-    }
-
-    if (tool.insert) {
-      const property = cssPropertyOf(tool.insert);
-      const value = cssValueOf(tool.insert);
-      const decls = currentFlexDecls();
-
-      closeCssMenu(win.document);
-      cssChrome(dock)?.removeAttribute('data-sve-css-sub');
-
-      if (property && normalizeFlexValue(decls[property]) === normalizeFlexValue(value)) {
-        applyRuleDecls([{ property, value: null }]);
-      } else {
-        applyRuleDecls([{ property, value }]);
+      // A fixed class is set outright; a scale opens its menu. Same two cases
+      // as in CSS, where one is a value and the other is a list to pick from.
+      if (item.twClass) {
+        twSetClass(win, item.twClass);
+        paintCssToolState(win);
+      } else if (item.tw) {
+        twOpenToolMenu(win, btn, item.tw, () => paintCssToolState(win));
+        remember();
+        paintCssToolState(win);
       }
 
       return;
     }
 
-    if (tool.menu === 'colors') {
-      cssChrome(dock)?.removeAttribute('data-sve-css-sub');
-      openCssColorMenu(win, btn, tool.property);
+    if (item.kind === 'flexDir') {
+      applyFlexDirection(item.value);
 
       return;
     }
 
-    if (tool.menu === 'box') {
-      toggleCssSubrow(win, tool.property);
+    if (item.kind === 'display') {
+      applyDisplay(item.value);
 
       return;
     }
 
-    if (tool.menu === 'display') {
-      toggleCssSubrow(win, 'display');
+    if (item.value) {
+      // Clicking what is already set takes it off again. Every button in this
+      // row is a toggle, so none of them is a surprise.
+      const same = normalizeFlexValue(currentFlexDecls()[item.css]) === normalizeFlexValue(item.value);
+
+      applyRuleDecls([{ property: item.css, value: same ? null : item.value }]);
 
       return;
     }
 
-    if (tool.menu === 'spacing') {
-      openCssSpacingMenu(win, btn, tool.property);
+    if (item.css in currentFlexDecls()) {
+      applyRuleDecls([{ property: item.css, value: null }]);
+      paintCssToolState(win);
+
+      return;
+    }
+
+    if (item.menu === 'colors') {
+      openCssColorMenu(win, btn, item.css);
+    } else if (item.menu === 'spacing') {
+      openCssSpacingMenu(win, btn, item.css);
+    } else if (item.menu === 'sizes') {
+      openCssValueMenu(win, btn, item.css, CSS_LENGTHS);
+    } else if (item.menu === 'choices') {
+      openCssChoiceMenu(win, btn, item.css, item.choices);
+    } else if (item.menu === 'values') {
+      openCssValueMenu(win, btn, item.css);
+    }
+
+    remember();
+    paintCssToolState(win);
+  };
+
+  cssToolsUi.onTool = (id) => {
+    const tool = CSS_TOOL_INDEX.get(id)?.tool;
+
+    if (!tool) {
+      return;
+    }
+
+    if (tool.kids?.length) {
+      // A tool with children is a door, not a switch.
+      cssOpenTool = cssOpenTool === tool.id ? '' : tool.id;
+      closeCssMenu(win.document);
+      paintCssToolState(win);
+
+      return;
+    }
+
+    run(tool);
+  };
+
+  cssToolsUi.onKid = (toolId, kidId) => {
+    const found = CSS_TOOL_INDEX.get(kidId);
+
+    if (found?.kid) {
+      run(found.kid);
     }
   };
 
-  let alignSep = false;
-  const extras = CSS_FLEX_EXTRAS.map((extra, i) => {
-    const row = {
-      ...extra,
-      icon: CSS_TOOL_ICONS[extra.id] || '',
-      sep: i === 0 || (extra.group === 'align' && !alignSep),
-    };
-
-    if (extra.group === 'align' && !alignSep) {
-      alignSep = true;
-    }
-
-    return row;
-  });
-
   cssToolRow = () => {
-    const tools = styleMode === 'tw' ? [...CSS_TOOLS, ...TW_EXTRA_TOOLS] : CSS_TOOLS;
-
-    cssChrome(dock)?.removeAttribute('data-sve-css-sub');
-    placeCssSubrow(dock);
-
-    mountPane(host, CodeDockCssTools, {
-      tools: tools.map((tool) => ({
-        ...tool,
-        icon: CSS_TOOL_ICONS[tool.id] || TW_TOOL_ICONS[tool.id] || '',
-      })),
-      onTool: (id) => runCssTool(id, dock.querySelector(`[data-sve-css-tool="${id}"]`)),
-    });
+    mountPane(host, CodeDockCssTools);
+    paintCssToolState(win);
   };
 
   cssToolRow();
 
-  const boxHost = dock.querySelector('[data-sve-css-sub="box"]');
-
-  if (boxHost && !boxHost._sveBound) {
-    boxHost._sveBound = true;
-    mountPane(boxHost, CodeDockCssBoxRow, {
-      sides: CSS_BOX_SIDES.map((side) => ({
-        ...side,
-        icon: CSS_TOOL_ICONS[`box-${side.id}`] || '',
-      })),
-      onSide: (suffix) => {
-        const prefix = cssChrome(dock)?.getAttribute('data-sve-css-sub');
-        const btn = boxHost.querySelector(`[data-sve-css-box-side="${suffix}"]`);
-        const property = `${prefix}${suffix}`;
-        const decls = styleMode === 'tw' ? {} : currentFlexDecls();
-
-        if ((prefix !== 'padding' && prefix !== 'margin') || !btn) {
-          return;
-        }
-
-        if (styleMode === 'tw') {
-          twOpenToolMenu(win, btn, `${prefix}${TW_BOX_SIDE[suffix] ?? suffix}`);
-
-          return;
-        }
-
-        if (property in decls) {
-          closeCssMenu(win.document);
-          applyRuleDecls([{ property, value: null }]);
-          return;
-        }
-
-        openCssSpacingMenu(win, btn, property);
-        paintCssToolState(win);
-      },
-    });
-  }
-
-  const displayHost = dock.querySelector('[data-sve-css-sub="display"]');
-
-  if (displayHost && !displayHost._sveBound) {
-    displayHost._sveBound = true;
-    mountPane(displayHost, CodeDockCssDisplayRow, {
-      items: CSS_DISPLAY_ITEMS.map((item) => ({
-        ...item,
-        icon: CSS_TOOL_ICONS[item.id] || '',
-      })),
-      extras,
-      onTool: (id) => runCssTool(id, dock.querySelector(`[data-sve-css-tool="${id}"]`)),
-    });
-  }
-
   win.document.addEventListener(
     'mousedown',
     (event) => {
-      if (event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-css-subrow], [data-sve-html-tools], [data-sve-css-add-class]`)) {
+      if (event.target.closest(`#${CSS_MENU_ID}, [data-sve-css-tools], [data-sve-html-tools], [data-sve-css-add-class]`)) {
         return;
       }
 
@@ -5067,6 +6415,25 @@ function bindCssTools(win, dock) {
     },
     true
   );
+}
+
+function bindHtmlTidy(win, dock) {
+  const btn = dock.querySelector('[data-sve-html-tidy]');
+
+  if (!btn || btn._sveBound) {
+    return;
+  }
+
+  btn._sveBound = true;
+  btn.innerHTML = HTML_ICONS.tidy || '';
+  btn.title = t(win, 'code_dock_html_tidy');
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('data-tip', btn.title);
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    tidyHtmlPane();
+  });
 }
 
 function bindHtmlTools(win, dock) {
@@ -5081,7 +6448,7 @@ function bindHtmlTools(win, dock) {
   mountPane(host, CodeDockHtmlTools, {
     tools: HTML_TOOLS.map((tool) => ({
       ...tool,
-      icon: HTML_TOOL_ICONS[tool.id] || '',
+      icon: HTML_ICONS[tool.id] || '',
     })),
     onTool: (id) => {
       const tool = HTML_TOOLS.find((item) => item.id === id);
@@ -5092,18 +6459,307 @@ function bindHtmlTools(win, dock) {
       }
 
       if (tool.menu === 'heading') {
-        openHtmlHeadingMenu(win, btn);
+        openHtmlTagMenu(win, btn, HTML_HEADINGS);
+
+        return;
+      }
+
+      if (tool.menu === 'text') {
+        openHtmlTagMenu(win, btn, TEXT_TAGS);
+
+        return;
+      }
+
+      if (tool.tidy) {
+        tidyHtmlPane();
+
+        return;
+      }
+
+      if (tool.menu === 'component') {
+        openHtmlComponentMenu(win, btn);
 
         return;
       }
 
       closeCssMenu(win.document);
+
+      if (tool.snippet) {
+        insertHtmlSnippet(tool.snippet, tool.caret ?? tool.snippet.length, tool.select);
+        finishHtmlEdit();
+
+        return;
+      }
+
       applyHtmlTag(tool.tag);
     },
   });
 
   bindAntlersSnippets(win, dock);
   bindVisualEditSnippets(win, dock);
+  bindDataVars(win, dock);
+}
+
+// --- Data ------------------------------------------------------------------
+//
+// A button beside the Antlers and Visual edit pickers that answers "what can I
+// write here?" — the section's own fields, the page's, and the site's globals,
+// searchable, with the values they hold right now beside them. Picking one
+// writes the tag at the cursor.
+
+const DATA_MENU_ID = '__sve-data-menu';
+
+let dataMenuUnhook = null;
+
+function closeDataMenu(doc) {
+  const menu = doc?.getElementById(DATA_MENU_ID);
+
+  dataMenuUnhook?.();
+  dataMenuUnhook = null;
+  menu?._sveApp?.unmount();
+  menu?.remove();
+  doc?.querySelector('[data-sve-data-vars][data-open]')?.removeAttribute('data-open');
+}
+
+/**
+ * The collection a collection-view template renders, from the template entry's
+ * own `source_collection` — the reason to open one is the entries in it.
+ */
+function dataVarsView(win) {
+  if (!collectionViewType(win)) {
+    return { view: '', kind: '' };
+  }
+
+  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+    const view = typeof values?.source_collection === 'string' ? values.source_collection.trim() : '';
+
+    if (view) {
+      return { view, kind: String(values?.kind || '').trim() };
+    }
+  }
+
+  return { view: '', kind: '' };
+}
+
+/**
+ * The loops the picker is being opened inside.
+ *
+ * Two callers, one answer. The HTML pane asks from the cursor; the tree asks
+ * from the row that was clicked, and hands its offset in. Both are offsets into
+ * the whole template, so the scoped pane's slice is added back before reading.
+ */
+function dataVarsScopeAt(win, at) {
+  const html = currentFullHtml();
+
+  if (Number.isFinite(at)) {
+    return loopScopeAt(html, at);
+  }
+
+  const view = editors.html;
+
+  if (!view) {
+    return [];
+  }
+
+  const offset = htmlScopeActive && htmlFocus ? htmlFocus.from : 0;
+
+  return loopScopeAt(html, offset + view.state.selection.main.from);
+}
+
+function dataVarsQuery(win, at) {
+  const { view, kind } = dataVarsView(win);
+
+  return {
+    collection: dataVarsCollection(win) || '',
+    set: dataVarsSet(currentTemplateType()),
+    view,
+    kind,
+    scope: dataVarsScope(dataVarsScopeAt(win, at)),
+  };
+}
+
+/** The page's own values — the whole entry, not the section inside it. */
+function currentPageValues(win) {
+  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = sve.unwrapRef?.(container.values) || container.values;
+
+    if (values && typeof values === 'object') {
+      return values;
+    }
+  }
+
+  return null;
+}
+
+/** The catalogue with this moment's values folded in. */
+function dataVarsModel(win, raw) {
+  return {
+    // A loop's rows hold one value each and no single one of them is *the*
+    // value, so the scope tab shows names alone — same rule as a nested field.
+    scope: raw?.scope?.groups || [],
+    section: withValues(raw?.section || [], currentSectionValues(win)),
+    page: groupsWithValues(raw?.page || [], currentPageValues(win)),
+    site: raw?.site || [],
+  };
+}
+
+/**
+ * Straight in at the cursor, unlike the Antlers snippets, which open a block and
+ * earn their own line. `{{ headline }}` belongs inside the tag you are already
+ * standing in, so breaking the line would be wrong.
+ */
+function insertDataVar(row, group) {
+  const spec = dataVarSnippet(row, group);
+  const view = editors.html;
+
+  if (!spec || !view || view.state.readOnly) {
+    return;
+  }
+
+  const range = view.state.selection.main;
+  const line = view.state.doc.lineAt(range.from);
+  const indent = lineIndentOf(line.text);
+  const text = indentAntlersSnippet(spec.text, indent);
+
+  view.dispatch({
+    changes: { from: range.from, to: range.to, insert: text },
+    selection: { anchor: range.from + spec.cursor + (spec.text.includes('\n') ? indent.length : 0) },
+  });
+  finishHtmlEdit();
+}
+
+/**
+ * Under the button, or above it when the dock is parked at the foot of the
+ * screen — which is where it usually is, so below is the exception, not the
+ * rule. Measured, because the menu is wider than the CSS pickers and its
+ * height depends on how many fields the section turned out to have.
+ */
+function placeDataMenu(win, anchor, menu) {
+  const rect = anchor.getBoundingClientRect();
+  const pad = 8;
+  const width = menu.offsetWidth || 368;
+  const height = menu.offsetHeight || 240;
+  const below = win.innerHeight - rect.bottom - pad;
+  const above = rect.top - pad;
+  const top = below >= height || below >= above ? rect.bottom + 4 : rect.top - height - 4;
+
+  menu.style.left = `${Math.max(pad, Math.min(rect.left, win.innerWidth - width - pad))}px`;
+  menu.style.top = `${Math.max(pad, Math.min(top, win.innerHeight - height - pad))}px`;
+}
+
+/**
+ * The field picker. `onPick` lets somewhere other than the HTML pane use it —
+ * the tree's condition and loop fields want the bare handle, not a tag.
+ */
+function openDataVarsMenu(win, anchor, onPick, at) {
+  const doc = win.document;
+
+  closeDataMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = DATA_MENU_ID;
+  doc.body.appendChild(menu);
+
+  const query = dataVarsQuery(win, at);
+
+  /*
+   * Inside a loop, the loop goes first and opens selected: standing in
+   * `{{ collection:services }}`, a service's own fields are what you came for,
+   * and the section's are the ones that would not render. They keep their tab —
+   * Antlers still reaches them from in there — just not the first one.
+   */
+  const tabsFor = (raw) =>
+    [
+      raw?.scope?.groups?.length
+        ? { id: 'scope', label: raw.scope.label || t(win, 'data_vars_tab_loop') }
+        : null,
+      { id: 'section', label: t(win, 'data_vars_tab_section') },
+      { id: 'page', label: t(win, 'data_vars_tab_page') },
+      { id: 'site', label: t(win, 'data_vars_tab_site') },
+    ].filter(Boolean);
+
+  const paint = (raw) => {
+    if (!doc.getElementById(DATA_MENU_ID)) {
+      return;
+    }
+
+    menu._sveApp?.unmount();
+    menu._sveApp = mountSurface(CodeDockDataVars, menu, {
+      title: t(win, 'data_vars_title'),
+      placeholder: t(win, 'data_vars_placeholder'),
+      emptyText: t(win, 'data_vars_empty'),
+      noSectionText: t(win, 'data_vars_no_section'),
+      loopText: t(win, 'data_vars_loop'),
+      tabs: tabsFor(raw),
+      data: dataVarsModel(win, raw),
+      // Left open on purpose: picking a headline and then its text should not
+      // mean reopening the menu. Escape or a click outside closes it.
+      onPick: (row, group) => (onPick ? onPick(row, group) : insertDataVar(row, group)),
+    });
+
+    // The list just changed height; where it opened has to follow.
+    placeDataMenu(win, anchor, menu);
+  };
+
+  paint(cachedDataVars(dataVarsKey(query)) || { scope: null, section: [], page: [], site: [] });
+  void fetchDataVars(win, query).then(paint);
+
+  placeDataMenu(win, anchor, menu);
+
+  const reposition = () => placeDataMenu(win, anchor, menu);
+  const onDown = (event) => {
+    if (!menu.contains(event.target) && !anchor.contains(event.target)) {
+      closeDataMenu(doc);
+    }
+  };
+  const onKey = (event) => {
+    if (event.key === 'Escape') {
+      closeDataMenu(doc);
+    }
+  };
+
+  doc.addEventListener('pointerdown', onDown, true);
+  doc.addEventListener('keydown', onKey, true);
+  win.addEventListener('scroll', reposition, true);
+  win.addEventListener('resize', reposition);
+
+  dataMenuUnhook = () => {
+    doc.removeEventListener('pointerdown', onDown, true);
+    doc.removeEventListener('keydown', onKey, true);
+    win.removeEventListener('scroll', reposition, true);
+    win.removeEventListener('resize', reposition);
+  };
+}
+
+function bindDataVars(win, dock) {
+  const btn = dock.querySelector('[data-sve-data-vars]');
+
+  if (!btn || btn._sveBound) {
+    return;
+  }
+
+  btn._sveBound = true;
+  btn.addEventListener('mousedown', (event) => event.preventDefault());
+  btn.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (win.document.getElementById(DATA_MENU_ID)) {
+      closeDataMenu(win.document);
+
+      return;
+    }
+
+    closeCssMenu(win.document);
+    openDataVarsMenu(win, btn);
+  });
 }
 
 function bindAntlersSnippets(win, dock) {
@@ -5291,6 +6947,7 @@ function postSave(win, type, parts) {
         css: parts.css,
         js: parts.js,
         ...(typeof parts.tw === 'string' ? { tw: parts.tw } : {}),
+        ...(componentPropsOn(win) ? { props: lastProps } : {}),
       }),
     })
     .then(async (res) => {
@@ -5356,9 +7013,13 @@ function flushSave(doc) {
 
   // A finished compile is worth a save of its own, even when not a character
   // of the file has changed since the last one.
-  if (sameParts(parts, lastParts) && !(twReady && twDirty)) {
+  // A changed declaration is worth a save of its own: the panel edits a list
+  // the panes know nothing about, so not a character of them need have moved.
+  if (sameParts(parts, lastParts) && !(twReady && twDirty) && !propsDirty) {
     return;
   }
+
+  propsDirty = false;
 
   if (twReady) {
     parts.tw = twCss;
@@ -5453,7 +7114,53 @@ function onEditorInput(win) {
 }
 
 let htmlPartialUi = null;
+let htmlAntlersUi = null;
 let htmlClassTokenUi = null;
+
+let cssGhostUi = null;
+
+/**
+ * Draw a size block nobody has written in yet as not-yet-written.
+ *
+ * It is in the editor, it takes the cursor, you can type in it — but it is
+ * faded, because it is not in the file and will not be unless something is
+ * put in it. The moment a declaration lands, it is no longer empty, the fade
+ * goes, and it saves with everything else. Nothing to confirm, nothing to
+ * clean up: the rule is simply "an empty one does not count".
+ */
+function cssGhostExtension() {
+  if (cssGhostUi) {
+    return cssGhostUi;
+  }
+
+  const mark = Decoration.mark({ class: 'sve-css-ghost' });
+
+  const build = (state) => {
+    const builder = new RangeSetBuilder();
+
+    if (!lastWin) {
+      return builder.finish();
+    }
+
+    try {
+      for (const range of emptySizeBlocks(state.doc.toString(), cssSizeRows(lastWin))) {
+        builder.add(range.from, range.to, mark);
+      }
+    } catch {
+      /* half-typed CSS must not take the pane down */
+    }
+
+    return builder.finish();
+  };
+
+  cssGhostUi = StateField.define({
+    create: (state) => build(state),
+    update: (value, tr) => (tr.docChanged ? build(tr.state) : value),
+    provide: (field) => EditorView.decorations.from(field),
+  });
+
+  return cssGhostUi;
+}
 
 function partialUi() {
   if (!htmlPartialUi) {
@@ -5467,6 +7174,19 @@ function partialUi() {
   }
 
   return htmlPartialUi;
+}
+
+function antlersUi() {
+  if (!htmlAntlersUi) {
+    htmlAntlersUi = antlersDecorations({
+      Decoration,
+      StateField,
+      RangeSetBuilder,
+      EditorView,
+    });
+  }
+
+  return htmlAntlersUi;
 }
 
 function classTokenUi() {
@@ -5517,6 +7237,10 @@ function mountEditor(win, handle, parent) {
             ]
           : []),
         ...(handle === 'html' ? [...htmlEmmetExtensions(), htmlTagSync()] : []),
+        // Only the CSS pane folds, and only this code folds it: the size row
+        // puts the other sizes away rather than cutting them out of the text.
+        // Folding is reversible and lossless, which rewriting the pane is not.
+        ...(handle === 'css' ? [codeFolding(), cssGhostExtension()] : []),
         keymap.of([
           ...defaultKeymap,
           ...(handle === 'html' ? [{ key: 'Tab', run: expandHtmlTab }] : []),
@@ -5530,6 +7254,7 @@ function mountEditor(win, handle, parent) {
         ...(handle === 'html' || handle === 'css'
           ? partialUi().extensions
           : []),
+        ...(handle === 'html' ? antlersUi().extensions : []),
         ...(SUNDAY_AUG30 && handle === 'html' ? classTokenUi().extensions : []),
         readOnlyOf[handle].of(EditorState.readOnly.of(!!lastLocked)),
         editableOf[handle].of(EditorView.editable.of(!lastLocked)),
@@ -5551,8 +7276,15 @@ function mountEditor(win, handle, parent) {
             paintCssToolState(win);
           }
 
+          // A size block that was just written has to be put away like the
+          // ones that were already there — including one an undo brought back.
+          if (handle === 'css' && update.docChanged && !applying) {
+            applyCssFolds(win);
+          }
+
           if (handle === 'html' && (update.docChanged || update.selectionSet)) {
             paintHtmlToolState(win);
+            paintAlpine(win);
 
             if (!applying) {
               syncTwTarget(win);
@@ -5592,16 +7324,16 @@ async function ensureDockAsync(win) {
   if (dock) {
     const chromeOk =
       dock.querySelector('[data-sve-css-chrome="subrow-2"]') &&
-      dock.querySelector('[data-sve-css-subrow]') &&
       dock.querySelector('[data-sve-css-add-class]') &&
       dock.querySelector('[data-sve-html-tools]') &&
+      dock.querySelector('[data-sve-data-vars]') &&
       dock.querySelector('[data-sve-visual-edit-tools]') &&
       dock.querySelector('[data-sve-html-scope]') &&
       dock.querySelector('[data-sve-code-lock]') &&
       dock.querySelector('[data-sve-code-back]') &&
       dock.querySelector('[data-sve-code-autosave]') &&
       dock.querySelector('[data-sve-code-save]') &&
-      dock.getAttribute('data-sve-code-chrome') === 'scope-7';
+      dock.getAttribute('data-sve-code-chrome') === 'scope-8';
 
     if (!chromeOk) {
       for (const handle of HANDLES) {
@@ -5617,12 +7349,15 @@ async function ensureDockAsync(win) {
   if (!dock) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
-    dock.setAttribute('data-sve-code-chrome', 'scope-7');
+    dock.setAttribute('data-sve-code-chrome', 'scope-8');
     mountPane(dock, CodeDockChrome, {
       htmlLabel: t(win, 'code_dock_html'),
       cssLabel: t(win, 'code_dock_css'),
       jsLabel: t(win, 'code_dock_js'),
+      alpineLabel: t(win, 'code_dock_alpine'),
       treeIcon: SCOPE_ICON,
+      dataIcon: DATA_ICON,
+      dataLabel: t(win, 'data_vars_title'),
     });
     attachDock(doc, dock);
     shieldDock(dock);
@@ -5637,6 +7372,7 @@ async function ensureDockAsync(win) {
     bindStrip(win, dock);
     bindTips(win, dock);
     bindHtmlTools(win, dock);
+    bindHtmlTidy(win, dock);
     bindHtmlScope(win, dock);
     bindLock(win, dock);
     bindBack(win, dock);
@@ -5684,6 +7420,7 @@ async function ensureDockAsync(win) {
       bindPartialNav(win, editors[handle], {
         onOpen: (type) => openNestedTemplate(win, type),
         emptyLabel: t(win, 'code_dock_partials_empty'),
+        openLabel: (name) => t(win, 'component_open_named', { name }),
         sectionValues: () => currentSectionValues(win),
         isLocked: () => isCodeDockLocked(),
         setHover: (view, range) => htmlPartialUi?.setHover(view, range),
@@ -5786,12 +7523,17 @@ async function loadTemplate(win, type, mode = 'replace') {
         css: typeof data.css === 'string' ? data.css : '',
         js: typeof data.js === 'string' ? data.js : '',
       };
+      lastProps = Array.isArray(data.props) ? data.props : [];
+      propsDirty = false;
       lastType = type;
       lastLocked = !!data.locked;
       lockReady = true;
       resetTailwindCompile();
       paintLock(win);
       writeParts(lastParts, lastLocked);
+      // The file that just opened decides whether the left column belongs to a
+      // component. Stepping in and out of one is a load like any other.
+      syncComponentProps(win);
 
       if (!lastLocked) {
         ensureTwCss(win, lastParts.html);
@@ -5799,6 +7541,9 @@ async function loadTemplate(win, type, mode = 'replace') {
 
       setPath(win.document, data.path || type);
       setStatus(win.document, lastLocked ? t(win, 'code_dock_locked') : '');
+      syncComponentFocus(win);
+      watchComponentMap(win);
+      void syncComponentMap(win);
       paintHtmlScope(win);
       paintBack(win);
       paintAutosave(win);
@@ -5921,6 +7666,7 @@ export function refreshCodeDockFromDisk(win) {
 }
 
 export function closeCodeDock(doc) {
+  closeDataMenu(doc);
   loadGen += 1;
   flushSave(doc);
   lastUid = null;
@@ -5954,6 +7700,15 @@ export function closeCodeDock(doc) {
 
   if (win?.document.getElementById(sve.HTML_TREE_PANEL_ID)) {
     sve.closeHtmlTreePanel?.(win);
+  }
+
+  // `lastType` is already cleared above, so this lifts any component fade —
+  // and the empty map takes the right-click offer off the page with it.
+  if (win) {
+    syncComponentFocus(win);
+    void syncComponentMap(win);
+    // `lastType` is cleared above, so this hands the field column back.
+    syncComponentProps(win);
   }
 }
 
@@ -6144,7 +7899,7 @@ on('tw:changed', () => {
 register('dock:is-open', (doc) => isCodeDockOpen(doc));
 register('dock:is-locked', () => isCodeDockLocked());
 register('dock:html', () => currentFullHtml());
-register('dock:reveal-html', ({ from, to } = {}) => {
+register('dock:reveal-html', ({ from, to, caret } = {}) => {
   const view = editors.html;
 
   if (!view || from == null) {
@@ -6161,22 +7916,27 @@ register('dock:reveal-html', ({ from, to } = {}) => {
 
   htmlFocus = end > start ? { from: start, to: end } : null;
 
+  // `caret` says "put me inside this", which the tree asks for so the next
+  // thing written lands in the row that was picked. Without one the whole
+  // range is selected, which is what a plain reveal has always done.
+  const at = caret == null ? null : Math.max(0, Math.min(caret, length));
+
   if (htmlScopePref && htmlFocus) {
-    showHtmlScope();
+    showHtmlScope(at);
     paintHtmlScope(lastWin);
 
     return;
   }
 
   if (htmlScopeActive) {
-    showHtmlFull();
+    showHtmlFull(true, at);
     paintHtmlScope(lastWin);
 
     return;
   }
 
   view.dispatch({
-    selection: { anchor: start, head: end },
+    selection: at == null ? { anchor: start, head: end } : { anchor: at },
     scrollIntoView: true,
   });
   view.focus();
@@ -6188,8 +7948,126 @@ register('dock:tw-follow', () => {
     syncTwTarget(lastWin);
   }
 });
+/**
+ * The CSS pane, whole — `cssFull` is the truth, and the pane may be showing a
+ * scoped slice of it, so it is flushed first. Extracting a component reads and
+ * rewrites it: the rules that describe the markup leave with the markup.
+ */
+register('dock:css', () => {
+  flushCssScope();
+
+  return cssFull;
+});
+register('dock:set-css', (css) => {
+  if (typeof css !== 'string' || isCodeDockLocked()) {
+    return false;
+  }
+
+  if (!editors.css || !lastWin) {
+    return false;
+  }
+
+  flushCssScope();
+  cssFull = css;
+  writeHandleEditor('css', cssEditorText());
+  onEditorInput(lastWin);
+
+  return true;
+});
+/**
+ * Open the field picker anchored on someone else's button. `onPick` gets the
+ * row, so the caller decides what a pick writes and where. `at` says where in
+ * the template the caller is standing, so the loop around it can be read; left
+ * out, the HTML pane's cursor answers that instead.
+ */
+register('dock:data-menu', ({ anchor, onPick, at } = {}) => {
+  if (!anchor || !lastWin) {
+    return false;
+  }
+
+  closeDataMenu(lastWin.document);
+  closeCssMenu(lastWin.document);
+  openDataVarsMenu(lastWin, anchor, onPick, at);
+
+  return true;
+});
+/**
+ * The open file's declared fields, and a change to them.
+ *
+ * A change is a save: the list is not text anyone is mid-word in, so there is
+ * nothing to debounce and nothing to lose by writing it straight away.
+ */
+register('dock:props', () => lastProps.map((prop) => ({ ...prop })));
+register('dock:set-props', ({ win, props } = {}) => {
+  if (!Array.isArray(props) || isCodeDockLocked()) {
+    return false;
+  }
+
+  lastProps = props;
+  propsDirty = true;
+  forgetComponentProps(componentSrcOf(currentTemplateType()));
+  flushSave((win || lastWin)?.document);
+
+  return true;
+});
+
+/** `view:partials/components/card` is the component `components/card`. */
+function componentSrcOf(type) {
+  const match = /^view:partials\/(components\/[A-Za-z0-9_-]+)$/.exec(String(type || ''));
+
+  return match ? match[1] : '';
+}
+
+register('dock:component-src', () => componentSrcOf(currentTemplateType()));
+
+/**
+ * What a way out of the open component would say and do.
+ *
+ * `back` is the difference that matters: a component reached from a section
+ * has a template underneath to return to, and one opened on its own has
+ * nothing beneath it — leaving that means closing the dock.
+ */
+register('dock:component-exit-state', () => {
+  const src = componentSrcOf(currentTemplateType());
+
+  return {
+    open: !!src,
+    name: src ? src.split('/').pop() : '',
+    back: typeStack.length > 0,
+  };
+});
+
+/**
+ * Leave the open component. Both roads out save on the way — `goBackTemplate`
+ * and `closeCodeDock` each flush first — so there is no version of this that
+ * loses what was typed.
+ */
+register('dock:exit-component', () => {
+  if (!lastWin || !componentSrcOf(currentTemplateType())) {
+    return false;
+  }
+
+  if (typeStack.length) {
+    goBackTemplate(lastWin);
+  } else {
+    closeCodeDock(lastWin.document);
+  }
+
+  return true;
+});
+
 register('dock:current-type', () => currentTemplateType());
 register('dock:current-uid', () => lastUid);
+/** Open another template — the same push the partial links in the panes do. */
+register('dock:open-template', (type) => {
+  if (typeof type !== 'string' || !type || !lastWin) {
+    return false;
+  }
+
+  openNestedTemplate(lastWin, type);
+
+  return true;
+});
 register('dock:set-html', (html) => {
   if (typeof html !== 'string' || isCodeDockLocked()) {
     return false;
@@ -6201,9 +8079,17 @@ register('dock:set-html', (html) => {
     return false;
   }
 
+  const before = htmlFull;
+
   htmlFull = html;
 
   if (htmlScopeActive) {
+    // The scoped pane shows `htmlFull.slice(htmlFocus)`. An edit that changed
+    // the length of what is inside that range leaves the end of it pointing
+    // short, and the pane renders a truncated tag — `{{ /artis`. Writing in
+    // that pane then syncs the truncation back into the file, so the range is
+    // moved with the edit rather than left behind.
+    htmlFocus = shiftFocus(htmlFocus, before, html);
     writeHtmlEditor(htmlEditorText());
     onEditorInput(lastWin);
     emit('dock:html-changed');
@@ -6221,6 +8107,36 @@ register('dock:set-html', (html) => {
 
   return true;
 });
+
+/**
+ * Move a focus range so it still covers the same thing after an edit.
+ *
+ * Where the two texts first differ says whether the edit landed before the
+ * range (move both ends), inside it (stretch the end), or after it (leave it).
+ */
+function shiftFocus(focus, before, after) {
+  const delta = after.length - before.length;
+
+  if (!focus || !delta) {
+    return focus;
+  }
+
+  let at = 0;
+
+  while (at < before.length && at < after.length && before[at] === after[at]) {
+    at += 1;
+  }
+
+  if (at >= focus.to) {
+    return focus;
+  }
+
+  if (at < focus.from) {
+    return { from: Math.max(0, focus.from + delta), to: Math.max(0, focus.to + delta) };
+  }
+
+  return { from: focus.from, to: Math.max(focus.from, focus.to + delta) };
+}
 
 sve.syncCodeDock = syncCodeDock;
 

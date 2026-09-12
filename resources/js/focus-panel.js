@@ -2366,6 +2366,7 @@ sve.deepestFieldPath = deepestFieldPath;
 sve.rowOwningField = rowOwningField;
 sve.focusFieldOwner = focusFieldOwner;
 sve.soloSection = soloSection;
+sve.recoverMissingSolo = recoverMissingSolo;
 sve.isolateSoloSection = isolateSoloSection;
 Object.defineProperty(sve, 'lpWasOpen', { get() { return lpWasOpen; }, set(v) { lpWasOpen = v; } });
 Object.defineProperty(sve, 'lpWidthApplied', { get() { return lpWidthApplied; }, set(v) { lpWidthApplied = v; } });

@@ -11,28 +11,34 @@
  * Storage, emit shape, and the responsive UI are untouched.
  */
 
+import { bpBase, bpForDevice, bpHandles } from './breakpoints.js';
 import { chromeGet } from './chrome-prefs.js';
 
-const BP_ORDER = ['laptop', 'tablet', 'mobile'];
 const CAPTURE_KEY = 'passOnAny';
 
-let activeBp = 'laptop';
+let activeBp = '';
 let patched = false;
 
+/** Widest first — the cascade a narrower size reads down through. */
+function bpOrder() {
+    return bpHandles(window);
+}
+
+/**
+ * Which size a device button means.
+ *
+ * Fit, and any name this site no longer has, mean the base: it is the one
+ * written without a media query, so it is what a condition falls back to.
+ */
 function deviceToBp(device) {
-    if (!device || device === 'Responsive' || device === 'Desktop' || device === 'Laptop') {
-        return 'laptop';
-    }
-    if (device === 'Tablet') return 'tablet';
-    if (device === 'Mobile') return 'mobile';
-    return 'laptop';
+    return bpForDevice(device, window)?.handle || bpBase(window);
 }
 
 function bpFromStorage() {
     try {
         return deviceToBp(chromeGet(window, 'sve-lp-device'));
     } catch {
-        return 'laptop';
+        return bpBase(window);
     }
 }
 
@@ -44,7 +50,7 @@ function leafHandle(field) {
 }
 
 /**
- * Breakpoint bag only — every own key is laptop|tablet|mobile, and each
+ * Breakpoint bag only — every own key is one of this site's sizes, and each
  * drawer is a plain object of inner field values.
  */
 export function isResponsiveBag(value) {
@@ -54,7 +60,7 @@ export function isResponsiveBag(value) {
 
     const keys = Object.keys(value);
     if (!keys.length) return false;
-    if (!keys.every((k) => BP_ORDER.includes(k))) return false;
+    if (!keys.every((k) => bpOrder().includes(k))) return false;
 
     return keys.every((k) => {
         const inner = value[k];
@@ -64,7 +70,7 @@ export function isResponsiveBag(value) {
 
 export function effectiveLeaf(bag, bp, handle) {
     const effective = {};
-    for (const step of BP_ORDER) {
+    for (const step of bpOrder()) {
         Object.assign(effective, bag[step] || {});
         if (step === bp) break;
     }
@@ -81,7 +87,7 @@ export function effectiveLeaf(bag, bp, handle) {
     return effective;
 }
 
-export function unwrapResponsiveConditionValue(value, field, bp = activeBp) {
+export function unwrapResponsiveConditionValue(value, field, bp = activeBp || bpBase(window)) {
     if (!isResponsiveBag(value)) {
         return value;
     }
@@ -102,7 +108,7 @@ function patchValidatorProto(proto) {
 
     function getFieldValue(field) {
         const value = original.call(this, field);
-        return unwrapResponsiveConditionValue(value, field, activeBp);
+        return unwrapResponsiveConditionValue(value, field, activeBp || bpBase(window));
     }
 
     getFieldValue._sveResponsiveConditions = true;
@@ -159,7 +165,7 @@ function trackBreakpoint() {
 
     window.addEventListener('sve:breakpoint', (event) => {
         const next = event?.detail?.bp || deviceToBp(event?.detail?.device);
-        if (BP_ORDER.includes(next)) {
+        if (bpOrder().includes(next)) {
             activeBp = next;
         }
     });

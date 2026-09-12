@@ -101,6 +101,13 @@ return [
     |                      resources/visual-editor/tw when the dock saves. Needs
     |                      template_dock. Off by default — the dock then writes
     |                      the file as today. Does not change the site stylesheet.
+    | - component_props:   inputs on a component — name, kind, default — edited
+    |                      in the left panel while a component is open, and
+    |                      filled in per place from the HTML tree. The
+    |                      declaration is an Antlers comment in the component
+    |                      file, so a rendered page never reads it and Live
+    |                      Preview is untouched. Off by default; off again and
+    |                      the file still renders exactly as it did.
     | - ai_panel:          a chat that runs a local Cursor agent — in Live
     |                      Preview, and on its own page under Utilities. Off by
     |                      default. Who gets it sits under the toggle.
@@ -145,6 +152,7 @@ return [
         'file_manager' => false,
         'collection_templates' => false,
         'tailwind_dock' => false,
+        'component_props' => false,
         'ai_panel' => false,
         'comments' => true,
         // Nested under each toolbar toggle. Null = defaults
@@ -199,20 +207,6 @@ return [
     */
     'library' => [
         'snapshot' => null,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Tailwind in the template dock
-    |--------------------------------------------------------------------------
-    |
-    | When `tailwind_dock` is on, the HTML pane is compiled with this file's
-    | `@theme` / `@utility` so `bg-primary` matches the site. Missing file
-    | falls back to Tailwind's defaults; arbitrary values still work.
-    |
-    */
-    'tailwind' => [
-        'css' => resource_path('css/site.css'),
     ],
 
     /*
@@ -471,20 +465,45 @@ return [
         | (`custom_section` → `custom_section/style_1`).
         */
         'unlocked' => ['custom_section'],
+
+        /*
+        | What the HTML toolbar's section button writes inside the opening tag.
+        |
+        | A page section is never just a `<section>`: it needs the id the page
+        | addresses it by, the wrapper it lays out in, and the `visual_edit` tag
+        | that makes it clickable in the preview. Typing those four things by
+        | hand every time is how they end up missing.
+        |
+        | Attributes only — the tag itself is written around them. Empty writes
+        | a bare `<section>`.
+        */
+        'section_tag' => 'id="id-{{ id }}" class="wrapper" {{ visual_edit outline_inside="true" section_orderable="true" }}',
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Tailwind bake (template dock)
+    | Tailwind in the template dock
     |--------------------------------------------------------------------------
     |
-    | Compiled utilities for HTML-pane classes, one file per section type.
-    | The Antlers partial has `{{ sve_tw }}` after the section; the tag
-    | pushes onto style_push. The sheet is here, not in the markup.
+    | When `tailwind_dock` is on, the HTML pane is compiled with `css`'s
+    | `@theme` / `@utility` so `bg-primary` matches the site, and the same
+    | declarations build the class list behind the dock's suggestions. Missing
+    | file falls back to Tailwind's defaults; arbitrary values still work.
+    |
+    | store: the compiled utilities, one file per section type. The Antlers
+    | partial has `{{ sve_tw }}` after the section; the tag pushes onto
+    | style_push. The sheet is here, not in the markup.
+    |
+    | build: where Vite put the site's built assets. Their manifest says which
+    | stylesheet the page loads, and every class already in it is left out of
+    | the bake instead of being written a second time. No manifest there, and
+    | everything is baked.
     |
     */
     'tailwind' => [
+        'css' => resource_path('css/site.css'),
         'store' => resource_path('visual-editor/tw'),
+        'build' => public_path('build'),
     ],
 
     /*
@@ -562,6 +581,66 @@ return [
                 ['handle' => 'style_2', 'label' => 'Centered — stacked'],
                 ['handle' => 'style_3', 'label' => 'Columns — brand · nav · form'],
             ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Data picker
+    |--------------------------------------------------------------------------
+    |
+    | The Data button in the template dock lists every variable a template can
+    | print. Fieldtypes that only draw something in the Control Panel — a tab,
+    | a divider, a preview of another field — store nothing, so there is no
+    | variable to write for them.
+    |
+    | Statamic's own are recognised automatically. Addon fieldtypes usually set
+    | no flags at all, so name those here.
+    */
+    /*
+    |--------------------------------------------------------------------------
+    | Screen sizes
+    |--------------------------------------------------------------------------
+    |
+    | The breakpoints this site designs for — one list, read by Live Preview's
+    | device buttons, the responsive fields, the Tailwind row and the CSS panel.
+    |
+    | Desktop-first: the list is sorted widest first, the widest is the base and
+    | is written with no media query at all, and every narrower size is an
+    | exception under a `max-width` worked out from the size above it.
+    |
+    | `handle` is the key content is stored under. Adding a size is safe — an
+    | entry with nothing saved for it simply inherits from the size above.
+    | Renaming or removing one leaves saved values with no owner, so don't,
+    | unless you are prepared to migrate the content.
+    |
+    | Addons > Statamic Visual Editor wins over this; this wins over the three
+    | the addon ships with. Leave it empty to use those.
+    |
+    | `min` is the narrowest screen that still counts as this size, in `unit`.
+    | Use `em`: a boundary in `em` moves with the reader's own font-size setting
+    | and one in `px` never does. In a media query `em` and `rem` are identical
+    | — both measure against the browser's initial font size, never against
+    | `html { font-size }` — so `rem` is a matter of taste, `px` is not.
+    |
+    |   'breakpoints' => [
+    |       ['handle' => 'laptop', 'label' => 'desktop', 'device' => 'Desktop',
+    |        'icon' => 'desktop', 'min' => 64, 'unit' => 'em', 'width' => 1440, 'height' => 900],
+    |       ['handle' => 'wide', 'label' => 'Wide', 'device' => 'Wide',
+    |        'icon' => 'laptop', 'min' => 56.25, 'unit' => 'em', 'width' => 1100, 'height' => 900],
+    |       ['handle' => 'tablet', 'label' => 'tablet', 'device' => 'Tablet',
+    |        'icon' => 'tablet', 'min' => 48, 'unit' => 'em', 'width' => 810, 'height' => 1080],
+    |       ['handle' => 'mobile', 'label' => 'mobile', 'device' => 'Mobile',
+    |        'icon' => 'mobile', 'min' => 0, 'unit' => 'em', 'width' => 375, 'height' => 812],
+    |   ],
+    |
+    */
+    'breakpoints' => [],
+
+    'data_vars' => [
+        'skip' => [
+            'theme_color_scale_preview',
+            'fluid_font_preview',
         ],
     ],
 

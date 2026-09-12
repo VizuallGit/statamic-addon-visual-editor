@@ -8,14 +8,56 @@ import { parseHtmlTree } from './html-tree-parse.js';
 
 const CLASS_RE = /^\.[a-zA-Z_][\w-]*$/;
 
-function classNamesInBrackets(value) {
-  const inner = String(value || '').match(/\[\s*([\s\S]*?)\s*\]/);
+/**
+ * The dock's own `[ … ]` run in a class attribute — never Tailwind's.
+ *
+ * Both use square brackets, and they are told apart by what is in front of the
+ * `[`: Tailwind's arbitrary value is always welded to a utility (`bg-[#343434]`,
+ * `max-w-[40ch]`, `data-[open]:flex`), while the dock's run stands on its own.
+ * So: a `[` at the start of the value or after whitespace, closed by a `]` at
+ * the end or before whitespace.
+ *
+ * This is the same line `tw-parse.js` draws when it tokenises the attribute —
+ * there a lone `[` is its own token. Written out here because the CSS side used
+ * to match any bracket at all, and then adding a class to
+ * `class="bg-[#343434]"` wrote the class *into the colour*.
+ *
+ * @returns {{ from: number, to: number, innerFrom: number, innerTo: number }|null}
+ */
+export function bracketRun(value) {
+  const text = String(value || '');
+  const openRe = /(^|\s)\[/g;
+  let m;
 
-  if (!inner) {
+  while ((m = openRe.exec(text))) {
+    const open = m.index + m[1].length;
+
+    // The first `]` that also stands on its own. A run that never closes that
+    // way is not ours — leave it exactly as it is.
+    const closeRe = /\](?=\s|$)/g;
+
+    closeRe.lastIndex = open + 1;
+
+    const close = closeRe.exec(text);
+
+    if (close) {
+      return { from: open, to: close.index + 1, innerFrom: open + 1, innerTo: close.index };
+    }
+  }
+
+  return null;
+}
+
+function classNamesInBrackets(value) {
+  const text = String(value || '');
+  const run = bracketRun(text);
+
+  if (!run) {
     return [];
   }
 
-  return inner[1]
+  return text
+    .slice(run.innerFrom, run.innerTo)
     .replace(/\{\{[\s\S]*?\}\}/g, ' ')
     .split(/\s+/)
     .filter((name) => /^[a-zA-Z_][\w-]*$/.test(name));
@@ -36,8 +78,9 @@ export function bracketToken(openTag) {
 }
 
 /**
- * Class names inside the first `[ … ]` of each class attribute, with
- * source offsets. Tailwind after the closing `]` is ignored.
+ * Class names inside the dock's `[ … ]` run in each class attribute, with
+ * source offsets. Tailwind is ignored — both the utilities after the closing
+ * `]` and any `bg-[#343434]` that happens to sit before it.
  */
 export function bracketClassTokens(html) {
   const source = String(html || '');
@@ -55,11 +98,11 @@ export function bracketClassTokens(html) {
     }
 
     const value = source.slice(valueStart, valueEnd);
-    const group = value.match(/\[([\s\S]*?)\]/);
+    const group = bracketRun(value);
 
     if (group) {
-      const inner = group[1];
-      const innerAbs = valueStart + group.index + 1;
+      const inner = value.slice(group.innerFrom, group.innerTo);
+      const innerAbs = valueStart + group.innerFrom;
       const masked = inner.replace(/\{\{[\s\S]*?\}\}/g, (chunk) => ' '.repeat(chunk.length));
       const nameRe = /[a-zA-Z_][\w-]*/g;
       let nameMatch;
@@ -205,18 +248,19 @@ export function applyBracketClass(openHtml, name) {
     const quote = classMatch[1];
     let value = classMatch[2];
 
-    const groups = [...value.matchAll(/\[([\s\S]*?)\]/g)];
+    const run = bracketRun(value);
 
-    if (groups.length) {
-      const inner = groups.map((group) => group[1].trim()).filter(Boolean).join(' ');
-      const names = classNamesInBrackets(`[ ${inner} ]`);
+    if (run) {
+      // Only this run is touched, and only inside it. Everything before and
+      // after is left byte for byte — a `bg-[#343434]` sitting next to it is
+      // not a second group to be merged in, it is somebody's colour.
+      const inner = value.slice(run.innerFrom, run.innerTo).trim();
+      const names = classNamesInBrackets(value);
       const next = names.includes(className) ? inner : `${inner} ${className}`.trim();
-      const from = value.indexOf('[');
-      const to = value.lastIndexOf(']');
 
-      value = `${value.slice(0, from)}[ ${next} ]${value.slice(to + 1)}`.replace(/\s+/g, ' ').trim();
+      value = `${value.slice(0, run.from)}[ ${next} ]${value.slice(run.to)}`;
     } else {
-      value = `[ ${className} ] ${value}`.replace(/\s+/g, ' ').trim();
+      value = `[ ${className} ] ${value}`.trim();
     }
 
     return (

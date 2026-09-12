@@ -19,6 +19,14 @@
  */
 
 import { ask, emit, register } from './cp/bus.js';
+import {
+  bpBase,
+  bpDevice,
+  bpForDevice,
+  bpFromWidth,
+  bpInherits,
+  breakpoints,
+} from './breakpoints.js';
 import { bindTips } from './cp/tip.js';
 import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
@@ -825,7 +833,7 @@ export function handleFieldHover(fieldPath, doc = document, scopeUid = undefined
 // --- Preview chrome: devices + zoom, no Pop out --------------------------------
 //
 // Statamic's own header shows a "Pop out" button and a text device <Select…>.
-// Editors get Puck-style icons: Mobile / Tablet / Laptop / Full-width, plus zoom.
+// Editors get Puck-style icons: one per breakpoint, plus Full-width and zoom.
 // Device presets lock CSS width and auto-scale to the pane. Full-width fills the
 // pane and never auto-zooms — shrinking the window just narrows the page.
 // Plus is disabled when the preview already fills the available width.
@@ -844,13 +852,24 @@ export const LP_ZOOM_KEY = 'sve-lp-zoom';
 export const LP_ZOOM_STEPS = [50, 75, 90, 100];
 export const LP_ZOOM_DEFAULT = 100;
 
+/**
+ * Keyed on the icon NAME, not on the device — a breakpoint says which picture
+ * it wants, so a self-chosen size can look like whatever it is. `Responsive`
+ * is the odd one out: it is not a breakpoint, it is the absence of one.
+ */
 export const LP_DEVICE_ICONS = {
-  Mobile:
+  mobile:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
-  Tablet:
+  tablet:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
-  Laptop:
+  laptop:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M2 18h20M8 22h8"/></svg>',
+  desktop:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg>',
+  tv:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="m7 3 5 3 5-3"/></svg>',
+  watch:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="6" width="10" height="12" rx="2.5"/><path d="M9 6V3h6v3M9 18v3h6v-3"/></svg>',
   // Full-width / Responsive — four arrows out, same idea as Statamic and Puck.
   Responsive:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><line x1="21" y1="3" x2="14" y2="10"/><polyline points="9 21 3 21 3 15"/><line x1="3" y1="21" x2="10" y2="14"/><polyline points="21 15 21 21 15 21"/><line x1="21" y1="21" x2="14" y2="14"/><polyline points="3 9 3 3 9 3"/><line x1="3" y1="3" x2="10" y2="10"/></svg>',
@@ -863,38 +882,41 @@ export function lpConfiguredDevices(win) {
 }
 
 /**
- * Mobile → Tablet → Laptop → Responsive — Statamic's devices, reversed so
- * mobile sits on the left and Responsive (expand) on the right.
+ * The breakpoints, narrowest first, then Responsive on the right.
  *
- * Responsive and Laptop are always present. Tablet/Mobile only if configured.
+ * The order is deliberately the reverse of the list: mobile sits on the left
+ * and the widest beside the expand arrows, which is how every other builder
+ * draws it. The base size is always there — it is where a section is designed,
+ * so there has to be a way back to it.
  */
 export function lpDeviceKeys(win) {
-  const configured = lpConfiguredDevices(win);
-  const keys = [];
+  const keys = breakpoints(win)
+    .map((item) => item.device)
+    .filter(Boolean)
+    .reverse();
 
-  if (configured.Mobile) {
-    keys.push('Mobile');
-  }
-
-  if (configured.Tablet) {
-    keys.push('Tablet');
-  }
-
-  keys.push('Laptop');
   keys.push('Responsive');
 
   return keys;
 }
 
 export function lpStoredDevice(win) {
-  let stored = chromeGet(win, LP_DEVICE_KEY);
+  const stored = chromeGet(win, LP_DEVICE_KEY);
+  const keys = lpDeviceKeys(win);
 
-  if (stored === 'Desktop') {
-    stored = 'Laptop';
+  if (stored && keys.includes(stored)) {
+    return stored;
   }
 
-  if (stored && lpDeviceKeys(win).includes(stored)) {
-    return stored;
+  // A device this site no longer has. Readers who were last on "Laptop" before
+  // it was renamed should land on the base size, not be thrown out to Fit —
+  // the stored name is stale, the size they were looking at is not.
+  if (stored === 'Laptop' || stored === 'Desktop') {
+    const base = bpDevice(bpBase(win), win);
+
+    if (base && keys.includes(base)) {
+      return base;
+    }
   }
 
   return 'Responsive';
@@ -924,15 +946,9 @@ export function lpChromeActiveDevice(win) {
 
   const bp = lpWidthToBp(w);
 
-  if (bp === 'tablet') {
-    return 'Tablet';
-  }
-
-  if (bp === 'mobile') {
-    return 'Mobile';
-  }
-
-  return 'Responsive';
+  // The widest size is the base, and at the base nothing is constrained —
+  // that is Full-width, not a device. Only the narrower ones light a button.
+  return bp === bpBase(win) ? 'Responsive' : bpDevice(bp, win) || 'Responsive';
 }
 
 
@@ -967,28 +983,39 @@ export const BLOCK_ORDER_FIELD = 'blocks';
 
 export const orderField = (bp) => BLOCK_ORDER_PREFIX + bp;
 
-/** Desktop-first, like the rest of the responsive work: no order = inherit up. */
-export const BP_INHERITS = { laptop: [], tablet: ['laptop'], mobile: ['tablet', 'laptop'] };
+/**
+ * Desktop-first, like the rest of the responsive work: no order = inherit up.
+ *
+ * A getter, not a constant: the chain is derived from the breakpoint list, and
+ * that list is only filled once the Control Panel has booted. Callers read it
+ * as they always did — `BP_INHERITS[bp]` — and get today's answer.
+ */
+export const BP_INHERITS = new Proxy(
+  {},
+  {
+    get: (_, key) => (typeof key === 'string' ? bpInherits(window)[key] : undefined),
+    has: (_, key) => typeof key === 'string' && key in bpInherits(window),
+    ownKeys: () => Object.keys(bpInherits(window)),
+    getOwnPropertyDescriptor: (_, key) => ({
+      enumerable: typeof key === 'string' && key in bpInherits(window),
+      configurable: true,
+      value: bpInherits(window)[key],
+    }),
+  }
+);
 
 /**
  * The breakpoint being edited — the same answer the responsive fields give.
  *
  * Full-width is not a synonym for laptop: it fills the pane, and at a narrow
- * pane that is tablet or mobile. Laptop stays laptop even when scaled down.
+ * pane that is tablet or mobile. The base stays the base even when scaled down.
  */
 export function currentBp(win) {
-  let device = chromeGet(win, LP_DEVICE_KEY) || 'Responsive';
+  const device = chromeGet(win, LP_DEVICE_KEY) || 'Responsive';
+  const row = bpForDevice(device, win);
 
-  if (device === 'Tablet') {
-    return 'tablet';
-  }
-
-  if (device === 'Mobile') {
-    return 'mobile';
-  }
-
-  if (device === 'Laptop') {
-    return 'laptop';
+  if (row) {
+    return row.handle;
   }
 
   // Full-width: the page is as wide as the pane, so the breakpoint follows it.
@@ -1041,6 +1068,7 @@ export function orderFor(row, bp) {
  */
 export function orderableSections(doc) {
   const found = [];
+  const win = doc?.defaultView || window;
 
   for (const container of sve.activeContainers(doc)) {
     const values = sve.unwrapRef(container.values);
@@ -1060,8 +1088,10 @@ export function orderableSections(doc) {
         return;
       }
 
+      // The base size's own list is the marker: every section that keeps a
+      // per-size order has one, whatever the sizes are called here.
       if (
-        Object.prototype.hasOwnProperty.call(node, orderField('laptop')) &&
+        Object.prototype.hasOwnProperty.call(node, orderField(bpBase(win))) &&
         Array.isArray(node[BLOCK_ORDER_FIELD])
       ) {
         found.push({ container, path, row: node });
@@ -1163,11 +1193,11 @@ export function sortBlockOrder(doc, bp) {
  * Writes a drag down as it happens, so the page reorders while you watch rather
  * than on the next device switch.
  *
- * Silent on laptop, and that is the whole safety of it. Laptop is where blocks
- * are added and fields are edited, and a write there re-renders the page builder
- * underneath that work — which is what once left Statamic's set picker spinning
- * forever. Laptop's own order is written once, on the way out, by `setLpDevice`.
- * Everywhere else this only writes when the order actually changed.
+ * Silent on the base size, and that is the whole safety of it. The base is where
+ * blocks are added and fields are edited, and a write there re-renders the page
+ * builder underneath that work — which is what once left Statamic's set picker
+ * spinning forever. Its own order is written once, on the way out, by
+ * `setLpDevice`. Everywhere else this only writes when the order actually changed.
  */
 export function watchBlockOrder(win) {
   if (win.__sveBlockOrderWatch) {
@@ -1177,7 +1207,7 @@ export function watchBlockOrder(win) {
   win.__sveBlockOrderWatch = setInterval(() => {
     const bp = currentBp(win);
 
-    if (bp === 'laptop') {
+    if (bp === bpBase(win)) {
       return;
     }
 
@@ -1210,8 +1240,8 @@ export function setLpDevice(win, key) {
 
   // Nothing may record between here and the sort below. Both breakpoints are in
   // play across those lines, and a tick landing in the middle would file one
-  // order under the other's name — which is how laptop and tablet ended up
-  // holding the same thing.
+  // order under the other's name — which is how the base size and tablet ended
+  // up holding the same thing.
   blockOrderSettleUntil = Date.now() + 1200;
 
   chromeSet(win, LP_DEVICE_KEY, String(key));
@@ -1227,14 +1257,16 @@ export function setLpDevice(win, key) {
   applyLpZoom(win);
   paintLpPreviewChrome(win);
 
-  const to = key === 'Tablet' ? 'tablet' : key === 'Mobile' ? 'mobile' : currentBp(win);
+  // A device names its own size; only Fit has to be read off the pane.
+  const named = bpForDevice(key, win)?.handle || '';
+  const to = named || currentBp(win);
 
   sortBlockOrder(win.document, to);
 
   // Fit has no width of its own — it takes the pane's, and the class that gives
   // it that may still be settling. One more pass inside the quiet window, which
   // costs nothing when the first one already got it right.
-  if (to !== 'tablet' && to !== 'mobile') {
+  if (!named) {
     setTimeout(() => sortBlockOrder(win.document, currentBp(win)), 350);
   }
 
@@ -1256,16 +1288,8 @@ register('lp:set-device', ({ win, key } = {}) => {
   }
 });
 
-export function lpWidthToBp(width) {
-  if (width >= 1024) {
-    return 'laptop';
-  }
-
-  if (width >= 768) {
-    return 'tablet';
-  }
-
-  return 'mobile';
+export function lpWidthToBp(width, win = window) {
+  return bpFromWidth(width, win);
 }
 
 /**
@@ -1277,16 +1301,12 @@ export function lpShouldFillPane(win) {
 }
 
 export function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
-  let bp = 'laptop';
+  let bp = bpBase(win);
 
-  if (deviceKey === 'Mobile') {
-    bp = 'mobile';
-  } else if (deviceKey === 'Tablet') {
-    bp = 'tablet';
-  } else if (deviceKey === 'Laptop') {
-    bp = 'laptop';
-  } else if (deviceKey === 'Responsive') {
+  if (deviceKey === 'Responsive') {
     bp = lpWidthToBp(lpPaneInnerSize(win).width || 1200);
+  } else {
+    bp = bpForDevice(deviceKey, win)?.handle || bp;
   }
 
   try {
@@ -1309,7 +1329,7 @@ export function applyLpDevice(win, key = lpStoredDevice(win)) {
   const devices = lpConfiguredDevices(win);
   let preset = key && key !== 'Responsive' ? devices[key] : null;
 
-  if (key === 'Laptop' && !preset) {
+  if (!preset && key && key === bpDevice(bpBase(win), win)) {
     preset = { width: 1440, height: 900 };
   }
   const contents = doc.querySelector('.live-preview-contents');
@@ -1412,15 +1432,11 @@ export let lpResponsiveWidthLastBp = null;
 export function lpDeviceCssWidth(win, key = lpStoredDevice(win)) {
   const devices = lpConfiguredDevices(win);
 
-  if (key === 'Tablet' && devices.Tablet) {
-    return devices.Tablet.width;
+  if (key && key !== 'Responsive' && devices[key]) {
+    return devices[key].width;
   }
 
-  if (key === 'Mobile' && devices.Mobile) {
-    return devices.Mobile.width;
-  }
-
-  return devices.Laptop?.width || 1440;
+  return devices[bpDevice(bpBase(win), win)]?.width || 1440;
 }
 
 export function watchLpResponsiveWidth(win) {
@@ -1847,10 +1863,15 @@ export function ensureLpPreviewChrome(win) {
     chrome.appendChild(zoom);
   }
 
-  // Rebuild device icons when the set changes (e.g. Laptop removed → Fit only).
+  // Rebuild device icons when the set changes (a size added, renamed or removed).
   const devicesEl = chrome.querySelector('[data-sve-devices]');
   const deviceKeys = lpDeviceKeys(win);
-  const deviceSig = deviceKeys.join('|');
+  // The icon and the name can change while the keys stay put — a renamed size
+  // still has to redraw, or the row keeps the label it had before.
+  const deviceSig = [
+    deviceKeys.join('|'),
+    ...breakpoints(win).map((item) => `${item.device}:${item.icon}:${item.label}`),
+  ].join('~');
 
   if (devicesEl && devicesEl.dataset.sig !== deviceSig) {
     devicesEl.dataset.sig = deviceSig;
@@ -1859,15 +1880,15 @@ export function ensureLpPreviewChrome(win) {
     deviceKeys.forEach((key) => {
       const btn = doc.createElement('button');
 
+      const row = key === 'Responsive' ? null : bpForDevice(key, win);
+
       btn.type = 'button';
       btn.dataset.device = key;
-      btn.title =
+      btn.title = key === 'Responsive' ? t(win, 'device_full') : row?.label || key;
+      btn.innerHTML =
         key === 'Responsive'
-          ? t(win, 'device_full')
-          : key === 'Laptop'
-            ? t(win, 'device_laptop')
-            : key;
-      btn.innerHTML = LP_DEVICE_ICONS[key] || LP_DEVICE_ICONS.Laptop;
+          ? LP_DEVICE_ICONS.Responsive
+          : LP_DEVICE_ICONS[row?.icon] || LP_DEVICE_ICONS.desktop;
       btn.style.cssText =
         `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
       btn.addEventListener('click', () => setLpDevice(win, key));
@@ -7202,7 +7223,7 @@ export function createMessageListener(doc = document, win = window) {
 
     if (data.type === 'click') {
       if (data.htmlPath) {
-        ask('html-tree:from-preview', { path: data.htmlPath });
+        ask('html-tree:from-preview', { path: data.htmlPath, src: data.componentSrc || '' });
 
         return;
       }
@@ -7338,6 +7359,10 @@ export function createMessageListener(doc = document, win = window) {
       sve.handleColumnWidth(data, doc);
     } else if (data.type === 'sve-grid-span') {
       sve.handleGridSpan(data, doc, win);
+    } else if (data.type === 'open-component') {
+      // The dock is open whenever the preview knows about components at all —
+      // the map is only sent while a template is loaded.
+      ask('dock:open-template', `view:partials/${data.src}`);
     } else if (data.type === 'open-global') {
       sve.handleOpenGlobal(data, doc, win);
     } else if (data.type === 'open-chrome') {

@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
+use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\PanelVisibility;
 use MarioHamann\StatamicVisualEditor\SiblingSync;
 use MarioHamann\StatamicVisualEditor\Traits\HandlesReplicatorSets;
@@ -204,7 +205,7 @@ class InjectVisualIdIntoBlueprint
 
         $handles = array_column($fields, 'handle');
 
-        foreach (['laptop', 'tablet', 'mobile'] as $bp) {
+        foreach (Breakpoints::handles() as $bp) {
             $handle = 'block_order_'.$bp;
 
             if (in_array($handle, $handles, true)) {

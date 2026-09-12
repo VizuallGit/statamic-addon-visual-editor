@@ -33,6 +33,16 @@ export function blockRange(html, node) {
 
 export function closingTagIndex(html, node) {
   const inner = html.slice(node.from, node.to);
+
+  // A condition or loop closes with Antlers, not a tag — `{{ /blocks }}`, or
+  // `{{ /if }}` / `{{ endif }}`. Without this, dropping something "inside" one
+  // would land after the block instead of in it.
+  if (node.kind === 'antlers') {
+    const close = inner.match(/\{\{\s*(?:\/[A-Za-z_][A-Za-z0-9_.:-]*|endif)\s*\}\}\s*$/);
+
+    return close ? node.from + close.index : node.to;
+  }
+
   const token = `</${node.tag}`;
   const idx = inner.toLowerCase().lastIndexOf(token);
 
@@ -102,6 +112,21 @@ export function moveHtml(html, roots, sourceId, targetId, place) {
 
   if (at > 0 && rest[at - 1] !== '\n' && insert[0] !== '\n') {
     insert = `\n${insert}`;
+  }
+
+  // Dropping inside lands right before the closing tag, which is sitting on its
+  // own indented line. Without this the tag gets pulled up onto the end of what
+  // was just moved in.
+  if (where === 'inside') {
+    const lead = rest.slice(0, at).split('\n').pop() || '';
+
+    if (lead.trim() === '') {
+      // The closing tag's own indent is already sitting in front of us, so the
+      // block joins it rather than bringing a newline of its own.
+      const body = insert.replace(/^\n+[ \t]*/, '').replace(/\s+$/, '');
+
+      insert = `${body}\n${lead}`;
+    }
   }
 
   return rest.slice(0, at) + insert + rest.slice(at);

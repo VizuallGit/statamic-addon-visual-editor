@@ -109,6 +109,11 @@ function chipBind(chip) {
   flex-wrap: wrap;
   gap: 0.3rem;
   min-width: 0;
+  /* Which tag, which size, which state — settings, not classes. The rule says
+     where the answers stop and the classes they apply to begin. */
+  padding-bottom: 0.55em;
+  margin-bottom: 0.15em;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.22);
 }
 .sve-tw-gap { flex: 1 1 auto; min-width: 0; }
 .sve-tw-tag {

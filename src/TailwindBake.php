@@ -181,6 +181,15 @@ class TailwindBake
         while ($changed) {
             $changed = false;
 
+            // `max-[900px]:` — en grænse Tailwinds egen skala ikke har et navn
+            // til. Den kan ikke stå på en liste, så den genkendes på sin form.
+            if (preg_match('/^((?:max|min)-\[[^\]]+\]):/', $rest, $m)) {
+                $variants[] = $m[1];
+                $rest = substr($rest, strlen($m[0]));
+
+                continue;
+            }
+
             foreach (static::variantNames() as $name) {
                 $needle = $name.':';
 
@@ -225,6 +234,11 @@ class TailwindBake
                 $media[] = static::VARIANT_MEDIA[$name];
             } elseif (isset(static::VARIANT_PSEUDO[$name])) {
                 $pseudos .= static::VARIANT_PSEUDO[$name];
+            } elseif (preg_match('/^(max|min)-\[([^\]]+)\]$/', $name, $m)) {
+                // En ukendt variant blev før tabt lydløst, og reglen kom ud
+                // uden sin grænse — altså gældende overalt. Det er den værst
+                // tænkelige fejl her: klassen ser ud til at virke.
+                $media[] = '('.$m[1].'-width:'.$m[2].')';
             }
         }
 

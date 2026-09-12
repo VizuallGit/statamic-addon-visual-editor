@@ -4,7 +4,7 @@
 // Bridge script — injected into the Live Preview iframe.
 // Only activates when running inside an iframe (window.self !== window.top).
 
-import { findPickRoot, HT_PATH_ATTR, stampHtmlPick, unstampHtmlPick } from './html-pick-align.js';
+import { findPickRoots, HT_PATH_ATTR, isPickChrome, stampHtmlPickAll, unstampHtmlPick } from './html-pick-align.js';
 
 const ACTIVE_ATTR = 'data-sid-active';
 const HOVER_ATTR = 'data-sid-hover';
@@ -56,6 +56,144 @@ let pendingEdit = null;
 let editing = null;
 let requestSeq = 0;
 let htmlPick = null;
+/**
+ * An element clicked before the tree knew about it.
+ *
+ * Only the file the dock has open is stamped with tree paths, so a click in any
+ * other section lands on an element with nothing to report. That click still
+ * moves the dock to that section, and the stamping that follows is when the
+ * element finally has a path — so the click is held until then and reported
+ * from there, and the tree opens on the thing that was actually clicked rather
+ * than on the top of the file.
+ */
+let pickAwait = null;
+
+let componentFocus = null;
+
+const COMPONENT_FOCUSED = 'data-sve-component-focused';
+const COMPONENT_DIM = 'data-sve-component-dim';
+
+/**
+ * Outline every place the open component renders, and fade everything else.
+ *
+ * "Everything else" is walked, not guessed: from each match up to the body,
+ * every sibling on the way is dimmed. That reaches whatever nests the
+ * component without needing to know how deep it sits. An ancestor that holds a
+ * match is un-dimmed afterwards, so the component never fades along with its
+ * surroundings.
+ */
+function applyComponentFocus(win) {
+  const doc = win.document;
+
+  doc.documentElement.classList.remove('sve-component-focus');
+  doc.querySelectorAll(`[${COMPONENT_FOCUSED}], [${COMPONENT_DIM}]`).forEach((el) => {
+    el.removeAttribute(COMPONENT_FOCUSED);
+    el.removeAttribute(COMPONENT_DIM);
+  });
+
+  if (!componentFocus?.selector) {
+    return;
+  }
+
+  let hits = [];
+
+  try {
+    hits = [...doc.querySelectorAll(componentFocus.selector)];
+  } catch {
+    // A selector the browser will not take says nothing about the page.
+    return;
+  }
+
+  hits = hits.filter((el) => !isPickChrome(el) && !el.closest('[data-sve-chrome-ui]'));
+
+  if (!hits.length) {
+    return;
+  }
+
+  // Mark every match first: two instances side by side must not dim each other.
+  hits.forEach((el) => el.setAttribute(COMPONENT_FOCUSED, ''));
+
+  for (const hit of hits) {
+    let node = hit;
+
+    while (node?.parentElement && node.parentElement !== doc.documentElement) {
+      for (const sibling of node.parentElement.children) {
+        if (sibling !== node && !sibling.hasAttribute(COMPONENT_FOCUSED)) {
+          sibling.setAttribute(COMPONENT_DIM, '');
+        }
+      }
+
+      node = node.parentElement;
+    }
+  }
+
+  doc.querySelectorAll(`[${COMPONENT_DIM}]`).forEach((el) => {
+    if (el.querySelector(`[${COMPONENT_FOCUSED}]`)) {
+      el.removeAttribute(COMPONENT_DIM);
+    }
+  });
+
+  doc.documentElement.classList.add('sve-component-focus');
+}
+
+let componentMap = [];
+
+/**
+ * An anchor that is a point, not an element — so a menu can open where the
+ * pointer is. Satisfies the three things `openToolbarMenu` asks of an anchor.
+ */
+function pointAnchor(x, y) {
+  return {
+    isConnected: true,
+    contains: () => false,
+    getBoundingClientRect: () => ({
+      left: x,
+      top: y,
+      right: x,
+      bottom: y,
+      width: 0,
+      height: 0,
+    }),
+  };
+}
+
+const COMPONENT_SRC = 'data-sve-component-src';
+const COMPONENT_NAME = 'data-sve-component-name';
+
+/**
+ * Mark every element a component renders as, so a right-click on anything
+ * inside one can name it.
+ *
+ * Innermost wins: a component nested in another gets stamped last and is the
+ * one `closest()` finds, which is the one the reader pointed at.
+ */
+function applyComponentMap(win) {
+  const doc = win.document;
+
+  doc.querySelectorAll(`[${COMPONENT_SRC}]`).forEach((el) => {
+    el.removeAttribute(COMPONENT_SRC);
+    el.removeAttribute(COMPONENT_NAME);
+  });
+
+  for (const item of componentMap) {
+    let hits = [];
+
+    try {
+      hits = [...doc.querySelectorAll(item.selector)];
+    } catch {
+      continue;
+    }
+
+    for (const el of hits) {
+      if (isPickChrome(el)) {
+        continue;
+      }
+
+      el.setAttribute(COMPONENT_SRC, item.src);
+      el.setAttribute(COMPONENT_NAME, item.name || '');
+    }
+  }
+}
 
 function applyHtmlPick(win) {
   if (!htmlPick) {
@@ -64,11 +202,110 @@ function applyHtmlPick(win) {
     return;
   }
 
-  const root = findPickRoot(win.document, htmlPick);
+  const roots = findPickRoots(win.document, htmlPick);
 
-  if (root) {
-    stampHtmlPick(root, htmlPick.nodes);
+  stampHtmlPickAll(htmlPick.all ? roots : roots.slice(0, 1), htmlPick.nodes);
+  reportAwaitedPick(win);
+}
+
+/**
+ * A hold on the element that was clicked, good across a redraw.
+ *
+ * Not the element itself: moving the dock to another section redraws the page
+ * around it, and the node that was clicked is then detached — every held click
+ * was being dropped for that reason alone. The section's uid and the child
+ * indexes down to it survive the redraw, because the markup does.
+ */
+function holdPick(el) {
+  const root = el?.closest?.(`[${SID_ATTR}]`);
+  const hold = { el, uid: '', idx: null, at: Date.now() };
+
+  if (!root) {
+    return hold;
   }
+
+  const idx = [];
+  let node = el;
+
+  while (node && node !== root) {
+    const parent = node.parentElement;
+
+    if (!parent) {
+      return hold;
+    }
+
+    idx.unshift([...parent.children].indexOf(node));
+    node = parent;
+  }
+
+  hold.uid = root.getAttribute(SID_ATTR) || '';
+  hold.idx = idx;
+
+  return hold;
+}
+
+/** The held element as it stands now, redrawn or not. */
+function heldElement(win, hold) {
+  if (hold.el?.isConnected) {
+    return hold.el;
+  }
+
+  if (!hold.uid || !hold.idx) {
+    return null;
+  }
+
+  let node = win.document.querySelector(`[${SID_ATTR}="${CSS.escape(hold.uid)}"]`);
+
+  for (const i of hold.idx) {
+    node = node?.children?.[i];
+
+    if (!node) {
+      return null;
+    }
+  }
+
+  return node;
+}
+
+/** The held click, now that this file's elements carry paths. */
+function reportAwaitedPick(win) {
+  const waiting = pickAwait;
+
+  if (!waiting) {
+    return;
+  }
+
+  // A click nobody could place within a few seconds is a click that landed on
+  // something this file does not draw. Dropping it is right: reporting it late
+  // would move the tree for a click the reader has long since moved on from.
+  if (Date.now() - waiting.at > 4000) {
+    pickAwait = null;
+
+    return;
+  }
+
+  const held = heldElement(win, waiting);
+  const el = held?.closest?.(`[${HT_PATH_ATTR}]`);
+
+  if (!el) {
+    return;
+  }
+
+  pickAwait = null;
+  win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((node) => {
+    node.removeAttribute(ACTIVE_ATTR);
+  });
+  applyOutlineTone(win, el);
+  el.setAttribute(ACTIVE_ATTR, '');
+  win.parent.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'click',
+      htmlPath: el.getAttribute(HT_PATH_ATTR),
+      componentSrc: held.closest?.(`[${COMPONENT_SRC}]`)?.getAttribute(COMPONENT_SRC) || '',
+    },
+    win.location.origin
+  );
 }
 
 /**
@@ -394,6 +631,18 @@ export function injectStyles(doc) {
         }
         [data-sve-global-focused] {
             outline: 2px solid #7c3aed !important;
+            outline-offset: -2px;
+        }
+        /* Editing a component: the page around it fades so it is obvious which
+           piece the dock is writing. Unlike a global section this is not a
+           lock — the page stays clickable, because it says where you are, it
+           does not ask you to leave. */
+        html.sve-component-focus [data-sve-component-dim] {
+            opacity: 0.3;
+            transition: opacity 0.2s ease;
+        }
+        html.sve-component-focus [data-sve-component-focused] {
+            outline: 2px solid #7c3aed;
             outline-offset: -2px;
         }
         /* Before you step in, a global section reads as ONE thing you click into,
@@ -6860,6 +7109,29 @@ function startEditing(win, data) {
     ) {
       lockedEls = [];
     } else {
+      // An empty field still renders its placeholder as real markup — the
+      // template draws it so it reaches the frontend and section previews too.
+      // With no nodes to match, every child ends up locked, the placeholder
+      // among them: the wrapper takes a toolbar but can never be typed into.
+      //
+      // Inline Bard (headline) has no child to lock — the placeholder sits
+      // straight in the wrapper, so you type on top of it and it becomes the
+      // value. Leave richtext's placeholder unlocked so it behaves the same
+      // way. Anything else sharing the wrapper is foreign and still gets locked.
+      const placeholderKids = [];
+
+      if (!nodes.length) {
+        const hint = normText(wrapper.getAttribute('data-sid-placeholder') || '');
+
+        if (hint) {
+          kids.forEach((kid) => {
+            if (normText(kid.textContent) === hint) {
+              placeholderKids.push(kid);
+            }
+          });
+        }
+      }
+
       const blocks = [];
       let cursor = 0;
 
@@ -6889,7 +7161,9 @@ function startEditing(win, data) {
         blocks.push(found);
       }
 
-      lockedEls = kids.filter((kid) => !blocks.includes(kid));
+      lockedEls = kids.filter(
+        (kid) => !blocks.includes(kid) && !placeholderKids.includes(kid)
+      );
     }
   } else {
     el = data.target === 'block' && blockEl ? blockEl : editableFromWrapper(wrapper);
@@ -7763,6 +8037,11 @@ export function createClickHandler(win) {
             source: 'statamic-visual-editor',
             type: 'click',
             htmlPath: picked.getAttribute(HT_PATH_ATTR),
+            // What a partial drew is not in this file's markup at all, so the
+            // nearest stamped tag is the call's surroundings rather than the
+            // thing clicked. Saying which component it was lets the tree mark
+            // the call itself.
+            componentSrc: event.target.closest?.(`[${COMPONENT_SRC}]`)?.getAttribute(COMPONENT_SRC) || '',
           },
           win.location.origin
         );
@@ -7770,6 +8049,11 @@ export function createClickHandler(win) {
         if (!editable) {
           return;
         }
+      } else {
+        // Nothing to report yet — this element belongs to a file the dock has
+        // not opened. The click below moves it there; `reportAwaitedPick`
+        // finishes the job when the stamping arrives.
+        pickAwait = holdPick(event.target);
       }
     }
 
@@ -8326,9 +8610,24 @@ export function createMessageReceiver(win) {
         uid: data.uid || '',
         tag: data.tag || '',
         klass: data.klass || '',
+        all: !!data.all,
         nodes: data.nodes || [],
       };
       applyHtmlPick(win);
+
+      return;
+    }
+
+    if (data.type === 'sve-component-map') {
+      componentMap = Array.isArray(data.items) ? data.items : [];
+      applyComponentMap(win);
+
+      return;
+    }
+
+    if (data.type === 'sve-component-focus') {
+      componentFocus = data.on ? { name: data.name || '', selector: data.selector || '' } : null;
+      applyComponentFocus(win);
 
       return;
     }
@@ -8736,9 +9035,54 @@ export function initBridge(win = window) {
   // A hot-reload morph replaces section elements — drop the move control so it
   // never points at a detached node; the next hover recreates it. Same for a
   // drag in flight: its element and peers are about to be detached.
+  // Right-click a component in the page to open its file. The browser menu is
+  // only taken over where there is a component to offer — everywhere else the
+  // page behaves as it always did.
+  win.addEventListener(
+    'contextmenu',
+    (event) => {
+      const el = event.target?.closest?.(`[${COMPONENT_SRC}]`);
+
+      if (!el) {
+        return;
+      }
+
+      const src = el.getAttribute(COMPONENT_SRC);
+
+      if (!src) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const name = el.getAttribute(COMPONENT_NAME) || src;
+
+      openToolbarMenu(win, pointAnchor(event.clientX, event.clientY), 'component', [
+        {
+          label: t('component_open_named', { name }),
+          run: () => {
+            win.parent.postMessage(
+              { source: 'statamic-visual-editor', type: 'open-component', src },
+              win.location.origin
+            );
+          },
+        },
+      ]);
+    },
+    true
+  );
+
   win.addEventListener('statamic:preview-updated', () => {
     if (htmlPick) {
       applyHtmlPick(win);
+    }
+
+    if (componentFocus) {
+      applyComponentFocus(win);
+    }
+
+    if (componentMap.length) {
+      applyComponentMap(win);
     }
 
     hideMoveControl(win);

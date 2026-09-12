@@ -116,13 +116,33 @@ function reset() {
   cursor.value = -1;
 }
 
+/**
+ * A class that is added hands the field back empty and focused.
+ *
+ * The menu stays open on purpose, and the next class is usually typed right
+ * after: leaving the old query behind means reaching for the field and
+ * clearing it by hand before every single one. The tab stays where it is.
+ */
+function add(value) {
+  const name = String(value || '').trim();
+
+  if (!name) {
+    return;
+  }
+
+  props.onAdd(name);
+
+  typed.value = '';
+  cursor.value = -1;
+  keys.value = false;
+
+  void nextTick(() => input.value?.focus());
+}
+
 function submit() {
   const picked = cursor.value >= 0 ? rows.value[cursor.value] : null;
-  const value = picked ? nameOf(picked) : typed.value.trim();
 
-  if (value) {
-    props.onAdd(value);
-  }
+  add(picked ? nameOf(picked) : typed.value);
 }
 </script>
 
@@ -173,7 +193,7 @@ function submit() {
       :data-sve-tw-off="row.loaded === false ? '' : undefined"
       :title="row.loaded === false ? offText : (row.file || row.css)"
       @mouseenter="hover(index)"
-      @click.prevent.stop="onAdd(row.name || row.label)"
+      @click.prevent.stop="add(nameOf(row))"
     >
       <span v-if="row.color" data-sve-tw-dot :style="{ background: row.color }"></span>
       <span data-sve-tw-label>{{ row.name || row.label }}</span>

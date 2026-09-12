@@ -10,6 +10,8 @@ use MarioHamann\StatamicVisualEditor\SectionTemplate;
 use MarioHamann\StatamicVisualEditor\TemplateHistory;
 use MarioHamann\StatamicVisualEditor\TailwindBake;
 use MarioHamann\StatamicVisualEditor\TailwindStore;
+use MarioHamann\StatamicVisualEditor\ComponentProps;
+use MarioHamann\StatamicVisualEditor\TailwindBuilt;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
 
 /**
@@ -35,7 +37,25 @@ class SectionTemplateController
             'html' => $parts['html'],
             'css' => $parts['css'],
             'js' => $parts['js'],
+            'props' => $parts['props'] ?? [],
             'locked' => ! empty($parts['locked']),
+        ]);
+    }
+
+    /**
+     * What another component declares.
+     *
+     * The section holds the call; this is how it learns which fields to draw
+     * beside it without opening the file in the dock.
+     */
+    public function componentProps(Request $request)
+    {
+        $this->authorize();
+
+        return response()->json([
+            'props' => Features::enabled('component_props')
+                ? ComponentProps::forView('partials/'.ltrim((string) $request->query('src', ''), '/'))
+                : [],
         ]);
     }
 
@@ -46,6 +66,7 @@ class SectionTemplateController
         return response()->json([
             'css' => TailwindTheme::css(),
             'plugins' => TailwindTheme::plugins(),
+            'built' => TailwindBuilt::classes(),
         ]);
     }
 
@@ -130,6 +151,14 @@ class SectionTemplateController
             TailwindStore::write($twHandle, (string) $meta['tw']);
         }
 
+        // Props only move when the panel sends them. A save from a dock that
+        // has never heard of them — an older tab, or the feature switched off
+        // — leaves the declaration exactly as the file has it.
+        $props = $request->input('props');
+        $keepProps = Features::enabled('component_props') && is_array($props)
+            ? $props
+            : ($meta['props'] ?? []);
+
         $contents = SectionTemplate::join([
             'html' => $html,
             'css' => $css,
@@ -137,6 +166,7 @@ class SectionTemplateController
             'html_tag' => $meta['html_tag'],
             'css_tag' => $meta['css_tag'],
             'js_tag' => $meta['js_tag'],
+            'props' => $keepProps,
             'locked' => false,
         ], $splitHandle, $twHandle);
 

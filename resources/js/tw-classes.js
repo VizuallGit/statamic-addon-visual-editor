@@ -16,6 +16,7 @@
  * used and on every element a loop renders from that one tag.
  */
 
+import { breakpoints as siteBreakpoints } from './breakpoints.js';
 import { t } from './cp-t.js';
 import { chromeGet } from './chrome-prefs.js';
 import { ask, emit, on } from './cp/bus.js';
@@ -35,7 +36,7 @@ import {
   splitUtility,
   writeClassValue,
 } from './tw-parse.js';
-import { colorFor, cssFor, familyFor, loadFamilies } from './tw-families.js';
+import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
 import { twUi } from './cp/tailwind/store.js';
 import { hideTwOverlay, paintTwOverlay, twPreviewBox } from './tw-overlay.js';
 import TwClassList from './cp/surfaces/TwClassList.vue';
@@ -64,28 +65,57 @@ const STYLE_ID = '__sve-tw-style';
  * looking at a page. Everything else lives behind one menu.
  *
  * Largest first, and `max-` rather than Tailwind's default `min-`: this
- * project designs on the laptop and works downwards, the same direction the
- * responsive fieldtype and every `@media (width < …)` in the sections take.
- * Laptop is the rule and the smaller sizes are exceptions from it, so the
- * laptop is the bare class — not the phone.
+ * project designs on the widest size and works downwards, the same direction
+ * the responsive fieldtype and every `@media (width < …)` in the sections take.
+ * The widest is the rule and the smaller sizes are exceptions from it, so the
+ * widest is the bare class — not the phone.
+ *
+ * The sizes themselves come from the site's own list, so this row and the
+ * preview's device buttons can never offer different ones. "All" is prepended
+ * because it is not a size: it is the view with no size filter on at all.
  */
-const BREAKPOINTS = [
-  { key: '', all: true, device: 'Responsive', label: 'tw_size_all' },
-  { key: '', device: 'Laptop', label: 'tw_size_laptop', prefix: '' },
-  { key: 'max-lg', device: 'Tablet', label: 'responsive_tablet', under: 1024 },
-  { key: 'max-md', device: 'Mobile', label: 'responsive_mobile', under: 768 },
-];
-const STATES = ['', 'dark', 'hover', 'focus', 'active', 'before', 'after'];
+function BREAKPOINTS(win = window) {
+  const rows = siteBreakpoints(win);
+
+  return [
+    { key: '', all: true, device: 'Responsive', label: t(win, 'tw_size_all') },
+    ...rows.map((row, i) => ({
+      key: row.tw,
+      device: row.device,
+      label: row.label,
+      handle: row.handle,
+      prefix: row.base ? '' : undefined,
+      under: i === 0 ? null : rows[i - 1].min,
+    })),
+  ];
+}
+/**
+ * `group-hover` and `group-focus` are the state of *another* tag: they answer
+ * to a `group` class on an ancestor, not to the pointer on this one. They sit
+ * here anyway, because from where you are standing — pick a tag, pick a
+ * state, write a class — they work exactly like `hover`. The `group` itself
+ * is a class you put on the parent, and the Add class search knows it.
+ */
+const STATES = ['', 'dark', 'hover', 'focus', 'active', 'group-hover', 'group-focus', 'before', 'after'];
 
 /**
  * Which size the preview's own device buttons mean.
  *
- * The same two boundaries `ResponsiveFieldtype` uses: tablet is everything
- * under 1024px and mobile everything under 768px, which is exactly what
- * `max-lg` and `max-md` compile to. Laptop is the base, with no prefix at
- * all, because that is where a section is designed.
+ * The same boundaries the responsive field uses, because they are read from
+ * the same list: a size under 1024px is what `max-lg` compiles to. The widest
+ * is the base, with no prefix at all, because that is where a section is
+ * designed. Fit is deliberately absent — it is not a size, and `filterBySize`
+ * reads that absence as "show everything".
  */
-const DEVICE_BP = { Mobile: 'max-md', Tablet: 'max-lg', Laptop: '', Desktop: '' };
+function deviceBpMap(win = window) {
+  const out = {};
+
+  for (const row of siteBreakpoints(win)) {
+    out[row.device] = row.tw;
+  }
+
+  return out;
+}
 
 /** The tags worth offering. Anything else can still be typed. */
 const TAGS = [
@@ -110,7 +140,7 @@ let bpManual = false;
 
 function deviceBp() {
   try {
-    return DEVICE_BP[chromeGet(window, 'sve-lp-device')] ?? '';
+    return deviceBpMap(window)[chromeGet(window, 'sve-lp-device')] ?? '';
   } catch {
     return '';
   }
@@ -129,8 +159,12 @@ function variantKey() {
   return variantList().join(':');
 }
 
-/** Anything shaped like a screen size, ours or Tailwind's own min-width set. */
-const BP_SHAPED = /^(max-)?(sm|md|lg|xl|2xl)$/;
+/**
+ * Anything shaped like a screen size: ours, Tailwind's own min-width set, or
+ * the arbitrary `max-[900px]` a self-chosen boundary has to be written as —
+ * Tailwind's scale has five steps, and a site's list need not land on them.
+ */
+const BP_SHAPED = /^(max-)?(sm|md|lg|xl|2xl)$|^(max|min)-\[[^\]]+\]$/;
 
 /** The screen size a group belongs to — `max-lg:hover` belongs to `max-lg`. */
 function groupBp(key) {
@@ -148,7 +182,7 @@ function filterBySize() {
   }
 
   try {
-    return Object.prototype.hasOwnProperty.call(DEVICE_BP, chromeGet(window, 'sve-lp-device'));
+    return Object.prototype.hasOwnProperty.call(deviceBpMap(window), chromeGet(window, 'sve-lp-device'));
   } catch {
     return false;
   }
@@ -172,7 +206,7 @@ function groupInSize(key) {
     return true;
   }
 
-  return !BREAKPOINTS.some((item) => item.key === bp);
+  return !BREAKPOINTS(window).some((item) => item.key === bp);
 }
 
 /** The picked tag: `from`/`openTo` locate its open tag in the dock's HTML. */
@@ -360,12 +394,97 @@ function previewDoc(win) {
   return null;
 }
 
+/**
+ * CSS for a class the preview has never been served.
+ *
+ * The preview only has rules for the classes that were in the file when it
+ * last rendered — from `site.css` if a build has seen them, from the baked
+ * `{{ sve_tw }}` otherwise. So swapping `bg-gray-600` for `bg-gray-400` used
+ * to take the paint away and give back a class that painted nothing, until
+ * the save came round with the compiled rule the better part of a second
+ * later. A white flash between two greys.
+ *
+ * The compiler that writes that file is right here, and answering for one
+ * class is a fraction of a millisecond. So the rule goes into the preview
+ * before the class does, and the swap is simply correct — no waiting, and
+ * nothing to keep the old class for.
+ *
+ * The sheet stays for the session. Its id starts with `__sve-`, which is what
+ * `syncHeadStyles` looks for to leave a style alone, so a re-render does not
+ * take it away and the rules do not have to be written again. When the save
+ * lands, the real rule is identical and sits in the same layer.
+ */
+const LIVE_STYLE_ID = '__sve-tw-live';
+
+/**
+ * The theme variables a rule leans on.
+ *
+ * A build only writes the variables it used, so `--color-gray-400` is in no
+ * stylesheet this site serves until something is grey. Handing over
+ * `background-color: var(--color-gray-400)` on its own would paint nothing at
+ * all — which is the white flash, made permanent. `--tw-*` is Tailwind's own
+ * plumbing and comes with the `@property` blocks instead.
+ */
+function themeVars(rule) {
+  const seen = new Set();
+  const lines = [];
+
+  for (const [, name] of String(rule).matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)) {
+    if (seen.has(name) || name.startsWith('--tw-')) {
+      continue;
+    }
+
+    seen.add(name);
+
+    const value = model?.catalog?.themeValue(name);
+
+    if (value) {
+      lines.push(`    ${name}: ${value};`);
+    }
+  }
+
+  return lines.length
+    ? `@layer theme {\n  :root, :host {\n${lines.join('\n')}\n  }\n}\n`
+    : '';
+}
+
+function serveRule(doc, name) {
+  const rule = name ? model?.catalog?.rule(name) : '';
+
+  if (!rule) {
+    return;
+  }
+
+  let style = doc.getElementById(LIVE_STYLE_ID);
+
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = LIVE_STYLE_ID;
+    // Tailwind's own preamble, so `utilities` is a layer even in a document
+    // that was never served one, and the rule cannot outrank the stylesheet.
+    style.textContent = '@layer theme, base, components, utilities;\n';
+    doc.head.appendChild(style);
+  }
+
+  // `@property` blocks trail the rule and describe a variable, not the class.
+  const [body, ...properties] = String(rule).split(/^(?=@property)/m);
+  const next = `${themeVars(rule)}@layer utilities {\n${body}}\n${properties.join('')}`;
+
+  if (style.textContent.includes(next)) {
+    return;
+  }
+
+  style.textContent += next;
+}
+
 function flipPreview(win, from, to) {
   const doc = previewDoc(win);
 
   if (!doc || !node?.path) {
     return;
   }
+
+  serveRule(doc, to);
 
   for (const el of doc.querySelectorAll(`[${HT_PATH_ATTR}="${node.path}"]`)) {
     try {
@@ -1035,7 +1154,7 @@ export function twVariant() {
  * the two can never show different sizes.
  */
 function setBreakpoint(win, index) {
-  const item = BREAKPOINTS[index];
+  const item = BREAKPOINTS(win)[index];
 
   if (!item) {
     return;
@@ -1100,7 +1219,7 @@ export function twActiveClass(property) {
 }
 
 export function twOpenToolMenu(win, anchor, property, after) {
-  const options = model?.byProperty.get(property) || [];
+  const options = optionsForProperty(property, model);
 
   if (!options.length) {
     return;
@@ -1126,6 +1245,53 @@ export function twOpenToolMenu(win, anchor, property, after) {
       after?.('');
     },
   });
+}
+
+/**
+ * The same scale, as CSS values rather than as class names.
+ *
+ * The CSS row and the Tailwind row offer the same choices because they read
+ * the same `@theme` — the difference is only what a click writes. `text-400`
+ * and `font-size: var(--text-400)` are the same decision said twice, and a
+ * panel that offered different scales depending on which language you were in
+ * would be a panel that made you learn the site twice.
+ *
+ * Empty until the theme has been fetched; `twWantFamilies` starts that.
+ *
+ * @returns {Array<{label: string, value: string, color: string}>}
+ */
+export function twValueOptions(win, property) {
+  const seen = new Set();
+  const out = [];
+
+  for (const option of optionsForProperty(property, model) || []) {
+    const css = String(option.css || '');
+    const colon = css.indexOf(':');
+
+    if (colon === -1) {
+      continue;
+    }
+
+    const value = css.slice(colon + 1).replace(/;+\s*$/, '').trim();
+
+    if (!value || seen.has(value)) {
+      continue;
+    }
+
+    seen.add(value);
+    out.push({
+      label: value,
+      value,
+      color: option.color || resolveVarColor(win, varName(css)) || '',
+    });
+  }
+
+  return out;
+}
+
+/** Make sure the theme is on its way, for a panel that is about to need it. */
+export function twWantFamilies(win) {
+  wantModel(win);
 }
 
 /** The site's own compositions and utilities, fetched once per session. */
@@ -1168,27 +1334,51 @@ export function twOpenAddMenu(win, anchor) {
     siteLabel: t(win, 'tw_add_site'),
     tailwindLabel: t(win, 'tw_add_tailwind'),
     search: (typed) => {
-      const query = String(typed || '').trim().toLowerCase();
+      const raw = String(typed || '').trim();
+      const query = raw.toLowerCase();
 
       if (!query || !model) {
         return [];
       }
 
+      const catalog = model.catalog;
+
       // `p` has to reach `p-100` before `uppercase`: a name that starts with
       // what was typed comes first, and only then the ones that merely
       // contain it. Without that the cut at 40 was all coincidence.
-      const hits = model.catalog.items.filter((item) => item.label.toLowerCase().includes(query));
+      const starts = [];
+      const contains = [];
 
-      hits.sort((a, b) => {
-        const first = a.label.toLowerCase().startsWith(query) ? 0 : 1;
-        const second = b.label.toLowerCase().startsWith(query) ? 0 : 1;
+      for (let i = 0; i < catalog.names.length; i++) {
+        const name = catalog.lower[i];
 
-        return first - second || a.label.length - b.label.length;
-      });
+        if (name.startsWith(query)) {
+          if (starts.length < 40) {
+            starts.push(catalog.names[i]);
+          }
+        } else if (contains.length < 40 && name.includes(query)) {
+          contains.push(catalog.names[i]);
+        }
+      }
 
-      return hits
-        .slice(0, 40)
-        .map((item) => ({ label: item.label, css: item.css, color: item.color, active: false }));
+      starts.sort((a, b) => a.length - b.length);
+
+      const names = [...starts, ...contains].slice(0, 40);
+
+      // Tailwind's grammar reaches past any list: `w-[37px]`, `bg-primary/50`,
+      // `md:flex`, `grid-cols-5!`. When what was typed compiles, it belongs at
+      // the top — the way out of "no match" should be a row you can see the
+      // CSS of, not a leap of faith.
+      if (!names.includes(raw) && catalog.resolve(raw)) {
+        names.unshift(raw);
+      }
+
+      return catalog.rows(names).map((item) => ({
+        label: item.label,
+        css: item.css,
+        color: item.color,
+        active: false,
+      }));
     },
     // Left open on purpose: adding three classes should not mean opening the
     // menu and retyping the search three times. Escape or a click outside
@@ -1285,9 +1475,9 @@ function render(win) {
   // screen that is, in the words the responsive field uses.
   // The button says the screen; the hover says the prefix it writes, so the
   // class in the file can still be recognised later.
-  twUi.breakpoints = BREAKPOINTS.map((item, index) => ({
+  twUi.breakpoints = BREAKPOINTS(win).map((item, index) => ({
     index,
-    label: t(win, item.label),
+    label: item.label,
     title: item.under
       ? `${item.key}:  ·  < ${item.under}px`
       : t(win, item.all ? 'tw_size_all_title' : 'tw_size_base_title'),

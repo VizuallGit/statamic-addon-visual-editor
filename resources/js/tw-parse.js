@@ -194,20 +194,32 @@ export function groupClassTokens(value) {
   let scope = null;
   let i = 0;
 
-  const bracketEnd = tokens.findIndex((token) => token.text === ']');
+  // A lone `[` token — never Tailwind's `bg-[#343434]`, which the tokeniser
+  // keeps whole because it has no space in it. Found wherever it sits: the
+  // dock always writes it first, but a file somebody typed by hand need not,
+  // and the CSS side reads it wherever it is.
+  const bracketStart = tokens.findIndex((token) => token.text === '[');
+  const bracketEnd = bracketStart === -1
+    ? -1
+    : tokens.findIndex((token, n) => n > bracketStart && token.text === ']');
 
-  if (tokens[0]?.text === '[' && bracketEnd > 0) {
-    const inner = tokens.slice(1, bracketEnd);
+  if (bracketStart !== -1 && bracketEnd > bracketStart) {
+    const inner = tokens.slice(bracketStart + 1, bracketEnd);
 
     scope = {
-      from: tokens[0].from,
+      from: tokens[bracketStart].from,
       to: tokens[bracketEnd].to,
       label: `[ ${inner.map((token) => token.text).join(' ')} ]`,
     };
-    i = bracketEnd + 1;
   }
 
   for (; i < tokens.length; i += 1) {
+    if (scope && i >= bracketStart && i <= bracketEnd) {
+      // The scope is one chip, not a `[`, some names and a `]` to be swapped
+      // for utilities one at a time.
+      continue;
+    }
+
     const token = tokens[i];
     const { variants, base } = splitClass(token.text);
     const { name, modifier, important } = splitUtility(base);

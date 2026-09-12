@@ -80,7 +80,7 @@ class ResponsiveCss extends Tags
                     continue;
                 }
 
-                $css .= '@media (max-width: '.$breakpoint['max'].'){'
+                $css .= '@media '.$breakpoint['media'].'{'
                     .$selector.'{'.$declarations.'}'
                     .'}';
             }

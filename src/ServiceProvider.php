@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Statamic\Facades\Cascade;
 use Illuminate\Support\Str;
+use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
 use MarioHamann\StatamicVisualEditor\Commands\Install;
 use MarioHamann\StatamicVisualEditor\Features;
@@ -33,6 +34,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\ComponentController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionPresetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionViewPreviewController;
@@ -41,14 +43,17 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatePreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\DataVarsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionDefaultsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PreviewTickController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\PropFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
@@ -415,6 +420,7 @@ class ServiceProvider extends AddonServiceProvider
         // re-execute after each morph → full iframe reload ("Reload site?").
         config(['statamic.live_preview.force_reload_js_modules' => false]);
 
+
         Cascade::hydrated(function ($cascade) {
             $request = request();
 
@@ -470,16 +476,32 @@ class ServiceProvider extends AddonServiceProvider
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
                 'sveCollections' => $this->pickerCollections(),
+                'sveSectionTag' => (string) config('statamic-visual-editor.templates.section_tag', ''),
                 // The collections whose entries open in the preview rather than
                 // the publish form (Addons > Statamic Visual Editor).
                 'sveOpenInPreview' => $this->openInPreviewCollections(),
                 'sveCollectionTemplatesCollection' => Stores::collectionTemplates(),
                 'sveCollectionPresets' => CollectionPresets::all(),
+                // The one breakpoint list: Live Preview's device buttons, the
+                // responsive field, the Tailwind row and the CSS panel all
+                // read this and can never disagree about where a size ends.
+                'sveBreakpoints' => Breakpoints::forScript(),
             ]);
         });
 
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'sve');
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'sve');
+
+        // The device buttons ARE the breakpoints. Two lists — one in
+        // config/statamic/live_preview.php and one in the responsive field —
+        // is how a site ends up previewing a width it never wrote CSS for.
+        // Whatever `Breakpoints` says wins, so adding a size adds its button.
+        //
+        // Below the line above, and that is not tidiness: the names on those
+        // buttons are translations, and Laravel caches an empty result for a
+        // namespace it is asked about before it has been told where it lives.
+        // One early lookup and every `sve::` string on the page is a raw key.
+        config(['statamic.live_preview.devices' => Breakpoints::devices()]);
 
         $this->moveStoresOutOfCollections();
 
@@ -561,6 +583,11 @@ class ServiceProvider extends AddonServiceProvider
                     ->name('sve.section-template.update');
                 Route::post('/!/sve/section-template/lock', [SectionTemplateController::class, 'lock'])
                     ->name('sve.section-template.lock');
+
+                // A component carries markup out of a section, so the same
+                // whitespace rule applies to it.
+                Route::post('/!/sve/component', [ComponentController::class, 'store'])
+                    ->name('sve.component.store');
                 Route::post('/!/sve/site-css', [SiteCssController::class, 'update'])
                     ->name('sve.site-css.update');
                 Route::post('/!/sve/site-css/create', [SiteCssController::class, 'store'])
@@ -640,6 +667,8 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.previews.tick');
 
             // Same query-parameter pattern as section-types: handles hold slashes.
+            Route::get('/!/sve/components', [ComponentController::class, 'index'])
+                ->name('sve.components.index');
             Route::get('/!/sve/section-template/partials', [SectionTemplateController::class, 'partials'])
                 ->name('sve.section-template.partials');
             Route::get('/!/sve/section-template/history', [SectionTemplateController::class, 'history'])
@@ -670,8 +699,25 @@ class ServiceProvider extends AddonServiceProvider
 
             Route::get('/!/sve/template-props', TemplatePropsController::class)
                 ->name('sve.template-props');
+
+            Route::get('/!/sve/data-vars', DataVarsController::class)
+                ->name('sve.data-vars');
             Route::get('/!/sve/tailwind-theme', [SectionTemplateController::class, 'theme'])
                 ->name('sve.tailwind-theme');
+            Route::get('/!/sve/component-props', [SectionTemplateController::class, 'componentProps'])
+                ->name('sve.component-props');
+
+            // Where a link prop can point. Fetched once per dock session, not
+            // per component: the answer is the same for every one of them.
+            Route::get('/!/sve/link-targets', LinkTargetsController::class)
+                ->name('sve.link-targets');
+
+            // A component's fields as the Control Panel's own fields, and the
+            // way back from what the form holds to what the call carries.
+            Route::get('/!/sve/prop-fields', [PropFieldsController::class, 'show'])
+                ->name('sve.prop-fields');
+            Route::post('/!/sve/prop-fields', [PropFieldsController::class, 'store'])
+                ->name('sve.prop-fields.store');
 
             Route::post('/!/sve/ai-chat', [AiChatController::class, 'store'])
                 ->name('sve.ai-chat');

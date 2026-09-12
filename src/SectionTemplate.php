@@ -159,6 +159,14 @@ class SectionTemplate
         $unlockedMarker = static::hasUnlockMarker($contents);
         $lockedMarker = static::hasLockMarker($contents);
         $contents = static::stripMarkers($contents);
+
+        // The prop declaration comes off before anything else. It is a comment,
+        // so the masking below would otherwise carry it straight into the HTML
+        // pane, where it is noise: the panel is what edits it.
+        $peeled = ComponentProps::peel($contents);
+        $props = $peeled['props'];
+        $contents = $peeled['rest'];
+
         $placeholders = [];
         $masked = preg_replace_callback('/\{\{#.*?#\}\}/s', function (array $m) use (&$placeholders) {
             $key = '___SVE_CMT_'.count($placeholders).'___';
@@ -244,6 +252,7 @@ class SectionTemplate
             'html_tag' => $htmlTag,
             'css_tag' => $cssTag,
             'js_tag' => $jsTag,
+            'props' => $props,
             'locked' => static::resolveLocked($lockedMarker, $unlockedMarker, $handle),
         ];
     }
@@ -261,7 +270,7 @@ class SectionTemplate
      * one here while `$handle` stays empty — the empty handle is what keeps it
      * from starting locked, so the two meanings must not share a variable.
      *
-     * @param  array{html: string, css: string, js: string, tw?: string, html_tag?: ?string, css_tag?: string, js_tag?: string, locked?: bool}  $parts
+     * @param  array{html: string, css: string, js: string, tw?: string, html_tag?: ?string, css_tag?: string, js_tag?: string, props?: array, locked?: bool}  $parts
      */
     public static function join(array $parts, string $handle = '', ?string $twHandle = null): string
     {
@@ -308,6 +317,13 @@ class SectionTemplate
         }
 
         $out = $out === '' ? '' : $out."\n";
+
+        // At the very top, above the markup and above the lock marker's line,
+        // so opening the file in an editor tells you what it takes.
+        if (is_array($parts['props'] ?? null)) {
+            $out = ComponentProps::block($parts['props']).$out;
+        }
+
         $marker = static::markerFor(! empty($parts['locked']), $handle);
 
         if ($marker !== null) {

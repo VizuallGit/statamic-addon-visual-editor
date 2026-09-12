@@ -1,14 +1,18 @@
 /**
  * Responsive fieldtype — desktop-first cascade (CSS-like).
  *
- * Stored shape: { laptop: {handle: val}, tablet?: {...}, mobile?: {...} }
- * Laptop is the baseline. Tablet/mobile only keep real overrides; anything that
- * still matches the parent is stripped before emit (same rule as PHP process()).
+ * Stored shape: one drawer per size, `{ laptop: {handle: val}, tablet?: … }`.
+ * The widest is the baseline. The narrower ones only keep real overrides;
+ * anything that still matches the parent is stripped before emit (same rule as
+ * PHP process()). Which sizes exist is this site's own list — see
+ * `breakpoints.js`; the handles above are the three it ships with.
  *
- * Switching Live Preview devices flips which drawer Fields bind to. Same
- * Fields instance — only the path prefix changes, like the other responsive
- * fields. A remount made icon button groups flash as if they reloaded.
+ * Switching Live Preview devices flips which drawer Fields bind to. Fields are
+ * remounted with :key=breakpoint so a tablet edit can never write into the base.
+ * Dropping the key to stop icon button groups flashing froze the panel on the
+ * drawer it mounted with — the value was saved correctly, only the panel lied.
  */
+import { bpBase, bpForDevice, bpHandles } from '../../breakpoints.js';
 import { chromeGet } from '../../chrome-prefs.js';
 
 (function () {
@@ -25,22 +29,19 @@ import { chromeGet } from '../../chrome-prefs.js';
             return;
         }
 
-        const BP_ORDER = ['laptop', 'tablet', 'mobile'];
+        /** Widest first. The first one is the baseline the rest except from. */
+        const bpOrder = () => bpHandles(window);
+        const baseBp = () => bpBase(window);
 
         function deviceToBp(device) {
-            if (!device || device === 'Responsive' || device === 'Desktop' || device === 'Laptop') {
-                return 'laptop';
-            }
-            if (device === 'Tablet') return 'tablet';
-            if (device === 'Mobile') return 'mobile';
-            return 'laptop';
+            return bpForDevice(device, window)?.handle || baseBp();
         }
 
         function bpFromStorage() {
             try {
                 return deviceToBp(chromeGet(window, 'sve-lp-device'));
             } catch {
-                return 'laptop';
+                return baseBp();
             }
         }
 
@@ -96,24 +97,137 @@ import { chromeGet } from '../../chrome-prefs.js';
                     fields.value.map((f) => f.handle).filter(Boolean)
                 );
 
+                /**
+                 * A set added in the browser arrives with the fieldset's own
+                 * default — the sub-fields' value, not a drawer per breakpoint.
+                 * PHP's normalize() moves that into the base drawer on the way in,
+                 * but nothing runs it for a set created client-side. Without the
+                 * same step here every drawer reads empty: the field shows blank
+                 * and the first breakpoint switch saves that blank over the default.
+                 */
+                function isFlat(value) {
+                    return (
+                        !!value &&
+                        typeof value === 'object' &&
+                        !bpOrder().some((bp) => bp in value)
+                    );
+                }
+
+                /** Same rule as normalize(): one sub-field takes the value whole. */
+                function toDrawers(value) {
+                    const handles = fieldHandles.value;
+
+                    return {
+                        [baseBp()]:
+                            handles.length === 1
+                                ? { [handles[0]]: clone(value) }
+                                : clone(value),
+                    };
+                }
+
+                function needsReshaping() {
+                    const value = props.value;
+
+                    if (!isFlat(value) || !fieldHandles.value.length) {
+                        return false;
+                    }
+
+                    return Array.isArray(value)
+                        ? value.length > 0
+                        : Object.keys(value).length > 0;
+                }
+
+                /**
+                 * The same gap on the meta side. A grid keys its row meta off the
+                 * row id, and a select reads `props.meta.options` unguarded — both
+                 * find `null` under a drawer that preload() never built, so the
+                 * field renders empty and its combobox throws on open. Empty
+                 * objects are enough: every fieldtype falls back to its config.
+                 */
+                function normalizeMissingMeta() {
+                    const meta = props.meta;
+
+                    if (!fieldHandles.value.length) {
+                        return false;
+                    }
+
+                    const next = { ...(meta || {}) };
+                    let dirty = false;
+
+                    bpOrder().forEach((bp) => {
+                        if (!next[bp] || typeof next[bp] !== 'object') {
+                            next[bp] = {};
+                            fieldHandles.value.forEach((h) => {
+                                next[bp][h] = {};
+                            });
+                            dirty = true;
+                            return;
+                        }
+
+                        // Row-based fieldtypes (grid, replicator, bard) key their
+                        // row meta off the row id under `existing`. A set created
+                        // in the browser gets its rows from the set default, whose
+                        // meta the server puts under `new` — so the row's own id is
+                        // missing from `existing` and the render throws looking it
+                        // up. `new` describes exactly such a row: use it.
+                        fieldHandles.value.forEach((h) => {
+                            const fm = next[bp][h];
+                            // Effective, not own: the narrower drawers show the
+                            // rows they inherit, and those need meta too.
+                            const rows = effectiveFrom(bag.value, bp)[h];
+
+                            if (!fm || typeof fm !== 'object' || !fm.new || !Array.isArray(rows)) {
+                                return;
+                            }
+
+                            const existing = { ...(fm.existing || {}) };
+                            let added = false;
+
+                            rows.forEach((row) => {
+                                const id = row?._id ?? row?.id;
+                                if (id == null || existing[id]) return;
+                                existing[id] = clone(fm.new);
+                                added = true;
+                            });
+
+                            if (added) {
+                                next[bp] = { ...next[bp], [h]: { ...fm, existing } };
+                                dirty = true;
+                            }
+                        });
+                    });
+
+                    if (dirty) {
+                        emit('update:meta', next);
+                    }
+
+                    return dirty;
+                }
+
                 const bag = computed(() => {
-                    const raw = props.value && typeof props.value === 'object' ? props.value : {};
+                    const value = props.value;
+                    const raw = isFlat(value)
+                        ? toDrawers(value)
+                        : value && typeof value === 'object'
+                          ? value
+                          : {};
                     const out = {};
-                    BP_ORDER.forEach((bp) => {
+                    bpOrder().forEach((bp) => {
                         out[bp] = { ...(raw[bp] && typeof raw[bp] === 'object' ? raw[bp] : {}) };
                     });
                     return out;
                 });
 
                 function parentBp(bp) {
-                    const i = BP_ORDER.indexOf(bp);
-                    return i > 0 ? BP_ORDER[i - 1] : null;
+                    const order = bpOrder();
+                    const i = order.indexOf(bp);
+                    return i > 0 ? order[i - 1] : null;
                 }
 
                 /** Effective values at a breakpoint (cascade laptop → …). */
                 function effectiveFrom(source, bp) {
                     const out = {};
-                    for (const step of BP_ORDER) {
+                    for (const step of bpOrder()) {
                         Object.assign(out, source[step] || {});
                         if (step === bp) break;
                     }
@@ -128,7 +242,7 @@ import { chromeGet } from '../../chrome-prefs.js';
                     const out = {};
                     let effective = {};
 
-                    BP_ORDER.forEach((bp) => {
+                    bpOrder().forEach((bp) => {
                         const chunk = {};
                         const src = source[bp] || {};
 
@@ -137,7 +251,7 @@ import { chromeGet } from '../../chrome-prefs.js';
                                 return;
                             }
 
-                            if (bp !== 'laptop' && eq(src[h], effective[h])) {
+                            if (bp !== baseBp() && eq(src[h], effective[h])) {
                                 return;
                             }
 
@@ -161,7 +275,7 @@ import { chromeGet } from '../../chrome-prefs.js';
                 /** Keys on the active (non-base) BP that are real overrides. */
                 const changedHandles = computed(() => {
                     const bp = activeBp.value;
-                    if (bp === 'laptop') return [];
+                    if (bp === baseBp()) return [];
 
                     const cleaned = cleanBag(bag.value) || {};
                     const mine = cleaned[bp] || {};
@@ -202,7 +316,7 @@ import { chromeGet } from '../../chrome-prefs.js';
 
                 function resetActive() {
                     const bp = activeBp.value;
-                    if (bp === 'laptop') return;
+                    if (bp === baseBp()) return;
 
                     // Drop overrides for this breakpoint and show the parent’s
                     // effective values again (mobile → tablet → laptop). Emit the
@@ -235,21 +349,30 @@ import { chromeGet } from '../../chrome-prefs.js';
                  * but Fields need something at `root.tablet.*` to bind to.
                  */
                 function materializeDisplay(bp) {
-                    if (bp === 'laptop') return;
+                    // `bag` already reads a flat value as the base drawer, but the
+                    // sub-fields bind to the container, not to `bag` — so a flat
+                    // value has to be written back even on the base breakpoint,
+                    // where there is otherwise nothing to fill.
+                    const flat = needsReshaping();
 
-                    const parent = parentBp(bp);
-                    const parentEff = effectiveFrom(bag.value, parent);
-                    const cur = bag.value[bp] || {};
+                    if (bp === baseBp() && !flat) return;
+
                     const next = clone(bag.value);
-                    let dirty = false;
+                    let dirty = flat;
 
-                    next[bp] = { ...cur };
-                    fieldHandles.value.forEach((h) => {
-                        if (!isBlank(cur[h])) return;
-                        if (isBlank(parentEff[h])) return;
-                        next[bp][h] = clone(parentEff[h]);
-                        dirty = true;
-                    });
+                    if (bp !== baseBp()) {
+                        const parent = parentBp(bp);
+                        const parentEff = effectiveFrom(bag.value, parent);
+                        const cur = bag.value[bp] || {};
+
+                        next[bp] = { ...cur };
+                        fieldHandles.value.forEach((h) => {
+                            if (!isBlank(cur[h])) return;
+                            if (isBlank(parentEff[h])) return;
+                            next[bp][h] = clone(parentEff[h]);
+                            dirty = true;
+                        });
+                    }
 
                     if (dirty) {
                         // Emit RAW fill (not cleaned) so Fields see values; the next
@@ -272,8 +395,8 @@ import { chromeGet } from '../../chrome-prefs.js';
                         const cur = clone(bag.value);
                         let dirty = false;
 
-                        BP_ORDER.forEach((bp) => {
-                            if (bp === 'laptop') return;
+                        bpOrder().forEach((bp) => {
+                            if (bp === baseBp()) return;
 
                             const parent = parentBp(bp);
 
@@ -308,7 +431,7 @@ import { chromeGet } from '../../chrome-prefs.js';
                 );
 
                 function setBp(bp) {
-                    if (!BP_ORDER.includes(bp) || bp === activeBp.value) {
+                    if (!bpOrder().includes(bp) || bp === activeBp.value) {
                         return;
                     }
 
@@ -327,10 +450,85 @@ import { chromeGet } from '../../chrome-prefs.js';
                     if (e.key === 'sve-lp-device') setBp(deviceToBp(e.newValue));
                 }
 
+                /**
+                 * Write the reshaped value back before the sub-fields render.
+                 *
+                 * `bag` reads a flat value as the base drawer, but the sub-fields
+                 * bind to the container. A grid handed the flat array renders one
+                 * row against the wrong shape and takes the panel down with it —
+                 * the field goes blank and stops responding. Doing this in
+                 * onMounted is too late: the first render has already happened.
+                 */
+                function reshapeFlatValue() {
+                    if (!needsReshaping()) {
+                        return false;
+                    }
+
+                    emit('update:value', toDrawers(props.value));
+
+                    return true;
+                }
+
+                // Before the first render, not in onMounted: the sub-fields read
+                // value and meta on the way up, and a grid or select that finds
+                // the wrong shape there has already thrown by the time mounted
+                // hooks run.
+                normalizeMissingMeta();
+                reshapeFlatValue();
+                // …and fill every drawer before the first render too: Statamic
+                // computes each field's replicator preview on render, and a grid
+                // handed a null value from an empty drawer throws there.
+                materializeAll();
+
+                // A flat value can also arrive later — a set pasted in, or an
+                // undo — on a field that is already mounted. Same reshaping, as
+                // soon as it shows up.
+                watch(
+                    () => needsReshaping(),
+                    (flat) => {
+                        if (flat) reshapeFlatValue();
+                    }
+                );
+
+                /**
+                 * Fill every drawer, not just the active one.
+                 *
+                 * PHP's preProcess() does this on the way in, so a saved section
+                 * arrives with all three drawers populated. A set created in the
+                 * browser never ran through it, and a drawer left empty hands its
+                 * sub-fields a null value — Statamic's own grid then does
+                 * `this.value.length` unguarded and throws. `process()` strips the
+                 * inherited copies again on save, so nothing extra is stored.
+                 */
+                function materializeAll() {
+                    const next = clone(bag.value);
+                    let dirty = needsReshaping();
+                    let effective = { ...(next[baseBp()] || {}) };
+
+                    bpOrder().slice(1).forEach((bp) => {
+                        const cur = next[bp] || {};
+                        next[bp] = { ...cur };
+
+                        fieldHandles.value.forEach((h) => {
+                            if (!isBlank(cur[h])) return;
+                            if (isBlank(effective[h])) return;
+                            next[bp][h] = clone(effective[h]);
+                            dirty = true;
+                        });
+
+                        effective = { ...effective, ...next[bp] };
+                    });
+
+                    if (dirty) {
+                        emit('update:value', next);
+                    }
+                }
+
                 onMounted(() => {
                     window.addEventListener('sve:breakpoint', onSveBreakpoint);
                     window.addEventListener('storage', onStorage);
-                    materializeDisplay(activeBp.value);
+                    normalizeMissingMeta();
+                    materializeAll();
                 });
 
                 onUnmounted(() => {
@@ -363,7 +561,7 @@ import { chromeGet } from '../../chrome-prefs.js';
                 return () => {
                     const accent = accentColor();
                     // Label is Statamic's. Dot + Reset only on tablet/mobile.
-                    const showOverrideUi = activeBp.value !== 'laptop';
+                    const showOverrideUi = activeBp.value !== baseBp();
                     const header = showOverrideUi
                         ? h(
                               'div',
@@ -440,6 +638,13 @@ import { chromeGet } from '../../chrome-prefs.js';
                     const fieldsTree = h(
                         FieldsProvider,
                         {
+                            // The sub-fields read their value at the path they were
+                            // built with, so rebinding the prefix alone leaves them
+                            // showing the drawer they mounted on: switch away from a
+                            // breakpoint you just edited and back, and the panel
+                            // shows the parent's value while the right one is saved.
+                            // Remounting is what makes the switch actually land.
+                            key: activeBp.value,
                             fields: fields.value,
                             asConfig: false,
                             readOnly: props.readOnly,

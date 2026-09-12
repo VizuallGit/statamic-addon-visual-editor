@@ -1,0 +1,273 @@
+/**
+ * The fields pane: what drives it, and when it is there at all.
+ *
+ * Only while the dock has a component open, and only with `component_props`
+ * on. Everything it does goes through `dock:set-props`, which writes the file
+ * — so the pane holds no state of its own that could drift from disk.
+ *
+ * A field is a card: what it is, what it is called, and what it says when
+ * nobody fills it in. The boxes that change those three things stay folded
+ * away until the card is opened, because a list of fields is read far more
+ * often than it is edited.
+ */
+
+import { t } from './cp-t.js';
+import { ask } from './cp/bus.js';
+import { componentPropsOn } from './component-props.js';
+import { componentPropsUi as ui } from './cp/component-props/store.js';
+import { armComponentBind, componentBindHandle, disarmComponentBind } from './component-bind.js';
+import { createPropValues, propValuesReady } from './prop-values.js';
+import { openCpOverlay } from './cp/open-overlay.js';
+import HtmlTreeMenu from './cp/surfaces/HtmlTreeMenu.vue';
+
+/**
+ * The kinds the plus offers, in the order it offers them, and the name a new
+ * field of each kind is born with.
+ *
+ * Three, on purpose. These are the ones a component is actually built out of;
+ * the declaration format already reads more, so a fourth is a line in this
+ * list rather than a feature.
+ */
+const TYPES = [
+  { id: 'text', handle: 'text' },
+  { id: 'bard', handle: 'rich_text' },
+  { id: 'media', handle: 'image' },
+  { id: 'link', handle: 'link' },
+];
+
+/** Which card is open. Index, because the list is rebuilt on every paint. */
+let openIndex = -1;
+
+/** The open card's default, edited as the Control Panel's own field. */
+const defaultValue = createPropValues('sve-prop-default');
+
+let menu = null;
+
+function closeMenu() {
+  menu?.dismiss();
+  menu = null;
+}
+
+/**
+ * A menu under the button that opened it.
+ *
+ * Mounted on `document.body` rather than inside the pane: the panes stack and
+ * scroll, and a menu drawn as a child of one is clipped by it.
+ */
+function openMenuAt(win, anchor, items) {
+  closeMenu();
+
+  const rect = anchor?.getBoundingClientRect?.();
+
+  menu = openCpOverlay(win.document, HtmlTreeMenu, {
+    items,
+    x: rect ? rect.left : 0,
+    y: rect ? rect.bottom + 4 : 0,
+    onClose: () => {
+      menu = null;
+    },
+  });
+}
+
+function typeLabel(win, type) {
+  return t(win, `component_props_type_${TYPES.some((kind) => kind.id === type) ? type : 'text'}`);
+}
+
+function rowsFrom(win, props) {
+  return props.map((prop, index) => ({
+    key: index,
+    handle: prop.handle || '',
+    type: prop.type || 'text',
+    default: prop.default || '',
+    typeLabel: typeLabel(win, prop.type || 'text'),
+    open: index === openIndex,
+    binding: !!prop.handle && prop.handle === componentBindHandle(),
+  }));
+}
+
+function commit(win, props) {
+  ask('dock:set-props', { win, props });
+  paintComponentProps(win);
+}
+
+/** A name no other field on this component has taken. */
+function freeHandle(props, base) {
+  const taken = new Set(props.map((prop) => prop.handle));
+  let handle = base;
+  let n = 1;
+
+  while (taken.has(handle)) {
+    handle = `${base}_${++n}`;
+  }
+
+  return handle;
+}
+
+export function paintComponentProps(win) {
+  const src = componentPropsOn(win) ? ask('dock:component-src') : '';
+
+  if (!src) {
+    closeMenu();
+    disarmComponentBind(win);
+    defaultValue.forget();
+    openIndex = -1;
+    ui.open = false;
+    ui.rows = [];
+    ui.exitOpen = false;
+
+    return;
+  }
+
+  const props = ask('dock:props') || [];
+  const exit = ask('dock:component-exit-state') || {};
+
+  if (openIndex >= props.length) {
+    openIndex = -1;
+  }
+
+  ui.open = true;
+  ui.locked = ask('dock:is-locked') === true;
+  ui.title = t(win, 'component_props');
+  ui.name = src.split('/').pop() || src;
+  ui.addLabel = t(win, 'component_props_add');
+  ui.removeLabel = t(win, 'component_props_remove');
+  ui.handleLabel = t(win, 'component_props_handle');
+  ui.defaultLabel = t(win, 'component_props_default');
+  ui.bindLabel = t(win, 'component_props_bind');
+  ui.statamicFields = propValuesReady();
+  ui.defaultStore = defaultValue.ui;
+  ui.bindHint = t(win, 'component_props_bind_hint');
+  ui.moveLabel = t(win, 'component_props_move');
+  ui.emptyText = t(win, 'component_props_none');
+  ui.types = TYPES.map((kind) => ({ id: kind.id, label: t(win, `component_props_type_${kind.id}`) }));
+  ui.bindingHandle = componentBindHandle();
+  ui.rows = rowsFrom(win, props);
+
+  ui.exitOpen = !!exit.open;
+  ui.exitName = exit.name || '';
+  ui.exitLabel = t(win, 'component_exit');
+  ui.exitTitle = t(win, exit.back ? 'component_exit_back' : 'component_exit_close');
+  ui.onExit = () => {
+    disarmComponentBind(win);
+    ask('dock:exit-component');
+  };
+
+  /**
+   * The plus asks what kind first, and makes the field second.
+   *
+   * The kind is the one thing that decides what the field is for, so it is the
+   * one thing worth choosing before the field exists — a row that arrives as
+   * text and has to be corrected is two steps where this is one.
+   */
+  ui.onAdd = (anchor) => {
+    if (ui.locked) {
+      return;
+    }
+
+    openMenuAt(
+      win,
+      anchor,
+      TYPES.map((kind) => ({
+        label: t(win, `component_props_type_${kind.id}`),
+        onPick: () => {
+          closeMenu();
+          openIndex = props.length;
+          commit(win, [...props, { handle: freeHandle(props, kind.handle), type: kind.id, label: '', default: '' }]);
+        },
+      }))
+    );
+  };
+
+  /** Opening a card is opening one card: two sets of boxes is the clutter. */
+  ui.onOpen = (index) => {
+    openIndex = openIndex === index ? -1 : index;
+    defaultValue.forget();
+    paintComponentProps(win);
+  };
+
+  ui.onRemove = (index) => {
+    const next = props.slice();
+
+    next.splice(index, 1);
+
+    if (openIndex === index) {
+      openIndex = -1;
+    }
+
+    commit(win, next);
+  };
+
+  ui.onEdit = (index, key, value) => {
+    const next = props.map((prop, at) => (at === index ? { ...prop, [key]: value } : prop));
+
+    // A renamed field is a different field: the label the server derives from
+    // the handle has to follow it, or the panel keeps showing the old name.
+    if (key === 'handle') {
+      next[index].label = '';
+    }
+
+    commit(win, next);
+  };
+
+  /**
+   * A field moved to another place in the list.
+   *
+   * The order is the order the panel draws them in at every place the component
+   * is used, so it is worth setting — and nothing else about the declaration
+   * changes, which is why this is a plain splice and not an edit.
+   */
+  ui.onReorder = (from, to) => {
+    if (ui.locked || from === to) {
+      return;
+    }
+
+    const next = props.slice();
+
+    if (from < 0 || to < 0 || from >= next.length || to >= next.length) {
+      return;
+    }
+
+    const [moved] = next.splice(from, 1);
+
+    next.splice(to, 0, moved);
+    openIndex = -1;
+    commit(win, next);
+  };
+
+  /**
+   * The open card's default, as a one-field publish form.
+   *
+   * Keyed on the field it belongs to, so opening another card loads that one
+   * and editing this one does not reload it underneath the cursor.
+   */
+  if (ui.statamicFields && openIndex > -1 && props[openIndex]) {
+    const prop = props[openIndex];
+    const at = openIndex;
+
+    defaultValue.load(win, {
+      key: `${src}::${prop.handle}::${prop.type}`,
+      src,
+      handle: prop.handle,
+      display: ui.defaultLabel,
+      params: { [prop.handle]: prop.default || '' },
+      readOnly: ui.locked,
+    });
+    defaultValue.watch(win, {
+      src,
+      handle: prop.handle,
+      write: (params) => ui.onEdit?.(at, 'default', params[prop.handle] ?? ''),
+    });
+  } else {
+    defaultValue.forget();
+  }
+
+  /** Point at the element in the preview this field should stand for. */
+  ui.onBind = (index) => {
+    if (ui.locked) {
+      return;
+    }
+
+    armComponentBind(win, props[index], () => paintComponentProps(win));
+    paintComponentProps(win);
+  };
+}

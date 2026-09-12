@@ -3,6 +3,10 @@ import { reactive } from 'vue';
 export const htmlTreeUi = reactive({
   emptyText: '',
   rows: [],
+  // The page's own sections, above the tags. One row each, and the section whose
+  // file the dock is showing is the only one holding its tags — see html-tree.js.
+  sections: [],
+  onSection: null,
   editingId: null,
   draft: '',
   renameTitle: '',
@@ -25,4 +29,25 @@ export const htmlTreeUi = reactive({
   onDuplicate: null,
   onDelete: null,
   onPointerDown: null,
+  onContext: null,
+  slotText: '',
+  dataTitle: '',
+  pageTitle: '',
+  onInspectData: null,
+  onPropValue: null,
+  onPropPage: null,
+  onPropHost: null,
+  onLoopSortField: null,
+  onLoopSortDir: null,
+  onLoopLimit: null,
+  inspect: null,
+  onInspectCommit: null,
+  onLoopKind: null,
+  onAddBranch: null,
+  // The way out of a component. Off for a section: there is nothing to leave.
+  exitOpen: false,
+  exitName: '',
+  exitLabel: '',
+  exitTitle: '',
+  onExit: null,
 });

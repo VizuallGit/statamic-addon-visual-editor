@@ -859,11 +859,25 @@ export function handleEditRequest(data, doc, win) {
     // Empty Bard: nothing stored yet. `as="h3"` / the wrapper tag says what
     // the first block should be, so a title can start as a heading rather than
     // a paragraph — the same choice BlockStudio's RichText/InnerBlocks make.
+    //
+    // Bard rarely stores a truly empty array: clearing a field usually leaves
+    // one empty paragraph behind. There is still nothing to edit, but a length
+    // check lets it through to whole-field editing, which sends the node's text
+    // ('') for the preview to match against its children. With placeholder text
+    // rendered in the wrapper nothing lines up, startEditing aborts, and the
+    // click does nothing at all — no toolbar, no caret.
     const emptyBard =
       data.fieldtype === 'bard' &&
       (value === '' ||
         value == null ||
-        (Array.isArray(value) && value.length === 0));
+        (Array.isArray(value) &&
+          (value.length === 0 ||
+            value.every(
+              (node) =>
+                node &&
+                EDITABLE_NODE_TYPES.includes(node.type) &&
+                normText(bardNodeText(node)) === ''
+            ))));
 
     if (emptyBard) {
       editSession = {

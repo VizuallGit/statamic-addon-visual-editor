@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Fieldtypes;
 
+use MarioHamann\StatamicVisualEditor\Breakpoints;
 use Statamic\Fields\Fields;
 use Statamic\Fields\Fieldtype;
 use Statamic\Fields\Values;
@@ -39,41 +40,17 @@ class ResponsiveFieldtype extends Fieldtype
     }
 
     /**
-     * Bredeste først. `min` er hvor bredt der skal være, for at det er dette
-     * breakpoint man ser på — den grænse preview'et sammenlignes med, når man
-     * trækker det i fri bredde.
-     *
-     * Grænsen står ét sted. Media query'en udledes af den (se `breakpoints()`),
-     * for et breakpoint er én beslutning, og et tal der skal skrives to steder
-     * bliver før eller siden to forskellige tal.
-     */
-    public const BREAKPOINTS = [
-        ['handle' => 'laptop', 'key' => 'desktop', 'device' => 'Laptop', 'min' => 1024],
-        ['handle' => 'tablet', 'key' => 'tablet', 'device' => 'Tablet', 'min' => 768],
-        ['handle' => 'mobile', 'key' => 'mobile', 'device' => 'Mobile', 'min' => 0],
-    ];
-
-    /**
      * Breakpointene med den media query de skrives ud i, og et navn der kan læses.
      *
-     * `max` er en anelse under det foregående breakpoints `min`, så de to ikke
-     * begge gælder på præcis den ene pixel hvor grænsen går. Basis har ingen —
-     * den er reglen, de andre er undtagelser fra den.
+     * Listen selv bor i {@see Breakpoints} — ét sted, fordi Live Preview,
+     * Tailwind-rækken, CSS-panelet og dette felt alle skal svare det samme på
+     * "hvor går grænsen". Her er den kun læst.
      *
      * @return array<int, array<string, mixed>>
      */
     public static function breakpoints(): array
     {
-        return array_map(function ($breakpoint, $i) {
-            // Navnet slås op her og ikke i konstanten: en konstant kan ikke
-            // oversætte, og sproget kendes først når nogen har spurgt om siden.
-            $breakpoint['label'] = __('sve::messages.responsive_'.$breakpoint['key']);
-            $breakpoint['max'] = $i === 0
-                ? null
-                : (static::BREAKPOINTS[$i - 1]['min'] - 0.02).'px';
-
-            return $breakpoint;
-        }, static::BREAKPOINTS, array_keys(static::BREAKPOINTS));
+        return Breakpoints::all();
     }
 
     protected function configFieldItems(): array
@@ -91,13 +68,13 @@ class ResponsiveFieldtype extends Fieldtype
     /** @return array<int, string> */
     public static function handles(): array
     {
-        return array_column(static::BREAKPOINTS, 'handle');
+        return Breakpoints::handles();
     }
 
     /** Basis-breakpointet — det der skrives ud uden media query. */
     public static function base(): string
     {
-        return static::BREAKPOINTS[0]['handle'];
+        return Breakpoints::base();
     }
 
     /**

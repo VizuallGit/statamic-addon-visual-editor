@@ -112,7 +112,14 @@ export const RIGHT_PANEL_FILL =
   'flex:1 1 auto;min-height:0;min-width:0;width:100%;display:flex;flex-direction:column;' +
   'overflow:hidden;position:relative;background:transparent;border:0;box-shadow:none;box-sizing:border-box;';
 
-/** Same 2×4 dots as Statamic `.live-preview-resizer` (vendor `drag-dots.svg`). */
+/**
+ * Statamic's own 2×4 drag-dots, the same handle `.live-preview-resizer` uses
+ * and the same one on the right dock's edge (`resources/css/right-dock.css`).
+ *
+ * One grip for every splitter in the editor, horizontal or vertical. It was a
+ * thin line here for a while; the two then did not match, and a handle you
+ * have to recognise twice is a handle you have to look for twice.
+ */
 export const DRAG_DOTS_V =
   'url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 7 17\'><g fill=\'%23a1a1aa\' fill-rule=\'evenodd\'><rect width=\'2\' height=\'2\' rx=\'1\'/><rect width=\'2\' height=\'2\' y=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' y=\'10\' rx=\'1\'/><rect width=\'2\' height=\'2\' y=\'15\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' y=\'5\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' y=\'10\' rx=\'1\'/><rect width=\'2\' height=\'2\' x=\'5\' y=\'15\' rx=\'1\'/></g></svg>")';
 

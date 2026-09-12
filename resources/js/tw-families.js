@@ -1,37 +1,142 @@
 /**
  * Which values a utility can be swapped for.
  *
- * Nothing is hard-coded: the catalog is built from this site's own `@theme`
- * (`/!/sve/tailwind-theme`), the same tokens the dock's suggestions and the
- * save-time compile use. A family is a CSS property — `font-size` holds every
- * `text-*` size the theme declares, `color` holds the `text-*` colours, so the
- * two never land in the same menu even though both start with `text-`.
+ * Nothing is hard-coded: the family behind a chip is Tailwind's own utility
+ * registry, loaded with this site's `@theme`. `grid-cols-5` belongs to
+ * `grid-cols` and offers 1 through 12; `py-1200` belongs to `py` and offers
+ * this site's spacing scale. A prefix table can never fall behind, because
+ * there is no prefix table.
  *
- * A class the theme knows nothing about — `mb-4` where the scale is named —
- * still finds its family through the prefix, so the menu can offer this site's
- * scale in place of a stray value.
+ * A family is still a CSS property, not a name: `text-*` holds both the sizes
+ * and the colours, and the two must never land in the same menu. So the
+ * utility's classes are compiled and grouped by what they set, and the chip
+ * gets the group that matches what *it* sets.
+ *
+ * That compile is why families are built one utility at a time, the first
+ * time a chip on it is opened, and then kept. Compiling all 15,000 up front
+ * would cost a quarter of a second for a menu of fifteen rows.
  */
 
-import { BOX, COLOR, loadCatalog } from './tailwind-complete.js';
+import { loadCatalog } from './tailwind-complete.js';
 
-/** Prefixes that carry a theme scale, longest first so `min-w` beats `w`. */
-const PREFIXES = [
-  ...Object.keys(BOX),
-  ...Object.keys(COLOR),
-  'text',
-  'leading',
-  'font',
-  'rounded',
-].sort((a, b) => b.length - a.length);
+/** How many classes one warming pass compiles before yielding. */
+const SLICE = 2000;
 
 let families = null;
 
 export function loadFamilies(win) {
   if (!families) {
-    families = loadCatalog(win).then(buildFamilies);
+    families = loadCatalog(win).then((catalog) => {
+      const model = { catalog, groups: new Map(), index: { at: 0, roots: new Map() } };
+
+      warm(win, model);
+
+      return model;
+    });
   }
 
   return families;
+}
+
+/* ------------------------------------------------------------------ *
+ * Which utilities set a given CSS property
+ * ------------------------------------------------------------------ */
+
+/**
+ * The icon row asks by CSS property — `padding`, `color`, `display` — and
+ * that question has no answer until every class has been compiled. All
+ * 15,000 of them is a third of a second, which is nothing spread over idle
+ * time and a stutter if it lands on a click.
+ *
+ * So it is built in slices from the moment the Tailwind pane first draws,
+ * and a click that arrives before it is done finishes the rest itself.
+ */
+function warm(win, model) {
+  // A timeout on the idle call, because a busy or hidden tab can otherwise
+  // sit on it forever and the first tool click pays the whole bill.
+  const schedule = win?.requestIdleCallback
+    ? (fn) => win.requestIdleCallback(fn, { timeout: 500 })
+    : (fn) => (win?.setTimeout || globalThis.setTimeout)(fn, 0);
+
+  const step = () => {
+    if (model.index.at >= model.catalog.names.length) {
+      return;
+    }
+
+    indexSlice(model, SLICE);
+    schedule(step);
+  };
+
+  schedule(step);
+}
+
+function indexSlice(model, count) {
+  const { at } = model.index;
+  const names = model.catalog.names.slice(at, at + count);
+
+  model.index.at = at + names.length;
+  model.catalog.fill(names);
+
+  names.forEach((name) => {
+    const property = propertyOf(model.catalog.css(name));
+    const root = model.catalog.root(name);
+
+    if (!property || !root) {
+      return;
+    }
+
+    if (!model.index.roots.has(property)) {
+      model.index.roots.set(property, new Set());
+    }
+
+    model.index.roots.get(property).add(root);
+  });
+}
+
+function finishIndex(model) {
+  while (model.index.at < model.catalog.names.length) {
+    indexSlice(model, SLICE);
+  }
+}
+
+/**
+ * Every class that sets one property — the list behind a tool icon.
+ *
+ * Two utilities can set the same property and mean quite different things:
+ * `text-*` and `placeholder-*` are both `color`, `border-*` and `divide-*`
+ * are both `border-color`. The tool means the plain one, so the scale with
+ * the shortest name wins, and the fixed-value classes that belong to it come
+ * along — `w-fit` and `w-max` under `w`, `m-auto` under `m`. A property with
+ * no scale at all is a set of fixed values to begin with: `display` is
+ * `block`, `flex`, `grid`, and every one of them belongs.
+ */
+export function optionsForProperty(property, model) {
+  if (!model?.catalog || !property) {
+    return [];
+  }
+
+  finishIndex(model);
+
+  const roots = [...(model.index.roots.get(property) || [])];
+
+  if (!roots.length) {
+    return [];
+  }
+
+  const scale = roots
+    .filter((root) => !model.catalog.isStatic(root))
+    .sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+
+  const chosen = scale
+    ? [
+      scale,
+      ...roots
+        .filter((root) => model.catalog.isStatic(root) && root.startsWith(`${scale}-`))
+        .sort(),
+    ]
+    : roots.slice().sort();
+
+  return chosen.flatMap((root) => groupsFor(model, root)?.get(property) || []);
 }
 
 /** A single declaration is a family; `truncate` and friends are not. */
@@ -47,78 +152,85 @@ function propertyOf(css) {
   return colon === -1 ? '' : text.slice(0, colon).trim();
 }
 
-function buildFamilies(catalog) {
+/**
+ * One utility's classes, compiled once and grouped by what they set.
+ *
+ * @returns {Map<string, Array>|null}
+ */
+function groupsFor(model, root) {
+  if (model.groups.has(root)) {
+    return model.groups.get(root);
+  }
+
+  const names = model.catalog.byRoot.get(root);
+
+  if (!names?.length) {
+    model.groups.set(root, null);
+
+    return null;
+  }
+
   const byProperty = new Map();
-  const propertyOfUtility = new Map();
-  const byPrefix = new Map();
 
-  for (const item of catalog.items) {
-    const property = propertyOf(item.css);
+  model.catalog.rows(names).forEach((row) => {
+    const property = propertyOf(row.css);
 
-    if (property) {
-      if (!byProperty.has(property)) {
-        byProperty.set(property, []);
-      }
-
-      byProperty.get(property).push(item);
-      propertyOfUtility.set(item.label, property);
+    if (!property) {
+      return;
     }
 
-    const prefix = prefixOf(item.label);
-
-    if (prefix) {
-      if (!byPrefix.has(prefix)) {
-        byPrefix.set(prefix, []);
-      }
-
-      byPrefix.get(prefix).push(item);
+    if (!byProperty.has(property)) {
+      byProperty.set(property, []);
     }
-  }
 
-  return { catalog, byProperty, propertyOfUtility, byPrefix };
-}
+    byProperty.get(property).push(row);
+  });
 
-function prefixOf(label) {
-  for (const prefix of PREFIXES) {
-    if (String(label).startsWith(`${prefix}-`)) {
-      return prefix;
-    }
-  }
+  model.groups.set(root, byProperty);
 
-  return '';
+  return byProperty;
 }
 
 /**
  * The menu behind one chip: what it sets, and what else it could be.
  *
- * @returns {{ label: string, options: Array<{ label: string, css: string, color: string|null }> }|null}
+ * @returns {{ label: string, options: Array<{ label: string, css: string, color: string }> }|null}
  */
 export function familyFor(name, model) {
-  if (!model || !name) {
+  if (!model?.catalog || !name) {
     return null;
   }
 
-  const property = model.propertyOfUtility.get(name);
+  const root = model.catalog.root(name);
 
-  if (property) {
-    return { label: property, options: model.byProperty.get(property) || [] };
+  if (!root) {
+    return null;
   }
 
-  const prefix = prefixOf(name);
-  const options = prefix ? model.byPrefix.get(prefix) : null;
+  const groups = groupsFor(model, root);
+
+  if (!groups?.size) {
+    return null;
+  }
+
+  const property = propertyOf(model.catalog.css(name));
+  const options = groups.get(property)
+    // An arbitrary value — `w-[37px]` — sets the same property as the scale
+    // but is not on it. When there is only one group, it is the one.
+    || (groups.size === 1 ? [...groups.values()][0] : null);
 
   if (!options?.length) {
     return null;
   }
 
-  return { label: propertyOf(options[0].css) || prefix, options };
+  return { label: property || root, options };
 }
 
 /** What the chip says this class does, for the hover title. */
 export function cssFor(name, model) {
-  return model?.catalog?.byUtility?.get(name)?.css || '';
+  return model?.catalog?.css(name) || '';
 }
 
 export function colorFor(name, model) {
-  return model?.catalog?.byUtility?.get(name)?.color || '';
+  return model?.catalog?.color(name) || '';
 }

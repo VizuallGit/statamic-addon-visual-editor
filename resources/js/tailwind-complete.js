@@ -1,133 +1,41 @@
 /**
  * Tailwind suggestions in the template-dock HTML pane.
  *
+ * The catalog is Tailwind's own design system — `getClassList()`,
+ * `candidatesToCss()` and `getVariants()`, the three calls the official
+ * Tailwind IntelliSense is built on — loaded with this site's `@theme` and
+ * `@utility` blocks. So the list holds every utility Tailwind ships *and*
+ * this site's scale: `grid-cols-5` and `py-1200` in the same breath, and the
+ * CSS shown next to a name is the CSS the save would write.
+ *
  * Isolated: CodeMirror completions + hover. No overlay, preview or bridge.
- * On only when `tailwind_dock` is on. Catalog comes from this site's `@theme`
- * (`/!/sve/tailwind-theme`) — the same tokens the PHP bake compiles.
+ * On only when `tailwind_dock` is on.
+ *
+ * ## Why nothing here is eager
+ *
+ * The engine is a lazy chunk shared with the save-time compile, and the class
+ * list is ~15,000 names. Building it is fast; compiling all of it is not
+ * (~250ms). So names are strings until something asks to *see* one, and then
+ * only the rows on screen are compiled — in one batched call, memoised. The
+ * dock stays instant and Live Preview never loads a byte of this.
  */
 
-const VARIANTS = [
-  'sm',
-  'md',
-  'lg',
-  'xl',
-  '2xl',
-  'max-sm',
-  'max-md',
-  'max-lg',
-  'max-xl',
-  'max-2xl',
-  'dark',
-  'hover',
-  'focus',
-  'focus-visible',
-  'active',
-  'disabled',
-  'group-hover',
-];
+/** Variants nobody types: the `*` and `**` child selectors. */
+const HIDDEN_VARIANTS = new Set(['*', '**']);
 
-const VARIANT_MEDIA = {
-  sm: '(min-width: 640px)',
-  md: '(min-width: 768px)',
-  lg: '(min-width: 1024px)',
-  xl: '(min-width: 1280px)',
-  '2xl': '(min-width: 1536px)',
-  'max-sm': '(max-width: 639px)',
-  'max-md': '(max-width: 767px)',
-  'max-lg': '(max-width: 1023px)',
-  'max-xl': '(max-width: 1279px)',
-  'max-2xl': '(max-width: 1535px)',
-  dark: '(prefers-color-scheme: dark)',
-};
+/**
+ * The two classes Tailwind compiles nothing for.
+ *
+ * `group` and `peer` are markers: they carry no declaration of their own, they
+ * are what `group-hover:` and `peer-checked:` look for on an ancestor or a
+ * sibling. So `getClassList()` never names them — and without them here, the
+ * one class you must put on the parent to make a hover state work is the one
+ * class the dock cannot find.
+ */
+const MARKER_CLASSES = ['group', 'peer'];
 
-const VARIANT_PSEUDO = {
-  hover: ':hover',
-  focus: ':focus',
-  'focus-visible': ':focus-visible',
-  active: ':active',
-  disabled: ':disabled',
-  'group-hover': ':is(:where(.group):hover *)',
-};
-
-const STATIC = {
-  relative: 'position: relative',
-  absolute: 'position: absolute',
-  fixed: 'position: fixed',
-  sticky: 'position: sticky',
-  static: 'position: static',
-  block: 'display: block',
-  inline: 'display: inline',
-  'inline-block': 'display: inline-block',
-  flex: 'display: flex',
-  'inline-flex': 'display: inline-flex',
-  grid: 'display: grid',
-  hidden: 'display: none',
-  'flex-row': 'flex-direction: row',
-  'flex-col': 'flex-direction: column',
-  'flex-wrap': 'flex-wrap: wrap',
-  'items-start': 'align-items: flex-start',
-  'items-center': 'align-items: center',
-  'items-end': 'align-items: flex-end',
-  'items-stretch': 'align-items: stretch',
-  'justify-start': 'justify-content: flex-start',
-  'justify-center': 'justify-content: center',
-  'justify-end': 'justify-content: flex-end',
-  'justify-between': 'justify-content: space-between',
-  'justify-around': 'justify-content: space-around',
-  'text-left': 'text-align: left',
-  'text-center': 'text-align: center',
-  'text-right': 'text-align: right',
-  'w-full': 'width: 100%',
-  'h-full': 'height: 100%',
-  'w-screen': 'width: 100vw',
-  'h-screen': 'height: 100vh',
-  'overflow-hidden': 'overflow: hidden',
-  'overflow-auto': 'overflow: auto',
-  'pointer-events-none': 'pointer-events: none',
-  underline: 'text-decoration-line: underline',
-  italic: 'font-style: italic',
-  'font-bold': 'font-weight: 700',
-  'font-medium': 'font-weight: 500',
-  uppercase: 'text-transform: uppercase',
-  truncate: 'overflow: hidden; text-overflow: ellipsis; white-space: nowrap',
-  'z-10': 'z-index: 10',
-  'z-20': 'z-index: 20',
-  'z-50': 'z-index: 50',
-};
-
-export const BOX = {
-  p: 'padding',
-  px: 'padding-inline',
-  py: 'padding-block',
-  pt: 'padding-top',
-  pr: 'padding-right',
-  pb: 'padding-bottom',
-  pl: 'padding-left',
-  m: 'margin',
-  mx: 'margin-inline',
-  my: 'margin-block',
-  mt: 'margin-top',
-  mr: 'margin-right',
-  mb: 'margin-bottom',
-  ml: 'margin-left',
-  gap: 'gap',
-  'gap-x': 'column-gap',
-  'gap-y': 'row-gap',
-  w: 'width',
-  h: 'height',
-  'min-w': 'min-width',
-  'min-h': 'min-height',
-  'max-w': 'max-width',
-  'max-h': 'max-height',
-};
-
-export const COLOR = {
-  bg: 'background-color',
-  border: 'border-color',
-  outline: 'outline-color',
-  fill: 'fill',
-  stroke: 'stroke',
-};
+/** How many variants to offer before anything is typed. */
+const VARIANT_PREVIEW = 24;
 
 let catalogPromise = null;
 
@@ -149,7 +57,7 @@ export function tailwindClassCompletions(win) {
     }
 
     return loadCatalog(win).then((catalog) => {
-      const options = suggestions(typed, catalog).slice(0, 80);
+      const options = suggestions(typed, catalog);
 
       if (!options.length) {
         return null;
@@ -177,7 +85,7 @@ export function tailwindHoverExtension(hoverTooltip, win) {
     }
 
     return loadCatalog(win).then((catalog) => {
-      const css = cssForClass(token.text, catalog);
+      const css = catalog.rule(token.text);
 
       if (!css) {
         return null;
@@ -187,115 +95,425 @@ export function tailwindHoverExtension(hoverTooltip, win) {
         pos: token.from,
         end: token.to,
         create() {
-          return { dom: infoDom(css, swatchFor(token.text, catalog)) };
+          return { dom: infoDom(css, catalog.color(token.text)) };
         },
       };
     });
   });
 }
 
-export function catalogFromTheme(css) {
-  const tokens = { color: [], spacing: [], text: [], leading: [], font: [], radius: [] };
-  const re = /--(color|spacing|text|leading|font|radius)-([a-zA-Z0-9][a-zA-Z0-9._-]*)\s*:\s*([^;]+);/g;
-  let m;
-
-  while ((m = re.exec(String(css || '')))) {
-    if (m[2] === '*') {
-      continue;
-    }
-
-        tokens[m[1]].push({ name: m[2], value: m[3].trim() });
-  }
-
-  const items = [];
-
-  Object.entries(STATIC).forEach(([label, cssText]) => {
-    items.push({ label, css: cssText, color: null });
-  });
-
-  tokens.color.forEach(({ name, value }) => {
-    const color = hexColor(value);
-    Object.entries(COLOR).forEach(([prefix, prop]) => {
-      items.push({
-        label: `${prefix}-${name}`,
-        css: `${prop}: var(--color-${name})`,
-        color,
-      });
-    });
-    items.push({
-      label: `text-${name}`,
-      css: `color: var(--color-${name})`,
-      color,
-    });
-  });
-
-  tokens.spacing.forEach(({ name }) => {
-    Object.entries(BOX).forEach(([prefix, prop]) => {
-      items.push({
-        label: `${prefix}-${name}`,
-        css: `${prop}: var(--spacing-${name})`,
-        color: null,
-      });
-    });
-  });
-
-  tokens.text.forEach(({ name }) => {
-    items.push({
-      label: `text-${name}`,
-      css: `font-size: var(--text-${name})`,
-      color: null,
-    });
-  });
-
-  tokens.leading.forEach(({ name }) => {
-    items.push({
-      label: `leading-${name}`,
-      css: `line-height: var(--leading-${name})`,
-      color: null,
-    });
-  });
-
-  tokens.font.forEach(({ name }) => {
-    items.push({
-      label: `font-${name}`,
-      css: `font-family: var(--font-${name})`,
-      color: null,
-    });
-  });
-
-  tokens.radius.forEach(({ name }) => {
-    items.push({
-      label: name === 'DEFAULT' ? 'rounded' : `rounded-${name}`,
-      css: `border-radius: var(--radius-${name})`,
-      color: null,
-    });
-  });
-
-  const byUtility = new Map();
-
-  items.forEach((item) => {
-    if (!byUtility.has(item.label)) {
-      byUtility.set(item.label, item);
-    }
-  });
-
-  return { items: [...byUtility.values()], byUtility };
-}
-
+/**
+ * The catalog, built once per session.
+ *
+ * The engine arrives as a dynamic import so that importing `tailwindDockOn`
+ * from this file — which the dock does at module level — never drags 100KB of
+ * compiler in with it.
+ */
 export function loadCatalog(win) {
   if (!catalogPromise) {
-    catalogPromise = win
-      .fetch('/!/sve/tailwind-theme', {
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      })
-      .then((res) => (res.ok ? res.json() : { css: '' }))
-      .then((data) => catalogFromTheme(typeof data.css === 'string' ? data.css : ''))
-      .catch(() => catalogFromTheme(''));
+    catalogPromise = import('./tw-compile.js')
+      .then((mod) => mod.loadTailwindDesign(win))
+      .then(makeCatalog)
+      .catch(() => emptyCatalog());
   }
 
   return catalogPromise;
 }
+
+/* ------------------------------------------------------------------ *
+ * The catalog
+ * ------------------------------------------------------------------ */
+
+function makeCatalog(design) {
+  const names = [...MARKER_CLASSES, ...design.getClassList().map(([name]) => name)];
+  const lower = names.map((name) => name.toLowerCase());
+  const known = new Set(names);
+
+  const statics = new Set(design.utilities.keys('static'));
+  const functional = new Set(design.utilities.keys('functional'));
+
+  const rules = new Map();
+  const colors = new Map();
+
+  /**
+   * The utility a class belongs to — `grid-cols-5` -> `grid-cols`, `-mt-400`
+   * -> `-mt`. Tailwind's own registry answers this, so a name with three
+   * dashes lands on the right one instead of on whichever prefix a
+   * hand-written table happened to list first.
+   */
+  function root(name) {
+    if (statics.has(name)) {
+      return name;
+    }
+
+    const parts = String(name).split('-');
+
+    for (let i = parts.length; i > 0; i--) {
+      const candidate = parts.slice(0, i).join('-');
+
+      if (functional.has(candidate)) {
+        return candidate;
+      }
+    }
+
+    return '';
+  }
+
+  const byRoot = new Map();
+
+  names.forEach((name) => {
+    const key = root(name);
+
+    if (!key) {
+      return;
+    }
+
+    if (!byRoot.has(key)) {
+      byRoot.set(key, []);
+    }
+
+    byRoot.get(key).push(name);
+  });
+
+  /**
+   * Compile a batch and remember it.
+   *
+   * One call for forty names is a fraction of forty calls, and every list in
+   * the dock is drawn a page at a time — so the batch is the unit, not the
+   * name.
+   */
+  function fill(list) {
+    const missing = list.filter((name) => !rules.has(name));
+
+    if (!missing.length) {
+      return;
+    }
+
+    let compiled = [];
+
+    try {
+      compiled = design.candidatesToCss(missing);
+    } catch {
+      compiled = [];
+    }
+
+    missing.forEach((name, index) => {
+      rules.set(name, typeof compiled[index] === 'string' ? compiled[index] : '');
+    });
+  }
+
+  /** The full rule, media queries and pseudo-elements and all. */
+  function rule(name) {
+    if (!name) {
+      return '';
+    }
+
+    fill([name]);
+
+    return rules.get(name) || '';
+  }
+
+  /** Just the declarations, for a tooltip or a menu row. */
+  function css(name) {
+    return declarationsOf(rule(name));
+  }
+
+  function color(name) {
+    if (colors.has(name)) {
+      return colors.get(name);
+    }
+
+    const value = swatchOf(css(name), design);
+
+    colors.set(name, value);
+
+    return value;
+  }
+
+  const items = new Map();
+
+  function item(name) {
+    if (!items.has(name)) {
+      items.set(name, {
+        label: name,
+        get css() {
+          return css(name);
+        },
+        get color() {
+          return color(name);
+        },
+      });
+    }
+
+    return items.get(name);
+  }
+
+  return {
+    design,
+    names,
+    lower,
+    byRoot,
+    variants: variantLabels(design),
+    root,
+    has: (name) => known.has(name),
+    /** A utility with one fixed value — `flex`, `w-fit` — not a scale. */
+    isStatic: (name) => statics.has(name),
+    /**
+     * What `@theme` says a variable is, or '' when it is not a theme value.
+     *
+     * Tailwind only writes the variables a build actually used, so a rule for
+     * a colour nobody has used yet points at a `--color-*` the page has never
+     * been given. Whoever serves the rule has to serve this with it.
+     */
+    themeValue(variable) {
+      try {
+        return design.resolveThemeValue?.(variable) || '';
+      } catch {
+        return '';
+      }
+    },
+    fill,
+    rule,
+    css,
+    color,
+    /** Rows for a list of names, compiled in one go. */
+    rows(list) {
+      fill(list);
+
+      return list.map(item);
+    },
+    byUtility: {
+      get: (name) => (known.has(name) ? item(name) : undefined),
+    },
+    /**
+     * A class the list does not hold but Tailwind still compiles — an
+     * arbitrary value, an opacity modifier, a variant chain. `null` means
+     * Tailwind has no rule for it either, and then it really is a typo.
+     */
+    resolve(name) {
+      if (known.has(name)) {
+        return item(name);
+      }
+
+      const compiled = rule(name);
+
+      return compiled ? item(name) : null;
+    },
+  };
+}
+
+function emptyCatalog() {
+  const nothing = () => '';
+
+  return {
+    design: null,
+    names: [],
+    lower: [],
+    byRoot: new Map(),
+    variants: [],
+    root: nothing,
+    has: () => false,
+    isStatic: () => false,
+    themeValue: () => '',
+    fill: () => {},
+    rule: nothing,
+    css: nothing,
+    color: nothing,
+    rows: () => [],
+    byUtility: { get: () => undefined },
+    resolve: () => null,
+  };
+}
+
+/**
+ * `hover:`, `md:`, `max-lg:`, `group-focus:`, `prose-p:` — from the engine,
+ * so a plugin's variants are in the list the moment the plugin is.
+ */
+function variantLabels(design) {
+  const out = [];
+
+  let all = [];
+
+  try {
+    all = design.getVariants();
+  } catch {
+    all = [];
+  }
+
+  all.forEach((variant) => {
+    const name = variant?.name || '';
+
+    if (!name || HIDDEN_VARIANTS.has(name)) {
+      return;
+    }
+
+    if (variant.values?.length) {
+      const joiner = variant.hasDash === false ? '' : '-';
+
+      variant.values.forEach((value) => out.push(`${name}${joiner}${value}`));
+
+      return;
+    }
+
+    // `data`, `nth`, `supports` — nothing to offer until the brackets are
+    // typed, and a bare `data:` does not compile.
+    if (!variant.isArbitrary) {
+      out.push(name);
+    }
+  });
+
+  return out;
+}
+
+/**
+ * The declarations inside a compiled rule, flattened.
+ *
+ * `candidatesToCss` prints one declaration per line, so the lines carry the
+ * structure: anything ending in `;` is a declaration, whatever it is nested
+ * in. `@property` blocks trail the rule and describe a variable rather than
+ * the class, so they are cut first. A `--tw-*` line is plumbing and only
+ * shows when it is all there is.
+ */
+function declarationsOf(rule) {
+  const body = String(rule || '').split(/^@property/m)[0];
+  const own = [];
+  const plumbing = [];
+
+  body.split('\n').forEach((line) => {
+    const text = line.trim();
+
+    if (!text.endsWith(';') || text.startsWith('@') || !text.includes(':')) {
+      return;
+    }
+
+    const decl = text.slice(0, -1).trim();
+
+    (decl.startsWith('--tw-') ? plumbing : own).push(decl);
+  });
+
+  const lines = own.length ? own : plumbing;
+
+  return lines.join('; ');
+}
+
+/** A colour a swatch can paint, or '' when the value is not one. */
+function swatchOf(css, design) {
+  const text = String(css || '');
+  const literal = /(#[0-9a-fA-F]{3,8}\b|(?:rgb|rgba|hsl|hsla|oklch|oklab|lab|lch|color)\([^)]*\))/.exec(text);
+
+  if (literal) {
+    return literal[1];
+  }
+
+  const variable = /var\(\s*(--[A-Za-z0-9_-]+)\s*\)/.exec(text)?.[1];
+
+  if (!variable) {
+    return '';
+  }
+
+  let value = '';
+
+  try {
+    value = design?.resolveThemeValue?.(variable) || '';
+  } catch {
+    value = '';
+  }
+
+  return hexColor(value);
+}
+
+/* ------------------------------------------------------------------ *
+ * Suggestions
+ * ------------------------------------------------------------------ */
+
+/**
+ * The variant chain in front of a class, split off.
+ *
+ * Only the prefix is peeled — the rest goes to Tailwind as it stands, because
+ * `bg-primary-500/50`, `w-[37px]` and `grid-cols-5!` are its grammar, not
+ * ours.
+ */
+function peelVariants(typed) {
+  const text = String(typed || '');
+  const cut = text.lastIndexOf(':');
+
+  // A colon inside brackets belongs to an arbitrary value, not to a variant.
+  if (cut === -1 || text.slice(cut).includes(']')) {
+    return { prefix: '', rest: text };
+  }
+
+  return { prefix: text.slice(0, cut + 1), rest: text.slice(cut + 1) };
+}
+
+function suggestions(typed, catalog) {
+  const { prefix, rest } = peelVariants(typed);
+  const query = rest.toLowerCase();
+  const options = [];
+
+  if (!prefix) {
+    variantOptions(query, catalog).forEach((option) => options.push(option));
+  }
+
+  // A name that starts with what was typed comes first, and only then the
+  // ones that merely contain it. Both lists are capped, so the walk over
+  // 15,000 strings costs a pass and nothing else.
+  const starts = [];
+  const contains = [];
+
+  for (let i = 0; i < catalog.names.length; i++) {
+    if (!query) {
+      if (starts.length >= 80) {
+        break;
+      }
+
+      starts.push(catalog.names[i]);
+
+      continue;
+    }
+
+    const name = catalog.lower[i];
+
+    if (name.startsWith(query)) {
+      if (starts.length < 80) {
+        starts.push(catalog.names[i]);
+      }
+    } else if (contains.length < 80 && name.includes(query)) {
+      contains.push(catalog.names[i]);
+    }
+  }
+
+  const ordered = [...starts, ...contains].slice(0, 80);
+
+  catalog.fill(ordered);
+
+  ordered.forEach((name, index) => {
+    options.push({
+      label: `${prefix}${name}`,
+      type: 'property',
+      detail: catalog.css(name),
+      boost: index < starts.length ? 1 : 0,
+    });
+  });
+
+  return options;
+}
+
+function variantOptions(query, catalog) {
+  const matches = query
+    ? catalog.variants.filter((name) => name.toLowerCase().startsWith(query))
+    : catalog.variants.slice(0, VARIANT_PREVIEW);
+
+  return matches.slice(0, 40).map((name) => ({
+    label: `${name}:`,
+    type: 'keyword',
+    detail: 'variant',
+    boost: 2,
+  }));
+}
+
+/* ------------------------------------------------------------------ *
+ * Reading the class attribute under the cursor
+ * ------------------------------------------------------------------ */
 
 function insideClassAttr(context) {
   return !!(
@@ -348,120 +566,10 @@ function classAttrOnLine(line, rel) {
   return null;
 }
 
-function peel(typed) {
-  const names = [...VARIANTS].sort((a, b) => b.length - a.length);
-  const variants = [];
-  let rest = String(typed || '');
-  let changed = true;
-
-  while (changed) {
-    changed = false;
-
-    for (const name of names) {
-      const needle = `${name}:`;
-
-      if (rest.startsWith(needle)) {
-        variants.push(name);
-        rest = rest.slice(needle.length);
-        changed = true;
-        break;
-      }
-    }
-  }
-
-  let important = false;
-
-  if (rest.startsWith('!')) {
-    important = true;
-    rest = rest.slice(1);
-  } else if (rest.endsWith('!')) {
-    important = true;
-    rest = rest.slice(0, -1);
-  }
-
-  return { variants, utility: rest, important };
-}
-
-function suggestions(typed, catalog) {
-  const { variants, utility } = peel(typed);
-  const prefix = variants.length ? `${variants.join(':')}:` : '';
-  const query = utility.toLowerCase();
-  const options = [];
-
-  if (!query && !prefix) {
-    VARIANTS.forEach((name) => {
-      options.push({
-        label: `${name}:`,
-        type: 'keyword',
-        detail: 'variant',
-        boost: 2,
-      });
-    });
-  }
-
-  catalog.items.forEach((item) => {
-    if (query && !item.label.startsWith(query) && !item.label.includes(query)) {
-      return;
-    }
-
-    const label = `${prefix}${item.label}`;
-
-    options.push({
-      label,
-      type: 'property',
-      detail: item.css,
-      boost: item.label.startsWith(query) ? 1 : 0,
-    });
-  });
-
-  return options.sort((a, b) => (b.boost || 0) - (a.boost || 0) || a.label.localeCompare(b.label));
-}
-
-export function cssForClass(className, catalog) {
-  const { variants, utility, important } = peel(className);
-  const item = catalog.byUtility.get(utility);
-
-  if (!item) {
-    return '';
-  }
-
-  let decl = item.css;
-
-  if (important) {
-    decl += ' !important';
-  }
-
-  const escaped = className.replace(/[^a-zA-Z0-9_-]/g, (ch) => `\\${ch}`);
-  let pseudos = '';
-  const media = [];
-
-  variants.forEach((name) => {
-    if (VARIANT_MEDIA[name]) {
-      media.push(VARIANT_MEDIA[name]);
-    } else if (VARIANT_PSEUDO[name]) {
-      pseudos += VARIANT_PSEUDO[name];
-    }
-  });
-
-  let rule = `.${escaped}${pseudos} { ${decl} }`;
-
-  media.slice().reverse().forEach((query) => {
-    rule = `@media ${query} {\n  ${rule}\n}`;
-  });
-
-  return rule;
-}
-
-function swatchFor(className, catalog) {
-  const { utility } = peel(className);
-
-  return catalog.byUtility.get(utility)?.color || null;
-}
-
 function hexColor(value) {
   const v = String(value || '').trim();
 
-  return /^#([0-9a-fA-F]{3,8})$/.test(v) ? v : null;
+  return /^#([0-9a-fA-F]{3,8})$/.test(v) ? v : '';
 }
 
 function infoDom(css, color) {

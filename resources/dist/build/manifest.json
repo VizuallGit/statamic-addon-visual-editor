@@ -1,32 +1,29 @@
 {
-  "_code-dock-CVcg8Bl2.js": {
-    "file": "assets/code-dock-CVcg8Bl2.js",
-    "name": "code-dock",
-    "isDynamicEntry": true,
+  "_component-props-host-BORu0yBH.css": {
+    "file": "assets/component-props-host-BORu0yBH.css",
+    "src": "_component-props-host-BORu0yBH.css"
+  },
+  "_component-props-host-QvXgmvOF.js": {
+    "file": "assets/component-props-host-QvXgmvOF.js",
+    "name": "component-props-host",
     "imports": [
       "resources/js/addon.js",
-      "_tw-overlay-D36EM2GD.js",
-      "_html-tag-sync-BlP2Mk13.js"
+      "_html-pick-align-CK-9iH9_.js"
     ],
     "dynamicImports": [
-      "_index-Dpuj8sxX.js",
-      "node_modules/@codemirror/state/dist/index.js",
-      "node_modules/@codemirror/commands/dist/index.js",
-      "node_modules/@codemirror/autocomplete/dist/index.js",
-      "_html-tag-sync-BlP2Mk13.js",
-      "_index-BatCsQTe.js",
-      "_html-tag-sync-BlP2Mk13.js",
-      "node_modules/@codemirror/language/dist/index.js",
-      "_index-BsAZfAgM.js",
-      "resources/js/tw-compile.js"
+      "resources/js/tw-compile.js",
+      "resources/js/html-tree.js"
+    ],
+    "css": [
+      "assets/component-props-host-BORu0yBH.css"
     ]
   },
-  "_html-pick-align-gkRPeJkt.js": {
-    "file": "assets/html-pick-align-gkRPeJkt.js",
+  "_html-pick-align-CK-9iH9_.js": {
+    "file": "assets/html-pick-align-CK-9iH9_.js",
     "name": "html-pick-align"
   },
-  "_html-tag-sync-BlP2Mk13.js": {
-    "file": "assets/html-tag-sync-BlP2Mk13.js",
+  "_html-tag-sync-CS5dfgi7.js": {
+    "file": "assets/html-tag-sync-CS5dfgi7.js",
     "name": "html-tag-sync",
     "isDynamicEntry": true,
     "imports": [
@@ -61,12 +58,8 @@
       "node_modules/@codemirror/state/dist/index.js"
     ]
   },
-  "_outline-panel-CQMkWeVv.css": {
-    "file": "assets/outline-panel-CQMkWeVv.css",
-    "src": "_outline-panel-CQMkWeVv.css"
-  },
-  "_outline-panel-DquyiF2r.js": {
-    "file": "assets/outline-panel-DquyiF2r.js",
+  "_outline-panel-BQXvlI_0.js": {
+    "file": "assets/outline-panel-BQXvlI_0.js",
     "name": "outline-panel",
     "isDynamicEntry": true,
     "imports": [
@@ -79,20 +72,13 @@
       "assets/outline-panel-CQMkWeVv.css"
     ]
   },
-  "_tw-overlay-B2ull2Qd.css": {
-    "file": "assets/tw-overlay-B2ull2Qd.css",
-    "src": "_tw-overlay-B2ull2Qd.css"
+  "_outline-panel-CQMkWeVv.css": {
+    "file": "assets/outline-panel-CQMkWeVv.css",
+    "src": "_outline-panel-CQMkWeVv.css"
   },
-  "_tw-overlay-D36EM2GD.js": {
-    "file": "assets/tw-overlay-D36EM2GD.js",
-    "name": "tw-overlay",
-    "imports": [
-      "resources/js/addon.js",
-      "_html-pick-align-gkRPeJkt.js"
-    ],
-    "css": [
-      "assets/tw-overlay-B2ull2Qd.css"
-    ]
+  "_tw-candidates-wYTeDvRv.js": {
+    "file": "assets/tw-candidates-wYTeDvRv.js",
+    "name": "tw-candidates"
   },
   "node_modules/@codemirror/autocomplete/dist/index.js": {
     "file": "assets/index-D2YMCfE7.js",
@@ -136,22 +122,22 @@
     "isDynamicEntry": true
   },
   "resources/js/a11y-scan.js": {
-    "file": "assets/a11y-scan-C5Lh3LPu.js",
+    "file": "assets/a11y-scan-BOOXV5O_.js",
     "name": "a11y-scan",
     "src": "resources/js/a11y-scan.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_outline-panel-DquyiF2r.js"
+      "_outline-panel-BQXvlI_0.js"
     ]
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-BPQ6QsWu.js",
+    "file": "assets/addon-DZG7k2Cu.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
     "dynamicImports": [
-      "_code-dock-CVcg8Bl2.js",
+      "resources/js/code-dock.js",
       "_index-Dpuj8sxX.js",
       "node_modules/@codemirror/state/dist/index.js",
       "node_modules/@codemirror/commands/dist/index.js",
@@ -160,7 +146,7 @@
       "node_modules/@codemirror/language/dist/index.js",
       "_index-BsAZfAgM.js",
       "resources/js/block-tree.js",
-      "_outline-panel-DquyiF2r.js",
+      "_outline-panel-BQXvlI_0.js",
       "resources/js/html-tree.js",
       "resources/js/performance-panel.js",
       "resources/js/page-activity.js",
@@ -176,7 +162,7 @@
     ]
   },
   "resources/js/block-tree.js": {
-    "file": "assets/block-tree-Dr-yDbIV.js",
+    "file": "assets/block-tree-nC8xhyAS.js",
     "name": "block-tree",
     "src": "resources/js/block-tree.js",
     "isDynamicEntry": true,
@@ -188,16 +174,51 @@
     ]
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-DyJ6x5Xq.js",
+    "file": "assets/bridge-DD6IjxRU.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true,
     "imports": [
-      "_html-pick-align-gkRPeJkt.js"
+      "_html-pick-align-CK-9iH9_.js"
+    ]
+  },
+  "resources/js/code-dock.js": {
+    "file": "assets/code-dock-BzrDJu1I.js",
+    "name": "code-dock",
+    "src": "resources/js/code-dock.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/addon.js",
+      "_component-props-host-QvXgmvOF.js",
+      "_tw-candidates-wYTeDvRv.js",
+      "_html-tag-sync-CS5dfgi7.js",
+      "_html-pick-align-CK-9iH9_.js",
+      "_index-Dpuj8sxX.js",
+      "node_modules/@codemirror/state/dist/index.js",
+      "_index-BatCsQTe.js",
+      "_index-BsAZfAgM.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "node_modules/@codemirror/autocomplete/dist/index.js",
+      "node_modules/@codemirror/commands/dist/index.js"
+    ],
+    "dynamicImports": [
+      "_index-Dpuj8sxX.js",
+      "node_modules/@codemirror/state/dist/index.js",
+      "node_modules/@codemirror/commands/dist/index.js",
+      "node_modules/@codemirror/autocomplete/dist/index.js",
+      "_html-tag-sync-CS5dfgi7.js",
+      "_index-BatCsQTe.js",
+      "_html-tag-sync-CS5dfgi7.js",
+      "node_modules/@codemirror/language/dist/index.js",
+      "_index-BsAZfAgM.js",
+      "resources/js/tw-compile.js"
+    ],
+    "css": [
+      "assets/code-dock-DmVHqRZY.css"
     ]
   },
   "resources/js/comments.js": {
-    "file": "assets/comments-BVjcISR2.js",
+    "file": "assets/comments-BEqNKJCD.js",
     "name": "comments",
     "src": "resources/js/comments.js",
     "isDynamicEntry": true,
@@ -209,13 +230,13 @@
     ]
   },
   "resources/js/file-manager.js": {
-    "file": "assets/file-manager-CxKDoeYn.js",
+    "file": "assets/file-manager-CPeXaUOf.js",
     "name": "file-manager",
     "src": "resources/js/file-manager.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_html-tag-sync-BlP2Mk13.js",
+      "_html-tag-sync-CS5dfgi7.js",
       "_index-Dpuj8sxX.js",
       "node_modules/@codemirror/state/dist/index.js",
       "_index-BatCsQTe.js",
@@ -230,8 +251,8 @@
       "node_modules/@codemirror/commands/dist/index.js",
       "node_modules/@codemirror/autocomplete/dist/index.js",
       "_index-BatCsQTe.js",
-      "_html-tag-sync-BlP2Mk13.js",
-      "_html-tag-sync-BlP2Mk13.js",
+      "_html-tag-sync-CS5dfgi7.js",
+      "_html-tag-sync-CS5dfgi7.js",
       "node_modules/@codemirror/language/dist/index.js",
       "_index-BsAZfAgM.js"
     ],
@@ -240,17 +261,20 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-BJPP2Vs6.js",
+    "file": "assets/html-tree-VBiD1Vw7.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_tw-overlay-D36EM2GD.js",
-      "_html-pick-align-gkRPeJkt.js"
+      "_component-props-host-QvXgmvOF.js",
+      "_html-pick-align-CK-9iH9_.js"
+    ],
+    "dynamicImports": [
+      "resources/js/tw-compile.js"
     ],
     "css": [
-      "assets/html-tree-CYt1gadv.css"
+      "assets/html-tree-CTO1layD.css"
     ]
   },
   "resources/js/overlay-host.js": {
@@ -261,7 +285,7 @@
     "isDynamicEntry": true
   },
   "resources/js/page-activity.js": {
-    "file": "assets/page-activity-Dw1yEVMD.js",
+    "file": "assets/page-activity-C6aLSFLw.js",
     "name": "page-activity",
     "src": "resources/js/page-activity.js",
     "isDynamicEntry": true,
@@ -273,7 +297,7 @@
     ]
   },
   "resources/js/performance-panel.js": {
-    "file": "assets/performance-panel-eWbm1OdV.js",
+    "file": "assets/performance-panel-DdxHpCtR.js",
     "name": "performance-panel",
     "src": "resources/js/performance-panel.js",
     "isDynamicEntry": true,
@@ -288,23 +312,12 @@
     "isEntry": true
   },
   "resources/js/tw-compile.js": {
-    "file": "assets/tw-compile-DfVWVOI8.js",
+    "file": "assets/tw-compile-DdxyBBQG.js",
     "name": "tw-compile",
     "src": "resources/js/tw-compile.js",
     "isDynamicEntry": true,
     "imports": [
-      "_code-dock-CVcg8Bl2.js",
-      "resources/js/addon.js",
-      "_tw-overlay-D36EM2GD.js",
-      "_html-pick-align-gkRPeJkt.js",
-      "_html-tag-sync-BlP2Mk13.js",
-      "_index-Dpuj8sxX.js",
-      "node_modules/@codemirror/state/dist/index.js",
-      "_index-BatCsQTe.js",
-      "_index-BsAZfAgM.js",
-      "node_modules/@codemirror/language/dist/index.js",
-      "node_modules/@codemirror/autocomplete/dist/index.js",
-      "node_modules/@codemirror/commands/dist/index.js"
+      "_tw-candidates-wYTeDvRv.js"
     ]
   }
 }

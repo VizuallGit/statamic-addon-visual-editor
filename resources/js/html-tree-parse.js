@@ -1,6 +1,11 @@
 /**
  * HTML tags in an Antlers file — not Antlers tags, not the rendered page.
  *
+ * One Antlers tag is the exception: `{{ partial:… }}`. A partial is a piece of
+ * the page with a name, so it earns a row — a component node, with the call's
+ * own offsets, sitting where the call sits. It has no children here: what is
+ * inside it belongs to that file, and is edited by opening it.
+ *
  * `{{ … }}` is blanked to spaces of the same length so offsets still match
  * the source, then a tag scanner walks the result. Closing tags never become
  * rows; void / self-closing tags are leaves.
@@ -8,6 +13,9 @@
  * An HTML comment that wraps tags is a hidden subtree: the tags stay in the
  * tree (dimmed) and the comment is what live preview skips.
  */
+
+import { findPartials } from './dock-partials.js';
+import { findAntlersBlocks } from './antlers-blocks.js';
 
 const VOID = new Set([
   'area',
@@ -175,6 +183,154 @@ function parseRange(source, masked, rangeStart, rangeEnd) {
 }
 
 /**
+ * `components/hero_card` reads as `hero_card`.
+ *
+ * A dynamic call keeps its folder — `blocks/{type}` alone would read as
+ * `{type}`, which says what decides the file but not where to look for it.
+ */
+export function componentName(src) {
+  const value = String(src || '');
+
+  return /\{[A-Za-z_][A-Za-z0-9_]*\}/.test(value) ? value : value.split('/').pop() || '';
+}
+
+/**
+ * The deepest tag whose body holds this offset. Body, not element: a call
+ * inside an opening tag's attributes is not a child of it.
+ */
+function deepestHost(nodes, from, to) {
+  for (const node of nodes || []) {
+    if (from < node.openTo || to > node.to) {
+      continue;
+    }
+
+    return deepestHost(node.children, from, to) || node;
+  }
+
+  return null;
+}
+
+/**
+ * Condition and loop rows, with the tags they wrap moved underneath them.
+ *
+ * Outermost first, so a loop inside a branch lands inside the branch's row.
+ * A block whose range cuts across a tag — opening inside one element and
+ * closing inside another — is skipped: there is no honest place to draw it,
+ * and drawing it wrong would put every edit made through the row on the wrong
+ * range.
+ *
+ * The tags keep the `path` the tag parse gave them. Preview alignment walks
+ * that path, and re-numbering siblings here would point every one of them at
+ * the wrong element.
+ */
+function addAntlersBlocks(roots, source) {
+  for (const block of findAntlersBlocks(source)) {
+    const host = deepestHost(roots, block.from, block.to);
+    const siblings = host ? host.children : roots;
+    const inside = [];
+    let crosses = false;
+
+    for (const child of siblings) {
+      const from = child.wrapFrom ?? child.from;
+      const to = child.wrapTo ?? child.to;
+
+      if (to <= block.from || from >= block.to) {
+        continue;
+      }
+
+      if (from < block.from || to > block.to) {
+        crosses = true;
+        break;
+      }
+
+      inside.push(child);
+    }
+
+    if (crosses) {
+      continue;
+    }
+
+    const label =
+      block.loopKind === 'collection'
+        ? `collection: ${block.handle || '?'}`
+        : block.kind === 'loop'
+          ? block.name
+          : block.expr;
+    const node = {
+      id: `antlers-${block.from}`,
+      tag: block.name,
+      kind: 'antlers',
+      antlers: block.kind,
+      loopKind: block.loopKind || '',
+      handle: block.handle || '',
+      params: block.params || '',
+      sortField: block.sortField || '',
+      sortDir: block.sortDir || '',
+      limit: block.limit || '',
+      expr: block.expr,
+      klass: label,
+      path: `${host ? `${host.path}/` : ''}a${block.from}:${block.name}`,
+      label,
+      from: block.from,
+      to: block.to,
+      openTo: block.openTo,
+      hidden: !!host?.hidden,
+      children: inside,
+    };
+
+    const at = inside.length
+      ? siblings.indexOf(inside[0])
+      : siblings.findIndex((item) => item.from > block.from);
+
+    siblings.splice(at === -1 ? siblings.length : at, inside.length, node);
+  }
+
+  return roots;
+}
+
+/**
+ * Component rows are added after the tags are parsed, never during — so every
+ * tag keeps the sibling index its path is built from, and a template that gains
+ * a component does not renumber the rows around it.
+ */
+function addComponents(roots, source) {
+  for (const call of findPartials(source)) {
+    const host = deepestHost(roots, call.from, call.to);
+    const siblings = host ? host.children : roots;
+    const name = componentName(call.src);
+
+    const node = {
+      id: `component-${call.from}`,
+      tag: 'component',
+      kind: 'component',
+      src: call.src,
+      klass: name,
+      path: `${host ? `${host.path}/` : ''}c${call.from}:component`,
+      label: name,
+      from: call.from,
+      to: call.to,
+      openTo: call.to,
+      hidden: !!host?.hidden,
+      children: [],
+    };
+
+    let at = siblings.findIndex((item) => item.from > call.from);
+
+    if (at === -1) {
+      at = siblings.length;
+    }
+
+    siblings.splice(at, 0, node);
+  }
+
+  return roots;
+}
+
+/**
+ * Tags only. The CSS scope pane and the Tailwind class pane both walk this,
+ * and both write into the tag a row stands for — so a partial call, which has
+ * no tag to write into, must not appear here.
+ *
  * @returns {Array<{ id: string, tag: string, klass: string, path: string, label: string, from: number, to: number, openTo: number, hidden: boolean, wrapFrom?: number, wrapTo?: number, children: Array }>}
  */
 export function parseHtmlTree(html) {
@@ -182,6 +338,13 @@ export function parseHtmlTree(html) {
   const masked = maskAntlers(source);
 
   return parseRange(source, masked, 0, masked.length);
+}
+
+/** Tags, conditions, loops and components — what the HTML tree panel shows. */
+export function parseTemplateTree(html) {
+  const source = String(html || '');
+
+  return addComponents(addAntlersBlocks(parseHtmlTree(source), source), source);
 }
 
 export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
@@ -192,6 +355,16 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
     out.push({
       id: node.id,
       tag: node.tag,
+      kind: node.kind || '',
+      antlers: node.antlers || '',
+      loopKind: node.loopKind || '',
+      handle: node.handle || '',
+      params: node.params || '',
+      sortField: node.sortField || '',
+      sortDir: node.sortDir || '',
+      limit: node.limit || '',
+      expr: node.expr || '',
+      src: node.src || '',
       klass: node.klass || '',
       path: node.path,
       label: node.label,
@@ -203,6 +376,10 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       wrapTo: node.wrapTo,
       depth,
       hasChildren,
+      // A condition or loop with nothing in it yet. It still opens and closes,
+      // and it still shows where content goes — an empty block that looked
+      // like a leaf would read as somewhere you cannot put anything.
+      emptyBlock: node.kind === 'antlers' && !hasChildren,
       shut,
     });
 

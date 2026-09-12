@@ -220,7 +220,7 @@ export function closePartialMenu(doc) {
   doc?.getElementById(PARTIAL_MENU_ID)?.remove();
 }
 
-export function showPartialMenu(win, items, x, y, { onOpen, emptyLabel, onStay, onLeave }) {
+export function showPartialMenu(win, items, x, y, { onOpen, emptyLabel, labelFor, onStay, onLeave }) {
   const doc = win.document;
 
   closePartialMenu(doc);
@@ -243,7 +243,7 @@ export function showPartialMenu(win, items, x, y, { onOpen, emptyLabel, onStay, 
 
       btn.type = 'button';
       btn.setAttribute('data-sve-partial-choice', '');
-      btn.textContent = item.label;
+      btn.textContent = labelFor ? labelFor(item.label) : item.label;
       btn.title = item.path || item.type;
       btn.addEventListener('click', (event) => {
         event.preventDefault();
@@ -350,7 +350,14 @@ function buildMarks(state, cm, mark) {
   return builder.finish();
 }
 
-export function bindPartialNav(win, view, { onOpen, emptyLabel, sectionValues, isLocked, setHover }) {
+export function bindPartialNav(win, view, {
+  onOpen,
+  emptyLabel,
+  openLabel,
+  sectionValues,
+  isLocked,
+  setHover,
+}) {
   if (!view?.dom || view.dom._svePartialBound) {
     return;
   }
@@ -385,7 +392,7 @@ export function bindPartialNav(win, view, { onOpen, emptyLabel, sectionValues, i
 
   const locked = () => !!isLocked?.();
 
-  const openAt = (hit, x, y, { click } = {}) => {
+  const openAt = (hit, x, y, { open } = {}) => {
     if (locked()) {
       closePartialMenu(win.document);
       setHover?.(view, null);
@@ -401,22 +408,19 @@ export function bindPartialNav(win, view, { onOpen, emptyLabel, sectionValues, i
       const html = view.state.doc.toString();
       const next = itemsForPartial(hit, items, html, sectionValues?.() || null);
 
-      if (next.length === 1) {
-        if (click) {
-          closePartialMenu(win.document);
-          onOpen?.(next[0].type);
-        }
-
-        return;
-      }
-
-      if (!next.length && !click) {
+      // Hovering is a peek, and a peek at a partial that resolves to one
+      // file has nothing to say — the name is already on the line. The right
+      // button always answers, even when the answer is a single row, because
+      // a menu that sometimes opens and sometimes acts is a menu you cannot
+      // aim at. Same as the row in the HTML tree.
+      if (!open && next.length < 2) {
         return;
       }
 
       showPartialMenu(win, next, x, y, {
         onOpen,
         emptyLabel,
+        labelFor: openLabel,
         onStay: linger.stay,
         onLeave: linger.leave,
       });
@@ -473,7 +477,16 @@ export function bindPartialNav(win, view, { onOpen, emptyLabel, sectionValues, i
     linger.leave();
   });
 
-  view.dom.addEventListener('click', (event) => {
+  /**
+   * The right button opens the component. The left one is left alone.
+   *
+   * A partial call is a line you write in — `{{ partial:components/image
+   * path="…" }}` — and while the left click opened the file, putting the
+   * cursor inside the tag to add a parameter was not possible: the dock had
+   * already swapped to another template. Opening moved to the button that
+   * means "what else can I do with this", the same one the HTML tree uses.
+   */
+  view.dom.addEventListener('contextmenu', (event) => {
     if (locked()) {
       closePartialMenu(win.document);
 
@@ -492,8 +505,11 @@ export function bindPartialNav(win, view, { onOpen, emptyLabel, sectionValues, i
       return;
     }
 
+    // Only inside the tag. Anywhere else in the pane the browser's own menu
+    // is still the right one.
+    event.preventDefault();
     clearHover();
-    openAt(hit, event.clientX, event.clientY + 8, { click: true });
+    openAt(hit, event.clientX, event.clientY + 8, { open: true });
   });
 
   if (!docHasPartialDismiss(win.document)) {
