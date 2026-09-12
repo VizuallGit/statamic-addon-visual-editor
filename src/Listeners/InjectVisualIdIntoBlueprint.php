@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
+use MarioHamann\StatamicVisualEditor\FieldsetFields;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\PanelVisibility;
 use MarioHamann\StatamicVisualEditor\SiblingSync;
@@ -104,7 +105,7 @@ class InjectVisualIdIntoBlueprint
             return $fieldDef;
         }
 
-        foreach ($fieldset->contents()['fields'] ?? [] as $fsField) {
+        foreach (FieldsetFields::of($fieldset) as $fsField) {
             if (($fsField['handle'] ?? null) !== $fieldHandle || ! is_array($fsField['field'])) {
                 continue;
             }
@@ -236,7 +237,7 @@ class InjectVisualIdIntoBlueprint
 
             $fieldset = Fieldset::find($fieldDef['import']);
 
-            if ($fieldset && $this->fieldsDeclareBreakpointOrder($fieldset->contents()['fields'] ?? [])) {
+            if ($fieldset && $this->fieldsDeclareBreakpointOrder(FieldsetFields::of($fieldset))) {
                 return true;
             }
         }

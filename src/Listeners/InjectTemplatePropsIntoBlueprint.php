@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
+use MarioHamann\StatamicVisualEditor\FieldsetFields;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
 use MarioHamann\StatamicVisualEditor\SundayAug30;
 use MarioHamann\StatamicVisualEditor\TemplateProps;
@@ -178,7 +179,7 @@ class InjectTemplatePropsIntoBlueprint
             return $fieldDef;
         }
 
-        foreach ($fieldset->contents()['fields'] ?? [] as $fsField) {
+        foreach (FieldsetFields::of($fieldset) as $fsField) {
             if (($fsField['handle'] ?? null) !== $fieldHandle || ! is_array($fsField['field'] ?? null)) {
                 continue;
             }

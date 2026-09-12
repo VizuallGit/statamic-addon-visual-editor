@@ -169,6 +169,9 @@ return [
     'html_tree_duplicate' => 'Duplicate',
     'html_tree_delete' => 'Delete',
 
+    'section_fields' => 'Section fields',
+    'section_fields_none' => 'This section has no fieldset of its own.',
+    'section_fields_failed' => 'The fields could not be opened.',
     'section_new' => 'New section',
     'section_new_group' => 'Group',
     'section_new_name' => 'Name',

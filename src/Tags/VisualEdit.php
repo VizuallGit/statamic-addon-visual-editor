@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tags;
 
+use MarioHamann\StatamicVisualEditor\FieldsetFields;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\IconResolver;
@@ -1323,7 +1324,7 @@ class VisualEdit extends Tags
             return null;
         }
 
-        foreach ((array) ($fieldset->contents()['fields'] ?? []) as $item) {
+        foreach (FieldsetFields::of($fieldset) as $item) {
             if (($item['handle'] ?? null) === $fieldHandle && is_array($item['field'] ?? null)) {
                 return $item['field'];
             }

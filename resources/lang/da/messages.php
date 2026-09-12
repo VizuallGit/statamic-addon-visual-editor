@@ -166,6 +166,9 @@ return [
     'html_tree_duplicate' => 'Dupliker',
     'html_tree_delete' => 'Slet',
 
+    'section_fields' => 'Sektionens felter',
+    'section_fields_none' => 'Denne sektion har ikke sit eget fieldset.',
+    'section_fields_failed' => 'Felterne kunne ikke åbnes.',
     'section_new' => 'Ny sektion',
     'section_new_group' => 'Gruppe',
     'section_new_name' => 'Navn',

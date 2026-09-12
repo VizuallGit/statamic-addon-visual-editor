@@ -8058,6 +8058,22 @@ register('dock:exit-component', () => {
 
 register('dock:current-type', () => currentTemplateType());
 register('dock:current-uid', () => lastUid);
+/**
+ * Re-render the preview without saving anything.
+ *
+ * For changes the dock did not make and cannot see — a field added to the
+ * section's fieldset, say. The page is still showing a render from before it.
+ */
+register('dock:refresh-preview', () => {
+  if (!lastWin) {
+    return false;
+  }
+
+  refreshPreview(lastWin);
+
+  return true;
+});
+
 /** Open another template — the same push the partial links in the panes do. */
 register('dock:open-template', (type) => {
   if (typeof type !== 'string' || !type || !lastWin) {

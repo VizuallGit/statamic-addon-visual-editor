@@ -27,7 +27,7 @@ class SectionTypes
             return [];
         }
 
-        $sets = $fieldset->contents()['fields'][0]['field']['sets'] ?? [];
+        $sets = (FieldsetFields::of($fieldset)[0] ?? [])['field']['sets'] ?? [];
         $images = SetPreviewImages::map();
         $exclude = (array) config('statamic-visual-editor.previews.exclude', []);
 
@@ -64,6 +64,12 @@ class SectionTypes
                 $types[] = [
                     'handle' => $setHandle,
                     'display' => $set['display'] ?? $setHandle,
+                    // Which fieldset holds this section's fields, so the editor
+                    // can open it without a second round trip. Read from the
+                    // import rather than derived from the handle: the two are
+                    // not the same word on every site — `featured_section/…`
+                    // imports `featured_sections.…` here.
+                    'fieldset' => static::importOf($set),
                     'group' => (string) $groupKey,
                     'group_display' => $groupDisplay,
                     'image_url' => $images[$setHandle] ?? null,
@@ -74,6 +80,24 @@ class SectionTypes
         }
 
         return $types;
+    }
+
+    /**
+     * The fieldset a set imports its fields from, or null when it declares them
+     * inline. First import wins: a set built from several is rare, and the one
+     * an author means by "this section's fields" is the one it leads with.
+     */
+    protected static function importOf(array $set): ?string
+    {
+        foreach (($set['fields'] ?? []) as $field) {
+            $import = is_array($field) ? ($field['import'] ?? null) : null;
+
+            if (is_string($import) && $import !== '') {
+                return $import;
+            }
+        }
+
+        return null;
     }
 
     /**

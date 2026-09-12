@@ -5,6 +5,7 @@ import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
 import { canCreateSections, openNewSectionDialog } from '../../section-create.js';
+import { canEditFields, currentSetHandle, openFieldsetOverlay } from '../../section-fields.js';
 import { t } from '../../cp-t.js';
 
 defineProps({
@@ -15,8 +16,24 @@ defineProps({
 // permission that decides — the same gate as deleting one. An editor never
 // sees the button at all.
 const canCreate = canCreateSections(window);
+const canFields = canEditFields(window);
 const newSectionLabel = t(window, 'section_new');
+const fieldsLabel = t(window, 'section_fields');
 const creating = ref(false);
+
+function onFields() {
+  const handle = currentSetHandle();
+
+  // Only a section has a fieldset. Inside a component the dock is showing a
+  // view file, and there is nothing of its own to open.
+  if (!handle) {
+    window.Statamic?.$toast?.error(t(window, 'section_fields_none'));
+
+    return;
+  }
+
+  openFieldsetOverlay(window, handle);
+}
 
 function onNewSection() {
   if (creating.value) {
@@ -50,6 +67,16 @@ function onNewSection() {
           @click="onNewSection"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        </button>
+        <button
+          v-if="canFields"
+          type="button"
+          class="sve-tree-new"
+          :title="fieldsLabel"
+          :aria-label="fieldsLabel"
+          @click="onFields"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
         </button>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close">

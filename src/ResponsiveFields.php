@@ -148,7 +148,7 @@ class ResponsiveFields
             return null;
         }
 
-        foreach ($fieldset->contents()['fields'] ?? [] as $field) {
+        foreach (FieldsetFields::of($fieldset) as $field) {
             if (($field['handle'] ?? null) !== $parts[1] || ! is_array($field['field'] ?? null)) {
                 continue;
             }
