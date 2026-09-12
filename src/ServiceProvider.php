@@ -655,6 +655,12 @@ class ServiceProvider extends AddonServiceProvider
             Route::delete('/!/sve/section-types', [SectionTypesController::class, 'destroy'])
                 ->name('sve.section-types.destroy');
 
+            // Making one. Sits next to the delete on purpose: both write the
+            // page-builder fieldset in the repository, and both are gated on
+            // `configure fields` rather than on being able to edit a page.
+            Route::post('/!/sve/section-types', [SectionTypesController::class, 'store'])
+                ->name('sve.section-types.store');
+
             // Fresh meta + defaults for a set, so a picker-inserted section also
             // renders in the CP's own section list (see SectionMetaController).
             Route::get('/!/sve/section-meta', SectionMetaController::class)

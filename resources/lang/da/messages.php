@@ -166,6 +166,16 @@ return [
     'html_tree_duplicate' => 'Dupliker',
     'html_tree_delete' => 'Slet',
 
+    'section_new' => 'Ny sektion',
+    'section_new_group' => 'Gruppe',
+    'section_new_name' => 'Navn',
+    'section_new_placeholder' => 'fx Referencer',
+    'section_new_note' => 'Opretter et tomt fieldset og en tom skabelon i gruppens egne mapper. Genindlæs siden, før sektionen kan indsættes på en side.',
+    'section_new_create' => 'Opret',
+    'section_created' => ':name er oprettet',
+    'section_new_failed' => 'Sektionen kunne ikke oprettes.',
+    'section_new_bad_name' => 'Giv sektionen et navn med bogstaver i.',
+
     'component_make' => 'Gør til komponent',
     'component_open' => 'Åbn komponent',
     'component_new' => 'Ny komponent',

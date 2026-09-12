@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use MarioHamann\StatamicVisualEditor\SectionTypeMaker;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\SectionUsage;
 use MarioHamann\StatamicVisualEditor\SetPreviewImages;
@@ -69,6 +70,53 @@ class SectionTypesController
         return response()->json([
             'types' => SectionTypes::map(),
             'running' => Cache::get('sve-previews:running', false),
+        ]);
+    }
+
+    /**
+     * Makes a new section type: fields, markup and registration in one go.
+     *
+     * Gated on `configure fields` for the same reason deleting is — this writes
+     * files into the repository that a developer would otherwise add by hand
+     * and commit. What comes back is the new handle, so the editor can open the
+     * section's template straight away, and a fresh type map, because the
+     * picker's list came from the page render and is now one type out of date.
+     *
+     * The new set cannot be *inserted* until the page reloads: a Replicator's
+     * sets come from the blueprint the publish form was built with, and that
+     * blueprint is a snapshot from page load. Saying so is the caller's job.
+     */
+    public function store(Request $request)
+    {
+        abort_unless(User::current()?->can('configure fields'), 403);
+
+        $display = trim((string) $request->input('display', ''));
+        $group = trim((string) $request->input('group', ''));
+
+        abort_if($display === '' || $group === '', 400);
+
+        // A name that survives slugging is the one real precondition, and it is
+        // worth its own answer: "Ny sektion" is a fine name, "???" is not, and
+        // a 400 tells the author nothing about which of the two they typed.
+        if (SectionTypeMaker::slug($display) === null) {
+            return response()->json(['error' => 'bad_name'], 422);
+        }
+
+        $made = SectionTypeMaker::create(
+            static::fieldsetHandle(),
+            $group,
+            mb_substr($display, 0, 60),
+            trim((string) $request->input('icon', '')) ?: null,
+        );
+
+        if ($made === null) {
+            return response()->json(['error' => 'failed'], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'section' => $made,
+            'section_types' => SectionTypes::map(),
         ]);
     }
 

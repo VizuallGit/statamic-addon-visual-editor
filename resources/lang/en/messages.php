@@ -169,6 +169,16 @@ return [
     'html_tree_duplicate' => 'Duplicate',
     'html_tree_delete' => 'Delete',
 
+    'section_new' => 'New section',
+    'section_new_group' => 'Group',
+    'section_new_name' => 'Name',
+    'section_new_placeholder' => 'e.g. Testimonials',
+    'section_new_note' => 'Creates an empty fieldset and an empty template in the group\'s own folders. Reload the page before the section can be added to a page.',
+    'section_new_create' => 'Create',
+    'section_created' => ':name created',
+    'section_new_failed' => 'The section could not be created.',
+    'section_new_bad_name' => 'Give the section a name with letters in it.',
+
     'component_make' => 'Make component',
     'component_open' => 'Open component',
     'component_new' => 'New component',
