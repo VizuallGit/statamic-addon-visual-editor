@@ -7,12 +7,17 @@
  * The server writes all three from one handle (see `SectionTypeMaker`); this
  * asks for the two things it cannot work out on its own, the group and the name.
  *
- * What it does *not* do is insert the section. A Replicator's sets come from
- * the blueprint the publish form was built with, and that blueprint is a
- * snapshot taken at page load — so a set created now is not in the picker until
- * the page is reloaded, and reloading under an author with unsaved changes is
- * not ours to do. Instead the dock opens the new template straight away, which
- * is where the work continues anyway.
+ * The section is usable the moment it exists — no reload. That is not luck: the
+ * library inserts by writing the row's value and its meta onto the publish
+ * container itself (`insertSectionAfter`), and the meta comes from the server,
+ * which resolves the blueprint per request. Statamic's *own* set picker would
+ * be a different story — it renders from the blueprint snapshot the form was
+ * built with, and does not know about a set added since — but that is not the
+ * path the editor uses.
+ *
+ * So this opens the new template in the dock rather than inserting anything:
+ * an empty section has nothing to show until it is written, and writing it is
+ * where the author was heading.
  */
 import { t } from './cp-t.js';
 import { ask } from './cp/bus.js';
@@ -127,6 +132,19 @@ export function openNewSectionDialog(win, { onDone, onError } = {}) {
             win.Statamic?.$toast?.success(
               t(win, 'section_created', { name: data.section?.display || display })
             );
+
+            // An open Patterns panel is holding the list from before this
+            // section existed. Same event a saved section fires: it drops its
+            // lists and asks again, so the new card appears where the author is
+            // already looking instead of after the next reopen.
+            //
+            // Dispatched by hand rather than through `libraryWentStale`: that
+            // lives in section-library.js, and importing it here would pull the
+            // whole library — four thousand lines of panel — into the HTML
+            // tree's chunk, which is loaded on every section.
+            win.document
+              .getElementById('__sve-section-picker')
+              ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
 
             // Straight into the empty template. The dock is where the section
             // gets written, and the alternative — a toast saying "now go find

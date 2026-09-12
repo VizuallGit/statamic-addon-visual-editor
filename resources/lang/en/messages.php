@@ -173,7 +173,7 @@ return [
     'section_new_group' => 'Group',
     'section_new_name' => 'Name',
     'section_new_placeholder' => 'e.g. Testimonials',
-    'section_new_note' => 'Creates an empty fieldset and an empty template in the group\'s own folders. Reload the page before the section can be added to a page.',
+    'section_new_note' => 'Creates an empty fieldset and an empty template in the group\'s own folders. The section is ready to use right away — it appears in the library under its group.',
     'section_new_create' => 'Create',
     'section_created' => ':name created',
     'section_new_failed' => 'The section could not be created.',

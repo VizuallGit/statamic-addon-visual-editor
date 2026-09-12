@@ -170,7 +170,7 @@ return [
     'section_new_group' => 'Gruppe',
     'section_new_name' => 'Navn',
     'section_new_placeholder' => 'fx Referencer',
-    'section_new_note' => 'Opretter et tomt fieldset og en tom skabelon i gruppens egne mapper. Genindlæs siden, før sektionen kan indsættes på en side.',
+    'section_new_note' => 'Opretter et tomt fieldset og en tom skabelon i gruppens egne mapper. Sektionen kan bruges med det samme — den ligger i biblioteket under sin gruppe.',
     'section_new_create' => 'Opret',
     'section_created' => ':name er oprettet',
     'section_new_failed' => 'Sektionen kunne ikke oprettes.',
