@@ -102,7 +102,18 @@ class SectionMetaController
 
         $new = $fields->addValues($defaults)->meta()->put('_', '_')->toArray();
 
-        return response()->json(compact('new', 'defaults'));
+        /*
+         * The set's field *definitions*, not their state.
+         *
+         * Meta says what each field currently holds; this says which fields
+         * exist at all. The section panel draws its list from the set config in
+         * the blueprint the form was built with — a snapshot from page load —
+         * so a field added since is missing from a form that has no idea it is
+         * out of date. Handing the definitions back lets the panel be told.
+         */
+        $definitions = $fields->toPublishArray();
+
+        return response()->json(compact('new', 'defaults', 'definitions'));
     }
 
     /**

@@ -4,8 +4,14 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
+import { ask } from '../bus.js';
 import { canCreateSections, openNewSectionDialog } from '../../section-create.js';
-import { canEditFields, currentSetHandle, openFieldsetOverlay } from '../../section-fields.js';
+import {
+  canEditFields,
+  currentSetHandle,
+  openFieldsetOverlay,
+  refreshFieldsForType,
+} from '../../section-fields.js';
 import { t } from '../../cp-t.js';
 
 defineProps({
@@ -20,6 +26,8 @@ const canFields = canEditFields(window);
 const newSectionLabel = t(window, 'section_new');
 const fieldsLabel = t(window, 'section_fields');
 const creating = ref(false);
+const refreshing = ref(false);
+const refreshLabel = t(window, 'section_fields_refresh');
 
 function onFields() {
   const handle = currentSetHandle();
@@ -33,6 +41,34 @@ function onFields() {
   }
 
   openFieldsetOverlay(window, handle);
+}
+
+/**
+ * Pick the section's fields up again without opening anything.
+ *
+ * For the fieldset edited somewhere else — the Fieldsets screen in another tab,
+ * a colleague's change, a hand-edited YAML — where nothing here knows to ask.
+ */
+function onRefreshFields() {
+  const handle = currentSetHandle();
+
+  if (!handle || refreshing.value) {
+    return;
+  }
+
+  refreshing.value = true;
+
+  void (async () => {
+    try {
+      await refreshFieldsForType(window, handle);
+      ask('dock:refresh-preview');
+      window.Statamic?.$toast?.success(t(window, 'section_fields_refreshed'));
+    } catch {
+      window.Statamic?.$toast?.error(t(window, 'section_fields_failed'));
+    } finally {
+      refreshing.value = false;
+    }
+  })();
 }
 
 function onNewSection() {
@@ -77,6 +113,17 @@ function onNewSection() {
           @click="onFields"
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
+        </button>
+        <button
+          v-if="canFields"
+          type="button"
+          class="sve-tree-new"
+          :title="refreshLabel"
+          :aria-label="refreshLabel"
+          :disabled="refreshing"
+          @click="onRefreshFields"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
         </button>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close">

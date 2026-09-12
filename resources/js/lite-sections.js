@@ -208,6 +208,59 @@
         return list[name] || null;
     }
 
+    /**
+     * The panels currently on screen, so their field list can be replaced when
+     * the fieldset behind a section changes.
+     *
+     * The list a panel draws comes from `config.sets`, handed to it once when
+     * the publish form was built. Add a field in the Fieldsets screen and that
+     * list is a version behind with nothing to say so — the field is saved, it
+     * renders on the site, and the panel beside the preview simply does not
+     * have it. Reloading was the only cure.
+     */
+    var livePanels = [];
+
+    /**
+     * Gives every panel the section's fields as they are now.
+     *
+     * `setConfigFrom` hands back the set object itself, so writing `fields` on
+     * it writes into the config the panel renders from — except for its
+     * not-found answer, which is a fresh `{}` that would swallow the write in
+     * silence. A set that was found always carries `fields`, and that is the
+     * difference being checked.
+     *
+     * @returns {number} panels updated
+     */
+    function refreshSetFields(handle, fields) {
+        var updated = 0;
+        var i;
+        var set;
+
+        if (!handle || !Array.isArray(fields)) {
+            return 0;
+        }
+
+        for (i = 0; i < livePanels.length; i++) {
+            set = setConfigFrom(livePanels[i].config, handle);
+
+            if (!set || !set.fields) {
+                continue;
+            }
+
+            set.fields = fields;
+
+            // The set object is reached through a prop rather than through this
+            // component's own reactive state, so nothing has been told.
+            if (typeof livePanels[i].$forceUpdate === 'function') {
+                livePanels[i].$forceUpdate();
+            }
+
+            updated++;
+        }
+
+        return updated;
+    }
+
     function setConfigFrom(config, handle) {
         var groups = (config && config.sets) || [];
         var i;
@@ -860,6 +913,7 @@
             },
 
             mounted: function () {
+                livePanels.push(this);
                 markLiteAsWide(this.$el);
                 ensureLiteFieldHeights(document);
 
@@ -888,6 +942,12 @@
             },
 
             beforeUnmount: function () {
+                var at = livePanels.indexOf(this);
+
+                if (at !== -1) {
+                    livePanels.splice(at, 1);
+                }
+
                 unbindLite(this);
                 window.removeEventListener(FOCUS, this.onFocus);
                 window.removeEventListener(WARM, this.onWarm);
@@ -2461,6 +2521,13 @@
     }
 
     function boot() {
+        // Here rather than at module scope: `window.sve` is assigned in
+        // addon.js, and this file's IIFE can run before that — an assignment up
+        // there lands on nothing and is never missed until something calls it.
+        if (window.sve) {
+            window.sve.refreshLiteSetFields = refreshSetFields;
+        }
+
         register();
         wrapSolo();
         interceptPreviewClicks();
@@ -2491,6 +2558,15 @@
                 window.clearInterval(timer);
             }
         }, 50);
+    }
+
+    // Twice on purpose. This file is a lazy chunk — it arrives when a section
+    // panel first opens — so by then `window.sve` is long since assigned and
+    // this is the assignment that counts. `boot()` does it again because the
+    // order is not guaranteed, and an assignment that lands on nothing is the
+    // kind of miss nobody notices until a refresh quietly does nothing.
+    if (window.sve) {
+        window.sve.refreshLiteSetFields = refreshSetFields;
     }
 
     if (window.Statamic && typeof Statamic.booting === 'function') {

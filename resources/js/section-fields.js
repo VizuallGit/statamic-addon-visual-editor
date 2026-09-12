@@ -122,6 +122,14 @@ export async function refreshFieldsForType(win, setHandle) {
     }
   }
 
+  // And the field *list*, which meta does not carry. Without this a field added
+  // in the overlay is saved and real but absent from the panel until a reload —
+  // the panel draws its list from the set config the publish form was built
+  // with, and that is a snapshot from page load.
+  if (Array.isArray(meta.definitions) && typeof sve.refreshLiteSetFields === 'function') {
+    sve.refreshLiteSetFields(setHandle, meta.definitions);
+  }
+
   return touched;
 }
 
