@@ -7496,8 +7496,8 @@ export function createMessageListener(doc = document, win = window) {
       sve.handleAiTextGenerate?.(data, doc, win);
     } else if (data.type === 'ai-text-apply') {
       sve.handleAiTextApply?.(data, doc, win);
-    } else if (data.type === 'ai-text-open-keywords') {
-      sve.handleAiTextOpenKeywords?.(data, doc, win);
+    } else if (data.type === 'ai-text-set-keywords') {
+      sve.handleAiTextSetKeywords?.(data, doc, win);
     } else if (data.type === 'sve-pill-box-request') {
       const pill = doc.getElementById(LP_BACK_ID);
 

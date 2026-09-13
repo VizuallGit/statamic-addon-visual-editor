@@ -15,7 +15,6 @@
 import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
-import { handleFieldFocus } from './cp.js';
 import {
   activeContainers,
   dataGet,
@@ -431,7 +430,6 @@ export async function handleAiTextGenerate(data, doc, win) {
         text: stored || data.text || '',
         instruction: data.instruction || '',
         count: data.count || 1,
-        words: data.words || 0,
         avoid: Array.isArray(data.avoid) ? data.avoid : [],
         keywords: pageKeywords(doc),
         page: entryTitle(doc, win),
@@ -476,22 +474,19 @@ export async function handleAiTextGenerate(data, doc, win) {
  * preview, and the Bard fieldtype picks up a value changed from outside.
  */
 /**
- * The plus beside the keywords: open the field they come from.
+ * A keyword typed in the panel, written into the page's own field.
  *
- * The same path a click in the preview takes to a field — open the left panel,
- * then let handleFieldFocus switch to the tab that holds it and focus it. The
- * handle is whichever of the known spellings this blueprint actually uses, so a
- * site with `keywords` and one with `meta_keywords` both land in the right box.
+ * Goes into the form like any other edit — dirty, visible in the SEO tab, and
+ * the user's to save or discard. If the blueprint has no keywords field there
+ * is nothing to write to, and the panel keeps the word for this session only.
  */
-export function handleAiTextOpenKeywords(data, doc, win) {
-  const handle = keywordHandle(doc) || KEYWORD_HANDLES[0];
+export function handleAiTextSetKeywords(data, doc, win) {
+  if (!Array.isArray(data.keywords)) {
+    return;
+  }
 
-  sve.setLpCollapsed?.(win, false);
-  setTimeout(() => handleFieldFocus(handle, doc), 120);
-}
+  const words = data.keywords.filter((w) => typeof w === 'string' && w.trim() !== '');
 
-/** Which keyword field this blueprint has, by looking at the form's values. */
-function keywordHandle(doc) {
   for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
@@ -501,12 +496,12 @@ function keywordHandle(doc) {
 
     for (const handle of KEYWORD_HANDLES) {
       if (handle in values) {
-        return handle;
+        container.setFieldValue(handle, words);
+
+        return;
       }
     }
   }
-
-  return null;
 }
 
 export function handleAiTextApply(data, doc, win) {
@@ -603,4 +598,4 @@ sve.syncAiTextToPreview = syncAiTextToPreview;
 sve.handleAiTextOpen = handleAiTextOpen;
 sve.handleAiTextGenerate = handleAiTextGenerate;
 sve.handleAiTextApply = handleAiTextApply;
-sve.handleAiTextOpenKeywords = handleAiTextOpenKeywords;
+sve.handleAiTextSetKeywords = handleAiTextSetKeywords;

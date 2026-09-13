@@ -36,10 +36,13 @@ const COUNT_LONG = 3;
 /** Words past which a text counts as a long paragraph rather than a line. */
 const LONG_TEXT_WORDS = 50;
 
+/** One corner radius for the panel and everything inside it. */
+const RADIUS = '4px';
+
 /** Keywords and the add button wear the same quiet chip as the controls below. */
 const CHIP_STYLE =
   'all:unset;box-sizing:border-box;display:inline-flex;align-items:center;' +
-  'padding:0.1875rem 0.5rem;border-radius:999px;font-size:0.6875rem;line-height:1.5;' +
+  'padding:0.1875rem 0.5rem;border-radius:4px;font-size:0.6875rem;line-height:1.5;' +
   'border:1px solid var(--sve-ai-border);background:var(--sve-ai-chip);color:var(--sve-ai-fg);';
 
 /** A long suggestion scrolls inside its own row instead of stretching the panel. */
@@ -445,7 +448,7 @@ function openPopover(target, mark) {
     'position:fixed;z-index:2147483400;width:min(22rem,calc(100vw - 1.5rem));' +
     'max-height:min(28rem,calc(100vh - 2rem));display:flex;flex-direction:column;' +
     'background:var(--sve-ai-bg);color:var(--sve-ai-fg);' +
-    'border:1px solid var(--sve-ai-border);border-radius:0.75rem;' +
+    'border:1px solid var(--sve-ai-border);border-radius:4px;' +
     'box-shadow:var(--sve-ai-shadow);overflow:hidden;' +
     'font:400 0.8125rem/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;';
 
@@ -472,8 +475,7 @@ function openPopover(target, mark) {
     fieldtype,
     requestId: `sve-ai-text-${++seq}`,
     suggestions: [],
-    // Seeded from what is there now, rounded to something a person would say.
-    words: roundWords(wordCount(current)),
+    addingKeyword: false,
     busy: false,
     error: '',
     keywords: { page: [], site: [] },
@@ -516,7 +518,7 @@ function kindOf(el, fieldtype) {
  * What makes three the right number is the length of what comes back.
  */
 function countFor(session) {
-  return session.words >= LONG_TEXT_WORDS ? COUNT_LONG : COUNT_SHORT;
+  return wordCount(session.current) >= LONG_TEXT_WORDS ? COUNT_LONG : COUNT_SHORT;
 }
 
 function wordCount(text) {
@@ -525,23 +527,6 @@ function wordCount(text) {
   return trimmed ? trimmed.split(/\s+/).length : 0;
 }
 
-/**
- * A number a person would actually say out loud.
- *
- * "About 47 words" is a measurement, not a brief. Rounded, the field reads as
- * the rough guide it is, and nudging it to 60 is one keystroke.
- */
-function roundWords(n) {
-  if (!n) {
-    return 20;
-  }
-
-  if (n <= 12) {
-    return Math.max(3, n);
-  }
-
-  return n <= 60 ? Math.round(n / 5) * 5 : Math.round(n / 10) * 10;
-}
 
 function normalize(text) {
   return text.replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
@@ -605,10 +590,12 @@ function render() {
   close.innerHTML = CLOSE_ICON;
   close.title = t('ai_text_close');
   close.setAttribute('aria-label', t('ai_text_close'));
+  // Filled and inverted: a dark disc with a light glyph on a light panel, a
+  // light disc with a dark glyph on a dark one.
   close.style.cssText =
-    'all:unset;cursor:pointer;width:1.5rem;height:1.5rem;display:flex;align-items:center;' +
-    'justify-content:center;border-radius:0.375rem;color:var(--sve-ai-muted);';
-  close.querySelector('svg').style.cssText = 'width:0.875rem;height:0.875rem;display:block;';
+    'all:unset;cursor:pointer;width:1.25rem;height:1.25rem;display:flex;align-items:center;' +
+    'justify-content:center;border-radius:4px;background:var(--sve-ai-fg);color:var(--sve-ai-bg);';
+  close.querySelector('svg').style.cssText = 'width:0.75rem;height:0.75rem;display:block;';
   close.addEventListener('click', closePopover);
 
   head.append(title, close);
@@ -639,14 +626,13 @@ function render() {
     session.instruction ?? (session.current.length <= PREFILL_MAX ? session.current : '');
   input.style.cssText =
     'box-sizing:border-box;width:100%;padding:0.4375rem 0.5rem;border:1px solid var(--sve-ai-border);' +
-    'border-radius:0.375rem;font:inherit;color:var(--sve-ai-fg);background:var(--sve-ai-field);';
+    'border-radius:4px;font:inherit;color:var(--sve-ai-fg);background:var(--sve-ai-field);';
   input.addEventListener('input', () => {
     session.instruction = input.value;
   });
 
   session.input = input;
   form.appendChild(input);
-  form.appendChild(lengthRow(doc));
   form.appendChild(submitRow(doc));
   body.appendChild(form);
 
@@ -655,7 +641,7 @@ function render() {
 
     error.textContent = session.error;
     error.style.cssText =
-      'padding:0.4375rem 0.5rem;border-radius:0.375rem;background:var(--sve-ai-error-bg);color:var(--sve-ai-error);';
+      'padding:0.4375rem 0.5rem;border-radius:4px;background:var(--sve-ai-error-bg);color:var(--sve-ai-error);';
     body.appendChild(error);
   }
 
@@ -714,8 +700,9 @@ function keywordRow(doc) {
     row.appendChild(span);
   });
 
-  // Somewhere to add more without leaving the preview: it opens the SEO tab in
-  // the left panel with the keywords field focused.
+  // Add one without leaving the panel. The value belongs to the form behind the
+  // preview, but walking over there to type a word costs you the place you were
+  // working in — so the field comes here instead.
   const add = doc.createElement('button');
 
   add.type = 'button';
@@ -723,72 +710,80 @@ function keywordRow(doc) {
   add.title = t('ai_text_add_keywords');
   add.setAttribute('aria-label', t('ai_text_add_keywords'));
   add.style.cssText =
-    CHIP_STYLE + 'cursor:pointer;font-weight:600;padding:0.125rem 0.5rem;line-height:1.5;';
+    'all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;' +
+    'padding:0.1875rem 0.5rem;border-radius:4px;font-size:0.6875rem;line-height:1.5;' +
+    'cursor:pointer;font-weight:700;background:var(--sve-ai-primary);color:#fff;';
   add.addEventListener('click', () => {
-    post({ type: 'ai-text-open-keywords', requestId: session.requestId });
-    closePopover();
+    session.addingKeyword = true;
+    render();
   });
   row.appendChild(add);
 
   wrap.append(label, row);
 
+  if (session.addingKeyword) {
+    const entry = doc.createElement('input');
+
+    entry.type = 'text';
+    entry.placeholder = t('ai_text_keyword_placeholder');
+    entry.style.cssText =
+      'box-sizing:border-box;width:100%;margin-top:0.125rem;padding:0.25rem 0.4375rem;' +
+      'border-radius:4px;border:1px solid var(--sve-ai-border);' +
+      'background:var(--sve-ai-field);color:var(--sve-ai-fg);font:inherit;font-size:0.6875rem;';
+
+    const commit = (keepOpen) => {
+      const word = entry.value.trim();
+
+      if (word) {
+        addKeyword(word);
+      }
+
+      session.addingKeyword = keepOpen && !!word;
+      render();
+    };
+
+    entry.addEventListener('keydown', (e) => {
+      // Enter adds and leaves the field open, so several can be typed in a row.
+      // Escape backs out of the field without closing the whole panel.
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        commit(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        session.addingKeyword = false;
+        render();
+      }
+    });
+    entry.addEventListener('blur', () => commit(false));
+
+    wrap.appendChild(entry);
+    requestAnimationFrame(() => entry.focus());
+  }
+
   return wrap;
 }
 
 /**
- * Roughly how long the new text should be.
+ * A keyword typed into the panel.
  *
- * This replaces the tone buttons (shorter / longer / more concrete / more
- * keywords). Those were four ways of saying "not like that"; length is the one
- * thing a person actually knows up front, and it is the one the layout cares
- * about. It starts at the length of what is there now, so leaving it alone
- * means "about this long".
+ * It always joins the PAGE's list, even when the site's were the ones on show:
+ * the moment this page names a keyword of its own, that is what the page is
+ * about, and the site list steps back to being the fallback it was.
  */
-function lengthRow(doc) {
-  const t = ctx.t;
-  const row = doc.createElement('div');
+function addKeyword(word) {
+  const page = session.keywords.page.slice();
 
-  row.style.cssText = 'display:flex;align-items:center;gap:0.375rem;';
+  if (page.some((w) => w.toLowerCase() === word.toLowerCase())) {
+    return;
+  }
 
-  const label = doc.createElement('label');
+  page.push(word);
+  session.keywords = { page, site: session.keywords.site };
 
-  label.textContent = t('ai_text_about');
-  label.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;';
-
-  const input = doc.createElement('input');
-
-  input.type = 'number';
-  input.min = '1';
-  input.max = '2000';
-  input.value = String(session.words);
-  input.disabled = session.busy;
-  input.style.cssText =
-    'box-sizing:border-box;width:4rem;padding:0.1875rem 0.375rem;border-radius:0.375rem;' +
-    'border:1px solid var(--sve-ai-border);background:var(--sve-ai-field);' +
-    'color:var(--sve-ai-fg);font:inherit;font-size:0.6875rem;';
-  input.addEventListener('input', () => {
-    const n = parseInt(input.value, 10);
-
-    if (Number.isFinite(n) && n > 0) {
-      session.words = Math.min(2000, n);
-    }
-  });
-  // Enter in the number field means "go", like Enter in the text field.
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      generate({ fresh: true });
-    }
-  });
-
-  const unit = doc.createElement('span');
-
-  unit.textContent = t('ai_text_words');
-  unit.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;';
-
-  row.append(label, input, unit);
-
-  return row;
+  // The form owns the value; this side only asks for the change.
+  post({ type: 'ai-text-set-keywords', requestId: session.requestId, keywords: page });
 }
 
 function submitRow(doc) {
@@ -803,7 +798,7 @@ function submitRow(doc) {
   submit.textContent = session.busy ? t('ai_text_working') : t('ai_text_generate');
   submit.disabled = session.busy;
   submit.style.cssText =
-    'all:unset;cursor:pointer;padding:0.375rem 0.75rem;border-radius:0.375rem;font-weight:600;' +
+    'all:unset;cursor:pointer;padding:0.375rem 0.75rem;border-radius:4px;font-weight:600;' +
     'font-size:0.75rem;background:var(--sve-ai-primary);color:#fff;text-align:center;' +
     (session.busy ? 'opacity:0.6;cursor:default;' : '');
 
@@ -845,7 +840,7 @@ function suggestionList(doc) {
     row.type = 'button';
     row.style.cssText =
       'all:unset;cursor:pointer;box-sizing:border-box;display:flex;gap:0.5rem;width:100%;' +
-      'padding:0.5rem;border-radius:0.5rem;border:1px solid var(--sve-ai-row-border);' +
+      'padding:0.5rem;border-radius:4px;border:1px solid var(--sve-ai-row-border);' +
       'background:var(--sve-ai-row);color:var(--sve-ai-fg);text-align:left;';
 
     const number = doc.createElement('span');
@@ -853,7 +848,7 @@ function suggestionList(doc) {
     number.textContent = String(i + 1);
     number.style.cssText =
       'flex:0 0 auto;width:1.125rem;height:1.125rem;display:flex;align-items:center;' +
-      'justify-content:center;border-radius:999px;' +
+      'justify-content:center;border-radius:4px;' +
       'background:var(--sve-ai-primary);color:#fff;font-size:0.6875rem;font-weight:600;';
 
     const body = doc.createElement('span');
@@ -882,7 +877,7 @@ function suggestionList(doc) {
   more.textContent = session.busy ? t('ai_text_working') : t('ai_text_more');
   more.disabled = session.busy;
   more.style.cssText =
-    'all:unset;cursor:pointer;padding:0.375rem 0.5rem;border-radius:0.375rem;font-size:0.75rem;' +
+    'all:unset;cursor:pointer;padding:0.375rem 0.5rem;border-radius:4px;font-size:0.75rem;' +
     'border:1px dashed var(--sve-ai-border);color:var(--sve-ai-muted);text-align:center;' +
     (session.busy ? 'opacity:0.5;cursor:default;' : '');
   more.addEventListener('click', () => {
@@ -1010,7 +1005,6 @@ function generate({ fresh }) {
     text: session.current,
     instruction: (session.instruction ?? session.input?.value ?? '').trim(),
     count: countFor(session),
-    words: session.words,
     avoid: session.suggestions,
   });
 }
