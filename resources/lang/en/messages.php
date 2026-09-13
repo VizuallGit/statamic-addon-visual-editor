@@ -699,6 +699,9 @@ return [
     'ai_text_mark' => 'Suggest text with AI',
     'ai_text_title' => 'Suggest text',
     'ai_text_placeholder' => 'What should it say? (optional)',
+    'ai_text_about' => 'About',
+    'ai_text_words' => 'words',
+    'ai_text_add_keywords' => 'Add keywords in SEO',
     'ai_text_generate' => 'Suggest',
     'ai_text_more' => 'More suggestions',
     'ai_text_regenerate' => 'Try again',
@@ -715,10 +718,6 @@ return [
     'ai_text_denied' => 'That text is not stored in a field this can write to.',
     'ai_text_applied' => 'Inserted — remember to save',
     'ai_text_close' => 'Close',
-    'ai_text_tone_shorter' => 'Shorter',
-    'ai_text_tone_longer' => 'Longer',
-    'ai_text_tone_sharper' => 'More concrete',
-    'ai_text_tone_keywords' => 'More keywords',
     'ai_text_hint_hover' => 'Point at a suggestion to see it on the page. Click to insert.',
 
     // Who may see a Live Preview toolbar icon (Addons → Visual Editor)

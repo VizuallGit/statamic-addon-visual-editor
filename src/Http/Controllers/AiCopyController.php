@@ -30,6 +30,7 @@ class AiCopyController
                 'text' => (string) $request->input('text', ''),
                 'instruction' => (string) $request->input('instruction', ''),
                 'count' => (int) $request->input('count', 1),
+                'words' => (int) $request->input('words', 0),
                 'avoid' => is_array($request->input('avoid')) ? $request->input('avoid') : [],
                 'keywords' => is_array($keywords) ? $keywords : Keywords::clean($keywords),
                 'page' => (string) $request->input('page', ''),

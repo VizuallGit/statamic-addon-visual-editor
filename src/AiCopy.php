@@ -33,6 +33,7 @@ class AiCopy
      *     text?: string,
      *     instruction?: string,
      *     count?: int,
+     *     words?: int,
      *     avoid?: list<string>,
      *     keywords?: list<string>,
      *     page?: string,
@@ -86,12 +87,18 @@ class AiCopy
         return in_array($kind, ['heading', 'rich', 'text'], true) ? $kind : 'text';
     }
 
-    protected static function brief(string $kind, string $current): string
+    protected static function brief(string $kind, string $current, int $words = 0): string
     {
-        $words = $current === '' ? 0 : count(preg_split('/\s+/', $current) ?: []);
+        // The asked-for length wins. It starts at the current length in the
+        // panel, so leaving it alone still means "about this long" — but a
+        // person who types 60 has said something the current text cannot.
+        if ($words < 1) {
+            $words = $current === '' ? 0 : count(preg_split('/\s+/', $current) ?: []);
+        }
+
         $length = $words > 0
-            ? "The text there now is about {$words} words. Stay close to that — this has to fit a layout that is already built."
-            : 'The field is empty, so there is no length to match. Keep it tight.';
+            ? "AIM FOR ABOUT {$words} WORDS. Roughly — a handful either way is fine, but not half and not double. This has to fit a layout that is already built."
+            : 'Keep it tight.';
 
         return match ($kind) {
             'heading' => <<<TXT
@@ -125,7 +132,7 @@ TXT,
         $section = static::clip(trim((string) ($request['section'] ?? '')), 120);
         $label = static::clip(trim((string) ($request['label'] ?? '')), 120);
         $locale = static::language();
-        $brief = static::brief($kind, $current);
+        $brief = static::brief($kind, $current, max(0, (int) ($request['words'] ?? 0)));
 
         if ($keywords === []) {
             $keywordBlock = 'THERE ARE NO KEYWORDS. Write from the current text and the page title, and do not invent a subject.';

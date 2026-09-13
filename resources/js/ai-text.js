@@ -15,6 +15,7 @@
 import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
+import { handleFieldFocus } from './cp.js';
 import {
   activeContainers,
   dataGet,
@@ -430,6 +431,7 @@ export async function handleAiTextGenerate(data, doc, win) {
         text: stored || data.text || '',
         instruction: data.instruction || '',
         count: data.count || 1,
+        words: data.words || 0,
         avoid: Array.isArray(data.avoid) ? data.avoid : [],
         keywords: pageKeywords(doc),
         page: entryTitle(doc, win),
@@ -473,6 +475,40 @@ export async function handleAiTextGenerate(data, doc, win) {
  * does the rest: the values watcher marks the form dirty and re-renders the
  * preview, and the Bard fieldtype picks up a value changed from outside.
  */
+/**
+ * The plus beside the keywords: open the field they come from.
+ *
+ * The same path a click in the preview takes to a field — open the left panel,
+ * then let handleFieldFocus switch to the tab that holds it and focus it. The
+ * handle is whichever of the known spellings this blueprint actually uses, so a
+ * site with `keywords` and one with `meta_keywords` both land in the right box.
+ */
+export function handleAiTextOpenKeywords(data, doc, win) {
+  const handle = keywordHandle(doc) || KEYWORD_HANDLES[0];
+
+  sve.setLpCollapsed?.(win, false);
+  setTimeout(() => handleFieldFocus(handle, doc), 120);
+}
+
+/** Which keyword field this blueprint has, by looking at the form's values. */
+function keywordHandle(doc) {
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    for (const handle of KEYWORD_HANDLES) {
+      if (handle in values) {
+        return handle;
+      }
+    }
+  }
+
+  return null;
+}
+
 export function handleAiTextApply(data, doc, win) {
   const found = resolveField(data, doc);
 
@@ -567,3 +603,4 @@ sve.syncAiTextToPreview = syncAiTextToPreview;
 sve.handleAiTextOpen = handleAiTextOpen;
 sve.handleAiTextGenerate = handleAiTextGenerate;
 sve.handleAiTextApply = handleAiTextApply;
+sve.handleAiTextOpenKeywords = handleAiTextOpenKeywords;

@@ -36,6 +36,12 @@ const COUNT_LONG = 3;
 /** Words past which a text counts as a long paragraph rather than a line. */
 const LONG_TEXT_WORDS = 50;
 
+/** Keywords and the add button wear the same quiet chip as the controls below. */
+const CHIP_STYLE =
+  'all:unset;box-sizing:border-box;display:inline-flex;align-items:center;' +
+  'padding:0.1875rem 0.5rem;border-radius:999px;font-size:0.6875rem;line-height:1.5;' +
+  'border:1px solid var(--sve-ai-border);background:var(--sve-ai-chip);color:var(--sve-ai-fg);';
+
 /** A long suggestion scrolls inside its own row instead of stretching the panel. */
 const SUGGESTION_MAX_HEIGHT = '11rem';
 
@@ -466,6 +472,8 @@ function openPopover(target, mark) {
     fieldtype,
     requestId: `sve-ai-text-${++seq}`,
     suggestions: [],
+    // Seeded from what is there now, rounded to something a person would say.
+    words: roundWords(wordCount(current)),
     busy: false,
     error: '',
     keywords: { page: [], site: [] },
@@ -508,9 +516,31 @@ function kindOf(el, fieldtype) {
  * What makes three the right number is the length of what comes back.
  */
 function countFor(session) {
-  const words = session.current ? session.current.trim().split(/\s+/).length : 0;
+  return session.words >= LONG_TEXT_WORDS ? COUNT_LONG : COUNT_SHORT;
+}
 
-  return words >= LONG_TEXT_WORDS ? COUNT_LONG : COUNT_SHORT;
+function wordCount(text) {
+  const trimmed = (text || '').trim();
+
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
+/**
+ * A number a person would actually say out loud.
+ *
+ * "About 47 words" is a measurement, not a brief. Rounded, the field reads as
+ * the rough guide it is, and nudging it to 60 is one keystroke.
+ */
+function roundWords(n) {
+  if (!n) {
+    return 20;
+  }
+
+  if (n <= 12) {
+    return Math.max(3, n);
+  }
+
+  return n <= 60 ? Math.round(n / 5) * 5 : Math.round(n / 10) * 10;
 }
 
 function normalize(text) {
@@ -616,7 +646,7 @@ function render() {
 
   session.input = input;
   form.appendChild(input);
-  form.appendChild(toneRow(doc));
+  form.appendChild(lengthRow(doc));
   form.appendChild(submitRow(doc));
   body.appendChild(form);
 
@@ -680,11 +710,25 @@ function keywordRow(doc) {
     const span = doc.createElement('span');
 
     span.textContent = word;
-    span.style.cssText =
-      'padding:0.125rem 0.4375rem;border-radius:999px;font-size:0.6875rem;line-height:1.5;' +
-      'background:var(--sve-ai-primary);color:#fff;font-weight:600;';
+    span.style.cssText = CHIP_STYLE;
     row.appendChild(span);
   });
+
+  // Somewhere to add more without leaving the preview: it opens the SEO tab in
+  // the left panel with the keywords field focused.
+  const add = doc.createElement('button');
+
+  add.type = 'button';
+  add.textContent = '+';
+  add.title = t('ai_text_add_keywords');
+  add.setAttribute('aria-label', t('ai_text_add_keywords'));
+  add.style.cssText =
+    CHIP_STYLE + 'cursor:pointer;font-weight:600;padding:0.125rem 0.5rem;line-height:1.5;';
+  add.addEventListener('click', () => {
+    post({ type: 'ai-text-open-keywords', requestId: session.requestId });
+    closePopover();
+  });
+  row.appendChild(add);
 
   wrap.append(label, row);
 
@@ -692,47 +736,57 @@ function keywordRow(doc) {
 }
 
 /**
- * The four asks that do not need typing.
+ * Roughly how long the new text should be.
  *
- * A tone button is a whole request, not a filter on the last one: it fills the
- * instruction and sends. That is why they are here and not next to the list —
- * "shorter" means "suggest a shorter one", and it is worth nothing without a
- * suggestion coming back.
+ * This replaces the tone buttons (shorter / longer / more concrete / more
+ * keywords). Those were four ways of saying "not like that"; length is the one
+ * thing a person actually knows up front, and it is the one the layout cares
+ * about. It starts at the length of what is there now, so leaving it alone
+ * means "about this long".
  */
-function toneRow(doc) {
+function lengthRow(doc) {
   const t = ctx.t;
   const row = doc.createElement('div');
 
-  row.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.25rem;';
+  row.style.cssText = 'display:flex;align-items:center;gap:0.375rem;';
 
-  const tones = [
-    ['ai_text_tone_shorter', 'Make it shorter than it is now.'],
-    ['ai_text_tone_longer', 'Make it a little longer and fuller than it is now.'],
-    ['ai_text_tone_sharper', 'Make it more concrete — say the actual thing, drop the filler.'],
-    ['ai_text_tone_keywords', 'Work the page keywords in harder, still as natural sentences.'],
-  ];
+  const label = doc.createElement('label');
 
-  tones.forEach(([key, instruction]) => {
-    const btn = doc.createElement('button');
+  label.textContent = t('ai_text_about');
+  label.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;';
 
-    btn.type = 'button';
-    btn.textContent = t(key);
-    btn.disabled = session.busy;
-    btn.style.cssText =
-      'all:unset;cursor:pointer;padding:0.1875rem 0.5rem;border-radius:999px;font-size:0.6875rem;' +
-      'border:1px solid var(--sve-ai-border);color:var(--sve-ai-fg);' +
-      'background:var(--sve-ai-chip);' +
-      (session.busy ? 'opacity:0.5;cursor:default;' : '');
-    btn.addEventListener('click', () => {
-      if (session.busy) {
-        return;
-      }
+  const input = doc.createElement('input');
 
-      session.instruction = instruction;
-      generate({ fresh: true });
-    });
-    row.appendChild(btn);
+  input.type = 'number';
+  input.min = '1';
+  input.max = '2000';
+  input.value = String(session.words);
+  input.disabled = session.busy;
+  input.style.cssText =
+    'box-sizing:border-box;width:4rem;padding:0.1875rem 0.375rem;border-radius:0.375rem;' +
+    'border:1px solid var(--sve-ai-border);background:var(--sve-ai-field);' +
+    'color:var(--sve-ai-fg);font:inherit;font-size:0.6875rem;';
+  input.addEventListener('input', () => {
+    const n = parseInt(input.value, 10);
+
+    if (Number.isFinite(n) && n > 0) {
+      session.words = Math.min(2000, n);
+    }
   });
+  // Enter in the number field means "go", like Enter in the text field.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      generate({ fresh: true });
+    }
+  });
+
+  const unit = doc.createElement('span');
+
+  unit.textContent = t('ai_text_words');
+  unit.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;';
+
+  row.append(label, input, unit);
 
   return row;
 }
@@ -956,6 +1010,7 @@ function generate({ fresh }) {
     text: session.current,
     instruction: (session.instruction ?? session.input?.value ?? '').trim(),
     count: countFor(session),
+    words: session.words,
     avoid: session.suggestions,
   });
 }

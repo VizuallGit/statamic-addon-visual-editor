@@ -693,6 +693,9 @@ return [
     'ai_text_mark' => 'Foreslå tekst med AI',
     'ai_text_title' => 'Foreslå tekst',
     'ai_text_placeholder' => 'Hvad skal der stå? (valgfrit)',
+    'ai_text_about' => 'Cirka',
+    'ai_text_words' => 'ord',
+    'ai_text_add_keywords' => 'Tilføj keywords under SEO',
     'ai_text_generate' => 'Foreslå',
     'ai_text_more' => 'Flere forslag',
     'ai_text_regenerate' => 'Prøv igen',
@@ -709,10 +712,6 @@ return [
     'ai_text_denied' => 'Den tekst ligger ikke i et felt, som dette kan skrive i.',
     'ai_text_applied' => 'Indsat — husk at gemme',
     'ai_text_close' => 'Luk',
-    'ai_text_tone_shorter' => 'Kortere',
-    'ai_text_tone_longer' => 'Længere',
-    'ai_text_tone_sharper' => 'Mere konkret',
-    'ai_text_tone_keywords' => 'Flere keywords',
     'ai_text_hint_hover' => 'Peg på et forslag for at se det på siden. Klik for at indsætte.',
 
     // Hvem der må se et ikon i Live Preview-topbaren (Addons → Visual Editor)
