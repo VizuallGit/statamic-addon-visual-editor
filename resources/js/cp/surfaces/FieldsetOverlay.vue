@@ -1,5 +1,9 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
+import { DRAG_DOTS_V } from '../../right-dock-tabs.js';
+
+const WIDTH_KEY = 'sve-fieldset-drawer-width';
+const MIN_WIDTH = 380;
 
 const props = defineProps({
   heading: { type: String, required: true },
@@ -13,6 +17,63 @@ const loading = ref(true);
 const frame = ref(null);
 // Off-screen for the first frame only, so the panel has somewhere to come from.
 const shown = ref(false);
+
+/**
+ * How wide the panel is, remembered between openings.
+ *
+ * Per browser, not per site: how much of the screen someone wants given to
+ * fields is a thing about their screen and their habit, and it would be rude to
+ * make them set it again every time.
+ */
+function maxWidth() {
+  return Math.max(MIN_WIDTH, window.innerWidth - 220);
+}
+
+function clampWidth(value) {
+  return Math.min(Math.max(Math.round(value), MIN_WIDTH), maxWidth());
+}
+
+function storedWidth() {
+  try {
+    const saved = Number(window.localStorage.getItem(WIDTH_KEY));
+
+    if (saved > 0) {
+      return clampWidth(saved);
+    }
+  } catch {
+    // Private windows and blocked site data: a default is a fine answer.
+  }
+
+  return clampWidth(Math.min(992, window.innerWidth * 0.55));
+}
+
+const width = ref(storedWidth());
+const dragging = ref(false);
+
+function onMove(event) {
+  width.value = clampWidth(window.innerWidth - event.clientX);
+}
+
+function endResize(event) {
+  dragging.value = false;
+  event.target?.releasePointerCapture?.(event.pointerId);
+  window.removeEventListener('pointermove', onMove);
+  window.removeEventListener('pointerup', endResize);
+
+  try {
+    window.localStorage.setItem(WIDTH_KEY, String(width.value));
+  } catch {
+    // Not being able to remember it costs a drag, not the edit.
+  }
+}
+
+function startResize(event) {
+  event.preventDefault();
+  dragging.value = true;
+  event.target?.setPointerCapture?.(event.pointerId);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', endResize);
+}
 
 /**
  * The Fieldsets screen is a whole Control Panel page, navigation and all, and
@@ -81,7 +142,18 @@ function onOverlay(event) {
 
 <template>
   <div class="sve-fs-overlay" @click="onOverlay">
-    <div class="sve-fs" :class="{ 'is-shown': shown }" @click.stop>
+    <div
+      class="sve-fs"
+      :class="{ 'is-shown': shown, 'is-dragging': dragging }"
+      :style="{ width: width + 'px', '--sve-fs-grip': DRAG_DOTS_V }"
+      @click.stop
+    >
+      <div
+        class="sve-fs__grip"
+        role="separator"
+        aria-orientation="vertical"
+        @pointerdown="startResize"
+      ></div>
       <div class="sve-fs__bar">
         <div class="sve-fs__title">
           {{ heading }}
@@ -115,9 +187,9 @@ function onOverlay(event) {
  * fields of the section still visible over there.
  */
 .sve-fs {
+  position: relative;
   display: flex;
   flex-direction: column;
-  width: min(62em, 94vw);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -130,6 +202,37 @@ function onOverlay(event) {
 }
 .sve-fs.is-shown {
   transform: translateX(0);
+}
+/* While dragging the width changes every frame; animating it fights the mouse. */
+.sve-fs.is-dragging {
+  transition: none;
+  user-select: none;
+}
+/*
+ * The same 16px strip with drag dots as the panels either side of the preview.
+ * A handle you have to recognise twice is a handle you have to look for twice.
+ */
+.sve-fs__grip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1rem;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 2;
+  background-color: var(--theme-color-gray-300, #d4d4d8);
+  background-image: var(--sve-fs-grip);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 7px 17px;
+}
+.sve-fs__grip:hover {
+  filter: brightness(1.1);
+}
+.sve-fs__bar,
+.sve-fs__body {
+  margin-left: 1rem;
 }
 @media (prefers-reduced-motion: reduce) {
   .sve-fs {
