@@ -52,8 +52,24 @@ export function aiTextReady(win) {
   return win.Statamic?.$config?.get?.('sveAiTextReady') === true;
 }
 
+/**
+ * The switch, in memory.
+ *
+ * Stored state is the backup, not the source. `chromeGet` namespaces its key by
+ * user id, and that id comes from `Statamic.$config` — which is not there in
+ * every window this is called from. The lookup then misses and answers "off"
+ * for a switch that is on, and the toolbar paints itself off half a second
+ * after you turned it on. Reading it once, and only when nothing is known yet,
+ * keeps every later caller on the same answer whatever window it holds.
+ */
+let aiTextOn = null;
+
 export function isAiTextOn(win) {
-  return chromeGet(win, ON_KEY) === '1';
+  if (aiTextOn === null) {
+    aiTextOn = chromeGet(win, ON_KEY) === '1';
+  }
+
+  return aiTextOn;
 }
 
 /**
@@ -69,6 +85,8 @@ export function toggleAiText(win) {
 
 export function setAiText(win, next) {
   const on = !!next;
+
+  aiTextOn = on;
 
   if (on) {
     chromeSet(win, ON_KEY, '1');

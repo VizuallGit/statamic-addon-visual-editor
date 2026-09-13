@@ -34,6 +34,7 @@ export const CHROME_KEYS = [
   'sve-code-dock-autosave',
   'sve-ai-panel-mode',
   'sve-ai-launcher-open',
+  'sve-ai-text-on',
   'sve-listview-tab',
   'sve-tw-strip',
 ];
