@@ -1,4 +1,25 @@
 <script setup>
+import { canEditFields, currentSetHandle, openFieldsetOverlay } from '../../section-fields.js';
+import { t } from '../../cp-t.js';
+
+const FIELDS =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>';
+
+const canFields = canEditFields(window);
+const fieldsLabel = t(window, 'section_fields');
+
+function onFields() {
+  const handle = currentSetHandle();
+
+  if (!handle) {
+    window.Statamic?.$toast?.error(t(window, 'section_fields_none'));
+
+    return;
+  }
+
+  openFieldsetOverlay(window, handle);
+}
+
 /**
  * One row in the HTML tree — a tag, or a section that has not been opened yet.
  *
@@ -160,6 +181,21 @@ function canHide(row) {
         :title="row.hidden ? ui.showTitle : ui.hideTitle"
         v-html="row.hidden ? EYE_OFF : EYE"
         @click.stop.prevent="ui.onHide?.(row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
+      <!--
+        The section's own fields, on the row that stands for the whole section.
+        Only there: every tag inside it belongs to the same fieldset, so an icon
+        on each would be the same button drawn twenty times.
+      -->
+      <button
+        v-if="canFields && row.depth === 0"
+        type="button"
+        data-sve-ht-fields
+        :title="fieldsLabel"
+        v-html="FIELDS"
+        @click.stop.prevent="onFields"
         @pointerdown.stop
         @dblclick.stop
       ></button>

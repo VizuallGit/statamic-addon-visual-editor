@@ -170,9 +170,6 @@ return [
     'html_tree_delete' => 'Delete',
 
     'section_fields' => 'Section fields',
-    'section_fields_refresh' => 'Reload the fields',
-    'section_fields_refreshed' => 'Fields updated',
-    'section_fields_nothing' => 'No section of that kind on the page.',
     'section_fields_none' => 'This section has no fieldset of its own.',
     'section_fields_failed' => 'The fields could not be opened.',
     'section_new' => 'New section',
