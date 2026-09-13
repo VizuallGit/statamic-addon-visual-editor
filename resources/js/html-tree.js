@@ -676,7 +676,22 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   }, 4000);
   renderHtmlTree(win);
 
-  sve.focusFromPreview?.(section.uid, doc, win, { clampToSection: true });
+  // Mount the section, then focus it — in that order, and with the wait in
+  // between.
+  //
+  // The panel beside the preview keeps only a handful of sections mounted, and
+  // the focus code bails on a set it cannot find in the DOM. A click on the
+  // page goes through the same mount but never notices, because it replays
+  // itself once the section has landed. Focusing straight after activating is
+  // focusing something that is not there yet: the tree and the dock moved, and
+  // the sidebar quietly went on showing the section before.
+  const focus = () => sve.focusFromPreview?.(section.uid, doc, win, { clampToSection: true });
+
+  if (typeof sve.openLiteSection === 'function') {
+    sve.openLiteSection(section.uid, doc, win, focus);
+  } else {
+    focus();
+  }
   sendToPreview(
     { source: 'statamic-visual-editor', type: 'sve-activate', ids: section.ids },
     win

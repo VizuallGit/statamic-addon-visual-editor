@@ -60,9 +60,17 @@ function onRefreshFields() {
 
   void (async () => {
     try {
-      await refreshFieldsForType(window, handle);
+      // Say what happened, not what was attempted. A refresh that reached no
+      // rows — nothing of this type on the page, the panel not open — reported
+      // success anyway, which is how a button that does nothing looks like a
+      // button that works.
+      const rows = await refreshFieldsForType(window, handle);
+
       ask('dock:refresh-preview');
-      window.Statamic?.$toast?.success(t(window, 'section_fields_refreshed'));
+
+      window.Statamic?.$toast?.[rows ? 'success' : 'info'](
+        t(window, rows ? 'section_fields_refreshed' : 'section_fields_nothing')
+      );
     } catch {
       window.Statamic?.$toast?.error(t(window, 'section_fields_failed'));
     } finally {

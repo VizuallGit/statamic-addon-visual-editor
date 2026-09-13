@@ -18,6 +18,7 @@
  */
 import { t } from './cp-t.js';
 import { ask } from './cp/bus.js';
+import { ensurePanel } from './lazy-panels.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
 
@@ -86,6 +87,13 @@ export async function fieldsetFor(win, handle) {
  * @returns {Promise<number>} how many rows were given the fresh meta
  */
 export async function refreshFieldsForType(win, setHandle) {
+  // `fetchSetMeta` and friends live in the section library, which is loaded on
+  // demand. Until it is, `sve.fetchSetMeta` is a placeholder that starts the
+  // load and returns undefined — so awaiting it yields nothing, the refresh
+  // reports zero rows, and the toast still says it worked. That is what "the
+  // reload button does nothing" was.
+  await ensurePanel('sections');
+
   const sve = win.sve;
 
   if (!sve?.fetchSetMeta || !sve.activeContainers || !sve.writeSetMeta) {

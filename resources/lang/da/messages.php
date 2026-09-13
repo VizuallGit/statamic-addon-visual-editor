@@ -169,6 +169,7 @@ return [
     'section_fields' => 'Sektionens felter',
     'section_fields_refresh' => 'Hent felterne igen',
     'section_fields_refreshed' => 'Felterne er opdateret',
+    'section_fields_nothing' => 'Ingen sektion af den type på siden.',
     'section_fields_none' => 'Denne sektion har ikke sit eget fieldset.',
     'section_fields_failed' => 'Felterne kunne ikke åbnes.',
     'section_new' => 'Ny sektion',

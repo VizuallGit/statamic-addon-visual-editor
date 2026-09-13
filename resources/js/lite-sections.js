@@ -1750,6 +1750,31 @@
         return section;
     }
 
+    /**
+     * Open a section the way a click on the page opens it, and say when it is
+     * really there.
+     *
+     * Activating alone is not enough to focus it: the panel keeps only a
+     * handful of sections mounted, and the focus code bails on a set it cannot
+     * find in the DOM. The click on the page never had this problem because it
+     * replays itself once the section has mounted; anything else calling in —
+     * the HTML tree, for one — needs the same wait, which is what `done` is.
+     */
+    function openLiteSection(uid, doc, view, done) {
+        var finish = typeof done === 'function' ? done : function () {};
+        var section = activateSection(uid);
+
+        if (!section) {
+            finish();
+
+            return false;
+        }
+
+        watchMountedSection(section, doc || document, view || window, true, finish);
+
+        return true;
+    }
+
     function warmSection(uid, doc, win) {
         var section = sectionUidFor(uid);
         var view = win || window;
@@ -2526,6 +2551,8 @@
         // there lands on nothing and is never missed until something calls it.
         if (window.sve) {
             window.sve.refreshLiteSetFields = refreshSetFields;
+            window.sve.activateLiteSection = activateSection;
+            window.sve.openLiteSection = openLiteSection;
         }
 
         register();
@@ -2567,6 +2594,8 @@
     // kind of miss nobody notices until a refresh quietly does nothing.
     if (window.sve) {
         window.sve.refreshLiteSetFields = refreshSetFields;
+        window.sve.activateLiteSection = activateSection;
+        window.sve.openLiteSection = openLiteSection;
     }
 
     if (window.Statamic && typeof Statamic.booting === 'function') {
