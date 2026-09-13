@@ -249,6 +249,17 @@
 
             set.fields = fields;
 
+            // And drop the panel's built config, or none of that is seen.
+            //
+            // `chunkedConfig` caches what it hands each row and decides the
+            // cache is still good by comparing the set object by identity —
+            // `cached.full === full`. Writing new fields into the set it
+            // already holds leaves that identity untouched, so the cache
+            // answers with the field list from before and the panel renders
+            // exactly what it rendered a moment ago. Measured: the write lands,
+            // the row count says it landed, and the screen does not move.
+            chunkCfgCache.delete(livePanels[i]);
+
             // The set object is reached through a prop rather than through this
             // component's own reactive state, so nothing has been told.
             if (typeof livePanels[i].$forceUpdate === 'function') {
