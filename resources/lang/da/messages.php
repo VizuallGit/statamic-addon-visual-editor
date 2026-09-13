@@ -714,6 +714,25 @@ return [
     'ai_text_hint_hover' => 'Peg på et forslag for at se det på siden. Klik for at indsætte.',
 
     // Hvem der må se et ikon i Live Preview-topbaren (Addons → Visual Editor)
+    // Structured data (schema.org JSON-LD)
+    'schema' => 'Strukturerede data',
+    'schema_title' => 'Strukturerede data',
+    'schema_site' => 'Hele sitet',
+    'schema_page' => 'Denne side',
+    'schema_hint' => 'schema.org JSON-LD. Skrives ind før </body> på den viste side — besøgende ser det aldrig.',
+    'schema_placeholder' => '{"@context":"https://schema.org","@type":"LocalBusiness","name":"…"}',
+    'schema_save' => 'Gem',
+    'schema_saved' => 'Gemt',
+    'schema_saving' => 'Gemmer…',
+    'schema_close' => 'Luk',
+    'schema_invalid' => 'Det er ikke gyldig JSON',
+    'schema_valid' => 'Gyldig JSON',
+    'schema_empty' => 'Der er ikke noget her endnu',
+    'schema_too_big' => 'Det er for langt til strukturerede data.',
+    'schema_not_object' => 'Strukturerede data skal være et JSON-objekt eller en liste af dem.',
+    'schema_no_target' => 'Ingen side at gemme det på.',
+    'schema_format' => 'Ryd op',
+
     'toolbar_access_everyone' => 'Alle',
     'toolbar_access_super' => 'Kun superbrugere',
     'toolbar_access_people' => 'Tilpas',

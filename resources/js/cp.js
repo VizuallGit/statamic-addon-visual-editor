@@ -2573,6 +2573,14 @@ export const TOOLBAR_ICONS = {
   // AI text. The chat's spark says "AI"; this says "AI on the words". Shared
   // with the marks in the preview — same tool, same glyph everywhere.
   aitext: aiTextIcon(15),
+  // Structured data: a document with braces on it. It is data *about* the page,
+  // which is why it is a page carrying a code mark rather than a plain file.
+  schema:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>' +
+    '<path d="M14 3v5h5"/>' +
+    '<path d="M10.5 12.5 9 14l1.5 1.5"/><path d="m13.5 12.5 1.5 1.5-1.5 1.5"/></svg>',
   site_css:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
@@ -2618,6 +2626,7 @@ export function ensureHeaderToolbar(win) {
     ensureSiteCssToolbarButton(win);
     ensureAiToolbarButton(win);
     ensureAiTextToolbarButton(win);
+    ensureSchemaToolbarButton(win);
     ensureCommentsToolbarButton(win);
     ensurePageEditsToolbarButton(win);
     ensureOutlineToolbarButton(win);
@@ -3158,6 +3167,57 @@ export function ensureAiToolbarButton(win) {
 }
 
 /**
+ * Structured data: schema.org JSON-LD for this page and for the site.
+ *
+ * A panel, not a preview tool — what it edits is never visible on the page, so
+ * there is nothing to point at and nothing to draw over.
+ */
+export function ensureSchemaToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  const existing = bar.querySelector('button[data-tab="schema"]');
+
+  if (!sve.schemaAllowed?.(win)) {
+    existing?.remove();
+
+    if (sve.isSchemaOpen?.(doc)) {
+      sve.closeSchema?.(win);
+    }
+
+    return;
+  }
+
+  if (existing) {
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'schema';
+  btn.dataset.iconVer = 'stairs-toc-20260821';
+  btn.title = t(win, 'schema');
+  btn.innerHTML = TOOLBAR_ICONS.schema;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.querySelector('svg')?.setAttribute('width', '15');
+  btn.querySelector('svg')?.setAttribute('height', '15');
+  btn.addEventListener('click', () => sve.toggleSchema?.(win));
+
+  const aitext = bar.querySelector('button[data-tab="aitext"]');
+
+  if (aitext) {
+    aitext.after(btn);
+  } else {
+    bar.appendChild(btn);
+  }
+}
+
+/**
  * AI text: the switch that puts a mark on every editable text on the page.
  *
  * A toggle rather than a panel — there is nothing to dock. What it opens is in
@@ -3661,6 +3721,7 @@ export function applyHeaderTab(win) {
   ensurePageEditsToolbarButton(win);
   ensureAiToolbarButton(win);
   ensureAiTextToolbarButton(win);
+  ensureSchemaToolbarButton(win);
   ensureOutlineToolbarButton(win);
   ensureHtmlTreeToolbarButton(win);
 
@@ -3831,6 +3892,8 @@ export function applyHeaderTab(win) {
             ? !!sve.pageEditsOpen?.()
           : tab === 'aitext'
             ? !!sve.isAiTextOn?.(win)
+          : tab === 'schema'
+            ? !!sve.isSchemaOpen?.(win.document)
           : tab === 'globals'
             ? sveState.headerTab === 'globals' || !!sve.isGlobalsOverlayOpen?.(win)
           : tab in docked

@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiCopyController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SchemaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
@@ -67,6 +68,7 @@ use MarioHamann\StatamicVisualEditor\Http\Middleware\EagerImagesInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsList;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectSchema;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalSectionStashController;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\OverrideGlobalSectionsInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\OverrideGlobalsInPreview;
@@ -215,6 +217,7 @@ class ServiceProvider extends AddonServiceProvider
             EagerImagesInPreview::class,
             InjectBridgeScript::class,
             InjectEditButton::class,
+            InjectSchema::class,
             OverrideGlobalsInPreview::class,
             OverrideGlobalSectionsInPreview::class,
         ],
@@ -737,6 +740,12 @@ class ServiceProvider extends AddonServiceProvider
                 ->name('sve.ai-copy');
             Route::get('/!/sve/ai-copy/keywords', [AiCopyController::class, 'keywords'])
                 ->name('sve.ai-copy.keywords');
+
+            // Structured data (schema.org JSON-LD) for this page and the site.
+            Route::get('/!/sve/schema', [SchemaController::class, 'show'])
+                ->name('sve.schema.show');
+            Route::post('/!/sve/schema', [SchemaController::class, 'store'])
+                ->name('sve.schema.store');
 
             Route::post('/!/sve/chrome-prefs', [ChromePrefsController::class, 'update'])
                 ->name('sve.chrome-prefs.update');

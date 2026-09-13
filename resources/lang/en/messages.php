@@ -719,6 +719,26 @@ return [
     'ai_text_close' => 'Close',
     'ai_text_hint_hover' => 'Point at a suggestion to see it on the page. Click to insert.',
 
+
+    // Structured data (schema.org JSON-LD)
+    'schema' => 'Structured data',
+    'schema_title' => 'Structured data',
+    'schema_site' => 'Whole site',
+    'schema_page' => 'This page',
+    'schema_hint' => 'schema.org JSON-LD. Written in before </body> on the rendered site — visitors never see it.',
+    'schema_placeholder' => '{"@context":"https://schema.org","@type":"LocalBusiness","name":"…"}',
+    'schema_save' => 'Save',
+    'schema_saved' => 'Saved',
+    'schema_saving' => 'Saving…',
+    'schema_close' => 'Close',
+    'schema_invalid' => 'That is not valid JSON',
+    'schema_valid' => 'Valid JSON',
+    'schema_empty' => 'Nothing here yet',
+    'schema_too_big' => 'That is too long for structured data.',
+    'schema_not_object' => 'Structured data has to be a JSON object, or a list of them.',
+    'schema_no_target' => 'No page to save this to.',
+    'schema_format' => 'Tidy up',
+
     // Who may see a Live Preview toolbar icon (Addons → Visual Editor)
     'toolbar_access_everyone' => 'Everyone',
     'toolbar_access_super' => 'Super Users Only',

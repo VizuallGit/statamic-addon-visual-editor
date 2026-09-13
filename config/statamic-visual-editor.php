@@ -162,6 +162,7 @@ return [
         'component_props' => false,
         'ai_panel' => false,
         'ai_text' => false,
+        'schema' => false,
         'comments' => true,
         // Nested under each toolbar toggle. Null = defaults
         // (template_dock, site_css and file_manager = super, the rest everyone).
@@ -177,6 +178,7 @@ return [
         'file_manager_access' => null,
         'ai_panel_access' => null,
         'ai_text_access' => null,
+        'schema_access' => null,
         'comments_access' => null,
         // Legacy all-in-one blob from the old settings screen. Still read
         // when a per-tool *_access key is missing.

@@ -36,6 +36,7 @@ class ToolbarAccess
         'file_manager',
         'ai_panel',
         'ai_text',
+        'schema',
         'comments',
     ];
 
@@ -59,6 +60,7 @@ class ToolbarAccess
         'file_manager' => self::AUDIENCE_SUPER,
         'ai_panel' => self::AUDIENCE_EVERYONE,
         'ai_text' => self::AUDIENCE_EVERYONE,
+        'schema' => self::AUDIENCE_SUPER,
         'comments' => self::AUDIENCE_EVERYONE,
     ];
 
