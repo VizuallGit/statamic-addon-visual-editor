@@ -3182,12 +3182,8 @@ export function ensureAiTextToolbarButton(win) {
   }
 
   if (existing) {
-    // Re-assert the state, don't just leave it. This runs on every toolbar sync
-    // — a preview render, a panel opening, a tab change — and whatever else the
-    // header does in between, the button that says "on" has to still say it
-    // afterwards. Setting it only at creation is why the highlight appeared and
-    // then went away again.
-    existing.setAttribute('aria-pressed', sve.isAiTextOn?.(win) ? 'true' : 'false');
+    // The highlight is applyHeaderTab's job, through paintLpActiveControl —
+    // the same helper every other icon in this bar is painted by.
     sve.syncAiTextToPreview?.(win);
 
     return;
@@ -3203,9 +3199,6 @@ export function ensureAiTextToolbarButton(win) {
   btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
-  // `aria-pressed` is what the top bar's own CSS already reads — the hover rule
-  // excludes it by name. Saying "on" any other way is a second way of saying it.
-  btn.setAttribute('aria-pressed', sve.isAiTextOn?.(win) ? 'true' : 'false');
   btn.addEventListener('click', () => sve.toggleAiText?.(win));
 
   const ai = bar.querySelector('button[data-tab="ai"]');
@@ -3215,6 +3208,8 @@ export function ensureAiTextToolbarButton(win) {
   } else {
     bar.appendChild(btn);
   }
+
+  sve.paintLpActiveControl?.(btn, !!sve.isAiTextOn?.(win));
 
   if (sve.isAiTextOn?.(win)) {
     sve.syncAiTextToPreview?.(win);
@@ -3834,6 +3829,8 @@ export function applyHeaderTab(win) {
             ? isSiteCssOpen(win.document)
           : tab === 'edits'
             ? !!sve.pageEditsOpen?.()
+          : tab === 'aitext'
+            ? !!sve.isAiTextOn?.(win)
           : tab === 'globals'
             ? sveState.headerTab === 'globals' || !!sve.isGlobalsOverlayOpen?.(win)
           : tab in docked
@@ -7565,15 +7562,6 @@ export const CP_STYLES = `
 }
 #__sve-toolbar button[data-tab]:hover:not(:disabled):not([aria-pressed="true"]) {
   background: ${HEADER_ICON_HOVER} !important;
-}
-/* A toolbar icon that is switched on. The hover rule above already steps aside
-   for [aria-pressed="true"], which only makes sense if the pressed state paints
-   itself — it never did, so every tool that wants to look "on" had to invent its
-   own. This is that default: any icon setting aria-pressed gets it. */
-#__sve-toolbar button[data-tab][aria-pressed="true"] {
-  background: var(--theme-color-primary, #4530D8) !important;
-  color: #fff !important;
-  opacity: 1 !important;
 }
 #${LP_BACK_ID} {
   background: ${HEADER_ICON_HOVER} !important;

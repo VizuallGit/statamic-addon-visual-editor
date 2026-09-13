@@ -147,10 +147,10 @@ function paintToolbarButton(win) {
 
   const on = isAiTextOn(win);
 
-  // The top bar's own "switched on" look, from the shared rule in CP_STYLES.
-  // Nothing is styled here: an icon that paints itself is an icon that stops
-  // matching its neighbours the next time the toolbar is restyled.
-  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  // The bar's own painter — the one the device buttons, the code dock and the
+  // panel icon all go through. Nothing is styled here: an icon that paints
+  // itself is an icon that stops matching its neighbours.
+  sve.paintLpActiveControl?.(btn, on);
   btn.title = t(win, on ? 'ai_text_on' : 'ai_text_off');
 }
 
