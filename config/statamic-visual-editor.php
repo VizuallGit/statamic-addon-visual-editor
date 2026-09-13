@@ -111,6 +111,13 @@ return [
     | - ai_panel:          a chat that runs a local Cursor agent — in Live
     |                      Preview, and on its own page under Utilities. Off by
     |                      default. Who gets it sits under the toggle.
+    | - ai_text:           a switch in the Live Preview toolbar. On, every
+    |                      editable text on the page wears a small mark; clicking
+    |                      it suggests copy written against the page's keywords,
+    |                      with the site's keywords as background. It suggests
+    |                      only — nothing reaches the form until a suggestion is
+    |                      clicked, and nothing is saved. Same Cursor key as
+    |                      ai_panel. Off by default.
     | - file_manager:      a Utilities page that browses and edits this site's
     |                      own code files under `resources` (views, css, js,
     |                      lang), with new file / new folder / delete. Saving
@@ -154,6 +161,7 @@ return [
         'tailwind_dock' => false,
         'component_props' => false,
         'ai_panel' => false,
+        'ai_text' => false,
         'comments' => true,
         // Nested under each toolbar toggle. Null = defaults
         // (template_dock, site_css and file_manager = super, the rest everyone).
@@ -168,6 +176,7 @@ return [
         'site_css_access' => null,
         'file_manager_access' => null,
         'ai_panel_access' => null,
+        'ai_text_access' => null,
         'comments_access' => null,
         // Legacy all-in-one blob from the old settings screen. Still read
         // when a per-tool *_access key is missing.
@@ -278,6 +287,20 @@ return [
         'model' => env('STATAMIC_VISUAL_EDITOR_AI_MODEL', 'composer-2.5'),
         'node' => env('STATAMIC_VISUAL_EDITOR_NODE'),
         'rules' => env('STATAMIC_VISUAL_EDITOR_AI_RULES'),
+
+        /*
+         * The handle of the site-wide keywords field, for AI text.
+         *
+         * Looked for across the global sets, first one with a value wins — so a
+         * site that keeps its keywords in `site_settings` and one that keeps
+         * them in `seo` both work without naming the set. Change this only if
+         * the field is called something other than `keywords`.
+         *
+         * The *page's* keywords are not configured here: they are read from the
+         * open publish form, where `meta_keywords`, `keywords` and `seo_keywords`
+         * are all recognised.
+         */
+        'keywords_field' => 'keywords',
 
         /*
          * Hand the chat Statamic's own description of itself — the guidelines

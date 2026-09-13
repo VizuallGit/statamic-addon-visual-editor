@@ -31,6 +31,7 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\TemplatePropsFieldtype;
 use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\AiCopyController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CommentsController;
@@ -472,6 +473,7 @@ class ServiceProvider extends AddonServiceProvider
                 'sveEnabled' => Features::editorEnabled(),
                 'sveFeatures' => Features::visible(),
                 'sveAiReady' => AiChat::ready(),
+                'sveAiTextReady' => AiCopy::ready(),
                 'sveComments' => $this->commentsPayload(),
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
@@ -727,6 +729,14 @@ class ServiceProvider extends AddonServiceProvider
 
             Route::post('/!/sve/ai-chat', [AiChatController::class, 'store'])
                 ->name('sve.ai-chat');
+
+            // Copy suggestions for one text field, written against the page's
+            // keywords. Separate from ai-chat: this one never writes anything,
+            // and it answers with a list of strings rather than with markup.
+            Route::post('/!/sve/ai-copy', [AiCopyController::class, 'store'])
+                ->name('sve.ai-copy');
+            Route::get('/!/sve/ai-copy/keywords', [AiCopyController::class, 'keywords'])
+                ->name('sve.ai-copy.keywords');
 
             Route::post('/!/sve/chrome-prefs', [ChromePrefsController::class, 'update'])
                 ->name('sve.chrome-prefs.update');

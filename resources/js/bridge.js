@@ -5,6 +5,7 @@
 // Only activates when running inside an iframe (window.self !== window.top).
 
 import { findPickRoots, HT_PATH_ATTR, isPickChrome, stampHtmlPickAll, unstampHtmlPick } from './html-pick-align.js';
+import { handleAiTextMessage, initAiText } from './ai-text-bridge.js';
 
 const ACTIVE_ATTR = 'data-sid-active';
 const HOVER_ATTR = 'data-sid-hover';
@@ -8598,6 +8599,12 @@ export function createMessageReceiver(win) {
       return;
     }
 
+    // AI text owns every ai-text-* message and answers for all of them, so it
+    // is asked before the chain below rather than added to the end of it.
+    if (handleAiTextMessage(data)) {
+      return;
+    }
+
     if (data.type === 'sve-html-pick') {
       if (!data.on) {
         htmlPick = null;
@@ -9014,6 +9021,7 @@ export function initBridge(win = window) {
   // When the pointer leaves the iframe document (e.g. moves into the CP chrome),
   // immediately tell the CP to clear its hover outline.
   win.document.addEventListener('mouseleave', () => hoverHandler.reset(), true);
+  initAiText(win, t);
   win.addEventListener('message', createMessageReceiver(win));
 
   // Drag & drop reordering for [data-sid-orderable] rows.

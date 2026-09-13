@@ -33,6 +33,9 @@ import './sibling-sync.js';
 import './components/UniqueSets.js';
 import './components/SectionAccordion.js';
 import './inline-edit.js';
+// AI text. Sits beside inline editing on purpose: both answer the preview about
+// the same fields, and both need the publish containers inline-edit.js captures.
+import './ai-text.js';
 import './lazy-panels.js';
 // Not a panel. Patterns is only its front: the rest of the editor reaches into
 // this file for row ids, set meta, the section-message handlers and a dozen

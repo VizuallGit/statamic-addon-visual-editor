@@ -35,6 +35,7 @@ class ToolbarAccess
         'site_css',
         'file_manager',
         'ai_panel',
+        'ai_text',
         'comments',
     ];
 
@@ -57,6 +58,7 @@ class ToolbarAccess
         'site_css' => self::AUDIENCE_SUPER,
         'file_manager' => self::AUDIENCE_SUPER,
         'ai_panel' => self::AUDIENCE_EVERYONE,
+        'ai_text' => self::AUDIENCE_EVERYONE,
         'comments' => self::AUDIENCE_EVERYONE,
     ];
 
