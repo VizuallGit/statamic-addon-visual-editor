@@ -1193,6 +1193,29 @@ function onKeydown(e) {
 }
 
 /**
+ * A click anywhere else puts the panel away.
+ *
+ * Capture, because the marks and the panel stop propagation on their own
+ * clicks — in the bubble phase this would never hear about a click on a mark,
+ * and a click on the page would arrive after the thing it was meant to close.
+ * Both are excluded by asking what was actually hit: the panel's own buttons
+ * and inputs keep working, and a click on another mark still opens that one.
+ */
+function onPointerDown(e) {
+  if (!session) {
+    return;
+  }
+
+  const el = e.target;
+
+  if (el?.closest?.(`#${POPOVER_ID}, [${MARK_ATTR}]`)) {
+    return;
+  }
+
+  closePopover();
+}
+
+/**
  * Listeners come and go with the switch.
  *
  * AI text is off by default and stays off on most sessions. Nothing it owns
@@ -1204,13 +1227,15 @@ function bindListeners(win) {
   // Capture: the page's own scrollers move the popover's anchor without the
   // window scrolling.
   win.addEventListener('scroll', onScroll, true);
-  win.addEventListener('keydown', onKeydown);
+  win.document.addEventListener('keydown', onKeydown, true);
+  win.document.addEventListener('pointerdown', onPointerDown, true);
 }
 
 function unbindListeners(win) {
   win.removeEventListener('resize', onResize);
   win.removeEventListener('scroll', onScroll, true);
-  win.removeEventListener('keydown', onKeydown);
+  win.document.removeEventListener('keydown', onKeydown, true);
+  win.document.removeEventListener('pointerdown', onPointerDown, true);
 }
 
 export function initAiText(win, t, helpers = {}) {
