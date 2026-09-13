@@ -651,7 +651,10 @@ function render() {
 
   el.append(head, body);
 
-  if (!session.suggestions.length && !session.busy) {
+  // The keyword field, when it is open, owns the caret. Without this the main
+  // input takes focus back on the same frame, the new field blurs, and its blur
+  // handler closes it again — the plus looked like it did nothing at all.
+  if (!session.addingKeyword && !session.suggestions.length && !session.busy) {
     requestAnimationFrame(() => input.focus());
   }
 }
