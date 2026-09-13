@@ -115,24 +115,26 @@ TXT,
         $count = static::count($request);
         $current = static::clip(trim((string) ($request['text'] ?? '')), 4000);
         $instruction = static::clip(trim((string) ($request['instruction'] ?? '')), 2000);
+        // The page's own keywords if it has any; the site's if it has none.
+        // A fallback, not a blend: mixing the two writes copy aimed at whatever
+        // the site says about itself rather than at what this page is for.
         $pageKeywords = Keywords::clean($request['keywords'] ?? []);
-        $siteKeywords = array_values(array_diff(Keywords::site(), $pageKeywords));
+        $fromSite = $pageKeywords === [];
+        $keywords = $fromSite ? Keywords::site() : $pageKeywords;
         $page = static::clip(trim((string) ($request['page'] ?? '')), 200);
         $section = static::clip(trim((string) ($request['section'] ?? '')), 120);
         $label = static::clip(trim((string) ($request['label'] ?? '')), 120);
         $locale = static::language();
         $brief = static::brief($kind, $current);
 
-        // The page's keywords are the brief; the site's are background. Kept
-        // apart on purpose — merged into one list, the writing drifts towards
-        // whatever the site says about itself and away from this page.
-        $keywordBlock = $pageKeywords !== []
-            ? "KEYWORDS FOR THIS PAGE — what the text is to be about:\n- ".implode("\n- ", $pageKeywords)
-            : 'THIS PAGE HAS NO KEYWORDS OF ITS OWN. Write from the current text and the page title instead, and do not invent a subject.';
-
-        if ($siteKeywords !== []) {
-            $keywordBlock .= "\n\nThe site's standing keywords, as background only. Do not force these in:\n- "
-                .implode("\n- ", $siteKeywords);
+        if ($keywords === []) {
+            $keywordBlock = 'THERE ARE NO KEYWORDS. Write from the current text and the page title, and do not invent a subject.';
+        } elseif ($fromSite) {
+            $keywordBlock = "KEYWORDS — this page has none of its own, so these are the site's. They are broader than one page, so lean on the current text for what THIS page is about:\n- "
+                .implode("\n- ", $keywords);
+        } else {
+            $keywordBlock = "KEYWORDS FOR THIS PAGE — what the text is to be about:\n- "
+                .implode("\n- ", $keywords);
         }
 
         $avoid = array_slice(array_filter(array_map(

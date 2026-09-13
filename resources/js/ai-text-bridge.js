@@ -642,44 +642,53 @@ function render() {
 
 function keywordRow(doc) {
   const t = ctx.t;
-  const row = doc.createElement('div');
+  const wrap = doc.createElement('div');
 
-  row.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.25rem;align-items:center;';
-
-  const { page, site } = session.keywords;
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:0.25rem;';
 
   if (!session.resolved) {
-    return row;
+    return wrap;
   }
 
-  if (!page.length && !site.length) {
+  const { page, site } = session.keywords;
+  // The page's own if it has any, the site's if it has none. A fallback, not a
+  // blend — and only the list actually being written against is shown. Showing
+  // both made the unused half look like something you had switched off.
+  const words = page.length ? page : site;
+  const fromSite = !page.length && site.length > 0;
+
+  if (!words.length) {
     const note = doc.createElement('div');
 
     note.textContent = t('ai_text_keywords_none');
     note.style.cssText = 'color:var(--sve-ai-muted);font-size:0.75rem;line-height:1.35;';
-    row.appendChild(note);
+    wrap.appendChild(note);
 
-    return row;
+    return wrap;
   }
 
-  const chip = (text, own) => {
+  const label = doc.createElement('div');
+
+  label.textContent = fromSite ? t('ai_text_keywords_from_site') : t('ai_text_keywords_from_page');
+  label.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;line-height:1.3;';
+
+  const row = doc.createElement('div');
+
+  row.style.cssText = 'display:flex;flex-wrap:wrap;gap:0.25rem;align-items:center;';
+
+  words.forEach((word) => {
     const span = doc.createElement('span');
 
-    span.textContent = text;
+    span.textContent = word;
     span.style.cssText =
       'padding:0.125rem 0.4375rem;border-radius:999px;font-size:0.6875rem;line-height:1.5;' +
-      (own
-        ? 'background:var(--sve-ai-primary);color:#fff;font-weight:600;'
-        : 'background:var(--sve-ai-chip);color:var(--sve-ai-chip-fg);');
-    span.title = own ? t('ai_text_keywords_page') : t('ai_text_keywords_site');
+      'background:var(--sve-ai-primary);color:#fff;font-weight:600;';
+    row.appendChild(span);
+  });
 
-    return span;
-  };
+  wrap.append(label, row);
 
-  page.forEach((word) => row.appendChild(chip(word, true)));
-  site.slice(0, Math.max(0, 6 - page.length)).forEach((word) => row.appendChild(chip(word, false)));
-
-  return row;
+  return wrap;
 }
 
 /**
