@@ -104,8 +104,10 @@ function paintToolbarButton(win) {
 
   const on = isAiTextOn(win);
 
-  btn.dataset.active = on ? 'true' : 'false';
-  btn.style.color = on ? 'var(--theme-color-primary, #6d28d9)' : '';
+  // The top bar's own "switched on" look, from the shared rule in CP_STYLES.
+  // Nothing is styled here: an icon that paints itself is an icon that stops
+  // matching its neighbours the next time the toolbar is restyled.
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   btn.title = t(win, on ? 'ai_text_on' : 'ai_text_off');
 }
 

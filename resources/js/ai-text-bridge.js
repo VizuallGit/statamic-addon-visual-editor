@@ -9,6 +9,8 @@
 // uses, and every exchange carries a requestId so two open marks cannot answer
 // each other's questions.
 
+import { aiTextIcon } from './ai-text-icon.js';
+
 const MARK_ATTR = 'data-sve-ai-mark';
 const LAYER_ID = '__sve-ai-text-layer';
 const POPOVER_ID = '__sve-ai-text-popover';
@@ -17,9 +19,67 @@ const STYLES_ID = '__sve-ai-text-styles';
 /** Elements that hold text a person may edit. The same opt-in inline edit uses. */
 const TEXT_SELECTOR = '[data-sid-inline-edit]';
 
-/** Suggestions per request: a heading can carry five, body copy one. */
+/** The same glyph as the toolbar button that switched these marks on. */
+const MARK_ICON = aiTextIcon();
+
+/**
+ * Suggestions per request.
+ *
+ * Five is the default, because a choice of five is what makes a heading worth
+ * rewriting. Long body copy drops to three: five paragraphs is a wall nobody
+ * reads, and three still gives a real choice. "More suggestions" adds to the
+ * list either way, so the ceiling is only per request.
+ */
 const COUNT_SHORT = 5;
-const COUNT_LONG = 1;
+const COUNT_LONG = 3;
+
+/** Words past which a text counts as a long paragraph rather than a line. */
+const LONG_TEXT_WORDS = 50;
+
+/** A long suggestion scrolls inside its own row instead of stretching the panel. */
+const SUGGESTION_MAX_HEIGHT = '11rem';
+
+/** Only reached if the module is initialised without the readers. */
+const FALLBACK_THEME = {
+  bg: '#fff',
+  fg: '#27272a',
+  border: 'rgba(0,0,0,0.09)',
+  shadow: '0 6px 22px rgba(0,0,0,0.17)',
+  hover: 'rgba(0,0,0,0.06)',
+};
+const FALLBACK_PRIMARY = '#4530D8';
+
+/**
+ * The CP's own toolbar tokens, as the marks and the popover use them.
+ *
+ * Same source as the inline-edit toolbar, so a mark on the page and the bar
+ * above it are light or dark together — and the accent is the CP's primary, the
+ * colour its buttons are already painted in.
+ */
+function palette() {
+  const theme = ctx.theme();
+
+  return {
+    bg: theme.bg,
+    fg: theme.fg,
+    border: theme.border,
+    shadow: theme.shadow,
+    hover: theme.hover,
+    primary: ctx.primary() || FALLBACK_PRIMARY,
+  };
+}
+
+/** Hands the palette to CSS, so the stylesheet can be written once. */
+function applyPalette(el) {
+  const p = palette();
+
+  el.style.setProperty('--sve-ai-bg', p.bg);
+  el.style.setProperty('--sve-ai-fg', p.fg);
+  el.style.setProperty('--sve-ai-border', p.border);
+  el.style.setProperty('--sve-ai-shadow', p.shadow);
+  el.style.setProperty('--sve-ai-hover', p.hover);
+  el.style.setProperty('--sve-ai-primary', p.primary);
+}
 
 /** Long enough that the current text belongs on the page, not in the input. */
 const PREFILL_MAX = 120;
@@ -27,11 +87,6 @@ const PREFILL_MAX = 120;
 /** How still the page must be before marks are repositioned. */
 const REFLOW_QUIET_MS = 150;
 
-const MARK_ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M12 3.5l1.6 4.3 4.3 1.6-4.3 1.6L12 15.3l-1.6-4.3L6.1 9.4l4.3-1.6z"/>' +
-  '<path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>';
 
 const CLOSE_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" ' +
@@ -62,6 +117,8 @@ function styles(win) {
   style.id = STYLES_ID;
   // Own stylesheet rather than inline styles on every mark: a page may carry a
   // hundred of them, and a rule that is written once also stays consistent.
+  applyPalette(win.document.documentElement);
+
   style.textContent = `
     #${LAYER_ID} {
       position: absolute;
@@ -71,6 +128,10 @@ function styles(win) {
       z-index: 2147483200;
       pointer-events: none;
     }
+    /* The same pill the inline-edit toolbar is built from: it carries the CP's
+       light or dark tokens, so the mark stays readable on a dark section and on
+       a light one without knowing anything about the page behind it. The glyph
+       is the CP's primary — the colour its buttons already wear. */
     #${LAYER_ID} [${MARK_ATTR}] {
       all: unset;
       position: absolute;
@@ -81,33 +142,40 @@ function styles(win) {
       align-items: center;
       justify-content: center;
       border-radius: 999px;
-      background: #6d28d9;
-      color: #fff;
-      box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.3);
+      background: var(--sve-ai-bg);
+      color: var(--sve-ai-primary);
+      border: 1px solid var(--sve-ai-border);
+      box-shadow: var(--sve-ai-shadow);
       cursor: pointer;
       pointer-events: auto;
-      opacity: 0.75;
+      opacity: 0.9;
       transition: opacity 0.12s ease, transform 0.12s ease;
     }
-    #${LAYER_ID} [${MARK_ATTR}]:hover,
-    #${LAYER_ID} [${MARK_ATTR}][data-sve-ai-open] {
+    #${LAYER_ID} [${MARK_ATTR}]:hover {
       opacity: 1;
       transform: scale(1.12);
     }
+    /* Open: the mark takes the primary, the way a pressed toolbar icon does. */
+    #${LAYER_ID} [${MARK_ATTR}][data-sve-ai-open] {
+      opacity: 1;
+      transform: scale(1.12);
+      background: var(--sve-ai-primary);
+      color: #fff;
+    }
     #${LAYER_ID} [${MARK_ATTR}] svg {
-      width: 0.875rem;
-      height: 0.875rem;
+      width: 0.8125rem;
+      height: 0.8125rem;
       display: block;
     }
     /* The text a mark belongs to, while the popover for it is open. */
     [data-sve-ai-target] {
-      outline: 2px solid #6d28d9;
+      outline: 2px solid var(--sve-ai-primary);
       outline-offset: 3px;
       border-radius: 2px;
     }
     /* A suggestion being pointed at, shown in the page's own typography. */
     [data-sve-ai-preview] {
-      outline: 2px dashed #6d28d9;
+      outline: 2px dashed var(--sve-ai-primary);
       outline-offset: 3px;
       border-radius: 2px;
     }
@@ -124,6 +192,7 @@ function ensureLayer(win) {
   layer.id = LAYER_ID;
   // Our own DOM must not feed the observer that watches for the page changing.
   layer.setAttribute('data-sve-ai-own', '');
+  applyPalette(layer);
   win.document.body.appendChild(layer);
 
   return layer;
@@ -183,6 +252,12 @@ function paintMarks() {
   const { win } = ctx;
   const doc = win.document;
   const host = ensureLayer(win);
+
+  // The CP theme can be switched while Live Preview is open. Re-read it here
+  // rather than watching for it: this already runs when the page changes, and
+  // six custom properties cost nothing next to the repaint around them.
+  applyPalette(doc.documentElement);
+
   const scrollX = win.scrollX;
   const scrollY = win.scrollY;
 
@@ -323,11 +398,13 @@ function openPopover(target, mark) {
   const current = normalize(target.textContent || '');
 
   el.id = POPOVER_ID;
-  el.style.cssText =
+  applyPalette(el);
+  el.style.cssText +=
     'position:fixed;z-index:2147483400;width:min(22rem,calc(100vw - 1.5rem));' +
     'max-height:min(28rem,calc(100vh - 2rem));display:flex;flex-direction:column;' +
-    'background:#fff;color:#18181b;border:1px solid rgba(24,24,27,0.14);border-radius:0.75rem;' +
-    'box-shadow:0 1rem 2.5rem rgba(0,0,0,0.28);overflow:hidden;' +
+    'background:var(--sve-ai-bg);color:var(--sve-ai-fg);' +
+    'border:1px solid var(--sve-ai-border);border-radius:0.75rem;' +
+    'box-shadow:var(--sve-ai-shadow);overflow:hidden;' +
     'font:400 0.8125rem/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;';
 
   // Clicks inside the popover are the popover's, never the page's.
@@ -376,6 +453,19 @@ function kindOf(el, fieldtype) {
   }
 
   return fieldtype === 'bard' || fieldtype === 'markdown' || fieldtype === 'textarea' ? 'rich' : 'text';
+}
+
+/**
+ * How many to ask for, from how much text is actually there.
+ *
+ * The fieldtype alone is the wrong question: a Bard field holding six words is a
+ * headline in everything but name, and it deserves the same five as a heading.
+ * What makes three the right number is the length of what comes back.
+ */
+function countFor(session) {
+  const words = session.current ? session.current.trim().split(/\s+/).length : 0;
+
+  return words >= LONG_TEXT_WORDS ? COUNT_LONG : COUNT_SHORT;
 }
 
 function normalize(text) {
@@ -427,7 +517,7 @@ function render() {
 
   head.style.cssText =
     'flex:0 0 auto;display:flex;align-items:center;gap:0.5rem;padding:0.625rem 0.75rem;' +
-    'border-bottom:1px solid rgba(24,24,27,0.1);';
+    'border-bottom:1px solid var(--sve-ai-border);';
 
   const title = doc.createElement('div');
 
@@ -442,7 +532,7 @@ function render() {
   close.setAttribute('aria-label', t('ai_text_close'));
   close.style.cssText =
     'all:unset;cursor:pointer;width:1.5rem;height:1.5rem;display:flex;align-items:center;' +
-    'justify-content:center;border-radius:0.375rem;color:#52525b;';
+    'justify-content:center;border-radius:0.375rem;color:var(--sve-ai-fg);opacity:0.7;';
   close.querySelector('svg').style.cssText = 'width:0.875rem;height:0.875rem;display:block;';
   close.addEventListener('click', closePopover);
 
@@ -473,8 +563,8 @@ function render() {
   input.value =
     session.instruction ?? (session.current.length <= PREFILL_MAX ? session.current : '');
   input.style.cssText =
-    'box-sizing:border-box;width:100%;padding:0.4375rem 0.5rem;border:1px solid rgba(24,24,27,0.2);' +
-    'border-radius:0.375rem;font:inherit;color:inherit;background:#fff;';
+    'box-sizing:border-box;width:100%;padding:0.4375rem 0.5rem;border:1px solid var(--sve-ai-border);' +
+    'border-radius:0.375rem;font:inherit;color:inherit;background:var(--sve-ai-bg);';
   input.addEventListener('input', () => {
     session.instruction = input.value;
   });
@@ -490,7 +580,7 @@ function render() {
 
     error.textContent = session.error;
     error.style.cssText =
-      'padding:0.4375rem 0.5rem;border-radius:0.375rem;background:rgba(220,38,38,0.1);color:#b91c1c;';
+      'padding:0.4375rem 0.5rem;border-radius:0.375rem;background:rgba(220,38,38,0.12);color:#f87171;';
     body.appendChild(error);
   }
 
@@ -521,7 +611,7 @@ function keywordRow(doc) {
     const note = doc.createElement('div');
 
     note.textContent = t('ai_text_keywords_none');
-    note.style.cssText = 'color:#71717a;font-size:0.75rem;line-height:1.35;';
+    note.style.cssText = 'color:var(--sve-ai-fg);opacity:0.65;font-size:0.75rem;line-height:1.35;';
     row.appendChild(note);
 
     return row;
@@ -534,8 +624,9 @@ function keywordRow(doc) {
     span.style.cssText =
       'padding:0.125rem 0.4375rem;border-radius:999px;font-size:0.6875rem;line-height:1.5;' +
       (own
-        ? 'background:rgba(109,40,217,0.12);color:#5b21b6;'
-        : 'background:rgba(24,24,27,0.06);color:#71717a;');
+        ? 'background:color-mix(in oklab, var(--sve-ai-primary) 16%, transparent);' +
+          'color:var(--sve-ai-primary);'
+        : 'background:var(--sve-ai-hover);color:var(--sve-ai-fg);opacity:0.75;');
     span.title = own ? t('ai_text_keywords_page') : t('ai_text_keywords_site');
 
     return span;
@@ -576,7 +667,7 @@ function toneRow(doc) {
     btn.disabled = session.busy;
     btn.style.cssText =
       'all:unset;cursor:pointer;padding:0.1875rem 0.5rem;border-radius:999px;font-size:0.6875rem;' +
-      'border:1px solid rgba(24,24,27,0.16);color:#3f3f46;' +
+      'border:1px solid var(--sve-ai-border);color:var(--sve-ai-fg);' +
       (session.busy ? 'opacity:0.5;cursor:default;' : '');
     btn.addEventListener('click', () => {
       if (session.busy) {
@@ -605,7 +696,7 @@ function submitRow(doc) {
   submit.disabled = session.busy;
   submit.style.cssText =
     'all:unset;cursor:pointer;padding:0.375rem 0.75rem;border-radius:0.375rem;font-weight:600;' +
-    'font-size:0.75rem;background:#6d28d9;color:#fff;text-align:center;' +
+    'font-size:0.75rem;background:var(--sve-ai-primary);color:#fff;text-align:center;' +
     (session.busy ? 'opacity:0.6;cursor:default;' : '');
 
   row.appendChild(submit);
@@ -614,7 +705,7 @@ function submitRow(doc) {
     const spinner = doc.createElement('span');
 
     spinner.textContent = t('ai_text_working');
-    spinner.style.cssText = 'color:#71717a;font-size:0.75rem;';
+    spinner.style.cssText = 'color:var(--sve-ai-fg);opacity:0.65;font-size:0.75rem;';
     row.appendChild(spinner);
   }
 
@@ -637,7 +728,7 @@ function suggestionList(doc) {
   const hint = doc.createElement('div');
 
   hint.textContent = t('ai_text_hint_hover');
-  hint.style.cssText = 'color:#71717a;font-size:0.6875rem;line-height:1.35;';
+  hint.style.cssText = 'color:var(--sve-ai-fg);opacity:0.65;font-size:0.6875rem;line-height:1.35;';
   wrap.appendChild(hint);
 
   [...session.suggestions].reverse().forEach((text, i) => {
@@ -646,23 +737,30 @@ function suggestionList(doc) {
     row.type = 'button';
     row.style.cssText =
       'all:unset;cursor:pointer;box-sizing:border-box;display:flex;gap:0.5rem;width:100%;' +
-      'padding:0.5rem;border-radius:0.5rem;border:1px solid rgba(24,24,27,0.12);' +
-      'background:#fafafa;color:#18181b;text-align:left;';
+      'padding:0.5rem;border-radius:0.5rem;border:1px solid var(--sve-ai-border);' +
+      'background:var(--sve-ai-hover);color:var(--sve-ai-fg);text-align:left;';
 
     const number = doc.createElement('span');
 
     number.textContent = String(i + 1);
     number.style.cssText =
       'flex:0 0 auto;width:1.125rem;height:1.125rem;display:flex;align-items:center;' +
-      'justify-content:center;border-radius:999px;background:rgba(109,40,217,0.12);' +
-      'color:#5b21b6;font-size:0.6875rem;font-weight:600;';
+      'justify-content:center;border-radius:999px;' +
+      'background:color-mix(in oklab, var(--sve-ai-primary) 16%, transparent);' +
+      'color:var(--sve-ai-primary);font-size:0.6875rem;font-weight:600;';
 
     const body = doc.createElement('span');
 
     body.textContent = text;
-    body.style.cssText = 'flex:1 1 auto;white-space:pre-wrap;overflow-wrap:anywhere;';
+    // A long suggestion scrolls inside its own row. Letting it set the panel's
+    // height instead would push "More suggestions" — and the rest of the list —
+    // off the bottom of the screen the moment one answer runs long.
+    body.style.cssText =
+      'flex:1 1 auto;white-space:pre-wrap;overflow-wrap:anywhere;' +
+      `max-height:${SUGGESTION_MAX_HEIGHT};overflow-y:auto;overscroll-behavior:contain;`;
 
     row.append(number, body);
+    body.style.userSelect = 'text';
     row.addEventListener('mouseenter', () => showPreview(text));
     row.addEventListener('mouseleave', restorePreview);
     row.addEventListener('focus', () => showPreview(text));
@@ -678,7 +776,7 @@ function suggestionList(doc) {
   more.disabled = session.busy;
   more.style.cssText =
     'all:unset;cursor:pointer;padding:0.375rem 0.5rem;border-radius:0.375rem;font-size:0.75rem;' +
-    'border:1px dashed rgba(24,24,27,0.24);color:#3f3f46;text-align:center;' +
+    'border:1px dashed var(--sve-ai-border);color:var(--sve-ai-fg);text-align:center;' +
     (session.busy ? 'opacity:0.5;cursor:default;' : '');
   more.addEventListener('click', () => {
     if (!session.busy) {
@@ -804,8 +902,7 @@ function generate({ fresh }) {
     kind: session.kind,
     text: session.current,
     instruction: (session.instruction ?? session.input?.value ?? '').trim(),
-    // Five angles on a heading is a real choice; five paragraphs is a wall.
-    count: session.kind === 'rich' ? COUNT_LONG : COUNT_SHORT,
+    count: countFor(session),
     avoid: session.suggestions,
   });
 }
@@ -1008,8 +1105,15 @@ function unbindListeners(win) {
   win.removeEventListener('keydown', onKeydown);
 }
 
-export function initAiText(win, t) {
-  ctx = { win, t };
+export function initAiText(win, t, helpers = {}) {
+  ctx = {
+    win,
+    t,
+    // Read on every paint rather than captured once: the CP theme can be
+    // switched while Live Preview is open.
+    theme: helpers.theme || (() => FALLBACK_THEME),
+    primary: helpers.primary || (() => FALLBACK_PRIMARY),
+  };
 
   // A fresh preview document knows nothing about the toolbar switch, and there
   // is no general "preview loaded" event on the other side to hang this on. So

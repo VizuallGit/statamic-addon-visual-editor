@@ -19,6 +19,7 @@
  */
 
 import { ask, emit, register } from './cp/bus.js';
+import { aiTextIcon } from './ai-text-icon.js';
 import {
   bpBase,
   bpDevice,
@@ -2569,16 +2570,9 @@ export const TOOLBAR_ICONS = {
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/>' +
     '<path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>',
-  // AI text. The chat's spark says "AI"; this says "AI on the words" — a pen
-  // with the spark on it, so the two are told apart at 15px without reading
-  // the tooltip.
-  aitext:
-    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
-    '<path d="M4 20h4L19.5 8.5a2.12 2.12 0 0 0-3-3L5 17v3z"/>' +
-    '<path d="M17.5 4.2 19.8 6.5"/>' +
-    '<path d="M4.5 3v3"/><path d="M6 4.5H3"/>' +
-    '<path d="M20.5 16v3"/><path d="M22 17.5h-3"/></svg>',
+  // AI text. The chat's spark says "AI"; this says "AI on the words". Shared
+  // with the marks in the preview — same tool, same glyph everywhere.
+  aitext: aiTextIcon(15),
   site_css:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
@@ -3204,6 +3198,9 @@ export function ensureAiTextToolbarButton(win) {
   btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
+  // `aria-pressed` is what the top bar's own CSS already reads — the hover rule
+  // excludes it by name. Saying "on" any other way is a second way of saying it.
+  btn.setAttribute('aria-pressed', sve.isAiTextOn?.(win) ? 'true' : 'false');
   btn.addEventListener('click', () => sve.toggleAiText?.(win));
 
   const ai = bar.querySelector('button[data-tab="ai"]');
@@ -3215,8 +3212,6 @@ export function ensureAiTextToolbarButton(win) {
   }
 
   if (sve.isAiTextOn?.(win)) {
-    btn.dataset.active = 'true';
-    btn.style.color = 'var(--theme-color-primary, #6d28d9)';
     sve.syncAiTextToPreview?.(win);
   }
 }
@@ -7565,6 +7560,15 @@ export const CP_STYLES = `
 }
 #__sve-toolbar button[data-tab]:hover:not(:disabled):not([aria-pressed="true"]) {
   background: ${HEADER_ICON_HOVER} !important;
+}
+/* A toolbar icon that is switched on. The hover rule above already steps aside
+   for [aria-pressed="true"], which only makes sense if the pressed state paints
+   itself — it never did, so every tool that wants to look "on" had to invent its
+   own. This is that default: any icon setting aria-pressed gets it. */
+#__sve-toolbar button[data-tab][aria-pressed="true"] {
+  background: var(--theme-color-primary, #4530D8) !important;
+  color: #fff !important;
+  opacity: 1 !important;
 }
 #${LP_BACK_ID} {
   background: ${HEADER_ICON_HOVER} !important;

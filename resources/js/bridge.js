@@ -9021,7 +9021,12 @@ export function initBridge(win = window) {
   // When the pointer leaves the iframe document (e.g. moves into the CP chrome),
   // immediately tell the CP to clear its hover outline.
   win.document.addEventListener('mouseleave', () => hoverHandler.reset(), true);
-  initAiText(win, t);
+  initAiText(win, t, {
+    // The same two readers the edit toolbar and the preview dialogs use, so the
+    // marks and the popover cannot drift away from the rest of the editor.
+    theme: () => toolbarThemeFor(detectCpDark(win)),
+    primary: () => cpDialogTheme(win).primary,
+  });
   win.addEventListener('message', createMessageReceiver(win));
 
   // Drag & drop reordering for [data-sid-orderable] rows.
