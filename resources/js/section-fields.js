@@ -143,6 +143,7 @@ export async function refreshFieldsForType(win, setHandle) {
   }
 
   const field = sve.sectionField(win);
+  const defaults = meta.defaults && typeof meta.defaults === 'object' ? meta.defaults : {};
   let touched = 0;
 
   for (const container of sve.activeContainers(win.document)) {
@@ -152,7 +153,42 @@ export async function refreshFieldsForType(win, setHandle) {
       continue;
     }
 
-    for (const row of rows) {
+    // A field that has just been added has no value on any existing row, and
+    // some fieldtypes cannot start without one. Bard is the plain example: give
+    // it `undefined` and it renders a box with no toolbar that will not accept
+    // a keystroke — the field is there and inert, which reads as broken rather
+    // than as new. Seeding the set's default is what a page load would have
+    // done. Only handles the row does not already have: an existing value is
+    // the author's, and this must never reach past a new field.
+    let seeded = false;
+
+    const withDefaults = rows.map((row) => {
+      if (row?.type !== setHandle) {
+        return row;
+      }
+
+      const add = {};
+
+      for (const [handle, value] of Object.entries(defaults)) {
+        if (!(handle in row)) {
+          add[handle] = value;
+        }
+      }
+
+      if (! Object.keys(add).length) {
+        return row;
+      }
+
+      seeded = true;
+
+      return { ...row, ...add };
+    });
+
+    if (seeded) {
+      container.setFieldValue(field, withDefaults);
+    }
+
+    for (const row of seeded ? withDefaults : rows) {
       if (row?.type !== setHandle || !row._id) {
         continue;
       }

@@ -11,6 +11,8 @@ const props = defineProps({
 
 const loading = ref(true);
 const frame = ref(null);
+// Off-screen for the first frame only, so the panel has somewhere to come from.
+const shown = ref(false);
 
 /**
  * The Fieldsets screen is a whole Control Panel page, navigation and all, and
@@ -40,6 +42,10 @@ function trimChrome() {
       nav.nav-main { display: none !important; }
       header:has(+ main) { display: none !important; }
       main { top: 0 !important; min-height: 100vh !important; }
+      /* Our own AI launcher rides along on every Control Panel page. In a panel
+         about fields it is one floating button too many, and it covers the
+         Save. */
+      #__sve-ai-launcher { display: none !important; }
     `;
 
     doc.head.appendChild(style);
@@ -58,7 +64,12 @@ function onKey(event) {
 
 // On the overlay's own document: the Fieldsets screen inside the frame has its
 // own key handling, and Escape there belongs to whatever it has open.
-onMounted(() => document.addEventListener('keydown', onKey));
+onMounted(() => {
+  document.addEventListener('keydown', onKey);
+  requestAnimationFrame(() => {
+    shown.value = true;
+  });
+});
 onUnmounted(() => document.removeEventListener('keydown', onKey));
 
 function onOverlay(event) {
@@ -70,7 +81,7 @@ function onOverlay(event) {
 
 <template>
   <div class="sve-fs-overlay" @click="onOverlay">
-    <div class="sve-fs" @click.stop>
+    <div class="sve-fs" :class="{ 'is-shown': shown }" @click.stop>
       <div class="sve-fs__bar">
         <div class="sve-fs__title">
           {{ heading }}
@@ -95,24 +106,36 @@ function onOverlay(event) {
   inset: 0;
   z-index: 2147483600;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2.5vh 2vw;
-  box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.55);
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.45);
 }
+/*
+ * A panel off the right edge rather than a box in the middle: the page stays
+ * where it is behind it, which is the point — the fields being edited are the
+ * fields of the section still visible over there.
+ */
 .sve-fs {
   display: flex;
   flex-direction: column;
-  width: 100%;
-  max-width: 78em;
+  width: min(62em, 94vw);
   height: 100%;
   min-height: 0;
-  border-radius: 0.75em;
   overflow: hidden;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
   font-family: ui-sans-serif, system-ui, sans-serif;
+  box-shadow: -0.6em 0 2.4em rgba(0, 0, 0, 0.3);
+  transform: translateX(100%);
+  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sve-fs.is-shown {
+  transform: translateX(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sve-fs {
+    transition: none;
+    transform: none;
+  }
 }
 .sve-fs__bar {
   flex: 0 0 auto;
