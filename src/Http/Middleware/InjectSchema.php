@@ -6,7 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SchemaStore;
-use Statamic\Facades\URL;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Writes the page's structured data in before `</body>`.
@@ -81,11 +81,13 @@ class InjectSchema
 
     protected function wantsHtml($response): bool
     {
-        if (! method_exists($response, 'getContent') || ! method_exists($response, 'headers')) {
+        // `headers` is a property, not a method — asking method_exists about it
+        // is always false, which turned this guard into "never inject".
+        if (! $response instanceof Response) {
             return false;
         }
 
-        $type = $response->headers->get('Content-Type', '');
+        $type = (string) $response->headers->get('Content-Type', '');
 
         return $type === '' || str_contains($type, 'text/html');
     }
