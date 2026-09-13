@@ -164,6 +164,7 @@ return [
     'html_tree_hide' => 'Kommentér ud — skjult i live preview',
     'html_tree_show' => 'Fjern kommentar — vis i live preview',
     'html_tree_duplicate' => 'Dupliker',
+    'html_tree_remove_section' => 'Fjern sektion fra siden',
     'html_tree_delete' => 'Slet',
     'html_tree_locked' => 'Filen er låst — lås op for at ændre',
 

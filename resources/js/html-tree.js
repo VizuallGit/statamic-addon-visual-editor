@@ -1241,8 +1241,66 @@ export function closeHtmlTreeMenu() {
   htmlTreeMenu = null;
 }
 
+/**
+ * The menu on a section row: take the section off the page.
+ *
+ * Deliberately not the same verb as the rest of this tree. Everything else here
+ * edits the template file — "delete" on a tag removes that tag from the Antlers,
+ * for every page using it. Removing a section takes this one section off this
+ * one page and leaves the file alone. They read alike and do very different
+ * things, so they are named apart and this one asks first, through the same
+ * confirm the block tree and the hover bar already use.
+ */
+function openHtmlTreeSectionMenu(win, event, section) {
+  const uid = section.row?.section || section.uid;
+
+  if (!uid) {
+    return;
+  }
+
+  htmlTreeMenu = openCpOverlay(win.document, HtmlTreeMenu, {
+    items: [
+      {
+        label: t(win, 'html_tree_remove_section'),
+        danger: true,
+        onPick: () => {
+          closeHtmlTreeMenu();
+          // Same question, same words as the block tree and the hover bar: a
+          // section takes one click to remove and holds everything inside it,
+          // and the page it leaves behind looks like it was always that way.
+          sve.confirmCloseDiscard?.(
+            win,
+            {
+              titleKey: 'remove_section_title',
+              bodyKey: 'remove_section_body',
+              confirmKey: 'remove_section_confirm',
+            },
+            () => sve.handleRemoveRow?.({ uid }, win.document, win)
+          );
+        },
+      },
+    ],
+    x: event.clientX,
+    y: event.clientY,
+    onClose: () => {
+      htmlTreeMenu = null;
+    },
+  });
+}
+
 function openHtmlTreeMenu(win, event, id) {
   closeHtmlTreeMenu();
+
+  // A shut section is drawn by the same row component as every tag, but it does
+  // not live in `rows` — it lives in `sections`. Looking only in `rows` is why
+  // right-clicking a section in this tree did nothing at all.
+  const section = htmlTreeUi.sections?.find((item) => item.row?.id === id);
+
+  if (section) {
+    openHtmlTreeSectionMenu(win, event, section);
+
+    return;
+  }
 
   const row = htmlTreeUi.rows.find((item) => item.id === id);
 
