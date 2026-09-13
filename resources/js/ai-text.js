@@ -65,8 +65,33 @@ export function aiTextReady(win) {
 let aiTextOn = null;
 
 export function isAiTextOn(win) {
-  if (aiTextOn === null) {
-    aiTextOn = chromeGet(win, ON_KEY) === '1';
+  if (aiTextOn !== null) {
+    return aiTextOn;
+  }
+
+  // The stored key is namespaced by user id, and that id comes from
+  // Statamic.$config — which is not present in every window this runs in. Live
+  // Preview is two of them: the Control Panel and the overlay that hosts it,
+  // each with its own copy of this module. Asked from the wrong one, the
+  // namespaced lookup misses and answers "off" for a switch that is on.
+  //
+  // So look for the value rather than for one exact key: whichever window wrote
+  // it, this finds it.
+  aiTextOn = false;
+
+  try {
+    const store = win.localStorage;
+
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+
+      if ((key === ON_KEY || key?.endsWith(`:${ON_KEY}`)) && store.getItem(key) === '1') {
+        aiTextOn = true;
+        break;
+      }
+    }
+  } catch {
+    /* private mode — the switch starts off */
   }
 
   return aiTextOn;

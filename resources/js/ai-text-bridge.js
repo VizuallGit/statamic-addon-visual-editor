@@ -435,17 +435,22 @@ function openPopover(target, mark) {
   const current = normalize(target.textContent || '');
 
   el.id = POPOVER_ID;
-  // Tone from the section the text sits on, the same way the edit toolbar
-  // above it decides. Read before the panel is in the DOM, so it never samples
-  // its own background.
-  applyPalette(el, paletteFor(target));
-  el.style.cssText +=
+  el.style.cssText =
     'position:fixed;z-index:2147483400;width:min(22rem,calc(100vw - 1.5rem));' +
     'max-height:min(28rem,calc(100vh - 2rem));display:flex;flex-direction:column;' +
     'background:var(--sve-ai-bg);color:var(--sve-ai-fg);' +
     'border:1px solid var(--sve-ai-border);border-radius:0.75rem;' +
     'box-shadow:var(--sve-ai-shadow);overflow:hidden;' +
     'font:400 0.8125rem/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;';
+
+  // After cssText, never before: assigning cssText replaces the whole inline
+  // style, custom properties included. Set first, they were wiped, every
+  // var(--sve-ai-*) fell back to nothing, and the keyword chips lost their
+  // background — white text on no background, measured at 1.1:1.
+  //
+  // Tone comes from the section the text sits on, the same way the edit toolbar
+  // above it decides.
+  applyPalette(el, paletteFor(target));
 
   // Clicks inside the popover are the popover's, never the page's.
   ['mousedown', 'pointerdown', 'click'].forEach((type) =>
