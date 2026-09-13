@@ -51,6 +51,7 @@ import {
   dataVarsSet,
   fetchDataVars,
   groupsWithValues,
+  resetDataVars,
   withValues,
 } from './data-vars.js';
 import { loopScopeAt } from './antlers-blocks.js';
@@ -8064,6 +8065,21 @@ register('dock:current-uid', () => lastUid);
  * For changes the dock did not make and cannot see — a field added to the
  * section's fieldset, say. The page is still showing a render from before it.
  */
+/**
+ * Forget the data picker's variable lists.
+ *
+ * They are built from the blueprint and cached for as long as the page is
+ * open — which was fine while a blueprint could not change under it. It can
+ * now: a field added or removed in the fields panel changes what the picker
+ * should offer. Clearing is all that is needed; the picker fetches when it is
+ * opened, so the next open is correct and nothing on screen moves before then.
+ */
+register('dock:reset-data-vars', () => {
+  resetDataVars();
+
+  return true;
+});
+
 register('dock:refresh-preview', () => {
   if (!lastWin) {
     return false;

@@ -86,6 +86,40 @@ export async function fieldsetFor(win, handle) {
  *
  * @returns {Promise<number>} how many rows were given the fresh meta
  */
+/**
+ * Forget everything this page has cached about the shape of its sections.
+ *
+ * Three caches stand between a saved fieldset and what the editor shows, and
+ * none of them had a way to be cleared — which is the whole reason a full
+ * browser reload was the only thing that worked.
+ *
+ * The first is the worst: `section-meta-prefetch.js` replaces `window.fetch`
+ * and answers any `/!/sve/section-meta?…` from a Map keyed by URL, with no
+ * expiry. Asking the server again did not ask the server again. Every refresh
+ * built on top of it was reading the field list the page was opened with, and
+ * reporting success.
+ *
+ * All section-meta entries go, not only this set's: a fieldset is imported by
+ * whoever imports it, and a change to it can be a change to a nested set in
+ * another section. They are cheap to fetch and only fetched when needed.
+ */
+export function invalidateFieldCaches(win, setHandle) {
+  try {
+    win.__sveSectionMetaJson?.clear?.();
+  } catch {
+    // A cache that cannot be cleared is a stale panel, not a broken editor.
+  }
+
+  try {
+    win.__sveSectionMetaCache?.delete?.(setHandle);
+  } catch {
+    /* as above */
+  }
+
+  // The data picker's variable lists are built from the blueprint too.
+  ask('dock:reset-data-vars');
+}
+
 export async function refreshFieldsForType(win, setHandle) {
   // `fetchSetMeta` and friends live in the section library, which is loaded on
   // demand. Until it is, `sve.fetchSetMeta` is a placeholder that starts the
@@ -100,7 +134,7 @@ export async function refreshFieldsForType(win, setHandle) {
     return 0;
   }
 
-  win.__sveSectionMetaCache?.delete(setHandle);
+  invalidateFieldCaches(win, setHandle);
 
   const meta = await sve.fetchSetMeta(win, setHandle);
 
