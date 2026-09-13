@@ -17,6 +17,7 @@ import { t } from './cp-t.js';
 const PANEL_ID = '__sve-schema-panel';
 
 let panel = null;
+let card = null;
 let state = null;
 
 export function schemaAllowed(win) {
@@ -25,6 +26,13 @@ export function schemaAllowed(win) {
   }
 
   return win.Statamic?.$config?.get?.('sveFeatures')?.schema === true;
+}
+
+/** Is the Control Panel in dark mode? */
+function isDark(win) {
+  const root = win.document.documentElement;
+
+  return root.classList.contains('dark') || root.getAttribute('data-theme') === 'dark';
 }
 
 function csrf(win) {
@@ -52,9 +60,9 @@ export function isSchemaOpen(doc) {
 export function closeSchema(win) {
   win.document.getElementById(PANEL_ID)?.remove();
   panel = null;
+  card = null;
   state = null;
   win.document.removeEventListener('keydown', onKeydown, true);
-  win.document.removeEventListener('pointerdown', onPointerDown, true);
   paintButton(win);
 }
 
@@ -77,18 +85,6 @@ function onKeydown(e) {
     e.stopPropagation();
     closeSchema(panel.ownerDocument.defaultView);
   }
-}
-
-function onPointerDown(e) {
-  if (!panel) {
-    return;
-  }
-
-  if (e.target?.closest?.(`#${PANEL_ID}, #__sve-toolbar button[data-tab="schema"]`)) {
-    return;
-  }
-
-  closeSchema(panel.ownerDocument.defaultView);
 }
 
 async function openSchema(win) {
@@ -120,20 +116,37 @@ async function openSchema(win) {
 function build(win) {
   const doc = win.document;
 
+  // Same shape as the Edit history dialog: a full-screen layer, a scrim behind,
+  // and the card in the middle of it. This is not a tool you point at part of
+  // the page with — it is a thing you read and type into, so it sits in front
+  // of the page rather than in a corner of it.
   panel = doc.createElement('div');
   panel.id = PANEL_ID;
   panel.style.cssText =
-    'position:fixed;z-index:2147483300;top:3.25rem;right:1rem;width:min(30rem,calc(100vw - 2rem));' +
-    'max-height:min(34rem,calc(100vh - 5rem));display:flex;flex-direction:column;overflow:hidden;' +
-    'border-radius:4px;border:1px solid var(--theme-color-content-border,rgba(128,128,128,0.3));' +
-    'background:var(--theme-color-content-bg,#fff);color:var(--theme-color-content-fg,inherit);' +
-    'box-shadow:0 1rem 2.5rem rgba(0,0,0,0.3);' +
-    'font:400 0.8125rem/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;';
-  panel.addEventListener('pointerdown', (e) => e.stopPropagation());
+    'position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;' +
+    'padding:24px;font:400 0.8125rem/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;';
 
+  const scrim = doc.createElement('div');
+
+  scrim.style.cssText =
+    'position:absolute;inset:0;cursor:pointer;' +
+    // Statamic's own modal overlay: gray-800/20, gray-950/60 in dark.
+    (isDark(win)
+      ? 'background:color-mix(in oklab, var(--theme-color-gray-950,#0a0a0a) 60%, transparent);'
+      : 'background:color-mix(in oklab, var(--theme-color-gray-800,#262626) 20%, transparent);');
+  scrim.addEventListener('click', () => closeSchema(win));
+
+  card = doc.createElement('div');
+  card.style.cssText =
+    'position:relative;z-index:1;display:flex;flex-direction:column;' +
+    'width:min(720px,100%);max-height:min(72vh,640px);overflow:hidden;border-radius:4px;' +
+    'border:1px solid var(--theme-color-content-border,rgba(128,128,128,0.3));' +
+    'background:var(--theme-color-content-bg,#fff);color:var(--theme-color-content-text,inherit);' +
+    'box-shadow:0 1.5rem 3rem rgba(0,0,0,0.35);';
+
+  panel.append(scrim, card);
   doc.body.appendChild(panel);
   doc.addEventListener('keydown', onKeydown, true);
-  doc.addEventListener('pointerdown', onPointerDown, true);
 
   render(win);
   paintButton(win);
@@ -158,7 +171,7 @@ function render(win) {
 
   const doc = win.document;
 
-  panel.textContent = '';
+  card.textContent = '';
 
   // --- head: title, the two scopes, close ---
   const head = doc.createElement('div');
@@ -262,7 +275,7 @@ function render(win) {
   status.style.cssText = 'flex:1 1 auto;font-size:0.6875rem;opacity:0.85;';
 
   foot.append(save, status);
-  panel.append(head, body, foot);
+  card.append(head, body, foot);
 
   state.ok = area.value.trim() === '' ? null : check(area.value);
   paintStatus(win);
@@ -286,7 +299,7 @@ function check(value) {
 }
 
 function paintStatus(win) {
-  const status = panel?.querySelector('[data-sve-schema-status]');
+  const status = card?.querySelector('[data-sve-schema-status]');
 
   if (!status) {
     return;
