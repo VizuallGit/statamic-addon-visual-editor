@@ -3,8 +3,8 @@
     "file": "assets/component-props-host-BORu0yBH.css",
     "src": "_component-props-host-BORu0yBH.css"
   },
-  "_component-props-host-D-q2J5Tz.js": {
-    "file": "assets/component-props-host-D-q2J5Tz.js",
+  "_component-props-host-C0Ff5AcH.js": {
+    "file": "assets/component-props-host-C0Ff5AcH.js",
     "name": "component-props-host",
     "imports": [
       "resources/js/addon.js",
@@ -62,8 +62,8 @@
     "file": "assets/outline-panel-CQMkWeVv.css",
     "src": "_outline-panel-CQMkWeVv.css"
   },
-  "_outline-panel-D0pV3Dbv.js": {
-    "file": "assets/outline-panel-D0pV3Dbv.js",
+  "_outline-panel-CmvvnQVs.js": {
+    "file": "assets/outline-panel-CmvvnQVs.js",
     "name": "outline-panel",
     "isDynamicEntry": true,
     "imports": [
@@ -122,17 +122,17 @@
     "isDynamicEntry": true
   },
   "resources/js/a11y-scan.js": {
-    "file": "assets/a11y-scan-Cuc-ZVFn.js",
+    "file": "assets/a11y-scan-D9KUltRy.js",
     "name": "a11y-scan",
     "src": "resources/js/a11y-scan.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_outline-panel-D0pV3Dbv.js"
+      "_outline-panel-CmvvnQVs.js"
     ]
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-CVCHcdip.js",
+    "file": "assets/addon-Dqvs-XnU.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -146,7 +146,7 @@
       "node_modules/@codemirror/language/dist/index.js",
       "_index-BsAZfAgM.js",
       "resources/js/block-tree.js",
-      "_outline-panel-D0pV3Dbv.js",
+      "_outline-panel-CmvvnQVs.js",
       "resources/js/html-tree.js",
       "resources/js/performance-panel.js",
       "resources/js/page-activity.js",
@@ -162,7 +162,7 @@
     ]
   },
   "resources/js/block-tree.js": {
-    "file": "assets/block-tree-D3K39MEO.js",
+    "file": "assets/block-tree-CHW2bYs7.js",
     "name": "block-tree",
     "src": "resources/js/block-tree.js",
     "isDynamicEntry": true,
@@ -183,13 +183,13 @@
     ]
   },
   "resources/js/code-dock.js": {
-    "file": "assets/code-dock-6gwXAlEz.js",
+    "file": "assets/code-dock-lPBi-n1L.js",
     "name": "code-dock",
     "src": "resources/js/code-dock.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_component-props-host-D-q2J5Tz.js",
+      "_component-props-host-C0Ff5AcH.js",
       "_tw-candidates-wYTeDvRv.js",
       "_html-tag-sync-CS5dfgi7.js",
       "_html-pick-align-CK-9iH9_.js",
@@ -218,7 +218,7 @@
     ]
   },
   "resources/js/comments.js": {
-    "file": "assets/comments-C5xchdVk.js",
+    "file": "assets/comments-DQZ9W0Zs.js",
     "name": "comments",
     "src": "resources/js/comments.js",
     "isDynamicEntry": true,
@@ -230,7 +230,7 @@
     ]
   },
   "resources/js/file-manager.js": {
-    "file": "assets/file-manager-C8UQd_bd.js",
+    "file": "assets/file-manager-Bcve4uBW.js",
     "name": "file-manager",
     "src": "resources/js/file-manager.js",
     "isDynamicEntry": true,
@@ -261,20 +261,20 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-R5aRbxTZ.js",
+    "file": "assets/html-tree-1G1nc3PG.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_component-props-host-D-q2J5Tz.js",
+      "_component-props-host-C0Ff5AcH.js",
       "_html-pick-align-CK-9iH9_.js"
     ],
     "dynamicImports": [
       "resources/js/tw-compile.js"
     ],
     "css": [
-      "assets/html-tree-CfycmH0q.css"
+      "assets/html-tree-CAPeRsua.css"
     ]
   },
   "resources/js/overlay-host.js": {
@@ -285,7 +285,7 @@
     "isDynamicEntry": true
   },
   "resources/js/page-activity.js": {
-    "file": "assets/page-activity-DUkvx3wq.js",
+    "file": "assets/page-activity-Cdxp634t.js",
     "name": "page-activity",
     "src": "resources/js/page-activity.js",
     "isDynamicEntry": true,
@@ -297,7 +297,7 @@
     ]
   },
   "resources/js/performance-panel.js": {
-    "file": "assets/performance-panel-B3jl0T77.js",
+    "file": "assets/performance-panel-D7eyNRIL.js",
     "name": "performance-panel",
     "src": "resources/js/performance-panel.js",
     "isDynamicEntry": true,

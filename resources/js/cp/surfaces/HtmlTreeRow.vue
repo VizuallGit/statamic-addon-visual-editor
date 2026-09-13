@@ -2,8 +2,11 @@
 import { canEditFields, currentSetHandle, openFieldsetOverlay } from '../../section-fields.js';
 import { t } from '../../cp-t.js';
 
+// Drawn to the same recipe as the eye, the duplicate and the bin below: same
+// box, same stroke. A row of icons where one is heavier reads as a different
+// kind of thing, and it is not one.
 const FIELDS =
-  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>';
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>';
 
 const canFields = canEditFields(window);
 const fieldsLabel = t(window, 'section_fields');
@@ -173,12 +176,20 @@ function canHide(row) {
       >
       <span v-else data-sve-ht-name>{{ row.name }}</span>
     </span>
-    <span v-if="ui.canEdit && !isShutSection(row)" data-sve-ht-actions>
+    <!--
+      The row's icons do not come and go with the lock. A locked file is a
+      reason for a button not to work, not a reason for it to be missing: half
+      the rows wearing icons and half not reads as two kinds of row, and the
+      lock answer arrives half a second after the row is drawn, so they used to
+      appear and then vanish while you looked at them.
+    -->
+    <span v-if="!isShutSection(row)" data-sve-ht-actions>
       <button
-        v-if="ui.canEdit && canHide(row)"
+        v-if="canHide(row)"
         type="button"
         data-sve-ht-eye
-        :title="row.hidden ? ui.showTitle : ui.hideTitle"
+        :disabled="!ui.canEdit"
+        :title="ui.canEdit ? (row.hidden ? ui.showTitle : ui.hideTitle) : ui.lockedTitle"
         v-html="row.hidden ? EYE_OFF : EYE"
         @click.stop.prevent="ui.onHide?.(row.id)"
         @pointerdown.stop
@@ -188,32 +199,40 @@ function canHide(row) {
         The section's own fields, on the row that stands for the whole section.
         Only there: every tag inside it belongs to the same fieldset, so an icon
         on each would be the same button drawn twenty times.
+
+        Locked with the rest of them. The lock is on the template, and the
+        fields are the other half of the same section — changing what fields a
+        section has while the file that renders them is locked is the half-made
+        edit the lock exists to stop. It also has to look the way it behaves:
+        one bright icon in a row of dim ones reads as highlighted, not as
+        still-usable.
       -->
       <button
         v-if="canFields && row.depth === 0"
         type="button"
         data-sve-ht-fields
-        :title="fieldsLabel"
+        :disabled="!ui.canEdit"
+        :title="ui.canEdit ? fieldsLabel : ui.lockedTitle"
         v-html="FIELDS"
         @click.stop.prevent="onFields"
         @pointerdown.stop
         @dblclick.stop
       ></button>
       <button
-        v-if="ui.canEdit"
         type="button"
         data-sve-ht-dup
-        :title="ui.duplicateTitle"
+        :disabled="!ui.canEdit"
+        :title="ui.canEdit ? ui.duplicateTitle : ui.lockedTitle"
         v-html="DUP"
         @click.stop.prevent="ui.onDuplicate?.(row.id)"
         @pointerdown.stop
         @dblclick.stop
       ></button>
       <button
-        v-if="ui.canEdit"
         type="button"
         data-sve-ht-del
-        :title="ui.deleteTitle"
+        :disabled="!ui.canEdit"
+        :title="ui.canEdit ? ui.deleteTitle : ui.lockedTitle"
         v-html="DEL"
         @click.stop.prevent="ui.onDelete?.(row.id)"
         @pointerdown.stop

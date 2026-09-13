@@ -34,6 +34,7 @@ import AlpinePanel from './cp/surfaces/AlpinePanel.vue';
 import {
   ALPINE_BEHAVIOURS,
   ALPINE_GROUPS,
+  behaviourHint,
   fillName,
   stateNames,
   tagAttrs,
@@ -84,8 +85,7 @@ import {
   cssMediaBlocks,
   emptySizeBlocks,
   foldRangesForSize,
-  foldRangesForValues,
-  idRuleBlocks,
+  idRulesForSize,
   stripEmptySizeBlocks,
 } from './css-sizes.js';
 import { bindTips } from './cp/tip.js';
@@ -1068,11 +1068,6 @@ function ensureStyle(doc) {
   color: #7dd3fc;
   background: rgba(56,189,248,.16);
 }
-/* Values is the section's own layer: one rule, no sizes, no state. Hiding the
-   two rather than greying them says there is nothing to pick, not that you
-   are not allowed to. */
-#${DOCK_ID}[data-sve-values="on"] [data-sve-css-head] [data-sve-css-size],
-#${DOCK_ID}[data-sve-values="on"] [data-sve-css-head] [data-sve-css-state],
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-values-mode],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode] {
   display: none;
@@ -1442,6 +1437,23 @@ function ensureStyle(doc) {
 #${DOCK_ID} .sve-css-ghost {
   opacity: .32;
 }
+/* The section's own layer, while it is showing. Same blue the ID button lights
+   up in, so the button and the rule it opened are plainly the same thing.
+
+   Loud on purpose. At a tenth of an alpha it was technically drawn and
+   practically invisible: two dim lines at the top of a file you were not
+   looking at, which is indistinguishable from the button doing nothing. */
+#${DOCK_ID} .cm-line.sve-css-id {
+  background: rgba(56,189,248,.16);
+  box-shadow: inset 3px 0 0 #38bdf8;
+}
+/* An empty ID rule is still unsaved, and still dropped on the way to disk —
+   but it is not faded while the ID is open. It is the one rule the button just
+   asked you to write in; drawing it at a third of its strength was telling you
+   to type somewhere you could barely see. */
+#${DOCK_ID}[data-sve-values="on"] .cm-line.sve-css-id .sve-css-ghost {
+  opacity: 1;
+}
 #${DOCK_ID} [data-sve-css-kids] {
   display: flex;
   align-items: center;
@@ -1543,8 +1555,8 @@ function ensureStyle(doc) {
   position: fixed;
   z-index: 60;
   min-width: 168px;
-  max-width: 240px;
-  max-height: 240px;
+  max-width: 268px;
+  max-height: 22rem;
   overflow: auto;
   padding: 8px;
   border-radius: 8px;
@@ -1751,13 +1763,47 @@ function ensureStyle(doc) {
 #${CSS_MENU_ID} [data-sve-css-choice] {
   all: unset;
   cursor: pointer;
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px;
   border-radius: 4px;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+#${CSS_MENU_ID} [data-sve-css-choice-label] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* What the row actually writes, in the corner of the row that writes it. Dim,
+   because it is the answer to a second question, not the first. */
+#${CSS_MENU_ID} [data-sve-css-choice-hint] {
+  flex: 0 0 auto;
+  opacity: .45;
+  font-size: 10px;
+}
+#${CSS_MENU_ID} [data-sve-css-head-row] {
+  display: block;
+  padding: 8px 8px 3px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .55;
+}
+#${CSS_MENU_ID} [data-sve-css-head-row]:first-child {
+  padding-top: 2px;
+}
+#${CSS_MENU_ID} [data-sve-css-note-row] {
+  display: block;
+  padding: 6px 8px 2px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  line-height: 1.45;
+  opacity: .5;
 }
 #${CSS_MENU_ID} [data-sve-css-choice]:hover,
 #${CSS_MENU_ID} [data-sve-css-swatch][data-active],
@@ -2347,7 +2393,20 @@ function bindResize(win, dock) {
   dock._sveResizeBound = true;
 
   const startResize = (event) => {
-    if (event.button !== 0 || event.target.closest('[data-sve-code-pane-btn], [data-sve-code-back], [data-sve-style-mode], [data-sve-code-history], [data-sve-code-strip], [data-sve-html-scope], [data-sve-code-lock], [data-sve-code-autosave], [data-sve-code-save], .cm-editor')) {
+    // Anything you can operate is not a place to grab the dock by. This used to
+    // be a hand-kept list of every button in the bar, and the cost of missing
+    // one is invisible and total: pressing it starts a drag, the drag shield
+    // goes up under the cursor, the pointer comes up on the shield instead of
+    // on the button, and the browser never makes a click at all. The button
+    // looks right, lights nothing, does nothing, and there is no error to find.
+    // `[data-sve-values-mode]` was the one missing, and the ID button was dead
+    // for as long as it existed.
+    //
+    // The bar is still draggable — by the grip above it, and by the empty space
+    // between the controls, which is what people reach for anyway.
+    if (event.button !== 0 || event.target.closest(
+      'button, a, input, select, textarea, label, [role="button"], [contenteditable], .cm-editor'
+    )) {
       return;
     }
 
@@ -2900,9 +2959,9 @@ function applyCssScope() {
   let tree = [];
   let created = false;
 
-  // Values is about the file's own instance layer, not about the tag you have
-  // picked, and the tree scope rebuilds the pane from the picked tag's classes
-  // — a view the `#id-` rule is not in. So Values shows the file.
+  // The ID is the file's own instance layer, not the tag you have picked, and
+  // the tree scope rebuilds the pane from the picked tag's classes — a view
+  // the `#id-` rule is not in. So showing the ID shows the file.
   if (cssValues || !htmlScopePref || !htmlScopeActive) {
     cssPane = 'full';
     text = cssFull;
@@ -5401,11 +5460,16 @@ function paintValuesMode(win) {
 }
 
 /**
- * Make the section's own rule if it has none yet.
+ * Make this size's own rule if it has none yet, and put the cursor in it.
  *
  * Same promise the size blocks make: here is somewhere to write. Empty, it is
- * faded and never saved — so switching to ID and back leaves the file exactly
- * as it was, and a section that has no values yet still has a door to them.
+ * faded and never saved — so turning the ID on and off again leaves the file
+ * exactly as it was, and a section that has no values yet still has a door to
+ * them.
+ *
+ * One rule per size, not one per section: a value that changes on mobile has
+ * to be written where mobile can see it, so the button opens the rule for the
+ * size the panel is on and makes the block around it if that is missing too.
  */
 function enterValuesRule(win) {
   const view = editors.css;
@@ -5414,24 +5478,80 @@ function enterValuesRule(win) {
     return;
   }
 
+  const rows = cssSizeRows(win);
   const text = view.state.doc.toString();
-  const found = idRuleBlocks(text);
+  const found = idRulesForSize(text, rows, cssSize);
+
+  // The caret is the whole answer to "did anything happen". Put it in the rule
+  // and take the focus with it: a caret in a pane nobody is typing in does not
+  // blink, so the rule opened and the editor still looked untouched.
+  view.focus();
 
   if (found.length) {
-    const at = Math.min(found[0].bodyTo, found[0].bodyFrom
-      + (text.slice(found[0].bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length);
+    const node = found[0];
+    const at = Math.min(node.bodyTo, node.bodyFrom
+      + (text.slice(node.bodyFrom).match(/^[^\S\n]*\n?/) || [''])[0].length);
 
     view.dispatch({ selection: { anchor: at }, scrollIntoView: true });
 
     return;
   }
 
-  // At the top of the file: the values come before the design that reads them.
-  const insert = `#id-{{ id }} {\n    \n}\n\n`;
+  const row = cssSizeRow(win, cssSize);
+
+  // All and the base share one rule, and it goes at the top of the file: the
+  // values come before the design that reads them, and there is no block to
+  // put them in.
+  if (!row || row.base) {
+    const head = '#id-{{ id }} {\n    ';
+
+    view.dispatch({
+      changes: { from: 0, to: 0, insert: `${head}\n}\n\n` },
+      selection: { anchor: head.length },
+      scrollIntoView: true,
+    });
+
+    return;
+  }
+
+  const block = blocksForSize(text, rows, cssSize)[0];
+
+  // A narrower size writes its rule inside its own block, at the top of it —
+  // same reason the base one is at the top of the file.
+  if (block) {
+    const indent = `${leadingCssIndent(text, block.from)}    `;
+    const head = `\n${indent}#id-{{ id }} {\n${indent}    `;
+
+    view.dispatch({
+      changes: { from: block.bodyFrom, to: block.bodyFrom, insert: `${head}\n${indent}}\n` },
+      selection: { anchor: block.bodyFrom + head.length },
+      scrollIntoView: true,
+    });
+
+    return;
+  }
+
+  // No block for this size either. The rule and the block it lives in are one
+  // thing to write, not a button that has to be clicked twice.
+  const spot = newSizeBlockSpot(view, text);
+  const inner = `${spot.indent}    `;
+
+  // Unless the spot is already inside the ID rule — the shape where the sizes
+  // are nested in it. There the block IS the size's layer, and naming the rule
+  // again inside itself would read as `#id-… #id-…`: a descendant of itself,
+  // matching nothing.
+  const nested = idRulesForSize(text, rows, '')
+    .some((node) => spot.at > node.bodyFrom && spot.at <= node.bodyTo);
+  const head = nested
+    ? `\n\n${spot.indent}@media ${newSizeQuery(row, text)} {\n${inner}`
+    : `\n\n${spot.indent}@media ${newSizeQuery(row, text)} {\n${inner}#id-{{ id }} {\n${inner}    `;
+  const tail = nested
+    ? `\n${spot.indent}}${spot.suffix}`
+    : `\n${inner}}\n${spot.indent}}${spot.suffix}`;
 
   view.dispatch({
-    changes: { from: 0, to: 0, insert },
-    selection: { anchor: insert.indexOf('    ') + 4 },
+    changes: { from: spot.at, to: spot.at, insert: `${head}${tail}` },
+    selection: { anchor: spot.at + head.length },
     scrollIntoView: true,
   });
 }
@@ -5442,7 +5562,7 @@ function setValuesMode(win, on) {
   closeCssMenu(win.document);
   cssOpenTool = '';
   paintValuesMode(win);
-  // The pane's content changes, not just what is folded in it: leaving Values
+  // The pane's content changes, not just what is folded in it: hiding the ID
   // hands the tree scope back whatever it had.
   flushCssScope();
   applyCssScope();
@@ -5452,6 +5572,7 @@ function setValuesMode(win, on) {
   }
 
   applyCssFolds(win, true);
+  paintCssIdMark();
   paintCssHead(win);
   paintCssToolState(win);
 }
@@ -5505,7 +5626,7 @@ function applyStyleMode(win) {
   cssOpenMenu = '';
 
   // Tailwind has no per-instance layer — its classes are on the tag, not in a
-  // rule — so switching language leaves Values behind rather than showing a
+  // rule — so switching language leaves the ID behind rather than showing a
   // button that would point at nothing.
   if (styleMode === 'tw' && cssValues) {
     cssValues = false;
@@ -5600,7 +5721,7 @@ function applyCssFolds(win, force = false) {
   }
 
   const text = view.state.doc.toString();
-  const sig = `${cssValues ? 'v' : cssSize}|${cssMediaBlocks(text).map((b) => `${b.from}-${b.to}`).join(',')}`;
+  const sig = `${cssValues ? '1' : '0'}|${cssSize}|${cssMediaBlocks(text).map((b) => `${b.from}-${b.to}`).join(',')}`;
 
   // Typing inside a rule moves nothing that is folded. Re-folding on every
   // keystroke would be work for nothing, and a dispatch per character.
@@ -5612,11 +5733,16 @@ function applyCssFolds(win, force = false) {
 
   const rows = cssSizeRows(win);
   const wanted = new Map();
-  // Values is its own view of the file, not a size within it, so it answers
-  // first: in Values you are looking at one rule and nothing else.
-  const ranges = cssValues
-    ? foldRangesForValues(text)
-    : foldRangesForSize(text, rows, cssSize);
+  // The size says what is on screen at all; the ID button says whether this
+  // size's own `#id-` rule is one of the things on it. Off is the resting
+  // state — the design is what the pane is for — so the rule folds away until
+  // it is asked for, at every size and at All too.
+  const ranges = [
+    ...foldRangesForSize(text, rows, cssSize),
+    ...(cssValues
+      ? []
+      : idRulesForSize(text, rows, cssSize).map((node) => ({ from: node.from, to: node.to }))),
+  ];
 
   for (const range of ranges) {
     if (range.to > range.from) {
@@ -5648,6 +5774,25 @@ function applyCssFolds(win, force = false) {
   if (effects.length) {
     view.dispatch({ effects });
   }
+}
+
+/**
+ * The `@media` spelling a size block this file does not have yet should use.
+ *
+ * Written in the spelling the file already uses. A file that says
+ * `max-width: …px` throughout keeps saying it; everything else gets the
+ * site's own unit, which is `em` unless the breakpoint says otherwise.
+ *
+ * Judged on the whole file, not on the pane: with the tree scope on, the pane
+ * is a rebuilt view of one class and may hold no media query at all, and a
+ * file written in px would quietly gain its first em one.
+ */
+function newSizeQuery(row, text) {
+  const spelling = cssFull || text;
+
+  return /max-width/i.test(spelling) && !/width\s*</i.test(spelling)
+    ? row.media_px || row.media
+    : row.media;
 }
 
 /**
@@ -5694,17 +5839,7 @@ function enterCssSize(win, handle) {
     return;
   }
 
-  // Written in the spelling the file already uses. A file that says
-  // `max-width: …px` throughout keeps saying it; everything else gets the
-  // site's own unit, which is `em` unless the breakpoint says otherwise.
-  //
-  // Judged on the whole file, not on the pane: with the tree scope on, the
-  // pane is a rebuilt view of one class and may hold no media query at all,
-  // and a file written in px would quietly gain its first em one.
-  const spelling = cssFull || text;
-  const query = /max-width/i.test(spelling) && !/width\s*</i.test(spelling)
-    ? row.media_px || row.media
-    : row.media;
+  const query = newSizeQuery(row, text);
   const spot = newSizeBlockSpot(view, text);
   const insert = `\n\n${spot.indent}@media ${query} {\n${spot.indent}    \n${spot.indent}}${spot.suffix}`;
 
@@ -5819,7 +5954,15 @@ function setCssSize(win, handle) {
     enterCssSize(win, next);
   }
 
+  // The ID is a layer inside a size, not a view instead of one: with it
+  // showing, changing size changes which `#id-` rule you are writing in —
+  // making it, and the block around it, the same as the button would.
+  if (cssValues) {
+    enterValuesRule(win);
+  }
+
   applyCssFolds(win, true);
+  paintCssIdMark();
   paintCssHead(win);
   paintCssToolState(win);
 }
@@ -5938,6 +6081,7 @@ on('lp:device', (key) => {
   cssSize = next;
   chromeSet(win, CSS_SIZE_KEY, next);
   applyCssFolds(win, true);
+  paintCssIdMark();
   paintCssHead(win);
   paintCssToolState(win);
 });
@@ -6059,6 +6203,31 @@ function alpineStatesInScope(win) {
   return [...new Set(out)];
 }
 
+/**
+ * The switches this tag declares itself, as opposed to the ones it inherits.
+ *
+ * The difference decides whether writing another `x-data` here would help. On
+ * the tag that already holds one it adds a name to the same scope. On a tag
+ * below it, it starts a *new* scope that hides the one above — so `@click`
+ * written next to it would flip a different `open` than the one `x-show` is
+ * watching, and nothing would ever line up.
+ */
+function alpineOwnStates(win) {
+  const view = editors.html;
+  const target = htmlTargetFromCursor(win);
+
+  if (!view || !target) {
+    return [];
+  }
+
+  const scoped = htmlScopeActive && !!htmlFocus;
+  const html = scoped ? htmlFull : view.state.doc.toString();
+  const data = tagAttrs(html.slice(target.from, target.openTo))
+    .find((attr) => attr.name === 'x-data');
+
+  return data ? stateNames(data.value) : [];
+}
+
 function openAlpineMenu(win, anchor) {
   const doc = win.document;
 
@@ -6071,13 +6240,48 @@ function openAlpineMenu(win, anchor) {
   menu.id = CSS_MENU_ID;
   doc.body.appendChild(menu);
   placeCssMenu(win, anchor, menu);
-  // Flat, in group order. Twelve items is a list you read; a menu with
-  // headings in it would be a second kind of menu in a dock that has one.
-  const choices = ALPINE_GROUPS.flatMap((group) =>
-    ALPINE_BEHAVIOURS.filter((item) => item.group === group.id).map((item) => ({
-      value: item.id,
-      label: t(win, item.label),
-    })));
+  // Grouped, with the heading above each group and the attribute beside each
+  // row. Flat, the list read as sixteen ways to say the same thing: nothing in
+  // it said which row put state on the section, which one went on the button,
+  // and which one went on the box that reacts.
+  //
+  // And until there is a switch to point at, the list is only the first group.
+  // A trigger or a reaction written against a name nothing declares is the
+  // worst failure Alpine has: no error, no warning, the thing simply never
+  // happens — and the person who picked it has no way to find out why. Offering
+  // it at all is the mistake, so step two appears when step one is done.
+  const staged = !states.length;
+  // Inherited: the switch lives on a tag above this one. Offering `x-data`
+  // here offers the one thing that would break it — see `alpineOwnStates`.
+  const inherited = !staged && !alpineOwnStates(win).length;
+  const groups = ALPINE_GROUPS.filter((group) => (
+    group.id === 'state' ? !inherited : !staged
+  ));
+  const choices = groups.flatMap((group) => {
+    const rows = ALPINE_BEHAVIOURS.filter((item) => item.group === group.id);
+
+    if (!rows.length) {
+      return [];
+    }
+
+    return [
+      {
+        value: `\u0000${group.id}`,
+        label: t(win, staged && group.id === 'state' ? 'alpine_group_state_first' : group.lang),
+        heading: true,
+      },
+      ...rows.map((item) => ({
+        value: item.id,
+        label: t(win, item.label),
+        hint: behaviourHint(item),
+      })),
+    ];
+  });
+
+  if (staged) {
+    // Why the list is short, in the list. Without it the menu looks broken.
+    choices.push({ value: '\u0000note', label: t(win, 'alpine_needs_state'), note: true });
+  }
 
   menu._sveApp = mountSurface(CodeDockMenu, menu, {
     kind: 'choices',
@@ -6141,6 +6345,9 @@ function askAlpineName(win, anchor, behaviour, states) {
   menu._sveApp = mountSurface(CodeDockMenu, menu, {
     kind: 'choices',
     choices: [
+      // Which switch, said out loud. Two menus in a row that look alike is how
+      // you end up picking a name for a question you thought was about events.
+      { value: '\u0000head', label: t(win, 'alpine_name'), heading: true },
       ...states.map((name) => ({ value: name, label: name })),
       { value: '\u0000new', label: t(win, 'alpine_new_name') },
     ],
@@ -6191,7 +6398,12 @@ function paintAlpine(win) {
 
   alpineUi.tag = target?.tag || '';
   alpineUi.canEdit = !lastLocked && !!target;
-  alpineUi.emptyText = t(win, target ? 'alpine_none' : 'alpine_pick');
+  // "Start with a switch on the section" is the wrong thing to read with the
+  // switch's own name sitting in the chip beside it.
+  alpineUi.emptyText = t(
+    win,
+    target ? (alpineStatesInScope(win).length ? 'alpine_none_ready' : 'alpine_none') : 'alpine_pick'
+  );
   alpineUi.addLabel = t(win, 'alpine_add');
   alpineUi.dropTitle = t(win, 'alpine_remove');
   alpineUi.states = alpineStatesInScope(win);
@@ -7163,6 +7375,77 @@ function cssGhostExtension() {
   return cssGhostUi;
 }
 
+let cssIdUi = null;
+let cssIdEffect = null;
+
+/**
+ * Draw the rule you are writing in while the ID is showing.
+ *
+ * The ID layer is one rule among the design's many, and a fold opening is a
+ * quiet thing to happen in a file this long. So it is marked for as long as it
+ * is on screen — a line down its left edge and a ground of its own — and "I am
+ * writing in the ID now" is something you see rather than work out.
+ */
+function cssIdExtension() {
+  if (cssIdUi) {
+    return cssIdUi;
+  }
+
+  cssIdEffect = StateEffect.define();
+
+  const line = Decoration.line({ class: 'sve-css-id' });
+
+  const build = (state) => {
+    const builder = new RangeSetBuilder();
+
+    if (!lastWin || !cssValues) {
+      return builder.finish();
+    }
+
+    try {
+      const doc = state.doc;
+
+      for (const node of idRulesForSize(doc.toString(), cssSizeRows(lastWin), cssSize)) {
+        const first = doc.lineAt(Math.min(node.from, doc.length)).number;
+        const last = doc.lineAt(Math.min(Math.max(node.to - 1, node.from), doc.length)).number;
+
+        for (let n = first; n <= last; n += 1) {
+          builder.add(doc.line(n).from, doc.line(n).from, line);
+        }
+      }
+    } catch {
+      /* half-typed CSS must not take the pane down */
+    }
+
+    return builder.finish();
+  };
+
+  cssIdUi = StateField.define({
+    create: (state) => build(state),
+    update: (value, tr) => (
+      tr.docChanged || tr.effects.some((effect) => effect.is(cssIdEffect))
+        ? build(tr.state)
+        : value
+    ),
+    provide: (field) => EditorView.decorations.from(field),
+  });
+
+  return cssIdUi;
+}
+
+/**
+ * Redraw the marking after something other than the text moved it.
+ *
+ * The field follows the document on its own. The button and the size row move
+ * which rule is meant without touching a character, and that is what this is
+ * for.
+ */
+function paintCssIdMark() {
+  if (cssIdEffect && editors.css) {
+    editors.css.dispatch({ effects: cssIdEffect.of(null) });
+  }
+}
+
 function partialUi() {
   if (!htmlPartialUi) {
     htmlPartialUi = partialDecorations({
@@ -7241,7 +7524,7 @@ function mountEditor(win, handle, parent) {
         // Only the CSS pane folds, and only this code folds it: the size row
         // puts the other sizes away rather than cutting them out of the text.
         // Folding is reversible and lossless, which rewriting the pane is not.
-        ...(handle === 'css' ? [codeFolding(), cssGhostExtension()] : []),
+        ...(handle === 'css' ? [codeFolding(), cssGhostExtension(), cssIdExtension()] : []),
         keymap.of([
           ...defaultKeymap,
           ...(handle === 'html' ? [{ key: 'Tab', run: expandHtmlTab }] : []),

@@ -6,7 +6,7 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { cssMediaBlocks, sizeOfQuery, queryUpperPx, blocksForSize, blocksToHide, foldRangesForSize, stripEmptySizeBlocks, emptySizeBlocks } from '../resources/js/css-sizes.js';
+import { cssMediaBlocks, sizeOfQuery, queryUpperPx, blocksForSize, blocksToHide, foldRangesForSize, idRulesForSize, stripEmptySizeBlocks, emptySizeBlocks } from '../resources/js/css-sizes.js';
 
 const SIZES = [
   { handle: 'laptop', base: true, max: null },
@@ -179,6 +179,40 @@ if (existsSync(root)) {
   console.log(`\n${files} skabeloner med <style>, ${found} media-blokke, ${bad} ubalancerede, ${unplaced} uplacerede`);
   is(bad, 0, 'alle udskårne blokke er balancerede');
 }
+
+// --- #id-reglen pr. størrelse, i begge skrivemåder ---------------------------
+// Naboer: en #id-regel pr. størrelse, hver i sin egen @media (accordion-formen).
+const naboer = `
+  #id-{{ id }}{ --color-bg: red; }
+  @media (width < 64em) { #id-{{ id }}{ padding: 1em; } }
+  @media (width < 48em) { #id-{{ id }}{ padding: 0; } }
+  @scope(.x) { :scope { color: red; } }
+`;
+const tekst = (css, nodes) => nodes.map((n) => css.slice(n.from, n.to).replace(/\s+/g, ' ').slice(0, 30));
+
+is(tekst(naboer, idRulesForSize(naboer, SIZES, '')).length, 3, 'naboer: Alle giver alle tre');
+is(tekst(naboer, idRulesForSize(naboer, SIZES, 'laptop')), ['#id-{{ id }}{ --color-bg: red;'], 'naboer: Desktop er den yderste');
+is(tekst(naboer, idRulesForSize(naboer, SIZES, 'tablet')), ['#id-{{ id }}{ padding: 1em; }'], 'naboer: tablet er sin egen');
+is(tekst(naboer, idRulesForSize(naboer, SIZES, 'mobile')), ['#id-{{ id }}{ padding: 0; }'], 'naboer: mobil er sin egen');
+
+// Indlejret: én #id-regel med størrelserne inde i sig (featured_section-formen).
+const indlejret = `
+  #id-{{ id }}{
+    --color-bg: red;
+    .list { display: grid; }
+    @media (width < 64em) { padding: 1em; }
+    @media (width < 48em) { padding: 0; }
+  }
+  @scope(.x) { :scope { color: red; } }
+`;
+
+is(tekst(indlejret, idRulesForSize(indlejret, SIZES, '')).length, 1, 'indlejret: Alle er hele reglen');
+is(tekst(indlejret, idRulesForSize(indlejret, SIZES, 'laptop')).length, 1, 'indlejret: Desktop er hele reglen');
+is(tekst(indlejret, idRulesForSize(indlejret, SIZES, 'tablet')), ['@media (width < 64em) { paddin'], 'indlejret: tablet er blokken inde i');
+is(tekst(indlejret, idRulesForSize(indlejret, SIZES, 'mobile')), ['@media (width < 48em) { paddin'], 'indlejret: mobil er blokken inde i');
+
+// @scope er designet, ikke ID-laget — det må aldrig komme med.
+is(idRulesForSize('@scope(.x) { :scope { color: red; } }', SIZES, '').length, 0, 'designet er ikke ID-laget');
 
 console.log(fails ? `\n${fails} FEJL` : '\nAlt grønt');
 process.exit(fails ? 1 : 0);

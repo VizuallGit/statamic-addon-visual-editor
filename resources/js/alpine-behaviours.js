@@ -7,9 +7,14 @@
  * of question about the same tag, which is why it looks like it.
  *
  * A behaviour is one or two attributes and a name. The name is the whole
- * trick: `open` in `x-data="{ open: false }"` is what `@click` flips and what
+ * trick: `open` in `x-data="{ open: false }"` is what `@click` changes and what
  * `x-show` reads, and a designer who never learns anything else about Alpine
  * can build a dropdown by picking the same name twice.
+ *
+ * So the list is grouped by which of those three a row is, and numbered in the
+ * order they have to be written. Each row also carries the attribute it writes,
+ * because a name alone never says whether you are about to add state, a
+ * trigger, or a thing that follows one.
  *
  * Trimmed on purpose. Alpine has far more than this; a list nobody can scan is
  * not a feature in reserve. What is here is what these templates already use —
@@ -28,7 +33,14 @@ export const ALPINE_GROUPS = [
 ];
 
 /**
- * `name` is filled in by the panel: either a state the tag already has, or one
+ * The list, in the order the thing gets built.
+ *
+ * The three groups are three jobs, done on three different tags, and the panel
+ * numbers them because that is the part nobody could see: put a switch on the
+ * section, put something on the button that turns it on and off, put something on
+ * the box that follows it. Pick the same switch name all three times and it works.
+ *
+ * `name` is filled in by the panel: either a switch the tag already has, or one
  * the reader typed. `|` marks where the caret lands, same as the other snippet
  * lists in this dock.
  */
@@ -73,6 +85,43 @@ export const ALPINE_BEHAVIOURS = [
     icon: 'close',
     needsName: true,
     attrs: [{ name: '@click', value: ':name = false' }],
+  },
+  // Hover is two halves and they are listed as two: the tag that turns it on
+  // when the pointer arrives is usually not the tag that turns it off when the
+  // pointer leaves, and one entry writing both would put them on the wrong one.
+  {
+    id: 'open_hover',
+    group: 'act',
+    label: 'alpine_open_hover',
+    icon: 'open',
+    needsName: true,
+    attrs: [{ name: '@mouseenter', value: ':name = true' }],
+  },
+  {
+    id: 'close_leave',
+    group: 'act',
+    label: 'alpine_close_leave',
+    icon: 'close',
+    needsName: true,
+    attrs: [{ name: '@mouseleave', value: ':name = false' }],
+  },
+  // `focusin`/`focusout`, not `focus`: those two cross from a child up, so a
+  // menu holding a link still counts as focused while the link has the focus.
+  {
+    id: 'open_focus',
+    group: 'act',
+    label: 'alpine_open_focus',
+    icon: 'open',
+    needsName: true,
+    attrs: [{ name: '@focusin', value: ':name = true' }],
+  },
+  {
+    id: 'close_blur',
+    group: 'act',
+    label: 'alpine_close_blur',
+    icon: 'close',
+    needsName: true,
+    attrs: [{ name: '@focusout', value: ':name = false' }],
   },
   {
     id: 'close_outside',
@@ -134,6 +183,16 @@ export const ALPINE_BEHAVIOURS = [
     attrs: [{ name: 'x-text', value: ':name' }],
   },
 ];
+
+/**
+ * The attributes a behaviour writes, as a line to show beside its name.
+ *
+ * "When I click it, it is an x-data value — how should I know that?" is the
+ * question this answers, and it answers it in the menu, before the click.
+ */
+export function behaviourHint(behaviour) {
+  return (behaviour?.attrs || []).map((attr) => attr.name).join(' ');
+}
 
 /** Anything Alpine owns: `x-…`, `@…`, and the `:` shorthand for `x-bind:`. */
 const ALPINE_ATTR = /^(x-[\w:.-]+|@[\w:.-]+|:[\w-]+)$/;

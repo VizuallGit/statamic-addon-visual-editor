@@ -14,6 +14,7 @@ export const htmlTreeUi = reactive({
   showTitle: '',
   duplicateTitle: '',
   deleteTitle: '',
+  lockedTitle: '',
   canEdit: false,
   dragging: false,
   dropId: null,

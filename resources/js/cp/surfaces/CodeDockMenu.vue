@@ -25,16 +25,30 @@ defineProps({
       @click.prevent.stop="onPick(swatch.name)"
     ></button>
   </div>
-  <button
-    v-else
-    v-for="choice in choices"
-    :key="choice.value"
-    type="button"
-    data-sve-css-choice
-    :data-sve-css-token="choice.token || undefined"
-    :data-active="choice.active ? '' : undefined"
-    @click.prevent.stop="onPick(choice.value)"
-  >
-    {{ choice.label }}
-  </button>
+  <template v-else v-for="choice in choices" :key="choice.value">
+    <!--
+      A heading is not a thing you can pick, so it is not a button. It is here
+      because a list of behaviours that all sound alike is a list nobody can
+      sort: the heading says which of the three jobs the rows under it do.
+    -->
+    <span v-if="choice.heading" data-sve-css-head-row>{{ choice.label }}</span>
+    <!--
+      A sentence, not a heading and not a row you can press. It is here for the
+      one menu that is deliberately short: without it, a list missing two thirds
+      of itself looks broken rather than staged.
+    -->
+    <span v-else-if="choice.note" data-sve-css-note-row>{{ choice.label }}</span>
+    <button
+      v-else
+      type="button"
+      data-sve-css-choice
+      :data-sve-css-token="choice.token || undefined"
+      :data-active="choice.active ? '' : undefined"
+      @click.prevent.stop="onPick(choice.value)"
+    >
+      <span data-sve-css-choice-label>{{ choice.label }}</span>
+      <!-- The attribute it writes. The whole of "how would I know that". -->
+      <span v-if="choice.hint" data-sve-css-choice-hint>{{ choice.hint }}</span>
+    </button>
+  </template>
 </template>

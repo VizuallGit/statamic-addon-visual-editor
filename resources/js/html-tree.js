@@ -223,6 +223,7 @@ export function ensureHtmlTreeStyles(doc) {
       display: inline-flex;
     }
     [data-sve-ht-eye],
+    [data-sve-ht-fields],
     [data-sve-ht-dup],
     [data-sve-ht-del] {
       all: unset;
@@ -238,8 +239,18 @@ export function ensureHtmlTreeStyles(doc) {
       border-radius: 4px;
     }
     [data-sve-ht-eye]:hover,
+    [data-sve-ht-fields]:hover,
     [data-sve-ht-dup]:hover,
     [data-sve-ht-del]:hover { opacity: 1; background: rgba(255,255,255,.12); }
+    /* Locked: still there, still readable, plainly not for pressing. */
+    [data-sve-ht-eye][disabled],
+    [data-sve-ht-fields][disabled],
+    [data-sve-ht-dup][disabled],
+    [data-sve-ht-del][disabled] { opacity: .3; cursor: default; }
+    [data-sve-ht-eye][disabled]:hover,
+    [data-sve-ht-fields][disabled]:hover,
+    [data-sve-ht-dup][disabled]:hover,
+    [data-sve-ht-del][disabled]:hover { opacity: .3; background: none; }
     [data-sve-ht-icon] {
       flex: none;
       width: 14px;
@@ -870,6 +881,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.showTitle = t(win, 'html_tree_show');
   htmlTreeUi.duplicateTitle = t(win, 'html_tree_duplicate');
   htmlTreeUi.deleteTitle = t(win, 'html_tree_delete');
+  htmlTreeUi.lockedTitle = t(win, 'html_tree_locked');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
   paintComponentExit(win);
   htmlTreeUi.onSelect = (id) => {

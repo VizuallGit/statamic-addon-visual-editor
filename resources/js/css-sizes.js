@@ -543,66 +543,82 @@ export function emptySizeBlocks(css, sizes) {
 }
 
 /**
- * The per-instance rule — `#id-{{ id }}` — and what to fold to see only it.
+ * The per-instance rule — `#id-{{ id }}` — belonging to one size view.
  *
  * The second of the two layers these sections are written in: the design lives
  * in `@scope(.{{ _class }})` and is the same for every section of this type,
  * while this one holds what the editor filled in on THIS section, handed to
  * the design as custom properties. Two different things, edited apart.
+ *
+ * There is one ID per section but one rule per size — the base one at the top
+ * of the file, and a narrower one inside each size block that overrides it —
+ * so which of them you mean is the size the panel is on. `active` empty means
+ * every size at once, the same "All" the size row offers.
  */
-export function idRuleBlocks(css) {
-  const source = String(css || '');
+export function idRulesForSize(css, sizes, active) {
+  const rows = sizes || [];
+  const base = rows.find((size) => size.base);
   const out = [];
+  // `#id-{{ id }}` masks to `#id-`, and `{{ responsive_css }}` writes the same
+  // rule without naming it — both are this section's own rule.
+  const ours = (node) => /^#id-/.test(node.prelude) || /^#\s*$/.test(node.prelude);
 
-  const walk = (nodes) => {
+  /**
+   * Inside an ID rule that is not the size being asked for.
+   *
+   * These sections are written both ways: a `#id-` rule per size, each beside
+   * its own `@media`, and one rule with the sizes nested inside it. In the
+   * second shape the narrower size IS that nested block, so an answer of
+   * "this file has nothing for mobile" would be wrong — it is one level down.
+   */
+  const inside = (nodes, size) => {
     for (const node of nodes) {
-      // `#id-{{ id }}` masks to `#id-`, and `{{ responsive_css }}` writes the
-      // same rule without naming it — both are this section's own rule.
-      if (/^#id-/.test(node.prelude) || /^#\s*$/.test(node.prelude)) {
+      if (!node.media) {
+        inside(node.children, size);
+        continue;
+      }
+
+      const where = sizeOfQuery(node.query, rows) || size;
+
+      if (active === where) {
         out.push(node);
         continue;
       }
 
-      walk(node.children);
+      inside(node.children, where);
     }
   };
 
-  walk(cssBlockTree(source));
+  const walk = (nodes, size) => {
+    for (const node of nodes) {
+      if (node.media) {
+        // A query this site has no size for narrows nothing it can name, so
+        // whatever size we were already in carries on inside it.
+        walk(node.children, sizeOfQuery(node.query, rows) || size);
+        continue;
+      }
 
-  return out;
-}
+      if (ours(node)) {
+        // Outside every size block is the base: the size that applies when no
+        // other one does, which is where a hand-written section starts.
+        const where = size || (base ? base.handle : '');
 
-/**
- * Fold everything that is not the per-instance rule.
- *
- * Same shape as `foldRangesForSize`: the skeleton around what you are looking
- * at stays, the rest goes away. A file with no such rule folds to nothing —
- * there is nothing to show, and the panel offers to make one.
- */
-export function foldRangesForValues(css) {
-  const source = String(css || '');
-  const keep = idRuleBlocks(source);
+        if (!active || active === where) {
+          out.push(node);
+        } else {
+          inside(node.children, where);
+        }
 
-  if (!keep.length) {
-    return [];
-  }
+        continue;
+      }
 
-  const out = [];
-  let at = 0;
-
-  for (const node of keep.sort((a, b) => a.from - b.from)) {
-    if (node.from > at) {
-      out.push({ from: at, to: node.from });
+      walk(node.children, size);
     }
+  };
 
-    at = node.to;
-  }
+  walk(cssBlockTree(String(css || '')), '');
 
-  if (source.length > at) {
-    out.push({ from: at, to: source.length });
-  }
-
-  return out.filter((range) => source.slice(range.from, range.to).trim() !== '');
+  return out.sort((a, b) => a.from - b.from);
 }
 
 /** The blocks belonging to one size, in file order. */
