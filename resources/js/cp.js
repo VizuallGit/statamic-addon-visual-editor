@@ -3182,7 +3182,12 @@ export function ensureAiTextToolbarButton(win) {
   }
 
   if (existing) {
-    // The preview may have been reloaded under a button that is already there.
+    // Re-assert the state, don't just leave it. This runs on every toolbar sync
+    // — a preview render, a panel opening, a tab change — and whatever else the
+    // header does in between, the button that says "on" has to still say it
+    // afterwards. Setting it only at creation is why the highlight appeared and
+    // then went away again.
+    existing.setAttribute('aria-pressed', sve.isAiTextOn?.(win) ? 'true' : 'false');
     sve.syncAiTextToPreview?.(win);
 
     return;

@@ -9022,10 +9022,20 @@ export function initBridge(win = window) {
   // immediately tell the CP to clear its hover outline.
   win.document.addEventListener('mouseleave', () => hoverHandler.reset(), true);
   initAiText(win, t, {
-    // The same two readers the edit toolbar and the preview dialogs use, so the
-    // marks and the popover cannot drift away from the rest of the editor.
-    theme: () => toolbarThemeFor(detectCpDark(win)),
+    // The CP's accent — the colour its buttons are painted in.
     primary: () => cpDialogTheme(win).primary,
+    // Is the surface behind this element dark? Same readers the drop marker and
+    // the edit toolbar use, so a popover on a dark section flips the same way
+    // the toolbar above it does. The 0.3 cut matches toolbar-look.js.
+    surfaceIsDark: (el) => {
+      const parsed = parseCssColor(solidBackgroundFor(win, el), win);
+
+      if (!parsed) {
+        return false;
+      }
+
+      return (0.2126 * parsed.r + 0.7152 * parsed.g + 0.0722 * parsed.b) / 255 < 0.3;
+    },
   });
   win.addEventListener('message', createMessageReceiver(win));
 

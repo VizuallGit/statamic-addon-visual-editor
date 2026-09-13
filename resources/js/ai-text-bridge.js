@@ -40,44 +40,84 @@ const LONG_TEXT_WORDS = 50;
 const SUGGESTION_MAX_HEIGHT = '11rem';
 
 /** Only reached if the module is initialised without the readers. */
-const FALLBACK_THEME = {
-  bg: '#fff',
-  fg: '#27272a',
-  border: 'rgba(0,0,0,0.09)',
-  shadow: '0 6px 22px rgba(0,0,0,0.17)',
-  hover: 'rgba(0,0,0,0.06)',
-};
 const FALLBACK_PRIMARY = '#4530D8';
 
 /**
- * The CP's own toolbar tokens, as the marks and the popover use them.
+ * The two tones, and what every part of the panel is painted in.
  *
- * Same source as the inline-edit toolbar, so a mark on the page and the bar
- * above it are light or dark together — and the accent is the CP's primary, the
- * colour its buttons are already painted in.
+ * Which one is used depends on the surface the panel sits on, not on the CP's
+ * theme — the same rule the inline-edit toolbar follows (toolbar-look.js): light
+ * chrome on a dark section, dark chrome on a light one. A white popover on a
+ * near-black hero is unreadable no matter what the Control Panel's theme says.
+ *
+ * Every pair here is a foreground on the background directly behind it, chosen
+ * to clear WCAG AA for body text. The keyword chips are the ones that were
+ * unreadable: primary-on-primary-tint has no contrast to speak of in either
+ * tone, so they are now solid primary with white on top, which holds up on both.
  */
-function palette() {
-  const theme = ctx.theme();
+const TONES = {
+  // Chrome for a DARK surface: the panel goes light.
+  light: {
+    bg: '#f4f4f5',
+    fg: '#18181b',
+    muted: '#52525b',
+    border: 'rgba(0,0,0,0.14)',
+    shadow: '0 0.75rem 2rem rgba(0,0,0,0.35)',
+    field: '#ffffff',
+    row: '#ffffff',
+    rowBorder: 'rgba(0,0,0,0.14)',
+    chip: 'rgba(0,0,0,0.06)',
+    chipFg: '#3f3f46',
+    hover: 'rgba(0,0,0,0.06)',
+    error: '#b91c1c',
+    errorBg: 'rgba(220,38,38,0.10)',
+  },
+  // Chrome for a LIGHT surface: the panel goes dark.
+  dark: {
+    bg: '#27272a',
+    fg: '#f4f4f5',
+    muted: '#a1a1aa',
+    border: 'rgba(255,255,255,0.16)',
+    shadow: '0 0.75rem 2rem rgba(0,0,0,0.55)',
+    field: 'rgba(0,0,0,0.30)',
+    row: 'rgba(255,255,255,0.06)',
+    rowBorder: 'rgba(255,255,255,0.16)',
+    chip: 'rgba(255,255,255,0.12)',
+    chipFg: '#d4d4d8',
+    hover: 'rgba(255,255,255,0.10)',
+    error: '#fca5a5',
+    errorBg: 'rgba(220,38,38,0.18)',
+  },
+};
 
-  return {
-    bg: theme.bg,
-    fg: theme.fg,
-    border: theme.border,
-    shadow: theme.shadow,
-    hover: theme.hover,
-    primary: ctx.primary() || FALLBACK_PRIMARY,
-  };
+/**
+ * The palette for a panel sitting on this element.
+ *
+ * `surfaceIsDark` answers about the page behind it; a dark page takes the light
+ * chrome, which is why the names cross over here.
+ */
+function paletteFor(el) {
+  const dark = el ? !!ctx.surfaceIsDark(el) : false;
+  const tone = dark ? TONES.light : TONES.dark;
+
+  return { ...tone, primary: ctx.primary() || FALLBACK_PRIMARY };
 }
 
-/** Hands the palette to CSS, so the stylesheet can be written once. */
-function applyPalette(el) {
-  const p = palette();
-
+/** Hands a palette to CSS, so the stylesheet can be written once. */
+function applyPalette(el, p) {
   el.style.setProperty('--sve-ai-bg', p.bg);
   el.style.setProperty('--sve-ai-fg', p.fg);
+  el.style.setProperty('--sve-ai-muted', p.muted);
   el.style.setProperty('--sve-ai-border', p.border);
   el.style.setProperty('--sve-ai-shadow', p.shadow);
+  el.style.setProperty('--sve-ai-field', p.field);
+  el.style.setProperty('--sve-ai-row', p.row);
+  el.style.setProperty('--sve-ai-row-border', p.rowBorder);
+  el.style.setProperty('--sve-ai-chip', p.chip);
+  el.style.setProperty('--sve-ai-chip-fg', p.chipFg);
   el.style.setProperty('--sve-ai-hover', p.hover);
+  el.style.setProperty('--sve-ai-error', p.error);
+  el.style.setProperty('--sve-ai-error-bg', p.errorBg);
   el.style.setProperty('--sve-ai-primary', p.primary);
 }
 
@@ -117,7 +157,10 @@ function styles(win) {
   style.id = STYLES_ID;
   // Own stylesheet rather than inline styles on every mark: a page may carry a
   // hundred of them, and a rule that is written once also stays consistent.
-  applyPalette(win.document.documentElement);
+  win.document.documentElement.style.setProperty(
+    '--sve-ai-primary',
+    ctx.primary() || FALLBACK_PRIMARY
+  );
 
   style.textContent = `
     #${LAYER_ID} {
@@ -128,10 +171,12 @@ function styles(win) {
       z-index: 2147483200;
       pointer-events: none;
     }
-    /* The same pill the inline-edit toolbar is built from: it carries the CP's
-       light or dark tokens, so the mark stays readable on a dark section and on
-       a light one without knowing anything about the page behind it. The glyph
-       is the CP's primary — the colour its buttons already wear. */
+    /* The mark is always the CP's own accent with a white glyph on it — the
+       colour the toolbar button that switched it on is painted in. Nothing
+       about it follows the page: it is a control, and a control that changes
+       colour from section to section is one you have to look for twice.
+       Contrast comes from opacity instead — quiet at rest, solid on hover and
+       while its popover is open. */
     #${LAYER_ID} [${MARK_ATTR}] {
       all: unset;
       position: absolute;
@@ -142,25 +187,18 @@ function styles(win) {
       align-items: center;
       justify-content: center;
       border-radius: 999px;
-      background: var(--sve-ai-bg);
-      color: var(--sve-ai-primary);
-      border: 1px solid var(--sve-ai-border);
-      box-shadow: var(--sve-ai-shadow);
+      background: var(--sve-ai-primary);
+      color: #fff;
+      box-shadow: 0 0.125rem 0.375rem rgba(0, 0, 0, 0.35);
       cursor: pointer;
       pointer-events: auto;
-      opacity: 0.9;
+      opacity: 0.6;
       transition: opacity 0.12s ease, transform 0.12s ease;
     }
-    #${LAYER_ID} [${MARK_ATTR}]:hover {
-      opacity: 1;
-      transform: scale(1.12);
-    }
-    /* Open: the mark takes the primary, the way a pressed toolbar icon does. */
+    #${LAYER_ID} [${MARK_ATTR}]:hover,
     #${LAYER_ID} [${MARK_ATTR}][data-sve-ai-open] {
       opacity: 1;
       transform: scale(1.12);
-      background: var(--sve-ai-primary);
-      color: #fff;
     }
     #${LAYER_ID} [${MARK_ATTR}] svg {
       width: 0.8125rem;
@@ -192,7 +230,7 @@ function ensureLayer(win) {
   layer.id = LAYER_ID;
   // Our own DOM must not feed the observer that watches for the page changing.
   layer.setAttribute('data-sve-ai-own', '');
-  applyPalette(layer);
+  layer.style.setProperty('--sve-ai-primary', ctx.primary() || FALLBACK_PRIMARY);
   win.document.body.appendChild(layer);
 
   return layer;
@@ -253,10 +291,9 @@ function paintMarks() {
   const doc = win.document;
   const host = ensureLayer(win);
 
-  // The CP theme can be switched while Live Preview is open. Re-read it here
-  // rather than watching for it: this already runs when the page changes, and
-  // six custom properties cost nothing next to the repaint around them.
-  applyPalette(doc.documentElement);
+  // Re-read here rather than watching for it: this already runs when the page
+  // changes, and one custom property costs nothing next to the repaint.
+  doc.documentElement.style.setProperty('--sve-ai-primary', ctx.primary() || FALLBACK_PRIMARY);
 
   const scrollX = win.scrollX;
   const scrollY = win.scrollY;
@@ -398,7 +435,10 @@ function openPopover(target, mark) {
   const current = normalize(target.textContent || '');
 
   el.id = POPOVER_ID;
-  applyPalette(el);
+  // Tone from the section the text sits on, the same way the edit toolbar
+  // above it decides. Read before the panel is in the DOM, so it never samples
+  // its own background.
+  applyPalette(el, paletteFor(target));
   el.style.cssText +=
     'position:fixed;z-index:2147483400;width:min(22rem,calc(100vw - 1.5rem));' +
     'max-height:min(28rem,calc(100vh - 2rem));display:flex;flex-direction:column;' +
@@ -532,7 +572,7 @@ function render() {
   close.setAttribute('aria-label', t('ai_text_close'));
   close.style.cssText =
     'all:unset;cursor:pointer;width:1.5rem;height:1.5rem;display:flex;align-items:center;' +
-    'justify-content:center;border-radius:0.375rem;color:var(--sve-ai-fg);opacity:0.7;';
+    'justify-content:center;border-radius:0.375rem;color:var(--sve-ai-muted);';
   close.querySelector('svg').style.cssText = 'width:0.875rem;height:0.875rem;display:block;';
   close.addEventListener('click', closePopover);
 
@@ -564,7 +604,7 @@ function render() {
     session.instruction ?? (session.current.length <= PREFILL_MAX ? session.current : '');
   input.style.cssText =
     'box-sizing:border-box;width:100%;padding:0.4375rem 0.5rem;border:1px solid var(--sve-ai-border);' +
-    'border-radius:0.375rem;font:inherit;color:inherit;background:var(--sve-ai-bg);';
+    'border-radius:0.375rem;font:inherit;color:var(--sve-ai-fg);background:var(--sve-ai-field);';
   input.addEventListener('input', () => {
     session.instruction = input.value;
   });
@@ -580,7 +620,7 @@ function render() {
 
     error.textContent = session.error;
     error.style.cssText =
-      'padding:0.4375rem 0.5rem;border-radius:0.375rem;background:rgba(220,38,38,0.12);color:#f87171;';
+      'padding:0.4375rem 0.5rem;border-radius:0.375rem;background:var(--sve-ai-error-bg);color:var(--sve-ai-error);';
     body.appendChild(error);
   }
 
@@ -611,7 +651,7 @@ function keywordRow(doc) {
     const note = doc.createElement('div');
 
     note.textContent = t('ai_text_keywords_none');
-    note.style.cssText = 'color:var(--sve-ai-fg);opacity:0.65;font-size:0.75rem;line-height:1.35;';
+    note.style.cssText = 'color:var(--sve-ai-muted);font-size:0.75rem;line-height:1.35;';
     row.appendChild(note);
 
     return row;
@@ -624,9 +664,8 @@ function keywordRow(doc) {
     span.style.cssText =
       'padding:0.125rem 0.4375rem;border-radius:999px;font-size:0.6875rem;line-height:1.5;' +
       (own
-        ? 'background:color-mix(in oklab, var(--sve-ai-primary) 16%, transparent);' +
-          'color:var(--sve-ai-primary);'
-        : 'background:var(--sve-ai-hover);color:var(--sve-ai-fg);opacity:0.75;');
+        ? 'background:var(--sve-ai-primary);color:#fff;font-weight:600;'
+        : 'background:var(--sve-ai-chip);color:var(--sve-ai-chip-fg);');
     span.title = own ? t('ai_text_keywords_page') : t('ai_text_keywords_site');
 
     return span;
@@ -668,6 +707,7 @@ function toneRow(doc) {
     btn.style.cssText =
       'all:unset;cursor:pointer;padding:0.1875rem 0.5rem;border-radius:999px;font-size:0.6875rem;' +
       'border:1px solid var(--sve-ai-border);color:var(--sve-ai-fg);' +
+      'background:var(--sve-ai-chip);' +
       (session.busy ? 'opacity:0.5;cursor:default;' : '');
     btn.addEventListener('click', () => {
       if (session.busy) {
@@ -705,7 +745,7 @@ function submitRow(doc) {
     const spinner = doc.createElement('span');
 
     spinner.textContent = t('ai_text_working');
-    spinner.style.cssText = 'color:var(--sve-ai-fg);opacity:0.65;font-size:0.75rem;';
+    spinner.style.cssText = 'color:var(--sve-ai-muted);font-size:0.75rem;';
     row.appendChild(spinner);
   }
 
@@ -728,7 +768,7 @@ function suggestionList(doc) {
   const hint = doc.createElement('div');
 
   hint.textContent = t('ai_text_hint_hover');
-  hint.style.cssText = 'color:var(--sve-ai-fg);opacity:0.65;font-size:0.6875rem;line-height:1.35;';
+  hint.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;line-height:1.35;';
   wrap.appendChild(hint);
 
   [...session.suggestions].reverse().forEach((text, i) => {
@@ -737,8 +777,8 @@ function suggestionList(doc) {
     row.type = 'button';
     row.style.cssText =
       'all:unset;cursor:pointer;box-sizing:border-box;display:flex;gap:0.5rem;width:100%;' +
-      'padding:0.5rem;border-radius:0.5rem;border:1px solid var(--sve-ai-border);' +
-      'background:var(--sve-ai-hover);color:var(--sve-ai-fg);text-align:left;';
+      'padding:0.5rem;border-radius:0.5rem;border:1px solid var(--sve-ai-row-border);' +
+      'background:var(--sve-ai-row);color:var(--sve-ai-fg);text-align:left;';
 
     const number = doc.createElement('span');
 
@@ -746,8 +786,7 @@ function suggestionList(doc) {
     number.style.cssText =
       'flex:0 0 auto;width:1.125rem;height:1.125rem;display:flex;align-items:center;' +
       'justify-content:center;border-radius:999px;' +
-      'background:color-mix(in oklab, var(--sve-ai-primary) 16%, transparent);' +
-      'color:var(--sve-ai-primary);font-size:0.6875rem;font-weight:600;';
+      'background:var(--sve-ai-primary);color:#fff;font-size:0.6875rem;font-weight:600;';
 
     const body = doc.createElement('span');
 
@@ -776,7 +815,7 @@ function suggestionList(doc) {
   more.disabled = session.busy;
   more.style.cssText =
     'all:unset;cursor:pointer;padding:0.375rem 0.5rem;border-radius:0.375rem;font-size:0.75rem;' +
-    'border:1px dashed var(--sve-ai-border);color:var(--sve-ai-fg);text-align:center;' +
+    'border:1px dashed var(--sve-ai-border);color:var(--sve-ai-muted);text-align:center;' +
     (session.busy ? 'opacity:0.5;cursor:default;' : '');
   more.addEventListener('click', () => {
     if (!session.busy) {
@@ -1109,10 +1148,8 @@ export function initAiText(win, t, helpers = {}) {
   ctx = {
     win,
     t,
-    // Read on every paint rather than captured once: the CP theme can be
-    // switched while Live Preview is open.
-    theme: helpers.theme || (() => FALLBACK_THEME),
     primary: helpers.primary || (() => FALLBACK_PRIMARY),
+    surfaceIsDark: helpers.surfaceIsDark || (() => false),
   };
 
   // A fresh preview document knows nothing about the toolbar switch, and there
