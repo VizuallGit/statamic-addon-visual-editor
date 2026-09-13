@@ -227,6 +227,16 @@ function onOverlay(event) {
   background-repeat: no-repeat;
   background-size: 7px 17px;
 }
+/*
+ * The dark half of it, which the shared helper does separately via
+ * `splitterFillDark` — and which I left out, so the handle came up pale grey
+ * against a dark editor. The dots are drawn light either way; it is the strip
+ * behind them that has two states.
+ */
+html.dark .sve-fs__grip,
+.dark .sve-fs__grip {
+  background-color: var(--theme-color-gray-800, #27272a);
+}
 .sve-fs__grip:hover {
   filter: brightness(1.1);
 }
