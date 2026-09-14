@@ -94,10 +94,9 @@ function onNewSection() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  min-height: 1.75rem;
-  padding: 0.3125rem 0.5rem;
-  margin-bottom: 0.1875rem;
+  width: 1.75rem;
+  aspect-ratio: 1;
+  margin: 0 auto 0.1875rem;
   background: rgba(128, 128, 128, 0.16);
   border-radius: 0.375rem;
   line-height: 1;
