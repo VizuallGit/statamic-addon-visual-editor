@@ -4556,6 +4556,7 @@ export function enhanceGrids(win) {
 }
 
 export const LP_BACK_ID = '__sve-lp-back';
+export const LP_RELOAD_ID = '__sve-lp-reload';
 
 /** How long to wait for a save to come back before giving the button up again. */
 export const LP_SAVE_TIMEOUT = 15000;

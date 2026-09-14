@@ -2345,4 +2345,19 @@ sve.fillHtmlTreePane = fillHtmlTreePane;
 sve.showHtmlTreePane = showHtmlTreePane;
 sve.openHtmlTreePanel = openHtmlTreePanel;
 sve.toggleHtmlTreePanel = toggleHtmlTreePanel;
+/**
+ * Forget every section template held in memory.
+ *
+ * The cache is what lets a click on a section show its tags at once, and it is
+ * never invalidated on its own — a template edited outside this window would go
+ * unnoticed for as long as the editor stays open. The reload button is where
+ * that is answered.
+ */
+export function clearHtmlTreeTemplates() {
+  htmlTreeTemplates.clear();
+  htmlTreeFetching.clear();
+  htmlTreePrefetch.length = 0;
+}
+
 sve.renderHtmlTree = renderHtmlTree;
+sve.clearHtmlTreeTemplates = clearHtmlTreeTemplates;

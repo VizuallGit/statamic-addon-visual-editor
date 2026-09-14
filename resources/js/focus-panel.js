@@ -52,6 +52,7 @@ import {
   templateDockAllowed,
 } from './code-dock-lazy.js';
 import { ensureLpMoreButton } from './lp-more-menu.js';
+import { ensureLpReloadButton } from './lp-reload.js';
 import { relayoutAiPanel } from './ai-panel.js';
 import { mountPane } from './cp/mount-pane.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
@@ -2288,6 +2289,8 @@ export function ensureLpPanelToggleInner(win) {
   ensureLpWidthPicker(win);
   sve.placeGlobalsOverlay?.(win);
   ensureLpBackButton(win);
+  // Reload before More: More anchors on it, so it has to exist first.
+  ensureLpReloadButton(win);
   ensureLpMoreButton(win);
   positionLpBackButton(win);
   watchStatamicLpClose(win);

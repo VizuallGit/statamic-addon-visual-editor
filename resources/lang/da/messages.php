@@ -406,6 +406,8 @@ return [
     'close_live_preview' => 'Luk live preview',
     'close_live_preview_title' => 'Luk Live Preview',
     'more_lp_title' => 'Mere',
+    'reload_lp_title' => 'Hent alt igen',
+    'reload_lp_failed' => 'Kunne ikke hente alt igen',
     'lp_settings_title' => 'Live Preview-indstillinger',
     'lp_settings_sidebar' => 'Åbn i sidebaren fra starten',
     'lp_settings_width' => 'Bredde',

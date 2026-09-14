@@ -9,6 +9,7 @@ import {
   HEADER_SURFACE,
   LP_BACK_ID,
   LP_BACK_MENU_ID,
+  LP_RELOAD_ID,
   LP_CHROME_H,
   LP_ICON_BTN_STYLE,
   applyHeaderTab,
@@ -300,8 +301,13 @@ export function ensureLpMoreButton(win) {
   pill.style.marginLeft = '0';
   pill.style.marginRight = '0';
 
-  if (pill.parentElement !== back.parentElement || pill.previousElementSibling !== back) {
-    back.after(pill);
+  // Last in the row: Close, then Reload, then this. Anchored on whichever of
+  // the two is actually there, so the order holds if reload is ever absent.
+  //
+  const anchor = doc.getElementById(LP_RELOAD_ID) || back;
+
+  if (pill.parentElement !== anchor.parentElement || pill.previousElementSibling !== anchor) {
+    anchor.after(pill);
   }
 }
 

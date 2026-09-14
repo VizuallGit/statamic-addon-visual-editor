@@ -1,0 +1,181 @@
+/**
+ * Fetch everything again, without leaving Live Preview.
+ *
+ * Most of what the editor shows was fetched once and kept: the section library's
+ * lists, each set's meta and field definitions, the header and footer screens,
+ * every section template the HTML tree pulled in. That is the right default —
+ * they rarely change while you work — but when they do change under you, the
+ * only way back into step was to close the editor and open it again, which
+ * costs a five-second page load and puts you back at the top of the page.
+ *
+ * So: one button that drops every kept answer, asks for the ones the page needs
+ * now, and has the preview render itself again.
+ *
+ * What it deliberately does NOT touch is the publish form's values. They are the
+ * author's unsaved work, they are what the preview renders from, and nothing
+ * here is worth losing them for. The preview is replayed from those same values,
+ * so a page half-edited comes back half-edited.
+ */
+import { sve } from './cp-registry.js';
+import { t } from './cp-t.js';
+import { LP_BACK_ID, LP_CHROME_H, LP_ICON_BTN_STYLE, LP_RELOAD_ID, HEADER_SURFACE } from './cp.js';
+
+// No static import of html-tree or section-fields. Both are lazy chunks, and
+// importing them here — from a file the Control Panel loads on every page —
+// pulls them into the main bundle: measured at 484 kB grown to 636 kB, which is
+// exactly the cost this button is not worth. Reached through `sve` and through
+// a dynamic import instead, at the moment the button is actually pressed.
+
+const LP_RELOAD_ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
+  'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M21 12a9 9 0 1 1-2.64-6.36"></path>' +
+  '<polyline points="21 3 21 9 15 9"></polyline>' +
+  '</svg>';
+
+const SPIN_STYLE_ID = '__sve-lp-reload-style';
+
+let running = false;
+
+function ensureSpinStyle(doc) {
+  if (doc.getElementById(SPIN_STYLE_ID)) {
+    return;
+  }
+
+  const style = doc.createElement('style');
+
+  style.id = SPIN_STYLE_ID;
+  style.textContent =
+    `@keyframes sve-lp-reload-spin{to{transform:rotate(360deg)}}`
+    + `#${LP_RELOAD_ID}[data-busy] svg{animation:sve-lp-reload-spin .9s linear infinite;transform-origin:50% 50%}`
+    + `#${LP_RELOAD_ID}[data-busy]{cursor:progress}`;
+  doc.head.appendChild(style);
+}
+
+/** Every section type on the page, each once — what there is anything to refetch for. */
+function typesOnPage(win) {
+  const field = sve.sectionField?.(win);
+  const seen = new Set();
+
+  if (!field || typeof sve.activeContainers !== 'function') {
+    return [];
+  }
+
+  for (const container of sve.activeContainers(win.document)) {
+    const rows = sve.dataGet?.(sve.unwrapRef?.(container.values), field);
+
+    if (!Array.isArray(rows)) {
+      continue;
+    }
+
+    for (const row of rows) {
+      if (row && typeof row.type === 'string' && row.type) {
+        seen.add(row.type);
+      }
+    }
+
+    // The first container holding the page builder is the page; a second is
+    // another form open beside it. Same reading as the HTML tree's.
+    break;
+  }
+
+  return [...seen];
+}
+
+export async function reloadEverything(win) {
+  // The section templates the tree pulled in, and the meta cache behind every
+  // panel. Dropped first: what follows has to ask the server, not answer from
+  // what it already had.
+  sve.clearHtmlTreeTemplates?.();
+  sve.sectionMetaCache?.clear?.();
+
+  // The header and footer screens, which are warmed once and then handed out.
+  sve.resetChromeInlinePages?.(win);
+
+  // The library's lists (saved sections, templates) and the set previews.
+  sve.libraryWentStale?.(win);
+  sve.refreshSectionTypes?.(win, () => {});
+
+  // Each section's fields and meta, one type at a time. Serial on purpose:
+  // firing one request per type at once is what made opening Live Preview slow
+  // enough to be worth fixing, and this is the same shape of work.
+  const { refreshFieldsForType } = await import('./section-fields.js');
+
+  for (const type of typesOnPage(win)) {
+    try {
+      await refreshFieldsForType(win, type);
+    } catch {
+      // A type whose fieldset has gone is not a reason to stop refreshing the
+      // rest — it simply keeps what it had.
+    }
+  }
+
+  // The panels that draw from the form's values rather than from the server.
+  sve.renderHtmlTree?.(win);
+
+  // And the page itself, rendered again from the values as they stand.
+  sve.replayLivePreview?.(win);
+}
+
+export function ensureLpReloadButton(win) {
+  const doc = win.document;
+  const header = sve.lpHeader(doc);
+  const back = doc.getElementById(LP_BACK_ID);
+
+  if (!header || !back) {
+    return;
+  }
+
+  ensureSpinStyle(doc);
+
+  let pill = doc.getElementById(LP_RELOAD_ID);
+
+  if (!pill) {
+    pill = doc.createElement('button');
+    pill.id = LP_RELOAD_ID;
+    pill.type = 'button';
+    pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
+    pill.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (running) {
+        return;
+      }
+
+      running = true;
+      pill.setAttribute('data-busy', '');
+
+      void reloadEverything(win)
+        .catch(() => win.Statamic?.$toast?.error(t(win, 'reload_lp_failed')))
+        .finally(() => {
+          running = false;
+          pill.removeAttribute('data-busy');
+        });
+    });
+  }
+
+  if (pill.innerHTML !== LP_RELOAD_ICON_SVG) {
+    pill.innerHTML = LP_RELOAD_ICON_SVG;
+  }
+
+  pill.title = t(win, 'reload_lp_title');
+  pill.setAttribute('aria-label', pill.title);
+  pill.style.opacity = '1';
+  pill.style.background = HEADER_SURFACE;
+  pill.style.padding = '0';
+  pill.style.width = `${LP_CHROME_H - 4}px`;
+  pill.style.height = `${LP_CHROME_H}px`;
+  pill.style.borderRadius = '.5rem';
+  pill.style.marginLeft = '0';
+  pill.style.marginRight = '0';
+
+  // Right of Close, left of More. Never moved when it is already there: a
+  // Node.after on every observer pass freezes Live Preview.
+  if (pill.parentElement !== back.parentElement || pill.previousElementSibling !== back) {
+    back.after(pill);
+  }
+}
+
+sve.ensureLpReloadButton = ensureLpReloadButton;
+sve.reloadEverything = reloadEverything;

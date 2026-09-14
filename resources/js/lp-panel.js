@@ -7,7 +7,7 @@ import { sve } from './cp-registry.js';
 import { t } from './cp-t.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
-import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_PREVIEW_CHROME_ID, LP_TOOLBAR_GAP, setHeaderTab } from './cp.js';
+import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_PREVIEW_CHROME_ID, LP_RELOAD_ID, LP_TOOLBAR_GAP, setHeaderTab } from './cp.js';
 import { persistVisibleRightPanes, visiblePaneKeys } from './right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
@@ -203,7 +203,7 @@ export function syncLpRightBarGaps(win) {
     parent.style.marginLeft = 'auto';
   }
 
-  // Rækkefølge: chrome → save → [publish] → back.
+  // Rækkefølge: chrome → save → [publish] → back → reload → more.
   if (chrome) {
     if (chrome.parentElement !== parent || chrome.nextElementSibling !== save) {
       parent.insertBefore(chrome, save);
@@ -228,11 +228,27 @@ export function syncLpRightBarGaps(win) {
     back.style.marginRight = '0';
   }
 
-  const more = doc.getElementById(LP_MORE_ID);
+  // Denne funktion ejer rækkefølgen i højre-klyngen og håndhæver den ved hver
+  // pass. Derfor skal reload med HER — ensureLpReloadButton kan sætte den rigtigt
+  // og blive skubbet til højre for menuen et øjeblik senere, hvilket er præcis
+  // hvad der skete: målt som back, more, reload.
+  const reload = doc.getElementById(LP_RELOAD_ID);
 
-  if (more && back) {
-    if (more.parentElement !== parent || more.previousElementSibling !== back) {
-      back.after(more);
+  if (reload && back) {
+    if (reload.parentElement !== parent || reload.previousElementSibling !== back) {
+      back.after(reload);
+    }
+
+    reload.style.marginLeft = '0';
+    reload.style.marginRight = '0';
+  }
+
+  const more = doc.getElementById(LP_MORE_ID);
+  const moreAnchor = reload || back;
+
+  if (more && moreAnchor) {
+    if (more.parentElement !== parent || more.previousElementSibling !== moreAnchor) {
+      moreAnchor.after(more);
     }
 
     more.style.marginLeft = '0';
