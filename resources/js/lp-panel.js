@@ -185,6 +185,13 @@ export function syncLpRightBarGaps(win) {
     return;
   }
 
+  // Knappen laves her, ikke kun hvor de andre laves. Denne funktion kører hver
+  // gang højre-klyngen synkroniseres — den er det ene sted der med sikkerhed
+  // rammer hver tilstand editoren kan åbne i. Gennem `sve`, ikke en import:
+  // lp-reload henter LP_RELOAD_ID herfra, og en import tilbage ville lukke en
+  // cyklus. Idempotent — den flytter ikke noget der allerede står rigtigt.
+  sve.ensureLpReloadButton?.(win);
+
   const parent = save.parentElement || header;
   const gap = `${LP_TOOLBAR_GAP}px`;
   const rightLead = chrome && parent.contains(chrome) ? chrome : save;
