@@ -260,6 +260,13 @@
             // the row count says it landed, and the screen does not move.
             chunkCfgCache.delete(livePanels[i]);
 
+            // A reactive bump, not only `$forceUpdate`: Vue 3 will skip a
+            // render when no data it tracks has changed, and the set config
+            // is a prop from the publish form — mutating `fields` on it is
+            // invisible. `fieldsTick` is this component's own state, so the
+            // sidebar redraws in place without remounting the open section.
+            livePanels[i].fieldsTick = (livePanels[i].fieldsTick || 0) + 1;
+
             // The set object is reached through a prop rather than through this
             // component's own reactive state, so nothing has been told.
             if (typeof livePanels[i].$forceUpdate === 'function') {
@@ -270,6 +277,25 @@
         }
 
         return updated;
+    }
+
+    function fieldsSig(fields) {
+        var i;
+        var out = '';
+
+        if (!Array.isArray(fields)) {
+            return '';
+        }
+
+        for (i = 0; i < fields.length; i++) {
+            if (i) {
+                out += ',';
+            }
+
+            out += (fields[i] && fields[i].handle) || '';
+        }
+
+        return out;
     }
 
     function setConfigFrom(config, handle) {
@@ -907,7 +933,7 @@
             },
 
             data: function () {
-                return { activeUid: null, keptUids: [], pending: false, chunks: {}, focusUid: null };
+                return { activeUid: null, keptUids: [], pending: false, chunks: {}, focusUid: null, fieldsTick: 0 };
             },
 
             created: function () {
@@ -1198,7 +1224,7 @@
                     var uid = uidOf(row);
                     var opened = openedFor(uid);
                     var unlocked = unlockedTypes(row, opened);
-                    var sig = String(uid) + ':' + Object.keys(opened.tabs || {}).sort().join(',') + ':' + Object.keys(opened.nests || {}).sort().join(',') + ':' + Object.keys(unlocked).sort().join(',');
+                    var sig = String(uid) + ':' + Object.keys(opened.tabs || {}).sort().join(',') + ':' + Object.keys(opened.nests || {}).sort().join(',') + ':' + Object.keys(unlocked).sort().join(',') + ':' + fieldsSig(full.fields);
                     var cache = chunkCfgCache.get(this);
                     var cached;
 

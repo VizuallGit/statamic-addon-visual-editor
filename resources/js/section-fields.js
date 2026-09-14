@@ -12,9 +12,8 @@
  * `featured_sections.style_1`, singular one side and plural the other. The
  * section-types endpoint carries the import for each set.
  *
- * On close the preview is refreshed, because a field added in there changes
- * what the section renders — and the editor is still showing what it rendered
- * before.
+ * On Save, that section's sidebar and Antlers-data are updated in place.
+ * Closing remorphs that section's preview once. Other sections are left alone.
  */
 import { t } from './cp-t.js';
 import { ask } from './cp/bus.js';
@@ -62,62 +61,65 @@ export async function fieldsetFor(win, handle) {
 }
 
 /**
- * Re-reads the set's meta and hands it to every row of that type on the page.
+ * Drop cached section-meta for this set, and nothing else.
  *
- * What this fixes: a field whose *configuration* changed in the overlay — a
- * select's options, an asset field's container, anything the form reads out of
- * meta rather than out of the field definition. Those are stale otherwise,
- * because the set's meta is cached for the session on the reasoning that a
- * blueprint does not change while a form is open. That was true until this
- * panel existed, so the cache entry goes first.
- *
- * What this does NOT fix, measured rather than assumed: a brand-new field does
- * not appear in the panel beside the preview until the page is reloaded. Meta
- * is keyed by field handle and supplies each field's *state*; which fields
- * exist at all comes from the set config in the blueprint the publish form was
- * built with, and that is a snapshot from page load. Writing meta for a handle
- * the form has never heard of changes nothing on screen — `touched` counts
- * rows, not fields rendered. The field is saved and real; it renders on the
- * site and after a reload.
- *
- * Reached through the `sve` global rather than imported: these live in
- * section-library.js, and importing them would pull the whole library into the
- * HTML tree's chunk.
- *
- * @returns {Promise<number>} how many rows were given the fresh meta
+ * Three caches stand between a saved fieldset and what the editor shows.
+ * The worst is `section-meta-prefetch.js`: it answers `/!/sve/section-meta?…`
+ * from a Map keyed by URL, with no expiry. Asking the server again did not
+ * ask the server again. Only this set's keys go — other sections keep what
+ * they already have, and the sidebar does not redraw them.
  */
-/**
- * Forget everything this page has cached about the shape of its sections.
- *
- * Three caches stand between a saved fieldset and what the editor shows, and
- * none of them had a way to be cleared — which is the whole reason a full
- * browser reload was the only thing that worked.
- *
- * The first is the worst: `section-meta-prefetch.js` replaces `window.fetch`
- * and answers any `/!/sve/section-meta?…` from a Map keyed by URL, with no
- * expiry. Asking the server again did not ask the server again. Every refresh
- * built on top of it was reading the field list the page was opened with, and
- * reporting success.
- *
- * All section-meta entries go, not only this set's: a fieldset is imported by
- * whoever imports it, and a change to it can be a change to a nested set in
- * another section. They are cheap to fetch and only fetched when needed.
- */
+function cacheKeyHitsSet(key, setHandle) {
+  const text = String(key);
+  let hay = text;
+
+  try {
+    hay = decodeURIComponent(text);
+  } catch {
+    /* a malformed percent-sequence is still searchable as itself */
+  }
+
+  return (
+    hay === setHandle ||
+    hay.includes(`set=${setHandle}`) ||
+    hay.endsWith(`::${setHandle}`) ||
+    hay.includes(`::${setHandle}::`)
+  );
+}
+
+function dropSetCache(map, setHandle) {
+  if (!map) {
+    return;
+  }
+
+  if (typeof map.keys === 'function' && typeof map.delete === 'function') {
+    for (const key of [...map.keys()]) {
+      if (cacheKeyHitsSet(key, setHandle)) {
+        map.delete(key);
+      }
+    }
+
+    return;
+  }
+
+  map.delete?.(setHandle);
+}
+
 export function invalidateFieldCaches(win, setHandle) {
   try {
-    win.__sveSectionMetaJson?.clear?.();
+    dropSetCache(win.__sveSectionMetaJson, setHandle);
   } catch {
     // A cache that cannot be cleared is a stale panel, not a broken editor.
   }
 
   try {
-    win.__sveSectionMetaCache?.delete?.(setHandle);
+    dropSetCache(win.__sveSectionMetaCache, setHandle);
   } catch {
     /* as above */
   }
 
-  // The data picker's variable lists are built from the blueprint too.
-  ask('dock:reset-data-vars');
+  // The data picker's Section tab is this set's fieldset — drop only that.
+  ask('dock:reset-data-vars', setHandle);
 }
 
 export async function refreshFieldsForType(win, setHandle) {
@@ -236,20 +238,36 @@ export function openFieldsetOverlay(win, handle, { onClose } = {}) {
       return;
     }
 
+    let pending = Promise.resolve();
+    let fresh = false;
+
     const overlay = openCpOverlay(win.document, FieldsetOverlay, {
       heading: t(win, 'section_fields'),
       subtitle: found.display,
       src: `${cpRoot(win)}/fields/fieldsets/${encodeURIComponent(found.fieldset)}/edit`,
       closeLabel: t(win, 'close'),
+      onSaved: () => {
+        // This set only: the sidebar field list, seeded defaults, and the
+        // Antlers data picker. The preview is left alone — adding a field
+        // does not change what the section renders until the template uses
+        // it, and remorphing here would slow every Save.
+        pending = refreshFieldsForType(win, handle)
+          .then(() => {
+            fresh = true;
+          })
+          .catch(() => {});
+      },
       onClose: () => {
         void (async () => {
-          // Meta first, then the render: replaying the preview against meta a
-          // version behind would put the old state straight back.
-          try {
-            await refreshFieldsForType(win, handle);
-          } catch {
-            // A failed refresh costs a reload, not the edit — the fieldset is
-            // already saved. Refresh the preview regardless.
+          await pending;
+
+          if (!fresh) {
+            try {
+              await refreshFieldsForType(win, handle);
+            } catch {
+              // A failed refresh costs a reload, not the edit — the fieldset
+              // is already saved. Refresh the preview regardless.
+            }
           }
 
           ask('dock:refresh-preview');

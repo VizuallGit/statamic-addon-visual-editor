@@ -15,11 +15,15 @@
  * built with, and does not know about a set added since — but that is not the
  * path the editor uses.
  *
- * So this opens the new template in the dock rather than inserting anything:
- * an empty section has nothing to show until it is written, and writing it is
- * where the author was heading.
+ * So it is dropped onto the page straight away — at the end of the list the
+ * plus sits under — and then opened the way a click on it would open it: the
+ * tree lists it beside the sections that were already there, the preview steps
+ * into it, and the dock holds its empty template, which is where the author was
+ * heading. A section that only exists in the library is one the author has to
+ * go and find.
  */
 import { t } from './cp-t.js';
+import { sve } from './cp-registry.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
@@ -89,12 +93,52 @@ export async function createSection(win, { display, group }) {
   return data;
 }
 
+/**
+ * Puts the new section on the page.
+ *
+ * The same write the library's own cards make — row value plus the set's fresh
+ * meta, straight onto the publish container — which is why it works on a set
+ * that did not exist when the form was built: the meta comes from the server,
+ * which resolves the blueprint per request. Statamic's own set picker is the
+ * one thing that stays a page-load behind, and it is not the path used here.
+ *
+ * `afterUid` is the section to land behind (null = the top of the page).
+ * Returns the row, so the caller has the uid to step into, or null when there
+ * is no page-builder field to write to — a component, say, or a form that has
+ * not finished mounting.
+ */
+export async function placeNewSection(win, handle, afterUid = null) {
+  if (
+    !handle
+    || typeof sve.fetchSetMeta !== 'function'
+    || typeof sve.insertSectionAfter !== 'function'
+  ) {
+    return null;
+  }
+
+  const meta = await sve.fetchSetMeta(win, handle);
+
+  // No meta, no row: the Replicator renders each row from `meta.<field>
+  // .existing[<_id>]`, so a row written without it shows in the preview and is
+  // missing from the form. Better to leave the page alone and open the
+  // template, which is what this did before it placed anything.
+  if (!meta) {
+    return null;
+  }
+
+  const newId = sve.newRowId();
+  const row = sve.buildSectionRow(win, 'page', { handle }, meta?.defaults, newId);
+  const rowMeta = sve.hydrateExistingMeta(row, meta?.new || {}, meta?.defaults);
+
+  return sve.insertSectionAfter(win, win.document, afterUid, row, rowMeta) ? row : null;
+}
+
 /** Whether the current user may make one at all — the same gate as deleting. */
 export function canCreateSections(win) {
   return win.Statamic?.$permissions?.has?.('configure fields') === true;
 }
 
-export function openNewSectionDialog(win, { onDone, onError } = {}) {
+export function openNewSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {
   void (async () => {
     let groups = [];
 
@@ -108,6 +152,7 @@ export function openNewSectionDialog(win, { onDone, onError } = {}) {
     }
 
     if (!groups.length) {
+      onError?.(new Error('no groups'));
       win.Statamic?.$toast?.error(t(win, 'section_new_failed'));
 
       return;
@@ -122,6 +167,10 @@ export function openNewSectionDialog(win, { onDone, onError } = {}) {
       groups,
       cancelLabel: t(win, 'cancel'),
       saveLabel: t(win, 'section_new_create'),
+      // Cancel, Escape and a click on the backdrop close without creating.
+      // The plus in the HTML tree stays locked until one of onDone / onError /
+      // onClose fires, so this has to be the third.
+      onClose,
       onOk: (display, group) => {
         void (async () => {
           try {
@@ -146,14 +195,18 @@ export function openNewSectionDialog(win, { onDone, onError } = {}) {
               .getElementById('__sve-section-picker')
               ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
 
-            // Straight into the empty template. The dock is where the section
-            // gets written, and the alternative — a toast saying "now go find
-            // it" — is the step that makes this worth nothing.
-            if (data.section?.handle) {
+            // Onto the page, at the end of the list the plus sits under. The
+            // caller steps into it from there — it knows the tree it is drawn
+            // in; this only knows the row it wrote.
+            const row = await placeNewSection(win, data.section?.handle, afterUid);
+
+            // Nowhere to put it (no page-builder field in reach) — then the
+            // template is still the thing worth opening, as it always was.
+            if (!row && data.section?.handle) {
               ask('dock:open-template', data.section.handle);
             }
 
-            onDone?.(data);
+            onDone?.({ ...data, uid: row?._visual_id || '' });
           } catch (err) {
             overlay.dismiss();
 

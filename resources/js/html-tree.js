@@ -1059,6 +1059,7 @@ export function renderHtmlTree(win) {
       })
     : [];
   htmlTreeUi.onSection = (uid) => openHtmlTreeSection(win, doc, sections, uid, openUid);
+  htmlTreeUi.onRefresh = () => renderHtmlTree(win);
 
   paintHtmlTreeInspector(
     win,

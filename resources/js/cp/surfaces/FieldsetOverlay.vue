@@ -11,6 +11,7 @@ const props = defineProps({
   src: { type: String, required: true },
   closeLabel: { type: String, required: true },
   onClose: { type: Function, required: true },
+  onSaved: { type: Function, default: null },
 });
 
 const loading = ref(true);
@@ -117,6 +118,62 @@ function trimChrome() {
   }
 }
 
+/**
+ * The Fieldsets screen saves with Statamic's own `$axios.patch` to the
+ * fieldset update URL (204). That response is the moment the YAML is on
+ * disk — not the click, not closing this panel.
+ *
+ * Hooked on the iframe's axios, not the editor's: this document is a
+ * whole Control Panel page, and wrapping the parent's client would see
+ * every other save too.
+ */
+function isFieldsetSave(response) {
+  const method = String(response?.config?.method || '').toUpperCase();
+  const url = String(response?.config?.url || '');
+  const status = Number(response?.status || 0);
+
+  return (
+    (method === 'PATCH' || method === 'PUT') &&
+    status >= 200 &&
+    status < 300 &&
+    /\/fields\/fieldsets\//.test(url) &&
+    !/\/edit(?:\?|$)/.test(url)
+  );
+}
+
+function watchSave(win) {
+  const axios = win?.Statamic?.$axios || win?.axios;
+
+  if (!axios?.interceptors?.response || win.__sveFsSaveWatch) {
+    return !!win?.__sveFsSaveWatch;
+  }
+
+  win.__sveFsSaveWatch = true;
+  axios.interceptors.response.use((response) => {
+    if (isFieldsetSave(response)) {
+      props.onSaved?.();
+    }
+
+    return response;
+  });
+
+  return true;
+}
+
+function onFrameLoad() {
+  trimChrome();
+
+  const win = frame.value?.contentWindow;
+
+  if (watchSave(win)) {
+    return;
+  }
+
+  // Axios is on the Statamic object once the page's Vue has booted —
+  // which can be a tick after the iframe's load event.
+  win?.setTimeout?.(() => watchSave(win), 0);
+}
+
 function onKey(event) {
   if (event.key === 'Escape') {
     props.onClose();
@@ -166,7 +223,7 @@ function onOverlay(event) {
 
       <div class="sve-fs__body">
         <div v-if="loading" class="sve-fs__loading">…</div>
-        <iframe ref="frame" :src="src" :title="heading" @load="trimChrome"></iframe>
+        <iframe ref="frame" :src="src" :title="heading" @load="onFrameLoad"></iframe>
       </div>
     </div>
   </div>

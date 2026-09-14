@@ -7,6 +7,10 @@ export const htmlTreeUi = reactive({
   // file the dock is showing is the only one holding its tags — see html-tree.js.
   sections: [],
   onSection: null,
+  // Read the page again now, rather than waiting for the dock to announce a new
+  // file. A section added from inside the panel changes the form's values and
+  // nothing else — there is no `dock:html-changed` behind it.
+  onRefresh: null,
   editingId: null,
   draft: '',
   renameTitle: '',

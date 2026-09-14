@@ -8357,8 +8357,8 @@ register('dock:current-uid', () => lastUid);
  * should offer. Clearing is all that is needed; the picker fetches when it is
  * opened, so the next open is correct and nothing on screen moves before then.
  */
-register('dock:reset-data-vars', () => {
-  resetDataVars();
+register('dock:reset-data-vars', (setHandle) => {
+  resetDataVars(typeof setHandle === 'string' && setHandle ? setHandle : undefined);
 
   return true;
 });

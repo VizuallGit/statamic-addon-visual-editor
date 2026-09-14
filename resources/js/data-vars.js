@@ -95,9 +95,27 @@ export function fetchDataVars(win, { collection, set, view, scope }) {
     .catch(() => EMPTY);
 }
 
-/** Forget everything — a blueprint or a global can change while the dock is open. */
-export function resetDataVars() {
-  cache.clear();
+/**
+ * Forget the picker's lists.
+ *
+ * A set handle drops only that section's keys — Save on FAQ must not throw
+ * away Hero. No handle still clears the lot, which is what a blueprint
+ * change on the page itself needs.
+ */
+export function resetDataVars(setHandle) {
+  if (!setHandle) {
+    cache.clear();
+
+    return;
+  }
+
+  const needle = `::${setHandle}::`;
+
+  for (const key of [...cache.keys()]) {
+    if (key.includes(needle)) {
+      cache.delete(key);
+    }
+  }
 }
 
 /** A value shortened to one row of a menu. Mirrors DataVars::preview() in PHP. */

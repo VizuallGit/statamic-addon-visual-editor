@@ -3,7 +3,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cd ../.. && php artisan vendor:publish --force --tag=statamic-visual-editor",
+    "build": "vite build",
     "cp:build": "vite build",
     "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs"
   },

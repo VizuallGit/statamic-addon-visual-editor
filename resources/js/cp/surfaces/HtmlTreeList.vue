@@ -8,7 +8,7 @@
  * mark and highlight depending on whether it was open. Shut is a state of the
  * row, not a second row.
  */
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
 import HtmlTreeRow from './HtmlTreeRow.vue';
 import { canCreateSections, openNewSectionDialog } from '../../section-create.js';
@@ -21,6 +21,42 @@ const canCreate = canCreateSections(window);
 const newSectionLabel = t(window, 'section_new');
 const creating = ref(false);
 
+function release() {
+  creating.value = false;
+}
+
+// Locked from click until the dialog is gone — created, failed, or cancelled.
+// Without onClose, Cancel left the lock on and the plus did nothing next time.
+
+/**
+ * Step into the section that was just made, the same move a click on its row
+ * makes.
+ *
+ * Not straight away: the row is written onto the publish form, and the tree,
+ * the panel beside the preview and the preview itself each catch up on their
+ * own clock. `onSection` bails on a uid it cannot find in the list it was
+ * built with, so the list is re-read first, and re-read again while the form
+ * renders — a second at the outside, then it is left alone.
+ */
+async function openNewlyMade(uid) {
+  if (!uid) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await nextTick();
+    ui.onRefresh?.();
+
+    if (ui.sections.some((section) => section.uid === uid)) {
+      ui.onSection?.(uid);
+
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 function onNewSection() {
   if (creating.value) {
     return;
@@ -29,12 +65,15 @@ function onNewSection() {
   creating.value = true;
 
   openNewSectionDialog(window, {
-    onDone: () => {
-      creating.value = false;
+    // The plus is the last thing under the sections, so the section lands where
+    // the button is: after the last one on the page.
+    afterUid: ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null,
+    onDone: (data) => {
+      release();
+      void openNewlyMade(data?.uid);
     },
-    onError: () => {
-      creating.value = false;
-    },
+    onError: release,
+    onClose: release,
   });
 }
 </script>

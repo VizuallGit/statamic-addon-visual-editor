@@ -77,7 +77,7 @@ function onKey(event) {
       <p v-if="note" class="sve-dialog__note">{{ note }}</p>
 
       <div class="sve-dialog__actions">
-        <button type="button" :disabled="busy" @click="onClose">{{ cancelLabel }}</button>
+        <button type="button" class="is-cancel" :disabled="busy" @click="onClose">{{ cancelLabel }}</button>
         <button type="button" class="is-primary" :disabled="busy" @click="submit">{{ saveLabel }}</button>
       </div>
     </div>
@@ -129,6 +129,7 @@ input[type='text'] {
 }
 select {
   appearance: auto;
+  padding-right: 1.85em;
 }
 .sve-dialog__note {
   margin: 0 0 1.1em;
@@ -148,6 +149,10 @@ button {
   border-radius: 0.5em;
   font-size: 0.93em;
   opacity: 0.75;
+}
+button.is-cancel {
+  background: rgba(160, 160, 160, 0.32);
+  opacity: 1;
 }
 button.is-primary {
   padding: 0.5em 1.15em;
