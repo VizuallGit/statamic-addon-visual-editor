@@ -61,6 +61,16 @@ class ResponsiveFields
                 'default' => false,
                 'width' => 50,
             ],
+            // Feltets egen Default Value bliver stående og betyder stadig
+            // basis. Den her lægger sig ved siden af og dækker de smallere
+            // skærmstørrelser, så intet eksisterende felt ændrer opførsel
+            // før nogen selv udfylder en rubrik.
+            'sve_defaults' => [
+                'display' => __('sve::messages.responsive_defaults'),
+                'instructions' => __('sve::messages.responsive_defaults_instructions'),
+                'type' => 'sve_defaults',
+                'if' => [static::KEY => 'equals true'],
+            ],
         ]);
     }
 

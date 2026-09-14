@@ -184,7 +184,29 @@ class SectionDefaults
             return $value;
         }
 
-        return [ResponsiveFieldtype::base() => [$field->handle() => $value]];
+        $out = [ResponsiveFieldtype::base() => [$field->handle() => $value]];
+
+        // `sve_defaults` er startværdier pr. skærmstørrelse. De læses samme
+        // sted som fieldtypen læser dem, ellers viser billedet noget andet end
+        // det man får når sektionen indsættes — og det er den slags forskel
+        // der koster en time at finde.
+        $perBreakpoint = $field->get('sve_defaults');
+
+        if (is_array($perBreakpoint)) {
+            foreach ($perBreakpoint as $breakpoint => $breakpointValue) {
+                if (! in_array($breakpoint, ResponsiveFieldtype::handles(), true)) {
+                    continue;
+                }
+
+                if ($breakpointValue === null || $breakpointValue === '' || $breakpointValue === []) {
+                    continue;
+                }
+
+                $out[$breakpoint] = [$field->handle() => $breakpointValue];
+            }
+        }
+
+        return $out;
     }
 
     /**

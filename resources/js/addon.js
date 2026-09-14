@@ -17,6 +17,7 @@
 import AutoUuid from './components/fieldtypes/AutoUuid.vue';
 import LibraryScan from './components/fieldtypes/LibraryScan.vue';
 import './components/fieldtypes/ResponsiveFieldtype.js';
+import './components/fieldtypes/SveDefaultsFieldtype.js';
 import { installResponsiveConditions } from './responsive-conditions.js';
 import './components/fieldtypes/ColumnSpanFieldtype.js';
 import './components/fieldtypes/IconButtonGroupFieldtype.js';

@@ -586,6 +586,8 @@ return [
     // Responsive felter: en vaerdi pr. skaermstoerrelse, sat med et flueben paa feltet.
     'responsive_setting' => 'Responsive',
     'responsive_setting_instructions' => 'Lad værdien sættes pr. skærmstørrelse. Desktop er basis; tablet og mobil arver den, indtil de får deres egen værdi.',
+    'responsive_defaults' => 'Default pr. skærmstørrelse',
+    'responsive_defaults_instructions' => 'Feltets Default Value gælder desktop. Her kan de smallere skærme få deres egen startværdi. Lader du en rubrik stå tom, arver den opad som hidtil.',
     'responsive_fields' => 'Felter',
     'responsive_fields_instructions' => 'Felterne der kan sættes pr. breakpoint. De defineres én gang og vises for hver skærmstørrelse.',
     'responsive_desktop' => 'Desktop',

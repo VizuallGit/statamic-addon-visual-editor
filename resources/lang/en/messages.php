@@ -592,6 +592,8 @@ return [
     // Responsive felter: en vaerdi pr. skaermstoerrelse, sat med et flueben paa feltet.
     'responsive_setting' => 'Responsive',
     'responsive_setting_instructions' => 'Let the value be set per screen size. Desktop is the baseline; tablet and mobile inherit it until they are given one of their own.',
+    'responsive_defaults' => 'Default per screen size',
+    'responsive_defaults_instructions' => "The field's Default Value covers desktop. The narrower screens can be given a starting value of their own here. Leave a box empty and it inherits upward as before.",
     'responsive_fields' => 'Fields',
     'responsive_fields_instructions' => 'The fields that can be set per breakpoint. They are defined once and shown for every screen size.',
     'responsive_desktop' => 'Desktop',

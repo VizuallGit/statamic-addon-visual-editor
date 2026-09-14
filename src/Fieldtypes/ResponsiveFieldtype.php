@@ -90,19 +90,68 @@ class ResponsiveFieldtype extends Fieldtype
     {
         $config = $this->config('fields');
 
-        if ($breakpoint !== null && $breakpoint !== static::base()) {
-            $config = array_map(function ($item) {
-                if (is_array($item['field'] ?? null)) {
-                    unset($item['field']['default']);
-                }
-
-                unset($item['config']['default']);
-
-                return $item;
-            }, $config);
+        if ($breakpoint !== null) {
+            $config = array_map(
+                fn ($item) => static::defaultFor($item, $breakpoint),
+                $config
+            );
         }
 
         return new Fields($config, $this->field()->parent(), $this->field());
+    }
+
+    /**
+     * Ét underfelt, gjort klar til ét breakpoint.
+     *
+     * `default` alene betyder stadig basis, som den altid har gjort. Ved siden af
+     * den kan der stå en default pr. skærmstørrelse i `sve_defaults`, og så er det
+     * den der gælder for netop den skuffe:
+     *
+     *     sve_defaults:
+     *       tablet: 2
+     *       mobile: 1
+     *
+     * Har en skuffe ingen af delene, ryger `default` ud — se kommentaren ovenfor
+     * om hvorfor tablet og mobil ellers aldrig kunne arve.
+     *
+     * Nøglerne er breakpoint-handles, så listen udvider sig selv: laver nogen et
+     * nyt breakpoint, er dets handle bare endnu en nøgle her.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array<string, mixed>
+     */
+    protected static function defaultFor(array $item, string $breakpoint): array
+    {
+        $defaults = $item['field']['sve_defaults'] ?? $item['config']['sve_defaults'] ?? null;
+
+        // Indpakningens eget nøgleord hører ikke hjemme på feltet indeni.
+        if (is_array($item['field'] ?? null)) {
+            unset($item['field']['sve_defaults']);
+        }
+
+        unset($item['config']['sve_defaults']);
+
+        if (is_array($defaults) && array_key_exists($breakpoint, $defaults)) {
+            if (is_array($item['field'] ?? null)) {
+                $item['field']['default'] = $defaults[$breakpoint];
+            } else {
+                $item['config']['default'] = $defaults[$breakpoint];
+            }
+
+            return $item;
+        }
+
+        if ($breakpoint === static::base()) {
+            return $item;
+        }
+
+        if (is_array($item['field'] ?? null)) {
+            unset($item['field']['default']);
+        }
+
+        unset($item['config']['default']);
+
+        return $item;
     }
 
     /**

@@ -17,6 +17,7 @@ use MarioHamann\StatamicVisualEditor\LibraryAccess;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\LibraryScanFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveDefaultsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ColumnSpanFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\IconButtonGroupFieldtype;
@@ -119,6 +120,7 @@ class ServiceProvider extends AddonServiceProvider
         AutoUuidFieldtype::class,
         LibraryScanFieldtype::class,
         ResponsiveFieldtype::class,
+        ResponsiveDefaultsFieldtype::class,
         ColumnSpanFieldtype::class,
         IconButtonGroupFieldtype::class,
         UniqueSetsFieldtype::class,
