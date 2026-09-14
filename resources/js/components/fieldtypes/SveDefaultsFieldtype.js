@@ -57,6 +57,34 @@
                 /** Feltet vi står i — typen afgør hvilken kontrol rubrikkerne får. */
                 const innerType = computed(() => setting('type') || 'text');
 
+                /**
+                 * Typer denne rubrik ikke tegner.
+                 *
+                 * Et assets-felt er ikke en kontrol man kan sætte ned hvor som
+                 * helst: det skal bruge en container, en meta med mappe og
+                 * filer, og en browser at åbne. Ingen af delene findes inde i
+                 * en feltindstilling, så det tegnede aldrig færdigt — og
+                 * eftersom denne rubrik ligger på HVER fieldtype, tog den hele
+                 * Assets-feltets indstillingsskærm med sig ned. Den sad og
+                 * loadede for evigt, også uden for Live Preview.
+                 *
+                 * De øvrige er med af samme grund: de er redigeringsflader med
+                 * egen tilstand og egne kald, ikke en rubrik man udfylder.
+                 */
+                const HEAVY = new Set([
+                    'assets',
+                    'bard',
+                    'replicator',
+                    'grid',
+                    'group',
+                    'entries',
+                    'terms',
+                    'users',
+                    'form',
+                    'link',
+                    'table',
+                ]);
+
                 const innerConfig = computed(() => {
                     const out = { type: innerType.value, handle: 'default', display: '' };
 
@@ -90,7 +118,7 @@
                 }
 
                 return () => {
-                    if (!rows.value.length) return null;
+                    if (!rows.value.length || HEAVY.has(innerType.value)) return null;
 
                     const name = innerType.value + '-fieldtype';
                     let Inner = null;

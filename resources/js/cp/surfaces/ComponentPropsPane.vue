@@ -184,7 +184,7 @@ function usage(handle) {
             :disabled="ui.locked"
             @click.stop="ui.onRemove?.(index)"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
           </button>
         </span>
       </div>
@@ -425,11 +425,15 @@ function usage(handle) {
   border-radius: .3rem;
   background: rgba(255, 255, 255, .08);
 }
+/* Synlige uden at pege på rækken. De stod på opacity 0 indtil hover, og en
+   kontrol man ikke kan se, findes ikke: sletningen har været der hele tiden og
+   blev bedt om som en ny funktion. Dæmpet i hvile, fuld styrke når rækken er
+   under musen, åben eller bundet — til stede uden at råbe. */
 .sve-cprops__acts {
   display: flex;
   gap: .125rem;
   flex: 0 0 auto;
-  opacity: 0;
+  opacity: .45;
 }
 .sve-cprops__card:hover .sve-cprops__acts,
 .sve-cprops__card[data-binding] .sve-cprops__acts,
