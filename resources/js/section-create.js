@@ -24,6 +24,7 @@
  */
 import { t } from './cp-t.js';
 import { sve } from './cp-registry.js';
+import { sendToPreview } from './cp.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
@@ -131,6 +132,72 @@ export async function placeNewSection(win, handle, afterUid = null) {
   const rowMeta = sve.hydrateExistingMeta(row, meta?.new || {}, meta?.defaults);
 
   return sve.insertSectionAfter(win, win.document, afterUid, row, rowMeta) ? row : null;
+}
+
+// Asking for the section again while the page is still being built. Roughly
+// twelve seconds all told — a render round-trip on a heavy page, measured at two
+// to three — and then it is left alone.
+const REVEAL_EVERY_MS = 700;
+const REVEAL_TRIES = 17;
+
+/** The preview's own document, when this window is allowed to read it. */
+function previewDoc(win) {
+  try {
+    return win.document.getElementById('live-preview-iframe')?.contentDocument || null;
+  } catch {
+    // A preview served from another domain. Nothing to see; still worth asking.
+    return null;
+  }
+}
+
+/**
+ * Brings the new section into view once the preview has drawn it.
+ *
+ * The row is written onto the publish form and the preview is asked for it in
+ * the same breath — but the page is rendered from that form a second or two
+ * later, and a request that lands before the element does is dropped without a
+ * word. That is why a brand new section sat below the fold while the editor
+ * showed the top of the page.
+ *
+ * So the preview is asked again, and the question is only put once it can be
+ * answered: the element has to be in the preview's document first. Where that
+ * document cannot be read, the request goes out a few times regardless —
+ * selecting the same section twice costs nothing.
+ *
+ * Every id the row answers to is offered, not just `_visual_id`. A set made
+ * moments ago is not in the blueprint the form was built with, so the template
+ * falls back to the row's `id` — measured: the section was stamped
+ * `data-sid="<id>"`, and asking for `_visual_id` alone found nothing.
+ */
+export function revealWhenRendered(win, ids) {
+  const wanted = (ids || []).filter(Boolean);
+
+  if (!wanted.length) {
+    return;
+  }
+
+  let tries = 0;
+
+  const askAgain = () => {
+    tries += 1;
+
+    const doc = previewDoc(win);
+    const rendered = doc
+      ? wanted.some((id) => doc.querySelector(`[data-sid="${CSS.escape(id)}"]`))
+      : true;
+
+    if (rendered) {
+      sendToPreview({ source: 'statamic-visual-editor', type: 'sve-activate', ids: wanted }, win);
+    }
+
+    // Blind (no readable document): a handful of tries, then stop. Sighted:
+    // stop at the first one that lands.
+    if (rendered ? !doc && tries < 6 : tries < REVEAL_TRIES) {
+      win.setTimeout(askAgain, REVEAL_EVERY_MS);
+    }
+  };
+
+  win.setTimeout(askAgain, REVEAL_EVERY_MS);
 }
 
 /** Whether the current user may make one at all — the same gate as deleting. */

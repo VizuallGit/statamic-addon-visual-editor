@@ -11,7 +11,7 @@
 import { nextTick, ref } from 'vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
 import HtmlTreeRow from './HtmlTreeRow.vue';
-import { canCreateSections, openNewSectionDialog } from '../../section-create.js';
+import { canCreateSections, openNewSectionDialog, revealWhenRendered } from '../../section-create.js';
 import { t } from '../../cp-t.js';
 
 // Making a section writes files into the repository, so it is the developer
@@ -47,8 +47,13 @@ async function openNewlyMade(uid) {
     await nextTick();
     ui.onRefresh?.();
 
-    if (ui.sections.some((section) => section.uid === uid)) {
+    const section = ui.sections.find((item) => item.uid === uid);
+
+    if (section) {
       ui.onSection?.(uid);
+      // Stepping in asks the preview for the section straight away, and the
+      // preview has not drawn it yet. So ask again when it has.
+      revealWhenRendered(window, section.ids);
 
       return;
     }
