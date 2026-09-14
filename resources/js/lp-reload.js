@@ -71,19 +71,27 @@ function ensureSpinStyle(doc) {
  * Statamic's unsaved-changes guard rather than by a second one here.
  */
 export function reloadEverything(win) {
-  // `?live-preview=1` first, or the reload lands on the plain entry screen:
-  // opening the editor does not put anything in the URL, so a bare reload has
-  // nothing to tell it to come back. `autoOpenLivePreview` reads that parameter
-  // at boot and opens the editor again.
+  // The page picker's own move, aimed back at the page we are already on.
+  //
+  // `location.reload()` was the obvious version and the wrong one: it tears the
+  // document down, so you get a blank screen, then the bare admin form, then
+  // the editor booting again. `navigateFromLp` is what the picker in the top
+  // bar calls — it puts a still of the current preview up first, asks about
+  // unsaved work, and swaps the page in behind it. Same move, same look, only
+  // the destination differs: here it is where we already are.
+  //
+  // `?live-preview=1` so the editor opens again on the other side; without it
+  // the move lands on the plain entry screen.
   const url = new win.URL(win.location.href);
 
-  if (url.searchParams.get('live-preview') === '1') {
-    win.location.reload();
+  url.searchParams.set('live-preview', '1');
+
+  if (typeof sve.navigateFromLp === 'function') {
+    sve.navigateFromLp(win, null, url.toString());
 
     return;
   }
 
-  url.searchParams.set('live-preview', '1');
   win.location.assign(url.toString());
 }
 
