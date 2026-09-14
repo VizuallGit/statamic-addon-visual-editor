@@ -405,19 +405,78 @@ function globalSectionType(win, row) {
   return (id && sve.savedSectionInfo?.(win, id)?.section_type) || '';
 }
 
+/** Types waiting to be fetched, and whether the queue is moving. */
+const htmlTreePrefetch = [];
+let htmlTreePrefetching = false;
+
+/** The next quiet moment, or very soon if the browser never gets one. */
+function whenIdle(win, run) {
+  if (typeof win.requestIdleCallback === 'function') {
+    win.requestIdleCallback(run, { timeout: 2000 });
+
+    return;
+  }
+
+  win.setTimeout(run, 200);
+}
+
 /**
- * Fetch the markup of every section on the page, once each.
+ * Fetch the markup of every section on the page, once each — one at a time.
  *
- * The same request the dock makes, so it costs the server nothing it was not
- * going to be asked for anyway — just asked earlier. Failures are dropped:
- * a section whose template is missing simply opens the slow way.
+ * A queue, not a burst. Firing them together was measured at fourteen requests
+ * leaving at once on a page with fourteen sections: 87 KB of markup that cost
+ * eleven seconds of server time, because PHP serves a handful at a time and the
+ * rest wait. Everything else waited with them — the preview's own render, and
+ * `chrome-prefs`, which sat for 1.14s doing nothing but queueing.
+ *
+ * The point of fetching early is that clicking a section shows its tags at
+ * once; that holds whether the markup arrives in one second or in ten, as long
+ * as it is there before the click. So: one request in flight, each starting on
+ * an idle moment, and the page is left alone while it is still being drawn.
+ *
+ * Failures are dropped — a section whose template is missing simply opens the
+ * slow way.
  */
 function prefetchSectionTemplates(win, sections) {
   for (const section of sections) {
     const type = section.type;
 
-    if (!type || htmlTreeTemplates.has(type) || htmlTreeFetching.has(type)) {
+    if (
+      !type
+      || htmlTreeTemplates.has(type)
+      || htmlTreeFetching.has(type)
+      || htmlTreePrefetch.includes(type)
+    ) {
       continue;
+    }
+
+    htmlTreePrefetch.push(type);
+  }
+
+  runSectionTemplatePrefetch(win);
+}
+
+function runSectionTemplatePrefetch(win) {
+  if (htmlTreePrefetching || !htmlTreePrefetch.length) {
+    return;
+  }
+
+  htmlTreePrefetching = true;
+
+  const next = () => {
+    const type = htmlTreePrefetch.shift();
+
+    if (!type) {
+      htmlTreePrefetching = false;
+
+      return;
+    }
+
+    // Opened (or fetched) while it sat in the queue — nothing left to ask for.
+    if (htmlTreeTemplates.has(type) || htmlTreeFetching.has(type)) {
+      whenIdle(win, next);
+
+      return;
     }
 
     htmlTreeFetching.add(type);
@@ -428,14 +487,18 @@ function prefetchSectionTemplates(win, sections) {
       })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        htmlTreeFetching.delete(type);
-
         if (typeof data?.html === 'string') {
           htmlTreeTemplates.set(type, data.html);
         }
       })
-      .catch(() => htmlTreeFetching.delete(type));
-  }
+      .catch(() => {})
+      .finally(() => {
+        htmlTreeFetching.delete(type);
+        whenIdle(win, next);
+      });
+  };
+
+  whenIdle(win, next);
 }
 
 /** True while the rows come from the cache and the dock is still catching up. */

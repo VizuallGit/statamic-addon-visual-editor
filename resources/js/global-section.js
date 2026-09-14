@@ -776,8 +776,36 @@ export function globalSectionContainer() {
  * built here from the same answer, and none of it has to be kept in step by hand
  * with what Statamic's forms want next.
  */
+/**
+ * Inertia's version for this build of the Control Panel.
+ *
+ * It goes out with every request, and the server answers 409 Conflict when it
+ * does not match. An empty one never matches — and warming the header and
+ * footer screens runs early, before Statamic's app has mounted and put a
+ * version anywhere this can read it. So the fetch was thrown away and paid for
+ * again on the click: measured at one conflict per global, 216 KB and a second
+ * and a half of server time spent on answers nobody could use.
+ *
+ * So it is waited for rather than guessed at. Five seconds at the outside; if
+ * the app never mounts there is nothing here worth warming, and asking without
+ * a version is exactly what this stops doing.
+ */
+async function inertiaVersion(win) {
+  for (let tries = 0; tries < 50; tries += 1) {
+    const version = win.Statamic?.$app?.config?.globalProperties?.$page?.version;
+
+    if (version) {
+      return version;
+    }
+
+    await new Promise((resolve) => win.setTimeout(resolve, 100));
+  }
+
+  return '';
+}
+
 export async function fetchInertiaPage(win, path) {
-  const version = win.Statamic?.$app?.config?.globalProperties?.$page?.version || '';
+  const version = await inertiaVersion(win);
 
   const response = await win.fetch(path, {
     credentials: 'same-origin',
