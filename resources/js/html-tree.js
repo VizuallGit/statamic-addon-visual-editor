@@ -1085,6 +1085,10 @@ export function renderHtmlTree(win) {
       current: row.id === htmlTreeActiveId,
       letter: icon.letter || '',
       svg: isRoot && openSection ? openSection.svg : icon.svg || '',
+      // The open section IS its first tag row. Carrying the uid here is what
+      // lets delete tell "this section on this page" from "this tag in the
+      // file" — they are the same row, and they are not the same thing.
+      sectionRoot: isRoot && openSection ? openSection.uid : '',
     };
   });
 
@@ -1277,7 +1281,47 @@ function duplicateHtmlTreeRow(win, id) {
   applyHtmlEdit(win, id, duplicateHtml);
 }
 
+/**
+ * Takes one section off this one page, after asking.
+ *
+ * Shared by the row's delete control and the right-click menu, and worth
+ * sharing: the question, its words and the removal itself all have to match
+ * what the block tree and the hover bar do, or the same act would read three
+ * ways depending on where it was started.
+ */
+function removeSectionFromPage(win, uid) {
+  sve.confirmCloseDiscard?.(
+    win,
+    {
+      titleKey: 'remove_section_title',
+      bodyKey: 'remove_section_body',
+      confirmKey: 'remove_section_confirm',
+    },
+    () => sve.handleRemoveRow?.({ uid }, win.document, win)
+  );
+}
+
+/**
+ * Delete on a section row means the section; on a tag row it means the tag.
+ *
+ * They look alike and are not alike: a tag is removed from the Antlers file, so
+ * it goes from every page that renders it, while a section is one row of this
+ * page's page_sections and the file is untouched. Pointing the control on a
+ * section row at the template was the wrong of the two — the row says the
+ * section's name and sits in a list of sections, so that is what it is about.
+ */
 function deleteHtmlTreeRow(win, id) {
+  // Shut, a section is a row of its own in `sections`. Open, the section is the
+  // first of the file's tag rows — the one carrying `sectionRoot`.
+  const shut = htmlTreeUi.sections?.find((item) => item.row?.id === id);
+  const uid = shut ? shut.row?.section || shut.uid : htmlTreeUi.rows.find((item) => item.id === id)?.sectionRoot;
+
+  if (uid) {
+    removeSectionFromPage(win, uid);
+
+    return;
+  }
+
   applyHtmlEdit(win, id, deleteHtml);
 }
 
@@ -1332,15 +1376,7 @@ function openHtmlTreeSectionMenu(win, event, section) {
           // Same question, same words as the block tree and the hover bar: a
           // section takes one click to remove and holds everything inside it,
           // and the page it leaves behind looks like it was always that way.
-          sve.confirmCloseDiscard?.(
-            win,
-            {
-              titleKey: 'remove_section_title',
-              bodyKey: 'remove_section_body',
-              confirmKey: 'remove_section_confirm',
-            },
-            () => sve.handleRemoveRow?.({ uid }, win.document, win)
-          );
+          removeSectionFromPage(win, uid);
         },
       },
     ],
