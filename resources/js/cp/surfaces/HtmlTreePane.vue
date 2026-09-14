@@ -1,39 +1,12 @@
 <script setup>
-import { ref } from 'vue';
 import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
-import { canCreateSections, openNewSectionDialog } from '../../section-create.js';
-import { t } from '../../cp-t.js';
 
 defineProps({
   title: { type: String, default: '' },
 });
-
-// Making a section writes files into the repository, so it is the developer
-// permission that decides — the same gate as deleting one. An editor never
-// sees the button at all.
-const canCreate = canCreateSections(window);
-const newSectionLabel = t(window, 'section_new');
-const creating = ref(false);
-
-function onNewSection() {
-  if (creating.value) {
-    return;
-  }
-
-  creating.value = true;
-
-  openNewSectionDialog(window, {
-    onDone: () => {
-      creating.value = false;
-    },
-    onError: () => {
-      creating.value = false;
-    },
-  });
-}
 </script>
 
 <template>
@@ -41,16 +14,6 @@ function onNewSection() {
     <div class="sve-pane-bar" data-sve-pane-bar>
       <div data-sve-right-title>{{ title }}</div>
       <div data-sve-right-actions>
-        <button
-          v-if="canCreate"
-          type="button"
-          class="sve-tree-new"
-          :title="newSectionLabel"
-          :aria-label="newSectionLabel"
-          @click="onNewSection"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-        </button>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -81,24 +44,6 @@ function onNewSection() {
 </template>
 
 <style scoped>
-/* Sits with the pin and the close button, which the pane bar styles from
-   outside; this one is ours, so it carries its own. */
-.sve-tree-new {
-  all: unset;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.7em;
-  height: 1.7em;
-  border-radius: 0.4em;
-  line-height: 1;
-  opacity: 0.62;
-}
-.sve-tree-new:hover {
-  opacity: 1;
-  background: rgba(128, 128, 128, 0.18);
-}
 .sve-html-tree {
   display: flex;
   flex-direction: column;

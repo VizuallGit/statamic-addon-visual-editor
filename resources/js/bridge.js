@@ -7624,10 +7624,11 @@ export function createMouseMoveHandler(win) {
 
   return function handleMouseMove(event) {
     // Always keep block actions working — even while another field is being
-    // inline-edited (that used to early-return and made "hover down" feel broken).
-    if (!htmlPick) {
-      updateMoveControlFromPointer(win, event);
-    }
+    // inline-edited (that used to early-return and made "hover down" feel broken),
+    // and while the HTML tree is pointing at the preview: pointing at a tag and
+    // moving the section around it are two different jobs, and the belt's own
+    // buttons already stop their clicks before the pick handler sees them.
+    updateMoveControlFromPointer(win, event);
 
     if (editing) {
       return;
@@ -7636,6 +7637,12 @@ export function createMouseMoveHandler(win) {
     win.document.documentElement.classList.add(MOUSE_ACTIVE_CLASS);
 
     if (htmlPick) {
+      // The belt hovers above the section it belongs to, and is not part of the
+      // page — reaching for one of its buttons must not read as "left the tag".
+      if (moveCtrlEl && moveCtrlEl.contains(event.target)) {
+        return;
+      }
+
       const current = win.document.querySelector(`[${INNER_ATTR}]`);
       const target = event.target.closest?.(`[${HT_PATH_ATTR}]`) || null;
 

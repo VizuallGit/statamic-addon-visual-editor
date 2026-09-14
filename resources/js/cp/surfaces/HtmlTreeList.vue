@@ -8,8 +8,35 @@
  * mark and highlight depending on whether it was open. Shut is a state of the
  * row, not a second row.
  */
+import { ref } from 'vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
 import HtmlTreeRow from './HtmlTreeRow.vue';
+import { canCreateSections, openNewSectionDialog } from '../../section-create.js';
+import { t } from '../../cp-t.js';
+
+// Making a section writes files into the repository, so it is the developer
+// permission that decides — the same gate as deleting one. An editor never
+// sees the button at all.
+const canCreate = canCreateSections(window);
+const newSectionLabel = t(window, 'section_new');
+const creating = ref(false);
+
+function onNewSection() {
+  if (creating.value) {
+    return;
+  }
+
+  creating.value = true;
+
+  openNewSectionDialog(window, {
+    onDone: () => {
+      creating.value = false;
+    },
+    onError: () => {
+      creating.value = false;
+    },
+  });
+}
 </script>
 
 <template>
@@ -33,6 +60,23 @@ import HtmlTreeRow from './HtmlTreeRow.vue';
         </template>
         <HtmlTreeRow v-else :row="sec.row" />
       </div>
+      <!--
+        The last thing under the sections, and shaped like one: adding a section
+        belongs at the end of the list you are adding it to, not in the pane bar
+        above it, where it sat among close and pin and read as a window control.
+        Only where sections are listed — inside a component there is no list for
+        it to be the end of.
+      -->
+      <button
+        v-if="canCreate"
+        type="button"
+        class="sve-ht-new"
+        :title="newSectionLabel"
+        :aria-label="newSectionLabel"
+        @click="onNewSection"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </button>
     </template>
     <template v-else>
       <HtmlTreeRow v-for="row in ui.rows" :key="row.id" :row="row" />
@@ -41,6 +85,34 @@ import HtmlTreeRow from './HtmlTreeRow.vue';
 </template>
 
 <style scoped>
+/* Same box as a section row (html-tree.js draws those), so it reads as the next
+   one in the list — and the same blue on hover that a row wears when it is the
+   one being worked on. */
+.sve-ht-new {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 1.75rem;
+  padding: 0.3125rem 0.5rem;
+  margin-bottom: 0.1875rem;
+  background: rgba(128, 128, 128, 0.16);
+  border-radius: 0.375rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.sve-ht-new:hover {
+  background: #3858e9;
+  color: #fff;
+  opacity: 1;
+}
+.sve-ht-new:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
 .sve-ht-empty {
   padding: 28px 6px;
   text-align: center;
