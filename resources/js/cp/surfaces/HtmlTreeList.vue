@@ -94,9 +94,9 @@ function onNewSection() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
+  width: 1.5rem;
   aspect-ratio: 1;
-  margin: 0 auto 0.1875rem;
+  margin: 0.5rem 0 0.1875rem;
   background: rgba(128, 128, 128, 0.16);
   border-radius: 0.375rem;
   line-height: 1;
