@@ -52,69 +52,26 @@ function ensureSpinStyle(doc) {
   doc.head.appendChild(style);
 }
 
-/** Every section type on the page, each once — what there is anything to refetch for. */
-function typesOnPage(win) {
-  const field = sve.sectionField?.(win);
-  const seen = new Set();
 
-  if (!field || typeof sve.activeContainers !== 'function') {
-    return [];
-  }
-
-  for (const container of sve.activeContainers(win.document)) {
-    const rows = sve.dataGet?.(sve.unwrapRef?.(container.values), field);
-
-    if (!Array.isArray(rows)) {
-      continue;
-    }
-
-    for (const row of rows) {
-      if (row && typeof row.type === 'string' && row.type) {
-        seen.add(row.type);
-      }
-    }
-
-    // The first container holding the page builder is the page; a second is
-    // another form open beside it. Same reading as the HTML tree's.
-    break;
-  }
-
-  return [...seen];
-}
-
-export async function reloadEverything(win) {
-  // The section templates the tree pulled in, and the meta cache behind every
-  // panel. Dropped first: what follows has to ask the server, not answer from
-  // what it already had.
-  sve.clearHtmlTreeTemplates?.();
-  sve.sectionMetaCache?.clear?.();
-
-  // The header and footer screens, which are warmed once and then handed out.
-  sve.resetChromeInlinePages?.(win);
-
-  // The library's lists (saved sections, templates) and the set previews.
-  sve.libraryWentStale?.(win);
-  sve.refreshSectionTypes?.(win, () => {});
-
-  // Each section's fields and meta, one type at a time. Serial on purpose:
-  // firing one request per type at once is what made opening Live Preview slow
-  // enough to be worth fixing, and this is the same shape of work.
-  const { refreshFieldsForType } = await import('./section-fields.js');
-
-  for (const type of typesOnPage(win)) {
-    try {
-      await refreshFieldsForType(win, type);
-    } catch {
-      // A type whose fieldset has gone is not a reason to stop refreshing the
-      // rest — it simply keeps what it had.
-    }
-  }
-
-  // The panels that draw from the form's values rather than from the server.
-  sve.renderHtmlTree?.(win);
-
-  // And the page itself, rendered again from the values as they stand.
-  sve.replayLivePreview?.(win);
+/**
+ * Load the whole editor again.
+ *
+ * Refetching the pieces one by one was the clever version, and it left the one
+ * thing out that matters most: the page's own blueprint. Statamic builds the
+ * publish form from it at page load, so a tab or a field added since is simply
+ * not in the form, and nothing short of loading the page again puts it there.
+ *
+ * So this reloads. Live Preview comes back because the URL says so — the
+ * `?live-preview=1` the editor was opened with is still on it — and everything
+ * downstream of the load is new by definition: blueprint, fields, meta,
+ * templates, the library, header and footer.
+ *
+ * Unsaved work goes with it. That is what a reload is, and it is what was
+ * asked for; the browser's own "leave site?" prompt is the warning, raised by
+ * Statamic's unsaved-changes guard rather than by a second one here.
+ */
+export function reloadEverything(win) {
+  win.location.reload();
 }
 
 export function ensureLpReloadButton(win) {
@@ -144,14 +101,17 @@ export function ensureLpReloadButton(win) {
       }
 
       running = true;
+      // Spins until the page goes. Nothing clears it: the document it is drawn
+      // in is the one being replaced.
       pill.setAttribute('data-busy', '');
 
-      void reloadEverything(win)
-        .catch(() => win.Statamic?.$toast?.error(t(win, 'reload_lp_failed')))
-        .finally(() => {
-          running = false;
-          pill.removeAttribute('data-busy');
-        });
+      try {
+        reloadEverything(win);
+      } catch {
+        running = false;
+        pill.removeAttribute('data-busy');
+        win.Statamic?.$toast?.error(t(win, 'reload_lp_failed'));
+      }
     });
   }
 
