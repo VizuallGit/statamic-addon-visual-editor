@@ -103,7 +103,38 @@ function freeHandle(props, base) {
   return handle;
 }
 
+/**
+ * Is someone typing in this panel right now?
+ *
+ * The panel is repainted by anything that repaints the HTML tree, and that
+ * happens while you are in the middle of a word: the rows are replaced, the
+ * `:value` bindings are written back from the file, and the caret is gone. You
+ * click the field again, type two letters, and it throws you out again.
+ *
+ * The HTML tree already refuses to redraw while a row is being renamed
+ * (`htmlTreeUi.editingId`). This is the same rule for the same reason — a
+ * panel must not pull its own controls out from under the person using them.
+ * The repaint is not lost, only deferred: the next one after the field is left
+ * brings whatever changed with it.
+ */
+function typingInPanel(win) {
+  const el = win.document.activeElement;
+
+  // Not a select: choosing a type is finished the moment it is chosen, and the
+  // row has to redraw for it — a `media` row shows different controls than a
+  // `text` one. Typing is the only thing that is still in progress.
+  return (
+    !!el
+    && /^(INPUT|TEXTAREA)$/.test(el.tagName)
+    && !!el.closest?.('.sve-cprops')
+  );
+}
+
 export function paintComponentProps(win) {
+  if (typingInPanel(win)) {
+    return;
+  }
+
   const src = componentPropsOn(win) ? ask('dock:component-src') : '';
 
   if (!src) {
