@@ -127,9 +127,17 @@ input[type='text'] {
   font-size: 1em;
   margin-bottom: 1em;
 }
+/* The browser's own arrow sits hard against the right edge and `padding-right`
+   does not move it — that pads the text. So: our own chevron, placed where
+   there is room to breathe. Grey rather than `currentColor`, which a
+   background image cannot read; it carries in both a light and a dark panel. */
 select {
-  appearance: auto;
-  padding-right: 1.85em;
+  appearance: none;
+  padding-right: 2.3em;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23919191' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.85em center;
+  background-size: 0.85em;
 }
 .sve-dialog__note {
   margin: 0 0 1.1em;
