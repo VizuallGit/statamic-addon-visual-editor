@@ -71,7 +71,20 @@ function ensureSpinStyle(doc) {
  * Statamic's unsaved-changes guard rather than by a second one here.
  */
 export function reloadEverything(win) {
-  win.location.reload();
+  // `?live-preview=1` first, or the reload lands on the plain entry screen:
+  // opening the editor does not put anything in the URL, so a bare reload has
+  // nothing to tell it to come back. `autoOpenLivePreview` reads that parameter
+  // at boot and opens the editor again.
+  const url = new win.URL(win.location.href);
+
+  if (url.searchParams.get('live-preview') === '1') {
+    win.location.reload();
+
+    return;
+  }
+
+  url.searchParams.set('live-preview', '1');
+  win.location.assign(url.toString());
 }
 
 export function ensureLpReloadButton(win) {
