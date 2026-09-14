@@ -4870,8 +4870,10 @@ export function isOurLpChromeButton(button) {
     !button ||
     button.id === LP_BACK_ID ||
     button.id === '__sve-lp-more' ||
+    button.id === LP_RELOAD_ID ||
     !!button.closest?.(`#${LP_BACK_ID}`) ||
     !!button.closest?.('#__sve-lp-more') ||
+    !!button.closest?.(`#${LP_RELOAD_ID}`) ||
     !!button.closest?.(`#${HEADER_TOOLBAR_ID}`) ||
     !!button.closest?.(`#${LP_PREVIEW_CHROME_ID}`) ||
     !!button.closest?.(`#${sve.LP_MODE_ID}`) ||
