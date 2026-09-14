@@ -473,6 +473,7 @@ function openPopover(target, mark) {
     kind,
     current,
     fieldtype,
+    words: roundWords(wordCount(current)),
     requestId: `sve-ai-text-${++seq}`,
     suggestions: [],
     addingKeyword: false,
@@ -511,6 +512,80 @@ function kindOf(el, fieldtype) {
 }
 
 /**
+ * Roughly how long the new text should be.
+ *
+ * This replaces the tone buttons (shorter / longer / more concrete / more
+ * keywords). Those were four ways of saying "not like that"; length is the one
+ * thing a person actually knows up front, and it is the one the layout cares
+ * about. It starts at the length of what is there now, so leaving it alone
+ * means "about this long".
+ */
+function lengthRow(doc) {
+  const t = ctx.t;
+  const row = doc.createElement('div');
+
+  row.style.cssText = 'display:flex;align-items:center;gap:0.375rem;';
+
+  const label = doc.createElement('label');
+
+  label.textContent = t('ai_text_about');
+  label.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;';
+
+  const input = doc.createElement('input');
+
+  input.type = 'number';
+  input.min = '1';
+  input.max = '2000';
+  input.value = String(session.words);
+  input.disabled = session.busy;
+  input.style.cssText =
+    'box-sizing:border-box;width:4rem;padding:0.1875rem 0.375rem;border-radius:0.375rem;' +
+    'border:1px solid var(--sve-ai-border);background:var(--sve-ai-field);' +
+    'color:var(--sve-ai-fg);font:inherit;font-size:0.6875rem;';
+  input.addEventListener('input', () => {
+    const n = parseInt(input.value, 10);
+
+    if (Number.isFinite(n) && n > 0) {
+      session.words = Math.min(2000, n);
+    }
+  });
+  // Enter in the number field means "go", like Enter in the text field.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      generate({ fresh: true });
+    }
+  });
+
+  const unit = doc.createElement('span');
+
+  unit.textContent = t('ai_text_words');
+  unit.style.cssText = 'color:var(--sve-ai-muted);font-size:0.6875rem;';
+
+  row.append(label, input, unit);
+
+  return row;
+}
+
+/**
+ * A number a person would actually say out loud.
+ *
+ * "About 47 words" is a measurement, not a brief. Rounded, the field reads as
+ * the rough guide it is, and nudging it to 60 is one keystroke.
+ */
+function roundWords(n) {
+  if (!n) {
+    return 20;
+  }
+
+  if (n <= 12) {
+    return Math.max(3, n);
+  }
+
+  return n <= 60 ? Math.round(n / 5) * 5 : Math.round(n / 10) * 10;
+}
+
+/**
  * How many to ask for, from how much text is actually there.
  *
  * The fieldtype alone is the wrong question: a Bard field holding six words is a
@@ -518,7 +593,7 @@ function kindOf(el, fieldtype) {
  * What makes three the right number is the length of what comes back.
  */
 function countFor(session) {
-  return wordCount(session.current) >= LONG_TEXT_WORDS ? COUNT_LONG : COUNT_SHORT;
+  return session.words >= LONG_TEXT_WORDS ? COUNT_LONG : COUNT_SHORT;
 }
 
 function wordCount(text) {
@@ -633,6 +708,7 @@ function render() {
 
   session.input = input;
   form.appendChild(input);
+  form.appendChild(lengthRow(doc));
   form.appendChild(submitRow(doc));
   body.appendChild(form);
 
@@ -1008,6 +1084,7 @@ function generate({ fresh }) {
     text: session.current,
     instruction: (session.instruction ?? session.input?.value ?? '').trim(),
     count: countFor(session),
+    words: session.words,
     avoid: session.suggestions,
   });
 }

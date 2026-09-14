@@ -430,6 +430,9 @@ export async function handleAiTextGenerate(data, doc, win) {
         text: stored || data.text || '',
         instruction: data.instruction || '',
         count: data.count || 1,
+        // Hvor langt forslaget skal være. Feltet i panelet starter på længden af
+        // det der står nu, så "lad den stå" betyder "cirka lige så langt".
+        words: data.words || 0,
         avoid: Array.isArray(data.avoid) ? data.avoid : [],
         keywords: pageKeywords(doc),
         page: entryTitle(doc, win),
