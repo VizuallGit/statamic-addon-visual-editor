@@ -474,9 +474,16 @@ function usage(handle) {
 .sve-cprops__kind {
   width: auto;
   flex: 0 0 auto;
-  /* The arrow is drawn inside the box's own padding, so without this it sits
-     against the border with nothing either side of it. */
-  padding-right: 1.3rem;
+  /* The browser paints the arrow against the border and lays nothing out for
+     it, so no amount of padding moves it. Switched off and drawn here instead,
+     where it can be given room on both sides. */
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-opacity='.65' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .55rem center;
+  background-size: .7em;
+  padding-right: 1.9rem;
 }
 .sve-cprops__pair .sve-cprops__box:first-child {
   flex: 1 1 auto;

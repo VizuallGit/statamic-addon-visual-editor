@@ -130,6 +130,32 @@ function typingInPanel(win) {
   );
 }
 
+
+/**
+ * The handle as the file will actually hold it.
+ *
+ * `ComponentProps::handle()` lowercases the name and folds spaces and dashes
+ * into underscores before writing it, and everything downstream matches on the
+ * written form: the server looks the field up by handle to draw the default's
+ * editor, and the template says `{{ props.<handle> }}`. Leaving the typed
+ * spelling in the panel makes all three disagree — a field typed `Teaser` is
+ * saved as `teaser`, the lookup for `Teaser` finds nothing, and the default's
+ * editor renders as an empty gap with no error anywhere.
+ *
+ * A name that normalizes to nothing is left as typed, so a half-finished one
+ * is not wiped out from under the cursor.
+ */
+function normalizeHandle(raw) {
+  const handle = String(raw ?? '')
+    .trim()
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 40);
+
+  return /^[a-z_]/.test(handle) ? handle : String(raw ?? '');
+}
+
 export function paintComponentProps(win) {
   if (typingInPanel(win)) {
     return;
@@ -229,7 +255,8 @@ export function paintComponentProps(win) {
   };
 
   ui.onEdit = (index, key, value) => {
-    const next = props.map((prop, at) => (at === index ? { ...prop, [key]: value } : prop));
+    const clean = key === 'handle' ? normalizeHandle(value) : value;
+    const next = props.map((prop, at) => (at === index ? { ...prop, [key]: clean } : prop));
 
     // A renamed field is a different field: the label the server derives from
     // the handle has to follow it, or the panel keeps showing the old name.
