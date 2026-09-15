@@ -318,10 +318,13 @@ class SectionTemplate
 
         $out = $out === '' ? '' : $out."\n";
 
-        // At the very top, above the markup and above the lock marker's line,
-        // so opening the file in an editor tells you what it takes.
+        // The declaration at the very top, above the markup and above the lock
+        // marker's line, so opening the file in an editor tells you what it
+        // takes — and the `sve_defaults` pair around everything below it, which
+        // is what makes the declared fallbacks apply without an assignment
+        // escaping into the page's scope.
         if (is_array($parts['props'] ?? null)) {
-            $out = ComponentProps::block($parts['props']).$out;
+            $out = ComponentProps::wrap($parts['props'], $out);
         }
 
         $marker = static::markerFor(! empty($parts['locked']), $handle);

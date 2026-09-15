@@ -96,6 +96,7 @@ use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
 use MarioHamann\StatamicVisualEditor\Tags\SveTw;
 use MarioHamann\StatamicVisualEditor\Tags\SveProp;
+use MarioHamann\StatamicVisualEditor\Tags\SveDefaults;
 use Statamic\Events\AddonSettingsSaved;
 use Statamic\Events\BlueprintSaved;
 use Statamic\Events\CollectionCreating;
@@ -140,6 +141,7 @@ class ServiceProvider extends AddonServiceProvider
         ResponsiveCss::class,
         SveTw::class,
         SveProp::class,
+        SveDefaults::class,
     ];
 
     protected $modifiers = [

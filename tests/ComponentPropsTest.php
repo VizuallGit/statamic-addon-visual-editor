@@ -111,7 +111,7 @@ class ComponentPropsTest extends TestCase
     public function test_a_default_becomes_antlers_that_actually_runs()
     {
         $file = SectionTemplate::join([
-            'html' => '<h3>{{ headline }}</h3>',
+            'html' => '<h3>{{ props.headline }}</h3>',
             'css' => '',
             'js' => '',
             'props' => [
@@ -121,9 +121,33 @@ class ComponentPropsTest extends TestCase
             ],
         ]);
 
-        $this->assertStringContainsString('{{ headline = headline ?? "Overskrift" }}', $file);
-        $this->assertStringContainsString('{{ image = image ?? "/assets/x.jpg" }}', $file);
-        $this->assertStringNotContainsString('empty = empty', $file);
+        $this->assertStringContainsString('{{ sve_defaults headline="Overskrift" image="/assets/x.jpg" empty="" }}', $file);
+        $this->assertStringContainsString('{{ /sve_defaults }}', $file);
+
+        // The shape that used to leak into the page around the component.
+        $this->assertStringNotContainsString('headline = headline', $file);
+    }
+
+    public function test_the_pair_goes_around_the_whole_file()
+    {
+        $file = SectionTemplate::join([
+            'html' => '<h3>{{ props.headline }}</h3>',
+            'css' => '.card{color:red}',
+            'js' => '',
+            'props' => [['handle' => 'headline', 'type' => 'text', 'label' => '', 'default' => 'Overskrift']],
+        ]);
+
+        $open = strpos($file, '{{ sve_defaults ');
+        $css = strpos($file, '.card{color:red}');
+        $close = strpos($file, '{{ /sve_defaults }}');
+
+        $this->assertNotFalse($open);
+        $this->assertNotFalse($css);
+        $this->assertNotFalse($close);
+
+        // CSS reads the same props as the markup, so it has to be inside too.
+        $this->assertLessThan($css, $open);
+        $this->assertLessThan($close, $css);
     }
 
     public function test_the_fallbacks_never_reach_the_html_pane()
@@ -139,20 +163,58 @@ class ComponentPropsTest extends TestCase
         // And a second save does not stack a second set of them.
         $again = SectionTemplate::join([...$parts, 'props' => $parts['props']]);
 
-        $this->assertSame(1, substr_count($again, '{{# sve_defaults #}}'));
-        $this->assertSame(1, substr_count($again, 'headline = headline'));
+        $this->assertSame(1, substr_count($again, '{{ sve_defaults '));
+        $this->assertSame(1, substr_count($again, '{{ /sve_defaults }}'));
     }
 
-    public function test_a_default_with_both_quotes_is_left_out_rather_than_written_broken()
+    public function test_a_default_that_cannot_be_written_leaves_the_prop_empty_rather_than_broken()
     {
         $file = SectionTemplate::join([
-            'html' => '<p>{{ text }}</p>',
+            'html' => '<p>{{ props.text }}</p>',
             'css' => '',
             'js' => '',
             'props' => [['handle' => 'text', 'type' => 'text', 'label' => '', 'default' => 'Hans\' "hus"']],
         ]);
 
-        $this->assertStringNotContainsString('text = text', $file);
+        // The prop still exists — `{{ props.text }}` is a name the template can
+        // count on — it just starts empty.
+        $this->assertStringContainsString('{{ sve_defaults text="" }}', $file);
+    }
+
+    public function test_a_file_written_before_the_pair_loses_its_assignments()
+    {
+        $legacy = <<<'ANTLERS'
+{{#sve_props
+[{"handle":"headline","type":"text","label":"Headline","default":"Overskrift"}]
+#}}
+
+{{# sve_defaults #}}
+{{ headline = headline ?? "Overskrift" }}
+{{# /sve_defaults #}}
+
+<h3>{{ headline }}</h3>
+ANTLERS;
+
+        $parts = SectionTemplate::split($legacy);
+
+        $this->assertSame('<h3>{{ headline }}</h3>', $parts['html']);
+        $this->assertSame('headline', $parts['props'][0]['handle']);
+
+        $again = SectionTemplate::join([...$parts, 'props' => $parts['props']]);
+
+        $this->assertStringNotContainsString('headline = headline', $again);
+        $this->assertStringContainsString('{{ sve_defaults headline="Overskrift" }}', $again);
+    }
+
+    public function test_a_prop_named_after_an_antlers_parameter_is_dropped()
+    {
+        $clean = ComponentProps::normalize([
+            ['handle' => 'scope', 'type' => 'text'],
+            ['handle' => 'as', 'type' => 'text'],
+            ['handle' => 'headline', 'type' => 'text'],
+        ]);
+
+        $this->assertSame(['headline'], array_column($clean, 'handle'));
     }
 
     public function test_a_view_outside_the_views_folder_declares_nothing()
