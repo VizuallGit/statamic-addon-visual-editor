@@ -68,7 +68,7 @@ function loaderFor(sources, modules) {
 
 /**
  * @param {object} sources          the package's own stylesheets, as text
- * @param {object} site             `{ css, plugins, built }` from /!/sve/tailwind-theme
+ * @param {object} site             `{ css, plugins }` from /!/sve/tailwind-theme
  * @param {object} modules          plugin name -> imported module
  * @param {Function} compile        tailwindcss `compile`
  */
@@ -100,21 +100,18 @@ export async function makeDesignSystem({ loadDesignSystem, sources, site, module
 /**
  * What must not be baked.
  *
- * Two kinds. `@utility` names belong to `site.css` — emitting them again would
- * put a second copy after the sheet that owns them. And every class the built
- * stylesheet already carries: `site.css` scans the views, so after a build
- * `.grid` and `.py-1200` are served already, and baking them writes a rule the
- * page has twice. `built` empty — no manifest, no build — bakes everything,
- * exactly as before.
+ * Only `@utility` names. Those belong to `site.css`; emitting them again
+ * would put a second copy after the sheet that owns them.
+ *
+ * Classes already in the Vite build are not skipped. `{{ sve_tw }}` is
+ * pushed after `site.css`, so an unprefixed rule baked here beats a
+ * `max-md:` variant left in the earlier sheet. That is why
+ * `max-md:grid-cols-1` did nothing while `max-md:grid-cols-2` (not in the
+ * build, so baked) worked: `grid-cols-4` lived in `sve_tw` and won.
+ * Baking the file's whole candidate list keeps the cascade in one sheet.
  */
 function skipSet(site) {
-  const skip = twSiteUtilities(site?.css || '');
-
-  for (const name of site?.built || []) {
-    skip.add(name);
-  }
-
-  return skip;
+  return twSiteUtilities(site?.css || '');
 }
 
 /**

@@ -160,8 +160,9 @@ export function syncComponentPropsHost(win) {
 
 /**
  * The column is Statamic's, and it re-renders on its own — a tab switch, a
- * saved value. Anything that arrives while the component has the column has to
- * step aside too, or the section's fields come back underneath the panel.
+ * saved value, a Live Preview replay after the component file is saved.
+ * Anything that arrives while the component has the column has to step aside
+ * too, or the section's fields come back underneath the panel.
  */
 let unwatch = null;
 let queued = false;
@@ -171,11 +172,11 @@ function watchColumn(win) {
     return;
   }
 
-  // The editor, not the field column. Statamic replaces the column outright
-  // when the tab changes — an observer on the column would be watching a node
-  // that is no longer on the page, and the panel would be gone for good with
-  // nothing left to notice.
-  const root = win.document.querySelector('.live-preview-editor') || win.document.body;
+  // `document.body`, not `.live-preview-editor`. Saving a prop refreshes the
+  // preview, and that replaces the editor node. An observer on the editor was
+  // then watching a node that was no longer on the page — the panel stayed
+  // gone, and the only way back in was to click the component again.
+  const root = win.document.body;
 
   const observer = new win.MutationObserver(() => {
     if (queued) {
@@ -187,6 +188,10 @@ function watchColumn(win) {
     queued = true;
     win.requestAnimationFrame(() => {
       queued = false;
+
+      if (!ui.open && !ui.callOpen) {
+        return;
+      }
 
       const host = win.document.getElementById(HOST_ID);
       const col = column(win.document);

@@ -119,14 +119,23 @@ function freeHandle(props, base) {
  */
 function typingInPanel(win) {
   const el = win.document.activeElement;
+  const root = el?.closest?.('.sve-cprops, .sve-csb');
+
+  if (!root) {
+    return false;
+  }
 
   // Not a select: choosing a type is finished the moment it is chosen, and the
   // row has to redraw for it — a `media` row shows different controls than a
   // `text` one. Typing is the only thing that is still in progress.
+  if (el.tagName === 'SELECT') {
+    return false;
+  }
+
   return (
-    !!el
-    && /^(INPUT|TEXTAREA)$/.test(el.tagName)
-    && !!el.closest?.('.sve-cprops')
+    /^(INPUT|TEXTAREA)$/.test(el.tagName)
+    || el.isContentEditable
+    || !!el.closest?.('[contenteditable="true"], .bard-fieldtype, .assets-fieldtype')
   );
 }
 

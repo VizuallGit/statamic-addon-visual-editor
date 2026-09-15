@@ -38,8 +38,8 @@ function loadSite(win) {
         credentials: 'same-origin',
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
-      .then((res) => (res.ok ? res.json() : { css: '', plugins: [], built: [] }))
-      .catch(() => ({ css: '', plugins: [], built: [] }));
+      .then((res) => (res.ok ? res.json() : { css: '', plugins: [] }))
+      .catch(() => ({ css: '', plugins: [] }));
   }
 
   return sitePromise;

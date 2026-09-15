@@ -517,12 +517,11 @@ return [
     |
     | store: the compiled utilities, one file per section type. The Antlers
     | partial has `{{ sve_tw }}` after the section; the tag pushes onto
-    | style_push. The sheet is here, not in the markup.
-    |
-    | build: where Vite put the site's built assets. Their manifest says which
-    | stylesheet the page loads, and every class already in it is left out of
-    | the bake instead of being written a second time. No manifest there, and
-    | everything is baked.
+    | style_push. The sheet is here, not in the markup. The bake is the file's
+    | whole candidate list (minus `@utility` names), not a diff against the
+    | Vite build: `sve_tw` loads after `site.css`, so skipping a `max-md:`
+    | variant that the build already has lets an unprefixed rule in the bake
+    | win.
     |
     */
     'tailwind' => [

@@ -5,21 +5,9 @@ namespace MarioHamann\StatamicVisualEditor;
 /**
  * The classes the site's built stylesheet already carries.
  *
- * `{{ sve_tw }}` exists because no Vite build runs on the web server: a class
- * added in the dock has to bring its own CSS. But most of them are not new.
- * `site.css` scans the views, so after any build `.grid` and `.py-1200` are in
- * the stylesheet already, and baking them again writes a second, identical
- * rule into the section's file — which is all `resources/visual-editor/tw`
- * mostly was.
- *
- * So the compiler is handed these names and leaves them out. What is left is
- * only what the site cannot serve on its own.
- *
- * Read from the Vite manifest and nowhere else. The manifest is what Statamic
- * renders into `<head>`, so this is the sheet the browser actually got — and
- * it is the same file on this machine and on the server, so the bake is the
- * same in both places. No manifest, no entry, no file: an empty list, and
- * every class is baked exactly as before.
+ * Kept as a reader for tests and diagnostics. The bake does not skip these:
+ * `{{ sve_tw }}` is pushed after `site.css`, so omitting a `max-md:` variant
+ * that the build already has lets an unprefixed rule in the bake win.
  */
 class TailwindBuilt
 {

@@ -1181,6 +1181,7 @@ function ensureStyle(doc) {
 }
 #${DOCK_ID}[data-sve-code-locked] [data-sve-css-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-html-tools],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-html-tidy],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-data-vars],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-antlers-tools],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-visual-edit-tools],
@@ -1700,7 +1701,8 @@ function ensureStyle(doc) {
   padding: 0.5em;
   opacity: .55;
 }
-#${DOCK_ID} [data-sve-data-vars] {
+#${DOCK_ID} [data-sve-data-vars],
+#${DOCK_ID} [data-sve-html-tidy] {
   pointer-events: auto;
   flex: 0 0 auto;
   display: flex;
@@ -1718,12 +1720,14 @@ function ensureStyle(doc) {
   opacity: .62;
   cursor: pointer;
 }
-#${DOCK_ID} [data-sve-data-vars] span {
+#${DOCK_ID} [data-sve-data-vars] span,
+#${DOCK_ID} [data-sve-html-tidy] svg {
   display: flex;
   line-height: 1;
 }
 #${DOCK_ID} [data-sve-data-vars]:hover,
-#${DOCK_ID} [data-sve-data-vars][data-open] {
+#${DOCK_ID} [data-sve-data-vars][data-open],
+#${DOCK_ID} [data-sve-html-tidy]:hover {
   background: rgba(255,255,255,.16);
   opacity: 1;
 }
@@ -6630,18 +6634,30 @@ function bindCssTools(win, dock) {
   );
 }
 
+function paintHtmlTidy(win, dock) {
+  const btn = dock.querySelector('[data-sve-html-tidy]');
+
+  if (!btn) {
+    return;
+  }
+
+  btn.innerHTML = HTML_ICONS.tidy || '';
+  btn.title = t(win, 'code_dock_html_tidy');
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('data-tip', btn.title);
+}
+
 function bindHtmlTidy(win, dock) {
   const btn = dock.querySelector('[data-sve-html-tidy]');
+
+  paintHtmlTidy(win, dock);
 
   if (!btn || btn._sveBound) {
     return;
   }
 
   btn._sveBound = true;
-  btn.innerHTML = HTML_ICONS.tidy || '';
-  btn.title = t(win, 'code_dock_html_tidy');
-  btn.setAttribute('aria-label', btn.title);
-  btn.setAttribute('data-tip', btn.title);
+  btn.addEventListener('mousedown', (event) => event.preventDefault());
   btn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -7610,6 +7626,7 @@ async function ensureDockAsync(win) {
       dock.querySelector('[data-sve-css-chrome="subrow-2"]') &&
       dock.querySelector('[data-sve-css-add-class]') &&
       dock.querySelector('[data-sve-html-tools]') &&
+      dock.querySelector('[data-sve-html-tidy]') &&
       dock.querySelector('[data-sve-data-vars]') &&
       dock.querySelector('[data-sve-visual-edit-tools]') &&
       dock.querySelector('[data-sve-html-scope]') &&
@@ -7617,7 +7634,7 @@ async function ensureDockAsync(win) {
       dock.querySelector('[data-sve-code-back]') &&
       dock.querySelector('[data-sve-code-autosave]') &&
       dock.querySelector('[data-sve-code-save]') &&
-      dock.getAttribute('data-sve-code-chrome') === 'scope-8';
+      dock.getAttribute('data-sve-code-chrome') === 'scope-9';
 
     if (!chromeOk) {
       for (const handle of HANDLES) {
@@ -7633,7 +7650,7 @@ async function ensureDockAsync(win) {
   if (!dock) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
-    dock.setAttribute('data-sve-code-chrome', 'scope-8');
+    dock.setAttribute('data-sve-code-chrome', 'scope-9');
     mountPane(dock, CodeDockChrome, {
       htmlLabel: t(win, 'code_dock_html'),
       cssLabel: t(win, 'code_dock_css'),
@@ -7656,7 +7673,6 @@ async function ensureDockAsync(win) {
     bindStrip(win, dock);
     bindTips(win, dock);
     bindHtmlTools(win, dock);
-    bindHtmlTidy(win, dock);
     bindHtmlScope(win, dock);
     bindLock(win, dock);
     bindBack(win, dock);
@@ -7673,6 +7689,7 @@ async function ensureDockAsync(win) {
 
   attachDock(doc, dock);
   shieldDock(dock);
+  bindHtmlTidy(win, dock);
   bindHtmlScope(win, dock);
   bindLock(win, dock);
   bindBack(win, dock);

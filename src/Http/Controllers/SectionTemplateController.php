@@ -11,7 +11,6 @@ use MarioHamann\StatamicVisualEditor\TemplateHistory;
 use MarioHamann\StatamicVisualEditor\TailwindBake;
 use MarioHamann\StatamicVisualEditor\TailwindStore;
 use MarioHamann\StatamicVisualEditor\ComponentProps;
-use MarioHamann\StatamicVisualEditor\TailwindBuilt;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
 
 /**
@@ -66,7 +65,6 @@ class SectionTemplateController
         return response()->json([
             'css' => TailwindTheme::css(),
             'plugins' => TailwindTheme::plugins(),
-            'built' => TailwindBuilt::classes(),
         ]);
     }
 
