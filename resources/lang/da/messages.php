@@ -191,7 +191,7 @@ return [
     'component_failed' => 'Komponenten kunne ikke oprettes.',
     'component_props' => 'Felter',
     'component_props_add' => 'Tilføj felt',
-    'component_props_none' => 'Ingen felter endnu. Tilføj et, og brug det i HTML som {{ handle }}.',
+    'component_props_none' => 'Ingen felter endnu. Tilføj et, og brug det i HTML som {{ props_handle }}.',
     'component_props_handle' => 'Navn',
     'component_props_type' => 'Type',
     'component_props_default' => 'Standard',

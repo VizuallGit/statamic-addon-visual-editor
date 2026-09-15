@@ -60,6 +60,29 @@ export function forgetComponentProps(src) {
  * Reading and writing the call
  * ------------------------------------------------------------------ */
 
+/**
+ * What every prop is called once it reaches Antlers.
+ *
+ * Mirrors `ComponentProps::PREFIX` — the panel and the declaration keep the
+ * short handle, the call and the template carry the prefixed one. A partial is
+ * handed the whole scope it was called from, so a prop named `headline` and a
+ * section field named `headline` were one name with two meanings, and the
+ * section's won.
+ */
+export const PROP_PREFIX = 'props_';
+
+/** The parameter name a prop is written as. */
+export function propParam(handle) {
+  return PROP_PREFIX + String(handle || '');
+}
+
+/** The prop a parameter belongs to, prefixed or written before there was one. */
+export function propHandle(param) {
+  const name = String(param || '');
+
+  return name.startsWith(PROP_PREFIX) ? name.slice(PROP_PREFIX.length) : name;
+}
+
 /** `name="value"` and `:name="expr"` inside one tag, with where each sits. */
 const PARAM = /(^|\s)(:?)([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(["'])([\s\S]*?)\4/g;
 
@@ -153,7 +176,7 @@ export function valueRows(props, tag) {
   const params = readCallParams(tag);
 
   return (props || []).map((prop) => {
-    const set = params.get(prop.handle);
+    const set = params.get(propParam(prop.handle)) || params.get(prop.handle);
 
     return {
       handle: prop.handle,
@@ -165,4 +188,32 @@ export function valueRows(props, tag) {
       placeholder: prop.default || '',
     };
   });
+}
+
+/**
+ * One prop written into a call, under its prefixed name.
+ *
+ * A call written before the prefix says `headline="Hi"`. Writing the new
+ * spelling next to it would leave the call carrying both, which reads as two
+ * fields in the HTML pane and is one — so the old parameter comes out in the
+ * same pass that puts the new one in.
+ */
+export function writePropParam(html, row, handle, value, { bound = false } = {}) {
+  const source = String(html || '');
+
+  if (!row || row.from == null || row.to == null || !handle) {
+    return source;
+  }
+
+  let next = source;
+  let to = row.to;
+
+  if (readCallParams(next.slice(row.from, to)).has(handle)) {
+    const before = next.length;
+
+    next = writeCallParam(next, { from: row.from, to }, handle, '');
+    to += next.length - before;
+  }
+
+  return writeCallParam(next, { from: row.from, to }, propParam(handle), value, { bound });
 }

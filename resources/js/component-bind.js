@@ -158,7 +158,7 @@ function bindToBody(html, node, prop) {
   }
 
   const was = html.slice(node.openTo, close);
-  const tag = `{{ props.${prop.handle} }}`;
+  const tag = `{{ props_${prop.handle} }}`;
 
   if (was.trim() === tag) {
     return null;
@@ -173,7 +173,7 @@ function bindToBody(html, node, prop) {
 /** An image points somewhere, so the field is what it points at. */
 function bindToSrc(html, node, prop) {
   const open = html.slice(node.from, node.openTo);
-  const tag = `{{ props.${prop.handle} }}`;
+  const tag = `{{ props_${prop.handle} }}`;
   const match = /(\ssrc\s*=\s*)(["'])([\s\S]*?)\2/i.exec(open);
 
   if (match) {

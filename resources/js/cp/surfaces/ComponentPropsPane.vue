@@ -94,10 +94,11 @@ function onDragEnd() {
 /** What to write in the HTML pane to use this field. Built here, because the
  *  braces would close the interpolation if they stood in the template.
  *
- *  Namespaced, because a bare `{{ headline }}` is also whatever the page
- *  around the component calls `headline` — `props.` is the component's own. */
+ *  Prefixed, because a bare `{{ headline }}` is also whatever the page around
+ *  the component calls `headline`, and the page's is the one that wins —
+ *  `props_` is a name only the component has. */
 function usage(handle) {
-  return `{{ props.${handle || 'handle'} }}`;
+  return `{{ props_${handle || 'handle'} }}`;
 }
 </script>
 

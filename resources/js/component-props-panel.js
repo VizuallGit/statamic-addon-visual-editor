@@ -137,7 +137,7 @@ function typingInPanel(win) {
  * `ComponentProps::handle()` lowercases the name and folds spaces and dashes
  * into underscores before writing it, and everything downstream matches on the
  * written form: the server looks the field up by handle to draw the default's
- * editor, and the template says `{{ props.<handle> }}`. Leaving the typed
+ * editor, and the template says `{{ props_<handle> }}`. Leaving the typed
  * spelling in the panel makes all three disagree — a field typed `Teaser` is
  * saved as `teaser`, the lookup for `Teaser` finds nothing, and the default's
  * editor renders as an empty gap with no error anywhere.
@@ -151,6 +151,7 @@ function normalizeHandle(raw) {
     .replace(/[\s-]+/g, '_')
     .toLowerCase()
     .replace(/[^a-z0-9_]/g, '')
+    .replace(/^(?:props_)+/, '')
     .slice(0, 40);
 
   return /^[a-z_]/.test(handle) ? handle : String(raw ?? '');

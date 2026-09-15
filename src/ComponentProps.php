@@ -43,6 +43,27 @@ class ComponentProps
      */
     public const TYPES = ['text', 'bard', 'media', 'link', 'select'];
 
+    /**
+     * What every prop is called once it reaches Antlers.
+     *
+     * A component declares `headline`; the page around it very often has a
+     * field called `headline` too, and a partial is handed the whole scope it
+     * was called from. Without a prefix the two are the same name, and the
+     * outer one wins — a card's heading quietly became the section's heading,
+     * with nothing on screen to say why.
+     *
+     * The prefix is only worn on the Antlers side: the declaration, the panel
+     * and everything the author types keep the short handle. `param()` is the
+     * one place the two spellings meet.
+     */
+    public const PREFIX = 'props_';
+
+    /** The parameter name a prop is written as, in the call and in the pair. */
+    public static function param(string $handle): string
+    {
+        return self::PREFIX.$handle;
+    }
+
     /** More than this many choices is a data source, not a hand-typed list. */
     protected const MAX_OPTIONS = 50;
 
@@ -163,7 +184,7 @@ class ComponentProps
                 continue;
             }
 
-            $params[] = $handle.'="'.static::parameterValue((string) ($prop['default'] ?? '')).'"';
+            $params[] = static::param($handle).'="'.static::parameterValue((string) ($prop['default'] ?? '')).'"';
         }
 
         return $params === [] ? '' : '{{ sve_defaults '.implode(' ', $params).' }}';
@@ -315,6 +336,13 @@ class ComponentProps
     {
         $handle = strtolower(trim(str_replace([' ', '-'], '_', $raw)));
         $handle = preg_replace('/[^a-z0-9_]/', '', $handle) ?? '';
+
+        // The prefix is added on the way out, so a name typed with it already
+        // on would come back as `props_props_headline`. Typing it is a fair
+        // mistake to make — the panel shows the prefixed spelling underneath.
+        while (str_starts_with($handle, self::PREFIX)) {
+            $handle = substr($handle, strlen(self::PREFIX));
+        }
 
         if ($handle === '' || strlen($handle) > 40 || ! preg_match('/^[a-z_]/', $handle)) {
             return null;

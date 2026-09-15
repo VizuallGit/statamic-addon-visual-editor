@@ -194,7 +194,7 @@ return [
     'component_failed' => 'The component could not be created.',
     'component_props' => 'Fields',
     'component_props_add' => 'Add field',
-    'component_props_none' => 'No fields yet. Add one, then use it in the HTML as {{ handle }}.',
+    'component_props_none' => 'No fields yet. Add one, then use it in the HTML as {{ props_handle }}.',
     'component_props_handle' => 'Name',
     'component_props_type' => 'Kind',
     'component_props_default' => 'Default',

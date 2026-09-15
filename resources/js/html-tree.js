@@ -17,9 +17,10 @@ import { flattenHtmlTree, isVoidTag, parseTemplateTree } from './html-tree-parse
 import {
   componentPropsOn,
   fetchComponentProps,
+  propHandle,
   readCallParams,
   valueRows,
-  writeCallParam,
+  writePropParam,
 } from './component-props.js';
 import { syncComponentProps, syncComponentPropsHost } from './component-props-host.js';
 import { componentPropsUi } from './cp/component-props/store.js';
@@ -1795,11 +1796,24 @@ function paintComponentValues(win, row) {
     const params = {};
     const bindings = {};
 
-    for (const [handle, set] of readCallParams(dockHtml().slice(row.from, row.to))) {
-      if (set.bound) {
-        bindings[handle] = set.value;
+    // Keyed by the short handle, because that is what the form is drawn from.
+    // A call can carry both spellings while an older one is being edited; the
+    // prefixed parameter is the one the render reads, so it is the one shown.
+    const set = new Map();
+
+    for (const [param, found] of readCallParams(dockHtml().slice(row.from, row.to))) {
+      const handle = propHandle(param);
+
+      if (handle && (param !== handle || !set.has(handle))) {
+        set.set(handle, found);
+      }
+    }
+
+    for (const [handle, found] of set) {
+      if (found.bound) {
+        bindings[handle] = found.value;
       } else {
-        params[handle] = set.value;
+        params[handle] = found.value;
       }
     }
 
@@ -1907,7 +1921,7 @@ function writeComponentValues(win, params, bindings = {}) {
     }
 
     const before = html.length;
-    const next = writeCallParam(html, { from: row.from, to }, handle, value);
+    const next = writePropParam(html, { from: row.from, to }, handle, value);
 
     if (next === html) {
       continue;
@@ -1956,7 +1970,7 @@ function writeOneCallParam(win, handle, value, bound) {
   }
 
   const html = dockHtml();
-  const next = writeCallParam(html, row, handle, value, { bound });
+  const next = writePropParam(html, row, handle, value, { bound });
 
   if (next !== html) {
     writeDockHtml(next);
@@ -1989,7 +2003,7 @@ function applyAntlersEdit(win, fn) {
 /**
  * One field written into the call this row is.
  *
- * By the row's own offsets, and `writeCallParam` refuses to splice when the
+ * By the row's own offsets, and `writePropParam` refuses to splice when the
  * text at them is no longer a tag — so a pane that moved on between the paint
  * and the keystroke loses the edit instead of cutting the file in half.
  */
@@ -2001,7 +2015,7 @@ function commitComponentValue(win, handle, value, bound) {
   }
 
   const html = dockHtml();
-  const next = writeCallParam(html, row, handle, value, { bound });
+  const next = writePropParam(html, row, handle, value, { bound });
 
   if (next !== html) {
     writeDockHtml(next);
