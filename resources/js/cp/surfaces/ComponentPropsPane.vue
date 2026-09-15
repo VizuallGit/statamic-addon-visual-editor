@@ -92,9 +92,12 @@ function onDragEnd() {
 }
 
 /** What to write in the HTML pane to use this field. Built here, because the
- *  braces would close the interpolation if they stood in the template. */
+ *  braces would close the interpolation if they stood in the template.
+ *
+ *  Namespaced, because a bare `{{ headline }}` is also whatever the page
+ *  around the component calls `headline` — `props.` is the component's own. */
 function usage(handle) {
-  return `{{ ${handle || 'handle'} }}`;
+  return `{{ props.${handle || 'handle'} }}`;
 }
 </script>
 
@@ -471,6 +474,9 @@ function usage(handle) {
 .sve-cprops__kind {
   width: auto;
   flex: 0 0 auto;
+  /* The arrow is drawn inside the box's own padding, so without this it sits
+     against the border with nothing either side of it. */
+  padding-right: 1.3rem;
 }
 .sve-cprops__pair .sve-cprops__box:first-child {
   flex: 1 1 auto;
