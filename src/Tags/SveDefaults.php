@@ -28,19 +28,20 @@ use Statamic\Tags\Tags;
  * that renders an image component would have had its own props overwritten by
  * the inner one halfway down its markup.
  *
- * Every prop is written and read as `props_<handle>`, and that prefix is the
- * whole point of it. A partial is handed the entire scope it was called from,
- * so a prop named `headline` and a section field named `headline` were the
- * same name — and the section's value, being the one that was actually filled
- * in, won every time. The card showed the section's heading and there was
- * nothing on screen to say why. `props_headline` is a name no section field
- * has.
+ * Every prop is written and read as `props_<handle>`, and the prefix is the
+ * whole mechanism. A partial is handed the entire scope it was called from, so
+ * a prop named `headline` and a section field named `headline` were one name
+ * with two meanings — and the section's value, being the one that was actually
+ * filled in, won every time. `props_headline` is a name no section field has,
+ * so there is nothing left to collide with and nothing to detect: the ordinary
+ * scope lookup is already the right answer.
  *
- * The value is what the *call* passed, and nothing else. Reading it out of the
- * surrounding scope is what the prefix was added to stop; taking it from the
- * call means `{{ partial:components/card }}` inside a collection loop shows
- * the declared fallback, and shows the entry's title exactly when somebody
- * wrote `:props_headline="title"` on it.
+ * Which is why there is no second way in. Telling "what this call passed" apart
+ * from "what the page happens to have" looked like the fix and is not one:
+ * `__frontmatter` is pulled back out of the data before a template is parsed,
+ * and `view` is inherited whole by any partial called without parameters — so
+ * a card inside a section called with `headline="ttt"` read the section's value
+ * out of `view` and showed it, which is the same bug wearing a different name.
  */
 class SveDefaults extends Tags
 {
@@ -49,53 +50,34 @@ class SveDefaults extends Tags
     /**
      * Parameters are the declaration: `props_handle="fallback"`, one per prop.
      *
-     * Every declared prop ends up in `props_*`, fallback or not — a prop that
-     * is only sometimes there would make `{{ props_link }}` a thing you have
-     * to test for before you use it.
+     * Every declared prop ends up in scope, fallback or not — a prop that is
+     * only sometimes there would make `{{ props_link }}` a thing you have to
+     * test for before you use it.
      */
     public function index()
     {
-        $passed = $this->passedParams();
         $props = [];
-        $prefixed = [];
 
         foreach ($this->params->all() as $param => $fallback) {
             if (! is_string($param) || $param === '') {
                 continue;
             }
 
-            $handle = $this->shortHandle($param);
+            $name = ComponentProps::param($this->shortHandle($param));
+            $given = $this->contextValue($name);
 
-            if ($handle === '') {
-                continue;
-            }
-
-            $given = $this->passedValue($passed, ComponentProps::param($handle));
-
-            // A file written before the prefix is still a file, and so is a
-            // call written before it: `{{ partial:components/card headline="Hi" }}`
-            // keeps meaning what it meant. Only the call's own parameters are
-            // read this way — the surrounding scope never is, which is the
-            // collision the prefix exists to end.
-            if ($this->isBlank($given)) {
-                $given = $this->passedValue($passed, $handle);
-            }
-
-            $value = $this->isBlank($given) ? $fallback : $given;
-
-            $props[$handle] = $value;
-            $prefixed[ComponentProps::param($handle)] = $value;
+            $props[$name] = $this->isBlank($given) ? $fallback : $given;
         }
 
-        // `props` carries the same values under the shape components used
-        // before the prefix — `{{ props.headline }}`. It reads from the same
-        // place, so a file that still says it is correct rather than merely
-        // still rendering.
-        return $this->parse(['props' => $props] + $prefixed);
+        return $this->parse($props);
     }
 
     /**
      * The short name, whether the parameter wears the prefix or not.
+     *
+     * A component file written before the prefix declares `headline="…"`, and
+     * reads the same either way — the pair is rewritten the first time the
+     * component is saved.
      *
      * Not `handle()`: `Tags::handle()` is static, and a tag that shadows it
      * with an instance method is a fatal at class load — every page in the
@@ -106,32 +88,6 @@ class SveDefaults extends Tags
         return str_starts_with($param, ComponentProps::PREFIX)
             ? substr($param, strlen(ComponentProps::PREFIX))
             : $param;
-    }
-
-    /**
-     * What the call actually passed.
-     *
-     * A partial's parameters are merged into the scope it was called from, and
-     * once they are in there nothing tells the two apart — which is the whole
-     * bug. `view` is the one place they are kept separately: Statamic's Antlers
-     * engine hands every view its own parameters and front matter under that
-     * name, so `{{ view:headline }}` is the call's value and `{{ headline }}`
-     * is whatever the page happens to have. Reading it here is what makes a
-     * prop the call's, and never the section's.
-     *
-     * Not `__frontmatter`: the engine pulls that key back out of the data
-     * before the template is parsed, so by the time a tag runs it is gone.
-     */
-    private function passedParams(): array
-    {
-        $passed = $this->unwrap($this->contextValue('view'));
-
-        return is_array($passed) ? $passed : [];
-    }
-
-    private function passedValue(array $passed, string $key): mixed
-    {
-        return array_key_exists($key, $passed) ? $passed[$key] : null;
     }
 
     private function contextValue(string $key): mixed
@@ -145,14 +101,9 @@ class SveDefaults extends Tags
         return Arr::get($context, $key);
     }
 
-    private function unwrap(mixed $value): mixed
-    {
-        return $value instanceof Value ? $value->value() : $value;
-    }
-
     private function isBlank(mixed $value): bool
     {
-        $value = $this->unwrap($value);
+        $value = $value instanceof Value ? $value->value() : $value;
 
         return $value === null || $value === '' || $value === [];
     }
