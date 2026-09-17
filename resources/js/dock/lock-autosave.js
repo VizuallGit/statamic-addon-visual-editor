@@ -8,7 +8,7 @@ import ChoiceDialog from '../cp/surfaces/ChoiceDialog.vue';
 import { openCpOverlay } from '../cp/open-overlay.js';
 import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { AUTOSAVE_ICON, AUTOSAVE_KEY, DOCK_ID, SAVE_ICON, UNLOCK_ID, editors } from '../code-dock.js';
 import { readParts, sameParts, writeParts } from './css-tools.js';
 import { flushSave } from './save.js';
@@ -27,11 +27,11 @@ export function bindLock(win, dock) {
     event.preventDefault();
     event.stopPropagation();
 
-    if (!dock.lockReady || !dock.lastType) {
+    if (!dockState.lockReady || !dockState.lastType) {
       return;
     }
 
-    if (dock.lastLocked) {
+    if (dockState.lastLocked) {
       confirmUnlock(win);
 
       return;
@@ -52,11 +52,11 @@ export function autosaveEnabled(win) {
 function dockIsDirty() {
   const view = editors.html;
 
-  if (!view || view.state.readOnly || !dock.lastType) {
+  if (!view || view.state.readOnly || !dockState.lastType) {
     return false;
   }
 
-  return !sameParts(readParts(), dock.lastParts);
+  return !sameParts(readParts(), dockState.lastParts);
 }
 
 export function paintAutosave(win) {
@@ -105,9 +105,9 @@ export function bindAutosave(win, dock) {
 
     if (next) {
       flushSave(win.document);
-    } else if (dock.saveTimer) {
-      clearTimeout(dock.saveTimer);
-      dock.saveTimer = null;
+    } else if (dockState.saveTimer) {
+      clearTimeout(dockState.saveTimer);
+      dockState.saveTimer = null;
     }
 
     paintAutosave(win);
@@ -143,14 +143,14 @@ function confirmUnlock(win) {
 }
 
 function setTemplateLock(win, locked) {
-  const type = dock.lastType;
+  const type = dockState.lastType;
 
   if (!type) {
     return;
   }
 
   const go = () => {
-    if (dock.lastType !== type) {
+    if (dockState.lastType !== type) {
       return;
     }
 
@@ -170,13 +170,13 @@ function setTemplateLock(win, locked) {
           throw new Error(String(res.status));
         }
 
-        if (dock.lastType !== type) {
+        if (dockState.lastType !== type) {
           return;
         }
 
-        dock.lastLocked = locked;
+        dockState.lastLocked = locked;
         paintLock(win);
-        writeParts(dock.lastParts, locked);
+        writeParts(dockState.lastParts, locked);
         paintHtmlScope(win);
         setStatus(win.document, locked ? t(win, 'code_dock_locked') : '');
       })
@@ -188,8 +188,8 @@ function setTemplateLock(win, locked) {
   if (locked) {
     flushSave(win.document);
 
-    if (dock.saveInFlight) {
-      dock.saveInFlight.finally(go);
+    if (dockState.saveInFlight) {
+      dockState.saveInFlight.finally(go);
 
       return;
     }

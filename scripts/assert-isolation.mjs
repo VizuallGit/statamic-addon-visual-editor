@@ -34,6 +34,8 @@ const ALLOWLIST = join(ROOT, 'scripts/isolation-allowlist.json');
 const KERNEL = ['preview.js', 'overlay-host.js', 'bridge.js'];
 /** Modules that run in the preview document alongside bridge.js. */
 const KERNEL_SIDE = ['html-pick-align.js', 'ai-text-bridge.js', 'ai-text-icon.js'];
+/** Directories whose files are kernel code too (bridge.js's regions after WP5c). */
+const KERNEL_DIRS = ['bridge/'];
 /** The CP shell: boot, the Live Preview lifecycle and the section-scope wrapper it uses. */
 const SHELL = ['addon.js', 'cp.js', 'lp-replay.js', 'preview-section-scope.js'];
 /** Directories whose files are shell code too (cp.js's regions after WP5). */
@@ -81,11 +83,12 @@ for (const file of walk(JS)) {
 
   const text = readFileSync(file, 'utf8');
 
-  if (KERNEL.includes(rel) || KERNEL_SIDE.includes(rel)) {
-    // Kernel may import only kernel, kernel-side modules, lib/ and packages.
+  if (KERNEL.includes(rel) || KERNEL_SIDE.includes(rel) || KERNEL_DIRS.some((d) => rel.startsWith(d))) {
+    // Kernel may import only kernel, kernel-side modules, its own regions, lib/ and packages.
     const imports = [...text.matchAll(/from\s*['"](\.\.?\/[^'"]+)['"]/g)].map((m) => m[1]);
     const bad = imports
       .filter((spec) => !/\/lib\/[\w-]+\.js$/.test(spec))
+      .filter((spec) => !KERNEL_DIRS.some((d) => new RegExp(`(^|/)${d}[\\w-]+\\.js$`).test(spec)) && !/^\.\/[\w-]+\.js$/.test(spec) || !KERNEL_DIRS.some((d) => rel.startsWith(d)) || !/^\.\/[\w-]+\.js$/.test(spec))
       .map((spec) => spec.split('/').pop())
       .filter((name) => !KERNEL.includes(name) && !KERNEL_SIDE.includes(name));
 

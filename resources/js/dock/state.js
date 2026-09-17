@@ -4,7 +4,7 @@
  *
  * May import: nothing.
  */
-export const dock = {
+export const dockState = {
   cssColorsPromise: null,
   lastUid: null,
   lastType: null,

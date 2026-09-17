@@ -16,7 +16,7 @@
  *   node tests/browser/live-preview-smoke.mjs
  */
 import { createRequire } from 'node:module';
-import { readFileSync, existsSync } from 'node:fs';
+import { serveWorktreeBuild } from './serve-worktree.mjs';
 
 const env = (key, fallback) => process.env[key] || fallback;
 const SITE_DIR = env('SVE_SITE_DIR', `${process.env.HOME}/Sites/vizuall-skabelon`);
@@ -77,32 +77,13 @@ async function waitIn(frame, selector, ms) {
 
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
-page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
+page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}${e.stack ? ' @ ' + String(e.stack).split('\n').slice(1, 3).join(' | ').trim() : ''}`));
 page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
 page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
 
 if (WORKTREE) {
-  // The CP asks for the hashes the installed manifest names. Answer with the
-  // working tree: same file when it exists there, otherwise the entry with the
-  // same stem (addon-*, bridge-*, …) from the working tree's manifest.
-  const BUILD = `${ADDON_DIR}/resources/dist/build`;
-  const manifest = JSON.parse(readFileSync(`${BUILD}/manifest.json`, 'utf8'));
-  const byStem = {};
-  for (const entry of Object.values(manifest)) for (const rel of [entry.file, ...(entry.css || [])]) { const name = rel.split('/').pop(); byStem[name.replace(/-[\w-]+(\.\w+)$/, '$1')] = rel; }
-  const types = { js: 'application/javascript', css: 'text/css', json: 'application/json', woff2: 'font/woff2', svg: 'image/svg+xml' };
-  let served = 0;
-  await page.setRequestInterception(true);
-  page.on('request', (req) => {
-    const m = req.url().match(/\/vendor\/visual-editor\/build\/(assets\/[^?]+|manifest\.json)/);
-    if (!m) { req.continue(); return; }
-    const name = m[1].split('/').pop();
-    let file = `${BUILD}/${m[1]}`;
-    if (!existsSync(file)) { const stem = name.replace(/-[\w-]+(\.\w+)$/, '$1'); if (byStem[stem]) file = `${BUILD}/${byStem[stem]}`; }
-    if (!existsSync(file)) { req.continue(); return; }
-    served++;
-    req.respond({ status: 200, contentType: types[file.split('.').pop()] || 'application/octet-stream', body: readFileSync(file) });
-  });
-  report.worktree = () => `${served} build files served from the working tree`;
+  const served = await serveWorktreeBuild(page, env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`));
+  report.worktree = () => `${served()} build files served from the working tree`;
 }
 
 try {

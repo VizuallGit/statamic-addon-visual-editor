@@ -15,7 +15,7 @@ import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { featureOn } from '../lib/config.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { closeHtmlTreePanel, toggleHtmlTreePanel } from '../lazy/html-tree.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { flushSave, onEditorInput } from './save.js';
 import { loadTemplate } from './dock-api.js';
 import { paintBack } from './layout.js';
@@ -25,7 +25,7 @@ import { applyCssFolds } from './css-sizes.js';
 
 // ===== scope =====
 export function currentSectionValues(win) {
-  const uid = dock.lastUid;
+  const uid = dockState.lastUid;
   const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 
   for (const container of containers) {
@@ -61,7 +61,7 @@ export function currentSectionValues(win) {
 }
 
 export function openNestedTemplate(win, type) {
-  if (!type || type === dock.lastType) {
+  if (!type || type === dockState.lastType) {
     return;
   }
 
@@ -70,7 +70,7 @@ export function openNestedTemplate(win, type) {
 }
 
 export function goBackTemplate(win) {
-  const prev = dock.typeStack.pop();
+  const prev = dockState.typeStack.pop();
 
   if (!prev) {
     paintBack(win);
@@ -94,23 +94,23 @@ export function paintLock(win) {
   // lockReady only gates the toggle: you cannot lock/unlock until the file
   // has answered. Visual lock follows lastLocked so a locked file never
   // paints unlocked for a frame while that answer is in flight.
-  const locked = dock.lastLocked;
+  const locked = dockState.lastLocked;
 
   dock.toggleAttribute('data-sve-code-locked', locked);
   if (locked) {
     closePartialMenu(win.document);
     closeClassTokenUi(win.document);
-    if (dock.htmlPartialUi) {
-      dock.htmlPartialUi.setHover(editors.html, null);
-      dock.htmlPartialUi.setHover(editors.css, null);
+    if (dockState.htmlPartialUi) {
+      dockState.htmlPartialUi.setHover(editors.html, null);
+      dockState.htmlPartialUi.setHover(editors.css, null);
     }
-    dock.htmlClassTokenUi?.setHover(editors.html, null);
+    dockState.htmlClassTokenUi?.setHover(editors.html, null);
   }
-  btn.hidden = !dock.lockReady;
-  btn.setAttribute('aria-pressed', dock.lastLocked ? 'true' : 'false');
-  btn.title = t(win, dock.lastLocked ? 'code_dock_unlock' : 'code_dock_lock');
+  btn.hidden = !dockState.lockReady;
+  btn.setAttribute('aria-pressed', dockState.lastLocked ? 'true' : 'false');
+  btn.title = t(win, dockState.lastLocked ? 'code_dock_unlock' : 'code_dock_lock');
   btn.setAttribute('aria-label', btn.title);
-  btn.innerHTML = dock.lastLocked ? LOCK_CLOSED_ICON : LOCK_OPEN_ICON;
+  btn.innerHTML = dockState.lastLocked ? LOCK_CLOSED_ICON : LOCK_OPEN_ICON;
 
   if (banner) {
     banner.textContent = t(win, 'code_dock_locked_banner');
@@ -119,7 +119,7 @@ export function paintLock(win) {
 
 export function htmlScopeEnabled(win) {
   if (!win) {
-    return dock.htmlScopePref;
+    return dockState.htmlScopePref;
   }
 
   return chromeGet(win, SCOPE_KEY) !== '0';
@@ -132,40 +132,40 @@ export function htmlFocusOk(from, to, length) {
 export function syncScopedHtml() {
   const text = editors.html?.state.doc.toString() ?? '';
 
-  if (!dock.htmlScopeActive || !dock.htmlFocus) {
-    dock.htmlFull = text;
+  if (!dockState.htmlScopeActive || !dockState.htmlFocus) {
+    dockState.htmlFull = text;
 
     return;
   }
 
-  if (dock.htmlFocus.from < 0 || dock.htmlFocus.from > dock.htmlFull.length || dock.htmlFocus.to < dock.htmlFocus.from) {
-    dock.htmlScopeActive = false;
-    dock.htmlFull = text;
-    dock.htmlFocus = null;
+  if (dockState.htmlFocus.from < 0 || dockState.htmlFocus.from > dockState.htmlFull.length || dockState.htmlFocus.to < dockState.htmlFocus.from) {
+    dockState.htmlScopeActive = false;
+    dockState.htmlFull = text;
+    dockState.htmlFocus = null;
 
     return;
   }
 
-  dock.htmlFull = dock.htmlFull.slice(0, dock.htmlFocus.from) + text + dock.htmlFull.slice(dock.htmlFocus.to);
-  dock.htmlFocus = { from: dock.htmlFocus.from, to: dock.htmlFocus.from + text.length };
+  dockState.htmlFull = dockState.htmlFull.slice(0, dockState.htmlFocus.from) + text + dockState.htmlFull.slice(dockState.htmlFocus.to);
+  dockState.htmlFocus = { from: dockState.htmlFocus.from, to: dockState.htmlFocus.from + text.length };
 }
 
 export function currentFullHtml() {
   syncScopedHtml();
 
-  if (dock.htmlScopeActive) {
-    return dock.htmlFull;
+  if (dockState.htmlScopeActive) {
+    return dockState.htmlFull;
   }
 
-  return editors.html?.state.doc.toString() ?? dock.lastParts.html ?? '';
+  return editors.html?.state.doc.toString() ?? dockState.lastParts.html ?? '';
 }
 
 export function rememberBracketNames() {
-  dock.lastBracketNames = bracketClassTokens(currentFullHtml()).map((token) => token.name);
+  dockState.lastBracketNames = bracketClassTokens(currentFullHtml()).map((token) => token.name);
 }
 
 export function rememberCssSelectors() {
-  dock.lastCssSelectorNames = cssClassSelectors(editors.css?.state.doc.toString() ?? dock.cssFull);
+  dockState.lastCssSelectorNames = cssClassSelectors(editors.css?.state.doc.toString() ?? dockState.cssFull);
 }
 
 function namesEqual(a, b) {
@@ -173,53 +173,53 @@ function namesEqual(a, b) {
 }
 
 function harvestHtmlTreeCss() {
-  const html = dock.htmlScopeActive ? htmlSnippet() : currentFullHtml();
+  const html = dockState.htmlScopeActive ? htmlSnippet() : currentFullHtml();
   const tree = tokenTreeFromHtml(html);
 
   if (!tree.length) {
     return;
   }
 
-  dock.cssFull = mergeScopedCss(dock.cssFull, buildScopedCss(dock.cssFull, tree), tree[0].className);
+  dockState.cssFull = mergeScopedCss(dockState.cssFull, buildScopedCss(dockState.cssFull, tree), tree[0].className);
 }
 
 function applyBracketCssSync(prevNames, nextNames) {
-  dock.cssFull = syncCssWithBrackets(dock.cssFull, prevNames, nextNames);
+  dockState.cssFull = syncCssWithBrackets(dockState.cssFull, prevNames, nextNames);
   harvestHtmlTreeCss();
-  dock.cssFull = pruneBracketCss(dock.cssFull, nextNames, prevNames);
+  dockState.cssFull = pruneBracketCss(dockState.cssFull, nextNames, prevNames);
 }
 
 export function flushBracketSync(win) {
-  if (dock.applying || dock.lastLocked || dock.lastBracketNames == null) {
+  if (dockState.applying || dockState.lastLocked || dockState.lastBracketNames == null) {
     return;
   }
 
   const nextNames = bracketClassTokens(currentFullHtml()).map((token) => token.name);
 
-  if (namesEqual(dock.lastBracketNames, nextNames)) {
+  if (namesEqual(dockState.lastBracketNames, nextNames)) {
     return;
   }
 
-  applyBracketCssSync(dock.lastBracketNames, nextNames);
-  dock.lastBracketNames = nextNames;
+  applyBracketCssSync(dockState.lastBracketNames, nextNames);
+  dockState.lastBracketNames = nextNames;
   applyCssScope();
   rememberCssSelectors();
 }
 
 export function flushCssToHtml() {
-  if (dock.applying || dock.lastLocked || dock.lastCssSelectorNames == null || dock.lastBracketNames == null || dock.cssPane === 'empty') {
+  if (dockState.applying || dockState.lastLocked || dockState.lastCssSelectorNames == null || dockState.lastBracketNames == null || dockState.cssPane === 'empty') {
     return;
   }
 
   const view = editors.html;
   const nextSelectors = cssClassSelectors(editors.css?.state.doc.toString() ?? '');
 
-  if (!view || namesEqual(dock.lastCssSelectorNames, nextSelectors)) {
+  if (!view || namesEqual(dockState.lastCssSelectorNames, nextSelectors)) {
     return;
   }
 
-  const owned = new Set(dock.lastBracketNames);
-  const { renamed, removed } = diffBracketNames(dock.lastCssSelectorNames, nextSelectors);
+  const owned = new Set(dockState.lastBracketNames);
+  const { renamed, removed } = diffBracketNames(dockState.lastCssSelectorNames, nextSelectors);
   let html = view.state.doc.toString();
   const prevHtml = html;
 
@@ -242,17 +242,17 @@ export function flushCssToHtml() {
   }
 
   if (html !== prevHtml) {
-    dock.applying = true;
+    dockState.applying = true;
 
     try {
       writeHtmlEditor(html);
     } finally {
-      dock.applying = false;
+      dockState.applying = false;
     }
   }
 
   rememberBracketNames();
-  dock.lastCssSelectorNames = nextSelectors;
+  dockState.lastCssSelectorNames = nextSelectors;
 }
 
 function renameBracketClassAt(token, raw) {
@@ -263,26 +263,26 @@ function renameBracketClassAt(token, raw) {
     return;
   }
 
-  dock.applying = true;
+  dockState.applying = true;
 
   try {
     view.dispatch({
       changes: { from: token.from, to: token.to, insert: name },
     });
   } finally {
-    dock.applying = false;
+    dockState.applying = false;
   }
 
-  const prev = dock.lastBracketNames == null ? [] : dock.lastBracketNames.slice();
+  const prev = dockState.lastBracketNames == null ? [] : dockState.lastBracketNames.slice();
 
   rememberBracketNames();
-  applyBracketCssSync(prev, dock.lastBracketNames);
+  applyBracketCssSync(prev, dockState.lastBracketNames);
   applyCssScope();
   rememberCssSelectors();
 
-  if (dock.lastWin) {
-    onEditorInput(dock.lastWin);
-    paintCssToolState(dock.lastWin);
+  if (dockState.lastWin) {
+    onEditorInput(dockState.lastWin);
+    paintCssToolState(dockState.lastWin);
   }
 }
 
@@ -321,15 +321,15 @@ export function openRenameClassMenu(win, token) {
 }
 
 export function htmlEditorText() {
-  if (dock.htmlScopePref && htmlFocusOk(dock.htmlFocus?.from, dock.htmlFocus?.to, dock.htmlFull.length)) {
-    dock.htmlScopeActive = true;
+  if (dockState.htmlScopePref && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
+    dockState.htmlScopeActive = true;
 
-    return dock.htmlFull.slice(dock.htmlFocus.from, dock.htmlFocus.to);
+    return dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to);
   }
 
-  dock.htmlScopeActive = false;
+  dockState.htmlScopeActive = false;
 
-  return dock.htmlFull;
+  return dockState.htmlFull;
 }
 
 export function writeHandleEditor(handle, text, selection) {
@@ -341,7 +341,7 @@ export function writeHandleEditor(handle, text, selection) {
 
   const current = view.state.doc.toString();
 
-  dock.applying = true;
+  dockState.applying = true;
 
   try {
     if (current !== text) {
@@ -356,7 +356,7 @@ export function writeHandleEditor(handle, text, selection) {
       });
     }
   } finally {
-    dock.applying = false;
+    dockState.applying = false;
   }
 }
 
@@ -365,12 +365,12 @@ export function writeHtmlEditor(text, selection) {
 }
 
 function htmlSnippet() {
-  if (dock.htmlScopeActive) {
+  if (dockState.htmlScopeActive) {
     return editors.html?.state.doc.toString() ?? '';
   }
 
-  if (htmlFocusOk(dock.htmlFocus?.from, dock.htmlFocus?.to, dock.htmlFull.length)) {
-    return dock.htmlFull.slice(dock.htmlFocus.from, dock.htmlFocus.to);
+  if (htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
+    return dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to);
   }
 
   return '';
@@ -379,18 +379,18 @@ function htmlSnippet() {
 export function flushCssScope() {
   const current = editors.css?.state.doc.toString() ?? '';
 
-  if (dock.cssPane === 'tree') {
-    if (current === dock.cssScopeSnapshot) {
+  if (dockState.cssPane === 'tree') {
+    if (current === dockState.cssScopeSnapshot) {
       return;
     }
 
     const root =
       tokenTreeFromHtml(htmlSnippet())[0]?.className || firstClassName(current);
 
-    dock.cssFull = mergeScopedCss(dock.cssFull, current, root);
-    dock.cssScopeSnapshot = current;
-  } else if (dock.cssPane === 'full') {
-    dock.cssFull = current;
+    dockState.cssFull = mergeScopedCss(dockState.cssFull, current, root);
+    dockState.cssScopeSnapshot = current;
+  } else if (dockState.cssPane === 'full') {
+    dockState.cssFull = current;
   }
 }
 
@@ -405,43 +405,43 @@ function tokenTreeNeedsCss(css, nodes) {
 }
 
 export function applyCssScope() {
-  let text = dock.cssFull;
+  let text = dockState.cssFull;
   let tree = [];
   let created = false;
 
   // The ID is the file's own instance layer, not the tag you have picked, and
   // the tree scope rebuilds the pane from the picked tag's classes — a view
   // the `#id-` rule is not in. So showing the ID shows the file.
-  if (dock.cssValues || !dock.htmlScopePref || !dock.htmlScopeActive) {
-    dock.cssPane = 'full';
-    text = dock.cssFull;
+  if (dockState.cssValues || !dockState.htmlScopePref || !dockState.htmlScopeActive) {
+    dockState.cssPane = 'full';
+    text = dockState.cssFull;
   } else {
     tree = tokenTreeFromHtml(htmlSnippet());
 
     if (!tree.length) {
-      dock.cssPane = 'empty';
+      dockState.cssPane = 'empty';
       text = '';
     } else {
-      dock.cssPane = 'tree';
-      text = buildScopedCss(dock.cssFull, tree);
+      dockState.cssPane = 'tree';
+      text = buildScopedCss(dockState.cssFull, tree);
 
-      if (tokenTreeNeedsCss(dock.cssFull, tree)) {
-        dock.cssFull = mergeScopedCss(dock.cssFull, text, tree[0].className);
+      if (tokenTreeNeedsCss(dockState.cssFull, tree)) {
+        dockState.cssFull = mergeScopedCss(dockState.cssFull, text, tree[0].className);
         created = true;
       }
     }
   }
 
-  dock.cssScopeSnapshot = text;
+  dockState.cssScopeSnapshot = text;
   writeHandleEditor('css', text);
   rememberCssSelectors();
 
-  if (dock.lastWin) {
-    applyCssFolds(dock.lastWin, true);
-    paintCssToolState(dock.lastWin);
+  if (dockState.lastWin) {
+    applyCssFolds(dockState.lastWin, true);
+    paintCssToolState(dockState.lastWin);
 
     if (created) {
-      onEditorInput(dock.lastWin);
+      onEditorInput(dockState.lastWin);
     }
   }
 }
@@ -457,28 +457,28 @@ export function applyCssScope() {
 export function showHtmlScope(caret) {
   const view = editors.html;
 
-  if (!view || !dock.htmlFocus) {
+  if (!view || !dockState.htmlFocus) {
     return;
   }
 
-  if (!dock.htmlScopeActive) {
-    dock.htmlFull = view.state.doc.toString();
+  if (!dockState.htmlScopeActive) {
+    dockState.htmlFull = view.state.doc.toString();
   }
 
-  const length = dock.htmlFull.length;
-  const from = Math.max(0, Math.min(dock.htmlFocus.from, length));
-  const to = Math.max(from, Math.min(dock.htmlFocus.to, length));
+  const length = dockState.htmlFull.length;
+  const from = Math.max(0, Math.min(dockState.htmlFocus.from, length));
+  const to = Math.max(from, Math.min(dockState.htmlFocus.to, length));
 
   if (to <= from) {
     return;
   }
 
-  dock.htmlFocus = { from, to };
-  dock.htmlScopeActive = true;
+  dockState.htmlFocus = { from, to };
+  dockState.htmlScopeActive = true;
 
   const at = caret == null ? 0 : Math.max(0, Math.min(caret - from, to - from));
 
-  writeHtmlEditor(dock.htmlFull.slice(from, to), { anchor: at, head: at });
+  writeHtmlEditor(dockState.htmlFull.slice(from, to), { anchor: at, head: at });
   applyCssScope();
   view.focus();
 }
@@ -492,35 +492,35 @@ export function showHtmlFull(selectFocus = true, caret = null) {
 
   flushCssScope();
   syncScopedHtml();
-  dock.htmlScopeActive = false;
+  dockState.htmlScopeActive = false;
 
-  const full = dock.htmlFull || view.state.doc.toString();
+  const full = dockState.htmlFull || view.state.doc.toString();
   // A caret beats the range: the tree asked to be put inside the row, not to
   // have it selected.
   const selection =
     caret != null
       ? { anchor: Math.max(0, Math.min(caret, full.length)) }
-      : selectFocus && htmlFocusOk(dock.htmlFocus?.from, dock.htmlFocus?.to, full.length)
-        ? { anchor: dock.htmlFocus.from, head: dock.htmlFocus.to }
+      : selectFocus && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, full.length)
+        ? { anchor: dockState.htmlFocus.from, head: dockState.htmlFocus.to }
         : null;
 
-  dock.htmlFull = full;
+  dockState.htmlFull = full;
   writeHtmlEditor(full, selection);
-  dock.cssPane = 'full';
-  dock.cssScopeSnapshot = dock.cssFull;
-  writeHandleEditor('css', dock.cssFull);
+  dockState.cssPane = 'full';
+  dockState.cssScopeSnapshot = dockState.cssFull;
+  writeHandleEditor('css', dockState.cssFull);
   rememberCssSelectors();
 }
 
 export function clearHtmlScopeRange() {
-  dock.htmlFocus = null;
-  dock.htmlScopeActive = false;
-  dock.htmlFull = '';
-  dock.cssFull = '';
-  dock.cssPane = 'full';
-  dock.cssScopeSnapshot = '';
-  dock.lastBracketNames = null;
-  dock.lastCssSelectorNames = null;
+  dockState.htmlFocus = null;
+  dockState.htmlScopeActive = false;
+  dockState.htmlFull = '';
+  dockState.cssFull = '';
+  dockState.cssPane = 'full';
+  dockState.cssScopeSnapshot = '';
+  dockState.lastBracketNames = null;
+  dockState.lastCssSelectorNames = null;
 }
 
 /**
@@ -582,21 +582,21 @@ export function paintHtmlScope(win) {
     return;
   }
 
-  dock.htmlScopePref = htmlScopeEnabled(win);
+  dockState.htmlScopePref = htmlScopeEnabled(win);
 
   // Pressed means the tree is on screen. Reading the panel rather than the
   // stored setting is what keeps the two from drifting: the tree can also be
   // closed from its own ✕, or pushed aside when another pane takes the dock,
   // and neither of those comes through this button.
   const shown = featureOn(win, 'html_tree') === false
-    ? dock.htmlScopePref
+    ? dockState.htmlScopePref
     : (htmlTreeOpen(win) || treeOpening);
 
   btn.setAttribute('aria-pressed', shown ? 'true' : 'false');
   btn.title = t(win, shown ? 'code_dock_html_scope_off' : 'code_dock_html_scope');
   btn.setAttribute('aria-label', btn.title);
   btn.innerHTML = SCOPE_ICON;
-  win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', dock.htmlScopeActive);
+  win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', dockState.htmlScopeActive);
 }
 
 export function bindHtmlScope(win, dock) {
@@ -605,12 +605,12 @@ export function bindHtmlScope(win, dock) {
   }
 
   dock._sveHtmlScopeBound = true;
-  dock.htmlScopePref = htmlScopeEnabled(win);
+  dockState.htmlScopePref = htmlScopeEnabled(win);
   bindHtmlTreeWatch(win, dock);
 
   // The dock has just opened: put the tree where the remembered setting says.
   // On a fresh install that is on.
-  syncHtmlTree(win, dock.htmlScopePref);
+  syncHtmlTree(win, dockState.htmlScopePref);
 
   dock.querySelector('[data-sve-html-scope]')?.addEventListener('click', (event) => {
     event.preventDefault();
@@ -620,19 +620,19 @@ export function bindHtmlScope(win, dock) {
     // closed by its own ✕ needs two clicks to come back.
     const shown = htmlTreeOpen(win) || treeOpening;
 
-    dock.htmlScopePref = !shown;
-    chromeSet(win, SCOPE_KEY, dock.htmlScopePref ? '1' : '0');
+    dockState.htmlScopePref = !shown;
+    chromeSet(win, SCOPE_KEY, dockState.htmlScopePref ? '1' : '0');
 
-    if (dock.htmlScopePref) {
-      if (dock.htmlFocus) {
+    if (dockState.htmlScopePref) {
+      if (dockState.htmlFocus) {
         flushCssScope();
         showHtmlScope();
       }
-    } else if (dock.htmlScopeActive) {
+    } else if (dockState.htmlScopeActive) {
       showHtmlFull();
     }
 
-    syncHtmlTree(win, dock.htmlScopePref);
+    syncHtmlTree(win, dockState.htmlScopePref);
     paintHtmlScope(win);
   });
 }
@@ -667,15 +667,15 @@ function bindHtmlTreeWatch(win, dock) {
       return;
     }
 
-    dock.htmlScopePref = shown;
+    dockState.htmlScopePref = shown;
     chromeSet(win, SCOPE_KEY, shown ? '1' : '0');
 
     if (shown) {
-      if (dock.htmlFocus) {
+      if (dockState.htmlFocus) {
         flushCssScope();
         showHtmlScope();
       }
-    } else if (dock.htmlScopeActive) {
+    } else if (dockState.htmlScopeActive) {
       showHtmlFull();
     }
 

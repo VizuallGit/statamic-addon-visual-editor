@@ -8,7 +8,7 @@ import { tailwindDockOn } from '../tailwind-complete.js';
 import { componentPropsOn } from '../component-props.js';
 import { csrfToken } from '../lib/csrf.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { paintHtmlScope, paintLock } from './scope.js';
 import { readParts, sameParts, writeParts } from './css-tools.js';
 import { setStatus } from './layout.js';
@@ -17,19 +17,19 @@ import { DOCK_ID, SAVE_MS, css, editors, html } from '../code-dock.js';
 
 // ===== save =====
 export function refreshPreview(win) {
-  if (!dock.lastUid || !dock.lastType || String(dock.lastType).startsWith('view:')) {
+  if (!dockState.lastUid || !dockState.lastType || String(dockState.lastType).startsWith('view:')) {
     replayLivePreview(win);
 
     return;
   }
 
-  const sectionUids = topLevelSectionIds(dock.lastUid, win.document);
+  const sectionUids = topLevelSectionIds(dockState.lastUid, win.document);
 
   replayLivePreview(win, sectionUids.length ? { sectionUids } : undefined);
 }
 
 function postSave(win, type, parts) {
-  dock.saveInFlight = win
+  dockState.saveInFlight = win
     .fetch('/!/sve/section-template', {
       method: 'POST',
       credentials: 'same-origin',
@@ -44,15 +44,15 @@ function postSave(win, type, parts) {
         css: parts.css,
         js: parts.js,
         ...(typeof parts.tw === 'string' ? { tw: parts.tw } : {}),
-        ...(componentPropsOn(win) ? { props: dock.lastProps } : {}),
+        ...(componentPropsOn(win) ? { props: dockState.lastProps } : {}),
       }),
     })
     .then(async (res) => {
       if (res.status === 423) {
-        dock.lastLocked = true;
-        dock.lockReady = true;
+        dockState.lastLocked = true;
+        dockState.lockReady = true;
         paintLock(win);
-        writeParts(dock.lastParts, true);
+        writeParts(dockState.lastParts, true);
         paintHtmlScope(win);
         setStatus(win.document, t(win, 'code_dock_locked'));
 
@@ -63,8 +63,8 @@ function postSave(win, type, parts) {
         throw new Error(String(res.status));
       }
 
-      if (dock.lastType === type) {
-        dock.lastParts = parts;
+      if (dockState.lastType === type) {
+        dockState.lastParts = parts;
         setStatus(win.document, t(win, 'code_dock_saved'));
         paintAutosave(win);
         win.setTimeout(() => {
@@ -85,20 +85,20 @@ function postSave(win, type, parts) {
       setStatus(win.document, t(win, 'code_dock_error'));
     })
     .finally(() => {
-      dock.saveInFlight = null;
+      dockState.saveInFlight = null;
     });
 
-  return dock.saveInFlight;
+  return dockState.saveInFlight;
 }
 
 export function flushSave(doc) {
-  if (dock.saveTimer) {
-    clearTimeout(dock.saveTimer);
-    dock.saveTimer = null;
+  if (dockState.saveTimer) {
+    clearTimeout(dockState.saveTimer);
+    dockState.saveTimer = null;
   }
 
-  const type = dock.lastType;
-  const win = dock.lastWin;
+  const type = dockState.lastType;
+  const win = dockState.lastWin;
   const view = editors.html;
 
   if (!view || view.state.readOnly || !type || !win) {
@@ -106,21 +106,21 @@ export function flushSave(doc) {
   }
 
   const parts = readParts();
-  const twReady = dock.twCss !== null && tailwindDockOn(win) && twKeyFor(parts.html) === dock.twKey;
+  const twReady = dockState.twCss !== null && tailwindDockOn(win) && twKeyFor(parts.html) === dockState.twKey;
 
   // A finished compile is worth a save of its own, even when not a character
   // of the file has changed since the last one.
   // A changed declaration is worth a save of its own: the panel edits a list
   // the panes know nothing about, so not a character of them need have moved.
-  if (sameParts(parts, dock.lastParts) && !(twReady && dock.twDirty) && !dock.propsDirty) {
+  if (sameParts(parts, dockState.lastParts) && !(twReady && dockState.twDirty) && !dockState.propsDirty) {
     return;
   }
 
-  dock.propsDirty = false;
+  dockState.propsDirty = false;
 
   if (twReady) {
-    parts.tw = dock.twCss;
-    dock.twDirty = false;
+    parts.tw = dockState.twCss;
+    dockState.twDirty = false;
   }
 
   setStatus(doc, t(win, 'code_dock_saving'));
@@ -133,9 +133,9 @@ function twKeyFor(html) {
 }
 
 export function resetTailwindCompile() {
-  dock.twCss = null;
-  dock.twKey = '';
-  dock.twDirty = false;
+  dockState.twCss = null;
+  dockState.twKey = '';
+  dockState.twDirty = false;
 }
 
 /**
@@ -153,46 +153,46 @@ export function ensureTwCss(win, html) {
 
   const key = twKeyFor(html);
 
-  if (key === dock.twKey || dock.twBusy) {
+  if (key === dockState.twKey || dockState.twBusy) {
     return;
   }
 
-  dock.twBusy = true;
+  dockState.twBusy = true;
 
   void import('../tw-compile.js')
     .then((mod) => mod.compileTailwind(win, html))
     .then((css) => {
-      dock.twBusy = false;
-      dock.twCss = css;
-      dock.twKey = key;
-      dock.twDirty = true;
+      dockState.twBusy = false;
+      dockState.twCss = css;
+      dockState.twKey = key;
+      dockState.twDirty = true;
       scheduleSave(win, win.document);
     })
     .catch((err) => {
-      dock.twBusy = false;
+      dockState.twBusy = false;
       console.error('[sve] tailwind compile', err);
     });
 }
 
 function scheduleSave(win, doc) {
-  if (dock.saveTimer) {
-    clearTimeout(dock.saveTimer);
+  if (dockState.saveTimer) {
+    clearTimeout(dockState.saveTimer);
   }
 
-  dock.saveTimer = win.setTimeout(() => {
-    dock.saveTimer = null;
+  dockState.saveTimer = win.setTimeout(() => {
+    dockState.saveTimer = null;
     flushSave(doc);
   }, SAVE_MS);
 }
 
 export function onEditorInput(win) {
-  if (dock.applying) {
+  if (dockState.applying) {
     return;
   }
 
   const parts = readParts();
 
-  if (sameParts(parts, dock.lastParts)) {
+  if (sameParts(parts, dockState.lastParts)) {
     paintAutosave(win);
     return;
   }

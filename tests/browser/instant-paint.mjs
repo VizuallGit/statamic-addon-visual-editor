@@ -13,6 +13,7 @@
  */
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, unlinkSync, rmdirSync } from 'node:fs';
+import { serveWorktreeBuild } from './serve-worktree.mjs';
 
 const startedAt = Date.now();
 
@@ -44,12 +45,22 @@ const browser = await puppeteer.launch({ headless: true, executablePath: CHROME,
 const page = await browser.newPage();
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' || /\[sve\] instant/.test(m.text())) report.errors.push(`console: ${m.text().slice(0, 200)}`); });
-await page.setRequestInterception(true);
+// The standalone script always comes from this checkout; with SVE_WORKTREE=1 the
+// build does too, so the dock chunk under test is this checkout's as well.
 let served = 0;
-page.on('request', (req) => {
-  if (/\/vendor\/visual-editor\/js\/dock-instant-preview\.js/.test(req.url())) { served++; req.respond({ status: 200, contentType: 'application/javascript', body: scriptSource }); return; }
-  req.continue();
-});
+const answerScript = (req) => {
+  if (!/\/vendor\/visual-editor\/js\/dock-instant-preview\.js/.test(req.url())) return false;
+  served++;
+  req.respond({ status: 200, contentType: 'application/javascript', body: scriptSource });
+  return true;
+};
+let servedBuild = null;
+if (process.env.SVE_WORKTREE === '1') {
+  servedBuild = await serveWorktreeBuild(page, process.env.SVE_BUILD_DIR || `${ADDON_DIR}/resources/dist/build`, answerScript);
+} else {
+  await page.setRequestInterception(true);
+  page.on('request', (req) => { if (!answerScript(req)) req.continue(); });
+}
 
 let filePath = null;
 let original = null;
@@ -64,7 +75,7 @@ try {
   const overlay = await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000);
   step('preview overlay open', overlay);
   const cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
-  step('working-tree script served to the CP', served > 0, `${served} request(s) intercepted`);
+  step('working-tree script served to the CP', served > 0, `${served} request(s) intercepted${servedBuild ? `; ${servedBuild()} build files from the working tree` : ''}`);
   await waitIn(cp, '#__sve-toolbar button', 20000);
 
   let preview = null; let hasSection = false;
@@ -74,9 +85,11 @@ try {
     if (!hasSection) await sleep(1000);
   }
   step('preview section rendered', hasSection);
+  // The iframe is re-created on unlock and on some morphs: look it up before every use.
+  const livePreview = async () => { const el = await cp.$('#live-preview-iframe'); return el ? el.contentFrame() : null; };
 
   // Focus a section, open the dock.
-  await realClick(page, preview, '[id^="id-"]'); await sleep(2000);
+  await realClick(page, await livePreview(), '[id^="id-"]'); await sleep(2000);
   let dock = false;
   for (let attempt = 1; attempt <= 2 && !dock; attempt++) { await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]'); await sleep(600); dock = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000); if (!dock) await sleep(2000); }
   step('code dock open with an HTML pane', dock);
@@ -108,7 +121,9 @@ try {
   }
 
   // The section the dock is showing, in the preview.
-  const before = await preview.evaluate(() => { const el = document.querySelector('[data-sid-active]') || document.querySelector('[id^="id-"]'); return { sid: el?.getAttribute('data-sid') || '', id: el?.id || '', kids: el?.children.length || 0 }; });
+  // The section root the dock is editing: the first visible [id^="id-"] element, read
+  // the same way before and after so the comparison is on one node.
+  const before = await (await livePreview()).evaluate(() => { for (const el of document.querySelectorAll('[id^="id-"]')) { const r = el.getBoundingClientRect(); if (r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0) return { sid: el.getAttribute('data-sid') || '', id: el.id, kids: el.children.length }; } return { sid: '', id: '', kids: 0 }; });
   step('live section located', !!before.id, `${before.id} (${before.kids} children)`);
 
   // Type: a static element right after the root's opening tag — with real
@@ -141,11 +156,11 @@ try {
   // Same frame: the probe is in the preview well before the ~1 s morph.
   await sleep(120);
   console.log('info dock —', await cp.evaluate(() => { const d = document.querySelector('#__sve-code-dock'); return `${[...d.attributes].map((a) => a.name + (a.value ? '=' + a.value.slice(0, 20) : '')).join(' ')} | script v${window.__sveDockInstantPreview} | trace: ${(window.__sveInstantTrace || []).slice(-6).map((l) => l.replace(/^\d+ /, '')).join(' → ')}`; }));
-  const painted = await preview.evaluate(() => { const el = document.querySelector('.sve-instant-probe'); return el ? { text: el.textContent, inRoot: !!el.closest('[id^="id-"]') } : null; });
+  const painted = await (await livePreview()).evaluate(() => { const el = document.querySelector('.sve-instant-probe'); return el ? { text: el.textContent, inRoot: !!el.closest('[id^="id-"]') } : null; });
   step('probe painted within 120 ms (before morph)', !!painted && painted.text === 'instant' && painted.inRoot, JSON.stringify(painted));
 
   // Server-owned attributes were not invented, the root kept its data-sid.
-  const after = await preview.evaluate(() => { const el = document.querySelector('.sve-instant-probe'); const root = el?.closest('[id^="id-"]'); return { probeSid: el?.hasAttribute('data-sid') || false, rootSid: root?.getAttribute('data-sid') || '' }; });
+  const after = await (await livePreview()).evaluate(() => { const el = document.querySelector('.sve-instant-probe'); const root = el?.closest('[id^="id-"]'); return { probeSid: el?.hasAttribute('data-sid') || false, rootSid: root?.getAttribute('data-sid') || '' }; });
   step('no data-sid invented; root kept its data-sid', after.probeSid === false && after.rootSid === before.sid, JSON.stringify(after));
 
   // Remove the probe again — Shift+Home selects the typed line, Backspace twice
@@ -153,7 +168,7 @@ try {
   await page.keyboard.down('Shift'); await page.keyboard.press('Home'); await page.keyboard.up('Shift');
   await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace');
   await sleep(3500);
-  const gone = await preview.evaluate(() => !document.querySelector('.sve-instant-probe'));
+  const gone = await (await livePreview()).evaluate(() => !document.querySelector('.sve-instant-probe'));
   step('probe gone after the morph', gone);
 } catch (e) {
   report.errors.push(`exception: ${e.message}`); report.ok = false;

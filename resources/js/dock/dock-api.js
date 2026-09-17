@@ -27,7 +27,7 @@ import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
 import { activeChromeKind } from '../globals-panel.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { bindBack, bindLayoutWatch, bindPaneToggles, bindResize, bindSplitters, ensureStyle, isPanelFrame, observeDockLayout, paintBack, paintPaneButtons, placeDock, previewBottomPad, setPath, setStatus, shieldDock, stopObservingDockLayout, storedPanes } from './layout.js';
 import { DATA_ICON, DOCK_ID, HANDLES, SCOPE_ICON, UNLOCK_ID, css, editors, html, loadCm } from '../code-dock.js';
 import { bindCssTools, bindHtmlTidy, bindHtmlTools, bindStyleMode } from './toolbars.js';
@@ -154,7 +154,7 @@ async function ensureDockAsync(win) {
         openLabel: (name) => t(win, 'component_open_named', { name }),
         sectionValues: () => currentSectionValues(win),
         isLocked: () => isCodeDockLocked(),
-        setHover: (view, range) => dock.htmlPartialUi?.setHover(view, range),
+        setHover: (view, range) => dockState.htmlPartialUi?.setHover(view, range),
       });
     }
 
@@ -162,7 +162,7 @@ async function ensureDockAsync(win) {
       bindClassTokenNav(win, editors.html, {
         onRename: (token) => openRenameClassMenu(win, token),
         isLocked: () => isCodeDockLocked(),
-        setHover: (view, range) => dock.htmlClassTokenUi?.setHover(view, range),
+        setHover: (view, range) => dockState.htmlClassTokenUi?.setHover(view, range),
         title: t(win, 'code_dock_css_rename_class'),
       });
     }
@@ -184,13 +184,13 @@ function ensureDock(win) {
 async function showMissing(win, type) {
   const dock = await ensureDock(win);
 
-  dock.lastType = type;
-  dock.lastLocked = true;
-  dock.lockReady = true;
-  dock.lastParts = { html: '', css: '', js: '' };
+  dockState.lastType = type;
+  dockState.lastLocked = true;
+  dockState.lockReady = true;
+  dockState.lastParts = { html: '', css: '', js: '' };
   clearHtmlScopeRange();
   paintLock(win);
-  writeParts(dock.lastParts, true);
+  writeParts(dockState.lastParts, true);
   setPath(win.document, type);
   setStatus(win.document, t(win, 'code_dock_missing'));
   paintHtmlScope(win);
@@ -201,15 +201,15 @@ async function showMissing(win, type) {
 
 export async function loadTemplate(win, type, mode = 'replace') {
   if (mode === 'replace') {
-    dock.typeStack = [];
-  } else if (mode === 'push' && dock.lastType && dock.lastType !== type) {
-    dock.typeStack.push(dock.lastType);
+    dockState.typeStack = [];
+  } else if (mode === 'push' && dockState.lastType && dockState.lastType !== type) {
+    dockState.typeStack.push(dockState.lastType);
   }
 
-  const gen = ++dock.loadGen;
+  const gen = ++dockState.loadGen;
 
-  dock.lastType = type;
-  dock.lockReady = false;
+  dockState.lastType = type;
+  dockState.lockReady = false;
   clearHtmlScopeRange();
   setStatus(win.document, t(win, 'code_dock_loading'));
 
@@ -229,7 +229,7 @@ export async function loadTemplate(win, type, mode = 'replace') {
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
     .then(async (res) => {
-      if (gen !== dock.loadGen) {
+      if (gen !== dockState.loadGen) {
         return;
       }
 
@@ -245,33 +245,33 @@ export async function loadTemplate(win, type, mode = 'replace') {
 
       const data = await res.json();
 
-      if (gen !== dock.loadGen) {
+      if (gen !== dockState.loadGen) {
         return;
       }
 
-      dock.lastParts = {
+      dockState.lastParts = {
         html: typeof data.html === 'string' ? data.html : '',
         css: typeof data.css === 'string' ? data.css : '',
         js: typeof data.js === 'string' ? data.js : '',
       };
-      dock.lastProps = Array.isArray(data.props) ? data.props : [];
-      dock.propsDirty = false;
-      dock.lastType = type;
-      dock.lastLocked = !!data.locked;
-      dock.lockReady = true;
+      dockState.lastProps = Array.isArray(data.props) ? data.props : [];
+      dockState.propsDirty = false;
+      dockState.lastType = type;
+      dockState.lastLocked = !!data.locked;
+      dockState.lockReady = true;
       resetTailwindCompile();
       paintLock(win);
-      writeParts(dock.lastParts, dock.lastLocked);
+      writeParts(dockState.lastParts, dockState.lastLocked);
       // The file that just opened decides whether the left column belongs to a
       // component. Stepping in and out of one is a load like any other.
       syncComponentProps(win);
 
-      if (!dock.lastLocked) {
-        ensureTwCss(win, dock.lastParts.html);
+      if (!dockState.lastLocked) {
+        ensureTwCss(win, dockState.lastParts.html);
       }
 
       setPath(win.document, data.path || type);
-      setStatus(win.document, dock.lastLocked ? t(win, 'code_dock_locked') : '');
+      setStatus(win.document, dockState.lastLocked ? t(win, 'code_dock_locked') : '');
       syncComponentFocus(win);
       watchComponentMap(win);
       void syncComponentMap(win);
@@ -281,7 +281,7 @@ export async function loadTemplate(win, type, mode = 'replace') {
       placeDock(win, dock);
     })
     .catch(() => {
-      if (gen !== dock.loadGen) {
+      if (gen !== dockState.loadGen) {
         return;
       }
 
@@ -291,7 +291,7 @@ export async function loadTemplate(win, type, mode = 'replace') {
 }
 
 export function currentTemplateType() {
-  return dock.lastType || '';
+  return dockState.lastType || '';
 }
 
 export function isCodeDockOpen(doc) {
@@ -299,7 +299,7 @@ export function isCodeDockOpen(doc) {
 }
 
 export function isCodeDockLocked() {
-  return dock.lastLocked;
+  return dockState.lastLocked;
 }
 
 /**
@@ -386,30 +386,30 @@ function appendPane(handle, text) {
 export function refreshCodeDockFromDisk(win) {
   refreshPreview(win);
 
-  if (!dock.lastType || !win.document.getElementById(DOCK_ID)) {
+  if (!dockState.lastType || !win.document.getElementById(DOCK_ID)) {
     return;
   }
 
-  const type = dock.lastType;
+  const type = dockState.lastType;
 
-  dock.lastType = null;
+  dockState.lastType = null;
   loadTemplate(win, type, 'keep');
 }
 
 export function closeCodeDock(doc) {
   closeDataMenu(doc);
-  dock.loadGen += 1;
+  dockState.loadGen += 1;
   flushSave(doc);
-  dock.lastUid = null;
-  dock.lastType = null;
-  dock.typeStack = [];
-  dock.lastParts = { html: '', css: '', js: '' };
-  dock.lastLocked = false;
-  dock.lockReady = false;
-  dock.lastBracketNames = null;
-  dock.lastCssSelectorNames = null;
+  dockState.lastUid = null;
+  dockState.lastType = null;
+  dockState.typeStack = [];
+  dockState.lastParts = { html: '', css: '', js: '' };
+  dockState.lastLocked = false;
+  dockState.lockReady = false;
+  dockState.lastBracketNames = null;
+  dockState.lastCssSelectorNames = null;
   clearHtmlScopeRange();
-  dock.lastWin = doc?.defaultView || dock.lastWin;
+  dockState.lastWin = doc?.defaultView || dockState.lastWin;
   closeCssMenu(doc);
   closePartialMenu(doc);
   closeClassTokenUi(doc);
@@ -427,7 +427,7 @@ export function closeCodeDock(doc) {
     previewBottomPad(doc, 0);
   }
 
-  const win = doc?.defaultView || dock.lastWin;
+  const win = doc?.defaultView || dockState.lastWin;
 
   if (win?.document.getElementById(HTML_TREE_PANEL_ID)) {
     closeHtmlTreePanel(win);
@@ -444,7 +444,7 @@ export function closeCodeDock(doc) {
 }
 
 export function relayoutCodeDock(win) {
-  if (dock.dragging) {
+  if (dockState.dragging) {
     return;
   }
 
@@ -572,7 +572,7 @@ function globalSectionTemplateType(doc) {
  * row to exist as a replicator set in the left sidebar.
  */
 export function syncCodeDock(win, doc, uid) {
-  if (dock.dragging) {
+  if (dockState.dragging) {
     return;
   }
 
@@ -589,31 +589,31 @@ export function syncCodeDock(win, doc, uid) {
     globalSectionTemplateType(doc) ||
     pageSectionType(win, doc, uid) ||
     collectionViewType(win) ||
-    (!uid ? dock.lastType : '');
-  const uidChanged = !!(uid && uid !== dock.lastUid);
+    (!uid ? dockState.lastType : '');
+  const uidChanged = !!(uid && uid !== dockState.lastUid);
 
-  dock.lastWin = win;
+  dockState.lastWin = win;
 
   if (uid) {
-    dock.lastUid = uid;
+    dockState.lastUid = uid;
   }
 
   if (!type) {
     return;
   }
 
-  if (type === dock.lastType && doc.getElementById(DOCK_ID)) {
+  if (type === dockState.lastType && doc.getElementById(DOCK_ID)) {
     return;
   }
 
-  if (dock.typeStack.length && dock.lastType && dock.lastType !== type) {
-    const root = dock.typeStack[0];
+  if (dockState.typeStack.length && dockState.lastType && dockState.lastType !== type) {
+    const root = dockState.typeStack[0];
 
     if (type === root && !uidChanged) {
       return;
     }
 
-    dock.typeStack = [];
+    dockState.typeStack = [];
   }
 
   flushSave(doc);
@@ -622,8 +622,8 @@ export function syncCodeDock(win, doc, uid) {
 
 // A different tag, or a class added to it, relights the icon row.
 on('tw:changed', () => {
-  if (dock.lastWin && dock.styleMode === 'tw') {
-    paintCssToolState(dock.lastWin);
+  if (dockState.lastWin && dockState.styleMode === 'tw') {
+    paintCssToolState(dockState.lastWin);
   }
 });
 
@@ -637,31 +637,31 @@ register('dock:reveal-html', ({ from, to, caret } = {}) => {
     return;
   }
 
-  dock.htmlScopePref = htmlScopeEnabled(dock.lastWin);
+  dockState.htmlScopePref = htmlScopeEnabled(dockState.lastWin);
   syncScopedHtml();
   flushCssScope();
 
-  const length = dock.htmlFull.length;
+  const length = dockState.htmlFull.length;
   const start = Math.max(0, Math.min(from, length));
   const end = Math.max(start, Math.min(to ?? from, length));
 
-  dock.htmlFocus = end > start ? { from: start, to: end } : null;
+  dockState.htmlFocus = end > start ? { from: start, to: end } : null;
 
   // `caret` says "put me inside this", which the tree asks for so the next
   // thing written lands in the row that was picked. Without one the whole
   // range is selected, which is what a plain reveal has always done.
   const at = caret == null ? null : Math.max(0, Math.min(caret, length));
 
-  if (dock.htmlScopePref && dock.htmlFocus) {
+  if (dockState.htmlScopePref && dockState.htmlFocus) {
     showHtmlScope(at);
-    paintHtmlScope(dock.lastWin);
+    paintHtmlScope(dockState.lastWin);
 
     return;
   }
 
-  if (dock.htmlScopeActive) {
+  if (dockState.htmlScopeActive) {
     showHtmlFull(true, at);
-    paintHtmlScope(dock.lastWin);
+    paintHtmlScope(dockState.lastWin);
 
     return;
   }
@@ -675,8 +675,8 @@ register('dock:reveal-html', ({ from, to, caret } = {}) => {
 register('dock:insert-snippet', ({ win, parts }) => insertAiSnippet(win, parts));
 register('dock:refresh', (win) => refreshCodeDockFromDisk(win));
 register('dock:tw-follow', () => {
-  if (dock.lastWin) {
-    syncTwTarget(dock.lastWin);
+  if (dockState.lastWin) {
+    syncTwTarget(dockState.lastWin);
   }
 });
 /**
@@ -687,21 +687,21 @@ register('dock:tw-follow', () => {
 register('dock:css', () => {
   flushCssScope();
 
-  return dock.cssFull;
+  return dockState.cssFull;
 });
 register('dock:set-css', (css) => {
   if (typeof css !== 'string' || isCodeDockLocked()) {
     return false;
   }
 
-  if (!editors.css || !dock.lastWin) {
+  if (!editors.css || !dockState.lastWin) {
     return false;
   }
 
   flushCssScope();
-  dock.cssFull = css;
+  dockState.cssFull = css;
   writeHandleEditor('css', cssEditorText());
-  onEditorInput(dock.lastWin);
+  onEditorInput(dockState.lastWin);
 
   return true;
 });
@@ -712,13 +712,13 @@ register('dock:set-css', (css) => {
  * out, the HTML pane's cursor answers that instead.
  */
 register('dock:data-menu', ({ anchor, onPick, at } = {}) => {
-  if (!anchor || !dock.lastWin) {
+  if (!anchor || !dockState.lastWin) {
     return false;
   }
 
-  closeDataMenu(dock.lastWin.document);
-  closeCssMenu(dock.lastWin.document);
-  openDataVarsMenu(dock.lastWin, anchor, onPick, at);
+  closeDataMenu(dockState.lastWin.document);
+  closeCssMenu(dockState.lastWin.document);
+  openDataVarsMenu(dockState.lastWin, anchor, onPick, at);
 
   return true;
 });
@@ -728,16 +728,16 @@ register('dock:data-menu', ({ anchor, onPick, at } = {}) => {
  * A change is a save: the list is not text anyone is mid-word in, so there is
  * nothing to debounce and nothing to lose by writing it straight away.
  */
-register('dock:props', () => dock.lastProps.map((prop) => ({ ...prop })));
+register('dock:props', () => dockState.lastProps.map((prop) => ({ ...prop })));
 register('dock:set-props', ({ win, props } = {}) => {
   if (!Array.isArray(props) || isCodeDockLocked()) {
     return false;
   }
 
-  dock.lastProps = props;
-  dock.propsDirty = true;
+  dockState.lastProps = props;
+  dockState.propsDirty = true;
   forgetComponentProps(componentSrcOf(currentTemplateType()));
-  flushSave((win || dock.lastWin)?.document);
+  flushSave((win || dockState.lastWin)?.document);
 
   return true;
 });
@@ -764,7 +764,7 @@ register('dock:component-exit-state', () => {
   return {
     open: !!src,
     name: src ? src.split('/').pop() : '',
-    back: dock.typeStack.length > 0,
+    back: dockState.typeStack.length > 0,
   };
 });
 
@@ -774,21 +774,21 @@ register('dock:component-exit-state', () => {
  * loses what was typed.
  */
 register('dock:exit-component', () => {
-  if (!dock.lastWin || !componentSrcOf(currentTemplateType())) {
+  if (!dockState.lastWin || !componentSrcOf(currentTemplateType())) {
     return false;
   }
 
-  if (dock.typeStack.length) {
-    goBackTemplate(dock.lastWin);
+  if (dockState.typeStack.length) {
+    goBackTemplate(dockState.lastWin);
   } else {
-    closeCodeDock(dock.lastWin.document);
+    closeCodeDock(dockState.lastWin.document);
   }
 
   return true;
 });
 
 register('dock:current-type', () => currentTemplateType());
-register('dock:current-uid', () => dock.lastUid);
+register('dock:current-uid', () => dockState.lastUid);
 /**
  * Re-render the preview without saving anything.
  *
@@ -811,22 +811,22 @@ register('dock:reset-data-vars', (setHandle) => {
 });
 
 register('dock:refresh-preview', () => {
-  if (!dock.lastWin) {
+  if (!dockState.lastWin) {
     return false;
   }
 
-  refreshPreview(dock.lastWin);
+  refreshPreview(dockState.lastWin);
 
   return true;
 });
 
 /** Open another template — the same push the partial links in the panes do. */
 register('dock:open-template', (type) => {
-  if (typeof type !== 'string' || !type || !dock.lastWin) {
+  if (typeof type !== 'string' || !type || !dockState.lastWin) {
     return false;
   }
 
-  openNestedTemplate(dock.lastWin, type);
+  openNestedTemplate(dockState.lastWin, type);
 
   return true;
 });
@@ -837,31 +837,31 @@ register('dock:set-html', (html) => {
 
   const view = editors.html;
 
-  if (!view || !dock.lastWin) {
+  if (!view || !dockState.lastWin) {
     return false;
   }
 
   // Empty string = detach view (last section gone). Never autosave an empty file.
   if (html === '') {
-    if (dock.saveTimer) {
-      clearTimeout(dock.saveTimer);
-      dock.saveTimer = null;
+    if (dockState.saveTimer) {
+      clearTimeout(dockState.saveTimer);
+      dockState.saveTimer = null;
     }
 
     // Drop any in-flight Tailwind compile save; it would post empty HTML.
-    dock.twDirty = false;
-    dock.twCss = null;
-    dock.twKey = '';
+    dockState.twDirty = false;
+    dockState.twCss = null;
+    dockState.twKey = '';
 
     // Detach before clearing panes — flushSave no-ops without lastType, and
     // readParts reads cssFull (not the CSS editor), so clear that too.
-    dock.lastType = null;
-    dock.lastUid = null;
-    dock.lastParts = { html: '', css: '', js: '' };
-    dock.cssFull = '';
-    dock.htmlFull = '';
+    dockState.lastType = null;
+    dockState.lastUid = null;
+    dockState.lastParts = { html: '', css: '', js: '' };
+    dockState.cssFull = '';
+    dockState.htmlFull = '';
 
-    dock.applying = true;
+    dockState.applying = true;
 
     try {
       clearHtmlScopeRange();
@@ -882,25 +882,25 @@ register('dock:set-html', (html) => {
         }
       }
     } finally {
-      dock.applying = false;
+      dockState.applying = false;
     }
 
     return true;
   }
 
-  const before = dock.htmlFull;
+  const before = dockState.htmlFull;
 
-  dock.htmlFull = html;
+  dockState.htmlFull = html;
 
-  if (dock.htmlScopeActive) {
+  if (dockState.htmlScopeActive) {
     // The scoped pane shows `htmlFull.slice(htmlFocus)`. An edit that changed
     // the length of what is inside that range leaves the end of it pointing
     // short, and the pane renders a truncated tag — `{{ /artis`. Writing in
     // that pane then syncs the truncation back into the file, so the range is
     // moved with the edit rather than left behind.
-    dock.htmlFocus = shiftFocus(dock.htmlFocus, before, html);
+    dockState.htmlFocus = shiftFocus(dockState.htmlFocus, before, html);
     writeHtmlEditor(htmlEditorText());
-    onEditorInput(dock.lastWin);
+    onEditorInput(dockState.lastWin);
     emit('dock:html-changed');
 
     return true;

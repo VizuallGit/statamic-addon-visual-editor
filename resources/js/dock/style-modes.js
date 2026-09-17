@@ -8,7 +8,7 @@ import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
 import { closeTwMenu, renderTwClasses } from '../tw-classes.js';
 import { blocksForSize, idRulesForSize } from '../css-sizes.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { CSS_MODE_ICON, DOCK_ID, ID_MODE_ICON, SCOPE_KEY, TW_MODE_ICON, VALUES_MODE_KEY, editors, html } from '../code-dock.js';
 import { applyCssFolds, cssSizeRow, cssSizeRows, newSizeBlockSpot, newSizeQuery, paintCssHead } from './css-sizes.js';
 import { closeCssMenu, leadingCssIndent, paintCssToolState } from './css-tools.js';
@@ -27,7 +27,7 @@ import { paintAlpine } from './alpine.js';
  * same place instead of fighting each other.
  */
 function twTargetFromCursor(win) {
-  return dock.styleMode === 'tw' ? htmlTargetFromCursor(win) : null;
+  return dockState.styleMode === 'tw' ? htmlTargetFromCursor(win) : null;
 }
 
 /**
@@ -43,9 +43,9 @@ export function htmlTargetFromCursor(win) {
     return null;
   }
 
-  const scoped = dock.htmlScopeActive && !!dock.htmlFocus;
-  const html = scoped ? dock.htmlFull : view.state.doc.toString();
-  const offset = scoped ? dock.htmlFocus.from : 0;
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+  const html = scoped ? dockState.htmlFull : view.state.doc.toString();
+  const offset = scoped ? dockState.htmlFocus.from : 0;
   const pos = offset + view.state.selection.main.from;
   const rows = flattenHtmlTree(parseHtmlTree(html), new Set());
   let found = null;
@@ -62,7 +62,7 @@ export function htmlTargetFromCursor(win) {
 }
 
 export function syncTwTarget(win) {
-  if (dock.styleMode !== 'tw') {
+  if (dockState.styleMode !== 'tw') {
     return;
   }
 
@@ -77,16 +77,16 @@ export function paintValuesMode(win) {
     return;
   }
 
-  dock.setAttribute('data-sve-values', dock.cssValues ? 'on' : 'off');
+  dock.setAttribute('data-sve-values', dockState.cssValues ? 'on' : 'off');
 
   const text = win.document.createElement('span');
 
   text.textContent = t(win, 'code_dock_values');
   btn.innerHTML = ID_MODE_ICON;
   btn.appendChild(text);
-  btn.title = t(win, dock.cssValues ? 'code_dock_values_off' : 'code_dock_values_on');
+  btn.title = t(win, dockState.cssValues ? 'code_dock_values_off' : 'code_dock_values_on');
   btn.setAttribute('aria-label', btn.title);
-  btn.setAttribute('aria-pressed', dock.cssValues ? 'true' : 'false');
+  btn.setAttribute('aria-pressed', dockState.cssValues ? 'true' : 'false');
 }
 
 /**
@@ -110,7 +110,7 @@ export function enterValuesRule(win) {
 
   const rows = cssSizeRows(win);
   const text = view.state.doc.toString();
-  const found = idRulesForSize(text, rows, dock.cssSize);
+  const found = idRulesForSize(text, rows, dockState.cssSize);
 
   // The caret is the whole answer to "did anything happen". Put it in the rule
   // and take the focus with it: a caret in a pane nobody is typing in does not
@@ -127,7 +127,7 @@ export function enterValuesRule(win) {
     return;
   }
 
-  const row = cssSizeRow(win, dock.cssSize);
+  const row = cssSizeRow(win, dockState.cssSize);
 
   // All and the base share one rule, and it goes at the top of the file: the
   // values come before the design that reads them, and there is no block to
@@ -144,7 +144,7 @@ export function enterValuesRule(win) {
     return;
   }
 
-  const block = blocksForSize(text, rows, dock.cssSize)[0];
+  const block = blocksForSize(text, rows, dockState.cssSize)[0];
 
   // A narrower size writes its rule inside its own block, at the top of it —
   // same reason the base one is at the top of the file.
@@ -187,17 +187,17 @@ export function enterValuesRule(win) {
 }
 
 export function setValuesMode(win, on) {
-  dock.cssValues = !!on;
-  chromeSet(win, VALUES_MODE_KEY, dock.cssValues ? '1' : '0');
+  dockState.cssValues = !!on;
+  chromeSet(win, VALUES_MODE_KEY, dockState.cssValues ? '1' : '0');
   closeCssMenu(win.document);
-  dock.cssOpenTool = '';
+  dockState.cssOpenTool = '';
   paintValuesMode(win);
   // The pane's content changes, not just what is folded in it: hiding the ID
   // hands the tree scope back whatever it had.
   flushCssScope();
   applyCssScope();
 
-  if (dock.cssValues) {
+  if (dockState.cssValues) {
     enterValuesRule(win);
   }
 
@@ -214,9 +214,9 @@ export function paintStyleMode(win) {
     return;
   }
 
-  const tw = dock.styleMode === 'tw';
+  const tw = dockState.styleMode === 'tw';
 
-  dock.setAttribute('data-sve-style', dock.styleMode);
+  dock.setAttribute('data-sve-style', dockState.styleMode);
 
   const label = dock.querySelector('[data-sve-css-label]');
 
@@ -252,28 +252,28 @@ export function applyStyleMode(win) {
   closeTwMenu(win);
   // Switching language closes whatever was open: the row is about to be the
   // other language's, and a group left open would be pointing at nothing.
-  dock.cssOpenTool = '';
-  dock.cssOpenMenu = '';
+  dockState.cssOpenTool = '';
+  dockState.cssOpenMenu = '';
 
   // Tailwind has no per-instance layer — its classes are on the tag, not in a
   // rule — so switching language leaves the ID behind rather than showing a
   // button that would point at nothing.
-  if (dock.styleMode === 'tw' && dock.cssValues) {
-    dock.cssValues = false;
+  if (dockState.styleMode === 'tw' && dockState.cssValues) {
+    dockState.cssValues = false;
     chromeSet(win, VALUES_MODE_KEY, '0');
   }
 
   paintStyleMode(win);
   paintValuesMode(win);
   paintStrip(win);
-  dock.cssToolRow?.();
+  dockState.cssToolRow?.();
 
-  if (dock.styleMode === 'tw') {
+  if (dockState.styleMode === 'tw') {
     // Open it the way the tree button does, setting included. Opening it
     // behind the setting's back left the tree on screen with scoping off,
     // and then a click in it only selected the code instead of narrowing
     // the pane to that tag.
-    dock.htmlScopePref = true;
+    dockState.htmlScopePref = true;
     chromeSet(win, SCOPE_KEY, '1');
     syncHtmlTree(win, true);
   }

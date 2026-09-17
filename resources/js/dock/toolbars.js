@@ -11,7 +11,7 @@ import { HTML_ICONS, TEXT_TAGS } from '../html-tree-icons.js';
 import { closeTwMenu, twOpenToolMenu, twSetClass } from '../tw-classes.js';
 import { breakpoints } from '../breakpoints.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { CSS_LENGTHS, CSS_MENU_ID, CSS_TOOL_INDEX, HTML_HEADINGS, HTML_TOOLS, STYLE_MODE_KEY, VALUES_MODE_KEY } from '../code-dock.js';
 import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintValuesMode, setValuesMode } from './style-modes.js';
 import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
@@ -20,8 +20,8 @@ import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './dat
 
 // ===== toolbars =====
 function setStyleMode(win, mode) {
-  dock.styleMode = mode === 'tw' ? 'tw' : 'css';
-  chromeSet(win, STYLE_MODE_KEY, dock.styleMode);
+  dockState.styleMode = mode === 'tw' ? 'tw' : 'css';
+  chromeSet(win, STYLE_MODE_KEY, dockState.styleMode);
   applyStyleMode(win);
 }
 
@@ -31,27 +31,27 @@ export function bindStyleMode(win, dock) {
   }
 
   dock._sveStyleModeBound = true;
-  dock.styleMode = chromeGet(win, STYLE_MODE_KEY) === 'tw' ? 'tw' : 'css';
+  dockState.styleMode = chromeGet(win, STYLE_MODE_KEY) === 'tw' ? 'tw' : 'css';
 
   // The size and the state are where the reader left them. A size this site no
   // longer has falls back to All rather than to a button that cannot light up.
   const storedSize = chromeGet(win, CSS_SIZE_KEY) || '';
 
-  dock.cssSize = breakpoints(win).some((row) => row.handle === storedSize) ? storedSize : '';
-  dock.cssState = CSS_STATES.includes(chromeGet(win, CSS_STATE_KEY)) ? chromeGet(win, CSS_STATE_KEY) : '';
+  dockState.cssSize = breakpoints(win).some((row) => row.handle === storedSize) ? storedSize : '';
+  dockState.cssState = CSS_STATES.includes(chromeGet(win, CSS_STATE_KEY)) ? chromeGet(win, CSS_STATE_KEY) : '';
 
-  dock.cssValues = chromeGet(win, VALUES_MODE_KEY) === '1';
+  dockState.cssValues = chromeGet(win, VALUES_MODE_KEY) === '1';
 
   dock.querySelector('[data-sve-style-mode]')?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setStyleMode(win, dock.styleMode === 'tw' ? 'css' : 'tw');
+    setStyleMode(win, dockState.styleMode === 'tw' ? 'css' : 'tw');
   });
 
   dock.querySelector('[data-sve-values-mode]')?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    setValuesMode(win, !dock.cssValues);
+    setValuesMode(win, !dockState.cssValues);
   });
 
   applyStyleMode(win);
@@ -81,7 +81,7 @@ export function bindCssTools(win, dock) {
     const btn = btnFor(item.id);
     // A second click on the icon that opened the menu closes it again. Read
     // before closing, because closing is what forgets which one it was.
-    const wasOpen = dock.cssOpenMenu === item.id;
+    const wasOpen = dockState.cssOpenMenu === item.id;
 
     closeCssMenu(win.document);
 
@@ -100,16 +100,16 @@ export function bindCssTools(win, dock) {
     // open would make the next click on it do nothing at all. Remembered AFTER
     // the menu is up: every opener closes whatever was there first, and that
     // is what forgets which icon it belonged to.
-    const opensMenu = dock.styleMode === 'tw'
+    const opensMenu = dockState.styleMode === 'tw'
       ? !item.twClass && !!item.tw
       : !item.kind && !item.value && !(item.css in currentFlexDecls()) && !!item.menu;
     const remember = () => {
       if (opensMenu) {
-        dock.cssOpenMenu = item.id;
+        dockState.cssOpenMenu = item.id;
       }
     };
 
-    if (dock.styleMode === 'tw') {
+    if (dockState.styleMode === 'tw') {
       closeTwMenu(win);
 
       // A fixed class is set outright; a scale opens its menu. Same two cases
@@ -180,7 +180,7 @@ export function bindCssTools(win, dock) {
 
     if (tool.kids?.length) {
       // A tool with children is a door, not a switch.
-      dock.cssOpenTool = dock.cssOpenTool === tool.id ? '' : tool.id;
+      dockState.cssOpenTool = dockState.cssOpenTool === tool.id ? '' : tool.id;
       closeCssMenu(win.document);
       paintCssToolState(win);
 
@@ -198,12 +198,12 @@ export function bindCssTools(win, dock) {
     }
   };
 
-  dock.cssToolRow = () => {
+  dockState.cssToolRow = () => {
     mountPane(host, CodeDockCssTools);
     paintCssToolState(win);
   };
 
-  dock.cssToolRow();
+  dockState.cssToolRow();
 
   win.document.addEventListener(
     'mousedown',

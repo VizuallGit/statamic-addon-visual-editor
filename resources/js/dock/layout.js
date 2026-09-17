@@ -11,7 +11,7 @@ import { injectStyle } from '../lib/style.js';
 import { t } from '../lib/i18n.js';
 import { attachDock } from '../lib/dock-host.js';
 import { beginOverlayDrag } from '../lib/drag.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { BACK_ICON, CSS_MENU_ID, DEFAULT_HEIGHT, DOCK_ID, HANDLES, HEIGHT_KEY, MIN_HEIGHT, MIN_PANE, PANES, PANES_KEY, STYLE_ID, UNLOCK_ID, WIDTHS_KEY, css, editors, html, javascript } from '../code-dock.js';
 import { DATA_MENU_ID } from './data-vars.js';
 import { relayoutCodeDock } from './dock-api.js';
@@ -1320,16 +1320,16 @@ function rightInset(doc) {
 export function observeDockLayout(win) {
   const doc = win.document;
 
-  dock.layoutWin = win;
+  dockState.layoutWin = win;
 
   if (typeof win.ResizeObserver !== 'function') {
     return;
   }
 
-  if (!dock.layoutObserver) {
-    dock.layoutObserver = new win.ResizeObserver(() => {
-      if (dock.layoutWin) {
-        relayoutCodeDock(dock.layoutWin);
+  if (!dockState.layoutObserver) {
+    dockState.layoutObserver = new win.ResizeObserver(() => {
+      if (dockState.layoutWin) {
+        relayoutCodeDock(dockState.layoutWin);
       }
     });
   }
@@ -1337,45 +1337,45 @@ export function observeDockLayout(win) {
   const editor = doc.querySelector('.live-preview-editor');
   const right = doc.getElementById('__sve-right-dock');
 
-  if (editor !== dock.observedEditor) {
-    if (dock.observedEditor) {
-      dock.layoutObserver.unobserve(dock.observedEditor);
+  if (editor !== dockState.observedEditor) {
+    if (dockState.observedEditor) {
+      dockState.layoutObserver.unobserve(dockState.observedEditor);
     }
 
-    dock.observedEditor = editor;
+    dockState.observedEditor = editor;
 
     if (editor) {
-      dock.layoutObserver.observe(editor);
+      dockState.layoutObserver.observe(editor);
     }
   }
 
-  if (right !== dock.observedRight) {
-    if (dock.observedRight) {
-      dock.layoutObserver.unobserve(dock.observedRight);
+  if (right !== dockState.observedRight) {
+    if (dockState.observedRight) {
+      dockState.layoutObserver.unobserve(dockState.observedRight);
     }
 
-    dock.observedRight = right;
+    dockState.observedRight = right;
 
     if (right) {
-      dock.layoutObserver.observe(right);
+      dockState.layoutObserver.observe(right);
     }
   }
 }
 
 export function stopObservingDockLayout() {
-  dock.layoutObserver?.disconnect();
-  dock.layoutObserver = null;
-  dock.layoutWin = null;
-  dock.observedEditor = null;
-  dock.observedRight = null;
+  dockState.layoutObserver?.disconnect();
+  dockState.layoutObserver = null;
+  dockState.layoutWin = null;
+  dockState.observedEditor = null;
+  dockState.observedRight = null;
 }
 
 export function bindLayoutWatch(win) {
-  if (dock.layoutWatchBound) {
+  if (dockState.layoutWatchBound) {
     return;
   }
 
-  dock.layoutWatchBound = true;
+  dockState.layoutWatchBound = true;
   win.addEventListener('sve-right-dock-change', () => observeDockLayout(win));
 }
 
@@ -1435,7 +1435,7 @@ function sizeEditorHosts(dock) {
 }
 
 function winOf(el) {
-  return el.ownerDocument?.defaultView || dock.lastWin;
+  return el.ownerDocument?.defaultView || dockState.lastWin;
 }
 
 function bindHostWheel(host) {
@@ -1479,7 +1479,7 @@ function bindHostWheel(host) {
 }
 
 function measureEditors() {
-  const dock = (dock.layoutWin || dock.lastWin)?.document?.getElementById(DOCK_ID);
+  const dock = (dockState.layoutWin || dockState.lastWin)?.document?.getElementById(DOCK_ID);
 
   if (dock) {
     sizeEditorHosts(dock);
@@ -1543,7 +1543,7 @@ function applyPaneWidths(win, dock) {
 }
 
 export function placeDock(win, dock) {
-  if (dock.dragging) {
+  if (dockState.dragging) {
     return;
   }
 
@@ -1568,14 +1568,14 @@ export function placeDock(win, dock) {
  */
 /** The dock's drag: the shared overlay drag plus this module's `dragging` flag. */
 function beginDockDrag(win, cursor, onMove, onEnd) {
-  dock.dragging = true;
+  dockState.dragging = true;
 
   beginOverlayDrag(
     win,
     cursor,
     onMove,
     () => {
-      dock.dragging = false;
+      dockState.dragging = false;
       onEnd?.();
     },
     'data-sve-code-drag-shield'
@@ -1750,7 +1750,7 @@ export function paintBack(win) {
     return;
   }
 
-  btn.hidden = dock.typeStack.length === 0;
+  btn.hidden = dockState.typeStack.length === 0;
   btn.title = t(win, 'code_dock_back');
   btn.setAttribute('aria-label', btn.title);
   btn.innerHTML = BACK_ICON;

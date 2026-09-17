@@ -74,6 +74,7 @@ let componentFocus = null;
 const COMPONENT_FOCUSED = 'data-sve-component-focused';
 const COMPONENT_DIM = 'data-sve-component-dim';
 
+// ===== component-pick =====
 /**
  * Outline every place the open component renders, and fade everything else.
  *
@@ -309,6 +310,7 @@ function reportAwaitedPick(win) {
   );
 }
 
+// ===== messages =====
 /**
  * Whitespace-normalizes text for comparison across the preview DOM and the CP
  * form values: nbsp → space, collapse runs, trim. Duplicated in cp.js because
@@ -766,6 +768,7 @@ export function injectStyles(doc) {
 
 
 
+// ===== inline-edit =====
 /**
  * Returns the nearest preceding sibling that is (or contains) a non-text
  * [data-sid] element. Handles cases where data-sid lives on a descendant
@@ -2903,6 +2906,7 @@ function applyControlValue(win, session, control, value) {
   }, 0);
 }
 
+// ===== row-toolbar =====
 /**
  * The block a row sits inside: the nearest ancestor that is a set of an
  * insertable container. Null when there is none — a row directly in a page
@@ -4244,6 +4248,7 @@ let globalFocusEl = null;
 // live node, so after a re-render the DOM can no longer tell us what we were in.
 let globalFocusId = null;
 
+// ===== global-sections =====
 /** Tags each section that came from a Global section with its source's id. */
 function tagGlobalSections(win) {
   const label = t('global_badge');
@@ -4687,6 +4692,7 @@ let chromeFocusKind = null;
 let chromeFocusKindSticky = null;
 
 
+// ===== header-footer =====
 /**
  * Flags the chrome this site has switched off, so the CSS above can drop its
  * hover affordance. On <html> rather than the elements themselves: the header
@@ -4976,6 +4982,7 @@ let moveCtrlRowButtons = null;
 // when the field's min/max would reject them.
 let pendingRowCaps = null;
 
+// ===== row-caps-move =====
 /** Greys out (or restores) a +/− button, and blocks its click while disabled. */
 function setRowButtonDisabled(btn, disabled) {
   if (!btn) {
@@ -5182,6 +5189,7 @@ function pointerInMoveControlGap(event) {
   return false;
 }
 
+// ===== grid =====
 /** True when el's siblings sit side by side (flex-row, multi-column grid, …). */
 function isHorizontalFlow(win, el) {
   const peers = orderablePeers(el);
@@ -6146,6 +6154,7 @@ const DRAG_THRESHOLD = 6; // px of movement before a press becomes a drag
 let dragState = null;
 let dragJustEnded = false; // one-shot: swallow the click that follows a drag
 
+// ===== drag =====
 function orderablePeers(el) {
   if (!el.parentElement) {
     return [];
@@ -7072,6 +7081,7 @@ function showMoveControl(win, moveEl) {
   positionMoveControl(win);
 }
 
+// ===== editing =====
 /** Handles an edit-start reply: turns the target element contenteditable. */
 function startEditing(win, data) {
   if (!pendingEdit || pendingEdit.requestId !== data.requestId) {
@@ -7718,6 +7728,7 @@ export function createMouseMoveHandler(win) {
   };
 }
 
+// ===== sid-targets =====
 /**
  * Resolves the visual-editor target for a pointer event, seeing through
  * decorative overlays that swallow the event.
@@ -8347,6 +8358,7 @@ export function createHoverHandler(win) {
   return handleHover;
 }
 
+// ===== outline-nav =====
 /**
  * Finds a [data-sid-field] element in the document by field path.
  * Matches both exact dot-notation paths ("seo.title") and underscore-normalized
@@ -9210,6 +9222,7 @@ const INSERT_LAYER_ID = '__sve-inserters';
 const INSERT_AFTER_GAP = 8;
 let inserterInstances = [];
 
+// ===== inserters =====
 function collectSidFieldDefaults(root) {
   const out = {};
 

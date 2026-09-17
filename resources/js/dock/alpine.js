@@ -11,7 +11,7 @@ import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
 import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
 import { mountSurface } from '../cp/mount.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { CSS_MENU_ID, DOCK_ID, editors, html } from '../code-dock.js';
 import { htmlTargetFromCursor } from './style-modes.js';
 import { dispatchHtmlChanges } from './html-tools.js';
@@ -34,9 +34,9 @@ function setAlpineAttr(win, name, value) {
     return;
   }
 
-  const scoped = dock.htmlScopeActive && !!dock.htmlFocus;
-  const offset = scoped ? dock.htmlFocus.from : 0;
-  const html = scoped ? dock.htmlFull : view.state.doc.toString();
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+  const offset = scoped ? dockState.htmlFocus.from : 0;
+  const html = scoped ? dockState.htmlFull : view.state.doc.toString();
   const open = html.slice(target.from, target.openTo);
   const written = value === '' ? name : `${name}="${value}"`;
   const found = tagAttrs(open).find((attr) => attr.name === name);
@@ -72,9 +72,9 @@ function removeAlpineAttr(win, name) {
     return;
   }
 
-  const scoped = dock.htmlScopeActive && !!dock.htmlFocus;
-  const offset = scoped ? dock.htmlFocus.from : 0;
-  const html = scoped ? dock.htmlFull : view.state.doc.toString();
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+  const offset = scoped ? dockState.htmlFocus.from : 0;
+  const html = scoped ? dockState.htmlFull : view.state.doc.toString();
   const open = html.slice(target.from, target.openTo);
   const found = tagAttrs(open).find((attr) => attr.name === name);
 
@@ -107,8 +107,8 @@ function alpineStatesInScope(win) {
     return [];
   }
 
-  const scoped = dock.htmlScopeActive && !!dock.htmlFocus;
-  const html = scoped ? dock.htmlFull : view.state.doc.toString();
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+  const html = scoped ? dockState.htmlFull : view.state.doc.toString();
   const target = htmlTargetFromCursor(win);
   const out = [];
   const rows = flattenHtmlTree(parseHtmlTree(html), new Set());
@@ -148,8 +148,8 @@ function alpineOwnStates(win) {
     return [];
   }
 
-  const scoped = dock.htmlScopeActive && !!dock.htmlFocus;
-  const html = scoped ? dock.htmlFull : view.state.doc.toString();
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+  const html = scoped ? dockState.htmlFull : view.state.doc.toString();
   const data = tagAttrs(html.slice(target.from, target.openTo))
     .find((attr) => attr.name === 'x-data');
 
@@ -320,12 +320,12 @@ export function paintAlpine(win) {
 
   const target = htmlTargetFromCursor(win);
   const view = editors.html;
-  const scoped = dock.htmlScopeActive && !!dock.htmlFocus;
-  const html = view ? (scoped ? dock.htmlFull : view.state.doc.toString()) : '';
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+  const html = view ? (scoped ? dockState.htmlFull : view.state.doc.toString()) : '';
   const attrs = target ? tagAttrs(html.slice(target.from, target.openTo)) : [];
 
   alpineUi.tag = target?.tag || '';
-  alpineUi.canEdit = !dock.lastLocked && !!target;
+  alpineUi.canEdit = !dockState.lastLocked && !!target;
   // "Start with a switch on the section" is the wrong thing to read with the
   // switch's own name sitting in the chip beside it.
   alpineUi.emptyText = t(

@@ -14,7 +14,7 @@ import { blocksForSize, cssMediaBlocks, foldRangesForSize, idRulesForSize } from
 import { mountSurface } from '../cp/mount.js';
 import { bracketToken, matchBraces } from '../css-scope.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { CSS_MENU_ID, DOCK_ID, editors, foldEffect, foldedRanges, unfoldEffect } from '../code-dock.js';
 import { closeCssMenu, cssRuleAtCursor, leadingCssIndent, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, enterValuesRule, htmlTargetFromCursor } from './style-modes.js';
@@ -40,7 +40,7 @@ export function cssSizeRow(win, handle) {
 }
 
 /** The pseudo as it is written in CSS — `::before`, but `:hover`. */
-export function cssStateSuffix(state = dock.cssState) {
+export function cssStateSuffix(state = dockState.cssState) {
   if (!state) {
     return '';
   }
@@ -63,15 +63,15 @@ export function applyCssFolds(win, force = false) {
   }
 
   const text = view.state.doc.toString();
-  const sig = `${dock.cssValues ? '1' : '0'}|${dock.cssSize}|${cssMediaBlocks(text).map((b) => `${b.from}-${b.to}`).join(',')}`;
+  const sig = `${dockState.cssValues ? '1' : '0'}|${dockState.cssSize}|${cssMediaBlocks(text).map((b) => `${b.from}-${b.to}`).join(',')}`;
 
   // Typing inside a rule moves nothing that is folded. Re-folding on every
   // keystroke would be work for nothing, and a dispatch per character.
-  if (!force && sig === dock.cssFoldSig) {
+  if (!force && sig === dockState.cssFoldSig) {
     return;
   }
 
-  dock.cssFoldSig = sig;
+  dockState.cssFoldSig = sig;
 
   const rows = cssSizeRows(win);
   const wanted = new Map();
@@ -80,10 +80,10 @@ export function applyCssFolds(win, force = false) {
   // state — the design is what the pane is for — so the rule folds away until
   // it is asked for, at every size and at All too.
   const ranges = [
-    ...foldRangesForSize(text, rows, dock.cssSize),
-    ...(dock.cssValues
+    ...foldRangesForSize(text, rows, dockState.cssSize),
+    ...(dockState.cssValues
       ? []
-      : idRulesForSize(text, rows, dock.cssSize).map((node) => ({ from: node.from, to: node.to }))),
+      : idRulesForSize(text, rows, dockState.cssSize).map((node) => ({ from: node.from, to: node.to }))),
   ];
 
   for (const range of ranges) {
@@ -100,7 +100,7 @@ export function applyCssFolds(win, force = false) {
 
     present.add(key);
 
-    if (!wanted.has(key) && dock.cssOwnFolds.has(key)) {
+    if (!wanted.has(key) && dockState.cssOwnFolds.has(key)) {
       effects.push(unfoldEffect.of({ from, to }));
     }
   });
@@ -111,7 +111,7 @@ export function applyCssFolds(win, force = false) {
     }
   }
 
-  dock.cssOwnFolds = new Set(wanted.keys());
+  dockState.cssOwnFolds = new Set(wanted.keys());
 
   if (effects.length) {
     view.dispatch({ effects });
@@ -130,7 +130,7 @@ export function applyCssFolds(win, force = false) {
  * file written in px would quietly gain its first em one.
  */
 export function newSizeQuery(row, text) {
-  const spelling = dock.cssFull || text;
+  const spelling = dockState.cssFull || text;
 
   return /max-width/i.test(spelling) && !/width\s*</i.test(spelling)
     ? row.media_px || row.media
@@ -282,9 +282,9 @@ function soleTopLevelRule(text) {
 }
 
 function setCssSize(win, handle) {
-  const next = handle === dock.cssSize ? '' : handle;
+  const next = handle === dockState.cssSize ? '' : handle;
 
-  dock.cssSize = next;
+  dockState.cssSize = next;
   chromeSet(win, CSS_SIZE_KEY, next);
 
   // Move the preview with it, the way the Tailwind row does. Through the
@@ -299,7 +299,7 @@ function setCssSize(win, handle) {
   // The ID is a layer inside a size, not a view instead of one: with it
   // showing, changing size changes which `#id-` rule you are writing in —
   // making it, and the block around it, the same as the button would.
-  if (dock.cssValues) {
+  if (dockState.cssValues) {
     enterValuesRule(win);
   }
 
@@ -310,8 +310,8 @@ function setCssSize(win, handle) {
 }
 
 function setCssState(win, state) {
-  dock.cssState = CSS_STATES.includes(state) ? state : '';
-  chromeSet(win, CSS_STATE_KEY, dock.cssState);
+  dockState.cssState = CSS_STATES.includes(state) ? state : '';
+  chromeSet(win, CSS_STATE_KEY, dockState.cssState);
   closeCssMenu(win.document);
   paintCssHead(win);
   paintCssToolState(win);
@@ -331,11 +331,11 @@ function openCssStateMenu(win, anchor) {
   menu._sveApp = mountSurface(CodeDockMenu, menu, {
     kind: 'choices',
     choices: [
-      { value: '', label: t(win, 'css_state_none'), active: !dock.cssState },
+      { value: '', label: t(win, 'css_state_none'), active: !dockState.cssState },
       ...CSS_STATES.map((key) => ({
         value: key,
         label: cssStateSuffix(key),
-        active: key === dock.cssState,
+        active: key === dockState.cssState,
       })),
     ],
     onPick: (key) => setCssState(win, key),
@@ -363,10 +363,10 @@ export function paintCssHead(win) {
 
   cssUi.tag = target?.tag || '';
   cssUi.scope = bracketToken(target ? currentFullHtml().slice(target.from, target.openTo) : '') || '';
-  cssUi.canEdit = !dock.lastLocked;
+  cssUi.canEdit = !dockState.lastLocked;
   cssUi.onTag = (event) => twOpenTagMenuAt(win, event.currentTarget, target);
-  cssUi.state = dock.cssState;
-  cssUi.stateLabel = dock.cssState ? cssStateSuffix(dock.cssState) : t(win, 'css_state');
+  cssUi.state = dockState.cssState;
+  cssUi.stateLabel = dockState.cssState ? cssStateSuffix(dockState.cssState) : t(win, 'css_state');
   cssUi.onState = (event) => openCssStateMenu(win, event.currentTarget);
   cssUi.onSize = (key) => setCssSize(win, key);
   cssUi.sizes = [
@@ -374,7 +374,7 @@ export function paintCssHead(win) {
       key: '',
       label: t(win, 'tw_size_all'),
       title: t(win, 'css_size_all_title'),
-      active: !dock.cssSize,
+      active: !dockState.cssSize,
     },
     ...rows.map((row) => {
       const has = row.base || blocksForSize(text, rows, row.handle).length > 0;
@@ -385,7 +385,7 @@ export function paintCssHead(win) {
         title: row.base
           ? t(win, 'css_size_base_title')
           : `@media ${row.media}${has ? '' : `  ·  ${t(win, 'css_size_new')}`}`,
-        active: dock.cssSize === row.handle,
+        active: dockState.cssSize === row.handle,
       };
     }),
   ];
@@ -407,7 +407,7 @@ export function paintCssHead(win) {
  * one — that is the view where you want to see the whole file.
  */
 on('lp:device', (key) => {
-  const win = dock.lastWin;
+  const win = dockState.lastWin;
 
   if (!win || !isCodeDockOpen(win.document)) {
     return;
@@ -416,11 +416,11 @@ on('lp:device', (key) => {
   // Fit, and any name this site does not have, mean no filter at all.
   const next = breakpoints(win).find((item) => item.device === key)?.handle || '';
 
-  if (next === dock.cssSize) {
+  if (next === dockState.cssSize) {
     return;
   }
 
-  dock.cssSize = next;
+  dockState.cssSize = next;
   chromeSet(win, CSS_SIZE_KEY, next);
   applyCssFolds(win, true);
   paintCssIdMark();

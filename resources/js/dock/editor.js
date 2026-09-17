@@ -12,7 +12,7 @@ import { partialDecorations } from '../dock-partials.js';
 import { classTokenDecorations } from '../dock-class-tokens.js';
 import { tailwindClassCompletions, tailwindHoverExtension } from '../tailwind-complete.js';
 import { vscTheme } from '../lib/codemirror.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, StateField, autocompletion, closeBrackets, closeBracketsKeymap, cm, codeFolding, completionKeymap, defaultKeymap, editableOf, editors, highlightActiveLine, highlightActiveLineGutter, history, historyKeymap, hoverTooltip, htmlLanguage, indentWithTab, keymap, lineNumbers, readOnlyOf, tags } from '../code-dock.js';
 import { applyCssFolds, cssSizeRows } from './css-sizes.js';
 import { flushSave, onEditorInput } from './save.js';
@@ -34,8 +34,8 @@ import { syncTwTarget } from './style-modes.js';
  * clean up: the rule is simply "an empty one does not count".
  */
 function cssGhostExtension() {
-  if (dock.cssGhostUi) {
-    return dock.cssGhostUi;
+  if (dockState.cssGhostUi) {
+    return dockState.cssGhostUi;
   }
 
   const mark = Decoration.mark({ class: 'sve-css-ghost' });
@@ -43,12 +43,12 @@ function cssGhostExtension() {
   const build = (state) => {
     const builder = new RangeSetBuilder();
 
-    if (!dock.lastWin) {
+    if (!dockState.lastWin) {
       return builder.finish();
     }
 
     try {
-      for (const range of emptySizeBlocks(state.doc.toString(), cssSizeRows(dock.lastWin))) {
+      for (const range of emptySizeBlocks(state.doc.toString(), cssSizeRows(dockState.lastWin))) {
         builder.add(range.from, range.to, mark);
       }
     } catch {
@@ -58,13 +58,13 @@ function cssGhostExtension() {
     return builder.finish();
   };
 
-  dock.cssGhostUi = StateField.define({
+  dockState.cssGhostUi = StateField.define({
     create: (state) => build(state),
     update: (value, tr) => (tr.docChanged ? build(tr.state) : value),
     provide: (field) => EditorView.decorations.from(field),
   });
 
-  return dock.cssGhostUi;
+  return dockState.cssGhostUi;
 }
 
 let cssIdUi = null;
@@ -90,14 +90,14 @@ function cssIdExtension() {
   const build = (state) => {
     const builder = new RangeSetBuilder();
 
-    if (!dock.lastWin || !dock.cssValues) {
+    if (!dockState.lastWin || !dockState.cssValues) {
       return builder.finish();
     }
 
     try {
       const doc = state.doc;
 
-      for (const node of idRulesForSize(doc.toString(), cssSizeRows(dock.lastWin), dock.cssSize)) {
+      for (const node of idRulesForSize(doc.toString(), cssSizeRows(dockState.lastWin), dockState.cssSize)) {
         const first = doc.lineAt(Math.min(node.from, doc.length)).number;
         const last = doc.lineAt(Math.min(Math.max(node.to - 1, node.from), doc.length)).number;
 
@@ -139,8 +139,8 @@ export function paintCssIdMark() {
 }
 
 function partialUi() {
-  if (!dock.htmlPartialUi) {
-    dock.htmlPartialUi = partialDecorations({
+  if (!dockState.htmlPartialUi) {
+    dockState.htmlPartialUi = partialDecorations({
       Decoration,
       StateField,
       StateEffect,
@@ -149,12 +149,12 @@ function partialUi() {
     });
   }
 
-  return dock.htmlPartialUi;
+  return dockState.htmlPartialUi;
 }
 
 function antlersUi() {
-  if (!dock.htmlAntlersUi) {
-    dock.htmlAntlersUi = antlersDecorations({
+  if (!dockState.htmlAntlersUi) {
+    dockState.htmlAntlersUi = antlersDecorations({
       Decoration,
       StateField,
       RangeSetBuilder,
@@ -162,12 +162,12 @@ function antlersUi() {
     });
   }
 
-  return dock.htmlAntlersUi;
+  return dockState.htmlAntlersUi;
 }
 
 function classTokenUi() {
-  if (!dock.htmlClassTokenUi) {
-    dock.htmlClassTokenUi = classTokenDecorations({
+  if (!dockState.htmlClassTokenUi) {
+    dockState.htmlClassTokenUi = classTokenDecorations({
       Decoration,
       StateField,
       StateEffect,
@@ -176,7 +176,7 @@ function classTokenUi() {
     });
   }
 
-  return dock.htmlClassTokenUi;
+  return dockState.htmlClassTokenUi;
 }
 
 export function mountEditor(win, handle, parent) {
@@ -232,15 +232,15 @@ export function mountEditor(win, handle, parent) {
           : []),
         ...(handle === 'html' ? antlersUi().extensions : []),
         ...(SUNDAY_AUG30 && handle === 'html' ? classTokenUi().extensions : []),
-        readOnlyOf[handle].of(EditorState.readOnly.of(!!dock.lastLocked)),
-        editableOf[handle].of(EditorView.editable.of(!dock.lastLocked)),
+        readOnlyOf[handle].of(EditorState.readOnly.of(!!dockState.lastLocked)),
+        editableOf[handle].of(EditorView.editable.of(!dockState.lastLocked)),
         EditorView.updateListener.of((update) => {
-          if (SUNDAY_AUG30 && handle === 'html' && update.docChanged && !dock.applying) {
+          if (SUNDAY_AUG30 && handle === 'html' && update.docChanged && !dockState.applying) {
             flushBracketSync(win);
             emit('dock:html-changed');
           }
 
-          if (SUNDAY_AUG30 && handle === 'css' && update.docChanged && !dock.applying) {
+          if (SUNDAY_AUG30 && handle === 'css' && update.docChanged && !dockState.applying) {
             flushCssToHtml();
           }
 
@@ -254,7 +254,7 @@ export function mountEditor(win, handle, parent) {
 
           // A size block that was just written has to be put away like the
           // ones that were already there — including one an undo brought back.
-          if (handle === 'css' && update.docChanged && !dock.applying) {
+          if (handle === 'css' && update.docChanged && !dockState.applying) {
             applyCssFolds(win);
           }
 
@@ -262,7 +262,7 @@ export function mountEditor(win, handle, parent) {
             paintHtmlToolState(win);
             paintAlpine(win);
 
-            if (!dock.applying) {
+            if (!dockState.applying) {
               syncTwTarget(win);
             }
           }

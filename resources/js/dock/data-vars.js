@@ -13,7 +13,7 @@ import { VISUAL_EDIT_SNIPPET_GROUPS, VISUAL_EDIT_SNIPPETS, VISUAL_EDIT_TAG, find
 import { t } from '../lib/i18n.js';
 import { unwrapRef } from '../lib/values.js';
 import { activeContainers } from '../lib/publish-containers.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { collectionViewType, currentTemplateType } from './dock-api.js';
 import { editors, html } from '../code-dock.js';
 import { currentFullHtml, currentSectionValues } from './scope.js';
@@ -85,7 +85,7 @@ function dataVarsScopeAt(win, at) {
     return [];
   }
 
-  const offset = dock.htmlScopeActive && dock.htmlFocus ? dock.htmlFocus.from : 0;
+  const offset = dockState.htmlScopeActive && dockState.htmlFocus ? dockState.htmlFocus.from : 0;
 
   return loopScopeAt(html, offset + view.state.selection.main.from);
 }

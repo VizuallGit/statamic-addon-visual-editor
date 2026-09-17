@@ -8,7 +8,7 @@ import { setTwOverlayOn, twOverlayOn } from '../tw-overlay.js';
 import { twRepaintOverlay } from '../tw-classes.js';
 import { mountSurface } from '../cp/mount.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { currentTemplateType, isCodeDockLocked } from './dock-api.js';
 import { closeCssMenu, placeCssMenu, writeParts } from './css-tools.js';
 import { CSS_MENU_ID, DOCK_ID, HISTORY_ICON, STRIP_ICON } from '../code-dock.js';
@@ -136,7 +136,7 @@ async function restoreVersion(win, type, id) {
 
   writeParts(
     { html: parts.html ?? '', css: parts.css ?? '', js: parts.js ?? '' },
-    dock.lastLocked
+    dockState.lastLocked
   );
   onEditorInput(win);
   syncTwTarget(win);
@@ -153,7 +153,7 @@ export function paintStrip(win) {
   // The strip shows the picked tag's Tailwind classes over the preview. In CSS
   // mode there are no chips to show, so the button has nothing to switch — and
   // a switch that does nothing is worse than no switch.
-  btn.hidden = dock.styleMode !== 'tw';
+  btn.hidden = dockState.styleMode !== 'tw';
 
   const on = twOverlayOn(win);
 
@@ -207,5 +207,5 @@ export function bindHistory(win, dock) {
 }
 
 export function codeDockStyleMode() {
-  return dock.styleMode;
+  return dockState.styleMode;
 }

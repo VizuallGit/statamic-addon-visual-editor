@@ -10,7 +10,7 @@ import { twOpenAddMenu } from '../tw-classes.js';
 import { mountSurface } from '../cp/mount.js';
 import { applyBracketClass, findClassRule, sanitizeCssClassName } from '../css-scope.js';
 import { t } from '../lib/i18n.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_HEADINGS, HTML_TOOLS, editors, tags } from '../code-dock.js';
 import { onEditorInput } from './save.js';
 import { closeCssMenu, indentFromPrevious, lineIndentOf, paintCssToolState, placeCssMenu } from './css-tools.js';
@@ -185,9 +185,9 @@ function isHeadingTag(name) {
 export function finishHtmlEdit() {
   editors.html?.focus();
 
-  if (dock.lastWin) {
-    onEditorInput(dock.lastWin);
-    paintHtmlToolState(dock.lastWin);
+  if (dockState.lastWin) {
+    onEditorInput(dockState.lastWin);
+    paintHtmlToolState(dockState.lastWin);
   }
 }
 
@@ -274,7 +274,7 @@ function openTagFor(tag) {
     return `<${tag}>`;
   }
 
-  const attrs = dock.lastWin?.Statamic?.$config?.get?.('sveSectionTag');
+  const attrs = dockState.lastWin?.Statamic?.$config?.get?.('sveSectionTag');
 
   return typeof attrs === 'string' && attrs.trim() ? `<${tag} ${attrs.trim()}>` : `<${tag}>`;
 }
@@ -552,18 +552,18 @@ function addCssClassName(raw) {
 
   flushCssScope();
 
-  if (!findClassRule(dock.cssFull, name)) {
-    dock.cssFull = `${String(dock.cssFull || '').trimEnd()}${dock.cssFull?.trim() ? '\n' : ''}.${name} {\n}\n`;
+  if (!findClassRule(dockState.cssFull, name)) {
+    dockState.cssFull = `${String(dockState.cssFull || '').trimEnd()}${dockState.cssFull?.trim() ? '\n' : ''}.${name} {\n}\n`;
   }
 
   applyCssScope();
   rememberBracketNames();
   rememberCssSelectors();
 
-  if (dock.lastWin) {
-    onEditorInput(dock.lastWin);
-    paintHtmlToolState(dock.lastWin);
-    paintCssToolState(dock.lastWin);
+  if (dockState.lastWin) {
+    onEditorInput(dockState.lastWin);
+    paintHtmlToolState(dockState.lastWin);
+    paintCssToolState(dockState.lastWin);
   }
 }
 
@@ -609,7 +609,7 @@ export function bindCssAddClass(win, dock) {
     event.preventDefault();
     event.stopPropagation();
 
-    if (dock.styleMode === 'tw') {
+    if (dockState.styleMode === 'tw') {
       closeCssMenu(win.document);
       twOpenAddMenu(win, btn);
 

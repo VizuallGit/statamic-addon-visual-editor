@@ -95,6 +95,11 @@ for (const node of ast.body) {
 }
 const missing = [...NAMES].filter((n) => !decls[n]);
 if (missing.length) { console.error('not module-level let:', missing.join(' ')); process.exit(2); }
+// The object name must be free everywhere in the file: a local `const dock = …` would
+// capture `dock.x` and turn state reads into property reads on the wrong thing.
+const taken = refs.filter((r) => r.node.name === OBJ);
+const declaredAsObj = [...scopes.values()].some((sc) => sc.has(OBJ));
+if (taken.length || declaredAsObj) { console.error(`refusing: "${OBJ}" is already an identifier in ${FILE} (${taken.length} references). Pick a name nothing in the file uses.`); process.exit(2); }
 const edits = []; const stats = {};
 for (const r of refs) {
   if (!NAMES.has(r.node.name)) continue;

@@ -11,7 +11,7 @@ import { stripEmptySizeBlocks } from '../css-sizes.js';
 import { mountSurface } from '../cp/mount.js';
 import { buildScopedCss, matchBraces, tokenTreeFromHtml } from '../css-scope.js';
 import { closeClassTokenUi } from '../dock-class-tokens.js';
-import { dock } from '../dock/state.js';
+import { dockState } from '../dock/state.js';
 import { flushCssScope, htmlEditorText, htmlFocusOk, htmlScopeEnabled, paintHtmlScope, rememberBracketNames, rememberCssSelectors, syncScopedHtml } from './scope.js';
 import { CSS_GRAYS, CSS_MENU_ID, CSS_SPACING, CSS_TOOLS, CSS_TOOL_ICONS, EditorState, EditorView, HANDLES, SCOPE_CLASS, TW_TOOL_ICONS, closeCompletion, editableOf, editors, readOnlyOf } from '../code-dock.js';
 import { cssSizeRows, cssStateSuffix, paintCssHead } from './css-sizes.js';
@@ -29,11 +29,11 @@ export function readParts() {
 
   for (const handle of HANDLES) {
     if (handle === 'html') {
-      parts.html = dock.htmlScopeActive ? dock.htmlFull : (editors.html?.state.doc.toString() ?? '');
+      parts.html = dockState.htmlScopeActive ? dockState.htmlFull : (editors.html?.state.doc.toString() ?? '');
     } else if (handle === 'css') {
       // A size block nobody wrote in is a door held open, not a rule. It is
       // shown while you are looking around and taken out on the way to disk.
-      parts.css = dock.lastWin ? stripEmptySizeBlocks(dock.cssFull, cssSizeRows(dock.lastWin)) : dock.cssFull;
+      parts.css = dockState.lastWin ? stripEmptySizeBlocks(dockState.cssFull, cssSizeRows(dockState.lastWin)) : dockState.cssFull;
 
       // And a class written at the top of the file belongs in the section's
       // scope. Only moved where there is a scope on the element to move it
@@ -48,41 +48,41 @@ export function readParts() {
 }
 
 export function cssEditorText() {
-  if (dock.cssValues || !(dock.htmlScopePref && htmlFocusOk(dock.htmlFocus?.from, dock.htmlFocus?.to, dock.htmlFull.length))) {
-    dock.cssPane = 'full';
-    dock.cssScopeSnapshot = dock.cssFull;
+  if (dockState.cssValues || !(dockState.htmlScopePref && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length))) {
+    dockState.cssPane = 'full';
+    dockState.cssScopeSnapshot = dockState.cssFull;
 
-    return dock.cssFull;
+    return dockState.cssFull;
   }
 
-  const tree = tokenTreeFromHtml(dock.htmlFull.slice(dock.htmlFocus.from, dock.htmlFocus.to));
+  const tree = tokenTreeFromHtml(dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to));
 
   if (!tree.length) {
-    dock.cssPane = 'empty';
-    dock.cssScopeSnapshot = '';
+    dockState.cssPane = 'empty';
+    dockState.cssScopeSnapshot = '';
 
     return '';
   }
 
-  dock.cssPane = 'tree';
+  dockState.cssPane = 'tree';
 
-  const text = buildScopedCss(dock.cssFull, tree);
+  const text = buildScopedCss(dockState.cssFull, tree);
 
-  dock.cssScopeSnapshot = text;
+  dockState.cssScopeSnapshot = text;
 
   return text;
 }
 
 export function writeParts(parts, disabled) {
-  dock.applying = true;
+  dockState.applying = true;
 
   try {
-    if (dock.lastWin) {
-      dock.htmlScopePref = htmlScopeEnabled(dock.lastWin);
+    if (dockState.lastWin) {
+      dockState.htmlScopePref = htmlScopeEnabled(dockState.lastWin);
     }
 
-    dock.htmlFull = parts.html ?? '';
-    dock.cssFull = parts.css ?? '';
+    dockState.htmlFull = parts.html ?? '';
+    dockState.cssFull = parts.css ?? '';
 
     for (const handle of HANDLES) {
       const view = editors[handle];
@@ -93,9 +93,9 @@ export function writeParts(parts, disabled) {
       } catch {
         text =
           handle === 'html'
-            ? dock.htmlFull || parts.html || ''
+            ? dockState.htmlFull || parts.html || ''
             : handle === 'css'
-              ? dock.cssFull || parts.css || ''
+              ? dockState.cssFull || parts.css || ''
               : text;
       }
 
@@ -119,24 +119,24 @@ export function writeParts(parts, disabled) {
       }
     }
   } finally {
-    dock.applying = false;
+    dockState.applying = false;
   }
 
   rememberBracketNames();
   rememberCssSelectors();
   emit('dock:html-changed');
 
-  if (dock.lastWin) {
-    paintCssToolState(dock.lastWin);
-    paintHtmlToolState(dock.lastWin);
-    paintHtmlScope(dock.lastWin);
+  if (dockState.lastWin) {
+    paintCssToolState(dockState.lastWin);
+    paintHtmlToolState(dockState.lastWin);
+    paintHtmlScope(dockState.lastWin);
     // The Tailwind row holds offsets into the file it was drawn from, and the
     // whole file just changed under it. The editor's own update listener is no
     // help here: it is skipped while `applying` is on, which is exactly when a
     // load, an unlock or a refresh swaps the document. Without this the row
     // kept pointing at the section's tag after a component was opened, and the
     // + menu wrote nothing because those offsets no longer land on a `<`.
-    syncTwTarget(dock.lastWin);
+    syncTwTarget(dockState.lastWin);
   }
 }
 
@@ -440,9 +440,9 @@ function inferRuleIndent(view, rule) {
 function finishCssEdit() {
   editors.css?.focus();
 
-  if (dock.lastWin) {
-    onEditorInput(dock.lastWin);
-    paintCssToolState(dock.lastWin);
+  if (dockState.lastWin) {
+    onEditorInput(dockState.lastWin);
+    paintCssToolState(dockState.lastWin);
   }
 }
 
@@ -486,7 +486,7 @@ function cssRuleSelector(view, rule) {
  * given a second, nested one saying the same thing.
  */
 function cssStateRule(view, rule) {
-  if (!dock.cssState || !rule) {
+  if (!dockState.cssState || !rule) {
     return rule;
   }
 
@@ -630,7 +630,7 @@ export function currentFlexDecls() {
 
   // With a state picked, the row must light up for what `.card:hover` has —
   // otherwise every button looks off the moment you switch to hover.
-  if (dock.cssState && view) {
+  if (dockState.cssState && view) {
     const stateRule = cssExistingStateRule(view, rule);
 
     return stateRule ? parseCssDecls(stateRule.text) : {};
@@ -797,9 +797,9 @@ function clearCssProperty(property) {
   removeCssLine(view, line);
   view.focus();
 
-  if (dock.lastWin) {
-    onEditorInput(dock.lastWin);
-    paintCssToolState(dock.lastWin);
+  if (dockState.lastWin) {
+    onEditorInput(dockState.lastWin);
+    paintCssToolState(dockState.lastWin);
   }
 }
 
@@ -822,9 +822,9 @@ function applyCssSnippet(text) {
     insertCssAtCursor(want);
     view.focus();
 
-    if (dock.lastWin) {
-      onEditorInput(dock.lastWin);
-      paintCssToolState(dock.lastWin);
+    if (dockState.lastWin) {
+      onEditorInput(dockState.lastWin);
+      paintCssToolState(dockState.lastWin);
     }
 
     return;
@@ -832,9 +832,9 @@ function applyCssSnippet(text) {
 
   view.focus();
 
-  if (dock.lastWin) {
-    onEditorInput(dock.lastWin);
-    paintCssToolState(dock.lastWin);
+  if (dockState.lastWin) {
+    onEditorInput(dockState.lastWin);
+    paintCssToolState(dockState.lastWin);
   }
 }
 
@@ -890,7 +890,7 @@ export function paintCssToolState(win) {
  * exactly the same rules because they are the same kind of thing.
  */
 function paintCssToolStateInner(win) {
-  const tw = dock.styleMode === 'tw';
+  const tw = dockState.styleMode === 'tw';
   const decls = tw ? {} : currentFlexDecls();
   // Is this a flex container? Asked of whichever language is on screen, so
   // alignment appears under the same condition in both.
@@ -918,7 +918,7 @@ function paintCssToolStateInner(win) {
         title: kid.title,
         icon: CSS_TOOL_ICONS[kid.icon] || '',
         sep: !!kid.sep,
-        open: dock.cssOpenMenu === kid.id,
+        open: dockState.cssOpenMenu === kid.id,
         active: tw
           ? isSet(kid)
           : kid.kind === 'display'
@@ -934,7 +934,7 @@ function paintCssToolStateInner(win) {
       id: tool.id,
       title: tool.title,
       icon: CSS_TOOL_ICONS[tool.id] || TW_TOOL_ICONS[tool.id] || '',
-      open: dock.cssOpenTool === tool.id || dock.cssOpenMenu === tool.id,
+      open: dockState.cssOpenTool === tool.id || dockState.cssOpenMenu === tool.id,
       kids,
       // A parent is lit when it is set, or when any of its children is: Padding
       // is on whether the file says `padding` or only `padding-block-start`.
@@ -949,7 +949,7 @@ function paintCssToolStateInner(win) {
 export function closeCssMenu(doc) {
   const menu = doc?.getElementById(CSS_MENU_ID);
 
-  dock.cssOpenMenu = '';
+  dockState.cssOpenMenu = '';
 
   menu?._sveApp?.unmount();
   menu?.remove();
@@ -972,14 +972,14 @@ export function closeCodeDockPopups(doc) {
 }
 
 function loadThemeColors(win) {
-  if (dock.cssColorsPromise) {
-    return dock.cssColorsPromise;
+  if (dockState.cssColorsPromise) {
+    return dockState.cssColorsPromise;
   }
 
   const cpUrl =
     win.Statamic?.$config?.get?.('cpUrl') || `/${win.Statamic?.$config?.get?.('cpRoute') || 'cp'}`;
 
-  dock.cssColorsPromise = win
+  dockState.cssColorsPromise = win
     .fetch(`${cpUrl}/color-scheme/swatches`, {
       credentials: 'same-origin',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -1024,7 +1024,7 @@ function loadThemeColors(win) {
       return out;
     });
 
-  return dock.cssColorsPromise;
+  return dockState.cssColorsPromise;
 }
 
 function markCssMenuActive(menu, property) {
