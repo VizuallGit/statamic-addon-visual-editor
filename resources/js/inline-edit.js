@@ -2567,8 +2567,5 @@ export function saveSectionDialog(win, section, onSave) {
     },
   });
 }
-Object.defineProperty(sve, 'editSession', { get() { return editSession; }, set(v) { editSession = v; } });
 sve.unwrapRef = unwrapRef; // standalone scripts still read this off window.sve — goes with WP6
-Object.defineProperty(sve, 'entryValuesBaseline', { get() { return entryValuesBaseline; }, set(v) { entryValuesBaseline = v; } });
-Object.defineProperty(sve, 'entrySaveSettling', { get() { return entrySaveSettling; }, set(v) { entrySaveSettling = v; } });
 sve.activeContainers = activeContainers; // standalone html-tree-section-sync.js still reads this off window.sve — goes with WP6

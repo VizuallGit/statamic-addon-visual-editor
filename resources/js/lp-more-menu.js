@@ -20,6 +20,8 @@ import { featureOn } from './lib/config.js';
 import { persistDockedPanel, setLpMode } from './lp-panel.js';
 import { applyLpEditorWidth } from './focus-panel.js';
 import { closeSectionPicker, syncPreviewInset } from './section-library.js';
+import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
+import { closeOutlinePanel } from './lazy/outline.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -77,11 +79,11 @@ function clampWidth(win, px) {
 
 function closeTool(win, key) {
   if (key === 'listview') {
-    sve.closeListViewPanel?.(win);
+    closeListViewPanel(win);
   } else if (key === 'outline') {
-    sve.closeOutlinePanel?.(win);
+    closeOutlinePanel(win);
   } else if (key === 'comments') {
-    sve.closeCommentsPanel?.(win);
+    closeCommentsPanel(win);
   } else if (key === 'sections') {
     closeSectionPicker(win);
   } else if (key === 'ai') {

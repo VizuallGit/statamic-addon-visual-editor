@@ -15,7 +15,7 @@ import { publishContainers } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, ensureSoloStyle, markSoloPath, paintFocusHeader, soloRoot } from './focus-panel.js';
 import { closeRightPanels, hideGlobalsPanel, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
-import { chromeGlobalHandle, clearGlobalsStash, globalSets, lockChromeGlobalsTab, notifyChromeDirty, notifyGlobalSectionDirty, openGlobalsPanel, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
+import { activeChromeKind, chromeGlobalHandle, chromeIgnoreValuePostsUntil, clearGlobalsStash, globalSets, globalsAcceptValues, lockChromeGlobalsTab, notifyChromeDirty, notifyGlobalSectionDirty, openGlobalsPanel, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
 import { flushPendingEditUntilPanel } from './inline-edit.js';
 import { fetchInertiaPage, flushPendingFocusUntilPanel, hidePageFieldsForGlobalSection, mountBorrowedForm, postSectionValues, revealSectionPanelFrame, sectionPanelContainer, showPageFieldsAgain } from './global-section.js';
 
@@ -570,13 +570,13 @@ export function watchChromeInlineValues(win, handle) {
 
     // Inside the settle window after an open or a save, what arrives is the form
     // agreeing with what is on disk — that is the clean state, not an edit.
-    if (Date.now() < sve.chromeIgnoreValuePostsUntil) {
+    if (Date.now() < chromeIgnoreValuePostsUntil) {
       sveState.chromeValuesBaseline = serialized;
 
       return;
     }
 
-    if (!sve.globalsAcceptValues) {
+    if (!globalsAcceptValues) {
       return;
     }
 
@@ -803,20 +803,20 @@ export function listenForGlobalsValues(win) {
     }
 
     // Discard/reload in progress — ignore stale polls from the old form.
-    if (!sve.globalsAcceptValues) {
+    if (!globalsAcceptValues) {
       return;
     }
 
     const serialized = JSON.stringify(data.values ?? {});
 
     // Tab-lock / remount after entering chrome mutates the form once — treat as baseline, not dirty.
-    if (sve.activeChromeKind && Date.now() < sve.chromeIgnoreValuePostsUntil) {
+    if (activeChromeKind && Date.now() < chromeIgnoreValuePostsUntil) {
       sveState.chromeValuesBaseline = serialized;
 
       return;
     }
 
-    if (sve.activeChromeKind && sveState.chromeValuesBaseline !== null && serialized === sveState.chromeValuesBaseline) {
+    if (activeChromeKind && sveState.chromeValuesBaseline !== null && serialized === sveState.chromeValuesBaseline) {
       return;
     }
 
@@ -827,4 +827,3 @@ export function listenForGlobalsValues(win) {
     postGlobals(win, data.handle, data.values);
   });
 }
-Object.defineProperty(sve, 'chromeInlineKind', { get() { return chromeInlineKind; }, set(v) { chromeInlineKind = v; } });

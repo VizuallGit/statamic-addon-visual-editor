@@ -631,13 +631,3 @@ export function jumpToOutlineEntry(win, index, item) {
     focusFromPreview(item.uid, win.document, win, { clampToSection: true });
   }
 }
-Object.defineProperty(sve, 'outlineItems', { get() { return outlineItems; }, set(v) { outlineItems = v; } });
-Object.defineProperty(sve, 'outlineActive', { get() { return outlineActive; }, set(v) { outlineActive = v; } });
-Object.defineProperty(sve, 'outlineAnswered', { get() { return outlineAnswered; }, set(v) { outlineAnswered = v; } });
-sve.watchOutlineInPreview = watchOutlineInPreview;
-Object.defineProperty(sve, 'outlineWatching', { get() { return outlineWatching; }, set(v) { outlineWatching = v; } });
-sve.closeOutlinePanel = closeOutlinePanel;
-sve.fillOutlinePane = fillOutlinePane;
-sve.showOutlinePane = showOutlinePane;
-sve.toggleOutlinePanel = toggleOutlinePanel;
-sve.handleOutline = handleOutline;

@@ -13,7 +13,7 @@ import { unwrapRef } from './lib/values.js';
 import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { ENTRY_EDIT_PATH } from './lib/ids.js';
 import { publishContainers } from './lib/publish-containers.js';
-import { scheduleEntryBaseline, scheduleEntryBaselineAfterSave, serializeEntryValues } from './inline-edit.js';
+import { entrySaveSettling, entryValuesBaseline, scheduleEntryBaseline, scheduleEntryBaselineAfterSave, serializeEntryValues } from './inline-edit.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -483,17 +483,17 @@ export function disarmUnloadWarning(win) {
 export function hasUnsavedChanges(win) {
   // Save just landed; the form is being rewritten from the response. That
   // rewrite is not unsaved work — it's the saved values arriving.
-  if (sve.entrySaveSettling) {
+  if (entrySaveSettling) {
     return false;
   }
 
   // Value-diff against the clean baseline — the authoritative signal for the
   // back button. Falls through only before the baseline exists.
-  if (sve.entryValuesBaseline != null) {
+  if (entryValuesBaseline != null) {
     const now = serializeEntryValues();
 
     if (now != null) {
-      return now !== sve.entryValuesBaseline;
+      return now !== entryValuesBaseline;
     }
   }
 

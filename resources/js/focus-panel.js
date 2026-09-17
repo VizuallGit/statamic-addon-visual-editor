@@ -69,8 +69,9 @@ import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, isGlobals
 import { bootSavedSectionSolo, ensureGlobalsPicker, ensureSectionLibraryButton, hasUnsavedGlobals, parkGlobalsPanel } from './globals-panel.js';
 import { handleSaveSection } from './inline-edit.js';
 import { globalSectionHost } from './global-section.js';
-import { chromeHost, soloChromeTab, watchChromeSolo } from './chrome.js';
+import { chromeHost, chromeInlineKind, soloChromeTab, watchChromeSolo } from './chrome.js';
 import { confirmLeaveGlobalsOverlay, ensureCollectionPicker, handleRequestCloseGlobal } from './pages.js';
+import { gridRowPreview, isGridRowValue, pinDockedPanelsUnderHeader } from './lazy/listview.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -212,8 +213,8 @@ export function leaveSolo(doc, win) {
   // Stepping out of a widget inside the header goes back to the header, the way
   // a block steps back into the section holding it. Leaving the header itself is
   // the bar's job, not this one's.
-  if (chromeHost(doc) && sve.chromeInlineKind) {
-    const kind = sve.chromeInlineKind;
+  if (chromeHost(doc) && chromeInlineKind) {
+    const kind = chromeInlineKind;
 
     clearSolo(doc);
     soloChromeTab(win, doc, kind);
@@ -1334,7 +1335,7 @@ export function focusRowMeta(win, uid, doc) {
   }
 
   if (row && typeof row === 'object') {
-    preview = sve.isGridRowValue(row) ? sve.gridRowPreview(row) : '';
+    preview = isGridRowValue(row) ? gridRowPreview(row) : '';
   }
 
   if (handle) {
@@ -2235,7 +2236,7 @@ export function ensureLpPanelToggleInner(win) {
   }
 
   restoreDockedHeaderPanels(win);
-  sve.pinDockedPanelsUnderHeader(win);
+  pinDockedPanelsUnderHeader(win);
   applyHeaderTab(win);
   openSettingsTab(win);
   applySectionsFieldVisibility(win);

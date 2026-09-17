@@ -59,11 +59,15 @@ import { featureOn, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
 import { clearSolo, focusPanelOn, hideSettingsBar, sectionSettingsFields, soloSection, soloSectionSettings } from './focus-panel.js';
-import { closeChromeDesignsPanel, hasUnsavedGlobals, removeChromeModeToggles, setActiveChromeKind, unlockChromeGlobalsTabs } from './globals-panel.js';
+import { activeChromeKind, closeChromeDesignsPanel, hasUnsavedGlobals, removeChromeModeToggles, setActiveChromeKind, unlockChromeGlobalsTabs } from './globals-panel.js';
 import { savePageAsTemplate } from './inline-edit.js';
 import { closeGlobalSectionPanel, globalSectionEditorOpen, openGlobalSectionPanel } from './global-section.js';
 import { closeChromeInline } from './chrome.js';
 import { confirmLeaveGlobalsOverlay } from './pages.js';
+import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
+import { closeHtmlTreePanel } from './lazy/html-tree.js';
+import { closeOutlinePanel } from './lazy/outline.js';
+import { closePerformancePanel } from './lazy/performance.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -1682,7 +1686,7 @@ export function closeSectionPicker(win) {
 
 /** True while editing header/footer chrome or a global section. */
 export function isSectionLibraryLocked(win) {
-  return !!sve.activeChromeKind || globalSectionEditorOpen(win.document);
+  return !!activeChromeKind || globalSectionEditorOpen(win.document);
 }
 
 /**
@@ -1763,7 +1767,7 @@ export function syncSectionLibraryAvailability(win) {
 
   if (locked) {
     closeSectionPicker(win);
-    sve.closeOutlinePanel?.(win);
+    closeOutlinePanel(win);
 
     if (btn) {
       btn.style.display = 'none';
@@ -1949,23 +1953,23 @@ export function closeRightPanelsInner(win, keepIds) {
   }
 
   if (!keepIds.includes(OUTLINE_PANEL_ID)) {
-    sve.closeOutlinePanel?.(win);
+    closeOutlinePanel(win);
   }
 
   if (!keepIds.includes(HTML_TREE_PANEL_ID)) {
-    sve.closeHtmlTreePanel?.(win);
+    closeHtmlTreePanel(win);
   }
 
   if (!keepIds.includes(PERF_PANEL_ID)) {
-    sve.closePerformancePanel?.(win);
+    closePerformancePanel(win);
   }
 
   if (!keepIds.includes(LISTVIEW_PANEL_ID)) {
-    sve.closeListViewPanel?.(win);
+    closeListViewPanel(win);
   }
 
   if (!keepIds.includes(COMMENTS_PANEL_ID)) {
-    sve.closeCommentsPanel?.(win);
+    closeCommentsPanel(win);
   }
 
   if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(GLOBAL_SECTION_HOST_ID)) {

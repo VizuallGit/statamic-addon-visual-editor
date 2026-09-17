@@ -27,6 +27,9 @@ import { t } from './lib/i18n.js';
 import { attachDock, dockParent } from './lib/dock-host.js';
 import { beginOverlayDrag } from './lib/drag.js';
 import { closeSectionPicker } from './section-library.js';
+import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
+import { closeHtmlTreePanel } from './lazy/html-tree.js';
+import { closeOutlinePanel } from './lazy/outline.js';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -588,13 +591,13 @@ function closeDockPane(win, panel) {
   const key = paneKeyOf(panel);
 
   if (key === 'listview') {
-    sve.closeListViewPanel?.(win);
+    closeListViewPanel(win);
   } else if (key === 'outline') {
-    sve.closeOutlinePanel?.(win);
+    closeOutlinePanel(win);
   } else if (key === 'html_tree') {
-    sve.closeHtmlTreePanel?.(win);
+    closeHtmlTreePanel(win);
   } else if (key === 'comments') {
-    sve.closeCommentsPanel?.(win);
+    closeCommentsPanel(win);
   } else if (key === 'sections') {
     closeSectionPicker(win);
   } else {

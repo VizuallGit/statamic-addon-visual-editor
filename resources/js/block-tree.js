@@ -44,6 +44,7 @@ import { persistDockedPanel } from './lp-panel.js';
 import { focusBack, focusFromPreview, focusRowMeta, gridMeta, paintFocusHeader, setMeta } from './focus-panel.js';
 import { closeRightPanels, globalSectionSet, handleDuplicateRow, handleHideRow, handleRemoveRow, mountSectionPicker, placeGlobalsOverlay, rowLocation, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { handleMove } from './inline-edit.js';
+import { fillOutlinePane, showOutlinePane, watchOutlineInPreview } from './lazy/outline.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -269,7 +270,7 @@ export function closeListViewPanel(win) {
   stopWatchListViewValues(win);
 
   if (!win.document.getElementById(OUTLINE_PANEL_ID)) {
-    sve.watchOutlineInPreview(win, false);
+    watchOutlineInPreview(win, false);
   }
 
   releaseRightShellIfEmpty(win);
@@ -1654,9 +1655,9 @@ export function registerRightDockContent() {
     show: showListViewPane,
   });
   registerRightDockHook('outline', {
-    fill: sve.fillOutlinePane,
-    show: sve.showOutlinePane,
-    hide: (win) => sve.watchOutlineInPreview(win, false),
+    fill: fillOutlinePane,
+    show: showOutlinePane,
+    hide: (win) => watchOutlineInPreview(win, false),
   });
   registerRightDockHook('sections', {
     fill: (win) => mountSectionPicker(win),
@@ -1759,25 +1760,5 @@ export function setListViewTab(win, tab) {
   mountPane(body, ListViewBody, { hint: t(win, 'listview_hint') });
   renderListView(win);
 }
-Object.defineProperty(sve, 'listViewRoots', { get() { return listViewRoots; }, set(v) { listViewRoots = v; } });
-Object.defineProperty(sve, 'listViewActiveUid', { get() { return listViewActiveUid; }, set(v) { listViewActiveUid = v; } });
-Object.defineProperty(sve, 'listViewDragUid', { get() { return listViewDragUid; }, set(v) { listViewDragUid = v; } });
-Object.defineProperty(sve, 'listViewStarted', { get() { return listViewStarted; }, set(v) { listViewStarted = v; } });
-Object.defineProperty(sve, 'listViewLockObserver', { get() { return listViewLockObserver; }, set(v) { listViewLockObserver = v; } });
-sve.listViewPanel = listViewPanel;
-Object.defineProperty(sve, 'dockedPanelTopLast', { get() { return dockedPanelTopLast; }, set(v) { dockedPanelTopLast = v; } });
-sve.dockedPanelTop = dockedPanelTop;
-sve.pinDockedPanelsUnderHeader = pinDockedPanelsUnderHeader;
-sve.closeListViewPanel = closeListViewPanel;
 sve.isBlockRow = isBlockRow;
-sve.isGridRowValue = isGridRowValue;
-sve.gridRowPreview = gridRowPreview;
-sve.blockRowUid = blockRowUid;
-sve.listViewSyncTo = listViewSyncTo;
-sve.fillListViewPane = fillListViewPane;
-sve.showListViewPane = showListViewPane;
 sve.registerRightDockContent = registerRightDockContent;
-sve.toggleListViewPanel = toggleListViewPanel;
-sve.commentsPanel = commentsPanel;
-sve.closeCommentsPanel = closeCommentsPanel;
-sve.toggleCommentsPanel = toggleCommentsPanel;

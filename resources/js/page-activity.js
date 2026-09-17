@@ -282,6 +282,3 @@ export function togglePageEdits(win) {
 
   loadActivity(win, id).then(open);
 }
-
-sve.pageEditsOpen = pageEditsOpen;
-sve.togglePageEdits = togglePageEdits;

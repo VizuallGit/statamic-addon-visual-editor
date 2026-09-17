@@ -84,11 +84,18 @@ import { autoOpenPanel, findLpSaveButton, lpHeaderBg, lpMode, lpModeSeparator, p
 import { ensureLpPanelToggle, ensureLpWidthPicker, focusFieldOwner, focusFromPreview, focusPanelOn, leaveSolo, markStepIntoAll, persistLpWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 import { closeRightPanels, closeSectionPicker, dismissChromeForPageEdit, formHasSectionField, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, isGlobalsOverlayOpen, isSectionLibraryLocked, openSectionPicker, overlaySidTemplate, paintFocusLockedTabs, rowLocation, syncPreviewInset, syncSectionLibraryAvailability, watchNewRow } from './section-library.js';
 import { bootSavedSectionSolo, discardGlobalsChanges, ensurePreviewOutsideDismiss, handleOpenChrome, handleOpenGlobal, hasUnsavedGlobals, hasUnsavedWork, initGlobalsPanelFrame, notifyChromeDirty, notifyGlobalSectionDirty, saveGlobalsPanel, setChromeSidebarMode } from './globals-panel.js';
-import { clearEntryBaseline, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest, markEntryFormClean, scheduleEntryBaseline } from './inline-edit.js';
+import { clearEntryBaseline, editSession, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest, markEntryFormClean, scheduleEntryBaseline } from './inline-edit.js';
 import { clearSectionsStash, closeGlobalSectionPanel, forwardGlobalSectionFocus, globalSectionEditorOpen, hasUnsavedGlobalSection, saveGlobalSectionPanel, sectionPanelContainer } from './global-section.js';
 import { listenForGlobalsValues, listenForSectionValues } from './chrome.js';
 import { claimOrigin, disarmUnloadWarning, discardChanges, dismissDirtyWarning, forgetOrigin, hasUnsavedChanges, initOpenInPreview, leaveQuietly, onEntrySave, originForCurrentEntry, publishButtonIn, saveButtonIn, watchEntrySaves } from './open-in-preview.js';
 import { confirmCloseDiscard, confirmUnsaved, handleRequestCloseChrome, handleRequestCloseGlobal, hideNavSpinner, saveThenNavigate } from './pages.js';
+import { blockRowUid, closeListViewPanel, commentsPanel, listViewPanel, listViewSyncTo, pinDockedPanelsUnderHeader, toggleCommentsPanel, toggleListViewPanel } from './lazy/listview.js';
+import { armHtmlTreePrefetch, closeHtmlTreePanel, toggleHtmlTreePanel } from './lazy/html-tree.js';
+import { closeOutlinePanel, handleOutline, toggleOutlinePanel } from './lazy/outline.js';
+import { closePerformancePanel, togglePerformancePanel } from './lazy/performance.js';
+import { pageEditsOpen, togglePageEdits } from './lazy/page-activity.js';
+import { closeSchema, isSchemaOpen, schemaAllowed, toggleSchema } from './lazy/schema.js';
+import { aiTextAllowed, handleAiTextApply, handleAiTextGenerate, handleAiTextOpen, handleAiTextSetKeywords, isAiTextOn, syncAiTextToPreview, toggleAiText } from './lazy/ai-text.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -2309,7 +2316,7 @@ export function restoreDockedHeaderPanels(win) {
 
   const showing = (key) => {
     if (key === 'listview') {
-      return !!sve.listViewPanel?.(win.document) || isRightPanelInDom(win, 'listview');
+      return !!listViewPanel(win.document) || isRightPanelInDom(win, 'listview');
     }
 
     if (key === 'outline') {
@@ -2329,7 +2336,7 @@ export function restoreDockedHeaderPanels(win) {
     }
 
     if (key === 'comments') {
-      return !!sve.commentsPanel?.(win.document) || isRightPanelInDom(win, 'comments');
+      return !!commentsPanel(win.document) || isRightPanelInDom(win, 'comments');
     }
 
     if (key === 'ai') {
@@ -2428,8 +2435,8 @@ export async function ensureRightTool(win, key) {
   }
 
   if (key === 'listview') {
-    if (!sve.listViewPanel?.(win.document)) {
-      sve.toggleListViewPanel?.(win);
+    if (!listViewPanel(win.document)) {
+      toggleListViewPanel(win);
     }
 
     return;
@@ -2437,7 +2444,7 @@ export async function ensureRightTool(win, key) {
 
   if (key === 'outline') {
     if (!win.document.getElementById(OUTLINE_PANEL_ID)) {
-      sve.toggleOutlinePanel?.(win);
+      toggleOutlinePanel(win);
     }
 
     return;
@@ -2445,7 +2452,7 @@ export async function ensureRightTool(win, key) {
 
   if (key === 'html_tree') {
     if (!win.document.getElementById(HTML_TREE_PANEL_ID)) {
-      sve.toggleHtmlTreePanel?.(win);
+      toggleHtmlTreePanel(win);
     }
 
     return;
@@ -2453,7 +2460,7 @@ export async function ensureRightTool(win, key) {
 
   if (key === 'performance') {
     if (!win.document.getElementById(PERF_PANEL_ID)) {
-      sve.togglePerformancePanel?.(win);
+      togglePerformancePanel(win);
     }
 
     return;
@@ -2468,15 +2475,15 @@ export async function ensureRightTool(win, key) {
   }
 
   if (key === 'comments') {
-    if (!sve.commentsPanel?.(win.document)) {
-      sve.toggleCommentsPanel?.(win);
+    if (!commentsPanel(win.document)) {
+      toggleCommentsPanel(win);
     }
 
     return;
   }
 
   if (key === 'edits') {
-    sve.togglePageEdits?.(win);
+    togglePageEdits(win);
   }
 }
 
@@ -2708,7 +2715,7 @@ export function ensureHeaderToolbar(win) {
             hidePanelWait(win);
           }
 
-          sve.toggleCommentsPanel?.(win);
+          toggleCommentsPanel(win);
           persistDockedPanel(win);
           applyHeaderTab(win);
           syncPreviewInset(win);
@@ -2738,7 +2745,7 @@ export function ensureHeaderToolbar(win) {
       if (tab.key === 'edits') {
         void (async () => {
           await ensurePanel('edits');
-          sve.togglePageEdits?.(win);
+          togglePageEdits(win);
           applyHeaderTab(win);
         })();
 
@@ -3086,7 +3093,7 @@ export function ensurePageEditsToolbarButton(win) {
   btn.addEventListener('click', () => {
     void (async () => {
       await ensurePanel('edits');
-      sve.togglePageEdits?.(win);
+      togglePageEdits(win);
       applyHeaderTab(win);
     })();
   });
@@ -3176,11 +3183,11 @@ export function ensureSchemaToolbarButton(win) {
 
   const existing = bar.querySelector('button[data-tab="schema"]');
 
-  if (!sve.schemaAllowed?.(win)) {
+  if (!schemaAllowed(win)) {
     existing?.remove();
 
-    if (sve.isSchemaOpen?.(doc)) {
-      sve.closeSchema?.(win);
+    if (isSchemaOpen(doc)) {
+      closeSchema(win);
     }
 
     return;
@@ -3200,7 +3207,7 @@ export function ensureSchemaToolbarButton(win) {
   btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
-  btn.addEventListener('click', () => sve.toggleSchema?.(win));
+  btn.addEventListener('click', () => toggleSchema(win));
 
   const aitext = bar.querySelector('button[data-tab="aitext"]');
 
@@ -3229,7 +3236,7 @@ export function ensureAiTextToolbarButton(win) {
 
   const existing = bar.querySelector('button[data-tab="aitext"]');
 
-  if (!sve.aiTextAllowed?.(win)) {
+  if (!aiTextAllowed(win)) {
     existing?.remove();
 
     return;
@@ -3238,7 +3245,7 @@ export function ensureAiTextToolbarButton(win) {
   if (existing) {
     // The highlight is applyHeaderTab's job, through paintLpActiveControl —
     // the same helper every other icon in this bar is painted by.
-    sve.syncAiTextToPreview?.(win);
+    syncAiTextToPreview(win);
 
     return;
   }
@@ -3248,12 +3255,12 @@ export function ensureAiTextToolbarButton(win) {
   btn.type = 'button';
   btn.dataset.tab = 'aitext';
   btn.dataset.iconVer = 'stairs-toc-20260821';
-  btn.title = t(win, sve.isAiTextOn?.(win) ? 'ai_text_on' : 'ai_text_off');
+  btn.title = t(win, isAiTextOn(win) ? 'ai_text_on' : 'ai_text_off');
   btn.innerHTML = TOOLBAR_ICONS.aitext;
   btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
-  btn.addEventListener('click', () => sve.toggleAiText?.(win));
+  btn.addEventListener('click', () => toggleAiText(win));
 
   const ai = bar.querySelector('button[data-tab="ai"]');
 
@@ -3263,10 +3270,10 @@ export function ensureAiTextToolbarButton(win) {
     bar.appendChild(btn);
   }
 
-  paintLpActiveControl(btn, !!sve.isAiTextOn?.(win));
+  paintLpActiveControl(btn, !!isAiTextOn(win));
 
-  if (sve.isAiTextOn?.(win)) {
-    sve.syncAiTextToPreview?.(win);
+  if (isAiTextOn(win)) {
+    syncAiTextToPreview(win);
   }
 }
 
@@ -3369,8 +3376,8 @@ export function toggleHeaderTab(win, key) {
       key: 'outline',
       want: !active,
       isOpen: () => !!win.document.getElementById(OUTLINE_PANEL_ID),
-      open: () => sve.toggleOutlinePanel?.(win),
-      close: () => sve.closeOutlinePanel?.(win),
+      open: () => toggleOutlinePanel(win),
+      close: () => closeOutlinePanel(win),
     });
 
     return;
@@ -3384,8 +3391,8 @@ export function toggleHeaderTab(win, key) {
       key: 'performance',
       want: !active,
       isOpen: () => !!win.document.getElementById(PERF_PANEL_ID),
-      open: () => sve.togglePerformancePanel?.(win),
-      close: () => sve.closePerformancePanel?.(win),
+      open: () => togglePerformancePanel(win),
+      close: () => closePerformancePanel(win),
     });
 
     return;
@@ -3397,24 +3404,24 @@ export function toggleHeaderTab(win, key) {
       key: 'html_tree',
       want: !active,
       isOpen: () => !!win.document.getElementById(HTML_TREE_PANEL_ID),
-      open: () => sve.toggleHtmlTreePanel?.(win),
-      close: () => sve.closeHtmlTreePanel?.(win),
+      open: () => toggleHtmlTreePanel(win),
+      close: () => closeHtmlTreePanel(win),
     });
 
     return;
   }
 
   if (key === 'listview') {
-    const open = !!sve.listViewPanel?.(win.document) || isRightPanelInDom(win, 'listview');
+    const open = !!listViewPanel(win.document) || isRightPanelInDom(win, 'listview');
 
     setHeaderTab(win, open ? null : 'listview');
     void runDockedTool(win, {
       key: 'listview',
       want: !open,
       isOpen: () =>
-        !!sve.listViewPanel?.(win.document) || isRightPanelInDom(win, 'listview'),
-      open: () => sve.toggleListViewPanel?.(win),
-      close: () => sve.closeListViewPanel?.(win),
+        !!listViewPanel(win.document) || isRightPanelInDom(win, 'listview'),
+      open: () => toggleListViewPanel(win),
+      close: () => closeListViewPanel(win),
     });
 
     return;
@@ -3713,7 +3720,7 @@ function scheduleHtmlTreePrefetch(win) {
 
   const arm = () => {
     sve.htmlTreePrefetchArmed = true;
-    sve.armHtmlTreePrefetch?.(win);
+    armHtmlTreePrefetch(win);
   };
 
   if (typeof win.requestIdleCallback === 'function') {
@@ -3881,11 +3888,11 @@ export function applyHeaderTab(win) {
   // what is in front of you.
   const docked = {
     sections: !!doc.getElementById(SECTION_PICKER_ID),
-    listview: !!sve.listViewPanel?.(doc),
+    listview: !!listViewPanel(doc),
     outline: !!doc.getElementById(OUTLINE_PANEL_ID),
     html_tree: !!doc.getElementById(HTML_TREE_PANEL_ID),
     performance: !!doc.getElementById(PERF_PANEL_ID),
-    comments: !!sve.commentsPanel?.(doc),
+    comments: !!commentsPanel(doc),
     ai: isAiPanelOpen(doc),
   };
 
@@ -3907,11 +3914,11 @@ export function applyHeaderTab(win) {
           : tab === 'site_css'
             ? isSiteCssOpen(win.document)
           : tab === 'edits'
-            ? !!sve.pageEditsOpen?.()
+            ? !!pageEditsOpen()
           : tab === 'aitext'
-            ? !!sve.isAiTextOn?.(win)
+            ? !!isAiTextOn(win)
           : tab === 'schema'
-            ? !!sve.isSchemaOpen?.(win.document)
+            ? !!isSchemaOpen(win.document)
           : tab === 'globals'
             ? sveState.headerTab === 'globals' || !!isGlobalsOverlayOpen(win)
           : tab in docked
@@ -4055,7 +4062,7 @@ export function openFirstSectionOnce(win) {
       return;
     }
 
-    const uid = sve.blockRowUid?.(rows[0]) || rows[0]?._visual_id || rows[0]?.id || rows[0]?._id || '';
+    const uid = blockRowUid(rows[0]) || rows[0]?._visual_id || rows[0]?.id || rows[0]?._id || '';
 
     if (!uid) {
       return;
@@ -7389,7 +7396,7 @@ export function createMessageListener(doc = document, win = window) {
       // different functions — a field click with the focus panel on never reaches
       // `focusFromPreview` — and "the preview reported a click" is true of all of
       // them exactly once.
-      sve.listViewSyncTo?.(win, data.scope, data.uid);
+      listViewSyncTo(win, data.scope, data.uid);
       applyDeclaredDefaults(data, doc);
 
       // Template dock follows the section in publish values. Opening the left
@@ -7444,20 +7451,20 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'block-format') {
       handleBlockFormat(data, doc);
     } else if (data.type === 'outline') {
-      sve.handleOutline?.(data, win);
+      handleOutline(data, win);
     } else if (data.type === 'open-panel-field') {
       // Pencil / "finish in panel": focus the field in the synced-section iframe
       // when that is the active editor — same path as a preview click.
       const iwin = globalSectionEditorWin(win);
 
-      if (iwin && sve.editSession?.container?.name === 'sve-global-section' && sve.editSession.field) {
+      if (iwin && editSession?.container?.name === 'sve-global-section' && editSession.field) {
         setLpCollapsed(win, false);
         iwin.postMessage(
           {
             source: 'statamic-visual-editor',
             type: 'sve-section-focus',
-            uid: sve.editSession.scope || null,
-            field: sve.editSession.field,
+            uid: editSession.scope || null,
+            field: editSession.field,
           },
           win.location.origin
         );
@@ -7469,7 +7476,7 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'bard-command') {
       const idoc = globalSectionEditorDoc(doc);
 
-      if (idoc && sve.editSession?.container?.name === 'sve-global-section') {
+      if (idoc && editSession?.container?.name === 'sve-global-section') {
         handleBardCommand(data, idoc, globalSectionEditorWin(win) || win);
       } else {
         handleBardCommand(data, doc, win);
@@ -7486,7 +7493,7 @@ export function createMessageListener(doc = document, win = window) {
       const idoc = globalSectionEditorDoc(doc);
       const iwin = globalSectionEditorWin(win);
 
-      if (idoc && iwin && sve.editSession?.container?.name === 'sve-global-section') {
+      if (idoc && iwin && editSession?.container?.name === 'sve-global-section') {
         handleLinkEdit(data, idoc, iwin);
       } else {
         handleLinkEdit(data, doc, win);
@@ -7562,15 +7569,15 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'open-global-section') {
       handleOpenGlobalSection(data, win);
     } else if (data.type === 'ai-text-hello') {
-      sve.syncAiTextToPreview?.(win);
+      syncAiTextToPreview(win);
     } else if (data.type === 'ai-text-open') {
-      sve.handleAiTextOpen?.(data, doc, win);
+      handleAiTextOpen(data, doc, win);
     } else if (data.type === 'ai-text-generate') {
-      sve.handleAiTextGenerate?.(data, doc, win);
+      handleAiTextGenerate(data, doc, win);
     } else if (data.type === 'ai-text-apply') {
-      sve.handleAiTextApply?.(data, doc, win);
+      handleAiTextApply(data, doc, win);
     } else if (data.type === 'ai-text-set-keywords') {
-      sve.handleAiTextSetKeywords?.(data, doc, win);
+      handleAiTextSetKeywords(data, doc, win);
     } else if (data.type === 'sve-pill-box-request') {
       const pill = doc.getElementById(LP_BACK_ID);
 
@@ -8795,7 +8802,7 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
 
       try {
         restoreDockedHeaderPanels(win);
-        sve.pinDockedPanelsUnderHeader(win);
+        pinDockedPanelsUnderHeader(win);
       } catch (err) {
         console.error('[sve] restoreDockedHeaderPanels', err);
       }

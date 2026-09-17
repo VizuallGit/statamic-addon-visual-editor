@@ -139,7 +139,9 @@ import { featureOn, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { setTypeForUid } from './focus-panel.js';
 import { globalSectionHost } from './global-section.js';
-import { chromeContainer, chromeEditorOpen, chromeHost } from './chrome.js';
+import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from './chrome.js';
+import { closeHtmlTreePanel, openHtmlTreePanel, toggleHtmlTreePanel } from './lazy/html-tree.js';
+import { activeChromeKind } from './globals-panel.js';
 
 let EditorView;
 let keymap;
@@ -2985,7 +2987,7 @@ function syncHtmlTree(win, open) {
 
   if (!open) {
     if (htmlTreeOpen(win)) {
-      sve.closeHtmlTreePanel?.(win);
+      closeHtmlTreePanel(win);
     }
 
     return;
@@ -3003,7 +3005,7 @@ function syncHtmlTree(win, open) {
   void ensurePanel('html_tree')
     .then(() => {
       if (!htmlTreeOpen(win)) {
-        sve.toggleHtmlTreePanel?.(win);
+        toggleHtmlTreePanel(win);
       }
     })
     .catch(() => {
@@ -7580,7 +7582,7 @@ async function ensureDockAsync(win) {
       paintHostWait(host);
     }
 
-    sve.openHtmlTreePanel?.(win);
+    openHtmlTreePanel(win);
   }
 
   attachDock(doc, dock);
@@ -7896,7 +7898,7 @@ export function closeCodeDock(doc) {
   const win = doc?.defaultView || lastWin;
 
   if (win?.document.getElementById(HTML_TREE_PANEL_ID)) {
-    sve.closeHtmlTreePanel?.(win);
+    closeHtmlTreePanel(win);
   }
 
   // `lastType` is already cleared above, so this lifts any component fade —
@@ -8004,7 +8006,7 @@ function collectionViewType(win) {
 }
 
 function chromeTemplateType(win, doc) {
-  const kind = sve.chromeInlineKind || sve.activeChromeKind;
+  const kind = chromeInlineKind || activeChromeKind;
 
   if (kind !== 'header' && kind !== 'footer') {
     return '';

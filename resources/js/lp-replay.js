@@ -17,11 +17,15 @@
  * May import: lib/, preview-section-scope.js. Must not import panels.
  */
 import { previewFrame } from './lib/preview-frame.js';
+import { register } from './cp/bus.js';
 import { captureSectionPreviewScope, watchSectionPreviewScope, wrapSectionPreviewFrame } from './preview-section-scope.js';
 
 // The URL of the most recent preview render, replayed whenever something other
 // than the entry changes. Written only by watchPreviewRenders() below.
 export let lastPreviewUrl = null;
+
+// Panels ask the shell for it rather than importing the replay core.
+register('lp:lastPreviewUrl', () => lastPreviewUrl);
 
 /** The URL the preview iframe is actually showing, not a remembered one. */
 export function frameDocumentUrl(frame) {

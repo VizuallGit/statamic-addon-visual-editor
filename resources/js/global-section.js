@@ -27,6 +27,9 @@ import { clearSolo, focusFieldOwner, hideSettingsBar, lpStoredWidth, placeLpWidt
 import { closeRightPanels, savedSectionsCollection, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
 import { ensureNestedRowIds, expandTopLevelSectionSets, lockChromeGlobalsTab, notifyGlobalSectionDirty, openGlobalsPanel } from './globals-panel.js';
 import { applySectionValues } from './chrome.js';
+import { dockedPanelTop } from './lazy/listview.js';
+import { editSession } from './inline-edit.js';
+import { ask } from './cp/bus.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -263,11 +266,13 @@ export function sectionPanelContainer(doc) {
 export function refreshSections(win, active) {
   const frame = previewFrame(win.document);
 
-  if (!frame?.contentWindow || !sve.lastPreviewUrl) {
+  const url = ask('lp:lastPreviewUrl');
+
+  if (!frame?.contentWindow || !url) {
     return;
   }
 
-  frame.contentWindow.postMessage({ name: 'sve.sections', active, url: sve.lastPreviewUrl }, win.location.origin);
+  frame.contentWindow.postMessage({ name: 'sve.sections', active, url }, win.location.origin);
 }
 
 /** A stash landed while someone was typing — the page owes itself a re-render. */
@@ -290,7 +295,7 @@ export let sectionRefreshPending = false;
  * out of the edit.
  */
 export function refreshSectionsUnlessEditing(win) {
-  if (sve.editSession) {
+  if (editSession) {
     sectionRefreshPending = true;
 
     return;
@@ -730,7 +735,7 @@ export function openGlobalSectionPanelFrame(win, id) {
     editor.appendChild(panel);
   } else {
     // Fallback if LP editor isn't mounted yet — left-docked fixed panel.
-    const top = sve.dockedPanelTop(win);
+    const top = dockedPanelTop(win);
 
     panel.style.cssText =
       `position:fixed;top:${top}px;left:0;bottom:0;width:${lpStoredWidth(win)}px;z-index:40;` +

@@ -596,7 +596,3 @@ export function togglePerformancePanel(win) {
 
   void measureNow(win);
 }
-sve.togglePerformancePanel = togglePerformancePanel;
-sve.closePerformancePanel = closePerformancePanel;
-sve.fillPerfPane = fillPerfPane;
-sve.showPerfPane = showPerfPane;

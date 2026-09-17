@@ -2812,8 +2812,4 @@ export function focusGlobalField(win, field, attempts = 0) {
 }
 
 /** In the Live Preview window: take the values streamed up by the panel. */
-Object.defineProperty(sve, 'lastPreviewUrl', { get() { return lastPreviewUrl; } });
 sve.replayLivePreview = replayLivePreview;
-Object.defineProperty(sve, 'activeChromeKind', { get() { return activeChromeKind; }, set(v) { activeChromeKind = v; } });
-Object.defineProperty(sve, 'globalsAcceptValues', { get() { return globalsAcceptValues; }, set(v) { globalsAcceptValues = v; } });
-Object.defineProperty(sve, 'chromeIgnoreValuePostsUntil', { get() { return chromeIgnoreValuePostsUntil; }, set(v) { chromeIgnoreValuePostsUntil = v; } });

@@ -2468,11 +2468,6 @@ register('html-tree:arm-pick', (on) => {
 
   return true;
 });
-sve.closeHtmlTreePanel = closeHtmlTreePanel;
-sve.fillHtmlTreePane = fillHtmlTreePane;
-sve.showHtmlTreePane = showHtmlTreePane;
-sve.openHtmlTreePanel = openHtmlTreePanel;
-sve.toggleHtmlTreePanel = toggleHtmlTreePanel;
 /**
  * Forget every section template held in memory.
  *
@@ -2488,4 +2483,3 @@ export function clearHtmlTreeTemplates() {
 }
 
 sve.renderHtmlTree = renderHtmlTree;
-sve.armHtmlTreePrefetch = armHtmlTreePrefetch;

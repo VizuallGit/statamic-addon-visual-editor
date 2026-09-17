@@ -584,12 +584,3 @@ function fieldLabel(data, doc) {
 function cssEscape(value) {
   return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(value) : String(value).replace(/["\\]/g, '\\$&');
 }
-
-sve.aiTextAllowed = aiTextAllowed;
-sve.toggleAiText = toggleAiText;
-sve.isAiTextOn = isAiTextOn;
-sve.syncAiTextToPreview = syncAiTextToPreview;
-sve.handleAiTextOpen = handleAiTextOpen;
-sve.handleAiTextGenerate = handleAiTextGenerate;
-sve.handleAiTextApply = handleAiTextApply;
-sve.handleAiTextSetKeywords = handleAiTextSetKeywords;

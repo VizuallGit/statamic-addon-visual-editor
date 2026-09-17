@@ -1,11 +1,10 @@
 /**
  * Load Live Preview tools only when they are opened (or remembered as open).
  *
- * Does not import overlay-host, preview, or bridge. Panel files assign onto
- * `sve` when they load; stubs below keep chrome/globals/focus from throwing
- * before that happens — missing functions were aborting preview clicks
- * (left sidebar stayed on the full section list) and toolbar highlight
- * (right dock never painted as active).
+ * Does not import overlay-host, preview, or bridge. A lazy panel is reached
+ * through its facade in lazy/*.js: the facade asks loadedPanel() for the module
+ * and, while it is away, answers as the old stub did. ensurePanel() resolves
+ * with the module and remembers it, which is what makes that work.
  */
 import { sve } from './cp-registry.js';
 import { sveState } from './cp-state.js';
@@ -17,8 +16,9 @@ import {
   showInRightShell,
 } from './right-dock.js';
 import { injectStyle } from './lib/style.js';
+import { aiTextStoredOn } from './lazy/ai-text.js';
 import { COMMENTS_PANEL_ID, HTML_TREE_PANEL_ID, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
-import { mountSectionPicker, syncSectionLibraryAvailability } from './section-library.js';
+import { mountSectionPicker } from './section-library.js';
 
 export const PANEL_IDS = {
   listview: LISTVIEW_PANEL_ID,
@@ -64,7 +64,14 @@ function loadComments() {
 }
 
 const inflight = {};
+/** Module namespaces of the panels that have loaded, by key — what lazy/*.js answer from. */
+const loaded = {};
 let sectionsWarmed = false;
+
+/** The panel's module when it has loaded, else null. Synchronous on purpose. */
+export function loadedPanel(key) {
+  return loaded[key] || null;
+}
 
 function noop() {}
 
@@ -90,126 +97,38 @@ function stubUntilLoaded(name, key) {
   sve[name] = placeholder;
 }
 
-stub('isSectionLibraryLocked', () => false);
-stub('closeRightPanels', noop);
-stub('syncPreviewInset', noop);
-stub('isGlobalsOverlayOpen', () => false);
-stub('paintFocusLockedTabs', noop);
-stub('dismissChromeForPageEdit', noop);
-stub('hideGlobalsPanel', noop);
-stub('showGlobalsPanel', noop);
-stub('parkGlobalsOverlay', noop);
-stub('attachGlobalsOverlay', noop);
-stub('placeGlobalsOverlay', noop);
-stub('bindGlobalsOverlayLayout', noop);
-stub('pinGlobalsPanelLeft', noop);
-stub('mountInLivePreviewEditor', noop);
-stub('claimLivePreviewEditor', noop);
-stub('listViewSyncTo', noop);
-stub('blockRowUid', (row) => row?._visual_id || row?.id || row?._id || '');
-
-// Block tree helpers the eager code calls before anyone opens the block tree.
-// All four are cosmetic — where a docked panel sits, and how a grid row is
-// labelled — so the honest answer while the module is away is "nothing yet",
-// and the next render asks again once it is here.
-stub('pinDockedPanelsUnderHeader', noop);
-stub('dockedPanelTop', () => 0);
-stub('isGridRowValue', () => false);
-stub('gridRowPreview', () => '');
-
 // The template dock is asked to sync from lite-sections before it is loaded.
 // Route it through the lazy door, which knows whether the dock is even on.
+// (lite-sections.js is a standalone script and still reads this off window.sve — WP6.)
 stub('syncCodeDock', (win, doc, uid) => syncCodeDockLazily(win, doc, uid));
 
-stubUntilLoaded('handleAddRow', 'sections');
-stubUntilLoaded('insertSection', 'sections');
-stubUntilLoaded('handleInsertBardSet', 'sections');
-stubUntilLoaded('handleInsertBlock', 'sections');
-stubUntilLoaded('fillHtmlTreePane', 'html_tree');
-stubUntilLoaded('showHtmlTreePane', 'html_tree');
-stubUntilLoaded('openHtmlTreePanel', 'html_tree');
-stubUntilLoaded('closeHtmlTreePanel', 'html_tree');
-stubUntilLoaded('toggleHtmlTreePanel', 'html_tree');
-stubUntilLoaded('renderHtmlTree', 'html_tree');
-
-stub('schemaAllowed', (win) => win.Statamic?.$config?.get?.('sveFeatures')?.schema === true);
-stub('isSchemaOpen', (doc) => !!doc?.getElementById?.('__sve-schema-panel'));
-stubUntilLoaded('toggleSchema', 'schema');
-stubUntilLoaded('closeSchema', 'schema');
-
-function aiTextStoredOn(win) {
-  try {
-    const store = win.localStorage;
-
-    for (let i = 0; i < store.length; i++) {
-      const key = store.key(i);
-
-      if ((key === 'sve-ai-text-on' || key?.endsWith(':sve-ai-text-on')) && store.getItem(key) === '1') {
-        return true;
-      }
-    }
-  } catch {
-    /* private mode */
-  }
-
-  return false;
-}
-
-stub('aiTextAllowed', (win) => {
-  if (win.Statamic?.$config?.get?.('sveEnabled') === false) {
-    return false;
-  }
-
-  return win.Statamic?.$config?.get?.('sveFeatures')?.ai_text === true;
-});
-stub('isAiTextOn', aiTextStoredOn);
-stubUntilLoaded('toggleAiText', 'ai_text');
-stubUntilLoaded('handleAiTextOpen', 'ai_text');
-stubUntilLoaded('handleAiTextGenerate', 'ai_text');
-stubUntilLoaded('handleAiTextApply', 'ai_text');
-stubUntilLoaded('handleAiTextSetKeywords', 'ai_text');
-
-function syncAiTextWhenOn(win) {
-  if (!aiTextStoredOn(win)) {
-    return;
-  }
-
-  void ensurePanel('ai_text').then(() => {
-    if (sve.syncAiTextToPreview !== syncAiTextWhenOn) {
-      sve.syncAiTextToPreview(win);
-    }
-  });
-}
-
-stub('syncAiTextToPreview', syncAiTextWhenOn);
-
 function bindRightDockHooks() {
-  if (typeof sve.fillListViewPane === 'function') {
+  if (loaded.listview) {
     registerRightDockHook('listview', {
-      fill: sve.fillListViewPane,
-      show: sve.showListViewPane,
+      fill: loaded.listview.fillListViewPane,
+      show: loaded.listview.showListViewPane,
     });
   }
 
-  if (typeof sve.fillOutlinePane === 'function') {
+  if (loaded.outline) {
     registerRightDockHook('outline', {
-      fill: sve.fillOutlinePane,
-      show: sve.showOutlinePane,
-      hide: (win) => sve.watchOutlineInPreview?.(win, false),
+      fill: loaded.outline.fillOutlinePane,
+      show: loaded.outline.showOutlinePane,
+      hide: (win) => loaded.outline.watchOutlineInPreview?.(win, false),
     });
   }
 
-  if (typeof sve.fillHtmlTreePane === 'function') {
+  if (loaded.html_tree) {
     registerRightDockHook('html_tree', {
-      fill: sve.fillHtmlTreePane,
-      show: sve.showHtmlTreePane,
+      fill: loaded.html_tree.fillHtmlTreePane,
+      show: loaded.html_tree.showHtmlTreePane,
     });
   }
 
-  if (typeof sve.fillPerfPane === 'function') {
+  if (loaded.performance) {
     registerRightDockHook('performance', {
-      fill: sve.fillPerfPane,
-      show: sve.showPerfPane,
+      fill: loaded.performance.fillPerfPane,
+      show: loaded.performance.showPerfPane,
     });
   }
 
@@ -221,16 +140,6 @@ function bindRightDockHooks() {
 }
 
 stub('registerRightDockContent', bindRightDockHooks);
-
-stub('syncSectionLibraryAvailability', (win) => {
-  const placeholder = syncSectionLibraryAvailability;
-
-  void ensurePanel('sections').then(() => {
-    if (syncSectionLibraryAvailability !== placeholder) {
-      syncSectionLibraryAvailability(win);
-    }
-  });
-});
 
 function ensureSpinStyle(doc) {
   injectStyle(doc, SPIN_STYLE_ID, '@keyframes sve-panel-wait-spin{to{transform:rotate(360deg)}}');
@@ -329,12 +238,16 @@ export function ensurePanel(key) {
 
   if (!inflight[key]) {
     inflight[key] = loaders[key]()
-      .then(() => {
+      .then((mod) => {
+        loaded[key] = Array.isArray(mod) ? mod[0] : mod;
+
         if (typeof sve.registerRightDockContent === 'function' && sve.registerRightDockContent !== bindRightDockHooks) {
           sve.registerRightDockContent();
         } else {
           bindRightDockHooks();
         }
+
+        return loaded[key];
       })
       .catch((err) => {
         delete inflight[key];

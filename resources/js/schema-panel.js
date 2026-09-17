@@ -363,8 +363,3 @@ function paintButton(win) {
     paintLpActiveControl(btn, isSchemaOpen(win.document));
   }
 }
-
-sve.schemaAllowed = schemaAllowed;
-sve.toggleSchema = toggleSchema;
-sve.isSchemaOpen = isSchemaOpen;
-sve.closeSchema = closeSchema;
