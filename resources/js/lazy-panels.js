@@ -18,6 +18,7 @@ import {
 } from './right-dock.js';
 import { injectStyle } from './lib/style.js';
 import { COMMENTS_PANEL_ID, HTML_TREE_PANEL_ID, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import { mountSectionPicker, syncSectionLibraryAvailability } from './section-library.js';
 
 export const PANEL_IDS = {
   listview: LISTVIEW_PANEL_ID,
@@ -212,9 +213,9 @@ function bindRightDockHooks() {
     });
   }
 
-  if (typeof sve.mountSectionPicker === 'function') {
+  if (typeof mountSectionPicker === 'function') {
     registerRightDockHook('sections', {
-      fill: (win) => sve.mountSectionPicker(win),
+      fill: (win) => mountSectionPicker(win),
     });
   }
 }
@@ -222,11 +223,11 @@ function bindRightDockHooks() {
 stub('registerRightDockContent', bindRightDockHooks);
 
 stub('syncSectionLibraryAvailability', (win) => {
-  const placeholder = sve.syncSectionLibraryAvailability;
+  const placeholder = syncSectionLibraryAvailability;
 
   void ensurePanel('sections').then(() => {
-    if (sve.syncSectionLibraryAvailability !== placeholder) {
-      sve.syncSectionLibraryAvailability(win);
+    if (syncSectionLibraryAvailability !== placeholder) {
+      syncSectionLibraryAvailability(win);
     }
   });
 });

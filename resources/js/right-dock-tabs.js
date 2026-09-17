@@ -26,6 +26,7 @@ import { injectStyle } from './lib/style.js';
 import { t } from './lib/i18n.js';
 import { attachDock, dockParent } from './lib/dock-host.js';
 import { beginOverlayDrag } from './lib/drag.js';
+import { closeSectionPicker } from './section-library.js';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -595,7 +596,7 @@ function closeDockPane(win, panel) {
   } else if (key === 'comments') {
     sve.closeCommentsPanel?.(win);
   } else if (key === 'sections') {
-    sve.closeSectionPicker?.(win);
+    closeSectionPicker(win);
   } else {
     panel.remove();
     releaseRightShellIfEmpty(win);

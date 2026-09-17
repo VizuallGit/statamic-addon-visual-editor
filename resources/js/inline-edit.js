@@ -30,6 +30,7 @@ import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers, publishContainers } from './lib/publish-containers.js';
 import { setLpCollapsed } from './lp-panel.js';
 import { deepestFieldPath } from './focus-panel.js';
+import { buildSectionRow, fetchSetMeta, globalSectionSet, libraryWentStale, newRowId, rememberSavedSection, rowLocation, sortableItemForUid, writeSetMeta } from './section-library.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -2007,7 +2008,7 @@ export function handleMove(data, doc) {
       continue;
     }
 
-    const found = sve.rowLocation(values, data.uid);
+    const found = rowLocation(values, data.uid);
 
     if (!found) {
       continue;
@@ -2267,7 +2268,7 @@ export function handleAddColumn(data, doc, win) {
 
     // The card only mounts (and the builder's picker machinery only measures
     // real rects) in an expanded set — nudge once; Vue applies it asynchronously.
-    const setEl = findSetByUid(data.uid, doc) ?? sve.sortableItemForUid(data.uid, doc);
+    const setEl = findSetByUid(data.uid, doc) ?? sortableItemForUid(data.uid, doc);
 
     if (setEl) {
       [...collectAncestorSets(setEl), setEl].forEach(expandSet);
@@ -2380,14 +2381,14 @@ export function handleSaveSection(data, doc, win) {
           );
 
           if (res.ok) {
-            sve.libraryWentStale(win);
+            libraryWentStale(win);
           }
 
           if (!res.ok || !synced || !body.id) {
             return;
           }
 
-          sve.rememberSavedSection(body.id, { title: name, section_type: section.type });
+          rememberSavedSection(body.id, { title: name, section_type: section.type });
 
           // Swap the local section for a synced reference — LP morphs from setFieldValue.
           await replaceSectionWithGlobalReference(win, doc, data.uid, body.id);
@@ -2404,10 +2405,10 @@ export function handleSaveSection(data, doc, win) {
  * newly saved synced entry — same shape as dropping a Global card from the library.
  */
 export async function replaceSectionWithGlobalReference(win, doc, uid, savedEntryId) {
-  const set = sve.globalSectionSet(win);
-  const meta = await sve.fetchSetMeta(win, set);
-  const newId = sve.newRowId();
-  const row = sve.buildSectionRow(win, 'global', { id: savedEntryId }, meta?.defaults, newId);
+  const set = globalSectionSet(win);
+  const meta = await fetchSetMeta(win, set);
+  const newId = newRowId();
+  const row = buildSectionRow(win, 'global', { id: savedEntryId }, meta?.defaults, newId);
   const field = sectionField(win);
 
   for (const container of activeContainers(doc)) {
@@ -2417,7 +2418,7 @@ export async function replaceSectionWithGlobalReference(win, doc, uid, savedEntr
       continue;
     }
 
-    const found = sve.rowLocation(values, uid);
+    const found = rowLocation(values, uid);
 
     if (!found) {
       continue;
@@ -2427,7 +2428,7 @@ export async function replaceSectionWithGlobalReference(win, doc, uid, savedEntr
     const next = JSON.parse(JSON.stringify(rows));
 
     next[index] = row;
-    sve.writeSetMeta(container, field, row, meta?.new || null);
+    writeSetMeta(container, field, row, meta?.new || null);
     container.setFieldValue(parentPath, next);
 
     return true;
@@ -2489,7 +2490,7 @@ export function savePageAsTemplate(win, onSaved = () => {}) {
         );
 
         if (res.ok) {
-          sve.libraryWentStale(win);
+          libraryWentStale(win);
           onSaved();
         }
       })
@@ -2522,7 +2523,7 @@ export function stripSavedSectionData(section) {
         !node.id &&
         ('enabled' in node || 'blocks' in node || node.type.includes('/'))
       ) {
-        node.id = sve.newRowId();
+        node.id = newRowId();
       }
 
       Object.values(node).forEach(walk);

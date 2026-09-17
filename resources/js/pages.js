@@ -21,6 +21,7 @@ import { unwrapRef } from './lib/values.js';
 import { currentCollection, currentEntryId, lpHeader } from './lib/live-preview.js';
 import { csrfToken } from './lib/csrf.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { dismissChromeForPageEdit, isGlobalsOverlayOpen } from './section-library.js';
 
 async function gotoOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -249,7 +250,7 @@ export function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
  * Save · discard · cancel. Clean overlay (or none) runs `onLeave` immediately.
  */
 export function confirmLeaveGlobalsOverlay(win, onLeave, onCancel = () => {}) {
-  if (!sve.isGlobalsOverlayOpen?.(win) || !sve.hasUnsavedGlobals(win)) {
+  if (!isGlobalsOverlayOpen(win) || !sve.hasUnsavedGlobals(win)) {
     onLeave();
 
     return;
@@ -337,11 +338,11 @@ export function confirmCloseDiscard(
  */
 export function handleRequestCloseChrome(win) {
   const finish = () => {
-    sve.dismissChromeForPageEdit(win);
+    dismissChromeForPageEdit(win);
     // Closing the header/footer closes the drawer describing it. Parked, not
     // destroyed — form and stash survive, so stepping back in is instant. Only
     // on this deliberate exit: stepping sideways into a page section goes
-    // through sve.dismissChromeForPageEdit alone and leaves the drawer alone.
+    // through dismissChromeForPageEdit alone and leaves the drawer alone.
     sve.parkGlobalsPanel(win);
     sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
   };

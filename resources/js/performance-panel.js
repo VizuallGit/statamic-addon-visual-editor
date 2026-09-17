@@ -43,6 +43,7 @@ import { injectStyle } from './lib/style.js';
 import { featureOn } from './lib/config.js';
 import { PERF_PANEL_ID } from './lib/ids.js';
 import { persistDockedPanel } from './lp-panel.js';
+import { closeRightPanels, syncPreviewInset } from './section-library.js';
 
 
 const STYLE_ID = '__sve-perf-style';
@@ -557,7 +558,7 @@ export function closePerformancePanel(win) {
   releaseRightShellIfEmpty(win);
   persistDockedPanel(win);
   applyHeaderTab(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 }
 
 /** Opens the panel, or closes it when it is already up. */
@@ -574,7 +575,7 @@ export function togglePerformancePanel(win) {
     return;
   }
 
-  sve.closeRightPanels(win, [PERF_PANEL_ID]);
+  closeRightPanels(win, [PERF_PANEL_ID]);
   ensureStyle(win);
   bindStore(win);
 
@@ -591,7 +592,7 @@ export function togglePerformancePanel(win) {
   panel.querySelector('[data-sve-close]')?.addEventListener('click', () => closePerformancePanel(win));
   persistDockedPanel(win);
   applyHeaderTab(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 
   void measureNow(win);
 }

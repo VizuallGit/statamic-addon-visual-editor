@@ -27,6 +27,7 @@ import { OUTLINE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { autoOpenPanel, persistDockedPanel } from './lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn } from './focus-panel.js';
+import { closeRightPanels, syncPreviewInset } from './section-library.js';
 
 // ===== outline =====
 // --- Heading outline panel ------------------------------------------------------
@@ -344,7 +345,7 @@ export function closeOutlinePanel(win) {
     outlineAnswered = false;
     watchOutlineInPreview(win, false);
     stopWatchOutlineValues(win);
-    sve.syncPreviewInset(win);
+    syncPreviewInset(win);
 
     return;
   }
@@ -363,7 +364,7 @@ export function closeOutlinePanel(win) {
   releaseRightShellIfEmpty(win);
   persistDockedPanel(win);
   applyHeaderTab(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 }
 
 export function fillOutlinePane(win, pane) {
@@ -399,7 +400,7 @@ export function toggleOutlinePanel(win) {
     return;
   }
 
-  sve.closeRightPanels(win, [OUTLINE_PANEL_ID]);
+  closeRightPanels(win, [OUTLINE_PANEL_ID]);
 
   const panel = doc.createElement('div');
 
@@ -423,7 +424,7 @@ export function toggleOutlinePanel(win) {
   panel.querySelector('[data-sve-close]')?.addEventListener('click', () => closeOutlinePanel(win));
   persistDockedPanel(win);
   applyHeaderTab(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 
   applyA11yTab(win);
 }

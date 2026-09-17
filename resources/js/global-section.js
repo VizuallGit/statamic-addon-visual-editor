@@ -24,6 +24,7 @@ import { previewFrame } from './lib/preview-frame.js';
 import { activeContainers, publishContainers, registerContainerEvents, registerContainerSource } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, focusFieldOwner, hideSettingsBar, lpStoredWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
+import { closeRightPanels, savedSectionsCollection, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -602,10 +603,10 @@ export function closeGlobalSectionPanel(win) {
     editor.querySelectorAll('[data-sve-global-cover]').forEach((el) => el.remove());
   }
 
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 
   clearSectionsStash(win, { refresh: true });
-  sve.syncSectionLibraryAvailability(win);
+  syncSectionLibraryAvailability(win);
 }
 
 /**
@@ -642,7 +643,7 @@ export function openGlobalSectionPanelFrame(win, id) {
   }
 
   // Close other right drawers; keep left editor free for this form.
-  sve.closeRightPanels(win, []);
+  closeRightPanels(win, []);
 
   sveState.sectionValuesBaseline = null;
   sveState.sectionValuesMatchBaseline = true;
@@ -652,7 +653,7 @@ export function openGlobalSectionPanelFrame(win, id) {
   setLpMode(win, 'show');
 
   const editor = doc.querySelector('.live-preview-editor');
-  const collection = encodeURIComponent(sve.savedSectionsCollection(win));
+  const collection = encodeURIComponent(savedSectionsCollection(win));
   const url = new URL(`/cp/collections/${collection}/entries/${encodeURIComponent(id)}`, win.location.origin);
 
   url.searchParams.set(GLOBALS_PANEL_PARAM, '1');
@@ -832,7 +833,7 @@ export async function fetchInertiaPage(win, path) {
 
 /** The synced entry's screen, as Inertia would have delivered it. */
 export function fetchGlobalSectionProps(win, id) {
-  const collection = encodeURIComponent(sve.savedSectionsCollection(win));
+  const collection = encodeURIComponent(savedSectionsCollection(win));
 
   return fetchInertiaPage(win, `/cp/collections/${collection}/entries/${encodeURIComponent(id)}`);
 }
@@ -997,7 +998,7 @@ export async function openGlobalSectionInline(win, id) {
   closeGlobalSectionInline(win, { refresh: false });
 
   // Close other drawers; the field column is this section's now.
-  sve.closeRightPanels(win, []);
+  closeRightPanels(win, []);
   setLpMode(win, 'show');
 
   const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
@@ -1039,7 +1040,7 @@ export async function openGlobalSectionInline(win, id) {
   watchGlobalSectionInlineValues(win, id);
   bootGlobalSectionSolo(win, doc, host);
   sve.notifyGlobalSectionDirty(win);
-  sve.syncSectionLibraryAvailability(win);
+  syncSectionLibraryAvailability(win);
   win.setTimeout(() => syncCodeDock(win, doc, null), 200);
 }
 
@@ -1226,9 +1227,9 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
   sveState.pendingFocusUntilPanel = null;
 
   rearmFirstSection();
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
   clearSectionsStash(win, { refresh });
-  sve.syncSectionLibraryAvailability(win);
+  syncSectionLibraryAvailability(win);
   syncCodeDock(win, doc, sveState.soloUid);
 
   return true;

@@ -30,6 +30,7 @@ import { openCpOverlay } from './cp/open-overlay.js';
 import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
 import { csrfToken } from './lib/csrf.js';
 import { previewDocument } from './lib/preview-frame.js';
+import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
 
 const API = '/!/sve/section-types';
 
@@ -104,13 +105,13 @@ export async function createSection(win, { display, group }) {
 export async function placeNewSection(win, handle, afterUid = null) {
   if (
     !handle
-    || typeof sve.fetchSetMeta !== 'function'
-    || typeof sve.insertSectionAfter !== 'function'
+    || typeof fetchSetMeta !== 'function'
+    || typeof insertSectionAfter !== 'function'
   ) {
     return null;
   }
 
-  const meta = await sve.fetchSetMeta(win, handle);
+  const meta = await fetchSetMeta(win, handle);
 
   // No meta, no row: the Replicator renders each row from `meta.<field>
   // .existing[<_id>]`, so a row written without it shows in the preview and is
@@ -120,11 +121,11 @@ export async function placeNewSection(win, handle, afterUid = null) {
     return null;
   }
 
-  const newId = sve.newRowId();
-  const row = sve.buildSectionRow(win, 'page', { handle }, meta?.defaults, newId);
-  const rowMeta = sve.hydrateExistingMeta(row, meta?.new || {}, meta?.defaults);
+  const newId = newRowId();
+  const row = buildSectionRow(win, 'page', { handle }, meta?.defaults, newId);
+  const rowMeta = hydrateExistingMeta(row, meta?.new || {}, meta?.defaults);
 
-  return sve.insertSectionAfter(win, win.document, afterUid, row, rowMeta) ? row : null;
+  return insertSectionAfter(win, win.document, afterUid, row, rowMeta) ? row : null;
 }
 
 // Asking for the section again while the page is still being built. Roughly

@@ -65,6 +65,7 @@ import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed, setLpMode, shouldKeepChrome, storedLpCollapsed } from './lp-panel.js';
+import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, isGlobalsOverlayOpen, placeGlobalsOverlay, savedSectionInfo } from './section-library.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -1332,10 +1333,10 @@ export function focusRowMeta(win, uid, doc) {
   }
 
   if (handle) {
-    const globalSet = sve.globalSectionSet(win);
+    const globalSet = globalSectionSet(win);
     const sourceType =
       handle === globalSet && row && typeof row === 'object'
-        ? sve.savedSectionInfo(win, firstEntryId(row[globalSet]))?.section_type || ''
+        ? savedSectionInfo(win, firstEntryId(row[globalSet]))?.section_type || ''
         : '';
     const type = sourceType || handle;
     const meta = setMeta(win, type);
@@ -1672,16 +1673,16 @@ export function isolateSoloSection(uid, doc, win, { kind = null, segment = null 
   // reached by clicking it on the page, exactly like a block in a section, and
   // stepping into it is not leaving the header — it IS editing the header.
   if (win && !sve.chromeHost(doc)?.contains(setEl)) {
-    if (sve.isGlobalsOverlayOpen?.(win) && sve.hasUnsavedGlobals(win)) {
+    if (isGlobalsOverlayOpen(win) && sve.hasUnsavedGlobals(win)) {
       sve.confirmLeaveGlobalsOverlay(win, () => {
-        sve.dismissChromeForPageEdit?.(win);
+        dismissChromeForPageEdit(win);
         isolateSoloSection(uid, doc, win, { kind, segment });
       });
 
       return false;
     }
 
-    sve.dismissChromeForPageEdit?.(win);
+    dismissChromeForPageEdit(win);
   }
 
   // A different set is a new visit, and a new visit folds what it holds. Asked for
@@ -1952,7 +1953,7 @@ export function bindLpEditorResize(win) {
       const move = (e) => {
         next = applyLpEditorWidth(win, startW + (e.clientX - startX));
         placeLpWidthPicker(win);
-        sve.placeGlobalsOverlay?.(win);
+        placeGlobalsOverlay(win);
       };
 
       const up = () => {
@@ -1985,7 +1986,7 @@ export function settingsBarTakeover(win) {
     return true;
   }
 
-  return !!sve.isGlobalsOverlayOpen?.(win);
+  return !!isGlobalsOverlayOpen(win);
 }
 
 /** Hide Page Settings/SEO and drop their reserved space in one go. */
@@ -2175,7 +2176,7 @@ export function ensureLpPanelToggleInner(win) {
       sveState.chromePrefetchArmed = false;
       persistDockedPanel(win);
       clearSolo(doc);
-      sve.closeRightPanels(win);
+      closeRightPanels(win);
       sve.parkGlobalsPanel(win);
       sveState.dockedHeaderRestored = false;
       sveState.headerTab = undefined;
@@ -2251,7 +2252,7 @@ export function ensureLpPanelToggleInner(win) {
   }
 
   ensureLpWidthPicker(win);
-  sve.placeGlobalsOverlay?.(win);
+  placeGlobalsOverlay(win);
   ensureLpBackButton(win);
   // Reload before More: More anchors on it, so it has to exist first.
   ensureLpReloadButton(win);

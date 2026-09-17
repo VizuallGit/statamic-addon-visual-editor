@@ -42,6 +42,7 @@ import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusBack, focusFromPreview, focusRowMeta, gridMeta, paintFocusHeader, setMeta } from './focus-panel.js';
+import { closeRightPanels, globalSectionSet, handleDuplicateRow, handleHideRow, handleRemoveRow, mountSectionPicker, placeGlobalsOverlay, rowLocation, savedSectionInfo, syncPreviewInset } from './section-library.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -251,7 +252,7 @@ export function pinDockedPanelsUnderHeader(win) {
     placeRightDock(win);
   }
 
-  sve.placeGlobalsOverlay(win);
+  placeGlobalsOverlay(win);
 }
 
 export function closeListViewPanel(win) {
@@ -271,7 +272,7 @@ export function closeListViewPanel(win) {
   }
 
   releaseRightShellIfEmpty(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 }
 
 /**
@@ -428,7 +429,7 @@ export function listViewTree(win, doc) {
         // på feltet, ikke en værdi på rækken, så værdierne alene kan ikke sige
         // det. `data-row-locked` stemples af projektets LockedRows.js.
         const el = uid ? findSetByVisualIdInput(uid, doc) : null;
-        const globalSet = sve.globalSectionSet(win);
+        const globalSet = globalSectionSet(win);
         const isGlobal = !grid && item.type === globalSet;
         const globalId = isGlobal ? firstEntryId(item[globalSet]) : '';
         const custom =
@@ -450,7 +451,7 @@ export function listViewTree(win, doc) {
           label: custom,
           global: isGlobal,
           globalId,
-          globalType: isGlobal ? sve.savedSectionInfo(win, globalId)?.section_type || '' : '',
+          globalType: isGlobal ? savedSectionInfo(win, globalId)?.section_type || '' : '',
           depth,
           index,
           listKey,
@@ -809,13 +810,13 @@ export function listViewDefaultLabel(win, item) {
   }
 
   if (item.global) {
-    const type = item.globalType || sve.savedSectionInfo(win, item.globalId)?.section_type || '';
+    const type = item.globalType || savedSectionInfo(win, item.globalId)?.section_type || '';
 
     if (type) {
       return setMeta(win, type)?.display || humanizeHandle(type);
     }
 
-    const title = sve.savedSectionInfo(win, item.globalId)?.title || '';
+    const title = savedSectionInfo(win, item.globalId)?.title || '';
 
     if (title) {
       return title;
@@ -838,7 +839,7 @@ export function listViewRowMeta(win, item) {
   }
 
   const type = item.global
-    ? item.globalType || sve.savedSectionInfo(win, item.globalId)?.section_type || item.type
+    ? item.globalType || savedSectionInfo(win, item.globalId)?.section_type || item.type
     : item.type;
 
   return setMeta(win, type);
@@ -854,7 +855,7 @@ export function writeRowLabel(win, uid, label) {
       continue;
     }
 
-    const found = sve.rowLocation(values, uid);
+    const found = rowLocation(values, uid);
 
     if (!found) {
       continue;
@@ -1080,11 +1081,11 @@ export function openListViewMenu(win, anchor, item) {
       } else if (id === 'down') {
         sve.handleMove({ uid: item.uid, direction: 1 }, doc);
       } else if (id === 'duplicate') {
-        sve.handleDuplicateRow({ uid: item.uid }, doc, win);
+        handleDuplicateRow({ uid: item.uid }, doc, win);
       } else if (id === 'hide') {
-        sve.handleHideRow({ uid: item.uid }, doc, win);
+        handleHideRow({ uid: item.uid }, doc, win);
       } else if (id === 'delete') {
-        sve.handleRemoveRow({ uid: item.uid }, doc, win);
+        handleRemoveRow({ uid: item.uid }, doc, win);
       }
 
       win.setTimeout(() => renderListView(win), 0);
@@ -1515,9 +1516,9 @@ export function renderListView(win) {
     } else if (id === 'down') {
       sve.handleMove({ uid: item.uid, direction: 1 }, doc);
     } else if (id === 'duplicate') {
-      sve.handleDuplicateRow({ uid: item.uid }, doc, win);
+      handleDuplicateRow({ uid: item.uid }, doc, win);
     } else if (id === 'delete') {
-      sve.handleRemoveRow({ uid: item.uid }, doc, win);
+      handleRemoveRow({ uid: item.uid }, doc, win);
     }
 
     win.setTimeout(() => renderListView(win), 0);
@@ -1657,7 +1658,7 @@ export function registerRightDockContent() {
     hide: (win) => sve.watchOutlineInPreview(win, false),
   });
   registerRightDockHook('sections', {
-    fill: (win) => sve.mountSectionPicker(win),
+    fill: (win) => mountSectionPicker(win),
   });
 }
 
@@ -1670,7 +1671,7 @@ export function toggleListViewPanel(win) {
     return;
   }
 
-  sve.closeRightPanels(win, [LISTVIEW_PANEL_ID]);
+  closeRightPanels(win, [LISTVIEW_PANEL_ID]);
 
   const panel = doc.createElement('div');
 
@@ -1691,7 +1692,7 @@ export function toggleListViewPanel(win) {
     applyHeaderTab(win);
   });
   showInRightShell(win, panel);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 
   setListViewTab(win, 'tree');
 }
@@ -1708,7 +1709,7 @@ export function closeCommentsPanel(win) {
   commentsPanel(win.document).remove();
   releaseRightShellIfEmpty(win);
   win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 }
 
 export function toggleCommentsPanel(win) {
@@ -1720,7 +1721,7 @@ export function toggleCommentsPanel(win) {
     return;
   }
 
-  sve.closeRightPanels(win, [COMMENTS_PANEL_ID]);
+  closeRightPanels(win, [COMMENTS_PANEL_ID]);
 
   const panel = doc.createElement('div');
 
@@ -1738,7 +1739,7 @@ export function toggleCommentsPanel(win) {
   showInRightShell(win, panel);
   persistDockedPanel(win);
   applyHeaderTab(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 }
 
 /** Fills the block tree pane. Outline is a separate panel. */

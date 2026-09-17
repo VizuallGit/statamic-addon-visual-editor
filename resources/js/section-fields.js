@@ -23,6 +23,7 @@ import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
 import { dataGet, unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { fetchSetMeta, hydrateExistingMeta, writeSetMeta } from './section-library.js';
 
 const API = '/!/sve/section-types';
 
@@ -127,7 +128,7 @@ export function invalidateFieldCaches(win, setHandle) {
 
 export async function refreshFieldsForType(win, setHandle) {
   // `fetchSetMeta` and friends live in the section library, which is loaded on
-  // demand. Until it is, `sve.fetchSetMeta` is a placeholder that starts the
+  // demand. Until it is, `fetchSetMeta` is a placeholder that starts the
   // load and returns undefined — so awaiting it yields nothing, the refresh
   // reports zero rows, and the toast still says it worked. That is what "the
   // reload button does nothing" was.
@@ -135,13 +136,13 @@ export async function refreshFieldsForType(win, setHandle) {
 
   const sve = win.sve;
 
-  if (!sve?.fetchSetMeta || !activeContainers || !sve.writeSetMeta) {
+  if (!sve?.fetchSetMeta || !activeContainers || !writeSetMeta) {
     return 0;
   }
 
   invalidateFieldCaches(win, setHandle);
 
-  const meta = await sve.fetchSetMeta(win, setHandle);
+  const meta = await fetchSetMeta(win, setHandle);
 
   if (!meta) {
     return 0;
@@ -200,7 +201,7 @@ export async function refreshFieldsForType(win, setHandle) {
 
       // Re-keyed to this row's own nested ids — the fresh meta is built from
       // the fieldset's defaults, whose child rows are not these ones.
-      sve.writeSetMeta(container, field, row, sve.hydrateExistingMeta(row, meta.new || {}, meta.defaults));
+      writeSetMeta(container, field, row, hydrateExistingMeta(row, meta.new || {}, meta.defaults));
       touched++;
     }
   }

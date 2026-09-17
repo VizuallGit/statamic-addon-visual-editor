@@ -14,6 +14,7 @@ import { LP_MORE_ID } from './lp-more-menu.js';
 import { lpHeader } from './lib/live-preview.js';
 import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
 import { clearSolo, ensureLpPanelToggle } from './focus-panel.js';
+import { hideGlobalsPanel, isGlobalsOverlayOpen } from './section-library.js';
 
 // ===== lp-panel =====
 // --- Live Preview: collapsible editor panel ----------------------------------
@@ -462,8 +463,8 @@ export function setLpCollapsed(win, collapsed) {
   sveState.lpCollapsed = collapsed;
   chromeSet(win, LP_COLLAPSED_KEY, collapsed ? '1' : '0');
 
-  if (collapsed && sve.isGlobalsOverlayOpen?.(win)) {
-    sve.hideGlobalsPanel(win, { release: false });
+  if (collapsed && isGlobalsOverlayOpen(win)) {
+    hideGlobalsPanel(win, { release: false });
   }
 
   ensureLpPanelToggle(win);

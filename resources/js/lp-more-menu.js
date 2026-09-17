@@ -19,6 +19,7 @@ import { remToPx } from './lib/dom.js';
 import { featureOn } from './lib/config.js';
 import { persistDockedPanel, setLpMode } from './lp-panel.js';
 import { applyLpEditorWidth } from './focus-panel.js';
+import { closeSectionPicker, syncPreviewInset } from './section-library.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -82,7 +83,7 @@ function closeTool(win, key) {
   } else if (key === 'comments') {
     sve.closeCommentsPanel?.(win);
   } else if (key === 'sections') {
-    sve.closeSectionPicker?.(win);
+    closeSectionPicker(win);
   } else if (key === 'ai') {
     closeAiPanel(win);
   }
@@ -119,7 +120,7 @@ function setStartupPane(win, key, on) {
 
   persistVisibleRightPanes(win, open);
   persistDockedPanel(win);
-  sve.syncPreviewInset?.(win);
+  syncPreviewInset(win);
 }
 
 function setPanelMode(win, mode) {
@@ -135,7 +136,7 @@ function setWidth(win, which, px) {
     chromeSet(win, DOCK_WIDTH_KEY, String(next));
     placeRightDock(win);
     relayoutRightDock(win);
-    sve.syncPreviewInset?.(win);
+    syncPreviewInset(win);
   }
 }
 

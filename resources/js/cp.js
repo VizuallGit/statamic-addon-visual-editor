@@ -82,6 +82,7 @@ import { previewFrame } from './lib/preview-frame.js';
 import { activeContainers, registerContainerEvents } from './lib/publish-containers.js';
 import { autoOpenPanel, findLpSaveButton, lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, paintLpSaveButton, persistDockedPanel, setLpCollapsed, setLpMode, syncLpRightBarGaps } from './lp-panel.js';
 import { ensureLpPanelToggle, ensureLpWidthPicker, focusFieldOwner, focusFromPreview, focusPanelOn, leaveSolo, markStepIntoAll, persistLpWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
+import { closeRightPanels, closeSectionPicker, dismissChromeForPageEdit, formHasSectionField, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, isGlobalsOverlayOpen, isSectionLibraryLocked, openSectionPicker, overlaySidTemplate, paintFocusLockedTabs, rowLocation, syncPreviewInset, syncSectionLibraryAvailability, watchNewRow } from './section-library.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -2224,8 +2225,8 @@ export const HEADER_TAB_FEATURE = {
 };
 
 function formHasPageBuilder(win) {
-  if (typeof sve.formHasSectionField === 'function') {
-    return sve.formHasSectionField(win);
+  if (typeof formHasSectionField === 'function') {
+    return formHasSectionField(win);
   }
 
   const field = sectionField(win) || 'page_sections';
@@ -2454,7 +2455,7 @@ export async function ensureRightTool(win, key) {
 
   if (key === 'sections') {
     if (!win.document.getElementById(SECTION_PICKER_ID)) {
-      sve.openSectionPicker?.(win);
+      openSectionPicker(win);
     }
 
     return;
@@ -2704,7 +2705,7 @@ export function ensureHeaderToolbar(win) {
           sve.toggleCommentsPanel?.(win);
           persistDockedPanel(win);
           applyHeaderTab(win);
-          sve.syncPreviewInset(win);
+          syncPreviewInset(win);
         })();
 
         return;
@@ -3033,7 +3034,7 @@ export function ensureCommentsToolbarButton(win) {
       revealRightPane(win, 'comments');
       persistDockedPanel(win);
       applyHeaderTab(win);
-      sve.syncPreviewInset(win);
+      syncPreviewInset(win);
     });
     bar.appendChild(btn);
     win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
@@ -3099,11 +3100,11 @@ export function toggleAiPanelButton(win) {
   }
 
   if (!isAiPanelOpen(win.document)) {
-    sve.closeRightPanels(win, ['__sve-ai-panel']);
+    closeRightPanels(win, ['__sve-ai-panel']);
   }
 
   toggleAiPanel(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
   applyHeaderTab(win);
 }
 
@@ -3122,7 +3123,7 @@ export function ensureAiToolbarButton(win) {
 
     if (isAiPanelOpen(doc)) {
       closeAiPanel(win);
-      sve.syncPreviewInset(win);
+      syncPreviewInset(win);
     }
 
     return;
@@ -3434,15 +3435,15 @@ export function toggleHeaderTab(win, key) {
         endRightShellSwap();
       }
 
-      if (sve.isSectionLibraryLocked?.(win)) {
-        sve.dismissChromeForPageEdit?.(win);
+      if (isSectionLibraryLocked(win)) {
+        dismissChromeForPageEdit(win);
         sve.closeGlobalSectionPanel(win);
         sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
         sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
-        sve.syncSectionLibraryAvailability(win);
+        syncSectionLibraryAvailability(win);
       }
 
-      sve.openSectionPicker?.(win); // toggles
+      openSectionPicker(win); // toggles
       persistDockedPanel(win);
       applyHeaderTab(win);
     })();
@@ -3792,7 +3793,7 @@ export function applyHeaderTab(win) {
       // som oplyste piller ved siden af et sektionsikon der var gået helt ud:
       // halvdelen af rækken så ud til stadig at kunne klikkes. Værktøjet er feltet,
       // så det er feltet der går ud.
-      const locked = sve.isSectionLibraryLocked?.(win) && FOCUS_LOCKED_TABS?.includes(key);
+      const locked = isSectionLibraryLocked(win) && FOCUS_LOCKED_TABS?.includes(key);
 
       frame.style.opacity = locked ? LP_ICON_LOCKED_OPACITY : '';
       frame.style.pointerEvents = locked ? 'none' : '';
@@ -3850,7 +3851,7 @@ export function applyHeaderTab(win) {
 
     if (!show && sveState.headerTab === 'sections') {
       setHeaderTab(win, null);
-      sve.closeSectionPicker?.(win);
+      closeSectionPicker(win);
     }
   }
 
@@ -3906,7 +3907,7 @@ export function applyHeaderTab(win) {
           : tab === 'schema'
             ? !!sve.isSchemaOpen?.(win.document)
           : tab === 'globals'
-            ? sveState.headerTab === 'globals' || !!sve.isGlobalsOverlayOpen?.(win)
+            ? sveState.headerTab === 'globals' || !!isGlobalsOverlayOpen(win)
           : tab in docked
             ? docked[tab]
             : tab === sveState.headerTab;
@@ -3919,7 +3920,7 @@ export function applyHeaderTab(win) {
     }
 
     paintLpActiveControl(btn, on);
-    sve.paintFocusLockedTabs?.(win, btn, tab, on);
+    paintFocusLockedTabs(win, btn, tab, on);
   });
 
   syncToolbarIconSeps(bar);
@@ -4190,7 +4191,7 @@ export function applyDeclaredDefaults(data, doc) {
       continue;
     }
 
-    const found = sve.rowLocation(values, uid);
+    const found = rowLocation(values, uid);
 
     if (!found) {
       continue;
@@ -5449,7 +5450,7 @@ export function confirmLeaveIfDirty(win, leave) {
 export function resetEditorLayout(win) {
   closeCodeDock(win.document);
   setCodeDockArmed(win, false);
-  sve.closeRightPanels(win);
+  closeRightPanels(win);
 
   sveState.listViewTab = 'tree';
   sveState.headerTab = null;
@@ -5479,7 +5480,7 @@ export function resetEditorLayout(win) {
   relayoutRightDock(win);
   relayoutCodeDock(win);
   relayoutAiPanel(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
   applyHeaderTab(win);
   paintLpPreviewChrome(win);
   ensureLpPanelToggle(win);
@@ -6147,7 +6148,7 @@ export function repositionAfterAdd(uid, doc) {
 export function handleAddSet(data, doc, win) {
   // The "+" on a section opens the section library (docked panel). You place a
   // section by dragging a card into the preview, so no insert position is passed.
-  void ensurePanel('sections').then(() => sve.openSectionPicker?.(win));
+  void ensurePanel('sections').then(() => openSectionPicker(win));
 }
 
 export function nativeAddSetAt(setEl, uid, doc, win, anchorRect = null, position = 'after') {
@@ -6699,8 +6700,8 @@ export function handleAddBlockNative(data, doc, win) {
   const { anchorUid, sectionUid, anchorRect = null, position = 'after' } = data;
 
   if (data.template || (data.fieldDefaults && Object.keys(data.fieldDefaults).length)) {
-    sve.watchNewRow(doc, win, data, (container, values, parentPath, added) => {
-      sve.overlaySidTemplate(win, container, values, parentPath, added, data.template, data.fieldDefaults);
+    watchNewRow(doc, win, data, (container, values, parentPath, added) => {
+      overlaySidTemplate(win, container, values, parentPath, added, data.template, data.fieldDefaults);
     });
   }
 
@@ -6758,7 +6759,7 @@ export function handleAddBlockNative(data, doc, win) {
       }
 
       if (data.field) {
-        sve.handleInsertBlock(
+        handleInsertBlock(
           {
             field: data.field,
             set: handle,
@@ -6787,7 +6788,7 @@ export function handleAddBlockNative(data, doc, win) {
         return;
       }
 
-      sve.handleInsertBlock(
+      handleInsertBlock(
         {
           field: data.field,
           set: handle,
@@ -7066,7 +7067,7 @@ export function openBardSetPickerFallback(doc, win, data) {
         btn.addEventListener('click', () => {
           panel.remove();
           stopPreviewPickerSession();
-          sve.handleInsertBardSet(
+          handleInsertBardSet(
             {
               field: data.field,
               set: s.handle,
@@ -7507,7 +7508,7 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === 'close-chrome') {
       // Stepping out of header/footer (e.g. clicking a page section): free the
       // left edge so the section editor isn't stacked under Theme Settings.
-      sve.dismissChromeForPageEdit?.(win);
+      dismissChromeForPageEdit(win);
     } else if (data.type === 'request-close-chrome') {
       sve.handleRequestCloseChrome(win);
     } else if (data.type === 'sve-chrome-dirty-query') {
@@ -7519,14 +7520,14 @@ export function createMessageListener(doc = document, win = window) {
       // — and saved that instead.
       sve.saveGlobalsPanel(win, () => {});
     } else if (data.type === 'add-row') {
-      sve.handleAddRow?.(data, doc, win);
+      handleAddRow(data, doc, win);
     } else if (data.type === 'add-block-native') {
       // Preview "+": open Statamic's real SetPicker, pin list under the plus.
       handleAddBlockNative(data, doc, win);
     } else if (data.type === 'add-bard-set-native') {
       handleAddBardSetNative(data, doc, win);
     } else if (data.type === 'insert-bard-set') {
-      sve.handleInsertBardSet?.(data, doc, win);
+      handleInsertBardSet(data, doc, win);
     } else if (data.type === 'remove-row') {
       // A section is asked about first. It takes one click to remove and holds
       // everything inside it, and the page it leaves behind looks like a page
@@ -7541,19 +7542,19 @@ export function createMessageListener(doc = document, win = window) {
             bodyKey: 'remove_section_body',
             confirmKey: 'remove_section_confirm',
           },
-          () => sve.handleRemoveRow(data, doc, win)
+          () => handleRemoveRow(data, doc, win)
         );
       } else {
-        sve.handleRemoveRow(data, doc, win);
+        handleRemoveRow(data, doc, win);
       }
     } else if (data.type === 'duplicate-row') {
-      sve.handleDuplicateRow(data, doc, win);
+      handleDuplicateRow(data, doc, win);
     } else if (data.type === 'hide-row') {
-      sve.handleHideRow(data, doc, win);
+      handleHideRow(data, doc, win);
     } else if (data.type === 'row-caps') {
-      sve.handleRowCaps(data, doc, win);
+      handleRowCaps(data, doc, win);
     } else if (data.type === 'open-global-section') {
-      sve.handleOpenGlobalSection(data, win);
+      handleOpenGlobalSection(data, win);
     } else if (data.type === 'ai-text-hello') {
       sve.syncAiTextToPreview?.(win);
     } else if (data.type === 'ai-text-open') {
@@ -7580,14 +7581,14 @@ export function createMessageListener(doc = document, win = window) {
       // The bar's Save, driving the entry form's real one — wherever it lives.
       sve.saveGlobalSectionPanel(win, () => {});
     } else if (data.type === 'section-settings') {
-      sve.handleSectionSettings(data, doc, win);
+      handleSectionSettings(data, doc, win);
     } else if (data.type === 'save-section') {
       sve.handleSaveSection(data, doc, win);
     } else if (data.type === 'ext-drop') {
       // A section dragged in from the library was released — insert it where the
       // preview's drop line ended up (data.afterUid, null = at the top).
       if (sveState.libraryDrag) {
-        sve.insertSection?.(win, doc, data.afterUid ?? null, sveState.libraryDrag.kind, sveState.libraryDrag.item);
+        insertSection(win, doc, data.afterUid ?? null, sveState.libraryDrag.kind, sveState.libraryDrag.item);
         sveState.libraryDrag = null;
       }
     } else if (data.type === 'cb-add-column') {
@@ -8813,7 +8814,7 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
     // editor pane, the globals or section panel on the right — so they all go,
     // whatever the remembered mode says. The mode itself is left alone: it's a
     // preference about this page, not a verdict on the next one.
-    sve.closeRightPanels(win);
+    closeRightPanels(win);
     setLpCollapsed(win, true);
   } else {
     // Live Preview opens with the editor panel following the remembered mode —
@@ -9040,7 +9041,7 @@ export function initCp(win = window) {
 
   if (win.__SVE_SCROLL_TEST) {
     win.__sveOpenPatterns = (options) => {
-      void ensurePanel('sections').then(() => sve.openSectionPicker?.(win, options || {}));
+      void ensurePanel('sections').then(() => openSectionPicker(win, options || {}));
     };
   }
 
@@ -9095,15 +9096,15 @@ export function initCp(win = window) {
     relayoutCodeDock(win);
     relayoutAiPanel(win);
     relayoutRightDock(win);
-    sve.syncPreviewInset(win);
+    syncPreviewInset(win);
   });
   win.addEventListener('sve-right-dock-change', () => {
     persistDockedPanel(win);
-    sve.syncPreviewInset(win);
+    syncPreviewInset(win);
     applyHeaderTab(win);
   });
   win.addEventListener('sve-ai-closed', () => {
-    sve.syncPreviewInset(win);
+    syncPreviewInset(win);
     applyHeaderTab(win);
   });
 

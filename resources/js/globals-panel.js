@@ -32,6 +32,7 @@ import { featureOn, sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { focusFieldOwner, focusPanelOn, setMeta, soloSection } from './focus-panel.js';
+import { attachGlobalsOverlay, closeRightPanels, editorOverlayCss, hideGlobalsPanel, libraryMatchesQuery, libraryWentStale, mountInLivePreviewEditor, newRowId, openSectionPicker, parkGlobalsOverlay, pinGlobalsPanelLeft, releaseLeftEdgeIfFree, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -497,8 +498,8 @@ export function discardGlobalsChanges(win, { refresh = false, reloadForm = false
     panel?._svePinRo?.disconnect?.();
     panel?.remove();
     globalsAcceptValues = true;
-    sve.releaseLeftEdgeIfFree(win);
-    sve.syncPreviewInset(win);
+    releaseLeftEdgeIfFree(win);
+    syncPreviewInset(win);
 
     return clearGlobalsStash(win, { refresh, force: true }).then(() => {
       notifyChromeDirty(win);
@@ -628,7 +629,7 @@ export function watchGlobalsPanelSaves(iwin, parentWin, entryPath = null) {
       // makes every picture in the library wrong at once — and the server starts
       // retaking them. The library hears that here, asks once, and asks once more
       // when the screenshot for this save has had time to land.
-      sve.libraryWentStale(parentWin);
+      libraryWentStale(parentWin);
     }
 
     [...globalsSaveListeners].forEach((listener) => listener(ok));
@@ -752,8 +753,8 @@ export function closeGlobalsPanel(win) {
     tabs.style.visibility = '';
   }
 
-  sve.releaseLeftEdgeIfFree(win);
-  sve.syncPreviewInset(win);
+  releaseLeftEdgeIfFree(win);
+  syncPreviewInset(win);
   clearGlobalsStash(win, { refresh: true });
 
   // Warm the next open so footer/header clicks stay instant after close.
@@ -781,9 +782,9 @@ export function parkGlobalsPanel(win) {
     return;
   }
 
-  sve.parkGlobalsOverlay(panel);
+  parkGlobalsOverlay(panel);
   sveState.forcePanelOpen = false;
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 }
 
 export const GLOBALS_WIDTH_KEY = 'sve-globals-panel-width';
@@ -828,7 +829,7 @@ export function panelResizer(win, panel, { side = 'right', storageKey = GLOBALS_
           : Math.min(Math.max(win.innerWidth - move.clientX, GLOBALS_MIN_WIDTH), max);
 
       panel.style.width = `${width}px`;
-      sve.syncPreviewInset(win);
+      syncPreviewInset(win);
       onResize?.(width);
     };
 
@@ -938,7 +939,7 @@ export function openGlobalsPanel(win, set, options = {}) {
       existing.querySelector('[data-sve-focus-tile]') &&
         (existing.querySelector('[data-sve-focus-tile]').textContent = (label || '?').trim().charAt(0).toUpperCase());
       frame.title = set.title;
-      sve.showGlobalsPanel(win);
+      showGlobalsPanel(win);
       ensureGlobalsPanelSaveWatch(win);
 
       // Same set already loaded: do NOT location.replace — a dirty form inside
@@ -1091,13 +1092,13 @@ export function openGlobalsPanel(win, set, options = {}) {
 
   // Stay on body so the iframe is never reparented. Prefetch parks off-screen;
   // a real open covers the left editor.
-  sve.attachGlobalsOverlay(win, panel);
+  attachGlobalsOverlay(win, panel);
 
   if (prefetch) {
-    sve.parkGlobalsOverlay(panel);
+    parkGlobalsOverlay(panel);
   } else {
-    sve.pinGlobalsPanelLeft(win, panel);
-    sve.syncPreviewInset(win);
+    pinGlobalsPanelLeft(win, panel);
+    syncPreviewInset(win);
 
     if (chromeLock) {
       lockChromeGlobalsTab(win, chromeLock);
@@ -1203,12 +1204,12 @@ export function ensureSectionLibraryButton(win) {
     'color:currentColor;background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';
   btn.append(t(win, 'sections'));
   btn.addEventListener('click', () => {
-    void ensurePanel('sections').then(() => sve.openSectionPicker(win));
+    void ensurePanel('sections').then(() => openSectionPicker(win));
   });
 
   // After the globals picker if it exists, otherwise right after the mode group.
   (doc.getElementById(GLOBALS_PICKER_ID) || group).after(btn);
-  sve.syncSectionLibraryAvailability(win);
+  syncSectionLibraryAvailability(win);
 }
 
 /**
@@ -2130,7 +2131,7 @@ export function bootSavedSectionSolo(win, doc) {
 
       if (!uid) {
         // Section row with no id yet — mint one and retry.
-        row.id = sve.newRowId();
+        row.id = newRowId();
         container.setFieldValue(field, next);
         win.setTimeout(tryBoot, 150);
 
@@ -2200,7 +2201,7 @@ export function ensureNestedRowIds(node) {
       n.forEach(walk);
     } else if (n && typeof n === 'object') {
       if (isSetRow(n) && !n.id && !n._id) {
-        n.id = sve.newRowId();
+        n.id = newRowId();
         changed = true;
       }
 
@@ -2272,8 +2273,8 @@ export function chromeStyles(win, kind) {
 
 export function closeChromeDesignsPanel(win) {
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
-  sve.releaseLeftEdgeIfFree(win);
-  sve.syncPreviewInset(win);
+  releaseLeftEdgeIfFree(win);
+  syncPreviewInset(win);
 }
 
 export const CHROME_MODE_TOGGLE_ATTR = 'data-sve-chrome-mode-toggle';
@@ -2416,7 +2417,7 @@ export function setChromeSidebarMode(win, mode) {
     return;
   }
 
-  sve.showGlobalsPanel(win);
+  showGlobalsPanel(win);
   lockChromeGlobalsTab(win, chromeKind);
   ensureChromeModeToggle(win, win.document.getElementById(GLOBALS_PANEL_ID), 'settings');
   paintAllChromeModeToggles(win, 'settings');
@@ -2434,26 +2435,26 @@ export function openChromeDesignsPanel(win, kind) {
   if (existing) {
     existing.setAttribute('data-sve-chrome-kind', chromeKind);
     existing.dispatchEvent(new CustomEvent('sve-chrome-render'));
-    sve.hideGlobalsPanel(win);
+    hideGlobalsPanel(win);
     existing.style.display = 'flex';
     existing.removeAttribute('data-sve-chrome-hidden');
-    sve.mountInLivePreviewEditor(win, existing);
+    mountInLivePreviewEditor(win, existing);
     ensureChromeModeToggle(win, existing, 'design');
     paintAllChromeModeToggles(win, 'design');
-    sve.syncPreviewInset(win);
+    syncPreviewInset(win);
 
     return;
   }
 
   // Keep Theme Settings mounted (hidden) + sections library if open on the right.
-  sve.closeRightPanels(win, [CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, SECTION_PICKER_ID]);
-  sve.hideGlobalsPanel(win);
+  closeRightPanels(win, [CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, SECTION_PICKER_ID]);
+  hideGlobalsPanel(win);
 
   const panel = doc.createElement('div');
 
   panel.id = CHROME_DESIGNS_ID;
   panel.setAttribute('data-sve-chrome-kind', chromeKind);
-  panel.style.cssText = sve.editorOverlayCss();
+  panel.style.cssText = editorOverlayCss();
 
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(128,128,128,.2);flex:0 0 auto;">
@@ -2480,10 +2481,10 @@ export function openChromeDesignsPanel(win, kind) {
     }
   };
 
-  sve.mountInLivePreviewEditor(win, panel);
+  mountInLivePreviewEditor(win, panel);
   ensureChromeModeToggle(win, panel, 'design');
   applyLayout();
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 
   // Recalc columns when the shared editor is resized.
   try {
@@ -2537,7 +2538,7 @@ export function openChromeDesignsPanel(win, kind) {
     }
 
     const filtered = styles.filter((item) =>
-      sve.libraryMatchesQuery({ ...item, title: item.label || item.title }, query)
+      libraryMatchesQuery({ ...item, title: item.label || item.title }, query)
     );
 
     if (!filtered.length) {
@@ -2616,7 +2617,7 @@ export function handleOpenChrome(data, doc, win) {
     sve.openChromeInline(win, kind);
   } else {
     openGlobalsPanel(win, set, { chromeLock: kind });
-    sve.showGlobalsPanel(win);
+    showGlobalsPanel(win);
     lockChromeGlobalsTab(win, kind);
   }
 
@@ -2628,7 +2629,7 @@ export function handleOpenChrome(data, doc, win) {
   sveState.chromeValuesBaseline = null;
   clearGlobalsDirtyMarks(win);
   notifyChromeDirty(win);
-  sve.syncSectionLibraryAvailability(win);
+  syncSectionLibraryAvailability(win);
 
   win.setTimeout(() => markChromeFormClean(win), 500);
   win.setTimeout(() => markChromeFormClean(win), 1000);
@@ -2664,7 +2665,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
   if (!frame?.contentWindow) {
     if (set) {
       openGlobalsPanel(win, set, { keepLibrary: true, chromeLock: kind === 'footer' ? 'footer' : 'header' });
-      sve.hideGlobalsPanel(win);
+      hideGlobalsPanel(win);
     }
 
     if (attempt < 25) {

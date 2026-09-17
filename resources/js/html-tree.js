@@ -63,6 +63,7 @@ import { HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
+import { closeRightPanels, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -395,7 +396,7 @@ function paintComponentExit(win) {
 
 /** The saved section a global row points at — its type is what to name it by. */
 function globalSectionType(win, row) {
-  const globalSet = sve.globalSectionSet?.(win);
+  const globalSet = globalSectionSet(win);
 
   if (!globalSet || row.type !== globalSet) {
     return '';
@@ -403,7 +404,7 @@ function globalSectionType(win, row) {
 
   const id = firstEntryId(row[globalSet]);
 
-  return (id && sve.savedSectionInfo?.(win, id)?.section_type) || '';
+  return (id && savedSectionInfo(win, id)?.section_type) || '';
 }
 
 /** Types waiting to be fetched, and whether the queue is moving. */
@@ -1323,7 +1324,7 @@ function removeSectionFromPage(win, uid) {
     () => {
       const doc = win.document;
 
-      sve.handleRemoveRow?.({ uid }, doc, win);
+      handleRemoveRow({ uid }, doc, win);
       afterHtmlTreeSectionRemoved(win, doc, uid);
     }
   );
@@ -2347,7 +2348,7 @@ export function closeHtmlTreePanel(win) {
   win?.clearTimeout?.(htmlTreePendingTimer);
 
   if (!panel) {
-    sve.syncPreviewInset(win);
+    syncPreviewInset(win);
 
     return;
   }
@@ -2361,7 +2362,7 @@ export function closeHtmlTreePanel(win) {
   releaseRightShellIfEmpty(win);
   persistDockedPanel(win);
   applyHeaderTab(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
 }
 
 export function fillHtmlTreePane(win, pane) {
@@ -2403,7 +2404,7 @@ export function openHtmlTreePanel(win) {
   // nobody asked, and buries the list of the others under it.
   htmlTreeShutStart = true;
   htmlTreeFolds.clear();
-  sve.closeRightPanels(win, [HTML_TREE_PANEL_ID]);
+  closeRightPanels(win, [HTML_TREE_PANEL_ID]);
 
   const panel = doc.createElement('div');
 
@@ -2417,7 +2418,7 @@ export function openHtmlTreePanel(win) {
   showInRightShell(win, panel);
   persistDockedPanel(win);
   applyHeaderTab(win);
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
   watchHtmlTreeDock(win);
   renderHtmlTree(win);
 }

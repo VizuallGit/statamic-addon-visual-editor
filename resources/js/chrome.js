@@ -14,6 +14,7 @@ import { unwrapRef } from './lib/values.js';
 import { publishContainers } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, ensureSoloStyle, markSoloPath, paintFocusHeader, soloRoot } from './focus-panel.js';
+import { closeRightPanels, hideGlobalsPanel, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------
@@ -382,7 +383,7 @@ export async function openChromeInline(win, kind) {
   sve.setActiveChromeKind(chromeKind);
   chromeInlineKind = chromeKind;
   setLpMode(win, 'show');
-  sve.hideGlobalsPanel(win, { release: false });
+  hideGlobalsPanel(win, { release: false });
 
   // Both halves in one set: they are two tabs of one form, and stepping across is
   // a tab switch rather than a remount — nothing half-typed is lost.
@@ -390,7 +391,7 @@ export async function openChromeInline(win, kind) {
     sveState.soloUid = null;
     soloChromeTab(win, doc, chromeKind);
     watchChromeSolo(win, doc, chromeKind);
-    sve.syncSectionLibraryAvailability(win);
+    syncSectionLibraryAvailability(win);
     syncCodeDock(win, doc, null);
 
     return;
@@ -406,7 +407,7 @@ export async function openChromeInline(win, kind) {
     chromeInlineKind = chromeKind;
   }
 
-  sve.closeRightPanels(win, []);
+  closeRightPanels(win, []);
 
   const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
   const resolver = inertiaPageResolver(win);
@@ -462,7 +463,7 @@ export async function openChromeInline(win, kind) {
   watchChromeInlineSaves(win);
   watchChromeInlineValues(win, handle);
   bootChromeSolo(win, doc, host, chromeKind);
-  sve.syncSectionLibraryAvailability(win);
+  syncSectionLibraryAvailability(win);
   syncCodeDock(win, doc, null);
   // Both, not just the other one: this half was consumed on the way in, and
   // re-opening it later should cost no more than stepping across does.
@@ -478,7 +479,7 @@ export function openGlobalsPanelFrameForChrome(win, kind) {
   }
 
   sve.openGlobalsPanel(win, set, { chromeLock: kind });
-  sve.showGlobalsPanel(win);
+  showGlobalsPanel(win);
   sve.lockChromeGlobalsTab(win, kind);
 }
 
@@ -625,7 +626,7 @@ export function closeChromeInline(win, { refresh = true } = {}) {
   const host = chromeHost(doc);
 
   // Nothing of ours is open — and nothing of ours may be forgotten either. This
-  // is called on the way IN as well (sve.closeRightPanels clears the field column
+  // is called on the way IN as well (closeRightPanels clears the field column
   // before the form is built), and clearing the kind there left the boot with
   // nothing to isolate: the whole Theme Settings screen, ten tabs and all.
   if (!host) {
@@ -663,9 +664,9 @@ export function closeChromeInline(win, { refresh = true } = {}) {
   sveState.chromeValuesBaseline = null;
 
   rearmFirstSection();
-  sve.syncPreviewInset(win);
+  syncPreviewInset(win);
   sve.clearGlobalsStash(win, { refresh });
-  sve.syncSectionLibraryAvailability(win);
+  syncSectionLibraryAvailability(win);
   syncCodeDock(win, doc, sveState.soloUid);
 
   return true;
