@@ -41,19 +41,9 @@ No import from panels/dock into overlay, preview, or `replayLivePreview`.
 
 Standalone CP script. Not `addon.js`. Instant mode is already named `astro`: classes and CSS paint in the same frame; PHP morph is **not** on the paint path.
 
-**Today:** `paintLive()` only `syncClasses()`. Structural HTML waits ~1 s for PHP. `stripAntlers()` replaces `{{ … }}` with a placeholder so the template parses as DOM — it does **not** fill fields.
+**Since 17 September 2026 (WP3):** `paintLive()` runs `paintStructure()`: the template is parsed with plain `{{ field }}` / `{{ nested.path }}` replaced by the value from the publish form (`Statamic.$events` → `publish-container-created` → the row with the section's `data-sid`), every other Antlers tag becomes a marker, and `morphElement()` walks live section and template together: attributes and classes are synced (server-owned `data-sid*` / `data-sve-*` never touched, nothing removed), a renamed tag keeps the live node's attributes and children, a new wrapper takes the existing children in, new static markup is created, and a live node is removed only where its parent holds no marker. Anything with a marker waits for the morph. If the walk throws, `syncClasses()` runs instead. `window.__sveInstantTrace` says what the last paints decided. Proven by `tests/browser/instant-paint.mjs`, which serves the working-tree script into a real Live Preview and types a probe. The scoped-pane branch (`data-sve-html-scoped`) uses the same walk but is not covered by that test yet.
 
-**Wanted:** typing HTML in the dock feels like Astro HMR. Markup structure paints into the focused section immediately. Morph still runs afterwards.
-
-**How:**
-
-1. **Paint (same frame).** Dock HTML + **publish-form values** (the real source — not whether a `[data-replicator-set]` is mounted). Substitute simple `{{ field }}` / `{{ nested.path }}`. Morph or replace the focused section (`pageSection` / `fileRootLive` / `pickedLive`). Keep the existing class/CSS Instant path.
-2. **Truth (~1 s morph).** Already happens. Do not block paint on it.
-3. **Skip Instant HTML** when the snippet needs real Antlers: `{{ if }}`, `{{ unless }}`, `{{ once }}`, `{{ partial }}`, `{{ collection }}`, `{{ nav }}`, `{{ svg }}`, `{{ assets }}`, or any tag that is not a simple field path. Leave the live DOM; wait for morph. Do **not** implement those in JS.
-4. **`{{ visual_edit }}`.** Do not invent `data-sid` in the browser. Copy existing attrs from the live node where the same element still exists; otherwise wait for morph. Overlay must not eject.
-5. **`style_push` / `script_push`.** CSS pane Instant already injects a live `<style>`. Do not execute new `<script>` from the dock on the paint path.
-
-**Do not:** `npm run cp:build` unless the human explicitly asks for a full addon build. This script is a side file.
+**Still true:** `stripAntlers()` does not evaluate anything but a field path; `{{ if }}`, loops, partials and `visual_edit` are the morph's. `htmlCmView()` reads the editor off `.cm-content.cmTile` (current @codemirror/view) with `cmView` as the older fallback.
 
 **Done when:** a wrapper / heading tag / extra static HTML in the HTML pane updates the section immediately with current field text still visible; Instant class/CSS still works; real Antlers tags still wait for morph; kernel files untouched.
 

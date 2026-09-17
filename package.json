@@ -8,7 +8,8 @@
     "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs",
     "test": "node --test \"tests/js/**/*.test.js\"",
     "check": "npm run isolate && npm test",
-    "test:browser": "node tests/browser/live-preview-smoke.mjs"
+    "test:browser": "node tests/browser/live-preview-smoke.mjs",
+    "test:instant": "node tests/browser/instant-paint.mjs"
   },
   "dependencies": {
     "@alpinejs/morph": "^3.15.11",
