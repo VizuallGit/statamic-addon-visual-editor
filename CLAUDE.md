@@ -23,7 +23,7 @@ The authoring feel should be **Astro-like**: type HTML, CSS, or a class in the d
 
 ## Surfaces (a change touches one)
 
-1. **Core preview runtime** — `resources/js/preview.js`, `overlay-host.js`, `bridge.js`, and in `cp.js`: `replayLivePreview`, `watchPreviewRenders`, `gotoOverlay`, `openOverlay`. **Locked.** Open these only if the human says in the same message that the bug is overlay, morph, eject, or bridge.
+1. **Core preview runtime** — `resources/js/preview.js`, `overlay-host.js`, `bridge.js`, plus the CP-side Live Preview lifecycle in `lp-replay.js` (`lastPreviewUrl`, `watchPreviewRenders`, `replayLivePreview`) and `gotoOverlay` / `openOverlay` in `cp.js`. **Locked.** Open these only if the human says in the same message that the bug is overlay, morph, eject, or bridge.
 2. **Annotations** — `{{ visual_edit }}` (PHP) + CP highlight.
 3. **Set insertion** — plus in preview → Statamic’s own Search Sets (`handleAddBlockNative` / `openSetPickerOverPreview`). Do not replace with a custom picker.
 4. **Panels** — focus, globals, library, chrome, performance, HTML tree.
@@ -86,3 +86,26 @@ Standalone CP script. Not `addon.js`. Instant mode is already named `astro`: cla
 ## Sibling sync (works; do not commit unless asked)
 
 Lives in this repo: `resources/js/sibling-sync.js`, `src/SiblingSync.php`, tests. Do not rewrite sync/badge/lock as a side effect of Instant or CSS work. Working copy: `.restore/sibling-sync-working/`.
+
+---
+
+## V2 working rules (since 17 September 2026)
+
+The plan with measured numbers is `docs/v2-plan.md` on the site. These are the rules that came out of WP1 and WP2.
+
+**One helper, one place — `resources/js/lib/`.** `csrf.js`, `preview-frame.js`, `style.js` (`injectStyle`), `i18n.js` (`t`, `statamicTranslate`), `vue-vm.js`, `drag.js`, `dock-host.js`, `codemirror.js`. No file may define its own copy of these. If a module needs the CSRF token, the preview iframe, a `<style>` tag, a translated string or CodeMirror, it imports from `lib/`. Every lib file starts with a header saying what it owns and what it may import; a new lib file follows the same shape.
+
+**Standalone scripts cannot share yet.** The files in `ServiceProvider::$scripts` are served outside the Vite bundle and cannot `import`. Their copies of `t()`, `csrf()`, `ensureStyles()` stay until WP6 folds them into the bundle. Do not add new standalone scripts.
+
+**Safety net runs before every push.**
+
+```
+npm run check          # isolation lint + dist integrity + node --test (tests/js)
+npm run test:browser   # Live Preview smoke test against the site (see the file header for env vars)
+```
+
+`scripts/assert-isolation.mjs` covers all of `resources/js`: kernel may import only kernel; `cp/` may import neither kernel nor `cp.js`; panels are held by `scripts/isolation-allowlist.json`, which may only shrink (a stale entry fails the run). New coupling to `cp.js`, `lp-replay.js` or the kernel is a failed lint, not a judgement call.
+
+**Release pipeline — nothing is copied by hand.** Edit here → `npm run cp:build` (one full build; dist is committed) → commit source + dist together → push (auto-tag) → on the site `composer update statamic-addon/visual-editor --no-cache` → `registerScript()` republishes the standalone scripts and `BuiltAssets::linkForControlPanel()` points `public/vendor/visual-editor/build` at the installed package. Verify with the manifest md5: repo, `vendor/` and `public/` must be identical. Never write into `vendor/` or `public/vendor/` by hand.
+
+**Known baseline (17 Sep 2026):** 15 PHP tests fail before any V2 work (SveDefaults props_ rename, ComponentProps, StripVisualIds, InjectBridgeScript). The browser smoke test's "code dock" step is timing-sensitive on both v1.1.139 and v1.1.140; it retries once.

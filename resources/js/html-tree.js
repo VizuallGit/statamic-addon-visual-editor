@@ -56,6 +56,7 @@ import {
   writeLoopTag,
 } from './antlers-edit.js';
 import { previewDocument } from './lib/preview-frame.js';
+import { injectStyle } from './lib/style.js';
 
 export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
@@ -136,15 +137,7 @@ export function htmlTreePanel(doc) {
 }
 
 export function ensureHtmlTreeStyles(doc) {
-  let style = doc.getElementById(HTML_TREE_STYLE_ID);
-
-  if (!style) {
-    style = doc.createElement('style');
-    style.id = HTML_TREE_STYLE_ID;
-    doc.head.appendChild(style);
-  }
-
-  style.textContent = `
+  injectStyle(doc, HTML_TREE_STYLE_ID, `
     [data-sve-ht-row] {
       all: unset;
       box-sizing: border-box;
@@ -339,7 +332,7 @@ export function ensureHtmlTreeStyles(doc) {
       font: inherit;
       color: inherit;
     }
-  `;
+  `);
 }
 
 function dockHtml() {

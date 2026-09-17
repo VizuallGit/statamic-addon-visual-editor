@@ -132,6 +132,7 @@ import { injectStyle } from './lib/style.js';
 import { t } from './lib/i18n.js';
 import { attachDock, dockParent } from './lib/dock-host.js';
 import { beginOverlayDrag } from './lib/drag.js';
+import { loadCodeMirror, vscTheme } from './lib/codemirror.js';
 
 let EditorView;
 let keymap;
@@ -167,55 +168,49 @@ let syntaxHighlighting;
 let tags;
 
 let cmReady = null;
+let cm = null;
 
+/** This editor's bindings, filled from the shared loader in lib/codemirror.js. */
 function loadCm() {
   if (cmReady) {
     return cmReady;
   }
 
-  cmReady = Promise.all([
-    import('@codemirror/view'),
-    import('@codemirror/state'),
-    import('@codemirror/commands'),
-    import('@codemirror/autocomplete'),
-    import('@codemirror/lang-html'),
-    import('@codemirror/lang-css'),
-    import('@codemirror/lang-javascript'),
-    import('@codemirror/language'),
-    import('@lezer/highlight'),
-  ]).then(([view, state, commands, complete, langHtml, langCss, langJs, language, highlight]) => {
-    EditorView = view.EditorView;
-    keymap = view.keymap;
-    lineNumbers = view.lineNumbers;
-    highlightActiveLine = view.highlightActiveLine;
-    highlightActiveLineGutter = view.highlightActiveLineGutter;
-    Compartment = state.Compartment;
-    EditorState = state.EditorState;
-    StateField = state.StateField;
-    StateEffect = state.StateEffect;
-    RangeSetBuilder = state.RangeSetBuilder;
-    Decoration = view.Decoration;
-    defaultKeymap = commands.defaultKeymap;
-    indentWithTab = commands.indentWithTab;
-    historyKeymap = commands.historyKeymap;
-    history = commands.history;
-    autocompletion = complete.autocompletion;
-    closeBrackets = complete.closeBrackets;
-    closeBracketsKeymap = complete.closeBracketsKeymap;
-    closeCompletion = complete.closeCompletion;
-    completionKeymap = complete.completionKeymap;
-    hoverTooltip = view.hoverTooltip;
-    htmlLanguage = langHtml.htmlLanguage;
-    html = langHtml.html;
-    css = langCss.css;
-    javascript = langJs.javascript;
-    HighlightStyle = language.HighlightStyle;
-    syntaxHighlighting = language.syntaxHighlighting;
-    codeFolding = language.codeFolding;
-    foldEffect = language.foldEffect;
-    unfoldEffect = language.unfoldEffect;
-    foldedRanges = language.foldedRanges;
-    tags = highlight.tags;
+  cmReady = loadCodeMirror()
+    .then((loaded) => {
+      cm = loaded;
+    EditorView = cm.view.EditorView;
+    keymap = cm.view.keymap;
+    lineNumbers = cm.view.lineNumbers;
+    highlightActiveLine = cm.view.highlightActiveLine;
+    highlightActiveLineGutter = cm.view.highlightActiveLineGutter;
+    Compartment = cm.state.Compartment;
+    EditorState = cm.state.EditorState;
+    StateField = cm.state.StateField;
+    StateEffect = cm.state.StateEffect;
+    RangeSetBuilder = cm.state.RangeSetBuilder;
+    Decoration = cm.view.Decoration;
+    defaultKeymap = cm.commands.defaultKeymap;
+    indentWithTab = cm.commands.indentWithTab;
+    historyKeymap = cm.commands.historyKeymap;
+    history = cm.commands.history;
+    autocompletion = cm.autocomplete.autocompletion;
+    closeBrackets = cm.autocomplete.closeBrackets;
+    closeBracketsKeymap = cm.autocomplete.closeBracketsKeymap;
+    closeCompletion = cm.autocomplete.closeCompletion;
+    completionKeymap = cm.autocomplete.completionKeymap;
+    hoverTooltip = cm.view.hoverTooltip;
+    htmlLanguage = cm.langHtml.htmlLanguage;
+    html = cm.langHtml.html;
+    css = cm.langCss.css;
+    javascript = cm.langJs.javascript;
+    HighlightStyle = cm.language.HighlightStyle;
+    syntaxHighlighting = cm.language.syntaxHighlighting;
+    codeFolding = cm.language.codeFolding;
+    foldEffect = cm.language.foldEffect;
+    unfoldEffect = cm.language.unfoldEffect;
+    foldedRanges = cm.language.foldedRanges;
+    tags = cm.highlight.tags;
 
     readOnlyOf.html = new Compartment();
     readOnlyOf.css = new Compartment();
@@ -223,10 +218,11 @@ function loadCm() {
     editableOf.html = new Compartment();
     editableOf.css = new Compartment();
     editableOf.js = new Compartment();
-  }).catch((err) => {
-    cmReady = null;
-    throw err;
-  });
+    })
+    .catch((err) => {
+      cmReady = null;
+      throw err;
+    });
 
   return cmReady;
 }
@@ -707,61 +703,6 @@ const editableOf = {
   css: null,
   js: null,
 };
-
-function vscTheme() {
-  return [
-    EditorView.theme(
-      {
-        '&': { height: 'auto', backgroundColor: '#1E1E21', color: '#d4d4d4' },
-        '.cm-content': {
-          caretColor: '#aeafad',
-          padding: '12px 0',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-          fontSize: '13px',
-          lineHeight: '1.55',
-        },
-        '.cm-cursor': { borderLeftColor: '#aeafad' },
-        '.cm-activeLine': { backgroundColor: '#ffffff0d' },
-        '.cm-activeLineGutter': { backgroundColor: '#ffffff0d' },
-        '.cm-gutters': {
-          backgroundColor: '#1E1E21',
-          color: '#858585',
-          border: 'none',
-          borderRight: '1px solid #3c3c3c',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-          fontSize: '13px',
-          lineHeight: '1.55',
-        },
-        '.cm-lineNumbers .cm-gutterElement': { paddingLeft: '8px', paddingRight: '12px' },
-        '.cm-scroller': { overflow: 'visible', height: 'auto', minHeight: 0 },
-        '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-          backgroundColor: '#264f78 !important',
-        },
-      },
-      { dark: true }
-    ),
-    syntaxHighlighting(
-      HighlightStyle.define([
-        { tag: tags.keyword, color: '#569cd6' },
-        { tag: tags.string, color: '#ce9178' },
-        { tag: tags.comment, color: '#6a9955', fontStyle: 'italic' },
-        { tag: tags.number, color: '#b5cea8' },
-        { tag: tags.className, color: '#d7ba7d' },
-        { tag: tags.tagName, color: '#4ec9b0' },
-        { tag: tags.propertyName, color: '#9cdcfe' },
-        { tag: tags.variableName, color: '#9cdcfe' },
-        { tag: tags.attributeName, color: '#9cdcfe' },
-        { tag: tags.attributeValue, color: '#ce9178' },
-        { tag: tags.angleBracket, color: '#808080' },
-        { tag: tags.unit, color: '#b5cea8' },
-        { tag: tags.color, color: '#ce9178' },
-        { tag: tags.bracket, color: '#ffd700' },
-        { tag: tags.punctuation, color: '#d4d4d4' },
-        { tag: tags.operator, color: '#d4d4d4' },
-      ])
-    ),
-  ];
-}
 
 function languageOf(handle) {
   if (handle === 'css') {
@@ -7529,7 +7470,17 @@ function mountEditor(win, handle, parent) {
             }
           }
         }),
-        ...vscTheme(),
+        ...vscTheme(cm, {
+          height: 'auto',
+          background: '#1E1E21',
+          scroller: { overflow: 'visible', height: 'auto', minHeight: 0 },
+          extraTags: (tags) => [
+            { tag: tags.tagName, color: '#4ec9b0' },
+            { tag: tags.attributeName, color: '#9cdcfe' },
+            { tag: tags.attributeValue, color: '#ce9178' },
+            { tag: tags.angleBracket, color: '#808080' },
+          ],
+        }),
       ],
     }),
     parent,

@@ -21,6 +21,7 @@ import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { fileManagerUi as ui } from './cp/file-manager/store.js';
 import { csrfToken } from './lib/csrf.js';
+import { loadCodeMirror, vscTheme } from './lib/codemirror.js';
 
 export const FILES_UTILITY_HOST = 'sve-files-utility';
 
@@ -50,6 +51,7 @@ let syntaxHighlighting;
 let tags;
 
 let cmReady = null;
+let cm = null;
 let app = null;
 let host = null;
 let unbindFit = null;
@@ -59,45 +61,37 @@ let applying = false;
 let saved = '';
 let loadSeq = 0;
 
+/** This editor's bindings, filled from the shared loader in lib/codemirror.js. */
 function loadCm() {
   if (cmReady) {
     return cmReady;
   }
 
-  cmReady = Promise.all([
-    import('@codemirror/view'),
-    import('@codemirror/state'),
-    import('@codemirror/commands'),
-    import('@codemirror/autocomplete'),
-    import('@codemirror/lang-css'),
-    import('@codemirror/lang-html'),
-    import('@codemirror/lang-javascript'),
-    import('@codemirror/language'),
-    import('@lezer/highlight'),
-  ])
-    .then(([view, state, commands, complete, css, html, js, language, highlight]) => {
-      EditorView = view.EditorView;
-      keymap = view.keymap;
-      lineNumbers = view.lineNumbers;
-      highlightActiveLine = view.highlightActiveLine;
-      highlightActiveLineGutter = view.highlightActiveLineGutter;
-      tooltips = view.tooltips;
-      EditorState = state.EditorState;
-      Compartment = state.Compartment;
-      defaultKeymap = commands.defaultKeymap;
-      indentWithTab = commands.indentWithTab;
-      historyKeymap = commands.historyKeymap;
-      history = commands.history;
-      autocompletion = complete.autocompletion;
-      closeBrackets = complete.closeBrackets;
-      closeBracketsKeymap = complete.closeBracketsKeymap;
-      completionKeymap = complete.completionKeymap;
-      cssLang = css.css;
-      htmlLang = html.html;
-      jsLang = js.javascript;
-      HighlightStyle = language.HighlightStyle;
-      syntaxHighlighting = language.syntaxHighlighting;
-      tags = highlight.tags;
+  cmReady = loadCodeMirror()
+    .then((loaded) => {
+      cm = loaded;
+    EditorView = cm.view.EditorView;
+    keymap = cm.view.keymap;
+    lineNumbers = cm.view.lineNumbers;
+    highlightActiveLine = cm.view.highlightActiveLine;
+    highlightActiveLineGutter = cm.view.highlightActiveLineGutter;
+    tooltips = cm.view.tooltips;
+    EditorState = cm.state.EditorState;
+    Compartment = cm.state.Compartment;
+    defaultKeymap = cm.commands.defaultKeymap;
+    indentWithTab = cm.commands.indentWithTab;
+    historyKeymap = cm.commands.historyKeymap;
+    history = cm.commands.history;
+    autocompletion = cm.autocomplete.autocompletion;
+    closeBrackets = cm.autocomplete.closeBrackets;
+    closeBracketsKeymap = cm.autocomplete.closeBracketsKeymap;
+    completionKeymap = cm.autocomplete.completionKeymap;
+    cssLang = cm.langCss.css;
+    htmlLang = cm.langHtml.html;
+    jsLang = cm.langJs.javascript;
+    HighlightStyle = cm.language.HighlightStyle;
+    syntaxHighlighting = cm.language.syntaxHighlighting;
+    tags = cm.highlight.tags;
     })
     .catch((err) => {
       cmReady = null;
@@ -105,60 +99,6 @@ function loadCm() {
     });
 
   return cmReady;
-}
-
-function vscTheme() {
-  return [
-    EditorView.theme(
-      {
-        '&': { height: '100%', backgroundColor: '#242424', color: '#d4d4d4' },
-        '.cm-content': {
-          caretColor: '#aeafad',
-          padding: '12px 0',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-          fontSize: '13px',
-          lineHeight: '1.55',
-        },
-        '.cm-cursor': { borderLeftColor: '#aeafad' },
-        '.cm-activeLine': { backgroundColor: '#ffffff0d' },
-        '.cm-activeLineGutter': { backgroundColor: '#ffffff0d' },
-        '.cm-gutters': {
-          backgroundColor: '#242424',
-          color: '#858585',
-          border: 'none',
-          borderRight: '1px solid #3c3c3c',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-          fontSize: '13px',
-          lineHeight: '1.55',
-        },
-        '.cm-lineNumbers .cm-gutterElement': { paddingLeft: '8px', paddingRight: '12px' },
-        '.cm-scroller': { overflow: 'auto', height: '100%', minHeight: 0 },
-        '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-          backgroundColor: '#264f78 !important',
-        },
-      },
-      { dark: true }
-    ),
-    syntaxHighlighting(
-      HighlightStyle.define([
-        { tag: tags.keyword, color: '#569cd6' },
-        { tag: tags.string, color: '#ce9178' },
-        { tag: tags.comment, color: '#6a9955', fontStyle: 'italic' },
-        { tag: tags.number, color: '#b5cea8' },
-        { tag: tags.className, color: '#d7ba7d' },
-        { tag: tags.propertyName, color: '#9cdcfe' },
-        { tag: tags.variableName, color: '#9cdcfe' },
-        { tag: tags.tagName, color: '#569cd6' },
-        { tag: tags.attributeName, color: '#9cdcfe' },
-        { tag: tags.unit, color: '#b5cea8' },
-        { tag: tags.color, color: '#ce9178' },
-        { tag: tags.bracket, color: '#ffd700' },
-        { tag: tags.punctuation, color: '#d4d4d4' },
-        { tag: tags.operator, color: '#d4d4d4' },
-        { tag: tags.definition(tags.propertyName), color: '#9cdcfe' },
-      ])
-    ),
-  ];
 }
 
 /**
@@ -302,7 +242,14 @@ function mountEditor(win, el) {
           ui.dirty = editor.state.doc.toString() !== saved;
           ui.status = ui.dirty ? t(win, 'files_unsaved') : '';
         }),
-        ...vscTheme(),
+        ...vscTheme(cm, {
+          height: '100%',
+          background: '#242424',
+          extraTags: (tags) => [
+            { tag: tags.tagName, color: '#569cd6' },
+            { tag: tags.attributeName, color: '#9cdcfe' },
+          ],
+        }),
       ],
     }),
     parent: el,

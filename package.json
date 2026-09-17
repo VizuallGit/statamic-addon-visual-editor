@@ -7,7 +7,8 @@
     "cp:build": "vite build",
     "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs",
     "test": "node --test \"tests/js/**/*.test.js\"",
-    "check": "npm run isolate && npm test"
+    "check": "npm run isolate && npm test",
+    "test:browser": "node tests/browser/live-preview-smoke.mjs"
   },
   "dependencies": {
     "@alpinejs/morph": "^3.15.11",

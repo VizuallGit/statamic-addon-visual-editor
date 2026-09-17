@@ -57,6 +57,7 @@ import { relayoutAiPanel } from './ai-panel-lazy.js';
 import { mountPane } from './cp/mount-pane.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import SoloPills from './cp/surfaces/SoloPills.vue';
+import { injectStyle } from './lib/style.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -164,27 +165,13 @@ export function panelFrameDoc(doc) {
 }
 
 export function ensureSoloStyle(doc) {
-  const existing = doc.getElementById(SOLO_STYLE_ID);
-
   // Panel iframe uses away-marks (safe under Vue re-renders). Live Preview keeps
   // the classic parent>keep path CSS.
   const css = panelFrameDoc(doc)
     ? `[${PANEL_AWAY_ATTR}] { display: none !important; }`
     : `[${SOLO_PARENT_ATTR}] > *:not([${SOLO_KEEP_ATTR}]) { display: none !important; }`;
 
-  if (existing) {
-    if (existing.textContent !== css) {
-      existing.textContent = css;
-    }
-
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = SOLO_STYLE_ID;
-  style.textContent = css;
-  doc.head.appendChild(style);
+  injectStyle(doc, SOLO_STYLE_ID, css);
 }
 
 /** What the back pill does, when it is not simply leaving the solo view. */

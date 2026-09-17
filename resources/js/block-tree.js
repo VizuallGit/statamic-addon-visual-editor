@@ -34,6 +34,7 @@ import ListViewBody from './cp/surfaces/ListViewBody.vue';
 import ListViewTree from './cp/surfaces/ListViewTree.vue';
 import ListViewMenu from './cp/surfaces/ListViewMenu.vue';
 import { listViewUi } from './cp/listview/store.js';
+import { injectStyle } from './lib/style.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -530,15 +531,7 @@ export const LISTVIEW_STYLE_ID = '__sve-listview-style';
  * whichever it is in, and every tint is mixed from that.
  */
 export function ensureListViewStyles(doc) {
-  let style = doc.getElementById(LISTVIEW_STYLE_ID);
-
-  if (!style) {
-    style = doc.createElement('style');
-    style.id = LISTVIEW_STYLE_ID;
-    doc.head.appendChild(style);
-  }
-
-  style.textContent = `
+  injectStyle(doc, LISTVIEW_STYLE_ID, `
     [data-sve-lv-row] {
       all: unset;
       box-sizing: border-box;
@@ -709,7 +702,7 @@ export function ensureListViewStyles(doc) {
       background: rgba(255,255,255,.16);
       outline: 2px solid currentColor;
     }
-  `;
+  `);
 }
 
 /** Every node in the tree, folded or not. */

@@ -25,6 +25,7 @@ import { ensurePanel } from './lazy-panels.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { frameDocumentUrl, isLivePreviewDocumentUrl, lastPreviewUrl, replayLivePreview, watchPreviewRenders } from './lp-replay.js';
+import { injectStyle } from './lib/style.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -1923,14 +1924,7 @@ export function initGlobalsPanelFrame(win) {
 
 /** Focus-panel CSS lives on the parent CP; the sve-panel iframe needs its own copy. */
 export function injectPanelFocusStyles(doc) {
-  if (doc.getElementById('__sve-panel-focus-styles')) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = '__sve-panel-focus-styles';
-  style.textContent = `
+  injectStyle(doc, '__sve-panel-focus-styles', `
     [data-sve-focus-header] {
       position: sticky; top: 0; z-index: 3; display: flex; flex-direction: column;
       gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.875rem 0 1rem;
@@ -1973,8 +1967,7 @@ export function injectPanelFocusStyles(doc) {
     [data-sve-focus] [data-sve-focus-flush] { padding-inline: 0 !important; }
     /* Entry Main/Sidebar tabs — redundant once we're inside the section. */
     [data-sve-focus] [role="tablist"] { display: none !important; }
-  `;
-  doc.head.appendChild(style);
+  `);
 }
 
 /** Library-only fields on a saved_sections entry — not part of a normal section edit. */

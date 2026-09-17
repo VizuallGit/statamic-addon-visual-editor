@@ -71,6 +71,7 @@ import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, markLivePreviewReady, showPanelWait, warmLivePreviewCore } from './lazy-panels.js';
 import { bindToolbarPrefetch } from './toolbar-prefetch.js';
 import { watchPreviewRenders } from './lp-replay.js';
+import { injectStyle } from './lib/style.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -4340,14 +4341,7 @@ export const GRID_DONE_ATTR = 'data-sve-grid-done';
 export const GRID_STYLE_ID = 'sve-grid-accordion-style';
 
 export function ensureGridStyle(doc) {
-  if (doc.getElementById(GRID_STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = GRID_STYLE_ID;
-  style.textContent = `
+  injectStyle(doc, GRID_STYLE_ID, `
     [${GRID_ROW_ATTR}] > header { cursor: pointer; }
     [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] > *:not(header) { display: none !important; }
     [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] > header { border-bottom-color: transparent; }
@@ -4361,8 +4355,7 @@ export function ensureGridStyle(doc) {
       pointer-events: none; margin-left: 4px;
     }
     [${GRID_ROW_ATTR}][${GRID_COLLAPSED_ATTR}] .sve-grid-chevron { transform: rotate(-90deg); }
-  `;
-  doc.head.appendChild(style);
+  `);
 }
 
 /** Prefer text / textarea / Bard — skip icons, assets, empty controls, etc. */
@@ -9114,10 +9107,7 @@ export function initCp(win = window) {
 
   sve.registerRightDockContent?.();
 
-  const style = win.document.createElement('style');
-  style.id = '__sve-cp-styles';
-  style.textContent = CP_STYLES;
-  win.document.head.appendChild(style);
+  injectStyle(win.document, '__sve-cp-styles', CP_STYLES);
 
   win.addEventListener('resize', () => {
     relayoutCodeDock(win);

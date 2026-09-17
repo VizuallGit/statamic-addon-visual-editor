@@ -8,6 +8,7 @@ import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { postToHost } from './cp.js';
+import { injectStyle } from './lib/style.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -155,14 +156,7 @@ export const ENTRY_OPEN_STYLE_ID = '__sve-entry-open-style';
 export const ENTRY_OPEN_ATTR = 'data-sve-entry-loading';
 
 export function ensureEntryOpenStyles(doc) {
-  if (doc.getElementById(ENTRY_OPEN_STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = ENTRY_OPEN_STYLE_ID;
-  style.textContent = `
+  injectStyle(doc, ENTRY_OPEN_STYLE_ID, `
 [${ENTRY_OPEN_ATTR}] {
   display: inline-flex;
   align-items: center;
@@ -187,8 +181,7 @@ export function ensureEntryOpenStyles(doc) {
   0%, 100% { opacity: .22; }
   50% { opacity: .88; }
 }
-`;
-  doc.head.appendChild(style);
+`);
 }
 
 export function clearEntryOpening(doc) {
