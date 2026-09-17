@@ -13,6 +13,7 @@ import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
 import { lpHeader } from './lib/live-preview.js';
 import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
+import { clearSolo, ensureLpPanelToggle } from './focus-panel.js';
 
 // ===== lp-panel =====
 // --- Live Preview: collapsible editor panel ----------------------------------
@@ -347,7 +348,7 @@ export function lpHeaderBg(win) {
  * `data-sep-before` er navnet på det der står til højre for stregen; det til
  * venstre findes ud fra rækkefølgen. Det er nok til at afgøre om stregen støder
  * op til noget der har sin egen flade og derfor skal gemmes — se
- * sve.ensureLpPanelToggle. Uden navn er den bare en streg og bliver stående.
+ * ensureLpPanelToggle. Uden navn er den bare en streg og bliver stående.
  */
 export function lpModeSeparator(doc, before) {
   const sep = doc.createElement('span');
@@ -371,7 +372,7 @@ export function lpModeSeparator(doc, before) {
 
 /** Snapshot: they had the editor sidebar closed when this Live Preview opened. */
 
-// Set while a section's settings are on show — see sve.ensureLpPanelToggle.
+// Set while a section's settings are on show — see ensureLpPanelToggle.
 
 export function lpMode(win) {
   const stored = chromeGet(win, LP_MODE_KEY);
@@ -439,7 +440,7 @@ export function setLpMode(win, mode) {
 
   // Switching to Show reveals the FULL form, like the old open-toggle did.
   if (mode === 'show') {
-    sve.clearSolo(win.document);
+    clearSolo(win.document);
     setHeaderTab(win, 'settings');
   } else if (sveState.headerTab === 'settings') {
     setHeaderTab(win, null);
@@ -465,5 +466,5 @@ export function setLpCollapsed(win, collapsed) {
     sve.hideGlobalsPanel(win, { release: false });
   }
 
-  sve.ensureLpPanelToggle(win);
+  ensureLpPanelToggle(win);
 }

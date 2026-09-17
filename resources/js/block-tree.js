@@ -41,6 +41,7 @@ import { sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
+import { focusBack, focusFromPreview, focusRowMeta, gridMeta, paintFocusHeader, setMeta } from './focus-panel.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -57,7 +58,7 @@ import { persistDockedPanel } from './lp-panel.js';
 // view, collapsed, or hidden behind a condition is missing from the drawing while
 // still being part of the page.
 //
-// A click hands the uid to the same `sve.focusFromPreview` the outline uses. Rename
+// A click hands the uid to the same `focusFromPreview` the outline uses. Rename
 // is the one write: it stores `_sve_label` on the row. The panel is redrawn from
 // scratch each time it opens.
 
@@ -811,7 +812,7 @@ export function listViewDefaultLabel(win, item) {
     const type = item.globalType || sve.savedSectionInfo(win, item.globalId)?.section_type || '';
 
     if (type) {
-      return sve.setMeta(win, type)?.display || humanizeHandle(type);
+      return setMeta(win, type)?.display || humanizeHandle(type);
     }
 
     const title = sve.savedSectionInfo(win, item.globalId)?.title || '';
@@ -821,7 +822,7 @@ export function listViewDefaultLabel(win, item) {
     }
   }
 
-  const meta = item.kind === 'grid' ? sve.gridMeta(win, item.listKey) : sve.setMeta(win, item.type);
+  const meta = item.kind === 'grid' ? gridMeta(win, item.listKey) : setMeta(win, item.type);
 
   return meta?.display || humanizeHandle(item.type || item.listKey) || t(win, 'listview_item');
 }
@@ -833,14 +834,14 @@ export function listViewRowLabel(win, item) {
 /** Icon/name meta for a tree row — a global section uses the source type's icon. */
 export function listViewRowMeta(win, item) {
   if (item.kind === 'grid') {
-    return sve.gridMeta(win, item.listKey);
+    return gridMeta(win, item.listKey);
   }
 
   const type = item.global
     ? item.globalType || sve.savedSectionInfo(win, item.globalId)?.section_type || item.type
     : item.type;
 
-  return sve.setMeta(win, type);
+  return setMeta(win, type);
 }
 
 export function writeRowLabel(win, uid, label) {
@@ -905,11 +906,11 @@ export function refreshFocusName(win) {
 
   const kind = doc.documentElement.getAttribute(FOCUS_ROOT_ATTR) || 'section';
 
-  sve.paintFocusHeader(
+  paintFocusHeader(
     win,
     doc,
-    sve.focusRowMeta(win, sveState.soloUid, doc),
-    sve.focusBack(win, doc, sveState.soloUid, kind)
+    focusRowMeta(win, sveState.soloUid, doc),
+    focusBack(win, doc, sveState.soloUid, kind)
   );
 }
 
@@ -1492,7 +1493,7 @@ export function renderListView(win) {
     listViewActiveUid = item.uid;
     listViewRevealPath(item);
     renderListView(win);
-    sve.focusFromPreview(item.uid, doc, win, { clampToSection: true });
+    focusFromPreview(item.uid, doc, win, { clampToSection: true });
     sendToPreview({ source: 'statamic-visual-editor', type: 'sve-activate', ids: item.ids }, win);
   };
   listViewUi.onRename = (uid, event) => {

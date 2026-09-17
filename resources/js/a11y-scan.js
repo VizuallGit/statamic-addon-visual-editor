@@ -28,6 +28,7 @@ import paneCss from '../css/a11y.css?inline';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { autoOpenPanel } from './lp-panel.js';
+import { focusFieldOwner, focusFromPreview, focusPanelOn } from './focus-panel.js';
 
 const OVERLAY_ID = '__sve-a11y-overlay';
 const STYLE_ID = '__sve-a11y-style';
@@ -478,8 +479,8 @@ function focusElement(win, el) {
   const field = el.closest('[data-sid-field]');
   const scope = field?.getAttribute('data-sid-field-uid');
 
-  if (field && scope && sve.focusPanelOn?.(win)) {
-    sve.focusFieldOwner(field.getAttribute('data-sid-field'), scope, win.document, win);
+  if (field && scope && focusPanelOn(win)) {
+    focusFieldOwner(field.getAttribute('data-sid-field'), scope, win.document, win);
 
     return;
   }
@@ -487,7 +488,7 @@ function focusElement(win, el) {
   const uid = el.closest('[data-sid]')?.getAttribute('data-sid');
 
   if (uid) {
-    sve.focusFromPreview(uid, win.document, win, { clampToSection: true });
+    focusFromPreview(uid, win.document, win, { clampToSection: true });
   }
 }
 

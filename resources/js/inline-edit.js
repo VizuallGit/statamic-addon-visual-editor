@@ -29,6 +29,7 @@ import { csrfToken } from './lib/csrf.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers, publishContainers } from './lib/publish-containers.js';
 import { setLpCollapsed } from './lp-panel.js';
+import { deepestFieldPath } from './focus-panel.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -689,7 +690,7 @@ export function handleEditRequest(data, doc, win) {
     // block ids were stripped): find the deepest row under basePath that owns
     // this field handle and use that path instead.
     if (value === undefined && data.field && basePath !== null && basePath !== '') {
-      const deepPath = sve.deepestFieldPath(dataGet(values, basePath), data.field, basePath);
+      const deepPath = deepestFieldPath(dataGet(values, basePath), data.field, basePath);
 
       if (deepPath) {
         path = deepPath;
@@ -1910,7 +1911,7 @@ export function resolveIconField(data, doc) {
     let value = dataGet(values, path);
 
     if (value === undefined && data.field && basePath !== '') {
-      const deepPath = sve.deepestFieldPath(dataGet(values, basePath), data.field, basePath);
+      const deepPath = deepestFieldPath(dataGet(values, basePath), data.field, basePath);
 
       if (deepPath) {
         path = deepPath;

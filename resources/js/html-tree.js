@@ -62,6 +62,7 @@ import { featureOn, sectionField } from './lib/config.js';
 import { HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
+import { focusFromPreview, setMeta } from './focus-panel.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -620,7 +621,7 @@ function htmlTreeSections(win, doc) {
         label:
           (typeof alias === 'string' && alias.trim() ? alias.trim() : '')
           || custom
-          || sve.setMeta?.(win, type)?.display
+          || setMeta(win, type)?.display
           || humanizeHandle(type)
           || type,
         // Its first tag's mark — the one it unfolds into. The set's own icon
@@ -693,7 +694,7 @@ function htmlTreeRootName(win, sections, openUid) {
 
   const type = ask('dock:current-type') || '';
 
-  return sve.setMeta?.(win, type)?.display || humanizeHandle(type) || '';
+  return setMeta(win, type)?.display || humanizeHandle(type) || '';
 }
 
 /**
@@ -760,7 +761,7 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   // itself once the section has landed. Focusing straight after activating is
   // focusing something that is not there yet: the tree and the dock moved, and
   // the sidebar quietly went on showing the section before.
-  const focus = () => sve.focusFromPreview?.(section.uid, doc, win, { clampToSection: true });
+  const focus = () => focusFromPreview(section.uid, doc, win, { clampToSection: true });
 
   if (typeof sve.openLiteSection === 'function') {
     sve.openLiteSection(section.uid, doc, win, focus);

@@ -81,6 +81,7 @@ import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { activeContainers, registerContainerEvents } from './lib/publish-containers.js';
 import { autoOpenPanel, findLpSaveButton, lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, paintLpSaveButton, persistDockedPanel, setLpCollapsed, setLpMode, syncLpRightBarGaps } from './lp-panel.js';
+import { ensureLpPanelToggle, ensureLpWidthPicker, focusFieldOwner, focusFromPreview, focusPanelOn, leaveSolo, markStepIntoAll, persistLpWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -3340,7 +3341,7 @@ export function toggleHeaderTab(win, key) {
       fireTabClick(win, 1);
       settingsTabPressedAt = Date.now();
       settingsTabTries = 0;
-      sve.leaveSolo(win.document, win);
+      leaveSolo(win.document, win);
       applySectionsFieldVisibility(win);
       applyHeaderTab(win);
 
@@ -3498,7 +3499,7 @@ export function ensureSettingsTabs(win) {
       'position:fixed;z-index:4;display:flex;align-items:stretch;' +
       'color:currentColor;font-family:inherit;box-sizing:border-box;';
     (doc.querySelector('.live-preview') || doc.body).appendChild(bar);
-    win.addEventListener('resize', () => sve.placeLpWidthPicker(win));
+    win.addEventListener('resize', () => placeLpWidthPicker(win));
   }
 
   bar.setAttribute('data-sve-settings-bar', '');
@@ -3659,7 +3660,7 @@ export function clickNativeTab(win, index) {
   }
 
   if (leavingSolo) {
-    sve.leaveSolo(win.document, win);
+    leaveSolo(win.document, win);
     applySectionsFieldVisibility(win);
   }
 
@@ -3752,7 +3753,7 @@ export function applyHeaderTab(win) {
   }
 
   // Publish-fanerne er ikke med her: de er flyttet ned i panelets bundlinje, ved
-  // siden af breddevælgeren — se sve.ensureLpWidthPicker.
+  // siden af breddevælgeren — se ensureLpWidthPicker.
   const controls = {
     pages: doc.getElementById(COLLECTION_PICKER_ID)?.parentElement,
     globals: doc.getElementById(GLOBALS_PICKER_ID)?.parentElement,
@@ -3980,7 +3981,7 @@ export function applySectionsFieldVisibility(win) {
 
   const hide =
     featureOn(win, 'open_first_section')
-    && sve.focusPanelOn(win)
+    && focusPanelOn(win)
     && !doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`);
 
   wrapper.style.display = hide ? 'none' : '';
@@ -4007,7 +4008,7 @@ export function openFirstSectionOnce(win) {
     return;
   }
 
-  if (firstSectionOpened || !featureOn(win, 'open_first_section') || !sve.focusPanelOn(win)) {
+  if (firstSectionOpened || !featureOn(win, 'open_first_section') || !focusPanelOn(win)) {
     return;
   }
 
@@ -4054,7 +4055,7 @@ export function openFirstSectionOnce(win) {
     }
 
     firstSectionOpened = true;
-    sve.focusFromPreview(uid, doc, win);
+    focusFromPreview(uid, doc, win);
 
     return;
   }
@@ -5468,7 +5469,7 @@ export function resetEditorLayout(win) {
   applyLpDevice(win, 'Responsive');
   applyLpZoom(win, LP_ZOOM_DEFAULT);
   clearChromePrefs(win);
-  sve.persistLpWidth(win, remToPx(win, LP_SIDE_DEFAULT_REM));
+  persistLpWidth(win, remToPx(win, LP_SIDE_DEFAULT_REM));
   chromeSet(win, LP_MODE_KEY, 'hide');
   chromeSet(win, LP_COLLAPSED_KEY, '1');
   chromeSet(win, LP_DEVICE_KEY, 'Responsive');
@@ -5481,7 +5482,7 @@ export function resetEditorLayout(win) {
   sve.syncPreviewInset(win);
   applyHeaderTab(win);
   paintLpPreviewChrome(win);
-  sve.ensureLpPanelToggle(win);
+  ensureLpPanelToggle(win);
 }
 
 /** Close menu: admin or the live site — Save/Publish stay on the header buttons. */
@@ -7119,7 +7120,7 @@ export function handleAddBardSetNative(data, doc, win) {
   }
 
   if (scope && autoOpenPanel(win)) {
-    sve.soloSection(topLevelSectionUid(scope, doc) || scope, doc, win);
+    soloSection(topLevelSectionUid(scope, doc) || scope, doc, win);
   }
 
   handleFieldFocus(field, doc, { scopeUid: scope || undefined });
@@ -7379,7 +7380,7 @@ export function createMessageListener(doc = document, win = window) {
       // Whatever the click turns out to mean below, the tree should show where it
       // landed. Placed here, before the branching, because the branches lead to
       // different functions — a field click with the focus panel on never reaches
-      // `sve.focusFromPreview` — and "the preview reported a click" is true of all of
+      // `focusFromPreview` — and "the preview reported a click" is true of all of
       // them exactly once.
       sve.listViewSyncTo?.(win, data.scope, data.uid);
       applyDeclaredDefaults(data, doc);
@@ -7399,10 +7400,10 @@ export function createMessageListener(doc = document, win = window) {
         // passes its row id as scope, which still expands below via
         // handleFieldFocus.
         if (data.scope && autoOpenPanel(win)) {
-          if (sve.focusPanelOn(win)) {
-            sve.focusFieldOwner(data.field, data.scope, doc, win);
+          if (focusPanelOn(win)) {
+            focusFieldOwner(data.field, data.scope, doc, win);
           } else {
-            sve.focusFromPreview(data.scope, doc, win, { clampToSection: true });
+            focusFromPreview(data.scope, doc, win, { clampToSection: true });
           }
         }
 
@@ -7419,7 +7420,7 @@ export function createMessageListener(doc = document, win = window) {
       } else if (autoOpenPanel(win)) {
         // Clicking a section opens the panel showing ONLY that section. Falls
         // back to plain focus (e.g. nested rows without a resolvable set).
-        if (!sve.focusFromPreview(data.uid, doc, win)) {
+        if (!focusFromPreview(data.uid, doc, win)) {
           handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
         }
       }
@@ -9143,11 +9144,11 @@ export function initCp(win = window) {
 
     try {
       stampGridRows(win.document);
-      sve.ensureLpPanelToggle(win);
+      ensureLpPanelToggle(win);
       // Live Preview mounts (and remounts) its iframe from here — bind the
       // click-outside forward to whichever one is on screen now.
       sve.ensurePreviewOutsideDismiss(win);
-      sve.markStepIntoAll(win);
+      markStepIntoAll(win);
 
       if (previewPainted(win.document)) {
         markLivePreviewReady(win);

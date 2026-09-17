@@ -13,6 +13,7 @@ import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GL
 import { unwrapRef } from './lib/values.js';
 import { publishContainers } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
+import { clearSolo, ensureSoloStyle, markSoloPath, paintFocusHeader, soloRoot } from './focus-panel.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------
@@ -162,7 +163,7 @@ export function activeChromeTabPanel(host) {
  * Show one tab and nothing else.
  *
  * The isolation is the section view's isolation — the same keep/parent marking
- * `sve.markSoloPath` does, started at the tab's own panel instead of at a set. So the
+ * `markSoloPath` does, started at the tab's own panel instead of at a set. So the
  * globals form arrives stripped of everything a section's card is stripped of:
  * its title bar, its Save, the row of other tabs, and the page's own fields
  * behind it. What is left is the header's fields under a header naming them.
@@ -192,7 +193,7 @@ export function soleChromePanel(host) {
 
 export function soloChromeTab(win, doc, kind) {
   const host = chromeHost(doc);
-  const editor = sve.soloRoot(doc);
+  const editor = soloRoot(doc);
 
   if (!host || !editor || !editor.contains(host)) {
     return false;
@@ -222,7 +223,7 @@ export function soloChromeTab(win, doc, kind) {
     return false;
   }
 
-  sve.ensureSoloStyle(doc);
+  ensureSoloStyle(doc);
 
   doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
   doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
@@ -239,7 +240,7 @@ export function soloChromeTab(win, doc, kind) {
   // header"); at the top of the panel it is a name, so it starts like one.
   const word = t(win, kind === 'footer' ? 'chrome_footer' : 'chrome_header');
 
-  sve.paintFocusHeader(
+  paintFocusHeader(
     win,
     doc,
     {
@@ -258,7 +259,7 @@ export function soloChromeTab(win, doc, kind) {
  *
  * Stored in `sveState.soloObserver` on purpose: it is the same slot a section's solo uses,
  * so stepping from the header into one of its widgets replaces this watch with
- * that one, and `sve.clearSolo` takes down whichever is running.
+ * that one, and `clearSolo` takes down whichever is running.
  */
 export function watchChromeSolo(win, doc, kind) {
   if (sveState.soloObserver) {
@@ -653,7 +654,7 @@ export function closeChromeInline(win, { refresh = true } = {}) {
   }
 
   host.remove();
-  sve.clearSolo(doc);
+  clearSolo(doc);
   openSettingsTab(win);
   sve.showPageFieldsAgain(doc);
 

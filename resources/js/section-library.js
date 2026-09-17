@@ -58,6 +58,7 @@ import { previewFrame } from './lib/preview-frame.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
+import { clearSolo, focusPanelOn, hideSettingsBar, sectionSettingsFields, soloSection, soloSectionSettings } from './focus-panel.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -1850,7 +1851,7 @@ export function placeGlobalsOverlay(win) {
     'position:fixed;z-index:61;display:flex;flex-direction:column;overflow:hidden;' +
     'background:var(--theme-color-content-bg,#fff);color:currentColor;border:0;box-shadow:none;' +
     'font-family:ui-sans-serif,system-ui,sans-serif;box-sizing:border-box;';
-  sve.hideSettingsBar?.(win);
+  hideSettingsBar(win);
   panel.style.left = `${Math.round(rect.left)}px`;
   panel.style.top = `${Math.round(rect.top)}px`;
   panel.style.width = `${width}px`;
@@ -2057,7 +2058,7 @@ export function editorOverlayCss() {
  * inside it so switching footer ↔ hero never changes sidebar width.
  */
 export function claimLivePreviewEditor(win) {
-  sve.clearSolo(win.document);
+  clearSolo(win.document);
 
   if (sveState.headerTab === 'settings') {
     setHeaderTab(win, null);
@@ -3888,7 +3889,7 @@ export function handleSectionSettings(data, doc, win) {
     }
 
     // A collapsed set renders no fields, and revealing takes a beat — just wait.
-    if (!sve.sectionSettingsFields(setEl).length) {
+    if (!sectionSettingsFields(setEl).length) {
       if (++attempts < 30) {
         setTimeout(open, 200);
       }
@@ -3902,12 +3903,12 @@ export function handleSectionSettings(data, doc, win) {
       // With the focus panel on, the section already comes up under its own name
       // with its tabs across the top — the gear means "open it on the settings
       // tab", not "show me the settings fields and nothing around them".
-      const opened = sve.focusPanelOn(win)
-        ? sve.soloSection(data.uid, doc, win, { kind: 'section', segment: 'settings' })
-        : sve.soloSectionSettings(data.uid, doc, win);
+      const opened = focusPanelOn(win)
+        ? soloSection(data.uid, doc, win, { kind: 'section', segment: 'settings' })
+        : soloSectionSettings(data.uid, doc, win);
 
       if (!opened) {
-        sve.soloSection(data.uid, doc, win);
+        soloSection(data.uid, doc, win);
       }
 
       sveState.forcePanelOpen = true;

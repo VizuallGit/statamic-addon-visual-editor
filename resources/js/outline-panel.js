@@ -26,6 +26,7 @@ import { featureOn, sectionField } from './lib/config.js';
 import { OUTLINE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { autoOpenPanel, persistDockedPanel } from './lp-panel.js';
+import { focusFieldOwner, focusFromPreview, focusPanelOn } from './focus-panel.js';
 
 // ===== outline =====
 // --- Heading outline panel ------------------------------------------------------
@@ -619,14 +620,14 @@ export function jumpToOutlineEntry(win, index, item) {
     return;
   }
 
-  if (item.field && item.scope && sve.focusPanelOn(win)) {
-    sve.focusFieldOwner(item.field, item.scope, win.document, win);
+  if (item.field && item.scope && focusPanelOn(win)) {
+    focusFieldOwner(item.field, item.scope, win.document, win);
 
     return;
   }
 
   if (item.uid) {
-    sve.focusFromPreview(item.uid, win.document, win, { clampToSection: true });
+    focusFromPreview(item.uid, win.document, win, { clampToSection: true });
   }
 }
 Object.defineProperty(sve, 'outlineItems', { get() { return outlineItems; }, set(v) { outlineItems = v; } });

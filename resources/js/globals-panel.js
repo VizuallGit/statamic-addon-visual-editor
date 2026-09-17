@@ -31,6 +31,7 @@ import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { focusFieldOwner, focusPanelOn, setMeta, soloSection } from './focus-panel.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -333,7 +334,7 @@ export function globalSectionLabel(win) {
     return custom;
   }
 
-  return sve.setMeta(win, type)?.display || humanizeHandle(type);
+  return setMeta(win, type)?.display || humanizeHandle(type);
 }
 
 /** Tell the preview whether the global-section Save button should show. */
@@ -1853,10 +1854,10 @@ export function initGlobalsPanelFrame(win) {
           let opened = false;
 
           if (event.data.uid) {
-            if (sve.focusPanelOn(win)) {
-              opened = sve.focusFieldOwner(event.data.field, event.data.uid, doc, win);
+            if (focusPanelOn(win)) {
+              opened = focusFieldOwner(event.data.field, event.data.uid, doc, win);
             } else {
-              opened = sve.soloSection(event.data.uid, doc, win);
+              opened = soloSection(event.data.uid, doc, win);
             }
           }
 
@@ -1876,7 +1877,7 @@ export function initGlobalsPanelFrame(win) {
             win.setTimeout(() => applyFocus(attempt + 1), 120);
           }
         } else if (event.data.uid) {
-          const opened = sve.soloSection(event.data.uid, doc, win);
+          const opened = soloSection(event.data.uid, doc, win);
 
           if (!opened && attempt < 12) {
             expandTopLevelSectionSets(doc, sectionField(win));
@@ -2077,7 +2078,7 @@ export function expandTopLevelSectionSets(doc, field) {
     const ancestor = setEl.parentElement?.closest(SELECTORS.replicatorSet);
 
     if (ancestor && root.contains(ancestor)) {
-      return; // nested block — leave for sve.focusFieldOwner / solo later
+      return; // nested block — leave for focusFieldOwner / solo later
     }
 
     if (isSetCollapsed(setEl)) {
@@ -2112,7 +2113,7 @@ export function bootSavedSectionSolo(win, doc) {
       }
 
       // Legacy synced entries stripped nested ids — assign them once so preview
-      // scope="{{ id }}" and sve.focusFieldOwner can target Headline blocks.
+      // scope="{{ id }}" and focusFieldOwner can target Headline blocks.
       const next = JSON.parse(JSON.stringify(rows));
 
       if (ensureNestedRowIds(next)) {
@@ -2155,7 +2156,7 @@ export function bootSavedSectionSolo(win, doc) {
         continue;
       }
 
-      const opened = sve.soloSection(uid, doc, win, { kind: 'section' });
+      const opened = soloSection(uid, doc, win, { kind: 'section' });
 
       if (opened) {
         doc.documentElement.setAttribute('data-sve-boot', 'ok');

@@ -23,6 +23,7 @@ import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { activeContainers, publishContainers, registerContainerEvents, registerContainerSource } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
+import { clearSolo, focusFieldOwner, hideSettingsBar, lpStoredWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -729,7 +730,7 @@ export function openGlobalSectionPanelFrame(win, id) {
     const top = sve.dockedPanelTop(win);
 
     panel.style.cssText =
-      `position:fixed;top:${top}px;left:0;bottom:0;width:${sve.lpStoredWidth(win)}px;z-index:40;` +
+      `position:fixed;top:${top}px;left:0;bottom:0;width:${lpStoredWidth(win)}px;z-index:40;` +
       'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
       'border-right:1px solid rgba(128,128,128,.28);box-shadow:8px 0 24px rgba(0,0,0,.12);';
     doc.body.appendChild(panel);
@@ -967,7 +968,7 @@ export function hidePageFieldsForGlobalSection(host) {
 
   const win = host.ownerDocument.defaultView;
 
-  sve.hideSettingsBar?.(win);
+  hideSettingsBar(win);
 }
 
 export function showPageFieldsAgain(doc) {
@@ -975,7 +976,7 @@ export function showPageFieldsAgain(doc) {
     el.removeAttribute(GLOBAL_SECTION_AWAY_ATTR)
   );
 
-  sve.placeLpWidthPicker?.(doc.defaultView);
+  placeLpWidthPicker(doc.defaultView);
 }
 
 /**
@@ -1075,7 +1076,7 @@ export function bootGlobalSectionSolo(win, doc, host) {
 
     if (Array.isArray(rows) && rows.length) {
       // Legacy synced entries stripped nested ids — assign them once so preview
-      // scope="{{ id }}" and sve.focusFieldOwner can target the blocks inside.
+      // scope="{{ id }}" and focusFieldOwner can target the blocks inside.
       const next = JSON.parse(JSON.stringify(rows));
 
       if (sve.ensureNestedRowIds(next)) {
@@ -1087,7 +1088,7 @@ export function bootGlobalSectionSolo(win, doc, host) {
 
       const uid = next[0]?._visual_id || next[0]?.id || next[0]?._id;
 
-      if (uid && findSetByUid(uid, doc) && sve.soloSection(uid, doc, win, { kind: 'section' })) {
+      if (uid && findSetByUid(uid, doc) && soloSection(uid, doc, win, { kind: 'section' })) {
         reveal();
 
         return;
@@ -1211,7 +1212,7 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
   }
 
   host.remove();
-  sve.clearSolo(doc);
+  clearSolo(doc);
   openSettingsTab(win);
   showPageFieldsAgain(doc);
 

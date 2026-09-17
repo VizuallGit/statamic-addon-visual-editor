@@ -18,6 +18,7 @@ import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { featureOn } from './lib/config.js';
 import { persistDockedPanel, setLpMode } from './lp-panel.js';
+import { applyLpEditorWidth } from './focus-panel.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -129,7 +130,7 @@ function setWidth(win, which, px) {
   const next = clampWidth(win, px);
 
   if (which === 'editor') {
-    sve.applyLpEditorWidth?.(win, next);
+    applyLpEditorWidth(win, next);
   } else {
     chromeSet(win, DOCK_WIDTH_KEY, String(next));
     placeRightDock(win);

@@ -137,6 +137,7 @@ import { HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { setTypeForUid } from './focus-panel.js';
 
 let EditorView;
 let keymap;
@@ -7935,8 +7936,8 @@ function pageSectionType(win, doc, uid) {
       topLevelSectionUid(uid, doc) || topLevelSectionUid(uid, win.document) || uid;
 
     return String(
-      (typeof sve.setTypeForUid === 'function' &&
-        (sve.setTypeForUid(sectionUid, doc) || sve.setTypeForUid(sectionUid, win.document))) ||
+      (typeof setTypeForUid === 'function' &&
+        (setTypeForUid(sectionUid, doc) || setTypeForUid(sectionUid, win.document))) ||
         ''
     ).trim();
   }

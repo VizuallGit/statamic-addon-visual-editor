@@ -22,6 +22,7 @@ import { csrfToken } from './lib/csrf.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { paintLpActiveControl } from './lp-panel.js';
+import { deepestFieldPath } from './focus-panel.js';
 
 const ON_KEY = 'sve-ai-text-on';
 
@@ -192,7 +193,7 @@ function resolveField(data, doc) {
     let value = dataGet(values, path);
 
     if (value === undefined && basePath !== '') {
-      const deep = sve.deepestFieldPath?.(dataGet(values, basePath), data.field, basePath);
+      const deep = deepestFieldPath(dataGet(values, basePath), data.field, basePath);
 
       if (deep) {
         path = deep;

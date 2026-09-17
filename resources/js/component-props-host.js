@@ -24,6 +24,7 @@ import { paintComponentProps } from './component-props-panel.js';
 import ComponentSidebar from './cp/surfaces/ComponentSidebar.vue';
 import { injectStyle } from './lib/style.js';
 import { FOCUS_HEADER_ID } from './lib/ids.js';
+import { soloSection } from './focus-panel.js';
 
 const HOST_ID = 'sve-cprops-host';
 const AWAY_ATTR = 'data-sve-cprops-away';
@@ -45,13 +46,13 @@ let app = null;
 function restoreSolo(win) {
   const uid = ask('dock:current-uid');
 
-  if (!uid || typeof sve.soloSection !== 'function') {
+  if (!uid || typeof soloSection !== 'function') {
     return;
   }
 
   const go = () => {
     if (!win.document.getElementById(HOST_ID)) {
-      sve.soloSection(uid, win.document, win);
+      soloSection(uid, win.document, win);
     }
   };
 
