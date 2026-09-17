@@ -12,7 +12,8 @@
  * and nobody's blueprint changes because this feature exists.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
+import { csrfToken } from './lib/csrf.js';
 
 const PANEL_ID = '__sve-schema-panel';
 
@@ -33,14 +34,6 @@ function isDark(win) {
   const root = win.document.documentElement;
 
   return root.classList.contains('dark') || root.getAttribute('data-theme') === 'dark';
-}
-
-function csrf(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    ''
-  );
 }
 
 /** The entry being edited, from the publish form the preview is driving. */
@@ -333,7 +326,7 @@ async function persist(win, value) {
       headers: {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': csrf(win),
+        'X-CSRF-TOKEN': csrfToken(win),
         Accept: 'application/json',
       },
       body: JSON.stringify({ scope: state.scope, entry: state.entry, json: value }),

@@ -37,6 +37,8 @@
  * sker der ingenting. Et replicator-felt der ikke kan tilføje rækker er værre
  * end et der kan tilføje en for meget.
  */
+import { isSetPicker, vueRootElement } from '../lib/vue-vm.js';
+import { statamicTranslate } from '../lib/i18n.js';
 
 const CONFIG_KEY = 'unique_sets';
 
@@ -45,33 +47,6 @@ const PICKER_ATTR = 'data-set-picker-exhausted';
 
 /** Replicator-vm'er hvis `addSet` allerede har fået spærren på. */
 const guarded = new WeakSet();
-
-/** CP'ets oversættelse af en nøgle — `__` er global i Statamics build. */
-function translate(key) {
-    return typeof window.__ === 'function' ? window.__(key) : key;
-}
-
-/** Feltets rod-element. Er komponenten et fragment, er `$el` ikke et element. */
-function rootElement(vm) {
-    const el = vm.$el;
-
-    if (el?.nodeType === Node.ELEMENT_NODE) return el;
-
-    return el?.parentElement ?? null;
-}
-
-/**
- * Er komponenten Statamics vælger til at tilføje et set?
- *
- * Den optræder både som knappen under rækkerne og som "+" mellem dem, og har
- * ingen klasse at kende den på — men props'ene er unikke. Samme prøve som i
- * LockedRows.js.
- */
-function isSetPicker(vm) {
-    const props = vm.$props;
-
-    return !!props && 'variant' in props && 'showConnector' in props && 'loadingSet' in props;
-}
 
 /**
  * Replicator-feltet en vælger tilføjer til.
@@ -135,7 +110,7 @@ function setDisplay(field, handle) {
     for (const group of field?.config?.sets ?? []) {
         const set = (group?.sets ?? []).find(s => s?.handle === handle);
 
-        if (set) return translate(set.display || set.handle);
+        if (set) return statamicTranslate(set.display || set.handle);
     }
 
     return handle;
@@ -228,7 +203,7 @@ function offeredHandles(vm) {
  * type er brugt op — er der bare én tilbage, bliver knappen stående.
  */
 function applyToPicker(vm, blocked) {
-    const root = rootElement(vm);
+    const root = vueRootElement(vm);
 
     if (!root) return;
 

@@ -1,6 +1,8 @@
 <script setup>
 import { Fieldtype } from '@statamic/cms';
 import { computed, onMounted, ref } from 'vue';
+import { csrfToken } from '../../lib/csrf.js';
+import { t as translate } from '../../lib/i18n.js';
 
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
@@ -13,15 +15,7 @@ const failed = ref(false);
 
 // Server-rendered, in the Control Panel user's own language — the same source
 // the editor's strings come from, so this screen cannot drift out of step.
-const t = (key) => window.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
-
-function csrf() {
-    return (
-        document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-        window.Statamic?.$config?.get?.('csrfToken') ||
-        ''
-    );
-}
+const t = (key) => translate(window, key);
 
 async function ask(method) {
     running.value = true;
@@ -31,7 +25,7 @@ async function ask(method) {
         const res = await fetch('/!/sve/library-scan', {
             method,
             credentials: 'same-origin',
-            headers: { 'X-CSRF-TOKEN': csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'X-CSRF-TOKEN': csrfToken(window), 'X-Requested-With': 'XMLHttpRequest' },
         });
 
         if (!res.ok) throw new Error(res.status);

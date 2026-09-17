@@ -4,7 +4,7 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_PREVIEW_CHROME_ID, LP_RELOAD_ID, LP_TOOLBAR_GAP, setHeaderTab } from './cp.js';

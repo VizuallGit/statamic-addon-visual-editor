@@ -17,7 +17,7 @@
  */
 
 import { breakpoints as siteBreakpoints } from './breakpoints.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { chromeGet } from './chrome-prefs.js';
 import { ask, emit, on } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
@@ -43,6 +43,8 @@ import TwClassList from './cp/surfaces/TwClassList.vue';
 import TwClassMenu from './cp/surfaces/TwClassMenu.vue';
 import TwAddClass from './cp/surfaces/TwAddClass.vue';
 import TwTagMenu from './cp/surfaces/TwTagMenu.vue';
+import { previewDocument } from './lib/preview-frame.js';
+import { injectStyle } from './lib/style.js';
 
 const MENU_ID = '__sve-tw-menu';
 const ANCHOR_NAME = '--sve-tw-anchor';
@@ -222,14 +224,7 @@ export function twClassesHost(doc) {
 }
 
 function ensureStyles(doc) {
-  if (doc.getElementById(STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = STYLE_ID;
-  style.textContent = `
+  injectStyle(doc, STYLE_ID, `
     #${MENU_ID} {
       position: fixed;
       z-index: 100000;
@@ -361,37 +356,7 @@ function ensureStyles(doc) {
       padding: 0.4em 0.5em;
       opacity: .55;
     }
-  `;
-  doc.head.appendChild(style);
-}
-
-/**
- * Live preview, one frame ahead of the save.
- *
- * The dock writes the file and the page comes back rendered, which takes a
- * round trip. The picked element is already stamped with its template path,
- * so the same swap can be made in the frame straight away.
- */
-function previewDoc(win) {
-  const direct = win.document.getElementById('live-preview-iframe');
-
-  if (direct) {
-    return direct.contentDocument;
-  }
-
-  for (const el of win.document.querySelectorAll('iframe')) {
-    try {
-      const inner = el.contentDocument?.getElementById('live-preview-iframe');
-
-      if (inner) {
-        return inner.contentDocument;
-      }
-    } catch {
-      /* cross-origin */
-    }
-  }
-
-  return null;
+  `);
 }
 
 /**
@@ -478,7 +443,7 @@ function serveRule(doc, name) {
 }
 
 function flipPreview(win, from, to) {
-  const doc = previewDoc(win);
+  const doc = previewDocument(win);
 
   if (!doc || !node?.path) {
     return;
@@ -540,7 +505,7 @@ function resolveVarColor(win, name) {
     return colorCache.get(name);
   }
 
-  const doc = previewDoc(win);
+  const doc = previewDocument(win);
   const root = doc?.documentElement;
   const view = doc?.defaultView;
 

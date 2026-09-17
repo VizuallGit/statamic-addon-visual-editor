@@ -10,6 +10,7 @@
  * dukker det op her med det samme. En række der allerede har andre nøgler
  * (indlejrede defaults) bliver liggende, så længe typen stadig er krydset af.
  */
+import { t } from '../../lib/i18n.js';
 (function () {
     'use strict';
 
@@ -19,10 +20,6 @@
         /** Formularens værdier. `values` er et ref() i v6, men vær ikke afhængig af det. */
         function publishValues(ctx) {
             return ctx?.values?.value ?? ctx?.values ?? {};
-        }
-
-        function t(key) {
-            return (window.Statamic?.$config?.get?.('sveStrings') || {})[key] ?? key;
         }
 
         /**
@@ -101,7 +98,7 @@
             template: `
                 <div>
                     <p v-if="!sets.length" class="text-sm text-gray-600 dark:text-gray-400">
-                        {{ t('field_from_the_start_no_sets') }}
+                        {{ t(window, 'field_from_the_start_no_sets') }}
                     </p>
                     <div v-else class="flex flex-col gap-2">
                         <label

@@ -7,12 +7,14 @@
  */
 import { mountSurface } from './cp/mount.js';
 import { openCpOverlay } from './cp/open-overlay.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sve } from './cp-registry.js';
 import SiteCssPane from './cp/surfaces/SiteCssPane.vue';
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { siteCssUi as ui } from './cp/site-css/store.js';
+import { csrfToken } from './lib/csrf.js';
+import { previewDocument } from './lib/preview-frame.js';
 
 const PANEL_ID = '__sve-site-css';
 
@@ -196,28 +198,6 @@ function ensureCompleteStyles(doc) {
 }
 `;
   doc.head.appendChild(style);
-}
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
-
-function previewDocument(win) {
-  const iframe = win.document.getElementById('live-preview-iframe');
-
-  try {
-    const doc = iframe?.contentDocument || null;
-    const nested = doc?.getElementById('live-preview-iframe');
-
-    return nested?.contentDocument || doc;
-  } catch {
-    return null;
-  }
 }
 
 function bumpPreviewCss(win) {

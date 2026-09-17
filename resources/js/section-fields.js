@@ -15,7 +15,7 @@
  * On Save, that section's sidebar and Antlers-data are updated in place.
  * Closing remorphs that section's preview once. Other sections are left alone.
  */
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { ask } from './cp/bus.js';
 import { ensurePanel } from './lazy-panels.js';
 import { openCpOverlay } from './cp/open-overlay.js';

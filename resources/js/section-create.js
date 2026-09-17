@@ -22,23 +22,16 @@
  * heading. A section that only exists in the library is one the author has to
  * go and find.
  */
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sve } from './cp-registry.js';
 import { sendToPreview } from './cp.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
+import { csrfToken } from './lib/csrf.js';
+import { previewDocument } from './lib/preview-frame.js';
 
 const API = '/!/sve/section-types';
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
 
 /**
  * The groups a section can be made in, in the order the page-builder fieldset
@@ -140,16 +133,6 @@ export async function placeNewSection(win, handle, afterUid = null) {
 const REVEAL_EVERY_MS = 700;
 const REVEAL_TRIES = 17;
 
-/** The preview's own document, when this window is allowed to read it. */
-function previewDoc(win) {
-  try {
-    return win.document.getElementById('live-preview-iframe')?.contentDocument || null;
-  } catch {
-    // A preview served from another domain. Nothing to see; still worth asking.
-    return null;
-  }
-}
-
 /**
  * Brings the new section into view once the preview has drawn it.
  *
@@ -181,7 +164,7 @@ export function revealWhenRendered(win, ids) {
   const askAgain = () => {
     tries += 1;
 
-    const doc = previewDoc(win);
+    const doc = previewDocument(win);
     const rendered = doc
       ? wanted.some((id) => doc.querySelector(`[data-sid="${CSS.escape(id)}"]`))
       : true;

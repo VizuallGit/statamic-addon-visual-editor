@@ -18,7 +18,8 @@ import { mountSurface } from './cp/mount.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { watchPage } from './cp/page-watch.js';
 import { TOOLBAR_ICONS } from './cp.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
+import { injectStyle } from './lib/style.js';
 
 const ROOT_ID = '__sve-ai-launcher';
 const OPEN_KEY = 'sve-ai-launcher-open';
@@ -108,15 +109,7 @@ const CLOSE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 function ensureStyles(win) {
   const id = `${ROOT_ID}-css`;
 
-  if (win.document.getElementById(id)) {
-    return;
-  }
-
-  const style = win.document.createElement('style');
-
-  style.id = id;
-  style.textContent = CSS;
-  win.document.head.appendChild(style);
+  injectStyle(win.document, id, CSS);
 }
 
 function paintButton(win) {

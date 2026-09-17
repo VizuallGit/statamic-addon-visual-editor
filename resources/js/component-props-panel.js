@@ -11,7 +11,7 @@
  * often than it is edited.
  */
 
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { ask } from './cp/bus.js';
 import { componentPropsOn } from './component-props.js';
 import { componentPropsUi as ui } from './cp/component-props/store.js';

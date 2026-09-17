@@ -13,6 +13,8 @@
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { twUi } from './cp/tailwind/store.js';
 import { twOpenAddMenu, twReorder } from './tw-classes.js';
+import { previewFrame } from './lib/preview-frame.js';
+import { injectStyle } from './lib/style.js';
 
 const PREF = 'sve-tw-strip';
 
@@ -39,37 +41,8 @@ const STYLE_ID = '__sve-tw-strip-style';
 let boundWin = null;
 let placed = null;
 
-function previewFrame(win) {
-  const direct = win.document.getElementById('live-preview-iframe');
-
-  if (direct) {
-    return direct;
-  }
-
-  for (const el of win.document.querySelectorAll('iframe')) {
-    try {
-      const inner = el.contentDocument?.getElementById('live-preview-iframe');
-
-      if (inner) {
-        return inner;
-      }
-    } catch {
-      /* cross-origin */
-    }
-  }
-
-  return null;
-}
-
 function ensureStyles(doc) {
-  if (doc.getElementById(STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = STYLE_ID;
-  style.textContent = `
+  injectStyle(doc, STYLE_ID, `
     #${STRIP_ID} {
       position: fixed;
       z-index: 99998;
@@ -242,8 +215,7 @@ function ensureStyles(doc) {
       border-radius: 0.18em;
       border: 1px solid rgba(128,128,128,.5);
     }
-  `;
-  doc.head.appendChild(style);
+  `);
 }
 
 /** The preview's box on screen, for anything that must stay inside it. */

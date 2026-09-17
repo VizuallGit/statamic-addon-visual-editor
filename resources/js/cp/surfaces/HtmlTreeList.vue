@@ -12,7 +12,7 @@ import { nextTick, ref } from 'vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
 import HtmlTreeRow from './HtmlTreeRow.vue';
 import { canCreateSections, openNewSectionDialog, revealWhenRendered } from '../../section-create.js';
-import { t } from '../../cp-t.js';
+import { t } from '../../lib/i18n.js';
 
 // Making a section writes files into the repository, so it is the developer
 // permission that decides — the same gate as deleting one. An editor never

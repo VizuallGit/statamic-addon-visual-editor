@@ -2,7 +2,9 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { ask } from '../bus.js';
 import { chromeGet, chromeSet } from '../../chrome-prefs.js';
-import { csrfToken, currentSectionType, t as tr } from '../preview-context.js';
+import { csrfToken } from '../../lib/csrf.js';
+import { t as tr } from '../../lib/i18n.js';
+import { currentSectionType } from '../preview-context.js';
 
 const MODE_KEY = 'sve-ai-panel-mode';
 

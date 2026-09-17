@@ -10,6 +10,9 @@ import CommentPins from './cp/surfaces/CommentPins.vue';
 import { commentsSidebar } from './cp/comments/store.js';
 import { mountSurface } from './cp/mount.js';
 import { mountPane } from './cp/mount-pane.js';
+import { csrfToken } from './lib/csrf.js';
+import { previewFrame } from './lib/preview-frame.js';
+import { t } from './lib/i18n.js';
 
 export function initComments() {
   // Settings toggle `comments` (and who may see it) — do not start the
@@ -70,45 +73,14 @@ export function initComments() {
     return true;
   }
 
-  function csrf() {
-    return (
-      document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-      window.Statamic?.$config?.get?.('csrfToken') ||
-      window.Statamic?.$config?.get?.('csrf_token') ||
-      ''
-    );
-  }
-
   function currentEntryId() {
     const match = window.location.pathname.match(/\/collections\/[^/]+\/entries\/([^/]+)/);
 
     return match ? decodeURIComponent(match[1]) : null;
   }
 
-  function previewIframe() {
-    const direct = document.getElementById('live-preview-iframe');
-
-    if (direct) {
-      return direct;
-    }
-
-    for (const frame of document.querySelectorAll('iframe')) {
-      try {
-        const inner = frame.contentDocument?.getElementById('live-preview-iframe');
-
-        if (inner) {
-          return inner;
-        }
-      } catch {
-        /* cross-origin */
-      }
-    }
-
-    return null;
-  }
-
   function previewCtx() {
-    const iframe = previewIframe();
+    const iframe = previewFrame(window);
 
     if (!iframe) {
       return null;
@@ -134,7 +106,7 @@ export function initComments() {
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        'X-CSRF-TOKEN': csrf(),
+        'X-CSRF-TOKEN': csrfToken(window),
         'X-Requested-With': 'XMLHttpRequest',
         ...(options.headers || {}),
       },
@@ -279,10 +251,6 @@ export function initComments() {
     });
   }
 
-  function t(key) {
-    return window.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
-  }
-
   function setPlaceMode(on) {
     if (!commentsPaneOpen()) {
       mode = false;
@@ -313,7 +281,7 @@ export function initComments() {
     }
 
     btn.setAttribute('aria-pressed', mode ? 'true' : 'false');
-    btn.title = t(mode ? 'comments_place_off' : 'comments_place');
+    btn.title = t(window, mode ? 'comments_place_off' : 'comments_place');
   }
 
   function syncModeFromDock() {
@@ -458,7 +426,7 @@ export function initComments() {
   }
 
   function iframePoint(event) {
-    const iframe = previewIframe();
+    const iframe = previewFrame(window);
 
     if (!iframe) {
       return null;
@@ -476,7 +444,7 @@ export function initComments() {
   }
 
   function screenPos(section, xPct, yPct) {
-    const iframe = previewIframe();
+    const iframe = previewFrame(window);
     const ctx = previewCtx();
 
     if (!iframe || !section) {
@@ -591,7 +559,7 @@ export function initComments() {
 
   function layoutHit() {
     const hit = document.getElementById(HIT_ID);
-    const iframe = previewIframe();
+    const iframe = previewFrame(window);
 
     if (!hit) {
       return;
@@ -654,7 +622,7 @@ export function initComments() {
   }
 
   function focusComposer() {
-    const iframe = previewIframe();
+    const iframe = previewFrame(window);
 
     iframe?.blur();
     iframe?.contentWindow?.blur?.();
@@ -1222,7 +1190,7 @@ export function initComments() {
   }
 
   function fallbackPos() {
-    const iframe = previewIframe();
+    const iframe = previewFrame(window);
     const r = iframe?.getBoundingClientRect() || { left: 80, top: 80, width: 400, height: 400 };
 
     return { left: r.left + 40, top: r.top + 40 };
@@ -1273,7 +1241,7 @@ export function initComments() {
   }
 
   function placeThread(card, point) {
-    const iframe = previewIframe();
+    const iframe = previewFrame(window);
     const ir = iframe?.getBoundingClientRect();
     const pad = 8;
     const cardW = 280;

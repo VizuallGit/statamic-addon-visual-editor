@@ -6,6 +6,7 @@
  * so another browser comes back as that user left it. A different user on this
  * machine sees their own blob, or the defaults.
  */
+import { csrfToken } from './lib/csrf.js';
 
 export const CHROME_KEYS = [
   'sve-right-dock-open',
@@ -49,15 +50,6 @@ function userId(win) {
   const id = win.Statamic?.$config?.get?.('sveUserId');
 
   return id == null || id === '' ? '' : String(id);
-}
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
 }
 
 function ns(win, key) {

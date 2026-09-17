@@ -4,10 +4,9 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { COLLAPSE_SETTLE_MS, GLOBALS_PANEL_PARAM, SELECTORS } from './cp-selectors.js';
-import { captureSectionPreviewScope, watchSectionPreviewScope, wrapSectionPreviewFrame } from './preview-section-scope.js';
 import {
   FRAMED_SELECT_STYLE,
   LP_SAVE_TIMEOUT,
@@ -23,6 +22,9 @@ import {
 import { rightDockWidth, splitterFill } from './right-dock.js';
 import { chromeSet } from './chrome-prefs.js';
 import { ensurePanel } from './lazy-panels.js';
+import { csrfToken } from './lib/csrf.js';
+import { previewFrame } from './lib/preview-frame.js';
+import { frameDocumentUrl, isLivePreviewDocumentUrl, lastPreviewUrl, replayLivePreview, watchPreviewRenders } from './lp-replay.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -47,8 +49,6 @@ export const GLOBALS_PANEL_ID = '__sve-globals-panel';
 export const GLOBALS_PICKER_ID = '__sve-globals-picker';
 export const GLOBALS_DEBOUNCE = 200;
 
-// The URL of the most recent preview render, replayed whenever a global changes.
-export let lastPreviewUrl = null;
 export let globalsSaveTimer = null;
 
 export function globalSets(win) {
@@ -70,15 +70,6 @@ export function pickerGlobalSets(win) {
   return sets.filter((set) => allowed.includes(set.handle));
 }
 
-export function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
-
 /**
  * The live Live Preview header — never the frozen copy of it.
  *
@@ -93,10 +84,6 @@ export function lpHeader(doc) {
     [...doc.querySelectorAll('.live-preview-header')].find((el) => !el.closest(`#${sve.LP_COVER_ID}`)) ??
     null
   );
-}
-
-export function previewFrame(doc) {
-  return doc.getElementById('live-preview-iframe');
 }
 
 /**
@@ -182,97 +169,6 @@ export function refreshPreview(win, active) {
   );
 }
 
-/** The URL the preview iframe is actually showing, not a remembered one. */
-export function frameDocumentUrl(frame) {
-  try {
-    const href = frame?.contentWindow?.location?.href;
-
-    if (href && href !== 'about:blank') {
-      return href;
-    }
-  } catch {
-    /* cross-origin — Live Preview is same-origin */
-  }
-
-  return frame?.getAttribute('src') || frame?.src || '';
-}
-
-/**
- * A tokenised Live Preview document — never a screenshot route or the public site.
- *
- * Replaying those into the iframe paints the front end (with Rediger) over the
- * preview and looks exactly like Live Preview closed.
- */
-export function isLivePreviewDocumentUrl(url, origin) {
-  if (!url) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(url, origin);
-
-    if (parsed.origin !== origin) {
-      return false;
-    }
-
-    if (parsed.pathname.includes('/!/sve/collection-view-preview/')) {
-      return true;
-    }
-
-    if (parsed.pathname.includes('/!/sve/')) {
-      return false;
-    }
-
-    return (
-      parsed.searchParams.has('token') ||
-      parsed.searchParams.has('live-preview') ||
-      parsed.searchParams.has('preview')
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Replay the current Live Preview URL into the iframe.
- *
- * Must morph, never `location.reload()`: a full reload of the front-end in the
- * iframe ejects Live Preview (same failure Vite `refresh: true` used to cause).
- */
-export function replayLivePreview(win, opts) {
-  const frame = previewFrame(win.document);
-
-  if (!frame?.contentWindow) {
-    return;
-  }
-
-  const origin = win.location.origin;
-  let url = frameDocumentUrl(frame);
-
-  if (!isLivePreviewDocumentUrl(url, origin)) {
-    url = lastPreviewUrl || '';
-  }
-
-  if (!isLivePreviewDocumentUrl(url, origin)) {
-    return;
-  }
-
-  const sectionUids = Array.isArray(opts?.sectionUids)
-    ? opts.sectionUids.filter((id) => typeof id === 'string' && id !== '')
-    : opts && typeof opts.sectionUid === 'string' && opts.sectionUid !== ''
-      ? [opts.sectionUid]
-      : [];
-
-  frame.contentWindow.postMessage(
-    {
-      name: 'statamic.preview.updated',
-      url,
-      ...(sectionUids.length ? { sectionUids } : {}),
-    },
-    '*'
-  );
-}
-
 /** Header/footer currently stepped into from Live Preview (null when not). */
 export let activeChromeKind = null;
 
@@ -293,87 +189,6 @@ export function assertChromeFocusInPreview(win) {
   assertChromeFocusInPreview._timer = setTimeout(() => {
     sendToPreview({ source: 'statamic-visual-editor', type: 'sve-restore-chrome', kind }, win);
   }, 120);
-}
-
-/**
- * Records the URL of each preview render. Statamic POSTs the entry's values and
- * gets back a tokenised URL; that URL is what the preview iframe loads, and what
- * we replay to re-render after a global changes.
- */
-export function watchPreviewRenders(win) {
-  watchSectionPreviewScope(win);
-
-  const isPreviewCall = (url, method) => {
-    if (typeof url !== 'string' || !/^POST$/i.test(method || 'GET')) {
-      return false;
-    }
-
-    let path;
-
-    try {
-      path = new URL(url, win.location.origin).pathname;
-    } catch {
-      return false;
-    }
-
-    // Statamic's entry-preview POST. Addon routes also contain "/preview"
-    // (`/!/sve/globals-preview`, screenshot URLs) and must not overwrite this.
-    return path.includes('/preview') && !path.includes('/!/sve/');
-  };
-
-  const remember = (payload) => {
-    try {
-      const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
-      const url = data?.url;
-
-      if (typeof url === 'string' && isLivePreviewDocumentUrl(url, win.location.origin)) {
-        lastPreviewUrl = url;
-        wrapSectionPreviewFrame(win);
-      }
-    } catch {
-      /* not the payload we expected */
-    }
-  };
-
-  const { fetch: originalFetch } = win;
-
-  win.fetch = function (input, init = {}) {
-    const url = typeof input === 'string' ? input : input?.url;
-    const method = init.method ?? (typeof input === 'object' ? input?.method : null);
-
-    if (isPreviewCall(url, method)) {
-      captureSectionPreviewScope(win);
-    }
-
-    const request = originalFetch.call(this, input, init);
-
-    if (!isPreviewCall(url, method)) {
-      return request;
-    }
-
-    return request.then((response) => {
-      response.clone().json().then(remember).catch(() => {});
-
-      return response;
-    });
-  };
-
-  // Statamic's CP talks to the server through axios, i.e. XMLHttpRequest — the
-  // preview render never goes through fetch at all.
-  const { open: originalOpen } = win.XMLHttpRequest.prototype;
-
-  win.XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-    if (isPreviewCall(url, method)) {
-      captureSectionPreviewScope(win);
-      this.addEventListener('load', () => {
-        if (this.status >= 200 && this.status < 300) {
-          remember(this.response ?? this.responseText);
-        }
-      });
-    }
-
-    return originalOpen.call(this, method, url, ...rest);
-  };
 }
 
 export function postGlobals(win, handle, values) {
@@ -3018,7 +2833,7 @@ export function focusGlobalField(win, field, attempts = 0) {
 sve.GLOBALS_PANEL_ID = GLOBALS_PANEL_ID;
 sve.GLOBALS_PICKER_ID = GLOBALS_PICKER_ID;
 sve.GLOBALS_DEBOUNCE = GLOBALS_DEBOUNCE;
-Object.defineProperty(sve, 'lastPreviewUrl', { get() { return lastPreviewUrl; }, set(v) { lastPreviewUrl = v; } });
+Object.defineProperty(sve, 'lastPreviewUrl', { get() { return lastPreviewUrl; } });
 Object.defineProperty(sve, 'globalsSaveTimer', { get() { return globalsSaveTimer; }, set(v) { globalsSaveTimer = v; } });
 sve.globalSets = globalSets;
 sve.pickerGlobalSets = pickerGlobalSets;

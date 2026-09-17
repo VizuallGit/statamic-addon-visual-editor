@@ -17,8 +17,9 @@
  * so a page half-edited comes back half-edited.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { LP_BACK_ID, LP_CHROME_H, LP_ICON_BTN_STYLE, LP_RELOAD_ID, HEADER_SURFACE } from './cp.js';
+import { injectStyle } from './lib/style.js';
 
 // No static import of html-tree or section-fields. Both are lazy chunks, and
 // importing them here — from a file the Control Panel loads on every page —
@@ -38,18 +39,9 @@ const SPIN_STYLE_ID = '__sve-lp-reload-style';
 let running = false;
 
 function ensureSpinStyle(doc) {
-  if (doc.getElementById(SPIN_STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = SPIN_STYLE_ID;
-  style.textContent =
-    `@keyframes sve-lp-reload-spin{to{transform:rotate(360deg)}}`
+  injectStyle(doc, SPIN_STYLE_ID, `@keyframes sve-lp-reload-spin{to{transform:rotate(360deg)}}`
     + `#${LP_RELOAD_ID}[data-busy] svg{animation:sve-lp-reload-spin .9s linear infinite;transform-origin:50% 50%}`
-    + `#${LP_RELOAD_ID}[data-busy]{cursor:progress}`;
-  doc.head.appendChild(style);
+    + `#${LP_RELOAD_ID}[data-busy]{cursor:progress}`);
 }
 
 

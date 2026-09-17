@@ -10,7 +10,7 @@
  * and a page added while the dock is open is rare enough to be worth a reload.
  */
 
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import HtmlTreeMenu from './cp/surfaces/HtmlTreeMenu.vue';
 

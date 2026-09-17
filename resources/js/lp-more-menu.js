@@ -3,7 +3,7 @@
  * Does not import the kernel.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import {
   HEADER_SURFACE,

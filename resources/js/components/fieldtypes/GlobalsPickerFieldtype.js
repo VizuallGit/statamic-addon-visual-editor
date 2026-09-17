@@ -4,15 +4,12 @@
  * Unsaved (null) follows the default: everything on except header/footer.
  * Toggling once writes the full list, so an empty save is "show none".
  */
+import { t } from '../../lib/i18n.js';
 (function () {
     'use strict';
 
     Statamic.booting(() => {
         const { computed } = window.Vue;
-
-        function t(key) {
-            return (window.Statamic?.$config?.get?.('sveStrings') || {})[key] ?? key;
-        }
 
         Statamic.$components.register('globals-picker-fieldtype', {
             props: {
@@ -59,7 +56,7 @@
             template: `
                 <div>
                     <p v-if="!sets.length" class="text-sm text-gray-600 dark:text-gray-400">
-                        {{ t('globals_picker_empty') }}
+                        {{ t(window, 'globals_picker_empty') }}
                     </p>
                     <div v-else class="flex flex-col gap-2">
                         <label

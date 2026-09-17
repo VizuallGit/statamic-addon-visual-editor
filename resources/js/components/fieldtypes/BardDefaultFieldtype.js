@@ -9,6 +9,7 @@
  * En `raw`-række er en node CP'et ikke kan tegne (et set, en liste). Den bliver
  * liggende, så en YAML skrevet i hånden ikke forsvinder ved Gem.
  */
+import { t } from '../../lib/i18n.js';
 (function () {
     'use strict';
 
@@ -20,16 +21,6 @@
         }
 
         /** CP-brugerens sprog — samme sveStrings som live preview. */
-        function t(key, vars = {}) {
-            let out = (window.Statamic?.$config?.get?.('sveStrings') || {})[key] ?? key;
-
-            for (const [name, value] of Object.entries(vars)) {
-                out = out.replaceAll(`:${name}`, String(value));
-            }
-
-            return out;
-        }
-
         function textOf(node) {
             if (!node || typeof node !== 'object') return '';
             if (node.type === 'text') return node.text || '';
@@ -175,7 +166,7 @@
                             type="text"
                             class="input-text"
                             :value="inlineText"
-                            :placeholder="t('field_from_the_start_placeholder_inline')"
+                            :placeholder="t(window, 'field_from_the_start_placeholder_inline')"
                             @input="setInlineText($event.target.value)"
                         >
                     </div>
@@ -187,7 +178,7 @@
                         >
                             <template v-if="block.kind === 'raw'">
                                 <span class="text-sm text-gray-600 dark:text-gray-400 grow">
-                                    {{ t('field_from_the_start_other_block', { type: block.node?.type || 'unknown' }) }}
+                                    {{ t(window, 'field_from_the_start_other_block', { type: block.node?.type || 'unknown' }) }}
                                 </span>
                             </template>
                             <template v-else>
@@ -197,18 +188,18 @@
                                     :value="block.kind === 'heading' ? 'h' + block.level : 'paragraph'"
                                     @change="setType(index, $event.target.value)"
                                 >
-                                    <option value="paragraph">{{ t('field_from_the_start_paragraph') }}</option>
+                                    <option value="paragraph">{{ t(window, 'field_from_the_start_paragraph') }}</option>
                                     <option
                                         v-for="level in levelsFor(block)"
                                         :key="level"
                                         :value="'h' + level"
-                                    >{{ t('field_from_the_start_headline', { level }) }}</option>
+                                    >{{ t(window, 'field_from_the_start_headline', { level }) }}</option>
                                 </select>
                                 <input
                                     type="text"
                                     class="input-text grow"
                                     :value="block.text"
-                                    :placeholder="t('field_from_the_start_placeholder')"
+                                    :placeholder="t(window, 'field_from_the_start_placeholder')"
                                     @input="update(index, { text: $event.target.value })"
                                 >
                             </template>
@@ -216,7 +207,7 @@
                                 type="button"
                                 class="text-sm text-gray-600 dark:text-gray-400 hover:text-current"
                                 @click="remove(index)"
-                            >{{ t('field_from_the_start_remove') }}</button>
+                            >{{ t(window, 'field_from_the_start_remove') }}</button>
                         </div>
                         <button
                             type="button"
@@ -224,7 +215,7 @@
                             style="width: auto;"
                             @click="add"
                         >
-                            {{ t('field_from_the_start_add') }}
+                            {{ t(window, 'field_from_the_start_add') }}
                         </button>
                     </template>
                 </div>

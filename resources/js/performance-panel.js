@@ -17,7 +17,7 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { setHeaderTab, applyHeaderTab } from './cp.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
@@ -38,6 +38,8 @@ import {
   weighKinds,
 } from './cp/perf/report.js';
 import paneCss from '../css/perf.css?inline';
+import { previewFrame } from './lib/preview-frame.js';
+import { injectStyle } from './lib/style.js';
 
 export const PERF_PANEL_ID = '__sve-perf-panel';
 
@@ -82,42 +84,11 @@ let psiCache = new Map();
 let psiAbort = null;
 
 function ensureStyle(win) {
-  if (win.document.getElementById(STYLE_ID)) {
-    return;
-  }
-
-  const style = win.document.createElement('style');
-
-  style.id = STYLE_ID;
-  style.textContent = paneCss;
-  win.document.head.appendChild(style);
+  injectStyle(win.document, STYLE_ID, paneCss);
 }
 
 export function perfPanel(doc) {
   return doc.getElementById(PERF_PANEL_ID);
-}
-
-/** The Live Preview iframe — only ever to be asked where it is pointing. */
-function previewIframe(win) {
-  const direct = win.document.getElementById('live-preview-iframe');
-
-  if (direct) {
-    return direct;
-  }
-
-  for (const el of win.document.querySelectorAll('iframe')) {
-    try {
-      const inner = el.contentDocument?.getElementById('live-preview-iframe');
-
-      if (inner) {
-        return inner;
-      }
-    } catch {
-      /* cross-origin */
-    }
-  }
-
-  return null;
 }
 
 /**
@@ -134,7 +105,7 @@ function previewIframe(win) {
  * editors ever see is left out of the page being weighed.
  */
 export function frontendUrl(win, { bust = true } = {}) {
-  const iframe = previewIframe(win);
+  const iframe = previewFrame(win);
 
   if (!iframe) {
     return '';
@@ -308,7 +279,7 @@ export async function measureNow(win) {
  * file's, not the placement's.
  */
 function flashInPreview(win, url) {
-  const iframe = previewIframe(win);
+  const iframe = previewFrame(win);
   let doc = null;
 
   try {

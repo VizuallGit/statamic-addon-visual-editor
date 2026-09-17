@@ -36,6 +36,8 @@
  * Den slår flyt og slet fra — intet andet. Felterne inde i en låst blok vises,
  * åbnes og redigeres præcis som i en ulåst.
  */
+import { isSetPicker, vueRootElement } from '../lib/vue-vm.js';
+import { statamicTranslate } from '../lib/i18n.js';
 
 const CONFIG_KEY = 'locked_rows';
 const LOCKED_ATTR = 'data-row-locked';
@@ -76,30 +78,6 @@ function ownRows(root) {
 
         return !parentRow || !root.contains(parentRow);
     });
-}
-
-/** Feltets rod-element. Er komponenten et fragment, er `$el` ikke et element. */
-function rootElement(vm) {
-    const el = vm.$el;
-
-    if (el?.nodeType === Node.ELEMENT_NODE) return el;
-
-    return el?.parentElement ?? null;
-}
-
-/**
- * Er komponenten Statamics vælger til at tilføje et set?
- *
- * Den optræder både som knappen under rækkerne og som "+" mellem dem, og har
- * ingen klasse eller data-attribut at kende den på — men props'ene er unikke.
- */
-function isSetPicker(vm) {
-    const props = vm.$props;
-
-    // Knappen under rækkerne og "+" imellem dem er samme komponent. Kravet om
-    // alle tre props er med vilje snævert: en bredere prøve rammer også den
-    // komponent der omslutter hele feltet, og så forsvinder feltet.
-    return !!props && 'variant' in props && 'showConnector' in props && 'loadingSet' in props;
 }
 
 /**
@@ -158,7 +136,7 @@ function ownAddButtons(root, config) {
     // Både feltets eget label, CP'ets oversættelse og den engelske original:
     // panelet er ikke altid på samme sprog som resten af CP'et.
     const labels = new Set(
-        [config.button_label, translate('Add Set'), 'Add Set']
+        [config.button_label, statamicTranslate('Add Set'), 'Add Set']
             .filter(Boolean)
             .map(label => label.trim().toLowerCase())
     );
@@ -196,7 +174,7 @@ function paintToggle(row) {
 
     if (!button) return;
 
-    const title = translate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
+    const title = statamicTranslate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
 
     if (button.title !== title) button.title = title;
 }
@@ -247,7 +225,7 @@ function ensureToggle(row) {
 
     button.type = 'button';
     button.setAttribute(TOGGLE_ATTR, '');
-    button.title = translate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
+    button.title = statamicTranslate(row.hasAttribute(UNLOCKED_ATTR) ? 'Lock' : 'Unlock');
 
     button.addEventListener('click', (e) => {
         // Kun rigtige klik. Både Statamic og visual editoren folder sæt ud ved at
@@ -296,7 +274,7 @@ function mayUnlock() {
 }
 
 function stamp(vm) {
-    const root = rootElement(vm);
+    const root = vueRootElement(vm);
 
     if (!root) return;
 
@@ -339,11 +317,6 @@ function stamp(vm) {
         .filter(safeToHide)
         .filter(el => !inVisualEditorPanel(el))
         .forEach(el => el.setAttribute(PICKER_LOCKED_ATTR, ''));
-}
-
-/** CP'ets oversættelse af en nøgle — `__` er global i Statamics build. */
-function translate(key) {
-    return typeof window.__ === 'function' ? window.__(key) : key;
 }
 
 /**

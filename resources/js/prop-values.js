@@ -20,22 +20,13 @@
 import { reactive } from 'vue';
 import { mountStatamicSurface, statamicFieldsReady } from './cp/mount-statamic.js';
 import PropValues from './cp/surfaces/PropValues.vue';
+import { csrfToken } from './lib/csrf.js';
 
 /** The fieldtypes this is no use without. */
 const NEEDED = ['text', 'bard', 'assets', 'link'];
 
 export function propValuesReady() {
   return statamicFieldsReady(NEEDED);
-}
-
-/** Same three places the dock looks. */
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
 }
 
 export function createPropValues(name) {

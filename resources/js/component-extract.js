@@ -11,24 +11,16 @@
  * page it belongs to, and a guess that runs the same code twice is worse than
  * leaving it where its author put it.
  */
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import { blockRange } from './html-tree-edit.js';
 import { splitCssForBlock } from './component-css.js';
 import { tailwindDockOn } from './tailwind-complete.js';
+import { csrfToken } from './lib/csrf.js';
 
 const API = '/!/sve/component';
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
 
 /**
  * Drop the indentation the markup only had because of where it sat. A

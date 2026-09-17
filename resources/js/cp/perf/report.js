@@ -9,7 +9,7 @@
  * ordinary page-weight practice where they do not. They are constants in one
  * place so that arguing with them is a one-line argument.
  */
-import { t } from '../../cp-t.js';
+import { t } from '../../lib/i18n.js';
 import { fileName } from './measure.js';
 
 const KB = 1024;

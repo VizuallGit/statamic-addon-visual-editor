@@ -22,6 +22,7 @@ import { mountStatamicSurface } from './cp/mount-statamic.js';
 import { componentPropsUi as ui } from './cp/component-props/store.js';
 import { paintComponentProps } from './component-props-panel.js';
 import ComponentSidebar from './cp/surfaces/ComponentSidebar.vue';
+import { injectStyle } from './lib/style.js';
 
 const HOST_ID = 'sve-cprops-host';
 const AWAY_ATTR = 'data-sve-cprops-away';
@@ -73,18 +74,10 @@ function column(doc) {
 }
 
 function ensureStyles(doc) {
-  if (doc.getElementById(STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = STYLE_ID;
   // Flows in the column rather than filling it: the column's own height is not
   // ours to assume, and a panel stretched against a height that is not there
   // collapses to nothing.
-  style.textContent = `[${AWAY_ATTR}]{display:none!important}#${HOST_ID}{display:block;min-width:0;flex:1 1 auto}`;
-  doc.head.appendChild(style);
+  injectStyle(doc, STYLE_ID, `[${AWAY_ATTR}]{display:none!important}#${HOST_ID}{display:block;min-width:0;flex:1 1 auto}`);
 }
 
 /**

@@ -13,7 +13,7 @@
  * the preview does — dirty, visible, and the user's to save or discard.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import {
   activeContainers,
@@ -24,6 +24,7 @@ import {
 } from './inline-edit.js';
 import { sendToPreview } from './cp.js';
 import { currentSectionType } from './cp/preview-context.js';
+import { csrfToken } from './lib/csrf.js';
 
 const ON_KEY = 'sve-ai-text-on';
 
@@ -420,7 +421,7 @@ export async function handleAiTextGenerate(data, doc, win) {
       headers: {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': csrf(win),
+        'X-CSRF-TOKEN': csrfToken(win),
         Accept: 'application/json',
       },
       body: JSON.stringify({
@@ -556,14 +557,6 @@ function bardNodes(text, current) {
 
     return node;
   });
-}
-
-function csrf(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    ''
-  );
 }
 
 function entryTitle(doc, win) {

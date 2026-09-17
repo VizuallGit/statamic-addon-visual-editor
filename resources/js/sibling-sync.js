@@ -12,6 +12,9 @@
  * Ingen wrap af Statamics felt. Ingen import af overlay, preview, bridge
  * eller cp.js — kun publish-containerens setFieldValue.
  */
+import { injectStyle } from './lib/style.js';
+import { vueRootElement } from './lib/vue-vm.js';
+import { t } from './lib/i18n.js';
 
 const CONFIG_KEY = 'sve_sync_siblings';
 const STATE_KEY = '_sve_sync';
@@ -33,10 +36,6 @@ const SKIP_TYPES = new Set([
 
 const containers = [];
 let propagating = false;
-
-function t(key) {
-    return (window.Statamic?.$config?.get?.('sveStrings') || {})[key] ?? key;
-}
 
 function unwrapRef(v) {
     return v && v.__v_isRef ? v.value : v;
@@ -218,14 +217,6 @@ function writeRows(container, parentPath, rows, type, chain, fieldValue) {
         write(container, target.setPath, nextSet);
         write(container, target.path, clone(fieldValue));
     });
-}
-
-function rootElement(vm) {
-    const el = vm.$el;
-
-    if (el?.nodeType === Node.ELEMENT_NODE) return el;
-
-    return el?.parentElement ?? null;
 }
 
 function ownerVm(vm) {
@@ -867,10 +858,10 @@ function paintRow(row, vm) {
     }
 
     const titles = {
-        off: t('sync_siblings_off'),
-        source: t('sync_siblings_source'),
-        follow: t('sync_siblings_follow'),
-        detached: t('sync_siblings_detached'),
+        off: t(window, 'sync_siblings_off'),
+        source: t(window, 'sync_siblings_source'),
+        follow: t(window, 'sync_siblings_follow'),
+        detached: t(window, 'sync_siblings_detached'),
     };
 
     if (isWideRow(row)) return;
@@ -973,7 +964,7 @@ function toggleRow(row) {
 function stamp(vm) {
     if (!isSyncOwner(vm)) return;
 
-    const root = rootElement(vm);
+    const root = vueRootElement(vm);
 
     if (!root || !inEditorPanel(root)) return;
 
@@ -1057,12 +1048,9 @@ function onEditorClick(e) {
 }
 
 function ensureStyles(doc) {
-    doc.getElementById(STYLE_ID)?.remove();
+  doc.getElementById(STYLE_ID)?.remove();
 
-    const style = doc.createElement('style');
-
-    style.id = STYLE_ID;
-    style.textContent = `
+  injectStyle(doc, STYLE_ID, `
         [data-sve-sync-field] > .responsive-fieldtype-header,
         [data-sve-sync-field] > .responsive-fieldtype-header > .responsive-fieldtype-label,
         [data-sve-sync-field] > [data-ui-field-header] [data-ui-label] > div,
@@ -1108,8 +1096,7 @@ function ensureStyles(doc) {
             pointer-events: none !important;
             opacity: 0.45;
         }
-    `;
-    doc.head.appendChild(style);
+    `);
 }
 
 function registerContainers() {

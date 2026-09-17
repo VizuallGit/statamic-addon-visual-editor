@@ -30,7 +30,7 @@ import {
 } from './breakpoints.js';
 import { bindTips } from './cp/tip.js';
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import {
   ACTIVE_ATTR,
@@ -40,7 +40,7 @@ import {
   SELECTORS,
 } from './cp-selectors.js';
 import { revealSegmentsFor, stampGridRows } from './cp-section-groups.js';
-export { t } from './cp-t.js';
+export { t } from './lib/i18n.js';
 export { SELECTORS, GLOBALS_PANEL_PARAM } from './cp-selectors.js';
 export { stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
 
@@ -70,6 +70,7 @@ import {
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, markLivePreviewReady, showPanelWait, warmLivePreviewCore } from './lazy-panels.js';
 import { bindToolbarPrefetch } from './toolbar-prefetch.js';
+import { watchPreviewRenders } from './lp-replay.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -9138,7 +9139,7 @@ export function initCp(win = window) {
   interceptLivePreviewOpen(win);
   sve.initOpenInPreview(win);
   sve.watchEntrySaves(win);
-  sve.watchPreviewRenders(win);
+  watchPreviewRenders(win);
   guardAssetLimit(win);
   sve.listenForGlobalsValues(win);
   sve.listenForSectionValues(win);
@@ -9554,6 +9555,4 @@ export function initCp(win = window) {
 }
 
 /** Used by the template dock. Implementation lives in globals-panel.js (toggle `globals`). */
-export function replayLivePreview(win, opts) {
-  return sve.replayLivePreview(win, opts);
-}
+export { replayLivePreview } from './lp-replay.js';

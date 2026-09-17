@@ -4,7 +4,7 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import {
@@ -50,6 +50,7 @@ import {
   rightDockWidth,
   showInRightShell,
 } from './right-dock.js';
+import { csrfToken } from './lib/csrf.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -149,15 +150,6 @@ export function libraryWentStale(win) {
 
 /** How often an open Patterns panel asks whether a preview has gone stale. */
 const PREVIEW_TICK_MS = 5000;
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
 
 /**
  * Asks the server whether any preview is out of date, and lets it start the

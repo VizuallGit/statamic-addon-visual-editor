@@ -16,6 +16,7 @@ import {
   RIGHT_PANEL_FILL,
   showInRightShell,
 } from './right-dock.js';
+import { injectStyle } from './lib/style.js';
 
 export const PANEL_IDS = {
   listview: '__sve-listview-panel',
@@ -240,16 +241,7 @@ stub('syncSectionLibraryAvailability', (win) => {
 });
 
 function ensureSpinStyle(doc) {
-  if (doc.getElementById(SPIN_STYLE_ID)) {
-    return;
-  }
-
-  const style = doc.createElement('style');
-
-  style.id = SPIN_STYLE_ID;
-  style.textContent =
-    '@keyframes sve-panel-wait-spin{to{transform:rotate(360deg)}}';
-  doc.head.appendChild(style);
+  injectStyle(doc, SPIN_STYLE_ID, '@keyframes sve-panel-wait-spin{to{transform:rotate(360deg)}}');
 }
 
 export function isRightPanelInDom(win, key) {

@@ -1,0 +1,74 @@
+{
+  "ai-launcher.js": [
+    "import cp.js"
+  ],
+  "ai-text.js": [
+    "import cp.js"
+  ],
+  "block-tree.js": [
+    "import cp.js"
+  ],
+  "chrome.js": [
+    "import cp.js"
+  ],
+  "code-dock.js": [
+    "import cp.js",
+    "replayLivePreview"
+  ],
+  "component-focus.js": [
+    "import cp.js"
+  ],
+  "focus-panel.js": [
+    "import cp.js"
+  ],
+  "global-section.js": [
+    "import cp.js"
+  ],
+  "globals-panel.js": [
+    "import cp.js",
+    "import lp-replay.js",
+    "replayLivePreview",
+    "watchPreviewRenders"
+  ],
+  "html-tree.js": [
+    "import cp.js"
+  ],
+  "inline-edit.js": [
+    "import cp.js"
+  ],
+  "lp-more-menu.js": [
+    "import cp.js"
+  ],
+  "lp-panel.js": [
+    "import cp.js"
+  ],
+  "lp-reload.js": [
+    "import cp.js"
+  ],
+  "open-in-preview.js": [
+    "import overlay-host.js",
+    "import cp.js",
+    "openOverlay"
+  ],
+  "outline-panel.js": [
+    "import cp.js"
+  ],
+  "pages.js": [
+    "import overlay-host.js",
+    "import cp.js",
+    "replayLivePreview",
+    "gotoOverlay"
+  ],
+  "performance-panel.js": [
+    "import cp.js"
+  ],
+  "preview-section-scope.js": [
+    "kernel imports cp-registry.js"
+  ],
+  "section-create.js": [
+    "import cp.js"
+  ],
+  "section-library.js": [
+    "import cp.js"
+  ]
+}

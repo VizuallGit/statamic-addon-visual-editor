@@ -127,6 +127,11 @@ import {
   tailwindClassCompletions,
   tailwindHoverExtension,
 } from './tailwind-complete.js';
+import { csrfToken } from './lib/csrf.js';
+import { injectStyle } from './lib/style.js';
+import { t } from './lib/i18n.js';
+import { attachDock, dockParent } from './lib/dock-host.js';
+import { beginOverlayDrag } from './lib/drag.js';
 
 let EditorView;
 let keymap;
@@ -703,25 +708,6 @@ const editableOf = {
   js: null,
 };
 
-function t(win, key, replacements = {}) {
-  let out = win.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
-
-  for (const [name, value] of Object.entries(replacements)) {
-    out = String(out).replaceAll(`:${name}`, value);
-  }
-
-  return out;
-}
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
-
 function vscTheme() {
   return [
     EditorView.theme(
@@ -787,18 +773,6 @@ function languageOf(handle) {
   }
 
   return html({ autoCloseTags: true });
-}
-
-function dockParent(doc) {
-  return doc.querySelector('.live-preview') || doc.body;
-}
-
-function attachDock(doc, dock) {
-  const parent = dockParent(doc);
-
-  if (dock.parentElement !== parent) {
-    parent.appendChild(dock);
-  }
 }
 
 /**
@@ -908,15 +882,7 @@ function storeWidths(win, widths) {
 }
 
 function ensureStyle(doc) {
-  let style = doc.getElementById(STYLE_ID);
-
-  if (!style) {
-    style = doc.createElement('style');
-    style.id = STYLE_ID;
-    doc.head.appendChild(style);
-  }
-
-  style.textContent = `
+  injectStyle(doc, STYLE_ID, `
 @keyframes sve-cm-wait { to { transform: rotate(360deg); } }
 #${DOCK_ID} {
   position: fixed;
@@ -2043,7 +2009,7 @@ function ensureStyle(doc) {
 #${DOCK_ID} .emmet-tracker {
   text-decoration: underline 1px #4ade80;
 }
-`;
+`);
 }
 
 function editorRight(doc) {
@@ -2345,48 +2311,20 @@ function placeDock(win, dock) {
  * iframe otherwise swallows mousemove/mouseup the moment the cursor
  * crosses into it — the dock freezes, then jumps when events come back.
  */
-function beginOverlayDrag(win, cursor, onMove, onEnd) {
-  const doc = win.document;
-  const frames = [...doc.querySelectorAll('iframe')];
-
-  frames.forEach((frame) => {
-    frame.style.pointerEvents = 'none';
-  });
-
-  const shield = doc.createElement('div');
-  shield.setAttribute('data-sve-code-drag-shield', '');
-  shield.style.cssText =
-    `position:fixed;inset:0;z-index:2147483646;cursor:${cursor};user-select:none;`;
-  doc.body.appendChild(shield);
-
+/** The dock's drag: the shared overlay drag plus this module's `dragging` flag. */
+function beginDockDrag(win, cursor, onMove, onEnd) {
   dragging = true;
 
-  let done = false;
-
-  const move = (event) => {
-    onMove(event);
-  };
-
-  const up = () => {
-    if (done) {
-      return;
-    }
-
-    done = true;
-    dragging = false;
-    doc.removeEventListener('mousemove', move);
-    doc.removeEventListener('mouseup', up);
-    win.removeEventListener('blur', up);
-    frames.forEach((frame) => {
-      frame.style.pointerEvents = '';
-    });
-    shield.remove();
-    onEnd?.();
-  };
-
-  doc.addEventListener('mousemove', move);
-  doc.addEventListener('mouseup', up);
-  win.addEventListener('blur', up);
+  beginOverlayDrag(
+    win,
+    cursor,
+    onMove,
+    () => {
+      dragging = false;
+      onEnd?.();
+    },
+    'data-sve-code-drag-shield'
+  );
 }
 
 function bindResize(win, dock) {
@@ -2420,7 +2358,7 @@ function bindResize(win, dock) {
     const startH = dock.getBoundingClientRect().height;
     let next = startH;
 
-    beginOverlayDrag(
+    beginDockDrag(
       win,
       'ns-resize',
       (e) => {
@@ -2479,7 +2417,7 @@ function bindSplitters(win, dock) {
 
       split.setAttribute('data-active', '');
 
-      beginOverlayDrag(
+      beginDockDrag(
         win,
         'col-resize',
         (e) => {

@@ -22,6 +22,10 @@ import { sve } from './cp-registry.js';
 import RightDockShell from './cp/surfaces/RightDockShell.vue';
 import { mountPane } from './cp/mount-pane.js';
 import dockCss from '../css/right-dock.css?inline';
+import { injectStyle } from './lib/style.js';
+import { t } from './lib/i18n.js';
+import { attachDock, dockParent } from './lib/dock-host.js';
+import { beginOverlayDrag } from './lib/drag.js';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -227,10 +231,6 @@ export function rightDockWidth(win) {
   return storedWidth(win);
 }
 
-function t(win, key) {
-  return win.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
-}
-
 function paneKeyOf(el) {
   return el?.getAttribute?.('data-sve-right-pane') || PANE_BY_ID[el?.id] || '';
 }
@@ -428,31 +428,11 @@ export function pinnedKeepIds(win) {
 }
 
 function ensureStyle(doc) {
-  let style = doc.getElementById(STYLE_ID);
-
-  if (!style) {
-    style = doc.createElement('style');
-    style.id = STYLE_ID;
-    doc.head.appendChild(style);
-  }
-
-  style.textContent = dockCss;
+  injectStyle(doc, STYLE_ID, dockCss);
 }
 
 function dockEl(doc) {
   return doc.getElementById(RIGHT_DOCK_ID);
-}
-
-function dockParent(doc) {
-  return doc.querySelector('.live-preview') || doc.body;
-}
-
-function attachDock(doc, dock) {
-  const parent = dockParent(doc);
-
-  if (dock.parentElement !== parent) {
-    parent.appendChild(dock);
-  }
 }
 
 function slotEl(dock) {
@@ -494,47 +474,6 @@ function previewRightPad(doc, px) {
   el.style.paddingRight = px ? `${px}px` : '';
 }
 
-function beginOverlayDrag(win, cursor, onMove, onEnd) {
-  const doc = win.document;
-  const frames = [...doc.querySelectorAll('iframe')];
-
-  frames.forEach((frame) => {
-    frame.style.pointerEvents = 'none';
-  });
-
-  const shield = doc.createElement('div');
-  shield.setAttribute('data-sve-right-drag-shield', '');
-  shield.style.cssText =
-    `position:fixed;inset:0;z-index:2147483646;cursor:${cursor};user-select:none;`;
-  doc.body.appendChild(shield);
-
-  let done = false;
-
-  const move = (event) => {
-    onMove(event);
-  };
-
-  const up = () => {
-    if (done) {
-      return;
-    }
-
-    done = true;
-    doc.removeEventListener('mousemove', move);
-    doc.removeEventListener('mouseup', up);
-    win.removeEventListener('blur', up);
-    frames.forEach((frame) => {
-      frame.style.pointerEvents = '';
-    });
-    shield.remove();
-    onEnd?.();
-  };
-
-  doc.addEventListener('mousemove', move);
-  doc.addEventListener('mouseup', up);
-  win.addEventListener('blur', up);
-}
-
 function bindWidth(win, dock) {
   if (dock._sveRightWidthBound) {
     return;
@@ -574,7 +513,8 @@ function bindWidth(win, dock) {
         placeRightDock(win);
         previewRightPad(win.document, next);
         win.dispatchEvent(new Event('resize'));
-      }
+      },
+      'data-sve-right-drag-shield'
     );
   });
 }

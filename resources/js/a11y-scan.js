@@ -15,7 +15,7 @@
  * mark it, and what a click does.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
 import { a11yUi, paneUi, markerUi, treeUi } from './cp/a11y/store.js';
 import { scanContrast, contrastCounts } from './cp/a11y/contrast.js';
@@ -25,6 +25,8 @@ import A11yPane from './cp/surfaces/A11yPane.vue';
 import A11yMarkers from './cp/surfaces/A11yMarkers.vue';
 import A11yTree from './cp/surfaces/A11yTree.vue';
 import paneCss from '../css/a11y.css?inline';
+import { previewFrame } from './lib/preview-frame.js';
+import { injectStyle } from './lib/style.js';
 
 const OVERLAY_ID = '__sve-a11y-overlay';
 const STYLE_ID = '__sve-a11y-style';
@@ -58,30 +60,8 @@ let picked = '';
 /** Tree nodes folded shut, by path. Survives a rescan; the page rarely moves. */
 const shut = new Set();
 
-function previewIframe(win) {
-  const direct = win.document.getElementById('live-preview-iframe');
-
-  if (direct) {
-    return direct;
-  }
-
-  for (const el of win.document.querySelectorAll('iframe')) {
-    try {
-      const inner = el.contentDocument?.getElementById('live-preview-iframe');
-
-      if (inner) {
-        return inner;
-      }
-    } catch {
-      /* cross-origin */
-    }
-  }
-
-  return null;
-}
-
 function previewCtx(win) {
-  const iframe = previewIframe(win);
+  const iframe = previewFrame(win);
 
   if (!iframe) {
     return null;
@@ -109,15 +89,7 @@ function previewCtx(win) {
  * renders as naked HTML. See the note at the top of css/a11y.css.
  */
 function ensureStyle(win) {
-  if (win.document.getElementById(STYLE_ID)) {
-    return;
-  }
-
-  const style = win.document.createElement('style');
-
-  style.id = STYLE_ID;
-  style.textContent = paneCss;
-  win.document.head.appendChild(style);
+  injectStyle(win.document, STYLE_ID, paneCss);
 }
 
 function overlay(win) {

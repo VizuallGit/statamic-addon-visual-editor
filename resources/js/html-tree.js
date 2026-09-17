@@ -4,7 +4,7 @@
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
 import { ask, on, register } from './cp/bus.js';
@@ -55,6 +55,7 @@ import {
   writeLoopSource,
   writeLoopTag,
 } from './antlers-edit.js';
+import { previewDocument } from './lib/preview-frame.js';
 
 export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
@@ -517,32 +518,6 @@ function runSectionTemplatePrefetch(win) {
 /** True while the rows come from the cache and the dock is still catching up. */
 function htmlTreeAheadOfDock() {
   return !!htmlTreeAhead;
-}
-
-/** The preview document, however deep the frame it is drawn in sits. */
-function previewDocument(win) {
-  const direct = win.document.getElementById('live-preview-iframe');
-  const frames = direct ? [direct] : [];
-
-  if (!direct) {
-    for (const el of win.document.querySelectorAll('iframe')) {
-      try {
-        const inner = el.contentDocument?.getElementById('live-preview-iframe');
-
-        if (inner) {
-          frames.push(inner);
-        }
-      } catch {
-        /* cross-origin */
-      }
-    }
-  }
-
-  try {
-    return frames[0]?.contentDocument || null;
-  } catch {
-    return null;
-  }
 }
 
 /**

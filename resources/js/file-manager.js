@@ -15,11 +15,12 @@ import { mountSurface } from './cp/mount.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { expandHtmlTab, htmlEmmetExtensions } from './html-emmet.js';
 import { htmlTagSync } from './html-tag-sync.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import FileManagerPane from './cp/surfaces/FileManagerPane.vue';
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { fileManagerUi as ui } from './cp/file-manager/store.js';
+import { csrfToken } from './lib/csrf.js';
 
 export const FILES_UTILITY_HOST = 'sve-files-utility';
 
@@ -185,15 +186,6 @@ function languageExtension(name) {
   }
 
   return [];
-}
-
-function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
 }
 
 async function request(win, url, options = {}) {

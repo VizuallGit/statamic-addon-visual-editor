@@ -1,6 +1,6 @@
 <script setup>
 import { canEditFields, currentSetHandle, openFieldsetOverlay } from '../../section-fields.js';
-import { t } from '../../cp-t.js';
+import { t } from '../../lib/i18n.js';
 
 // Drawn to the same recipe as the eye, the duplicate and the bin below: same
 // box, same stroke. A row of icons where one is heavier reads as a different

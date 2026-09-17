@@ -2,19 +2,7 @@
  * DOM facts the CP chrome needs. Not the preview kernel — no morph, overlay or bridge.
  */
 import { ask } from './bus.js';
-
-export function t(win, key) {
-  return win.Statamic?.$config?.get?.('sveStrings')?.[key] ?? key;
-}
-
-export function csrfToken(win) {
-  return (
-    win.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    win.Statamic?.$config?.get?.('csrfToken') ||
-    win.Statamic?.$config?.get?.('csrf_token') ||
-    ''
-  );
-}
+import { previewDocument } from '../lib/preview-frame.js';
 
 function outermostSectionType(el) {
   if (!el) {
@@ -47,16 +35,6 @@ function typeInDocument(doc) {
     doc.querySelector('[data-replicator-set][data-sve-active], [data-sve-active][data-type]');
 
   return outermostSectionType(marked);
-}
-
-function previewDocument(win) {
-  const iframe = win.document.getElementById('live-preview-iframe');
-
-  try {
-    return iframe?.contentDocument || null;
-  } catch {
-    return null;
-  }
 }
 
 export function currentSectionType(win) {

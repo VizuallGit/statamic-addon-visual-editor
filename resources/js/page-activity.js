@@ -4,7 +4,7 @@
  * Vue UI in PageActivity.vue. Does not import the kernel.
  */
 import { sve } from './cp-registry.js';
-import { t } from './cp-t.js';
+import { t } from './lib/i18n.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
 import PageActivity from './cp/surfaces/PageActivity.vue';
 
