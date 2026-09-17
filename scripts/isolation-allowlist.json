@@ -11,12 +11,15 @@
   "chrome.js": [
     "import cp.js"
   ],
-  "code-dock.js": [
-    "import cp.js",
-    "replayLivePreview"
-  ],
   "component-focus.js": [
     "import cp.js"
+  ],
+  "dock/dock-api.js": [
+    "import cp.js"
+  ],
+  "dock/save.js": [
+    "import cp.js",
+    "replayLivePreview"
   ],
   "focus-panel.js": [
     "import cp.js"

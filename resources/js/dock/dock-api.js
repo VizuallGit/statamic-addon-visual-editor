@@ -1,0 +1,956 @@
+/**
+ * code-dock.js — region "dock-api", split out in WP5. Same statements, same order;
+ * only the imports are new. See the barrel code-dock.js for what the shell exports.
+ */
+import { SUNDAY_AUG30 } from '../sunday-aug30.js';
+import { topLevelSectionUid } from '../cp.js';
+import { sve } from '../cp-registry.js';
+import { isCodeDockArmed, templateDockAllowed } from '../code-dock-state.js';
+import { ask, emit, on, register } from '../cp/bus.js';
+import { mountPane } from '../cp/mount-pane.js';
+import CodeDockChrome from '../cp/surfaces/CodeDockChrome.vue';
+import { resetDataVars } from '../data-vars.js';
+import { syncComponentFocus, syncComponentMap, watchComponentMap } from '../component-focus.js';
+import { bindTips } from '../cp/tip.js';
+import { bindPartialNav, closePartialMenu } from '../dock-partials.js';
+import { bindClassTokenNav, closeClassTokenUi } from '../dock-class-tokens.js';
+import { forgetComponentProps } from '../component-props.js';
+import { syncComponentProps } from '../component-props-host.js';
+import { t } from '../lib/i18n.js';
+import { attachDock } from '../lib/dock-host.js';
+import { HTML_TREE_PANEL_ID } from '../lib/ids.js';
+import { unwrapRef } from '../lib/values.js';
+import { sectionField } from '../lib/config.js';
+import { activeContainers } from '../lib/publish-containers.js';
+import { setTypeForUid } from '../focus-panel.js';
+import { globalSectionHost } from '../global-section.js';
+import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
+import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
+import { activeChromeKind } from '../globals-panel.js';
+import { dock } from '../dock/state.js';
+import { bindBack, bindLayoutWatch, bindPaneToggles, bindResize, bindSplitters, ensureStyle, isPanelFrame, observeDockLayout, paintBack, paintPaneButtons, placeDock, previewBottomPad, setPath, setStatus, shieldDock, stopObservingDockLayout, storedPanes } from './layout.js';
+import { DATA_ICON, DOCK_ID, HANDLES, SCOPE_ICON, UNLOCK_ID, css, editors, html, loadCm } from '../code-dock.js';
+import { bindCssTools, bindHtmlTidy, bindHtmlTools, bindStyleMode } from './toolbars.js';
+import { bindCssAddClass } from './html-tools.js';
+import { bindHistory, bindStrip, paintStrip } from './history-strip.js';
+import { bindHtmlScope, clearHtmlScopeRange, currentFullHtml, currentSectionValues, flushCssScope, goBackTemplate, htmlEditorText, htmlScopeEnabled, openNestedTemplate, openRenameClassMenu, paintHtmlScope, paintLock, showHtmlFull, showHtmlScope, syncScopedHtml, writeHandleEditor, writeHtmlEditor } from './scope.js';
+import { bindAutosave, bindLock, paintAutosave } from './lock-autosave.js';
+import { mountEditor, paintHostWait } from './editor.js';
+import { paintStyleMode, syncTwTarget } from './style-modes.js';
+import { closeCssMenu, cssEditorText, paintCssToolState, writeParts } from './css-tools.js';
+import { ensureTwCss, flushSave, onEditorInput, refreshPreview, resetTailwindCompile } from './save.js';
+import { closeDataMenu, openDataVarsMenu } from './data-vars.js';
+
+// ===== dock-api =====
+let ensureDockWait = null;
+
+async function ensureDockAsync(win) {
+  const doc = win.document;
+
+  ensureStyle(doc);
+
+  let dock = doc.getElementById(DOCK_ID);
+
+  if (dock) {
+    const chromeOk =
+      dock.querySelector('[data-sve-css-chrome="subrow-2"]') &&
+      dock.querySelector('[data-sve-css-add-class]') &&
+      dock.querySelector('[data-sve-html-tools]') &&
+      dock.querySelector('[data-sve-html-tidy]') &&
+      dock.querySelector('[data-sve-data-vars]') &&
+      dock.querySelector('[data-sve-visual-edit-tools]') &&
+      dock.querySelector('[data-sve-html-scope]') &&
+      dock.querySelector('[data-sve-code-lock]') &&
+      dock.querySelector('[data-sve-code-back]') &&
+      dock.querySelector('[data-sve-code-autosave]') &&
+      dock.querySelector('[data-sve-code-save]') &&
+      dock.getAttribute('data-sve-code-chrome') === 'scope-9';
+
+    if (!chromeOk) {
+      for (const handle of HANDLES) {
+        editors[handle]?.destroy();
+        editors[handle] = null;
+      }
+
+      dock.remove();
+      dock = null;
+    }
+  }
+
+  if (!dock) {
+    dock = doc.createElement('div');
+    dock.id = DOCK_ID;
+    dock.setAttribute('data-sve-code-chrome', 'scope-9');
+    mountPane(dock, CodeDockChrome, {
+      htmlLabel: t(win, 'code_dock_html'),
+      cssLabel: t(win, 'code_dock_css'),
+      jsLabel: t(win, 'code_dock_js'),
+      alpineLabel: t(win, 'code_dock_alpine'),
+      treeIcon: SCOPE_ICON,
+      dataIcon: DATA_ICON,
+      dataLabel: t(win, 'data_vars_title'),
+    });
+    attachDock(doc, dock);
+    shieldDock(dock);
+    paintPaneButtons(dock, storedPanes(win));
+    bindResize(win, dock);
+    bindPaneToggles(win, dock);
+    bindSplitters(win, dock);
+    bindCssTools(win, dock);
+    bindCssAddClass(win, dock);
+    bindStyleMode(win, dock);
+    bindHistory(win, dock);
+    bindStrip(win, dock);
+    bindTips(win, dock);
+    bindHtmlTools(win, dock);
+    bindHtmlScope(win, dock);
+    bindLock(win, dock);
+    bindBack(win, dock);
+    bindAutosave(win, dock);
+
+    for (const handle of HANDLES) {
+      const host = dock.querySelector(`[data-sve-code-pane="${handle}"] [data-sve-code-host]`);
+
+      paintHostWait(host);
+    }
+
+    openHtmlTreePanel(win);
+  }
+
+  attachDock(doc, dock);
+  shieldDock(dock);
+  bindHtmlTidy(win, dock);
+  bindHtmlScope(win, dock);
+  bindLock(win, dock);
+  bindBack(win, dock);
+  bindAutosave(win, dock);
+  bindLayoutWatch(win);
+  observeDockLayout(win);
+  paintLock(win);
+  paintHtmlScope(win);
+  paintBack(win);
+  paintAutosave(win);
+  paintStyleMode(win);
+  paintStrip(win);
+
+  await loadCm();
+
+  if (!editors.html) {
+    for (const handle of HANDLES) {
+      const host = dock.querySelector(`[data-sve-code-pane="${handle}"] [data-sve-code-host]`);
+
+      host?.replaceChildren();
+      mountEditor(win, handle, host);
+    }
+
+    for (const handle of ['html', 'css']) {
+      if (!editors[handle]) {
+        continue;
+      }
+
+      bindPartialNav(win, editors[handle], {
+        onOpen: (type) => openNestedTemplate(win, type),
+        emptyLabel: t(win, 'code_dock_partials_empty'),
+        openLabel: (name) => t(win, 'component_open_named', { name }),
+        sectionValues: () => currentSectionValues(win),
+        isLocked: () => isCodeDockLocked(),
+        setHover: (view, range) => dock.htmlPartialUi?.setHover(view, range),
+      });
+    }
+
+    if (SUNDAY_AUG30) {
+      bindClassTokenNav(win, editors.html, {
+        onRename: (token) => openRenameClassMenu(win, token),
+        isLocked: () => isCodeDockLocked(),
+        setHover: (view, range) => dock.htmlClassTokenUi?.setHover(view, range),
+        title: t(win, 'code_dock_css_rename_class'),
+      });
+    }
+  }
+
+  return dock;
+}
+
+function ensureDock(win) {
+  if (!ensureDockWait) {
+    ensureDockWait = ensureDockAsync(win).finally(() => {
+      ensureDockWait = null;
+    });
+  }
+
+  return ensureDockWait;
+}
+
+async function showMissing(win, type) {
+  const dock = await ensureDock(win);
+
+  dock.lastType = type;
+  dock.lastLocked = true;
+  dock.lockReady = true;
+  dock.lastParts = { html: '', css: '', js: '' };
+  clearHtmlScopeRange();
+  paintLock(win);
+  writeParts(dock.lastParts, true);
+  setPath(win.document, type);
+  setStatus(win.document, t(win, 'code_dock_missing'));
+  paintHtmlScope(win);
+  paintBack(win);
+  paintAutosave(win);
+  placeDock(win, dock);
+}
+
+export async function loadTemplate(win, type, mode = 'replace') {
+  if (mode === 'replace') {
+    dock.typeStack = [];
+  } else if (mode === 'push' && dock.lastType && dock.lastType !== type) {
+    dock.typeStack.push(dock.lastType);
+  }
+
+  const gen = ++dock.loadGen;
+
+  dock.lastType = type;
+  dock.lockReady = false;
+  clearHtmlScopeRange();
+  setStatus(win.document, t(win, 'code_dock_loading'));
+
+  const dock = await ensureDock(win);
+
+  paintLock(win);
+  paintHtmlScope(win);
+  paintBack(win);
+  paintAutosave(win);
+  paintStyleMode(win);
+  paintStrip(win);
+  placeDock(win, dock);
+
+  win
+    .fetch(`/!/sve/section-template?type=${encodeURIComponent(type)}`, {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .then(async (res) => {
+      if (gen !== dock.loadGen) {
+        return;
+      }
+
+      if (res.status === 404) {
+        showMissing(win, type);
+
+        return;
+      }
+
+      if (!res.ok) {
+        throw new Error(String(res.status));
+      }
+
+      const data = await res.json();
+
+      if (gen !== dock.loadGen) {
+        return;
+      }
+
+      dock.lastParts = {
+        html: typeof data.html === 'string' ? data.html : '',
+        css: typeof data.css === 'string' ? data.css : '',
+        js: typeof data.js === 'string' ? data.js : '',
+      };
+      dock.lastProps = Array.isArray(data.props) ? data.props : [];
+      dock.propsDirty = false;
+      dock.lastType = type;
+      dock.lastLocked = !!data.locked;
+      dock.lockReady = true;
+      resetTailwindCompile();
+      paintLock(win);
+      writeParts(dock.lastParts, dock.lastLocked);
+      // The file that just opened decides whether the left column belongs to a
+      // component. Stepping in and out of one is a load like any other.
+      syncComponentProps(win);
+
+      if (!dock.lastLocked) {
+        ensureTwCss(win, dock.lastParts.html);
+      }
+
+      setPath(win.document, data.path || type);
+      setStatus(win.document, dock.lastLocked ? t(win, 'code_dock_locked') : '');
+      syncComponentFocus(win);
+      watchComponentMap(win);
+      void syncComponentMap(win);
+      paintHtmlScope(win);
+      paintBack(win);
+      paintAutosave(win);
+      placeDock(win, dock);
+    })
+    .catch(() => {
+      if (gen !== dock.loadGen) {
+        return;
+      }
+
+      showMissing(win, type);
+      setStatus(win.document, t(win, 'code_dock_error'));
+    });
+}
+
+export function currentTemplateType() {
+  return dock.lastType || '';
+}
+
+export function isCodeDockOpen(doc) {
+  return !!doc?.getElementById(DOCK_ID);
+}
+
+export function isCodeDockLocked() {
+  return dock.lastLocked;
+}
+
+/**
+ * Paste AI Write-mode output into the open template dock.
+ * HTML goes at the cursor; CSS/JS are appended to those panes.
+ *
+ * @param {{ html?: string, css?: string, js?: string }} parts
+ */
+export function insertAiSnippet(win, parts) {
+  const html = typeof parts?.html === 'string' ? parts.html.trim() : '';
+  const css = typeof parts?.css === 'string' ? parts.css.trim() : '';
+  const js = typeof parts?.js === 'string' ? parts.js.trim() : '';
+
+  if (!html && !css && !js) {
+    return false;
+  }
+
+  if (!win?.document?.getElementById(DOCK_ID)) {
+    return false;
+  }
+
+  let wrote = false;
+
+  if (html) {
+    wrote = insertPaneAtCursor('html', html) || wrote;
+  }
+
+  if (css) {
+    wrote = appendPane('css', css) || wrote;
+  }
+
+  if (js) {
+    wrote = appendPane('js', js) || wrote;
+  }
+
+  if (wrote) {
+    onEditorInput(win);
+  }
+
+  return wrote;
+}
+
+function insertPaneAtCursor(handle, text) {
+  const view = editors[handle];
+
+  if (!view || view.state.readOnly) {
+    return false;
+  }
+
+  const sel = view.state.selection.main;
+  const before = sel.from > 0 ? view.state.doc.sliceString(sel.from - 1, sel.from) : '\n';
+  const after = sel.to < view.state.doc.length ? view.state.doc.sliceString(sel.to, sel.to + 1) : '\n';
+  const prefix = before === '\n' ? '' : '\n';
+  const suffix = after === '\n' ? '' : '\n';
+  const insert = `${prefix}${text}${suffix}`;
+
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert },
+    selection: { anchor: sel.from + insert.length },
+  });
+
+  return true;
+}
+
+function appendPane(handle, text) {
+  const view = editors[handle];
+
+  if (!view || view.state.readOnly) {
+    return false;
+  }
+
+  const len = view.state.doc.length;
+  const needsBreak = len > 0 && view.state.doc.sliceString(Math.max(0, len - 1), len) !== '\n';
+  const insert = `${needsBreak ? '\n\n' : len ? '\n' : ''}${text}\n`;
+
+  view.dispatch({
+    changes: { from: len, insert },
+    selection: { anchor: len + insert.length },
+  });
+
+  return true;
+}
+
+export function refreshCodeDockFromDisk(win) {
+  refreshPreview(win);
+
+  if (!dock.lastType || !win.document.getElementById(DOCK_ID)) {
+    return;
+  }
+
+  const type = dock.lastType;
+
+  dock.lastType = null;
+  loadTemplate(win, type, 'keep');
+}
+
+export function closeCodeDock(doc) {
+  closeDataMenu(doc);
+  dock.loadGen += 1;
+  flushSave(doc);
+  dock.lastUid = null;
+  dock.lastType = null;
+  dock.typeStack = [];
+  dock.lastParts = { html: '', css: '', js: '' };
+  dock.lastLocked = false;
+  dock.lockReady = false;
+  dock.lastBracketNames = null;
+  dock.lastCssSelectorNames = null;
+  clearHtmlScopeRange();
+  dock.lastWin = doc?.defaultView || dock.lastWin;
+  closeCssMenu(doc);
+  closePartialMenu(doc);
+  closeClassTokenUi(doc);
+  doc?.getElementById(UNLOCK_ID)?.remove();
+
+  for (const handle of HANDLES) {
+    editors[handle]?.destroy();
+    editors[handle] = null;
+  }
+
+  doc?.getElementById(DOCK_ID)?.remove();
+  stopObservingDockLayout();
+
+  if (doc) {
+    previewBottomPad(doc, 0);
+  }
+
+  const win = doc?.defaultView || dock.lastWin;
+
+  if (win?.document.getElementById(HTML_TREE_PANEL_ID)) {
+    closeHtmlTreePanel(win);
+  }
+
+  // `lastType` is already cleared above, so this lifts any component fade —
+  // and the empty map takes the right-click offer off the page with it.
+  if (win) {
+    syncComponentFocus(win);
+    void syncComponentMap(win);
+    // `lastType` is cleared above, so this hands the field column back.
+    syncComponentProps(win);
+  }
+}
+
+export function relayoutCodeDock(win) {
+  if (dock.dragging) {
+    return;
+  }
+
+  const dock = win.document.getElementById(DOCK_ID);
+
+  if (!dock) {
+    return;
+  }
+
+  observeDockLayout(win);
+  placeDock(win, dock);
+}
+
+/**
+ * The Antlers file for a page section is keyed by the row's `type` in publish
+ * values. The left sidebar is a Vue mount of those rows — whether it is open
+ * or has painted a set must not decide which file the dock shows.
+ *
+ * Header/footer and a global-section host are separate forms, so those still
+ * read their own container. Collection index/show uses the entry's `view`.
+ */
+function pageSectionType(win, doc, uid) {
+  if (uid) {
+    const sectionUid =
+      topLevelSectionUid(uid, doc) || topLevelSectionUid(uid, win.document) || uid;
+
+    return String(
+      (typeof setTypeForUid === 'function' &&
+        (setTypeForUid(sectionUid, doc) || setTypeForUid(sectionUid, win.document))) ||
+        ''
+    ).trim();
+  }
+
+  const field = typeof sectionField === 'function' ? sectionField(win) : 'page_sections';
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = unwrapRef(container.values) || container.values;
+    const sections = values?.[field];
+
+    if (!Array.isArray(sections)) {
+      continue;
+    }
+
+    for (const row of sections) {
+      const type = typeof row?.type === 'string' ? row.type.trim() : '';
+
+      if (type) {
+        return type;
+      }
+    }
+  }
+
+  return '';
+}
+
+export function collectionViewType(win) {
+  const features = win.Statamic?.$config?.get?.('sveFeatures') || {};
+
+  if (features.collection_templates !== true) {
+    return '';
+  }
+
+  const store = win.Statamic?.$config?.get?.('sveCollectionTemplatesCollection') || 'templates';
+  const path = win.location?.pathname || '';
+
+  if (!path.includes(`/collections/${store}/entries/`)) {
+    return '';
+  }
+
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = unwrapRef(container.values) || container.values;
+    const view = typeof values?.view === 'string' ? values.view.trim() : '';
+
+    if (!view || view.includes('..')) {
+      continue;
+    }
+
+    const normalised = view
+      .replace(/\.(antlers\.html|blade\.php)$/i, '')
+      .replace(/^\/+|\/+$/g, '');
+
+    if (normalised) {
+      return `view:${normalised}`;
+    }
+  }
+
+  return '';
+}
+
+function chromeTemplateType(win, doc) {
+  const kind = chromeInlineKind || activeChromeKind;
+
+  if (kind !== 'header' && kind !== 'footer') {
+    return '';
+  }
+
+  if (!chromeHost(doc) && !chromeEditorOpen(doc)) {
+    return '';
+  }
+
+  const values = unwrapRef(chromeContainer()?.values) || {};
+  const style = values[kind === 'footer' ? 'footer_style' : 'header_style'] || 'style_1';
+
+  return `${kind}/${style}`;
+}
+
+function globalSectionTemplateType(doc) {
+  const host = globalSectionHost(doc) || doc.getElementById('__sve-global-section-host');
+
+  if (!host) {
+    return '';
+  }
+
+  return host.querySelector('[data-replicator-set][data-type]')?.getAttribute('data-type') || '';
+}
+
+/**
+ * Load the template file for the section the editor is on.
+ *
+ * `uid` is a visual id on the page (section or a block inside it). Type is
+ * always the outer page-section row in publish values. Do not wait for that
+ * row to exist as a replicator set in the left sidebar.
+ */
+export function syncCodeDock(win, doc, uid) {
+  if (dock.dragging) {
+    return;
+  }
+
+  if (!win || !doc || isPanelFrame(doc) || !templateDockAllowed(win) || !isCodeDockArmed(win)) {
+    if (doc) {
+      closeCodeDock(doc);
+    }
+
+    return;
+  }
+
+  const type =
+    chromeTemplateType(win, doc) ||
+    globalSectionTemplateType(doc) ||
+    pageSectionType(win, doc, uid) ||
+    collectionViewType(win) ||
+    (!uid ? dock.lastType : '');
+  const uidChanged = !!(uid && uid !== dock.lastUid);
+
+  dock.lastWin = win;
+
+  if (uid) {
+    dock.lastUid = uid;
+  }
+
+  if (!type) {
+    return;
+  }
+
+  if (type === dock.lastType && doc.getElementById(DOCK_ID)) {
+    return;
+  }
+
+  if (dock.typeStack.length && dock.lastType && dock.lastType !== type) {
+    const root = dock.typeStack[0];
+
+    if (type === root && !uidChanged) {
+      return;
+    }
+
+    dock.typeStack = [];
+  }
+
+  flushSave(doc);
+  loadTemplate(win, type, 'replace');
+}
+
+// A different tag, or a class added to it, relights the icon row.
+on('tw:changed', () => {
+  if (dock.lastWin && dock.styleMode === 'tw') {
+    paintCssToolState(dock.lastWin);
+  }
+});
+
+register('dock:is-open', (doc) => isCodeDockOpen(doc));
+register('dock:is-locked', () => isCodeDockLocked());
+register('dock:html', () => currentFullHtml());
+register('dock:reveal-html', ({ from, to, caret } = {}) => {
+  const view = editors.html;
+
+  if (!view || from == null) {
+    return;
+  }
+
+  dock.htmlScopePref = htmlScopeEnabled(dock.lastWin);
+  syncScopedHtml();
+  flushCssScope();
+
+  const length = dock.htmlFull.length;
+  const start = Math.max(0, Math.min(from, length));
+  const end = Math.max(start, Math.min(to ?? from, length));
+
+  dock.htmlFocus = end > start ? { from: start, to: end } : null;
+
+  // `caret` says "put me inside this", which the tree asks for so the next
+  // thing written lands in the row that was picked. Without one the whole
+  // range is selected, which is what a plain reveal has always done.
+  const at = caret == null ? null : Math.max(0, Math.min(caret, length));
+
+  if (dock.htmlScopePref && dock.htmlFocus) {
+    showHtmlScope(at);
+    paintHtmlScope(dock.lastWin);
+
+    return;
+  }
+
+  if (dock.htmlScopeActive) {
+    showHtmlFull(true, at);
+    paintHtmlScope(dock.lastWin);
+
+    return;
+  }
+
+  view.dispatch({
+    selection: at == null ? { anchor: start, head: end } : { anchor: at },
+    scrollIntoView: true,
+  });
+  view.focus();
+});
+register('dock:insert-snippet', ({ win, parts }) => insertAiSnippet(win, parts));
+register('dock:refresh', (win) => refreshCodeDockFromDisk(win));
+register('dock:tw-follow', () => {
+  if (dock.lastWin) {
+    syncTwTarget(dock.lastWin);
+  }
+});
+/**
+ * The CSS pane, whole — `cssFull` is the truth, and the pane may be showing a
+ * scoped slice of it, so it is flushed first. Extracting a component reads and
+ * rewrites it: the rules that describe the markup leave with the markup.
+ */
+register('dock:css', () => {
+  flushCssScope();
+
+  return dock.cssFull;
+});
+register('dock:set-css', (css) => {
+  if (typeof css !== 'string' || isCodeDockLocked()) {
+    return false;
+  }
+
+  if (!editors.css || !dock.lastWin) {
+    return false;
+  }
+
+  flushCssScope();
+  dock.cssFull = css;
+  writeHandleEditor('css', cssEditorText());
+  onEditorInput(dock.lastWin);
+
+  return true;
+});
+/**
+ * Open the field picker anchored on someone else's button. `onPick` gets the
+ * row, so the caller decides what a pick writes and where. `at` says where in
+ * the template the caller is standing, so the loop around it can be read; left
+ * out, the HTML pane's cursor answers that instead.
+ */
+register('dock:data-menu', ({ anchor, onPick, at } = {}) => {
+  if (!anchor || !dock.lastWin) {
+    return false;
+  }
+
+  closeDataMenu(dock.lastWin.document);
+  closeCssMenu(dock.lastWin.document);
+  openDataVarsMenu(dock.lastWin, anchor, onPick, at);
+
+  return true;
+});
+/**
+ * The open file's declared fields, and a change to them.
+ *
+ * A change is a save: the list is not text anyone is mid-word in, so there is
+ * nothing to debounce and nothing to lose by writing it straight away.
+ */
+register('dock:props', () => dock.lastProps.map((prop) => ({ ...prop })));
+register('dock:set-props', ({ win, props } = {}) => {
+  if (!Array.isArray(props) || isCodeDockLocked()) {
+    return false;
+  }
+
+  dock.lastProps = props;
+  dock.propsDirty = true;
+  forgetComponentProps(componentSrcOf(currentTemplateType()));
+  flushSave((win || dock.lastWin)?.document);
+
+  return true;
+});
+
+/** `view:partials/components/card` is the component `components/card`. */
+function componentSrcOf(type) {
+  const match = /^view:partials\/(components\/[A-Za-z0-9_-]+)$/.exec(String(type || ''));
+
+  return match ? match[1] : '';
+}
+
+register('dock:component-src', () => componentSrcOf(currentTemplateType()));
+
+/**
+ * What a way out of the open component would say and do.
+ *
+ * `back` is the difference that matters: a component reached from a section
+ * has a template underneath to return to, and one opened on its own has
+ * nothing beneath it — leaving that means closing the dock.
+ */
+register('dock:component-exit-state', () => {
+  const src = componentSrcOf(currentTemplateType());
+
+  return {
+    open: !!src,
+    name: src ? src.split('/').pop() : '',
+    back: dock.typeStack.length > 0,
+  };
+});
+
+/**
+ * Leave the open component. Both roads out save on the way — `goBackTemplate`
+ * and `closeCodeDock` each flush first — so there is no version of this that
+ * loses what was typed.
+ */
+register('dock:exit-component', () => {
+  if (!dock.lastWin || !componentSrcOf(currentTemplateType())) {
+    return false;
+  }
+
+  if (dock.typeStack.length) {
+    goBackTemplate(dock.lastWin);
+  } else {
+    closeCodeDock(dock.lastWin.document);
+  }
+
+  return true;
+});
+
+register('dock:current-type', () => currentTemplateType());
+register('dock:current-uid', () => dock.lastUid);
+/**
+ * Re-render the preview without saving anything.
+ *
+ * For changes the dock did not make and cannot see — a field added to the
+ * section's fieldset, say. The page is still showing a render from before it.
+ */
+/**
+ * Forget the data picker's variable lists.
+ *
+ * They are built from the blueprint and cached for as long as the page is
+ * open — which was fine while a blueprint could not change under it. It can
+ * now: a field added or removed in the fields panel changes what the picker
+ * should offer. Clearing is all that is needed; the picker fetches when it is
+ * opened, so the next open is correct and nothing on screen moves before then.
+ */
+register('dock:reset-data-vars', (setHandle) => {
+  resetDataVars(typeof setHandle === 'string' && setHandle ? setHandle : undefined);
+
+  return true;
+});
+
+register('dock:refresh-preview', () => {
+  if (!dock.lastWin) {
+    return false;
+  }
+
+  refreshPreview(dock.lastWin);
+
+  return true;
+});
+
+/** Open another template — the same push the partial links in the panes do. */
+register('dock:open-template', (type) => {
+  if (typeof type !== 'string' || !type || !dock.lastWin) {
+    return false;
+  }
+
+  openNestedTemplate(dock.lastWin, type);
+
+  return true;
+});
+register('dock:set-html', (html) => {
+  if (typeof html !== 'string' || isCodeDockLocked()) {
+    return false;
+  }
+
+  const view = editors.html;
+
+  if (!view || !dock.lastWin) {
+    return false;
+  }
+
+  // Empty string = detach view (last section gone). Never autosave an empty file.
+  if (html === '') {
+    if (dock.saveTimer) {
+      clearTimeout(dock.saveTimer);
+      dock.saveTimer = null;
+    }
+
+    // Drop any in-flight Tailwind compile save; it would post empty HTML.
+    dock.twDirty = false;
+    dock.twCss = null;
+    dock.twKey = '';
+
+    // Detach before clearing panes — flushSave no-ops without lastType, and
+    // readParts reads cssFull (not the CSS editor), so clear that too.
+    dock.lastType = null;
+    dock.lastUid = null;
+    dock.lastParts = { html: '', css: '', js: '' };
+    dock.cssFull = '';
+    dock.htmlFull = '';
+
+    dock.applying = true;
+
+    try {
+      clearHtmlScopeRange();
+
+      for (const handle of HANDLES) {
+        const ed = editors[handle];
+
+        if (!ed) {
+          continue;
+        }
+
+        const current = ed.state.doc.toString();
+
+        if (current !== '') {
+          ed.dispatch({
+            changes: { from: 0, to: current.length, insert: '' },
+          });
+        }
+      }
+    } finally {
+      dock.applying = false;
+    }
+
+    return true;
+  }
+
+  const before = dock.htmlFull;
+
+  dock.htmlFull = html;
+
+  if (dock.htmlScopeActive) {
+    // The scoped pane shows `htmlFull.slice(htmlFocus)`. An edit that changed
+    // the length of what is inside that range leaves the end of it pointing
+    // short, and the pane renders a truncated tag — `{{ /artis`. Writing in
+    // that pane then syncs the truncation back into the file, so the range is
+    // moved with the edit rather than left behind.
+    dock.htmlFocus = shiftFocus(dock.htmlFocus, before, html);
+    writeHtmlEditor(htmlEditorText());
+    onEditorInput(dock.lastWin);
+    emit('dock:html-changed');
+
+    return true;
+  }
+
+  const current = view.state.doc.toString();
+
+  if (current !== html) {
+    view.dispatch({
+      changes: { from: 0, to: current.length, insert: html },
+    });
+  }
+
+  return true;
+});
+
+/**
+ * Empty the dock panes without saving. Used when the last page section is
+ * removed — `dock:set-html ''` would autosave an empty Antlers file.
+ */
+register('dock:show-empty', () => ask('dock:set-html', ''));
+
+/**
+ * Move a focus range so it still covers the same thing after an edit.
+ *
+ * Where the two texts first differ says whether the edit landed before the
+ * range (move both ends), inside it (stretch the end), or after it (leave it).
+ */
+function shiftFocus(focus, before, after) {
+  const delta = after.length - before.length;
+
+  if (!focus || !delta) {
+    return focus;
+  }
+
+  let at = 0;
+
+  while (at < before.length && at < after.length && before[at] === after[at]) {
+    at += 1;
+  }
+
+  if (at >= focus.to) {
+    return focus;
+  }
+
+  if (at < focus.from) {
+    return { from: Math.max(0, focus.from + delta), to: Math.max(0, focus.to + delta) };
+  }
+
+  return { from: focus.from, to: Math.max(focus.from, focus.to + delta) };
+}
+
+sve.syncCodeDock = syncCodeDock;
