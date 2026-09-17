@@ -19,6 +19,8 @@
  * initCp() only wires the toolbar once Statamic has booted; it returns early
  * when the site has Visual Editor switched off.
  */
+// First: the former standalone scripts, in the order their script tags ran.
+import './side/index.js';
 import AutoUuid from './components/fieldtypes/AutoUuid.vue';
 import LibraryScan from './components/fieldtypes/LibraryScan.vue';
 import './components/fieldtypes/ResponsiveFieldtype.js';
@@ -29,10 +31,9 @@ import './components/fieldtypes/IconButtonGroupFieldtype.js';
 import './components/fieldtypes/UniqueSetsFieldtype.js';
 import './components/fieldtypes/GlobalsPickerFieldtype.js';
 import './components/fieldtypes/ToolbarAccessFieldtype.js';
-// DefaultSetsFieldtype.js is not imported: default-sets-count.js registers the
-// same `default-sets-fieldtype` on Statamic.booted, after this file's
-// Statamic.booting, so the count version was already the one on screen —
-// the bundled one only added a "has already been registered" warning.
+// `default-sets-fieldtype` is registered by side/default-sets-count.js on
+// Statamic.booted (the count version); the older DefaultSetsFieldtype.js it
+// shadowed was deleted in WP6a.
 import './components/fieldtypes/BardDefaultFieldtype.js';
 import './components/LockedRows.js';
 import './sibling-sync.js';

@@ -236,47 +236,30 @@ class ServiceProvider extends AddonServiceProvider
     ];
 
     // Own files, never inlined into Blade (Vue `{{ }}` would compile as PHP
-    // and kill every field in the Control Panel). Not bundled into addon.js —
-    // they run on every CP page and must not wrap Statamic's field Vue.
-    // Served from public/vendor/{packageName()}/js/ — that is visual-editor,
-    // not statamic-addon/visual-editor. registerScript() copies source → public
+    // and kill every field in the Control Panel). Served from
+    // public/vendor/{packageName()}/js/ — that is visual-editor, not
+    // statamic-addon/visual-editor. registerScript() copies source → public
     // on boot so a path-repo edit actually reaches the CP (Statamic otherwise
     // keeps serving the last vendor:publish copy, cache-busted only by version).
     //
+    // Twelve more used to be here; they live in resources/js/side/ and are
+    // part of addon.js since WP6a. What stays is what a module cannot do: a
+    // classic script runs while the page is parsed, before Statamic's own
+    // module, so it can patch a global before the core reads it (the first
+    // two); the next two read the bundle off window.sve and go with WP6b; the
+    // paint script is proven on its own by tests/browser/instant-paint.mjs.
+    // A standalone script never import()s a build file by name.
+    //
     //   disable-publish-stack-pin — keep the publish stack from pinning over LP
     //   dedupe-cp-fetch           — one GET for iconify/config and colour swatches
-    //   default-sets-count        — "from the start" count on replicator config
-    //   iconify-hide-remove       — hide Iconify's remove when the field is empty
-    //   icon-button-group-iconify — Iconify picker inside button-group options
-    //   responsive-hide-label     — hide inner labels inside a responsive wrap
-    //   grid-keep-table           — keep Grid as a table (not stacked cards)
-    //   grid-collapse             — collapse Grid rows in the sidebar
     //   section-meta-prefetch     — prefetch set meta (library, Search Sets hover, solo +)
-    //   inserter-reveal           — keep the "+" visible under a newly added block
-    //   toolbar-look              — trial 4px pills, no shadow; light chrome on dark sections
-    //   library-drop-focus        — after a library drop, zoom in on the new section
     //   lite-sections             — mount one page_sections row in Live Preview
-    //   collection-template-picker — Preview-as select on collection templates
-    //   collection-preset-scaffold  — preset picker on Scaffold Views
-    //   field-prop                  — map a template prop to a collection field
     //   dock-instant-preview        — paint HTML-dock classes into LP before morph
     protected $scripts = [
         __DIR__.'/../resources/js/disable-publish-stack-pin.js',
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
-        __DIR__.'/../resources/js/default-sets-count.js',
-        __DIR__.'/../resources/js/iconify-hide-remove.js',
-        __DIR__.'/../resources/js/icon-button-group-iconify.js',
-        __DIR__.'/../resources/js/responsive-hide-label.js',
-        __DIR__.'/../resources/js/grid-keep-table.js',
-        __DIR__.'/../resources/js/grid-collapse.js',
         __DIR__.'/../resources/js/section-meta-prefetch.js',
-        __DIR__.'/../resources/js/inserter-reveal.js',
-        __DIR__.'/../resources/js/toolbar-look.js',
-        __DIR__.'/../resources/js/library-drop-focus.js',
         __DIR__.'/../resources/js/lite-sections.js',
-        __DIR__.'/../resources/js/collection-template-picker.js',
-        __DIR__.'/../resources/js/collection-preset-scaffold.js',
-        __DIR__.'/../resources/js/field-prop.js',
         __DIR__.'/../resources/js/dock-instant-preview.js',
     ];
 

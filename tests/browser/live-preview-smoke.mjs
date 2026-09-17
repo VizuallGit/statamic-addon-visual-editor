@@ -149,6 +149,13 @@ try {
   const previewFacts = preview ? await preview.evaluate(() => `${location.pathname} sections=${document.querySelectorAll('section').length} id-sections=${document.querySelectorAll('[id^="id-"]').length} text=${(document.body?.innerText || '').length}`).catch((e) => e.message) : 'no frame';
   step('a page section rendered in the preview', hasSection, `${previewFacts}${lastErr ? ' | $ error: ' + lastErr.slice(0, 120) : ''}`);
 
+  // 3b. The side scripts (resources/js/side/, part of addon.js since WP6a)
+  // each leave their run-once flag on the CP window — "no errors" alone would
+  // not tell a script that never ran from one that did.
+  const sideFlags = ['__sveIconifyHideRemove', '__sveIconButtonGroupIconify', '__sveResponsiveHideCustomLabel', '__sveGridKeepTable', '__sveGridCollapseGate', '__sveInserterReveal', '__sveToolbarLook', '__sveLibraryDropFocus', '__sveCollectionViewPicker', '__sveCollectionPresetScaffold'];
+  const sideMissing = await cp.evaluate((flags) => flags.filter((f) => !window[f]), sideFlags);
+  step('the side scripts ran (resources/js/side/)', sideMissing.length === 0, sideMissing.length ? 'did not run: ' + sideMissing.join(' ') : `${sideFlags.length} run-once flags set`);
+
   // 4. Click a section in the preview → the CP focuses it.
   if (hasSection) {
     // Spy on what the preview posts to the CP during the click (bridge → cp.js).
