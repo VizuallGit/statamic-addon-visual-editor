@@ -57,6 +57,7 @@ import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-pre
 import { previewFrame } from './lib/preview-frame.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -2026,7 +2027,7 @@ export function syncPreviewInset(win) {
 export function pinGlobalsPanelLeft(win, panel) {
   attachGlobalsOverlay(win, panel);
   sveState.forcePanelOpen = true;
-  sve.setLpCollapsed(win, false);
+  setLpCollapsed(win, false);
   applyHeaderTab(win);
 
   const editor = livePreviewEditorEl(win.document);
@@ -2063,7 +2064,7 @@ export function claimLivePreviewEditor(win) {
   }
 
   sveState.forcePanelOpen = true;
-  sve.setLpCollapsed(win, false);
+  setLpCollapsed(win, false);
   applyHeaderTab(win);
 
   const editor = livePreviewEditorEl(win.document);
@@ -2114,12 +2115,12 @@ export function releaseLeftEdgeIfFree(win) {
   }
 
   if (sveState.soloUid) {
-    sve.setLpCollapsed(win, false);
+    setLpCollapsed(win, false);
 
     return;
   }
 
-  sve.setLpCollapsed(win, sve.lpMode(win) !== 'show');
+  setLpCollapsed(win, lpMode(win) !== 'show');
 }
 
 /**
@@ -2397,7 +2398,7 @@ export function mountSectionPicker(win, options = {}) {
       setHeaderTab(win, null);
     }
 
-    sve.persistDockedPanel(win);
+    persistDockedPanel(win);
     applyHeaderTab(win);
   });
   groupsEl.addEventListener('scroll', syncGroupsFade);
@@ -3910,7 +3911,7 @@ export function handleSectionSettings(data, doc, win) {
       }
 
       sveState.forcePanelOpen = true;
-      sve.setLpCollapsed(win, false);
+      setLpCollapsed(win, false);
     }, 250);
   };
 

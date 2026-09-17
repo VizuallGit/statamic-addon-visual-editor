@@ -12,6 +12,7 @@ import { syncCodeDock } from './code-dock-lazy.js';
 import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
 import { publishContainers } from './lib/publish-containers.js';
+import { setLpMode } from './lp-panel.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------
@@ -379,7 +380,7 @@ export async function openChromeInline(win, kind) {
 
   sve.setActiveChromeKind(chromeKind);
   chromeInlineKind = chromeKind;
-  sve.setLpMode(win, 'show');
+  setLpMode(win, 'show');
   sve.hideGlobalsPanel(win, { release: false });
 
   // Both halves in one set: they are two tabs of one form, and stepping across is

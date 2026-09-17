@@ -28,6 +28,7 @@ import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers, publishContainers } from './lib/publish-containers.js';
+import { setLpCollapsed } from './lp-panel.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -1641,7 +1642,7 @@ export function handleOpenPanelField(data, doc, win) {
 
   const { field, scope } = editSession;
 
-  sve.setLpCollapsed(win, false);
+  setLpCollapsed(win, false);
   setTimeout(() => handleFieldFocus(field, doc, { scopeUid: scope }), 100);
 }
 
@@ -1760,7 +1761,7 @@ export function handleIconEdit(data, doc, win = window) {
     }
 
     if (attempts === 2) {
-      sve.setLpCollapsed(win, false);
+      setLpCollapsed(win, false);
       handleFieldFocus(data.field, doc, { animate: false, scopeUid: data.scope });
     }
 
@@ -1947,7 +1948,7 @@ export function handleLinkEdit(data, doc, win) {
 
   const { linkPath, scope } = editSession;
 
-  sve.setLpCollapsed(win, false);
+  setLpCollapsed(win, false);
 
   setTimeout(() => {
     // Preferred: the url field's own wrapper (stacked grids render one).

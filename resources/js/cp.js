@@ -72,7 +72,7 @@ import { ensurePanel, hidePanelWait, isRightPanelInDom, markLivePreviewReady, sh
 import { bindToolbarPrefetch } from './toolbar-prefetch.js';
 import { watchPreviewRenders } from './lp-replay.js';
 import { injectStyle } from './lib/style.js';
-import { COLLECTION_PICKER_ID, ENTRY_EDIT_PATH, FOCUS_LOCKED_TABS, FOCUS_STEP_ATTR, GLOBALS_PICKER_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_COLLAPSED_KEY, LP_COVER_ID, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_MODE_ID, LP_MODE_KEY, LP_PRIMARY_FLAT, LP_SIDE_DEFAULT_REM, LP_TOGGLE_ID, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
+import { COLLECTION_PICKER_ID, COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, ENTRY_EDIT_PATH, FOCUS_LOCKED_TABS, FOCUS_STEP_ATTR, GLOBALS_PICKER_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_COVER_ID, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_MODE_ID, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
@@ -80,6 +80,7 @@ import { remToPx } from './lib/dom.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { activeContainers, registerContainerEvents } from './lib/publish-containers.js';
+import { autoOpenPanel, findLpSaveButton, lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, paintLpSaveButton, persistDockedPanel, setLpCollapsed, setLpMode, syncLpRightBarGaps } from './lp-panel.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -857,7 +858,6 @@ export function handleFieldHover(fieldPath, doc = document, scopeUid = undefined
 
 export const LP_SCALE_DEVICE_TO_PANE = true;
 
-export const LP_PREVIEW_CHROME_ID = '__sve-preview-chrome';
 export const LP_DEVICE_KEY = 'sve-lp-device';
 export const LP_ZOOM_KEY = 'sve-lp-zoom';
 export const LP_ZOOM_STEPS = [50, 75, 90, 100];
@@ -1866,9 +1866,9 @@ export function ensureLpPreviewChrome(win) {
     });
 
     zoom.appendChild(zoomOut);
-    zoom.appendChild(sve.lpModeSeparator(doc));
+    zoom.appendChild(lpModeSeparator(doc));
     zoom.appendChild(zoomLabel);
-    zoom.appendChild(sve.lpModeSeparator(doc));
+    zoom.appendChild(lpModeSeparator(doc));
     zoom.appendChild(zoomIn);
 
     chrome.appendChild(zoom);
@@ -1935,7 +1935,7 @@ export function ensureLpPreviewChrome(win) {
   }
 
   // Ét gap devices↔zoom↔Save↔go-back (ingen stablede margins).
-  sve.syncLpRightBarGaps(win);
+  syncLpRightBarGaps(win);
 
   applyLpDevice(win);
   applyLpZoom(win);
@@ -1961,7 +1961,7 @@ export function paintLpPreviewChrome(win) {
   const zoom = lpVisualZoom(win);
 
   chrome.querySelectorAll('[data-device]').forEach((btn) => {
-    sve.paintLpActiveControl(btn, btn.dataset.device === device);
+    paintLpActiveControl(btn, btn.dataset.device === device);
   });
 
   // Zoom controls: same idle opacity as other chrome icons (label stays readable).
@@ -1994,8 +1994,8 @@ export function paintLpPreviewChrome(win) {
     }
   });
 
-  sve.paintLpSaveButton(win);
-  sve.syncLpRightBarGaps(win);
+  paintLpSaveButton(win);
+  syncLpRightBarGaps(win);
 
   const zoomBox = chrome.querySelector('[data-sve-zoom]');
 
@@ -2120,24 +2120,6 @@ export const HEADER_SURFACE = 'rgba(128,128,128,.16)';
 /** Hover-flade på venstre toolbar-ikoner — idle-flade på close, så den læses som en knap. */
 export const HEADER_ICON_HOVER = 'rgba(128, 128, 128, .28)';
 
-/** Gruppeboksens luft ud til kontrollerne i den. */
-export const LP_CONTROL_PAD = 5;
-
-/**
- * Ydre højde for alle topbar-grupper og selvstændige ikonknapper (devices,
- * zoom, Hidden/Auto/Visible, pages/globals, go-back). Pad + kontrol = 32.
- */
-export const LP_CHROME_H = 32;
-
-/** Indre kontrolhøjde inde i en gruppe (32 − 2×5). */
-export const LP_CONTROL_H = LP_CHROME_H - LP_CONTROL_PAD * 2;
-
-/** Count disc on the comments icon. Idle = same metal as the glyph, dark type; open = pale blue. */
-export const COMMENTS_BADGE_FG = 'var(--theme-color-primary, #4530D8)';
-export const COMMENTS_BADGE_IDLE_TYPE = '#18181b';
-export const COMMENTS_BADGE_ACTIVE_BG =
-  'color-mix(in oklab, var(--theme-color-primary, #4530D8) 14%, white)';
-
 /**
  * Kvadratisk ikonknap i topbaren — samme flade/højde som device/zoom-grupperne
  * når den står alene (fx go-back). Ikoner inde i en gruppe bruger
@@ -2159,12 +2141,6 @@ export const HEADER_FIELD_SURFACE = 'rgba(128,128,128,.3)';
 
 /** Luften mellem ikonknappen og dens kontrolgruppe, når de er to bokse. */
 export const LP_ICON_GAP = 8;
-
-/**
- * Ens mellemrum mellem topbar-items (ikoner, device/zoom, Save, go-back).
- * Ikke ekstra margin på udvidede felter — det gav skæve huller omkring Globals.
- */
-export const LP_TOOLBAR_GAP = 8;
 
 /** Luften på hver side af en gennemgående streg. */
 export const LP_SEAM_GAP = 6;
@@ -2212,7 +2188,7 @@ export const FRAMED_SELECT_STYLE =
  * Sømmen mellem to dele af samme felt — ikke i brug i topbaren.
  */
 export function headerSeam(doc) {
-  return sve.lpModeSeparator(doc);
+  return lpModeSeparator(doc);
 }
 
 /** Fjern lyse ikon-streger i topbaren, hvis en ældre session har sat dem ind. */
@@ -2421,7 +2397,7 @@ export function restoreDockedHeaderPanels(win) {
 
     relayoutRightDock(win);
     releaseRightShellIfEmpty(win);
-    sve.persistDockedPanel(win);
+    persistDockedPanel(win);
     restoreRememberedCodeDock(win);
   })();
 }
@@ -2725,7 +2701,7 @@ export function ensureHeaderToolbar(win) {
           }
 
           sve.toggleCommentsPanel?.(win);
-          sve.persistDockedPanel(win);
+          persistDockedPanel(win);
           applyHeaderTab(win);
           sve.syncPreviewInset(win);
         })();
@@ -2773,7 +2749,7 @@ export function ensureHeaderToolbar(win) {
         wrap.style.cssText = 'display:inline-flex;align-items:center;gap:6px;';
         wrap.appendChild(btn);
 
-        const seam = sve.lpModeSeparator(doc);
+        const seam = lpModeSeparator(doc);
 
         seam.id = seamId(tab.key);
         seam.style.display = 'none';
@@ -3054,7 +3030,7 @@ export function ensureCommentsToolbarButton(win) {
     btn.querySelector('svg')?.setAttribute('height', '15');
     btn.addEventListener('click', () => {
       revealRightPane(win, 'comments');
-      sve.persistDockedPanel(win);
+      persistDockedPanel(win);
       applyHeaderTab(win);
       sve.syncPreviewInset(win);
     });
@@ -3279,7 +3255,7 @@ export function ensureAiTextToolbarButton(win) {
     bar.appendChild(btn);
   }
 
-  sve.paintLpActiveControl?.(btn, !!sve.isAiTextOn?.(win));
+  paintLpActiveControl(btn, !!sve.isAiTextOn?.(win));
 
   if (sve.isAiTextOn?.(win)) {
     sve.syncAiTextToPreview?.(win);
@@ -3335,7 +3311,7 @@ async function runDockedTool(win, { key, want, isOpen, open, close }) {
     console.error('[sve] right pane did not mount', key);
   }
 
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   releaseRightShellIfEmpty(win);
 }
@@ -3371,7 +3347,7 @@ export function toggleHeaderTab(win, key) {
       return;
     }
 
-    sve.setLpMode(win, open ? 'hide' : 'show');
+    setLpMode(win, open ? 'hide' : 'show');
     applyHeaderTab(win);
 
     return;
@@ -3466,7 +3442,7 @@ export function toggleHeaderTab(win, key) {
       }
 
       sve.openSectionPicker?.(win); // toggles
-      sve.persistDockedPanel(win);
+      persistDockedPanel(win);
       applyHeaderTab(win);
     })();
 
@@ -3691,8 +3667,8 @@ export function clickNativeTab(win, index) {
   // Hide the panel is closed and its tabs aren't even rendered yet, so switch to
   // Show first and let them mount before clicking. Leaving the mode on Hide while
   // showing a tab would just be a contradiction.
-  if (sve.lpMode(win) === 'hide' || sveState.lpCollapsed) {
-    sve.setLpMode(win, 'show');
+  if (lpMode(win) === 'hide' || sveState.lpCollapsed) {
+    setLpMode(win, 'show');
     setTimeout(fire, 140);
   } else if (asked) {
     setTimeout(() => ensureSettingsTabs(win), 60);
@@ -3782,7 +3758,7 @@ export function applyHeaderTab(win) {
     globals: doc.getElementById(GLOBALS_PICKER_ID)?.parentElement,
   };
 
-  const headerBg = sve.lpHeaderBg(win) || 'rgba(0,0,0,.35)';
+  const headerBg = lpHeaderBg(win) || 'rgba(0,0,0,.35)';
 
   // A control whose tool is off stays hidden whatever the active tab is — its
   // icon is gone, so there would be no way back out of it.
@@ -3941,7 +3917,7 @@ export function applyHeaderTab(win) {
       btn.style.padding = '0';
     }
 
-    sve.paintLpActiveControl(btn, on);
+    paintLpActiveControl(btn, on);
     sve.paintFocusLockedTabs?.(win, btn, tab, on);
   });
 
@@ -4058,7 +4034,7 @@ export function openFirstSectionOnce(win) {
     // itself until there is something to edit.
     if (!rows.length) {
       firstSectionOpened = true;
-      sve.setLpMode(win, 'show');
+      setLpMode(win, 'show');
 
       return;
     }
@@ -4581,9 +4557,6 @@ export function enhanceGrids(win) {
   });
 }
 
-export const LP_BACK_ID = '__sve-lp-back';
-export const LP_RELOAD_ID = '__sve-lp-reload';
-
 /** How long to wait for a save to come back before giving the button up again. */
 export const LP_SAVE_TIMEOUT = 15000;
 
@@ -4965,7 +4938,7 @@ export function collectStatamicLpCloseButtons(header) {
     return [];
   }
 
-  const save = sve.findLpSaveButton(header);
+  const save = findLpSaveButton(header);
   const scope =
     header.closest('.live-preview, [data-live-preview], .live-preview-ui') || header;
   const buttons = [...scope.querySelectorAll('button')].filter((button) => !isOurLpChromeButton(button));
@@ -5017,7 +4990,7 @@ export function hideStatamicLpClose(header) {
   collectStatamicLpCloseButtons(header).forEach(markStatamicLpCloseHidden);
 
   // Fallback: last icon button in the header after Save (even without a label).
-  const save = sve.findLpSaveButton(header);
+  const save = findLpSaveButton(header);
 
   if (!save) {
     return;
@@ -5097,7 +5070,7 @@ export function positionLpBackButton(win) {
 
   hideStatamicLpClose(header);
 
-  const save = sve.findLpSaveButton(header);
+  const save = findLpSaveButton(header);
 
   if (save && pill.previousElementSibling !== save) {
     save.after(pill);
@@ -5112,7 +5085,7 @@ export function positionLpBackButton(win) {
     }
   });
 
-  sve.syncLpRightBarGaps(win);
+  syncLpRightBarGaps(win);
   tellPreviewWherePillIs(win, pill);
 }
 
@@ -7145,7 +7118,7 @@ export function handleAddBardSetNative(data, doc, win) {
     return;
   }
 
-  if (scope && sve.autoOpenPanel(win)) {
+  if (scope && autoOpenPanel(win)) {
     sve.soloSection(topLevelSectionUid(scope, doc) || scope, doc, win);
   }
 
@@ -7425,7 +7398,7 @@ export function createMessageListener(doc = document, win = window) {
         // block holding it; without it, the top-level section — a nested block
         // passes its row id as scope, which still expands below via
         // handleFieldFocus.
-        if (data.scope && sve.autoOpenPanel(win)) {
+        if (data.scope && autoOpenPanel(win)) {
           if (sve.focusPanelOn(win)) {
             sve.focusFieldOwner(data.field, data.scope, doc, win);
           } else {
@@ -7443,7 +7416,7 @@ export function createMessageListener(doc = document, win = window) {
             COLLAPSE_SETTLE_MS
           );
         }
-      } else if (sve.autoOpenPanel(win)) {
+      } else if (autoOpenPanel(win)) {
         // Clicking a section opens the panel showing ONLY that section. Falls
         // back to plain focus (e.g. nested rows without a resolvable set).
         if (!sve.focusFromPreview(data.uid, doc, win)) {
@@ -7470,7 +7443,7 @@ export function createMessageListener(doc = document, win = window) {
       const iwin = globalSectionEditorWin(win);
 
       if (iwin && sve.editSession?.container?.name === 'sve-global-section' && sve.editSession.field) {
-        sve.setLpCollapsed(win, false);
+        setLpCollapsed(win, false);
         iwin.postMessage(
           {
             source: 'statamic-visual-editor',
@@ -8840,12 +8813,12 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
     // whatever the remembered mode says. The mode itself is left alone: it's a
     // preference about this page, not a verdict on the next one.
     sve.closeRightPanels(win);
-    sve.setLpCollapsed(win, true);
+    setLpCollapsed(win, true);
   } else {
     // Live Preview opens with the editor panel following the remembered mode —
     // hide/auto arrive closed (looking like the site, not a CMS); an explicitly
     // chosen `show` is respected.
-    sve.setLpCollapsed(win, sve.lpMode(win) !== 'show');
+    setLpCollapsed(win, lpMode(win) !== 'show');
   }
 
   // Never leave anyone stranded behind an opaque cover (or an overlay that never
@@ -9124,7 +9097,7 @@ export function initCp(win = window) {
     sve.syncPreviewInset(win);
   });
   win.addEventListener('sve-right-dock-change', () => {
-    sve.persistDockedPanel(win);
+    persistDockedPanel(win);
     sve.syncPreviewInset(win);
     applyHeaderTab(win);
   });

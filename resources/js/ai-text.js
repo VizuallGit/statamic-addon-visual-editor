@@ -21,6 +21,7 @@ import { currentSectionType } from './cp/preview-context.js';
 import { csrfToken } from './lib/csrf.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { paintLpActiveControl } from './lp-panel.js';
 
 const ON_KEY = 'sve-ai-text-on';
 
@@ -147,7 +148,7 @@ function paintToolbarButton(win) {
   // The bar's own painter — the one the device buttons, the code dock and the
   // panel icon all go through. Nothing is styled here: an icon that paints
   // itself is an icon that stops matching its neighbours.
-  sve.paintLpActiveControl?.(btn, on);
+  paintLpActiveControl(btn, on);
   btn.title = t(win, on ? 'ai_text_on' : 'ai_text_off');
 }
 

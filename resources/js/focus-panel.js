@@ -64,6 +64,7 @@ import { featureOn } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { lpMode, persistDockedPanel, setLpCollapsed, setLpMode, shouldKeepChrome, storedLpCollapsed } from './lp-panel.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -223,7 +224,7 @@ export function leaveSolo(doc, win) {
   clearSolo(doc);
 
   if (wasSettings) {
-    sve.setLpCollapsed(win, sve.lpMode(win) !== 'show');
+    setLpCollapsed(win, lpMode(win) !== 'show');
   }
 }
 
@@ -2172,7 +2173,7 @@ export function ensureLpPanelToggleInner(win) {
       sveState.lpHeaderBgCache = null; // næste åbning kan være i et andet CP-tema
       doc.getElementById(LP_WIDTH_ID)?.remove();
       sveState.chromePrefetchArmed = false;
-      sve.persistDockedPanel(win);
+      persistDockedPanel(win);
       clearSolo(doc);
       sve.closeRightPanels(win);
       sve.parkGlobalsPanel(win);
@@ -2189,13 +2190,13 @@ export function ensureLpPanelToggleInner(win) {
 
   // Fresh Live Preview session — keep this user's device, collapse choice, pins.
   if (!lpWasOpen) {
-    sveState.lpEnterSidebarClosed = sve.storedLpCollapsed(win);
+    sveState.lpEnterSidebarClosed = storedLpCollapsed(win);
   }
 
   lpWasOpen = true;
 
   if (sveState.lpCollapsed === null) {
-    sveState.lpCollapsed = sve.storedLpCollapsed(win);
+    sveState.lpCollapsed = storedLpCollapsed(win);
   }
 
   // Opening a section's settings holds the panel open for as long as they're
@@ -2216,12 +2217,12 @@ export function ensureLpPanelToggleInner(win) {
   // Collapse all of the above into the icon toolbar — one control at a time.
   ensureHeaderToolbar(win);
   applyHeaderTab(win);
-  if (!sve.shouldKeepChrome(win)) {
+  if (!shouldKeepChrome(win)) {
     openFirstSectionOnce(win);
   }
 
   // First-section auto-open must not override "they started with it closed".
-  // sveState.forcePanelOpen (chrome / global) and sve.setLpMode (the toolbar icon) win.
+  // sveState.forcePanelOpen (chrome / global) and setLpMode (the toolbar icon) win.
   if (!sveState.forcePanelOpen && sveState.lpEnterSidebarClosed && sveState.lpCollapsed === false) {
     sveState.lpCollapsed = true;
     chromeSet(win, LP_COLLAPSED_KEY, '1');

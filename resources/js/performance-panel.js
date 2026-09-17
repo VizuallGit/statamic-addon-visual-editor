@@ -42,6 +42,7 @@ import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { featureOn } from './lib/config.js';
 import { PERF_PANEL_ID } from './lib/ids.js';
+import { persistDockedPanel } from './lp-panel.js';
 
 
 const STYLE_ID = '__sve-perf-style';
@@ -554,7 +555,7 @@ export function closePerformancePanel(win) {
   }
 
   releaseRightShellIfEmpty(win);
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
 }
@@ -588,7 +589,7 @@ export function togglePerformancePanel(win) {
   // button must not be able to take the whole panel with it.
   showInRightShell(win, panel);
   panel.querySelector('[data-sve-close]')?.addEventListener('click', () => closePerformancePanel(win));
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
 

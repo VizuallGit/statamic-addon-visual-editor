@@ -22,6 +22,7 @@ import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { activeContainers, publishContainers, registerContainerEvents, registerContainerSource } from './lib/publish-containers.js';
+import { setLpMode } from './lp-panel.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -634,7 +635,7 @@ export function openGlobalSectionPanelFrame(win, id) {
   // Already showing this section — leave it be. Rebuilding would reload the form
   // and throw away whatever is half-typed in it.
   if (existing?.dataset.sveSectionId === id) {
-    sve.setLpMode(win, 'show');
+    setLpMode(win, 'show');
 
     return;
   }
@@ -647,7 +648,7 @@ export function openGlobalSectionPanelFrame(win, id) {
   sveState.pendingEditUntilPanel = null;
   sveState.pendingFocusUntilPanel = null;
 
-  sve.setLpMode(win, 'show');
+  setLpMode(win, 'show');
 
   const editor = doc.querySelector('.live-preview-editor');
   const collection = encodeURIComponent(sve.savedSectionsCollection(win));
@@ -987,7 +988,7 @@ export async function openGlobalSectionInline(win, id) {
   // Already showing this section — leave it be. Rebuilding would reload the form
   // and throw away whatever is half-typed in it.
   if (existing?.dataset.sveSectionId === id) {
-    sve.setLpMode(win, 'show');
+    setLpMode(win, 'show');
 
     return;
   }
@@ -996,7 +997,7 @@ export async function openGlobalSectionInline(win, id) {
 
   // Close other drawers; the field column is this section's now.
   sve.closeRightPanels(win, []);
-  sve.setLpMode(win, 'show');
+  setLpMode(win, 'show');
 
   const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
 

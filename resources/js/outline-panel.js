@@ -25,6 +25,7 @@ import { unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { OUTLINE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { autoOpenPanel, persistDockedPanel } from './lp-panel.js';
 
 // ===== outline =====
 // --- Heading outline panel ------------------------------------------------------
@@ -359,7 +360,7 @@ export function closeOutlinePanel(win) {
   }
 
   releaseRightShellIfEmpty(win);
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
 }
@@ -419,7 +420,7 @@ export function toggleOutlinePanel(win) {
   showInRightShell(win, panel);
   mountA11yTabs(win, panel);
   panel.querySelector('[data-sve-close]')?.addEventListener('click', () => closeOutlinePanel(win));
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
 
@@ -602,7 +603,7 @@ export function renderOutline(win) {
  * Clicking an entry: the preview scrolls to the heading and marks it, and the
  * editor panel opens whatever owns it.
  *
- * The panel only follows where the mode allows it (`sve.autoOpenPanel`) — someone who
+ * The panel only follows where the mode allows it (`autoOpenPanel`) — someone who
  * has put the editor panel away is reading the page, and yanking it back open on
  * a click meant "take me there" would be the opposite of what was asked.
  */
@@ -614,7 +615,7 @@ export function jumpToOutlineEntry(win, index, item) {
     row.current = row.index === index;
   });
 
-  if (!sve.autoOpenPanel(win)) {
+  if (!autoOpenPanel(win)) {
     return;
   }
 

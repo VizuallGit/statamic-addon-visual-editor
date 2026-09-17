@@ -14,6 +14,7 @@
 import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
+import { paintLpActiveControl } from './lp-panel.js';
 
 const PANEL_ID = '__sve-schema-panel';
 
@@ -359,7 +360,7 @@ function paintButton(win) {
   const btn = win.document.querySelector('#__sve-toolbar button[data-tab="schema"]');
 
   if (btn) {
-    sve.paintLpActiveControl?.(btn, isSchemaOpen(win.document));
+    paintLpActiveControl(btn, isSchemaOpen(win.document));
   }
 }
 

@@ -61,6 +61,7 @@ import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { persistDockedPanel } from './lp-panel.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -2357,7 +2358,7 @@ export function closeHtmlTreePanel(win) {
   }
 
   releaseRightShellIfEmpty(win);
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
 }
@@ -2413,7 +2414,7 @@ export function openHtmlTreePanel(win) {
 
   panel.querySelector('[data-sve-close]')?.addEventListener('click', () => closeHtmlTreePanel(win));
   showInRightShell(win, panel);
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
   watchHtmlTreeDock(win);

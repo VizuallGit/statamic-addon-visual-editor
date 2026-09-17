@@ -9,6 +9,7 @@ import { mountPane, unmountPane } from './cp/mount-pane.js';
 import PageActivity from './cp/surfaces/PageActivity.vue';
 import { featureOn } from './lib/config.js';
 import { currentEntryId } from './lib/live-preview.js';
+import { paintLpActiveControl } from './lp-panel.js';
 
 export const PAGE_EDITS_ID = '__sve-page-edits';
 
@@ -40,8 +41,8 @@ function hostOf(doc) {
 function paintButton(win) {
   const btn = win.document.querySelector('#__sve-toolbar button[data-tab="edits"]');
 
-  if (btn && typeof sve.paintLpActiveControl === 'function') {
-    sve.paintLpActiveControl(btn, editsOpen);
+  if (btn && typeof paintLpActiveControl === 'function') {
+    paintLpActiveControl(btn, editsOpen);
   }
 }
 

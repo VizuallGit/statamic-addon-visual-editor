@@ -63,3 +63,27 @@ export const CHROME_INLINE = true;
 export const GLOBAL_SECTION_HOST_ID = '__sve-global-section-host';
 export const GLOBAL_SECTION_PANEL_ID = '__sve-global-section-panel';
 export const SECTION_PANEL_REVEAL_MS = 2500;
+
+// Live Preview topbar geometry and ids (drawn by cp.js, measured by lp-panel.js and lp-reload.js)
+export const LP_PREVIEW_CHROME_ID = '__sve-preview-chrome';
+/** Gruppeboksens luft ud til kontrollerne i den. */
+export const LP_CONTROL_PAD = 5;
+/**
+ * Ydre højde for alle topbar-grupper og selvstændige ikonknapper (devices,
+ * zoom, Hidden/Auto/Visible, pages/globals, go-back). Pad + kontrol = 32.
+ */
+export const LP_CHROME_H = 32;
+/** Indre kontrolhøjde inde i en gruppe (32 − 2×5). */
+export const LP_CONTROL_H = LP_CHROME_H - LP_CONTROL_PAD * 2;
+/** Count disc on the comments icon. Idle = same metal as the glyph, dark type; open = pale blue. */
+export const COMMENTS_BADGE_FG = 'var(--theme-color-primary, #4530D8)';
+export const COMMENTS_BADGE_IDLE_TYPE = '#18181b';
+export const COMMENTS_BADGE_ACTIVE_BG =
+  'color-mix(in oklab, var(--theme-color-primary, #4530D8) 14%, white)';
+/**
+ * Ens mellemrum mellem topbar-items (ikoner, device/zoom, Save, go-back).
+ * Ikke ekstra margin på udvidede felter — det gav skæve huller omkring Globals.
+ */
+export const LP_TOOLBAR_GAP = 8;
+export const LP_BACK_ID = '__sve-lp-back';
+export const LP_RELOAD_ID = '__sve-lp-reload';

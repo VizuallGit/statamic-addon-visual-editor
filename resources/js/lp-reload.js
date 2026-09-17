@@ -18,9 +18,10 @@
  */
 import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
-import { LP_BACK_ID, LP_CHROME_H, LP_ICON_BTN_STYLE, LP_RELOAD_ID, HEADER_SURFACE } from './cp.js';
+import { LP_ICON_BTN_STYLE, HEADER_SURFACE } from './cp.js';
 import { injectStyle } from './lib/style.js';
 import { lpHeader } from './lib/live-preview.js';
+import { LP_BACK_ID, LP_CHROME_H, LP_RELOAD_ID } from './lib/ids.js';
 
 // No static import of html-tree or section-fields. Both are lazy chunks, and
 // importing them here — from a file the Control Panel loads on every page —

@@ -27,6 +27,7 @@ import A11yTree from './cp/surfaces/A11yTree.vue';
 import paneCss from '../css/a11y.css?inline';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { autoOpenPanel } from './lp-panel.js';
 
 const OVERLAY_ID = '__sve-a11y-overlay';
 const STYLE_ID = '__sve-a11y-style';
@@ -470,7 +471,7 @@ function focusElement(win, el) {
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   scheduleLayout(win);
 
-  if (!sve.autoOpenPanel?.(win)) {
+  if (!autoOpenPanel(win)) {
     return;
   }
 

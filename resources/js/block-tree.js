@@ -40,6 +40,7 @@ import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
+import { persistDockedPanel } from './lp-panel.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -1685,7 +1686,7 @@ export function toggleListViewPanel(win) {
       setHeaderTab(win, null);
     }
 
-    sve.persistDockedPanel(win);
+    persistDockedPanel(win);
     applyHeaderTab(win);
   });
   showInRightShell(win, panel);
@@ -1730,11 +1731,11 @@ export function toggleCommentsPanel(win) {
   });
   panel.querySelector('[data-sve-close]').addEventListener('click', () => {
     closeCommentsPanel(win);
-    sve.persistDockedPanel(win);
+    persistDockedPanel(win);
     applyHeaderTab(win);
   });
   showInRightShell(win, panel);
-  sve.persistDockedPanel(win);
+  persistDockedPanel(win);
   applyHeaderTab(win);
   sve.syncPreviewInset(win);
 }
