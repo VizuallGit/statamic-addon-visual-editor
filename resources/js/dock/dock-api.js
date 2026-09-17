@@ -923,6 +923,14 @@ register('dock:set-html', (html) => {
  */
 register('dock:show-empty', () => ask('dock:set-html', ''));
 
+// The last page section left the page (removed from the tree, the preview or
+// the block tree): the file it showed is no longer on this page.
+on('row:removed', ({ parentPath, remaining, win }) => {
+  if (remaining === 0 && parentPath === sectionField(win)) {
+    ask('dock:show-empty');
+  }
+});
+
 /**
  * Move a focus range so it still covers the same thing after an edit.
  *

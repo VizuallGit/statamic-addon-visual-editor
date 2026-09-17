@@ -56,7 +56,7 @@ const answerScript = (req) => {
 };
 let servedBuild = null;
 if (process.env.SVE_WORKTREE === '1') {
-  servedBuild = await serveWorktreeBuild(page, process.env.SVE_BUILD_DIR || `${ADDON_DIR}/resources/dist/build`, answerScript);
+  servedBuild = await serveWorktreeBuild(page, { buildDir: process.env.SVE_BUILD_DIR || `${ADDON_DIR}/resources/dist/build`, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js`, extra: answerScript });
 } else {
   await page.setRequestInterception(true);
   page.on('request', (req) => { if (!answerScript(req)) req.continue(); });

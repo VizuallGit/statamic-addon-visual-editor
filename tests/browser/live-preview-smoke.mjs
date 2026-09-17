@@ -15,6 +15,8 @@
  *
  *   node tests/browser/live-preview-smoke.mjs
  */
+import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { serveWorktreeBuild } from './serve-worktree.mjs';
 
@@ -80,9 +82,15 @@ const page = await browser.newPage();
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}${e.stack ? ' @ ' + String(e.stack).split('\n').slice(1, 3).join(' | ').trim() : ''}`));
 page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
 page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
+// Every bundle file the browser asked for, by name — the CP loads addon.js from
+// /vendor/visual-editor/build, the preview loads bridge.js + preview.js from
+// /!/sve/build. Compared with the manifest at the end: a preview that loads a
+// bridge the manifest does not name is running some other build.
+const loadedAssets = new Set();
+page.on('request', (req) => { const m = req.url().match(/\/(?:vendor\/visual-editor\/build|!\/sve\/build)\/assets\/([^?#]+)/); if (m) loadedAssets.add(m[1]); });
 
 if (WORKTREE) {
-  const served = await serveWorktreeBuild(page, env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`));
+  const served = await serveWorktreeBuild(page, { buildDir: env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`), installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
   report.worktree = () => `${served()} build files served from the working tree`;
 }
 
@@ -178,7 +186,7 @@ try {
       const bridgeState = await preview.evaluate(() => ({ bridge: !!(window.__sveStrings || window.__sveFeatures), active: document.activeElement ? document.activeElement.tagName.toLowerCase() + (document.activeElement.isContentEditable ? '[editable]' : '') : '-', editable: document.querySelectorAll('[contenteditable="true"]').length, sids: document.querySelectorAll('[data-sid]').length }));
       console.log('DEBUG preview side:', JSON.stringify(previewSide), JSON.stringify(bridgeState));
       console.log('DEBUG cp side:', JSON.stringify(cpSide));
-      await page.screenshot({ path: `${process.env.SVE_DEBUG}/after-section-click.png` });
+      await page.screenshot({ path: `${tmpdir()}/sve-after-section-click.png` });
     }
     await sleep(2000);
   }
@@ -211,6 +219,22 @@ try {
 }
 
 if (report.worktree) step('working-tree build was what the CP loaded', /^[1-9]/.test(report.worktree()), report.worktree());
+{
+  // Every build file the browser asked for must be one the manifest in use
+  // names. The CP's HTML names the installed entries in both modes (the
+  // working-tree harness answers those names with this checkout's files, so
+  // its own manifest counts too). A name outside that is a stale chunk
+  // something loads by hand — a second copy of the editor running beside it.
+  const files = (manifest) => Object.values(manifest).flatMap((e) => [e.file, ...(e.css || []), ...(e.assets || [])]).map((f) => f.replace(/^assets\//, ''));
+  const installed = JSON.parse(readFileSync(`${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, 'utf8'));
+  const entries = Object.values(installed).filter((e) => e.isEntry).map((e) => e.file.replace(/^assets\//, ''));
+  const allowed = new Set(files(installed));
+  if (WORKTREE) for (const f of files(JSON.parse(readFileSync(`${env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`)}/manifest.json`, 'utf8')))) allowed.add(f);
+  const missing = entries.filter((f) => !loadedAssets.has(f));
+  const strays = [...loadedAssets].filter((f) => !allowed.has(f));
+  step('every build file the browser loaded is one the manifest names', missing.length === 0 && strays.length === 0,
+    `${loadedAssets.size} files; entries ${entries.join(' ')}${missing.length ? ' | entry not loaded: ' + missing.join(' ') : ''}${strays.length ? ' | not in the manifest: ' + strays.join(' ') : ''}`);
+}
 const realErrors = report.errors.filter((e) => !/favicon|net::ERR_ABORTED|the server responded with a status of 4/i.test(e));
 step('no JavaScript errors', realErrors.length === 0, realErrors.slice(0, 5).join(' | '));
 console.log(JSON.stringify({ ok: report.ok, errors: realErrors }, null, 0));

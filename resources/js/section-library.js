@@ -24,6 +24,7 @@ import {
   setHeaderTab,
 } from './cp.js';
 import { openCpOverlay } from './cp/open-overlay.js';
+import { emit } from './cp/bus.js';
 import { relayoutCodeDock } from './code-dock-lazy.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
 import SectionLibraryPane from './cp/surfaces/SectionLibraryPane.vue';
@@ -3673,6 +3674,10 @@ export function handleRemoveRow(data, doc, win) {
     removeNestedRowMeta(container, values, parentPath, removedId);
     container.setFieldValue(parentPath, next);
 
+    // Whoever cares what the page looks like without this row (the HTML tree,
+    // the dock) listens for this — the handler itself is not wrapped or polled.
+    emit('row:removed', { uid: data.uid, parentPath, remaining: next.length, doc, win });
+
     return;
   }
 }
@@ -3987,4 +3992,3 @@ sve.globalSectionSet = globalSectionSet; // standalone scripts still read this o
 sve.sectionMetaCache = sectionMetaCache;
 sve.fetchNestedSetMeta = fetchNestedSetMeta; // standalone scripts still read this off window.sve — goes with WP6
 sve.fetchSetMeta = fetchSetMeta; // standalone scripts still read this off window.sve — goes with WP6
-sve.handleRemoveRow = handleRemoveRow; // standalone scripts still read this off window.sve — goes with WP6

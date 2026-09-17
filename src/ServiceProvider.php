@@ -260,7 +260,6 @@ class ServiceProvider extends AddonServiceProvider
     //   collection-preset-scaffold  — preset picker on Scaffold Views
     //   field-prop                  — map a template prop to a collection field
     //   dock-instant-preview        — paint HTML-dock classes into LP before morph
-    //   html-tree-section-sync      — refresh HTML tree after section delete
     protected $scripts = [
         __DIR__.'/../resources/js/disable-publish-stack-pin.js',
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
@@ -279,7 +278,6 @@ class ServiceProvider extends AddonServiceProvider
         __DIR__.'/../resources/js/collection-preset-scaffold.js',
         __DIR__.'/../resources/js/field-prop.js',
         __DIR__.'/../resources/js/dock-instant-preview.js',
-        __DIR__.'/../resources/js/html-tree-section-sync.js',
     ];
 
     protected $commands = [

@@ -1325,8 +1325,7 @@ function removeSectionFromPage(win, uid) {
     () => {
       const doc = win.document;
 
-      handleRemoveRow({ uid }, doc, win);
-      afterHtmlTreeSectionRemoved(win, doc, uid);
+      handleRemoveRow({ uid }, doc, win); // the tree follows up through row:removed below
     }
   );
 }
@@ -1360,8 +1359,7 @@ function afterHtmlTreeSectionRemoved(win, doc, removedUid) {
     htmlTreeUi.rows = [];
     htmlTreeUi.sections = [];
     htmlTreeUi.pageBuilder = true;
-    ask('dock:set-html', '');
-    renderHtmlTree(win);
+    renderHtmlTree(win); // the dock empties itself on the same row:removed event
   }
 
   win.setTimeout(() => {
@@ -1370,6 +1368,17 @@ function afterHtmlTreeSectionRemoved(win, doc, removedUid) {
     }
   }, 0);
 }
+
+// A page section removed anywhere — the tree's own delete, the preview's
+// overlay, the block tree — leaves the tree the same way. Only while the panel
+// is on screen: with it closed there is nothing to step into or clear.
+on('row:removed', ({ uid, parentPath, doc, win }) => {
+  if (parentPath !== sectionField(win) || !htmlTreePanel(win.document)) {
+    return;
+  }
+
+  afterHtmlTreeSectionRemoved(win, doc, uid);
+});
 
 /**
  * Delete on a section row means the section; on a tag row it means the tag.
