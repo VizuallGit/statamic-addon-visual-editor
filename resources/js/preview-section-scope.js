@@ -9,20 +9,18 @@
  * iframe's postMessage so Statamic's own `preview.updated` carries the uids.
  */
 import { sve } from './cp-registry.js';
+import { unwrapRef } from './lib/values.js';
+import { sectionField } from './lib/config.js';
 
 let snapshot = null;
 let pendingUids = null;
-
-function sectionField(win) {
-  return (typeof sve.sectionField === 'function' && sve.sectionField(win)) || 'page_sections';
-}
 
 function containers(win) {
   return typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
 }
 
 function valuesOf(container) {
-  return sve.unwrapRef?.(container.values) || container.values;
+  return unwrapRef(container.values) || container.values;
 }
 
 function rowsOf(win) {

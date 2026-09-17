@@ -51,6 +51,11 @@ import {
   showInRightShell,
 } from './right-dock.js';
 import { csrfToken } from './lib/csrf.js';
+import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, FOCUS_LOCKED_TABS, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
+import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
+import { previewFrame } from './lib/preview-frame.js';
+import { featureOn, sectionField } from './lib/config.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -62,9 +67,6 @@ import { csrfToken } from './lib/csrf.js';
 // after the section the "+" was clicked on.
 
 
-export const SECTION_PICKER_ID = '__sve-section-picker';
-export const CHROME_DESIGNS_ID = '__sve-chrome-designs';
-export const COMMENTS_PANEL_ID = '__sve-comments-pane';
 
 // The type list is handed over at page render. Deleting one replaces it here for
 // the rest of the session — the config is a snapshot, and reloading the CP just
@@ -285,7 +287,7 @@ export function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) 
   const field = sectionField(win);
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -293,7 +295,7 @@ export function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) 
 
     // No uid → drop at the top of the page_sections array.
     if (afterUid == null) {
-      const rows = sve.dataGet(values, field);
+      const rows = dataGet(values, field);
 
       if (!Array.isArray(rows)) {
         continue;
@@ -336,7 +338,7 @@ export function writeSetMeta(container, field, section, rowMeta) {
     return;
   }
 
-  const allMeta = sve.unwrapRef(container.meta) || {};
+  const allMeta = unwrapRef(container.meta) || {};
   const fieldMeta = allMeta[field] || { existing: {}, new: null, defaults: null, collapsed: [] };
 
   container.setFieldMeta(field, {
@@ -482,22 +484,6 @@ export function hydrateExistingMeta(row, template, defaultsRow = null) {
 // Site-specific handles all come from the server config (provideToScript), never
 // from a literal here — the addon has to work as installed on any site.
 
-/** The Replicator field the page builder lives in. */
-export function sectionField(win) {
-  return win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections';
-}
-
-/**
- * Is a tool switched on for this site? (Addons > Statamic Visual Editor.)
- *
- * Unknown keys — and a config that hasn't arrived yet — read as on: the editor
- * showing a tool it could have hidden is a smaller failure than it hiding one
- * the site depends on.
- */
-export function featureOn(win, key) {
-  return win.Statamic?.$config?.get?.('sveFeatures')?.[key] !== false;
-}
-
 /** The Replicator set a page uses to reference a synced ("global") saved section. */
 export function globalSectionSet(win) {
   return win.Statamic?.$config?.get?.('sveGlobalSectionSet') || 'global_section';
@@ -556,27 +542,6 @@ export function savedSectionInfo(win, id) {
   return id ? savedSectionLookup(win).get(id) || null : null;
 }
 
-/** First entry id from an Entries field value (array, string, or `{id}`). */
-export function firstEntryId(value) {
-  if (typeof value === 'string' && value !== '') {
-    return value;
-  }
-
-  if (Array.isArray(value) && value.length) {
-    const first = value[0];
-
-    if (typeof first === 'string' && first !== '') {
-      return first;
-    }
-
-    if (first && typeof first === 'object' && typeof first.id === 'string') {
-      return first.id;
-    }
-  }
-
-  return '';
-}
-
 /** The Replicator set handle a library card of the given kind inserts. */
 export function setHandleFor(win, kind, item) {
   if (kind === 'global') {
@@ -597,13 +562,6 @@ export const sectionMetaCache =
 
 if (typeof window !== 'undefined') {
   window.__sveSectionMetaCache = sectionMetaCache;
-}
-
-/** The collection being edited, read from the CP URL. */
-export function currentCollection(win) {
-  const match = win.location.pathname.match(/\/collections\/([^/]+)\//);
-
-  return match ? match[1] : null;
 }
 
 /** Fetches (and caches) a set's fresh meta + default values from the addon. */
@@ -680,7 +638,7 @@ export function writeNestedRowMeta(container, values, parentPath, rowId, rowMeta
     return;
   }
 
-  const fullMeta = sve.unwrapRef(container.meta) || {};
+  const fullMeta = unwrapRef(container.meta) || {};
   const segments = parentPath.split('.');
   const topField = segments[0];
 
@@ -691,7 +649,7 @@ export function writeNestedRowMeta(container, values, parentPath, rowId, rowMeta
   const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
   // metaForPath walks meta keyed by row _id — pass the top field's own meta and
   // values, and the path below it (e.g. "2.blocks").
-  const nested = metaForPath(clone, sve.dataGet(values, topField), segments.slice(1).join('.'));
+  const nested = metaForPath(clone, dataGet(values, topField), segments.slice(1).join('.'));
 
   if (!nested || typeof nested !== 'object') {
     return;
@@ -710,7 +668,7 @@ export function removeNestedRowMeta(container, values, parentPath, rowId) {
     return;
   }
 
-  const fullMeta = sve.unwrapRef(container.meta) || {};
+  const fullMeta = unwrapRef(container.meta) || {};
   const segments = parentPath.split('.');
   const topField = segments[0];
 
@@ -719,7 +677,7 @@ export function removeNestedRowMeta(container, values, parentPath, rowId) {
   }
 
   const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
-  const nested = metaForPath(clone, sve.dataGet(values, topField), segments.slice(1).join('.'));
+  const nested = metaForPath(clone, dataGet(values, topField), segments.slice(1).join('.'));
 
   if (!nested?.existing || !(rowId in nested.existing)) {
     return;
@@ -734,7 +692,7 @@ export function removeNestedRowMeta(container, values, parentPath, rowId) {
  * template (what Statamic's own "Add row" uses), else clone a sibling's.
  */
 export function rowMetaTemplate(container, values, parentPath, sampleRow) {
-  const fullMeta = sve.unwrapRef(container.meta);
+  const fullMeta = unwrapRef(container.meta);
   const fieldMeta = fullMeta ? metaForPath(fullMeta, values, parentPath) : null;
 
   if (!fieldMeta || typeof fieldMeta !== 'object') {
@@ -1108,7 +1066,7 @@ export function sectionTypeFromPath(values, parentPath) {
     return '';
   }
 
-  const section = sve.dataGet(values, `${parts[0]}.${parts[1]}`);
+  const section = dataGet(values, `${parts[0]}.${parts[1]}`);
 
   return section && typeof section === 'object' ? String(section.type || '') : '';
 }
@@ -1118,9 +1076,9 @@ export async function overlaySidTemplate(win, container, _values, parentPath, ad
     return;
   }
 
-  const values = sve.unwrapRef(container.values);
+  const values = unwrapRef(container.values);
 
-  const rows = sve.dataGet(values, parentPath);
+  const rows = dataGet(values, parentPath);
 
   if (!Array.isArray(rows)) {
     return;
@@ -1173,9 +1131,9 @@ export async function overlaySidTemplate(win, container, _values, parentPath, ad
   container.setFieldValue(parentPath, next);
 
   if (built.nestedField && built.nested.length) {
-    const updated = sve.unwrapRef(container.values);
+    const updated = unwrapRef(container.values);
     const rowPath = `${parentPath}.${index}`;
-    const fullMeta = sve.unwrapRef(container.meta) || {};
+    const fullMeta = unwrapRef(container.meta) || {};
     const segments = rowPath.split('.');
     const topField = segments[0];
 
@@ -1184,7 +1142,7 @@ export async function overlaySidTemplate(win, container, _values, parentPath, ad
     }
 
     const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
-    const rowMeta = metaForPath(clone, sve.dataGet(updated, topField), segments.slice(1).join('.'));
+    const rowMeta = metaForPath(clone, dataGet(updated, topField), segments.slice(1).join('.'));
 
     if (!rowMeta) {
       return;
@@ -1200,7 +1158,7 @@ export function watchNewRow(doc, win, data, onAdded) {
   const around = uid || anchorUid;
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -1219,14 +1177,14 @@ export function watchNewRow(doc, win, data, onAdded) {
       parentPath = loc.parentPath;
       startIds = new Set(loc.rows.map((row) => row?._id).filter(Boolean));
     } else if (sectionUid && field) {
-      const sectionPath = sve.findPathByUid(values, sectionUid);
+      const sectionPath = findPathByUid(values, sectionUid);
 
       if (sectionPath === null) {
         continue;
       }
 
       parentPath = `${sectionPath}.${field}`;
-      const existing = sve.dataGet(values, parentPath);
+      const existing = dataGet(values, parentPath);
 
       startIds = new Set((Array.isArray(existing) ? existing : []).map((row) => row?._id).filter(Boolean));
     } else {
@@ -1236,7 +1194,7 @@ export function watchNewRow(doc, win, data, onAdded) {
     let attempts = 0;
 
     const poll = () => {
-      const current = sve.dataGet(sve.unwrapRef(container.values), parentPath);
+      const current = dataGet(unwrapRef(container.values), parentPath);
 
       if (!Array.isArray(current)) {
         return;
@@ -1245,7 +1203,7 @@ export function watchNewRow(doc, win, data, onAdded) {
       const added = current.find((row) => row && row._id && !startIds.has(row._id));
 
       if (added) {
-        onAdded(container, sve.unwrapRef(container.values), parentPath, added);
+        onAdded(container, unwrapRef(container.values), parentPath, added);
 
         return;
       }
@@ -1298,7 +1256,7 @@ export async function handleInsertBlock(data, doc, win) {
   );
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -1322,14 +1280,14 @@ export async function handleInsertBlock(data, doc, win) {
 
     // Empty field, or anchor uid missed: seed the section's own field array.
     if (scope) {
-      const sectionPath = sve.findPathByUid(values, scope);
+      const sectionPath = findPathByUid(values, scope);
 
       if (sectionPath === null) {
         continue;
       }
 
       const fieldPath = `${sectionPath}.${field}`;
-      const existing = sve.dataGet(values, fieldPath);
+      const existing = dataGet(values, fieldPath);
       const next = Array.isArray(existing) ? JSON.parse(JSON.stringify(existing)) : [];
 
       next.push(built.row);
@@ -1374,7 +1332,7 @@ export async function handleInsertBardSet(data, doc, win) {
   };
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -1383,7 +1341,7 @@ export async function handleInsertBardSet(data, doc, win) {
     let fieldPath = field;
 
     if (scope) {
-      const sectionPath = sve.findPathByUid(values, scope);
+      const sectionPath = findPathByUid(values, scope);
 
       if (sectionPath === null) {
         continue;
@@ -1392,7 +1350,7 @@ export async function handleInsertBardSet(data, doc, win) {
       fieldPath = `${sectionPath}.${field}`;
     }
 
-    const existing = sve.dataGet(values, fieldPath);
+    const existing = dataGet(values, fieldPath);
 
     if (!Array.isArray(existing)) {
       continue;
@@ -1630,13 +1588,13 @@ export function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace)
   const field = sectionField(win);
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const existing = sve.dataGet(values, field);
+    const existing = dataGet(values, field);
 
     if (!Array.isArray(existing)) {
       continue;
@@ -1737,7 +1695,6 @@ export function isSectionLibraryLocked(win) {
  * how you get at the fields you stepped in for, and taking it away would lock
  * the way in along with the way out.
  */
-export const FOCUS_LOCKED_TABS = ['pages', 'globals', 'sections'];
 
 /**
  * Dim and disable those tools while chrome or a global section owns the editor.
@@ -1757,10 +1714,10 @@ export function paintFocusLockedTabs(win, btn, tab, on) {
   // fade it twice over, leaving it far darker than the standalone icons it stands
   // in a row with.
   btn.style.opacity = off
-    ? (MERGED_TABS.includes(tab) ? '1' : sve.LP_ICON_LOCKED_OPACITY)
+    ? (MERGED_TABS.includes(tab) ? '1' : LP_ICON_LOCKED_OPACITY)
     : on
       ? '1'
-      : sve.LP_ICON_IDLE_OPACITY;
+      : LP_ICON_IDLE_OPACITY;
 
   if (off) {
     btn.setAttribute('aria-disabled', 'true');
@@ -1780,7 +1737,7 @@ export function syncSectionLibraryAvailability(win) {
   const doc = win.document;
   const locked = isSectionLibraryLocked(win);
   const noBuilder = !formHasSectionField(win);
-  const btn = doc.getElementById(sve.LIBRARY_BUTTON_ID);
+  const btn = doc.getElementById(LIBRARY_BUTTON_ID);
 
   if (noBuilder) {
     closeSectionPicker(win);
@@ -1828,7 +1785,7 @@ export function syncSectionLibraryAvailability(win) {
 
 /** True while Theme Settings / Site settings covers the left editor. */
 export function isGlobalsOverlayOpen(win) {
-  const panel = win.document.getElementById(sve.GLOBALS_PANEL_ID);
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
   return !!(panel && !panel.hidden && !panel.hasAttribute('data-sve-chrome-hidden'));
 }
@@ -1868,7 +1825,7 @@ export function attachGlobalsOverlay(win, panel) {
  * Page Settings/SEO is hidden for this overlay — same as header/footer.
  */
 export function placeGlobalsOverlay(win) {
-  const panel = win.document.getElementById(sve.GLOBALS_PANEL_ID);
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
   if (!panel || panel.hidden || panel.hasAttribute('data-sve-chrome-hidden')) {
     return;
@@ -1911,7 +1868,7 @@ export function bindGlobalsOverlayLayout(win) {
 
 /** Hide Theme Settings without destroying it (stash + form stay alive). */
 export function hideGlobalsPanel(win, { release = true } = {}) {
-  const panel = win.document.getElementById(sve.GLOBALS_PANEL_ID);
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
   if (!panel) {
     return;
@@ -1919,7 +1876,7 @@ export function hideGlobalsPanel(win, { release = true } = {}) {
 
   parkGlobalsOverlay(panel);
 
-  const tabs = win.document.getElementById(sve.LP_WIDTH_ID);
+  const tabs = win.document.getElementById(LP_WIDTH_ID);
 
   if (tabs) {
     tabs.style.visibility = '';
@@ -1934,7 +1891,7 @@ export function hideGlobalsPanel(win, { release = true } = {}) {
 
 /** Show Theme Settings again (left overlay). Page section form stays mounted underneath. */
 export function showGlobalsPanel(win) {
-  const panel = win.document.getElementById(sve.GLOBALS_PANEL_ID);
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
   if (!panel) {
     return;
@@ -1983,19 +1940,19 @@ export function closeRightPanelsInner(win, keepIds) {
     closeSectionPicker(win);
   }
 
-  if (!keepIds.includes(sve.OUTLINE_PANEL_ID)) {
+  if (!keepIds.includes(OUTLINE_PANEL_ID)) {
     sve.closeOutlinePanel?.(win);
   }
 
-  if (!keepIds.includes(sve.HTML_TREE_PANEL_ID)) {
+  if (!keepIds.includes(HTML_TREE_PANEL_ID)) {
     sve.closeHtmlTreePanel?.(win);
   }
 
-  if (!keepIds.includes(sve.PERF_PANEL_ID)) {
+  if (!keepIds.includes(PERF_PANEL_ID)) {
     sve.closePerformancePanel?.(win);
   }
 
-  if (!keepIds.includes(sve.LISTVIEW_PANEL_ID)) {
+  if (!keepIds.includes(LISTVIEW_PANEL_ID)) {
     sve.closeListViewPanel?.(win);
   }
 
@@ -2003,7 +1960,7 @@ export function closeRightPanelsInner(win, keepIds) {
     sve.closeCommentsPanel?.(win);
   }
 
-  if (!keepIds.includes(sve.GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(sve.GLOBAL_SECTION_HOST_ID)) {
+  if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(GLOBAL_SECTION_HOST_ID)) {
     sve.closeGlobalSectionPanel(win);
   }
 
@@ -2034,11 +1991,11 @@ export function syncPreviewInset(win) {
   const right = dockedPanelWidth(doc, [
     RIGHT_DOCK_ID,
     SECTION_PICKER_ID,
-    sve.OUTLINE_PANEL_ID,
-    sve.HTML_TREE_PANEL_ID,
-    sve.LISTVIEW_PANEL_ID,
+    OUTLINE_PANEL_ID,
+    HTML_TREE_PANEL_ID,
+    LISTVIEW_PANEL_ID,
     COMMENTS_PANEL_ID,
-    sve.PERF_PANEL_ID,
+    PERF_PANEL_ID,
     '__sve-ai-panel',
   ]);
 
@@ -2059,10 +2016,6 @@ export function syncPreviewInset(win) {
   }
 
   positionLpBackButton(win);
-}
-
-export function livePreviewEditorEl(doc) {
-  return doc.querySelector('.live-preview-editor');
 }
 
 /**
@@ -2149,13 +2102,13 @@ export function mountInLivePreviewEditor(win, panel) {
 export function releaseLeftEdgeIfFree(win) {
   const doc = win.document;
 
-  if (dockedPanelWidth(doc, [sve.GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]) > 0) {
+  if (dockedPanelWidth(doc, [GLOBALS_PANEL_ID, CHROME_DESIGNS_ID]) > 0) {
     return;
   }
 
   sveState.forcePanelOpen = false;
 
-  if (!sve.lpHeader(doc)) {
+  if (!lpHeader(doc)) {
     return;
   }
 
@@ -2299,7 +2252,7 @@ export function formHasSectionField(win) {
   }
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (values && Array.isArray(values[field])) {
       return true;
@@ -3145,7 +3098,7 @@ export function deleteLibraryItem(win, kind, item, removeUsages, onDeleted) {
       method: 'DELETE',
       credentials: 'same-origin',
       headers: {
-        'X-CSRF-TOKEN': sve.csrfToken(win),
+        'X-CSRF-TOKEN': csrfToken(win),
         'X-Requested-With': 'XMLHttpRequest',
       },
     })
@@ -3213,7 +3166,7 @@ export function stripSectionsFromForm(win, matches) {
   };
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
     const rows = values && typeof values === 'object' ? values[field] : null;
 
     if (!Array.isArray(rows)) {
@@ -3287,7 +3240,7 @@ export function beginCardDrag(win, cardEl, kind, item) {
     }
 
     const doc = win.document;
-    const frame = sve.previewFrame(doc);
+    const frame = previewFrame(doc);
     const startX = event.clientX;
     const startY = event.clientY;
     let active = false;
@@ -3409,7 +3362,7 @@ export function beginCardDrag(win, cardEl, kind, item) {
 
 /** The uid of the last top-level page section in the preview (for click-append). */
 export function lastSectionUid(doc) {
-  const frame = sve.previewFrame(doc);
+  const frame = previewFrame(doc);
   const inner = frame?.contentDocument;
   const sections = inner ? [...inner.querySelectorAll('section[data-sid], article[data-sid]')] : [];
 
@@ -3494,7 +3447,7 @@ export function metaForPath(fullMeta, values, path) {
  * fall back to a blank clone of the neighbouring row.
  */
 export function newRowFor(win, container, values, parentPath, sampleRow) {
-  const fullMeta = sve.unwrapRef(container.meta);
+  const fullMeta = unwrapRef(container.meta);
   const fieldMeta = fullMeta ? metaForPath(fullMeta, values, parentPath) : null;
   const defaults = fieldMeta && typeof fieldMeta === 'object' ? fieldMeta.defaults : null;
 
@@ -3521,7 +3474,7 @@ export function newRowFor(win, container, values, parentPath, sampleRow) {
 
 /** The array a row lives in, plus its index. */
 export function rowLocation(values, uid) {
-  const path = sve.findPathByUid(values, uid);
+  const path = findPathByUid(values, uid);
 
   if (path === null || path === '') {
     return null;
@@ -3534,7 +3487,7 @@ export function rowLocation(values, uid) {
   if (parts.length >= 3 && parts[parts.length - 1] === 'values' && parts[parts.length - 2] === 'attrs') {
     const index = Number(parts[parts.length - 3]);
     const parentPath = parts.slice(0, -3).join('.');
-    const rows = sve.dataGet(values, parentPath);
+    const rows = dataGet(values, parentPath);
 
     if (Array.isArray(rows) && Number.isInteger(index) && rows[index]?.type === 'set') {
       return { parentPath, index, rows, kind: 'bard-set' };
@@ -3544,7 +3497,7 @@ export function rowLocation(values, uid) {
   if (parts.length >= 2 && parts[parts.length - 1] === 'attrs') {
     const index = Number(parts[parts.length - 2]);
     const parentPath = parts.slice(0, -2).join('.');
-    const rows = sve.dataGet(values, parentPath);
+    const rows = dataGet(values, parentPath);
 
     if (Array.isArray(rows) && Number.isInteger(index) && rows[index]?.type === 'set') {
       return { parentPath, index, rows, kind: 'bard-set' };
@@ -3559,7 +3512,7 @@ export function rowLocation(values, uid) {
 
   const parentPath = path.slice(0, dot);
   const index = Number(path.slice(dot + 1));
-  const rows = sve.dataGet(values, parentPath);
+  const rows = dataGet(values, parentPath);
 
   if (!Array.isArray(rows) || !Number.isInteger(index)) {
     return null;
@@ -3582,7 +3535,7 @@ export function rowLimits(values, parentPath, win) {
   const all = win.Statamic?.$config?.get?.('sveRowLimits') ?? {};
   const handle = parentPath.slice(parentPath.lastIndexOf('.') + 1);
   const dot = parentPath.lastIndexOf('.');
-  const set = dot === -1 ? null : sve.dataGet(values, parentPath.slice(0, dot));
+  const set = dot === -1 ? null : dataGet(values, parentPath.slice(0, dot));
   const type = set && typeof set === 'object' ? set.type : null;
 
   return (type ? all[`${type}.${handle}`] : null) ?? all[handle] ?? {};
@@ -3591,7 +3544,7 @@ export function rowLimits(values, parentPath, win) {
 /** "+" on an orderable row: add another one just after it, within the field's max. */
 export async function handleAddRow(data, doc, win) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -3671,7 +3624,7 @@ export function handleRemoveRow(data, doc, win) {
   }
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -3723,7 +3676,7 @@ export async function handleDuplicateRow(data, doc, win) {
   }
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -3764,7 +3717,7 @@ export async function handleDuplicateRow(data, doc, win) {
       // Clone the original row's meta and re-key nested `existing` to the copy's
       // new ids. `rowMetaTemplate` prefers blank `new`, whose nested keys belong
       // to fieldset defaults — same empty-sidebar bug as a custom insert.
-      const fieldMeta = metaForPath(sve.unwrapRef(container.meta) || {}, values, parentPath);
+      const fieldMeta = metaForPath(unwrapRef(container.meta) || {}, values, parentPath);
       const sampleId = rows[index]?._id;
       const sampleMeta =
         (sampleId && fieldMeta?.existing?.[sampleId]
@@ -3796,7 +3749,7 @@ export async function handleDuplicateRow(data, doc, win) {
  */
 export function handleHideRow(data, doc, win) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -3841,7 +3794,7 @@ export function handleHideRow(data, doc, win) {
  */
 export function handleRowCaps(data, doc, win) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -3999,13 +3952,13 @@ export function settingsRevealer(setEl) {
  */
 export function sortableItemForUid(uid, doc) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
     const match = path?.match(/^([^.]+)\.(\d+)$/);
 
     if (!match) {
@@ -4017,12 +3970,6 @@ export function sortableItemForUid(uid, doc) {
 
   return null;
 }
-
-
-
-sve.SECTION_PICKER_ID = SECTION_PICKER_ID;
-sve.CHROME_DESIGNS_ID = CHROME_DESIGNS_ID;
-sve.COMMENTS_PANEL_ID = COMMENTS_PANEL_ID;
 Object.defineProperty(sve, 'sectionTypesOverride', { get() { return sectionTypesOverride; }, set(v) { sectionTypesOverride = v; } });
 sve.sectionTypes = sectionTypes;
 Object.defineProperty(sve, 'sectionTypesGen', { get() { return sectionTypesGen; }, set(v) { sectionTypesGen = v; } });
@@ -4038,18 +3985,15 @@ sve.hydrateExistingMeta = hydrateExistingMeta;
 sve.isNestedSetMeta = isNestedSetMeta;
 sve.insertSectionAfter = insertSectionAfter;
 sve.writeSetMeta = writeSetMeta;
-sve.sectionField = sectionField;
-sve.featureOn = featureOn;
+sve.sectionField = sectionField; // standalone scripts still read this off window.sve — goes with WP6
 sve.globalSectionSet = globalSectionSet;
 sve.savedSectionsCollection = savedSectionsCollection;
 Object.defineProperty(sve, 'savedSectionIndex', { get() { return savedSectionIndex; }, set(v) { savedSectionIndex = v; } });
 sve.rememberSavedSection = rememberSavedSection;
 sve.savedSectionLookup = savedSectionLookup;
 sve.savedSectionInfo = savedSectionInfo;
-sve.firstEntryId = firstEntryId;
 sve.setHandleFor = setHandleFor;
 sve.sectionMetaCache = sectionMetaCache;
-sve.currentCollection = currentCollection;
 sve.fetchNestedSetMeta = fetchNestedSetMeta;
 sve.writeNestedRowMeta = writeNestedRowMeta;
 sve.removeNestedRowMeta = removeNestedRowMeta;
@@ -4080,7 +4024,6 @@ sve.insertSectionsAfter = insertSectionsAfter;
 sve.askTemplateMode = askTemplateMode;
 sve.closeSectionPicker = closeSectionPicker;
 sve.isSectionLibraryLocked = isSectionLibraryLocked;
-sve.FOCUS_LOCKED_TABS = FOCUS_LOCKED_TABS;
 sve.paintFocusLockedTabs = paintFocusLockedTabs;
 sve.syncSectionLibraryAvailability = syncSectionLibraryAvailability;
 sve.isGlobalsOverlayOpen = isGlobalsOverlayOpen;
@@ -4093,7 +4036,6 @@ sve.showGlobalsPanel = showGlobalsPanel;
 sve.closeRightPanels = closeRightPanels;
 sve.closeRightPanelsInner = closeRightPanelsInner;
 sve.syncPreviewInset = syncPreviewInset;
-sve.livePreviewEditorEl = livePreviewEditorEl;
 sve.pinGlobalsPanelLeft = pinGlobalsPanelLeft;
 sve.editorOverlayCss = editorOverlayCss;
 sve.claimLivePreviewEditor = claimLivePreviewEditor;

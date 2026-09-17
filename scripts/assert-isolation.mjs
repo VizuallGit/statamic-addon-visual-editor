@@ -33,8 +33,9 @@ const ALLOWLIST = join(ROOT, 'scripts/isolation-allowlist.json');
 
 const KERNEL = ['preview.js', 'overlay-host.js', 'bridge.js'];
 /** Modules that run in the preview document alongside bridge.js. */
-const KERNEL_SIDE = ['html-pick-align.js', 'ai-text-bridge.js', 'ai-text-icon.js', 'preview-section-scope.js'];
-const SHELL = ['addon.js', 'cp.js', 'lp-replay.js'];
+const KERNEL_SIDE = ['html-pick-align.js', 'ai-text-bridge.js', 'ai-text-icon.js'];
+/** The CP shell: boot, the Live Preview lifecycle and the section-scope wrapper it uses. */
+const SHELL = ['addon.js', 'cp.js', 'lp-replay.js', 'preview-section-scope.js'];
 
 /** What a non-kernel file may not reach for. Each needle is a RegExp over the source. */
 const NEEDLES = {
@@ -78,9 +79,12 @@ for (const file of walk(JS)) {
   const text = readFileSync(file, 'utf8');
 
   if (KERNEL.includes(rel) || KERNEL_SIDE.includes(rel)) {
-    // Kernel may import only kernel, kernel-side modules and packages.
-    const imports = [...text.matchAll(/from\s*['"](\.\.?\/[^'"]+)['"]/g)].map((m) => m[1].split('/').pop());
-    const bad = imports.filter((name) => !KERNEL.includes(name) && !KERNEL_SIDE.includes(name));
+    // Kernel may import only kernel, kernel-side modules, lib/ and packages.
+    const imports = [...text.matchAll(/from\s*['"](\.\.?\/[^'"]+)['"]/g)].map((m) => m[1]);
+    const bad = imports
+      .filter((spec) => !/\/lib\/[\w-]+\.js$/.test(spec))
+      .map((spec) => spec.split('/').pop())
+      .filter((name) => !KERNEL.includes(name) && !KERNEL_SIDE.includes(name));
 
     if (bad.length) {
       hits[rel] = bad.map((name) => `kernel imports ${name}`);

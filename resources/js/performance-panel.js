@@ -40,8 +40,9 @@ import {
 import paneCss from '../css/perf.css?inline';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { featureOn } from './lib/config.js';
+import { PERF_PANEL_ID } from './lib/ids.js';
 
-export const PERF_PANEL_ID = '__sve-perf-panel';
 
 const STYLE_ID = '__sve-perf-style';
 const TABS = ['summary', 'images', 'files'];
@@ -447,7 +448,7 @@ export async function runPsi(win, { fresh = false } = {}) {
 }
 
 function psiOn(win) {
-  return !!sve.featureOn(win, 'psi');
+  return !!featureOn(win, 'psi');
 }
 
 function bindPsiStore(win) {
@@ -562,7 +563,7 @@ export function closePerformancePanel(win) {
 export function togglePerformancePanel(win) {
   const doc = win.document;
 
-  if (!sve.featureOn(win, 'performance')) {
+  if (!featureOn(win, 'performance')) {
     return;
   }
 
@@ -593,8 +594,6 @@ export function togglePerformancePanel(win) {
 
   void measureNow(win);
 }
-
-sve.PERF_PANEL_ID = PERF_PANEL_ID;
 sve.togglePerformancePanel = togglePerformancePanel;
 sve.closePerformancePanel = closePerformancePanel;
 sve.fillPerfPane = fillPerfPane;

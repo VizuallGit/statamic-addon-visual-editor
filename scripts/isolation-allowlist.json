@@ -62,9 +62,6 @@
   "performance-panel.js": [
     "import cp.js"
   ],
-  "preview-section-scope.js": [
-    "kernel imports cp-registry.js"
-  ],
   "section-create.js": [
     "import cp.js"
   ],

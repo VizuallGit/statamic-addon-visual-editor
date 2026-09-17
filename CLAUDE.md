@@ -83,7 +83,7 @@ Lives in this repo: `resources/js/sibling-sync.js`, `src/SiblingSync.php`, tests
 
 The plan with measured numbers is `docs/v2-plan.md` on the site. These are the rules that came out of WP1 and WP2.
 
-**One helper, one place — `resources/js/lib/`.** `csrf.js`, `preview-frame.js`, `style.js` (`injectStyle`), `i18n.js` (`t`, `statamicTranslate`), `vue-vm.js`, `drag.js`, `dock-host.js`, `codemirror.js`. No file may define its own copy of these. If a module needs the CSRF token, the preview iframe, a `<style>` tag, a translated string or CodeMirror, it imports from `lib/`. Every lib file starts with a header saying what it owns and what it may import; a new lib file follows the same shape.
+**One helper, one place — `resources/js/lib/`.** `csrf.js`, `preview-frame.js`, `style.js` (`injectStyle`), `i18n.js` (`t`, `statamicTranslate`), `vue-vm.js`, `drag.js`, `dock-host.js`, `codemirror.js`, and since WP4a: `ids.js` (every shared element id, attribute and storage key), `values.js` (`unwrapRef`, `dataGet`, `findPathByUid`, `firstEntryId`, `humanizeHandle`), `config.js` (`featureOn`, `sectionField`), `live-preview.js` (`lpHeader`, `livePreviewEditorEl`, `currentEntryId`, `currentCollection`), `dom.js` (`remToPx`). A constant or a pure helper never goes on the `sve` registry: reading it there at module top level is how a late panel handed a neighbour `undefined`. No file may define its own copy of these. If a module needs the CSRF token, the preview iframe, a `<style>` tag, a translated string or CodeMirror, it imports from `lib/`. Every lib file starts with a header saying what it owns and what it may import; a new lib file follows the same shape.
 
 **Standalone scripts cannot share yet.** The files in `ServiceProvider::$scripts` are served outside the Vite bundle and cannot `import`. Their copies of `t()`, `csrf()`, `ensureStyles()` stay until WP6 folds them into the bundle. Do not add new standalone scripts.
 
@@ -92,6 +92,8 @@ The plan with measured numbers is `docs/v2-plan.md` on the site. These are the r
 ```
 npm run check          # isolation lint + dist integrity + node --test (tests/js)
 npm run test:browser   # Live Preview smoke test against the site (see the file header for env vars)
+SVE_WORKTREE=1 npm run test:browser   # same, but the CP loads THIS checkout's build — prove a bundle before release
+npm run test:instant   # dock instant paint, likewise served from the working tree
 ```
 
 `scripts/assert-isolation.mjs` covers all of `resources/js`: kernel may import only kernel; `cp/` may import neither kernel nor `cp.js`; panels are held by `scripts/isolation-allowlist.json`, which may only shrink (a stale entry fails the run). New coupling to `cp.js`, `lp-replay.js` or the kernel is a failed lint, not a judgement call.

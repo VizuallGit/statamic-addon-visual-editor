@@ -20,6 +20,8 @@ import { ask } from './cp/bus.js';
 import { ensurePanel } from './lazy-panels.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
+import { dataGet, unwrapRef } from './lib/values.js';
+import { sectionField } from './lib/config.js';
 
 const API = '/!/sve/section-types';
 
@@ -144,12 +146,12 @@ export async function refreshFieldsForType(win, setHandle) {
     return 0;
   }
 
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
   const defaults = meta.defaults && typeof meta.defaults === 'object' ? meta.defaults : {};
   let touched = 0;
 
   for (const container of sve.activeContainers(win.document)) {
-    const rows = sve.dataGet(sve.unwrapRef(container.values), field);
+    const rows = dataGet(unwrapRef(container.values), field);
 
     if (!Array.isArray(rows)) {
       continue;

@@ -58,6 +58,11 @@ import { mountPane } from './cp/mount-pane.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import SoloPills from './cp/surfaces/SoloPills.vue';
 import { injectStyle } from './lib/style.js';
+import { CHROME_HOST_ID, FOCUS_HEADER_ID, FOCUS_ROOT_ATTR, FOCUS_STEP_ATTR, GLOBAL_SECTION_HOST_ID, LP_COLLAPSED_KEY, LP_MODE_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM, LP_TOGGLE_ID, LP_WIDTH_ID, LP_WIDTH_KEY, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
+import { dataGet, findPathByUid, firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
+import { featureOn } from './lib/config.js';
+import { lpHeader } from './lib/live-preview.js';
+import { remToPx } from './lib/dom.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -74,8 +79,6 @@ export const SOLO_STYLE_ID = 'sve-solo-style';
 export const SOLO_BACK_ID = 'sve-solo-back';
 export const SOLO_SAVE_ID = 'sve-solo-save';
 export const SOLO_HOST_ID = '__sve-solo-host';
-export const SOLO_PARENT_ATTR = 'data-sve-solo-parent';
-export const SOLO_KEEP_ATTR = 'data-sve-solo-keep';
 /** Panel-iframe isolation: mark nodes to hide, instead of parent>child solo CSS. */
 export const PANEL_AWAY_ATTR = 'data-sve-panel-away';
 export const PANEL_COLUMN_ATTR = 'data-sve-panel-column'; // the sve-panel frame's scrolling column
@@ -249,7 +252,7 @@ export function addSoloBackButton(doc, win, saveUid = null, back = null) {
   }
 
   const label = back?.label || t(win, 'all_sections');
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
   const anchor =
     doc.getElementById(frameId('settings')) ||
     doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="settings"]');
@@ -640,13 +643,10 @@ export function activateSectionsTab(win) {
 // a header of its own above the fields, four attributes, and the stylesheet that
 // reads them.
 
-export const FOCUS_HEADER_ID = '__sve-focus-header';
-export const FOCUS_ROOT_ATTR = 'data-sve-focus'; // on <html>: which kind is on show
 export const FOCUS_SET_ATTR = 'data-sve-focus-set'; // the set the panel is showing
 export const FOCUS_HIDE_ATTR = 'data-sve-focus-hide'; // a row this view leaves out
 export const FOCUS_FLAT_ATTR = 'data-sve-focus-flat'; // a wrapper stripped of what it draws
 export const FOCUS_FLUSH_ATTR = 'data-sve-focus-flush'; // the field list, out to the panel's own gutter
-export const FOCUS_STEP_ATTR = 'data-sve-focus-step'; // the arrow into a block's own view
 
 // Segment to open once the control exists — the gear on a section means
 // "settings", which is not the segment a section opens on.
@@ -658,7 +658,7 @@ export const FOCUS_SETTINGS_SEGMENT = /style|design|settings|advance|avanc|indst
 
 /** Is the simplified panel switched on for this site? */
 export function focusPanelOn(win) {
-  return sve.featureOn(win, 'focus_panel');
+  return featureOn(win, 'focus_panel');
 }
 
 /** What a set calls itself: display name, icon and instructions. */
@@ -678,19 +678,19 @@ export function gridMeta(win, handle) {
 /** The set handle ("hero/style_2") of the row a uid points at. */
 export function setTypeForUid(uid, doc) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
 
     if (path === null) {
       continue;
     }
 
-    const row = sve.dataGet(values, path);
+    const row = dataGet(values, path);
 
     if (row && typeof row === 'object' && typeof row.type === 'string') {
       return row.type;
@@ -709,13 +709,13 @@ export function setTypeForUid(uid, doc) {
  */
 export function parentRowUid(uid, doc) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
 
     if (!path) {
       continue;
@@ -727,7 +727,7 @@ export function parentRowUid(uid, doc) {
       return null;
     }
 
-    const row = sve.dataGet(values, parts.slice(0, -2).join('.'));
+    const row = dataGet(values, parts.slice(0, -2).join('.'));
 
     if (row && typeof row === 'object') {
       return row._visual_id || row._id || row.id || null;
@@ -744,9 +744,9 @@ export function soloUidInValues(uid, doc) {
   }
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
-    if (values && typeof values === 'object' && sve.findPathByUid(values, uid) !== null) {
+    if (values && typeof values === 'object' && findPathByUid(values, uid) !== null) {
       return true;
     }
   }
@@ -931,13 +931,6 @@ export function markStepIntoAll(win) {
       // One malformed set must not stop the rest of the panel from working.
     }
   });
-}
-
-/** A readable name for a set nobody described: "hero/style_2" → "Style 2". */
-export function humanizeHandle(handle) {
-  const name = String(handle || '').split('/').pop().replace(/[-_]+/g, ' ').trim();
-
-  return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
 }
 
 /** Removes the header and every focus mark. The solo marking is cleared with it. */
@@ -1315,20 +1308,20 @@ export function focusRowMeta(win, uid, doc) {
   let preview = '';
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
 
     if (path === null) {
       continue;
     }
 
     listKey = fieldHandleFromPath(path);
-    row = sve.dataGet(values, path);
+    row = dataGet(values, path);
     break;
   }
 
@@ -1340,7 +1333,7 @@ export function focusRowMeta(win, uid, doc) {
     const globalSet = sve.globalSectionSet(win);
     const sourceType =
       handle === globalSet && row && typeof row === 'object'
-        ? sve.savedSectionInfo(win, sve.firstEntryId(row[globalSet]))?.section_type || ''
+        ? sve.savedSectionInfo(win, firstEntryId(row[globalSet]))?.section_type || ''
         : '';
     const type = sourceType || handle;
     const meta = setMeta(win, type);
@@ -1503,19 +1496,19 @@ export function fieldOwnerUidFromValues(field, scope, doc) {
   }
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, scope);
+    const path = findPathByUid(values, scope);
 
     if (path === null) {
       continue;
     }
 
-    const row = sve.dataGet(values, path);
+    const row = dataGet(values, path);
     const found = rowOwningField(row, handle);
 
     if (found) {
@@ -1880,23 +1873,16 @@ export let lpWidthApplied = false;
  * the editor pane mounts AFTER the header, so the state must be re-asserted on
  * subsequent mutations rather than applied once at injection time.
  */
-/** rem → px, målt på dokumentets egen rodstørrelse frem for et gættet 16. */
-export function remToPx(win, rem) {
-  const root = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
-
-  return Math.round(rem * root);
-}
-
 export function clampSideWidth(win, px) {
   return Math.round(
-    Math.min(remToPx(win, sve.LP_SIDE_MAX_REM), Math.max(remToPx(win, sve.LP_SIDE_MIN_REM), px))
+    Math.min(remToPx(win, LP_SIDE_MAX_REM), Math.max(remToPx(win, LP_SIDE_MIN_REM), px))
   );
 }
 
 /** Bredden panelet står i, som den er gemt. Intet gemt: standarden. */
 export function lpStoredWidth(win) {
-  const stored = parseInt(chromeGet(win, sve.LP_WIDTH_KEY) ?? '', 10);
-  const fallback = remToPx(win, sve.LP_SIDE_DEFAULT_REM);
+  const stored = parseInt(chromeGet(win, LP_WIDTH_KEY) ?? '', 10);
+  const fallback = remToPx(win, LP_SIDE_DEFAULT_REM);
 
   return clampSideWidth(win, Number.isFinite(stored) && stored > 0 ? stored : fallback);
 }
@@ -1904,7 +1890,7 @@ export function lpStoredWidth(win) {
 export function persistLpWidth(win, px) {
   const next = clampSideWidth(win, px);
 
-  chromeSet(win, sve.LP_WIDTH_KEY, String(next));
+  chromeSet(win, LP_WIDTH_KEY, String(next));
 
   return next;
 }
@@ -1990,8 +1976,8 @@ export function bindLpEditorResize(win) {
 /** Header, footer or a global section owns the column — Page Settings/SEO stay off. */
 export function settingsBarTakeover(win) {
   const doc = win.document;
-  const chrome = doc.getElementById(sve.CHROME_HOST_ID || '__sve-chrome-host');
-  const global = doc.getElementById(sve.GLOBAL_SECTION_HOST_ID || '__sve-global-section-host');
+  const chrome = doc.getElementByIdCHROME_HOST_ID;
+  const global = doc.getElementByIdGLOBAL_SECTION_HOST_ID;
 
   if (chrome?.dataset.sveReady === '1' || global?.dataset.sveReady === '1') {
     return true;
@@ -2003,7 +1989,7 @@ export function settingsBarTakeover(win) {
 /** Hide Page Settings/SEO and drop their reserved space in one go. */
 export function hideSettingsBar(win) {
   const doc = win.document;
-  const bar = doc.getElementById(sve.LP_WIDTH_ID);
+  const bar = doc.getElementById(LP_WIDTH_ID);
   const editor = doc.querySelector('.live-preview-editor');
 
   if (bar) {
@@ -2022,7 +2008,7 @@ export function hideSettingsBar(win) {
  */
 export function placeLpWidthPicker(win) {
   const doc = win.document;
-  const bar = doc.getElementById(sve.LP_WIDTH_ID);
+  const bar = doc.getElementById(LP_WIDTH_ID);
   const editor = doc.querySelector('.live-preview-editor');
 
   if (settingsBarTakeover(win)) {
@@ -2124,7 +2110,7 @@ export function placeLpResizer(win) {
 export function ensureLpWidthPicker(win) {
   const doc = win.document;
   const editor = doc.querySelector('.live-preview-editor');
-  const bar = doc.getElementById(sve.LP_WIDTH_ID);
+  const bar = doc.getElementById(LP_WIDTH_ID);
 
   if (!editor || sveState.lpCollapsed) {
     bar?.remove();
@@ -2175,7 +2161,7 @@ export function ensureLpPanelToggle(win) {
 
 export function ensureLpPanelToggleInner(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   if (!header) {
     if (lpWasOpen) {
@@ -2183,7 +2169,7 @@ export function ensureLpPanelToggleInner(win) {
       lpWidthApplied = false;
       sveState.lpCollapsed = null;
       sveState.lpHeaderBgCache = null; // næste åbning kan være i et andet CP-tema
-      doc.getElementById(sve.LP_WIDTH_ID)?.remove();
+      doc.getElementById(LP_WIDTH_ID)?.remove();
       sveState.chromePrefetchArmed = false;
       sve.persistDockedPanel(win);
       clearSolo(doc);
@@ -2218,8 +2204,8 @@ export function ensureLpPanelToggleInner(win) {
     sveState.lpCollapsed = false;
   }
 
-  doc.getElementById(sve.LP_TOGGLE_ID)?.remove();
-  doc.getElementById(sve.LP_MODE_ID)?.remove();
+  doc.getElementById(LP_TOGGLE_ID)?.remove();
+  doc.getElementById(LP_MODE_ID)?.remove();
 
   sve.ensureGlobalsPicker(win);
   sve.ensureSectionLibraryButton(win);
@@ -2237,7 +2223,7 @@ export function ensureLpPanelToggleInner(win) {
   // sveState.forcePanelOpen (chrome / global) and sve.setLpMode (the toolbar icon) win.
   if (!sveState.forcePanelOpen && sveState.lpEnterSidebarClosed && sveState.lpCollapsed === false) {
     sveState.lpCollapsed = true;
-    chromeSet(win, sve.LP_COLLAPSED_KEY, '1');
+    chromeSet(win, LP_COLLAPSED_KEY, '1');
   }
 
   restoreDockedHeaderPanels(win);
@@ -2283,8 +2269,7 @@ sve.SOLO_STYLE_ID = SOLO_STYLE_ID;
 sve.SOLO_BACK_ID = SOLO_BACK_ID;
 sve.SOLO_SAVE_ID = SOLO_SAVE_ID;
 sve.SOLO_HOST_ID = SOLO_HOST_ID;
-sve.SOLO_PARENT_ATTR = SOLO_PARENT_ATTR;
-sve.SOLO_KEEP_ATTR = SOLO_KEEP_ATTR;
+sve.SOLO_KEEP_ATTR = SOLO_KEEP_ATTR; // standalone scripts still read this off window.sve — goes with WP6
 sve.PANEL_AWAY_ATTR = PANEL_AWAY_ATTR;
 sve.PANEL_COLUMN_ATTR = PANEL_COLUMN_ATTR;
 sve.clearSolo = clearSolo;
@@ -2303,13 +2288,11 @@ sve.soloSectionSettings = soloSectionSettings;
 sve.SETTINGS_FIELDTYPES = SETTINGS_FIELDTYPES;
 sve.sectionSettingsFields = sectionSettingsFields;
 sve.activateSectionsTab = activateSectionsTab;
-sve.FOCUS_HEADER_ID = FOCUS_HEADER_ID;
-sve.FOCUS_ROOT_ATTR = FOCUS_ROOT_ATTR;
+sve.FOCUS_HEADER_ID = FOCUS_HEADER_ID; // standalone scripts still read this off window.sve — goes with WP6
 sve.FOCUS_SET_ATTR = FOCUS_SET_ATTR;
 sve.FOCUS_HIDE_ATTR = FOCUS_HIDE_ATTR;
 sve.FOCUS_FLAT_ATTR = FOCUS_FLAT_ATTR;
 sve.FOCUS_FLUSH_ATTR = FOCUS_FLUSH_ATTR;
-sve.FOCUS_STEP_ATTR = FOCUS_STEP_ATTR;
 Object.defineProperty(sve, 'focusSegment', { get() { return focusSegment; }, set(v) { focusSegment = v; } });
 Object.defineProperty(sve, 'focusRepaintPending', { get() { return focusRepaintPending; }, set(v) { focusRepaintPending = v; } });
 sve.FOCUS_SETTINGS_SEGMENT = FOCUS_SETTINGS_SEGMENT;
@@ -2323,7 +2306,6 @@ sve.childSets = childSets;
 sve.foldChildSets = foldChildSets;
 sve.addStepInto = addStepInto;
 sve.markStepIntoAll = markStepIntoAll;
-sve.humanizeHandle = humanizeHandle;
 sve.clearFocus = clearFocus;
 sve.flattenWrappers = flattenWrappers;
 sve.stacksChildren = stacksChildren;
@@ -2349,7 +2331,6 @@ sve.recoverMissingSolo = recoverMissingSolo;
 sve.isolateSoloSection = isolateSoloSection;
 Object.defineProperty(sve, 'lpWasOpen', { get() { return lpWasOpen; }, set(v) { lpWasOpen = v; } });
 Object.defineProperty(sve, 'lpWidthApplied', { get() { return lpWidthApplied; }, set(v) { lpWidthApplied = v; } });
-sve.remToPx = remToPx;
 sve.clampSideWidth = clampSideWidth;
 sve.lpStoredWidth = lpStoredWidth;
 sve.persistLpWidth = persistLpWidth;

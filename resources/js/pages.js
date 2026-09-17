@@ -16,6 +16,10 @@ import {
   isEmbeddedInSite,
   sendToPreview,
 } from './cp.js';
+import { COLLECTION_PICKER_ID, LP_PRIMARY_FLAT, NEW_ENTRY_ID } from './lib/ids.js';
+import { unwrapRef } from './lib/values.js';
+import { currentCollection, currentEntryId, lpHeader } from './lib/live-preview.js';
+import { csrfToken } from './lib/csrf.js';
 
 async function gotoOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -32,23 +36,13 @@ async function gotoOverlay(win, url) {
 // they still appear, because jumping to "new blog post" is worth having, but they
 // open the ordinary editor and say so.
 
-export const COLLECTION_PICKER_ID = '__sve-collection-picker';
 export const ENTRY_PICKER_ID = '__sve-entry-picker';
-export const NEW_ENTRY_ID = '__sve-new-entry';
 
-export const LP_COVER_ID = 'sve-lp-cover';
 
 export function pickerCollections(win) {
   const list = win.Statamic?.$config?.get?.('sveCollections');
 
   return Array.isArray(list) ? list : [];
-}
-
-/** The entry currently open, from the CP URL. */
-export function currentEntryId(win) {
-  const match = win.location.pathname.match(/\/entries\/([^/]+)/);
-
-  return match ? match[1] : null;
 }
 
 function fieldScalar(value) {
@@ -89,7 +83,7 @@ function templateForm(win) {
   const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -110,7 +104,7 @@ function pickerCollectionHandle(win) {
   const form = templateForm(win);
   const source = form ? fieldScalar(form.values.source_collection) : '';
 
-  return source || sve.currentCollection(win);
+  return source || currentCollection(win);
 }
 
 /** Entry the page picker should name on a show-template. */
@@ -706,7 +700,7 @@ export function newEntryDialog(win, collection, onCreated) {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': sve.csrfToken(win),
+          'X-CSRF-TOKEN': csrfToken(win),
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ title: name, slug: slug.value.trim() }),
@@ -763,7 +757,7 @@ export function slugify(value) {
 
 export function ensureCollectionPicker(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
   const collections = pickerCollections(win);
 
   if (!header || !collections.length) {
@@ -815,7 +809,7 @@ function mountCollectionPicker(win, header, collections) {
   // Same flat primary as Visible / active device pills.
   newBtn.style.cssText =
     `${FRAMED_CONTROL_STYLE}padding:0 .75rem;font-weight:600;` +
-    `background:${sve.LP_PRIMARY_FLAT};color:#fff;opacity:1;border:none;box-shadow:none;`;
+    `background:${LP_PRIMARY_FLAT};color:#fff;opacity:1;border:none;box-shadow:none;`;
 
   const selected = () => collections.find((c) => c.handle === collectionSelect.value);
 
@@ -992,7 +986,7 @@ async function syncCollectionPicker(win) {
   const form = templateForm(win);
   const key = form
     ? `${fieldScalar(form.values.source_collection)}|${fieldScalar(form.values.preview_as)}|${form.values.kind}`
-    : `${sve.currentCollection(win) || ''}|${currentEntryId(win) || ''}|`;
+    : `${currentCollection(win) || ''}|${currentEntryId(win) || ''}|`;
 
   if (collectionSelect.dataset.svePickerKey === key) {
     return;
@@ -1002,15 +996,8 @@ async function syncCollectionPicker(win) {
   await fillEntries(true);
   collectionSelect.dataset.svePickerKey = key;
 }
-
-
-
-sve.COLLECTION_PICKER_ID = COLLECTION_PICKER_ID;
 sve.ENTRY_PICKER_ID = ENTRY_PICKER_ID;
-sve.NEW_ENTRY_ID = NEW_ENTRY_ID;
-sve.LP_COVER_ID = LP_COVER_ID;
 sve.pickerCollections = pickerCollections;
-sve.currentEntryId = currentEntryId;
 sve.createPreviewCenteredOverlay = createPreviewCenteredOverlay;
 sve.dialogCardStyle = dialogCardStyle;
 sve.dialogCancelButtonStyle = dialogCancelButtonStyle;

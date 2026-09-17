@@ -72,6 +72,13 @@ import { ensurePanel, hidePanelWait, isRightPanelInDom, markLivePreviewReady, sh
 import { bindToolbarPrefetch } from './toolbar-prefetch.js';
 import { watchPreviewRenders } from './lp-replay.js';
 import { injectStyle } from './lib/style.js';
+import { COLLECTION_PICKER_ID, ENTRY_EDIT_PATH, FOCUS_LOCKED_TABS, FOCUS_STEP_ATTR, GLOBALS_PICKER_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_COLLAPSED_KEY, LP_COVER_ID, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_MODE_ID, LP_MODE_KEY, LP_PRIMARY_FLAT, LP_SIDE_DEFAULT_REM, LP_TOGGLE_ID, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
+import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
+import { featureOn, sectionField } from './lib/config.js';
+import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
+import { remToPx } from './lib/dom.js';
+import { csrfToken } from './lib/csrf.js';
+import { previewFrame } from './lib/preview-frame.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -172,13 +179,13 @@ export function findSetByValuesPath(uid, doc, matchIndex = 0) {
   let seen = 0;
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
 
     if (path === null || path === '') {
       continue;
@@ -246,19 +253,19 @@ export function rowIsLocked(uid, doc) {
  */
 export function resolveVisualIdFromValues(uid, doc) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
 
     if (path === null) {
       continue;
     }
 
-    const row = sve.dataGet(values, path);
+    const row = dataGet(values, path);
 
     if (row && typeof row === 'object' && row._visual_id) {
       return row._visual_id;
@@ -277,13 +284,13 @@ function topLevelSectionRow(uid, doc) {
   }
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
 
     if (!path) {
       continue;
@@ -295,7 +302,7 @@ function topLevelSectionRow(uid, doc) {
       continue;
     }
 
-    const section = sve.dataGet(values, `${match[1]}.${match[2]}`);
+    const section = dataGet(values, `${match[1]}.${match[2]}`);
 
     if (section && typeof section === 'object') {
       return section;
@@ -453,7 +460,7 @@ export function ownHeaderToggle(setEl) {
 
   return (
     [...header.children].find(
-      (el) => el.matches('button[type="button"]') && !el.hasAttribute(sve.FOCUS_STEP_ATTR)
+      (el) => el.matches('button[type="button"]') && !el.hasAttribute(FOCUS_STEP_ATTR)
     ) || null
   );
 }
@@ -938,7 +945,7 @@ export function lpChromeActiveDevice(win) {
     return device;
   }
 
-  const iframe = sve.previewFrame(win.document);
+  const iframe = previewFrame(win.document);
   const w = iframe?.clientWidth || iframe?.offsetWidth || 0;
 
   // Before the iframe has a real size (or while LP is still mounting), don't
@@ -1074,7 +1081,7 @@ export function orderableSections(doc) {
   const win = doc?.defaultView || window;
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       return found;
@@ -1323,7 +1330,7 @@ export function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
 
 export function applyLpDevice(win, key = lpStoredDevice(win)) {
   const doc = win.document;
-  const iframe = sve.previewFrame(doc);
+  const iframe = previewFrame(doc);
 
   if (!iframe) {
     return;
@@ -1449,7 +1456,7 @@ export function watchLpResponsiveWidth(win) {
     return;
   }
 
-  const iframe = sve.previewFrame(win.document);
+  const iframe = previewFrame(win.document);
 
   if (!iframe) {
     return;
@@ -1628,7 +1635,7 @@ export function setLpZoom(win, percent) {
 }
 
 export function applyLpZoom(win, percent = lpStoredZoom(win)) {
-  const iframe = sve.previewFrame(win.document);
+  const iframe = previewFrame(win.document);
   const contents = win.document.querySelector('.live-preview-contents');
 
   if (!iframe) {
@@ -1771,7 +1778,7 @@ export function hideStatamicLpChrome(header) {
 
 export function ensureLpPreviewChrome(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   if (!header) {
     doc.getElementById(LP_PREVIEW_CHROME_ID)?.remove();
@@ -1968,7 +1975,7 @@ export function paintLpPreviewChrome(win) {
 
     if (btn.dataset.zoom === 'in') {
       const allowed = lpZoomInAllowed(win);
-      const want = allowed ? sve.LP_ICON_IDLE_OPACITY : sve.LP_ICON_LOCKED_OPACITY;
+      const want = allowed ? LP_ICON_IDLE_OPACITY : LP_ICON_LOCKED_OPACITY;
 
       btn.disabled = !allowed;
       btn.setAttribute('aria-disabled', allowed ? 'false' : 'true');
@@ -1981,8 +1988,8 @@ export function paintLpPreviewChrome(win) {
       return;
     }
 
-    if (btn.style.opacity !== sve.LP_ICON_IDLE_OPACITY) {
-      btn.style.opacity = sve.LP_ICON_IDLE_OPACITY;
+    if (btn.style.opacity !== LP_ICON_IDLE_OPACITY) {
+      btn.style.opacity = LP_ICON_IDLE_OPACITY;
     }
   });
 
@@ -2033,7 +2040,7 @@ export let lpIframeChromeObserver = null;
 export let lpIframeChromeTarget = null;
 
 export function watchLpIframeChrome(win) {
-  const iframe = sve.previewFrame(win.document);
+  const iframe = previewFrame(win.document);
 
   if (!iframe) {
     return;
@@ -2243,7 +2250,7 @@ function formHasPageBuilder(win) {
     return sve.formHasSectionField(win);
   }
 
-  const field = sve.sectionField?.(win) || 'page_sections';
+  const field = sectionField(win) || 'page_sections';
   const doc = win.document;
 
   if (doc.querySelector(`.publish-field-${field}, [data-field="${field}"], #field_${field}`)) {
@@ -2253,7 +2260,7 @@ function formHasPageBuilder(win) {
   const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(doc) : [];
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
 
     if (values && Array.isArray(values[field])) {
       return true;
@@ -2272,7 +2279,7 @@ export function headerTabAvailable(win, tab) {
     return false;
   }
 
-  return sve.featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);
+  return featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);
 }
 
 export function loadHeaderTab(win) {
@@ -2321,19 +2328,19 @@ export function restoreDockedHeaderPanels(win) {
     }
 
     if (key === 'outline') {
-      return !!win.document.getElementById(sve.OUTLINE_PANEL_ID);
+      return !!win.document.getElementById(OUTLINE_PANEL_ID);
     }
 
     if (key === 'html_tree') {
-      return !!win.document.getElementById(sve.HTML_TREE_PANEL_ID);
+      return !!win.document.getElementById(HTML_TREE_PANEL_ID);
     }
 
     if (key === 'performance') {
-      return !!win.document.getElementById(sve.PERF_PANEL_ID);
+      return !!win.document.getElementById(PERF_PANEL_ID);
     }
 
     if (key === 'sections') {
-      return !!win.document.getElementById(sve.SECTION_PICKER_ID);
+      return !!win.document.getElementById(SECTION_PICKER_ID);
     }
 
     if (key === 'comments') {
@@ -2351,7 +2358,7 @@ export function restoreDockedHeaderPanels(win) {
 
   try {
     keys = rememberedRightPaneKeys(win);
-    const docked = chromeGet(win, sve.LP_DOCKED_KEY) || '';
+    const docked = chromeGet(win, LP_DOCKED_KEY) || '';
 
     if (docked && docked !== 'right') {
       const extra = docked;
@@ -2444,7 +2451,7 @@ export async function ensureRightTool(win, key) {
   }
 
   if (key === 'outline') {
-    if (!win.document.getElementById(sve.OUTLINE_PANEL_ID)) {
+    if (!win.document.getElementById(OUTLINE_PANEL_ID)) {
       sve.toggleOutlinePanel?.(win);
     }
 
@@ -2452,7 +2459,7 @@ export async function ensureRightTool(win, key) {
   }
 
   if (key === 'html_tree') {
-    if (!win.document.getElementById(sve.HTML_TREE_PANEL_ID)) {
+    if (!win.document.getElementById(HTML_TREE_PANEL_ID)) {
       sve.toggleHtmlTreePanel?.(win);
     }
 
@@ -2460,7 +2467,7 @@ export async function ensureRightTool(win, key) {
   }
 
   if (key === 'performance') {
-    if (!win.document.getElementById(sve.PERF_PANEL_ID)) {
+    if (!win.document.getElementById(PERF_PANEL_ID)) {
       sve.togglePerformancePanel?.(win);
     }
 
@@ -2468,7 +2475,7 @@ export async function ensureRightTool(win, key) {
   }
 
   if (key === 'sections') {
-    if (!win.document.getElementById(sve.SECTION_PICKER_ID)) {
+    if (!win.document.getElementById(SECTION_PICKER_ID)) {
       sve.openSectionPicker?.(win);
     }
 
@@ -2620,7 +2627,7 @@ export function syncToolbarIcons(doc) {
 /** The icon row at the far left of the Live Preview header. */
 export function ensureHeaderToolbar(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
     doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="rightdock"]')?.remove();
@@ -2683,14 +2690,14 @@ export function ensureHeaderToolbar(win) {
         return;
       }
     } else if (tab.key === 'comments') {
-      if (!sve.featureOn(win, 'comments')) {
+      if (!featureOn(win, 'comments')) {
         return;
       }
     } else if (tab.key === 'edits') {
-      if (!sve.featureOn(win, 'page_activity')) {
+      if (!featureOn(win, 'page_activity')) {
         return;
       }
-    } else if (!sve.featureOn(win, tab.feature)) {
+    } else if (!featureOn(win, tab.feature)) {
       return;
     }
 
@@ -2918,7 +2925,7 @@ export function ensureOutlineToolbarButton(win) {
     return;
   }
 
-  if (!sve.featureOn(win, 'outline')) {
+  if (!featureOn(win, 'outline')) {
     bar.querySelector('button[data-tab="outline"]')?.remove();
 
     return;
@@ -2963,7 +2970,7 @@ export function ensurePerformanceToolbarButton(win) {
     return;
   }
 
-  if (!sve.featureOn(win, 'performance')) {
+  if (!featureOn(win, 'performance')) {
     bar.querySelector('button[data-tab="performance"]')?.remove();
 
     return;
@@ -3015,7 +3022,7 @@ export function ensureCommentsToolbarButton(win) {
     return;
   }
 
-  if (!sve.featureOn(win, 'comments')) {
+  if (!featureOn(win, 'comments')) {
     bar.querySelector('button[data-tab="comments"]')?.remove();
 
     return;
@@ -3071,7 +3078,7 @@ export function ensurePageEditsToolbarButton(win) {
     return;
   }
 
-  if (!sve.featureOn(win, 'page_activity')) {
+  if (!featureOn(win, 'page_activity')) {
     bar.querySelector('button[data-tab="edits"]')?.remove();
 
     return;
@@ -3347,7 +3354,7 @@ export function toggleHeaderTab(win, key) {
     const solo =
       sveState.soloUid != null ||
       !!win.document.querySelector(
-        `[${sve.SOLO_KEEP_ATTR || 'data-sve-solo-keep'}], [${sve.SOLO_PARENT_ATTR || 'data-sve-solo-parent'}]`
+        `[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`
       );
 
     // A section is selected: this icon is Page settings, so the first click
@@ -3376,7 +3383,7 @@ export function toggleHeaderTab(win, key) {
     void runDockedTool(win, {
       key: 'outline',
       want: !active,
-      isOpen: () => !!win.document.getElementById(sve.OUTLINE_PANEL_ID),
+      isOpen: () => !!win.document.getElementById(OUTLINE_PANEL_ID),
       open: () => sve.toggleOutlinePanel?.(win),
       close: () => sve.closeOutlinePanel?.(win),
     });
@@ -3391,7 +3398,7 @@ export function toggleHeaderTab(win, key) {
     void runDockedTool(win, {
       key: 'performance',
       want: !active,
-      isOpen: () => !!win.document.getElementById(sve.PERF_PANEL_ID),
+      isOpen: () => !!win.document.getElementById(PERF_PANEL_ID),
       open: () => sve.togglePerformancePanel?.(win),
       close: () => sve.closePerformancePanel?.(win),
     });
@@ -3404,7 +3411,7 @@ export function toggleHeaderTab(win, key) {
     void runDockedTool(win, {
       key: 'html_tree',
       want: !active,
-      isOpen: () => !!win.document.getElementById(sve.HTML_TREE_PANEL_ID),
+      isOpen: () => !!win.document.getElementById(HTML_TREE_PANEL_ID),
       open: () => sve.toggleHtmlTreePanel?.(win),
       close: () => sve.closeHtmlTreePanel?.(win),
     });
@@ -3433,7 +3440,7 @@ export function toggleHeaderTab(win, key) {
     // opens. The lock only means something still owns the editor — leave it
     // first (chrome, a global section, or both) instead of going dead on the
     // click, which left the icon looking alive but doing nothing.
-    const open = !!win.document.getElementById(sve.SECTION_PICKER_ID);
+    const open = !!win.document.getElementById(SECTION_PICKER_ID);
 
     setHeaderTab(win, open ? null : 'sections');
     void (async () => {
@@ -3487,7 +3494,7 @@ export function ensureSettingsTabs(win) {
 
   hideNativePublishTabList(doc);
 
-  let bar = doc.getElementById(sve.LP_WIDTH_ID);
+  let bar = doc.getElementById(LP_WIDTH_ID);
 
   if (!editor || sveState.lpCollapsed) {
     bar?.remove();
@@ -3508,7 +3515,7 @@ export function ensureSettingsTabs(win) {
 
   if (!bar) {
     bar = doc.createElement('div');
-    bar.id = sve.LP_WIDTH_ID;
+    bar.id = LP_WIDTH_ID;
     bar.setAttribute('data-sve-settings-bar', '');
     bar.style.cssText =
       'position:fixed;z-index:4;display:flex;align-items:stretch;' +
@@ -3559,7 +3566,7 @@ export function ensureSettingsTabs(win) {
   const inSection =
     sveState.soloUid != null ||
     !!doc.querySelector(
-      `[${sve.SOLO_KEEP_ATTR || 'data-sve-solo-keep'}], [${sve.SOLO_PARENT_ATTR || 'data-sve-solo-parent'}]`
+      `[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`
     );
 
   group.querySelectorAll('[data-tab-index]').forEach((btn) => {
@@ -3696,7 +3703,7 @@ export function clickNativeTab(win, index) {
 /** Show the control for the active tab, hide the rest, light up the active icon. */
 /** Hide Statamic's "Live Preview" header label — it names the obvious. */
 export function hideLpLabel(doc) {
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   if (!header) {
     return;
@@ -3752,16 +3759,16 @@ export function applyHeaderTab(win) {
   ensureHtmlTreeToolbarButton(win);
 
   // The standalone panel glyph and the old Hide/Auto/Show group are gone.
-  const glyph = doc.getElementById(sve.LP_TOGGLE_ID);
+  const glyph = doc.getElementById(LP_TOGGLE_ID);
 
   if (glyph) {
     glyph.style.display = 'none';
   }
 
-  doc.getElementById(sve.LP_MODE_ID)?.remove();
+  doc.getElementById(LP_MODE_ID)?.remove();
 
   // The sections icon in the toolbar replaces the old "Sektioner" text button.
-  const lib = doc.getElementById(sve.LIBRARY_BUTTON_ID);
+  const lib = doc.getElementById(LIBRARY_BUTTON_ID);
 
   if (lib) {
     lib.style.display = 'none';
@@ -3770,8 +3777,8 @@ export function applyHeaderTab(win) {
   // Publish-fanerne er ikke med her: de er flyttet ned i panelets bundlinje, ved
   // siden af breddevælgeren — se sve.ensureLpWidthPicker.
   const controls = {
-    pages: doc.getElementById(sve.COLLECTION_PICKER_ID)?.parentElement,
-    globals: doc.getElementById(sve.GLOBALS_PICKER_ID)?.parentElement,
+    pages: doc.getElementById(COLLECTION_PICKER_ID)?.parentElement,
+    globals: doc.getElementById(GLOBALS_PICKER_ID)?.parentElement,
   };
 
   const headerBg = sve.lpHeaderBg(win) || 'rgba(0,0,0,.35)';
@@ -3807,9 +3814,9 @@ export function applyHeaderTab(win) {
       // som oplyste piller ved siden af et sektionsikon der var gået helt ud:
       // halvdelen af rækken så ud til stadig at kunne klikkes. Værktøjet er feltet,
       // så det er feltet der går ud.
-      const locked = sve.isSectionLibraryLocked?.(win) && sve.FOCUS_LOCKED_TABS?.includes(key);
+      const locked = sve.isSectionLibraryLocked?.(win) && FOCUS_LOCKED_TABS?.includes(key);
 
-      frame.style.opacity = locked ? sve.LP_ICON_LOCKED_OPACITY : '';
+      frame.style.opacity = locked ? LP_ICON_LOCKED_OPACITY : '';
       frame.style.pointerEvents = locked ? 'none' : '';
     }
 
@@ -3822,17 +3829,17 @@ export function applyHeaderTab(win) {
   // og ikke der hvor de bygges, så et CP-temaskift rammer dem alle samtidig.
   // New-page bruger flat primary (ikke inset) — spring den over.
   doc.querySelectorAll('[data-sve-inset],[data-sve-seam]').forEach((el) => {
-    if (el.id === sve.NEW_ENTRY_ID) {
+    if (el.id === NEW_ENTRY_ID) {
       return;
     }
 
     el.style.backgroundColor = headerBg;
   });
 
-  const newEntry = doc.getElementById(sve.NEW_ENTRY_ID);
+  const newEntry = doc.getElementById(NEW_ENTRY_ID);
 
   if (newEntry) {
-    newEntry.style.background = sve.LP_PRIMARY_FLAT;
+    newEntry.style.background = LP_PRIMARY_FLAT;
     newEntry.style.color = '#fff';
     newEntry.style.border = 'none';
     newEntry.style.boxShadow = 'none';
@@ -3888,11 +3895,11 @@ export function applyHeaderTab(win) {
   // a reload, and a closed panel under a lit icon is the icon telling a lie about
   // what is in front of you.
   const docked = {
-    sections: !!doc.getElementById(sve.SECTION_PICKER_ID),
+    sections: !!doc.getElementById(SECTION_PICKER_ID),
     listview: !!sve.listViewPanel?.(doc),
-    outline: !!doc.getElementById(sve.OUTLINE_PANEL_ID),
-    html_tree: !!doc.getElementById(sve.HTML_TREE_PANEL_ID),
-    performance: !!doc.getElementById(sve.PERF_PANEL_ID),
+    outline: !!doc.getElementById(OUTLINE_PANEL_ID),
+    html_tree: !!doc.getElementById(HTML_TREE_PANEL_ID),
+    performance: !!doc.getElementById(PERF_PANEL_ID),
     comments: !!sve.commentsPanel?.(doc),
     ai: isAiPanelOpen(doc),
   };
@@ -3995,9 +4002,9 @@ export function applySectionsFieldVisibility(win) {
   }
 
   const hide =
-    sve.featureOn(win, 'open_first_section')
+    featureOn(win, 'open_first_section')
     && sve.focusPanelOn(win)
-    && !doc.querySelector(`[${sve.SOLO_KEEP_ATTR}], [${sve.SOLO_PARENT_ATTR}]`);
+    && !doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`);
 
   wrapper.style.display = hide ? 'none' : '';
 }
@@ -4023,22 +4030,22 @@ export function openFirstSectionOnce(win) {
     return;
   }
 
-  if (firstSectionOpened || !sve.featureOn(win, 'open_first_section') || !sve.focusPanelOn(win)) {
+  if (firstSectionOpened || !featureOn(win, 'open_first_section') || !sve.focusPanelOn(win)) {
     return;
   }
 
   // Something is already soloed — a click got here first, and it says more about
   // where the author wants to be than a default does.
-  if (doc.querySelector(`[${sve.SOLO_KEEP_ATTR}], [${sve.SOLO_PARENT_ATTR}]`)) {
+  if (doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`)) {
     firstSectionOpened = true;
 
     return;
   }
 
-  const field = sve.sectionField?.(win) || 'page_sections';
+  const field = sectionField(win) || 'page_sections';
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
     const rows = values && typeof values === 'object' ? values[field] : null;
 
     if (!Array.isArray(rows)) {
@@ -4113,7 +4120,7 @@ export function openSettingsTab(win) {
   // header, the footer and the globals panel, and that was simply wrong: the
   // globals panel is built and parked off screen the moment Live Preview opens,
   // so its element is always in the document and the rule never ran once.
-  if (sveState.soloUid !== null || doc.querySelector(`[${sve.SOLO_KEEP_ATTR}], [${sve.SOLO_PARENT_ATTR}]`)) {
+  if (sveState.soloUid !== null || doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`)) {
     settingsTabTries = 0; // closing this again is a fresh question, not a retry
 
     return;
@@ -4199,7 +4206,7 @@ export function applyDeclaredDefaults(data, doc) {
   }
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -4254,7 +4261,7 @@ export const LP_TOOLBAR_EDGE = '12px';
 
 export function alignHeaderToolbarWithSidebar(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
   const editor = doc.querySelector('.live-preview-editor');
 
@@ -4827,7 +4834,7 @@ export function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, af
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          'X-CSRF-TOKEN': sve.csrfToken(win),
+          'X-CSRF-TOKEN': csrfToken(win),
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ message: null }),
@@ -4894,7 +4901,7 @@ export function isOurLpChromeButton(button) {
     !!button.closest?.(`#${LP_RELOAD_ID}`) ||
     !!button.closest?.(`#${HEADER_TOOLBAR_ID}`) ||
     !!button.closest?.(`#${LP_PREVIEW_CHROME_ID}`) ||
-    !!button.closest?.(`#${sve.LP_MODE_ID}`) ||
+    !!button.closest?.(`#${LP_MODE_ID}`) ||
     !!button.closest?.(`#${RIGHT_DOCK_ID}`) ||
     button.hasAttribute?.('data-sve-close')
   );
@@ -5028,7 +5035,7 @@ export function hideStatamicLpClose(header) {
 
 /** Keep Statamic’s × gone across Vue re-renders of the Live Preview header. */
 export function watchStatamicLpClose(win) {
-  const header = sve.lpHeader(win.document);
+  const header = lpHeader(win.document);
 
   if (!header) {
     sveState.lpCloseHideObserver?.disconnect();
@@ -5053,7 +5060,7 @@ export function watchStatamicLpClose(win) {
     scheduled = true;
     win.requestAnimationFrame(() => {
       scheduled = false;
-      const live = sve.lpHeader(win.document);
+      const live = lpHeader(win.document);
 
       if (!live) {
         sveState.lpCloseHideObserver?.disconnect();
@@ -5081,7 +5088,7 @@ export function watchStatamicLpClose(win) {
 export function positionLpBackButton(win) {
   const doc = win.document;
   const pill = doc.getElementById(LP_BACK_ID);
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   if (!pill || !header) {
     return;
@@ -5113,7 +5120,7 @@ export function positionLpBackButton(win) {
  * not overlap the iframe — send an empty box so hover chrome stops dodging.
  */
 export function tellPreviewWherePillIs(win, pill) {
-  const frame = sve.previewFrame(win.document);
+  const frame = previewFrame(win.document);
 
   if (!frame) {
     return;
@@ -5168,7 +5175,7 @@ export function removeLpBackButton(doc) {
  */
 export function ensureLpBackButton(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   if (!header) {
     return;
@@ -5277,7 +5284,7 @@ export function leaveToOrigin(win, url) {
 
 /** Click Statamic's Live Preview × so we stay on the admin entry form. */
 export function closeLivePreviewUi(win) {
-  const header = sve.lpHeader(win.document);
+  const header = lpHeader(win.document);
   const close = findLpCloseButton(header);
 
   // Settling on the form is an answer to "where does this end", so a later × on
@@ -5359,7 +5366,7 @@ export function collectionListingUrl(win) {
     try {
       const path = new URL(origin, win.location.origin).pathname;
 
-      if (/\/cp(\/|$)/.test(path) && !sve.ENTRY_EDIT_PATH.test(path)) {
+      if (/\/cp(\/|$)/.test(path) && !ENTRY_EDIT_PATH.test(path)) {
         return origin;
       }
     } catch {
@@ -5481,15 +5488,15 @@ export function resetEditorLayout(win) {
     editor.style.position = 'absolute';
     editor.style.left = '-10000px';
     editor.style.top = '0';
-    editor.style.width = `${sve.remToPx(win, sve.LP_SIDE_DEFAULT_REM)}px`;
+    editor.style.width = `${remToPx(win, LP_SIDE_DEFAULT_REM)}px`;
   }
 
   applyLpDevice(win, 'Responsive');
   applyLpZoom(win, LP_ZOOM_DEFAULT);
   clearChromePrefs(win);
-  sve.persistLpWidth(win, sve.remToPx(win, sve.LP_SIDE_DEFAULT_REM));
-  chromeSet(win, sve.LP_MODE_KEY, 'hide');
-  chromeSet(win, sve.LP_COLLAPSED_KEY, '1');
+  sve.persistLpWidth(win, remToPx(win, LP_SIDE_DEFAULT_REM));
+  chromeSet(win, LP_MODE_KEY, 'hide');
+  chromeSet(win, LP_COLLAPSED_KEY, '1');
   chromeSet(win, LP_DEVICE_KEY, 'Responsive');
   chromeSet(win, LP_ZOOM_KEY, String(LP_ZOOM_DEFAULT));
   chromeSet(win, 'sve-listview-tab', 'tree');
@@ -6103,13 +6110,13 @@ export function ensurePickerVisible(doc, win, anchorRect = null) {
 
 export function repositionAfterAdd(uid, doc) {
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    const path = sve.findPathByUid(values, uid);
+    const path = findPathByUid(values, uid);
 
     if (path === null) {
       continue;
@@ -6123,7 +6130,7 @@ export function repositionAfterAdd(uid, doc) {
 
     const parentPath = path.slice(0, dot);
     const index = Number(path.slice(dot + 1));
-    const initial = sve.dataGet(values, parentPath);
+    const initial = dataGet(values, parentPath);
 
     if (!Array.isArray(initial) || !Number.isInteger(index)) {
       return;
@@ -6133,7 +6140,7 @@ export function repositionAfterAdd(uid, doc) {
     let attempts = 0;
 
     const poll = () => {
-      const current = sve.dataGet(sve.unwrapRef(container.values), parentPath);
+      const current = dataGet(unwrapRef(container.values), parentPath);
 
       if (!Array.isArray(current)) {
         return;
@@ -6732,7 +6739,7 @@ export function handleAddBlockNative(data, doc, win) {
   // page section's does, and Statamic's own picker opens over the preview,
   // pinned under the button. That is what the missing panel means here.
   if (data.global) {
-    const frame = doc.getElementById(sve.GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
+    const frame = doc.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
 
     if (frame?.contentWindow) {
       const forward = (extra = {}) =>
@@ -7253,7 +7260,7 @@ export function handleAddBardSetNative(data, doc, win) {
 export function globalSectionEditorDoc(doc) {
   // Edited in this window there is no panel, so this is null and every caller
   // works in `doc` — exactly as it does for one of the page's own sections.
-  const frame = doc.getElementById(sve.GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
+  const frame = doc.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
 
   try {
     return frame?.contentDocument || null;
@@ -7263,7 +7270,7 @@ export function globalSectionEditorDoc(doc) {
 }
 
 export function globalSectionEditorWin(win) {
-  const frame = win.document.getElementById(sve.GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
+  const frame = win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
 
   try {
     return frame?.contentWindow || null;
@@ -7389,7 +7396,7 @@ export function createMessageListener(doc = document, win = window) {
       // page form back so the sidebar matches the section being edited.
       if (sve.globalSectionEditorOpen(doc) && !data.global) {
         sve.closeGlobalSectionPanel(win);
-        sve.previewFrame(doc)?.contentWindow?.postMessage(
+        previewFrame(doc)?.contentWindow?.postMessage(
           { source: 'statamic-visual-editor', type: 'sve-force-exit-global' },
           win.location.origin
         );
@@ -8375,7 +8382,7 @@ export function interceptLivePreviewOpen(win) {
   win.document.addEventListener(
     'click',
     (event) => {
-      if (isEmbeddedInSite(win) || sve.livePreviewEditorEl(win.document)) {
+      if (isEmbeddedInSite(win) || livePreviewEditorEl(win.document)) {
         return;
       }
 
@@ -8424,7 +8431,7 @@ export function interceptLivePreviewOpen(win) {
  */
 export function buildPreviewStill(win) {
   try {
-    const frame = sve.previewFrame(win.document);
+    const frame = previewFrame(win.document);
     const inner = frame?.contentDocument;
     const root = inner?.documentElement;
 
@@ -8481,7 +8488,7 @@ export function buildPreviewStill(win) {
 export function buildLpCover(doc, background, { blocking = false, still = null, label = null } = {}) {
   const cover = doc.createElement('div');
 
-  cover.id = sve.LP_COVER_ID;
+  cover.id = LP_COVER_ID;
   cover.style.cssText =
     'position:fixed;inset:0;z-index:2147483647;opacity:1;' +
     // On a page load there's nothing behind this worth hitting, so clicks pass
@@ -8559,7 +8566,7 @@ export function previewBackground(win) {
   let background = '#fff';
 
   try {
-    const frame = sve.previewFrame(win.document);
+    const frame = previewFrame(win.document);
     const body = frame?.contentDocument?.body;
     const colour = body ? win.getComputedStyle(body).backgroundColor : null;
 
@@ -8630,7 +8637,7 @@ export function coverForNavigation(win, { blocking = false, background = null, t
   const colour = background ?? (still ? cpBackground(win) : previewBackground(win));
   const cover = buildLpCover(doc, colour, { blocking, still, label: t(win, 'loading') });
 
-  doc.getElementById(sve.LP_COVER_ID)?.remove();
+  doc.getElementById(LP_COVER_ID)?.remove();
 
   cover.style.transition = 'none';
   cover.style.opacity = still ? '0' : '1';
@@ -8719,7 +8726,7 @@ export function coverForNavigation(win, { blocking = false, background = null, t
   // opens, this is what still lifts it — long enough after the ordinary reveal
   // (and its own 12s failsafe) to never race them.
   win.setTimeout(() => {
-    if (doc.getElementById(sve.LP_COVER_ID) === cover) {
+    if (doc.getElementById(LP_COVER_ID) === cover) {
       cover.remove();
     }
   }, 15000);
@@ -8769,7 +8776,7 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
   // the site's overlay, this is the only code that ever takes that cover down, and
   // it blocks clicks while it's up. Missing it here strands the whole editor
   // behind a photograph.
-  cover = doc.getElementById(sve.LP_COVER_ID);
+  cover = doc.getElementById(LP_COVER_ID);
 
   if (!cover && !embedded) {
     // The front-end button stashes the colour it was sitting on. (It uses

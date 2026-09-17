@@ -7,6 +7,8 @@ import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
 import PageActivity from './cp/surfaces/PageActivity.vue';
+import { featureOn } from './lib/config.js';
+import { currentEntryId } from './lib/live-preview.js';
 
 export const PAGE_EDITS_ID = '__sve-page-edits';
 
@@ -18,8 +20,8 @@ let liveHost = null;
 let editsOpen = false;
 
 function entryId(win) {
-  if (typeof sve.currentEntryId === 'function') {
-    return sve.currentEntryId(win);
+  if (typeof currentEntryId === 'function') {
+    return currentEntryId(win);
   }
 
   const match = win.location.pathname.match(/\/entries\/([^/]+)/);
@@ -233,7 +235,7 @@ export function pageEditsOpen() {
 export function togglePageEdits(win) {
   bindDoc(win);
 
-  if (!sve.featureOn(win, 'page_activity')) {
+  if (!featureOn(win, 'page_activity')) {
     removeHost(win.document);
     paintButton(win);
 

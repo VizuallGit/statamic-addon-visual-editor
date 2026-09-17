@@ -21,6 +21,9 @@ import OutlineList from './cp/surfaces/OutlineList.vue';
 import A11yTabs from './cp/surfaces/A11yTabs.vue';
 import { outlineUi } from './cp/outline/store.js';
 import { a11yUi } from './cp/a11y/store.js';
+import { unwrapRef } from './lib/values.js';
+import { featureOn, sectionField } from './lib/config.js';
+import { OUTLINE_PANEL_ID } from './lib/ids.js';
 
 // ===== outline =====
 // --- Heading outline panel ------------------------------------------------------
@@ -35,7 +38,6 @@ import { a11yUi } from './cp/a11y/store.js';
 // layout. The bridge keeps it in step while the panel is open and stops when it
 // closes.
 
-export const OUTLINE_PANEL_ID = '__sve-outline-panel';
 
 /** The last list the preview sent. Redrawn whole; never edited in place. */
 export let outlineItems = [];
@@ -68,10 +70,10 @@ export function watchOutlineInPreview(win, on) {
  * sections moved, so we can ask again after a remorph or a fresh iframe.
  */
 export function outlineSectionKey(win, doc) {
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
     const rows = values?.[field];
 
     if (!Array.isArray(rows)) {
@@ -128,11 +130,11 @@ export function refreshOutlineFromPreview(win) {
  */
 export function watchOutlineValues(win) {
   const doc = win.document;
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
   let container = null;
 
   for (const candidate of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(candidate.values);
+    const values = unwrapRef(candidate.values);
 
     if (values && typeof values === 'object' && Array.isArray(values[field])) {
       container = candidate;
@@ -188,7 +190,7 @@ export function watchOutlineValues(win) {
 
   if (typeof vueWatch === 'function' && values) {
     const stop = vueWatch(
-      values.__v_isRef ? values : () => sve.unwrapRef(values)?.[field],
+      values.__v_isRef ? values : () => unwrapRef(values)?.[field],
       onStructure,
       { deep: true }
     );
@@ -384,7 +386,7 @@ export function showOutlinePane(win) {
 export function toggleOutlinePanel(win) {
   const doc = win.document;
 
-  if (!sve.featureOn(win, 'outline')) {
+  if (!featureOn(win, 'outline')) {
     return;
   }
 
@@ -625,10 +627,6 @@ export function jumpToOutlineEntry(win, index, item) {
     sve.focusFromPreview(item.uid, win.document, win, { clampToSection: true });
   }
 }
-
-
-
-sve.OUTLINE_PANEL_ID = OUTLINE_PANEL_ID;
 Object.defineProperty(sve, 'outlineItems', { get() { return outlineItems; }, set(v) { outlineItems = v; } });
 Object.defineProperty(sve, 'outlineActive', { get() { return outlineActive; }, set(v) { outlineActive = v; } });
 Object.defineProperty(sve, 'outlineAnswered', { get() { return outlineAnswered; }, set(v) { outlineAnswered = v; } });

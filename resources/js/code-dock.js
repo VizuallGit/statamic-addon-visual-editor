@@ -133,6 +133,9 @@ import { t } from './lib/i18n.js';
 import { attachDock, dockParent } from './lib/dock-host.js';
 import { beginOverlayDrag } from './lib/drag.js';
 import { loadCodeMirror, vscTheme } from './lib/codemirror.js';
+import { HTML_TREE_PANEL_ID } from './lib/ids.js';
+import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
+import { featureOn, sectionField } from './lib/config.js';
 
 let EditorView;
 let keymap;
@@ -2462,18 +2465,18 @@ function currentSectionValues(win) {
   const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
 
     if (!values || typeof values !== 'object') {
       continue;
     }
 
-    if (uid && typeof sve.findPathByUid === 'function') {
-      const path = sve.findPathByUid(values, uid);
+    if (uid && typeof findPathByUid === 'function') {
+      const path = findPathByUid(values, uid);
 
       if (path) {
         const parts = path.split('.');
-        const section = sve.dataGet?.(values, parts.slice(0, 2).join('.'));
+        const section = dataGet(values, parts.slice(0, 2).join('.'));
 
         if (section && typeof section === 'object') {
           return section;
@@ -2483,7 +2486,7 @@ function currentSectionValues(win) {
   }
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
 
     if (values && typeof values === 'object') {
       return values;
@@ -2968,11 +2971,11 @@ function clearHtmlScopeRange() {
 let treeOpening = false;
 
 function htmlTreeOpen(win) {
-  return !!win?.document.getElementById(sve.HTML_TREE_PANEL_ID);
+  return !!win?.document.getElementById(HTML_TREE_PANEL_ID);
 }
 
 function syncHtmlTree(win, open) {
-  if (!win || sve.featureOn?.(win, 'html_tree') === false) {
+  if (!win || featureOn(win, 'html_tree') === false) {
     return;
   }
 
@@ -3021,7 +3024,7 @@ function paintHtmlScope(win) {
   // stored setting is what keeps the two from drifting: the tree can also be
   // closed from its own ✕, or pushed aside when another pane takes the dock,
   // and neither of those comes through this button.
-  const shown = sve.featureOn?.(win, 'html_tree') === false
+  const shown = featureOn(win, 'html_tree') === false
     ? htmlScopePref
     : (htmlTreeOpen(win) || treeOpening);
 
@@ -3086,7 +3089,7 @@ function bindHtmlTreeWatch(win, dock) {
   dock._sveTreeWatchBound = true;
 
   win.addEventListener('sve-right-dock-change', () => {
-    if (treeOpening || sve.featureOn?.(win, 'html_tree') === false) {
+    if (treeOpening || featureOn(win, 'html_tree') === false) {
       return;
     }
 
@@ -6641,7 +6644,7 @@ function dataVarsView(win) {
   const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
     const view = typeof values?.source_collection === 'string' ? values.source_collection.trim() : '';
 
     if (view) {
@@ -6694,7 +6697,7 @@ function currentPageValues(win) {
   const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
 
     if (values && typeof values === 'object') {
       return values;
@@ -7888,7 +7891,7 @@ export function closeCodeDock(doc) {
 
   const win = doc?.defaultView || lastWin;
 
-  if (win?.document.getElementById(sve.HTML_TREE_PANEL_ID)) {
+  if (win?.document.getElementById(HTML_TREE_PANEL_ID)) {
     sve.closeHtmlTreePanel?.(win);
   }
 
@@ -7937,11 +7940,11 @@ function pageSectionType(win, doc, uid) {
     ).trim();
   }
 
-  const field = typeof sve.sectionField === 'function' ? sve.sectionField(win) : 'page_sections';
+  const field = typeof sectionField === 'function' ? sectionField(win) : 'page_sections';
   const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
     const sections = values?.[field];
 
     if (!Array.isArray(sections)) {
@@ -7977,7 +7980,7 @@ function collectionViewType(win) {
   const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
 
   for (const container of containers) {
-    const values = sve.unwrapRef?.(container.values) || container.values;
+    const values = unwrapRef(container.values) || container.values;
     const view = typeof values?.view === 'string' ? values.view.trim() : '';
 
     if (!view || view.includes('..')) {
@@ -8007,7 +8010,7 @@ function chromeTemplateType(win, doc) {
     return '';
   }
 
-  const values = sve.unwrapRef?.(sve.chromeContainer?.()?.values) || {};
+  const values = unwrapRef(sve.chromeContainer?.()?.values) || {};
   const style = values[kind === 'footer' ? 'footer_style' : 'header_style'] || 'style_1';
 
   return `${kind}/${style}`;

@@ -17,14 +17,15 @@ import {
   showInRightShell,
 } from './right-dock.js';
 import { injectStyle } from './lib/style.js';
+import { COMMENTS_PANEL_ID, HTML_TREE_PANEL_ID, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
 
 export const PANEL_IDS = {
-  listview: '__sve-listview-panel',
-  outline: '__sve-outline-panel',
-  html_tree: '__sve-html-tree-panel',
-  comments: '__sve-comments-pane',
-  sections: '__sve-section-picker',
-  performance: '__sve-perf-panel',
+  listview: LISTVIEW_PANEL_ID,
+  outline: OUTLINE_PANEL_ID,
+  html_tree: HTML_TREE_PANEL_ID,
+  comments: COMMENTS_PANEL_ID,
+  sections: SECTION_PICKER_ID,
+  performance: PERF_PANEL_ID,
 };
 
 const WAIT_ID = '__sve-panel-wait';
@@ -64,13 +65,6 @@ function loadComments() {
 const inflight = {};
 let sectionsWarmed = false;
 
-sve.SECTION_PICKER_ID = sve.SECTION_PICKER_ID || PANEL_IDS.sections;
-sve.OUTLINE_PANEL_ID = sve.OUTLINE_PANEL_ID || PANEL_IDS.outline;
-sve.HTML_TREE_PANEL_ID = sve.HTML_TREE_PANEL_ID || PANEL_IDS.html_tree;
-sve.COMMENTS_PANEL_ID = sve.COMMENTS_PANEL_ID || PANEL_IDS.comments;
-sve.PERF_PANEL_ID = sve.PERF_PANEL_ID || PANEL_IDS.performance;
-sve.FOCUS_LOCKED_TABS = sve.FOCUS_LOCKED_TABS || [];
-
 function noop() {}
 
 function stub(name, impl) {
@@ -96,8 +90,6 @@ function stubUntilLoaded(name, key) {
 }
 
 stub('isSectionLibraryLocked', () => false);
-stub('featureOn', (win, key) => win.Statamic?.$config?.get?.('sveFeatures')?.[key] !== false);
-stub('livePreviewEditorEl', (doc) => doc?.querySelector?.('.live-preview-editor') || null);
 stub('closeRightPanels', noop);
 stub('syncPreviewInset', noop);
 stub('isGlobalsOverlayOpen', () => false);
@@ -113,7 +105,6 @@ stub('pinGlobalsPanelLeft', noop);
 stub('mountInLivePreviewEditor', noop);
 stub('claimLivePreviewEditor', noop);
 stub('listViewSyncTo', noop);
-stub('sectionField', (win) => win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections');
 stub('blockRowUid', (row) => row?._visual_id || row?.id || row?._id || '');
 
 // Block tree helpers the eager code calls before anyone opens the block tree.

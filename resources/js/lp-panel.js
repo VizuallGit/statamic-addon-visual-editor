@@ -11,6 +11,8 @@ import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, 
 import { persistVisibleRightPanes, visiblePaneKeys } from './right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
+import { lpHeader } from './lib/live-preview.js';
+import { LP_COLLAPSED_KEY, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PRIMARY_FLAT } from './lib/ids.js';
 
 // ===== lp-panel =====
 // --- Live Preview: collapsible editor panel ----------------------------------
@@ -25,14 +27,8 @@ import { LP_MORE_ID } from './lp-more-menu.js';
 // components report zero rects and the popup silently fails to open). The
 // popup itself portals to document.body, so it shows fine while collapsed.
 
-export const LP_TOGGLE_ID = '__sve-lp-toggle';
-export const LP_MODE_ID = '__sve-lp-mode';
-export const LP_MODE_KEY = 'sve-lp-panel-mode';
-export const LP_COLLAPSED_KEY = 'sve-lp-collapsed';
-export const LP_DOCKED_KEY = 'sve-lp-docked';
 export const KEEP_CHROME_KEY = 'sve-keep-chrome';
 
-export const LP_WIDTH_ID = '__sve-lp-width';
 export const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
 
 /**
@@ -44,12 +40,8 @@ export const LP_WIDTH_GROUP_ID = '__sve-lp-width-group';
  * samme nøgle er der én bredde: knapperne sætter den, håndtaget sætter den, og
  * den der står, er den man sidst valgte — uanset hvordan.
  */
-export const LP_WIDTH_KEY = 'statamic.live-preview.editor-width';
 
 /** Same rem bounds on the left editor and the right dock. */
-export const LP_SIDE_MIN_REM = 16;
-export const LP_SIDE_MAX_REM = 50;
-export const LP_SIDE_DEFAULT_REM = 22;
 
 
 // The panel runs in one of three modes, chosen in the header and remembered
@@ -64,11 +56,8 @@ export const LP_MODE_LABELS = { hide: 'Hidden', auto: 'Auto', show: 'Visible' };
  * Flat Save & Publish blue — lightest stop from Statamic’s primary gradient
  * (from-primary/90), no border / shadow / gradient.
  */
-export const LP_PRIMARY_FLAT =
-  'color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent)';
 
 /** Idle icon opacity — same for toolbar + device chrome. */
-export const LP_ICON_IDLE_OPACITY = '0.7';
 
 /**
  * A tool that cannot be used from where you are.
@@ -77,7 +66,6 @@ export const LP_ICON_IDLE_OPACITY = '0.7';
  * looks like it lost an icon — the bar keeps its shape, so nothing shifts under
  * the pointer on the way into a header and back out again.
  */
-export const LP_ICON_LOCKED_OPACITY = '0.25';
 
 /** Paint a framed control as selected (flat primary) or idle. */
 export function paintLpActiveControl(btn, on) {
@@ -176,7 +164,7 @@ export function findLpRightActionTail(header) {
  */
 export function syncLpRightBarGaps(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
   const chrome = doc.getElementById(LP_PREVIEW_CHROME_ID);
   const back = doc.getElementById(LP_BACK_ID);
   const save = findLpSaveButton(header);
@@ -271,7 +259,7 @@ export function syncLpRightBarGaps(win) {
 }
 
 export function paintLpSaveButton(win) {
-  const header = sve.lpHeader(win.document);
+  const header = lpHeader(win.document);
 
   if (!header) {
     return;
@@ -324,7 +312,7 @@ export const LP_SEP_OPACITY = '.15';
  * låner farven fra modalen bagved.
  */
 export function lpHeaderBg(win) {
-  const header = sve.lpHeader(win.document);
+  const header = lpHeader(win.document);
 
   if (!header) {
     return null;
@@ -415,7 +403,7 @@ export function storedLpCollapsed(win) {
 }
 
 export function persistDockedPanel(win) {
-  if (!sve.lpHeader(win.document)) {
+  if (!lpHeader(win.document)) {
     return;
   }
 
@@ -479,29 +467,13 @@ export function setLpCollapsed(win, collapsed) {
 
   sve.ensureLpPanelToggle(win);
 }
-
-
-
-sve.LP_TOGGLE_ID = LP_TOGGLE_ID;
-sve.LP_MODE_ID = LP_MODE_ID;
-sve.LP_MODE_KEY = LP_MODE_KEY;
-sve.LP_COLLAPSED_KEY = LP_COLLAPSED_KEY;
-sve.LP_DOCKED_KEY = LP_DOCKED_KEY;
 sve.KEEP_CHROME_KEY = KEEP_CHROME_KEY;
-sve.LP_WIDTH_ID = LP_WIDTH_ID;
 sve.LP_WIDTH_GROUP_ID = LP_WIDTH_GROUP_ID;
-sve.LP_WIDTH_KEY = LP_WIDTH_KEY;
-sve.LP_SIDE_MIN_REM = LP_SIDE_MIN_REM;
-sve.LP_SIDE_MAX_REM = LP_SIDE_MAX_REM;
-sve.LP_SIDE_DEFAULT_REM = LP_SIDE_DEFAULT_REM;
 sve.LP_MODES = LP_MODES;
 sve.LP_MODE_LABELS = LP_MODE_LABELS;
-sve.LP_PRIMARY_FLAT = LP_PRIMARY_FLAT;
 sve.COMMENTS_BADGE_FG = COMMENTS_BADGE_FG;
 sve.COMMENTS_BADGE_IDLE_TYPE = COMMENTS_BADGE_IDLE_TYPE;
 sve.COMMENTS_BADGE_ACTIVE_BG = COMMENTS_BADGE_ACTIVE_BG;
-sve.LP_ICON_IDLE_OPACITY = LP_ICON_IDLE_OPACITY;
-sve.LP_ICON_LOCKED_OPACITY = LP_ICON_LOCKED_OPACITY;
 sve.paintLpActiveControl = paintLpActiveControl;
 sve.isLpSaveLabel = isLpSaveLabel;
 sve.isLpPublishLabel = isLpPublishLabel;

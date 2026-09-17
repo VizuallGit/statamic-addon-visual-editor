@@ -9,6 +9,8 @@ import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { openSettingsTab, rearmFirstSection } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
+import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
+import { unwrapRef } from './lib/values.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------
@@ -22,10 +24,8 @@ import { syncCodeDock } from './code-dock-lazy.js';
 // works on a page section works on them — because it is the same code.
 
 /** The div Theme Settings' form is mounted into, in this document. */
-export const CHROME_HOST_ID = '__sve-chrome-host';
 
 /** Publish-container name for that form — never "base", which is the page's. */
-export const CHROME_CONTAINER = 'sve-chrome';
 
 export let chromeApp = null;
 export let chromeInlineKind = null;
@@ -38,7 +38,7 @@ export function chromeHost(doc) {
 
 /** True while header/footer owns the editor, whichever way it was opened. */
 export function chromeEditorOpen(doc) {
-  return !!(doc.getElementById(sve.GLOBALS_PANEL_ID) || chromeHost(doc));
+  return !!(doc.getElementById(GLOBALS_PANEL_ID) || chromeHost(doc));
 }
 
 /** Theme Settings' own publish container, once its form has mounted. */
@@ -222,16 +222,16 @@ export function soloChromeTab(win, doc, kind) {
 
   sve.ensureSoloStyle(doc);
 
-  doc.querySelectorAll(`[${sve.SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(sve.SOLO_PARENT_ATTR));
-  doc.querySelectorAll(`[${sve.SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(sve.SOLO_KEEP_ATTR));
+  doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
+  doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
 
   for (let node = panel; node && node !== editor && node.parentElement; node = node.parentElement) {
-    node.setAttribute(sve.SOLO_KEEP_ATTR, '');
-    node.parentElement.setAttribute(sve.SOLO_PARENT_ATTR, '');
+    node.setAttribute(SOLO_KEEP_ATTR, '');
+    node.parentElement.setAttribute(SOLO_PARENT_ATTR, '');
   }
 
   // Lives outside Vue's tree; without this the stylesheet hides it.
-  doc.getElementById(sve.FOCUS_HEADER_ID)?.setAttribute(sve.SOLO_KEEP_ATTR, '');
+  doc.getElementById(FOCUS_HEADER_ID)?.setAttribute(SOLO_KEEP_ATTR, '');
 
   // The word is written for the middle of a sentence ("you are editing the
   // header"); at the top of the panel it is a name, so it starts like one.
@@ -496,7 +496,7 @@ export function bootChromeSolo(win, doc, host, kind) {
     host.style.opacity = '1';
   };
 
-  win.setTimeout(reveal, sve.SECTION_PANEL_REVEAL_MS);
+  win.setTimeout(reveal, SECTION_PANEL_REVEAL_MS);
 
   const tryBoot = () => {
     if (chromeHost(doc) !== host || chromeInlineKind !== kind) {
@@ -538,7 +538,7 @@ export function watchChromeInlineValues(win, handle) {
     }
 
     const container = chromeContainer();
-    const values = container ? sve.unwrapRef(container.values) : null;
+    const values = container ? unwrapRef(container.values) : null;
 
     if (!values || typeof values !== 'object') {
       return;
@@ -683,7 +683,7 @@ export function listenForSectionValues(win) {
 
     // Entry form finished booting — flush any preview click held while it loaded.
     if (data.type === 'sve-section-panel-ready') {
-      const panel = win.document.getElementById(sve.GLOBAL_SECTION_PANEL_ID);
+      const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
 
       if (panel && event.source === panel.querySelector('iframe')?.contentWindow) {
         sve.flushPendingFocusUntilPanel(win);
@@ -699,7 +699,7 @@ export function listenForSectionValues(win) {
       return;
     }
 
-    const panel = win.document.getElementById(sve.GLOBAL_SECTION_PANEL_ID);
+    const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
 
     if (!panel || event.source !== panel.querySelector('iframe')?.contentWindow) {
       return;
@@ -777,7 +777,7 @@ export function listenForGlobalsValues(win) {
       return;
     }
 
-    const panel = win.document.getElementById(sve.GLOBALS_PANEL_ID);
+    const panel = win.document.getElementById(GLOBALS_PANEL_ID);
 
     if (!panel || event.source !== panel.querySelector('iframe')?.contentWindow) {
       return;
@@ -820,11 +820,6 @@ export function listenForGlobalsValues(win) {
     sve.postGlobals(win, data.handle, data.values);
   });
 }
-
-
-
-sve.CHROME_HOST_ID = CHROME_HOST_ID;
-sve.CHROME_CONTAINER = CHROME_CONTAINER;
 Object.defineProperty(sve, 'chromeApp', { get() { return chromeApp; }, set(v) { chromeApp = v; } });
 Object.defineProperty(sve, 'chromeInlineKind', { get() { return chromeInlineKind; }, set(v) { chromeInlineKind = v; } });
 Object.defineProperty(sve, 'chromeInlineHandle', { get() { return chromeInlineHandle; }, set(v) { chromeInlineHandle = v; } });

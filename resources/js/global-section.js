@@ -16,6 +16,11 @@ import {
   rearmFirstSection,
 } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
+import { FOCUS_HEADER_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, SECTION_PANEL_REVEAL_MS } from './lib/ids.js';
+import { unwrapRef } from './lib/values.js';
+import { sectionField } from './lib/config.js';
+import { csrfToken } from './lib/csrf.js';
+import { previewFrame } from './lib/preview-frame.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -67,12 +72,9 @@ export const GLOBAL_SECTION_INLINE = true;
  * editing the header in the left panel, and one without the other is half a
  * behaviour.
  */
-export const CHROME_INLINE = true;
 
-export const GLOBAL_SECTION_PANEL_ID = '__sve-global-section-panel';
 
 /** The div the synced entry's form is mounted into, in this document. */
-export const GLOBAL_SECTION_HOST_ID = '__sve-global-section-host';
 
 /** Publish-container name for that form — never "base", which is the page's. */
 export const GLOBAL_SECTION_CONTAINER = 'sve-global-section';
@@ -205,7 +207,7 @@ export function hasUnsavedGlobalSection(win) {
     }
 
     const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = sve.unwrapRef(raw);
+    const list = unwrapRef(raw);
 
     if (Array.isArray(list) && list.length) {
       return list.some((name) => dirty.has(name));
@@ -253,7 +255,7 @@ export function sectionPanelContainer(doc) {
 
 /** Tells the preview to re-render asking for (or forgetting) the stashed section. */
 export function refreshSections(win, active) {
-  const frame = sve.previewFrame(win.document);
+  const frame = previewFrame(win.document);
 
   if (!frame?.contentWindow || !sve.lastPreviewUrl) {
     return;
@@ -311,7 +313,7 @@ export function postSectionValues(win, id, values) {
       credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': sve.csrfToken(win),
+        'X-CSRF-TOKEN': csrfToken(win),
         'X-Requested-With': 'XMLHttpRequest',
       },
       body: JSON.stringify({ id, values }),
@@ -333,7 +335,7 @@ export function clearSectionsStash(win, { refresh = true } = {}) {
     .fetch('/!/sve/global-section-stash/clear', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'X-CSRF-TOKEN': sve.csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
+      headers: { 'X-CSRF-TOKEN': csrfToken(win), 'X-Requested-With': 'XMLHttpRequest' },
     })
     .catch(() => {})
     .then(() => {
@@ -558,7 +560,6 @@ export function ensureGlobalSectionPanelSaveWatch(win) {
 // How long the section panel may stay hidden waiting for its form to rebuild.
 // Long enough for a slow boot, short enough that a silent failure is a pause
 // rather than an empty panel.
-export const SECTION_PANEL_REVEAL_MS = 2500;
 
 /**
  * Show the section panel's frame. Called both by the ready handshake and by a
@@ -953,7 +954,7 @@ export function hidePageFieldsForGlobalSection(host) {
     // The focus header names what the column is showing. It is not a page field —
     // same skip as markPanelIsolate. Hiding it left Header/Footer (and a synced
     // section) without the icon+title every ordinary section has.
-    if (child.id === sve.FOCUS_HEADER_ID || child.hasAttribute('data-sve-focus-header')) {
+    if (child.id === FOCUS_HEADER_ID('data-sve-focus-header')) {
       child.removeAttribute(GLOBAL_SECTION_AWAY_ATTR);
 
       return;
@@ -1041,7 +1042,7 @@ export async function openGlobalSectionInline(win, id) {
 
 /** Solo the section the way a click on a page section would. */
 export function bootGlobalSectionSolo(win, doc, host) {
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
   let attempts = 0;
 
   const reveal = () => {
@@ -1067,7 +1068,7 @@ export function bootGlobalSectionSolo(win, doc, host) {
     }
 
     const container = globalSectionContainer();
-    const values = container ? sve.unwrapRef(container.values) : null;
+    const values = container ? unwrapRef(container.values) : null;
     const rows = values && typeof values === 'object' ? values[field] : null;
 
     if (Array.isArray(rows) && rows.length) {
@@ -1120,7 +1121,7 @@ export function watchGlobalSectionInlineValues(win, id) {
 
   globalSectionValuesTimer = win.setInterval(() => {
     const container = globalSectionContainer();
-    const values = container ? sve.unwrapRef(container.values) : null;
+    const values = container ? unwrapRef(container.values) : null;
 
     if (!values || typeof values !== 'object') {
       return;
@@ -1233,9 +1234,6 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
 
 
 sve.GLOBAL_SECTION_INLINE = GLOBAL_SECTION_INLINE;
-sve.CHROME_INLINE = CHROME_INLINE;
-sve.GLOBAL_SECTION_PANEL_ID = GLOBAL_SECTION_PANEL_ID;
-sve.GLOBAL_SECTION_HOST_ID = GLOBAL_SECTION_HOST_ID;
 sve.GLOBAL_SECTION_CONTAINER = GLOBAL_SECTION_CONTAINER;
 sve.GLOBAL_SECTION_AWAY_ATTR = GLOBAL_SECTION_AWAY_ATTR;
 Object.defineProperty(sve, 'sectionsStashActive', { get() { return sectionsStashActive; }, set(v) { sectionsStashActive = v; } });
@@ -1256,7 +1254,6 @@ sve.saveGlobalSectionPanel = saveGlobalSectionPanel;
 sve.announceSectionSave = announceSectionSave;
 sve.watchGlobalSectionPanelSaves = watchGlobalSectionPanelSaves;
 sve.ensureGlobalSectionPanelSaveWatch = ensureGlobalSectionPanelSaveWatch;
-sve.SECTION_PANEL_REVEAL_MS = SECTION_PANEL_REVEAL_MS;
 sve.revealSectionPanelFrame = revealSectionPanelFrame;
 sve.closeGlobalSectionPanel = closeGlobalSectionPanel;
 sve.openGlobalSectionPanel = openGlobalSectionPanel;

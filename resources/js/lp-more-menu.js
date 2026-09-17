@@ -23,6 +23,10 @@ import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock } from '
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
+import { LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM } from './lib/ids.js';
+import { lpHeader } from './lib/live-preview.js';
+import { remToPx } from './lib/dom.js';
+import { featureOn } from './lib/config.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -49,16 +53,6 @@ let menuApp = null;
 let menuHost = null;
 let awayHandler = null;
 
-function featureOn(win, key) {
-  const features = win.Statamic?.$config?.get?.('sveFeatures') || {};
-
-  if (key === 'ai_panel' || key === 'template_dock' || key === 'site_css') {
-    return features[key] === true;
-  }
-
-  return features[key] !== false;
-}
-
 function parseJson(win, key, fallback) {
   try {
     const raw = JSON.parse(chromeGet(win, key) || 'null');
@@ -77,12 +71,12 @@ function paneOn(win, key) {
 }
 
 function clampWidth(win, px) {
-  const min = sve.remToPx(win, sve.LP_SIDE_MIN_REM);
-  const max = sve.remToPx(win, sve.LP_SIDE_MAX_REM);
+  const min = remToPx(win, LP_SIDE_MIN_REM);
+  const max = remToPx(win, LP_SIDE_MAX_REM);
   const n = Number(px);
 
   if (!Number.isFinite(n) || n <= 0) {
-    return sve.remToPx(win, sve.LP_SIDE_DEFAULT_REM);
+    return remToPx(win, LP_SIDE_DEFAULT_REM);
   }
 
   return Math.round(Math.min(max, Math.max(min, n)));
@@ -195,8 +189,8 @@ function settingsProps(win, rect) {
       : 'hide',
     editorWidth: clampWidth(win, chromeGet(win, 'statamic.live-preview.editor-width')),
     dockWidth: clampWidth(win, chromeGet(win, DOCK_WIDTH_KEY)),
-    widthMin: sve.remToPx(win, sve.LP_SIDE_MIN_REM),
-    widthMax: sve.remToPx(win, sve.LP_SIDE_MAX_REM),
+    widthMin: remToPx(win, LP_SIDE_MIN_REM),
+    widthMax: remToPx(win, LP_SIDE_MAX_REM),
     tools,
     codeDock: {
       show: featureOn(win, 'template_dock'),
@@ -258,7 +252,7 @@ function openMoreMenu(win, pill) {
 
 export function ensureLpMoreButton(win) {
   const doc = win.document;
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
   const back = doc.getElementById(LP_BACK_ID);
 
   if (!header || !back) {

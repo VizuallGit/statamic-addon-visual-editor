@@ -26,6 +26,10 @@ import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { frameDocumentUrl, isLivePreviewDocumentUrl, lastPreviewUrl, replayLivePreview, watchPreviewRenders } from './lp-replay.js';
 import { injectStyle } from './lib/style.js';
+import { CHROME_DESIGNS_ID, CHROME_INLINE, GLOBALS_PANEL_ID, GLOBALS_PICKER_ID, LIBRARY_BUTTON_ID, LP_ICON_IDLE_OPACITY, LP_MODE_ID, LP_WIDTH_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import { humanizeHandle, unwrapRef } from './lib/values.js';
+import { featureOn, sectionField } from './lib/config.js';
+import { lpHeader } from './lib/live-preview.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -46,8 +50,6 @@ import { injectStyle } from './lib/style.js';
 // for these unsaved ones. Statamic itself only re-renders when the ENTRY changes,
 // so the re-render is triggered by replaying the last preview URL.
 
-export const GLOBALS_PANEL_ID = '__sve-globals-panel';
-export const GLOBALS_PICKER_ID = '__sve-globals-picker';
 export const GLOBALS_DEBOUNCE = 200;
 
 export let globalsSaveTimer = null;
@@ -69,22 +71,6 @@ export function pickerGlobalSets(win) {
   }
 
   return sets.filter((set) => allowed.includes(set.handle));
-}
-
-/**
- * The live Live Preview header — never the frozen copy of it.
- *
- * While a move is in flight there are two on the page: the real bar, and the
- * still on the cover that keeps it from blinking out. They match selector for
- * selector, so anything reaching for the header by class alone stands a good
- * chance of finding the photograph — and our own pollers would then build the
- * pickers into a bar that's about to be thrown away.
- */
-export function lpHeader(doc) {
-  return (
-    [...doc.querySelectorAll('.live-preview-header')].find((el) => !el.closest(`#${sve.LP_COVER_ID}`)) ??
-    null
-  );
 }
 
 /**
@@ -268,7 +254,7 @@ export function markChromeFormClean(win) {
   const container = sve.chromeHost(win.document) ? sve.chromeContainer() : null;
 
   if (container) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (values && typeof values === 'object') {
       sveState.chromeValuesBaseline = JSON.stringify(values);
@@ -287,7 +273,7 @@ export function markChromeFormClean(win) {
 
     if (doc) {
       for (const container of sve.activeContainers(doc)) {
-        const values = sve.unwrapRef(container.values);
+        const values = unwrapRef(container.values);
 
         if (values && typeof values === 'object') {
           sveState.chromeValuesBaseline = JSON.stringify(values);
@@ -310,7 +296,7 @@ export function notifyChromeDirty(win) {
 
   if (saveBtn) {
     saveBtn.style.display = '';
-    saveBtn.style.opacity = dirty ? '1' : sve.LP_ICON_IDLE_OPACITY;
+    saveBtn.style.opacity = dirty ? '1' : LP_ICON_IDLE_OPACITY;
   }
 
   sendToPreview(
@@ -332,7 +318,7 @@ export function notifyChromeDirty(win) {
  * library.
  */
 export function globalSectionLabel(win) {
-  const rows = sveState.sectionPanelValues?.values?.[sve.sectionField(win)];
+  const rows = sveState.sectionPanelValues?.values?.[sectionField(win)];
   const row = Array.isArray(rows) && rows.length ? rows[0] : null;
   const type = row?.type;
 
@@ -346,7 +332,7 @@ export function globalSectionLabel(win) {
     return custom;
   }
 
-  return sve.setMeta(win, type)?.display || sve.humanizeHandle(type);
+  return sve.setMeta(win, type)?.display || humanizeHandle(type);
 }
 
 /** Tell the preview whether the global-section Save button should show. */
@@ -429,7 +415,7 @@ export function hasUnsavedGlobals(win) {
     }
 
     const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = sve.unwrapRef(raw);
+    const list = unwrapRef(raw);
 
     // Empty names ⇒ clean. Don't fall through to a bare `has('base')` which
     // can stay true after discard and falsely keep the chrome Save bar on.
@@ -462,7 +448,7 @@ export function clearGlobalsDirtyMarks(win) {
     if (typeof dirty?.remove === 'function') {
       const names = new Set(['base']);
       const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-      const list = sve.unwrapRef(raw);
+      const list = unwrapRef(raw);
 
       if (Array.isArray(list)) {
         list.forEach((name) => names.add(name));
@@ -758,7 +744,7 @@ export function closeGlobalsPanel(win) {
   panel._svePinRo?.disconnect?.();
   panel.remove();
 
-  const tabs = win.document.getElementById(sve.LP_WIDTH_ID);
+  const tabs = win.document.getElementById(LP_WIDTH_ID);
 
   if (tabs) {
     tabs.style.visibility = '';
@@ -875,10 +861,10 @@ export function globalsPanelUrl(win, set) {
 export function scheduleChromeGlobalsPrefetch(win) {
   if (
     win.Statamic?.$config?.get?.('sveEnabled') === false ||
-    (typeof sve.featureOn === 'function' &&
-      !sve.featureOn(win, 'globals') &&
-      !sve.featureOn(win, 'chrome_header') &&
-      !sve.featureOn(win, 'chrome_footer'))
+    (typeof featureOn === 'function' &&
+      !featureOn(win, 'globals') &&
+      !featureOn(win, 'chrome_header') &&
+      !featureOn(win, 'chrome_footer'))
   ) {
     return;
   }
@@ -903,7 +889,7 @@ export function prefetchChromeGlobals(win) {
   // the docked iframe instead — the fallback, the one path a click almost never
   // takes. So the head start went to the wrong door and the panel was a second
   // or two behind the click, every time.
-  if (sve.CHROME_INLINE) {
+  if (CHROME_INLINE) {
     sve.warmChromeInlinePages(win);
 
     return;
@@ -1045,7 +1031,7 @@ export function openGlobalsPanel(win, set, options = {}) {
     'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
     'color:#fff;font-size:12px;font-weight:600;line-height:1;';
   save.style.display = '';
-  save.style.opacity = hasUnsavedGlobals(win) ? '1' : sve.LP_ICON_IDLE_OPACITY;
+  save.style.opacity = hasUnsavedGlobals(win) ? '1' : LP_ICON_IDLE_OPACITY;
   save.addEventListener('click', () => {
     const frame = doc.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
@@ -1190,12 +1176,11 @@ export function ensureGlobalsPicker(win) {
   header.appendChild(wrap);
 }
 
-export const LIBRARY_BUTTON_ID = '__sve-library-btn';
 
 /** A "Sektioner" toggle in the LP header that opens/closes the section library. */
 export function ensureSectionLibraryButton(win) {
   const doc = win.document;
-  const group = doc.getElementById(sve.LP_MODE_ID);
+  const group = doc.getElementById(LP_MODE_ID);
 
   if (!group || doc.getElementById(LIBRARY_BUTTON_ID)) {
     return;
@@ -1771,7 +1756,7 @@ export function initGlobalsPanelFrame(win) {
     // Parent confirmed a successful Save — treat current values as clean baseline.
     if (event.data.type === 'sve-globals-saved') {
       for (const container of sve.activeContainers(doc)) {
-        const values = sve.unwrapRef(container.values);
+        const values = unwrapRef(container.values);
 
         if (values && typeof values === 'object') {
           previous = JSON.stringify(values);
@@ -1805,7 +1790,7 @@ export function initGlobalsPanelFrame(win) {
   // reactivity from outside its bundle.
   win.setInterval(() => {
     for (const container of sve.activeContainers(doc)) {
-      const values = sve.unwrapRef(container.values);
+      const values = unwrapRef(container.values);
 
       if (!values || typeof values !== 'object') {
         continue;
@@ -1886,14 +1871,14 @@ export function initGlobalsPanelFrame(win) {
           // Form still mounting / set collapsed — expand and retry a few times
           // so the sidebar does not stick on an empty Headline header.
           if (!opened && event.data.uid && attempt < 12) {
-            expandTopLevelSectionSets(doc, sve.sectionField(win));
+            expandTopLevelSectionSets(doc, sectionField(win));
             win.setTimeout(() => applyFocus(attempt + 1), 120);
           }
         } else if (event.data.uid) {
           const opened = sve.soloSection(event.data.uid, doc, win);
 
           if (!opened && attempt < 12) {
-            expandTopLevelSectionSets(doc, sve.sectionField(win));
+            expandTopLevelSectionSets(doc, sectionField(win));
             win.setTimeout(() => applyFocus(attempt + 1), 120);
           }
         }
@@ -2105,7 +2090,7 @@ export function expandTopLevelSectionSets(doc, field) {
 
 /** Solo the first page_sections row so the panel matches a normal section edit. */
 export function bootSavedSectionSolo(win, doc) {
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
   let attempts = 0;
 
   hideSavedSectionEntryChrome(doc);
@@ -2118,7 +2103,7 @@ export function bootSavedSectionSolo(win, doc) {
     const containers = sve.activeContainers(doc);
 
     for (const container of containers) {
-      const values = sve.unwrapRef(container.values);
+      const values = unwrapRef(container.values);
       const rows = values && typeof values === 'object' ? values[field] : null;
 
       if (!Array.isArray(rows) || !rows.length) {
@@ -2284,7 +2269,7 @@ export function chromeStyles(win, kind) {
 }
 
 export function closeChromeDesignsPanel(win) {
-  win.document.getElementById(sve.CHROME_DESIGNS_ID)?.remove();
+  win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
   sve.releaseLeftEdgeIfFree(win);
   sve.syncPreviewInset(win);
 }
@@ -2293,7 +2278,7 @@ export const CHROME_MODE_TOGGLE_ATTR = 'data-sve-chrome-mode-toggle';
 
 /** Which chrome sidebar view is visible: design picker vs Theme Settings. */
 export function currentChromeSidebarMode(win) {
-  const designs = win.document.getElementById(sve.CHROME_DESIGNS_ID);
+  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
 
   if (designs && !designs.hasAttribute('data-sve-chrome-hidden') && designs.style.display !== 'none') {
     return 'design';
@@ -2398,7 +2383,7 @@ export function setChromeSidebarMode(win, mode) {
   const kind =
     activeChromeKind ||
     win.document.getElementById(GLOBALS_PANEL_ID)?.getAttribute('data-sve-chrome-kind') ||
-    win.document.getElementById(sve.CHROME_DESIGNS_ID)?.getAttribute('data-sve-chrome-kind') ||
+    win.document.getElementById(CHROME_DESIGNS_ID)?.getAttribute('data-sve-chrome-kind') ||
     'header';
   const chromeKind = kind === 'footer' ? 'footer' : 'header';
 
@@ -2410,7 +2395,7 @@ export function setChromeSidebarMode(win, mode) {
   }
 
   // Keep designs mounted (hidden) so toggling back is instant.
-  const designs = win.document.getElementById(sve.CHROME_DESIGNS_ID);
+  const designs = win.document.getElementById(CHROME_DESIGNS_ID);
 
   if (designs) {
     designs.style.cssText =
@@ -2442,7 +2427,7 @@ export function setChromeSidebarMode(win, mode) {
 export function openChromeDesignsPanel(win, kind) {
   const doc = win.document;
   const chromeKind = kind === 'footer' ? 'footer' : 'header';
-  const existing = doc.getElementById(sve.CHROME_DESIGNS_ID);
+  const existing = doc.getElementById(CHROME_DESIGNS_ID);
 
   if (existing) {
     existing.setAttribute('data-sve-chrome-kind', chromeKind);
@@ -2459,12 +2444,12 @@ export function openChromeDesignsPanel(win, kind) {
   }
 
   // Keep Theme Settings mounted (hidden) + sections library if open on the right.
-  sve.closeRightPanels(win, [sve.CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, sve.SECTION_PICKER_ID]);
+  sve.closeRightPanels(win, [CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, SECTION_PICKER_ID]);
   sve.hideGlobalsPanel(win);
 
   const panel = doc.createElement('div');
 
-  panel.id = sve.CHROME_DESIGNS_ID;
+  panel.id = CHROME_DESIGNS_ID;
   panel.setAttribute('data-sve-chrome-kind', chromeKind);
   panel.style.cssText = sve.editorOverlayCss();
 
@@ -2625,7 +2610,7 @@ export function handleOpenChrome(data, doc, win) {
 
   closeChromeDesignsPanel(win);
 
-  if (sve.CHROME_INLINE) {
+  if (CHROME_INLINE) {
     sve.openChromeInline(win, kind);
   } else {
     openGlobalsPanel(win, set, { chromeLock: kind });
@@ -2660,7 +2645,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
   if (container) {
     container.setFieldValue(`${kind === 'footer' ? 'footer' : 'header'}_style`, style);
 
-    win.document.getElementById(sve.CHROME_DESIGNS_ID)?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
+    win.document.getElementById(CHROME_DESIGNS_ID)?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
       const on = el.getAttribute('data-sve-chrome-style') === style;
 
       el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
@@ -2705,7 +2690,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
   }
 
   // Mark the chosen card in the open designs panel.
-  const panel = win.document.getElementById(sve.CHROME_DESIGNS_ID);
+  const panel = win.document.getElementById(CHROME_DESIGNS_ID);
 
   panel?.querySelectorAll('[data-sve-chrome-style]').forEach((el) => {
     const on = el.getAttribute('data-sve-chrome-style') === style;
@@ -2820,19 +2805,11 @@ export function focusGlobalField(win, field, attempts = 0) {
 }
 
 /** In the Live Preview window: take the values streamed up by the panel. */
-
-
-
-sve.GLOBALS_PANEL_ID = GLOBALS_PANEL_ID;
-sve.GLOBALS_PICKER_ID = GLOBALS_PICKER_ID;
 sve.GLOBALS_DEBOUNCE = GLOBALS_DEBOUNCE;
 Object.defineProperty(sve, 'lastPreviewUrl', { get() { return lastPreviewUrl; } });
 Object.defineProperty(sve, 'globalsSaveTimer', { get() { return globalsSaveTimer; }, set(v) { globalsSaveTimer = v; } });
 sve.globalSets = globalSets;
 sve.pickerGlobalSets = pickerGlobalSets;
-sve.csrfToken = csrfToken;
-sve.lpHeader = lpHeader;
-sve.previewFrame = previewFrame;
 sve.ensurePreviewOutsideDismiss = ensurePreviewOutsideDismiss;
 sve.refreshPreview = refreshPreview;
 sve.frameDocumentUrl = frameDocumentUrl;
@@ -2873,7 +2850,6 @@ sve.scheduleChromeGlobalsPrefetch = scheduleChromeGlobalsPrefetch;
 sve.prefetchChromeGlobals = prefetchChromeGlobals;
 sve.openGlobalsPanel = openGlobalsPanel;
 sve.ensureGlobalsPicker = ensureGlobalsPicker;
-sve.LIBRARY_BUTTON_ID = LIBRARY_BUTTON_ID;
 sve.ensureSectionLibraryButton = ensureSectionLibraryButton;
 sve.initGlobalsPanelFrame = initGlobalsPanelFrame;
 sve.injectPanelFocusStyles = injectPanelFocusStyles;

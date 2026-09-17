@@ -24,6 +24,9 @@ import {
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import SaveSectionDialog from './cp/surfaces/SaveSectionDialog.vue';
 import { openCpOverlay } from './cp/open-overlay.js';
+import { sectionField } from './lib/config.js';
+import { csrfToken } from './lib/csrf.js';
+import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -69,11 +72,6 @@ export function registerContainerEvents(win = window) {
       publishContainers.splice(index, 1);
     }
   });
-}
-
-/** Unwraps a Vue ref (Container.vue provides `values` as a ref). */
-export function unwrapRef(v) {
-  return v && v.__v_isRef ? v.value : v;
 }
 
 /**
@@ -364,11 +362,6 @@ export function activeContainers(doc) {
   return list;
 }
 
-/** data_get-style dotted path lookup ("page_sections.0.text"). */
-export function dataGet(obj, path) {
-  return path.split('.').reduce((acc, key) => (acc == null ? undefined : acc[key]), obj);
-}
-
 /** The row a field path sits in ("…blocks.1.headline" → "…blocks.1"). */
 export function rowPathOf(fieldPath) {
   return fieldPath.includes('.') ? fieldPath.slice(0, fieldPath.lastIndexOf('.')) : '';
@@ -393,44 +386,6 @@ export function controlValues(values, fieldPath, handles) {
   }
 
   return out;
-}
-
-/**
- * Recursively finds the dotted path of the set whose _visual_id (or row id)
- * equals uid. Mirrors how the preview's scope uid identifies a section/row.
- *
- * Row ids match both `id` and `_id`: the front-end context exposes `id`
- * (Replicator.processRow renames _id → id), but the publish FORM values keep
- * the raw `_id` key — column builder rows are only findable through it.
- */
-export function findPathByUid(value, uid, path = '') {
-  if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) {
-      const found = findPathByUid(value[i], uid, path ? `${path}.${i}` : String(i));
-
-      if (found !== null) {
-        return found;
-      }
-    }
-
-    return null;
-  }
-
-  if (value && typeof value === 'object') {
-    if (value._visual_id === uid || value.id === uid || value._id === uid) {
-      return path;
-    }
-
-    for (const key of Object.keys(value)) {
-      const found = findPathByUid(value[key], uid, path ? `${path}.${key}` : key);
-
-      if (found !== null) {
-        return found;
-      }
-    }
-  }
-
-  return null;
 }
 
 /**
@@ -2492,7 +2447,7 @@ export function handleSaveSection(data, doc, win) {
           credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': sve.csrfToken(win),
+            'X-CSRF-TOKEN': csrfToken(win),
             'X-Requested-With': 'XMLHttpRequest',
           },
           body: JSON.stringify({
@@ -2538,7 +2493,7 @@ export async function replaceSectionWithGlobalReference(win, doc, uid, savedEntr
   const meta = await sve.fetchSetMeta(win, set);
   const newId = sve.newRowId();
   const row = sve.buildSectionRow(win, 'global', { id: savedEntryId }, meta?.defaults, newId);
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
 
   for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
@@ -2575,7 +2530,7 @@ export async function replaceSectionWithGlobalReference(win, doc, uid, savedEntr
  */
 export function savePageAsTemplate(win, onSaved = () => {}) {
   const doc = win.document;
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
 
   let sections = null;
 
@@ -2603,7 +2558,7 @@ export function savePageAsTemplate(win, onSaved = () => {}) {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': sve.csrfToken(win),
+          'X-CSRF-TOKEN': csrfToken(win),
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({
@@ -2701,7 +2656,7 @@ sve.EDITABLE_NODE_TYPES = EDITABLE_NODE_TYPES;
 sve.publishContainers = publishContainers;
 Object.defineProperty(sve, 'editSession', { get() { return editSession; }, set(v) { editSession = v; } });
 sve.registerContainerEvents = registerContainerEvents;
-sve.unwrapRef = unwrapRef;
+sve.unwrapRef = unwrapRef; // standalone scripts still read this off window.sve — goes with WP6
 Object.defineProperty(sve, 'entryValuesBaseline', { get() { return entryValuesBaseline; }, set(v) { entryValuesBaseline = v; } });
 Object.defineProperty(sve, 'entryBaselineTimer', { get() { return entryBaselineTimer; }, set(v) { entryBaselineTimer = v; } });
 Object.defineProperty(sve, 'entrySaveSettling', { get() { return entrySaveSettling; }, set(v) { entrySaveSettling = v; } });
@@ -2718,10 +2673,8 @@ sve.flushBardEditorSync = flushBardEditorSync;
 sve.writeBardFieldValue = writeBardFieldValue;
 sve.containerFromDom = containerFromDom;
 sve.activeContainers = activeContainers;
-sve.dataGet = dataGet;
 sve.rowPathOf = rowPathOf;
 sve.controlValues = controlValues;
-sve.findPathByUid = findPathByUid;
 sve.normText = normText;
 sve.bardNodeText = bardNodeText;
 sve.isUnwrappedInlineBard = isUnwrappedInlineBard;

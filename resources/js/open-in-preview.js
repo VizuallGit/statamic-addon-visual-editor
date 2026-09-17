@@ -9,6 +9,9 @@ import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { postToHost } from './cp.js';
 import { injectStyle } from './lib/style.js';
+import { unwrapRef } from './lib/values.js';
+import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
+import { ENTRY_EDIT_PATH } from './lib/ids.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -30,7 +33,6 @@ async function openOverlay(win, url) {
 // same `?live-preview=1` the front-end edit button already uses.
 
 /** `/cp/collections/{handle}/entries/{id}` — the screen this feature is about. */
-export const ENTRY_EDIT_PATH = /\/collections\/([^/]+)\/entries\/(?!create(?:\/|$))[^/?#]+/;
 
 export function openInPreviewCollections(win) {
   const list = win.Statamic?.$config?.get?.('sveOpenInPreview');
@@ -46,7 +48,7 @@ export function openInPreviewCollections(win) {
  * is unsaved work, and what to do about it.
  */
 export function previewUrlFor(win, href, collections) {
-  if (sve.livePreviewEditorEl(win.document)) {
+  if (livePreviewEditorEl(win.document)) {
     return null;
   }
 
@@ -450,7 +452,7 @@ export function disarmUnloadWarning(win) {
 
   try {
     const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = sve.unwrapRef(raw);
+    const list = unwrapRef(raw);
 
     names = Array.isArray(list) ? [...list] : [];
     dirty.disableWarning?.();
@@ -506,7 +508,7 @@ export function hasUnsavedChanges(win) {
     }
 
     const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = sve.unwrapRef(raw);
+    const list = unwrapRef(raw);
 
     if (Array.isArray(list)) {
       if (!list.length) {
@@ -574,7 +576,7 @@ export function dismissDirtyWarning(win) {
 }
 
 export function saveButtonIn(doc) {
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   return [...(header?.querySelectorAll('button') ?? [])].find((button) => {
     const text = (button.textContent || '').trim();
@@ -591,7 +593,7 @@ export function saveButtonIn(doc) {
  * "Publish…" / "Publicér…" — present only when revisions are enabled.
  */
 export function publishButtonIn(doc) {
-  const header = sve.lpHeader(doc);
+  const header = lpHeader(doc);
 
   return [...(header?.querySelectorAll('button') ?? [])].find((button) =>
     isPublishButtonLabel((button.textContent || '').trim())
@@ -629,10 +631,6 @@ export function leaveQuietly(win, leave, attempts = 0) {
 
   leave();
 }
-
-
-
-sve.ENTRY_EDIT_PATH = ENTRY_EDIT_PATH;
 sve.openInPreviewCollections = openInPreviewCollections;
 sve.previewUrlFor = previewUrlFor;
 sve.OPEN_IN_PREVIEW_ORIGIN = OPEN_IN_PREVIEW_ORIGIN;

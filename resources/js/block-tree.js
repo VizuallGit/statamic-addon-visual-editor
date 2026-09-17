@@ -35,6 +35,10 @@ import ListViewTree from './cp/surfaces/ListViewTree.vue';
 import ListViewMenu from './cp/surfaces/ListViewMenu.vue';
 import { listViewUi } from './cp/listview/store.js';
 import { injectStyle } from './lib/style.js';
+import { CHROME_CONTAINER, COMMENTS_PANEL_ID, FOCUS_ROOT_ATTR, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID } from './lib/ids.js';
+import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
+import { sectionField } from './lib/config.js';
+import { lpHeader } from './lib/live-preview.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -55,7 +59,6 @@ import { injectStyle } from './lib/style.js';
 // is the one write: it stores `_sve_label` on the row. The panel is redrawn from
 // scratch each time it opens.
 
-export const LISTVIEW_PANEL_ID = '__sve-listview-panel';
 
 // Its own remembered width, and its own default. The tree is a column of short
 // labels, so it wants far less room than Theme Settings — sharing that panel's
@@ -211,7 +214,7 @@ export function listViewPanel(doc) {
 export let dockedPanelTopLast = 56;
 
 export function dockedPanelTop(win) {
-  const header = sve.lpHeader(win.document);
+  const header = lpHeader(win.document);
 
   if (header) {
     const bottom = Math.round(header.getBoundingClientRect().bottom);
@@ -260,7 +263,7 @@ export function closeListViewPanel(win) {
   listViewCollapsed.clear();
   stopWatchListViewValues(win);
 
-  if (!win.document.getElementById(sve.OUTLINE_PANEL_ID)) {
+  if (!win.document.getElementById(OUTLINE_PANEL_ID)) {
     sve.watchOutlineInPreview(win, false);
   }
 
@@ -385,7 +388,7 @@ export function blockRowIds(row) {
  * be walked into looking for blocks that cannot be there.
  */
 export function listViewTree(win, doc) {
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
   const roots = [];
 
   // `listKey` and `index` are what a drag needs: two rows may sit side by side in
@@ -424,7 +427,7 @@ export function listViewTree(win, doc) {
         const el = uid ? findSetByVisualIdInput(uid, doc) : null;
         const globalSet = sve.globalSectionSet(win);
         const isGlobal = !grid && item.type === globalSet;
-        const globalId = isGlobal ? sve.firstEntryId(item[globalSet]) : '';
+        const globalId = isGlobal ? firstEntryId(item[globalSet]) : '';
         const custom =
           typeof item._sve_label === 'string' ? item._sve_label.trim() : '';
 
@@ -467,7 +470,7 @@ export function listViewTree(win, doc) {
   };
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -478,7 +481,7 @@ export function listViewTree(win, doc) {
     // between the two of them (site_head's blocks live in `blocks`; site_foot
     // has no such field at all). Walk its own values instead of looking for
     // the page's field, so the tree still finds whatever it does have.
-    if (container.name === sve.CHROME_CONTAINER) {
+    if (container.name === CHROME_CONTAINER) {
       collect(values, 0, null, roots, null);
     } else if (Array.isArray(values[field])) {
       collect(values[field], 0, null, roots, field);
@@ -806,7 +809,7 @@ export function listViewDefaultLabel(win, item) {
     const type = item.globalType || sve.savedSectionInfo(win, item.globalId)?.section_type || '';
 
     if (type) {
-      return sve.setMeta(win, type)?.display || sve.humanizeHandle(type);
+      return sve.setMeta(win, type)?.display || humanizeHandle(type);
     }
 
     const title = sve.savedSectionInfo(win, item.globalId)?.title || '';
@@ -818,7 +821,7 @@ export function listViewDefaultLabel(win, item) {
 
   const meta = item.kind === 'grid' ? sve.gridMeta(win, item.listKey) : sve.setMeta(win, item.type);
 
-  return meta?.display || sve.humanizeHandle(item.type || item.listKey) || t(win, 'listview_item');
+  return meta?.display || humanizeHandle(item.type || item.listKey) || t(win, 'listview_item');
 }
 
 export function listViewRowLabel(win, item) {
@@ -842,7 +845,7 @@ export function writeRowLabel(win, uid, label) {
   const doc = win.document;
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
       continue;
@@ -898,7 +901,7 @@ export function refreshFocusName(win) {
     return;
   }
 
-  const kind = doc.documentElement.getAttribute(sve.FOCUS_ROOT_ATTR) || 'section';
+  const kind = doc.documentElement.getAttribute(FOCUS_ROOT_ATTR) || 'section';
 
   sve.paintFocusHeader(
     win,
@@ -1142,10 +1145,10 @@ export function setListViewListLock(doc, item, locked) {
  * disagree about which form is the page.
  */
 export function listViewPageContainer(win, doc) {
-  const field = sve.sectionField(win);
+  const field = sectionField(win);
 
   for (const container of sve.activeContainers(doc)) {
-    const values = sve.unwrapRef(container.values);
+    const values = unwrapRef(container.values);
 
     if (values && typeof values === 'object' && Array.isArray(values[field])) {
       return container;
@@ -1262,7 +1265,7 @@ export function watchListViewValues(win) {
 
   if (typeof vueWatch === 'function' && values) {
     const stop = vueWatch(
-      values.__v_isRef ? values : () => sve.unwrapRef(values)?.[sve.sectionField(win)],
+      values.__v_isRef ? values : () => unwrapRef(values)?.[sectionField(win)],
       schedule,
       { deep: true }
     );
@@ -1691,7 +1694,7 @@ export function toggleListViewPanel(win) {
 }
 
 export function commentsPanel(doc) {
-  return doc.getElementById(sve.COMMENTS_PANEL_ID);
+  return doc.getElementById(COMMENTS_PANEL_ID);
 }
 
 export function closeCommentsPanel(win) {
@@ -1714,11 +1717,11 @@ export function toggleCommentsPanel(win) {
     return;
   }
 
-  sve.closeRightPanels(win, [sve.COMMENTS_PANEL_ID]);
+  sve.closeRightPanels(win, [COMMENTS_PANEL_ID]);
 
   const panel = doc.createElement('div');
 
-  panel.id = sve.COMMENTS_PANEL_ID;
+  panel.id = COMMENTS_PANEL_ID;
   panel.style.cssText = RIGHT_PANEL_FILL;
   mountPane(panel, CommentsPane, {
     title: t(win, 'comments_pane'),
@@ -1751,10 +1754,6 @@ export function setListViewTab(win, tab) {
   mountPane(body, ListViewBody, { hint: t(win, 'listview_hint') });
   renderListView(win);
 }
-
-
-
-sve.LISTVIEW_PANEL_ID = LISTVIEW_PANEL_ID;
 sve.LISTVIEW_WIDTH_KEY = LISTVIEW_WIDTH_KEY;
 sve.LISTVIEW_DEFAULT_WIDTH = LISTVIEW_DEFAULT_WIDTH;
 sve.LISTVIEW_MIN_WIDTH = LISTVIEW_MIN_WIDTH;

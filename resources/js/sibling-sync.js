@@ -15,6 +15,7 @@
 import { injectStyle } from './lib/style.js';
 import { vueRootElement } from './lib/vue-vm.js';
 import { t } from './lib/i18n.js';
+import { dataGet, unwrapRef } from './lib/values.js';
 
 const CONFIG_KEY = 'sve_sync_siblings';
 const STATE_KEY = '_sve_sync';
@@ -36,16 +37,6 @@ const SKIP_TYPES = new Set([
 
 const containers = [];
 let propagating = false;
-
-function unwrapRef(v) {
-    return v && v.__v_isRef ? v.value : v;
-}
-
-function dataGet(obj, path) {
-    if (!path) return obj;
-
-    return String(path).split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
-}
 
 function clone(v) {
     return v == null ? v : JSON.parse(JSON.stringify(v));

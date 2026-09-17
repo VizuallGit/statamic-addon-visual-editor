@@ -13,6 +13,7 @@ import { mountPane } from './cp/mount-pane.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { t } from './lib/i18n.js';
+import { currentEntryId } from './lib/live-preview.js';
 
 export function initComments() {
   // Settings toggle `comments` (and who may see it) — do not start the

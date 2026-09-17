@@ -57,8 +57,10 @@ import {
 } from './antlers-edit.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
+import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
+import { featureOn, sectionField } from './lib/config.js';
+import { HTML_TREE_PANEL_ID } from './lib/ids.js';
 
-export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
 /**
@@ -396,7 +398,7 @@ function globalSectionType(win, row) {
     return '';
   }
 
-  const id = sve.firstEntryId?.(row[globalSet]);
+  const id = firstEntryId(row[globalSet]);
 
   return (id && sve.savedSectionInfo?.(win, id)?.section_type) || '';
 }
@@ -555,10 +557,10 @@ function sectionRootTags(win) {
  */
 /** True when this publish form is a page builder, even with zero sections. */
 function pageHasSectionField(win, doc) {
-  const field = sve.sectionField?.(win) || 'page_sections';
+  const field = sectionField(win) || 'page_sections';
 
   for (const container of sve.activeContainers?.(doc) || []) {
-    const values = sve.unwrapRef?.(container.values);
+    const values = unwrapRef(container.values);
     const list = values && typeof values === 'object' ? values[field] : null;
 
     if (Array.isArray(list)) {
@@ -570,12 +572,12 @@ function pageHasSectionField(win, doc) {
 }
 
 function htmlTreeSections(win, doc) {
-  const field = sve.sectionField?.(win) || 'page_sections';
+  const field = sectionField(win) || 'page_sections';
   const tags = sectionRootTags(win);
   const out = [];
 
   for (const container of sve.activeContainers?.(doc) || []) {
-    const values = sve.unwrapRef?.(container.values);
+    const values = unwrapRef(container.values);
     const list = values && typeof values === 'object' ? values[field] : null;
 
     if (!Array.isArray(list)) {
@@ -617,7 +619,7 @@ function htmlTreeSections(win, doc) {
           (typeof alias === 'string' && alias.trim() ? alias.trim() : '')
           || custom
           || sve.setMeta?.(win, type)?.display
-          || sve.humanizeHandle?.(type)
+          || humanizeHandle(type)
           || type,
         // Its first tag's mark — the one it unfolds into. The set's own icon
         // used to go here, so the same section wore one shut and another open.
@@ -680,7 +682,7 @@ function htmlTreeRootName(win, sections, openUid) {
   const component = ask('dock:component-exit-state');
 
   if (component?.open) {
-    return sve.humanizeHandle?.(component.name) || component.name || '';
+    return humanizeHandle(component.name) || component.name || '';
   }
 
   if (openUid) {
@@ -689,7 +691,7 @@ function htmlTreeRootName(win, sections, openUid) {
 
   const type = ask('dock:current-type') || '';
 
-  return sve.setMeta?.(win, type)?.display || sve.humanizeHandle?.(type) || '';
+  return sve.setMeta?.(win, type)?.display || humanizeHandle(type) || '';
 }
 
 /**
@@ -2379,7 +2381,7 @@ export function showHtmlTreePane(win) {
 export function openHtmlTreePanel(win) {
   const doc = win.document;
 
-  if (!sve.featureOn(win, 'html_tree')) {
+  if (!featureOn(win, 'html_tree')) {
     return;
   }
 
@@ -2461,8 +2463,6 @@ register('html-tree:arm-pick', (on) => {
 
   return true;
 });
-
-sve.HTML_TREE_PANEL_ID = HTML_TREE_PANEL_ID;
 sve.htmlTreePanel = htmlTreePanel;
 sve.closeHtmlTreePanel = closeHtmlTreePanel;
 sve.fillHtmlTreePane = fillHtmlTreePane;

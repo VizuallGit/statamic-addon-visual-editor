@@ -23,6 +23,7 @@ import { componentPropsUi as ui } from './cp/component-props/store.js';
 import { paintComponentProps } from './component-props-panel.js';
 import ComponentSidebar from './cp/surfaces/ComponentSidebar.vue';
 import { injectStyle } from './lib/style.js';
+import { FOCUS_HEADER_ID } from './lib/ids.js';
 
 const HOST_ID = 'sve-cprops-host';
 const AWAY_ATTR = 'data-sve-cprops-away';
@@ -224,7 +225,7 @@ function hideTheRest(col, host) {
       return;
     }
 
-    if (child.id === sve.FOCUS_HEADER_ID || child.hasAttribute?.('data-sve-focus-header')) {
+    if (child.id === FOCUS_HEADER_ID?.('data-sve-focus-header')) {
       return;
     }
 
