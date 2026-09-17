@@ -3,6 +3,7 @@
  * region; this file keeps the import surface panels already use, plus the two
  * overlay entry points that stay here. Region order below is evaluation order.
  */
+import { initBridge } from './bridge/outline-nav.js';
 
 // KERNEL — not Vue. Preview iframe bridge. Do not convert this file.
 // Do not import it from resources/js/cp/surfaces/.
@@ -70,3 +71,6 @@ export * from './bridge/editing.js';
 export * from './bridge/sid-targets.js';
 export * from './bridge/outline-nav.js';
 export * from './bridge/inserters.js';
+
+// Runs after every region above has been evaluated — the only safe place for it.
+initBridge();

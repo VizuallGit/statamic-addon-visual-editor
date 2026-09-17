@@ -26,7 +26,10 @@ export async function serveWorktreeBuild(page, buildDir, extra = null) {
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     if (extra && extra(req)) return;
-    const m = req.url().match(/\/vendor\/visual-editor\/build\/(assets\/[^?]+|manifest\.json)/);
+    // The CP loads from /vendor/visual-editor/build/…; the preview document loads
+    // the bridge from the addon's own route, /!/sve/build/… — both must be served,
+    // or the kernel is never under test.
+    const m = req.url().match(/(?:\/vendor\/visual-editor\/build|\/!\/sve\/build)\/(assets\/[^?]+|manifest\.json)/);
     if (!m) { req.continue(); return; }
     const name = m[1].split('/').pop();
     const stem = name.replace(/-[\w-]+(\.\w+)$/, '$1');

@@ -66,11 +66,28 @@ for (const node of ast.body) {
 }
 function insideFunction(root, target) { let found = false; (function rec(n, depth) { if (found || !n || typeof n.type !== 'string') return; if (n === target) { found = depth > 0; return; } const enters = /Function|ArrowFunctionExpression/.test(n.type) ? depth + 1 : depth; for (const key of Object.keys(n)) { if (key === 'type' || key === 'loc') continue; const v = n[key]; if (Array.isArray(v)) v.forEach((c) => rec(c, enters)); else if (v && typeof v.type === 'string') rec(v, enters); } })(root, 0); return found; }
 
+// ---- evaluation-time statements that reach into a sibling region (a boot call at the
+// end of the file, typically) cannot stay in a region file: a region may be evaluated
+// early as another region's dependency, before the barrel and its siblings have run.
+// They move to the barrel, after every `export *`, in their original order.
+const bootStatements = [];
+for (const r of regionNames) {
+  if (r === 'head') continue;
+  for (const node of regions[r].statements) {
+    if (node.type !== 'ExpressionStatement') continue;
+    const uses = new Set();
+    walk(node, (n, parent) => { if (n.type === 'Identifier' && isReference(n, parent) && declared[n.name] && declared[n.name].region !== r) uses.add(n.name); });
+    if (uses.size) bootStatements.push({ node, region: r, uses });
+  }
+}
+for (const b of bootStatements) for (const n of b.uses) declared[n].exported = true;
+
 // ---- report
 for (const r of regionNames) {
   const v = regions[r]; if (!v.statements.length) continue;
   console.log(`${r}: ${v.statements.length} statements, imports used: ${v.usesImport.size}, sibling names: ${Object.entries(v.usesSibling).map(([k, s]) => `${k}(${s.size})`).join(' ') || '-'}${v.tdz.length ? '\n   TDZ RISK: ' + v.tdz.join('; ') : ''}`);
 }
+if (bootStatements.length) console.log(`boot statements moved to the barrel: ${bootStatements.map((b) => `${src.slice(b.node.start, b.node.end).slice(0, 40)} (from ${b.region})`).join('; ')}`);
 const risky = regionNames.flatMap((r) => regions[r].tdz);
 if (risky.length) { console.error('\nRefusing: top-level initializers read sibling regions. Hoist these first.'); process.exit(2); }
 
@@ -107,6 +124,7 @@ function regionText(r) {
     if (!edits.some((e) => e.at === d.node.start)) edits.push({ at: d.node.start, insert: 'export ' });
   }
   if (r === 'head') for (const imp of importSpecs) edits.push({ from: imp.node.start, to: imp.node.end + (src[imp.node.end] === '\n' ? 1 : 0), insert: '' });
+  for (const b of bootStatements) if (b.region === r) edits.push({ from: b.node.start, to: b.node.end + (src[b.node.end] === '\n' ? 1 : 0), insert: '' });
   edits.sort((a, b) => (b.at ?? b.from) - (a.at ?? a.from));
   for (const e of edits) { if (e.at !== undefined) text = text.slice(0, e.at - from) + e.insert + text.slice(e.at - from); else text = text.slice(0, e.from - from) + text.slice(e.to - from); }
   // Paths inside the region text (dynamic imports, `export … from './x.js'`) now sit one level deeper.
@@ -115,6 +133,9 @@ function regionText(r) {
 }
 for (const [path, meta] of Object.entries(files)) files[path].text = meta.header + '\n' + regionText(meta.region);
 const headImports = importSpecs.map((imp) => importText(imp, regions.head.usesImport)).filter(Boolean);
-const barrel = [`/**\n * ${basename(FILE)} — the CP shell's barrel. The code lives in ${DIR}/*.js, one file per\n * region; this file keeps the import surface panels already use, plus the two\n * overlay entry points that stay here. Region order below is evaluation order.\n */`, ...headImports, '', regionText('head'), ...regionNames.filter((r) => r !== 'head' && regions[r].statements.length).map((r) => `export * from './${DIR}/${r}.js';`), ''].join('\n');
+const bootImports = {};
+for (const b of bootStatements) for (const n of b.uses) { const reg = declared[n].region; if (reg !== 'head') (bootImports[reg] ||= new Set()).add(n); }
+const bootLines = bootStatements.length ? ['', '// Runs after every region above has been evaluated — the only safe place for it.', ...bootStatements.map((b) => src.slice(b.node.start, b.node.end))] : [];
+const barrel = [`/**\n * ${basename(FILE)} — the CP shell's barrel. The code lives in ${DIR}/*.js, one file per\n * region; this file keeps the import surface panels already use, plus the two\n * overlay entry points that stay here. Region order below is evaluation order.\n */`, ...headImports, ...Object.entries(bootImports).map(([reg, names]) => `import { ${[...names].sort().join(', ')} } from './${DIR}/${reg}.js';`), '', regionText('head'), ...regionNames.filter((r) => r !== 'head' && regions[r].statements.length).map((r) => `export * from './${DIR}/${r}.js';`), ...bootLines, ''].join('\n');
 if (APPLY) { if (!existsSync(outDir)) mkdirSync(outDir); for (const [path, meta] of Object.entries(files)) writeFileSync(path, meta.text); writeFileSync(FILE, barrel); console.log(`written: ${Object.keys(files).length} region files + barrel`); }
 else { for (const [path, meta] of Object.entries(files)) console.log(`${path}: ${meta.text.split('\n').length} lines`); console.log(`barrel: ${barrel.split('\n').length} lines`); }

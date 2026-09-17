@@ -393,5 +393,3 @@ function buildInserter(win, opts) {
 
   return { el: wrap, ...opts };
 }
-
-initBridge();
