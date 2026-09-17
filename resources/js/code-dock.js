@@ -136,6 +136,7 @@ import { loadCodeMirror, vscTheme } from './lib/codemirror.js';
 import { HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 let EditorView;
 let keymap;
@@ -2462,7 +2463,7 @@ function bindBack(win, dock) {
 
 function currentSectionValues(win) {
   const uid = lastUid;
-  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 
   for (const container of containers) {
     const values = unwrapRef(container.values) || container.values;
@@ -6641,7 +6642,7 @@ function dataVarsView(win) {
     return { view: '', kind: '' };
   }
 
-  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 
   for (const container of containers) {
     const values = unwrapRef(container.values) || container.values;
@@ -6694,7 +6695,7 @@ function dataVarsQuery(win, at) {
 
 /** The page's own values — the whole entry, not the section inside it. */
 function currentPageValues(win) {
-  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 
   for (const container of containers) {
     const values = unwrapRef(container.values) || container.values;
@@ -7941,7 +7942,7 @@ function pageSectionType(win, doc, uid) {
   }
 
   const field = typeof sectionField === 'function' ? sectionField(win) : 'page_sections';
-  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 
   for (const container of containers) {
     const values = unwrapRef(container.values) || container.values;
@@ -7977,7 +7978,7 @@ function collectionViewType(win) {
     return '';
   }
 
-  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 
   for (const container of containers) {
     const values = unwrapRef(container.values) || container.values;

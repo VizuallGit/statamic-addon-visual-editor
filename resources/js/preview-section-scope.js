@@ -11,12 +11,13 @@
 import { sve } from './cp-registry.js';
 import { unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 let snapshot = null;
 let pendingUids = null;
 
 function containers(win) {
-  return typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+  return typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 }
 
 function valuesOf(container) {

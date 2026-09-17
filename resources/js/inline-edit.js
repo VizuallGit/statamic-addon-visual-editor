@@ -27,6 +27,7 @@ import { openCpOverlay } from './cp/open-overlay.js';
 import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
+import { activeContainers, publishContainers } from './lib/publish-containers.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -43,36 +44,8 @@ import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 /** Node types the inline editor may edit as a single contenteditable block. */
 export const EDITABLE_NODE_TYPES = ['heading', 'paragraph'];
 
-// Publish containers captured from Statamic's `publish-container-created`
-// event (fired by Container.vue on mount; payload includes the reactive
-// `values` ref and `setFieldValue`). Registered in initCp, which runs inside
-// Statamic.booting() — before any container mounts.
-export const publishContainers = [];
-
 // The active inline-edit session, keyed by the bridge's requestId.
 export let editSession = null;
-
-export function registerContainerEvents(win = window) {
-  const events = win.Statamic?.$events;
-
-  if (!events?.$on) {
-    return;
-  }
-
-  events.$on('publish-container-created', (payload) => {
-    if (payload?.setFieldValue && payload?.values) {
-      publishContainers.push(payload);
-    }
-  });
-
-  events.$on('publish-container-destroyed', (payload) => {
-    const index = publishContainers.findIndex((c) => c.name === payload?.name);
-
-    if (index !== -1) {
-      publishContainers.splice(index, 1);
-    }
-  });
-}
 
 /**
  * Entry-form values considered "clean" when Live Preview opened (or after save).
@@ -300,66 +273,6 @@ export function writeBardFieldValue(container, path, value, doc, session) {
 
   container.setFieldValue(path, next);
   syncBardEditorFromValue(doc, session?.field, session?.scope, next);
-}
-
-/**
- * Fallback when no container was captured via events (e.g. the CP script ran
- * after the container mounted): walk the Vue component chain from a
- * [data-visual-id] input to the PublishContainer's provided context, which
- * has the same { values, setFieldValue } shape as the event payload.
- */
-export function containerFromDom(doc) {
-  // Synced-section forms often have no [data-visual-id] yet (stripped on save).
-  // Walk from any publish-form mount point, not only AutoUuid inputs.
-  const starters = [
-    doc.querySelector(SELECTORS.visualIdInput),
-    doc.querySelector('.publish-form'),
-    doc.querySelector('.publish-fields'),
-    doc.querySelector('[data-reka-tabs-root]'),
-    doc.querySelector('main'),
-  ].filter(Boolean);
-
-  for (const el of starters) {
-    let component = el.__vueParentComponent;
-
-    while (component) {
-      const ctx = component.provides?.['PublishContainerContext'];
-
-      if (ctx?.setFieldValue) {
-        return ctx;
-      }
-
-      component = component.parent;
-    }
-  }
-
-  return null;
-}
-
-export function activeContainers(doc) {
-  // Most recently created first — matches the form the user is looking at.
-  const list = [...publishContainers].reverse();
-
-  if (!list.length) {
-    const ctx = containerFromDom(doc);
-
-    if (ctx) {
-      list.push(ctx);
-    }
-  }
-
-  // A global section's content belongs to the entry open in the panel — another
-  // window, so none of the containers above have ever heard of it. Appended last,
-  // so the page's own fields always win a name clash, this stands in for it: every
-  // caller (inline edit, findPathByUid, the settings panel) then treats a global
-  // section exactly like one of the page's own.
-  const panel = sve.sectionPanelContainer(doc);
-
-  if (panel) {
-    list.push(panel);
-  }
-
-  return list;
 }
 
 /** The row a field path sits in ("…blocks.1.headline" → "…blocks.1"). */
@@ -2653,9 +2566,7 @@ export function saveSectionDialog(win, section, onSave) {
 
 
 sve.EDITABLE_NODE_TYPES = EDITABLE_NODE_TYPES;
-sve.publishContainers = publishContainers;
 Object.defineProperty(sve, 'editSession', { get() { return editSession; }, set(v) { editSession = v; } });
-sve.registerContainerEvents = registerContainerEvents;
 sve.unwrapRef = unwrapRef; // standalone scripts still read this off window.sve — goes with WP6
 Object.defineProperty(sve, 'entryValuesBaseline', { get() { return entryValuesBaseline; }, set(v) { entryValuesBaseline = v; } });
 Object.defineProperty(sve, 'entryBaselineTimer', { get() { return entryBaselineTimer; }, set(v) { entryBaselineTimer = v; } });
@@ -2671,8 +2582,7 @@ Object.defineProperty(sve, 'bardSyncPending', { get() { return bardSyncPending; 
 sve.syncBardEditorFromValue = syncBardEditorFromValue;
 sve.flushBardEditorSync = flushBardEditorSync;
 sve.writeBardFieldValue = writeBardFieldValue;
-sve.containerFromDom = containerFromDom;
-sve.activeContainers = activeContainers;
+sve.activeContainers = activeContainers; // standalone html-tree-section-sync.js still reads this off window.sve — goes with WP6
 sve.rowPathOf = rowPathOf;
 sve.controlValues = controlValues;
 sve.normText = normText;

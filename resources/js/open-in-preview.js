@@ -12,6 +12,7 @@ import { injectStyle } from './lib/style.js';
 import { unwrapRef } from './lib/values.js';
 import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { ENTRY_EDIT_PATH } from './lib/ids.js';
+import { publishContainers } from './lib/publish-containers.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -516,7 +517,7 @@ export function hasUnsavedChanges(win) {
       }
 
       const tracked = new Set(
-        sve.publishContainers.map((container) => container.name).filter(Boolean)
+        publishContainers.map((container) => container.name).filter(Boolean)
       );
 
       tracked.add('base');
@@ -528,7 +529,7 @@ export function hasUnsavedChanges(win) {
   }
 
   const tracked = new Set(
-    sve.publishContainers.map((container) => container.name).filter(Boolean)
+    publishContainers.map((container) => container.name).filter(Boolean)
   );
 
   tracked.add('base');
@@ -547,7 +548,7 @@ export function discardChanges(win) {
     return;
   }
 
-  const names = new Set(sve.publishContainers.map((container) => container.name).filter(Boolean));
+  const names = new Set(publishContainers.map((container) => container.name).filter(Boolean));
 
   names.add('base');
 

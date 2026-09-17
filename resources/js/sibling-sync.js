@@ -16,6 +16,7 @@ import { injectStyle } from './lib/style.js';
 import { vueRootElement } from './lib/vue-vm.js';
 import { t } from './lib/i18n.js';
 import { dataGet, unwrapRef } from './lib/values.js';
+import { addContainer, onContainer, publishContainers } from './lib/publish-containers.js';
 
 const CONFIG_KEY = 'sve_sync_siblings';
 const STATE_KEY = '_sve_sync';
@@ -35,7 +36,6 @@ const SKIP_TYPES = new Set([
     'auto_uuid',
 ]);
 
-const containers = [];
 let propagating = false;
 
 function clone(v) {
@@ -654,7 +654,7 @@ function inheritOnNewRows(container, parentPath, before, after) {
 function hookContainer(container) {
     if (!container || typeof container.setFieldValue !== 'function') return;
 
-    if (!containers.includes(container)) containers.push(container);
+    addContainer(container);
 
     if (container._sveSyncHooked) return;
 
@@ -750,7 +750,7 @@ function containerOf(vm) {
         }
     }
 
-    return containers[0] || null;
+    return publishContainers[0] || null;
 }
 
 function listOf(el) {
@@ -830,7 +830,7 @@ function vueOf(el) {
 }
 
 function paintRow(row, vm) {
-    const container = vm ? containerOf(vm) : containers[0] || null;
+    const container = vm ? containerOf(vm) : publishContainers[0] || null;
     const values = container ? unwrapRef(container.values) : null;
     const path = vm ? fieldPathOf(vm) : null;
     const scope = values && path ? findSiblingScope(values, path) : null;
@@ -935,7 +935,7 @@ function onLockedInteract(e) {
 
 function toggleRow(row) {
     const vm = vueOf(row) || vueOf(row.querySelector('[class*="-fieldtype"]'));
-    const container = vm ? containerOf(vm) : containers[0] || null;
+    const container = vm ? containerOf(vm) : publishContainers[0] || null;
     const path = (vm && fieldPathOf(vm)) || row.getAttribute('data-sve-sync-path');
 
     if (!container || !path) return;
@@ -1091,23 +1091,9 @@ function ensureStyles(doc) {
 }
 
 function registerContainers() {
-    const events = window.Statamic?.$events;
-
-    if (!events?.$on) return;
-
-    events.$on('publish-container-created', (payload) => {
-        if (payload?.setFieldValue && payload?.values) {
-            hookContainer(payload);
-        }
-    });
-
-    events.$on('publish-container-destroyed', (payload) => {
-        const index = containers.findIndex((c) => c.name === payload?.name);
-
-        if (index !== -1) containers.splice(index, 1);
-    });
+    // Every container Statamic announces, now and later — one list for the whole editor.
+    onContainer(hookContainer);
 }
-
 Statamic.configuring(() => {
     Statamic.$app.mixin({
         mounted() { stamp(this); },

@@ -21,6 +21,7 @@ import { unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
+import { activeContainers, publishContainers, registerContainerEvents, registerContainerSource } from './lib/publish-containers.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -83,7 +84,7 @@ export const GLOBAL_SECTION_CONTAINER = 'sve-global-section';
 export const GLOBAL_SECTION_AWAY_ATTR = 'data-sve-global-away';
 
 // The panel's latest values, as it streams them up: { id, values }. This is what
-// lets a global section be edited inline like any other — see sve.activeContainers.
+// lets a global section be edited inline like any other — see activeContainers.
 
 /** First hydrate of the panel form — not a real edit. Same idea as chrome baseline. */
 
@@ -230,7 +231,7 @@ export function hasUnsavedGlobalSection(win) {
  */
 export function sectionPanelContainer(doc) {
   // Only ever a stand-in for a panel. Edited in this window the form registers a
-  // real publish container of its own (see sve.registerContainerEvents), and the
+  // real publish container of its own (see registerContainerEvents), and the
   // lookup below finds no panel and returns null — as it should.
   const panel = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
   const frame = panel?.querySelector('iframe');
@@ -766,7 +767,7 @@ export function globalSectionEditorOpen(doc) {
 
 /** The synced entry's own publish container, once its form has mounted. */
 export function globalSectionContainer() {
-  return sve.publishContainers.find((container) => container.name === GLOBAL_SECTION_CONTAINER) || null;
+  return publishContainers.find((container) => container.name === GLOBAL_SECTION_CONTAINER) || null;
 }
 
 /**
@@ -1242,6 +1243,8 @@ sve.forwardGlobalSectionFocus = forwardGlobalSectionFocus;
 sve.flushPendingFocusUntilPanel = flushPendingFocusUntilPanel;
 sve.hasUnsavedGlobalSection = hasUnsavedGlobalSection;
 sve.sectionPanelContainer = sectionPanelContainer;
+// activeContainers() consults the panel beside the preview last — see lib/publish-containers.js.
+registerContainerSource(sectionPanelContainer);
 sve.refreshSections = refreshSections;
 Object.defineProperty(sve, 'sectionRefreshPending', { get() { return sectionRefreshPending; }, set(v) { sectionRefreshPending = v; } });
 sve.refreshSectionsUnlessEditing = refreshSectionsUnlessEditing;

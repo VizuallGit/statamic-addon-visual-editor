@@ -56,6 +56,7 @@ import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { featureOn, sectionField } from './lib/config.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -286,7 +287,7 @@ export function reidSection(win, section) {
 export function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) {
   const field = sectionField(win);
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -1157,7 +1158,7 @@ export function watchNewRow(doc, win, data, onAdded) {
   const { uid, anchorUid, sectionUid, field } = data;
   const around = uid || anchorUid;
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -1255,7 +1256,7 @@ export async function handleInsertBlock(data, doc, win) {
     built.nested
   );
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -1331,7 +1332,7 @@ export async function handleInsertBardSet(data, doc, win) {
     },
   };
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -1587,7 +1588,7 @@ export async function insertTemplate(win, doc, afterUid, item) {
 export function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace) {
   const field = sectionField(win);
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -2251,7 +2252,7 @@ export function formHasSectionField(win) {
     return true;
   }
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (values && Array.isArray(values[field])) {
@@ -3165,7 +3166,7 @@ export function stripSectionsFromForm(win, matches) {
     return node;
   };
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
     const rows = values && typeof values === 'object' ? values[field] : null;
 
@@ -3543,7 +3544,7 @@ export function rowLimits(values, parentPath, win) {
 
 /** "+" on an orderable row: add another one just after it, within the field's max. */
 export async function handleAddRow(data, doc, win) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -3623,7 +3624,7 @@ export function handleRemoveRow(data, doc, win) {
     return false;
   }
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -3675,7 +3676,7 @@ export async function handleDuplicateRow(data, doc, win) {
     return false;
   }
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -3748,7 +3749,7 @@ export async function handleDuplicateRow(data, doc, win) {
  * No-ops on grid rows that have no `type` (they're not toggleable sets).
  */
 export function handleHideRow(data, doc, win) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -3793,7 +3794,7 @@ export function handleHideRow(data, doc, win) {
  * +/− that would break the limit (the limit is still enforced here too).
  */
 export function handleRowCaps(data, doc, win) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -3951,7 +3952,7 @@ export function settingsRevealer(setEl) {
  * sortable rows render in values order.
  */
 export function sortableItemForUid(uid, doc) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {

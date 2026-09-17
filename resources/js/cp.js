@@ -79,6 +79,7 @@ import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
+import { activeContainers, registerContainerEvents } from './lib/publish-containers.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -178,7 +179,7 @@ export function setElFromValuesPath(doc, path) {
 export function findSetByValuesPath(uid, doc, matchIndex = 0) {
   let seen = 0;
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -252,7 +253,7 @@ export function rowIsLocked(uid, doc) {
  * found in the CP DOM the same way top-level sections are.
  */
 export function resolveVisualIdFromValues(uid, doc) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -283,7 +284,7 @@ function topLevelSectionRow(uid, doc) {
     return null;
   }
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -1080,7 +1081,7 @@ export function orderableSections(doc) {
   const found = [];
   const win = doc?.defaultView || window;
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -2257,7 +2258,7 @@ function formHasPageBuilder(win) {
     return true;
   }
 
-  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(doc) : [];
+  const containers = typeof activeContainers === 'function' ? activeContainers(doc) : [];
 
   for (const container of containers) {
     const values = unwrapRef(container.values) || container.values;
@@ -4044,7 +4045,7 @@ export function openFirstSectionOnce(win) {
 
   const field = sectionField(win) || 'page_sections';
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
     const rows = values && typeof values === 'object' ? values[field] : null;
 
@@ -4205,7 +4206,7 @@ export function applyDeclaredDefaults(data, doc) {
     return;
   }
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -6109,7 +6110,7 @@ export function ensurePickerVisible(doc, win, anchorRect = null) {
 }
 
 export function repositionAfterAdd(uid, doc) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -9142,10 +9143,10 @@ export function initCp(win = window) {
   sve.listenForSectionValues(win);
 
   // Capture publish containers BEFORE the sve-panel frame boots. The panel's
-  // sve.bootSavedSectionSolo / value poll need sve.activeContainers(); if we register
+  // sve.bootSavedSectionSolo / value poll need activeContainers(); if we register
   // listeners after the panel starts, the container-created event is missed and
   // the sidebar stays on empty entry meta (Published + title) forever.
-  sve.registerContainerEvents(win);
+  registerContainerEvents(win);
 
   // Running as the globals panel inside Live Preview: strip to the form and
   // stream its values up. None of the Live Preview machinery below applies.

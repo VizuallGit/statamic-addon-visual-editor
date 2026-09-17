@@ -22,6 +22,7 @@ import { openCpOverlay } from './cp/open-overlay.js';
 import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
 import { dataGet, unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 const API = '/!/sve/section-types';
 
@@ -134,7 +135,7 @@ export async function refreshFieldsForType(win, setHandle) {
 
   const sve = win.sve;
 
-  if (!sve?.fetchSetMeta || !sve.activeContainers || !sve.writeSetMeta) {
+  if (!sve?.fetchSetMeta || !activeContainers || !sve.writeSetMeta) {
     return 0;
   }
 
@@ -150,7 +151,7 @@ export async function refreshFieldsForType(win, setHandle) {
   const defaults = meta.defaults && typeof meta.defaults === 'object' ? meta.defaults : {};
   let touched = 0;
 
-  for (const container of sve.activeContainers(win.document)) {
+  for (const container of activeContainers(win.document)) {
     const rows = dataGet(unwrapRef(container.values), field);
 
     if (!Array.isArray(rows)) {

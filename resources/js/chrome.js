@@ -11,6 +11,7 @@ import { openSettingsTab, rearmFirstSection } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
 import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
+import { publishContainers } from './lib/publish-containers.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------
@@ -43,7 +44,7 @@ export function chromeEditorOpen(doc) {
 
 /** Theme Settings' own publish container, once its form has mounted. */
 export function chromeContainer() {
-  return sve.publishContainers.find((container) => container.name === CHROME_CONTAINER) || null;
+  return publishContainers.find((container) => container.name === CHROME_CONTAINER) || null;
 }
 
 /**

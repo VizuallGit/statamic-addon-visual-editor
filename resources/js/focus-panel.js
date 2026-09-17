@@ -63,6 +63,7 @@ import { dataGet, findPathByUid, firstEntryId, humanizeHandle, unwrapRef } from 
 import { featureOn } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -677,7 +678,7 @@ export function gridMeta(win, handle) {
 
 /** The set handle ("hero/style_2") of the row a uid points at. */
 export function setTypeForUid(uid, doc) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -708,7 +709,7 @@ export function setTypeForUid(uid, doc) {
  * with nothing left after that is a top-level section, which has no row above it.
  */
 export function parentRowUid(uid, doc) {
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -743,7 +744,7 @@ export function soloUidInValues(uid, doc) {
     return false;
   }
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (values && typeof values === 'object' && findPathByUid(values, uid) !== null) {
@@ -1307,7 +1308,7 @@ export function focusRowMeta(win, uid, doc) {
   let listKey = null;
   let preview = '';
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -1495,7 +1496,7 @@ export function fieldOwnerUidFromValues(field, scope, doc) {
     return null;
   }
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {

@@ -15,11 +15,12 @@
 import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
-import { activeContainers, syncBardEditorFromValue } from './inline-edit.js';
+import { syncBardEditorFromValue } from './inline-edit.js';
 import { sendToPreview } from './cp.js';
 import { currentSectionType } from './cp/preview-context.js';
 import { csrfToken } from './lib/csrf.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 const ON_KEY = 'sve-ai-text-on';
 

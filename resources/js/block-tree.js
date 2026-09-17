@@ -39,6 +39,7 @@ import { CHROME_CONTAINER, COMMENTS_PANEL_ID, FOCUS_ROOT_ATTR, LISTVIEW_PANEL_ID
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -469,7 +470,7 @@ export function listViewTree(win, doc) {
     });
   };
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -844,7 +845,7 @@ export function listViewRowMeta(win, item) {
 export function writeRowLabel(win, uid, label) {
   const doc = win.document;
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (!values || typeof values !== 'object') {
@@ -1147,7 +1148,7 @@ export function setListViewListLock(doc, item, locked) {
 export function listViewPageContainer(win, doc) {
   const field = sectionField(win);
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
 
     if (values && typeof values === 'object' && Array.isArray(values[field])) {

@@ -60,6 +60,7 @@ import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { HTML_TREE_PANEL_ID } from './lib/ids.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -559,7 +560,7 @@ function sectionRootTags(win) {
 function pageHasSectionField(win, doc) {
   const field = sectionField(win) || 'page_sections';
 
-  for (const container of sve.activeContainers?.(doc) || []) {
+  for (const container of activeContainers(doc) || []) {
     const values = unwrapRef(container.values);
     const list = values && typeof values === 'object' ? values[field] : null;
 
@@ -576,7 +577,7 @@ function htmlTreeSections(win, doc) {
   const tags = sectionRootTags(win);
   const out = [];
 
-  for (const container of sve.activeContainers?.(doc) || []) {
+  for (const container of activeContainers(doc) || []) {
     const values = unwrapRef(container.values);
     const list = values && typeof values === 'object' ? values[field] : null;
 

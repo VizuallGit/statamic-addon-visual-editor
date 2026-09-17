@@ -30,6 +30,7 @@ import { CHROME_DESIGNS_ID, CHROME_INLINE, GLOBALS_PANEL_ID, GLOBALS_PICKER_ID, 
 import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -272,7 +273,7 @@ export function markChromeFormClean(win) {
     const doc = iwin?.document;
 
     if (doc) {
-      for (const container of sve.activeContainers(doc)) {
+      for (const container of activeContainers(doc)) {
         const values = unwrapRef(container.values);
 
         if (values && typeof values === 'object') {
@@ -1687,7 +1688,7 @@ export function initGlobalsPanelFrame(win) {
     // container here. The value poll below streams it straight back out, so the
     // page re-renders with it — the edit never has to know it crossed a window.
     if (event.data.type === 'sve-section-set-value') {
-      for (const container of sve.activeContainers(doc)) {
+      for (const container of activeContainers(doc)) {
         container.setFieldValue(event.data.path, event.data.value);
 
         return;
@@ -1711,7 +1712,7 @@ export function initGlobalsPanelFrame(win) {
       const kind = event.data.kind === 'footer' ? 'footer' : 'header';
       const style = event.data.style;
 
-      for (const container of sve.activeContainers(doc)) {
+      for (const container of activeContainers(doc)) {
         container.setFieldValue(`${kind}_style`, style);
 
         return;
@@ -1755,7 +1756,7 @@ export function initGlobalsPanelFrame(win) {
 
     // Parent confirmed a successful Save — treat current values as clean baseline.
     if (event.data.type === 'sve-globals-saved') {
-      for (const container of sve.activeContainers(doc)) {
+      for (const container of activeContainers(doc)) {
         const values = unwrapRef(container.values);
 
         if (values && typeof values === 'object') {
@@ -1789,7 +1790,7 @@ export function initGlobalsPanelFrame(win) {
   // 200ms compare is both cheaper and far more robust than reaching into Vue's
   // reactivity from outside its bundle.
   win.setInterval(() => {
-    for (const container of sve.activeContainers(doc)) {
+    for (const container of activeContainers(doc)) {
       const values = unwrapRef(container.values);
 
       if (!values || typeof values !== 'object') {
@@ -2100,7 +2101,7 @@ export function bootSavedSectionSolo(win, doc) {
 
     // Prefer event-captured containers; fall back to walking the Vue tree from
     // any mounted visual-id input (form may have mounted before we listened).
-    const containers = sve.activeContainers(doc);
+    const containers = activeContainers(doc);
 
     for (const container of containers) {
       const values = unwrapRef(container.values);

@@ -24,6 +24,7 @@ import { a11yUi } from './cp/a11y/store.js';
 import { unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { OUTLINE_PANEL_ID } from './lib/ids.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 // ===== outline =====
 // --- Heading outline panel ------------------------------------------------------
@@ -72,7 +73,7 @@ export function watchOutlineInPreview(win, on) {
 export function outlineSectionKey(win, doc) {
   const field = sectionField(win);
 
-  for (const container of sve.activeContainers(doc)) {
+  for (const container of activeContainers(doc)) {
     const values = unwrapRef(container.values);
     const rows = values?.[field];
 
@@ -133,7 +134,7 @@ export function watchOutlineValues(win) {
   const field = sectionField(win);
   let container = null;
 
-  for (const candidate of sve.activeContainers(doc)) {
+  for (const candidate of activeContainers(doc)) {
     const values = unwrapRef(candidate.values);
 
     if (values && typeof values === 'object' && Array.isArray(values[field])) {

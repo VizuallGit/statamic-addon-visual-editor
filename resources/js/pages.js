@@ -20,6 +20,7 @@ import { COLLECTION_PICKER_ID, LP_PRIMARY_FLAT, NEW_ENTRY_ID } from './lib/ids.j
 import { unwrapRef } from './lib/values.js';
 import { currentCollection, currentEntryId, lpHeader } from './lib/live-preview.js';
 import { csrfToken } from './lib/csrf.js';
+import { activeContainers } from './lib/publish-containers.js';
 
 async function gotoOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -80,7 +81,7 @@ function templateForm(win) {
     return null;
   }
 
-  const containers = typeof sve.activeContainers === 'function' ? sve.activeContainers(win.document) : [];
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
 
   for (const container of containers) {
     const values = unwrapRef(container.values) || container.values;
