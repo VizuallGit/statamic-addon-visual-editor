@@ -2464,7 +2464,6 @@ register('html-tree:arm-pick', (on) => {
 
   return true;
 });
-sve.htmlTreePanel = htmlTreePanel;
 sve.closeHtmlTreePanel = closeHtmlTreePanel;
 sve.fillHtmlTreePane = fillHtmlTreePane;
 sve.showHtmlTreePane = showHtmlTreePane;
@@ -2485,5 +2484,4 @@ export function clearHtmlTreeTemplates() {
 }
 
 sve.renderHtmlTree = renderHtmlTree;
-sve.clearHtmlTreeTemplates = clearHtmlTreeTemplates;
 sve.armHtmlTreePrefetch = armHtmlTreePrefetch;

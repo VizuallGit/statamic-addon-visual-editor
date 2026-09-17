@@ -632,23 +632,11 @@ export function leaveQuietly(win, leave, attempts = 0) {
 
   leave();
 }
-sve.openInPreviewCollections = openInPreviewCollections;
-sve.previewUrlFor = previewUrlFor;
-sve.OPEN_IN_PREVIEW_ORIGIN = OPEN_IN_PREVIEW_ORIGIN;
 Object.defineProperty(sve, 'openedFrom', { get() { return openedFrom; }, set(v) { openedFrom = v; } });
-sve.rememberOrigin = rememberOrigin;
 sve.claimOrigin = claimOrigin;
 sve.originForCurrentEntry = originForCurrentEntry;
 sve.forgetOrigin = forgetOrigin;
-sve.goToPreview = goToPreview;
-sve.ENTRY_OPEN_STYLE_ID = ENTRY_OPEN_STYLE_ID;
-sve.ENTRY_OPEN_ATTR = ENTRY_OPEN_ATTR;
-sve.ensureEntryOpenStyles = ensureEntryOpenStyles;
-sve.clearEntryOpening = clearEntryOpening;
-sve.entryTitleAnchor = entryTitleAnchor;
-sve.showEntryOpening = showEntryOpening;
 sve.initOpenInPreview = initOpenInPreview;
-sve.saveListeners = saveListeners;
 sve.onEntrySave = onEntrySave;
 sve.watchEntrySaves = watchEntrySaves;
 sve.disarmUnloadWarning = disarmUnloadWarning;
@@ -657,5 +645,4 @@ sve.discardChanges = discardChanges;
 sve.dismissDirtyWarning = dismissDirtyWarning;
 sve.saveButtonIn = saveButtonIn;
 sve.publishButtonIn = publishButtonIn;
-sve.isPublishButtonLabel = isPublishButtonLabel;
 sve.leaveQuietly = leaveQuietly;

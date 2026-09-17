@@ -304,6 +304,4 @@ export function ensureLpMoreButton(win) {
     anchor.after(pill);
   }
 }
-
-sve.ensureLpMoreButton = ensureLpMoreButton;
 sve.dismissLpMoreMenu = dismissLpMoreMenu;

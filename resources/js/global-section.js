@@ -1231,54 +1231,28 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
 
   return true;
 }
-
-
-
-sve.GLOBAL_SECTION_INLINE = GLOBAL_SECTION_INLINE;
-sve.GLOBAL_SECTION_CONTAINER = GLOBAL_SECTION_CONTAINER;
-sve.GLOBAL_SECTION_AWAY_ATTR = GLOBAL_SECTION_AWAY_ATTR;
 Object.defineProperty(sve, 'sectionsStashActive', { get() { return sectionsStashActive; }, set(v) { sectionsStashActive = v; } });
-sve.globalSectionPanelFrame = globalSectionPanelFrame;
 sve.forwardGlobalSectionFocus = forwardGlobalSectionFocus;
 sve.flushPendingFocusUntilPanel = flushPendingFocusUntilPanel;
 sve.hasUnsavedGlobalSection = hasUnsavedGlobalSection;
 sve.sectionPanelContainer = sectionPanelContainer;
 // activeContainers() consults the panel beside the preview last — see lib/publish-containers.js.
 registerContainerSource(sectionPanelContainer);
-sve.refreshSections = refreshSections;
 Object.defineProperty(sve, 'sectionRefreshPending', { get() { return sectionRefreshPending; }, set(v) { sectionRefreshPending = v; } });
-sve.refreshSectionsUnlessEditing = refreshSectionsUnlessEditing;
 sve.flushPendingSectionRefresh = flushPendingSectionRefresh;
 sve.postSectionValues = postSectionValues;
 sve.clearSectionsStash = clearSectionsStash;
-sve.sectionSaveListeners = sectionSaveListeners;
-sve.onSectionSave = onSectionSave;
 sve.saveGlobalSectionPanel = saveGlobalSectionPanel;
-sve.announceSectionSave = announceSectionSave;
-sve.watchGlobalSectionPanelSaves = watchGlobalSectionPanelSaves;
-sve.ensureGlobalSectionPanelSaveWatch = ensureGlobalSectionPanelSaveWatch;
 sve.revealSectionPanelFrame = revealSectionPanelFrame;
 sve.closeGlobalSectionPanel = closeGlobalSectionPanel;
 sve.openGlobalSectionPanel = openGlobalSectionPanel;
-sve.openGlobalSectionPanelFrame = openGlobalSectionPanelFrame;
 Object.defineProperty(sve, 'globalSectionApp', { get() { return globalSectionApp; }, set(v) { globalSectionApp = v; } });
 Object.defineProperty(sve, 'globalSectionEntryPath', { get() { return globalSectionEntryPath; }, set(v) { globalSectionEntryPath = v; } });
 Object.defineProperty(sve, 'globalSectionValuesTimer', { get() { return globalSectionValuesTimer; }, set(v) { globalSectionValuesTimer = v; } });
 Object.defineProperty(sve, 'globalSectionValuesSeen', { get() { return globalSectionValuesSeen; }, set(v) { globalSectionValuesSeen = v; } });
 sve.globalSectionHost = globalSectionHost;
 sve.globalSectionEditorOpen = globalSectionEditorOpen;
-sve.globalSectionContainer = globalSectionContainer;
 sve.fetchInertiaPage = fetchInertiaPage;
-sve.fetchGlobalSectionProps = fetchGlobalSectionProps;
-sve.globalSectionFormProps = globalSectionFormProps;
 sve.mountBorrowedForm = mountBorrowedForm;
-sve.mountGlobalSectionForm = mountGlobalSectionForm;
 sve.hidePageFieldsForGlobalSection = hidePageFieldsForGlobalSection;
 sve.showPageFieldsAgain = showPageFieldsAgain;
-sve.openGlobalSectionInline = openGlobalSectionInline;
-sve.bootGlobalSectionSolo = bootGlobalSectionSolo;
-sve.watchGlobalSectionInlineValues = watchGlobalSectionInlineValues;
-sve.stopGlobalSectionInlineValues = stopGlobalSectionInlineValues;
-sve.pressGlobalSectionSave = pressGlobalSectionSave;
-sve.watchGlobalSectionInlineSaves = watchGlobalSectionInlineSaves;
-sve.closeGlobalSectionInline = closeGlobalSectionInline;

@@ -467,24 +467,10 @@ export function setLpCollapsed(win, collapsed) {
 
   sve.ensureLpPanelToggle(win);
 }
-sve.KEEP_CHROME_KEY = KEEP_CHROME_KEY;
-sve.LP_WIDTH_GROUP_ID = LP_WIDTH_GROUP_ID;
-sve.LP_MODES = LP_MODES;
-sve.LP_MODE_LABELS = LP_MODE_LABELS;
-sve.COMMENTS_BADGE_FG = COMMENTS_BADGE_FG;
-sve.COMMENTS_BADGE_IDLE_TYPE = COMMENTS_BADGE_IDLE_TYPE;
-sve.COMMENTS_BADGE_ACTIVE_BG = COMMENTS_BADGE_ACTIVE_BG;
 sve.paintLpActiveControl = paintLpActiveControl;
-sve.isLpSaveLabel = isLpSaveLabel;
-sve.isLpPublishLabel = isLpPublishLabel;
 sve.findLpSaveButton = findLpSaveButton;
-sve.findLpRightActionTail = findLpRightActionTail;
 sve.syncLpRightBarGaps = syncLpRightBarGaps;
 sve.paintLpSaveButton = paintLpSaveButton;
-sve.LP_SEP_OPACITY = LP_SEP_OPACITY;
-sve.LP_CONTROL_PAD = LP_CONTROL_PAD;
-sve.LP_CHROME_H = LP_CHROME_H;
-sve.LP_CONTROL_H = LP_CONTROL_H;
 sve.lpHeaderBg = lpHeaderBg;
 sve.lpModeSeparator = lpModeSeparator;
 sve.lpMode = lpMode;

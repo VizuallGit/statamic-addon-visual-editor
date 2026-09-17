@@ -621,8 +621,3 @@ function firstFile(nodes) {
 
   return '';
 }
-
-sve.closeSiteCss = closeSiteCss;
-sve.toggleSiteCss = toggleSiteCss;
-sve.siteCssAllowed = siteCssAllowed;
-sve.isSiteCssOpen = isSiteCssOpen;

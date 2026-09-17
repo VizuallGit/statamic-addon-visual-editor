@@ -627,6 +627,3 @@ export function closeA11yTab(win) {
     host = null;
   }
 }
-
-sve.openA11yTab = openA11yTab;
-sve.closeA11yTab = closeA11yTab;

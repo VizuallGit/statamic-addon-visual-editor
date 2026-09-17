@@ -997,23 +997,12 @@ async function syncCollectionPicker(win) {
   await fillEntries(true);
   collectionSelect.dataset.svePickerKey = key;
 }
-sve.ENTRY_PICKER_ID = ENTRY_PICKER_ID;
-sve.pickerCollections = pickerCollections;
-sve.createPreviewCenteredOverlay = createPreviewCenteredOverlay;
-sve.dialogCardStyle = dialogCardStyle;
-sve.dialogCancelButtonStyle = dialogCancelButtonStyle;
-sve.dialogPrimaryButtonStyle = dialogPrimaryButtonStyle;
-sve.dialogDangerButtonStyle = dialogDangerButtonStyle;
 sve.confirmUnsaved = confirmUnsaved;
 sve.confirmLeaveGlobalsOverlay = confirmLeaveGlobalsOverlay;
 sve.confirmCloseDiscard = confirmCloseDiscard;
 sve.handleRequestCloseChrome = handleRequestCloseChrome;
 sve.handleRequestCloseGlobal = handleRequestCloseGlobal;
-sve.LP_NAV_SPINNER_ID = LP_NAV_SPINNER_ID;
-sve.showNavSpinner = showNavSpinner;
 sve.hideNavSpinner = hideNavSpinner;
 sve.saveThenNavigate = saveThenNavigate;
 sve.navigateFromLp = navigateFromLp;
-sve.newEntryDialog = newEntryDialog;
-sve.slugify = slugify;
 sve.ensureCollectionPicker = ensureCollectionPicker;

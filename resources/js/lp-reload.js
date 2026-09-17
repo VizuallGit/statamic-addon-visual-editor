@@ -152,4 +152,3 @@ export function ensureLpReloadButton(win) {
 }
 
 sve.ensureLpReloadButton = ensureLpReloadButton;
-sve.reloadEverything = reloadEverything;
