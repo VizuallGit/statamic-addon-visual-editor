@@ -18,10 +18,10 @@
  */
 import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
-import { LP_ICON_BTN_STYLE, HEADER_SURFACE } from './cp.js';
+import { LP_ICON_BTN_STYLE } from './cp.js';
 import { injectStyle } from './lib/style.js';
 import { lpHeader } from './lib/live-preview.js';
-import { LP_BACK_ID, LP_CHROME_H, LP_RELOAD_ID } from './lib/ids.js';
+import { HEADER_SURFACE, LP_BACK_ID, LP_CHROME_H, LP_RELOAD_ID } from './lib/ids.js';
 import { navigateFromLp } from './pages.js';
 
 // No static import of html-tree or section-fields. Both are lazy chunks, and

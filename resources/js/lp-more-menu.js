@@ -5,7 +5,7 @@
 import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
-import { HEADER_SURFACE, LP_BACK_MENU_ID, LP_ICON_BTN_STYLE, applyHeaderTab, ensureRightTool, resetEditorLayout } from './cp.js';
+import { LP_BACK_MENU_ID, LP_ICON_BTN_STYLE, applyHeaderTab, ensureRightTool, resetEditorLayout } from './cp.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './right-dock.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
@@ -13,7 +13,7 @@ import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock } from '
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
-import { LP_BACK_ID, LP_CHROME_H, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM } from './lib/ids.js';
+import { HEADER_SURFACE, LP_BACK_ID, LP_CHROME_H, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM, LP_SIDE_MAX_REM, LP_SIDE_MIN_REM } from './lib/ids.js';
 import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { featureOn } from './lib/config.js';

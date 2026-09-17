@@ -36,6 +36,8 @@ const KERNEL = ['preview.js', 'overlay-host.js', 'bridge.js'];
 const KERNEL_SIDE = ['html-pick-align.js', 'ai-text-bridge.js', 'ai-text-icon.js'];
 /** The CP shell: boot, the Live Preview lifecycle and the section-scope wrapper it uses. */
 const SHELL = ['addon.js', 'cp.js', 'lp-replay.js', 'preview-section-scope.js'];
+/** Directories whose files are shell code too (cp.js's regions after WP5). */
+const SHELL_DIRS = ['cp-shell/'];
 
 /** What a non-kernel file may not reach for. Each needle is a RegExp over the source. */
 const NEEDLES = {
@@ -44,6 +46,7 @@ const NEEDLES = {
   'import bridge.js': /from\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*bridge\.js['"]|import\(\s*['"](?:\.\.?\/)+(?:[\w-]+\/)*bridge\.js['"]/,
   'import cp.js': /from\s*['"](?:\.\.?\/)+cp\.js['"]|import\(\s*['"](?:\.\.?\/)+cp\.js['"]/,
   'import lp-replay.js': /from\s*['"](?:\.\.?\/)+lp-replay\.js['"]/,
+  'import cp-shell/*': /from\s*['"](?:\.\.?\/)+cp-shell\/[\w-]+\.js['"]/,
   replayLivePreview: /\breplayLivePreview\b/,
   watchPreviewRenders: /\bwatchPreviewRenders\b/,
   gotoOverlay: /\bgotoOverlay\b/,
@@ -72,7 +75,7 @@ for (const file of walk(JS)) {
   const rel = relative(JS, file);
   const base = rel.split('/').pop();
 
-  if (SHELL.includes(rel) || rel.startsWith('lib/')) {
+  if (SHELL.includes(rel) || rel.startsWith('lib/') || SHELL_DIRS.some((d) => rel.startsWith(d))) {
     continue;
   }
 

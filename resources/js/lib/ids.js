@@ -87,3 +87,17 @@ export const COMMENTS_BADGE_ACTIVE_BG =
 export const LP_TOOLBAR_GAP = 8;
 export const LP_BACK_ID = '__sve-lp-back';
 export const LP_RELOAD_ID = '__sve-lp-reload';
+
+// Topbar surfaces: colour tokens the toolbar, the reload button and the pickers share
+/** Fladen bag både ikonknappen og kontrolgruppen — samme, så de hører sammen. */
+export const HEADER_SURFACE = 'rgba(128,128,128,.16)';
+/** Hover-flade på venstre toolbar-ikoner — idle-flade på close, så den læses som en knap. */
+export const HEADER_ICON_HOVER = 'rgba(128, 128, 128, .28)';
+/**
+ * Fladen bag et felt man vælger i, oven på gruppens.
+ *
+ * Lysere end gruppen, ikke mørkere: den mørke er taget af knappen, og de to må
+ * ikke kunne forveksles. Et felt man vælger i og en knap man trykker på gør ikke
+ * det samme, så de skal heller ikke se ens ud.
+ */
+export const HEADER_FIELD_SURFACE = 'rgba(128,128,128,.3)';

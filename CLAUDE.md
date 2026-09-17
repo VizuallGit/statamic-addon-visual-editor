@@ -24,6 +24,8 @@ The authoring feel should be **Astro-like**: type HTML, CSS, or a class in the d
 ## Surfaces (a change touches one)
 
 1. **Core preview runtime** — `resources/js/preview.js`, `overlay-host.js`, `bridge.js`, plus the CP-side Live Preview lifecycle in `lp-replay.js` (`lastPreviewUrl`, `watchPreviewRenders`, `replayLivePreview`) and `gotoOverlay` / `openOverlay` in `cp.js`. **Locked.** Open these only if the human says in the same message that the bug is overlay, morph, eject, or bridge.
+
+   **The CP shell since WP5a:** `cp.js` is a 47-line barrel. Its code lives in `cp-shell/`, one file per former region — `sets.js`, `preview-chrome.js`, `block-order.js`, `header-toolbar.js`, `grid-rows.js`, `add-section.js`, `boot.js` — each importing exactly what it uses from its siblings, `lib/` and the panels. Panels keep importing from `cp.js`; a panel importing `cp-shell/*` directly fails the lint. The split was made by `scripts/split-regions.mjs` (verbatim slices along `// ===== region =====` markers; refuses when a top-level initializer reads a sibling region) after `scripts/measure-regions.mjs` showed no `let` written across regions.
 2. **Annotations** — `{{ visual_edit }}` (PHP) + CP highlight.
 3. **Set insertion** — plus in preview → Statamic’s own Search Sets (`handleAddBlockNative` / `openSetPickerOverPreview`). Do not replace with a custom picker.
 4. **Panels** — focus, globals, library, chrome, performance, HTML tree.
