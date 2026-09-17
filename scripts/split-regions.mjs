@@ -58,7 +58,9 @@ for (const node of ast.body) {
   walk(node, (n, parent) => {
     if (n.type !== 'Identifier' || !isReference(n, parent)) return;
     const d = declared[n.name];
-    if (d && d.region !== r) { (regions[r].usesSibling[d.region] ||= new Set()).add(n.name); if (topLevelInit && !insideFunction(node, n)) regions[r].tdz.push(`${n.name} (from ${d.region}) in a top-level statement`); }
+    // A sibling's function declaration is initialised before any module body runs,
+    // so a top-level call into one is safe; only const/let/class bindings are TDZ.
+    if (d && d.region !== r) { (regions[r].usesSibling[d.region] ||= new Set()).add(n.name); if (topLevelInit && d.kind !== 'FunctionDeclaration' && !insideFunction(node, n)) regions[r].tdz.push(`${n.name} (${d.kind} from ${d.region}) in a top-level statement`); }
     for (const imp of importSpecs) if (imp.names.includes(n.name)) regions[r].usesImport.add(n.name);
   });
 }

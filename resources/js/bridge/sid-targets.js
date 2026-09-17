@@ -1,0 +1,648 @@
+/**
+ * bridge.js — region "sid-targets", split out in WP5. Same statements, same order;
+ * only the imports are new. See the barrel bridge.js for what the shell exports.
+ */
+import { HT_PATH_ATTR } from '../html-pick-align.js';
+import { bridgeState } from '../bridge/state.js';
+import { ACTIVE_ATTR, SID_ATTR, SID_FIELD_ATTR, featureOn, t } from '../bridge.js';
+import { normText } from './messages.js';
+import { controlsFrom, findPrecedingSetSibling, openToolbarMenu, requestInlineEdit } from './inline-edit.js';
+import { widthDragJustEnded } from './grid.js';
+import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR, hideHoverBelt, hoverBeltEl, openRowToolbar, showHoverBelt } from './row-toolbar.js';
+import { INSERT_LAYER_ID } from './outline-nav.js';
+import { CHROME_ATTR, CHROME_BAR_ID, CHROME_LOCKS_PAGE, confirmEnterGlobal, rebindGlobalFocus } from './global-sections.js';
+import { chromeEditable, confirmEnterChrome, hasChromeFocusClass, requestCloseChrome } from './header-footer.js';
+import { finishEditing, wrapUpBeltTarget } from './editing.js';
+import { hideMoveControl } from './row-caps-move.js';
+import { applyOutlineTone } from './drag.js';
+import { COMPONENT_SRC, holdPick } from './component-pick.js';
+
+// ===== sid-targets =====
+/**
+ * Resolves the visual-editor target for a pointer event, seeing through
+ * decorative overlays that swallow the event.
+ *
+ * A common site pattern makes a whole card clickable with a stretched link —
+ * `a::after { position:absolute; inset:0 }`, often z-indexed above the card's
+ * text. The real pointer event then lands on that overlay, so
+ * event.target.closest() walks up to the enclosing section/row and never
+ * reaches the inline-editable field the user was pointing at: it sits UNDER the
+ * overlay as a cousin, not an ancestor.
+ *
+ * Resolve the normal target first. When it is not itself an editable field,
+ * scan the hit-test stack at the pointer for the topmost [data-sid-field]
+ * element that lives inside that target, and prefer it. Constraining to
+ * base.contains(field) means we only ever look through overlays within the same
+ * block — a field in another section/row is never grabbed by mistake.
+ */
+export function resolveSidTarget(win, event) {
+  const base = event.target.closest(`[${SID_ATTR}], [${SID_FIELD_ATTR}]`);
+
+  if (!base || base.hasAttribute(SID_FIELD_ATTR)) {
+    return base;
+  }
+
+  if (typeof event.clientX !== 'number' || typeof event.clientY !== 'number') {
+    return base;
+  }
+
+  const stack = win.document.elementsFromPoint(event.clientX, event.clientY);
+
+  for (const el of stack) {
+    // The stack is topmost-first; a covered field always paints above its own
+    // section/row, so once we reach `base` there is nothing left to find.
+    if (el === base) {
+      break;
+    }
+
+    const field = el.closest?.(`[${SID_FIELD_ATTR}]`);
+
+    if (field && base.contains(field)) {
+      return field;
+    }
+  }
+
+  return base;
+}
+
+const ICON_PICKER_TYPES = ['iconify', 'iconamic'];
+
+function isIconPickerField(el) {
+  const type = (el.getAttribute('data-sid-fieldtype') || '').toLowerCase();
+
+  if (ICON_PICKER_TYPES.includes(type)) {
+    return true;
+  }
+
+  // Blueprint missed: a wrapper whose only content is an icon graphic.
+  if (!el.hasAttribute('data-sid-inline-edit')) {
+    return false;
+  }
+
+  return !!el.querySelector('svg, iconify-icon') && normText(el.textContent) === '';
+}
+
+function iconFieldHasValue(el) {
+  if (el.querySelector('[data-sve-icon-empty]')) {
+    return false;
+  }
+
+  if (el.querySelector('svg, img, iconify-icon, picture')) {
+    return true;
+  }
+
+  return normText(el.textContent) !== '';
+}
+
+function iconFieldHasConfiguredDefault(el) {
+  return (
+    el.hasAttribute('data-sve-icon-has-default') ||
+    el.hasAttribute('data-sve-icon-default') ||
+    !!el.querySelector('[data-sve-icon-default], [data-sve-icon-has-default]')
+  );
+}
+
+function postIconEdit(win, wrapper, action) {
+  win.parent.postMessage(
+    {
+      source: 'statamic-visual-editor',
+      type: 'icon-edit',
+      action,
+      field: wrapper.getAttribute(SID_FIELD_ATTR),
+      scope: wrapper.getAttribute('data-sid-field-uid') || undefined,
+    },
+    win.location.origin
+  );
+}
+
+/**
+ * Change / Remove hung off the clicked icon — same two actions as the Iconify
+ * field in the sidebar, but sitting on the preview so the panel can stay closed.
+ * If the fieldtype has a default, Remove is omitted: the icon cannot be cleared.
+ */
+function openIconFieldMenu(win, wrapper) {
+  const items = [
+    {
+      label: t('icon_change'),
+      run: () => postIconEdit(win, wrapper, 'change'),
+    },
+  ];
+
+  if (!iconFieldHasConfiguredDefault(wrapper)) {
+    items.push({
+      label: t('icon_remove'),
+      danger: true,
+      run: () => postIconEdit(win, wrapper, 'remove'),
+    });
+  }
+
+  openToolbarMenu(win, wrapper, 'icon-picker', items);
+}
+
+export function createClickHandler(win) {
+  return function handleClick(event) {
+    // The click generated by releasing a drag is not a click — swallow it
+    // before it starts an inline edit or a focus jump.
+    if (bridgeState.dragJustEnded || widthDragJustEnded) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      return;
+    }
+
+    // Move-control / wrap-up-belt clicks: the buttons handle themselves (and this
+    // handler runs in the capture phase — stopping here would block their listeners).
+    if (bridgeState.moveCtrlEl && bridgeState.moveCtrlEl.contains(event.target)) {
+      return;
+    }
+
+    if (hoverBeltEl && hoverBeltEl.contains(event.target)) {
+      return;
+    }
+
+    // The global-section bar owns its own clicks.
+    if (event.target.closest(`#${GLOBAL_BAR_ID}`)) {
+      return;
+    }
+
+    // Confirm overlays own their clicks (don't treat as "outside").
+    if (event.target.closest('#__sve-preview-confirm')) {
+      return;
+    }
+
+    // Inline toolbar + portaled menus live on <body>, outside [data-sve-global]
+    // / chrome. They are still editing the focused section — never a leave.
+    if (
+      (bridgeState.toolbarEl && bridgeState.toolbarEl.contains(event.target)) ||
+      event.target.closest?.(
+        '[data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu], [data-sve-bard-set-inserter]'
+      )
+    ) {
+      return;
+    }
+
+    // The block inserters draw in an overlay layer on <body>, outside
+    // [data-sve-global] — but the "+" inserts INTO the section it sits on. A
+    // click on one is editing the focused section, never a leave.
+    if (event.target.closest?.(`#${INSERT_LAYER_ID}`)) {
+      return;
+    }
+
+    // The chrome (header/footer) bar owns its own clicks.
+    if (event.target.closest(`#${CHROME_BAR_ID}`)) {
+      return;
+    }
+
+    // First click on header/footer: confirm (“global — applies everywhere”),
+    // then step into chrome focus. Once inside, nested clicks edit normally.
+    // A site that has switched this half of the chrome off gets neither — the
+    // click falls through to whatever is under it, as on any other page.
+    const chromeEl = chromeEditable(event.target.closest(`[${CHROME_ATTR}]`));
+
+    if (chromeEl) {
+      if (bridgeState.chromeFocusEl !== chromeEl) {
+        event.preventDefault();
+        event.stopPropagation();
+        confirmEnterChrome(win, chromeEl);
+
+        return;
+      }
+    } else if (bridgeState.chromeFocusEl || hasChromeFocusClass(win.document)) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Inside the header or the footer the rest of the page is locked, exactly
+      // as it is inside a global section: a click out there does nothing at all.
+      // Leaving is a decision made on the bar at the bottom — Save or Close — or
+      // with Escape, not something that happens to you because the pointer
+      // landed an inch too far down the page.
+      if (!CHROME_LOCKS_PAGE) {
+        requestCloseChrome(win);
+      }
+
+      return;
+    }
+
+    // Global section: confirm before entering ("changes apply everywhere").
+    // Outside click asks CP to close — same discard warning as chrome.
+    // Compare by source id (not element ref): a synced entry can render several
+    // sections, and clicks inside any of them must stay in focus — not re-open
+    // the enter dialog.
+    const globalSection = event.target.closest(`[${GLOBAL_ATTR}]`);
+
+    if (globalSection) {
+      const sourceId = globalSection.getAttribute(GLOBAL_ATTR);
+
+      if (bridgeState.globalFocusId && bridgeState.globalFocusId === sourceId) {
+        // Morph may have stripped data-sve-global-focused — recover and keep editing.
+        if (!globalSection.hasAttribute(GLOBAL_FOCUS_ATTR)) {
+          rebindGlobalFocus(win, sourceId);
+        }
+        // Fall through to normal field/inline-edit handling below.
+      } else {
+        event.preventDefault();
+        event.stopPropagation();
+        confirmEnterGlobal(win, globalSection);
+
+        return;
+      }
+    } else if (bridgeState.globalFocusEl || bridgeState.globalFocusId) {
+      // Inside a global section, the rest of the page is locked: a click out
+      // there does nothing at all. Leaving is a decision you make on the bar at
+      // the bottom — Save or Close — or with Escape, not something that happens
+      // to you because the pointer landed an inch too far to the left.
+      event.preventDefault();
+      event.stopPropagation();
+
+      return;
+    }
+
+    if (bridgeState.editing) {
+      // Toolbar clicks: return without stopPropagation — this handler runs in
+      // the capture phase, and stopping here would prevent the event from ever
+      // reaching the toolbar buttons' own click listeners.
+      if (bridgeState.toolbarEl && bridgeState.toolbarEl.contains(event.target)) {
+        return;
+      }
+
+      // Dropdowns / swatch strips are portaled to <body> (not inside toolbarEl).
+      // Treating them as "outside" committed the edit before the option click
+      // ran — size never applied, and colour hit a dead CP session (preview
+      // painted via the closure, sidebar only after the next keystroke).
+      if (
+        event.target.closest?.(
+          '[data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu]'
+        )
+      ) {
+        return;
+      }
+
+      // Bard set "+" (same idea as the toolbar): must not commit the edit, or
+      // the inserter is torn down before its own click listener can run.
+      // Do NOT stopPropagation — this handler is capture-phase; stopping would
+      // keep the event from reaching the button.
+      if (event.target.closest?.('[data-sve-bard-set-inserter]')) {
+        return;
+      }
+
+      if (bridgeState.editing.el.contains(event.target)) {
+        // Clicking inside the active inline editor: let the browser place the
+        // caret, but isolate the click from site JS (lightboxes, sliders, …).
+        event.stopPropagation();
+
+        return;
+      }
+
+      // Clicking anywhere else commits the edit; fall through so the click
+      // also performs its normal focus/edit-request behaviour.
+      finishEditing(win, false);
+    }
+
+    // Content that comes from a global set: open it in the panel beside the
+    // preview rather than trying to edit it in place — the value is usually
+    // rendered inside other text, so what's on screen isn't what's stored.
+    const globalEl = event.target.closest('[data-sid-global]');
+
+    if (globalEl) {
+      event.preventDefault();
+      event.stopPropagation();
+      win.parent.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'open-global',
+          target: globalEl.getAttribute('data-sid-global') || '',
+        },
+        win.location.origin
+      );
+
+      return;
+    }
+
+    if (bridgeState.htmlPick) {
+      const picked = event.target.closest?.(`[${HT_PATH_ATTR}]`);
+
+      // Picking a tag for the tree and editing the text in it are not rivals:
+      // the click can say which tag it was and still open the field. Only a
+      // click that lands somewhere with nothing to edit is swallowed here.
+      const editable =
+        featureOn('inline_edit') && !!event.target.closest?.('[data-sid-inline-edit]');
+
+      if (picked) {
+        if (!editable) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+          el.removeAttribute(ACTIVE_ATTR);
+        });
+        hideHoverBelt(win);
+        hideMoveControl(win);
+        applyOutlineTone(win, picked);
+        picked.setAttribute(ACTIVE_ATTR, '');
+        win.parent.postMessage(
+          {
+            source: 'statamic-visual-editor',
+            type: 'click',
+            htmlPath: picked.getAttribute(HT_PATH_ATTR),
+            // What a partial drew is not in this file's markup at all, so the
+            // nearest stamped tag is the call's surroundings rather than the
+            // thing clicked. Saying which component it was lets the tree mark
+            // the call itself.
+            componentSrc: event.target.closest?.(`[${COMPONENT_SRC}]`)?.getAttribute(COMPONENT_SRC) || '',
+          },
+          win.location.origin
+        );
+
+        if (!editable) {
+          return;
+        }
+      } else {
+        // Nothing to report yet — this element belongs to a file the dock has
+        // not opened. The click below moves it there; `reportAwaitedPick`
+        // finishes the job when the stamping arrives.
+        bridgeState.pickAwait = holdPick(event.target);
+      }
+    }
+
+    const target = resolveSidTarget(win, event);
+
+    if (!target) {
+      win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+        el.removeAttribute(ACTIVE_ATTR);
+      });
+      hideHoverBelt(win);
+
+      return;
+    }
+
+    event.preventDefault();
+
+    win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
+      el.removeAttribute(ACTIVE_ATTR);
+    });
+
+    // Links wrap-up (and similar blocks with nested orderable rows): same belt
+    // as a single link, opened on click — not hover.
+    const wrapUp = wrapUpBeltTarget(target, event);
+
+    if (wrapUp) {
+      applyOutlineTone(win, wrapUp);
+      wrapUp.setAttribute(ACTIVE_ATTR, '');
+      hideMoveControl(win);
+      showHoverBelt(win, wrapUp);
+
+      const uid =
+        wrapUp.getAttribute(GLOBAL_ROW_ATTR) ||
+        wrapUp.getAttribute(SID_ATTR) ||
+        wrapUp.getAttribute('data-sid-field-uid');
+
+      if (uid) {
+        win.parent.postMessage(
+          {
+            source: 'statamic-visual-editor',
+            type: 'click',
+            uid,
+            global: !!wrapUp.closest(`[${GLOBAL_FOCUS_ATTR}]`),
+          },
+          win.location.origin
+        );
+      } else if (target.hasAttribute(SID_FIELD_ATTR)) {
+        win.parent.postMessage(
+          {
+            source: 'statamic-visual-editor',
+            type: 'click',
+            field: target.getAttribute(SID_FIELD_ATTR),
+            scope: target.getAttribute('data-sid-field-uid') || undefined,
+            label: target.getAttribute('data-sid-label') || undefined,
+            global: !!target.closest(`[${GLOBAL_FOCUS_ATTR}]`),
+          },
+          win.location.origin
+        );
+      }
+
+      return;
+    }
+
+    hideHoverBelt(win);
+
+    applyOutlineTone(win, target);
+    target.setAttribute(ACTIVE_ATTR, '');
+
+    // Popup targeting (data-sid-action="popup") — opens a CP popup for this item.
+    if (target.getAttribute('data-sid-action') === 'popup') {
+      const popupMessage = {
+        source: 'statamic-visual-editor',
+        type: 'popup',
+        uid: target.getAttribute(SID_ATTR),
+        // The containing section's uid — lets the CP expand and scroll the
+        // publish form to the section whose popup is being opened.
+        sectionUid:
+          target.parentElement?.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) ?? null,
+      };
+
+      // Dual-annotated blocks (popup + field + inline-edit): clicks on content
+      // try inline editing first. The CP denies when the clicked element does
+      // not map onto the field value (padding, images, unmatched text) — the
+      // edit-deny handler then opens the popup instead.
+      if (
+        featureOn('inline_edit') &&
+        target.hasAttribute('data-sid-inline-edit') &&
+        target.hasAttribute(SID_FIELD_ATTR) &&
+        event.target !== target
+      ) {
+        requestInlineEdit(win, target, event, { popupFallback: popupMessage });
+
+        return;
+      }
+
+      win.parent.postMessage(popupMessage, win.location.origin);
+
+      return;
+    }
+
+    // Field-handle targeting (data-sid-field) — sends the dot-separated field path.
+    // scope = the _visual_id of the surrounding set, so the CP can disambiguate a
+    // bare handle (e.g. "text") that repeats across many sections/rows.
+    if (target.hasAttribute(SID_FIELD_ATTR)) {
+      win.parent.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'click',
+          field: target.getAttribute(SID_FIELD_ATTR),
+          scope: target.getAttribute('data-sid-field-uid') || undefined,
+          label: target.getAttribute('data-sid-label') || undefined,
+          // The starting values this template declared for the block —
+          // `controls="tag:h2|font_size:text-600"`. The toolbar has always used
+          // them to draw itself; sending them on means the side panel can agree,
+          // which it cannot do on its own: it renders the Statamic form, and the
+          // form has never heard of the template.
+          controlDefaults: controlsFrom(target)
+            .filter((c) => c.default != null && c.default !== '')
+            .map((c) => ({ handle: c.handle, default: c.default })),
+          // Only route sidebar focus into the synced-section panel when the
+          // click is inside a focused global section — not every click while
+          // that panel happens to be open.
+          global: !!target.closest(`[${GLOBAL_FOCUS_ATTR}]`),
+        },
+        win.location.origin
+      );
+
+      // Inline editing is opt-in per template: only elements rendered with
+      // {{ visual_edit field="…" inline_edit="true" }} carry this attribute.
+      // Everything else keeps the classic behaviour (focus the CP field only).
+      // A site can also switch it off wholesale, which is the same thing one
+      // level up: every flagged element falls back to that classic behaviour,
+      // and the click message above has already focused the field.
+      if (featureOn('inline_edit') && target.hasAttribute('data-sid-inline-edit')) {
+        // Media click: the CP opens the field's asset browser instead of a
+        // text-edit session. Triggered when the click lands on an image/video,
+        // or anywhere in a wrapper whose only content is media (no text).
+        const media = event.target.closest('img, picture, video');
+        const isMediaClick =
+          (media && target.contains(media)) ||
+          (normText(target.textContent) === '' && target.querySelector('img, picture, video'));
+
+        if (isMediaClick) {
+          win.parent.postMessage(
+            {
+              source: 'statamic-visual-editor',
+              type: 'asset-edit',
+              field: target.getAttribute(SID_FIELD_ATTR),
+              scope: target.getAttribute('data-sid-field-uid') || undefined,
+            },
+            win.location.origin
+          );
+
+          return;
+        }
+
+        // Iconify: filled icon → Change/Remove (same as the sidebar). Empty →
+        // Iconify's own search, same as "Browse Iconify".
+        if (isIconPickerField(target)) {
+          if (iconFieldHasValue(target)) {
+            openIconFieldMenu(win, target);
+          } else {
+            postIconEdit(win, target, 'browse');
+          }
+
+          return;
+        }
+
+        requestInlineEdit(win, target, event);
+
+        return;
+      }
+
+      openRowToolbar(win, target);
+
+      return;
+    }
+
+    const uid = target.getAttribute(SID_ATTR);
+
+    // Determine which occurrence of this uid was clicked so the CP can target
+    // the correct row when multiple sets share the same uuid (e.g. after a
+    // Replicator "Duplicate Set" before the AutoUuid fieldtype has had a chance
+    // to regenerate a fresh uuid for the copy).
+    const allSameSid = Array.from(win.document.querySelectorAll(`[${SID_ATTR}]`)).filter(
+      (el) => el.getAttribute(SID_ATTR) === uid
+    );
+    const uidIndex = allSameSid.indexOf(target);
+
+    const message = {
+      source: 'statamic-visual-editor',
+      type: 'click',
+      uid,
+      global: !!target.closest(`[${GLOBAL_FOCUS_ATTR}]`),
+    };
+
+    if (uidIndex > 0) {
+      message.uidIndex = uidIndex;
+    }
+
+    if (target.getAttribute('data-sid-type') === 'text') {
+      const prevSet = findPrecedingSetSibling(target);
+
+      message.afterSetUid = prevSet ? prevSet.getAttribute(SID_ATTR) : null;
+    }
+
+    win.parent.postMessage(message, win.location.origin);
+    openRowToolbar(win, target);
+  };
+}
+
+export function createHoverHandler(win) {
+  let lastHoveredKey = null;
+
+  function handleHover(event) {
+    if (bridgeState.editing) {
+      return;
+    }
+
+    const target = resolveSidTarget(win, event);
+
+    // Field-handle targeting: deduplicate on the field path string.
+    if (target && target.hasAttribute(SID_FIELD_ATTR)) {
+      const field = target.getAttribute(SID_FIELD_ATTR);
+
+      if (field === lastHoveredKey) {
+        return;
+      }
+
+      lastHoveredKey = field;
+      win.parent.postMessage(
+        {
+          source: 'statamic-visual-editor',
+          type: 'hover',
+          field,
+          scope: target.getAttribute('data-sid-field-uid') || undefined,
+          label: target.getAttribute('data-sid-label') || undefined,
+        },
+        win.location.origin
+      );
+
+      return;
+    }
+
+    const uid = target ? target.getAttribute(SID_ATTR) : null;
+
+    // Deduplicate: skip when still over the same element (or still off any element).
+    if (uid === lastHoveredKey) {
+      return;
+    }
+
+    lastHoveredKey = uid;
+
+    if (!uid) {
+      // Mouse left all annotated elements — tell the CP to clear its hover state.
+      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+
+      return;
+    }
+
+    const message = {
+      source: 'statamic-visual-editor',
+      type: 'hover',
+      uid,
+    };
+
+    if (target.getAttribute('data-sid-type') === 'text') {
+      const prevSet = findPrecedingSetSibling(target);
+
+      message.afterSetUid = prevSet ? prevSet.getAttribute(SID_ATTR) : null;
+    }
+
+    win.parent.postMessage(message, win.location.origin);
+  }
+
+  // When the mouse leaves the iframe entirely, immediately clear the CP hover
+  // state. Without this, dashed outlines in the CP linger indefinitely because
+  // the mouseover handler only fires for elements inside the iframe.
+  handleHover.reset = () => {
+    lastHoveredKey = null;
+    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+  };
+
+  return handleHover;
+}

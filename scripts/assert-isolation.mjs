@@ -84,16 +84,20 @@ for (const file of walk(JS)) {
   const text = readFileSync(file, 'utf8');
 
   if (KERNEL.includes(rel) || KERNEL_SIDE.includes(rel) || KERNEL_DIRS.some((d) => rel.startsWith(d))) {
-    // Kernel may import only kernel, kernel-side modules, its own regions, lib/ and packages.
-    const imports = [...text.matchAll(/from\s*['"](\.\.?\/[^'"]+)['"]/g)].map((m) => m[1]);
-    const bad = imports
-      .filter((spec) => !/\/lib\/[\w-]+\.js$/.test(spec))
-      .filter((spec) => !KERNEL_DIRS.some((d) => new RegExp(`(^|/)${d}[\\w-]+\\.js$`).test(spec)) && !/^\.\/[\w-]+\.js$/.test(spec) || !KERNEL_DIRS.some((d) => rel.startsWith(d)) || !/^\.\/[\w-]+\.js$/.test(spec))
-      .map((spec) => spec.split('/').pop())
-      .filter((name) => !KERNEL.includes(name) && !KERNEL_SIDE.includes(name));
+    // Kernel may import only kernel, kernel-side modules, its own region files, lib/ and packages.
+    const dir = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/') + 1) : '';
+    const resolved = [...text.matchAll(/from\s*['"](\.\.?\/[^'"]+)['"]/g)].map((m) => {
+      const parts = (dir + m[1]).split('/'); const out = [];
+      for (const p of parts) { if (p === '..') out.pop(); else if (p !== '.') out.push(p); }
+      return out.join('/');
+    });
+    const bad = resolved.filter((target) =>
+      !target.startsWith('lib/') &&
+      !KERNEL.includes(target) && !KERNEL_SIDE.includes(target) &&
+      !KERNEL_DIRS.some((d) => target.startsWith(d)));
 
     if (bad.length) {
-      hits[rel] = bad.map((name) => `kernel imports ${name}`);
+      hits[rel] = bad.map((target) => `kernel imports ${target}`);
     }
 
     continue;
