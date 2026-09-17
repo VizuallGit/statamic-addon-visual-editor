@@ -22,7 +22,7 @@ const SITE_DIR = env('SVE_SITE_DIR', `${process.env.HOME}/Sites/vizuall-skabelon
 const SITE_URL = env('SVE_SITE_URL', 'http://vizuall-skabelon.test');
 const USER = env('SVE_USER', 'claude-test@vizuall.dk');
 const PASS = env('SVE_PASS', '');
-const ENTRY = env('SVE_ENTRY', '/cp/collections/pages/entries/827310c8-9f8b-4c10-a157-634a0d0f82d5');
+const ENTRY = env('SVE_ENTRY', '/cp/collections/pages/entries/68f56034-ce7c-4d33-b15d-da7fa7675662');
 const CHROME = env('SVE_CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
