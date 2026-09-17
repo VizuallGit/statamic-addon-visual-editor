@@ -104,27 +104,27 @@ function onNewSection() {
         </template>
         <HtmlTreeRow v-else :row="sec.row" />
       </div>
-      <!--
-        The last thing under the sections, and shaped like one: adding a section
-        belongs at the end of the list you are adding it to, not in the pane bar
-        above it, where it sat among close and pin and read as a window control.
-        Only where sections are listed — inside a component there is no list for
-        it to be the end of.
-      -->
-      <button
-        v-if="canCreate"
-        type="button"
-        class="sve-ht-new"
-        :title="newSectionLabel"
-        :aria-label="newSectionLabel"
-        @click="onNewSection"
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-      </button>
     </template>
-    <template v-else>
+    <template v-else-if="ui.rows.length">
       <HtmlTreeRow v-for="row in ui.rows" :key="row.id" :row="row" />
     </template>
+    <!--
+      The last thing under the sections, and shaped like one: adding a section
+      belongs at the end of the list you are adding it to, not in the pane bar
+      above it, where it sat among close and pin and read as a window control.
+      Shown on an empty page builder too — otherwise deleting the last section
+      left no way to add the next one.
+    -->
+    <button
+      v-if="canCreate && (ui.sections.length || ui.pageBuilder)"
+      type="button"
+      class="sve-ht-new"
+      :title="newSectionLabel"
+      :aria-label="newSectionLabel"
+      @click="onNewSection"
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+    </button>
   </div>
 </template>
 

@@ -16,6 +16,8 @@ export const sveState = {
   soloObserver: null,
   foldedFor: null,
   dockRestorePaused: false,
+  /** True once the preview has painted and remembered chrome may prefetch. */
+  lpReady: false,
   globalsStashActive: false,
   chromePrefetchArmed: false,
   sectionPanelValues: null,

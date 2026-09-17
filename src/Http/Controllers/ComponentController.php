@@ -5,7 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Component;
 use MarioHamann\StatamicVisualEditor\Features;
-use MarioHamann\StatamicVisualEditor\TailwindBake;
+use MarioHamann\StatamicVisualEditor\TailwindCompile;
 
 /**
  * Turn a piece of a section into a component file.
@@ -39,11 +39,12 @@ class ComponentController
         $js = (string) $request->input('js', '');
         $tw = (string) $request->input('tw', '');
 
-        // Same net as a section save: no compile arrived, so bake the subset
-        // here. The real thing replaces it the first time the dock saves the
-        // component.
-        if (trim($tw) === '' && Features::enabled('tailwind_dock')) {
-            $tw = TailwindBake::fromHtml($html);
+        if (Features::enabled('tailwind_dock') && $tw === '' && ! app()->environment('local')) {
+            try {
+                $tw = TailwindCompile::fromHtml($html);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         $made = Component::create($name, $html, $css, $js, $tw);

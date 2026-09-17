@@ -18,7 +18,7 @@ import {
 } from './cp.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './right-dock.js';
-import { closeAiPanel } from './ai-panel.js';
+import { closeAiPanel } from './ai-panel-lazy.js';
 import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock } from './code-dock-lazy.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';

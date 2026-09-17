@@ -8411,6 +8411,53 @@ register('dock:set-html', (html) => {
     return false;
   }
 
+  // Empty string = detach view (last section gone). Never autosave an empty file.
+  if (html === '') {
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveTimer = null;
+    }
+
+    // Drop any in-flight Tailwind compile save; it would post empty HTML.
+    twDirty = false;
+    twCss = null;
+    twKey = '';
+
+    // Detach before clearing panes — flushSave no-ops without lastType, and
+    // readParts reads cssFull (not the CSS editor), so clear that too.
+    lastType = null;
+    lastUid = null;
+    lastParts = { html: '', css: '', js: '' };
+    cssFull = '';
+    htmlFull = '';
+
+    applying = true;
+
+    try {
+      clearHtmlScopeRange();
+
+      for (const handle of HANDLES) {
+        const ed = editors[handle];
+
+        if (!ed) {
+          continue;
+        }
+
+        const current = ed.state.doc.toString();
+
+        if (current !== '') {
+          ed.dispatch({
+            changes: { from: 0, to: current.length, insert: '' },
+          });
+        }
+      }
+    } finally {
+      applying = false;
+    }
+
+    return true;
+  }
+
   const before = htmlFull;
 
   htmlFull = html;
@@ -8439,6 +8486,12 @@ register('dock:set-html', (html) => {
 
   return true;
 });
+
+/**
+ * Empty the dock panes without saving. Used when the last page section is
+ * removed — `dock:set-html ''` would autosave an empty Antlers file.
+ */
+register('dock:show-empty', () => ask('dock:set-html', ''));
 
 /**
  * Move a focus range so it still covers the same thing after an edit.

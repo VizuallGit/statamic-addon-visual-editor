@@ -53,7 +53,7 @@ import {
 } from './code-dock-lazy.js';
 import { ensureLpMoreButton } from './lp-more-menu.js';
 import { ensureLpReloadButton } from './lp-reload.js';
-import { relayoutAiPanel } from './ai-panel.js';
+import { relayoutAiPanel } from './ai-panel-lazy.js';
 import { mountPane } from './cp/mount-pane.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import SoloPills from './cp/surfaces/SoloPills.vue';
@@ -2210,11 +2210,6 @@ export function ensureLpPanelToggleInner(win) {
       sveState.lpCloseHideObserver = null;
     }
 
-    // Outside LP: still keep Theme Settings warming in the background.
-    if (!doc.getElementById(sve.GLOBALS_PANEL_ID)) {
-      sve.scheduleChromeGlobalsPrefetch(win);
-    }
-
     return;
   }
 
@@ -2234,12 +2229,6 @@ export function ensureLpPanelToggleInner(win) {
   // mode on every Vue re-render slams it shut again a moment later.
   if (sveState.forcePanelOpen) {
     sveState.lpCollapsed = false;
-  }
-
-  // Ensure Theme Settings is warming (may already be from CP boot).
-  if (!sveState.chromePrefetchArmed) {
-    sveState.chromePrefetchArmed = true;
-    sve.scheduleChromeGlobalsPrefetch(win);
   }
 
   doc.getElementById(sve.LP_TOGGLE_ID)?.remove();

@@ -149,6 +149,21 @@ class InjectBridgeScriptTest extends TestCase
         $this->assertStringContainsString('type="module"', $response->getContent());
     }
 
+    public function test_head_swallows_vite_full_reload_and_leaves_css_updates(): void
+    {
+        $middleware = $this->makeMiddleware(livePreview: true);
+        $html = '<html><head></head><body></body></html>';
+
+        $response = $middleware->handle($this->makeRequest(), fn () => $this->makeHtmlResponse($html));
+        $content = $response->getContent();
+
+        $this->assertStringContainsString("data.type !== 'full-reload'", $content);
+        $this->assertStringContainsString('__svePreviewGuarded', $content);
+        $this->assertStringContainsString('stopImmediatePropagation', $content);
+        $this->assertStringNotContainsString('__sveNativeReload', $content);
+        $this->assertStringNotContainsString('refreshHotStylesheets', $content);
+    }
+
     // -------------------------------------------------------------------------
     // Last </body> replacement (strrpos robustness)
     // -------------------------------------------------------------------------

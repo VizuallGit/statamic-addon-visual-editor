@@ -407,6 +407,7 @@ return [
     'close_live_preview_title' => 'Luk Live Preview',
     'more_lp_title' => 'Mere',
     'reload_lp_title' => 'Hent alt igen',
+    'lite_load_sidebar' => 'Hent alle felter i sidebaren',
     'ai_text_about' => 'Cirka',
     'ai_text_words' => 'ord',
     'reload_lp_failed' => 'Kunne ikke hente alt igen',

@@ -67,7 +67,7 @@ class InjectBridgeScript
 
         return substr_replace(
             $content,
-            $this->bridgeData().$this->entranceAnimationGuard().'</head>',
+            $this->bridgeData().$this->viteFullReloadGuard().$this->entranceAnimationGuard().'</head>',
             $pos,
             strlen('</head>')
         );
@@ -94,6 +94,51 @@ class InjectBridgeScript
         return <<<HTML
         <script>window.__sveStrings = {$strings}; window.__sveFeatures = {$features};</script>
         HTML."\n";
+    }
+
+    /**
+     * Classic script in <head>, before the deferred `@vite/client` module opens
+     * its socket. Vite `full-reload` would white-flash this iframe (and paint
+     * every section again). Swallow it. CSS `update` is left to the client.
+     * HTML morphs in place from the dock — one section, no reload.
+     */
+    protected function viteFullReloadGuard(): string
+    {
+        return <<<'HTML'
+        <script>
+        (function () {
+            function parse(event) {
+                try {
+                    return typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                } catch (e) {
+                    return null;
+                }
+            }
+            try {
+                location.reload = function () {};
+            } catch (e) {}
+            var Orig = window.WebSocket;
+            if (!Orig || Orig.__svePreviewGuarded) return;
+            function wrap(ws) {
+                if (!ws || ws.__svePreviewGuarded) return;
+                ws.__svePreviewGuarded = true;
+                ws.addEventListener('message', function (event) {
+                    var data = parse(event);
+                    if (!data || data.type !== 'full-reload') return;
+                    event.stopImmediatePropagation();
+                }, true);
+            }
+            window.WebSocket = function (url, protocols) {
+                var ws = protocols === undefined ? new Orig(url) : new Orig(url, protocols);
+                wrap(ws);
+                return ws;
+            };
+            window.WebSocket.prototype = Orig.prototype;
+            window.WebSocket.__svePreviewGuarded = true;
+            Object.setPrototypeOf(window.WebSocket, Orig);
+        })();
+        </script>
+        HTML;
     }
 
     /**

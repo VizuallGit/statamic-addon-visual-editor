@@ -156,23 +156,27 @@ function guardHostReload(win, isOpen) {
     }
 
     ws.__sveGuarded = true;
-    ws.addEventListener('message', (event) => {
-      if (!isOpen()) {
-        return;
-      }
+    ws.addEventListener(
+      'message',
+      (event) => {
+        if (!isOpen()) {
+          return;
+        }
 
-      let data = event.data;
+        let data = event.data;
 
-      try {
-        data = typeof data === 'string' ? JSON.parse(data) : data;
-      } catch {
-        return;
-      }
+        try {
+          data = typeof data === 'string' ? JSON.parse(data) : data;
+        } catch {
+          return;
+        }
 
-      if (data?.type === 'full-reload') {
-        event.stopImmediatePropagation();
-      }
-    });
+        if (data?.type === 'full-reload') {
+          event.stopImmediatePropagation();
+        }
+      },
+      true
+    );
   };
 
   try {

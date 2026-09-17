@@ -854,6 +854,181 @@
         liteVm.focusUid = uid;
     }
 
+    /**
+     * One reload on the section headline. Nested set fields wait until asked;
+     * this is the ask — every uid under the open section, same `nests` map
+     * hover writes. Not a second mount path, and not a button per replicator.
+     */
+    var LITE_LOAD_ATTR = 'data-sve-lite-load';
+    var LITE_LOAD_SVG =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
+        'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M21 12a9 9 0 1 1-2.64-6.36"></path>' +
+        '<polyline points="21 3 21 9 15 9"></polyline>' +
+        '</svg>';
+
+    function liteString(key, fallback) {
+        var map = (window.Statamic && window.Statamic.$config && typeof window.Statamic.$config.get === 'function')
+            ? window.Statamic.$config.get('sveStrings')
+            : null;
+
+        return (map && map[key]) || fallback;
+    }
+
+    function collectNestedUids(node, out, depth) {
+        var keys;
+        var i;
+        var key;
+        var id;
+
+        if (!node || typeof node !== 'object' || depth > 24 || typeof node.nodeType === 'number') {
+            return;
+        }
+
+        if (Array.isArray(node)) {
+            for (i = 0; i < node.length; i++) {
+                collectNestedUids(node[i], out, depth + 1);
+            }
+
+            return;
+        }
+
+        if (
+            typeof node.type === 'string'
+            && node.type !== ''
+            && (node._visual_id || node.id || node._id || node.enabled !== undefined)
+        ) {
+            id = uidOf(node);
+
+            if (id) {
+                out.push(id);
+            }
+        }
+
+        keys = Object.keys(node);
+
+        for (i = 0; i < keys.length; i++) {
+            key = keys[i];
+
+            if (key.charAt(0) === '_' || key === 'type' || key === 'id') {
+                continue;
+            }
+
+            collectNestedUids(node[key], out, depth + 1);
+        }
+    }
+
+    function revealUids(uids) {
+        var section;
+        var cur;
+        var next;
+        var all;
+        var i;
+        var id;
+
+        if (!liteVm || !uids || !uids.length) {
+            return;
+        }
+
+        section = sectionUidFor(uids[0]) || uidOf(liteVm.activeRow);
+
+        if (!section) {
+            return;
+        }
+
+        cur = openedFor(section);
+        next = {
+            tabs: Object.assign({}, cur.tabs),
+            panels: Object.assign({}, cur.panels),
+            nests: Object.assign({}, cur.nests),
+        };
+
+        for (i = 0; i < uids.length; i++) {
+            id = String(uids[i] || '');
+
+            if (id) {
+                next.nests[id] = true;
+            }
+        }
+
+        all = Object.assign({}, liteVm.chunks || {});
+        all[section] = next;
+        liteVm.chunks = all;
+        liteVm.focusUid = uids[0];
+    }
+
+    function loadOpenSectionFields() {
+        var uids = [];
+        var row = liteVm && liteVm.activeRow;
+
+        if (!row) {
+            return;
+        }
+
+        collectNestedUids(row, uids, 0);
+        revealUids(uids);
+    }
+
+    function onHeaderLoadClick(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        loadOpenSectionFields();
+    }
+
+    function stampHeaderLoadBtn(doc) {
+        var header = doc && doc.getElementById('__sve-focus-header');
+        var line = header && header.querySelector('[data-sve-focus-id]');
+        var title = line && line.querySelector('[data-sve-focus-title]');
+        var btn = header && header.querySelector('[' + LITE_LOAD_ATTR + ']');
+        var label = liteString('lite_load_sidebar', 'Load all fields in the sidebar');
+
+        if (!line || !title) {
+            return;
+        }
+
+        if (!liteVm || !liteVm.activeRow) {
+            if (btn && btn.parentNode) {
+                btn.parentNode.removeChild(btn);
+            }
+
+            return;
+        }
+
+        if (!btn) {
+            btn = doc.createElement('button');
+            btn.type = 'button';
+            btn.setAttribute(LITE_LOAD_ATTR, '');
+            btn.innerHTML = LITE_LOAD_SVG;
+            btn.addEventListener('click', onHeaderLoadClick);
+        }
+
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+
+        if (btn.previousElementSibling !== title) {
+            title.after(btn);
+        }
+    }
+
+    function wrapPaintHeader() {
+        var sve = window.sve;
+        var orig;
+
+        if (!sve || typeof sve.paintFocusHeader !== 'function' || sve.paintFocusHeader.__sveLiteLoad) {
+            return;
+        }
+
+        orig = sve.paintFocusHeader;
+        sve.paintFocusHeader = function (win, doc) {
+            var result = orig.apply(this, arguments);
+
+            stampHeaderLoadBtn(doc || (win && win.document) || document);
+
+            return result;
+        };
+        sve.paintFocusHeader.__sveLiteLoad = true;
+    }
+
     function uidFromChunkList(list) {
         var pane;
         var sectionSet;
@@ -976,6 +1151,7 @@
 
             updated: function () {
                 markLiteAsWide(this.$el);
+                stampHeaderLoadBtn(document);
             },
 
             beforeUnmount: function () {
@@ -1487,7 +1663,8 @@
         }
 
         return !!setEl.querySelector(
-            'input:not([type="hidden"]), textarea, select, .ProseMirror, .input-text'
+            'input:not([type="hidden"]), textarea, select, .ProseMirror, .input-text, ' +
+            '.bard-fieldtype, .replicator-fieldtype, .grid-fieldtype'
         );
     }
 
@@ -1569,7 +1746,13 @@
             '.sve-lite-spinner-dot{' +
             'display:flex;align-items:center;justify-content:center;width:22px;height:22px;' +
             'border-radius:999px;background:#000;color:#fff;opacity:.72;}' +
-            '.sve-lite-spinner-dot svg{animation:sve-lp-spin 1s linear infinite;}';
+            '.sve-lite-spinner-dot svg{animation:sve-lp-spin 1s linear infinite;}' +
+            '[' + LITE_LOAD_ATTR + ']{' +
+            'all:unset;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;' +
+            'justify-content:center;margin-left:auto;width:2.1rem;height:2.1rem;' +
+            'border-radius:.5rem;color:inherit;opacity:.55;}' +
+            '[' + LITE_LOAD_ATTR + ']:hover{opacity:1;background:rgba(128,128,128,.16);}' +
+            '[' + LITE_LOAD_ATTR + '] svg{display:block;}';
 
         style = doc.getElementById('sve-lite-field-heights');
 
@@ -1626,6 +1809,7 @@
             markLiteAsWide(doc.querySelector('.sve_lite_sections-fieldtype'));
             ensureLiteFieldHeights(doc);
             scheduleFocusExpand(doc, window);
+            stampHeaderLoadBtn(doc);
         }).observe(doc.documentElement, {
             subtree: true,
             attributes: true,
@@ -1705,6 +1889,8 @@
         if (ok) {
             window.__sveLiteSoloWrapped = true;
         }
+
+        wrapPaintHeader();
 
         return ok;
     }
@@ -2166,6 +2352,11 @@
             waitForSet(uid, doc, view, function () {
                 var setEl;
 
+                // The set is in the DOM — show it. Waiting for Bard's box
+                // height or the solo wrapper left Hero Test's fields invisible
+                // for extra seconds after they were already there.
+                endLitePending(doc, view);
+
                 if (reuse) {
                     done();
                     return;
@@ -2594,6 +2785,7 @@
 
         register();
         wrapSolo();
+        wrapPaintHeader();
         interceptPreviewClicks();
         interceptListViewClicks();
         watchFocusExpand();

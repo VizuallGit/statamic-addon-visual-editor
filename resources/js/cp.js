@@ -45,8 +45,8 @@ export { SELECTORS, GLOBALS_PANEL_PARAM } from './cp-selectors.js';
 export { stampGridRows, hideAutoUuidGridColumns } from './cp-section-groups.js';
 
 import { closeCodeDock, closeCodeDockPopups, isCodeDockArmed, relayoutCodeDock, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock-lazy.js';
-import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel.js';
-import { closeSiteCss, isSiteCssOpen, siteCssAllowed, toggleSiteCss } from './site-css.js';
+import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, relayoutAiPanel, toggleAiPanel } from './ai-panel-lazy.js';
+import { closeSiteCss, isSiteCssOpen, siteCssAllowed, toggleSiteCss } from './site-css-lazy.js';
 import {
   RIGHT_DOCK_ID,
   beginRightShellSwap,
@@ -68,7 +68,7 @@ import {
   hydrateChromePrefs,
 } from './chrome-prefs.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
-import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from './lazy-panels.js';
+import { ensurePanel, hidePanelWait, isRightPanelInDom, markLivePreviewReady, showPanelWait, warmLivePreviewCore } from './lazy-panels.js';
 import { bindToolbarPrefetch } from './toolbar-prefetch.js';
 
 async function openOverlay(win, url) {
@@ -2418,7 +2418,7 @@ export function restoreDockedHeaderPanels(win) {
 
 export async function ensureRightTool(win, key) {
   if (key === 'ai') {
-    ensureAiPanel(win);
+    await ensureAiPanel(win);
 
     return;
   }
@@ -3709,10 +3709,34 @@ export function hideLpLabel(doc) {
   }
 }
 
+/** After the overlay has painted: fetch the other sections' templates one by one. */
+function scheduleHtmlTreePrefetch(win) {
+  if (sve.htmlTreePrefetchScheduled) {
+    return;
+  }
+
+  sve.htmlTreePrefetchScheduled = true;
+
+  const arm = () => {
+    sve.htmlTreePrefetchArmed = true;
+    sve.armHtmlTreePrefetch?.(win);
+  };
+
+  if (typeof win.requestIdleCallback === 'function') {
+    win.requestIdleCallback(arm, { timeout: 2500 });
+  } else {
+    win.setTimeout(arm, 400);
+  }
+}
+
 export function applyHeaderTab(win) {
   const doc = win.document;
 
   warmLivePreviewCore(win);
+
+  if (!sveState.dockRestorePaused) {
+    scheduleHtmlTreePrefetch(win);
+  }
   loadHeaderTab(win);
   hideLpLabel(doc);
   ensureCodeDockToolbarButton(win);
@@ -8744,9 +8768,6 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
   const doc = win.document;
   const embedded = isEmbeddedInSite(win);
 
-  // Kick Theme Settings load as early as possible (cover is up — free bandwidth).
-  sve.scheduleChromeGlobalsPrefetch(win);
-
   let cover = null;
 
   // An in-app move has already put a cover up — one holding a still of the page it
@@ -8798,6 +8819,9 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
 
       postToHost(win, 'lp-ready');
     }
+
+    markLivePreviewReady(win);
+    scheduleHtmlTreePrefetch(win);
 
     if (!cover) {
       return;
@@ -9128,11 +9152,7 @@ export function initCp(win = window) {
   // Running as the globals panel inside Live Preview: strip to the form and
   // stream its values up. None of the Live Preview machinery below applies.
   // The same frame serves a global section's editor — see sve.initGlobalsPanelFrame.
-  if (!sve.initGlobalsPanelFrame(win)) {
-    // Parent CP window — start warming Theme Settings immediately on entry edit,
-    // so it's ready before the user even opens Live Preview.
-    sve.scheduleChromeGlobalsPrefetch(win);
-  }
+  sve.initGlobalsPanelFrame(win);
 
   // Stamp Grid rows immediately and re-stamp whenever the DOM changes
   // (Vue renders Grid rows asynchronously after page load / field expansion).
@@ -9156,6 +9176,11 @@ export function initCp(win = window) {
       // click-outside forward to whichever one is on screen now.
       sve.ensurePreviewOutsideDismiss(win);
       sve.markStepIntoAll(win);
+
+      if (previewPainted(win.document)) {
+        markLivePreviewReady(win);
+        scheduleHtmlTreePrefetch(win);
+      }
     } catch (err) {
       console.error('[sve] dom pass', err);
     }

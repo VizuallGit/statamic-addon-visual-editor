@@ -510,24 +510,21 @@ return [
     | Tailwind in the template dock
     |--------------------------------------------------------------------------
     |
-    | When `tailwind_dock` is on, the HTML pane is compiled with `css`'s
-    | `@theme` / `@utility` so `bg-primary` matches the site, and the same
-    | declarations build the class list behind the dock's suggestions. Missing
-    | file falls back to Tailwind's defaults; arbitrary values still work.
+    | When `tailwind_dock` is on, a save compiles the HTML pane with
+    | Tailwind's own engine on the server (`compile` + Oxide scanner). Same
+    | `@theme` / `@plugin` as `css`. Not Vite, not `npm run build`.
     |
     | store: the compiled utilities, one file per section type. The Antlers
     | partial has `{{ sve_tw }}` after the section; the tag pushes onto
-    | style_push. The sheet is here, not in the markup. The bake is the file's
-    | whole candidate list (minus `@utility` names), not a diff against the
-    | Vite build: `sve_tw` loads after `site.css`, so skipping a `max-md:`
-    | variant that the build already has lets an unprefixed rule in the bake
-    | win.
+    | style_push. The sheet is here, not in the markup.
     |
     */
     'tailwind' => [
         'css' => resource_path('css/site.css'),
         'store' => resource_path('visual-editor/tw'),
         'build' => public_path('build'),
+        'node' => env('SVE_TAILWIND_NODE', 'node'),
+        'cwd' => null,
     ],
 
     /*

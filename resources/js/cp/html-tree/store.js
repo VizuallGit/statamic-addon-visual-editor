@@ -6,6 +6,8 @@ export const htmlTreeUi = reactive({
   // The page's own sections, above the tags. One row each, and the section whose
   // file the dock is showing is the only one holding its tags — see html-tree.js.
   sections: [],
+  // Publish form has page_sections (even when the list is empty). The plus stays.
+  pageBuilder: false,
   onSection: null,
   // Read the page again now, rather than waiting for the dock to announce a new
   // file. A section added from inside the panel changes the form's values and

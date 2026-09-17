@@ -8,8 +8,13 @@
  *   overlay-host.js — overlay iframe on the public site
  *
  * Side-effect imports register themselves on `sve` (cp-registry.js).
- * Section library, block tree, outline and comments load with the CP again —
- * lazy-loading those modules left the left sidebar on the native section list.
+ *
+ * Patterns (`section-library`) and globals stay in this graph: the rest of the
+ * editor calls their helpers from the first preview message, unguarded.
+ * Deferring those two left the left sidebar on the native section list.
+ *
+ * AI chat, AI text, schema, comments, HTML tree, outline, block tree and the
+ * template dock wait for their icon (or a remembered-open restore).
  *
  * initCp() only wires the toolbar once Statamic has booted; it returns early
  * when the site has Visual Editor switched off.
@@ -34,10 +39,6 @@ import './sibling-sync.js';
 import './components/UniqueSets.js';
 import './components/SectionAccordion.js';
 import './inline-edit.js';
-// AI text. Sits beside inline editing on purpose: both answer the preview about
-// the same fields, and both need the publish containers inline-edit.js captures.
-import './ai-text.js';
-import './schema-panel.js';
 import './lazy-panels.js';
 // Not a panel. Patterns is only its front: the rest of the editor reaches into
 // this file for row ids, set meta, the section-message handlers and a dozen

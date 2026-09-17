@@ -14,7 +14,6 @@
  * window survives moving from one screen to the next. Only its visibility is
  * re-checked, and only when the page actually changes.
  */
-import AiPanel from './cp/surfaces/AiPanel.vue';
 import { mountSurface } from './cp/mount.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { watchPage } from './cp/page-watch.js';
@@ -140,10 +139,16 @@ function setOpen(win, next) {
   paintButton(win);
 
   if (open && !app) {
-    app = mountSurface(AiPanel, panelHost, {
-      win,
-      standalone: true,
-      onClose: () => setOpen(win, false),
+    void import('./cp/surfaces/AiPanel.vue').then(({ default: AiPanel }) => {
+      if (!open || app || !panelHost) {
+        return;
+      }
+
+      app = mountSurface(AiPanel, panelHost, {
+        win,
+        standalone: true,
+        onClose: () => setOpen(win, false),
+      });
     });
   }
 
@@ -184,11 +189,21 @@ function sync(win) {
     return;
   }
 
+  // Live Preview has its own AI icon. Building the floating chat here loaded
+  // the panel on every overlay open, including sessions that never used it.
+  if (inLivePreview(win)) {
+    if (root) {
+      root.hidden = true;
+    }
+
+    return;
+  }
+
   if (!root || !win.document.body.contains(root)) {
     build(win);
   }
 
-  root.hidden = inLivePreview(win);
+  root.hidden = false;
 }
 
 export function initAiLauncher(win = window) {

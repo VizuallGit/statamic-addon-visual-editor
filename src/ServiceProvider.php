@@ -259,6 +259,8 @@ class ServiceProvider extends AddonServiceProvider
     //   collection-template-picker — Preview-as select on collection templates
     //   collection-preset-scaffold  — preset picker on Scaffold Views
     //   field-prop                  — map a template prop to a collection field
+    //   dock-instant-preview        — paint HTML-dock classes into LP before morph
+    //   html-tree-section-sync      — refresh HTML tree after section delete
     protected $scripts = [
         __DIR__.'/../resources/js/disable-publish-stack-pin.js',
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
@@ -276,6 +278,8 @@ class ServiceProvider extends AddonServiceProvider
         __DIR__.'/../resources/js/collection-template-picker.js',
         __DIR__.'/../resources/js/collection-preset-scaffold.js',
         __DIR__.'/../resources/js/field-prop.js',
+        __DIR__.'/../resources/js/dock-instant-preview.js',
+        __DIR__.'/../resources/js/html-tree-section-sync.js',
     ];
 
     protected $commands = [
@@ -361,6 +365,20 @@ class ServiceProvider extends AddonServiceProvider
 
         $bust = is_file($path) ? md5_file($path) : md5($this->getAddon()->version());
         Statamic::script($name, "{$filename}.js?v={$bust}");
+    }
+
+    /**
+     * URL of the existing hashed Tailwind compiler. Empty when the dist has
+     * no tw-compile chunk — the instant paint still swaps classes that are
+     * already in the stylesheet.
+     */
+    protected function twCompileUrl(): string
+    {
+        try {
+            return BuiltAssets::url('resources/js/tw-compile.js');
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 
     /**
@@ -495,6 +513,9 @@ class ServiceProvider extends AddonServiceProvider
                 // responsive field, the Tailwind row and the CSS panel all
                 // read this and can never disagree about where a size ends.
                 'sveBreakpoints' => Breakpoints::forScript(),
+                // Hashed Tailwind compiler chunk — dock-instant-preview imports it
+                // so a new class can paint before the section morph comes back.
+                'sveTwCompile' => $this->twCompileUrl(),
             ]);
         });
 

@@ -410,6 +410,7 @@ return [
     'close_live_preview_title' => 'Close Live Preview',
     'more_lp_title' => 'More',
     'reload_lp_title' => 'Fetch everything again',
+    'lite_load_sidebar' => 'Load all fields in the sidebar',
     'ai_text_about' => 'About',
     'ai_text_words' => 'words',
     'reload_lp_failed' => 'Could not fetch everything again',

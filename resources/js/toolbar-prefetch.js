@@ -15,8 +15,11 @@
  * Nothing here opens anything. It only warms what a click would need, so being
  * wrong costs one unused fetch and never a surprise on screen.
  */
+import { sve } from './cp-registry.js';
 import { ensurePanel } from './lazy-panels.js';
 import { prefetchCodeDock } from './code-dock-lazy.js';
+import { prefetchAiPanel } from './ai-panel-lazy.js';
+import { prefetchSiteCss } from './site-css-lazy.js';
 
 /** Toolbar tab name → the panel chunk behind it. */
 const PANEL_FOR_TAB = {
@@ -27,6 +30,8 @@ const PANEL_FOR_TAB = {
   html_tree: 'html_tree',
   edits: 'edits',
   performance: 'performance',
+  schema: 'schema',
+  aitext: 'ai_text',
 };
 
 const warmed = new Set();
@@ -40,6 +45,24 @@ function warm(win, tab) {
 
   if (tab === 'code') {
     prefetchCodeDock(win);
+
+    return;
+  }
+
+  if (tab === 'ai') {
+    prefetchAiPanel();
+
+    return;
+  }
+
+  if (tab === 'site_css') {
+    prefetchSiteCss();
+
+    return;
+  }
+
+  if (tab === 'globals') {
+    sve.scheduleChromeGlobalsPrefetch?.(win);
 
     return;
   }

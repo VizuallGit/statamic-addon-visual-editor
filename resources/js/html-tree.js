@@ -111,6 +111,7 @@ let htmlTreePendingSame = false;
 export let htmlTreeActiveId = null;
 export let htmlTreeUnhook = null;
 export let htmlTreeTimer = 0;
+let htmlTreeStructureUnhook = null;
 let htmlTreeRoots = [];
 let htmlTreeDragId = null;
 let htmlTreeDragOrigin = null;
@@ -454,6 +455,17 @@ function prefetchSectionTemplates(win, sections) {
     htmlTreePrefetch.push(type);
   }
 
+  // Queue during overlay boot; do not fetch until the preview has painted.
+  // The open section is already in the dock — these requests are for the rest.
+  if (!sve.htmlTreePrefetchArmed) {
+    return;
+  }
+
+  runSectionTemplatePrefetch(win);
+}
+
+export function armHtmlTreePrefetch(win) {
+  sve.htmlTreePrefetchArmed = true;
   runSectionTemplatePrefetch(win);
 }
 
@@ -573,6 +585,22 @@ function sectionRootTags(win) {
  * section and there was no other door into the rest. The block tree has always
  * read the page this way; this is the same reading, one row per section.
  */
+/** True when this publish form is a page builder, even with zero sections. */
+function pageHasSectionField(win, doc) {
+  const field = sve.sectionField?.(win) || 'page_sections';
+
+  for (const container of sve.activeContainers?.(doc) || []) {
+    const values = sve.unwrapRef?.(container.values);
+    const list = values && typeof values === 'object' ? values[field] : null;
+
+    if (Array.isArray(list)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function htmlTreeSections(win, doc) {
   const field = sve.sectionField?.(win) || 'page_sections';
   const tags = sectionRootTags(win);
@@ -865,6 +893,7 @@ export function renderHtmlTree(win) {
   const type = ask('dock:current-type') || '';
   const aliases = readHtmlTreeLabels(type);
   const sections = htmlTreeSections(win, doc);
+  const pageBuilder = pageHasSectionField(win, doc);
 
   // What the dock holds is newer than anything fetched earlier — a save half a
   // minute ago is in it and not in the cache.
@@ -876,6 +905,26 @@ export function renderHtmlTree(win) {
   // The section the dock is actually holding, and the one the reader just
   // clicked. They are the same as soon as the file lands.
   const liveUid = currentSectionUid(win, doc, sections);
+
+  // Page with every section removed: the dock may still hold the last file.
+  // Showing those tags as if they belonged here is the hang after delete.
+  if (pageBuilder && !sections.length) {
+    htmlTreeRoots = [];
+    htmlTreeUi.rows = [];
+    htmlTreeUi.sections = [];
+    htmlTreeUi.pageBuilder = true;
+    htmlTreeUi.emptyText = t(win, 'html_tree_empty');
+    htmlTreeUi.canEdit = !ask('dock:is-locked');
+    htmlTreeUi.onRefresh = () => renderHtmlTree(win);
+    htmlTreeUi.onSection = null;
+    paintComponentExit(win);
+    mountPane(list, HtmlTreeList);
+    publishHtmlPick(win, []);
+
+    return;
+  }
+
+  htmlTreeUi.pageBuilder = pageBuilder;
 
   const fileKey = `${type}|${liveUid}`;
 
@@ -1298,8 +1347,53 @@ function removeSectionFromPage(win, uid) {
       bodyKey: 'remove_section_body',
       confirmKey: 'remove_section_confirm',
     },
-    () => sve.handleRemoveRow?.({ uid }, win.document, win)
+    () => {
+      const doc = win.document;
+
+      sve.handleRemoveRow?.({ uid }, doc, win);
+      afterHtmlTreeSectionRemoved(win, doc, uid);
+    }
   );
+}
+
+/**
+ * After a section leaves the page, the tree and dock must leave with it.
+ *
+ * `handleRemoveRow` updates publish values and Live Preview, but the tree only
+ * watched the dock's HTML — so the deleted section's tags stayed on screen.
+ * Step into whatever is left, or clear the tree down to the plus.
+ */
+function afterHtmlTreeSectionRemoved(win, doc, removedUid) {
+  if (htmlTreePendingUid === removedUid) {
+    win.clearTimeout(htmlTreePendingTimer);
+    htmlTreePendingUid = '';
+    htmlTreeAhead = '';
+  }
+
+  htmlTreeActiveId = null;
+  htmlTreeShutStart = false;
+  htmlTreeFileKey = '';
+
+  const sections = htmlTreeSections(win, doc);
+  const next = sections.find((section) => section.uid !== removedUid) || sections[0];
+
+  if (next) {
+    openHtmlTreeSection(win, doc, sections, next.uid, '');
+  } else {
+    // Empty tree + plus. Clear dock view without autosaving an empty file.
+    htmlTreeAhead = '';
+    htmlTreeUi.rows = [];
+    htmlTreeUi.sections = [];
+    htmlTreeUi.pageBuilder = true;
+    ask('dock:set-html', '');
+    renderHtmlTree(win);
+  }
+
+  win.setTimeout(() => {
+    if (htmlTreePanel(win.document)) {
+      renderHtmlTree(win);
+    }
+  }, 0);
 }
 
 /**
@@ -2230,12 +2324,23 @@ export function watchHtmlTreeDock(win) {
     }, 80);
   };
 
+  // Dock HTML and page_sections both own what this tree shows. A section
+  // delete updates values (and fires sve-page-structure) without touching the
+  // dock — listening only to the dock left the deleted section on screen.
+  const onStructure = () => refresh();
+
   htmlTreeUnhook = on('dock:html-changed', refresh);
+  win.document.addEventListener('sve-page-structure', onStructure);
+  htmlTreeStructureUnhook = () => {
+    win.document.removeEventListener('sve-page-structure', onStructure);
+  };
 }
 
 export function stopWatchHtmlTreeDock(win) {
   htmlTreeUnhook?.();
   htmlTreeUnhook = null;
+  htmlTreeStructureUnhook?.();
+  htmlTreeStructureUnhook = null;
   win?.clearTimeout?.(htmlTreeTimer);
   htmlTreeTimer = 0;
 }
@@ -2264,6 +2369,7 @@ export function closeHtmlTreePanel(win) {
   htmlTreeUi.editingId = null;
   htmlTreeUi.draft = '';
   htmlTreeUi.sections = [];
+  htmlTreeUi.pageBuilder = false;
   htmlTreePendingUid = '';
   win?.clearTimeout?.(htmlTreePendingTimer);
 
@@ -2411,3 +2517,4 @@ export function clearHtmlTreeTemplates() {
 
 sve.renderHtmlTree = renderHtmlTree;
 sve.clearHtmlTreeTemplates = clearHtmlTreeTemplates;
+sve.armHtmlTreePrefetch = armHtmlTreePrefetch;

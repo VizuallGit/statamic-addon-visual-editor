@@ -3,16 +3,11 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 /**
- * CSS for Tailwind classes in a section's HTML pane, without Vite or a CDN.
+ * CSS for Tailwind classes in a section's HTML pane.
  *
- * Spacing, color, type and font utilities come from the site's `@theme` in
- * `site.css` — `py-900` is `var(--spacing-900)`, not default Tailwind
- * `spacing × 900`. Variants (`md:`, `hover:`, `max-lg:`) wrap the same
- * utilities. Arbitrary values (`bg-[#333]`) still compile. Custom `@utility`
- * names stay with `site.css` and are skipped here.
- *
- * Written to `resources/visual-editor/tw/{handle}.css` — never into the
- * CSS pane or the Antlers file.
+ * `fromHtml()` runs Tailwind's own compiler on the server (`TailwindCompile`).
+ * The maps below are unused on that path — they stay so older tests of
+ * `classes()` / `peelVariants()` still compile. Do not add utilities here.
  */
 class TailwindBake
 {
@@ -138,35 +133,7 @@ class TailwindBake
 
     public static function fromHtml(string $html): string
     {
-        $skip = static::customUtilities();
-        $rules = [];
-
-        foreach (static::classes($html) as $class) {
-            if (isset($rules[$class])) {
-                continue;
-            }
-
-            [$variants, $utility] = static::peelVariants($class);
-            [$utility, $important] = static::peelImportant($utility);
-
-            if (isset($skip[$utility]) || isset($skip[$class])) {
-                continue;
-            }
-
-            $decl = static::declaration($utility);
-
-            if ($decl === null) {
-                continue;
-            }
-
-            if ($important) {
-                $decl .= '!important';
-            }
-
-            $rules[$class] = static::wrapVariants($class, $decl, $variants);
-        }
-
-        return implode('', $rules);
+        return TailwindCompile::fromHtml($html);
     }
 
     /**

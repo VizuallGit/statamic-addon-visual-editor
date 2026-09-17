@@ -3,25 +3,19 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Foundation\Vite;
-use Illuminate\Support\Collection;
-use Illuminate\Support\HtmlString;
 use ReflectionObject;
 use ReflectionProperty;
 
 /**
- * Vite for Live Preview and screenshot renders: hot assets, no HMR client.
+ * Vite with a locked hot file, so Statamic's `{{ vite }}` clone cannot fall
+ * off `npm run dev`.
  *
- * `npm run dev` (and `npm run dev:previews`) must reach these documents — that
- * is how a new Tailwind class shows up without `npm run build`. What must not
- * reach them is `@vite/client`. The preview is morphed in place by preview.js;
- * Vite's full-reload throws the editor out of an open header or inline edit and
- * can surface Chrome's "Reload site?" prompt.
+ * Live Preview keeps `@vite/client` — CSS `update` paints a newly compiled
+ * utility in the iframe. Screenshots strip that client after render
+ * (`DisableViteHotReload`): a `full-reload` mid-capture is a blank frame.
  *
- * Statamic's `{{ vite }}` tag clones the container instance and calls
- * `useHotFile(null)` when the tag has no `hot` parameter. `hotFile()` then
- * falls back to `public/hot`, which is what we want — but only if this class
- * still answers for the clone. `useHotFile()` is inert and `hotFile()` is
- * locked, so the clone keeps the same file and the same "no client" `__invoke`.
+ * `useHotFile()` is inert and `hotFile()` is locked, so a clone keeps the
+ * same file. Laravel's `__invoke` prepends the client while hot.
  */
 class LivePreviewVite extends Vite
 {
@@ -65,35 +59,25 @@ class LivePreviewVite extends Vite
     }
 
     /**
-     * Same as Laravel's hot path, minus `@vite/client`. CSS/JS still come from
-     * the Vite server; a missing hot file falls through to the build manifest.
+     * Same as Laravel's hot path, including `@vite/client`.
+     *
+     * The lock on `hotFile()` is the point of this class. Omitting the client
+     * left the iframe on the CSS it loaded at open — a class that already lived
+     * in that sheet showed up, a newly compiled one did not. CSS `update` is
+     * what paints the new utility; InjectBridgeScript swallows `full-reload`.
      *
      * Statamic's `{{ vite }}` tag calls `toHtml()`, which calls this.
      */
     public function __invoke($entrypoints, $buildDirectory = null)
     {
-        if (! $this->isRunningHot()) {
-            return parent::__invoke($entrypoints, $buildDirectory);
-        }
-
-        $entrypoints = new Collection($entrypoints);
-
-        return new HtmlString(
-            $entrypoints
-                ->map(fn ($entrypoint) => $this->makeTagForChunk(
-                    $entrypoint,
-                    $this->hotAsset($entrypoint),
-                    null,
-                    null
-                ))
-                ->join('')
-        );
+        return parent::__invoke($entrypoints, $buildDirectory);
     }
 
     /**
      * Last line of defence: if some other `{{ vite }}` / `@vite` path still
      * printed `@vite/client`, cut that script out of the finished HTML.
-     * The public site is untouched — this only runs on Live Preview responses.
+     * The public site and Live Preview are untouched — this only runs on
+     * screenshot render responses.
      */
     public static function stripClientScript(string $html): string
     {

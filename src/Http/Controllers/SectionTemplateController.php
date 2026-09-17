@@ -8,7 +8,7 @@ use MarioHamann\StatamicVisualEditor\DockPartial;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
 use MarioHamann\StatamicVisualEditor\TemplateHistory;
-use MarioHamann\StatamicVisualEditor\TailwindBake;
+use MarioHamann\StatamicVisualEditor\TailwindCompile;
 use MarioHamann\StatamicVisualEditor\TailwindStore;
 use MarioHamann\StatamicVisualEditor\ComponentProps;
 use MarioHamann\StatamicVisualEditor\TailwindTheme;
@@ -133,22 +133,6 @@ class SectionTemplateController
 
         $twHandle = $this->twHandle($handle, $splitHandle);
 
-        if (Features::enabled('tailwind_dock')) {
-            // The Control Panel compiles with Tailwind's own engine and sends
-            // the result. `TailwindBake` is only the net under that: it runs
-            // when no compile arrived — the very first save of a section, or a
-            // browser that failed to load the compiler — and its subset is
-            // replaced by the real thing on the next save.
-            $tw = $request->input('tw');
-
-            TailwindStore::write(
-                $twHandle,
-                is_string($tw) ? $tw : TailwindBake::fromHtml($html)
-            );
-        } elseif (trim((string) ($meta['tw'] ?? '')) !== '') {
-            TailwindStore::write($twHandle, (string) $meta['tw']);
-        }
-
         // Props only move when the panel sends them. A save from a dock that
         // has never heard of them — an older tab, or the feature switched off
         // — leaves the declaration exactly as the file has it.
@@ -172,6 +156,8 @@ class SectionTemplateController
         TemplateHistory::record($path);
 
         file_put_contents($path, $contents);
+
+        $this->persistTw($twHandle, $html, $request);
 
         // Do not kick PreviewRefresher here. The dock saves on every keystroke;
         // spawning a headless browser then loads extra site documents and has
@@ -200,6 +186,40 @@ class SectionTemplateController
             'locked' => $locked,
             'path' => SectionTemplate::relative($path),
         ]);
+    }
+
+    /**
+     * CSS for `{{ sve_tw }}` on the public site — no Vite, no `npm run dev`.
+     *
+     * The dock already ran Tailwind's own engine in the Control Panel. That
+     * sheet is written here on every environment, including production, so a
+     * site developed on the server gets the same utilities as Live Preview.
+     * Node on the server is only the fallback when the dock did not send CSS
+     * (an older tab). Spawning Node on every keystroke is not the paint path.
+     */
+    protected function persistTw(string $twHandle, string $html, Request $request): void
+    {
+        if (! Features::enabled('tailwind_dock') || $twHandle === '') {
+            return;
+        }
+
+        $tw = $request->input('tw');
+
+        if ($request->exists('tw') && is_string($tw)) {
+            TailwindStore::write($twHandle, $tw);
+
+            return;
+        }
+
+        if (app()->environment('local')) {
+            return;
+        }
+
+        try {
+            TailwindStore::write($twHandle, TailwindCompile::fromHtml($html));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     /**

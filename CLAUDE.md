@@ -1,0 +1,88 @@
+# Visual Editor (Vue addon) — Fable brief
+
+> **Audience:** Claude Fable.  
+> **This repo** is the source of truth for all Visual Editor code (PHP, JS, CP CSS, tags, dock, AI, comments). Packagist builds from here.  
+> **The site** is `~/Sites/vizuall-skabelon`. Product intent, theme, Antlers, and fieldsets live there — read that [CLAUDE.md](file:///Users/flemmingmeyer/Sites/vizuall-skabelon/CLAUDE.md) too.  
+> **Do not** paste secrets. Do not commit API keys.
+
+When a VE change must run on the site: commit + push here (auto-tag), then `composer update statamic-addon/visual-editor` on the site. Do not symlink `vendor/statamic-addon/visual-editor`. Do not write VE logic into the site.
+
+---
+
+## What the human wants (read this first)
+
+The product is a Statamic page builder **and** a place to write custom sections in the template dock. Both stay.
+
+The authoring feel should be **Astro-like**: type HTML, CSS, or a class in the dock, and the focused Live Preview section updates in the **same frame**. Statamic + Antlers remain the published site. Instant is a **paint path**. PHP morph is the **source of truth** afterwards.
+
+**Do not** rebuild the frontend in Astro, Blade, Nuxt, or headless GraphQL. **Do not** compile Antlers in the browser. **Do not** keep a second `.astro` / `.jsx` copy of a partial.
+
+**This pass:** inventory this repo, tighten how the code is written (split god files, one source per concern, no stacked fallbacks), then make dock HTML Instant. Do **not** start by rewriting overlay / morph / bridge.
+
+---
+
+## Surfaces (a change touches one)
+
+1. **Core preview runtime** — `resources/js/preview.js`, `overlay-host.js`, `bridge.js`, and in `cp.js`: `replayLivePreview`, `watchPreviewRenders`, `gotoOverlay`, `openOverlay`. **Locked.** Open these only if the human says in the same message that the bug is overlay, morph, eject, or bridge.
+2. **Annotations** — `{{ visual_edit }}` (PHP) + CP highlight.
+3. **Set insertion** — plus in preview → Statamic’s own Search Sets (`handleAddBlockNative` / `openSetPickerOverPreview`). Do not replace with a custom picker.
+4. **Panels** — focus, globals, library, chrome, performance, HTML tree.
+5. **Dock** — `code-dock.js` (save) + `dock-instant-preview.js` (paint). Instant HTML lives here.
+6. **AI / comments / sibling-sync / previews** — feature modules via bus only.
+
+No import from panels/dock into overlay, preview, or `replayLivePreview`.
+
+---
+
+## Instant HTML paint (Astro-feel, still Antlers)
+
+**File (only this unless a tiny helper must sit beside it):**  
+`resources/js/dock-instant-preview.js`
+
+Standalone CP script. Not `addon.js`. Instant mode is already named `astro`: classes and CSS paint in the same frame; PHP morph is **not** on the paint path.
+
+**Today:** `paintLive()` only `syncClasses()`. Structural HTML waits ~1 s for PHP. `stripAntlers()` replaces `{{ … }}` with a placeholder so the template parses as DOM — it does **not** fill fields.
+
+**Wanted:** typing HTML in the dock feels like Astro HMR. Markup structure paints into the focused section immediately. Morph still runs afterwards.
+
+**How:**
+
+1. **Paint (same frame).** Dock HTML + **publish-form values** (the real source — not whether a `[data-replicator-set]` is mounted). Substitute simple `{{ field }}` / `{{ nested.path }}`. Morph or replace the focused section (`pageSection` / `fileRootLive` / `pickedLive`). Keep the existing class/CSS Instant path.
+2. **Truth (~1 s morph).** Already happens. Do not block paint on it.
+3. **Skip Instant HTML** when the snippet needs real Antlers: `{{ if }}`, `{{ unless }}`, `{{ once }}`, `{{ partial }}`, `{{ collection }}`, `{{ nav }}`, `{{ svg }}`, `{{ assets }}`, or any tag that is not a simple field path. Leave the live DOM; wait for morph. Do **not** implement those in JS.
+4. **`{{ visual_edit }}`.** Do not invent `data-sid` in the browser. Copy existing attrs from the live node where the same element still exists; otherwise wait for morph. Overlay must not eject.
+5. **`style_push` / `script_push`.** CSS pane Instant already injects a live `<style>`. Do not execute new `<script>` from the dock on the paint path.
+
+**Do not:** `npm run cp:build` unless the human explicitly asks for a full addon build. This script is a side file.
+
+**Done when:** a wrapper / heading tag / extra static HTML in the HTML pane updates the section immediately with current field text still visible; Instant class/CSS still works; real Antlers tags still wait for morph; kernel files untouched.
+
+---
+
+## How to rewrite without breaking the editor
+
+1. Inventory. Read live behavior. Do not cargo-cult structure.
+2. Instant HTML (above) — first concrete win, one surface.
+3. Split god files behind `cp/bus.js` (`ask` / `emit` / `register`). `code-dock.js`, `cp.js`, `section-library.js`, `globals-panel.js` are the weight. Kernel stays non-Vue.
+4. One data source per concern. No retries, DOM fallbacks, or timeouts that hide the wrong source.
+5. Dist: four Vite entries; `addon.js` imports overlay-host by exact hash. `emptyOutDir: false`. Never build overlay-host / preview / bridge alone. `node scripts/assert-dist-integrity.mjs` if the toolbar vanishes; recover from `resources/dist/locked`.
+6. Statamic field CP is sacred. Append config on **one** fieldtype, or a side script. Never subclass + `::register()` an existing handle. Never wrap native Vue field components.
+
+**Do not use as source:** `~/Sites/statamic-addon-visual-editor` (restore), `… copy`, `…-app`, `…-vue-backup-*`, site `public/vendor/visual-editor`.
+
+---
+
+## Hard constraints
+
+- Never replace native Statamic fieldtypes (text, integer, replicator, grid, bard, iconify, …).
+- Plus under a block opens Statamic Search Sets. Keep `handle` on `groupedPickerSets` (not `all`). `isPreviewMessageSource` must accept `event.source === overlay`. Open the picker in `setTimeout(0)`.
+- Overlay open → host swallows Vite `full-reload`. Site `npm run dev` stays on for the public frontend.
+- Tags that must keep working on the site: `visual_edit`, `style_push` / `script_push`, `responsive_css`, `sve_tw`, `sve_props` / `sve_defaults`, `theme_color_scale`.
+- Danish UI copy may remain; identifiers stay English.
+- Ask instead of a second code path. Delete dead code. Stop at the boundary when something breaks far away.
+
+---
+
+## Sibling sync (works; do not commit unless asked)
+
+Lives in this repo: `resources/js/sibling-sync.js`, `src/SiblingSync.php`, tests. Do not rewrite sync/badge/lock as a side effect of Instant or CSS work. Working copy: `.restore/sibling-sync-working/`.

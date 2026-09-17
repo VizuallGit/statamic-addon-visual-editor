@@ -25,6 +25,11 @@ class InjectEditButtonTest extends TestCase
                 return $this->shouldInject($request, $response);
             }
 
+            public function exposeHead(string $content): string
+            {
+                return $this->head($content);
+            }
+
             public function exposeButton(object $entry): string
             {
                 return $this->button($entry);
@@ -78,5 +83,15 @@ class InjectEditButtonTest extends TestCase
         $this->assertStringContainsString('data-sve-overlay-host', $html);
         $this->assertStringContainsString('data-ready', $html);
         $this->assertStringContainsString('__sveWantEditor', $html);
+    }
+
+    public function test_head_wraps_vite_full_reload_before_the_client_module(): void
+    {
+        $html = $this->makeMiddleware()->exposeHead('<html><head></head><body></body></html>');
+
+        $this->assertStringContainsString("data.type === 'full-reload'", $html);
+        $this->assertStringContainsString('sve-editing', $html);
+        $this->assertStringContainsString('window.WebSocket', $html);
+        $this->assertStringContainsString('stopImmediatePropagation', $html);
     }
 }

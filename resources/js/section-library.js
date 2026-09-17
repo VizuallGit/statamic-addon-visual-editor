@@ -25,7 +25,7 @@ import {
 } from './cp.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { relayoutCodeDock } from './code-dock-lazy.js';
-import { closeAiPanel } from './ai-panel.js';
+import { closeAiPanel } from './ai-panel-lazy.js';
 import SectionLibraryPane from './cp/surfaces/SectionLibraryPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import LibraryCard from './cp/surfaces/LibraryCard.vue';

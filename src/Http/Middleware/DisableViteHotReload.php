@@ -11,26 +11,20 @@ use MarioHamann\StatamicVisualEditor\PreviewHost;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Keeps Vite's HMR client out of Live Preview and screenshot documents.
+ * Locks Vite's hot file for Live Preview, and strips the HMR client from
+ * screenshot documents only.
  *
- * The documents still resolve CSS/JS from the Vite server while `npm run dev`
- * (or `npm run dev:previews`) is running — a new utility class must not wait
- * for `npm run build`. What is stripped is `@vite/client`: that script
- * full-reloads the page on a watched file, and the preview is not a page you
- * reload. preview.js morphs it in place; a reload throws the editor out of
- * whatever it was in the middle of and can surface Chrome's "Reload site?".
- *
- * Screenshot routes get the same treatment so `sve:previews --watch` beside
- * Vite photographs what the working tree actually looks like, not the last
- * production build.
+ * Live Preview must keep `@vite/client`. CSS `update` is how a newly written
+ * utility shows up in the iframe while `npm run dev` is running, without a
+ * reload. InjectBridgeScript swallows `full-reload` so that client does not
+ * throw the editor out. Screenshots are a still frame — they must not sit on
+ * HMR, or `sve:previews --watch` beside Vite photographs a document that is
+ * about to reload.
  *
  * Swapping the container binding rather than calling `Vite::useHotFile()` is
  * the point. Statamic's `{{ vite }}` tag clones the container instance and
  * calls `useHotFile(null)` on the clone whenever the tag has no `hot`
  * parameter. `LivePreviewVite` answers from the class, which a clone carries.
- *
- * Same condition as InjectBridgeScript on purpose — the client must be gone
- * from precisely the documents the bridge takes over.
  */
 class DisableViteHotReload
 {
@@ -53,7 +47,7 @@ class DisableViteHotReload
 
         $response = $next($request);
 
-        if ($this->isPreviewRender($request) || (Features::editorEnabled() && $this->isLivePreview($request))) {
+        if ($this->isPreviewRender($request)) {
             $this->stripClientFromResponse($response);
         }
 
@@ -83,9 +77,8 @@ class DisableViteHotReload
     /**
      * One of the addon's own render routes, the ones a screenshot is taken of.
      *
-     * Not gated on `editorEnabled()`, unlike the Live Preview case: previews are
-     * generated for the Add Set picker, which is Statamic's own and works whether
-     * the editor is switched on or not.
+     * Not gated on the editor: previews are generated for the Add Set picker,
+     * which is Statamic's own and works whether the editor is switched on or not.
      */
     protected function isPreviewRender(Request $request): bool
     {

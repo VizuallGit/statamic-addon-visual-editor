@@ -8,6 +8,7 @@
  * (right dock never painted as active).
  */
 import { sve } from './cp-registry.js';
+import { sveState } from './cp-state.js';
 import { syncCodeDock as syncCodeDockLazily } from './code-dock-lazy.js';
 import {
   registerRightDockHook,
@@ -36,14 +37,15 @@ const loaders = {
   performance: () => import('./performance-panel.js'),
   edits: () => import('./page-activity.js'),
   comments: () => Promise.all([import('./block-tree.js'), loadComments()]),
+  schema: () => import('./schema-panel.js'),
+  ai_text: () => import('./ai-text.js'),
 };
 
 /**
- * Comments is the one right-dock tool that draws outside its own panel: pins
- * over the preview and a count on its toolbar button, both of which are there
- * before anyone opens anything. So it loads with Live Preview rather than on
- * the click — off every other Control Panel page, which is most of them, and
- * still exactly as it behaves today once you are looking at a page.
+ * Comments draws pins over the preview, but only after someone uses the tool.
+ * Loading it (and the block tree) with every Live Preview open was the cost of
+ * a toolbar icon that is almost never clicked. Hover, click, or a remembered
+ * open pane still bring the pins in before they are needed on screen.
  */
 let commentsStarted = false;
 
@@ -136,6 +138,57 @@ stubUntilLoaded('openHtmlTreePanel', 'html_tree');
 stubUntilLoaded('closeHtmlTreePanel', 'html_tree');
 stubUntilLoaded('toggleHtmlTreePanel', 'html_tree');
 stubUntilLoaded('renderHtmlTree', 'html_tree');
+
+stub('schemaAllowed', (win) => win.Statamic?.$config?.get?.('sveFeatures')?.schema === true);
+stub('isSchemaOpen', (doc) => !!doc?.getElementById?.('__sve-schema-panel'));
+stubUntilLoaded('toggleSchema', 'schema');
+stubUntilLoaded('closeSchema', 'schema');
+
+function aiTextStoredOn(win) {
+  try {
+    const store = win.localStorage;
+
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+
+      if ((key === 'sve-ai-text-on' || key?.endsWith(':sve-ai-text-on')) && store.getItem(key) === '1') {
+        return true;
+      }
+    }
+  } catch {
+    /* private mode */
+  }
+
+  return false;
+}
+
+stub('aiTextAllowed', (win) => {
+  if (win.Statamic?.$config?.get?.('sveEnabled') === false) {
+    return false;
+  }
+
+  return win.Statamic?.$config?.get?.('sveFeatures')?.ai_text === true;
+});
+stub('isAiTextOn', aiTextStoredOn);
+stubUntilLoaded('toggleAiText', 'ai_text');
+stubUntilLoaded('handleAiTextOpen', 'ai_text');
+stubUntilLoaded('handleAiTextGenerate', 'ai_text');
+stubUntilLoaded('handleAiTextApply', 'ai_text');
+stubUntilLoaded('handleAiTextSetKeywords', 'ai_text');
+
+function syncAiTextWhenOn(win) {
+  if (!aiTextStoredOn(win)) {
+    return;
+  }
+
+  void ensurePanel('ai_text').then(() => {
+    if (sve.syncAiTextToPreview !== syncAiTextWhenOn) {
+      sve.syncAiTextToPreview(win);
+    }
+  });
+}
+
+stub('syncAiTextToPreview', syncAiTextWhenOn);
 
 function bindRightDockHooks() {
   if (typeof sve.fillListViewPane === 'function') {
@@ -247,12 +300,12 @@ export function hidePanelWait(win) {
 }
 
 /**
- * section-library.js is also globals overlay, insert, chrome-dismiss — not only
- * Patterns. Warm it once Live Preview is on screen so a headline click and a
- * Patterns click hit the real functions, not a race with the first import.
+ * section-library.js is already in addon.js (insert, set meta, plus). This
+ * only binds dock hooks and, if the AI-text switch is already on, the one
+ * tool that has to answer the preview without a click.
  *
- * Comments comes along for the reason in loadComments: it has work to do before
- * anybody opens it. Nothing else does — every other tool waits for its click.
+ * Comments, schema, AI chat, outline and the block tree wait for their icon
+ * — or a remembered-open restore.
  */
 export function warmLivePreviewCore(win) {
   if (sectionsWarmed) {
@@ -265,7 +318,24 @@ export function warmLivePreviewCore(win) {
 
   sectionsWarmed = true;
   void ensurePanel('sections');
-  void loadComments().catch((err) => console.error('[sve] load comments', err));
+
+  if (aiTextStoredOn(win)) {
+    void ensurePanel('ai_text');
+  }
+}
+
+/**
+ * Overlay fade-in and HTML-tree prefetch both wait for this. Set once, after
+ * the preview has painted and remembered panes have been asked for — not
+ * while the iframe is still booting.
+ */
+export function markLivePreviewReady(win) {
+  if (sveState.lpReady) {
+    return;
+  }
+
+  sveState.lpReady = true;
+  win.dispatchEvent(new Event('sve-lp-ready'));
 }
 
 export function ensurePanel(key) {
