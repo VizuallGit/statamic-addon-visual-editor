@@ -64,6 +64,7 @@ import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
 import { closeRightPanels, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
+import { confirmCloseDiscard } from './pages.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -1314,7 +1315,7 @@ function duplicateHtmlTreeRow(win, id) {
  * ways depending on where it was started.
  */
 function removeSectionFromPage(win, uid) {
-  sve.confirmCloseDiscard?.(
+  confirmCloseDiscard(
     win,
     {
       titleKey: 'remove_section_title',

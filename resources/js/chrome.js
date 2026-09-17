@@ -15,6 +15,9 @@ import { publishContainers } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, ensureSoloStyle, markSoloPath, paintFocusHeader, soloRoot } from './focus-panel.js';
 import { closeRightPanels, hideGlobalsPanel, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
+import { chromeGlobalHandle, clearGlobalsStash, globalSets, lockChromeGlobalsTab, notifyChromeDirty, notifyGlobalSectionDirty, openGlobalsPanel, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
+import { flushPendingEditUntilPanel } from './inline-edit.js';
+import { fetchInertiaPage, flushPendingFocusUntilPanel, hidePageFieldsForGlobalSection, mountBorrowedForm, postSectionValues, revealSectionPanelFrame, sectionPanelContainer, showPageFieldsAgain } from './global-section.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------
@@ -138,7 +141,7 @@ export function mountChromeForm(win, host, Page, props) {
     return false;
   }
 
-  chromeApp = sve.mountBorrowedForm(win, host, (Vue) => () => Vue.h(Patched, props), 'chrome form');
+  chromeApp = mountBorrowedForm(win, host, (Vue) => () => Vue.h(Patched, props), 'chrome form');
 
   return !!chromeApp;
 }
@@ -311,20 +314,20 @@ export async function takeChromeInlinePage(win, handle) {
   // for one honest fetch: slower than warm, still the right side of the screen.
   const warmed = pending ? await pending : null;
 
-  return warmed ?? sve.fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
+  return warmed ?? fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
 }
 
 export function prefetchOtherChromeHalf(win, kind) {
-  const handle = sve.chromeGlobalHandle(win, kind === 'footer' ? 'header' : 'footer');
+  const handle = chromeGlobalHandle(win, kind === 'footer' ? 'header' : 'footer');
 
   // One shared set: the other half is a tab of the form already mounted.
-  if (handle === sve.chromeGlobalHandle(win, kind) || chromeInlinePages.has(handle)) {
+  if (handle === chromeGlobalHandle(win, kind) || chromeInlinePages.has(handle)) {
     return;
   }
 
   chromeInlinePages.set(
     handle,
-    sve.fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null)
+    fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null)
   );
 }
 
@@ -338,13 +341,13 @@ export function prefetchOtherChromeHalf(win, kind) {
  */
 export function warmChromeInlinePages(win) {
   ['header', 'footer'].forEach((kind) => {
-    const handle = sve.chromeGlobalHandle(win, kind);
+    const handle = chromeGlobalHandle(win, kind);
 
     if (chromeInlinePages.has(handle)) {
       return;
     }
 
-    const pending = sve.fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
+    const pending = fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
 
     chromeInlinePages.set(handle, pending);
 
@@ -377,10 +380,10 @@ export function resetChromeInlinePages(win) {
 export async function openChromeInline(win, kind) {
   const doc = win.document;
   const chromeKind = kind === 'footer' ? 'footer' : 'header';
-  const handle = sve.chromeGlobalHandle(win, chromeKind);
+  const handle = chromeGlobalHandle(win, chromeKind);
   const existing = chromeHost(doc);
 
-  sve.setActiveChromeKind(chromeKind);
+  setActiveChromeKind(chromeKind);
   chromeInlineKind = chromeKind;
   setLpMode(win, 'show');
   hideGlobalsPanel(win, { release: false });
@@ -403,7 +406,7 @@ export async function openChromeInline(win, kind) {
   // end of this function), so the swap is one frame, not a fetch.
   if (existing) {
     closeChromeInline(win, { refresh: false });
-    sve.setActiveChromeKind(chromeKind);
+    setActiveChromeKind(chromeKind);
     chromeInlineKind = chromeKind;
   }
 
@@ -472,15 +475,15 @@ export async function openChromeInline(win, kind) {
 
 /** The docked Theme Settings route, for when the in-window one cannot be built. */
 export function openGlobalsPanelFrameForChrome(win, kind) {
-  const set = sve.globalSets(win).find((candidate) => candidate.handle === sve.chromeGlobalHandle(win, kind));
+  const set = globalSets(win).find((candidate) => candidate.handle === chromeGlobalHandle(win, kind));
 
   if (!set) {
     return;
   }
 
-  sve.openGlobalsPanel(win, set, { chromeLock: kind });
+  openGlobalsPanel(win, set, { chromeLock: kind });
   showGlobalsPanel(win);
-  sve.lockChromeGlobalsTab(win, kind);
+  lockChromeGlobalsTab(win, kind);
 }
 
 /** Isolate the tab once the form has rendered enough of itself to be isolated. */
@@ -492,7 +495,7 @@ export function bootChromeSolo(win, doc, host, kind) {
       return;
     }
 
-    sve.hidePageFieldsForGlobalSection(host);
+    hidePageFieldsForGlobalSection(host);
     host.style.position = '';
     host.style.inset = '';
     host.style.overflow = '';
@@ -529,7 +532,7 @@ export function bootChromeSolo(win, doc, host, kind) {
 /**
  * Read what the form holds, four times a second, and stash it for the preview.
  *
- * Same channel the docked panel used — `sve.postGlobals` and its debounce — so the
+ * Same channel the docked panel used — `postGlobals` and its debounce — so the
  * render, the chrome bar and the discard path all behave exactly as they did.
  */
 export function watchChromeInlineValues(win, handle) {
@@ -578,8 +581,8 @@ export function watchChromeInlineValues(win, handle) {
     }
 
     sveState.globalsStashActive = true;
-    sve.notifyChromeDirty(win);
-    sve.postGlobals(win, handle, JSON.parse(serialized));
+    notifyChromeDirty(win);
+    postGlobals(win, handle, JSON.parse(serialized));
   }, 250);
 }
 
@@ -617,7 +620,7 @@ export function pressChromeSave(win) {
 
 /** Hear the globals save go out — it is this window's request now. */
 export function watchChromeInlineSaves(win) {
-  sve.watchGlobalsPanelSaves(win, win, () => (chromeInlineHandle ? `/cp/globals/${chromeInlineHandle}` : null));
+  watchGlobalsPanelSaves(win, win, () => (chromeInlineHandle ? `/cp/globals/${chromeInlineHandle}` : null));
 }
 
 /** Take the form down and hand the column back to the page. */
@@ -657,7 +660,7 @@ export function closeChromeInline(win, { refresh = true } = {}) {
   host.remove();
   clearSolo(doc);
   openSettingsTab(win);
-  sve.showPageFieldsAgain(doc);
+  showPageFieldsAgain(doc);
 
   chromeInlineHandle = null;
   sveState.chromeValuesSeen = null;
@@ -665,7 +668,7 @@ export function closeChromeInline(win, { refresh = true } = {}) {
 
   rearmFirstSection();
   syncPreviewInset(win);
-  sve.clearGlobalsStash(win, { refresh });
+  clearGlobalsStash(win, { refresh });
   syncSectionLibraryAvailability(win);
   syncCodeDock(win, doc, sveState.soloUid);
 
@@ -690,10 +693,10 @@ export function listenForSectionValues(win) {
       const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
 
       if (panel && event.source === panel.querySelector('iframe')?.contentWindow) {
-        sve.flushPendingFocusUntilPanel(win);
+        flushPendingFocusUntilPanel(win);
         // The rebuild is done — this is the first moment the form is worth
         // looking at, so it is the moment it becomes visible.
-        sve.revealSectionPanelFrame(win);
+        revealSectionPanelFrame(win);
       }
 
       return;
@@ -722,12 +725,12 @@ export function listenForSectionValues(win) {
  */
 export function applySectionValues(win, id, values) {
   // Kept so the panel can stand in as a container — that's what lets a global
-  // section's text be edited inline in the page (see sve.sectionPanelContainer).
+  // section's text be edited inline in the page (see sectionPanelContainer).
   sveState.sectionPanelValues = { id, values };
 
   // Inline edit / focus clicked before hydrate finished — try again now.
-  sve.flushPendingEditUntilPanel();
-  sve.flushPendingFocusUntilPanel(win);
+  flushPendingEditUntilPanel();
+  flushPendingFocusUntilPanel(win);
 
   const serialized = JSON.stringify(values ?? {});
 
@@ -740,7 +743,7 @@ export function applySectionValues(win, id, values) {
     sveState.sectionBaselineUntil = 0;
     sveState.sectionValuesBaseline = serialized;
     sveState.sectionValuesMatchBaseline = true;
-    sve.notifyGlobalSectionDirty(win);
+    notifyGlobalSectionDirty(win);
 
     return;
   }
@@ -757,8 +760,8 @@ export function applySectionValues(win, id, values) {
   // from — which is what made editing seem to break at random.
   sveState.sectionValuesMatchBaseline = serialized === sveState.sectionValuesBaseline;
 
-  sve.notifyGlobalSectionDirty(win);
-  sve.postSectionValues(win, id, values);
+  notifyGlobalSectionDirty(win);
+  postSectionValues(win, id, values);
 }
 
 export function listenForGlobalsValues(win) {
@@ -819,24 +822,9 @@ export function listenForGlobalsValues(win) {
 
     // Show Save on the chrome bar immediately (stash POST is still debounced).
     sveState.globalsStashActive = true;
-    sve.notifyChromeDirty(win);
+    notifyChromeDirty(win);
 
-    sve.postGlobals(win, data.handle, data.values);
+    postGlobals(win, data.handle, data.values);
   });
 }
-Object.defineProperty(sve, 'chromeApp', { get() { return chromeApp; }, set(v) { chromeApp = v; } });
 Object.defineProperty(sve, 'chromeInlineKind', { get() { return chromeInlineKind; }, set(v) { chromeInlineKind = v; } });
-Object.defineProperty(sve, 'chromeInlineHandle', { get() { return chromeInlineHandle; }, set(v) { chromeInlineHandle = v; } });
-Object.defineProperty(sve, 'chromeValuesTimer', { get() { return chromeValuesTimer; }, set(v) { chromeValuesTimer = v; } });
-sve.chromeHost = chromeHost;
-sve.chromeEditorOpen = chromeEditorOpen;
-sve.chromeContainer = chromeContainer;
-sve.soloChromeTab = soloChromeTab;
-sve.watchChromeSolo = watchChromeSolo;
-sve.warmChromeInlinePages = warmChromeInlinePages;
-sve.openChromeInline = openChromeInline;
-sve.pressChromeSave = pressChromeSave;
-sve.closeChromeInline = closeChromeInline;
-sve.listenForSectionValues = listenForSectionValues;
-sve.applySectionValues = applySectionValues;
-sve.listenForGlobalsValues = listenForGlobalsValues;

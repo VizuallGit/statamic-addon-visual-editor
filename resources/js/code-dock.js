@@ -138,6 +138,8 @@ import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { setTypeForUid } from './focus-panel.js';
+import { globalSectionHost } from './global-section.js';
+import { chromeContainer, chromeEditorOpen, chromeHost } from './chrome.js';
 
 let EditorView;
 let keymap;
@@ -8008,18 +8010,18 @@ function chromeTemplateType(win, doc) {
     return '';
   }
 
-  if (!sve.chromeHost?.(doc) && !sve.chromeEditorOpen?.(doc)) {
+  if (!chromeHost(doc) && !chromeEditorOpen(doc)) {
     return '';
   }
 
-  const values = unwrapRef(sve.chromeContainer?.()?.values) || {};
+  const values = unwrapRef(chromeContainer()?.values) || {};
   const style = values[kind === 'footer' ? 'footer_style' : 'header_style'] || 'style_1';
 
   return `${kind}/${style}`;
 }
 
 function globalSectionTemplateType(doc) {
-  const host = sve.globalSectionHost?.(doc) || doc.getElementById('__sve-global-section-host');
+  const host = globalSectionHost(doc) || doc.getElementById('__sve-global-section-host');
 
   if (!host) {
     return '';

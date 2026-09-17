@@ -66,6 +66,11 @@ import { remToPx } from './lib/dom.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed, setLpMode, shouldKeepChrome, storedLpCollapsed } from './lp-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, isGlobalsOverlayOpen, placeGlobalsOverlay, savedSectionInfo } from './section-library.js';
+import { bootSavedSectionSolo, ensureGlobalsPicker, ensureSectionLibraryButton, hasUnsavedGlobals, parkGlobalsPanel } from './globals-panel.js';
+import { handleSaveSection } from './inline-edit.js';
+import { globalSectionHost } from './global-section.js';
+import { chromeHost, soloChromeTab, watchChromeSolo } from './chrome.js';
+import { confirmLeaveGlobalsOverlay, ensureCollectionPicker, handleRequestCloseGlobal } from './pages.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -198,8 +203,8 @@ export function leaveSolo(doc, win) {
   // Same when the synced entry's form is mounted here: "all sections" means the
   // page's sections. Dropping the solo would instead show the library entry's own
   // form — Navn, Synkroniseret, Published — which is not a place to step back to.
-  if (sve.globalSectionHost(doc)) {
-    sve.handleRequestCloseGlobal(win);
+  if (globalSectionHost(doc)) {
+    handleRequestCloseGlobal(win);
 
     return;
   }
@@ -207,12 +212,12 @@ export function leaveSolo(doc, win) {
   // Stepping out of a widget inside the header goes back to the header, the way
   // a block steps back into the section holding it. Leaving the header itself is
   // the bar's job, not this one's.
-  if (sve.chromeHost(doc) && sve.chromeInlineKind) {
+  if (chromeHost(doc) && sve.chromeInlineKind) {
     const kind = sve.chromeInlineKind;
 
     clearSolo(doc);
-    sve.soloChromeTab(win, doc, kind);
-    sve.watchChromeSolo(win, doc, kind);
+    soloChromeTab(win, doc, kind);
+    watchChromeSolo(win, doc, kind);
 
     return;
   }
@@ -284,7 +289,7 @@ export function addSoloBackButton(doc, win, saveUid = null, back = null) {
 
       leaveSolo(doc, win);
     },
-    onSave: () => sve.handleSaveSection({ uid: saveUid }, doc, win),
+    onSave: () => handleSaveSection({ uid: saveUid }, doc, win),
   });
 
   if (!host.parentNode) {
@@ -1672,9 +1677,9 @@ export function isolateSoloSection(uid, doc, win, { kind = null, segment = null 
   // Unless the set is one of the chrome form's own: a widget in the header is
   // reached by clicking it on the page, exactly like a block in a section, and
   // stepping into it is not leaving the header — it IS editing the header.
-  if (win && !sve.chromeHost(doc)?.contains(setEl)) {
-    if (isGlobalsOverlayOpen(win) && sve.hasUnsavedGlobals(win)) {
-      sve.confirmLeaveGlobalsOverlay(win, () => {
+  if (win && !chromeHost(doc)?.contains(setEl)) {
+    if (isGlobalsOverlayOpen(win) && hasUnsavedGlobals(win)) {
+      confirmLeaveGlobalsOverlay(win, () => {
         dismissChromeForPageEdit(win);
         isolateSoloSection(uid, doc, win, { kind, segment });
       });
@@ -1856,7 +1861,7 @@ export function isolateSoloSection(uid, doc, win, { kind = null, segment = null 
   }
 
   // Only report success when isolation actually marked a path. Returning true
-  // after a failed markSoloPath made sve.bootSavedSectionSolo stop retrying while
+  // after a failed markSoloPath made bootSavedSectionSolo stop retrying while
   // the sidebar still showed entry meta (Published + title).
   return isolated;
 }
@@ -2177,7 +2182,7 @@ export function ensureLpPanelToggleInner(win) {
       persistDockedPanel(win);
       clearSolo(doc);
       closeRightPanels(win);
-      sve.parkGlobalsPanel(win);
+      parkGlobalsPanel(win);
       sveState.dockedHeaderRestored = false;
       sveState.headerTab = undefined;
       sveState.lpEnterSidebarClosed = null;
@@ -2210,9 +2215,9 @@ export function ensureLpPanelToggleInner(win) {
   doc.getElementById(LP_TOGGLE_ID)?.remove();
   doc.getElementById(LP_MODE_ID)?.remove();
 
-  sve.ensureGlobalsPicker(win);
-  sve.ensureSectionLibraryButton(win);
-  sve.ensureCollectionPicker(win);
+  ensureGlobalsPicker(win);
+  ensureSectionLibraryButton(win);
+  ensureCollectionPicker(win);
   enhanceGrids(win);
 
   // Collapse all of the above into the icon toolbar — one control at a time.

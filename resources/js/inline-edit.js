@@ -31,6 +31,8 @@ import { activeContainers, publishContainers } from './lib/publish-containers.js
 import { setLpCollapsed } from './lp-panel.js';
 import { deepestFieldPath } from './focus-panel.js';
 import { buildSectionRow, fetchSetMeta, globalSectionSet, libraryWentStale, newRowId, rememberSavedSection, rowLocation, sortableItemForUid, writeSetMeta } from './section-library.js';
+import { flushPendingSectionRefresh, globalSectionEditorOpen } from './global-section.js';
+import { discardChanges } from './open-in-preview.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -103,7 +105,7 @@ export function markEntryFormClean(win) {
   }
 
   entryValuesBaseline = serialized;
-  sve.discardChanges(win);
+  discardChanges(win);
   win.Statamic?.$dirty?.disableWarning?.();
 
   return true;
@@ -944,7 +946,7 @@ export function handleEditRequest(data, doc, win) {
  * instead of denying and making the click feel dead.
  */
 export function queueEditUntilPanelReady(data, doc, win) {
-  if (!sve.globalSectionEditorOpen(doc) || sveState.sectionPanelValues?.values) {
+  if (!globalSectionEditorOpen(doc) || sveState.sectionPanelValues?.values) {
     return false;
   }
 
@@ -1176,7 +1178,7 @@ export function handleEditEnd(data, win = window) {
   // A global section's stash may have been written several times while this
   // edit was open, with the re-render held back each time so the caret survived.
   // Now that the page is nobody's text field again, let it catch up.
-  sve.flushPendingSectionRefresh(win);
+  flushPendingSectionRefresh(win);
 }
 
 // command → CP Bard toolbar button title matcher. Core Statamic titles are
@@ -2568,32 +2570,5 @@ export function saveSectionDialog(win, section, onSave) {
 Object.defineProperty(sve, 'editSession', { get() { return editSession; }, set(v) { editSession = v; } });
 sve.unwrapRef = unwrapRef; // standalone scripts still read this off window.sve — goes with WP6
 Object.defineProperty(sve, 'entryValuesBaseline', { get() { return entryValuesBaseline; }, set(v) { entryValuesBaseline = v; } });
-Object.defineProperty(sve, 'entryBaselineTimer', { get() { return entryBaselineTimer; }, set(v) { entryBaselineTimer = v; } });
 Object.defineProperty(sve, 'entrySaveSettling', { get() { return entrySaveSettling; }, set(v) { entrySaveSettling = v; } });
-sve.serializeEntryValues = serializeEntryValues;
-sve.markEntryFormClean = markEntryFormClean;
-sve.scheduleEntryBaseline = scheduleEntryBaseline;
-sve.scheduleEntryBaselineAfterSave = scheduleEntryBaselineAfterSave;
-sve.clearEntryBaseline = clearEntryBaseline;
-Object.defineProperty(sve, 'bardSyncTimer', { get() { return bardSyncTimer; }, set(v) { bardSyncTimer = v; } });
-Object.defineProperty(sve, 'bardSyncPending', { get() { return bardSyncPending; }, set(v) { bardSyncPending = v; } });
 sve.activeContainers = activeContainers; // standalone html-tree-section-sync.js still reads this off window.sve — goes with WP6
-sve.handleEditRequest = handleEditRequest;
-sve.flushPendingEditUntilPanel = flushPendingEditUntilPanel;
-sve.handleEditControl = handleEditControl;
-Object.defineProperty(sve, 'themeSwatchesPromise', { get() { return themeSwatchesPromise; }, set(v) { themeSwatchesPromise = v; } });
-sve.handleThemeSwatchesRequest = handleThemeSwatchesRequest;
-sve.handleEditInput = handleEditInput;
-sve.handleEditEnd = handleEditEnd;
-sve.handleBardCommand = handleBardCommand;
-sve.handleOpenPanelField = handleOpenPanelField;
-sve.handleBlockFormat = handleBlockFormat;
-sve.handleAssetEdit = handleAssetEdit;
-sve.handleIconEdit = handleIconEdit;
-sve.handleLinkEdit = handleLinkEdit;
-sve.handleMove = handleMove;
-sve.handleColumnWidth = handleColumnWidth;
-sve.handleGridSpan = handleGridSpan;
-sve.handleAddColumn = handleAddColumn;
-sve.handleSaveSection = handleSaveSection;
-sve.savePageAsTemplate = savePageAsTemplate;

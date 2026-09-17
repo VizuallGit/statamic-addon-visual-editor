@@ -83,6 +83,12 @@ import { activeContainers, registerContainerEvents } from './lib/publish-contain
 import { autoOpenPanel, findLpSaveButton, lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, paintLpSaveButton, persistDockedPanel, setLpCollapsed, setLpMode, syncLpRightBarGaps } from './lp-panel.js';
 import { ensureLpPanelToggle, ensureLpWidthPicker, focusFieldOwner, focusFromPreview, focusPanelOn, leaveSolo, markStepIntoAll, persistLpWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 import { closeRightPanels, closeSectionPicker, dismissChromeForPageEdit, formHasSectionField, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, isGlobalsOverlayOpen, isSectionLibraryLocked, openSectionPicker, overlaySidTemplate, paintFocusLockedTabs, rowLocation, syncPreviewInset, syncSectionLibraryAvailability, watchNewRow } from './section-library.js';
+import { bootSavedSectionSolo, discardGlobalsChanges, ensurePreviewOutsideDismiss, handleOpenChrome, handleOpenGlobal, hasUnsavedGlobals, hasUnsavedWork, initGlobalsPanelFrame, notifyChromeDirty, notifyGlobalSectionDirty, saveGlobalsPanel, setChromeSidebarMode } from './globals-panel.js';
+import { clearEntryBaseline, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest, markEntryFormClean, scheduleEntryBaseline } from './inline-edit.js';
+import { clearSectionsStash, closeGlobalSectionPanel, forwardGlobalSectionFocus, globalSectionEditorOpen, hasUnsavedGlobalSection, saveGlobalSectionPanel, sectionPanelContainer } from './global-section.js';
+import { listenForGlobalsValues, listenForSectionValues } from './chrome.js';
+import { claimOrigin, disarmUnloadWarning, discardChanges, dismissDirtyWarning, forgetOrigin, hasUnsavedChanges, initOpenInPreview, leaveQuietly, onEntrySave, originForCurrentEntry, publishButtonIn, saveButtonIn, watchEntrySaves } from './open-in-preview.js';
+import { confirmCloseDiscard, confirmUnsaved, handleRequestCloseChrome, handleRequestCloseGlobal, hideNavSpinner, saveThenNavigate } from './pages.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -113,7 +119,7 @@ export function findSetByUid(uid, doc = document, index = 0) {
 
   // Saved (synced) sections strip `_visual_id` on save. Until AutoUuid remounts
   // a matching [data-visual-id] input, locate the set by its values path instead
-  // — otherwise sve.bootSavedSectionSolo / focus never opens and the sidebar stays
+  // — otherwise bootSavedSectionSolo / focus never opens and the sidebar stays
   // on empty entry meta (Published + title).
   return findSetByValuesPath(uid, doc, index);
 }
@@ -3437,7 +3443,7 @@ export function toggleHeaderTab(win, key) {
 
       if (isSectionLibraryLocked(win)) {
         dismissChromeForPageEdit(win);
-        sve.closeGlobalSectionPanel(win);
+        closeGlobalSectionPanel(win);
         sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
         sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
         syncSectionLibraryAvailability(win);
@@ -4581,12 +4587,12 @@ export function leaveEditor(win, link, leave, { publish = true } = {}) {
     return;
   }
 
-  const save = sve.saveButtonIn(win.document);
-  const hasPublish = !!sve.publishButtonIn(win.document);
+  const save = saveButtonIn(win.document);
+  const hasPublish = !!publishButtonIn(win.document);
   const saveOnly = hasPublish && !publish;
-  const entryDirty = sve.hasUnsavedChanges(win);
-  const globalsDirty = sve.hasUnsavedGlobals(win);
-  const sectionDirty = sve.hasUnsavedGlobalSection(win);
+  const entryDirty = hasUnsavedChanges(win);
+  const globalsDirty = hasUnsavedGlobals(win);
+  const sectionDirty = hasUnsavedGlobalSection(win);
 
   if (!save && !globalsDirty && !sectionDirty) {
     if (!saveOnly) {
@@ -4626,7 +4632,7 @@ export function leaveEditor(win, link, leave, { publish = true } = {}) {
       if (saveOnly) {
         release();
       } else {
-        sve.leaveQuietly(win, leave);
+        leaveQuietly(win, leave);
       }
     };
 
@@ -4639,7 +4645,7 @@ export function leaveEditor(win, link, leave, { publish = true } = {}) {
 
       let settled = false;
 
-      const stop = sve.onEntrySave((ok) => {
+      const stop = onEntrySave((ok) => {
         if (settled) {
           return;
         }
@@ -4667,10 +4673,10 @@ export function leaveEditor(win, link, leave, { publish = true } = {}) {
 
         // Save just succeeded — refresh the clean baseline so leave isn't
         // blocked by sticky $dirty, and value-diff matches the saved form.
-        sve.markEntryFormClean(win);
+        markEntryFormClean(win);
 
         publishWorkingCopy(win, {
-          onSuccess: () => sve.leaveQuietly(win, leave),
+          onSuccess: () => leaveQuietly(win, leave),
           onFailure: release,
           onPublishing: () => setLabel(t(win, 'publishing')),
           afterSave: true,
@@ -4691,14 +4697,14 @@ export function leaveEditor(win, link, leave, { publish = true } = {}) {
     };
 
     // Theme Settings / global section first — entry save can navigate away.
-    sve.saveGlobalsPanel(win, (ok) => {
+    saveGlobalsPanel(win, (ok) => {
       if (!ok) {
         release();
 
         return;
       }
 
-      sve.saveGlobalSectionPanel(win, (sectionOk) => {
+      saveGlobalSectionPanel(win, (sectionOk) => {
         if (!sectionOk) {
           release();
 
@@ -4778,12 +4784,12 @@ export function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, af
       return;
     }
 
-    const button = sve.publishButtonIn(win.document);
+    const button = publishButtonIn(win.document);
     // After an explicit save we already cleared dirty marks — only wait for the
     // Publish button to enable (Statamic may still be finishing its UI update).
     const blocked = afterSave
       ? button?.disabled === true
-      : sve.hasUnsavedChanges(win) || button?.disabled === true;
+      : hasUnsavedChanges(win) || button?.disabled === true;
 
     if (blocked) {
       if (++attempts > 50) {
@@ -4801,7 +4807,7 @@ export function publishWorkingCopy(win, { onSuccess, onFailure, onPublishing, af
 
     onPublishing?.();
 
-    const rearm = sve.disarmUnloadWarning(win);
+    const rearm = disarmUnloadWarning(win);
 
     win
       .fetch(entryPublishUrl(win), {
@@ -5142,7 +5148,7 @@ export function removeLpBackButton(doc) {
   doc.getElementById(LP_BACK_ID)?.remove();
   doc.getElementById('__sve-lp-more-menu')?.remove();
   doc.getElementById('__sve-lp-more')?.remove();
-  sve.clearEntryBaseline();
+  clearEntryBaseline();
 }
 
 /**
@@ -5202,7 +5208,7 @@ export function ensureLpBackButton(win) {
 
   positionLpBackButton(win);
   // Idempotent: no-ops once the session already has a clean snapshot.
-  sve.scheduleEntryBaseline(win);
+  scheduleEntryBaseline(win);
 }
 
 /**
@@ -5225,10 +5231,10 @@ export function leaveLivePreview(win, fallbackUrl = null) {
 
   // Never reached the publish form on the way in, so it is not somewhere to be
   // put down on the way out: the way back is the list the entry was clicked in.
-  const origin = sve.originForCurrentEntry(win);
+  const origin = originForCurrentEntry(win);
 
   if (origin) {
-    sve.forgetOrigin(win);
+    forgetOrigin(win);
     leaveToOrigin(win, origin);
 
     return;
@@ -5247,7 +5253,7 @@ export function leaveLivePreview(win, fallbackUrl = null) {
 export function leaveToOrigin(win, url) {
   const router = win.__STATAMIC__?.inertia?.router;
 
-  sve.dismissDirtyWarning(win);
+  dismissDirtyWarning(win);
 
   if (!router?.visit) {
     win.location.href = url;
@@ -5265,7 +5271,7 @@ export function closeLivePreviewUi(win) {
 
   // Settling on the form is an answer to "where does this end", so a later × on
   // a preview reopened by hand should not still be pointing at a listing.
-  sve.forgetOrigin(win);
+  forgetOrigin(win);
 
   // Temporarily reveal so .click() works even while we keep × hidden in the UI.
   if (close) {
@@ -5336,7 +5342,7 @@ export function goTop(win, url) {
  * back to admin is the collection (or the listing that opened the overlay).
  */
 export function collectionListingUrl(win) {
-  const origin = sve.originForCurrentEntry(win);
+  const origin = originForCurrentEntry(win);
 
   if (origin) {
     try {
@@ -5361,7 +5367,7 @@ export function collectionListingUrl(win) {
 
 /** Leave the visual editor and land on the collection listing. */
 export function leaveToAdmin(win) {
-  sve.dismissDirtyWarning(win);
+  dismissDirtyWarning(win);
 
   // Overlay sits on the CP listing (or dashboard): just lift it.
   if (isEmbeddedInSite(win) && hostIsControlPanel(win)) {
@@ -5372,7 +5378,7 @@ export function leaveToAdmin(win) {
 
   const listing = collectionListingUrl(win);
 
-  sve.forgetOrigin(win);
+  forgetOrigin(win);
 
   if (isEmbeddedInSite(win)) {
     postToHost(win, 'lp-close', listing ? { url: listing } : {});
@@ -5385,7 +5391,7 @@ export function leaveToAdmin(win) {
 
 /** Leave the visual editor and land on the public page. */
 export function leaveToFrontend(win) {
-  sve.dismissDirtyWarning(win);
+  dismissDirtyWarning(win);
   const url = visitUrlOf(win);
 
   if (isEmbeddedInSite(win) && !hostIsControlPanel(win)) {
@@ -5405,39 +5411,39 @@ export function leaveToFrontend(win) {
 
 /** Save or discard first when the form is dirty, then run `leave`. */
 export function confirmLeaveIfDirty(win, leave) {
-  if (!sve.hasUnsavedWork(win)) {
+  if (!hasUnsavedWork(win)) {
     leave();
 
     return;
   }
 
-  sve.confirmUnsaved(
+  confirmUnsaved(
     win,
     () => {
-      sve.saveGlobalsPanel(win, (ok) => {
+      saveGlobalsPanel(win, (ok) => {
         if (!ok) {
           return;
         }
 
-        sve.saveGlobalSectionPanel(win, (sectionOk) => {
+        saveGlobalSectionPanel(win, (sectionOk) => {
           if (!sectionOk) {
             return;
           }
 
-          if (!sve.hasUnsavedChanges(win) || !sve.saveButtonIn(win.document)) {
-            sve.leaveQuietly(win, leave);
+          if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
+            leaveQuietly(win, leave);
 
             return;
           }
 
-          sve.saveThenNavigate(win, leave);
+          saveThenNavigate(win, leave);
         });
       });
     },
     () => {
-      sve.discardChanges(win);
-      sve.discardGlobalsChanges(win);
-      sve.clearSectionsStash(win, { refresh: false });
+      discardChanges(win);
+      discardGlobalsChanges(win);
+      clearSectionsStash(win, { refresh: false });
       leave();
     }
   );
@@ -7231,7 +7237,7 @@ export function handleAddBardSetNative(data, doc, win) {
 /**
  * When a synced section panel is open, field DOM (focus, assets, link UI) lives
  * in that iframe — not the page publish form. Value writes still go through
- * sve.sectionPanelContainer on the parent.
+ * sectionPanelContainer on the parent.
  */
 export function globalSectionEditorDoc(doc) {
   // Edited in this window there is no panel, so this is null and every caller
@@ -7364,14 +7370,14 @@ export function createMessageListener(doc = document, win = window) {
 
       // Synced section: focus/solo runs inside the left iframe (source entry),
       // not the page form — those uids are not on this page.
-      if (sve.forwardGlobalSectionFocus(data, doc, win)) {
+      if (forwardGlobalSectionFocus(data, doc, win)) {
         return;
       }
 
       // Normal page click while the synced-section editor is still up: put the
       // page form back so the sidebar matches the section being edited.
-      if (sve.globalSectionEditorOpen(doc) && !data.global) {
-        sve.closeGlobalSectionPanel(win);
+      if (globalSectionEditorOpen(doc) && !data.global) {
+        closeGlobalSectionPanel(win);
         previewFrame(doc)?.contentWindow?.postMessage(
           { source: 'statamic-visual-editor', type: 'sve-force-exit-global' },
           win.location.origin
@@ -7426,17 +7432,17 @@ export function createMessageListener(doc = document, win = window) {
         }
       }
     } else if (data.type === 'edit-request') {
-      sve.handleEditRequest(data, doc, win);
+      handleEditRequest(data, doc, win);
     } else if (data.type === 'edit-input') {
-      sve.handleEditInput(data, doc);
+      handleEditInput(data, doc);
     } else if (data.type === 'edit-control') {
-      sve.handleEditControl(data);
+      handleEditControl(data);
     } else if (data.type === 'theme-swatches-request') {
-      sve.handleThemeSwatchesRequest(data, win);
+      handleThemeSwatchesRequest(data, win);
     } else if (data.type === 'edit-end') {
-      sve.handleEditEnd(data, win);
+      handleEditEnd(data, win);
     } else if (data.type === 'block-format') {
-      sve.handleBlockFormat(data, doc);
+      handleBlockFormat(data, doc);
     } else if (data.type === 'outline') {
       sve.handleOutline?.(data, win);
     } else if (data.type === 'open-panel-field') {
@@ -7459,66 +7465,66 @@ export function createMessageListener(doc = document, win = window) {
         return;
       }
 
-      sve.handleOpenPanelField(data, doc, win);
+      handleOpenPanelField(data, doc, win);
     } else if (data.type === 'bard-command') {
       const idoc = globalSectionEditorDoc(doc);
 
       if (idoc && sve.editSession?.container?.name === 'sve-global-section') {
-        sve.handleBardCommand(data, idoc, globalSectionEditorWin(win) || win);
+        handleBardCommand(data, idoc, globalSectionEditorWin(win) || win);
       } else {
-        sve.handleBardCommand(data, doc, win);
+        handleBardCommand(data, doc, win);
       }
     } else if (data.type === 'asset-edit') {
       const idoc = globalSectionEditorDoc(doc);
 
-      sve.handleAssetEdit(data, idoc || doc);
+      handleAssetEdit(data, idoc || doc);
     } else if (data.type === 'icon-edit') {
       const idoc = globalSectionEditorDoc(doc);
 
-      sve.handleIconEdit(data, idoc || doc, win);
+      handleIconEdit(data, idoc || doc, win);
     } else if (data.type === 'link-edit') {
       const idoc = globalSectionEditorDoc(doc);
       const iwin = globalSectionEditorWin(win);
 
       if (idoc && iwin && sve.editSession?.container?.name === 'sve-global-section') {
-        sve.handleLinkEdit(data, idoc, iwin);
+        handleLinkEdit(data, idoc, iwin);
       } else {
-        sve.handleLinkEdit(data, doc, win);
+        handleLinkEdit(data, doc, win);
       }
     } else if (data.type === 'move') {
-      sve.handleMove(data, doc);
+      handleMove(data, doc);
     } else if (data.type === 'add-set') {
       handleAddSet(data, doc, win);
     } else if (data.type === 'cb-col-width') {
-      sve.handleColumnWidth(data, doc);
+      handleColumnWidth(data, doc);
     } else if (data.type === 'sve-grid-span') {
-      sve.handleGridSpan(data, doc, win);
+      handleGridSpan(data, doc, win);
     } else if (data.type === 'open-component') {
       // The dock is open whenever the preview knows about components at all —
       // the map is only sent while a template is loaded.
       ask('dock:open-template', `view:partials/${data.src}`);
     } else if (data.type === 'open-global') {
-      sve.handleOpenGlobal(data, doc, win);
+      handleOpenGlobal(data, doc, win);
     } else if (data.type === 'open-chrome') {
-      sve.handleOpenChrome(data, doc, win);
+      handleOpenChrome(data, doc, win);
     } else if (data.type === 'open-chrome-designs') {
-      sve.setChromeSidebarMode(win, 'design');
+      setChromeSidebarMode(win, 'design');
     } else if (data.type === 'open-chrome-settings') {
-      sve.setChromeSidebarMode(win, 'settings');
+      setChromeSidebarMode(win, 'settings');
     } else if (data.type === 'close-chrome') {
       // Stepping out of header/footer (e.g. clicking a page section): free the
       // left edge so the section editor isn't stacked under Theme Settings.
       dismissChromeForPageEdit(win);
     } else if (data.type === 'request-close-chrome') {
-      sve.handleRequestCloseChrome(win);
+      handleRequestCloseChrome(win);
     } else if (data.type === 'sve-chrome-dirty-query') {
-      sve.notifyChromeDirty(win);
+      notifyChromeDirty(win);
     } else if (data.type === 'save-chrome') {
       // The bar's Save, driving whichever form is actually holding the edits.
       // Sent straight to the panel iframe, it went to Theme Settings as the
       // background prefetch had loaded it — a form that had never seen the edit
       // — and saved that instead.
-      sve.saveGlobalsPanel(win, () => {});
+      saveGlobalsPanel(win, () => {});
     } else if (data.type === 'add-row') {
       handleAddRow(data, doc, win);
     } else if (data.type === 'add-block-native') {
@@ -7535,7 +7541,7 @@ export function createMessageListener(doc = document, win = window) {
       // is gone. A row is small and sits in view of its siblings, so it goes
       // straight away, as it always has.
       if (data.confirm) {
-        sve.confirmCloseDiscard(
+        confirmCloseDiscard(
           win,
           {
             titleKey: 'remove_section_title',
@@ -7572,18 +7578,18 @@ export function createMessageListener(doc = document, win = window) {
         tellPreviewWherePillIs(win, pill);
       }
         } else if (data.type === 'close-global-section') {
-      sve.closeGlobalSectionPanel(win);
+      closeGlobalSectionPanel(win);
     } else if (data.type === 'request-close-global') {
-      sve.handleRequestCloseGlobal(win);
+      handleRequestCloseGlobal(win);
     } else if (data.type === 'sve-global-dirty-query') {
-      sve.notifyGlobalSectionDirty(win);
+      notifyGlobalSectionDirty(win);
     } else if (data.type === 'save-global-section') {
       // The bar's Save, driving the entry form's real one — wherever it lives.
-      sve.saveGlobalSectionPanel(win, () => {});
+      saveGlobalSectionPanel(win, () => {});
     } else if (data.type === 'section-settings') {
       handleSectionSettings(data, doc, win);
     } else if (data.type === 'save-section') {
-      sve.handleSaveSection(data, doc, win);
+      handleSaveSection(data, doc, win);
     } else if (data.type === 'ext-drop') {
       // A section dragged in from the library was released — insert it where the
       // preview's drop line ended up (data.afterUid, null = at the top).
@@ -7592,7 +7598,7 @@ export function createMessageListener(doc = document, win = window) {
         sveState.libraryDrag = null;
       }
     } else if (data.type === 'cb-add-column') {
-      sve.handleAddColumn(data, doc, win);
+      handleAddColumn(data, doc, win);
     } else if (data.type === 'popup') {
       // A column popup is opening (the column-builder addon handles that) —
       // expand and scroll the publish form to the containing section, so the
@@ -8718,7 +8724,7 @@ export function autoOpenLivePreview(win) {
   // Inside the overlay iframe this is the one remaining job: click Statamic's
   // own Live Preview control so the preview paints, then tell the host.
   if (isEmbeddedInSite(win)) {
-    sve.claimOrigin(win);
+    claimOrigin(win);
     openLivePreviewCovered(win);
 
     return;
@@ -8779,7 +8785,7 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
 
   const reveal = () => {
     stripParams(); // Statamic rewrites the URL as it opens — clean it once more.
-    sve.hideNavSpinner(win);
+    hideNavSpinner(win);
 
     if (embedded) {
       // Chrome must already be in place when the overlay fades in — otherwise
@@ -9110,23 +9116,23 @@ export function initCp(win = window) {
 
   autoOpenLivePreview(win);
   interceptLivePreviewOpen(win);
-  sve.initOpenInPreview(win);
-  sve.watchEntrySaves(win);
+  initOpenInPreview(win);
+  watchEntrySaves(win);
   watchPreviewRenders(win);
   guardAssetLimit(win);
-  sve.listenForGlobalsValues(win);
-  sve.listenForSectionValues(win);
+  listenForGlobalsValues(win);
+  listenForSectionValues(win);
 
   // Capture publish containers BEFORE the sve-panel frame boots. The panel's
-  // sve.bootSavedSectionSolo / value poll need activeContainers(); if we register
+  // bootSavedSectionSolo / value poll need activeContainers(); if we register
   // listeners after the panel starts, the container-created event is missed and
   // the sidebar stays on empty entry meta (Published + title) forever.
   registerContainerEvents(win);
 
   // Running as the globals panel inside Live Preview: strip to the form and
   // stream its values up. None of the Live Preview machinery below applies.
-  // The same frame serves a global section's editor — see sve.initGlobalsPanelFrame.
-  sve.initGlobalsPanelFrame(win);
+  // The same frame serves a global section's editor — see initGlobalsPanelFrame.
+  initGlobalsPanelFrame(win);
 
   // Stamp Grid rows immediately and re-stamp whenever the DOM changes
   // (Vue renders Grid rows asynchronously after page load / field expansion).
@@ -9148,7 +9154,7 @@ export function initCp(win = window) {
       ensureLpPanelToggle(win);
       // Live Preview mounts (and remounts) its iframe from here — bind the
       // click-outside forward to whichever one is on screen now.
-      sve.ensurePreviewOutsideDismiss(win);
+      ensurePreviewOutsideDismiss(win);
       markStepIntoAll(win);
 
       if (previewPainted(win.document)) {

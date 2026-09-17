@@ -43,6 +43,7 @@ import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusBack, focusFromPreview, focusRowMeta, gridMeta, paintFocusHeader, setMeta } from './focus-panel.js';
 import { closeRightPanels, globalSectionSet, handleDuplicateRow, handleHideRow, handleRemoveRow, mountSectionPicker, placeGlobalsOverlay, rowLocation, savedSectionInfo, syncPreviewInset } from './section-library.js';
+import { handleMove } from './inline-edit.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -1077,9 +1078,9 @@ export function openListViewMenu(win, anchor, item) {
       }
 
       if (id === 'up') {
-        sve.handleMove({ uid: item.uid, direction: -1 }, doc);
+        handleMove({ uid: item.uid, direction: -1 }, doc);
       } else if (id === 'down') {
-        sve.handleMove({ uid: item.uid, direction: 1 }, doc);
+        handleMove({ uid: item.uid, direction: 1 }, doc);
       } else if (id === 'duplicate') {
         handleDuplicateRow({ uid: item.uid }, doc, win);
       } else if (id === 'hide') {
@@ -1512,9 +1513,9 @@ export function renderListView(win) {
     if (id === 'relock') {
       setListViewListLock(doc, item, true);
     } else if (id === 'up') {
-      sve.handleMove({ uid: item.uid, direction: -1 }, doc);
+      handleMove({ uid: item.uid, direction: -1 }, doc);
     } else if (id === 'down') {
-      sve.handleMove({ uid: item.uid, direction: 1 }, doc);
+      handleMove({ uid: item.uid, direction: 1 }, doc);
     } else if (id === 'duplicate') {
       handleDuplicateRow({ uid: item.uid }, doc, win);
     } else if (id === 'delete') {
@@ -1609,7 +1610,7 @@ export function renderListView(win) {
     const from = listViewVisible(listViewRoots).find((node) => node.uid === moved).index;
     const target = item.index - (from < item.index ? 1 : 0);
 
-    sve.handleMove({ uid: moved, toIndex: side === 'above' ? target : target + 1 }, doc);
+    handleMove({ uid: moved, toIndex: side === 'above' ? target : target + 1 }, doc);
     listViewDragUid = null;
     listViewActiveUid = moved;
     win.setTimeout(() => renderListView(win), 0);

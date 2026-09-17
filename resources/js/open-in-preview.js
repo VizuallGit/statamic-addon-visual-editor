@@ -13,6 +13,7 @@ import { unwrapRef } from './lib/values.js';
 import { livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { ENTRY_EDIT_PATH } from './lib/ids.js';
 import { publishContainers } from './lib/publish-containers.js';
+import { scheduleEntryBaseline, scheduleEntryBaselineAfterSave, serializeEntryValues } from './inline-edit.js';
 
 async function openOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -382,7 +383,7 @@ export function watchEntrySaves(win) {
     if (ok) {
       // The site under the editor overlay is now showing stale content.
       postToHost(win, 'lp-saved');
-      sve.scheduleEntryBaselineAfterSave(win);
+      scheduleEntryBaselineAfterSave(win);
     } else {
       rearm();
     }
@@ -475,7 +476,7 @@ export function disarmUnloadWarning(win) {
  * True when the open entry has edits that haven't been written back.
  *
  * Prefer a value snapshot taken when Live Preview settled (see
- * sve.scheduleEntryBaseline). Statamic's $dirty alone is unreliable here:
+ * scheduleEntryBaseline). Statamic's $dirty alone is unreliable here:
  * with revisions enabled, Save stays clickable even when clean (canSave ≠
  * isDirty), and mount/hydration often leaves a sticky dirty.has('base').
  */
@@ -489,7 +490,7 @@ export function hasUnsavedChanges(win) {
   // Value-diff against the clean baseline — the authoritative signal for the
   // back button. Falls through only before the baseline exists.
   if (sve.entryValuesBaseline != null) {
-    const now = sve.serializeEntryValues();
+    const now = serializeEntryValues();
 
     if (now != null) {
       return now !== sve.entryValuesBaseline;
@@ -632,17 +633,3 @@ export function leaveQuietly(win, leave, attempts = 0) {
 
   leave();
 }
-Object.defineProperty(sve, 'openedFrom', { get() { return openedFrom; }, set(v) { openedFrom = v; } });
-sve.claimOrigin = claimOrigin;
-sve.originForCurrentEntry = originForCurrentEntry;
-sve.forgetOrigin = forgetOrigin;
-sve.initOpenInPreview = initOpenInPreview;
-sve.onEntrySave = onEntrySave;
-sve.watchEntrySaves = watchEntrySaves;
-sve.disarmUnloadWarning = disarmUnloadWarning;
-sve.hasUnsavedChanges = hasUnsavedChanges;
-sve.discardChanges = discardChanges;
-sve.dismissDirtyWarning = dismissDirtyWarning;
-sve.saveButtonIn = saveButtonIn;
-sve.publishButtonIn = publishButtonIn;
-sve.leaveQuietly = leaveQuietly;

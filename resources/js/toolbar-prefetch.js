@@ -20,6 +20,7 @@ import { ensurePanel } from './lazy-panels.js';
 import { prefetchCodeDock } from './code-dock-lazy.js';
 import { prefetchAiPanel } from './ai-panel-lazy.js';
 import { prefetchSiteCss } from './site-css-lazy.js';
+import { scheduleChromeGlobalsPrefetch } from './globals-panel.js';
 
 /** Toolbar tab name → the panel chunk behind it. */
 const PANEL_FOR_TAB = {
@@ -62,7 +63,7 @@ function warm(win, tab) {
   }
 
   if (tab === 'globals') {
-    sve.scheduleChromeGlobalsPrefetch?.(win);
+    scheduleChromeGlobalsPrefetch(win);
 
     return;
   }

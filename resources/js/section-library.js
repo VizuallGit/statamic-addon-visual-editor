@@ -59,6 +59,11 @@ import { featureOn, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
 import { clearSolo, focusPanelOn, hideSettingsBar, sectionSettingsFields, soloSection, soloSectionSettings } from './focus-panel.js';
+import { closeChromeDesignsPanel, hasUnsavedGlobals, removeChromeModeToggles, setActiveChromeKind, unlockChromeGlobalsTabs } from './globals-panel.js';
+import { savePageAsTemplate } from './inline-edit.js';
+import { closeGlobalSectionPanel, globalSectionEditorOpen, openGlobalSectionPanel } from './global-section.js';
+import { closeChromeInline } from './chrome.js';
+import { confirmLeaveGlobalsOverlay } from './pages.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -1677,7 +1682,7 @@ export function closeSectionPicker(win) {
 
 /** True while editing header/footer chrome or a global section. */
 export function isSectionLibraryLocked(win) {
-  return !!sve.activeChromeKind || sve.globalSectionEditorOpen(win.document);
+  return !!sve.activeChromeKind || globalSectionEditorOpen(win.document);
 }
 
 /**
@@ -1964,11 +1969,11 @@ export function closeRightPanelsInner(win, keepIds) {
   }
 
   if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(GLOBAL_SECTION_HOST_ID)) {
-    sve.closeGlobalSectionPanel(win);
+    closeGlobalSectionPanel(win);
   }
 
   if (!keepIds.includes(CHROME_DESIGNS_ID)) {
-    sve.closeChromeDesignsPanel(win);
+    closeChromeDesignsPanel(win);
   }
 
   if (!keepIds.includes('__sve-ai-panel')) {
@@ -2132,14 +2137,14 @@ export function releaseLeftEdgeIfFree(win) {
 export function dismissChromeForPageEdit(win) {
   hideGlobalsPanel(win, { release: false });
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
-  sve.removeChromeModeToggles(win);
-  sve.setActiveChromeKind(null);
+  removeChromeModeToggles(win);
+  setActiveChromeKind(null);
   // In this window the chrome form IS the left editor, so a page section can only
   // have it once that form is out of the way. Its stash stays until the section
   // click that got us here has been answered — the preview is still rendering the
   // header as it is being typed.
-  sve.closeChromeInline(win, { refresh: false });
-  sve.unlockChromeGlobalsTabs(win);
+  closeChromeInline(win, { refresh: false });
+  unlockChromeGlobalsTabs(win);
   sveState.forcePanelOpen = false;
   syncPreviewInset(win);
   syncSectionLibraryAvailability(win);
@@ -2672,7 +2677,7 @@ export function mountSectionPicker(win, options = {}) {
 
       mountPane(el, LibrarySaveButton, {
         label: t(win, 'save_page_as_template'),
-        onSave: () => sve.savePageAsTemplate(win, () => {
+        onSave: () => savePageAsTemplate(win, () => {
           templates = null;
           renderActive();
         }),
@@ -3838,7 +3843,7 @@ export function handleOpenGlobalSection(data, win) {
     return;
   }
 
-  sve.openGlobalSectionPanel(win, data.id);
+  openGlobalSectionPanel(win, data.id);
   syncSectionLibraryAvailability(win);
 }
 
@@ -3858,8 +3863,8 @@ export function handleSectionSettings(data, doc, win) {
     return;
   }
 
-  if (isGlobalsOverlayOpen(win) && sve.hasUnsavedGlobals(win)) {
-    sve.confirmLeaveGlobalsOverlay(win, () => {
+  if (isGlobalsOverlayOpen(win) && hasUnsavedGlobals(win)) {
+    confirmLeaveGlobalsOverlay(win, () => {
       dismissChromeForPageEdit(win);
       handleSectionSettings(data, doc, win);
     });

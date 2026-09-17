@@ -22,6 +22,9 @@ import { currentCollection, currentEntryId, lpHeader } from './lib/live-preview.
 import { csrfToken } from './lib/csrf.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { dismissChromeForPageEdit, isGlobalsOverlayOpen } from './section-library.js';
+import { discardGlobalsChanges, hasUnsavedGlobals, hasUnsavedWork, parkGlobalsPanel, saveGlobalsPanel } from './globals-panel.js';
+import { clearSectionsStash, closeGlobalSectionPanel, hasUnsavedGlobalSection, saveGlobalSectionPanel } from './global-section.js';
+import { discardChanges, dismissDirtyWarning, hasUnsavedChanges, leaveQuietly, onEntrySave, saveButtonIn } from './open-in-preview.js';
 
 async function gotoOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -250,7 +253,7 @@ export function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
  * Save · discard · cancel. Clean overlay (or none) runs `onLeave` immediately.
  */
 export function confirmLeaveGlobalsOverlay(win, onLeave, onCancel = () => {}) {
-  if (!isGlobalsOverlayOpen(win) || !sve.hasUnsavedGlobals(win)) {
+  if (!isGlobalsOverlayOpen(win) || !hasUnsavedGlobals(win)) {
     onLeave();
 
     return;
@@ -260,11 +263,11 @@ export function confirmLeaveGlobalsOverlay(win, onLeave, onCancel = () => {}) {
     win,
     { titleKey: 'globals_close_title', bodyKey: 'globals_close_body' },
     () => {
-      sve.discardGlobalsChanges(win, { refresh: true, reloadForm: false }).then(onLeave);
+      discardGlobalsChanges(win, { refresh: true, reloadForm: false }).then(onLeave);
     },
     onCancel,
     () => {
-      sve.saveGlobalsPanel(win, (ok) => {
+      saveGlobalsPanel(win, (ok) => {
         if (ok) {
           onLeave();
         }
@@ -343,11 +346,11 @@ export function handleRequestCloseChrome(win) {
     // destroyed — form and stash survive, so stepping back in is instant. Only
     // on this deliberate exit: stepping sideways into a page section goes
     // through dismissChromeForPageEdit alone and leaves the drawer alone.
-    sve.parkGlobalsPanel(win);
+    parkGlobalsPanel(win);
     sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
   };
 
-  if (!sve.hasUnsavedGlobals(win)) {
+  if (!hasUnsavedGlobals(win)) {
     finish();
 
     return;
@@ -357,11 +360,11 @@ export function handleRequestCloseChrome(win) {
     win,
     { titleKey: 'chrome_close_title', bodyKey: 'chrome_close_body' },
     () => {
-      sve.discardGlobalsChanges(win, { refresh: true, reloadForm: true }).then(finish);
+      discardGlobalsChanges(win, { refresh: true, reloadForm: true }).then(finish);
     },
     () => {},
     () => {
-      sve.saveGlobalsPanel(win, (ok) => {
+      saveGlobalsPanel(win, (ok) => {
         if (ok) {
           finish();
         }
@@ -375,11 +378,11 @@ export function handleRequestCloseChrome(win) {
  */
 export function handleRequestCloseGlobal(win) {
   const finish = () => {
-    sve.closeGlobalSectionPanel(win);
+    closeGlobalSectionPanel(win);
     sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
   };
 
-  if (!sve.hasUnsavedGlobalSection(win)) {
+  if (!hasUnsavedGlobalSection(win)) {
     finish();
 
     return;
@@ -464,7 +467,7 @@ function refreshTemplatePreviewWithSpinner(win) {
  */
 export function saveThenNavigate(win, go) {
   const router = win.__STATAMIC__?.inertia?.router;
-  const save = sve.saveButtonIn(win.document);
+  const save = saveButtonIn(win.document);
 
   if (!save) {
     go();
@@ -473,7 +476,7 @@ export function saveThenNavigate(win, go) {
   }
 
   if (typeof router?.on !== 'function') {
-    sve.leaveQuietly(win, go); // no router to head off; a full load outruns the redirect
+    leaveQuietly(win, go); // no router to head off; a full load outruns the redirect
 
     return;
   }
@@ -502,7 +505,7 @@ export function saveThenNavigate(win, go) {
       return;
     }
 
-    sve.leaveQuietly(win, go);
+    leaveQuietly(win, go);
   };
 
   // Listing redirect only (GET). The save itself is PATCH/POST — must not cancel it.
@@ -518,7 +521,7 @@ export function saveThenNavigate(win, go) {
     return false;
   });
 
-  stop = sve.onEntrySave((ok) => {
+  stop = onEntrySave((ok) => {
     if (settled) {
       return;
     }
@@ -549,7 +552,7 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
   const go = () => {
     // By the time anything calls this, the unsaved question has been put to the
     // user and answered — on every path into it.
-    sve.dismissDirtyWarning(win);
+    dismissDirtyWarning(win);
     win.document.getElementById(LP_NAV_SPINNER_ID)?.remove();
 
     // The editor always lives in the overlay iframe. The host (site or CP)
@@ -580,7 +583,7 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
     gotoOverlay(win, url);
   };
 
-  if (!sve.hasUnsavedWork(win) || (!sve.saveButtonIn(win.document) && !sve.hasUnsavedGlobals(win) && !sve.hasUnsavedGlobalSection(win))) {
+  if (!hasUnsavedWork(win) || (!saveButtonIn(win.document) && !hasUnsavedGlobals(win) && !hasUnsavedGlobalSection(win))) {
     go();
 
     return;
@@ -590,21 +593,21 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
     win,
     () => {
       // Globals / synced sections first, then the entry.
-      sve.saveGlobalsPanel(win, (ok) => {
+      saveGlobalsPanel(win, (ok) => {
         if (!ok) {
           onCancel();
 
           return;
         }
 
-        sve.saveGlobalSectionPanel(win, (sectionOk) => {
+        saveGlobalSectionPanel(win, (sectionOk) => {
           if (!sectionOk) {
             onCancel();
 
             return;
           }
 
-          if (!sve.hasUnsavedChanges(win) || !sve.saveButtonIn(win.document)) {
+          if (!hasUnsavedChanges(win) || !saveButtonIn(win.document)) {
             go();
 
             return;
@@ -615,9 +618,9 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
       });
     },
     () => {
-      sve.discardChanges(win);
-      sve.discardGlobalsChanges(win);
-      sve.clearSectionsStash(win, { refresh: false });
+      discardChanges(win);
+      discardGlobalsChanges(win);
+      clearSectionsStash(win, { refresh: false });
       go();
     },
     onCancel
@@ -998,12 +1001,3 @@ async function syncCollectionPicker(win) {
   await fillEntries(true);
   collectionSelect.dataset.svePickerKey = key;
 }
-sve.confirmUnsaved = confirmUnsaved;
-sve.confirmLeaveGlobalsOverlay = confirmLeaveGlobalsOverlay;
-sve.confirmCloseDiscard = confirmCloseDiscard;
-sve.handleRequestCloseChrome = handleRequestCloseChrome;
-sve.handleRequestCloseGlobal = handleRequestCloseGlobal;
-sve.hideNavSpinner = hideNavSpinner;
-sve.saveThenNavigate = saveThenNavigate;
-sve.navigateFromLp = navigateFromLp;
-sve.ensureCollectionPicker = ensureCollectionPicker;

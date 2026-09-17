@@ -33,6 +33,10 @@ import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { focusFieldOwner, focusPanelOn, setMeta, soloSection } from './focus-panel.js';
 import { attachGlobalsOverlay, closeRightPanels, editorOverlayCss, hideGlobalsPanel, libraryMatchesQuery, libraryWentStale, mountInLivePreviewEditor, newRowId, openSectionPicker, parkGlobalsOverlay, pinGlobalsPanelLeft, releaseLeftEdgeIfFree, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
+import { hasUnsavedGlobalSection, sectionPanelContainer } from './global-section.js';
+import { chromeContainer, chromeHost, closeChromeInline, openChromeInline, pressChromeSave, soloChromeTab, warmChromeInlinePages, watchChromeSolo } from './chrome.js';
+import { hasUnsavedChanges } from './open-in-preview.js';
+import { confirmLeaveGlobalsOverlay, handleRequestCloseChrome } from './pages.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -254,7 +258,7 @@ export function markChromeFormClean(win) {
   // an edit, it put the bar back to "unsaved changes" a quarter of a second
   // after saving — and then Close asked whether to discard work that was already
   // on disk. The window covers the echo; the poll adopts it as the new baseline.
-  const container = sve.chromeHost(win.document) ? sve.chromeContainer() : null;
+  const container = chromeHost(win.document) ? chromeContainer() : null;
 
   if (container) {
     const values = unwrapRef(container.values);
@@ -344,7 +348,7 @@ export function notifyGlobalSectionDirty(win) {
     {
       source: 'statamic-visual-editor',
       type: 'sve-global-dirty',
-      dirty: sve.hasUnsavedGlobalSection(win),
+      dirty: hasUnsavedGlobalSection(win),
       label: globalSectionLabel(win),
     },
     win
@@ -379,7 +383,7 @@ export function hasUnsavedGlobals(win) {
   // Edited in this window there is no second $dirty to ask — the form shares the
   // page's — so the value poll's stash is the whole answer, exactly as it is for
   // the docked panel while chrome focus is on.
-  if (sve.chromeHost(win.document)) {
+  if (chromeHost(win.document)) {
     return sveState.globalsStashActive;
   }
 
@@ -434,7 +438,7 @@ export function hasUnsavedGlobals(win) {
 
 /** Entry form and/or Theme Settings / globals panel have edits not on disk. */
 export function hasUnsavedWork(win) {
-  return sve.hasUnsavedChanges(win) || hasUnsavedGlobals(win) || sve.hasUnsavedGlobalSection(win);
+  return hasUnsavedChanges(win) || hasUnsavedGlobals(win) || hasUnsavedGlobalSection(win);
 }
 
 /** Clear Statamic.$dirty marks inside the Theme Settings iframe. */
@@ -485,7 +489,7 @@ export function discardGlobalsChanges(win, { refresh = false, reloadForm = false
   if (reloadForm) {
     // In this window the form is rebuilt from the CP's own answer next time, so
     // taking it down IS the reload — and it takes every dirty mark with it.
-    if (sve.closeChromeInline(win, { refresh })) {
+    if (closeChromeInline(win, { refresh })) {
       globalsAcceptValues = true;
 
       return clearGlobalsStash(win, { refresh, force: true }).then(() => notifyChromeDirty(win));
@@ -526,7 +530,7 @@ export function saveGlobalsPanel(win, done) {
     return;
   }
 
-  const host = sve.chromeHost(win.document);
+  const host = chromeHost(win.document);
   const iwin = globalsPanelFrame(win)?.contentWindow;
 
   // Nothing open to save into: whatever the stash still holds is not backed by a
@@ -554,7 +558,7 @@ export function saveGlobalsPanel(win, done) {
   const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
 
   if (host) {
-    sve.pressChromeSave(win);
+    pressChromeSave(win);
 
     return;
   }
@@ -734,7 +738,7 @@ export function clearGlobalsStash(win, { refresh = true, force = false } = {}) {
 
 export function closeGlobalsPanel(win) {
   // Whichever one is open. Only one ever is.
-  if (sve.closeChromeInline(win)) {
+  if (closeChromeInline(win)) {
     return;
   }
 
@@ -772,7 +776,7 @@ export function parkGlobalsPanel(win) {
   // Nothing to park in this window: the form is built from the Control Panel's
   // own answer in a few hundred milliseconds, so stepping back in is quick
   // without keeping a copy of it alive behind the page.
-  if (sve.closeChromeInline(win)) {
+  if (closeChromeInline(win)) {
     return;
   }
 
@@ -893,7 +897,7 @@ export function prefetchChromeGlobals(win) {
   // takes. So the head start went to the wrong door and the panel was a second
   // or two behind the click, every time.
   if (CHROME_INLINE) {
-    sve.warmChromeInlinePages(win);
+    warmChromeInlinePages(win);
 
     return;
   }
@@ -974,7 +978,7 @@ export function openGlobalsPanel(win, set, options = {}) {
         }
       };
 
-      sve.confirmLeaveGlobalsOverlay(
+      confirmLeaveGlobalsOverlay(
         win,
         switchSet,
         () => {
@@ -1058,14 +1062,14 @@ export function openGlobalsPanel(win, set, options = {}) {
   close.addEventListener('click', () => {
     // Same close rules as the preview chrome bar (warn if dirty).
     if (activeChromeKind) {
-      sve.handleRequestCloseChrome(win);
+      handleRequestCloseChrome(win);
 
       return;
     }
 
     const picker = doc.getElementById(GLOBALS_PICKER_ID);
 
-    sve.confirmLeaveGlobalsOverlay(
+    confirmLeaveGlobalsOverlay(
       win,
       () => {
         if (picker) {
@@ -1143,7 +1147,7 @@ export function ensureGlobalsPicker(win) {
     if (set) {
       openGlobalsPanel(win, set);
     } else {
-      sve.confirmLeaveGlobalsOverlay(
+      confirmLeaveGlobalsOverlay(
         win,
         () => closeGlobalsPanel(win),
         () => {
@@ -1809,7 +1813,7 @@ export function initGlobalsPanelFrame(win) {
       previous = serialized;
 
       // First snapshot: still push for entries so the parent can resolve inline
-      // edit (sve.sectionPanelContainer). Parent treats the first poll as baseline
+      // edit (sectionPanelContainer). Parent treats the first poll as baseline
       // and does not mark dirty / stash. Globals keep the old "seed silent" path
       // — pushing them refreshed the Live Preview on every panel open.
       if (!seeded) {
@@ -2408,10 +2412,10 @@ export function setChromeSidebarMode(win, mode) {
 
   // Edited in this window "settings" is simply the chrome's own tab again — the
   // fields never left, the design drawer was only sitting over them.
-  if (sve.chromeHost(win.document)) {
+  if (chromeHost(win.document)) {
     sveState.soloUid = null;
-    sve.soloChromeTab(win, win.document, chromeKind);
-    sve.watchChromeSolo(win, win.document, chromeKind);
+    soloChromeTab(win, win.document, chromeKind);
+    watchChromeSolo(win, win.document, chromeKind);
     paintAllChromeModeToggles(win, 'settings');
 
     return;
@@ -2614,7 +2618,7 @@ export function handleOpenChrome(data, doc, win) {
   closeChromeDesignsPanel(win);
 
   if (CHROME_INLINE) {
-    sve.openChromeInline(win, kind);
+    openChromeInline(win, kind);
   } else {
     openGlobalsPanel(win, set, { chromeLock: kind });
     showGlobalsPanel(win);
@@ -2643,7 +2647,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
 
   // Edited in this window the field is right here — the same write the panel is
   // asked to make over postMessage, made directly.
-  const container = sve.chromeHost(win.document) ? sve.chromeContainer() : null;
+  const container = chromeHost(win.document) ? chromeContainer() : null;
 
   if (container) {
     container.setFieldValue(`${kind === 'footer' ? 'footer' : 'header'}_style`, style);
@@ -2809,38 +2813,7 @@ export function focusGlobalField(win, field, attempts = 0) {
 
 /** In the Live Preview window: take the values streamed up by the panel. */
 Object.defineProperty(sve, 'lastPreviewUrl', { get() { return lastPreviewUrl; } });
-Object.defineProperty(sve, 'globalsSaveTimer', { get() { return globalsSaveTimer; }, set(v) { globalsSaveTimer = v; } });
-sve.globalSets = globalSets;
-sve.ensurePreviewOutsideDismiss = ensurePreviewOutsideDismiss;
 sve.replayLivePreview = replayLivePreview;
 Object.defineProperty(sve, 'activeChromeKind', { get() { return activeChromeKind; }, set(v) { activeChromeKind = v; } });
-sve.setActiveChromeKind = setActiveChromeKind;
-sve.postGlobals = postGlobals;
-Object.defineProperty(sve, 'globalsStashEpoch', { get() { return globalsStashEpoch; }, set(v) { globalsStashEpoch = v; } });
 Object.defineProperty(sve, 'globalsAcceptValues', { get() { return globalsAcceptValues; }, set(v) { globalsAcceptValues = v; } });
 Object.defineProperty(sve, 'chromeIgnoreValuePostsUntil', { get() { return chromeIgnoreValuePostsUntil; }, set(v) { chromeIgnoreValuePostsUntil = v; } });
-sve.notifyChromeDirty = notifyChromeDirty;
-sve.notifyGlobalSectionDirty = notifyGlobalSectionDirty;
-sve.hasUnsavedGlobals = hasUnsavedGlobals;
-sve.hasUnsavedWork = hasUnsavedWork;
-sve.discardGlobalsChanges = discardGlobalsChanges;
-sve.saveGlobalsPanel = saveGlobalsPanel;
-sve.watchGlobalsPanelSaves = watchGlobalsPanelSaves;
-sve.clearGlobalsStash = clearGlobalsStash;
-sve.parkGlobalsPanel = parkGlobalsPanel;
-sve.scheduleChromeGlobalsPrefetch = scheduleChromeGlobalsPrefetch;
-sve.openGlobalsPanel = openGlobalsPanel;
-sve.ensureGlobalsPicker = ensureGlobalsPicker;
-sve.ensureSectionLibraryButton = ensureSectionLibraryButton;
-sve.initGlobalsPanelFrame = initGlobalsPanelFrame;
-sve.expandTopLevelSectionSets = expandTopLevelSectionSets;
-sve.bootSavedSectionSolo = bootSavedSectionSolo;
-sve.ensureNestedRowIds = ensureNestedRowIds;
-sve.handleOpenGlobal = handleOpenGlobal;
-sve.chromeGlobalHandle = chromeGlobalHandle;
-sve.closeChromeDesignsPanel = closeChromeDesignsPanel;
-sve.removeChromeModeToggles = removeChromeModeToggles;
-sve.setChromeSidebarMode = setChromeSidebarMode;
-sve.handleOpenChrome = handleOpenChrome;
-sve.lockChromeGlobalsTab = lockChromeGlobalsTab;
-sve.unlockChromeGlobalsTabs = unlockChromeGlobalsTabs;

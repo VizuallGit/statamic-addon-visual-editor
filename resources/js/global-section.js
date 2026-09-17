@@ -25,6 +25,8 @@ import { activeContainers, publishContainers, registerContainerEvents, registerC
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, focusFieldOwner, hideSettingsBar, lpStoredWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 import { closeRightPanels, savedSectionsCollection, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
+import { ensureNestedRowIds, expandTopLevelSectionSets, lockChromeGlobalsTab, notifyGlobalSectionDirty, openGlobalsPanel } from './globals-panel.js';
+import { applySectionValues } from './chrome.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -67,7 +69,7 @@ export const GLOBAL_SECTION_INLINE = true;
  *   globals form's own Save.
  *
  * false — the docked Theme Settings iframe, driven over postMessage. That whole
- *   route is still here (sve.openGlobalsPanel, sve.lockChromeGlobalsTab, the sve-lock-tab
+ *   route is still here (openGlobalsPanel, lockChromeGlobalsTab, the sve-lock-tab
  *   and sve-chrome-set-style messages), and it is also what the in-window route
  *   falls back to when the globals page cannot be mounted — so flipping this back
  *   restores it whole.
@@ -310,7 +312,7 @@ export function flushPendingSectionRefresh(win) {
 
 export function postSectionValues(win, id, values) {
   sectionsStashActive = true;
-  sve.notifyGlobalSectionDirty(win);
+  notifyGlobalSectionDirty(win);
   win
     .fetch('/!/sve/global-section-stash', {
       method: 'POST',
@@ -328,7 +330,7 @@ export function postSectionValues(win, id, values) {
 
 export function clearSectionsStash(win, { refresh = true } = {}) {
   if (!sectionsStashActive) {
-    sve.notifyGlobalSectionDirty(win);
+    notifyGlobalSectionDirty(win);
 
     return Promise.resolve();
   }
@@ -343,7 +345,7 @@ export function clearSectionsStash(win, { refresh = true } = {}) {
     })
     .catch(() => {})
     .then(() => {
-      sve.notifyGlobalSectionDirty(win);
+      notifyGlobalSectionDirty(win);
 
       if (refresh) {
         refreshSections(win, false);
@@ -738,7 +740,7 @@ export function openGlobalSectionPanelFrame(win, id) {
   }
 
   ensureGlobalSectionPanelSaveWatch(win);
-  sve.notifyGlobalSectionDirty(win);
+  notifyGlobalSectionDirty(win);
 }
 
 
@@ -1039,7 +1041,7 @@ export async function openGlobalSectionInline(win, id) {
   watchGlobalSectionInlineSaves(win);
   watchGlobalSectionInlineValues(win, id);
   bootGlobalSectionSolo(win, doc, host);
-  sve.notifyGlobalSectionDirty(win);
+  notifyGlobalSectionDirty(win);
   syncSectionLibraryAvailability(win);
   win.setTimeout(() => syncCodeDock(win, doc, null), 200);
 }
@@ -1080,7 +1082,7 @@ export function bootGlobalSectionSolo(win, doc, host) {
       // scope="{{ id }}" and focusFieldOwner can target the blocks inside.
       const next = JSON.parse(JSON.stringify(rows));
 
-      if (sve.ensureNestedRowIds(next)) {
+      if (ensureNestedRowIds(next)) {
         container.setFieldValue(field, next);
         win.setTimeout(tryBoot, 150);
 
@@ -1096,7 +1098,7 @@ export function bootGlobalSectionSolo(win, doc, host) {
       }
 
       if (uid) {
-        sve.expandTopLevelSectionSets(doc, field);
+        expandTopLevelSectionSets(doc, field);
       }
     }
 
@@ -1138,7 +1140,7 @@ export function watchGlobalSectionInlineValues(win, id) {
     }
 
     globalSectionValuesSeen = serialized;
-    sve.applySectionValues(win, id, JSON.parse(serialized));
+    applySectionValues(win, id, JSON.parse(serialized));
   }, 250);
 }
 
@@ -1234,28 +1236,5 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
 
   return true;
 }
-Object.defineProperty(sve, 'sectionsStashActive', { get() { return sectionsStashActive; }, set(v) { sectionsStashActive = v; } });
-sve.forwardGlobalSectionFocus = forwardGlobalSectionFocus;
-sve.flushPendingFocusUntilPanel = flushPendingFocusUntilPanel;
-sve.hasUnsavedGlobalSection = hasUnsavedGlobalSection;
-sve.sectionPanelContainer = sectionPanelContainer;
 // activeContainers() consults the panel beside the preview last — see lib/publish-containers.js.
 registerContainerSource(sectionPanelContainer);
-Object.defineProperty(sve, 'sectionRefreshPending', { get() { return sectionRefreshPending; }, set(v) { sectionRefreshPending = v; } });
-sve.flushPendingSectionRefresh = flushPendingSectionRefresh;
-sve.postSectionValues = postSectionValues;
-sve.clearSectionsStash = clearSectionsStash;
-sve.saveGlobalSectionPanel = saveGlobalSectionPanel;
-sve.revealSectionPanelFrame = revealSectionPanelFrame;
-sve.closeGlobalSectionPanel = closeGlobalSectionPanel;
-sve.openGlobalSectionPanel = openGlobalSectionPanel;
-Object.defineProperty(sve, 'globalSectionApp', { get() { return globalSectionApp; }, set(v) { globalSectionApp = v; } });
-Object.defineProperty(sve, 'globalSectionEntryPath', { get() { return globalSectionEntryPath; }, set(v) { globalSectionEntryPath = v; } });
-Object.defineProperty(sve, 'globalSectionValuesTimer', { get() { return globalSectionValuesTimer; }, set(v) { globalSectionValuesTimer = v; } });
-Object.defineProperty(sve, 'globalSectionValuesSeen', { get() { return globalSectionValuesSeen; }, set(v) { globalSectionValuesSeen = v; } });
-sve.globalSectionHost = globalSectionHost;
-sve.globalSectionEditorOpen = globalSectionEditorOpen;
-sve.fetchInertiaPage = fetchInertiaPage;
-sve.mountBorrowedForm = mountBorrowedForm;
-sve.hidePageFieldsForGlobalSection = hidePageFieldsForGlobalSection;
-sve.showPageFieldsAgain = showPageFieldsAgain;
