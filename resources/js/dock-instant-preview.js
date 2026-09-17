@@ -879,45 +879,48 @@
         return name.indexOf('data-sid') === 0 || name.indexOf('data-sve-') === 0 || name === 'data-visual-id';
     }
 
+    /**
+     * On a node that is already on the page only the class is painted. Every
+     * other attribute is either the server's (`data-sid*`, `id="id-…"`, glide
+     * URLs) or the page's own JS's (Alpine's `style`, `aria-*`), and rewriting
+     * those mid-edit breaks the page for no gain. New attributes arrive with
+     * the morph; new nodes are built from the template in full.
+     */
     function syncAttrs(live, tpl) {
-        var i;
-        var attr;
+        var cls = tpl.getAttribute('class');
 
-        for (i = 0; i < tpl.attributes.length; i++) {
-            attr = tpl.attributes[i];
-
-            if (isServerAttr(attr.name) || hasMarker(attr.value)) {
-                continue;
-            }
-
-            if (attr.name === 'class') {
-                applyClass(live, attr.value);
-                continue;
-            }
-
-            // Alpine strips x-cloak on init; putting it back would hide the node.
-            if (attr.name === 'x-cloak') {
-                continue;
-            }
-
-            if (live.getAttribute(attr.name) !== attr.value) {
-                live.setAttribute(attr.name, attr.value);
-            }
+        if (cls !== null && !hasMarker(cls)) {
+            applyClass(live, cls);
         }
-
-        // Attributes the template no longer has are left for the morph: the
-        // page's own JS (Alpine, sliders) adds attributes of its own, and taking
-        // those away mid-edit breaks the page for no gain.
     }
 
-    /** A fresh element from the template, scrubbed of anything the server owns. */
+    /**
+     * A fresh element from the template, scrubbed of anything the server owns
+     * and of attribute names the marker left behind (`{{ visual_edit }}` sits
+     * where an attribute would).
+     */
     function buildStatic(doc, tplEl) {
         var el = doc.importNode(tplEl, true);
         var scripts = el.querySelectorAll('script, style, template');
+        var all;
         var i;
+        var j;
+        var attr;
 
         for (i = scripts.length - 1; i >= 0; i--) {
             scripts[i].remove();
+        }
+
+        all = [el].concat(Array.prototype.slice.call(el.querySelectorAll('*')));
+
+        for (i = 0; i < all.length; i++) {
+            for (j = all[i].attributes.length - 1; j >= 0; j--) {
+                attr = all[i].attributes[j];
+
+                if (isServerAttr(attr.name) || hasMarker(attr.name) || hasMarker(attr.value)) {
+                    all[i].removeAttribute(attr.name);
+                }
+            }
         }
 
         return el;
@@ -1132,9 +1135,19 @@
      * paint if the walk throws, so a bad template never breaks the preview.
      */
     function paintStructure(live, html, scopedRoot) {
-        var uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
-        var ctx = sectionContext(uid);
-        var tpl = scopedRoot || templateRoot(html, ctx);
+        var uid;
+        var ctx = null;
+        var tpl = scopedRoot;
+        var started = window.performance ? performance.now() : Date.now();
+
+        try {
+            uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
+            ctx = sectionContext(uid);
+            tpl = scopedRoot || templateRoot(html, ctx);
+        } catch (e) {
+            trace('structure: values/template failed, classes only: ' + (e && e.message));
+            tpl = scopedRoot || templateRoot(html, null);
+        }
 
         if (!tpl || tpl.tagName !== live.tagName) {
             trace('structure: root tag mismatch ' + (tpl && tpl.tagName) + ' vs ' + live.tagName);
@@ -1144,7 +1157,7 @@
 
         try {
             morphElement(live, tpl);
-            trace('structure: painted ' + live.tagName.toLowerCase() + '#' + live.id + (ctx ? ' with values' : ' without values'));
+            trace('structure: painted ' + live.tagName.toLowerCase() + '#' + live.id + (ctx ? ' with values' : ' without values') + ' in ' + Math.round(((window.performance ? performance.now() : Date.now()) - started) * 10) / 10 + ' ms');
         } catch (e) {
             if (!paintStructure.warned) {
                 paintStructure.warned = true;
@@ -1669,9 +1682,15 @@
             dropTwHold();
         }
 
-        paintLive(doc, html);
-
-        painting = false;
+        try {
+            paintLive(doc, html);
+        } catch (e) {
+            // Never leave `painting` stuck: that would silence every later paint
+            // and make the dock feel like the morph is all there is.
+            trace('paint: threw ' + (e && e.message));
+        } finally {
+            painting = false;
+        }
     }
 
     var twHold = null;
