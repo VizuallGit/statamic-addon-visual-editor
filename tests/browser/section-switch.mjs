@@ -12,8 +12,8 @@
  * middle of the next switch.
  *
  *   SVE_SITE_DIR / SVE_SITE_URL / SVE_USER / SVE_PASS   as in the smoke test
- *   SVE_ENTRY   an entry whose last section is a "test heroo"-style section
- *               preceded by the section to open first (default: the site's test page)
+ *   SVE_ENTRY   an entry with an employees list (section A) and at least one other
+ *               section (B: a "test heroo" section if present, else the first)
  *
  *   node tests/browser/section-switch.mjs
  */
@@ -91,10 +91,13 @@ try {
   // section A: a text field inside the employees list; section B: the test heroo root (empty)
   const rects = await (await preview()).evaluate(() => {
     const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 200), top: r.top } : null; };
-    const all = [...document.querySelectorAll('section[id^="id-"]')];
-    const heroo = all.find((s) => /heroo/i.test(s.className));
-    // the employees list carries no _class on its root; it is the section right before the test heroo
-    const emp = heroo ? all[all.indexOf(heroo) - 1] : all.find((s) => /Assurand/.test(s.innerText || ''));
+    const all = [...document.querySelectorAll('[id^="id-"]')].filter((s) => /^(section|article|div)$/i.test(s.tagName));
+    // B: a "test heroo" section when the page has one; otherwise the page's first
+    // section (the test hero was deleted in WP8 — the check is the same: opening
+    // A, then B's row in the tree, must write nothing).
+    const heroo = all.find((s) => /heroo/i.test(s.className)) || all[0];
+    // the employees list carries no _class on its root; find it by its text
+    const emp = all.find((s) => /Assurand/.test(s.innerText || '')) || all[all.length - 1];
     const a = emp?.querySelector('h2[data-sid-field], [data-sid-field]') || emp;
     return { a: a ? { ...vis(a), id: emp.id, what: a.tagName + ' ' + (a.getAttribute('data-sid-field') || '') } : null, b: heroo ? { ...vis(heroo), id: heroo.id, cls: heroo.className } : null };
   });
@@ -133,7 +136,8 @@ try {
   const herooRect = await (await preview()).evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return { h: Math.round(r.height), w: Math.round(r.width) }; }, rects.b.id);
   const row = await cp.evaluate(() => {
     const rows = [...document.querySelectorAll('[data-sve-ht-row]')];
-    const hit = rows.find((el) => /heroo/i.test(el.textContent || ''));
+    // the tree lists sections in page order: B's row is the "heroo" row, or the first
+    const hit = rows.find((el) => /heroo/i.test(el.textContent || '')) || rows[0];
     if (!hit) return { rows: rows.length, texts: rows.slice(0, 8).map((r) => (r.textContent || '').trim().slice(0, 24)) };
     const r = hit.getBoundingClientRect();
     return { x: r.x + r.width / 2, y: r.y + r.height / 2, text: (hit.textContent || '').trim().slice(0, 40), attrs: [...hit.attributes].map((a) => a.name + (a.value ? '=' + a.value.slice(0, 14) : '')).join(' ') };
@@ -144,7 +148,7 @@ try {
     net.push(`${at()} CLICK B tree row at ${Math.round(overlayBox.x + row.x)},${Math.round(overlayBox.y + row.y)}`);
     await page.mouse.click(overlayBox.x + row.x, overlayBox.y + row.y);
   }
-  const rowState = async () => cp.evaluate(() => { const hit = [...document.querySelectorAll('[data-sve-ht-row]')].find((el) => /heroo/i.test(el.textContent || '')); return hit ? [...hit.attributes].filter((a) => a.name !== 'style').map((a) => a.name.replace('data-sve-ht-', '') + (a.value ? '=' + a.value.slice(0, 10) : '')).join(' ') + ' cls=' + hit.className.slice(0, 40) : 'no row'; }).catch(() => '?');
+  const rowState = async () => cp.evaluate(() => { const rows = [...document.querySelectorAll('[data-sve-ht-row]')]; const hit = rows.find((el) => /heroo/i.test(el.textContent || '')) || rows[0]; return hit ? [...hit.attributes].filter((a) => a.name !== 'style').map((a) => a.name.replace('data-sve-ht-', '') + (a.value ? '=' + a.value.slice(0, 10) : '')).join(' ') + ' cls=' + hit.className.slice(0, 40) : 'no row'; }).catch(() => '?');
   for (let i = 0; i < 24; i++) { await sleep(250); await snap(`B+${(i + 1) * 250}`); net.push(`${at()}        heroo row: ${await rowState()}`); }
   await sleep(1000); await snap('B settled');
 } catch (e) {
