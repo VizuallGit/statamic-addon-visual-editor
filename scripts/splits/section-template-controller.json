@@ -1,0 +1,19 @@
+{
+  "src": "src/Http/Controllers/SectionTemplateController.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor\\Http\\Controllers",
+  "sub_ns": "SectionTemplateController",
+  "wp": "WP7d",
+  "targets": {
+    "Target": {
+      "doc": "Which file a dock request is about, its Tailwind store key, and whether\nPHP may write it.",
+      "methods": ["locate", "twHandle", "fileWritable"]
+    },
+    "Persist": {
+      "doc": "What happens after a save: the baked Tailwind CSS is written and the\nstatic cache is flushed so visitors see the change.",
+      "methods": ["persistTw", "flushStaticCache"]
+    }
+  },
+  "keep": ["show", "componentProps", "theme", "history", "historyEntry", "partials", "update", "lock", "authorize"],
+  "facade": [],
+  "facade_doc_extra": "The controller keeps the endpoints; locating the file lives in\n`SectionTemplateController\\Target` and the after-save work in\n`SectionTemplateController\\Persist`. Split in WP7d, code moved verbatim."
+}

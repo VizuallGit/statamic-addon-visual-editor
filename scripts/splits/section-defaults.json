@@ -1,0 +1,19 @@
+{
+  "src": "src/SectionDefaults.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "SectionDefaults",
+  "wp": "WP7d",
+  "targets": {
+    "Values": {
+      "doc": "The default values of one set, resolved field by field — nested sets,\nrows, and responsive fields wrapped the way the form stores them.",
+      "methods": ["resolve", "defaultFor", "wrapResponsive", "rows", "setFieldsIn", "id"]
+    },
+    "Sets": {
+      "doc": "Every set of the page-builder field, flattened, and one set's config.",
+      "methods": ["setConfig", "allSets", "collect"]
+    }
+  },
+  "keep": ["for", "hasContent", "isEmpty"],
+  "facade": ["setConfig", "allSets"],
+  "facade_doc_extra": "This class is the entry point other code calls; the resolving lives in\n`SectionDefaults\\Values` and the set lookup in `SectionDefaults\\Sets`.\nSplit in WP7d, code moved verbatim."
+}

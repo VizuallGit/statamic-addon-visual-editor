@@ -1,0 +1,16 @@
+{
+  "src": "src/SectionTypeMaker.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "SectionTypeMaker",
+  "wp": "WP7d",
+  "targets": {
+    "Names": {
+      "doc": "What a new section type is called and where its two files go: the slug,\nthe view and fieldset folders a group implies, and a name that is free.",
+      "consts": ["VIEW_FOLDER"],
+      "methods": ["slug", "viewFolderForGroup", "fieldsetFolderForGroup", "dominant", "singular", "freeName", "fieldsetPath", "viewPath"]
+    }
+  },
+  "keep": ["scaffold", "create", "readFieldset", "fieldIndex"],
+  "facade": ["slug", "viewFolderForGroup", "fieldsetFolderForGroup", "freeName"],
+  "facade_doc_extra": "This class keeps the creation itself; naming and paths live in\n`SectionTypeMaker\\Names`. Split in WP7d, code moved verbatim."
+}

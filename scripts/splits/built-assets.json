@@ -1,0 +1,61 @@
+{
+  "src": "src/BuiltAssets.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "BuiltAssets",
+  "wp": "WP7d",
+  "targets": {
+    "Manifest": {
+      "doc": "Where the built files are and what the manifest says about them: paths,\nURLs, the live `addon-*.js` and the chunks it imports, and which files\nmay be served at all.",
+      "methods": [
+        "root",
+        "lockedRoot",
+        "assetsDir",
+        "manifestPath",
+        "manifest",
+        "fileFor",
+        "pathFor",
+        "url",
+        "allowedFiles",
+        "isAllowed",
+        "liveAddonPath",
+        "addonImports"
+      ]
+    },
+    "Recovery": {
+      "doc": "The lock: every chunk `addon-*.js` imports must exist, or it is restored\nfrom `resources/dist/locked`; a missing import after restore is a hard\nerror, not a blank toolbar.",
+      "methods": [
+        "recover",
+        "restoreImportedChunks",
+        "assertIntegrity",
+        "refreshLock",
+        "lockFile"
+      ]
+    },
+    "Link": {
+      "doc": "The site's `public/vendor/visual-editor` is a symlink to this folder,\nnever a copy.",
+      "methods": [
+        "linkForControlPanel",
+        "replaceWithLink"
+      ]
+    }
+  },
+  "keep": [],
+  "facade": [
+    "root",
+    "lockedRoot",
+    "assetsDir",
+    "url",
+    "isAllowed",
+    "addonImports",
+    "recover",
+    "restoreImportedChunks",
+    "refreshLock",
+    "linkForControlPanel"
+  ],
+  "facade_doc_extra": "This class is the entry point other code calls; the work lives in\n`BuiltAssets\\Manifest`, `BuiltAssets\\Recovery` and `BuiltAssets\\Link`.\nSplit in WP7d, code moved verbatim.",
+  "allow_magic": [
+    "root",
+    "lockedRoot"
+  ],
+  "note": "root()/lockedRoot() used dirname(__DIR__) from src/; one level deeper now, so dirname(__DIR__, 2) — edited by hand after the split."
+}

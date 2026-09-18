@@ -1,0 +1,19 @@
+{
+  "src": "src/Http/Controllers/SavedSectionsController.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor\\Http\\Controllers",
+  "sub_ns": "SavedSectionsController",
+  "wp": "WP7d",
+  "targets": {
+    "Rows": {
+      "doc": "A saved section's rows: as the publish form wants them, as they are\nstored, and with ids on every row.",
+      "methods": ["field", "processed", "forPublishForm", "sectionOf", "ensureRowIds"]
+    },
+    "Store": {
+      "doc": "The collection saved sections live in, and one entry in it or a 404.",
+      "methods": ["collection", "findOrFail"]
+    }
+  },
+  "keep": ["index", "store", "usage", "destroy", "regeneratePreview"],
+  "facade": ["processed"],
+  "facade_doc_extra": "The controller keeps the endpoints; row shaping lives in\n`SavedSectionsController\\Rows` and the lookup in\n`SavedSectionsController\\Store`. Split in WP7d, code moved verbatim."
+}

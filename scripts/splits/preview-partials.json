@@ -1,0 +1,19 @@
+{
+  "src": "src/PreviewPartials.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "PreviewPartials",
+  "wp": "WP7d",
+  "targets": {
+    "Files": {
+      "doc": "The view files a section type starts from, and the files under a set of\npaths.",
+      "methods": ["roots", "viewFilesIn", "filesIn"]
+    },
+    "Includes": {
+      "doc": "The partials a view includes: the `{{ partial }}` sources in its text,\nresolved to files.",
+      "methods": ["sources", "resolve", "candidates"]
+    }
+  },
+  "keep": ["MAX_DEPTH", "$sections", "$includes", "$reachable", "flush", "forSection", "reachable", "includesOf"],
+  "facade": [],
+  "facade_doc_extra": "This class keeps the three per-request caches and the walk; file lookup\nlives in `PreviewPartials\\Files` and include resolution in\n`PreviewPartials\\Includes`. Split in WP7d, code moved verbatim."
+}

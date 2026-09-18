@@ -1,0 +1,15 @@
+{
+  "src": "src/Http/Controllers/EntryActivityController.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor\\Http\\Controllers",
+  "sub_ns": "EntryActivityController",
+  "wp": "WP7d",
+  "targets": {
+    "Changes": {
+      "doc": "What differs between two revisions of an entry, named the way the Edits\npopup shows it: fields, sections added/removed/updated/reordered, and\nthe parts of a section that changed.",
+      "methods": ["changedFields", "sectionChanges", "indexRows", "rowKeys", "sectionName", "changedParts", "changedBlocks", "blockName", "encode", "stripNoise"]
+    }
+  },
+  "keep": ["__invoke", "status", "edits", "userPayload"],
+  "facade": [],
+  "facade_doc_extra": "The controller keeps the endpoint and the revision list; the diff lives\nin `EntryActivityController\\Changes`. Split in WP7d, code moved verbatim."
+}

@@ -3,8 +3,9 @@
 namespace MarioHamann\StatamicVisualEditor\Tags;
 
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ResponsiveFieldtype as Responsive;
+use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss\Declarations;
+use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss\SetValues;
 use Statamic\Fields\Value;
-use Statamic\Fields\Values;
 use Statamic\Tags\Context;
 use Statamic\Tags\Tags;
 
@@ -52,6 +53,10 @@ use Statamic\Tags\Tags;
  *
  *     {{ responsive_css selector="#id-{{ id }} .list" only="padding,gap" from="list" }}
  *     {{ /responsive_css }}
+ *
+ * The tag keeps what reads its parameters and context; the value reading
+ * lives in `ResponsiveCss\SetValues` and the CSS in `ResponsiveCss\Declarations`.
+ * Split in WP7d, code moved verbatim.
  */
 class ResponsiveCss extends Tags
 {
@@ -65,7 +70,7 @@ class ResponsiveCss extends Tags
             $base = Responsive::base();
 
             $css = $selector.'{'
-                .$this->declarations($fields, $base)
+                .Declarations::declarations($fields, $base)
                 .($this->isPair ? $this->parse() : '')
                 .'}';
 
@@ -74,7 +79,7 @@ class ResponsiveCss extends Tags
                     continue;
                 }
 
-                $declarations = $this->declarations($fields, $breakpoint['handle']);
+                $declarations = Declarations::declarations($fields, $breakpoint['handle']);
 
                 if ($declarations === '') {
                     continue;
@@ -125,7 +130,7 @@ class ResponsiveCss extends Tags
         }
 
         foreach ($blocks as $set) {
-            $array = $this->setToArray($set);
+            $array = SetValues::setToArray($set);
             $setType = $array['type'] ?? null;
 
             if ($setType instanceof Value) {
@@ -138,30 +143,6 @@ class ResponsiveCss extends Tags
         }
 
         return null;
-    }
-
-    /** @return array<string, mixed> */
-    protected function setToArray(mixed $set): array
-    {
-        if ($set instanceof Values) {
-            $all = $set->all();
-
-            return is_array($all) ? $all : iterator_to_array($all);
-        }
-
-        if ($set instanceof Value) {
-            return $this->setToArray($set->value());
-        }
-
-        if (is_array($set)) {
-            $type = $set['type'] ?? null;
-
-            return array_merge($set, [
-                'type' => $type instanceof Value ? $type->value() : $type,
-            ]);
-        }
-
-        return [];
     }
 
     /**
@@ -213,7 +194,7 @@ class ResponsiveCss extends Tags
         $out = [];
 
         foreach ($this->context->all() as $handle => $value) {
-            $augmented = $this->responsiveValue($value);
+            $augmented = SetValues::responsiveValue($value);
 
             if ($augmented === null) {
                 continue;
@@ -222,7 +203,7 @@ class ResponsiveCss extends Tags
             $byBreakpoint = [];
 
             foreach (Responsive::handles() as $breakpoint) {
-                $inner = $this->innerAt($augmented, $breakpoint, $handle);
+                $inner = SetValues::innerAt($augmented, $breakpoint, $handle);
 
                 if ($inner === null || $inner === '' || $inner === []) {
                     continue;
@@ -237,103 +218,5 @@ class ResponsiveCss extends Tags
         }
 
         return $out;
-    }
-
-    protected function responsiveValue(mixed $value): mixed
-    {
-        if ($value instanceof Value) {
-            if ($value->fieldtype()?->handle() !== Responsive::handle()) {
-                return null;
-            }
-
-            return $value->value();
-        }
-
-        if (! is_array($value)) {
-            return null;
-        }
-
-        $keys = array_keys($value);
-
-        return array_intersect($keys, Responsive::handles()) ? $value : null;
-    }
-
-    protected function innerAt(mixed $augmented, string $breakpoint, string $handle): mixed
-    {
-        if ($augmented instanceof Values) {
-            $bucket = $augmented[$breakpoint] ?? null;
-
-            if ($bucket instanceof Values || is_array($bucket)) {
-                return $bucket[$handle] ?? null;
-            }
-
-            return $bucket;
-        }
-
-        if (is_array($augmented)) {
-            $bucket = $augmented[$breakpoint] ?? null;
-
-            if (is_array($bucket) && array_key_exists($handle, $bucket)) {
-                return $bucket[$handle];
-            }
-
-            return $bucket;
-        }
-
-        return null;
-    }
-
-    /** @param  array<string, array<string, mixed>>  $fields */
-    protected function declarations(array $fields, string $breakpoint): string
-    {
-        $out = '';
-
-        foreach ($fields as $handle => $byBreakpoint) {
-            if (! array_key_exists($breakpoint, $byBreakpoint)) {
-                continue;
-            }
-
-            $value = $byBreakpoint[$breakpoint];
-
-            if ($value === null || $value === '' || $value === []) {
-                continue;
-            }
-
-            $out .= $this->declaration($handle, $value);
-        }
-
-        return $out;
-    }
-
-    /** Ét felts værdi som CSS — enten en custom property eller feltets egen partial. */
-    protected function declaration(string $handle, $value): string
-    {
-        $view = 'partials/responsive/'.$handle;
-
-        if (view()->exists($view)) {
-            $css = trim(view($view, ['value' => $value, 'handle' => $handle])->render());
-
-            if ($css === '' || preg_match('/:\s*;?\s*$/', $css) || preg_match('/:\s*%\s*;?\s*$/', $css)) {
-                return '';
-            }
-
-            return $css;
-        }
-
-        if (is_array($value) || $value instanceof \Traversable) {
-            return '';
-        }
-
-        if ($value === null || $value === '') {
-            return '';
-        }
-
-        $css = '--'.str_replace('_', '-', $handle).': '.$value.';';
-
-        if (preg_match('/:\s*;?\s*$/', $css) || preg_match('/:\s*%\s*;?\s*$/', $css)) {
-            return '';
-        }
-
-        return $css;
     }
 }

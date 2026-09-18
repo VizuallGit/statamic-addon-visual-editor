@@ -134,6 +134,9 @@ def member_text(name, home):
             raise SystemExit(f'{name} (→ {home}) calls {ref}, which stays in {class_name}; move it too or keep {name}')
         return target + '::' + ref + tail
     if home != '@self':
+        magic = re.search(r'__DIR__|__FILE__|__CLASS__|static::class|self::class|get_called_class\(\)|__NAMESPACE__', text)
+        if magic and name not in cfg.get('allow_magic', []):
+            raise SystemExit(f'{name} (→ {home}) uses {magic.group(0)}, which changes meaning when the file moves; fix it by hand after the split and list it under "allow_magic"')
         prop = re.search(r'(?:static|self)::\$(\w+)', text)
         if prop:
             raise SystemExit(f'{name} (→ {home}) reads static::${prop.group(1)}, which stays on {class_name}; keep {name} or move the cache too')
@@ -152,11 +155,11 @@ for name in order:
 opened = []
 def visibility_fix(name, text):
     mb = members[name]
-    if mb['vis'] == 'protected' and callers.get(name):
+    if mb['vis'] in ('protected', 'private') and callers.get(name):
         opened.append(name)
         if mb['kind'] == 'method':
-            return re.sub(r'^    protected (static )?function ' + name + r'\(', lambda m: '    public ' + (m.group(1) or '') + 'function ' + name + '(', text, count=1, flags=re.M)
-        return text.replace('    protected const ' + name.lstrip('$'), '    public const ' + name.lstrip('$'), 1)
+            return re.sub(r'^    (?:protected|private) (static )?function ' + name + r'\(', lambda m: '    public ' + (m.group(1) or '') + 'function ' + name + '(', text, count=1, flags=re.M)
+        return re.sub(r'^    (?:protected|private) const ' + name.lstrip('$'), '    public const ' + name.lstrip('$'), text, count=1, flags=re.M)
     return text
 
 def use_lines_for(body, root=False):
@@ -217,7 +220,8 @@ consts = [f'    public const {n} = {assigned[n]}::{n};' for n in order
 extra = cfg.get('facade_doc_extra', '').strip('\n').split('\n')
 doc = class_doc[:-1] + [' *'] + [' * ' + l if l else ' *' for l in extra] + [' */']
 body = '\n\n'.join(parts)
-ul = sorted(set(use_lines_for(body, root=True)) | {f'use {cfg["root_ns"]}\\{cfg["sub_ns"]}\\{t};' for t in cfg['targets'] if re.search(r'\b' + t + r'::', body)})
+# the class line's `extends` / `implements` need their imports too
+ul = sorted(set(use_lines_for(body + '\n' + class_line, root=True)) | {f'use {cfg["root_ns"]}\\{cfg["sub_ns"]}\\{t};' for t in cfg['targets'] if re.search(r'\b' + t + r'::', body)})
 facade = ['<?php', '', f'namespace {cfg["root_ns"]};', ''] + ul + [''] + doc + [class_line, '{']
 if consts:
     facade += consts + ['']

@@ -1,0 +1,19 @@
+{
+  "src": "src/IconifyDefault.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "IconifyDefault",
+  "wp": "WP7d",
+  "targets": {
+    "Svg": {
+      "doc": "An icon name resolved to its SVG data, and what counts as a name.",
+      "methods": ["svgData", "isName"]
+    },
+    "Defaults": {
+      "doc": "Where a field's default icon comes from when the stored value is empty:\nthe fieldset's own default, walked out of the context.",
+      "methods": ["fallback", "fromContext", "collectIconifyDefaults"]
+    }
+  },
+  "keep": ["KEY", "$defaultsWalk", "register", "registerTag", "storedValueIsEmpty", "render", "raw", "fallbackName", "isEmpty"],
+  "facade": ["svgData", "isName"],
+  "facade_doc_extra": "This class keeps the registration, the render and the per-request walk\ncache; SVG lookup lives in `IconifyDefault\\Svg` and the default search\nin `IconifyDefault\\Defaults`. Split in WP7d, code moved verbatim."
+}

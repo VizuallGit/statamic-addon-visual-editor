@@ -1,0 +1,33 @@
+{
+  "src": "src/Tags/ResponsiveCss.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor\\Tags",
+  "sub_ns": "ResponsiveCss",
+  "wp": "WP7d",
+  "targets": {
+    "SetValues": {
+      "doc": "Reading one field's value per breakpoint out of a set: the raw row, the\nresponsive shape, and the inner value at a breakpoint.",
+      "methods": [
+        "setToArray",
+        "responsiveValue",
+        "innerAt"
+      ]
+    },
+    "Declarations": {
+      "doc": "The CSS declarations one breakpoint's values become.",
+      "methods": [
+        "declarations",
+        "declaration"
+      ]
+    }
+  },
+  "keep": [
+    "index",
+    "applyFrom",
+    "firstSetOfType",
+    "filterFields",
+    "paramList",
+    "fields"
+  ],
+  "facade": [],
+  "facade_doc_extra": "The tag keeps what reads its parameters and context; the value reading\nlives in `ResponsiveCss\\SetValues` and the CSS in `ResponsiveCss\\Declarations`.\nSplit in WP7d, code moved verbatim."
+}

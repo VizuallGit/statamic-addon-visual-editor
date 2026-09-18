@@ -1,0 +1,16 @@
+{
+  "src": "src/PageSpeed.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "PageSpeed",
+  "wp": "WP7d",
+  "targets": {
+    "Report": {
+      "doc": "A megabyte of Lighthouse, kept to the part the panel reads: the score,\nfive lab numbers, the field metrics and up to eight opportunities.",
+      "consts": ["LAB_AUDITS", "FIELD_METRICS", "MIN_SAVING_MS"],
+      "methods": ["trim", "lab", "field", "opportunities", "levelFor"]
+    }
+  },
+  "keep": ["ENDPOINT", "TIMEOUT", "CACHE_SECONDS", "apiKey", "enabled", "isPublicHost", "isOwnUrl", "run", "ask", "locale"],
+  "facade": [],
+  "facade_doc_extra": "This class keeps the key, the checks and the request to Google; the\nanswer is cut down by `PageSpeed\\Report`. Split in WP7d, code moved\nverbatim."
+}
