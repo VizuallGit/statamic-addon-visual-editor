@@ -22,11 +22,12 @@ const ENTRY = env('SVE_ENTRY', '/cp/collections/pages/entries/68d0174e-6b29-425c
 
 const require = createRequire(`${SITE_DIR}/package.json`);
 const puppeteer = require('puppeteer');
+const CHROME = env('SVE_CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let ok = true;
 const step = (name, pass, detail = '') => { if (!pass) ok = false; console.log(`${pass ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
 
-const browser = await puppeteer.launch({ headless: true, defaultViewport: { width: 1600, height: 1000 } });
+const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1600,1000'], defaultViewport: { width: 1600, height: 1000 } });
 const page = await browser.newPage();
 
 try {
