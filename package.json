@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "cp:build": "vite build",
+    "cp:build": "vite build && node scripts/prune-dist.mjs",
     "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs",
     "test": "node --test \"tests/js/**/*.test.js\"",
     "check": "npm run isolate && npm test",
