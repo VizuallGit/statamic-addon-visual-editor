@@ -568,14 +568,12 @@ export function setHandleFor(win, kind, item) {
   return item.handle;
 }
 
-// Fresh set meta + defaults, per set handle, cached for the session (the
-// blueprint doesn't change while the form is open).
-export const sectionMetaCache =
-  (typeof window !== 'undefined' && window.__sveSectionMetaCache) || new Map();
-
-if (typeof window !== 'undefined') {
-  window.__sveSectionMetaCache = sectionMetaCache;
-}
+// Fresh set meta + defaults, per set handle (and `field::set::section` for a
+// nested set), cached for the session — the blueprint doesn't change while
+// the form is open. The pending promise is what is cached, so concurrent
+// callers (a hover prefetch and the click after it) share one request.
+// The one cache: `invalidateFieldCaches` (section-fields.js) drops from it.
+export const sectionMetaCache = new Map();
 
 /** Fetches (and caches) a set's fresh meta + default values from the addon. */
 /**
@@ -601,12 +599,6 @@ export async function fetchNestedSetMeta(win, field, setHandle, sectionType = ''
       `/!/sve/section-meta?collection=${encodeURIComponent(collection)}` +
       `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}` +
       (sectionType ? `&section=${encodeURIComponent(sectionType)}` : '');
-
-    const primed = win.__sveSectionMetaJson?.get?.(url);
-
-    if (primed) {
-      return primed;
-    }
 
     const res = await win.fetch(url, {
       credentials: 'same-origin',
@@ -3988,7 +3980,3 @@ export function sortableItemForUid(uid, doc) {
   return null;
 }
 sve.sectionField = sectionField; // standalone scripts still read this off window.sve — goes with WP6
-sve.globalSectionSet = globalSectionSet; // standalone scripts still read this off window.sve — goes with WP6
-sve.sectionMetaCache = sectionMetaCache;
-sve.fetchNestedSetMeta = fetchNestedSetMeta; // standalone scripts still read this off window.sve — goes with WP6
-sve.fetchSetMeta = fetchSetMeta; // standalone scripts still read this off window.sve — goes with WP6

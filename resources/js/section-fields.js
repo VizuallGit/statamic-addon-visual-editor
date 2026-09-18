@@ -23,7 +23,7 @@ import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
 import { dataGet, unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
-import { fetchSetMeta, hydrateExistingMeta, writeSetMeta } from './section-library.js';
+import { fetchSetMeta, hydrateExistingMeta, sectionMetaCache, writeSetMeta } from './section-library.js';
 
 const API = '/!/sve/section-types';
 
@@ -67,11 +67,13 @@ export async function fieldsetFor(win, handle) {
 /**
  * Drop cached section-meta for this set, and nothing else.
  *
- * Three caches stand between a saved fieldset and what the editor shows.
- * The worst is `section-meta-prefetch.js`: it answers `/!/sve/section-meta?…`
- * from a Map keyed by URL, with no expiry. Asking the server again did not
- * ask the server again. Only this set's keys go — other sections keep what
- * they already have, and the sidebar does not redraw them.
+ * One cache stands between a saved fieldset and what the editor shows: the
+ * library's `sectionMetaCache`, keyed by set handle or `field::set::section`.
+ * (Until WP6b-2 there were three — the prefetch script answered
+ * `/!/sve/section-meta?…` from its own URL-keyed Map with no expiry, so asking
+ * the server again did not ask the server again.) Only this set's keys go —
+ * other sections keep what they already have, and the sidebar does not
+ * redraw them.
  */
 function cacheKeyHitsSet(key, setHandle) {
   const text = String(key);
@@ -110,17 +112,8 @@ function dropSetCache(map, setHandle) {
 }
 
 export function invalidateFieldCaches(win, setHandle) {
-  try {
-    dropSetCache(win.__sveSectionMetaJson, setHandle);
-  } catch {
-    // A cache that cannot be cleared is a stale panel, not a broken editor.
-  }
-
-  try {
-    dropSetCache(win.__sveSectionMetaCache, setHandle);
-  } catch {
-    /* as above */
-  }
+  // Set meta (top-level and nested keys alike) — the library's one cache.
+  dropSetCache(sectionMetaCache, setHandle);
 
   // The data picker's Section tab is this set's fieldset — drop only that.
   ask('dock:reset-data-vars', setHandle);

@@ -6,21 +6,20 @@
  * `Statamic.booted`. Importing it runs it. Order is the order Statamic loaded
  * the script tags in.
  *
- * Only scripts that watch the DOM, or patch a global that only our own bundle
- * calls later (`section-meta-prefetch` wraps `fetch` for `/!/sve/section-meta`),
- * belong here. A script that must patch a global before Statamic's own bundle
- * reads it (`dedupe-cp-fetch`, `disable-publish-stack-pin`) stays in
- * `ServiceProvider::$scripts`: a classic script runs while the page is parsed,
- * a module only after Statamic's core module has already run.
+ * Only scripts that watch the DOM belong here. A script that must patch a
+ * global before Statamic's own bundle reads it (`dedupe-cp-fetch`,
+ * `disable-publish-stack-pin`) stays in `ServiceProvider::$scripts`: a classic
+ * script runs while the page is parsed, a module only after Statamic's core
+ * module has already run. `section-meta-prefetch.js` is a real module now and
+ * is imported by addon.js right after the section library it calls.
  *
- * `lite-sections` and `section-meta-prefetch` still read the bundle off
- * `window.sve` — the compat lines they need stay until WP6b gives them imports.
+ * `lite-sections` still reads the bundle off `window.sve` — the compat lines
+ * it needs stay until WP6b-2 gives it imports.
  *
  * May import: nothing — these files still carry their own helper copies
  * until WP6b replaces them with `lib/`.
  */
 import './default-sets-count.js';
-import './section-meta-prefetch.js';
 import './iconify-hide-remove.js';
 import './icon-button-group-iconify.js';
 import './responsive-hide-label.js';

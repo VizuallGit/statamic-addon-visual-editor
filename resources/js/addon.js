@@ -46,6 +46,9 @@ import './lazy-panels.js';
 // other helpers, unguarded, from the first render onwards. Deferring it left
 // those calls hitting undefined and took the toolbar down with them.
 import './section-library.js';
+// Warms set meta on hover; calls the library above, so it follows it here
+// rather than sitting in side/index.js.
+import './side/section-meta-prefetch.js';
 import './lp-panel.js';
 import './focus-panel.js';
 import './open-in-preview.js';

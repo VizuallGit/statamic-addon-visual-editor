@@ -63,6 +63,10 @@ if (process.env.SVE_WORKTREE === '1') {
 }
 
 let filePath = null;
+// The Tailwind file the dock bakes on save — remembered here because the
+// cleanup runs after the browser is closed, outside the block that found it.
+let twPath = null;
+let twExisted = true;
 let original = null;
 try {
   await page.goto(`${SITE_URL}/cp`, { waitUntil: 'networkidle2' });
@@ -104,8 +108,8 @@ try {
   // — a file the site may not have had before this run. Remember, so it goes
   // away with the rest of the test's traces.
   const twMatch = filePath.match(/page_sections\/(.+)\.antlers\.html$/);
-  const twPath = twMatch ? `${SITE_DIR}/resources/visual-editor/tw/${twMatch[1]}.css` : null;
-  const twExisted = twPath ? existsSync(twPath) : true;
+  twPath = twMatch ? `${SITE_DIR}/resources/visual-editor/tw/${twMatch[1]}.css` : null;
+  twExisted = twPath ? existsSync(twPath) : true;
 
   // A locked template ignores keystrokes. Unlock through the dock's own button
   // and confirm dialog; restoring the file afterwards restores the lock marker.

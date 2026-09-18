@@ -336,6 +336,28 @@ try {
     await sleep(2000);
   }
 
+  // 4b. Hovering a library card warms its set meta before any click
+  // (side/section-meta-prefetch.js calling the library). The request is the
+  // proof: a fresh session has nothing cached, so the first hover must fetch.
+  if (toolbar && (await cp.$('#__sve-toolbar button[data-tab="sections"]'))) {
+    const metaRequests = [];
+    const spy = (req) => { if (/\/!\/sve\/section-meta\?/.test(req.url())) metaRequests.push(req.url().replace(SITE_URL, '').slice(0, 90)); };
+    page.on('request', spy);
+    await realClick(page, cp, '#__sve-toolbar button[data-tab="sections"]');
+    const card = await waitIn(cp, '[data-sve-lib-handle]', 15000);
+    if (card) {
+      const r = await absoluteRect(cp, '[data-sve-lib-handle]');
+      await page.mouse.move(r.x + r.w / 2, r.y + Math.min(r.h / 2, 60));
+      await sleep(1200);
+    }
+    page.off('request', spy);
+    step('hovering a library card prefetches its set meta', card && metaRequests.length > 0, card ? (metaRequests[0] || 'no section-meta request after hover') : 'no library card appeared');
+    await realClick(page, cp, '#__sve-toolbar button[data-tab="sections"]'); // close it again
+    await sleep(500);
+  } else {
+    step('library tab available', false, 'no button[data-tab="sections"]');
+  }
+
   // 5. The code dock opens (lazy chunk).
   if (toolbar && (await cp.$('#__sve-toolbar button[data-tab="code"]'))) {
     // The toolbar is rebuilt on every preview render; a click that lands
