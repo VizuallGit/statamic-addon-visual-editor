@@ -1,0 +1,27 @@
+{
+  "src": "src/DataVars.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "DataVars",
+  "wp": "WP7d",
+  "targets": {
+    "Builtins": {
+      "doc": "Statamic's own variables — not in any blueprint, always there: the page,\nthe site and request, an entry inside a loop, an asset inside a loop.",
+      "methods": ["pageCore", "systemVars", "entryCore", "assetCore"]
+    },
+    "Rows": {
+      "doc": "A field list flattened into pickable rows: one row per variable name, with\nwhat is nested inside grids and replicators, and a short preview of the value.",
+      "consts": ["LOOP_TYPES", "ASSET_TYPES", "SKIP_TYPES"],
+      "methods": ["skip", "walk", "walkAll", "dedupe", "withoutPageBuilder", "flattenSets", "row", "preview"]
+    },
+    "Sources": {
+      "doc": "Where the rows come from: the section open in the dock, a collection's\nentry blueprint, and every global set with its real values.",
+      "methods": ["globals", "sectionFields", "collectionFields", "setConfig"]
+    },
+    "Scope": {
+      "doc": "Where a chain of loops lands: the names that print inside the innermost\none, walked the same way Antlers walks it.",
+      "methods": ["scopeFields", "stepInto", "setFields"]
+    }
+  },
+  "facade": ["pageCore", "systemVars", "globals", "sectionFields", "collectionFields", "scopeFields", "preview"],
+  "facade_doc_extra": "This class is the entry point the controller calls; the work lives in\n`DataVars\\Builtins` (Statamic's own variables), `DataVars\\Rows` (a field\nlist flattened into rows), `DataVars\\Sources` (section, collection,\nglobals) and `DataVars\\Scope` (where a loop chain lands). Split in WP7d,\ncode moved verbatim."
+}

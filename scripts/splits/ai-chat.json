@@ -1,0 +1,42 @@
+{
+  "src": "src/AiChat.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "AiChat",
+  "wp": "WP7d",
+  "targets": {
+    "Prompt": {
+      "doc": "What the Cursor agent is told: the mode's rules, the selected section's\nfiles and panes, the site's rules and the conversation so far.",
+      "methods": [
+        "modeOf",
+        "modeInstructions",
+        "targetFiles",
+        "prompt"
+      ]
+    },
+    "Conversation": {
+      "doc": "What the user said, as the agent may see it: the last twenty turns,\nuser and assistant only, clipped, ending with the user.",
+      "methods": [
+        "sanitize",
+        "clip"
+      ]
+    },
+    "ChangedFiles": {
+      "doc": "Which allowed files an agent run touched — a stamp of every file before\nand after, compared.",
+      "methods": [
+        "allowedSnapshot",
+        "changedPaths"
+      ]
+    }
+  },
+  "keep": [
+    "apiKey",
+    "ready",
+    "talk"
+  ],
+  "facade": [
+    "modeOf",
+    "modeInstructions",
+    "targetFiles"
+  ],
+  "facade_doc_extra": "This class keeps the key, the mode and the run itself (`talk`); the prompt\nis built by `AiChat\\Prompt`, the messages cleaned by `AiChat\\Conversation`\nand the write check done by `AiChat\\ChangedFiles`. Split in WP7d, code\nmoved verbatim."
+}

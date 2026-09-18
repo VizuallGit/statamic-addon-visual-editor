@@ -1,0 +1,25 @@
+{
+  "src": "src/Breakpoints.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "Breakpoints",
+  "wp": "WP7d",
+  "targets": {
+    "Rows": {
+      "doc": "The rows as they are written — settings screen, then config, then the\nthree defaults — before anything is derived.",
+      "consts": ["DEFAULTS", "UNITS", "ROOT_PX"],
+      "methods": ["rows", "handle", "toPx"]
+    },
+    "Labels": {
+      "doc": "The name on the button: a translation for the three built-in handles,\nthe author's own text for anything else — and never a raw key.",
+      "consts": ["LABEL_KEYS"],
+      "methods": ["label", "translationsReady"]
+    },
+    "Queries": {
+      "doc": "What a limit becomes in CSS: the media query in its own unit, the\ninclusive px form `{{ responsive_css }}` writes, and the Tailwind prefix.",
+      "methods": ["num", "query", "queryPx", "maxPx", "tailwindPrefix"]
+    }
+  },
+  "keep": ["ICONS", "$resolved", "all", "forget", "handles", "base", "inherits", "devices", "forScript"],
+  "facade": [],
+  "facade_doc_extra": "This class keeps the resolved list (cached per request) and everything\nread from it; the parsing lives in `Breakpoints\\Rows`, the button text in\n`Breakpoints\\Labels` and the CSS forms in `Breakpoints\\Queries`. Split in\nWP7d, code moved verbatim."
+}

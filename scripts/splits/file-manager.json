@@ -1,0 +1,74 @@
+{
+  "src": "src/FileManager.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "FileManager",
+  "wp": "WP7d",
+  "targets": {
+    "Root": {
+      "doc": "Which paths the file manager may touch at all.\n\nThree separate walls, because any one of them can be got round on its own:\n  - the extension whitelist decides what a file may be called;\n  - `realpath()` decides where it may actually sit, after symlinks;\n  - the excluded folders never appear in the tree at all.",
+      "consts": [
+        "MAX_BYTES",
+        "EXTENSIONS",
+        "DEFAULT_EXCLUDE"
+      ],
+      "methods": [
+        "root",
+        "relativeRoot",
+        "excluded",
+        "existingPath",
+        "existingFolder",
+        "normalize",
+        "normalizeFolder",
+        "visible",
+        "extensionOk",
+        "insideRoot",
+        "walk",
+        "relativeFrom"
+      ]
+    },
+    "Tree": {
+      "doc": "The editable tree the browser shows, and which editor mode opens a file.",
+      "methods": [
+        "listing",
+        "scan",
+        "language"
+      ]
+    },
+    "Files": {
+      "doc": "Read, write, create, rename and delete one file inside the root.",
+      "methods": [
+        "read",
+        "write",
+        "create",
+        "rename",
+        "delete"
+      ]
+    },
+    "Folders": {
+      "doc": "Create, rename and delete a folder inside the root.\n\nA folder that holds something this tool cannot see (a `.php` file, a\ndotfile, an excluded folder) is never moved or deleted: the screen must\nnever take away more than it showed.",
+      "methods": [
+        "createFolder",
+        "renameFolder",
+        "folderStats",
+        "deleteFolder"
+      ]
+    }
+  },
+  "facade": [
+    "listing",
+    "read",
+    "write",
+    "create",
+    "createFolder",
+    "rename",
+    "renameFolder",
+    "delete",
+    "folderStats",
+    "deleteFolder",
+    "existingPath",
+    "existingFolder",
+    "normalize",
+    "language"
+  ],
+  "facade_doc_extra": "This class is the entry point the controller calls; the work lives in\n`FileManager\\Root` (the three walls: extension, realpath, exclusions),\n`FileManager\\Tree` (the listing), `FileManager\\Files` and\n`FileManager\\Folders`. Split in WP7d, code moved verbatim."
+}

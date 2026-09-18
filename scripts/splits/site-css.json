@@ -1,0 +1,58 @@
+{
+  "src": "src/SiteCss.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "SiteCss",
+  "wp": "WP7d",
+  "targets": {
+    "Root": {
+      "doc": "Where the site's stylesheets live and which relative paths are accepted.",
+      "consts": [
+        "ENTRY"
+      ],
+      "methods": [
+        "root",
+        "relativeRoot",
+        "existingPath",
+        "normalize",
+        "excluded",
+        "relativeFrom"
+      ]
+    },
+    "Imports": {
+      "doc": "The `@import` lines in the Vite entry (`site.css`).\n\nA stylesheet only reaches the page if the entry imports it, so creating,\nrenaming and deleting a sheet each keep the entry in step.",
+      "methods": [
+        "removeImport",
+        "ensureImport",
+        "isImported",
+        "importLine",
+        "insertImport"
+      ]
+    },
+    "Files": {
+      "doc": "The style manager's file operations: listing, read, write, create,\ndelete, rename.",
+      "methods": [
+        "listing",
+        "read",
+        "write",
+        "create",
+        "delete",
+        "rename",
+        "scan"
+      ]
+    }
+  },
+  "facade": [
+    "listing",
+    "read",
+    "write",
+    "create",
+    "delete",
+    "rename",
+    "ensureImport",
+    "isImported",
+    "root",
+    "existingPath",
+    "normalize"
+  ],
+  "facade_doc_extra": "This class is the entry point the controller calls; the work lives in\n`SiteCss\\Root` (paths and what is accepted), `SiteCss\\Imports` (the\n`@import` lines in the entry) and `SiteCss\\Files` (the operations). Split\nin WP7d, code moved verbatim."
+}

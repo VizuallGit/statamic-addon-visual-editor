@@ -2,6 +2,8 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\LibraryAccess\Audience;
+use MarioHamann\StatamicVisualEditor\LibraryAccess\Scan;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 use Statamic\Facades\User;
@@ -33,17 +35,18 @@ use Statamic\Facades\YAML;
  *   of: a custom section is offered when its own section type is in use, and a
  *   template when every section in it is. The intent survives — an editor still
  *   cannot introduce a design the site does not already have.
+ *
+ * This class keeps the two per-request caches and every answer read from
+ * them; the sweep lives in `LibraryAccess\Scan` and the who-it-applies-to
+ * in `LibraryAccess\Audience`. Split in WP7d, code moved verbatim.
  */
 class LibraryAccess
 {
+    public const SCOPE = Audience::SCOPE;
+    public const ROLES = Audience::ROLES;
+
     /** The settings toggle this hangs on. */
     public const FEATURE = 'library_in_use_only';
-
-    /** Which users it applies to: everyone, or only the roles named below. */
-    public const SCOPE = 'library_in_use_only_scope';
-
-    /** The roles it applies to, when the audience is not everyone. */
-    public const ROLES = 'library_in_use_only_roles';
 
     /** Cached per request: the snapshot is read from disk. */
     protected static ?array $snapshot = null;
@@ -76,59 +79,7 @@ class LibraryAccess
             return static::$locked = false;
         }
 
-        return static::$locked = static::appliesTo(User::current());
-    }
-
-    /**
-     * Does the limit cover this user?
-     *
-     * With no user there is nobody to limit — the library is a Control Panel
-     * screen, and everything reaching this is behind its auth.
-     */
-    public static function appliesTo(?\Statamic\Contracts\Auth\User $user): bool
-    {
-        if (! $user) {
-            return false;
-        }
-
-        if (static::audience() === 'everyone') {
-            return true;
-        }
-
-        $roles = static::roles();
-
-        if ($roles === []) {
-            return false; // "certain roles", none named — nothing to apply to
-        }
-
-        /*
-         * Roles rather than groups on purpose. Statamic's `roles()` merges the
-         * ones a user was given directly with the ones their groups carry, so
-         * naming a role catches a user however they came by it. Naming a group
-         * would miss anyone holding the role without being in it.
-         */
-        return $user->roles()
-            ->map(fn ($role) => $role->handle())
-            ->intersect($roles)
-            ->isNotEmpty();
-    }
-
-    /**
-     * Who the limit covers: 'everyone', or 'roles' for only the ones named on
-     * the settings screen. Not `scope()` — that name is taken, by the field
-     * sections live in, and the two would be a confusing pair to keep apart.
-     */
-    public static function audience(): string
-    {
-        return Features::setting(static::SCOPE, 'everyone') === 'roles'
-            ? 'roles'
-            : 'everyone';
-    }
-
-    /** The role handles the limit applies to. */
-    public static function roles(): array
-    {
-        return static::strings(Features::setting(static::ROLES, []));
+        return static::$locked = Audience::appliesTo(User::current());
     }
 
     /** Has a scan ever been taken? */
@@ -173,7 +124,7 @@ class LibraryAccess
             return false;
         }
 
-        $set = static::globalSet();
+        $set = Scan::globalSet();
 
         foreach ($sections as $section) {
             $type = (string) ($section['type'] ?? '');
@@ -214,7 +165,7 @@ class LibraryAccess
             return static::$snapshot;
         }
 
-        $path = static::path();
+        $path = Scan::path();
 
         $data = is_file($path)
             ? (YAML::parse(file_get_contents($path)) ?: [])
@@ -223,8 +174,8 @@ class LibraryAccess
         return static::$snapshot = [
             'scanned_at' => $data['scanned_at'] ?? null,
             'scanned_by' => $data['scanned_by'] ?? null,
-            'types' => static::strings($data['types'] ?? []),
-            'globals' => static::strings($data['globals'] ?? []),
+            'types' => Scan::strings($data['types'] ?? []),
+            'globals' => Scan::strings($data['globals'] ?? []),
         ];
     }
 
@@ -239,9 +190,9 @@ class LibraryAccess
      */
     public static function scan(): array
     {
-        $scope = static::scope();
-        $set = static::globalSet();
-        $skip = static::stores();
+        $scope = Scan::scope();
+        $set = Scan::globalSet();
+        $skip = Scan::stores();
 
         $types = [];
         $globals = [];
@@ -252,18 +203,18 @@ class LibraryAccess
             }
 
             foreach (Entry::query()->where('collection', $handle)->get() as $entry) {
-                static::walk($entry->data()->all(), $scope, $set, $types, $globals);
+                Scan::walk($entry->data()->all(), $scope, $set, $types, $globals);
             }
         }
 
         $snapshot = [
             'scanned_at' => now()->toIso8601String(),
             'scanned_by' => User::current()?->email(),
-            'types' => static::sorted($types),
-            'globals' => static::sorted($globals),
+            'types' => Scan::sorted($types),
+            'globals' => Scan::sorted($globals),
         ];
 
-        static::write($snapshot);
+        Scan::write($snapshot);
 
         // A first scan turns the limit on for real — the "not scanned yet"
         // catch above no longer holds, and anything asked afterwards in this
@@ -281,112 +232,44 @@ class LibraryAccess
     }
 
     /**
-     * Collects section types and global-section ids out of an entry's data tree.
+     * Does the limit cover this user?
      *
-     * `$eligible` says whether the list being walked is one sections live in, set
-     * from the key holding it — so a `blocks` list inside a section contributes
-     * nothing, however much its rows look like sections. A matched row is still
-     * descended into: a section can hold a nested page-builder field of its own.
-     *
-     * @param  array<string, true>  $types
-     * @param  array<string, true>  $globals
+     * @see Audience::appliesTo()
      */
-    protected static function walk(mixed $node, string $scope, string $set, array &$types, array &$globals, bool $eligible = false): void
+    public static function appliesTo(?\Statamic\Contracts\Auth\User $user): bool
     {
-        if (! is_array($node)) {
-            return;
-        }
-
-        if (array_is_list($node)) {
-            foreach ($node as $item) {
-                if ($eligible && is_array($item) && isset($item['type'])) {
-                    $type = (string) $item['type'];
-
-                    if ($type === $set) {
-                        foreach (array_map('strval', (array) ($item[$set] ?? [])) as $id) {
-                            $globals[$id] = true;
-                        }
-                    } else {
-                        $types[$type] = true;
-                    }
-                }
-
-                static::walk($item, $scope, $set, $types, $globals, $eligible);
-            }
-
-            return;
-        }
-
-        foreach ($node as $key => $value) {
-            static::walk($value, $scope, $set, $types, $globals, $key === $scope);
-        }
+        return Audience::appliesTo($user);
     }
 
-    /** Writes the snapshot, making its folder if this is the first scan. */
-    protected static function write(array $snapshot): void
+    /**
+     * Who the limit covers: 'everyone', or 'roles' for only the ones named on
+     * the settings screen. Not `scope()` — that name is taken, by the field
+     * sections live in, and the two would be a confusing pair to keep apart.
+     *
+     * @see Audience::audience()
+     */
+    public static function audience(): string
     {
-        $path = static::path();
-        $dir = dirname($path);
-
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        file_put_contents($path, static::header().YAML::dump($snapshot));
-        GitSync::after('library access');
+        return Audience::audience();
     }
 
-    /** A note at the top of the file, for whoever finds it in a diff. */
-    protected static function header(): string
+    /**
+     * The role handles the limit applies to.
+     *
+     * @see Audience::roles()
+     */
+    public static function roles(): array
     {
-        return <<<'YAML'
-        # Written by the Visual Editor's "Scan the site" button.
-        #
-        # The section types and global sections this site was using when the scan
-        # was taken. While the matching setting is on, everyone but a super admin
-        # sees only these in the section library. Editing it by hand works, but
-        # the next scan overwrites it.
-
-        YAML;
+        return Audience::roles();
     }
 
-    /** The field sections live in — the only list a section can be found in. */
-    protected static function scope(): string
-    {
-        return config('statamic-visual-editor.previews.field', 'page_sections');
-    }
-
-    /** The Replicator set a page uses to reference a synced section. */
-    protected static function globalSet(): string
-    {
-        return config('statamic-visual-editor.saved_sections.set', 'global_section');
-    }
-
-    /** The editor's own collections — libraries, not pages. */
-    protected static function stores(): array
-    {
-        return Stores::all();
-    }
-
-    /** Where the snapshot lives. Under resources/, so it deploys with the site. */
+    /**
+     * Where the snapshot lives. Under resources/, so it deploys with the site.
+     *
+     * @see Scan::path()
+     */
     public static function path(): string
     {
-        return config('statamic-visual-editor.library.snapshot')
-            ?: base_path('resources/visual-editor/library-snapshot.yaml');
-    }
-
-    /** @param  array<string, true>  $found */
-    protected static function sorted(array $found): array
-    {
-        $keys = array_keys($found);
-
-        sort($keys, SORT_NATURAL | SORT_FLAG_CASE);
-
-        return $keys;
-    }
-
-    protected static function strings(mixed $value): array
-    {
-        return array_values(array_unique(array_map('strval', (array) $value)));
+        return Scan::path();
     }
 }

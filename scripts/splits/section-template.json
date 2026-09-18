@@ -1,0 +1,23 @@
+{
+  "src": "src/SectionTemplate.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "SectionTemplate",
+  "wp": "WP7d",
+  "targets": {
+    "Paths": {
+      "doc": "Where a section partial lives on disk.\n\nThe handle comes from the replicator set (`hero/style_2`); the path is\nalways under the section-partials directory (header/footer under their own\npartials folders), never anywhere else — `..` and absolute paths are refused.",
+      "methods": ["directory", "locate", "writablePath", "path", "relative", "handleFromAbsolute"]
+    },
+    "Locks": {
+      "doc": "The dock lock on a section partial.\n\nDesigned types are locked in the template dock by default. `custom_section`\nstays editable until a super admin locks it. Unlocking a designed type\nwrites `{{# sve-unlocked #}}`; locking a custom type writes `{{# sve-locked #}}`.",
+      "consts": ["LOCK_MARKER", "UNLOCK_MARKER"],
+      "methods": ["defaultsLocked", "unlockedPrefixes", "hasLockMarker", "hasUnlockMarker", "stripLockMarker", "stripUnlockMarker", "stripMarkers", "fileIsLocked", "setLocked", "lockedSnapshots", "restoreLocked", "resolveLocked", "markerFor", "stripOneMarker"]
+    },
+    "Panes": {
+      "doc": "The three dock panes (HTML, CSS, JS) plus the Tailwind bucket, split out\nof one Antlers file and joined back into it.",
+      "methods": ["split", "join", "extractPair", "peelTrailingPair", "unwrapPair", "wrapPair", "unwrapTagged", "wrapTagged", "joinBlocks", "trimBlock", "unmask"]
+    }
+  },
+  "facade": ["writablePath", "path", "relative", "split", "join", "defaultsLocked", "fileIsLocked", "setLocked", "lockedSnapshots", "restoreLocked"],
+  "facade_doc_extra": "This class is the entry point other code calls; the work lives in\n`SectionTemplate\\Paths` (where the file is), `SectionTemplate\\Locks` (the\ndock lock and its markers) and `SectionTemplate\\Panes` (split/join of the\nHTML, CSS, JS and Tailwind panes). Split in WP7d, code moved verbatim."
+}

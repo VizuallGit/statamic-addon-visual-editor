@@ -1,0 +1,19 @@
+{
+  "src": "src/SetPreviewGenerator.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "SetPreview",
+  "wp": "WP7d",
+  "targets": {
+    "Targets": {
+      "doc": "What each section type needs, without touching a browser: its subjects\n(defaults, a real instance, or a configured override), the fingerprinted\nfilename, and whether the picture on disk is still current.",
+      "methods": ["targets", "targetSets", "candidates", "findInstance", "scannedCollections", "handleBase", "emptyKey", "failedKey"]
+    },
+    "FieldsetImage": {
+      "doc": "Writes a set's `image:` back into whichever fieldset YAML defines it —\nread from disk right before writing, never from a copy held in memory.",
+      "methods": ["updateImage", "readFieldset", "replaceImage"]
+    }
+  },
+  "keep": ["GENERATED", "generate", "shoot", "deleteSuperseded"],
+  "facade": ["targets"],
+  "facade_doc_extra": "This class runs the browser and writes the files; what to shoot comes\nfrom `SetPreview\\Targets`, and the fieldset's `image:` is updated by\n`SetPreview\\FieldsetImage`. Split in WP7d, code moved verbatim."
+}

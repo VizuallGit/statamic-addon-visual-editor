@@ -5,6 +5,8 @@ namespace MarioHamann\StatamicVisualEditor\Tests\Http\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton\Button;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton\Head;
 use MarioHamann\StatamicVisualEditor\Tests\TestCase;
 
 class InjectEditButtonTest extends TestCase
@@ -27,12 +29,12 @@ class InjectEditButtonTest extends TestCase
 
             public function exposeHead(string $content): string
             {
-                return $this->head($content);
+                return Head::head($content);
             }
 
             public function exposeButton(object $entry): string
             {
-                return $this->button($entry);
+                return Button::button($entry);
             }
         };
     }

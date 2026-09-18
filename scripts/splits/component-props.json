@@ -1,0 +1,21 @@
+{
+  "src": "src/ComponentProps.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "ComponentProps",
+  "wp": "WP7d",
+  "targets": {
+    "Declaration": {
+      "doc": "The declaration as it sits in the file: the `{{#sve_props … #}}` comment\nat the top and the `sve_defaults` pair around everything else. Peel it\noff, write it back.",
+      "consts": ["BLOCK", "PAIR_CLOSE", "WRAP", "DEFAULTS"],
+      "methods": ["peel", "block", "wrap", "open", "parameterValue", "decode"]
+    },
+    "Schema": {
+      "doc": "What a prop may be: its handle (a name Antlers can read), its type, its\nlabel, and the choices a select offers.",
+      "consts": ["TYPES", "PREFIX", "MAX_OPTIONS", "RESERVED"],
+      "methods": ["param", "normalize", "options", "handle", "label"]
+    }
+  },
+  "keep": ["forView", "viewPath"],
+  "facade": ["param", "peel", "block", "wrap", "open", "normalize", "handle"],
+  "facade_doc_extra": "This class is the entry point other code calls; the file shape lives in\n`ComponentProps\\Declaration` and the rules for one prop in\n`ComponentProps\\Schema`. Split in WP7d, code moved verbatim."
+}

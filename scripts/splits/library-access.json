@@ -1,0 +1,54 @@
+{
+  "src": "src/LibraryAccess.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "LibraryAccess",
+  "wp": "WP7d",
+  "targets": {
+    "Scan": {
+      "doc": "The sweep: walking an entry's data tree for section types and global\nsection ids, and writing the snapshot file the limit is enforced from.",
+      "methods": [
+        "walk",
+        "write",
+        "header",
+        "scope",
+        "globalSet",
+        "stores",
+        "path",
+        "sorted",
+        "strings"
+      ]
+    },
+    "Audience": {
+      "doc": "Who the limit covers: everyone, or only the roles named on the settings\nscreen.",
+      "methods": [
+        "appliesTo",
+        "audience",
+        "roles"
+      ],
+      "consts": [
+        "SCOPE",
+        "ROLES"
+      ]
+    }
+  },
+  "keep": [
+    "FEATURE",
+    "$snapshot",
+    "$locked",
+    "locked",
+    "scanned",
+    "allowsType",
+    "allowsGlobal",
+    "allowsSections",
+    "snapshot",
+    "scan",
+    "flush"
+  ],
+  "facade": [
+    "appliesTo",
+    "audience",
+    "roles",
+    "path"
+  ],
+  "facade_doc_extra": "This class keeps the two per-request caches and every answer read from\nthem; the sweep lives in `LibraryAccess\\Scan` and the who-it-applies-to\nin `LibraryAccess\\Audience`. Split in WP7d, code moved verbatim."
+}

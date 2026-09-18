@@ -1,0 +1,19 @@
+{
+  "src": "src/Http/Middleware/InjectEditButton.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor\\Http\\Middleware",
+  "sub_ns": "InjectEditButton",
+  "wp": "WP7d",
+  "targets": {
+    "Head": {
+      "doc": "What goes into `<head>` before first paint: the no-animation flag after a\nsave, and the guard that swallows Vite's `full-reload` while the editor\noverlay is open.",
+      "methods": ["head"]
+    },
+    "Button": {
+      "doc": "The \"Rediger\" button itself — markup, styles and the script that reveals\nit after paint and warms Live Preview.",
+      "methods": ["button", "resolveScriptUrl"]
+    }
+  },
+  "keep": ["handle", "shouldInject", "resolveEntry"],
+  "facade": [],
+  "facade_doc_extra": "This middleware keeps the decision (`shouldInject`, `resolveEntry`) and\nthe injection; the HTML it injects lives in `InjectEditButton\\Head` and\n`InjectEditButton\\Button`. Split in WP7d, code moved verbatim."
+}

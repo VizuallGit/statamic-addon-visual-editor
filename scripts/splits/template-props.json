@@ -1,0 +1,25 @@
+{
+  "src": "src/TemplateProps.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "TemplateProps",
+  "wp": "WP7d",
+  "targets": {
+    "Parser": {
+      "doc": "Reads the bindings (`:handle ?? default`) out of a section template —\ncollection, media and text, in author syntax and in compiled form.",
+      "consts": ["KIND_COLLECTION", "KIND_TEXT", "KIND_ASSETS", "MEDIA_ATTRIBUTES"],
+      "methods": ["parse", "mediaAttributePattern", "inferredFieldHandle", "binding", "matches", "stripComments"]
+    },
+    "Compiler": {
+      "doc": "Turns the author syntax into Antlers Statamic can render (`sve_prop`\ntags), leaving comments alone.",
+      "methods": ["compile"]
+    },
+    "Options": {
+      "doc": "The sidebar fields generated from the bindings, and the collections and\nfields an editor can point them at.",
+      "consts": ["TEXT_KINDS", "ASSET_KINDS"],
+      "methods": ["bundleField", "payloadForType", "fieldDefinition", "collectionOptions", "fieldOptions", "fieldsOf"]
+    }
+  },
+  "keep": [],
+  "facade": ["parse", "compile", "bundleField", "payloadForType", "fieldDefinition"],
+  "facade_doc_extra": "This class is the entry point other code calls; the work lives in\n`TemplateProps\\Parser`, `TemplateProps\\Compiler` and `TemplateProps\\Options`.\nSplit in WP7d, code moved verbatim."
+}

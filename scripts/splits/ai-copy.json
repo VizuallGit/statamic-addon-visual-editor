@@ -1,0 +1,20 @@
+{
+  "src": "src/AiCopy.php",
+  "root_ns": "MarioHamann\\StatamicVisualEditor",
+  "sub_ns": "AiCopy",
+  "wp": "WP7d",
+  "targets": {
+    "Prompt": {
+      "doc": "The brief for one field: its kind and length, the page's keywords, what\nit says now, what the user asked for, and the language to write in.",
+      "consts": ["MAX_COUNT", "MAX_AVOID"],
+      "methods": ["count", "kindOf", "brief", "prompt", "language", "clip"]
+    },
+    "Reply": {
+      "doc": "The suggestions out of a reply that should be JSON and might not be.",
+      "methods": ["parse", "candidates", "strings", "fromList", "tidy"]
+    }
+  },
+  "keep": ["ready", "suggest"],
+  "facade": ["count", "kindOf", "parse"],
+  "facade_doc_extra": "This class keeps the run (`suggest`) behind the write guard; the prompt is\nbuilt by `AiCopy\\Prompt` and the answer read by `AiCopy\\Reply`. Split in\nWP7d, code moved verbatim."
+}
