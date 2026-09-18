@@ -118,6 +118,7 @@ SVE_BUILD_DIR=<dir> …                 # serve another build, e.g. `vite build 
 SVE_PREFS='{"sve-lp-device":"Tablet"}' … # start the smoke test from a saved layout (keys as in chrome-prefs.js)
 SVE_DEBUG=1 …                         # which frame got the mouse, the overlay's hit stack, a screenshot in the temp dir
 npm run test:instant   # dock instant paint, likewise served from the working tree
+npm run test:switch    # opening a section writes nothing: no save, no section reload (installed PHP; see the file header)
 ```
 
 `scripts/assert-isolation.mjs` covers all of `resources/js`: kernel may import only kernel; `cp/` may import neither kernel nor `cp.js`; panels are held by `scripts/isolation-allowlist.json`, which may only shrink (a stale entry fails the run). New coupling to `cp.js`, `lp-replay.js` or the kernel is a failed lint, not a judgement call.
