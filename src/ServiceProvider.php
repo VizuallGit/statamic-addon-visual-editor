@@ -49,6 +49,7 @@ use MarioHamann\StatamicVisualEditor\Listeners\SeedCollectionRouting;
 use MarioHamann\StatamicVisualEditor\Listeners\ScopeTemplatePreviewAs;
 use MarioHamann\StatamicVisualEditor\Listeners\StripVisualIds;
 use MarioHamann\StatamicVisualEditor\Listeners\WrapResponsiveFields;
+use MarioHamann\StatamicVisualEditor\Listeners\WrapResponsiveGlobalFields;
 use MarioHamann\StatamicVisualEditor\Modifiers\IsDefault;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
@@ -131,6 +132,9 @@ class ServiceProvider extends AddonServiceProvider
         GlobalVariablesBlueprintFound::class => [
             InjectVisualIdIntoBlueprint::class,
             InjectTemplatePropsIntoBlueprint::class,
+            // Samme indpakning som entries får ovenfor. Beslutningen blev taget
+            // i sitet (footerens kolonne-felt) og flyttet hertil i WP8.
+            WrapResponsiveGlobalFields::class,
         ],
         EntrySaving::class => [
             StripVisualIds::class,
@@ -259,6 +263,10 @@ class ServiceProvider extends AddonServiceProvider
         $this->registerSerializableClasses([CollectionTemplateEntry::class]);
 
         Event::listen(EntryBlueprintFound::class, [WrapResponsiveFields::class, 'handle']);
+        // Globals get the same wrap, and for the same reason it is registered
+        // here: it has to run BEFORE the addon's other globals listeners in
+        // `$listen`. Moved from the site's AppServiceProvider in WP8.
+        Event::listen(GlobalVariablesBlueprintFound::class, [WrapResponsiveGlobalFields::class, 'handle']);
 
         // `:handle ?? default` in a section template becomes Antlers the
         // runtime can render. Official preparser hook — not a wrap of Engine.
