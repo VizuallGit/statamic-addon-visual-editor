@@ -7,6 +7,8 @@
  *
  * Must use Vue `h()`: Statamic's CP Vue is runtime-only.
  */
+import { t } from '../lib/i18n.js';
+
 (function () {
     'use strict';
 
@@ -19,10 +21,6 @@
         'shadow-ui-sm antialiased',
         'cursor-pointer',
     ].join(' ');
-
-    function t(key, fallback) {
-        return (window.Statamic?.$config?.get?.('sveStrings') || {})[key] ?? fallback ?? key;
-    }
 
     function asMap(value) {
         return value && typeof value === 'object' && !Array.isArray(value) ? Object.assign({}, value) : {};
@@ -56,7 +54,7 @@
         }
 
         if (binding.kind === 'collection') {
-            return t('template_prop_collection', 'Collection');
+            return t(window, 'template_prop_collection');
         }
 
         return String(binding.handle || '')
@@ -170,7 +168,7 @@
                         });
 
                         if (!children.length) {
-                            children.push(h('option', { value: '', disabled: true }, t('template_prop_empty', 'No matching fields on this collection')));
+                            children.push(h('option', { value: '', disabled: true }, t(window, 'template_prop_empty')));
                         }
 
                         return h('label', {
@@ -190,7 +188,7 @@
                     });
 
                     if (!rows.length) {
-                        return h('p', { class: 'text-xs text-gray-500' }, t('template_prop_empty', 'No matching fields on this collection'));
+                        return h('p', { class: 'text-xs text-gray-500' }, t(window, 'template_prop_empty'));
                     }
 
                     return h('div', rows);

@@ -5,6 +5,8 @@
  * Her males SVG også fra feltets config, hvis meta er gammel eller tom.
  * Eget script, ikke addon.js.
  */
+import { injectStyle } from '../lib/style.js';
+
 (function () {
     'use strict';
 
@@ -22,20 +24,13 @@
     }
 
     function ensureStyles() {
-        if (document.getElementById('sve-ibg-iconify-css')) {
-            return;
-        }
-
-        var style = document.createElement('style');
-        style.id = 'sve-ibg-iconify-css';
-        style.textContent = [
+        injectStyle(document, 'sve-ibg-iconify-css', [
             '[data-sve-ibg-iconify] { display: inline-flex; align-items: center; justify-content: center; width: 1.125rem; height: 1.125rem; color: currentColor; }',
             '[data-sve-ibg-iconify] svg { width: 1.125rem !important; height: 1.125rem !important; display: block !important; }',
             '.icon_button_group-fieldtype button:not([data-sve-ibg-selected]), .icon-button-group-fieldtype button:not([data-sve-ibg-selected]) { opacity: 0.4; }',
             '.icon_button_group-fieldtype button:not([data-sve-ibg-selected]):hover, .icon-button-group-fieldtype button:not([data-sve-ibg-selected]):hover { opacity: 0.7; }',
             '.icon_button_group-fieldtype button[data-sve-ibg-selected], .icon-button-group-fieldtype button[data-sve-ibg-selected] { opacity: 1; }',
-        ].join('\n');
-        document.head.appendChild(style);
+        ].join('\n'));
     }
 
     function normalizeSvg(markup) {

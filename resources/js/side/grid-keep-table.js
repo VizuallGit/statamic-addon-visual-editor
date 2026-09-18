@@ -7,6 +7,8 @@
  * `containerWidth` på Grid-instansen, så den bliver ved GridTable.
  * Grid's Vue-komponent wrappes eller erstattes ikke.
  */
+import { injectStyle } from '../lib/style.js';
+
 (function () {
     'use strict';
 
@@ -21,21 +23,14 @@
     var STYLE_ID = 'sve-keep-table-style';
 
     function ensureStyles() {
-        if (document.getElementById(STYLE_ID)) {
-            return;
-        }
-
-        var style = document.createElement('style');
-        style.id = STYLE_ID;
-        style.textContent = [
+        injectStyle(document, STYLE_ID, [
             '[data-sve-keep-table] table.grid-table [data-sve-keep-table-col-hidden]{display:none;width:0;padding:0;border:0}',
             '[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]){width:100%}',
             '[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) > *,',
             '[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) [data-ui-combobox],',
             '[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) [data-ui-combobox-anchor],',
             '[data-sve-keep-table] table.grid-table td.grid-cell:not([data-sve-keep-table-col-hidden]) [data-ui-combobox-trigger]{width:100%;max-width:none;box-sizing:border-box}',
-        ].join('');
-        document.head.appendChild(style);
+        ].join(''));
     }
 
     function configOf(vm) {

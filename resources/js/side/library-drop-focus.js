@@ -6,6 +6,8 @@
  * Insert still goes through the bridge (ext-drop). This only holds the overview
  * past restoreZoom, then FLIPs into the new section.
  */
+import { injectStyle } from '../lib/style.js';
+
 (function () {
     'use strict';
 
@@ -72,7 +74,6 @@
     function keepOverview(win) {
         var body;
         var scale;
-        var style;
 
         if (!drag || drag.win !== win) {
             return;
@@ -84,15 +85,7 @@
             return;
         }
 
-        style = win.document.getElementById('sve-hold-overview');
-
-        if (!style) {
-            style = win.document.createElement('style');
-            style.id = 'sve-hold-overview';
-            win.document.head.appendChild(style);
-        }
-
-        style.textContent = 'body{transform:scale(' + scale + ') !important;transform-origin:top center !important;transition:none !important;}';
+        injectStyle(win.document, 'sve-hold-overview', 'body{transform:scale(' + scale + ') !important;transform-origin:top center !important;transition:none !important;}');
         body = win.document.body;
         body.style.transition = 'none';
         body.style.transformOrigin = 'top center';

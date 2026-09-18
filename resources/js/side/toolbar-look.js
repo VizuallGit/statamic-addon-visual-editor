@@ -9,6 +9,8 @@
  *
  * Own CP script — not addon.js. Does not touch overlay-host / preview / bridge.
  */
+import { injectStyle } from '../lib/style.js';
+
 (function () {
     'use strict';
 
@@ -134,30 +136,11 @@
     }
 
     function inject(win) {
-        var doc;
-        var style;
-        var text;
-
         if (!win || !win.document) {
             return;
         }
 
-        doc = win.document;
-        style = doc.getElementById(STYLE_ID);
-        text = css();
-
-        if (!style) {
-            style = doc.createElement('style');
-            style.id = STYLE_ID;
-            (doc.head || doc.documentElement).appendChild(style);
-            style.textContent = text;
-
-            return;
-        }
-
-        if (style.textContent !== text) {
-            style.textContent = text;
-        }
+        injectStyle(win.document, STYLE_ID, css());
     }
 
     function parseRgb(value) {

@@ -5,6 +5,8 @@
  * Own CP script (kopieres ved boot), ikke addon.js. Skjul kun den custom
  * label — Statamics egen er urørt.
  */
+import { bpBase } from '../breakpoints.js';
+
 (function () {
     'use strict';
 
@@ -16,21 +18,9 @@
     var pending = false;
 
     function baseBp() {
-        try {
-            var list = window.Statamic && window.Statamic.$config && window.Statamic.$config.get('sveBreakpoints');
-
-            if (Array.isArray(list) && list.length) {
-                var base = list.filter(function (row) { return row && row.base; })[0] || list[0];
-
-                if (base && base.handle) {
-                    return String(base.handle).replace(/["\\]/g, '');
-                }
-            }
-        } catch (e) {
-            /* CP'et er ikke bootet endnu */
-        }
-
-        return 'laptop';
+        // breakpoints.js is the one reader of `sveBreakpoints` and falls back to
+        // the shipped list on its own; only the selector-safe spelling is ours.
+        return String(bpBase(window)).replace(/["\\]/g, '');
     }
 
     function hideCustom(root) {

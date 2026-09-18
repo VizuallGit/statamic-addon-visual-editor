@@ -8,6 +8,8 @@
  *
  * Own CP script — not addon.js. Does not touch overlay-host / preview / bridge.
  */
+import { injectStyle } from '../lib/style.js';
+
 (function () {
     'use strict';
 
@@ -293,23 +295,11 @@
     }
 
     function injectLook(win) {
-        var doc;
-        var style;
-
         if (!win || !win.document) {
             return;
         }
 
-        doc = win.document;
-        style = doc.getElementById(LOOK_STYLE_ID);
-
-        if (!style) {
-            style = doc.createElement('style');
-            style.id = LOOK_STYLE_ID;
-            (doc.head || doc.documentElement).appendChild(style);
-        }
-
-        style.textContent =
+        injectStyle(win.document, LOOK_STYLE_ID,
             '[id="' +
             LAYER_ID +
             '"] .sve-ins-wrap{display:flex!important;align-items:center!important;justify-content:center!important;gap:10px!important;box-sizing:border-box;}' +
@@ -342,7 +332,7 @@
             '"] .sve-ins-wrap[data-sve-ins-tone="dark"] .sve-ins-btn{background:#fff!important;color:#111!important;}' +
             '[id="' +
             LAYER_ID +
-            '"] .sve-ins-wrap[data-sve-ins-hover] .sve-ins-btn{opacity:1!important;}';
+            '"] .sve-ins-wrap[data-sve-ins-hover] .sve-ins-btn{opacity:1!important;}');
     }
 
     function parseRgb(value) {

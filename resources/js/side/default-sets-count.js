@@ -7,6 +7,8 @@
  * so a template here never compiles and the checkbox-only component from
  * addon.js stays on screen. Six Items is six `{ type: item }` rows.
  */
+import { t } from '../lib/i18n.js';
+
 (function () {
     'use strict';
 
@@ -14,10 +16,6 @@
 
     function publishValues(ctx) {
         return ctx?.values?.value ?? ctx?.values ?? {};
-    }
-
-    function t(key) {
-        return (window.Statamic?.$config?.get?.('sveStrings') || {})[key] ?? key;
     }
 
     function asRows(value) {
@@ -141,7 +139,7 @@
                     var list = sets.value;
 
                     if (!list.length) {
-                        return h('p', { class: 'text-sm text-gray-600 dark:text-gray-400' }, t('field_from_the_start_no_sets'));
+                        return h('p', { class: 'text-sm text-gray-600 dark:text-gray-400' }, t(window, 'field_from_the_start_no_sets'));
                     }
 
                     return h(

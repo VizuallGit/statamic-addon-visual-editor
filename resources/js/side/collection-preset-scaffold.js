@@ -7,6 +7,11 @@
  * often patched away; the table is a stable hook, and we put the panel back
  * if Vue removes it.
  */
+import { t } from '../lib/i18n.js';
+import { csrfToken } from '../lib/csrf.js';
+import { injectStyle } from '../lib/style.js';
+import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
+
 (function () {
     'use strict';
 
@@ -38,38 +43,6 @@
         'disabled:opacity-60 disabled:text-white disabled:inset-shadow-none disabled:cursor-not-allowed',
     ].join(' ');
 
-    function cfg(key, fallback) {
-        if (window.StatamicConfig && window.StatamicConfig[key] != null) {
-            return window.StatamicConfig[key];
-        }
-
-        var store = window.Statamic && window.Statamic.$config;
-        var get = store && store.get;
-        if (typeof get === 'function') {
-            try {
-                var value = get.call(store, key);
-                if (value != null) {
-                    return value;
-                }
-            } catch (e) {
-                // Config not ready yet.
-            }
-        }
-
-        return fallback;
-    }
-
-    function t(key, fallback) {
-        var strings = cfg('sveStrings', {}) || {};
-        return strings[key] || fallback;
-    }
-
-    function csrf() {
-        return cfg('csrfToken', '') ||
-            (document.querySelector('meta[name="csrf-token"]') || {}).content ||
-            '';
-    }
-
     function onScaffold() {
         var path = window.location.pathname || '';
         var match = path.match(/\/collections\/([^/]+)\/scaffold\/?$/);
@@ -86,27 +59,15 @@
     }
 
     function presets() {
-        var list = cfg('sveCollectionPresets', []);
-        return Array.isArray(list) ? list : [];
+        return collectionPresets(window);
     }
 
     function featureOn() {
-        var features = cfg('sveFeatures', null);
-        if (!features || typeof features !== 'object') {
-            return null;
-        }
-        var flag = features.collection_templates;
-        return flag === true || flag === 1 || flag === 'true';
+        return featureIsOn(window, 'collection_templates');
     }
 
     function ensureSelectStyle() {
-        if (document.getElementById(PANEL_ID + '-css')) {
-            return;
-        }
-
-        var style = document.createElement('style');
-        style.id = PANEL_ID + '-css';
-        style.textContent = [
+        injectStyle(document, PANEL_ID + '-css', [
             '#' + PANEL_ID + ' select {',
             '  -webkit-appearance: none;',
             '  appearance: none;',
@@ -118,8 +79,7 @@
             '.dark #' + PANEL_ID + ' select {',
             '  background-image: url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%239ca3af\' stroke-width=\'2\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' d=\'M6 9l6 6 6-6\'/%3E%3C/svg%3E");',
             '}',
-        ].join('\n');
-        document.head.appendChild(style);
+        ].join('\n'));
     }
 
     function tableEl() {
@@ -136,19 +96,13 @@
         panel.style.backgroundColor = '#1E1E21';
 
         var title = document.createElement('div');
-        title.textContent = t('collection_preset_label', 'Start from a preset');
+        title.textContent = t(window, 'collection_preset_label');
         title.style.cssText = 'font-weight:600;margin-bottom:.35rem;';
 
         var hint = document.createElement('p');
         hint.textContent = list.length
-            ? t(
-                'collection_preset_hint',
-                'Loads the blueprint and index/show views you keep in VS Code. The collection name does not matter.'
-            )
-            : t(
-                'collection_preset_empty',
-                'No presets yet. Add a folder in resources/visual-editor/collection-presets (preset.yaml + optional blueprint and views).'
-            );
+            ? t(window, 'collection_preset_hint')
+            : t(window, 'collection_preset_empty');
         hint.style.cssText = 'font-size:.875rem;opacity:.8;margin:0 0 .75rem;';
 
         panel.appendChild(title);
@@ -165,7 +119,7 @@
         select.className = SELECT_CLASS;
         var blank = document.createElement('option');
         blank.value = '';
-        blank.textContent = t('collection_preset_none', 'Choose a preset…');
+        blank.textContent = t(window, 'collection_preset_none');
         select.appendChild(blank);
         list.forEach(function (preset) {
             var option = document.createElement('option');
@@ -178,7 +132,7 @@
         button.type = 'button';
         button.setAttribute('data-ui-button', '');
         button.className = BUTTON_CLASS;
-        button.textContent = t('collection_preset_apply', 'Apply preset');
+        button.textContent = t(window, 'collection_preset_apply');
 
         var error = document.createElement('div');
         error.style.cssText = 'display:none;margin-top:.6rem;font-size:.875rem;color:#f87171;';
@@ -196,7 +150,7 @@
                 credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrf(),
+                    'X-CSRF-TOKEN': csrfToken(window),
                     'X-Requested-With': 'XMLHttpRequest',
                     Accept: 'application/json',
                 },
@@ -205,13 +159,13 @@
                 .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
                 .then(function (result) {
                     if (!result.ok || !result.data || !result.data.redirect) {
-                        throw new Error((result.data && result.data.message) || t('collection_preset_failed', 'Could not apply the preset.'));
+                        throw new Error((result.data && result.data.message) || t(window, 'collection_preset_failed'));
                     }
                     window.location.href = result.data.redirect;
                 })
                 .catch(function (err) {
                     button.disabled = false;
-                    error.textContent = err.message || t('collection_preset_failed', 'Could not apply the preset.');
+                    error.textContent = err.message || t(window, 'collection_preset_failed');
                     error.style.display = 'block';
                 });
         });

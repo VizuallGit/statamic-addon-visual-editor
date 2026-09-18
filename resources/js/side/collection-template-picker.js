@@ -3,6 +3,9 @@
  *
  * Own CP script — not addon.js. Does not touch overlay-host / preview / bridge.
  */
+import { t } from '../lib/i18n.js';
+import { collectionTemplatesCollection, featureOn as featureIsOn } from '../lib/config.js';
+
 (function () {
     'use strict';
 
@@ -17,37 +20,12 @@
     var fetching = false;
     var timer = null;
 
-    // `$config.get` reads `this.all()`, so it must be called on $config — pulling
-    // the function off it threw on every DOM mutation the observer below saw.
-    function cfg(key, fallback) {
-        var config = window.Statamic && window.Statamic.$config;
-        var value;
-
-        if (!config || typeof config.get !== 'function') {
-            return fallback;
-        }
-
-        try {
-            value = config.get(key);
-        } catch (err) {
-            return fallback;
-        }
-
-        return value == null ? fallback : value;
-    }
-
-    function t(key, fallback) {
-        var strings = cfg('sveStrings', {}) || {};
-        return strings[key] || fallback;
-    }
-
     function featureOn() {
-        var features = cfg('sveFeatures', {}) || {};
-        return features.collection_templates === true;
+        return featureIsOn(window, 'collection_templates');
     }
 
     function storeHandle() {
-        return cfg('sveCollectionTemplatesCollection', 'templates');
+        return collectionTemplatesCollection(window);
     }
 
     function onTemplateEntry() {
@@ -115,7 +93,7 @@
         wrap.setAttribute('data-sve-collection-view-as', '1');
         wrap.style.cssText = 'display:flex;align-items:center;gap:8px;margin-left:12px;font-size:12px;color:inherit;';
         var caption = document.createElement('span');
-        caption.textContent = t('collection_view_preview_as', 'Preview as');
+        caption.textContent = t(window, 'collection_view_preview_as');
         var select = document.createElement('select');
         select.id = SELECT_ID;
         select.style.cssText = 'max-width:220px;font-size:12px;';
@@ -133,7 +111,7 @@
         select.innerHTML = '';
         var sample = document.createElement('option');
         sample.value = '';
-        sample.textContent = t('collection_view_sample', 'Sample data');
+        sample.textContent = t(window, 'collection_view_sample');
         select.appendChild(sample);
         (entries || []).forEach(function (entry) {
             var option = document.createElement('option');

@@ -34,6 +34,9 @@
 import { on, register } from '../cp/bus.js';
 import { ensureFocusHeader, focusBack, focusRowMeta, isolateSoloSection, paintFocusHeader, soloSectionSettingsNow } from '../focus-panel.js';
 import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
+import { t } from '../lib/i18n.js';
+import { injectStyle } from '../lib/style.js';
+import { featureOn } from '../lib/config.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
     var PRELOAD_FIRST_SECTION = false;
@@ -882,14 +885,6 @@ import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
         '<polyline points="21 3 21 9 15 9"></polyline>' +
         '</svg>';
 
-    function liteString(key, fallback) {
-        var map = (window.Statamic && window.Statamic.$config && typeof window.Statamic.$config.get === 'function')
-            ? window.Statamic.$config.get('sveStrings')
-            : null;
-
-        return (map && map[key]) || fallback;
-    }
-
     function collectNestedUids(node, out, depth) {
         var keys;
         var i;
@@ -995,7 +990,7 @@ import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
         var line = header && header.querySelector('[data-sve-focus-id]');
         var title = line && line.querySelector('[data-sve-focus-title]');
         var btn = header && header.querySelector('[' + LITE_LOAD_ATTR + ']');
-        var label = liteString('lite_load_sidebar', 'Load all fields in the sidebar');
+        var label = t(window, 'lite_load_sidebar');
 
         if (!line || !title) {
             return;
@@ -1696,7 +1691,6 @@ import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
     }
 
     function ensureLiteFieldHeights(doc) {
-        var style;
         var css;
 
         if (!doc) {
@@ -1746,17 +1740,7 @@ import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
             '[' + LITE_LOAD_ATTR + ']:hover{opacity:1;background:rgba(128,128,128,.16);}' +
             '[' + LITE_LOAD_ATTR + '] svg{display:block;}';
 
-        style = doc.getElementById('sve-lite-field-heights');
-
-        if (!style) {
-            style = doc.createElement('style');
-            style.id = 'sve-lite-field-heights';
-            doc.head.appendChild(style);
-        }
-
-        if (style.textContent !== css) {
-            style.textContent = css;
-        }
+        injectStyle(doc, 'sve-lite-field-heights', css);
     }
 
     function scheduleFocusExpand(doc, win) {
@@ -2183,11 +2167,7 @@ import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
     }
 
     function focusPanelOn(win) {
-        var feats = win.Statamic && win.Statamic.$config && typeof win.Statamic.$config.get === 'function'
-            ? win.Statamic.$config.get('sveFeatures')
-            : null;
-
-        return !feats || feats.focus_panel !== false;
+        return featureOn(win, 'focus_panel');
     }
 
     function activePaneHasSolo(doc) {
