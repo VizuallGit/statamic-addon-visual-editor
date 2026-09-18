@@ -52,6 +52,7 @@ class SiteCss
         }
 
         file_put_contents($path, $css);
+        GitSync::after('site CSS');
 
         $rel = static::relativeFrom($path);
 
@@ -86,6 +87,7 @@ class SiteCss
         }
 
         file_put_contents($path, "/* {$rel} */\n");
+        GitSync::after('site CSS file created');
 
         if ($rel !== self::ENTRY) {
             static::ensureImport($rel);
@@ -118,7 +120,13 @@ class SiteCss
         // breaks the build, and that is the half nobody would think to check.
         static::removeImport($rel);
 
-        return unlink($path);
+        if (! unlink($path)) {
+            return false;
+        }
+
+        GitSync::after('site CSS file removed');
+
+        return true;
     }
 
     /**
@@ -165,6 +173,8 @@ class SiteCss
             return null;
         }
 
+        GitSync::after('site CSS file renamed');
+
         static::removeImport($was);
 
         if ($wasImported) {
@@ -203,6 +213,7 @@ class SiteCss
         }
 
         file_put_contents($entry, $patched);
+        GitSync::after('site CSS imports');
 
         return true;
     }
@@ -234,6 +245,7 @@ class SiteCss
         }
 
         file_put_contents($entry, $patched);
+        GitSync::after('site CSS imports');
 
         return true;
     }

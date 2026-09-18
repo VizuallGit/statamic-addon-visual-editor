@@ -105,6 +105,7 @@ class SetPreviewGenerator
         if ($changed) {
             SetPreviewImages::flush();
             Artisan::call('statamic:glide:clear');
+            GitSync::after('set previews');
         }
 
         return $results;

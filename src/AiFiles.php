@@ -138,6 +138,7 @@ class AiFiles
         }
 
         file_put_contents($path, $contents);
+        GitSync::after('AI file write');
 
         return SectionTemplate::relative($path);
     }

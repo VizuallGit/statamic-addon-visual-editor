@@ -400,6 +400,10 @@ class ServiceProvider extends AddonServiceProvider
         BuiltAssets::recover();
         BuiltAssets::linkForControlPanel();
 
+        // The files the editor writes on the server go into Statamic's git
+        // commits — see GitSync for why that matters on a git-deployed site.
+        GitSync::register();
+
         // After every addon has registered tags, so Iconify's `iconify` handle
         // is already there. A name in `{{ iconify:icon }}` becomes SVG. Not in
         // `$tags`: that folder is autoloaded, and this class extends Iconify.

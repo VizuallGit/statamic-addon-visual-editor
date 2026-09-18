@@ -333,6 +333,7 @@ class LibraryAccess
         }
 
         file_put_contents($path, static::header().YAML::dump($snapshot));
+        GitSync::after('library access');
     }
 
     /** A note at the top of the file, for whoever finds it in a diff. */

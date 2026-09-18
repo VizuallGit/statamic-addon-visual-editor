@@ -277,6 +277,8 @@ class SectionTypeMaker
             return null;
         }
 
+        GitSync::after('new section type');
+
         $set = ['display' => $display];
 
         if (is_string($icon) && $icon !== '') {

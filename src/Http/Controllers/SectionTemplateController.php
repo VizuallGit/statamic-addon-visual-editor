@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
+use MarioHamann\StatamicVisualEditor\GitSync;
 use Illuminate\Http\Request;
 use Statamic\Facades\StaticCache;
 use MarioHamann\StatamicVisualEditor\CollectionViewFile;
@@ -198,6 +199,7 @@ class SectionTemplateController
         // static cache, the visitors' pages do not — on a server that caches,
         // an edited section would otherwise stay old until someone cleared it.
         static::flushStaticCache();
+        GitSync::after('section template '.$handle);
 
         return response()->json([
             'ok' => true,
@@ -246,6 +248,7 @@ class SectionTemplateController
         $locked = $request->boolean('locked');
 
         SectionTemplate::setLocked($path, $locked);
+        GitSync::after(($locked ? 'locked ' : 'unlocked ').$handle);
 
         return response()->json([
             'ok' => true,

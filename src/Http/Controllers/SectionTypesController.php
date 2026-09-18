@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
+use MarioHamann\StatamicVisualEditor\GitSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker;
@@ -165,6 +166,7 @@ class SectionTypesController
         // The set leaves the fieldset first. If that fails there is nothing to
         // clean up after, and the pages still render what they have.
         abort_unless(static::removeSet($handle), 404);
+        GitSync::after('section type removed '.$handle);
 
         $removed = $usages ? SectionUsage::stripType($handle) : 0;
 

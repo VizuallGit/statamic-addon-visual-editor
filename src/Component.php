@@ -125,6 +125,8 @@ class Component
             return null;
         }
 
+        GitSync::after('component '.$name);
+
         return [
             'name' => $name,
             'view' => static::view($name),

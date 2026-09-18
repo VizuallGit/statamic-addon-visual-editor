@@ -109,6 +109,7 @@ class AiWriteGuard
 
             if ($path) {
                 file_put_contents($path, $contents);
+                GitSync::after('AI write');
             }
         }
     }

@@ -194,5 +194,6 @@ class CollectionPresets
         }
 
         file_put_contents($path, static::substitute($contents, $handle));
+        GitSync::after('collection preset');
     }
 }
