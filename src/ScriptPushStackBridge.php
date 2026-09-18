@@ -26,10 +26,18 @@ class ScriptPushStackBridge extends ScriptPush
         return count(static::$stack);
     }
 
-    /** @return list<string> what was pushed since the mark */
+    /**
+     * What was pushed since the mark, as plain strings.
+     *
+     * The tag stores what `$this->parse()` returned, and in Statamic 6 that is
+     * an AntlersString — an object carrying closures, which no cache can
+     * serialize. Cast here, once, so a cached partial holds only text.
+     *
+     * @return list<string>
+     */
     public static function since(int $mark): array
     {
-        return array_slice(static::$stack, $mark);
+        return array_map(fn ($css) => (string) $css, array_slice(static::$stack, $mark));
     }
 
     public static function reset(): void

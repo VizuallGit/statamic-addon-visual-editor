@@ -78,10 +78,13 @@ class SveCache extends Tags
         $scripts = ScriptPushStack::mark();
         $out = $this->renderLive($view);
 
+        // Strings only: the stacks hold AntlersString objects, which carry
+        // closures and cannot be serialized (the first release of this tag
+        // took every page down with exactly that exception).
         Cache::put($key, [
-            'out' => $out,
-            'styles' => StylePushStack::since($styles),
-            'scripts' => ScriptPushStack::since($scripts),
+            'out' => (string) $out,
+            'styles' => array_map('strval', StylePushStack::since($styles)),
+            'scripts' => array_map('strval', ScriptPushStack::since($scripts)),
         ], now()->addDays(static::TTL_DAYS));
 
         return $out;
