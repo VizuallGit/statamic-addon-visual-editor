@@ -1,7 +1,21 @@
 /**
  * Live Preview: mount the focused page-section's fields, then its neighbours.
  *
- * Own CP script — not addon.js. Does not touch overlay-host / preview / bridge.
+ * Part of addon.js since WP6b-1; a real module since WP6b-2b. Does not touch
+ * overlay-host / preview / bridge.
+ *
+ * How it hooks into the focus panel (no runtime wrapping — WP6b-2b):
+ *   - focus-panel's `soloSection` / `soloSectionSettings` ask the bus
+ *     (`lite:solo`, `lite:solo-settings`) before isolating; when this file
+ *     hosts the section list it mounts the row first and answers true.
+ *   - focus-panel emits `focus-header:painted` after every header paint; the
+ *     "load all fields" button is stamped in from here.
+ *   - html-tree.js and section-fields.js import `openLiteSection` /
+ *     `refreshLiteSetFields` from here.
+ *
+ * May import: focus-panel.js, cp/bus.js, lib/. Imported by addon.js right
+ * after focus-panel.js (not via side/index.js: the first import must not pull
+ * the focus panel's graph ahead of everything else).
  *
  * The publish container still holds every section (outline, library, save,
  * preview). Vue mounts rows at their real index, so writing `page_sections.5.x`
@@ -17,8 +31,9 @@
  * below. Loaded panes stay mounted (`KEEP_MOUNTED`) until the section list
  * itself goes away.
  */
-(function () {
-    'use strict';
+import { on, register } from '../cp/bus.js';
+import { ensureFocusHeader, focusBack, focusRowMeta, isolateSoloSection, paintFocusHeader, soloSectionSettingsNow } from '../focus-panel.js';
+import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
     var PRELOAD_FIRST_SECTION = false;
@@ -1010,25 +1025,6 @@
         }
     }
 
-    function wrapPaintHeader() {
-        var sve = window.sve;
-        var orig;
-
-        if (!sve || typeof sve.paintFocusHeader !== 'function' || sve.paintFocusHeader.__sveLiteLoad) {
-            return;
-        }
-
-        orig = sve.paintFocusHeader;
-        sve.paintFocusHeader = function (win, doc) {
-            var result = orig.apply(this, arguments);
-
-            stampHeaderLoadBtn(doc || (win && win.document) || document);
-
-            return result;
-        };
-        sve.paintFocusHeader.__sveLiteLoad = true;
-    }
-
     function uidFromChunkList(list) {
         var pane;
         var sectionSet;
@@ -1084,7 +1080,7 @@
         });
     }
 
-    function register() {
+    function registerLiteFieldtype() {
         var Vue = window.Vue;
         var FieldtypeMixin = window.__STATAMIC__ && window.__STATAMIC__.core && window.__STATAMIC__.core.FieldtypeMixin;
         var SetComp = lookup('replicator-fieldtype-set');
@@ -1622,11 +1618,7 @@
     }
 
     function isolateInsertedSection(uid, doc, view) {
-        var sve = window.sve;
-
-        if (sve && typeof sve.isolateSoloSection === 'function') {
-            sve.isolateSoloSection(uid, doc, view, { kind: 'section' });
-        }
+        isolateSoloSection(uid, doc, view, { kind: 'section' });
     }
 
     function afterExpand(setEl, win, done) {
@@ -1815,84 +1807,6 @@
             attributes: true,
             attributeFilter: ['data-sve-focus-set', 'data-collapsed', 'data-sve-lite'],
         });
-    }
-
-    function wrapSolo() {
-        var sve = window.sve;
-
-        if (!sve) {
-            return false;
-        }
-
-        if (typeof sve.soloSection === 'function' && !sve.soloSection.__sveLite) {
-            var orig = sve.soloSection;
-
-            sve.soloSection = function (uid, doc, win, opts) {
-                var args = arguments;
-                var view = win || window;
-                var isolate = sve.isolateSoloSection;
-
-                if (uid && view && typeof sve.syncCodeDock === 'function') {
-                    sve.syncCodeDock(view, doc, uid);
-                }
-
-                if (typeof isolate !== 'function') {
-                    return orig.apply(this, args);
-                }
-
-                if (!uid || !doc || !doc.querySelector('[data-sve-lite]')) {
-                    return isolate.call(sve, uid, doc, win, opts);
-                }
-
-                window.dispatchEvent(new CustomEvent(FOCUS, { detail: { uid: uid } }));
-
-                waitForSet(uid, doc, view, function () {
-                    afterExpand(findSetByUid(uid, doc), view, function () {
-                        isolate.apply(sve, args);
-                    });
-                });
-
-                return true;
-            };
-
-            sve.soloSection.__sveLite = true;
-        }
-
-        if (typeof sve.soloSectionSettings === 'function' && !sve.soloSectionSettings.__sveLite) {
-            var origSettings = sve.soloSectionSettings;
-
-            sve.soloSectionSettings = function (uid, doc, win) {
-                var args = arguments;
-
-                if (!uid || !doc || !doc.querySelector('[data-sve-lite]')) {
-                    return origSettings.apply(this, args);
-                }
-
-                window.dispatchEvent(new CustomEvent(FOCUS, { detail: { uid: uid } }));
-
-                waitForSet(uid, doc, win || window, function () {
-                    var view = win || window;
-
-                    afterExpand(findSetByUid(uid, doc), view, function () {
-                        origSettings.apply(sve, args);
-                    });
-                });
-
-                return true;
-            };
-
-            sve.soloSectionSettings.__sveLite = true;
-        }
-
-        var ok = typeof sve.soloSection === 'function' && sve.soloSection.__sveLite;
-
-        if (ok) {
-            window.__sveLiteSoloWrapped = true;
-        }
-
-        wrapPaintHeader();
-
-        return ok;
     }
 
     function showingSection(uid) {
@@ -2096,33 +2010,20 @@
     }
 
     function instantFocusHeader(uid, doc, win) {
-        var sve = window.sve;
         var view = win || window;
         var header;
-        var meta;
-        var back;
 
-        if (!sve || !doc || !uid) {
+        if (!doc || !uid) {
             return;
         }
 
-        if (typeof sve.ensureFocusHeader === 'function') {
-            sve.ensureFocusHeader(doc);
-        }
+        ensureFocusHeader(doc);
+        paintFocusHeader(view, doc, focusRowMeta(view, uid, doc), focusBack(view, doc, uid, 'section'));
 
-        if (typeof sve.paintFocusHeader === 'function' && typeof sve.focusRowMeta === 'function') {
-            meta = sve.focusRowMeta(view, uid, doc);
-            back = typeof sve.focusBack === 'function'
-                ? sve.focusBack(view, doc, uid, 'section')
-                : null;
-            sve.paintFocusHeader(view, doc, meta, back);
-        }
+        header = doc.getElementById(FOCUS_HEADER_ID) || doc.querySelector('[data-sve-focus-header]');
 
-        header = (sve.FOCUS_HEADER_ID && doc.getElementById(sve.FOCUS_HEADER_ID))
-            || doc.querySelector('[data-sve-focus-header]');
-
-        if (header && sve.SOLO_KEEP_ATTR) {
-            header.setAttribute(sve.SOLO_KEEP_ATTR, '');
+        if (header) {
+            header.setAttribute(SOLO_KEEP_ATTR, '');
         }
     }
 
@@ -2447,7 +2348,6 @@
     }
 
     /**
-     * sve lives in the addon module, not window.sve — wrapSolo never ran.
      * Click mounts that section first; neighbours park off-screen afterwards.
      * Hover may park one extra row in a keep-slot. Max three mounted at once.
      */
@@ -2774,18 +2674,7 @@
     }
 
     function boot() {
-        // Here rather than at module scope: `window.sve` is assigned in
-        // addon.js, and this file's IIFE can run before that — an assignment up
-        // there lands on nothing and is never missed until something calls it.
-        if (window.sve) {
-            window.sve.refreshLiteSetFields = refreshSetFields;
-            window.sve.activateLiteSection = activateSection;
-            window.sve.openLiteSection = openLiteSection;
-        }
-
-        register();
-        wrapSolo();
-        wrapPaintHeader();
+        registerLiteFieldtype();
         interceptPreviewClicks();
         interceptListViewClicks();
         watchFocusExpand();
@@ -2816,16 +2705,46 @@
         }, 50);
     }
 
-    // Twice on purpose. This file is a lazy chunk — it arrives when a section
-    // panel first opens — so by then `window.sve` is long since assigned and
-    // this is the assignment that counts. `boot()` does it again because the
-    // order is not guaranteed, and an assignment that lands on nothing is the
-    // kind of miss nobody notices until a refresh quietly does nothing.
-    if (window.sve) {
-        window.sve.refreshLiteSetFields = refreshSetFields;
-        window.sve.activateLiteSection = activateSection;
-        window.sve.openLiteSection = openLiteSection;
+    // ---- the focus panel's hooks (replace the wrappers this file used to put
+    // around sve.soloSection / sve.soloSectionSettings / sve.paintFocusHeader) ----
+
+    /**
+     * A solo asked for while this file hosts the section list: mount the row
+     * first, isolate when it is there. Answers false when a plain isolate will do.
+     */
+    function mountThen(uid, doc, win, run) {
+        var view = win || window;
+
+        if (!uid || !doc || !doc.querySelector('[data-sve-lite]')) {
+            return false;
+        }
+
+        window.dispatchEvent(new CustomEvent(FOCUS, { detail: { uid: uid } }));
+
+        waitForSet(uid, doc, view, function () {
+            afterExpand(findSetByUid(uid, doc), view, run);
+        });
+
+        return true;
     }
+
+    register('lite:solo', function (req) {
+        return mountThen(req.uid, req.doc, req.win, function () {
+            isolateSoloSection(req.uid, req.doc, req.win, req.opts);
+        });
+    });
+
+    register('lite:solo-settings', function (req) {
+        return mountThen(req.uid, req.doc, req.win, function () {
+            soloSectionSettingsNow(req.uid, req.doc, req.win);
+        });
+    });
+
+    on('focus-header:painted', function (ev) {
+        stampHeaderLoadBtn(ev.doc || (ev.win && ev.win.document) || document);
+    });
+
+    export { refreshSetFields as refreshLiteSetFields, openLiteSection };
 
     if (window.Statamic && typeof Statamic.booting === 'function') {
         Statamic.booting(bootUntilReady);
@@ -2836,4 +2755,3 @@
     }
 
     document.addEventListener('DOMContentLoaded', bootUntilReady);
-})();

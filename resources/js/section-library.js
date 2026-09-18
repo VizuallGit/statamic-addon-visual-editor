@@ -3979,4 +3979,3 @@ export function sortableItemForUid(uid, doc) {
 
   return null;
 }
-sve.sectionField = sectionField; // standalone scripts still read this off window.sve — goes with WP6

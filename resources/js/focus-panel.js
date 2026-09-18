@@ -5,6 +5,7 @@
  */
 import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
+import { ask, emit } from './cp/bus.js';
 import { sveState } from './cp-state.js';
 import { COLLAPSE_SETTLE_MS, SELECTORS } from './cp-selectors.js';
 import {
@@ -509,6 +510,16 @@ export function soloPathIntact(uid, editor, doc) {
  * children that aren't marked, so marked siblings all survive.
  */
 export function soloSectionSettings(uid, doc, win) {
+  // As in soloSection: lite mounts the row first when it hosts the list.
+  if (ask('lite:solo-settings', { uid, doc, win })) {
+    return true;
+  }
+
+  return soloSectionSettingsNow(uid, doc, win);
+}
+
+/** The settings solo itself, on a row that is mounted. lite calls this once the row is. */
+export function soloSectionSettingsNow(uid, doc, win) {
   const setEl = findSetByUid(uid, doc);
   const editor = soloRoot(doc);
 
@@ -1136,6 +1147,15 @@ export function ensureFocusHeader(doc) {
  * can fire as often as it likes.
  */
 export function paintFocusHeader(win, doc, meta, back) {
+  const painted = paintFocusHeaderNow(win, doc, meta, back);
+
+  // Whoever adds to the header (lite's "load all fields" button) listens here.
+  emit('focus-header:painted', { win, doc });
+
+  return painted;
+}
+
+function paintFocusHeaderNow(win, doc, meta, back) {
   const header = ensureFocusHeader(doc);
 
   if (!header) {
@@ -1660,6 +1680,13 @@ export function focusFieldOwner(field, scope, doc, win) {
 export function soloSection(uid, doc, win, opts) {
   if (win) {
     syncCodeDock(win, doc, uid);
+  }
+
+  // lite-sections hosts the section list: the row may not be mounted yet, so
+  // it mounts first and isolates when it is there (answers true). Otherwise
+  // the row is in the sidebar already and isolating is all there is to do.
+  if (ask('lite:solo', { uid, doc, win, opts })) {
+    return true;
   }
 
   return isolateSoloSection(uid, doc, win, opts);
@@ -2271,13 +2298,3 @@ export function ensureLpPanelToggleInner(win) {
   // sidebar footer sits on top of HTML/CSS/JS.
   relayoutCodeDock(win);
 }
-sve.SOLO_KEEP_ATTR = SOLO_KEEP_ATTR; // standalone scripts still read this off window.sve — goes with WP6
-sve.soloSectionSettings = soloSectionSettings; // standalone scripts still read this off window.sve — goes with WP6
-sve.FOCUS_HEADER_ID = FOCUS_HEADER_ID; // standalone scripts still read this off window.sve — goes with WP6
-sve.ensureFocusHeader = ensureFocusHeader; // standalone scripts still read this off window.sve — goes with WP6
-sve.paintFocusHeader = paintFocusHeader; // standalone scripts still read this off window.sve — goes with WP6
-sve.focusRowMeta = focusRowMeta; // standalone scripts still read this off window.sve — goes with WP6
-sve.focusBack = focusBack; // standalone scripts still read this off window.sve — goes with WP6
-sve.focusFromPreview = focusFromPreview; // standalone scripts still read this off window.sve — goes with WP6
-sve.soloSection = soloSection; // standalone scripts still read this off window.sve — goes with WP6
-sve.isolateSoloSection = isolateSoloSection; // standalone scripts still read this off window.sve — goes with WP6

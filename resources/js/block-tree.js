@@ -1760,5 +1760,4 @@ export function setListViewTab(win, tab) {
   mountPane(body, ListViewBody, { hint: t(win, 'listview_hint') });
   renderListView(win);
 }
-sve.isBlockRow = isBlockRow;
 sve.registerRightDockContent = registerRightDockContent;

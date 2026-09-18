@@ -51,6 +51,9 @@ import './section-library.js';
 import './side/section-meta-prefetch.js';
 import './lp-panel.js';
 import './focus-panel.js';
+// Mounts one page_sections row at a time in Live Preview; hooks into the
+// focus panel above through the bus, so it follows it here.
+import './side/lite-sections.js';
 import './open-in-preview.js';
 import './globals-panel.js';
 import './pages.js';

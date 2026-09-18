@@ -312,6 +312,11 @@ try {
     // The click must reach the CP as a `click` message — that is the one thing
     // every click-to-focus feature hangs on. What the CP then shows (focus
     // panel, lite pane, solo) depends on the panel mode and is only recorded.
+    // The row's fields mounted in the sidebar: lite-sections hosts the section
+    // list (data-sve-lite=idle until then) and answers focus-panel's lite:solo
+    // by mounting the clicked row first — `on` is that row on screen.
+    const lite = await cp.evaluate(() => ({ state: document.querySelector('[data-sve-lite]')?.getAttribute('data-sve-lite') || 'no host', panes: document.querySelectorAll('[data-sve-lite-pane]').length }));
+    step('the clicked section mounted in the sidebar (lite on)', lite.state === 'on', `data-sve-lite=${lite.state} panes=${lite.panes}`);
     step('preview click reaches the CP', messages.some((m) => /^click(?:[:/]|$)/.test(m)), `bridge sent [${messages.join(' ')}]; focus-panel=${focused.focusPanel} active=${focused.active}; clicked at ${hit.x},${hit.y} on ${hit.under}`);
     if (process.env.SVE_DEBUG) {
       // What the click did on each side — for when the assertion above needs re-thinking.

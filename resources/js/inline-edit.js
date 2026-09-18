@@ -2567,5 +2567,3 @@ export function saveSectionDialog(win, section, onSave) {
     },
   });
 }
-sve.unwrapRef = unwrapRef; // standalone scripts still read this off window.sve — goes with WP6
-sve.activeContainers = activeContainers; // standalone html-tree-section-sync.js still reads this off window.sve — goes with WP6

@@ -99,7 +99,7 @@ function stubUntilLoaded(name, key) {
 
 // The template dock is asked to sync from lite-sections before it is loaded.
 // Route it through the lazy door, which knows whether the dock is even on.
-// (lite-sections.js is a standalone script and still reads this off window.sve — WP6.)
+// (cp-shell/add-section.js still reads this off window.sve — WP6c.)
 stub('syncCodeDock', (win, doc, uid) => syncCodeDockLazily(win, doc, uid));
 
 function bindRightDockHooks() {

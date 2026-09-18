@@ -24,6 +24,7 @@ import { dataGet, unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { fetchSetMeta, hydrateExistingMeta, sectionMetaCache, writeSetMeta } from './section-library.js';
+import { refreshLiteSetFields } from './side/lite-sections.js';
 
 const API = '/!/sve/section-types';
 
@@ -203,8 +204,8 @@ export async function refreshFieldsForType(win, setHandle) {
   // in the overlay is saved and real but absent from the panel until a reload —
   // the panel draws its list from the set config the publish form was built
   // with, and that is a snapshot from page load.
-  if (Array.isArray(meta.definitions) && typeof sve.refreshLiteSetFields === 'function') {
-    sve.refreshLiteSetFields(setHandle, meta.definitions);
+  if (Array.isArray(meta.definitions)) {
+    refreshLiteSetFields(setHandle, meta.definitions);
   }
 
   return touched;

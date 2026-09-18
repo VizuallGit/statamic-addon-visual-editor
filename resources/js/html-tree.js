@@ -23,6 +23,7 @@ import {
   writePropParam,
 } from './component-props.js';
 import { syncComponentProps, syncComponentPropsHost } from './component-props-host.js';
+import { openLiteSection } from './side/lite-sections.js';
 import { componentPropsUi } from './cp/component-props/store.js';
 import { componentBindPick } from './component-bind.js';
 import { openPageMenu } from './link-targets.js';
@@ -765,11 +766,7 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   // the sidebar quietly went on showing the section before.
   const focus = () => focusFromPreview(section.uid, doc, win, { clampToSection: true });
 
-  if (typeof sve.openLiteSection === 'function') {
-    sve.openLiteSection(section.uid, doc, win, focus);
-  } else {
-    focus();
-  }
+  openLiteSection(section.uid, doc, win, focus);
   sendToPreview(
     { source: 'statamic-visual-editor', type: 'sve-activate', ids: section.ids },
     win
@@ -2490,5 +2487,3 @@ export function clearHtmlTreeTemplates() {
   htmlTreeFetching.clear();
   htmlTreePrefetch.length = 0;
 }
-
-sve.renderHtmlTree = renderHtmlTree;

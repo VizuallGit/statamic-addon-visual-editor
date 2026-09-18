@@ -10,11 +10,9 @@
  * global before Statamic's own bundle reads it (`dedupe-cp-fetch`,
  * `disable-publish-stack-pin`) stays in `ServiceProvider::$scripts`: a classic
  * script runs while the page is parsed, a module only after Statamic's core
- * module has already run. `section-meta-prefetch.js` is a real module now and
- * is imported by addon.js right after the section library it calls.
- *
- * `lite-sections` still reads the bundle off `window.sve` — the compat lines
- * it needs stay until WP6b-2 gives it imports.
+ * module has already run. `section-meta-prefetch.js` and `lite-sections.js`
+ * are real modules with imports of their own and are imported by addon.js
+ * right after the library / focus panel they call.
  *
  * May import: nothing — these files still carry their own helper copies
  * until WP6b replaces them with `lib/`.
@@ -31,4 +29,3 @@ import './library-drop-focus.js';
 import './collection-template-picker.js';
 import './collection-preset-scaffold.js';
 import './field-prop.js';
-import './lite-sections.js';
