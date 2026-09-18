@@ -76,7 +76,7 @@ class InjectBridgeScript
     /**
      * The preview runs as a front-end request and can't reach the CP's config, so
      * what it needs rides along in the document: its strings, already resolved to
-     * the CP user's language (see ServiceProvider::strings()), and the map of
+     * the CP user's language (see Boot\ControlPanelScript::strings()), and the map of
      * which tools are on — the bridge must know before it offers one (stepping
      * into the header, say).
      */
@@ -85,7 +85,7 @@ class InjectBridgeScript
         $flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT;
 
         $strings = json_encode(
-            \MarioHamann\StatamicVisualEditor\ServiceProvider::strings(),
+            \MarioHamann\StatamicVisualEditor\Boot\ControlPanelScript::strings(),
             $flags | JSON_UNESCAPED_UNICODE
         );
 
