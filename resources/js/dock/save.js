@@ -139,6 +139,17 @@ export function resetTailwindCompile() {
 }
 
 /**
+ * The file's baked utilities, as the server has them: the compile is "done"
+ * for this class list and nothing is dirty. Opening a file then costs no
+ * compile and no save; the next real class change starts one.
+ */
+export function primeTailwindCompile(html, css) {
+  dockState.twCss = css;
+  dockState.twKey = twKeyFor(html);
+  dockState.twDirty = false;
+}
+
+/**
  * Compile this file's classes with Tailwind's own engine.
  *
  * Off the save path: the engine is a lazy chunk and the first load takes a

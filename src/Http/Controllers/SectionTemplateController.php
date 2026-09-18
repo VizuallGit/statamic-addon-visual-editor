@@ -30,12 +30,20 @@ class SectionTemplateController
 
         $parts = SectionTemplate::split((string) file_get_contents($path), $splitHandle);
 
+        // The utilities already baked for this file travel with it. Without
+        // them the dock compiled the classes on every open, took the result
+        // for a change, saved, and reloaded the section in Live Preview — a
+        // "Saving…" and a flicker for merely looking at a section.
+        $twHandle = $this->twHandle($handle, $splitHandle);
+        $tw = Features::enabled('tailwind_dock') && $twHandle !== '' ? TailwindStore::read($twHandle) : '';
+
         return response()->json([
             'type' => $handle,
             'path' => SectionTemplate::relative($path),
             'html' => $parts['html'],
             'css' => $parts['css'],
             'js' => $parts['js'],
+            'tw' => $tw,
             'props' => $parts['props'] ?? [],
             'locked' => ! empty($parts['locked']),
         ]);

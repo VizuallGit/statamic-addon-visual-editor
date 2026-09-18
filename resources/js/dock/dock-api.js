@@ -37,7 +37,7 @@ import { bindAutosave, bindLock, paintAutosave } from './lock-autosave.js';
 import { mountEditor, paintHostWait } from './editor.js';
 import { paintStyleMode, syncTwTarget } from './style-modes.js';
 import { closeCssMenu, cssEditorText, paintCssToolState, writeParts } from './css-tools.js';
-import { ensureTwCss, flushSave, onEditorInput, refreshPreview, resetTailwindCompile } from './save.js';
+import { ensureTwCss, flushSave, onEditorInput, primeTailwindCompile, refreshPreview, resetTailwindCompile } from './save.js';
 import { closeDataMenu, openDataVarsMenu } from './data-vars.js';
 
 // ===== dock-api =====
@@ -259,6 +259,12 @@ export async function loadTemplate(win, type, mode = 'replace') {
       dockState.lastLocked = !!data.locked;
       dockState.lockReady = true;
       resetTailwindCompile();
+
+      // Baked utilities came with the file: no compile, no save on open.
+      if (typeof data.tw === 'string' && data.tw !== '') {
+        primeTailwindCompile(dockState.lastParts.html, data.tw);
+      }
+
       paintLock(win);
       writeParts(dockState.lastParts, dockState.lastLocked);
       // The file that just opened decides whether the left column belongs to a
