@@ -10,7 +10,8 @@
     "check": "npm run isolate && npm test",
     "test:browser": "node tests/browser/live-preview-smoke.mjs",
     "test:instant": "node tests/browser/instant-paint.mjs",
-    "test:switch": "node tests/browser/section-switch.mjs"
+    "test:switch": "node tests/browser/section-switch.mjs",
+    "test:perf": "node tests/browser/perf-server-tab.mjs"
   },
   "dependencies": {
     "@alpinejs/morph": "^3.15.11",

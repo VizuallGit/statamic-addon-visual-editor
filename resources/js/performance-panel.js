@@ -22,10 +22,11 @@ import { setHeaderTab, applyHeaderTab } from './cp.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import PerfPane from './cp/surfaces/PerfPane.vue';
-import { perfUi, perfRows, psiUi } from './cp/perf/store.js';
+import { perfUi, perfRows, psiUi, serverUi } from './cp/perf/store.js';
 import { measurePage } from './cp/perf/measure.js';
 import {
   KINDS,
+  budgetLevel,
   barsOf,
   fileRow,
   formatMs,
@@ -50,6 +51,9 @@ const TABS = ['summary', 'images', 'files'];
 
 /** The Google tab, when this site has it switched on. */
 const PSI_TAB = 'psi';
+
+/** The Server tab: PHP's own render time. Always on with the panel. */
+const SERVER_TAB = 'server';
 const STRATEGIES = ['mobile', 'desktop'];
 
 /**
@@ -84,6 +88,8 @@ let flashTimer = 0;
 let psiCache = new Map();
 /** The request in flight, so closing the panel calls it off. */
 let psiAbort = null;
+/** The server profile in flight, for the same reason. */
+let serverAbort = null;
 
 function ensureStyle(win) {
   injectStyle(win.document, STYLE_ID, paneCss);
@@ -452,6 +458,92 @@ function psiOn(win) {
   return !!featureOn(win, 'psi');
 }
 
+/**
+ * The Server tab's reading, painted.
+ *
+ * The split says whether the page is heavy because of its sections or because
+ * of what wraps them; the rows say which template to open. Each row carries
+ * its own time, its time with everything it calls, and how often it ran —
+ * a partial that costs 5 ms but runs twenty times is the usual finding.
+ */
+function paintServer(win, data) {
+  const level = budgetLevel(data.total_ms, 'server');
+
+  serverUi.url = displayUrl(data.url || '');
+  serverUi.total = formatMs(data.total_ms);
+  serverUi.level = level;
+  serverUi.split = [
+    { key: 'sections', label: t(win, 'perf_server_sections'), value: formatMs(data.sections_ms), level: 'info' },
+    { key: 'layout', label: t(win, 'perf_server_layout'), value: formatMs(data.layout_ms), level: 'info' },
+  ];
+  serverUi.rows = (data.templates || []).map((row) => ({
+    key: row.path,
+    tag: `${row.share}%`,
+    title: row.path,
+    help: t(win, 'perf_server_row', { n: row.n, excl: row.excl, incl: row.incl }),
+    level: row.share >= 20 ? 'fail' : row.share >= 10 ? 'warn' : 'info',
+  }));
+  serverUi.rowsTitle = t(win, 'perf_server_templates');
+  serverUi.renders = t(win, 'perf_server_renders', { n: data.renders, files: (data.templates || []).length });
+  serverUi.note = t(win, 'perf_server_note');
+  serverUi.state = 'done';
+}
+
+export async function runServer(win) {
+  const url = frontendUrl(win, { bust: false });
+
+  if (!url) {
+    serverUi.state = 'error';
+    serverUi.message = t(win, 'perf_no_url');
+
+    return;
+  }
+
+  serverAbort?.abort();
+  serverAbort = new win.AbortController();
+  serverUi.state = 'running';
+  serverUi.message = t(win, 'perf_server_running');
+
+  try {
+    const res = await win.fetch(`/!/sve/render-profile?${new URLSearchParams({ url })}`, {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal: serverAbort.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(String(res.status));
+    }
+
+    const data = await res.json();
+
+    if (!data.ok) {
+      serverUi.state = 'error';
+      serverUi.message = t(win, data.reason === 'not_found' ? 'perf_server_not_found' : 'perf_server_failed');
+
+      return;
+    }
+
+    paintServer(win, data);
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      return;
+    }
+
+    serverUi.state = 'error';
+    serverUi.message = t(win, 'perf_server_failed');
+    console.error('[sve] render profile', err);
+  } finally {
+    serverAbort = null;
+  }
+}
+
+function bindServerStore(win) {
+  serverUi.hint = t(win, 'perf_server_hint');
+  serverUi.runLabel = t(win, 'perf_server_run');
+  serverUi.onRun = () => void runServer(win);
+}
+
 function bindPsiStore(win) {
   psiUi.hint = t(win, 'perf_psi_hint');
   psiUi.runLabel = t(win, 'perf_psi_run');
@@ -468,7 +560,7 @@ function bindPsiStore(win) {
 }
 
 function bindStore(win) {
-  const tabs = psiOn(win) ? [...TABS, PSI_TAB] : TABS;
+  const tabs = psiOn(win) ? [...TABS, SERVER_TAB, PSI_TAB] : [...TABS, SERVER_TAB];
 
   perfUi.tabs = tabs.map((key) => ({ key, label: t(win, `perf_tab_${key}`) }));
   perfUi.onTab = (key) => {
@@ -484,7 +576,15 @@ function bindStore(win) {
     if (key === PSI_TAB && psiUi.state === 'idle') {
       void runPsi(win);
     }
+
+    // The server render is asked for the same way: two full renders of the
+    // page, only when somebody looks.
+    if (key === SERVER_TAB && serverUi.state === 'idle') {
+      void runServer(win);
+    }
   };
+
+  bindServerStore(win);
 
   if (psiOn(win)) {
     bindPsiStore(win);
@@ -539,6 +639,11 @@ export function closePerformancePanel(win) {
   psiAbort = null;
   psiCache = new Map();
   psiUi.state = 'idle';
+  serverAbort?.abort();
+  serverAbort = null;
+  serverUi.state = 'idle';
+  serverUi.rows = [];
+  serverUi.split = [];
   psiUi.lab = [];
   psiUi.field = [];
   psiUi.opportunities = [];

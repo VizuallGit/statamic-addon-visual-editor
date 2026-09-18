@@ -18,6 +18,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\RenderProfileController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PreviewTickController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PropFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
@@ -127,6 +128,12 @@ final class EditorRoutes
             // Slow on purpose: Lighthouse loads the page several times.
             Route::get('/!/sve/pagespeed', PageSpeedController::class)
                 ->name('sve.pagespeed');
+
+            // Where the server's render time goes, template by template — the
+            // panel's "Server" tab. Renders the page twice here, so gated like
+            // PageSpeed.
+            Route::get('/!/sve/render-profile', RenderProfileController::class)
+                ->name('sve.render-profile');
 
             Route::get('/!/sve/template-props', TemplatePropsController::class)
                 ->name('sve.template-props');

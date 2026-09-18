@@ -22,6 +22,8 @@ export const BUDGETS = {
   requests: [40, 100],
   lcp: [2500, 4000],
   cls: [0.1, 0.25],
+  /** Server render, warm, in ms: how long PHP takes to build the page. */
+  server: [300, 800],
 };
 
 /** How much each budget counts. Weight is the thing you can actually change. */

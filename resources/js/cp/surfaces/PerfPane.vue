@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { perfUi as ui, perfRows as rows, psiUi as psi } from '../perf/store.js';
+import { perfUi as ui, perfRows as rows, psiUi as psi, serverUi as server } from '../perf/store.js';
 
 defineProps({
   title: { type: String, default: '' },
@@ -48,7 +48,62 @@ const visibleFiles = computed(() =>
       </button>
     </div>
 
-    <div v-if="ui.tab === 'psi'" class="sve-perf-body">
+    <div v-if="ui.tab === 'server'" class="sve-perf-body">
+      <div v-if="server.state === 'running'" class="sve-perf-wait">
+        <span class="sve-perf-spin" aria-hidden="true"></span>
+        <span>{{ server.message }}</span>
+      </div>
+
+      <div v-else-if="server.state === 'error'" class="sve-perf-wait sve-perf-error">
+        <span>{{ server.message }}</span>
+        <button type="button" class="sve-perf-run" @click="server.onRun?.()">{{ server.runLabel }}</button>
+      </div>
+
+      <template v-else-if="server.state === 'done'">
+        <div class="sve-perf-kvs">
+          <div class="sve-perf-kv" :data-level="server.level">
+            <span class="sve-perf-kv-label">{{ server.url }}</span>
+            <span class="sve-perf-kv-value">{{ server.total }}</span>
+          </div>
+          <div v-for="row in server.split" :key="row.key" class="sve-perf-kv" :data-level="row.level">
+            <span class="sve-perf-kv-label">{{ row.label }}</span>
+            <span class="sve-perf-kv-value">{{ row.value }}</span>
+          </div>
+        </div>
+
+        <div class="sve-perf-section">
+          <div class="sve-perf-section-title">{{ server.rowsTitle }}</div>
+          <div class="sve-perf-list">
+            <div
+              v-for="row in server.rows"
+              :key="row.key"
+              class="sve-perf-row is-static"
+              :data-level="row.level"
+            >
+              <span class="sve-perf-tag">{{ row.tag }}</span>
+              <span class="sve-perf-rowbody">
+                <span class="sve-perf-title">{{ row.title }}</span>
+                <span class="sve-perf-help">{{ row.help }}</span>
+              </span>
+            </div>
+          </div>
+          <div class="sve-perf-help">{{ server.renders }}</div>
+        </div>
+
+        <ul class="sve-perf-notes">
+          <li>{{ server.note }}</li>
+        </ul>
+
+        <button type="button" class="sve-perf-run" @click="server.onRun?.()">{{ server.runLabel }}</button>
+      </template>
+
+      <div v-else class="sve-perf-wait">
+        <span>{{ server.hint }}</span>
+        <button type="button" class="sve-perf-run" @click="server.onRun?.()">{{ server.runLabel }}</button>
+      </div>
+    </div>
+
+    <div v-else-if="ui.tab === 'psi'" class="sve-perf-body">
       <div class="sve-perf-strategy">
         <button
           v-for="item in psi.strategies"

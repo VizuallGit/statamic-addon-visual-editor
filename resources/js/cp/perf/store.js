@@ -76,3 +76,29 @@ export const psiUi = reactive({
   opportunities: [],
   opportunitiesTitle: '',
 });
+
+/**
+ * The Server tab: where PHP's render time goes, template by template.
+ *
+ * Its own store for the same reason the Google tab has one: a different
+ * reading of a different thing, taken on the server and asked for only when
+ * the tab is opened.
+ */
+export const serverUi = reactive({
+  /** idle | running | done | error */
+  state: 'idle',
+  message: '',
+  hint: '',
+  runLabel: '',
+  onRun: null,
+  url: '',
+  /** The headline: total ms, its budget level, and the split. */
+  total: '',
+  level: 'info',
+  split: [],
+  /** One row per template, biggest own time first. */
+  rows: [],
+  rowsTitle: '',
+  renders: '',
+  note: '',
+});
