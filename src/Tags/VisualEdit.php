@@ -2,28 +2,21 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tags;
 
-use MarioHamann\StatamicVisualEditor\FieldsetFields;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
-use MarioHamann\StatamicVisualEditor\IconResolver;
-use MarioHamann\StatamicVisualEditor\VisualEditAntlers;
-use Statamic\Facades\Blueprint;
 use Statamic\Tags\Tags;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesScope;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\Icons;
-use MarioHamann\StatamicVisualEditor\Tags\Resolve\Placeholders;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesFields;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesIcons;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesInserts;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\Controls;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\BardConfig;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\Attributes;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\SetAttributes;
 
 class VisualEdit extends Tags
 {
-    use ResolvesScope;
+    use ResolvesScope, ResolvesFields, ResolvesIcons, ResolvesInserts;
 
     protected static $handle = 'visual_edit';
-
-    /** @var array<string, array|null> */
-    private static array $replicatorByHandle = [];
 
     /**
      * {{ visual_edit }} — Dual-mode tag.
@@ -38,6 +31,9 @@ class VisualEdit extends Tags
      */
     public function index(): string
     {
+        $attributes = new Attributes($this->params, $this->context);
+        $setAttributes = new SetAttributes($this->params, $this->context);
+
         $isPair = $this->isPair;
         $content = $isPair ? (string) $this->parse() : '';
 
@@ -48,13 +44,13 @@ class VisualEdit extends Tags
         $field = $this->params->get('field');
         $inside = $this->params->bool('outline_inside', $this->params->bool('outline-inside', false));
         $popup = $this->params->bool('popup', false);
-        $grid = $this->gridAttr().$this->outlineAttr();
+        $grid = $setAttributes->gridAttr().$setAttributes->outlineAttr();
 
         // global_edit="site_settings.phone" — clicking opens that global set in the
         // panel beside the preview, with the field focused. Deliberately NOT inline
         // editing: what's rendered is often the value inside other text ("Tlf. …"),
         // and writing the whole rendered string back would corrupt the value.
-        if ($globalAttr = $this->globalEditAttr()) {
+        if ($globalAttr = $setAttributes->globalEditAttr()) {
             // Stands on its own — a global isn't part of the entry being edited, so
             // none of the entry-field annotations apply to it.
             return $isPair ? '<div '.$globalAttr.'>'.$content.'</div>' : $globalAttr;
@@ -73,8 +69,8 @@ class VisualEdit extends Tags
         // When also used with inline_edit (Bard whole-field), skip this early
         // return — insert attrs are merged into the field annotation below so
         // orderable Bard sets get the same hide/dup/delete toolbar as Style 2.
-        if ($this->params->bool('insertable', false) && $field !== null && (string) $field !== '' && ! $this->inlineEditParam()) {
-            $setAttr = $this->insertableSetAttr();
+        if ($this->params->bool('insertable', false) && $field !== null && (string) $field !== '' && ! $attributes->inlineEditParam()) {
+            $setAttr = $setAttributes->insertableSetAttr();
             $attr = ($setAttr !== '' ? $setAttr.' ' : '').'data-sid-insert="'.e((string) $field).'"';
 
             // The section this replicator belongs to — its uid. Used to seed the
@@ -93,8 +89,8 @@ class VisualEdit extends Tags
                 $attr .= ' data-sid-insert-max="'.$max.'"';
             }
 
-            $attr .= $this->templateAttr();
-            $attr .= $this->rowTemplateAttr((string) $field);
+            $attr .= $attributes->templateAttr();
+            $attr .= $setAttributes->rowTemplateAttr((string) $field);
 
             return $isPair ? '<div '.$attr.$grid.'>'.$content.'</div>' : $attr.$grid;
         }
@@ -107,7 +103,7 @@ class VisualEdit extends Tags
                 $this->context->get('id') ?: $this->context->get('_visual_id')
             );
 
-            $inlineEdit = $this->inlineEditParam();
+            $inlineEdit = $attributes->inlineEditParam();
 
             // `inline_edit` says the text may be typed into; `toolbar` says a bar
             // appears above it. Two questions, two parameters — a field can be
@@ -115,7 +111,7 @@ class VisualEdit extends Tags
             // answer for a plain text field that only ever holds one line.
             $wantsToolbar = $this->params->bool('toolbar', false);
 
-            $attr = $this->buildFieldAttr(
+            $attr = $attributes->buildFieldAttr(
                 (string) $field,
                 $this->resolveFieldLabel((string) $field),
                 $inside,
@@ -174,7 +170,7 @@ class VisualEdit extends Tags
             return $content;
         }
 
-        $attr = $this->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup, $this->params->bool('move', false), $this->params->bool('orderable', false), $this->resolveIcon());
+        $attr = $attributes->buildAttr((string) $uuid, $this->resolveLabel(), $this->resolveType(), $inside, $popup, $this->params->bool('move', false), $this->params->bool('orderable', false), $this->resolveIcon());
 
         // section_orderable="true": drag handle in the hover control that moves
         // the whole section with a zoomed-out page overview.
@@ -186,816 +182,14 @@ class VisualEdit extends Tags
         // inline editing first (field scope = the popup row id — column builder
         // rows have no _visual_id); the bridge falls back to opening the popup
         // when the CP denies the edit (padding, images, unmatched text).
-        if ($popup && $field !== null && (string) $field !== '' && $this->inlineEditParam()) {
+        if ($popup && $field !== null && (string) $field !== '' && $attributes->inlineEditParam()) {
             // Label omitted: buildAttr already emitted data-sid-label. Bard config
             // is resolved here too so column-builder text blocks get the field's
             // own toolbar, not the default fallback.
-            $attr .= ' '.$this->buildFieldAttr((string) $field, '', false, (string) $uuid, true, false, (new BardConfig($this->params, $this->context))->resolve((string) $field), false, (new Controls($this->params, $this->context))->resolve($this->params->get('controls')));
+            $attr .= ' '.$attributes->buildFieldAttr((string) $field, '', false, (string) $uuid, true, false, (new BardConfig($this->params, $this->context))->resolve((string) $field), false, (new Controls($this->params, $this->context))->resolve($this->params->get('controls')));
         }
 
         return $isPair ? '<div '.$attr.$grid.'>'.$content.'</div>' : $attr.$grid;
-    }
-
-    /**
-     * data-sid for the nested set an insertable container sits on.
-     *
-     * A section-level {{ visual_edit field="blocks" insertable="true" }} must
-     * stay insert-only: the <section> already has data-sid, and a second copy
-     * on the inner wrapper would shrink the outline. A set one loop down
-     * (type "list" inside hero/style_2) has no other annotation, so the
-     * insertable tag is the one that has to carry it.
-     */
-    private function insertableSetAttr(): string
-    {
-        $uid = (string) ($this->params->get('id') ?: $this->context->get('id') ?: '');
-
-        if ($uid === '') {
-            return '';
-        }
-
-        $setType = (string) $this->context->get('type', '');
-        $sectionType = $this->resolveSectionType();
-
-        if ($sectionType !== '' && ($setType === '' || $setType === $sectionType)) {
-            return '';
-        }
-
-        // No page in context (tests, or the section uid is missing): treat a
-        // slashless type as a nested set (`list`, `content`) and a slashed
-        // one as the page section (`hero/style_2`).
-        if ($sectionType === '' && ($setType === '' || str_contains($setType, '/'))) {
-            return '';
-        }
-
-        return $this->buildAttr(
-            $uid,
-            $this->resolveLabel(),
-            $setType,
-            $this->params->bool('outline_inside', $this->params->bool('outline-inside', false)),
-            false,
-            $this->params->bool('move', false),
-            $this->params->bool('orderable', false),
-            $this->resolveIcon()
-        );
-    }
-
-    /**
-     * `outline="always"` on a container: while the pointer is anywhere inside
-     * it, every one of its children keeps a faint dashed edge — not just the one
-     * being hovered.
-     *
-     * For blocks that draw their own box (a picture, a coloured card) the extent
-     * is already visible. For a block that is only text on the section's own
-     * background it is not, and a width you cannot see is a width you cannot
-     * judge. Left off, the hover behaviour is exactly as before.
-     */
-    private function outlineAttr(): string
-    {
-        return (string) $this->params->get('outline') === 'always' ? ' data-sid-outline="always"' : '';
-    }
-
-    /**
-     * `grid_view="true"` on a container: its children can be resized in the
-     * preview by dragging.
-     *
-     * How many columns there are is NOT stated here. The preview counts the
-     * resolved `grid-template-columns` of the container itself, so the ruler is
-     * the layout and cannot drift from it — and the CSS stays the one place the
-     * number is written, which it has to be, since this tag renders in Live
-     * Preview only and the page has to lay itself out without it.
-     *
-     * `grid="8"` is therefore an optional *cap*: fewer columns may be written
-     * than the CSS actually has. Leave it out unless you want that.
-     *
-     * `grid_field` names the field on each row that holds the span (default
-     * `span`); `grid_min` is the fewest columns a row may be dragged down to.
-     *
-     * `grid_handles` says how many edges are offered:
-     *   both  (default) — one on each edge, and only where dragging can still
-     *                     change something: none on an edge already flush with
-     *                     the grid, where a handle would do nothing.
-     *   right           — one on the trailing edge, always.
-     *
-     * `grid_preview` says what follows the pointer while dragging:
-     *   live    (default) — the block itself, row breaks and all.
-     *   outline           — an outline only; the layout is left alone until the
-     *                       drag ends. Steadier to aim with; you see what the
-     *                       row does on release rather than during.
-     *
-     * `grid_resize` picks between the two ways of dragging:
-     *   free  (default) — each block owns its width; drag it wide and the next
-     *                     one wraps underneath, to be set on its own.
-     *   split           — the boundary between two blocks moves; what one gains
-     *                     the other gives up and the row stays full.
-     *
-     * `grid_overlap="true"` says the blocks may lie on top of each other, which
-     * changes what the leading edge means. Without it, dragging a block's left
-     * edge only makes the block wider or narrower, and the row re-flows around
-     * it — the only thing a flowing block can do. With it, the left edge moves
-     * the block's starting column and leaves its trailing edge where it is, so
-     * a block can be pulled in over its neighbour.
-     *
-     * It is opt-in per container because it is not free: a block that has been
-     * given a starting column stops flowing, and a section whose layout depends
-     * on blocks flowing should not be able to acquire one by accident.
-     */
-    private function gridAttr(): string
-    {
-        $enabled = $this->params->bool('grid_view', $this->params->bool('grid-view', false));
-        $columns = $this->params->get('grid');
-
-        if (! $enabled && ($columns === null || $columns === '')) {
-            return '';
-        }
-
-        // No number = no opinion: the preview counts the container's own tracks.
-        $attr = $columns === null || $columns === '' || (int) $columns < 1
-            ? ' data-sid-grid'
-            : ' data-sid-grid="'.(int) $columns.'"';
-
-        $field = $this->params->get('grid_field', $this->params->get('grid-field'));
-
-        if ($field !== null && (string) $field !== '') {
-            $attr .= ' data-sid-grid-field="'.e((string) $field).'"';
-        }
-
-        if ($min = (int) $this->params->get('grid_min', $this->params->get('grid-min'))) {
-            $attr .= ' data-sid-grid-min="'.max(1, $min).'"';
-        }
-
-        $resize = $this->params->get('grid_resize', $this->params->get('grid-resize'));
-
-        if ((string) $resize === 'split') {
-            $attr .= ' data-sid-grid-resize="split"';
-        }
-
-        $handles = $this->params->get('grid_handles', $this->params->get('grid-handles'));
-
-        if ((string) $handles === 'right') {
-            $attr .= ' data-sid-grid-handles="right"';
-        }
-
-        $preview = $this->params->get('grid_preview', $this->params->get('grid-preview'));
-
-        if ((string) $preview === 'outline') {
-            $attr .= ' data-sid-grid-preview="outline"';
-        }
-
-        if ($this->params->bool('grid_overlap', $this->params->bool('grid-overlap', false))) {
-            $attr .= ' data-sid-grid-overlap';
-        }
-
-        return $attr;
-    }
-
-    /**
-     * `global_edit` names the global to open, as "set" or "set.field" — e.g.
-     * global_edit="site_settings.phone". `global_edit="true"` just opens the panel
-     * on the first set, since it says nothing about which global is meant.
-     */
-    private function globalEditAttr(): string
-    {
-        $target = $this->params->get('global_edit', $this->params->get('global-edit'));
-
-        if ($target === null || $target === false || $target === '') {
-            return '';
-        }
-
-        $target = ($target === true || $target === 'true') ? '' : (string) $target;
-
-        return 'data-sid-global="'.e($target).'"';
-    }
-
-    private function resolveLabel(): string
-    {
-        $custom = trim((string) $this->context->get('_sve_label', ''));
-
-        if ($custom !== '') {
-            return $custom;
-        }
-
-        $type = (string) $this->context->get('type', '');
-
-        return $type ? Str::headline($type) : '';
-    }
-
-    private function resolveFieldLabel(string $fieldPath): string
-    {
-        $blueprintHandle = $this->params->get('blueprint');
-
-        if ($blueprintHandle) {
-            $blueprint = Blueprint::find((string) $blueprintHandle);
-        } else {
-            $page = $this->context->get('page');
-
-            if (! $page || ! method_exists($page, 'blueprint')) {
-                return '';
-            }
-
-            $blueprint = $page->blueprint();
-        }
-
-        if (! $blueprint) {
-            return '';
-        }
-
-        try {
-            $fields = $blueprint->fields()->all();
-            $segments = explode('.', $fieldPath);
-            $firstHandle = array_shift($segments);
-
-            $field = $fields->get($firstHandle);
-
-            if (! $field) {
-                return '';
-            }
-
-            if (empty($segments)) {
-                return $field->display();
-            }
-
-            foreach ($field->config()['fields'] ?? [] as $subConfig) {
-                if (($subConfig['handle'] ?? '') === $segments[0]) {
-                    return $subConfig['field']['display'] ?? '';
-                }
-            }
-        } catch (\InvalidArgumentException|\BadMethodCallException $e) {
-            Log::debug('VisualEdit: failed to resolve field label for '.$fieldPath, ['exception' => $e]);
-
-            return '';
-        }
-
-        return '';
-    }
-
-    private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false, bool $move = false, ?array $bardConfig = null, bool $orderable = false, array $controls = []): string
-    {
-        $attr = 'data-sid-field="'.e($fieldPath).'"';
-
-        if ($scopeUid !== '') {
-            $attr .= ' data-sid-field-uid="'.e($scopeUid).'"';
-        }
-
-        if ($label !== '') {
-            $attr .= ' data-sid-label="'.e($label).'"';
-        }
-
-        if ($inside) {
-            $attr .= ' data-sid-inside';
-        }
-
-        // Fieldtype so the preview can open the right picker (Iconify, assets, …)
-        // instead of starting a text edit on a graphic. Omitted when the blueprint
-        // cannot be resolved — the preview then falls back to DOM sniffing.
-        $fieldMatch = $this->resolveFieldMatch($fieldPath) ?? [];
-        $fieldType = is_string($fieldMatch['config']['type'] ?? null) ? (string) $fieldMatch['config']['type'] : '';
-
-        if ($fieldType !== '') {
-            $attr .= ' data-sid-fieldtype="'.e($fieldType).'"';
-        }
-
-        // A configured default means the icon cannot be cleared. Preview and
-        // sidebar then offer Change only — Remove would just paint the default
-        // again, or hollow out the wrapper.
-        if ($fieldType === 'iconify') {
-            $iconDefault = $fieldMatch['config']['default'] ?? null;
-
-            if (is_string($iconDefault) && trim($iconDefault) !== '') {
-                $attr .= ' data-sve-icon-has-default';
-            }
-        }
-
-        // inline_edit="true": opt-in for in-preview editing (contenteditable).
-        // Without it, clicking the element only focuses the CP field. It says
-        // nothing about a toolbar — that is `toolbar=` below.
-        if ($inlineEdit) {
-            $attr .= ' data-sid-inline-edit';
-        }
-
-        // toolbar="true": this element gets a bar while it is edited. Emitted so
-        // the preview can tell the two apart at edit time — the row wrapping the
-        // text may be orderable, but being movable is not a reason to put a bar
-        // over a field that did not ask for one.
-        if ($this->params->bool('toolbar', false)) {
-            $attr .= ' data-sid-toolbar';
-        }
-
-        // Bard toolbar config — the preview builds its toolbar from the field's
-        // own `buttons` list (never hardcoded) plus a styles map for its
-        // bard-texstyle buttons. When the Bard field defines sets, emit those
-        // too so whole-field inline edit can offer the same "+" set picker.
-        if ($bardConfig) {
-            $attr .= ' data-sid-bard-buttons="'.e(implode(',', $bardConfig['buttons'])).'"';
-
-            if (! empty($bardConfig['styles'])) {
-                $attr .= ' data-sid-bard-styles="'.e(json_encode($bardConfig['styles'])).'"';
-            }
-
-            if (! empty($bardConfig['sets'])) {
-                $attr .= ' data-sid-bard-sets="'.e(json_encode($bardConfig['sets'])).'"';
-            }
-
-            if (! empty($bardConfig['inline'])) {
-                $attr .= ' data-sid-bard-inline';
-            }
-        }
-
-        // controls="font_tag|size": sibling fields of the edited one, rendered as
-        // quick controls in the inline toolbar so a block's own settings can be
-        // changed without opening the panel.
-        if (! empty($controls)) {
-            $attr .= ' data-sid-controls="'.e(json_encode($controls)).'"';
-        }
-
-        // move="true": show reorder arrows on hover (the row is identified via
-        // the field scope uid when no data-sid is present).
-        if ($move) {
-            $attr .= ' data-sid-move';
-        }
-
-        // orderable="true": drag & drop reordering among sibling rows. Nothing
-        // else — whether a thing can be moved says nothing about how its toolbar
-        // looks, and a block that is the only one of its kind still deserves a
-        // badge.
-        if ($orderable) {
-            $attr .= ' data-sid-orderable';
-        }
-
-        $attr .= $this->templateAttr();
-        $attr .= $this->defaultAttr();
-        $attr .= $this->placeholderAttr();
-        $attr .= $this->asAttr();
-
-        // toolbar="true": show the set's (or field's) icon as a badge in front of
-        // the name in the inline toolbar. Opt-in per annotation, because `type`
-        // cascades in Antlers — a <span field="text"> inside a block reads the
-        // block's set handle, and defaulting this on would give it a second badge
-        // for an icon that is not its own. `icon=` / `icon_from=` imply it: naming
-        // an icon is already asking for it to be drawn.
-        $iconFrom = $this->params->get('icon_from', $this->params->get('icon-from'));
-
-        if ($this->params->bool('toolbar', false) || $this->params->get('icon') || $iconFrom) {
-            $attr .= $this->iconAttr($this->resolveIcon());
-        }
-
-        return $attr;
-    }
-
-    /**
-     * The set's own icon, for the badge in front of its name in the inline
-     * toolbar. The preview draws what it recognises and falls back to the name's
-     * first letter, so an unknown name costs nothing.
-     *
-     * Shared by both attribute builders: a block annotated with `field=` is still
-     * a block, and had no badge for as long as this lived only in buildAttr.
-     */
-    private function iconAttr(string $icon): string
-    {
-        if ($icon === '') {
-            return '';
-        }
-
-        // Pasted SVG is too large for data-sid-icon and is already the drawing;
-        // put it only on data-sid-icon-svg. Iconify/emoji stay on data-sid-icon.
-        if (preg_match('/^\s*<svg[\s>]/i', $icon)) {
-            return ' data-sid-icon-svg="'.e(trim($icon)).'"';
-        }
-
-        $attr = ' data-sid-icon="'.e($icon).'"';
-
-        // …and the drawing itself, because the name alone is no use out there.
-        // "Edit Set" picks from Statamic's (or a custom) icon set, whose SVGs live
-        // on the server — the preview is a separate document with no way to look
-        // one up. Resolved here, where the files are, so the badge shows the icon
-        // the author chose.
-        if (($markup = Icons::resolveIconMarkup($icon)) !== '') {
-            $attr .= ' data-sid-icon-svg="'.e($markup).'"';
-        }
-
-        return $attr;
-    }
-
-    private function buildAttr(string $uuid, string $label, string $type = '', bool $inside = false, bool $popup = false, bool $move = false, bool $orderable = false, string $icon = ''): string
-    {
-        $attr = 'data-sid="'.e($uuid).'"';
-
-        $attr .= $this->iconAttr($icon);
-
-        if ($popup) {
-            $attr .= ' data-sid-action="popup"';
-        }
-
-        if ($label !== '') {
-            $attr .= ' data-sid-label="'.e($label).'"';
-        }
-
-        if ($type !== '') {
-            $attr .= ' data-sid-type="'.e($type).'"';
-        }
-
-        if ($inside) {
-            $attr .= ' data-sid-inside';
-        }
-
-        // move="true": show reorder arrows on hover for this set/row.
-        if ($move) {
-            $attr .= ' data-sid-move';
-        }
-
-        // orderable="true": drag & drop reordering among sibling rows.
-        if ($orderable) {
-            $attr .= ' data-sid-orderable';
-        }
-
-        // toolbar="true" without a field: a click bar (icon, drag, delete) and
-        // no typing. Same belt as a wrap-up. Distinct from inline_edit, which
-        // only applies to a field annotation.
-        if ($this->params->bool('toolbar', false)) {
-            $attr .= ' data-sid-toolbar';
-        }
-
-        $attr .= $this->templateAttr();
-
-        return $attr;
-    }
-
-    /**
-     * `template="icon|title:Enter a title"` — starting inner sets for a new row,
-     * declared where the replicator is used rather than on the shared fieldset.
-     *
-     * On an insertable container, `template="3:item"` is how many rows of that
-     * set to create when the list itself is new. The row's own template
-     * (`template="icon|title"` on the `<li>`) says what each of those rows
-     * contains. Copied onto the container as `data-sid-row-template` so an
-     * empty list still knows — the `<li>` is not in the DOM yet.
-     *
-     * An interpolated parameter that was never passed (`template="{foo}"`) is
-     * empty and omitted, so nothing declared falls through to the fieldset.
-     */
-    private function templateAttr(): string
-    {
-        return $this->sidParamAttr('template', 'data-sid-template');
-    }
-
-    /**
-     * Inner-row template from the orderable sibling in this section's Antlers.
-     */
-    private function rowTemplateAttr(string $field): string
-    {
-        $found = VisualEditAntlers::fromSection($this->resolveSectionType(), $field);
-        $rowTemplate = $found['rowTemplate'] ?? '';
-
-        if ($rowTemplate === '') {
-            return '';
-        }
-
-        return ' data-sid-row-template="'.e($rowTemplate).'"';
-    }
-
-    /**
-     * `default="Enter a title"` — starting value for this field, at this place.
-     *
-     * For Bard: `default="heading:1:Book Title|paragraph:Summary"`. A plain
-     * string becomes a paragraph. Applied when the parent row is created, not
-     * written over content the editor has already typed.
-     */
-    private function defaultAttr(): string
-    {
-        return $this->sidParamAttr('default', 'data-sid-default');
-    }
-
-    /**
-     * `placeholder="Enter a title"` — ghost text in the preview while the field
-     * is empty. Never stored. Gutenberg / BlockStudio RichText: the hint lives
-     * where the field is rendered, so a shared title field can say different
-     * things in a hero and in a card, without a YAML default that then has to
-     * be dimmed with `is_default`.
-     *
-     * Prefix the hint with the Bard node it should be (`h3:Enter a title`,
-     * `paragraph:Summary`) — same idea as InnerBlocks listing `core/heading`
-     * vs `core/paragraph`. Bare text is just the hint; use `as=` for the node
-     * on its own.
-     */
-    private function placeholderAttr(): string
-    {
-        $parsed = Placeholders::parsePlaceholderSpec($this->params->get('placeholder'));
-
-        if ($parsed['text'] === '') {
-            return '';
-        }
-
-        return ' data-sid-placeholder="'.e($parsed['text']).'"';
-    }
-
-    /**
-     * `as="h3"` — what an empty Bard field is: a heading or a paragraph.
-     * Taken from the param, or from a `placeholder="h3:…"` prefix.
-     */
-    private function asAttr(): string
-    {
-        $as = Placeholders::normalizeAs($this->params->get('as'));
-
-        if ($as === null) {
-            $as = Placeholders::parsePlaceholderSpec($this->params->get('placeholder'))['as'];
-        }
-
-        if ($as === null) {
-            return '';
-        }
-
-        return ' data-sid-as="'.e($as).'"';
-    }
-
-    private function sidParamAttr(string $param, string $attribute): string
-    {
-        $spec = $this->params->get($param);
-
-        if ($spec === null || $spec === false || $spec === true) {
-            return '';
-        }
-
-        if (is_array($spec)) {
-            $spec = json_encode($spec);
-        }
-
-        $spec = trim((string) $spec);
-
-        if ($spec === '') {
-            return '';
-        }
-
-        return ' '.$attribute.'="'.e($spec).'"';
-    }
-
-    /**
-     * inline_edit="true" — opt-in for in-preview editing. The hyphenated
-     * inline-edit spelling is accepted as a legacy alias.
-     */
-    private function inlineEditParam(): bool
-    {
-        return $this->params->bool('inline_edit', $this->params->bool('inline-edit', false));
-    }
-
-    /**
-     * The matching blueprint field for this handle, or null.
-     *
-     * @return  array{handle?: string, config?: array, set?: string, chain?: array}|null
-     */
-    private function resolveFieldMatch(string $fieldPath): ?array
-    {
-        try {
-            $blueprintHandle = $this->params->get('blueprint');
-
-            if ($blueprintHandle) {
-                $blueprint = Blueprint::find((string) $blueprintHandle);
-            } else {
-                $page = $this->context->get('page');
-                $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
-            }
-
-            if (! $blueprint) {
-                return null;
-            }
-
-            $handle = last(explode('.', $fieldPath));
-
-            return $this->preferFieldMatch($this->fieldsByHandle($blueprint, $handle));
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve field match for '.$fieldPath, ['exception' => $e]);
-
-            return null;
-        }
-    }
-
-    /**
-     * The blueprint fieldtype for this handle (`iconify`, `assets`, `bard`, …).
-     * Empty when the field cannot be found — the preview then has no picker hint.
-     */
-    private function resolveFieldType(string $fieldPath): string
-    {
-        $match = $this->resolveFieldMatch($fieldPath);
-        $type = $match['config']['type'] ?? null;
-
-        return is_string($type) && $type !== '' ? $type : '';
-    }
-
-    /**
-     * Picks the blueprint field that belongs to this row: the match whose set
-     * chain equals the scoped row's, then section+set, then nearest set handle,
-     * then the first match. Same preference order as resolveBardConfig.
-     */
-    private function preferFieldMatch(array $matches): ?array
-    {
-        if ($matches === []) {
-            return null;
-        }
-
-        $setType = (string) $this->context->get('type', '');
-        $valueChain = $this->resolveSetChainByScope();
-
-        if (! empty($valueChain)) {
-            foreach ($matches as $match) {
-                if (($match['chain'] ?? []) === $valueChain) {
-                    return $match;
-                }
-            }
-        }
-
-        $sectionType = $valueChain[0] ?? $this->resolveSectionType();
-
-        if ($sectionType !== '' && $setType !== '') {
-            foreach ($matches as $match) {
-                $chain = $match['chain'] ?? [];
-
-                if (($chain[0] ?? null) === $sectionType && ($chain[count($chain) - 1] ?? null) === $setType) {
-                    return $match;
-                }
-            }
-        }
-
-        if ($setType !== '') {
-            foreach ($matches as $match) {
-                if ($match['set'] === $setType) {
-                    return $match;
-                }
-            }
-        }
-
-        return $matches[0];
-    }
-
-    /**
-     * The replicator this tag is on, found inside the section being rendered.
-     *
-     * A field handle is only unique within its set. Half the page-builder
-     * sections call their block field `blocks`, so searching the blueprint for
-     * the bare handle returns whichever one comes first in the file — another
-     * section's field, with another section's set types and another section's
-     * limits. The set being rendered is in the context as `type`, so the search
-     * starts there and only falls back to the whole tree when that fails.
-     */
-    private function replicatorConfig(string $fieldHandle): ?array
-    {
-        $page = $this->context->get('page');
-        $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
-
-        if (! $blueprint) {
-            return null;
-        }
-
-        $setType = (string) ($this->context->get('type') ?? '');
-        $cacheKey = spl_object_id($blueprint).'|'.$fieldHandle.'|'.$setType;
-
-        if (array_key_exists($cacheKey, self::$replicatorByHandle)) {
-            return self::$replicatorByHandle[$cacheKey];
-        }
-
-        $contents = $blueprint->contents();
-
-        if ($setType !== '' && $set = BlueprintFields::findSetConfig($contents, $setType)) {
-            if ($found = BlueprintFields::findReplicatorConfig($set, $fieldHandle)) {
-                return self::$replicatorByHandle[$cacheKey] = $found;
-            }
-        }
-
-        return self::$replicatorByHandle[$cacheKey] = BlueprintFields::findReplicatorConfig($contents, $fieldHandle);
-    }
-
-    /**
-     * The replicator's `max_sets`, when it has one.
-     *
-     * The preview's "+" is the addon's own control, not Statamic's Add Set
-     * button, so nothing stopped it offering a third block to a field capped at
-     * two — the cap was only ever consulted by the row toolbar's Add another.
-     * Emitted alongside the set types, from the same config lookup, so the "+"
-     * can simply not be drawn once the field is full.
-     */
-    private function resolveInsertMax(string $fieldHandle): ?int
-    {
-        try {
-            $max = $this->replicatorConfig($fieldHandle)['max_sets'] ?? null;
-
-            return ($max === null || $max === '') ? null : (int) $max;
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve insert max for '.$fieldHandle, ['exception' => $e]);
-
-            return null;
-        }
-    }
-
-    /**
-     * The set types a replicator field allows, as [{handle, display}], read from
-     * the blueprint — so the block inserter offers exactly what the field permits,
-     * nothing hardcoded.
-     */
-    private function resolveInsertSets(string $fieldHandle): array
-    {
-        try {
-            $config = $this->replicatorConfig($fieldHandle);
-
-            if (! $config) {
-                return [];
-            }
-
-            $out = [];
-
-            foreach ($this->flattenReplicatorSets($config['sets'] ?? []) as $handle => $set) {
-                $out[] = [
-                    'handle' => $handle,
-                    'display' => $set['display'] ?? Str::headline($handle),
-                    'icon' => $set['icon'] ?? null,
-                    'image' => $set['image'] ?? null,
-                ];
-            }
-
-            return $out;
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve insert sets for '.$fieldHandle, ['exception' => $e]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Badge icon for this annotation: explicit `icon=` param, then the Replicator
-     * set's icon, then a Grid field's icon (`icon_from="links"` or the field's
-     * own handle). Grids have no sets, so their icon lives on the field config.
-     */
-    private function resolveIcon(): string
-    {
-        if ($icon = $this->params->get('icon')) {
-            return (string) $icon;
-        }
-
-        // `icon_from` before the set icon: `type` cascades in Antlers, so a
-        // grid row inside a Links *set* still reads type "links" and would
-        // otherwise wear the wrapping set's icon (lucide:square-stack) instead
-        // of the grid field's (add-link) — the one the focus panel already shows.
-        $from = $this->params->get('icon_from', $this->params->get('icon-from'));
-
-        if ($from && ($fieldIcon = $this->resolveFieldIcon((string) $from))) {
-            return $fieldIcon;
-        }
-
-        if ($setIcon = $this->resolveSetIcon($this->resolveType())) {
-            return $setIcon;
-        }
-
-        return '';
-    }
-
-    /**
-     * The icon a Replicator set declares in the blueprint, so the preview can put
-     * it in front of the set's name. Empty when the set names none — the toolbar
-     * falls back to the name's first letter, which still tells one block from
-     * another at a glance.
-     */
-    private function resolveSetIcon(string $setHandle): string
-    {
-        if ($setHandle === '') {
-            return '';
-        }
-
-        try {
-            $page = $this->context->get('page');
-            $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
-
-            if (! $blueprint) {
-                return '';
-            }
-
-            return (string) (Icons::findSetIcon($blueprint->contents(), $setHandle) ?? '');
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve set icon for '.$setHandle, ['exception' => $e]);
-
-            return '';
-        }
-    }
-
-    /**
-     * Icon configured on a field (typically a Grid) — same picker as set icons,
-     * stored as `icon:` on the field config.
-     */
-    private function resolveFieldIcon(string $fieldHandle): string
-    {
-        if ($fieldHandle === '') {
-            return '';
-        }
-
-        try {
-            $page = $this->context->get('page');
-            $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
-
-            if (! $blueprint) {
-                return '';
-            }
-
-            return (string) (Icons::findFieldIcon($blueprint->contents(), $fieldHandle) ?? '');
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve field icon for '.$fieldHandle, ['exception' => $e]);
-
-            return '';
-        }
     }
 
     protected function isLivePreview(): bool
