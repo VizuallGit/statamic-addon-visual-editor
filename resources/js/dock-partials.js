@@ -12,6 +12,15 @@ const PARTIAL = /\{\{\s*partial(?::([^\s}]+)|(?=[\s}]))([\s\S]*?)\}\}/gi;
 
 const cache = new Map();
 
+/**
+ * `blocks/{type}` names a folder, not a file: the block being rendered decides
+ * which partial. Anything that wants one file (component props, the component
+ * map, a prefetch) must skip these; the server lists the folder instead.
+ */
+export function hasToken(src) {
+  return /\{[A-Za-z_][A-Za-z0-9_]*\}/.test(String(src || ''));
+}
+
 export function findPartials(html) {
   const masked = String(html || '').replace(COMMENT, (chunk) => ' '.repeat(chunk.length));
   const out = [];

@@ -13,7 +13,7 @@
  */
 import { on, ask } from './cp/bus.js';
 import { sendToPreview } from './cp.js';
-import { findPartials } from './dock-partials.js';
+import { findPartials, hasToken } from './dock-partials.js';
 import { componentSrcFromType, rootSelector } from './component-signature.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
@@ -90,7 +90,9 @@ export async function syncComponentMap(win) {
   const html = ask('dock:html');
   const sources = [
     ...new Set(
-      (typeof html === 'string' ? findPartials(html) : []).map((item) => item.src).filter(Boolean)
+      // A tokenised call (`blocks/{type}`) is a folder, never one component:
+      // asking the server for its file was a 404 on every dock open.
+      (typeof html === 'string' ? findPartials(html) : []).map((item) => item.src).filter((src) => src && !hasToken(src))
     ),
   ];
 

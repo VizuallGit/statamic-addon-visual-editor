@@ -121,7 +121,7 @@ class ComponentPropsTest extends TestCase
             ],
         ]);
 
-        $this->assertStringContainsString('{{ sve_defaults headline="Overskrift" image="/assets/x.jpg" empty="" }}', $file);
+        $this->assertStringContainsString('{{ sve_defaults props_headline="Overskrift" props_image="/assets/x.jpg" props_empty="" }}', $file);
         $this->assertStringContainsString('{{ /sve_defaults }}', $file);
 
         // The shape that used to leak into the page around the component.
@@ -178,7 +178,7 @@ class ComponentPropsTest extends TestCase
 
         // The prop still exists — `{{ props.text }}` is a name the template can
         // count on — it just starts empty.
-        $this->assertStringContainsString('{{ sve_defaults text="" }}', $file);
+        $this->assertStringContainsString('{{ sve_defaults props_text="" }}', $file);
     }
 
     public function test_a_file_written_before_the_pair_loses_its_assignments()
@@ -203,7 +203,7 @@ ANTLERS;
         $again = SectionTemplate::join([...$parts, 'props' => $parts['props']]);
 
         $this->assertStringNotContainsString('headline = headline', $again);
-        $this->assertStringContainsString('{{ sve_defaults headline="Overskrift" }}', $again);
+        $this->assertStringContainsString('{{ sve_defaults props_headline="Overskrift" }}', $again);
     }
 
     public function test_a_prop_named_after_an_antlers_parameter_is_dropped()

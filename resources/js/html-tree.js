@@ -66,6 +66,7 @@ import { focusFromPreview, setMeta } from './focus-panel.js';
 import { closeRightPanels, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { confirmCloseDiscard } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { hasToken } from './dock-partials.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -1542,7 +1543,7 @@ const openComponent = (win, type) => {
  * could resolve to, the way the dock's own partial links do.
  */
 function openComponentRow(win, row, show) {
-  if (!/\{[A-Za-z_][A-Za-z0-9_]*\}/.test(row.src)) {
+  if (!hasToken(row.src)) {
     show([
       {
         label: t(win, 'component_open_named', { name: row.name || row.src }),

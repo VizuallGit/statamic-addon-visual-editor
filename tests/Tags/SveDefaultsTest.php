@@ -43,41 +43,43 @@ class SveDefaultsTest extends TestCase
     {
         $scope = $this->scope([], ['headline' => 'Fallback']);
 
-        $this->assertSame('Fallback', $scope['props']['headline']);
+        $this->assertSame('Fallback', $scope['props_headline']);
     }
 
     public function test_the_call_beats_the_fallback(): void
     {
-        $scope = $this->scope(['headline' => 'Fra kaldet'], ['headline' => 'Fallback']);
+        $scope = $this->scope(['props_headline' => 'Fra kaldet'], ['headline' => 'Fallback']);
 
-        $this->assertSame('Fra kaldet', $scope['props']['headline']);
+        $this->assertSame('Fra kaldet', $scope['props_headline']);
     }
 
-    public function test_the_bare_name_carries_the_same_value(): void
+    public function test_the_bare_name_is_not_added(): void
     {
-        // Components written before the `props` namespace still say `{{ headline }}`,
-        // and they keep their defaults instead of quietly losing them.
+        // `{{ headline }}` in a component would read the section's own headline
+        // — the whole reason every prop wears the `props_` prefix. The pair adds
+        // the prefixed name and nothing under the bare one.
         $scope = $this->scope([], ['headline' => 'Fallback']);
 
-        $this->assertSame('Fallback', $scope['headline']);
-        $this->assertSame($scope['props']['headline'], $scope['headline']);
+        $this->assertSame('Fallback', $scope['props_headline']);
+        $this->assertArrayNotHasKey('headline', $scope);
+        $this->assertArrayNotHasKey('props', $scope);
     }
 
     public function test_a_prop_with_no_default_is_still_a_name_the_template_can_use(): void
     {
         $scope = $this->scope([], ['link' => '']);
 
-        $this->assertArrayHasKey('link', $scope['props']);
-        $this->assertSame('', $scope['props']['link']);
+        $this->assertArrayHasKey('props_link', $scope);
+        $this->assertSame('', $scope['props_link']);
     }
 
     public function test_an_empty_call_value_falls_back(): void
     {
         // `{{ partial:components/card headline="" }}` means "nothing here",
         // not "print nothing" — same as the call leaving it out.
-        $scope = $this->scope(['headline' => ''], ['headline' => 'Fallback']);
+        $scope = $this->scope(['props_headline' => ''], ['headline' => 'Fallback']);
 
-        $this->assertSame('Fallback', $scope['props']['headline']);
+        $this->assertSame('Fallback', $scope['props_headline']);
     }
 
     public function test_an_augmented_value_is_passed_through_untouched(): void
@@ -85,15 +87,15 @@ class SveDefaultsTest extends TestCase
         // `:headline="title"` arrives as a Value, and unwrapping it here would
         // strip whatever augmentation it carries before the template sees it.
         $value = new Value('Fra entry', 'title', new Text);
-        $scope = $this->scope(['headline' => $value], ['headline' => 'Fallback']);
+        $scope = $this->scope(['props_headline' => $value], ['headline' => 'Fallback']);
 
-        $this->assertSame($value, $scope['props']['headline']);
+        $this->assertSame($value, $scope['props_headline']);
     }
 
     public function test_nothing_the_pair_does_not_declare_gets_added(): void
     {
         $scope = $this->scope(['andet' => 'x'], ['headline' => 'Fallback']);
 
-        $this->assertSame(['props', 'headline'], array_keys($scope));
+        $this->assertSame(['props_headline'], array_keys($scope));
     }
 }

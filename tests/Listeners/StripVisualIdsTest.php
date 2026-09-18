@@ -352,8 +352,11 @@ class StripVisualIdsTest extends TestCase
     ];
   }
 
-  public function test_grid_row_visual_ids_are_stripped_on_entry_saving(): void
+  public function test_grid_row_visual_ids_are_kept_on_entry_saving(): void
   {
+    // A grid row keeps its _visual_id on purpose: unlike a replicator set it is
+    // not regenerated on every CP load, and Live Preview needs a stable id in
+    // the Antlers loop — see StripVisualIds::processGridItems().
     $blueprint = $this->makeBlueprint([
       $this->gridField('team_members'),
     ]);
@@ -369,12 +372,15 @@ class StripVisualIdsTest extends TestCase
 
     $data = $entry->data()->all();
 
-    $this->assertArrayNotHasKey('_visual_id', $data['team_members'][0]);
-    $this->assertArrayNotHasKey('_visual_id', $data['team_members'][1]);
+    $this->assertArrayHasKey('_visual_id', $data['team_members'][0]);
+    $this->assertArrayHasKey('_visual_id', $data['team_members'][1]);
   }
 
-  public function test_existing_grid_visual_id_is_stripped_on_entry_saving(): void
+  public function test_existing_grid_visual_id_is_kept_on_entry_saving(): void
   {
+    // A grid row keeps its _visual_id on purpose: unlike a replicator set it is
+    // not regenerated on every CP load, and Live Preview needs a stable id in
+    // the Antlers loop — see StripVisualIds::processGridItems().
     $blueprint = $this->makeBlueprint([
       $this->gridField('team_members'),
     ]);
@@ -390,11 +396,11 @@ class StripVisualIdsTest extends TestCase
 
     $data = $entry->data()->all();
 
-    $this->assertArrayNotHasKey('_visual_id', $data['team_members'][0]);
-    $this->assertArrayNotHasKey('_visual_id', $data['team_members'][1]);
+    $this->assertSame('grid-uuid-abc123', $data['team_members'][0]['_visual_id'], 'the saved id stays');
+    $this->assertArrayNotHasKey('_visual_id', $data['team_members'][1], 'and none is invented on save — that is the CP\'s job on load');
   }
 
-  public function test_replicator_nested_in_grid_row_visual_ids_are_stripped(): void
+  public function test_replicator_nested_in_grid_row_loses_its_ids_while_the_row_keeps_its_own(): void
   {
     $nestedReplicator = [
       'handle' => 'items',
@@ -441,7 +447,9 @@ class StripVisualIdsTest extends TestCase
 
     $data = $entry->data()->all();
 
-    $this->assertArrayNotHasKey('_visual_id', $data['rows'][0]);
+    // The grid row keeps its own id (see processGridItems); the replicator
+    // rows inside it are sets and lose theirs like any other set.
+    $this->assertSame('grid-row-uuid', $data['rows'][0]['_visual_id']);
     $this->assertArrayNotHasKey('_visual_id', $data['rows'][0]['items'][0]);
   }
 
@@ -462,8 +470,11 @@ class StripVisualIdsTest extends TestCase
     $this->assertSame([], $data['team_members']);
   }
 
-  public function test_grid_visual_ids_are_stripped_on_global_variables_saving(): void
+  public function test_grid_visual_ids_are_kept_on_global_variables_saving(): void
   {
+    // A grid row keeps its _visual_id on purpose: unlike a replicator set it is
+    // not regenerated on every CP load, and Live Preview needs a stable id in
+    // the Antlers loop — see StripVisualIds::processGridItems().
     $blueprint = $this->makeBlueprint([
       $this->gridField('team_members'),
     ]);
@@ -478,7 +489,7 @@ class StripVisualIdsTest extends TestCase
 
     $data = $variables->data()->all();
 
-    $this->assertArrayNotHasKey('_visual_id', $data['team_members'][0]);
+    $this->assertArrayHasKey('_visual_id', $data['team_members'][0]);
   }
 
   // -------------------------------------------------------------------------

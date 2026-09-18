@@ -27,9 +27,12 @@ class InjectBridgeScriptTest extends TestCase
                 return $this->livePreviewEnabled;
             }
 
-            protected function resolveBridgeUrl(): string
+            // The middleware injects one script per built entry (bridge, then
+            // preview); the test cares about the bridge, so only that one is
+            // answered with the given URL.
+            protected function resolveScriptUrl(string $entry): string
             {
-                return $this->url;
+                return str_contains($entry, 'bridge') ? $this->url : parent::resolveScriptUrl($entry);
             }
         };
     }
