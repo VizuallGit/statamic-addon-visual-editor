@@ -3,18 +3,16 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\DataVars;
+use MarioHamann\StatamicVisualEditor\DataVars\Rows;
 
 class DataVarsTest extends TestCase
 {
     /** @return array<string, array<string, mixed>> keyed by variable name */
     protected function walk(array $fields): array
     {
-        $method = new \ReflectionMethod(DataVars::class, 'walk');
-        $method->setAccessible(true);
+                $out = [];
 
-        $out = [];
-
-        foreach ($method->invoke(null, $fields) as $row) {
+        foreach (Rows::walk($fields) as $row) {
             $out[$row['var']] = $row;
         }
 
@@ -118,10 +116,7 @@ class DataVarsTest extends TestCase
             ],
         ]]);
 
-        $method = new \ReflectionMethod(DataVars::class, 'walk');
-        $method->setAccessible(true);
-
-        $titles = array_filter($method->invoke(null, [[
+                $titles = array_filter(Rows::walk([[
             'handle' => 'list',
             'field' => [
                 'type' => 'replicator',
