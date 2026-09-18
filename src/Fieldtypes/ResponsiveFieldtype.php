@@ -28,6 +28,8 @@ use Statamic\Support\Arr;
  */
 class ResponsiveFieldtype extends Fieldtype
 {
+    use MemoizesAugmentation;
+
     protected $categories = ['structured'];
 
     protected $defaultable = false;
@@ -356,20 +358,25 @@ class ResponsiveFieldtype extends Fieldtype
     private function performAugmentation($value, bool $shallow)
     {
         $value = $this->normalize($value);
-        $method = $shallow ? 'shallowAugment' : 'augment';
-        $out = [];
 
-        foreach (static::handles() as $breakpoint) {
-            $out[$breakpoint] = new Values(
-                $this->fields($breakpoint)
-                    ->addValues($value[$breakpoint] ?? [])
-                    ->{$method}()
-                    ->values()
-                    ->all()
-            );
-        }
+        // Read twelve times per section by the CSS partials, and each read used
+        // to rebuild all three breakpoints — see MemoizesAugmentation.
+        return $this->memoizedAugmentation($value, $shallow, function () use ($value, $shallow) {
+            $method = $shallow ? 'shallowAugment' : 'augment';
+            $out = [];
 
-        return new Values($out);
+            foreach (static::handles() as $breakpoint) {
+                $out[$breakpoint] = new Values(
+                    $this->fields($breakpoint)
+                        ->addValues($value[$breakpoint] ?? [])
+                        ->{$method}()
+                        ->values()
+                        ->all()
+                );
+            }
+
+            return new Values($out);
+        });
     }
 
     public function rules(): array

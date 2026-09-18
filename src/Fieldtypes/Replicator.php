@@ -25,6 +25,23 @@ use Statamic\Support\Arr;
  */
 class Replicator extends \Statamic\Fieldtypes\Replicator
 {
+    use MemoizesAugmentation;
+
+    /**
+     * `{{ blocks }}` written three times in a section augmented its rows three
+     * times, and every row's own fields with it. Statamic's augmentation is
+     * untouched; it just runs once per value per request.
+     */
+    public function augment($values)
+    {
+        return $this->memoizedAugmentation($values, false, fn () => parent::augment($values));
+    }
+
+    public function shallowAugment($values)
+    {
+        return $this->memoizedAugmentation($values, true, fn () => parent::shallowAugment($values));
+    }
+
     /**
      * Indstillinger som andre har lagt på `Statamic\Fieldtypes\Replicator`.
      *
