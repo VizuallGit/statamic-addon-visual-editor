@@ -22,7 +22,8 @@ import { setHeaderTab, applyHeaderTab } from './cp.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import PerfPane from './cp/surfaces/PerfPane.vue';
-import { perfUi, perfRows, psiUi, serverUi } from './cp/perf/store.js';
+import { perfUi, perfRows, psiUi, serverUi, editorUi } from './cp/perf/store.js';
+import { startEditorVitals } from './cp/perf/editor-vitals.js';
 import { measurePage } from './cp/perf/measure.js';
 import {
   KINDS,
@@ -54,6 +55,9 @@ const PSI_TAB = 'psi';
 
 /** The Server tab: PHP's own render time. Always on with the panel. */
 const SERVER_TAB = 'server';
+
+/** The Editor tab: the CP's own thread, the bridge, keystroke to preview. */
+const EDITOR_TAB = 'editor';
 const STRATEGIES = ['mobile', 'desktop'];
 
 /**
@@ -90,6 +94,8 @@ let psiCache = new Map();
 let psiAbort = null;
 /** The server profile in flight, for the same reason. */
 let serverAbort = null;
+/** Stops the editor sampler; set while the Editor tab is open. */
+let stopEditorVitals = null;
 
 function ensureStyle(win) {
   injectStyle(win.document, STYLE_ID, paneCss);
@@ -538,6 +544,65 @@ export async function runServer(win) {
   }
 }
 
+/**
+ * The Editor tab's readings, painted from one sample.
+ *
+ * Four numbers a person can act on: how often the CP thread stalled in the
+ * last ten seconds and for how long at worst, how chatty the bridge is, and
+ * how long the last keystroke took to show up in the preview.
+ */
+function paintEditor(win, sample) {
+  const tasks = sample.longTasks;
+  const update = sample.previewUpdate;
+
+  editorUi.supportsLongTasks = sample.supportsLongTasks;
+  editorUi.unsupported = sample.supportsLongTasks ? '' : t(win, 'perf_editor_no_longtasks');
+  editorUi.metrics = [
+    {
+      key: 'longTasks',
+      label: t(win, 'perf_editor_long_tasks'),
+      value: sample.supportsLongTasks ? `${tasks.count} · ${formatMs(tasks.totalMs)}` : '–',
+      level: sample.supportsLongTasks ? budgetLevel(tasks.count, 'longTasks') : 'info',
+    },
+    {
+      key: 'longestTask',
+      label: t(win, 'perf_editor_longest_task'),
+      value: sample.supportsLongTasks ? formatMs(tasks.longestMs) : '–',
+      level: sample.supportsLongTasks && tasks.count ? budgetLevel(tasks.longestMs, 'longestTask') : 'info',
+    },
+    {
+      key: 'messages',
+      label: t(win, 'perf_editor_messages'),
+      value: `${sample.messagesPerSecond}/s`,
+      level: budgetLevel(sample.messagesPerSecond, 'messages'),
+    },
+    {
+      key: 'previewUpdate',
+      label: t(win, 'perf_editor_preview_update'),
+      value: update.last === null ? t(win, 'perf_editor_type_something') : `${formatMs(update.last)} · ${t(win, 'perf_editor_median')} ${formatMs(update.median)}`,
+      level: update.last === null ? 'info' : budgetLevel(update.median, 'previewUpdate'),
+    },
+  ];
+  editorUi.state = 'live';
+}
+
+function startEditorTab(win) {
+  if (stopEditorVitals) {
+    return;
+  }
+
+  editorUi.hint = t(win, 'perf_editor_hint');
+  editorUi.note = t(win, 'perf_editor_note');
+  stopEditorVitals = startEditorVitals(win, (sample) => paintEditor(win, sample));
+}
+
+function stopEditorTab() {
+  stopEditorVitals?.();
+  stopEditorVitals = null;
+  editorUi.state = 'idle';
+  editorUi.metrics = [];
+}
+
 function bindServerStore(win) {
   serverUi.hint = t(win, 'perf_server_hint');
   serverUi.runLabel = t(win, 'perf_server_run');
@@ -560,7 +625,7 @@ function bindPsiStore(win) {
 }
 
 function bindStore(win) {
-  const tabs = psiOn(win) ? [...TABS, SERVER_TAB, PSI_TAB] : [...TABS, SERVER_TAB];
+  const tabs = psiOn(win) ? [...TABS, SERVER_TAB, EDITOR_TAB, PSI_TAB] : [...TABS, SERVER_TAB, EDITOR_TAB];
 
   perfUi.tabs = tabs.map((key) => ({ key, label: t(win, `perf_tab_${key}`) }));
   perfUi.onTab = (key) => {
@@ -581,6 +646,15 @@ function bindStore(win) {
     // page, only when somebody looks.
     if (key === SERVER_TAB && serverUi.state === 'idle') {
       void runServer(win);
+    }
+
+    // The editor sampler runs only while its tab is on screen: observers and
+    // listeners on the CP window are not free, and a reading nobody looks at
+    // is not a reading.
+    if (key === EDITOR_TAB) {
+      startEditorTab(win);
+    } else {
+      stopEditorTab();
     }
   };
 
@@ -641,6 +715,7 @@ export function closePerformancePanel(win) {
   psiUi.state = 'idle';
   serverAbort?.abort();
   serverAbort = null;
+  stopEditorTab();
   serverUi.state = 'idle';
   serverUi.rows = [];
   serverUi.split = [];

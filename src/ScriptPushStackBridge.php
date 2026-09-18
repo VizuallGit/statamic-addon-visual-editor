@@ -2,21 +2,21 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
-use Vizuall\StylePush\Tags\StylePush;
+use Vizuall\StylePush\Tags\ScriptPush;
 
 /**
- * Same `$stack` / `$seen` as `{{ style_push }}`. Loaded only when that class
- * exists — see {@see StylePushStack::push()}.
+ * Same `$stack` / `$seen` as `{{ script_push }}`. Loaded only when that class
+ * exists — go through {@see ScriptPushStack}, which checks first.
  */
-class StylePushStackBridge extends StylePush
+class ScriptPushStackBridge extends ScriptPush
 {
-    public static function push(string $css): void
+    public static function push(string $js): void
     {
-        $hash = md5($css);
+        $hash = md5($js);
 
         if (! in_array($hash, static::$seen, true)) {
             static::$seen[] = $hash;
-            static::$stack[] = $css;
+            static::$stack[] = $js;
         }
     }
 

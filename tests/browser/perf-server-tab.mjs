@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Performance panel, "Server" tab — the reading has to arrive and mean something.
+ * Performance panel, "Server" and "Editor" tabs — the readings have to arrive and mean something.
  *
  * Opens an entry in Live Preview, opens the performance panel from the top bar,
  * switches to the Server tab and waits for the profile. Passes when the tab
@@ -80,6 +80,19 @@ try {
     step('sections / layout split', reading.kvs.length >= 3, reading.kvs.slice(1).map((k) => `${k.label}: ${k.value}`).join(' | '));
     step('template rows, biggest first', reading.rows.length > 0, reading.rows.slice(0, 5).map((r) => `${r.tag} ${r.title}`).join(' | '));
   }
+
+  // Editor tab: live readings appear within a few seconds, four of them.
+  await cp.evaluate(() => document.querySelector('#__sve-perf-panel .sve-perf-tabs button[data-tab="editor"]')?.click());
+  let editor = null;
+  for (let i = 0; i < 10 && !editor; i++) {
+    await sleep(1000);
+    editor = await cp.evaluate(() => {
+      const body = document.querySelector('#__sve-perf-panel .sve-perf-body');
+      const kvs = body ? [...body.querySelectorAll('.sve-perf-kv')].map((el) => ({ label: el.querySelector('.sve-perf-kv-label')?.textContent.trim(), value: el.querySelector('.sve-perf-kv-value')?.textContent.trim(), level: el.getAttribute('data-level') })) : [];
+      return kvs.length >= 4 ? kvs : null;
+    });
+  }
+  step('editor tab shows four live readings', !!editor, editor ? editor.map((k) => `${k.label}: ${k.value} (${k.level})`).join(' | ') : 'no readings after 10 s');
 } catch (e) {
   step('no exception', false, e.message);
 } finally {

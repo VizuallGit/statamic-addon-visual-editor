@@ -55,6 +55,7 @@ use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tags\ResponsiveCss;
 use MarioHamann\StatamicVisualEditor\Tags\SveTw;
 use MarioHamann\StatamicVisualEditor\Tags\SveProp;
+use MarioHamann\StatamicVisualEditor\Tags\SveCache;
 use MarioHamann\StatamicVisualEditor\Tags\SveDefaults;
 use Statamic\Events\AddonSettingsSaved;
 use Statamic\Events\BlueprintSaved;
@@ -100,6 +101,7 @@ class ServiceProvider extends AddonServiceProvider
         SveTw::class,
         SveProp::class,
         SveDefaults::class,
+        SveCache::class,
     ];
 
     protected $modifiers = [

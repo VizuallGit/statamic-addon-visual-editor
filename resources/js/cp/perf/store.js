@@ -102,3 +102,19 @@ export const serverUi = reactive({
   renders: '',
   note: '',
 });
+
+/**
+ * The Editor tab: what the editor itself feels like, sampled once a second
+ * while the tab is open (cp/perf/editor-vitals.js).
+ */
+export const editorUi = reactive({
+  /** idle | live */
+  state: 'idle',
+  hint: '',
+  note: '',
+  /** The four readings, each with a budget level. */
+  metrics: [],
+  /** Whether this browser reports long tasks at all. */
+  supportsLongTasks: true,
+  unsupported: '',
+});

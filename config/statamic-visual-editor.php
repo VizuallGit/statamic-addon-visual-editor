@@ -656,6 +656,22 @@ return [
     |   ],
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | Cached partials
+    |--------------------------------------------------------------------------
+    |
+    | `{{ sve_cache src="…" globals="theme_settings" }}` renders a partial once
+    | and remembers it until one of the named globals is saved. Set `partials`
+    | to false to render everything live (a measurement, or a partial that
+    | turned out to read page data after all).
+    |
+    */
+
+    'cache' => [
+        'partials' => true,
+    ],
+
     'breakpoints' => [],
 
     'data_vars' => [

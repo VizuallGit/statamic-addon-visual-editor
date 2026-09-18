@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { perfUi as ui, perfRows as rows, psiUi as psi, serverUi as server } from '../perf/store.js';
+import { perfUi as ui, perfRows as rows, psiUi as psi, serverUi as server, editorUi as editor } from '../perf/store.js';
 
 defineProps({
   title: { type: String, default: '' },
@@ -101,6 +101,28 @@ const visibleFiles = computed(() =>
         <span>{{ server.hint }}</span>
         <button type="button" class="sve-perf-run" @click="server.onRun?.()">{{ server.runLabel }}</button>
       </div>
+    </div>
+
+    <div v-else-if="ui.tab === 'editor'" class="sve-perf-body">
+      <div v-if="editor.state !== 'live'" class="sve-perf-wait">
+        <span class="sve-perf-spin" aria-hidden="true"></span>
+        <span>{{ editor.hint }}</span>
+      </div>
+
+      <template v-else>
+        <div class="sve-perf-kvs">
+          <div v-for="metric in editor.metrics" :key="metric.key" class="sve-perf-kv" :data-level="metric.level">
+            <span class="sve-perf-kv-label">{{ metric.label }}</span>
+            <span class="sve-perf-kv-value">{{ metric.value }}</span>
+          </div>
+        </div>
+
+        <div v-if="editor.unsupported" class="sve-perf-help">{{ editor.unsupported }}</div>
+
+        <ul class="sve-perf-notes">
+          <li>{{ editor.note }}</li>
+        </ul>
+      </template>
     </div>
 
     <div v-else-if="ui.tab === 'psi'" class="sve-perf-body">

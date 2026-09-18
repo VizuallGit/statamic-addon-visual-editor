@@ -24,6 +24,14 @@ export const BUDGETS = {
   cls: [0.1, 0.25],
   /** Server render, warm, in ms: how long PHP takes to build the page. */
   server: [300, 800],
+  /** The editor itself: long tasks on the CP thread in the last ten seconds. */
+  longTasks: [3, 10],
+  /** The longest of them, in ms — one long stall is what a person notices. */
+  longestTask: [100, 300],
+  /** Messages between preview and CP per second. */
+  messages: [15, 60],
+  /** Keystroke to preview morphed, in ms. */
+  previewUpdate: [800, 2000],
 };
 
 /** How much each budget counts. Weight is the thing you can actually change. */
