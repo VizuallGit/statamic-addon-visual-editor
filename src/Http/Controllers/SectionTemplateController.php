@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Statamic\Facades\StaticCache;
 use MarioHamann\StatamicVisualEditor\CollectionViewFile;
 use MarioHamann\StatamicVisualEditor\DockPartial;
 use MarioHamann\StatamicVisualEditor\Features;
@@ -46,6 +47,13 @@ class SectionTemplateController
             'tw' => $tw,
             'props' => $parts['props'] ?? [],
             'locked' => ! empty($parts['locked']),
+            // Whether this server can take a save at all — most editing happens
+            // on the server, and a dock that only fails on the first keystroke
+            // is a dock that loses work.
+            'writable' => [
+                'template' => static::fileWritable($path),
+                'tw' => $twHandle === '' || ! Features::enabled('tailwind_dock') || TailwindStore::writable($twHandle),
+            ],
         ]);
     }
 
@@ -160,22 +168,72 @@ class SectionTemplateController
             'locked' => false,
         ], $splitHandle, $twHandle);
 
+        if (! static::fileWritable($path)) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'not_writable',
+                'path' => SectionTemplate::relative($path),
+            ], 500);
+        }
+
         // What the file says now, before this write replaces it.
         TemplateHistory::record($path);
 
-        file_put_contents($path, $contents);
+        if (@file_put_contents($path, $contents) === false) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'not_writable',
+                'path' => SectionTemplate::relative($path),
+            ], 500);
+        }
 
-        $this->persistTw($twHandle, $html, $request);
+        $twWritten = $this->persistTw($twHandle, $html, $request);
 
         // Do not kick PreviewRefresher here. The dock saves on every keystroke;
         // spawning a headless browser then loads extra site documents and has
         // thrown the editor back to the public front end. Picker screenshots
         // catch up when the library opens or `sve:previews` runs.
 
+        // The public site must show this save too. Live Preview bypasses the
+        // static cache, the visitors' pages do not — on a server that caches,
+        // an edited section would otherwise stay old until someone cleared it.
+        static::flushStaticCache();
+
         return response()->json([
             'ok' => true,
             'path' => SectionTemplate::relative($path),
+            'tw_written' => $twWritten,
         ]);
+    }
+
+    /** The file if it exists, else the nearest folder that does. */
+    protected static function fileWritable(string $path): bool
+    {
+        if (is_file($path)) {
+            return is_writable($path);
+        }
+
+        for ($dir = dirname($path); $dir !== dirname($dir); $dir = dirname($dir)) {
+            if (is_dir($dir)) {
+                return is_writable($dir);
+            }
+        }
+
+        return false;
+    }
+
+    /** Only when the site caches at all; a failure to clear is reported, not fatal. */
+    protected static function flushStaticCache(): void
+    {
+        if (! config('statamic.static_caching.strategy')) {
+            return;
+        }
+
+        try {
+            StaticCache::flush();
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public function lock(Request $request)
@@ -205,28 +263,29 @@ class SectionTemplateController
      * Node on the server is only the fallback when the dock did not send CSS
      * (an older tab). Spawning Node on every keystroke is not the paint path.
      */
-    protected function persistTw(string $twHandle, string $html, Request $request): void
+    /** @return bool|null null when there was nothing to persist; false when the CSS did not reach disk */
+    protected function persistTw(string $twHandle, string $html, Request $request): ?bool
     {
         if (! Features::enabled('tailwind_dock') || $twHandle === '') {
-            return;
+            return null;
         }
 
         $tw = $request->input('tw');
 
         if ($request->exists('tw') && is_string($tw)) {
-            TailwindStore::write($twHandle, $tw);
-
-            return;
+            return TailwindStore::write($twHandle, $tw);
         }
 
         if (app()->environment('local')) {
-            return;
+            return null;
         }
 
         try {
-            TailwindStore::write($twHandle, TailwindCompile::fromHtml($html));
+            return TailwindStore::write($twHandle, TailwindCompile::fromHtml($html));
         } catch (\Throwable $e) {
             report($e);
+
+            return false;
         }
     }
 

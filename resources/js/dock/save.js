@@ -59,12 +59,28 @@ function postSave(win, type, parts) {
         return;
       }
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        throw new Error(String(res.status));
+        // The server says why when it can: a file its PHP is not allowed to write.
+        throw new Error(data?.error === 'not_writable' ? 'not_writable' : String(res.status));
       }
 
       if (dockState.lastType === type) {
         dockState.lastParts = parts;
+
+        // The template is on disk but its Tailwind CSS is not: the classes
+        // would be missing on the site. Keep the compile dirty so the next
+        // save tries again, and say so instead of "Saved".
+        if (data?.tw_written === false) {
+          dockState.twDirty = true;
+          setStatus(win.document, t(win, 'code_dock_tw_not_writable'));
+          paintAutosave(win);
+          refreshPreview(win);
+
+          return;
+        }
+
         setStatus(win.document, t(win, 'code_dock_saved'));
         paintAutosave(win);
         win.setTimeout(() => {
@@ -81,8 +97,8 @@ function postSave(win, type, parts) {
         .getElementById('__sve-section-picker')
         ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
     })
-    .catch(() => {
-      setStatus(win.document, t(win, 'code_dock_error'));
+    .catch((err) => {
+      setStatus(win.document, t(win, err?.message === 'not_writable' ? 'code_dock_not_writable' : 'code_dock_error'));
     })
     .finally(() => {
       dockState.saveInFlight = null;

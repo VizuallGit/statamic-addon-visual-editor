@@ -277,6 +277,13 @@ export async function loadTemplate(win, type, mode = 'replace') {
 
       setPath(win.document, data.path || type);
       setStatus(win.document, dockState.lastLocked ? t(win, 'code_dock_locked') : '');
+      // Said before the first keystroke: a server whose PHP cannot write the
+      // template or its baked CSS would otherwise fail on every save.
+      if (data.writable?.template === false) {
+        setStatus(win.document, t(win, 'code_dock_not_writable'));
+      } else if (data.writable?.tw === false) {
+        setStatus(win.document, t(win, 'code_dock_tw_not_writable'));
+      }
       syncComponentFocus(win);
       watchComponentMap(win);
       void syncComponentMap(win);

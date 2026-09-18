@@ -50,30 +50,58 @@ class TailwindStore
         return static::read($handle) !== '';
     }
 
-    public static function write(string $handle, string $css): void
+    /**
+     * Whether this server's PHP can write the bake for a handle: the file if it
+     * exists, else the nearest folder that does. Asked before the first
+     * keystroke, so a server that cannot take the CSS says so in the dock
+     * instead of dropping every class quietly.
+     */
+    public static function writable(string $handle): bool
     {
         $path = static::path($handle);
 
         if ($path === null) {
-            return;
+            return false;
+        }
+
+        if (is_file($path)) {
+            return is_writable($path);
+        }
+
+        for ($dir = dirname($path); $dir !== dirname($dir); $dir = dirname($dir)) {
+            if (is_dir($dir)) {
+                return is_writable($dir);
+            }
+        }
+
+        return false;
+    }
+
+    /** @return bool whether the CSS is on disk afterwards (an empty bake removes the file, which counts) */
+    public static function write(string $handle, string $css): bool
+    {
+        $path = static::path($handle);
+
+        if ($path === null) {
+            return false;
         }
 
         $css = trim($css);
 
         if ($css === '') {
             if (is_file($path)) {
-                @unlink($path);
+                return @unlink($path);
             }
 
-            return;
+            return true;
         }
 
         $dir = dirname($path);
 
         if (! is_dir($dir) && ! @mkdir($dir, 0775, true) && ! is_dir($dir)) {
-            return;
+            return false;
         }
 
-        file_put_contents($path, $css."\n");
+        return @file_put_contents($path, $css."\n") !== false;
     }
 }
