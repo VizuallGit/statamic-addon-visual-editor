@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Keep table layout — den kompakte tabel (håndtag + felt + …), også når
  * sidebaren er smallere end 550px.
@@ -12,10 +14,7 @@ import { injectStyle } from '../lib/style.js';
 (function () {
     'use strict';
 
-    if (window.__sveGridKeepTable) {
-        return;
-    }
-    window.__sveGridKeepTable = true;
+    mark('grid-keep-table');
 
     var KEY = 'sve_keep_table';
     var PIN = 9999;

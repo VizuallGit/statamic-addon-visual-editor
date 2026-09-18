@@ -3,7 +3,7 @@
  * Page settings panel Hide/Auto/Show.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { sve } from './cp-registry.js';
+import { ensureLpReloadButton } from './lp-reload.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
@@ -177,10 +177,9 @@ export function syncLpRightBarGaps(win) {
 
   // Knappen laves her, ikke kun hvor de andre laves. Denne funktion kører hver
   // gang højre-klyngen synkroniseres — den er det ene sted der med sikkerhed
-  // rammer hver tilstand editoren kan åbne i. Gennem `sve`, ikke en import:
-  // lp-reload henter LP_RELOAD_ID herfra, og en import tilbage ville lukke en
-  // cyklus. Idempotent — den flytter ikke noget der allerede står rigtigt.
-  sve.ensureLpReloadButton?.(win);
+  // rammer hver tilstand editoren kan åbne i. Idempotent — den flytter ikke
+  // noget der allerede står rigtigt.
+  ensureLpReloadButton(win);
 
   const parent = save.parentElement || header;
   const gap = `${LP_TOOLBAR_GAP}px`;

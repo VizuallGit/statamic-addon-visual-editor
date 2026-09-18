@@ -8,7 +8,6 @@
  * Isolated: no overlay-host, preview, or bridge imports. Parent wraps the
  * iframe's postMessage so Statamic's own `preview.updated` carries the uids.
  */
-import { sve } from './cp-registry.js';
 import { unwrapRef } from './lib/values.js';
 import { sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';

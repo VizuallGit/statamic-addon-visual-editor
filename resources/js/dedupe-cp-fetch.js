@@ -2,7 +2,10 @@
  * Iconify and Bard colour each fetch the same CP JSON once per field.
  * One GET, shared body — not a wrap of those fieldtypes' Vue.
  *
- * Own CP script, not addon.js. Must run before fields mount.
+ * Own CP script, not addon.js — measured, not assumed (WP6c): Iconify's
+ * fieldtype captures `fetch` into a module variable when its bundle evaluates
+ * (`const Ft=()=>{…e=fetch…}; let K=Ft()`), so this must have replaced
+ * window.fetch before any module runs. A classic script does; a module cannot.
  */
 (function () {
     'use strict';

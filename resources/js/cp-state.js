@@ -20,6 +20,9 @@ export const sveState = {
   lpReady: false,
   globalsStashActive: false,
   chromePrefetchArmed: false,
+  /** Section-template prefetch for the HTML tree: queued at overlay boot, run once the preview has painted. */
+  htmlTreePrefetchScheduled: false,
+  htmlTreePrefetchArmed: false,
   sectionPanelValues: null,
   sectionBaselineUntil: 0,
   libraryDrag: null,

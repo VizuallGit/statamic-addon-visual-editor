@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Trial look for the inline-edit toolbar and the section move bar.
  *
@@ -17,10 +19,7 @@ import { injectStyle } from '../lib/style.js';
     var ENABLED = true;
     var STYLE_ID = '__sve-toolbar-look';
 
-    if (window.__sveToolbarLook) {
-        return;
-    }
-    window.__sveToolbarLook = true;
+    mark('toolbar-look');
 
     // Each ID gets its own suffix. Concatenating a comma-list then appending
     // ` > *` only attaches the child selector to the last ID, so the wrapper

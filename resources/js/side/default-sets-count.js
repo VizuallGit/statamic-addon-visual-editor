@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Number beside each "From the start" checkbox.
  *
@@ -11,6 +13,8 @@ import { t } from '../lib/i18n.js';
 
 (function () {
     'use strict';
+
+    mark('default-sets-count');
 
     var MAX = 24;
 

@@ -2,7 +2,6 @@
  * cp.js — region "boot", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel cp.js for what the shell exports.
  */
-import { sve } from '../cp-registry.js';
 import { sveState } from '../cp-state.js';
 import { ACTIVE_ATTR, SELECTORS } from '../cp-selectors.js';
 import { stampGridRows } from '../cp-section-groups.js';
@@ -10,7 +9,7 @@ import { relayoutCodeDock } from '../code-dock-lazy.js';
 import { relayoutAiPanel } from '../ai-panel-lazy.js';
 import { relayoutRightDock } from '../right-dock.js';
 import { bindChromePrefsFlush, chromeGet, hydrateChromePrefs } from '../chrome-prefs.js';
-import { ensurePanel, markLivePreviewReady } from '../lazy-panels.js';
+import { ensurePanel, markLivePreviewReady, refreshRightDockHooks } from '../lazy-panels.js';
 import { watchPreviewRenders } from '../lp-replay.js';
 import { injectStyle } from '../lib/style.js';
 import { registerContainerEvents } from '../lib/publish-containers.js';
@@ -251,7 +250,7 @@ export function initCp(win = window) {
     console.error('[sve] chrome prefs', err);
   }
 
-  sve.registerRightDockContent?.();
+  refreshRightDockHooks();
 
   injectStyle(win.document, '__sve-cp-styles', CP_STYLES);
 

@@ -164,6 +164,8 @@ info('layout prefs', PREFS ? `starting from ${JSON.stringify(PREFS)}` : 'reset �
 
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
+// Before any script runs, in every document: the bundle marks what booted here (lib/debug.js).
+await page.evaluateOnNewDocument(() => { window.__sveDebug = { ran: [] }; });
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}${e.stack ? ' @ ' + String(e.stack).split('\n').slice(1, 3).join(' | ').trim() : ''}`));
 page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
 page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
@@ -237,11 +239,12 @@ try {
   step('a page section rendered in the preview', hasSection, `${previewFacts}${lastErr ? ' | $ error: ' + lastErr.slice(0, 120) : ''}`);
 
   // 3b. The side scripts (resources/js/side/, part of addon.js since WP6a)
-  // each leave their run-once flag on the CP window — "no errors" alone would
-  // not tell a script that never ran from one that did.
-  const sideFlags = ['__sveIconifyHideRemove', '__sveIconButtonGroupIconify', '__sveResponsiveHideCustomLabel', '__sveGridKeepTable', '__sveGridCollapseGate', '__sveInserterReveal', '__sveToolbarLook', '__sveLibraryDropFocus', '__sveCollectionViewPicker', '__sveCollectionPresetScaffold', '__sveSectionMetaPrefetch', '__sveLiteRegistered'];
-  const sideMissing = await cp.evaluate((flags) => flags.filter((f) => !window[f]), sideFlags);
-  step('the side scripts ran (resources/js/side/)', sideMissing.length === 0, sideMissing.length ? 'did not run: ' + sideMissing.join(' ') : `${sideFlags.length} run-once flags set`);
+  // each mark themselves in the trace this test created before boot — "no
+  // errors" alone would not tell a script that never ran from one that did.
+  const sideNames = ['default-sets-count', 'iconify-hide-remove', 'icon-button-group-iconify', 'responsive-hide-label', 'grid-keep-table', 'grid-collapse', 'inserter-reveal', 'toolbar-look', 'library-drop-focus', 'collection-template-picker', 'collection-preset-scaffold', 'field-prop', 'section-meta-prefetch', 'lite-sections'];
+  const ran = await cp.evaluate(() => window.__sveDebug?.ran || []);
+  const sideMissing = sideNames.filter((n) => !ran.includes(n));
+  step('the side scripts ran (resources/js/side/)', sideMissing.length === 0, sideMissing.length ? 'did not run: ' + sideMissing.join(' ') : `${sideNames.length} modules marked`);
 
   // 4. Click a section in the preview → the CP focuses it.
   if (hasSection) {

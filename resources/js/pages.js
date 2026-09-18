@@ -3,7 +3,7 @@
  * Switch pages without leaving Live Preview.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { sve } from './cp-registry.js';
+import { ask } from './cp/bus.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
@@ -451,7 +451,7 @@ export function hideNavSpinner(win) {
  */
 function refreshTemplatePreviewWithSpinner(win) {
   showNavSpinner(win);
-  sve.replayLivePreview(win);
+  ask('lp:replay', { win });
   win.setTimeout(() => hideNavSpinner(win), 450);
 }
 

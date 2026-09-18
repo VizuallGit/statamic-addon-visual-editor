@@ -2,7 +2,7 @@
  * cp.js — region "grid-rows", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel cp.js for what the shell exports.
  */
-import { sve } from '../cp-registry.js';
+import { dismissLpMoreMenu } from '../lp-more-menu.js';
 import { t } from '../lib/i18n.js';
 import { sveState } from '../cp-state.js';
 import { closeCodeDock, relayoutCodeDock, setCodeDockArmed } from '../code-dock-lazy.js';
@@ -890,7 +890,7 @@ export function ensureLpBackButton(win) {
       event.preventDefault();
       event.stopPropagation();
 
-      sve.dismissLpMoreMenu?.();
+      dismissLpMoreMenu();
 
       if (doc.getElementById(LP_BACK_MENU_ID)) {
         dropMenu(doc.getElementById(LP_BACK_MENU_ID));
@@ -1209,7 +1209,7 @@ export function resetEditorLayout(win) {
 export function openLpBackMenu(win, pill) {
   const doc = win.document;
 
-  sve.dismissLpMoreMenu?.();
+  dismissLpMoreMenu();
   dropMenu(doc.getElementById(LP_BACK_MENU_ID));
   const menu = doc.createElement('div');
   const rect = pill.getBoundingClientRect();

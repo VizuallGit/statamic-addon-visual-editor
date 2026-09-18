@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Selects for every `:name ?? …` in the section template.
  *
@@ -11,6 +13,8 @@ import { t } from '../lib/i18n.js';
 
 (function () {
     'use strict';
+
+    mark('field-prop');
 
     var SELECT_CLASS = [
         'w-full h-10 rounded-lg ps-3 pe-9',

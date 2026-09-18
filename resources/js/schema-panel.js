@@ -11,7 +11,6 @@
  * Saved straight to the site's storage, not into the entry: it is not a field,
  * and nobody's blueprint changes because this feature exists.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
 import { paintLpActiveControl } from './lp-panel.js';

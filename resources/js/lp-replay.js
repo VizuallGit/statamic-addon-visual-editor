@@ -26,6 +26,8 @@ export let lastPreviewUrl = null;
 
 // Panels ask the shell for it rather than importing the replay core.
 register('lp:lastPreviewUrl', () => lastPreviewUrl);
+// A panel that needs the preview replayed asks; it never imports this file.
+register('lp:replay', ({ win, opts }) => replayLivePreview(win, opts));
 
 /** The URL the preview iframe is actually showing, not a remembered one. */
 export function frameDocumentUrl(frame) {

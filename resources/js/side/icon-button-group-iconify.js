@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Iconify på icon_button_group i Control Panel — ikke i Antlers.
  *
@@ -10,10 +12,7 @@ import { injectStyle } from '../lib/style.js';
 (function () {
     'use strict';
 
-    if (window.__sveIconButtonGroupIconify) {
-        return;
-    }
-    window.__sveIconButtonGroupIconify = true;
+    mark('icon-button-group-iconify');
 
     var NAME_RE = /^[a-z0-9-]+:[a-z0-9-]+$/i;
     var FIELD_SEL = '.icon_button_group-fieldtype, .icon-button-group-fieldtype';

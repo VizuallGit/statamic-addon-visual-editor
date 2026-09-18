@@ -7,7 +7,8 @@
  *   preview.js      — morph / "saved" HTML in the dock
  *   overlay-host.js — overlay iframe on the public site
  *
- * Side-effect imports register themselves on `sve` (cp-registry.js).
+ * Side-effect imports wire themselves up on load; nothing is registered on a
+ * global object any more (the `sve` registry went in WP6c).
  *
  * Patterns (`section-library`) and globals stay in this graph: the rest of the
  * editor calls their helpers from the first preview message, unguarded.
@@ -62,11 +63,6 @@ import './chrome.js';
 import { initCp } from './cp.js';
 import { initAiLauncher } from './ai-launcher.js';
 import { initFileManager } from './file-manager-boot.js';
-import { sve } from './cp-registry.js';
-
-// Standalone CP scripts (lite-sections, wrapSolo, instantFocusHeader) look
-// up isolate/solo on window — the module object is not visible to them.
-window.sve = sve;
 
 Statamic.booting(() => {
   installResponsiveConditions();

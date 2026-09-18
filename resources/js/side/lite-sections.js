@@ -37,12 +37,24 @@ import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
 import { t } from '../lib/i18n.js';
 import { injectStyle } from '../lib/style.js';
 import { featureOn } from '../lib/config.js';
+import { mark } from '../lib/debug.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
     var PRELOAD_FIRST_SECTION = false;
     var PRELOAD_NEIGHBORS = false;
     // Keep every section we have already shown. Set false to prune to neighbours.
     var KEEP_MOUNTED = true;
+
+    // Run-once state. It sat on `window` so a script loaded twice would not
+    // bind twice; a module runs once, so these are plain flags now.
+    var liteChunksBound = false;
+    var liteRegistered = false;
+    var liteExpandWatched = false;
+    var litePreviewIntercepted = false;
+    var liteListIntercepted = false;
+    var liteBootScheduled = false;
+
+    mark('lite-sections');
 
     var FOCUS = 'sve-lite-focus';
     var WARM = 'sve-lite-warm';
@@ -1044,11 +1056,11 @@ import { featureOn } from '../lib/config.js';
     }
 
     function bindChunkClicks() {
-        if (window.__sveLiteChunks) {
+        if (liteChunksBound) {
             return;
         }
 
-        window.__sveLiteChunks = true;
+        liteChunksBound = true;
 
         document.addEventListener('sve-tab-chunk', function (event) {
             var detail = event.detail || {};
@@ -1084,7 +1096,7 @@ import { featureOn } from '../lib/config.js';
             return false;
         }
 
-        if (window.__sveLiteRegistered) {
+        if (liteRegistered) {
             return true;
         }
 
@@ -1474,7 +1486,7 @@ import { featureOn } from '../lib/config.js';
             },
         });
 
-        window.__sveLiteRegistered = true;
+        liteRegistered = true;
 
         return true;
     }
@@ -1774,11 +1786,11 @@ import { featureOn } from '../lib/config.js';
     function watchFocusExpand() {
         var doc;
 
-        if (window.__sveLiteExpandWatch) {
+        if (liteExpandWatched) {
             return;
         }
 
-        window.__sveLiteExpandWatch = true;
+        liteExpandWatched = true;
         doc = document;
 
         new MutationObserver(function () {
@@ -2334,11 +2346,11 @@ import { featureOn } from '../lib/config.js';
     function interceptPreviewClicks() {
         var replaying = false;
 
-        if (window.__sveLitePreviewInterceptV5) {
+        if (litePreviewIntercepted) {
             return;
         }
 
-        window.__sveLitePreviewInterceptV5 = true;
+        litePreviewIntercepted = true;
 
         window.addEventListener(
             'message',
@@ -2571,11 +2583,11 @@ import { featureOn } from '../lib/config.js';
     }
 
     function interceptListViewClicks() {
-        if (window.__sveLiteListInterceptV3) {
+        if (liteListIntercepted) {
             return;
         }
 
-        window.__sveLiteListInterceptV3 = true;
+        liteListIntercepted = true;
 
         function onTreeHover(event) {
             scheduleLiteHover(uidFromTreeEvent(event), document, window);
@@ -2664,13 +2676,13 @@ import { featureOn } from '../lib/config.js';
     function bootUntilReady() {
         boot();
 
-        if (window.__sveLiteBootScheduled) {
+        if (liteBootScheduled) {
             return;
         }
 
-        window.__sveLiteBootScheduled = true;
+        liteBootScheduled = true;
 
-        if (window.__sveLiteRegistered) {
+        if (liteRegistered) {
             return;
         }
 
@@ -2679,14 +2691,14 @@ import { featureOn } from '../lib/config.js';
             tries += 1;
             boot();
 
-            if (window.__sveLiteRegistered || tries >= 60) {
+            if (liteRegistered || tries >= 60) {
                 window.clearInterval(timer);
             }
         }, 50);
     }
 
     // ---- the focus panel's hooks (replace the wrappers this file used to put
-    // around sve.soloSection / sve.soloSectionSettings / sve.paintFocusHeader) ----
+    // around the focus panel's soloSection / soloSectionSettings / paintFocusHeader) ----
 
     /**
      * A solo asked for while this file hosts the section list: mount the row

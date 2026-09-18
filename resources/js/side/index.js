@@ -1,10 +1,10 @@
 /**
  * Side scripts — CP tweaks that used to be standalone `$scripts` (WP6a).
  *
- * Each file is the former standalone script, verbatim: an IIFE with its own
- * `window.__sve*` run-once guard, observing the DOM or waiting for
- * `Statamic.booted`. Importing it runs it. Order is the order Statamic loaded
- * the script tags in.
+ * Each file is the former standalone script, verbatim: an IIFE observing the
+ * DOM or waiting for `Statamic.booted`. Importing it runs it, once; each marks
+ * itself for the browser tests (lib/debug.js). Order is the order Statamic
+ * loaded the script tags in.
  *
  * Only scripts that watch the DOM belong here. A script that must patch a
  * global before Statamic's own bundle reads it (`dedupe-cp-fetch`,

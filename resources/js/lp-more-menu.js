@@ -2,7 +2,6 @@
  * Overflow menu to the right of Close: Live Preview defaults + reset.
  * Does not import the kernel.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { LP_BACK_MENU_ID, LP_ICON_BTN_STYLE, applyHeaderTab, ensureRightTool, resetEditorLayout } from './cp.js';
@@ -299,4 +298,3 @@ export function ensureLpMoreButton(win) {
     anchor.after(pill);
   }
 }
-sve.dismissLpMoreMenu = dismissLpMoreMenu;

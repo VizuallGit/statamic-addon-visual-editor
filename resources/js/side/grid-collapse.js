@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Grid-rækker som accordion — kun når `sve_grid_collapse` er slået til.
  *
@@ -7,10 +9,7 @@
 (function () {
     'use strict';
 
-    if (window.__sveGridCollapseGate) {
-        return;
-    }
-    window.__sveGridCollapseGate = true;
+    mark('grid-collapse');
 
     var KEY = 'sve_grid_collapse';
     var OPEN_ATTR = 'data-sve-grid-open';

@@ -4,7 +4,6 @@
  */
 import { SUNDAY_AUG30 } from '../sunday-aug30.js';
 import { topLevelSectionUid } from '../cp.js';
-import { sve } from '../cp-registry.js';
 import { isCodeDockArmed, templateDockAllowed } from '../code-dock-state.js';
 import { ask, emit, on, register } from '../cp/bus.js';
 import { mountPane } from '../cp/mount-pane.js';
@@ -961,4 +960,3 @@ function shiftFocus(focus, before, after) {
   return { from: focus.from, to: Math.max(focus.from, focus.to + delta) };
 }
 
-sve.syncCodeDock = syncCodeDock;

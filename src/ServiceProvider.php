@@ -243,18 +243,19 @@ class ServiceProvider extends AddonServiceProvider
     // keeps serving the last vendor:publish copy, cache-busted only by version).
     //
     // Fourteen more used to be here; they live in resources/js/side/ and are
-    // part of addon.js since WP6a/b. What stays is what a module cannot do: a
-    // classic script runs while the page is parsed, before Statamic's own
-    // module, so it can patch a global before the core reads it (the first
-    // two); the paint script is proven on its own by
-    // tests/browser/instant-paint.mjs. A standalone script never import()s a
-    // build file by name.
+    // part of addon.js since WP6a/b. What stays is what a module cannot do:
+    // Iconify's fieldtype captures `fetch` when its own module evaluates
+    // (`let K = fetch` in its build), so dedupe-cp-fetch must have replaced
+    // window.fetch before that — a classic script runs while the page is
+    // parsed, a module only after. The paint script is proven on its own by
+    // tests/browser/instant-paint.mjs. disable-publish-stack-pin went in
+    // WP6c: the observer it neutralised was in an old addon.js and no longer
+    // exists in any build. A standalone script never import()s a build file
+    // by name.
     //
-    //   disable-publish-stack-pin — keep the publish stack from pinning over LP
     //   dedupe-cp-fetch           — one GET for iconify/config and colour swatches
     //   dock-instant-preview        — paint HTML-dock classes into LP before morph
     protected $scripts = [
-        __DIR__.'/../resources/js/disable-publish-stack-pin.js',
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
         __DIR__.'/../resources/js/dock-instant-preview.js',
     ];

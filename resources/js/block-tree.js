@@ -3,7 +3,6 @@
  * Block tree in the right dock.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
@@ -1760,4 +1759,3 @@ export function setListViewTab(win, tab) {
   mountPane(body, ListViewBody, { hint: t(win, 'listview_hint') });
   renderListView(win);
 }
-sve.registerRightDockContent = registerRightDockContent;

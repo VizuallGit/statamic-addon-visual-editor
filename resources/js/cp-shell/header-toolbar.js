@@ -4,7 +4,6 @@
  */
 import { aiTextIcon } from '../ai-text-icon.js';
 import { bindTips } from '../cp/tip.js';
-import { sve } from '../cp-registry.js';
 import { t } from '../lib/i18n.js';
 import { sveState } from '../cp-state.js';
 import { SELECTORS } from '../cp-selectors.js';
@@ -1635,14 +1634,14 @@ export function hideLpLabel(doc) {
 
 /** After the overlay has painted: fetch the other sections' templates one by one. */
 export function scheduleHtmlTreePrefetch(win) {
-  if (sve.htmlTreePrefetchScheduled) {
+  if (sveState.htmlTreePrefetchScheduled) {
     return;
   }
 
-  sve.htmlTreePrefetchScheduled = true;
+  sveState.htmlTreePrefetchScheduled = true;
 
   const arm = () => {
-    sve.htmlTreePrefetchArmed = true;
+    sveState.htmlTreePrefetchArmed = true;
     armHtmlTreePrefetch(win);
   };
 

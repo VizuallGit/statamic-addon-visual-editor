@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Library drop: keep the overview until the new section exists, then zoom in
  * on it. No jump to the old scroll position, no jump to the top then down.
@@ -11,10 +13,7 @@ import { injectStyle } from '../lib/style.js';
 (function () {
     'use strict';
 
-    if (window.__sveLibraryDropFocus) {
-        return;
-    }
-    window.__sveLibraryDropFocus = true;
+    mark('library-drop-focus');
 
     var SECTION_ATTR = 'data-sid-section-orderable';
     var drag = null;

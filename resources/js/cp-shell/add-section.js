@@ -3,7 +3,7 @@
  * only the imports are new. See the barrel cp.js for what the shell exports.
  */
 import { ask } from '../cp/bus.js';
-import { sve } from '../cp-registry.js';
+import { syncCodeDock } from '../code-dock-lazy.js';
 import { t } from '../lib/i18n.js';
 import { sveState } from '../cp-state.js';
 import { COLLAPSE_SETTLE_MS, SELECTORS } from '../cp-selectors.js';
@@ -1871,7 +1871,7 @@ export function createMessageListener(doc = document, win = window) {
       const dockUid = data.uid || data.scope;
 
       if (dockUid) {
-        sve.syncCodeDock?.(win, doc, dockUid);
+        syncCodeDock(win, doc, dockUid);
       }
 
       if (data.field) {

@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * "+" in the gap between blocks — after the last block only when that one
  * is hovered. Not while you are inside a block (or the one being edited).
@@ -13,10 +15,7 @@ import { injectStyle } from '../lib/style.js';
 (function () {
     'use strict';
 
-    if (window.__sveInserterReveal) {
-        return;
-    }
-    window.__sveInserterReveal = true;
+    mark('inserter-reveal');
 
     var LAYER_ID = '__sve-inserters';
     var INSERT_ATTR = 'data-sid-insert';

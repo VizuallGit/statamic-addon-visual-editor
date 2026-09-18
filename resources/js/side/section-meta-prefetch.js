@@ -22,9 +22,9 @@
  * order the CP's module graph evaluates in.
  */
 import { fetchNestedSetMeta, fetchSetMeta, globalSectionSet } from '../section-library.js';
+import { mark } from '../lib/debug.js';
 
-// Read by tests/browser/live-preview-smoke.mjs as "this side script ran".
-window.__sveSectionMetaPrefetch = true;
+mark('section-meta-prefetch');
 
 const PICKER_MS = 20000;
 const LIST_MS = 20000;

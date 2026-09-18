@@ -3,7 +3,6 @@
  * HTML tag tree in the right dock — opens with the template dock, not a top-bar icon.
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
@@ -459,7 +458,7 @@ function prefetchSectionTemplates(win, sections) {
 
   // Queue during overlay boot; do not fetch until the preview has painted.
   // The open section is already in the dock — these requests are for the rest.
-  if (!sve.htmlTreePrefetchArmed) {
+  if (!sveState.htmlTreePrefetchArmed) {
     return;
   }
 
@@ -467,7 +466,7 @@ function prefetchSectionTemplates(win, sections) {
 }
 
 export function armHtmlTreePrefetch(win) {
-  sve.htmlTreePrefetchArmed = true;
+  sveState.htmlTreePrefetchArmed = true;
   runSectionTemplatePrefetch(win);
 }
 

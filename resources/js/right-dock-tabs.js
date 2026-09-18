@@ -18,7 +18,6 @@
  */
 
 import { chromeGet, chromeSet } from './chrome-prefs.js';
-import { sve } from './cp-registry.js';
 import RightDockShell from './cp/surfaces/RightDockShell.vue';
 import { mountPane } from './cp/mount-pane.js';
 import dockCss from '../css/right-dock.css?inline';

@@ -3,7 +3,6 @@
  * Globals beside Live Preview.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { COLLAPSE_SETTLE_MS, GLOBALS_PANEL_PARAM, SELECTORS } from './cp-selectors.js';
@@ -2812,4 +2811,3 @@ export function focusGlobalField(win, field, attempts = 0) {
 }
 
 /** In the Live Preview window: take the values streamed up by the panel. */
-sve.replayLivePreview = replayLivePreview;

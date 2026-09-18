@@ -15,7 +15,6 @@
  * Nothing here opens anything. It only warms what a click would need, so being
  * wrong costs one unused fetch and never a surprise on screen.
  */
-import { sve } from './cp-registry.js';
 import { ensurePanel } from './lazy-panels.js';
 import { prefetchCodeDock } from './code-dock-lazy.js';
 import { prefetchAiPanel } from './ai-panel-lazy.js';

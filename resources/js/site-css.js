@@ -8,7 +8,6 @@
 import { mountSurface } from './cp/mount.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { t } from './lib/i18n.js';
-import { sve } from './cp-registry.js';
 import SiteCssPane from './cp/surfaces/SiteCssPane.vue';
 import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';

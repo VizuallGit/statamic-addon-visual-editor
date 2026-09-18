@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Live Preview top bar: pick which entry a collection show-template is previewed as.
  *
@@ -9,10 +11,7 @@ import { collectionTemplatesCollection, featureOn as featureIsOn } from '../lib/
 (function () {
     'use strict';
 
-    if (window.__sveCollectionViewPicker) {
-        return;
-    }
-    window.__sveCollectionViewPicker = true;
+    mark('collection-template-picker');
 
     var SELECT_ID = '__sve-collection-view-as';
     var container = null;

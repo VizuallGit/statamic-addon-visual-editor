@@ -16,7 +16,6 @@
  * pane, which is where they were before any of this.
  */
 
-import { sve } from './cp-registry.js';
 import { ask } from './cp/bus.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
 import { componentPropsUi as ui } from './cp/component-props/store.js';

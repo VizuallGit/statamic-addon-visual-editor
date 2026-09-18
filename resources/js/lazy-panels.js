@@ -6,9 +6,7 @@
  * and, while it is away, answers as the old stub did. ensurePanel() resolves
  * with the module and remembers it, which is what makes that work.
  */
-import { sve } from './cp-registry.js';
 import { sveState } from './cp-state.js';
-import { syncCodeDock as syncCodeDockLazily } from './code-dock-lazy.js';
 import {
   registerRightDockHook,
   releaseRightShellIfEmpty,
@@ -73,34 +71,7 @@ export function loadedPanel(key) {
   return loaded[key] || null;
 }
 
-function noop() {}
 
-function stub(name, impl) {
-  if (typeof sve[name] !== 'function') {
-    sve[name] = impl;
-  }
-}
-
-function stubUntilLoaded(name, key) {
-  if (typeof sve[name] === 'function') {
-    return;
-  }
-
-  const placeholder = (...args) => {
-    void ensurePanel(key).then(() => {
-      if (sve[name] !== placeholder) {
-        sve[name](...args);
-      }
-    });
-  };
-
-  sve[name] = placeholder;
-}
-
-// The template dock is asked to sync from lite-sections before it is loaded.
-// Route it through the lazy door, which knows whether the dock is even on.
-// (cp-shell/add-section.js still reads this off window.sve — WP6c.)
-stub('syncCodeDock', (win, doc, uid) => syncCodeDockLazily(win, doc, uid));
 
 function bindRightDockHooks() {
   if (loaded.listview) {
@@ -139,7 +110,14 @@ function bindRightDockHooks() {
   }
 }
 
-stub('registerRightDockContent', bindRightDockHooks);
+/**
+ * (Re)bind the right dock's content hooks to whatever panels are loaded. The
+ * block tree owns the full registration once it is in; before that, the hooks
+ * for the other loaded panels are bound here.
+ */
+export function refreshRightDockHooks() {
+  (loaded.listview?.registerRightDockContent || bindRightDockHooks)();
+}
 
 function ensureSpinStyle(doc) {
   injectStyle(doc, SPIN_STYLE_ID, '@keyframes sve-panel-wait-spin{to{transform:rotate(360deg)}}');
@@ -241,11 +219,7 @@ export function ensurePanel(key) {
       .then((mod) => {
         loaded[key] = Array.isArray(mod) ? mod[0] : mod;
 
-        if (typeof sve.registerRightDockContent === 'function' && sve.registerRightDockContent !== bindRightDockHooks) {
-          sve.registerRightDockContent();
-        } else {
-          bindRightDockHooks();
-        }
+        refreshRightDockHooks();
 
         return loaded[key];
       })

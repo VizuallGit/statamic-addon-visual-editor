@@ -14,7 +14,6 @@
  * reads the page — and agree on everything else: when to re-read it, how to
  * mark it, and what a click does.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { mountPane, unmountPane } from './cp/mount-pane.js';
 import { a11yUi, paneUi, markerUi, treeUi } from './cp/a11y/store.js';

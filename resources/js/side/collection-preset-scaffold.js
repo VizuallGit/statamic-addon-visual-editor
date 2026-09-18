@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Scaffold Views: pick a VS Code preset instead of Statamic's empty dump.
  *
@@ -15,10 +17,7 @@ import { collectionPresets, featureOn as featureIsOn } from '../lib/config.js';
 (function () {
     'use strict';
 
-    if (window.__sveCollectionPresetScaffold) {
-        return;
-    }
-    window.__sveCollectionPresetScaffold = true;
+    mark('collection-preset-scaffold');
 
     var PANEL_ID = '__sve-collection-preset';
     var PANEL_UI = '6';

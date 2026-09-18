@@ -3,7 +3,6 @@
  * Synced / global section editor.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { GLOBALS_PANEL_PARAM, SELECTORS } from './cp-selectors.js';

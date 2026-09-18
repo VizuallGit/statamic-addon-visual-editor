@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Iconify's dropdown always offers Change + Remove. When that fieldtype has a
  * default, Remove cannot clear the icon — hide that item only.
@@ -8,10 +10,7 @@
 (function () {
     'use strict';
 
-    if (window.__sveIconifyHideRemove) {
-        return;
-    }
-    window.__sveIconifyHideRemove = true;
+    mark('iconify-hide-remove');
 
     var pending = false;
 

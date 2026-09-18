@@ -16,7 +16,6 @@
  * here is worth losing them for. The preview is replayed from those same values,
  * so a page half-edited comes back half-edited.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { LP_ICON_BTN_STYLE } from './cp.js';
 import { injectStyle } from './lib/style.js';
@@ -153,4 +152,3 @@ export function ensureLpReloadButton(win) {
   }
 }
 
-sve.ensureLpReloadButton = ensureLpReloadButton;

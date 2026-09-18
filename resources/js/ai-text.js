@@ -12,7 +12,6 @@
  * Nothing here is saved. A suggestion lands in the form the same way typing in
  * the preview does — dirty, visible, and the user's to save or discard.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { syncBardEditorFromValue } from './inline-edit.js';

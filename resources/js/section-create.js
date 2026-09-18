@@ -23,7 +23,6 @@
  * go and find.
  */
 import { t } from './lib/i18n.js';
-import { sve } from './cp-registry.js';
 import { sendToPreview } from './cp.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';

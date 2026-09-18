@@ -1,3 +1,5 @@
+import { mark } from '../lib/debug.js';
+
 /**
  * Responsive fieldtype tegner stadig sin egen label i den byggede addon.js.
  * Det er ikke Statamics label, og hide_display rammer den ikke.
@@ -10,10 +12,7 @@ import { bpBase } from '../breakpoints.js';
 (function () {
     'use strict';
 
-    if (window.__sveResponsiveHideCustomLabel) {
-        return;
-    }
-    window.__sveResponsiveHideCustomLabel = true;
+    mark('responsive-hide-label');
 
     var pending = false;
 

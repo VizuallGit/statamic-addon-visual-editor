@@ -3,7 +3,6 @@
  * Click text in the preview and type into it.
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { sve } from './cp-registry.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { ACTIVE_ATTR, COLLAPSE_SETTLE_MS, SELECTORS } from './cp-selectors.js';
