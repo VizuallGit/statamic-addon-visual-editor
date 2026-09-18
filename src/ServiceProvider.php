@@ -242,24 +242,20 @@ class ServiceProvider extends AddonServiceProvider
     // on boot so a path-repo edit actually reaches the CP (Statamic otherwise
     // keeps serving the last vendor:publish copy, cache-busted only by version).
     //
-    // Twelve more used to be here; they live in resources/js/side/ and are
-    // part of addon.js since WP6a. What stays is what a module cannot do: a
+    // Fourteen more used to be here; they live in resources/js/side/ and are
+    // part of addon.js since WP6a/b. What stays is what a module cannot do: a
     // classic script runs while the page is parsed, before Statamic's own
     // module, so it can patch a global before the core reads it (the first
-    // two); the next two read the bundle off window.sve and go with WP6b; the
-    // paint script is proven on its own by tests/browser/instant-paint.mjs.
-    // A standalone script never import()s a build file by name.
+    // two); the paint script is proven on its own by
+    // tests/browser/instant-paint.mjs. A standalone script never import()s a
+    // build file by name.
     //
     //   disable-publish-stack-pin — keep the publish stack from pinning over LP
     //   dedupe-cp-fetch           — one GET for iconify/config and colour swatches
-    //   section-meta-prefetch     — prefetch set meta (library, Search Sets hover, solo +)
-    //   lite-sections             — mount one page_sections row in Live Preview
     //   dock-instant-preview        — paint HTML-dock classes into LP before morph
     protected $scripts = [
         __DIR__.'/../resources/js/disable-publish-stack-pin.js',
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
-        __DIR__.'/../resources/js/section-meta-prefetch.js',
-        __DIR__.'/../resources/js/lite-sections.js',
         __DIR__.'/../resources/js/dock-instant-preview.js',
     ];
 

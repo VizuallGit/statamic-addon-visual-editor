@@ -12,10 +12,14 @@
  *   SVE_USER / SVE_PASS   a CP user allowed to open Live Preview
  *   SVE_ENTRY      CP path of an entry to open, e.g. /cp/collections/pages/entries/<id>
  *   SVE_CHROME     Chrome binary (defaults to the Mac app)
+ *   SVE_PREFS      JSON of editor layout prefs to start from, e.g. '{"sve-lp-device":"Tablet"}'
+ *                  (keys as in chrome-prefs.js). Default: none — the test user's saved
+ *                  layout is reset before and after every run, so runs do not inherit
+ *                  the docks and device the previous run left open.
  *
  *   node tests/browser/live-preview-smoke.mjs
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { serveWorktreeBuild } from './serve-worktree.mjs';
@@ -39,22 +43,41 @@ const info = (name, detail = '') => { report.steps.push({ name, ok: true, info: 
 const step = (name, ok, detail = '') => { report.steps.push({ name, ok, detail }); if (!ok) report.ok = false; console.log(`${ok ? 'ok ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); };
 
 /** Page-level rectangle of an element inside (possibly nested) iframes. */
-async function absoluteRect(frame, selector) {
+async function absoluteRect(frame, selector, accept = null) {
   // evaluate() rather than $eval(): Frame.$ came back empty in the doubly nested
   // preview frame while document.querySelector in the same frame found the node.
-  const rect = await frame.evaluate((sel) => {
+  const rect = await frame.evaluate((sel, acceptSrc) => {
+    const accept = acceptSrc ? new Function(`return (${acceptSrc})`)() : null;
     // The first VISIBLE match: the editor parks helper nodes off-screen, and a
     // click at their coordinates lands on nothing.
     for (const el of document.querySelectorAll(sel)) {
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0) {
-        return { x: r.x, y: r.y, w: r.width, h: r.height };
-      }
+      if (accept && !accept(el)) continue;
+      let r = el.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0)) continue;
+      // Below the fold is not "covered": bring it on screen first, as a person scrolling would.
+      if (r.bottom <= 0 || r.top >= innerHeight) { el.scrollIntoView({ block: 'center', behavior: 'instant' }); r = el.getBoundingClientRect(); }
+      if (!(r.right > 0 && r.bottom > 0 && r.top < innerHeight)) continue;
+      // Uncovered: what the browser would hand the click at the centre must be
+      // this element (or something inside it) — not an image or a control
+      // painted over it, which the bridge would rightly answer for instead.
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + Math.min(r.height / 2, 300));
+      if (!top || !el.contains(top)) continue;
+      return { x: r.x, y: r.y, w: r.width, h: r.height, what: `${el.tagName.toLowerCase()}${el.hasAttribute('data-sid-field') ? ' field=' + el.getAttribute('data-sid-field') : ''} "${(el.textContent || '').trim().slice(0, 30)}"` };
     }
     return null;
-  }, selector);
-  if (!rect) throw new Error(`no visible element for ${selector}`);
-  rect.trail = [`el@${Math.round(rect.x)},${Math.round(rect.y)} ${Math.round(rect.w)}x${Math.round(rect.h)}`];
+  }, selector, accept ? accept.toString() : null);
+  if (!rect) {
+    // Say what stood in the way: each candidate's box and what the browser
+    // hands a click at its centre — the answer is usually a layer over the page.
+    const why = await frame.evaluate((sel) => [...document.querySelectorAll(sel)].slice(0, 6).map((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.x + r.width / 2, r.y + Math.min(r.height / 2, 300));
+      const d = (n) => n ? `${n.tagName.toLowerCase()}${n.id ? '#' + n.id : ''}${n.className && typeof n.className === 'string' ? '.' + n.className.split(' ').slice(0, 2).join('.') : ''}${[...n.attributes].filter((a) => /^data-(sid|sve)/.test(a.name)).slice(0, 2).map((a) => ` ${a.name}=${a.value.slice(0, 12)}`).join('')}` : 'nothing';
+      return `${d(el)} @${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} → ${d(top)}`;
+    }).join(' ; ') + ` | scrollY=${scrollY} innerHeight=${innerHeight}`, selector);
+    throw new Error(`no visible element for ${selector} — ${why}`);
+  }
+  rect.trail = [`${rect.what || 'el'}@${Math.round(rect.x)},${Math.round(rect.y)} ${Math.round(rect.w)}x${Math.round(rect.h)}`];
   for (let f = frame; f.parentFrame(); f = f.parentFrame()) {
     const el = await f.frameElement();
     const box = await el.boundingBox();
@@ -64,18 +87,80 @@ async function absoluteRect(frame, selector) {
   }
   return rect;
 }
-async function realClick(page, frame, selector) {
-  const r = await absoluteRect(frame, selector);
+async function realClick(page, frame, selector, accept = null) {
+  const r = await absoluteRect(frame, selector, accept);
   const x = r.x + r.w / 2;
   const y = r.y + Math.min(r.h / 2, 300);
-  // What is actually under the pointer — a real click lands on the top-most element, not on the selector.
-  const under = await page.evaluate((px, py) => { const el = document.elementFromPoint(px, py); return el ? `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${[...el.classList].slice(0, 2).join('.')}` : 'nothing'; }, x, y);
+  // What is actually under the pointer — a real click lands on the top-most
+  // element, not on the selector. While a View Transition runs, the page is a
+  // snapshot and every point hit-tests to <html>: a click then reaches nobody.
+  // Wait for that to pass, as a person's eye would, and say how long it took.
+  const probe = () => page.evaluate((px, py) => {
+    const el = document.elementFromPoint(px, py);
+    return { under: el ? `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${[...el.classList].slice(0, 2).join('.')}` : 'nothing', html: el?.tagName === 'HTML', cls: document.documentElement.className, vt: !!document.activeViewTransition };
+  }, x, y);
+  const t0 = Date.now();
+  let p = await probe();
+  while (p.html && Date.now() - t0 < 8000) { await sleep(100); p = await probe(); }
+  const waited = Date.now() - t0;
   await page.mouse.click(x, y);
-  return { x: Math.round(x), y: Math.round(y), under: `${under} [${r.trail.join(' > ')}]` };
+  return { x: Math.round(x), y: Math.round(y), under: `${p.under}${waited > 150 ? ` (waited ${waited} ms for the page to be hit-testable)` : ''}${p.vt ? ' view-transition-active' : ''}${p.cls ? ` html.${p.cls.split(' ').join('.')}` : ''} [${r.trail.join(' > ')}]` };
+}
+/**
+ * The preview frame once its document has stopped changing: no child-list
+ * mutation for `quiet` ms (max `max` ms). The editor reloads and morphs the
+ * preview several times after opening — prefs hydrate, the device switches,
+ * sections re-render — and a frame that navigates mid-wait is picked up again
+ * from the CP. Clicking before this is clicking on a page that is still moving.
+ */
+async function settledPreview(cp, quiet = 700, max = 12000) {
+  const t0 = Date.now();
+  let frame = null;
+  let ms = 0;
+  while (Date.now() - t0 < max) {
+    const lpEl = await cp.$('#live-preview-iframe');
+    frame = lpEl ? await lpEl.contentFrame() : null;
+    if (!frame) { await sleep(200); continue; }
+    try {
+      ms = await frame.evaluate((q, m) => new Promise((res) => {
+        let last = Date.now();
+        const start = last;
+        const obs = new MutationObserver(() => { last = Date.now(); });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+        const tick = () => { if (Date.now() - last >= q || Date.now() - start >= m) { obs.disconnect(); res(Date.now() - start); } else setTimeout(tick, 50); };
+        tick();
+      }), quiet, Math.max(500, max - (Date.now() - t0)));
+      return { frame, waited: ms };
+    } catch {
+      await sleep(200); // the frame navigated (a reload); find it again
+    }
+  }
+  return { frame, waited: Date.now() - t0 };
 }
 async function waitIn(frame, selector, ms) {
   try { await frame.waitForSelector(selector, { timeout: ms }); return true; } catch { return false; }
 }
+
+/**
+ * The editor hydrates its layout (docks, device, zoom) from the user's
+ * `sve_chrome` preferences on the server, and every run writes them back —
+ * so run N+1 used to start in whatever state run N left, and the section click
+ * landed in a different layout each time. The test account starts clean.
+ */
+const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
+function seedLayoutPrefs(prefs) {
+  let yaml = readFileSync(USER_FILE, 'utf8');
+  yaml = yaml.replace(/^  sve_chrome:\n(?:    .*\n)*/m, '');
+  const entries = Object.entries(prefs || {});
+  if (entries.length) {
+    const block = `  sve_chrome:\n${entries.map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
+    yaml = /^preferences:\n/m.test(yaml) ? yaml.replace(/^preferences:\n/m, `preferences:\n${block}`) : `${yaml.replace(/\n*$/, '\n')}preferences:\n${block}`;
+  }
+  writeFileSync(USER_FILE, yaml);
+}
+const PREFS = process.env.SVE_PREFS ? JSON.parse(process.env.SVE_PREFS) : null;
+seedLayoutPrefs(PREFS);
+info('layout prefs', PREFS ? `starting from ${JSON.stringify(PREFS)}` : 'reset — default layout');
 
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
@@ -146,13 +231,15 @@ try {
     if (!hasSection) await sleep(1000);
   }
   step('preview iframe present', !!preview);
-  const previewFacts = preview ? await preview.evaluate(() => `${location.pathname} sections=${document.querySelectorAll('section').length} id-sections=${document.querySelectorAll('[id^="id-"]').length} text=${(document.body?.innerText || '').length}`).catch((e) => e.message) : 'no frame';
+  const previewFacts = preview ? await preview.evaluate(() => `${location.pathname} sections=${document.querySelectorAll('section').length} id-sections=${document.querySelectorAll('[id^="id-"]').length} text=${(document.body?.innerText || '').length} viewport=${innerWidth}x${innerHeight}`).catch((e) => e.message) : 'no frame';
+  const frameFacts = await cp.evaluate(() => { const el = document.getElementById('live-preview-iframe'); if (!el) return 'no #live-preview-iframe'; const r = el.getBoundingClientRect(); return `iframe ${Math.round(r.width)}x${Math.round(r.height)} class="${el.className}" ${[...el.attributes].filter((a) => /^data-/.test(a.name)).map((a) => `${a.name}=${a.value.slice(0, 16)}`).join(' ')} device=${localStorage.getItem('statamic.live-preview.device') || '-'}`; }).catch((e) => e.message);
+  info('preview frame', frameFacts);
   step('a page section rendered in the preview', hasSection, `${previewFacts}${lastErr ? ' | $ error: ' + lastErr.slice(0, 120) : ''}`);
 
   // 3b. The side scripts (resources/js/side/, part of addon.js since WP6a)
   // each leave their run-once flag on the CP window — "no errors" alone would
   // not tell a script that never ran from one that did.
-  const sideFlags = ['__sveIconifyHideRemove', '__sveIconButtonGroupIconify', '__sveResponsiveHideCustomLabel', '__sveGridKeepTable', '__sveGridCollapseGate', '__sveInserterReveal', '__sveToolbarLook', '__sveLibraryDropFocus', '__sveCollectionViewPicker', '__sveCollectionPresetScaffold'];
+  const sideFlags = ['__sveIconifyHideRemove', '__sveIconButtonGroupIconify', '__sveResponsiveHideCustomLabel', '__sveGridKeepTable', '__sveGridCollapseGate', '__sveInserterReveal', '__sveToolbarLook', '__sveLibraryDropFocus', '__sveCollectionViewPicker', '__sveCollectionPresetScaffold', '__sveSectionMetaPrefetch', '__sveLiteRegistered'];
   const sideMissing = await cp.evaluate((flags) => flags.filter((f) => !window[f]), sideFlags);
   step('the side scripts ran (resources/js/side/)', sideMissing.length === 0, sideMissing.length ? 'did not run: ' + sideMissing.join(' ') : `${sideFlags.length} run-once flags set`);
 
@@ -160,8 +247,60 @@ try {
   if (hasSection) {
     // Spy on what the preview posts to the CP during the click (bridge → cp.js).
     await cp.evaluate(() => { window.__sveSmokeSeen = []; window.addEventListener('message', (e) => { if (e.data?.source === 'statamic-visual-editor') window.__sveSmokeSeen.push(`${e.data.type}${e.data.uid ? ':' + e.data.uid : ''}${e.data.field ? '/' + e.data.field : ''}`); }); });
-    const hit = await realClick(page, preview, '[id^="id-"]');
+    // SVE_DEBUG: which documents actually receive the mouse — the click is
+    // computed from the preview's geometry, but lands wherever the browser's
+    // hit-testing says; an overlay with pointer-events: none, a parked iframe
+    // or a scaled preview all move it somewhere else.
+    if (process.env.SVE_DEBUG) {
+      for (const f of page.frames()) {
+        await f.evaluate(() => {
+          window.__sveSmokeEv = [];
+          const tag = (e) => `${e.type}@${e.clientX},${e.clientY} on ${e.target?.tagName?.toLowerCase()}${e.target?.id ? '#' + e.target.id : ''}${e.target?.getAttribute?.('data-sid') ? ' sid=' + e.target.getAttribute('data-sid') : ''}`;
+          for (const type of ['mousedown', 'click']) window.addEventListener(type, (e) => window.__sveSmokeEv.push(tag(e)), true);
+        }).catch(() => {});
+      }
+    }
+    // Aim at a field with text in it (a headline, a paragraph): that is what an
+    // editor clicks to edit. The middle of a section is whatever happens to be
+    // there — an image, the "+" inserter between blocks, or bare padding — and
+    // each of those answers differently.
+    const settled = await settledPreview(cp);
+    if (settled.frame) preview = settled.frame;
+    let hit = null;
+    for (let attempt = 1; attempt <= 3 && !hit; attempt++) {
+      try {
+        hit = await realClick(page, preview, '[data-sid-field]:not(:empty)', (el) => (el.textContent || '').trim().length > 3);
+      } catch (e) {
+        if (attempt === 3 || !/no visible element/.test(e.message)) throw e;
+        await sleep(700); // every text field was covered at that instant — a control or a morph in flight
+      }
+    }
+    hit.under = `${hit.under} preview settled after ${settled.waited} ms`;
     await sleep(1500);
+    if (process.env.SVE_DEBUG) {
+      const got = [];
+      const label = (f) => (f === page.mainFrame() ? 'top' : f === cp ? 'overlay' : f === preview ? 'preview' : f.url().replace(SITE_URL, '').slice(0, 40));
+      for (const f of page.frames()) {
+        const ev = await f.evaluate(() => window.__sveSmokeEv || []).catch(() => []);
+        if (ev.length) got.push(`${label(f)}: ${ev.join(' | ')}`);
+      }
+      // What the overlay document has at the click point, top-most first, and
+      // whether the preview iframe or one of its ancestors refuses the mouse.
+      const stack = await cp.evaluate((x, y) => {
+        const desc = (el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').slice(0, 2).join('.') : ''}`;
+        const chain = [];
+        for (let el = document.getElementById('live-preview-iframe'); el && el !== document.documentElement; el = el.parentElement) {
+          const cs = getComputedStyle(el);
+          if (cs.pointerEvents === 'none' || cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') chain.push(`${desc(el)}[pe=${cs.pointerEvents} vis=${cs.visibility} disp=${cs.display} op=${cs.opacity}]`);
+        }
+        return { at: document.elementsFromPoint(x, y).slice(0, 5).map(desc).join(' > '), refusing: chain.join(' ; ') || 'none' };
+      }, hit.x, hit.y);
+      console.log('DEBUG overlay hit stack at click:', stack.at, '| refusing the mouse:', stack.refusing);
+      const overlays = await page.evaluate(() => [...document.querySelectorAll('iframe.sve-edit-overlay')].map((el) => `${el.hasAttribute('data-open') ? 'open' : 'closed'} ${JSON.stringify(el.getBoundingClientRect()).slice(0, 80)} pe=${getComputedStyle(el).pointerEvents}`));
+      console.log('DEBUG mouse received by:', got.length ? got.join(' || ') : 'no frame');
+      console.log('DEBUG overlays:', overlays.join(' ; '));
+      console.log('DEBUG frames:', page.frames().map((f) => f.url().replace(SITE_URL, '').slice(0, 50)).join(' , '));
+    }
     const messages = await cp.evaluate(() => window.__sveSmokeSeen || []);
     // A preview click reaches cp.js as a 'click' message; it opens the focus
     // panel for that block (data-sve-focus-*) and/or marks the set as active.
@@ -170,11 +309,10 @@ try {
       active: document.querySelectorAll('[data-sve-active], [data-sve-solo-parent], [data-sve-solo-keep]').length,
       title: document.querySelector('[data-sve-focus-title]')?.textContent?.trim().slice(0, 40) || '',
     }));
-    // Informational for now: the bridge answers a plain click on section text
-    // with a hover message and holds the click; what a "focus" looks like in the
-    // CP depends on the panel mode. Recorded, not asserted, until that contract
-    // is written down (V2 protocol work).
-    info('preview click → CP', `bridge sent [${messages.join(' ')}]; focus-panel=${focused.focusPanel} active=${focused.active}; clicked at ${hit.x},${hit.y}`);
+    // The click must reach the CP as a `click` message — that is the one thing
+    // every click-to-focus feature hangs on. What the CP then shows (focus
+    // panel, lite pane, solo) depends on the panel mode and is only recorded.
+    step('preview click reaches the CP', messages.some((m) => /^click(?:[:/]|$)/.test(m)), `bridge sent [${messages.join(' ')}]; focus-panel=${focused.focusPanel} active=${focused.active}; clicked at ${hit.x},${hit.y} on ${hit.under}`);
     if (process.env.SVE_DEBUG) {
       // What the click did on each side — for when the assertion above needs re-thinking.
       const previewSide = await preview.evaluate((px, py) => {
@@ -223,6 +361,8 @@ try {
   report.ok = false;
 } finally {
   await browser.close();
+  await sleep(1500); // a debounced layout POST may still be landing on the server
+  seedLayoutPrefs(null); // leave the test account as it was found: no saved layout
 }
 
 if (report.worktree) step('working-tree build was what the CP loaded', /^[1-9]/.test(report.worktree()), report.worktree());
