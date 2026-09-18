@@ -29,6 +29,7 @@ import { collectAncestorSets, expandSet, findFieldElement, findSetByUid, handleF
 import { applyDeclaredDefaults, restoreDockedHeaderPanels, scheduleHtmlTreePrefetch } from './header-toolbar.js';
 import { tellPreviewWherePillIs } from './grid-rows.js';
 import { openOverlay } from '../cp.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== add-section =====
 // --- Add section ("+" in the preview) -------------------------------------------
@@ -1199,7 +1200,7 @@ export function handleAddBlockNative(data, doc, win) {
     if (frame?.contentWindow) {
       const forward = (extra = {}) =>
         frame.contentWindow.postMessage(
-          { ...data, ...extra, source: 'statamic-visual-editor', type: 'sve-section-add-block' },
+          { ...data, ...extra, source: SOURCE, type: MSG.SVE_SECTION_ADD_BLOCK },
           win.location.origin
         );
 
@@ -1830,11 +1831,11 @@ export function createMessageListener(doc = document, win = window) {
 
     const { data } = event;
 
-    if (!data || data.source !== 'statamic-visual-editor') {
+    if (!data || data.source !== SOURCE) {
       return;
     }
 
-    if (data.type === 'click') {
+    if (data.type === MSG.CLICK) {
       if (data.htmlPath) {
         ask('html-tree:from-preview', { path: data.htmlPath, src: data.componentSrc || '' });
 
@@ -1852,7 +1853,7 @@ export function createMessageListener(doc = document, win = window) {
       if (globalSectionEditorOpen(doc) && !data.global) {
         closeGlobalSectionPanel(win);
         previewFrame(doc)?.contentWindow?.postMessage(
-          { source: 'statamic-visual-editor', type: 'sve-force-exit-global' },
+          { source: SOURCE, type: MSG.SVE_FORCE_EXIT_GLOBAL },
           win.location.origin
         );
       }
@@ -1904,21 +1905,21 @@ export function createMessageListener(doc = document, win = window) {
           handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
         }
       }
-    } else if (data.type === 'edit-request') {
+    } else if (data.type === MSG.EDIT_REQUEST) {
       handleEditRequest(data, doc, win);
-    } else if (data.type === 'edit-input') {
+    } else if (data.type === MSG.EDIT_INPUT) {
       handleEditInput(data, doc);
-    } else if (data.type === 'edit-control') {
+    } else if (data.type === MSG.EDIT_CONTROL) {
       handleEditControl(data);
-    } else if (data.type === 'theme-swatches-request') {
+    } else if (data.type === MSG.THEME_SWATCHES_REQUEST) {
       handleThemeSwatchesRequest(data, win);
-    } else if (data.type === 'edit-end') {
+    } else if (data.type === MSG.EDIT_END) {
       handleEditEnd(data, win);
-    } else if (data.type === 'block-format') {
+    } else if (data.type === MSG.BLOCK_FORMAT) {
       handleBlockFormat(data, doc);
-    } else if (data.type === 'outline') {
+    } else if (data.type === MSG.OUTLINE) {
       handleOutline(data, win);
-    } else if (data.type === 'open-panel-field') {
+    } else if (data.type === MSG.OPEN_PANEL_FIELD) {
       // Pencil / "finish in panel": focus the field in the synced-section iframe
       // when that is the active editor — same path as a preview click.
       const iwin = globalSectionEditorWin(win);
@@ -1927,8 +1928,8 @@ export function createMessageListener(doc = document, win = window) {
         setLpCollapsed(win, false);
         iwin.postMessage(
           {
-            source: 'statamic-visual-editor',
-            type: 'sve-section-focus',
+            source: SOURCE,
+            type: MSG.SVE_SECTION_FOCUS,
             uid: editSession.scope || null,
             field: editSession.field,
           },
@@ -1939,7 +1940,7 @@ export function createMessageListener(doc = document, win = window) {
       }
 
       handleOpenPanelField(data, doc, win);
-    } else if (data.type === 'bard-command') {
+    } else if (data.type === MSG.BARD_COMMAND) {
       const idoc = globalSectionEditorDoc(doc);
 
       if (idoc && editSession?.container?.name === 'sve-global-section') {
@@ -1947,15 +1948,15 @@ export function createMessageListener(doc = document, win = window) {
       } else {
         handleBardCommand(data, doc, win);
       }
-    } else if (data.type === 'asset-edit') {
+    } else if (data.type === MSG.ASSET_EDIT) {
       const idoc = globalSectionEditorDoc(doc);
 
       handleAssetEdit(data, idoc || doc);
-    } else if (data.type === 'icon-edit') {
+    } else if (data.type === MSG.ICON_EDIT) {
       const idoc = globalSectionEditorDoc(doc);
 
       handleIconEdit(data, idoc || doc, win);
-    } else if (data.type === 'link-edit') {
+    } else if (data.type === MSG.LINK_EDIT) {
       const idoc = globalSectionEditorDoc(doc);
       const iwin = globalSectionEditorWin(win);
 
@@ -1964,50 +1965,50 @@ export function createMessageListener(doc = document, win = window) {
       } else {
         handleLinkEdit(data, doc, win);
       }
-    } else if (data.type === 'move') {
+    } else if (data.type === MSG.MOVE) {
       handleMove(data, doc);
-    } else if (data.type === 'add-set') {
+    } else if (data.type === MSG.ADD_SET) {
       handleAddSet(data, doc, win);
-    } else if (data.type === 'cb-col-width') {
+    } else if (data.type === MSG.CB_COL_WIDTH) {
       handleColumnWidth(data, doc);
-    } else if (data.type === 'sve-grid-span') {
+    } else if (data.type === MSG.SVE_GRID_SPAN) {
       handleGridSpan(data, doc, win);
-    } else if (data.type === 'open-component') {
+    } else if (data.type === MSG.OPEN_COMPONENT) {
       // The dock is open whenever the preview knows about components at all —
       // the map is only sent while a template is loaded.
       ask('dock:open-template', `view:partials/${data.src}`);
-    } else if (data.type === 'open-global') {
+    } else if (data.type === MSG.OPEN_GLOBAL) {
       handleOpenGlobal(data, doc, win);
-    } else if (data.type === 'open-chrome') {
+    } else if (data.type === MSG.OPEN_CHROME) {
       handleOpenChrome(data, doc, win);
-    } else if (data.type === 'open-chrome-designs') {
+    } else if (data.type === MSG.OPEN_CHROME_DESIGNS) {
       setChromeSidebarMode(win, 'design');
-    } else if (data.type === 'open-chrome-settings') {
+    } else if (data.type === MSG.OPEN_CHROME_SETTINGS) {
       setChromeSidebarMode(win, 'settings');
-    } else if (data.type === 'close-chrome') {
+    } else if (data.type === MSG.CLOSE_CHROME) {
       // Stepping out of header/footer (e.g. clicking a page section): free the
       // left edge so the section editor isn't stacked under Theme Settings.
       dismissChromeForPageEdit(win);
-    } else if (data.type === 'request-close-chrome') {
+    } else if (data.type === MSG.REQUEST_CLOSE_CHROME) {
       handleRequestCloseChrome(win);
-    } else if (data.type === 'sve-chrome-dirty-query') {
+    } else if (data.type === MSG.SVE_CHROME_DIRTY_QUERY) {
       notifyChromeDirty(win);
-    } else if (data.type === 'save-chrome') {
+    } else if (data.type === MSG.SAVE_CHROME) {
       // The bar's Save, driving whichever form is actually holding the edits.
       // Sent straight to the panel iframe, it went to Theme Settings as the
       // background prefetch had loaded it — a form that had never seen the edit
       // — and saved that instead.
       saveGlobalsPanel(win, () => {});
-    } else if (data.type === 'add-row') {
+    } else if (data.type === MSG.ADD_ROW) {
       handleAddRow(data, doc, win);
-    } else if (data.type === 'add-block-native') {
+    } else if (data.type === MSG.ADD_BLOCK_NATIVE) {
       // Preview "+": open Statamic's real SetPicker, pin list under the plus.
       handleAddBlockNative(data, doc, win);
-    } else if (data.type === 'add-bard-set-native') {
+    } else if (data.type === MSG.ADD_BARD_SET_NATIVE) {
       handleAddBardSetNative(data, doc, win);
-    } else if (data.type === 'insert-bard-set') {
+    } else if (data.type === MSG.INSERT_BARD_SET) {
       handleInsertBardSet(data, doc, win);
-    } else if (data.type === 'remove-row') {
+    } else if (data.type === MSG.REMOVE_ROW) {
       // A section is asked about first. It takes one click to remove and holds
       // everything inside it, and the page it leaves behind looks like a page
       // that was always that way — there is nothing on screen to tell you what
@@ -2026,60 +2027,60 @@ export function createMessageListener(doc = document, win = window) {
       } else {
         handleRemoveRow(data, doc, win);
       }
-    } else if (data.type === 'duplicate-row') {
+    } else if (data.type === MSG.DUPLICATE_ROW) {
       handleDuplicateRow(data, doc, win);
-    } else if (data.type === 'hide-row') {
+    } else if (data.type === MSG.HIDE_ROW) {
       handleHideRow(data, doc, win);
-    } else if (data.type === 'row-caps') {
+    } else if (data.type === MSG.ROW_CAPS) {
       handleRowCaps(data, doc, win);
-    } else if (data.type === 'open-global-section') {
+    } else if (data.type === MSG.OPEN_GLOBAL_SECTION) {
       handleOpenGlobalSection(data, win);
-    } else if (data.type === 'ai-text-hello') {
+    } else if (data.type === MSG.AI_TEXT_HELLO) {
       syncAiTextToPreview(win);
-    } else if (data.type === 'ai-text-open') {
+    } else if (data.type === MSG.AI_TEXT_OPEN) {
       handleAiTextOpen(data, doc, win);
-    } else if (data.type === 'ai-text-generate') {
+    } else if (data.type === MSG.AI_TEXT_GENERATE) {
       handleAiTextGenerate(data, doc, win);
-    } else if (data.type === 'ai-text-apply') {
+    } else if (data.type === MSG.AI_TEXT_APPLY) {
       handleAiTextApply(data, doc, win);
-    } else if (data.type === 'ai-text-set-keywords') {
+    } else if (data.type === MSG.AI_TEXT_SET_KEYWORDS) {
       handleAiTextSetKeywords(data, doc, win);
-    } else if (data.type === 'sve-pill-box-request') {
+    } else if (data.type === MSG.SVE_PILL_BOX_REQUEST) {
       const pill = doc.getElementById(LP_BACK_ID);
 
       if (pill) {
         tellPreviewWherePillIs(win, pill);
       }
-        } else if (data.type === 'close-global-section') {
+        } else if (data.type === MSG.CLOSE_GLOBAL_SECTION) {
       closeGlobalSectionPanel(win);
-    } else if (data.type === 'request-close-global') {
+    } else if (data.type === MSG.REQUEST_CLOSE_GLOBAL) {
       handleRequestCloseGlobal(win);
-    } else if (data.type === 'sve-global-dirty-query') {
+    } else if (data.type === MSG.SVE_GLOBAL_DIRTY_QUERY) {
       notifyGlobalSectionDirty(win);
-    } else if (data.type === 'save-global-section') {
+    } else if (data.type === MSG.SAVE_GLOBAL_SECTION) {
       // The bar's Save, driving the entry form's real one — wherever it lives.
       saveGlobalSectionPanel(win, () => {});
-    } else if (data.type === 'section-settings') {
+    } else if (data.type === MSG.SECTION_SETTINGS) {
       handleSectionSettings(data, doc, win);
-    } else if (data.type === 'save-section') {
+    } else if (data.type === MSG.SAVE_SECTION) {
       handleSaveSection(data, doc, win);
-    } else if (data.type === 'ext-drop') {
+    } else if (data.type === MSG.EXT_DROP) {
       // A section dragged in from the library was released — insert it where the
       // preview's drop line ended up (data.afterUid, null = at the top).
       if (sveState.libraryDrag) {
         insertSection(win, doc, data.afterUid ?? null, sveState.libraryDrag.kind, sveState.libraryDrag.item);
         sveState.libraryDrag = null;
       }
-    } else if (data.type === 'cb-add-column') {
+    } else if (data.type === MSG.CB_ADD_COLUMN) {
       handleAddColumn(data, doc, win);
-    } else if (data.type === 'popup') {
+    } else if (data.type === MSG.POPUP) {
       // A column popup is opening (the column-builder addon handles that) —
       // expand and scroll the publish form to the containing section, so the
       // form behind the popup shows where you are when it closes again.
       if (data.sectionUid) {
         handleFocus(data.sectionUid, doc);
       }
-    } else if (data.type === 'hover') {
+    } else if (data.type === MSG.HOVER) {
       if (data.field || ('field' in data && !data.uid)) {
         handleFieldHover(data.field || null, doc, data.scope);
       } else {
@@ -2786,7 +2787,7 @@ export function postToHost(win, type, data = {}) {
 
   try {
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type, ...data },
+      { source: SOURCE, type, ...data },
       win.location.origin
     );
   } catch {

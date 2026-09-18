@@ -44,6 +44,7 @@ import { focusBack, focusFromPreview, focusRowMeta, gridMeta, paintFocusHeader, 
 import { closeRightPanels, globalSectionSet, handleDuplicateRow, handleHideRow, handleRemoveRow, mountSectionPicker, placeGlobalsOverlay, rowLocation, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { handleMove } from './inline-edit.js';
 import { fillOutlinePane, showOutlinePane, watchOutlineInPreview } from './lazy/outline.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== listview =====
 // --- Block tree panel ("List View") ---------------------------------------------
@@ -956,8 +957,8 @@ export function beginListViewRename(win, rowEl, item) {
       writeRowLabel(win, item.uid, stored);
       sendToPreview(
         {
-          source: 'statamic-visual-editor',
-          type: 'sve-row-label',
+          source: SOURCE,
+          type: MSG.SVE_ROW_LABEL,
           ids: item.ids,
           label: stored || fallback,
         },
@@ -1496,7 +1497,7 @@ export function renderListView(win) {
     listViewRevealPath(item);
     renderListView(win);
     focusFromPreview(item.uid, doc, win, { clampToSection: true });
-    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-activate', ids: item.ids }, win);
+    sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: item.ids }, win);
   };
   listViewUi.onRename = (uid, event) => {
     const item = findItem(uid);

@@ -23,6 +23,7 @@
  */
 import { fetchNestedSetMeta, fetchSetMeta, globalSectionSet } from '../section-library.js';
 import { mark } from '../lib/debug.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 mark('section-meta-prefetch');
 
@@ -379,11 +380,11 @@ document.addEventListener(
 window.addEventListener('message', (event) => {
   const data = event.data;
 
-  if (data?.source !== 'statamic-visual-editor') {
+  if (data?.source !== SOURCE) {
     return;
   }
 
-  if (data.type === 'add-block-native' || data.type === 'add-bard-set-native') {
+  if (data.type === MSG.ADD_BLOCK_NATIVE || data.type === MSG.ADD_BARD_SET_NATIVE) {
     rememberPicker(data);
   }
 });

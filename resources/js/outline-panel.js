@@ -27,6 +27,7 @@ import { activeContainers } from './lib/publish-containers.js';
 import { autoOpenPanel, persistDockedPanel } from './lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn } from './focus-panel.js';
 import { closeRightPanels, syncPreviewInset } from './section-library.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== outline =====
 // --- Heading outline panel ------------------------------------------------------
@@ -64,7 +65,7 @@ export function outlinePanel(doc) {
 /** Ask the preview to start (or stop) reporting its headings. */
 export function watchOutlineInPreview(win, on) {
   outlineWatching = !!on;
-  sendToPreview({ source: 'statamic-visual-editor', type: 'outline-watch', on }, win);
+  sendToPreview({ source: SOURCE, type: MSG.OUTLINE_WATCH, on }, win);
 }
 
 /**
@@ -609,7 +610,7 @@ export function renderOutline(win) {
  * a click meant "take me there" would be the opposite of what was asked.
  */
 export function jumpToOutlineEntry(win, index, item) {
-  sendToPreview({ source: 'statamic-visual-editor', type: 'outline-focus', index }, win);
+  sendToPreview({ source: SOURCE, type: MSG.OUTLINE_FOCUS, index }, win);
 
   outlineActive = index;
   outlineUi.rows.forEach((row) => {

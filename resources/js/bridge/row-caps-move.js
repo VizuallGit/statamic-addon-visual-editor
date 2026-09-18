@@ -4,6 +4,7 @@
  */
 import { bridgeState } from '../bridge/state.js';
 import { SECTION_ORDERABLE_ATTR } from '../bridge.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== row-caps-move =====
 /** Greys out (or restores) a +/− button, and blocks its click while disabled. */
@@ -68,7 +69,7 @@ export function requestRowCaps(win, uid) {
     };
 
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'row-caps', uid },
+      { source: SOURCE, type: MSG.ROW_CAPS, uid },
       win.location.origin
     );
   });

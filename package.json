@@ -5,7 +5,7 @@
     "dev": "vite",
     "build": "vite build",
     "cp:build": "vite build && node scripts/prune-dist.mjs",
-    "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs",
+    "isolate": "node scripts/assert-isolation.mjs && node scripts/assert-dist-integrity.mjs && node scripts/assert-protocol.mjs",
     "test": "node --test \"tests/js/**/*.test.js\"",
     "check": "npm run isolate && npm test",
     "test:browser": "node tests/browser/live-preview-smoke.mjs",

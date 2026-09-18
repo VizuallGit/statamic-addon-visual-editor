@@ -29,6 +29,7 @@ import { applySectionValues } from './chrome.js';
 import { dockedPanelTop } from './lazy/listview.js';
 import { editSession } from './inline-edit.js';
 import { ask } from './cp/bus.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -144,8 +145,8 @@ export function forwardGlobalSectionFocus(data, doc, win) {
     sveState.pendingFocusUntilPanel = null;
     frame.contentWindow.postMessage(
       {
-        source: 'statamic-visual-editor',
-        type: 'sve-section-focus',
+        source: SOURCE,
+        type: MSG.SVE_SECTION_FOCUS,
         uid: data.scope || data.uid,
         field: data.field || null,
       },
@@ -177,8 +178,8 @@ export function flushPendingFocusUntilPanel(win) {
   sveState.pendingFocusUntilPanel = null;
   frame.contentWindow.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-section-focus',
+      source: SOURCE,
+      type: MSG.SVE_SECTION_FOCUS,
       uid,
       field,
     },
@@ -254,7 +255,7 @@ export function sectionPanelContainer(doc) {
     values: sveState.sectionPanelValues.values,
     setFieldValue: (path, value) => {
       frame.contentWindow.postMessage(
-        { source: 'statamic-visual-editor', type: 'sve-section-set-value', path, value },
+        { source: SOURCE, type: MSG.SVE_SECTION_SET_VALUE, path, value },
         win.location.origin
       );
     },
@@ -413,7 +414,7 @@ export function saveGlobalSectionPanel(win, done) {
   }
 
   iwin.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+    { source: SOURCE, type: MSG.SVE_GLOBALS_SAVE },
     win.location.origin
   );
 }
@@ -442,7 +443,7 @@ export function announceSectionSave(parentWin, ok, frame = null) {
     if (frame) {
       try {
         frame.postMessage(
-          { source: 'statamic-visual-editor', type: 'sve-globals-saved' },
+          { source: SOURCE, type: MSG.SVE_GLOBALS_SAVED },
           parentWin.location.origin
         );
       } catch {
@@ -698,7 +699,7 @@ export function openGlobalSectionPanelFrame(win, id) {
       doc
         .getElementById(GLOBAL_SECTION_PANEL_ID)
         ?.querySelector('iframe')
-        ?.contentWindow?.postMessage({ source: 'statamic-visual-editor', type: 'sve-globals-save' }, win.location.origin);
+        ?.contentWindow?.postMessage({ source: SOURCE, type: MSG.SVE_GLOBALS_SAVE }, win.location.origin);
     });
     bar.appendChild(save);
   }

@@ -5,6 +5,7 @@
 import { bridgeState } from '../bridge/state.js';
 import { featureOn, t } from '../bridge.js';
 import { CHROME_ATTR, CHROME_BAR_ID, CHROME_FOCUS_ATTR, cpDialogTheme, exitGlobalFocus, showPreviewConfirm, sveFocusBarStyle, svePrimaryBtn, sveSecondaryBtn } from './global-sections.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== header-footer =====
 /**
@@ -153,7 +154,7 @@ export function exitChromeFocus(win, closePanel = true) {
   }
 
   if (wasFocused && closePanel) {
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'close-chrome' }, win.location.origin);
+    win.parent.postMessage({ source: SOURCE, type: MSG.CLOSE_CHROME }, win.location.origin);
   }
 }
 
@@ -184,10 +185,10 @@ function enterChromeFocus(win, el, reopen = true) {
   mountChromeBar(win, kind);
 
   if (reopen) {
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'open-chrome', kind }, win.location.origin);
+    win.parent.postMessage({ source: SOURCE, type: MSG.OPEN_CHROME, kind }, win.location.origin);
   }
 
-  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'sve-chrome-dirty-query' }, win.location.origin);
+  win.parent.postMessage({ source: SOURCE, type: MSG.SVE_CHROME_DIRTY_QUERY }, win.location.origin);
 }
 
 let chromeSaveBtn = null;
@@ -207,7 +208,7 @@ export function setChromeDirtyUI(dirty) {
 }
 
 export function requestCloseChrome(win) {
-  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'request-close-chrome' }, win.location.origin);
+  win.parent.postMessage({ source: SOURCE, type: MSG.REQUEST_CLOSE_CHROME }, win.location.origin);
 }
 
 /**
@@ -271,7 +272,7 @@ function mountChromeBar(win, kind) {
   chromeSaveBtn.style.display = chromeDirty ? '' : 'none';
   chromeSaveBtn.addEventListener('click', (event) => {
     event.stopPropagation();
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'save-chrome' }, win.location.origin);
+    win.parent.postMessage({ source: SOURCE, type: MSG.SAVE_CHROME }, win.location.origin);
   });
 
   barButton(t('close'), sveSecondaryBtn(theme, { compact: true })).addEventListener('click', (event) => {

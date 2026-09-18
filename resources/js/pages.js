@@ -25,6 +25,7 @@ import { dismissChromeForPageEdit, isGlobalsOverlayOpen } from './section-librar
 import { discardGlobalsChanges, hasUnsavedGlobals, hasUnsavedWork, parkGlobalsPanel, saveGlobalsPanel } from './globals-panel.js';
 import { clearSectionsStash, closeGlobalSectionPanel, hasUnsavedGlobalSection, saveGlobalSectionPanel } from './global-section.js';
 import { discardChanges, dismissDirtyWarning, hasUnsavedChanges, leaveQuietly, onEntrySave, saveButtonIn } from './open-in-preview.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 async function gotoOverlay(win, url) {
   const overlay = await import('./overlay-host.js');
@@ -347,7 +348,7 @@ export function handleRequestCloseChrome(win) {
     // on this deliberate exit: stepping sideways into a page section goes
     // through dismissChromeForPageEdit alone and leaves the drawer alone.
     parkGlobalsPanel(win);
-    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
+    sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
   };
 
   if (!hasUnsavedGlobals(win)) {
@@ -379,7 +380,7 @@ export function handleRequestCloseChrome(win) {
 export function handleRequestCloseGlobal(win) {
   const finish = () => {
     closeGlobalSectionPanel(win);
-    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
+    sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_GLOBAL }, win);
   };
 
   if (!hasUnsavedGlobalSection(win)) {
@@ -565,7 +566,7 @@ export function navigateFromLp(win, anchor, url, onCancel = () => {}) {
           return;
         }
 
-        if (event.data?.source !== 'statamic-visual-editor' || event.data.type !== 'lp-goto-failed') {
+        if (event.data?.source !== SOURCE || event.data.type !== MSG.LP_GOTO_FAILED) {
           return;
         }
 

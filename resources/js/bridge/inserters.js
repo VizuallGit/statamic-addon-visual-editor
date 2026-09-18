@@ -7,6 +7,7 @@ import { INSERT_AFTER_GAP, INSERT_ATTR, INSERT_LAYER_ID, initBridge } from './ou
 import { GLOBAL_ATTR, GLOBAL_FOCUS_ATTR } from './row-toolbar.js';
 import { SID_ATTR, SID_FIELD_ATTR } from '../bridge.js';
 import { GRID_ATTR, ORDERABLE_ATTR } from './grid.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== inserters =====
 function collectSidFieldDefaults(root) {
@@ -355,8 +356,8 @@ function buildInserter(win, opts) {
     const send = (extra = {}) =>
       win.parent.postMessage(
         {
-          source: 'statamic-visual-editor',
-          type: 'add-block-native',
+          source: SOURCE,
+          type: MSG.ADD_BLOCK_NATIVE,
           anchorUid: opts.block
             ? opts.block.getAttribute(SID_ATTR) || opts.block.getAttribute('data-sid-field-uid')
             : null,

@@ -13,6 +13,7 @@ import { blockHolding, createEditToolbar, hoverBeltEl, pointerInHoverBeltGap } f
 import { ORDERABLE_ATTR, hideColumnChrome, maybeShowColumnChrome, toneOutlineContainer, widthDrag } from './grid.js';
 import { INSERT_ATTR } from './outline-nav.js';
 import { resolveSidTarget } from './sid-targets.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== editing =====
 /** Handles an edit-start reply: turns the target element contenteditable. */
@@ -95,7 +96,7 @@ export function startEditing(win, data) {
           // The DOM doesn't line up with the stored nodes (modifier output,
           // restructured markup) — abort rather than guess; the CP rolls back.
           win.parent.postMessage(
-            { source: 'statamic-visual-editor', type: 'edit-end', requestId: data.requestId, cancelled: true },
+            { source: SOURCE, type: MSG.EDIT_END, requestId: data.requestId, cancelled: true },
             win.location.origin
           );
 
@@ -395,8 +396,8 @@ export function finishEditing(win, cancelled) {
 
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'edit-end',
+      source: SOURCE,
+      type: MSG.EDIT_END,
       requestId: session.requestId,
       cancelled: !!cancelled,
     },

@@ -38,6 +38,7 @@ import { t } from '../lib/i18n.js';
 import { injectStyle } from '../lib/style.js';
 import { featureOn } from '../lib/config.js';
 import { mark } from '../lib/debug.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
     var PRELOAD_FIRST_SECTION = false;
@@ -2372,7 +2373,7 @@ import { mark } from '../lib/debug.js';
 
                 preview = doc.getElementById('live-preview-iframe');
 
-                if (!preview || !data || data.source !== 'statamic-visual-editor') {
+                if (!preview || !data || data.source !== SOURCE) {
                     return;
                 }
 
@@ -2383,13 +2384,13 @@ import { mark } from '../lib/debug.js';
                 uid = data.scope || data.uid;
                 section = sectionUidFor(uid);
 
-                if (data.type === 'hover') {
+                if (data.type === MSG.HOVER) {
                     scheduleLiteHover(uid, doc, window);
 
                     return;
                 }
 
-                if (data.type !== 'click') {
+                if (data.type !== MSG.CLICK) {
                     return;
                 }
 

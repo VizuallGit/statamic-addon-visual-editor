@@ -22,6 +22,7 @@ import { initOpenInPreview, watchEntrySaves } from '../open-in-preview.js';
 import { CP_STYLES, armSetPickerSearchSilence, autoOpenLivePreview, createMessageListener, findPrecedingBardSetNode, getUidFromSet, interceptLivePreviewOpen, isEmbeddedInSite, previewPainted, sendToPreview } from './add-section.js';
 import { applyHeaderTab, scheduleHtmlTreePrefetch } from './header-toolbar.js';
 import { handleFieldFocus, isSetCollapsed } from './sets.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== boot =====
 // --- Asset browser: hard-enforce the field's file limit --------------------------
@@ -412,7 +413,7 @@ export function initCp(win = window) {
           const ownerSet = fieldWrapper.closest(SELECTORS.anySet);
           const scope = ownerSet ? getUidFromSet(ownerSet) : undefined;
 
-          sendToPreview({ source: 'statamic-visual-editor', type: 'hover', field: fieldKey, scope: scope || undefined }, win);
+          sendToPreview({ source: SOURCE, type: MSG.HOVER, field: fieldKey, scope: scope || undefined }, win);
         }
 
         return;
@@ -420,7 +421,7 @@ export function initCp(win = window) {
 
       if (lastCpHoverUid !== null) {
         lastCpHoverUid = null;
-        sendToPreview({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win);
+        sendToPreview({ source: SOURCE, type: MSG.HOVER, uid: null }, win);
       }
 
       return;
@@ -452,7 +453,7 @@ export function initCp(win = window) {
       }
 
       lastCpHoverUid = hoverKey;
-      sendToPreview({ source: 'statamic-visual-editor', type: 'hover', uid, afterSetUid }, win);
+      sendToPreview({ source: SOURCE, type: MSG.HOVER, uid, afterSetUid }, win);
 
       return;
     }
@@ -462,7 +463,7 @@ export function initCp(win = window) {
     }
 
     lastCpHoverUid = uid;
-    sendToPreview({ source: 'statamic-visual-editor', type: 'hover', uid }, win);
+    sendToPreview({ source: SOURCE, type: MSG.HOVER, uid }, win);
   };
 
   // CP → iframe: clicking anywhere inside a set focuses the corresponding element in the preview.
@@ -489,7 +490,7 @@ export function initCp(win = window) {
           // outline) and notify the preview to highlight the matching element.
           // No pulse here — the pulse is a cross-boundary signal, not a local one.
           handleFieldFocus(fieldKey, win.document, { animate: false });
-          sendToPreview({ source: 'statamic-visual-editor', type: 'focus', field: fieldKey, scope: scope || undefined }, win);
+          sendToPreview({ source: SOURCE, type: MSG.FOCUS, field: fieldKey, scope: scope || undefined }, win);
 
           return;
         }
@@ -509,7 +510,7 @@ export function initCp(win = window) {
       return;
     }
 
-    const message = { source: 'statamic-visual-editor', type: 'focus', uid };
+    const message = { source: SOURCE, type: MSG.FOCUS, uid };
 
     // When clicking plain text inside a Bard contenteditable, include afterSetUid
     // so the preview can highlight the correct text group.

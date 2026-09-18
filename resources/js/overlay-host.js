@@ -9,7 +9,8 @@
  * once it has painted. Close just lifts the overlay.
  */
 
-const SOURCE = 'statamic-visual-editor';
+import { MSG, SOURCE } from './lib/protocol.js';
+
 const STYLE_ID = 'sve-overlay-host-styles';
 const LOADING_ID = 'sve-overlay-loading';
 const PREVIEW_LOADING_ID = 'sve-preview-loading';
@@ -171,7 +172,7 @@ function guardHostReload(win, isOpen) {
           return;
         }
 
-        if (data?.type === 'full-reload') {
+        if (data?.type === MSG.FULL_RELOAD) {
           event.stopImmediatePropagation();
         }
       },
@@ -694,7 +695,7 @@ function createHost(win) {
       }
     }
 
-    if (data.type === 'lp-goto') {
+    if (data.type === MSG.LP_GOTO) {
       let url;
 
       try {
@@ -710,7 +711,7 @@ function createHost(win) {
       return;
     }
 
-    if (data.type === 'lp-ready') {
+    if (data.type === MSG.LP_READY) {
       if (from === 'next') {
         win.clearTimeout(nextTimer);
         win.clearTimeout(swapTimer);
@@ -740,15 +741,15 @@ function createHost(win) {
       return;
     }
 
-    if (data.type === 'lp-saved') {
+    if (data.type === MSG.LP_SAVED) {
       saved = true;
-    } else if (data.type === 'lp-leaving') {
+    } else if (data.type === MSG.LP_LEAVING) {
       try {
         win.sessionStorage.setItem('sve-noanim', '1');
       } catch {
         /* ignore */
       }
-    } else if (data.type === 'lp-close') {
+    } else if (data.type === MSG.LP_CLOSE) {
       close(false, data.url);
     }
   });
@@ -798,7 +799,7 @@ export function openOverlay(win, url) {
 export function gotoOverlay(win, url) {
   if (isEmbedded(win)) {
     try {
-      win.parent.postMessage({ source: SOURCE, type: 'lp-goto', url }, win.location.origin);
+      win.parent.postMessage({ source: SOURCE, type: MSG.LP_GOTO, url }, win.location.origin);
     } catch {
       /* host went away */
     }

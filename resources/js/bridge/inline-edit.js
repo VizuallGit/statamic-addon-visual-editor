@@ -7,6 +7,7 @@ import { EDITING_ATTR, EDIT_REQUEST_TIMEOUT, SID_ATTR, SID_FIELD_ATTR, featureOn
 import { normText } from './messages.js';
 import { finishEditing } from './editing.js';
 import { applyOutlineTone } from './drag.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== inline-edit =====
 /**
@@ -193,8 +194,8 @@ export function requestInlineEdit(win, wrapper, event, options = {}) {
 
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'edit-request',
+      source: SOURCE,
+      type: MSG.EDIT_REQUEST,
       requestId,
       field: wrapper.getAttribute(SID_FIELD_ATTR),
       scope: wrapper.getAttribute('data-sid-field-uid') || undefined,
@@ -498,8 +499,8 @@ function openNativeBardSetPicker(win, session, btn) {
   const index = bardFieldChildIndex(session.el, block);
   const r = (btn || session.setInserterEl?.__btn)?.getBoundingClientRect?.() || block.getBoundingClientRect();
   const payload = {
-    source: 'statamic-visual-editor',
-    type: 'add-bard-set-native',
+    source: SOURCE,
+    type: MSG.ADD_BARD_SET_NATIVE,
     field: session.field,
     scope: session.scope || null,
     index: index < 0 ? null : index,
@@ -537,8 +538,8 @@ export function sendEditInput(win, session) {
 
       win.parent.postMessage(
         {
-          source: 'statamic-visual-editor',
-          type: 'edit-input',
+          source: SOURCE,
+          type: MSG.EDIT_INPUT,
           requestId: session.requestId,
           blocks: [{ kind: 'paragraph', level: null, className: null, html }],
           spanClasses: session.spanClasses,
@@ -652,8 +653,8 @@ export function sendEditInput(win, session) {
 
     win.parent.postMessage(
       {
-        source: 'statamic-visual-editor',
-        type: 'edit-input',
+        source: SOURCE,
+        type: MSG.EDIT_INPUT,
         requestId: session.requestId,
         blocks,
         spanClasses: session.spanClasses,
@@ -666,8 +667,8 @@ export function sendEditInput(win, session) {
 
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'edit-input',
+      source: SOURCE,
+      type: MSG.EDIT_INPUT,
       requestId: session.requestId,
       // textContent (not innerText): innerText follows CSS text-transform and
       // would sync UPPERCASE titles into the CP form.
@@ -1031,8 +1032,8 @@ function fetchThemeSwatches(win) {
       const data = event.data;
 
       if (
-        data?.source === 'statamic-visual-editor' &&
-        data.type === 'theme-swatches' &&
+        data?.source === SOURCE &&
+        data.type === MSG.THEME_SWATCHES &&
         data.requestId === requestId
       ) {
         finish(data.swatches);
@@ -1041,7 +1042,7 @@ function fetchThemeSwatches(win) {
 
     win.addEventListener('message', onMessage);
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'theme-swatches-request', requestId },
+      { source: SOURCE, type: MSG.THEME_SWATCHES_REQUEST, requestId },
       '*'
     );
     win.setTimeout(() => finish([]), 4000);
@@ -1202,8 +1203,8 @@ export function applyHighlightColor(win, session, control, value) {
 
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'edit-input',
+      source: SOURCE,
+      type: MSG.EDIT_INPUT,
       requestId: session.requestId,
       text: bracedText,
       html: session.el.innerHTML,
@@ -1213,8 +1214,8 @@ export function applyHighlightColor(win, session, control, value) {
 
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'edit-control',
+      source: SOURCE,
+      type: MSG.EDIT_CONTROL,
       requestId: session.requestId,
       handle: control.handle,
       value,
@@ -1495,8 +1496,8 @@ export function applyBlockFormat(win, session, spec) {
   session.dirty = true;
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'block-format',
+      source: SOURCE,
+      type: MSG.BLOCK_FORMAT,
       requestId: session.requestId,
       node: spec.node,
       level: spec.level ?? null,
@@ -1515,7 +1516,7 @@ export function applyBlockFormat(win, session, spec) {
  */
 function openPanelTool(win, session) {
   win.parent.postMessage(
-    { source: 'statamic-visual-editor', type: 'open-panel-field', requestId: session.requestId },
+    { source: SOURCE, type: MSG.OPEN_PANEL_FIELD, requestId: session.requestId },
     win.location.origin
   );
   finishEditing(win, false);
@@ -1590,8 +1591,8 @@ export function bardCommand(win, session, command) {
 
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'bard-command',
+      source: SOURCE,
+      type: MSG.BARD_COMMAND,
       requestId: session.requestId,
       command,
       from,
@@ -2122,8 +2123,8 @@ export function applyControlValue(win, session, control, value) {
   // the size/font_tag write is dropped.
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'edit-control',
+      source: SOURCE,
+      type: MSG.EDIT_CONTROL,
       requestId,
       handle: control.handle,
       value,

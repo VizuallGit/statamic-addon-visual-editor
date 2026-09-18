@@ -31,6 +31,7 @@ import { pageEditsOpen, togglePageEdits } from '../lazy/page-activity.js';
 import { closeSchema, isSchemaOpen, schemaAllowed, toggleSchema } from '../lazy/schema.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
 import { sendToPreview } from './add-section.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== header-toolbar =====
 // --- Header toolbar: one control at a time -------------------------------------
@@ -1373,8 +1374,8 @@ export function toggleHeaderTab(win, key) {
       if (isSectionLibraryLocked(win)) {
         dismissChromeForPageEdit(win);
         closeGlobalSectionPanel(win);
-        sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-chrome' }, win);
-        sendToPreview({ source: 'statamic-visual-editor', type: 'sve-force-exit-global' }, win);
+        sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
+        sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_GLOBAL }, win);
         syncSectionLibraryAvailability(win);
       }
 

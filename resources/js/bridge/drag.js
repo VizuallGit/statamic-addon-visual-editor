@@ -10,6 +10,7 @@ import { SECTION_ORDERABLE_ATTR, SID_ATTR, t } from '../bridge.js';
 import { BLOCK_CTRL_LAYOUT, hideMoveControl, positionMoveControl } from './row-caps-move.js';
 import { ICONS, detectCpDark, toolbarThemeFor } from './inline-edit.js';
 import { sidTemplatePayload } from './inserters.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== drag =====
 export function orderablePeers(el) {
@@ -532,7 +533,7 @@ export function createDragPointerUp(win) {
     }
 
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'move', uid, toIndex: to },
+      { source: SOURCE, type: MSG.MOVE, uid, toIndex: to },
       win.location.origin
     );
   };
@@ -656,7 +657,7 @@ export function showMoveControl(win, moveEl) {
       e.preventDefault();
       e.stopPropagation();
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'move', uid, direction },
+        { source: SOURCE, type: MSG.MOVE, uid, direction },
         win.location.origin
       );
     });
@@ -759,7 +760,7 @@ export function showMoveControl(win, moveEl) {
         }
 
         win.parent.postMessage(
-          { source: 'statamic-visual-editor', type, uid, ...(extra || {}) },
+          { source: SOURCE, type, uid, ...(extra || {}) },
           win.location.origin
         );
         hideMoveControl(win);
@@ -785,7 +786,7 @@ export function showMoveControl(win, moveEl) {
       const removeBtn = rowButton(ICONS.trash, t('remove_this'), 'remove-row', '', true);
 
       bridgeState.moveCtrlRowButtons = { uid, addBtn: dupBtn, removeBtn };
-      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+      win.parent.postMessage({ source: SOURCE, type: MSG.ROW_CAPS, uid }, win.location.origin);
     } else {
       const addBtn = rowButton('+', t('add_another'), 'add-row', '', false, sidTemplatePayload(moveEl));
       // Taking away the last row leaves the block holding this field with
@@ -796,7 +797,7 @@ export function showMoveControl(win, moveEl) {
       });
 
       bridgeState.moveCtrlRowButtons = { uid, addBtn, removeBtn };
-      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+      win.parent.postMessage({ source: SOURCE, type: MSG.ROW_CAPS, uid }, win.location.origin);
     }
   }
 
@@ -817,7 +818,7 @@ export function showMoveControl(win, moveEl) {
       e.preventDefault();
       e.stopPropagation();
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'save-section', uid },
+        { source: SOURCE, type: MSG.SAVE_SECTION, uid },
         win.location.origin
       );
       hideMoveControl(win);
@@ -843,7 +844,7 @@ export function showMoveControl(win, moveEl) {
       e.preventDefault();
       e.stopPropagation();
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'add-set', uid },
+        { source: SOURCE, type: MSG.ADD_SET, uid },
         win.location.origin
       );
     });
@@ -867,7 +868,7 @@ export function showMoveControl(win, moveEl) {
       e.preventDefault();
       e.stopPropagation();
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'duplicate-row', uid },
+        { source: SOURCE, type: MSG.DUPLICATE_ROW, uid },
         win.location.origin
       );
       hideMoveControl(win);
@@ -902,7 +903,7 @@ export function showMoveControl(win, moveEl) {
       }
 
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'remove-row', uid, confirm: true },
+        { source: SOURCE, type: MSG.REMOVE_ROW, uid, confirm: true },
         win.location.origin
       );
       hideMoveControl(win);
@@ -913,7 +914,7 @@ export function showMoveControl(win, moveEl) {
     // Ask the CP whether page_sections is at its min, so the button greys out
     // instead of silently doing nothing — same as the orderable rows'.
     bridgeState.moveCtrlRowButtons = { uid, addBtn: null, removeBtn: minus };
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'row-caps', uid }, win.location.origin);
+    win.parent.postMessage({ source: SOURCE, type: MSG.ROW_CAPS, uid }, win.location.origin);
   }
 
   // Bridge the gap between the control and its row. The control sits a few px

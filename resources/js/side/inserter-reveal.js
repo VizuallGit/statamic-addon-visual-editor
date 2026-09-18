@@ -11,6 +11,7 @@ import { mark } from '../lib/debug.js';
  * Own CP script — not addon.js. Does not touch overlay-host / preview / bridge.
  */
 import { injectStyle } from '../lib/style.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 (function () {
     'use strict';
@@ -808,8 +809,8 @@ import { injectStyle } from '../lib/style.js';
             '';
 
         payload = {
-            source: 'statamic-visual-editor',
-            type: 'add-block-native',
+            source: SOURCE,
+            type: MSG.ADD_BLOCK_NATIVE,
             field: container.getAttribute(INSERT_ATTR),
             sets: parseSets(container),
             anchorUid: block
@@ -982,11 +983,11 @@ import { injectStyle } from '../lib/style.js';
     window.addEventListener('message', function (event) {
         var data = event.data;
 
-        if (!data || data.source !== 'statamic-visual-editor') {
+        if (!data || data.source !== SOURCE) {
             return;
         }
 
-        if (data.type !== 'add-block-native' && data.type !== 'add-bard-set-native') {
+        if (data.type !== MSG.ADD_BLOCK_NATIVE && data.type !== MSG.ADD_BARD_SET_NATIVE) {
             return;
         }
 

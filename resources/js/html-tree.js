@@ -65,6 +65,7 @@ import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
 import { closeRightPanels, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { confirmCloseDiscard } from './pages.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -767,7 +768,7 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
 
   openLiteSection(section.uid, doc, win, focus);
   sendToPreview(
-    { source: 'statamic-visual-editor', type: 'sve-activate', ids: section.ids },
+    { source: SOURCE, type: MSG.SVE_ACTIVATE, ids: section.ids },
     win
   );
 
@@ -1186,8 +1187,8 @@ function sendPick(win, roots) {
 
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-html-pick',
+      source: SOURCE,
+      type: MSG.SVE_HTML_PICK,
       on: true,
       uid,
       // Only a component renders in more than one place, and only there should
@@ -2218,8 +2219,8 @@ function selectHtmlTreeRow(win, id, rows) {
 
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-html-pick-focus',
+      source: SOURCE,
+      type: MSG.SVE_HTML_PICK_FOCUS,
       path: row.path,
     },
     win
@@ -2330,8 +2331,8 @@ export function closeHtmlTreePanel(win) {
 
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-html-pick',
+      source: SOURCE,
+      type: MSG.SVE_HTML_PICK,
       on: false,
     },
     win
@@ -2469,7 +2470,7 @@ register('html-tree:arm-pick', (on) => {
     return true;
   }
 
-  sendToPreview({ source: 'statamic-visual-editor', type: 'sve-html-pick', on: false }, win);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_HTML_PICK, on: false }, win);
 
   return true;
 });

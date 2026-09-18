@@ -11,6 +11,7 @@ import { sidTemplatePayload } from './inserters.js';
 import { ICONS, applyBlockFormat, applyControlValue, applyHighlightColor, applyVizuStyle, bardCommand, clearVizuSpanProp, detectCpDark, headingIcon, letterIcon, openControlMenu, openHighlightColorMenu, openToolbarMenu, positionEditToolbar, readSelectionVizuProp, removeEditToolbar, sendEditInput, setVizuSpanProp, styleIdentHtml, toggleSpanClass, toolbarThemeFor, updateEditToolbarState } from './inline-edit.js';
 import { hideMoveControl, requestRowCaps } from './row-caps-move.js';
 import { finishEditing } from './editing.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== row-toolbar =====
 /**
@@ -139,7 +140,7 @@ function rowContextFor(win, el) {
 
   const post = (type, extra = {}) =>
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type, uid, ...extra },
+      { source: SOURCE, type, uid, ...extra },
       win.location.origin
     );
 
@@ -246,7 +247,7 @@ function rowContextFor(win, el) {
                 cancels: true,
                 run: () =>
                   win.parent.postMessage(
-                    { source: 'statamic-visual-editor', type: 'remove-row', uid: blockUid },
+                    { source: SOURCE, type: MSG.REMOVE_ROW, uid: blockUid },
                     win.location.origin
                   ),
               },
@@ -1227,7 +1228,7 @@ export function createEditToolbar(win, session) {
   if (session.hasLink) {
     addButton('', 'Skift link', () => {
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'link-edit', requestId: session.requestId },
+        { source: SOURCE, type: MSG.LINK_EDIT, requestId: session.requestId },
         win.location.origin
       );
       finishEditing(win, false);

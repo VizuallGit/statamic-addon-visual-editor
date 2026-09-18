@@ -16,6 +16,7 @@ import { finishEditing, wrapUpBeltTarget } from './editing.js';
 import { hideMoveControl } from './row-caps-move.js';
 import { applyOutlineTone } from './drag.js';
 import { COMPONENT_SRC, holdPick } from './component-pick.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== sid-targets =====
 /**
@@ -105,8 +106,8 @@ function iconFieldHasConfiguredDefault(el) {
 function postIconEdit(win, wrapper, action) {
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'icon-edit',
+      source: SOURCE,
+      type: MSG.ICON_EDIT,
       action,
       field: wrapper.getAttribute(SID_FIELD_ATTR),
       scope: wrapper.getAttribute('data-sid-field-uid') || undefined,
@@ -308,8 +309,8 @@ export function createClickHandler(win) {
       event.stopPropagation();
       win.parent.postMessage(
         {
-          source: 'statamic-visual-editor',
-          type: 'open-global',
+          source: SOURCE,
+          type: MSG.OPEN_GLOBAL,
           target: globalEl.getAttribute('data-sid-global') || '',
         },
         win.location.origin
@@ -342,8 +343,8 @@ export function createClickHandler(win) {
         picked.setAttribute(ACTIVE_ATTR, '');
         win.parent.postMessage(
           {
-            source: 'statamic-visual-editor',
-            type: 'click',
+            source: SOURCE,
+            type: MSG.CLICK,
             htmlPath: picked.getAttribute(HT_PATH_ATTR),
             // What a partial drew is not in this file's markup at all, so the
             // nearest stamped tag is the call's surroundings rather than the
@@ -400,8 +401,8 @@ export function createClickHandler(win) {
       if (uid) {
         win.parent.postMessage(
           {
-            source: 'statamic-visual-editor',
-            type: 'click',
+            source: SOURCE,
+            type: MSG.CLICK,
             uid,
             global: !!wrapUp.closest(`[${GLOBAL_FOCUS_ATTR}]`),
           },
@@ -410,8 +411,8 @@ export function createClickHandler(win) {
       } else if (target.hasAttribute(SID_FIELD_ATTR)) {
         win.parent.postMessage(
           {
-            source: 'statamic-visual-editor',
-            type: 'click',
+            source: SOURCE,
+            type: MSG.CLICK,
             field: target.getAttribute(SID_FIELD_ATTR),
             scope: target.getAttribute('data-sid-field-uid') || undefined,
             label: target.getAttribute('data-sid-label') || undefined,
@@ -432,8 +433,8 @@ export function createClickHandler(win) {
     // Popup targeting (data-sid-action="popup") — opens a CP popup for this item.
     if (target.getAttribute('data-sid-action') === 'popup') {
       const popupMessage = {
-        source: 'statamic-visual-editor',
-        type: 'popup',
+        source: SOURCE,
+        type: MSG.POPUP,
         uid: target.getAttribute(SID_ATTR),
         // The containing section's uid — lets the CP expand and scroll the
         // publish form to the section whose popup is being opened.
@@ -467,8 +468,8 @@ export function createClickHandler(win) {
     if (target.hasAttribute(SID_FIELD_ATTR)) {
       win.parent.postMessage(
         {
-          source: 'statamic-visual-editor',
-          type: 'click',
+          source: SOURCE,
+          type: MSG.CLICK,
           field: target.getAttribute(SID_FIELD_ATTR),
           scope: target.getAttribute('data-sid-field-uid') || undefined,
           label: target.getAttribute('data-sid-label') || undefined,
@@ -506,8 +507,8 @@ export function createClickHandler(win) {
         if (isMediaClick) {
           win.parent.postMessage(
             {
-              source: 'statamic-visual-editor',
-              type: 'asset-edit',
+              source: SOURCE,
+              type: MSG.ASSET_EDIT,
               field: target.getAttribute(SID_FIELD_ATTR),
               scope: target.getAttribute('data-sid-field-uid') || undefined,
             },
@@ -551,8 +552,8 @@ export function createClickHandler(win) {
     const uidIndex = allSameSid.indexOf(target);
 
     const message = {
-      source: 'statamic-visual-editor',
-      type: 'click',
+      source: SOURCE,
+      type: MSG.CLICK,
       uid,
       global: !!target.closest(`[${GLOBAL_FOCUS_ATTR}]`),
     };
@@ -593,8 +594,8 @@ export function createHoverHandler(win) {
       lastHoveredKey = field;
       win.parent.postMessage(
         {
-          source: 'statamic-visual-editor',
-          type: 'hover',
+          source: SOURCE,
+          type: MSG.HOVER,
           field,
           scope: target.getAttribute('data-sid-field-uid') || undefined,
           label: target.getAttribute('data-sid-label') || undefined,
@@ -616,14 +617,14 @@ export function createHoverHandler(win) {
 
     if (!uid) {
       // Mouse left all annotated elements — tell the CP to clear its hover state.
-      win.parent.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+      win.parent.postMessage({ source: SOURCE, type: MSG.HOVER, uid: null }, win.location.origin);
 
       return;
     }
 
     const message = {
-      source: 'statamic-visual-editor',
-      type: 'hover',
+      source: SOURCE,
+      type: MSG.HOVER,
       uid,
     };
 
@@ -641,7 +642,7 @@ export function createHoverHandler(win) {
   // the mouseover handler only fires for elements inside the iframe.
   handleHover.reset = () => {
     lastHoveredKey = null;
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'hover', uid: null }, win.location.origin);
+    win.parent.postMessage({ source: SOURCE, type: MSG.HOVER, uid: null }, win.location.origin);
   };
 
   return handleHover;

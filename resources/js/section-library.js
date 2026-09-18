@@ -68,6 +68,7 @@ import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeHtmlTreePanel } from './lazy/html-tree.js';
 import { closeOutlinePanel } from './lazy/outline.js';
 import { closePerformancePanel } from './lazy/performance.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== library =====
 // --- Section picker (visual "Add section") ---------------------------------------
@@ -3273,7 +3274,7 @@ export function beginCardDrag(win, cardEl, kind, item) {
       // The iframe would swallow the pointer once we're over it — let this window
       // keep the events, and map the coordinates ourselves.
       frame.style.pointerEvents = 'none';
-      frame.contentWindow.postMessage({ source: 'statamic-visual-editor', type: 'ext-drag-start' }, win.location.origin);
+      frame.contentWindow.postMessage({ source: SOURCE, type: MSG.EXT_DRAG_START }, win.location.origin);
 
       ghost = cardEl.cloneNode(true);
       ghost.style.cssText +=
@@ -3311,7 +3312,7 @@ export function beginCardDrag(win, cardEl, kind, item) {
       const p = toPreview(e);
 
       frame.contentWindow.postMessage(
-        { source: 'statamic-visual-editor', type: 'ext-drag-move', x: p.x, y: p.y },
+        { source: SOURCE, type: MSG.EXT_DRAG_MOVE, x: p.x, y: p.y },
         win.location.origin
       );
 
@@ -3349,8 +3350,8 @@ export function beginCardDrag(win, cardEl, kind, item) {
         frame.style.pointerEvents = '';
         frame.contentWindow?.postMessage(
           {
-            source: 'statamic-visual-editor',
-            type: 'ext-drag-end',
+            source: SOURCE,
+            type: MSG.EXT_DRAG_END,
             cancelled: !overPreview,
           },
           win.location.origin
@@ -3820,8 +3821,8 @@ export function handleRowCaps(data, doc, win) {
 
     sendToPreview(
       {
-        source: 'statamic-visual-editor',
-        type: 'row-caps-result',
+        source: SOURCE,
+        type: MSG.ROW_CAPS_RESULT,
         uid: data.uid,
         canAdd: !max || count < max,
         canRemove: !min || count > min,

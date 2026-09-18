@@ -1,4 +1,5 @@
 import morphPlugin from '@alpinejs/morph';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 /**
  * KERNEL — not Vue. Morph for Live Preview. Do not convert this file.
@@ -97,7 +98,7 @@ function guardViteFullReload() {
         return;
       }
 
-      if (data?.type === 'full-reload') {
+      if (data?.type === MSG.FULL_RELOAD) {
         event.stopImmediatePropagation();
       }
     });
@@ -536,7 +537,7 @@ async function applyUpdate(url, sectionUids) {
 }
 
 window.addEventListener('message', (event) => {
-  if (event.data?.source === 'statamic-visual-editor' && event.data.type === 'sve-theme-scale') {
+  if (event.data?.source === SOURCE && event.data.type === MSG.SVE_THEME_SCALE) {
     applyThemeScaleCss(event.data.css || '');
 
     return;

@@ -6,6 +6,7 @@ import { findPickRoots, HT_PATH_ATTR, isPickChrome, stampHtmlPickAll, unstampHtm
 import { bridgeState } from '../bridge/state.js';
 import { ACTIVE_ATTR, COMPONENT_DIM, COMPONENT_FOCUSED, SID_ATTR } from '../bridge.js';
 import { applyOutlineTone } from './drag.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== component-pick =====
 /**
@@ -232,8 +233,8 @@ function reportAwaitedPick(win) {
   el.setAttribute(ACTIVE_ATTR, '');
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'click',
+      source: SOURCE,
+      type: MSG.CLICK,
       htmlPath: el.getAttribute(HT_PATH_ATTR),
       componentSrc: held.closest?.(`[${COMPONENT_SRC}]`)?.getAttribute(COMPONENT_SRC) || '',
     },

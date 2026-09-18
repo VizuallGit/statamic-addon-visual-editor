@@ -7,6 +7,7 @@ import { SID_ATTR, t } from '../bridge.js';
 import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR } from './row-toolbar.js';
 import { setupInserters } from './inserters.js';
 import { exitChromeFocus } from './header-footer.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== global-sections =====
 /** Tags each section that came from a Global section with its source's id. */
@@ -86,7 +87,7 @@ export function exitGlobalFocus(win, closePanel = true) {
   // Stepping out closes the section's editor with it — leaving it open would keep
   // the page rendering an unsaved section you can no longer see you're in.
   if (wasFocused && closePanel) {
-    win.parent.postMessage({ source: 'statamic-visual-editor', type: 'close-global-section' }, win.location.origin);
+    win.parent.postMessage({ source: SOURCE, type: MSG.CLOSE_GLOBAL_SECTION }, win.location.origin);
   }
 
   // … and it goes away again with the focus.
@@ -284,7 +285,7 @@ export function confirmEnterGlobal(win, section) {
 }
 
 export function requestCloseGlobal(win) {
-  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'request-close-global' }, win.location.origin);
+  win.parent.postMessage({ source: SOURCE, type: MSG.REQUEST_CLOSE_GLOBAL }, win.location.origin);
 }
 
 let globalSaveBtn = null;
@@ -357,7 +358,7 @@ export function mountGlobalBar(win) {
   globalSaveBtn.addEventListener('click', (event) => {
     event.stopPropagation();
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'save-global-section' },
+      { source: SOURCE, type: MSG.SAVE_GLOBAL_SECTION },
       win.location.origin
     );
   });
@@ -408,12 +409,12 @@ function enterGlobalFocus(win, section, reopen = true) {
   // section uses. Inline edit borrows that form's values (sectionPanelContainer).
   if (reopen) {
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'open-global-section', id: sourceId },
+      { source: SOURCE, type: MSG.OPEN_GLOBAL_SECTION, id: sourceId },
       win.location.origin
     );
   }
 
-  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'sve-global-dirty-query' }, win.location.origin);
+  win.parent.postMessage({ source: SOURCE, type: MSG.SVE_GLOBAL_DIRTY_QUERY }, win.location.origin);
 
   // The section's own "+" only exists while it is being edited.
   setupInserters(win);

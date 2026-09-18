@@ -32,6 +32,7 @@ import { deepestFieldPath } from './focus-panel.js';
 import { buildSectionRow, fetchSetMeta, globalSectionSet, libraryWentStale, newRowId, rememberSavedSection, rowLocation, sortableItemForUid, writeSetMeta } from './section-library.js';
 import { flushPendingSectionRefresh, globalSectionEditorOpen } from './global-section.js';
 import { discardChanges } from './open-in-preview.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== inline-edit =====
 // --- Inline editing: write-back ---------------------------------------------
@@ -661,7 +662,7 @@ export function cleanEditedText(text) {
 
 export function handleEditRequest(data, doc, win) {
   const reply = (message) =>
-    sendToPreview({ source: 'statamic-visual-editor', requestId: data.requestId, ...message }, win);
+    sendToPreview({ source: SOURCE, requestId: data.requestId, ...message }, win);
 
   const req = {
     blockText: data.blockText != null ? normText(data.blockText) : null,
@@ -994,8 +995,8 @@ export function handleThemeSwatchesRequest(data, win) {
   const reply = (swatches) =>
     sendToPreview(
       {
-        source: 'statamic-visual-editor',
-        type: 'theme-swatches',
+        source: SOURCE,
+        type: MSG.THEME_SWATCHES,
         requestId: data.requestId,
         swatches,
       },

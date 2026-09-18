@@ -22,6 +22,7 @@ import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { paintLpActiveControl } from './lp-panel.js';
 import { deepestFieldPath } from './focus-panel.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 const ON_KEY = 'sve-ai-text-on';
 
@@ -117,7 +118,7 @@ export function setAiText(win, next) {
     chromeRemove(win, ON_KEY);
   }
 
-  sendToPreview({ source: 'statamic-visual-editor', type: 'ai-text-mode', on }, win);
+  sendToPreview({ source: SOURCE, type: MSG.AI_TEXT_MODE, on }, win);
   paintToolbarButton(win);
 }
 
@@ -133,7 +134,7 @@ export function syncAiTextToPreview(win) {
     return;
   }
 
-  sendToPreview({ source: 'statamic-visual-editor', type: 'ai-text-mode', on: isAiTextOn(win) }, win);
+  sendToPreview({ source: SOURCE, type: MSG.AI_TEXT_MODE, on: isAiTextOn(win) }, win);
 }
 
 function paintToolbarButton(win) {
@@ -336,7 +337,7 @@ function bardText(node) {
  * ------------------------------------------------------------------------ */
 
 function reply(win, message) {
-  sendToPreview({ source: 'statamic-visual-editor', ...message }, win);
+  sendToPreview({ source: SOURCE, ...message }, win);
 }
 
 export function handleAiTextOpen(data, doc, win) {

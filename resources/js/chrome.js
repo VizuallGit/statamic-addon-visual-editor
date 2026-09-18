@@ -17,6 +17,7 @@ import { closeRightPanels, hideGlobalsPanel, showGlobalsPanel, syncPreviewInset,
 import { activeChromeKind, chromeGlobalHandle, chromeIgnoreValuePostsUntil, clearGlobalsStash, globalSets, globalsAcceptValues, lockChromeGlobalsTab, notifyChromeDirty, notifyGlobalSectionDirty, openGlobalsPanel, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
 import { flushPendingEditUntilPanel } from './inline-edit.js';
 import { fetchInertiaPage, flushPendingFocusUntilPanel, hidePageFieldsForGlobalSection, mountBorrowedForm, postSectionValues, revealSectionPanelFrame, sectionPanelContainer, showPageFieldsAgain } from './global-section.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== chrome-inline =====
 // --- Header / footer, edited in this window --------------------------------------
@@ -683,12 +684,12 @@ export function listenForSectionValues(win) {
 
     const { data } = event;
 
-    if (data?.source !== 'statamic-visual-editor') {
+    if (data?.source !== SOURCE) {
       return;
     }
 
     // Entry form finished booting — flush any preview click held while it loaded.
-    if (data.type === 'sve-section-panel-ready') {
+    if (data.type === MSG.SVE_SECTION_PANEL_READY) {
       const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
 
       if (panel && event.source === panel.querySelector('iframe')?.contentWindow) {
@@ -701,7 +702,7 @@ export function listenForSectionValues(win) {
       return;
     }
 
-    if (data.type !== 'sve-section-values') {
+    if (data.type !== MSG.SVE_SECTION_VALUES) {
       return;
     }
 
@@ -773,13 +774,13 @@ export function listenForGlobalsValues(win) {
 
     // Theme Settings (iframe) → sektionens Theme Color Picker-swatches.
     // Color-scheme dispatches også direkte på top; dette fanger postMessage.
-    if (data?.source === 'statamic-visual-editor' && data.type === 'sve-theme-scale-values' && data.values) {
+    if (data?.source === SOURCE && data.type === MSG.SVE_THEME_SCALE_VALUES && data.values) {
       win.dispatchEvent(new CustomEvent('sve-theme-colors', { detail: data.values }));
 
       return;
     }
 
-    if (data?.source !== 'statamic-visual-editor' || data.type !== 'sve-globals-values') {
+    if (data?.source !== SOURCE || data.type !== MSG.SVE_GLOBALS_VALUES) {
       return;
     }
 

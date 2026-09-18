@@ -9,6 +9,7 @@ import { mark } from '../lib/debug.js';
  * past restoreZoom, then FLIPs into the new section.
  */
 import { injectStyle } from '../lib/style.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 (function () {
     'use strict';
@@ -256,14 +257,14 @@ import { injectStyle } from '../lib/style.js';
             function (event) {
                 var data = event.data;
 
-                if (!data || data.source !== 'statamic-visual-editor') {
+                if (!data || data.source !== SOURCE) {
                     return;
                 }
 
-                if ((data.type === 'ext-drag-move' || data.type === 'ext-drag-end') && drag && drag.win === win) {
+                if ((data.type === MSG.EXT_DRAG_MOVE || data.type === MSG.EXT_DRAG_END) && drag && drag.win === win) {
                     drag.scale = bodyScale(win);
 
-                    if (data.type === 'ext-drag-end' && !data.cancelled) {
+                    if (data.type === MSG.EXT_DRAG_END && !data.cancelled) {
                         drag.scale = bodyScale(win);
                         keepOverview(win);
                     }
@@ -278,11 +279,11 @@ import { injectStyle } from '../lib/style.js';
                 var data = event.data;
                 var body;
 
-                if (!data || data.source !== 'statamic-visual-editor') {
+                if (!data || data.source !== SOURCE) {
                     return;
                 }
 
-                if (data.type === 'ext-drag-start') {
+                if (data.type === MSG.EXT_DRAG_START) {
                     body = win.document.body;
                     drag = {
                         win: win,
@@ -308,7 +309,7 @@ import { injectStyle } from '../lib/style.js';
                     return;
                 }
 
-                if (data.type !== 'ext-drag-end') {
+                if (data.type !== MSG.EXT_DRAG_END) {
                     return;
                 }
 

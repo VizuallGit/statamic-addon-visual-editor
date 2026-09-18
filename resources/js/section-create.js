@@ -30,6 +30,7 @@ import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
 import { csrfToken } from './lib/csrf.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 const API = '/!/sve/section-types';
 
@@ -170,7 +171,7 @@ export function revealWhenRendered(win, ids) {
       : true;
 
     if (rendered) {
-      sendToPreview({ source: 'statamic-visual-editor', type: 'sve-activate', ids: wanted }, win);
+      sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: wanted }, win);
     }
 
     // Blind (no readable document): a handful of tries, then stop. Sighted:

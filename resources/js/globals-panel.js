@@ -36,6 +36,7 @@ import { hasUnsavedGlobalSection, sectionPanelContainer } from './global-section
 import { chromeContainer, chromeHost, closeChromeInline, openChromeInline, pressChromeSave, soloChromeTab, warmChromeInlinePages, watchChromeSolo } from './chrome.js';
 import { hasUnsavedChanges } from './open-in-preview.js';
 import { confirmLeaveGlobalsOverlay, handleRequestCloseChrome } from './pages.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== globals-lp =====
 // --- Globals beside Live Preview -------------------------------------------------
@@ -180,7 +181,7 @@ export function assertChromeFocusInPreview(win) {
   // One quiet ping after morph settles — not a burst (that caused flicker).
   clearTimeout(assertChromeFocusInPreview._timer);
   assertChromeFocusInPreview._timer = setTimeout(() => {
-    sendToPreview({ source: 'statamic-visual-editor', type: 'sve-restore-chrome', kind }, win);
+    sendToPreview({ source: SOURCE, type: MSG.SVE_RESTORE_CHROME, kind }, win);
   }, 120);
 }
 
@@ -307,8 +308,8 @@ export function notifyChromeDirty(win) {
 
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-chrome-dirty',
+      source: SOURCE,
+      type: MSG.SVE_CHROME_DIRTY,
       dirty,
     },
     win
@@ -345,8 +346,8 @@ export function globalSectionLabel(win) {
 export function notifyGlobalSectionDirty(win) {
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-global-dirty',
+      source: SOURCE,
+      type: MSG.SVE_GLOBAL_DIRTY,
       dirty: hasUnsavedGlobalSection(win),
       label: globalSectionLabel(win),
     },
@@ -472,7 +473,7 @@ export function clearGlobalsDirtyMarks(win) {
   // doesn't immediately re-mark chrome as dirty.
   try {
     iwin.postMessage(
-      { source: 'statamic-visual-editor', type: 'sve-globals-saved' },
+      { source: SOURCE, type: MSG.SVE_GLOBALS_SAVED },
       win.location.origin
     );
   } catch {
@@ -563,7 +564,7 @@ export function saveGlobalsPanel(win, done) {
   }
 
   iwin.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+    { source: SOURCE, type: MSG.SVE_GLOBALS_SAVE },
     win.location.origin
   );
 }
@@ -1042,7 +1043,7 @@ export function openGlobalsPanel(win, set, options = {}) {
     const frame = doc.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
     frame?.contentWindow?.postMessage(
-      { source: 'statamic-visual-editor', type: 'sve-globals-save' },
+      { source: SOURCE, type: MSG.SVE_GLOBALS_SAVE },
       win.location.origin
     );
   });
@@ -1685,14 +1686,14 @@ export function initGlobalsPanelFrame(win) {
       return;
     }
 
-    if (event.data?.source !== 'statamic-visual-editor') {
+    if (event.data?.source !== SOURCE) {
       return;
     }
 
     // An inline edit in the page, on content this form owns: apply it to the real
     // container here. The value poll below streams it straight back out, so the
     // page re-renders with it — the edit never has to know it crossed a window.
-    if (event.data.type === 'sve-section-set-value') {
+    if (event.data.type === MSG.SVE_SECTION_SET_VALUE) {
       for (const container of activeContainers(doc)) {
         container.setFieldValue(event.data.path, event.data.value);
 
@@ -1705,7 +1706,7 @@ export function initGlobalsPanelFrame(win) {
     // The preview's "+" inside this global section. The blocks belong to this
     // form, so Statamic's own Add Set picker is opened here — the same call the
     // CP makes for a page's own sections, just in the document that has them.
-    if (event.data.type === 'sve-section-add-block') {
+    if (event.data.type === MSG.SVE_SECTION_ADD_BLOCK) {
       handleAddBlockNative(event.data, doc, win);
       autoPickSet(doc, win, event.data.setLabel);
 
@@ -1713,7 +1714,7 @@ export function initGlobalsPanelFrame(win) {
     }
 
     // Header/footer design picker: write flattened `header_style` / `footer_style`.
-    if (event.data.type === 'sve-chrome-set-style') {
+    if (event.data.type === MSG.SVE_CHROME_SET_STYLE) {
       const kind = event.data.kind === 'footer' ? 'footer' : 'header';
       const style = event.data.style;
 
@@ -1728,7 +1729,7 @@ export function initGlobalsPanelFrame(win) {
 
     // Open the matching publish tab (Header / Footer / …). reka-ui ignores a
     // bare click() and keeps a hidden twin of each tab — only the visible one.
-    if (event.data.type === 'sve-activate-tab') {
+    if (event.data.type === MSG.SVE_ACTIVATE_TAB) {
       activatePublishTab(
         String(event.data.label || event.data.kind || '')
           .trim()
@@ -1739,7 +1740,7 @@ export function initGlobalsPanelFrame(win) {
     }
 
     // Live Preview header/footer: only that tab's fields — hide Colors, etc.
-    if (event.data.type === 'sve-lock-tab') {
+    if (event.data.type === MSG.SVE_LOCK_TAB) {
       lockedTabNeedle = String(event.data.label || event.data.kind || '')
         .trim()
         .toLowerCase();
@@ -1752,7 +1753,7 @@ export function initGlobalsPanelFrame(win) {
       return;
     }
 
-    if (event.data.type === 'sve-unlock-tabs') {
+    if (event.data.type === MSG.SVE_UNLOCK_TABS) {
       lockedTabNeedle = null;
       applyTabLock();
 
@@ -1760,7 +1761,7 @@ export function initGlobalsPanelFrame(win) {
     }
 
     // Parent confirmed a successful Save — treat current values as clean baseline.
-    if (event.data.type === 'sve-globals-saved') {
+    if (event.data.type === MSG.SVE_GLOBALS_SAVED) {
       for (const container of activeContainers(doc)) {
         const values = unwrapRef(container.values);
 
@@ -1775,7 +1776,7 @@ export function initGlobalsPanelFrame(win) {
       return;
     }
 
-    if (event.data.type !== 'sve-globals-save') {
+    if (event.data.type !== MSG.SVE_GLOBALS_SAVE) {
       return;
     }
 
@@ -1828,8 +1829,8 @@ export function initGlobalsPanelFrame(win) {
       try {
         win.parent.postMessage(
           isEntry
-            ? { source: 'statamic-visual-editor', type: 'sve-section-values', id: handle, values: JSON.parse(serialized) }
-            : { source: 'statamic-visual-editor', type: 'sve-globals-values', handle, values: JSON.parse(serialized) },
+            ? { source: SOURCE, type: MSG.SVE_SECTION_VALUES, id: handle, values: JSON.parse(serialized) }
+            : { source: SOURCE, type: MSG.SVE_GLOBALS_VALUES, handle, values: JSON.parse(serialized) },
           win.location.origin
         );
       } catch {
@@ -1843,11 +1844,11 @@ export function initGlobalsPanelFrame(win) {
   // Preview asked to focus a field/block inside this synced section — same as
   // clicking it on a normal page (solo + field focus in THIS form).
   win.addEventListener('message', (event) => {
-    if (event.origin !== win.location.origin || event.data?.source !== 'statamic-visual-editor') {
+    if (event.origin !== win.location.origin || event.data?.source !== SOURCE) {
       return;
     }
 
-    if (event.data.type === 'sve-section-focus') {
+    if (event.data.type === MSG.SVE_SECTION_FOCUS) {
       const applyFocus = (attempt = 0) => {
         hideSavedSectionEntryChrome(doc);
 
@@ -1902,7 +1903,7 @@ export function initGlobalsPanelFrame(win) {
     // Parent may have queued a click before this frame's listener existed.
     try {
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'sve-section-panel-ready' },
+        { source: SOURCE, type: MSG.SVE_SECTION_PANEL_READY },
         win.location.origin
       );
     } catch {
@@ -2679,7 +2680,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
   }
 
   frame.contentWindow.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-chrome-set-style', kind, style },
+    { source: SOURCE, type: MSG.SVE_CHROME_SET_STYLE, kind, style },
     win.location.origin
   );
 
@@ -2689,7 +2690,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
       const again = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
 
       again?.contentWindow?.postMessage(
-        { source: 'statamic-visual-editor', type: 'sve-chrome-set-style', kind, style },
+        { source: SOURCE, type: MSG.SVE_CHROME_SET_STYLE, kind, style },
         win.location.origin
       );
     }, 250 * (attempt + 1));
@@ -2741,7 +2742,7 @@ export function lockChromeGlobalsTab(win, kind, attempts = 0) {
   }
 
   iwin.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-lock-tab', label, kind: chromeKind },
+    { source: SOURCE, type: MSG.SVE_LOCK_TAB, label, kind: chromeKind },
     win.location.origin
   );
 
@@ -2786,7 +2787,7 @@ export function unlockChromeGlobalsTabs(win) {
   }
 
   frame?.contentWindow?.postMessage(
-    { source: 'statamic-visual-editor', type: 'sve-unlock-tabs' },
+    { source: SOURCE, type: MSG.SVE_UNLOCK_TABS },
     win.location.origin
   );
 }

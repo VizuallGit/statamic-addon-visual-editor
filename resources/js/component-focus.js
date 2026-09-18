@@ -15,6 +15,7 @@ import { on, ask } from './cp/bus.js';
 import { sendToPreview } from './cp.js';
 import { findPartials } from './dock-partials.js';
 import { componentSrcFromType, rootSelector } from './component-signature.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 const selectors = new Map();
 
@@ -68,8 +69,8 @@ export function syncComponentFocus(win) {
 
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-component-focus',
+      source: SOURCE,
+      type: MSG.SVE_COMPONENT_FOCUS,
       on: !!selector,
       name: src ? String(src).split('/').pop() : '',
       selector: selector || '',
@@ -102,8 +103,8 @@ export async function syncComponentMap(win) {
 
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-component-map',
+      source: SOURCE,
+      type: MSG.SVE_COMPONENT_MAP,
       items: sources
         .map((src, i) => ({ src, name: src.split('/').pop(), selector: found[i] }))
         .filter((item) => item.selector),

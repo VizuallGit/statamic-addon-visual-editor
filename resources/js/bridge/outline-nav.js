@@ -18,6 +18,7 @@ import { injectCpVariables, injectStyles } from './messages.js';
 import { createClickHandler, createHoverHandler } from './sid-targets.js';
 import { finishWidthDrag, hideColumnChrome, hideGridLines, widthDrag } from './grid.js';
 import { repositionInserters, setupInserters } from './inserters.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== outline-nav =====
 /**
@@ -147,7 +148,7 @@ function extDragEnd(win, cancelled) {
 
   if (!cancelled) {
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'ext-drop', afterUid },
+      { source: SOURCE, type: MSG.EXT_DROP, afterUid },
       win.location.origin
     );
   }
@@ -212,7 +213,7 @@ function collectOutline(win) {
 
 function sendOutline(win) {
   win.parent.postMessage(
-    { source: 'statamic-visual-editor', type: 'outline', items: collectOutline(win) },
+    { source: SOURCE, type: MSG.OUTLINE, items: collectOutline(win) },
     win.location.origin
   );
 }
@@ -275,7 +276,7 @@ export function createMessageReceiver(win) {
 
     const { data } = event;
 
-    if (!data || data.source !== 'statamic-visual-editor') {
+    if (!data || data.source !== SOURCE) {
       return;
     }
 
@@ -285,7 +286,7 @@ export function createMessageReceiver(win) {
       return;
     }
 
-    if (data.type === 'sve-html-pick') {
+    if (data.type === MSG.SVE_HTML_PICK) {
       if (!data.on) {
         bridgeState.htmlPick = null;
         unstampHtmlPick(win.document);
@@ -305,21 +306,21 @@ export function createMessageReceiver(win) {
       return;
     }
 
-    if (data.type === 'sve-component-map') {
+    if (data.type === MSG.SVE_COMPONENT_MAP) {
       bridgeState.componentMap = Array.isArray(data.items) ? data.items : [];
       applyComponentMap(win);
 
       return;
     }
 
-    if (data.type === 'sve-component-focus') {
+    if (data.type === MSG.SVE_COMPONENT_FOCUS) {
       bridgeState.componentFocus = data.on ? { name: data.name || '', selector: data.selector || '' } : null;
       applyComponentFocus(win);
 
       return;
     }
 
-    if (data.type === 'sve-html-pick-focus') {
+    if (data.type === MSG.SVE_HTML_PICK_FOCUS) {
       win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
         el.removeAttribute(ACTIVE_ATTR);
       });
@@ -338,56 +339,56 @@ export function createMessageReceiver(win) {
       return;
     }
 
-    if (data.type === 'ext-drag-start') {
+    if (data.type === MSG.EXT_DRAG_START) {
       extDragStart(win);
 
       return;
     }
 
-    if (data.type === 'outline-watch') {
+    if (data.type === MSG.OUTLINE_WATCH) {
       watchOutline(win, !!data.on);
 
       return;
     }
 
-    if (data.type === 'outline-focus') {
+    if (data.type === MSG.OUTLINE_FOCUS) {
       focusOutlineEntry(win, data.index);
 
       return;
     }
 
-    if (data.type === 'ext-drag-move') {
+    if (data.type === MSG.EXT_DRAG_MOVE) {
       extDragMove(win, data.x, data.y);
 
       return;
     }
 
-    if (data.type === 'ext-drag-end') {
+    if (data.type === MSG.EXT_DRAG_END) {
       extDragEnd(win, !!data.cancelled);
 
       return;
     }
 
-    if (data.type === 'row-caps-result') {
+    if (data.type === MSG.ROW_CAPS_RESULT) {
       applyRowCaps(data);
 
       return;
     }
 
     // CP re-asserts header/footer focus after Theme Settings morphs the preview.
-    if (data.type === 'sve-restore-chrome') {
+    if (data.type === MSG.SVE_RESTORE_CHROME) {
       rebindChromeFocus(win, data.kind === 'footer' ? 'footer' : 'header');
 
       return;
     }
 
-    if (data.type === 'sve-chrome-dirty') {
+    if (data.type === MSG.SVE_CHROME_DIRTY) {
       setChromeDirtyUI(!!data.dirty);
 
       return;
     }
 
-    if (data.type === 'sve-global-dirty') {
+    if (data.type === MSG.SVE_GLOBAL_DIRTY) {
       // The label arrives with the dirty state because it comes from the same
       // place: the values the panel streams up. It can be null on the first
       // reply, before the form has hydrated — keep the last real one.
@@ -408,7 +409,7 @@ export function createMessageReceiver(win) {
 
     // CP finished a close (clean, or after discard confirm) — drop focus UI.
     // Panel already dismissed by CP; don't post close-* again.
-    if (data.type === 'sve-force-exit-chrome') {
+    if (data.type === MSG.SVE_FORCE_EXIT_CHROME) {
       setChromeDirtyUI(false);
       bridgeState.chromeFocusKindSticky = null;
       win.__sveChromeKind = null;
@@ -417,7 +418,7 @@ export function createMessageReceiver(win) {
       return;
     }
 
-    if (data.type === 'sve-force-exit-global') {
+    if (data.type === MSG.SVE_FORCE_EXIT_GLOBAL) {
       setGlobalSectionDirtyUI(false);
       exitGlobalFocus(win, false);
 
@@ -426,7 +427,7 @@ export function createMessageReceiver(win) {
 
     // Where the CP's floating "back" pill sits, in our coordinates — so a
     // section's control can step out from under it.
-    if (data.type === 'sve-pill-box') {
+    if (data.type === MSG.SVE_PILL_BOX) {
       bridgeState.pillBox = { bottom: data.bottom, left: data.left };
 
       return;
@@ -439,13 +440,13 @@ export function createMessageReceiver(win) {
     // the position is what decides which block of a Bard field is being edited.
     // There is no position here, so the element is named instead and the rest of
     // the flow is the ordinary one.
-    if (data.type === 'sve-activate') {
+    if (data.type === MSG.SVE_ACTIVATE) {
       activateByUid(win, data);
 
       return;
     }
 
-    if (data.type === 'edit-start') {
+    if (data.type === MSG.EDIT_START) {
       startEditing(win, data);
 
       return;
@@ -453,7 +454,7 @@ export function createMessageReceiver(win) {
 
     // Panel still hydrating — stretch the pending-edit window so a quick click
     // right after entering a global section isn't abandoned at 2s.
-    if (data.type === 'edit-pending') {
+    if (data.type === MSG.EDIT_PENDING) {
       if (bridgeState.pendingEdit && bridgeState.pendingEdit.requestId === data.requestId) {
         clearTimeout(bridgeState.pendingEdit.timeout);
         bridgeState.pendingEdit.timeout = setTimeout(() => {
@@ -466,7 +467,7 @@ export function createMessageReceiver(win) {
       return;
     }
 
-    if (data.type === 'edit-deny') {
+    if (data.type === MSG.EDIT_DENY) {
       if (bridgeState.pendingEdit && bridgeState.pendingEdit.requestId === data.requestId) {
         const { popupFallback } = bridgeState.pendingEdit;
 
@@ -483,7 +484,7 @@ export function createMessageReceiver(win) {
       return;
     }
 
-    if (data.type === 'hover') {
+    if (data.type === MSG.HOVER) {
       win.document.querySelectorAll(`[${HOVER_ATTR}]`).forEach((el) => {
         el.removeAttribute(HOVER_ATTR);
       });
@@ -515,7 +516,7 @@ export function createMessageReceiver(win) {
       return;
     }
 
-    if (data.type === 'focus') {
+    if (data.type === MSG.FOCUS) {
       win.document.querySelectorAll(`[${ACTIVE_ATTR}]`).forEach((el) => {
         el.removeAttribute(ACTIVE_ATTR);
       });
@@ -765,7 +766,7 @@ export function initBridge(win = window) {
           label: t('component_open_named', { name }),
           run: () => {
             win.parent.postMessage(
-              { source: 'statamic-visual-editor', type: 'open-component', src },
+              { source: SOURCE, type: MSG.OPEN_COMPONENT, src },
               win.location.origin
             );
           },
@@ -857,7 +858,7 @@ export function initBridge(win = window) {
 
   // The CP posts the pill's box when its chrome re-renders — which has already
   // happened by the time we boot in here. Ask for it, now that we're listening.
-  win.parent.postMessage({ source: 'statamic-visual-editor', type: 'sve-pill-box-request' }, win.location.origin);
+  win.parent.postMessage({ source: SOURCE, type: MSG.SVE_PILL_BOX_REQUEST }, win.location.origin);
 
   // Block inserters: wire them up now, keep them pinned as the preview scrolls or
   // resizes, and rebuild after a morph brings in fresh blocks.

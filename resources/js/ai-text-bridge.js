@@ -10,6 +10,7 @@
 // each other's questions.
 
 import { aiTextIcon } from './ai-text-icon.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 const MARK_ATTR = 'data-sve-ai-mark';
 const LAYER_ID = '__sve-ai-text-layer';
@@ -1094,7 +1095,7 @@ function generate({ fresh }) {
  * ------------------------------------------------------------------------ */
 
 function post(message) {
-  ctx.win.parent.postMessage({ source: 'statamic-visual-editor', ...message }, '*');
+  ctx.win.parent.postMessage({ source: SOURCE, ...message }, '*');
 }
 
 /** Answers from the Control Panel. Returns true when the message was ours. */
@@ -1103,7 +1104,7 @@ export function handleAiTextMessage(data) {
     return false;
   }
 
-  if (data.type === 'ai-text-mode') {
+  if (data.type === MSG.AI_TEXT_MODE) {
     setAiTextMode(!!data.on);
 
     return true;
@@ -1114,7 +1115,7 @@ export function handleAiTextMessage(data) {
     return true;
   }
 
-  if (data.type === 'ai-text-ready') {
+  if (data.type === MSG.AI_TEXT_READY) {
     session.resolved = true;
     session.keywords = {
       page: Array.isArray(data.keywords?.page) ? data.keywords.page : [],
@@ -1136,7 +1137,7 @@ export function handleAiTextMessage(data) {
     return true;
   }
 
-  if (data.type === 'ai-text-deny') {
+  if (data.type === MSG.AI_TEXT_DENY) {
     session.resolved = true;
     session.busy = false;
     session.error = data.message || ctx.t('ai_text_denied');
@@ -1145,7 +1146,7 @@ export function handleAiTextMessage(data) {
     return true;
   }
 
-  if (data.type === 'ai-text-result') {
+  if (data.type === MSG.AI_TEXT_RESULT) {
     session.busy = false;
 
     const rows = Array.isArray(data.suggestions) ? data.suggestions.filter((row) => typeof row === 'string') : [];

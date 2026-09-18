@@ -5,6 +5,7 @@
 import { orderablePeers, parseCssColor, solidBackgroundFor } from './drag.js';
 import { peerRect } from './row-toolbar.js';
 import { SID_ATTR, t } from '../bridge.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== grid =====
 /** True when el's siblings sit side by side (flex-row, multi-column grid, …). */
@@ -686,7 +687,7 @@ export function maybeShowColumnChrome(win, event) {
       e.preventDefault();
       e.stopPropagation();
       win.parent.postMessage(
-        { source: 'statamic-visual-editor', type: 'cb-add-column', uid: section?.getAttribute(SID_ATTR) },
+        { source: SOURCE, type: MSG.CB_ADD_COLUMN, uid: section?.getAttribute(SID_ATTR) },
         win.location.origin
       );
     });
@@ -929,7 +930,7 @@ export function finishWidthDrag(win, cancelled) {
     }
 
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'sve-grid-span', field, changes },
+      { source: SOURCE, type: MSG.SVE_GRID_SPAN, field, changes },
       win.location.origin
     );
 
@@ -943,8 +944,8 @@ export function finishWidthDrag(win, cancelled) {
   // removing them now would snap the columns back for a beat.
   win.parent.postMessage(
     {
-      source: 'statamic-visual-editor',
-      type: 'cb-col-width',
+      source: SOURCE,
+      type: MSG.CB_COL_WIDTH,
       changes: [
         { uid: a.getAttribute(SID_ATTR), field: bp.field, value: value(applied) },
         { uid: b.getAttribute(SID_ATTR), field: bp.field, value: value(total - applied) },

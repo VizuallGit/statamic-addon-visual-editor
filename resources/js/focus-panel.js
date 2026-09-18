@@ -72,6 +72,7 @@ import { globalSectionHost } from './global-section.js';
 import { chromeHost, chromeInlineKind, soloChromeTab, watchChromeSolo } from './chrome.js';
 import { confirmLeaveGlobalsOverlay, ensureCollectionPicker, handleRequestCloseGlobal } from './pages.js';
 import { gridRowPreview, isGridRowValue, pinDockedPanelsUnderHeader } from './lazy/listview.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== solo =====
 // --- Single-section ("solo") panel ---------------------------------------------
@@ -194,7 +195,7 @@ export function leaveSolo(doc, win) {
   // Synced-section panel: "back" means leave the global edit, not the entry meta form.
   if (panelFrameDoc(doc) && win.location.pathname.includes('/collections/')) {
     win.parent.postMessage(
-      { source: 'statamic-visual-editor', type: 'request-close-global' },
+      { source: SOURCE, type: MSG.REQUEST_CLOSE_GLOBAL },
       win.location.origin
     );
 

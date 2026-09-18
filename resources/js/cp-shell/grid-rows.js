@@ -28,6 +28,7 @@ import { isEmbeddedInSite, postToHost, sendToPreview } from './add-section.js';
 import { HEADER_TOOLBAR_ID, LP_ICON_BTN_STYLE, applyHeaderTab } from './header-toolbar.js';
 import { applyLpDevice, applyLpZoom, paintLpPreviewChrome } from './block-order.js';
 import { LP_DEVICE_KEY, LP_ZOOM_DEFAULT, LP_ZOOM_KEY } from './preview-chrome.js';
+import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== grid-rows =====
 // --- Grid rows: collapse to a title, one open at a time ------------------------
@@ -823,7 +824,7 @@ export function tellPreviewWherePillIs(win, pill) {
 
   if (!pill) {
     sendToPreview(
-      { source: 'statamic-visual-editor', type: 'sve-pill-box', bottom: 0, left: 99999 },
+      { source: SOURCE, type: MSG.SVE_PILL_BOX, bottom: 0, left: 99999 },
       win
     );
 
@@ -837,7 +838,7 @@ export function tellPreviewWherePillIs(win, pill) {
 
   if (!overlaps) {
     sendToPreview(
-      { source: 'statamic-visual-editor', type: 'sve-pill-box', bottom: 0, left: 99999 },
+      { source: SOURCE, type: MSG.SVE_PILL_BOX, bottom: 0, left: 99999 },
       win
     );
 
@@ -846,8 +847,8 @@ export function tellPreviewWherePillIs(win, pill) {
 
   sendToPreview(
     {
-      source: 'statamic-visual-editor',
-      type: 'sve-pill-box',
+      source: SOURCE,
+      type: MSG.SVE_PILL_BOX,
       bottom: Math.round(r.bottom - f.top),
       left: Math.round(r.left - f.left),
     },
