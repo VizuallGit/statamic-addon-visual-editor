@@ -9,13 +9,18 @@ use MarioHamann\StatamicVisualEditor\IconResolver;
 use MarioHamann\StatamicVisualEditor\VisualEditAntlers;
 use Statamic\Facades\Blueprint;
 use Statamic\Tags\Tags;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\ResolvesScope;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\Icons;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\Placeholders;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\Controls;
+use MarioHamann\StatamicVisualEditor\Tags\Resolve\BardConfig;
 
 class VisualEdit extends Tags
 {
-    protected static $handle = 'visual_edit';
+    use ResolvesScope;
 
-    /** @var array<string, list<array{handle?: string, config?: array, set?: string, chain?: array}>> */
-    private static array $fieldsByHandle = [];
+    protected static $handle = 'visual_edit';
 
     /** @var array<string, array|null> */
     private static array $replicatorByHandle = [];
@@ -117,9 +122,9 @@ class VisualEdit extends Tags
                 $scopeUid ? (string) $scopeUid : '',
                 $inlineEdit,
                 $this->params->bool('move', false),
-                $inlineEdit && $wantsToolbar ? $this->resolveBardConfig((string) $field) : null,
+                $inlineEdit && $wantsToolbar ? (new BardConfig($this->params, $this->context))->resolve((string) $field) : null,
                 $this->params->bool('orderable', false),
-                $inlineEdit && $wantsToolbar ? $this->resolveControls($this->params->get('controls')) : []
+                $inlineEdit && $wantsToolbar ? (new Controls($this->params, $this->context))->resolve($this->params->get('controls')) : []
             );
 
             // Bard whole-field + insertable: same hide/dup/delete toolbar as
@@ -185,7 +190,7 @@ class VisualEdit extends Tags
             // Label omitted: buildAttr already emitted data-sid-label. Bard config
             // is resolved here too so column-builder text blocks get the field's
             // own toolbar, not the default fallback.
-            $attr .= ' '.$this->buildFieldAttr((string) $field, '', false, (string) $uuid, true, false, $this->resolveBardConfig((string) $field), false, $this->resolveControls($this->params->get('controls')));
+            $attr .= ' '.$this->buildFieldAttr((string) $field, '', false, (string) $uuid, true, false, (new BardConfig($this->params, $this->context))->resolve((string) $field), false, (new Controls($this->params, $this->context))->resolve($this->params->get('controls')));
         }
 
         return $isPair ? '<div '.$attr.$grid.'>'.$content.'</div>' : $attr.$grid;
@@ -423,11 +428,6 @@ class VisualEdit extends Tags
         return '';
     }
 
-    private function resolveType(): string
-    {
-        return (string) $this->context->get('type', '');
-    }
-
     private function buildFieldAttr(string $fieldPath, string $label, bool $inside = false, string $scopeUid = '', bool $inlineEdit = false, bool $move = false, ?array $bardConfig = null, bool $orderable = false, array $controls = []): string
     {
         $attr = 'data-sid-field="'.e($fieldPath).'"';
@@ -568,7 +568,7 @@ class VisualEdit extends Tags
         // on the server — the preview is a separate document with no way to look
         // one up. Resolved here, where the files are, so the badge shows the icon
         // the author chose.
-        if (($markup = $this->resolveIconMarkup($icon)) !== '') {
+        if (($markup = Icons::resolveIconMarkup($icon)) !== '') {
             $attr .= ' data-sid-icon-svg="'.e($markup).'"';
         }
 
@@ -678,7 +678,7 @@ class VisualEdit extends Tags
      */
     private function placeholderAttr(): string
     {
-        $parsed = $this->parsePlaceholderSpec($this->params->get('placeholder'));
+        $parsed = Placeholders::parsePlaceholderSpec($this->params->get('placeholder'));
 
         if ($parsed['text'] === '') {
             return '';
@@ -693,10 +693,10 @@ class VisualEdit extends Tags
      */
     private function asAttr(): string
     {
-        $as = $this->normalizeAs($this->params->get('as'));
+        $as = Placeholders::normalizeAs($this->params->get('as'));
 
         if ($as === null) {
-            $as = $this->parsePlaceholderSpec($this->params->get('placeholder'))['as'];
+            $as = Placeholders::parsePlaceholderSpec($this->params->get('placeholder'))['as'];
         }
 
         if ($as === null) {
@@ -704,65 +704,6 @@ class VisualEdit extends Tags
         }
 
         return ' data-sid-as="'.e($as).'"';
-    }
-
-    /**
-     * @return array{text: string, as: string|null}
-     */
-    private function parsePlaceholderSpec(mixed $spec): array
-    {
-        if ($spec === null || $spec === false || $spec === true) {
-            return ['text' => '', 'as' => null];
-        }
-
-        $spec = trim((string) $spec);
-
-        if ($spec === '') {
-            return ['text' => '', 'as' => null];
-        }
-
-        if (preg_match('/^(h[1-6]|paragraph|p):(.+)$/is', $spec, $m)) {
-            return [
-                'as' => $this->normalizeAs($m[1]),
-                'text' => trim($m[2]),
-            ];
-        }
-
-        if (preg_match('/^heading:([1-6]):(.+)$/is', $spec, $m)) {
-            return [
-                'as' => 'h'.$m[1],
-                'text' => trim($m[2]),
-            ];
-        }
-
-        return ['text' => $spec, 'as' => null];
-    }
-
-    private function normalizeAs(mixed $as): ?string
-    {
-        if (! is_string($as)) {
-            return null;
-        }
-
-        $as = strtolower(trim($as));
-
-        if ($as === '' ) {
-            return null;
-        }
-
-        if (in_array($as, ['p', 'paragraph'], true)) {
-            return 'paragraph';
-        }
-
-        if (preg_match('/^h[1-6]$/', $as)) {
-            return $as;
-        }
-
-        if (preg_match('/^heading:?([1-6])?$/', $as, $m)) {
-            return 'h'.($m[1] ?: '2');
-        }
-
-        return null;
     }
 
     private function sidParamAttr(string $param, string $attribute): string
@@ -884,669 +825,6 @@ class VisualEdit extends Tags
     }
 
     /**
-     * Resolves the Bard field's own toolbar config so the preview builds an
-     * identical toolbar instead of a hardcoded one. Returns
-     * ['buttons' => [...], 'styles' => [name => [type, class, level, ident, name]]]
-     * where `styles` covers the bard-texstyle buttons among the field's buttons.
-     * Returns null when the field isn't a Bard field (e.g. a plain string).
-     */
-    private function resolveBardConfig(string $fieldPath): ?array
-    {
-        try {
-            $blueprintHandle = $this->params->get('blueprint');
-
-            if ($blueprintHandle) {
-                $blueprint = Blueprint::find((string) $blueprintHandle);
-            } else {
-                $page = $this->context->get('page');
-                $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
-            }
-
-            if (! $blueprint) {
-                return null;
-            }
-
-            $handle = last(explode('.', $fieldPath));
-            $setType = (string) $this->context->get('type', '');
-
-            // Collect every bard field with this handle, tagged with the set it
-            // sits in, then prefer the one whose set matches the current set type
-            // (context 'type'). This disambiguates identically-named fields —
-            // hero vs seo_text `text`, or a column-builder `text` block — without
-            // the aggressive scoping that broke deeply nested (column) lookups.
-            $matches = $this->fieldsByHandle($blueprint, $handle, 'bard');
-
-            if (empty($matches)) {
-                return null;
-            }
-
-            $config = null;
-
-            // The set handle alone is ambiguous: half a dozen sections name a set
-            // `item`, and each has its own `text`. The section narrows it — a
-            // match whose chain starts in THIS section and ends in THIS set is
-            // the field actually being edited, not a namesake elsewhere.
-            // Read off the values, not the context: the row's own uid leads to the
-            // exact set it sits in, and the types on the way down spell the same
-            // chain the blueprint walk recorded.
-            $valueChain = $this->resolveSetChainByScope();
-
-            if (! empty($valueChain)) {
-                foreach ($matches as $match) {
-                    if (($match['chain'] ?? []) === $valueChain) {
-                        $config = $match['config'];
-                        break;
-                    }
-                }
-            }
-
-            $sectionType = $valueChain[0] ?? $this->resolveSectionType();
-
-            if ($config === null && $sectionType !== '' && $setType !== '') {
-                foreach ($matches as $match) {
-                    $chain = $match['chain'] ?? [];
-
-                    if (($chain[0] ?? null) === $sectionType && ($chain[count($chain) - 1] ?? null) === $setType) {
-                        $config = $match['config'];
-                        break;
-                    }
-                }
-            }
-
-            if ($config === null) {
-                foreach ($matches as $match) {
-                    if ($match['set'] === $setType) {
-                        $config = $match['config'];
-                        break;
-                    }
-                }
-            }
-
-            // No bard field in this set answers to the handle. Before borrowing
-            // another set's — which is what makes one toolbar available to a
-            // block that named its field the same thing — ask what THIS set calls
-            // the handle. A `text` field lent a Bard's config is edited as Bard
-            // and written back as ProseMirror nodes, and a string field holding
-            // an array of nodes reads "[object Object]" in the Control Panel.
-            if ($config === null && $setType !== '') {
-                $own = $this->fieldsByHandle($blueprint, $handle);
-
-                foreach ($own as $match) {
-                    if ($match['set'] === $setType && ($match['config']['type'] ?? null) !== 'bard') {
-                        return null;
-                    }
-                }
-            }
-
-            $config = $config ?? $matches[0]['config'];
-
-            if (($config['type'] ?? null) !== 'bard') {
-                return null;
-            }
-
-            $buttons = array_values(array_filter((array) ($config['buttons'] ?? []), 'is_string'));
-
-            if (empty($buttons)) {
-                return null;
-            }
-
-            $texstyle = (array) config('statamic.bard_texstyle.styles', []);
-            $bardStyleList = (array) config('statamic.bard_styles.styles', []);
-            $bardGroups = (array) config('statamic.bard_styles.groups', []);
-            $styles = [];
-            $bardByHandle = [];
-
-            foreach ($bardStyleList as $bardStyle) {
-                if (is_array($bardStyle) && ! empty($bardStyle['handle'])) {
-                    $bardByHandle[$bardStyle['handle']] = $bardStyle;
-                }
-            }
-
-            foreach ($buttons as $button) {
-                if (isset($texstyle[$button]) && is_array($texstyle[$button])) {
-                    $style = $texstyle[$button];
-                    $styles[$button] = array_filter([
-                        'type' => $style['type'] ?? 'span',
-                        'class' => $style['class'] ?? null,
-                        'level' => $style['level'] ?? null,
-                        'ident' => $style['ident'] ?? null,
-                        'name' => $style['name'] ?? null,
-                    ], fn ($v) => $v !== null);
-
-                    continue;
-                }
-
-                // Vizuall bard-style addon: groups + individual styles from
-                // config/statamic/bard_styles.php (button names bard-group-* / bard-*).
-                if (str_starts_with($button, 'bard-group-')) {
-                    $groupKey = substr($button, strlen('bard-group-'));
-                    $meta = is_array($bardGroups[$groupKey] ?? null) ? $bardGroups[$groupKey] : [];
-                    $items = [];
-
-                    foreach ($bardStyleList as $bardStyle) {
-                        if (! is_array($bardStyle) || ($bardStyle['group'] ?? null) !== $groupKey) {
-                            continue;
-                        }
-
-                        $items[] = $this->normalizeBardStyle($bardStyle);
-                    }
-
-                    $styles[$button] = array_filter([
-                        'kind' => 'group',
-                        'name' => $meta['name'] ?? $groupKey,
-                        'ident' => $meta['ident'] ?? null,
-                        'items' => $items,
-                    ], fn ($v) => $v !== null);
-
-                    continue;
-                }
-
-                if (str_starts_with($button, 'bard-')) {
-                    $handle = str_replace('-', '_', substr($button, strlen('bard-')));
-
-                    if (isset($bardByHandle[$handle])) {
-                        $styles[$button] = array_merge(
-                            ['kind' => 'vizu'],
-                            $this->normalizeBardStyle($bardByHandle[$handle])
-                        );
-                    }
-                }
-            }
-
-            $sets = [];
-
-            foreach ($this->flattenReplicatorSets($config['sets'] ?? []) as $setHandle => $set) {
-                $sets[] = [
-                    'handle' => $setHandle,
-                    'display' => $set['display'] ?? $setHandle,
-                ];
-            }
-
-            return [
-                'buttons' => $buttons,
-                'styles' => $styles,
-                'sets' => $sets,
-                'inline' => (bool) ($config['inline'] ?? false),
-            ];
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve bard config for '.$fieldPath, ['exception' => $e]);
-
-            return null;
-        }
-    }
-
-    /**
-     * Normalizes a single entry from config/statamic/bard_styles.php for the
-     * preview toolbar (span/paragraph/div + optional block-target props).
-     */
-    private function normalizeBardStyle(array $style): array
-    {
-        return array_filter([
-            'handle' => $style['handle'] ?? null,
-            'type' => $style['type'] ?? 'span',
-            'name' => $style['name'] ?? null,
-            'ident' => $style['ident'] ?? null,
-            'prop' => $style['prop'] ?? null,
-            'value' => $style['value'] ?? null,
-            'class' => $style['class'] ?? null,
-            'target' => $style['target'] ?? null,
-            'cp_css' => $style['cp_css'] ?? null,
-        ], fn ($v) => $v !== null);
-    }
-
-    /**
-     * Same walk as {@see collectFieldsByHandle}, once per handle per request.
-     *
-     * @return  list<array{handle?: string, config?: array, set?: string, chain?: array}>
-     */
-    private function fieldsByHandle($blueprint, string $handle, ?string $fieldType = null): array
-    {
-        $key = spl_object_id($blueprint).'|'.$handle.'|'.($fieldType ?? '*');
-
-        if (isset(self::$fieldsByHandle[$key])) {
-            return self::$fieldsByHandle[$key];
-        }
-
-        $matches = [];
-        $this->collectFieldsByHandle($blueprint->contents(), $handle, $matches, $fieldType);
-
-        return self::$fieldsByHandle[$key] = $matches;
-    }
-
-    /**
-     * Recursively collects every field with the given handle in a
-     * blueprint/fieldset field tree, resolving `import` references. Each match is
-     * recorded as ['config' => <field config>, 'set' => <nearest enclosing set
-     * handle or ''>] so the caller can prefer the one in the current set type.
-     *
-     * $fieldType narrows the search to one fieldtype (e.g. 'bard'); null keeps
-     * every match, which is what the sibling-control lookup needs.
-     *
-     * $node is any structure that may contain a `fields` array (tabs, sections,
-     * sets, grids, groups).
-     */
-    private function collectFieldsByHandle($node, string $handle, array &$matches, ?string $fieldType = null, string $enclosingSet = '', int $depth = 0, array $setChain = []): void
-    {
-        if ($depth > 14 || ! is_array($node)) {
-            return;
-        }
-
-        // Tabs (assoc: name => tab).
-        foreach (($node['tabs'] ?? []) as $tab) {
-            $this->collectFieldsByHandle($tab, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
-        }
-
-        // Sections (list).
-        foreach (($node['sections'] ?? []) as $section) {
-            $this->collectFieldsByHandle($section, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
-        }
-
-        foreach ((array) ($node['fields'] ?? []) as $item) {
-            // Import reference — resolve the fieldset and recurse into it.
-            if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
-
-                if ($fieldset) {
-                    $this->collectFieldsByHandle($fieldset->contents(), $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
-                }
-
-                continue;
-            }
-
-            $field = $item['field'] ?? null;
-
-            // A field can also reference a fieldset field ("basic_blocks.blocks")
-            // and override parts of it in `config`. Resolve it into the config it
-            // stands for, so both the match below and the descent into its sets
-            // work exactly as they do for an inline field — the overridden sets
-            // are where a referenced replicator's own fields actually live.
-            if (is_string($field)) {
-                $referenced = $this->resolveFieldReference($field);
-
-                $field = $referenced ? array_merge($referenced, (array) ($item['config'] ?? [])) : null;
-            }
-
-            if (! is_array($field)) {
-                continue;
-            }
-
-            // Case-insensitive: a handle is typed twice — once when the field is
-            // created in the Control Panel, once in the template that names it —
-            // and `Font_size` against `font_size` is a mismatch no one can see.
-            // Nothing legitimate distinguishes two fields by capitals alone, so
-            // the looser comparison costs nothing and answers the likelier intent.
-            if (strcasecmp((string) ($item['handle'] ?? ''), $handle) === 0 && ($fieldType === null || ($field['type'] ?? null) === $fieldType)) {
-                // `chain` is every set handle on the way down, outermost first —
-                // ['featured_section/style_2', 'item']. The nearest set alone is
-                // not enough to tell two fields apart: half a dozen sections name
-                // a set `item`, and each of them has its own `text`.
-                $matches[] = [
-                    // The handle as the blueprint spells it, which is not always
-                    // how the template spelled it — the comparison above ignores
-                    // case, and a value is written back under this name, not the
-                    // one that was typed. `font_size` writing to `Font_size` is
-                    // the difference between a control that works and one that
-                    // silently saves into a field nobody reads.
-                    'handle' => (string) ($item['handle'] ?? ''),
-                    'config' => $field,
-                    'set' => $enclosingSet,
-                    'chain' => $setChain,
-                ];
-            }
-
-            // Grid/group nested fields.
-            if (isset($field['fields'])) {
-                $this->collectFieldsByHandle($field, $handle, $matches, $fieldType, $enclosingSet, $depth + 1, $setChain);
-            }
-
-            // Replicator/Bard set groups: sets => [group => ['sets' => [handle => ['fields' => ...]]]].
-            foreach (($field['sets'] ?? []) as $group) {
-                foreach (($group['sets'] ?? []) as $setHandle => $set) {
-                    // Descend into every set, tagging matches with this set handle
-                    // so the caller can prefer the one matching the current type.
-                    $this->collectFieldsByHandle($set, $handle, $matches, $fieldType, (string) $setHandle, $depth + 1, [...$setChain, (string) $setHandle]);
-                }
-            }
-        }
-    }
-
-    /**
-     * The chain of set types down to the row this tag is scoped to, read off the
-     * entry's own values — ['featured_section/style_2', 'item'].
-     *
-     * The same chain the blueprint walk records, arrived at from the other end:
-     * a uid identifies exactly one row, and the `type` of every set it sits in
-     * says which set handle the blueprint calls it. Two sections that both name a
-     * set `item` are told apart by what stands above it.
-     */
-    private function resolveSetChainByScope(): array
-    {
-        $uid = (string) ($this->params->get('scope') ?: $this->context->get('id') ?: '');
-
-        if ($uid === '') {
-            return [];
-        }
-
-        try {
-            $page = $this->context->get('page');
-
-            if (! $page || ! method_exists($page, 'value')) {
-                return [];
-            }
-
-            $field = (string) config('statamic-visual-editor.previews.field', 'page_sections');
-
-            return $this->typeChainTo((array) $page->value($field), $uid) ?? [];
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve set chain', ['exception' => $e]);
-
-            return [];
-        }
-    }
-
-    /** Depth-first walk collecting each row's `type` on the way to $uid. */
-    private function typeChainTo(array $node, string $uid, array $chain = [], int $depth = 0): ?array
-    {
-        if ($depth > 14) {
-            return null;
-        }
-
-        foreach ($node as $value) {
-            if (! is_array($value)) {
-                continue;
-            }
-
-            $isRow = isset($value['type']) || isset($value['id']) || isset($value['_id']);
-            $next = $isRow && isset($value['type']) ? [...$chain, (string) $value['type']] : $chain;
-
-            if ($isRow && in_array($uid, [
-                $value['id'] ?? null,
-                $value['_id'] ?? null,
-                $value['_visual_id'] ?? null,
-            ], true)) {
-                return $next;
-            }
-
-            if ($found = $this->typeChainTo($value, $uid, $next, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * The page section this tag renders inside, by set handle
-     * ("featured_section/style_2"), or '' when it cannot be told.
-     *
-     * `_visual_id` cascades from the section into everything drawn inside it, so
-     * a tag several loops deep can still say which section it belongs to. Read
-     * off the raw value rather than the augmented one: augmentation turns the
-     * sets into objects, and all that is wanted here is `type`.
-     */
-    private function resolveSectionType(): string
-    {
-        $uid = (string) ($this->context->get('_visual_id') ?? '');
-
-        if ($uid === '') {
-            return '';
-        }
-
-        try {
-            $page = $this->context->get('page');
-
-            if (! $page || ! method_exists($page, 'value')) {
-                return '';
-            }
-
-            $field = (string) config('statamic-visual-editor.previews.field', 'page_sections');
-
-            foreach ((array) $page->value($field) as $section) {
-                if (is_array($section) && ($section['_visual_id'] ?? null) === $uid) {
-                    return (string) ($section['type'] ?? '');
-                }
-            }
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve section type', ['exception' => $e]);
-        }
-
-        return '';
-    }
-
-    /** The field config behind a "fieldset.field" reference, or null. */
-    private function resolveFieldReference(string $reference): ?array
-    {
-        $segments = explode('.', $reference);
-        $fieldHandle = array_pop($segments);
-        $fieldset = \Statamic\Facades\Fieldset::find(implode('.', $segments));
-
-        if (! $fieldset) {
-            return null;
-        }
-
-        foreach (FieldsetFields::of($fieldset) as $item) {
-            if (($item['handle'] ?? null) === $fieldHandle && is_array($item['field'] ?? null)) {
-                return $item['field'];
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * controls="font_tag|size" — sibling fields of the one being edited inline,
-     * offered as quick controls in the preview toolbar. Returns them in the order
-     * they were named as [['handle','display','type','options','default']];
-     * unknown handles and fieldtypes the toolbar can't render are dropped.
-     */
-    private function resolveControls($spec): array
-    {
-        if ($spec === null || $spec === false || $spec === true || $spec === '') {
-            return [];
-        }
-
-        // `controls="tag:h1|font_size:text-700"` — the option each control starts
-        // on, declared where the block is used rather than in the fieldset it is
-        // shared from. One headline block can then lead with an H1 in the hero
-        // and an H3 in a content box, without a fieldset per section.
-        //
-        // Nothing after the colon means nothing declared, so an interpolated
-        // parameter that was never passed (`tag:{tag_default}`) falls through to
-        // the field's own default instead of blanking the control.
-        $defaults = [];
-        $handles = [];
-
-        foreach (preg_split('/[|,]/', (string) $spec) as $part) {
-            [$handle, $default] = array_pad(explode(':', trim($part), 2), 2, null);
-
-            $handle = trim((string) $handle);
-
-            if ($handle === '') {
-                continue;
-            }
-
-            $handles[] = $handle;
-
-            if (is_string($default) && trim($default) !== '') {
-                $defaults[$handle] = trim($default);
-            }
-        }
-
-        if (empty($handles)) {
-            return [];
-        }
-
-        try {
-            $blueprintHandle = $this->params->get('blueprint');
-
-            if ($blueprintHandle) {
-                $blueprint = Blueprint::find((string) $blueprintHandle);
-            } else {
-                $page = $this->context->get('page');
-                $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
-            }
-
-            if (! $blueprint) {
-                return [];
-            }
-
-            $setType = (string) $this->context->get('type', '');
-            $out = [];
-
-            // The same chain the Bard toolbar narrows by, read once: it describes
-            // the row this tag sits in, not the handle being looked up.
-            $valueChain = $this->resolveSetChainByScope();
-            $sectionType = $valueChain[0] ?? $this->resolveSectionType();
-
-            foreach ($handles as $handle) {
-                $matches = $this->fieldsByHandle($blueprint, $handle);
-
-                if (empty($matches)) {
-                    Log::debug("VisualEdit: controls=\"{$handle}\" skipped — no field by that handle in the blueprint.");
-
-                    continue;
-                }
-
-                // Same disambiguation as the Bard toolbar, and for the same
-                // reason: the set handle alone is ambiguous, because half a dozen
-                // sections name a set `item` and each has its own fields. Narrow
-                // by the whole chain first, then by section + set, then by the
-                // set alone.
-                $found = null;
-
-                foreach ($matches as $match) {
-                    if (($match['chain'] ?? []) === $valueChain) {
-                        $found = $match;
-                        break;
-                    }
-                }
-
-                if ($found === null && $sectionType !== '' && $setType !== '') {
-                    foreach ($matches as $match) {
-                        $chain = $match['chain'] ?? [];
-
-                        if (($chain[0] ?? null) === $sectionType && ($chain[count($chain) - 1] ?? null) === $setType) {
-                            $found = $match;
-                            break;
-                        }
-                    }
-                }
-
-                // Only when there is nothing to place the tag by. Knowing which
-                // row this is and still not finding the handle in it means the
-                // field is not there — and a namesake elsewhere is no substitute.
-                // Several fieldsets name a set `headline`, so matching on the set
-                // handle alone answers with whichever the walk reached first:
-                // `basic_blocks`, whose Small/Large belong to another block.
-                if ($found === null && empty($valueChain) && $sectionType === '') {
-                    foreach ($matches as $match) {
-                        if ($match['set'] === $setType) {
-                            $found = $match;
-                            break;
-                        }
-                    }
-                }
-
-                // Deliberately no fallback to the first match found anywhere.
-                // Borrowing a namesake from another set is how a headline came to
-                // offer Small/Large — options belonging to a different section's
-                // field entirely. A control that does not appear is a bug you can
-                // see; one offering another field's values is a bug you act on.
-                if ($found === null) {
-                    Log::debug("VisualEdit: controls=\"{$handle}\" skipped — no such field in set '{$setType}'.");
-
-                    continue;
-                }
-
-                $config = $found['config'];
-                $type = $config['type'] ?? null;
-
-                // The toolbar draws raw DOM inside the preview iframe, so it can
-                // only offer fieldtypes it knows how to draw. Anything else is
-                // skipped — logged, because a control that silently never appears
-                // is the hardest kind of nothing to debug.
-                $supported = ['select', 'button_group', 'radio', 'toggle', 'theme_color_picker', 'color'];
-
-                if (! in_array($type, $supported, true)) {
-                    Log::debug("VisualEdit: controls=\"{$handle}\" skipped — the toolbar cannot render a '{$type}' field.");
-
-                    continue;
-                }
-
-                $control = [
-                    // The blueprint's spelling, not the template's — this is the
-                    // name the value is read and written under.
-                    'handle' => $found['handle'] !== '' ? $found['handle'] : $handle,
-                    'display' => $config['display'] ?? Str::headline($handle),
-                    'type' => $type,
-                    // The template's declaration wins: it is the more local of the
-                    // two, and the only one that can differ per place used.
-                    'default' => $defaults[$handle] ?? $config['default'] ?? null,
-                ];
-
-                // Colour pickers: no options list — the bridge opens a swatch
-                // menu (fetched from the CP) and wraps the current text
-                // selection in {…} so a plain text field can carry a highlight.
-                if (in_array($type, ['theme_color_picker', 'color'], true)) {
-                    $out[] = array_filter($control, fn ($v) => $v !== null);
-
-                    continue;
-                }
-
-                if ($type !== 'toggle') {
-                    $options = $this->normalizeControlOptions((array) ($config['options'] ?? []));
-
-                    if (empty($options)) {
-                        continue;
-                    }
-
-                    $control['options'] = $options;
-                }
-
-                $out[] = array_filter($control, fn ($v) => $v !== null);
-            }
-
-            return $out;
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to resolve controls for '.(string) $spec, ['exception' => $e]);
-
-            return [];
-        }
-    }
-
-    /**
-     * Statamic writes select/button_group options in three shapes depending on how
-     * they were authored — a keyed map, a plain list, or the array fieldtype's
-     * [['key' => …, 'value' => …]]. All three become [['key','label']].
-     */
-    private function normalizeControlOptions(array $options): array
-    {
-        $out = [];
-
-        foreach ($options as $key => $option) {
-            if (is_array($option) && array_key_exists('key', $option)) {
-                $optionKey = (string) $option['key'];
-
-                $out[] = ['key' => $optionKey, 'label' => (string) ($option['value'] ?? $optionKey)];
-
-                continue;
-            }
-
-            if (is_string($key)) {
-                $out[] = ['key' => $key, 'label' => is_string($option) ? $option : $key];
-
-                continue;
-            }
-
-            if (is_string($option) || is_numeric($option)) {
-                $out[] = ['key' => (string) $option, 'label' => (string) $option];
-            }
-        }
-
-        return $out;
-    }
-
-    /**
      * The replicator this tag is on, found inside the section being rendered.
      *
      * A field handle is only unique within its set. Half the page-builder
@@ -1574,69 +852,13 @@ class VisualEdit extends Tags
 
         $contents = $blueprint->contents();
 
-        if ($setType !== '' && $set = $this->findSetConfig($contents, $setType)) {
-            if ($found = $this->findReplicatorConfig($set, $fieldHandle)) {
+        if ($setType !== '' && $set = BlueprintFields::findSetConfig($contents, $setType)) {
+            if ($found = BlueprintFields::findReplicatorConfig($set, $fieldHandle)) {
                 return self::$replicatorByHandle[$cacheKey] = $found;
             }
         }
 
-        return self::$replicatorByHandle[$cacheKey] = $this->findReplicatorConfig($contents, $fieldHandle);
-    }
-
-    /** A replicator set's own config, by set handle, anywhere in the tree. */
-    private function findSetConfig($node, string $setHandle, int $depth = 0): ?array
-    {
-        if ($depth > 14 || ! is_array($node)) {
-            return null;
-        }
-
-        foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = $this->findSetConfig($tab, $setHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach (($node['sections'] ?? []) as $section) {
-            if ($found = $this->findSetConfig($section, $setHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach ((array) ($node['fields'] ?? []) as $item) {
-            if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
-
-                if ($fieldset && $found = $this->findSetConfig($fieldset->contents(), $setHandle, $depth + 1)) {
-                    return $found;
-                }
-
-                continue;
-            }
-
-            $field = $item['field'] ?? null;
-
-            if (! is_array($field)) {
-                continue;
-            }
-
-            foreach (($field['sets'] ?? []) as $group) {
-                foreach (($group['sets'] ?? []) as $handle => $set) {
-                    if ((string) $handle === $setHandle) {
-                        return $set;
-                    }
-
-                    if ($found = $this->findSetConfig($set, $setHandle, $depth + 1)) {
-                        return $found;
-                    }
-                }
-            }
-
-            if (isset($field['fields']) && $found = $this->findSetConfig($field, $setHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        return null;
+        return self::$replicatorByHandle[$cacheKey] = BlueprintFields::findReplicatorConfig($contents, $fieldHandle);
     }
 
     /**
@@ -1694,62 +916,6 @@ class VisualEdit extends Tags
         }
     }
 
-    /** The config of the replicator with this handle, found anywhere in the tree. */
-    private function findReplicatorConfig($node, string $handle, int $depth = 0): ?array
-    {
-        if ($depth > 14 || ! is_array($node)) {
-            return null;
-        }
-
-        foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = $this->findReplicatorConfig($tab, $handle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach (($node['sections'] ?? []) as $section) {
-            if ($found = $this->findReplicatorConfig($section, $handle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach ((array) ($node['fields'] ?? []) as $item) {
-            if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
-
-                if ($fieldset && $found = $this->findReplicatorConfig($fieldset->contents(), $handle, $depth + 1)) {
-                    return $found;
-                }
-
-                continue;
-            }
-
-            $field = $item['field'] ?? null;
-
-            if (! is_array($field)) {
-                continue;
-            }
-
-            if (($item['handle'] ?? null) === $handle && isset($field['sets'])) {
-                return $field;
-            }
-
-            foreach (($field['sets'] ?? []) as $group) {
-                foreach (($group['sets'] ?? []) as $set) {
-                    if ($found = $this->findReplicatorConfig($set, $handle, $depth + 1)) {
-                        return $found;
-                    }
-                }
-            }
-
-            if (isset($field['fields']) && $found = $this->findReplicatorConfig($field, $handle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        return null;
-    }
-
     /**
      * Badge icon for this annotation: explicit `icon=` param, then the Replicator
      * set's icon, then a Grid field's icon (`icon_from="links"` or the field's
@@ -1798,7 +964,7 @@ class VisualEdit extends Tags
                 return '';
             }
 
-            return (string) ($this->findSetIcon($blueprint->contents(), $setHandle) ?? '');
+            return (string) (Icons::findSetIcon($blueprint->contents(), $setHandle) ?? '');
         } catch (\Throwable $e) {
             Log::debug('VisualEdit: failed to resolve set icon for '.$setHandle, ['exception' => $e]);
 
@@ -1824,172 +990,12 @@ class VisualEdit extends Tags
                 return '';
             }
 
-            return (string) ($this->findFieldIcon($blueprint->contents(), $fieldHandle) ?? '');
+            return (string) (Icons::findFieldIcon($blueprint->contents(), $fieldHandle) ?? '');
         } catch (\Throwable $e) {
             Log::debug('VisualEdit: failed to resolve field icon for '.$fieldHandle, ['exception' => $e]);
 
             return '';
         }
-    }
-
-    /**
-     * The SVG behind an icon name, or empty when there is none to find.
-     *
-     * Filenames from Statamic's set or a registered custom Icon::set are looked
-     * up on disk. Anything else — Iconify, emoji — is left for the preview under
-     * `data-sid-icon`.
-     */
-    private function resolveIconMarkup(string $icon): string
-    {
-        try {
-            return IconResolver::markup($icon) ?? '';
-        } catch (\Throwable $e) {
-            Log::debug('VisualEdit: failed to read icon '.$icon, ['exception' => $e]);
-
-            return '';
-        }
-    }
-
-    /** Walks the blueprint for a field with this handle and returns its `icon`. */
-    private function findFieldIcon($node, string $fieldHandle, int $depth = 0): ?string
-    {
-        if ($depth > 14 || ! is_array($node)) {
-            return null;
-        }
-
-        foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = $this->findFieldIcon($tab, $fieldHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach (($node['sections'] ?? []) as $section) {
-            if ($found = $this->findFieldIcon($section, $fieldHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach ((array) ($node['fields'] ?? []) as $item) {
-            if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
-
-                if ($fieldset && $found = $this->findFieldIcon($fieldset->contents(), $fieldHandle, $depth + 1)) {
-                    return $found;
-                }
-
-                continue;
-            }
-
-            $handle = (string) ($item['handle'] ?? '');
-            $field = $item['field'] ?? null;
-
-            if (is_string($field)) {
-                $referenced = $this->resolveFieldReference($field);
-                $field = $referenced ? array_merge($referenced, (array) ($item['config'] ?? [])) : null;
-            }
-
-            if (! is_array($field)) {
-                continue;
-            }
-
-            if ($handle === $fieldHandle && ! empty($field['icon'])) {
-                return (string) $field['icon'];
-            }
-
-            foreach ($this->flattenReplicatorSets($field['sets'] ?? []) as $set) {
-                if ($found = $this->findFieldIcon($set, $fieldHandle, $depth + 1)) {
-                    return $found;
-                }
-            }
-
-            if (isset($field['fields']) && $found = $this->findFieldIcon($field, $fieldHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        return null;
-    }
-
-    /** Walks the blueprint for a set with this handle and returns its `icon`. */
-    private function findSetIcon($node, string $setHandle, int $depth = 0): ?string
-    {
-        if ($depth > 14 || ! is_array($node)) {
-            return null;
-        }
-
-        foreach (($node['tabs'] ?? []) as $tab) {
-            if ($found = $this->findSetIcon($tab, $setHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach (($node['sections'] ?? []) as $section) {
-            if ($found = $this->findSetIcon($section, $setHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        foreach ((array) ($node['fields'] ?? []) as $item) {
-            if (isset($item['import'])) {
-                $fieldset = \Statamic\Facades\Fieldset::find($item['import']);
-
-                if ($fieldset && $found = $this->findSetIcon($fieldset->contents(), $setHandle, $depth + 1)) {
-                    return $found;
-                }
-
-                continue;
-            }
-
-            $field = $item['field'] ?? null;
-
-            // Same as collectFieldsByHandle: a referenced field keeps its sets in
-            // the `config` override, so it has to be resolved before descending.
-            if (is_string($field)) {
-                $referenced = $this->resolveFieldReference($field);
-
-                $field = $referenced ? array_merge($referenced, (array) ($item['config'] ?? [])) : null;
-            }
-
-            if (! is_array($field)) {
-                continue;
-            }
-
-            foreach ($this->flattenReplicatorSets($field['sets'] ?? []) as $handle => $set) {
-                if ((string) $handle === $setHandle && ! empty($set['icon'])) {
-                    return (string) $set['icon'];
-                }
-
-                if ($found = $this->findSetIcon($set, $setHandle, $depth + 1)) {
-                    return $found;
-                }
-            }
-
-            if (isset($field['fields']) && $found = $this->findSetIcon($field, $setHandle, $depth + 1)) {
-                return $found;
-            }
-        }
-
-        return null;
-    }
-
-    /** Flattens grouped set config (`sets: { group: { sets: {...} } }`) to handle => set. */
-    private function flattenReplicatorSets(array $sets): array
-    {
-        $first = reset($sets);
-
-        if (is_array($first) && isset($first['sets'])) {
-            $out = [];
-
-            foreach ($sets as $group) {
-                foreach (($group['sets'] ?? []) as $handle => $set) {
-                    $out[$handle] = $set;
-                }
-            }
-
-            return $out;
-        }
-
-        return $sets;
     }
 
     protected function isLivePreview(): bool
