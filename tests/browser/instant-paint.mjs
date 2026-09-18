@@ -100,6 +100,12 @@ try {
   const abs = filePath ? (filePath.startsWith('/') ? filePath : `${SITE_DIR}/${filePath}`) : null;
   if (abs && existsSync(abs)) original = readFileSync(abs, 'utf8');
   step('section file backed up', !!original, abs || '');
+  // Saving bakes the section's Tailwind classes into resources/visual-editor/tw/
+  // — a file the site may not have had before this run. Remember, so it goes
+  // away with the rest of the test's traces.
+  const twMatch = filePath.match(/page_sections\/(.+)\.antlers\.html$/);
+  const twPath = twMatch ? `${SITE_DIR}/resources/visual-editor/tw/${twMatch[1]}.css` : null;
+  const twExisted = twPath ? existsSync(twPath) : true;
 
   // A locked template ignores keystrokes. Unlock through the dock's own button
   // and confirm dialog; restoring the file afterwards restores the lock marker.
@@ -196,6 +202,12 @@ try {
       for (const name of readdirSync(historyDir)) { const file = `${historyDir}/${name}`; if (statSync(file).mtimeMs >= startedAt - 1000) { unlinkSync(file); removed++; } }
       if (!readdirSync(historyDir).length) rmdirSync(historyDir);
       console.log(`info history snapshots from this run removed — ${removed}`);
+    }
+    if (twPath && !twExisted && existsSync(twPath)) {
+      unlinkSync(twPath);
+      const dir = twPath.slice(0, twPath.lastIndexOf('/'));
+      if (!readdirSync(dir).length) rmdirSync(dir);
+      console.log(`info baked Tailwind file from this run removed — ${twPath.replace(SITE_DIR + '/', '')}`);
     }
   }
 }
