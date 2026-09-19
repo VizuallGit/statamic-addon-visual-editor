@@ -93,6 +93,13 @@ let htmlTreeFileKey = '';
  * is the new file arriving, and that is when the tree reseats itself.
  */
 let htmlTreeReseat = false;
+/**
+ * The markup the last paint drew. A file change is only "announced ahead" when
+ * this paint still shows what the last one showed; when the markup has already
+ * moved on, the new file is here and the reseat is due now, not later. Null
+ * until the first paint — an empty file is a paint too.
+ */
+let htmlTreeLastHtml = null;
 /** No section is unfolded until one is asked for. Set again on every open. */
 let htmlTreeShutStart = true;
 /** A section clicked whose file has not arrived yet. Drawn as open already. */
@@ -1042,17 +1049,33 @@ export function renderHtmlTree(win) {
   // reseats on the first paint that shows something else — which is the new
   // file arriving. Two sections that share a template are the exception: there
   // is no new markup coming, so the move is over as soon as it is announced.
+  //
+  // Unless the new file is already on screen. A component opened from a row's
+  // menu loads before the tree paints, so the move and its markup arrive in
+  // one paint — and a reseat armed on *that* markup waited for the next change
+  // to it: the first value typed into a picked component's fields. The picked
+  // row jumped to the file's first tag and took the fields with it, once, and
+  // never again. The last paint's markup is what tells the two cases apart.
+  let reseatNow = false;
+
   if (fileKey !== htmlTreeFileKey) {
     htmlTreeFileKey = fileKey;
     htmlTreeFolds.clear();
-    htmlTreeReseat = html;
+
+    if (htmlTreeLastHtml !== null && html !== htmlTreeLastHtml) {
+      reseatNow = true;
+    } else {
+      htmlTreeReseat = html;
+    }
   }
 
-  if (htmlTreeReseat !== false && html !== htmlTreeReseat) {
+  if (reseatNow || (htmlTreeReseat !== false && html !== htmlTreeReseat)) {
     htmlTreeReseat = false;
     htmlTreeFolds.clear();
     htmlTreeActiveId = firstTagId(roots) || null;
   }
+
+  htmlTreeLastHtml = html;
 
   // The clicked section is open once its file is on screen — not merely once
   // the dock has said which file it is going to fetch.
