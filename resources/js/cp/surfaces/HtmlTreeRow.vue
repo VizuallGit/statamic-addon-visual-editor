@@ -40,6 +40,9 @@ import { htmlTreeUi as ui } from '../html-tree/store.js';
 
 defineProps({
   row: { type: Object, required: true },
+  // During a search: the row is here only because something under it
+  // matched. Drawn, so the path to the match reads, but held back.
+  dim: { type: Boolean, default: false },
 });
 
 const TWIST =
@@ -80,7 +83,7 @@ function onRowClick(row) {
   ui.onSelect?.(row.id);
 }
 
-function rowBind(row) {
+function rowBind(row, dim) {
   const bind = { 'data-sve-ht-id': row.id };
 
   if (row.current) {
@@ -96,6 +99,10 @@ function rowBind(row) {
   // the chip by the family, and weights a root row's name by the depth.
   bind['data-sve-ht-cat'] = row.cat || 'other';
   bind['data-sve-ht-depth'] = String(row.depth);
+
+  if (dim) {
+    bind['data-sve-ht-dim'] = '';
+  }
 
   // Kept so the old stylesheet rules and the verify scripts still find a
   // section by name; it marks which state the row is in, nothing more.
@@ -118,7 +125,7 @@ function canHide(row) {
 <template>
   <div
     data-sve-ht-row
-    v-bind="rowBind(row)"
+    v-bind="rowBind(row, dim)"
     role="button"
     tabindex="0"
     :title="rowTitle(row)"

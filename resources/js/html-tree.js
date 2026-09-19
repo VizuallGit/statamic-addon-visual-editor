@@ -182,6 +182,8 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-row][data-sve-ht-current] { background: #3858e9; color: #fff; }
     [data-sve-ht-row][data-sve-ht-current]:hover { background: #4a68ee; }
     [data-sve-ht-row][data-sve-ht-hidden] { opacity: .5; }
+    /* A search: the row is only the way to a match further down. */
+    [data-sve-ht-row][data-sve-ht-dim] { opacity: .45; }
     /* The box around the open section's tags — it says where you are working. */
     [data-sve-ht-branch] {
       box-sizing: border-box;
@@ -1088,7 +1090,9 @@ export function renderHtmlTree(win) {
   const openUid = htmlTreeShutStart ? '' : pendingUid || liveUid;
   const inSections = !!(pendingUid || liveUid);
 
-  const rows = flattenHtmlTree(roots, foldedIds(roots));
+  // A search looks through folded rows too: the list filters what is here,
+  // so while a query is in the box the whole file is flattened.
+  const rows = flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
 
   if (!html.trim() && !dockIsOpen(doc)) {
     htmlTreeUi.emptyText = t(win, 'html_tree_need_dock');
@@ -1106,8 +1110,10 @@ export function renderHtmlTree(win) {
   htmlTreeUi.duplicateTitle = t(win, 'html_tree_duplicate');
   htmlTreeUi.deleteTitle = t(win, 'html_tree_delete');
   htmlTreeUi.lockedTitle = t(win, 'html_tree_locked');
+  htmlTreeUi.searchEmpty = t(win, 'html_tree_search_empty');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
   htmlTreeUi.look = readHtmlTreeLook(win);
+  htmlTreeUi.onQuery = () => renderHtmlTree(win);
   paintComponentExit(win);
   htmlTreeUi.onSelect = (id) => {
     // A field waiting for something to point at takes the row instead of

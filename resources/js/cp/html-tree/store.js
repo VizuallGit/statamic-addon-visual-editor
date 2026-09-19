@@ -27,6 +27,13 @@ export const htmlTreeUi = reactive({
   // 'tags' or 'classic' — see readHtmlTreeLook. The list wears it as
   // data-sve-ht-look, and every rule of the tags look hangs off that.
   look: 'tags',
+  // What the search box holds. The list filters by it on every keystroke;
+  // html-tree.js is only asked to paint again (onQuery) when the box goes
+  // from empty to not, or back — a search looks through folded rows too, so
+  // that paint flattens the whole file instead of the folded view.
+  query: '',
+  onQuery: null,
+  searchEmpty: '',
   emptyText: '',
   rows: [],
   // The page's own sections, above the tags. One row each, and the section whose

@@ -8,8 +8,9 @@
  * mark and highlight depending on whether it was open. Shut is a state of the
  * row, not a second row.
  */
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
+import { matchesHtmlTreeRow, normalizeHtmlTreeQuery, searchHtmlTreeRows } from '../html-tree/search.js';
 import HtmlTreeRow from './HtmlTreeRow.vue';
 import { canCreateSections, openNewSectionDialog, revealWhenRendered } from '../../section-create.js';
 import { t } from '../../lib/i18n.js';
@@ -20,6 +21,33 @@ import { t } from '../../lib/i18n.js';
 const canCreate = canCreateSections(window);
 const newSectionLabel = t(window, 'section_new');
 const creating = ref(false);
+
+/**
+ * The search, applied to what the last paint produced. The open section's
+ * rows are searched through (html-tree.js flattens the whole file while a
+ * query is in the box); a shut section is one row, so its name and tag are
+ * what a search can find. The open section stays when its own row matches or
+ * anything under it does.
+ */
+const query = computed(() => normalizeHtmlTreeQuery(ui.query));
+const found = computed(() => searchHtmlTreeRows(ui.rows, query.value));
+const shownRows = computed(() => found.value.rows);
+const shownSections = computed(() => {
+  if (!query.value) {
+    return ui.sections;
+  }
+
+  return ui.sections.filter((sec) =>
+    matchesHtmlTreeRow(sec.row, query.value) || (sec.current && sec.ready && shownRows.value.length > 0)
+  );
+});
+const nothingFound = computed(
+  () => !!query.value && !shownSections.value.length && !shownRows.value.length
+);
+
+function isDim(row) {
+  return !!query.value && !found.value.hits.has(row.path);
+}
 
 function release() {
   creating.value = false;
@@ -86,10 +114,11 @@ function onNewSection() {
 <template>
   <div class="sve-ht-root" :data-sve-ht-look="ui.look" v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}">
     <div v-if="!ui.rows.length && !ui.sections.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+    <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
 
     <template v-if="ui.sections.length">
       <div
-        v-for="sec in ui.sections"
+        v-for="sec in shownSections"
         :key="sec.uid"
         v-bind="sec.current ? { 'data-sve-ht-branch': '' } : {}"
       >
@@ -99,14 +128,14 @@ function onNewSection() {
           states say the same thing. Shut: that row, with nothing under it yet.
         -->
         <template v-if="sec.ready">
-          <HtmlTreeRow v-for="row in ui.rows" :key="row.id" :row="row" />
+          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </template>
         <HtmlTreeRow v-else :row="sec.row" />
       </div>
     </template>
     <template v-else-if="ui.rows.length">
-      <HtmlTreeRow v-for="row in ui.rows" :key="row.id" :row="row" />
+      <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
     </template>
     <!--
       The last thing under the sections, and shaped like one: adding a section

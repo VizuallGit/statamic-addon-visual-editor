@@ -167,6 +167,8 @@ return [
     'html_tree_remove_section' => 'Fjern sektion fra siden',
     'html_tree_delete' => 'Slet',
     'html_tree_locked' => 'Filen er låst — lås op for at ændre',
+    'html_tree_search' => 'Søg i tags og navne…',
+    'html_tree_search_empty' => 'Intet matcher.',
 
     'section_fields' => 'Sektionens felter',
     'section_fields_none' => 'Denne sektion har ikke sit eget fieldset.',
