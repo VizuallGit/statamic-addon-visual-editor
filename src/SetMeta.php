@@ -155,12 +155,14 @@ class SetMeta
      */
     protected static function record(array &$map, string $handle, array $set): void
     {
-        $current = $map[$handle] ?? ['display' => null, 'icon' => null, 'instructions' => null];
+        $current = $map[$handle] ?? ['display' => null, 'icon' => null, 'instructions' => null, 'static' => false];
 
         $map[$handle] = [
             'display' => $current['display'] ?: ($set['display'] ?? null) ?: Str::title(Str::deslugify(basename($handle))),
             'icon' => static::preferIcon($current['icon'], static::icon($set['icon'] ?? null)),
             'instructions' => $current['instructions'] ?: ($set['instructions'] ?? null),
+            // Markup only, no fieldset — the HTML tree draws no fields icon on it.
+            'static' => ($current['static'] ?? false) || ($set['static'] ?? false) === true,
         ];
     }
 

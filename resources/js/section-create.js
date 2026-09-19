@@ -36,6 +36,14 @@ import { MSG, SOURCE } from './lib/protocol.js';
 const API = '/!/sve/section-types';
 
 /**
+ * Static section types made in this session. The set meta the page was handed
+ * at load (`sveSetMeta`) says which types are static; a type made a moment ago
+ * is not in it until the next load, and the tree must not draw a fields icon
+ * on it in the meantime.
+ */
+export const staticTypesMade = new Set();
+
+/**
  * The groups a section can be made in, in the order the page-builder fieldset
  * lists them.
  *
@@ -286,6 +294,10 @@ export function openNewSectionDialog(win, { kind = 'fields', afterUid = null, on
         void (async () => {
           try {
             const data = await createSection(win, { display, group, static: kind === 'static' });
+
+            if (data.section?.static && data.section.handle) {
+              staticTypesMade.add(data.section.handle);
+            }
 
             overlay.dismiss();
 

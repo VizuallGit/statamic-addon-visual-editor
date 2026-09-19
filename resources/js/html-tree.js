@@ -4,6 +4,7 @@
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
 import { t } from './lib/i18n.js';
+import { staticTypesMade } from './section-create.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
 import { ask, on, register } from './cp/bus.js';
@@ -791,8 +792,9 @@ function htmlTreeSections(win, doc) {
         svg: htmlTreeIcon(tag, '', null).svg || HTML_ICONS.section,
         cat: tagFamily(tag),
         enabled: row.enabled !== false,
-        // Markup only, no fieldset: the root row draws no fields icon.
-        static: setMeta(win, type)?.static === true,
+        // Markup only, no fieldset: the root row draws no fields icon. Known
+        // from the set meta handed to the page, or made static this session.
+        static: setMeta(win, type)?.static === true || staticTypesMade.has(type),
       });
     });
 
