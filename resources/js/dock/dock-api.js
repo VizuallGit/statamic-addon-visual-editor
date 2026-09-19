@@ -778,6 +778,15 @@ function componentSrcOf(type) {
 register('dock:component-src', () => componentSrcOf(currentTemplateType()));
 
 /**
+ * The templates beneath the open one, bottom first — the section, then each
+ * component passed through on the way in — with the component src each one
+ * is, when it is one. The HTML tree draws them around the open component.
+ */
+register('dock:type-stack', () =>
+  dockState.typeStack.map((type) => ({ type, src: componentSrcOf(type) }))
+);
+
+/**
  * What a way out of the open component would say and do.
  *
  * `back` is the difference that matters: a component reached from a section
@@ -799,12 +808,19 @@ register('dock:component-exit-state', () => {
  * and `closeCodeDock` each flush first — so there is no version of this that
  * loses what was typed.
  */
-register('dock:exit-component', () => {
+register('dock:exit-component', (levels = 1) => {
   if (!dockState.lastWin || !componentSrcOf(currentTemplateType())) {
     return false;
   }
 
   if (dockState.typeStack.length) {
+    // More than one level out — a click on the section's own row while a
+    // component inside a component is open — drops the templates in between
+    // without loading them; only the one landed on is loaded.
+    for (let n = Number(levels) || 1; n > 1 && dockState.typeStack.length > 1; n -= 1) {
+      dockState.typeStack.pop();
+    }
+
     goBackTemplate(dockState.lastWin);
   } else {
     closeCodeDock(dockState.lastWin.document);

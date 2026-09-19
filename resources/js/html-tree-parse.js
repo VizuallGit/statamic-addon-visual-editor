@@ -374,6 +374,9 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       hidden: !!node.hidden,
       wrapFrom: node.wrapFrom,
       wrapTo: node.wrapTo,
+      // Which file around an open component the row belongs to (html-tree.js
+      // sets it on the cloned context rows); unset on the open file's own.
+      ctxLevel: node.ctxLevel,
       depth,
       hasChildren,
       // A condition or loop with nothing in it yet. It still opens and closes,

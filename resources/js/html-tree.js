@@ -575,6 +575,8 @@ function globalSectionType(win, row) {
 /** Types waiting to be fetched, and whether the queue is moving. */
 const htmlTreePrefetch = [];
 let htmlTreePrefetching = false;
+/** Set when the context around an open component is waiting for a file. */
+let htmlTreeRepaintOnFetch = false;
 
 /** The next quiet moment, or very soon if the browser never gets one. */
 function whenIdle(win, run) {
@@ -667,6 +669,12 @@ function runSectionTemplatePrefetch(win) {
       .then((data) => {
         if (typeof data?.html === 'string') {
           htmlTreeTemplates.set(type, data.html);
+
+          // Asked for by the context around an open component: draw it now.
+          if (htmlTreeRepaintOnFetch) {
+            htmlTreeRepaintOnFetch = false;
+            renderHtmlTree(win);
+          }
         }
       })
       .catch(() => {})
@@ -852,75 +860,109 @@ function currentSectionUid(win, doc, sections) {
  * template name whatever the dock is holding.
  */
 /**
- * The section's own file, drawn around the open component.
+ * The files drawn around the open component, all the way down.
  *
- * The dock holds the component; the section's markup comes from the cache
- * the section filled when it was open a moment ago. Its rows are cloned under
- * their own ids and paths (`ctx:`, `ctx/`) so they cannot be mistaken for the
- * component's — a `div-176-2` exists in both files — and the component's own
- * roots are hung, untouched, under the row that calls it. Folds: the section's
- * rows by the usual rule, the way down to the component held open (a twist on
+ * Opening a component from a section shows the section's own rows, faded,
+ * with the component's rows unfolded under the row that calls it. A component
+ * opened from inside another component is the same picture one level deeper:
+ * the section's rows, faded, then the first component's rows, faded, then the
+ * open one unfolded under its call — every file the dock passed through on
+ * the way in (`dock:type-stack`, bottom first), each hung under the row in
+ * the file above that calls it.
+ *
+ * Each level's rows are cloned under their own ids and paths (`ctx0:`,
+ * `ctx1:` …) so they cannot be mistaken for the open component's — a
+ * `div-176-2` exists in every file — and the open component's own roots are
+ * hung, untouched, under the last host. Folds: each level's rows by the usual
+ * rule at their real depth, the way down to each host held open (a twist on
  * one of those shuts it), the component's rows by their own rule from their
  * own top, as when the component fills the tree alone.
  *
- * Null when the section's markup is not at hand, or the call is not in it —
- * a component reached from another component, say. The component then fills
- * the tree alone, as before.
+ * Null when a file on the way is not at hand yet — it is asked for, and the
+ * tree paints again when it lands — or when a call cannot be found. The
+ * component then fills the tree alone, as before.
  */
-function contextAround(sections, openUid, roots) {
+function contextAround(win, sections, openUid, roots) {
   const owner = sections.find((section) => section.uid === openUid);
-  const html = owner ? htmlTreeTemplates.get(owner.type) : '';
   const src = ask('dock:component-src');
+  const stack = ask('dock:type-stack') || [];
 
-  if (!owner || !html || !src) {
+  if (!owner || !src || !stack.length) {
     return null;
   }
 
-  const clone = (node) => ({
-    ...node,
-    id: `ctx:${node.id}`,
-    path: `ctx/${node.path}`,
-    children: node.children.map(clone),
-  });
-  const tree = parseTemplateTree(html).map(clone);
-  const trail = [];
+  const missing = stack.map((level) => level.type).filter((type) => !htmlTreeTemplates.get(type));
 
-  const find = (nodes, stack) => {
-    for (const node of nodes) {
-      if (node.kind === 'component' && node.src === src) {
-        trail.push(...stack, node);
+  if (missing.length) {
+    fetchTemplatesForContext(win, missing);
 
-        return node;
-      }
-
-      const hit = find(node.children, [...stack, node]);
-
-      if (hit) {
-        return hit;
-      }
-    }
-
-    return null;
-  };
-  const host = find(tree, []);
-
-  if (!host) {
     return null;
   }
 
+  const tree = [];
   const folds = new Set();
-  const held = new Set(trail.map((node) => node.id));
-  const walk = (nodes, depth) => {
-    for (const node of nodes) {
-      if (node.children.length && (held.has(node.id) ? htmlTreeFolds.has(node.path) : htmlTreeShut(node, depth))) {
-        folds.add(node.id);
+  const hostIds = new Set();
+  let hang = (levelTree) => tree.push(...levelTree);
+  let host = null;
+  let baseDepth = 0;
+
+  for (let i = 0; i < stack.length; i += 1) {
+    // What this level calls: the next file on the stack, or the open one.
+    const wanted = i + 1 < stack.length ? stack[i + 1].src : src;
+    const clone = (node) => ({
+      ...node,
+      id: `ctx${i}:${node.id}`,
+      path: `ctx${i}/${node.path}`,
+      ctxLevel: i,
+      children: node.children.map(clone),
+    });
+    const levelTree = parseTemplateTree(htmlTreeTemplates.get(stack[i].type)).map(clone);
+    const trail = [];
+
+    const find = (nodes, above) => {
+      for (const node of nodes) {
+        if (node.kind === 'component' && node.src === wanted) {
+          trail.push(...above, node);
+
+          return node;
+        }
+
+        const hit = find(node.children, [...above, node]);
+
+        if (hit) {
+          return hit;
+        }
       }
 
-      walk(node.children, depth + 1);
-    }
-  };
+      return null;
+    };
 
-  walk(tree, 0);
+    host = wanted ? find(levelTree, []) : null;
+
+    if (!host) {
+      return null;
+    }
+
+    const held = new Set(trail.map((node) => node.id));
+    const walk = (nodes, depth) => {
+      for (const node of nodes) {
+        if (node.children.length && (held.has(node.id) ? htmlTreeFolds.has(node.path) : htmlTreeShut(node, depth))) {
+          folds.add(node.id);
+        }
+
+        walk(node.children, depth + 1);
+      }
+    };
+
+    walk(levelTree, baseDepth);
+    hang(levelTree);
+    hostIds.add(host.id);
+    // The next file unfolds under this call, one level in from it.
+    baseDepth += trail.length;
+    hang = ((at) => (next) => {
+      at.children = next;
+    })(host);
+  }
 
   for (const id of foldedIds(roots)) {
     folds.add(id);
@@ -937,11 +979,29 @@ function contextAround(sections, openUid, roots) {
     tree,
     folds,
     hostId: host.id,
+    hostIds,
+    levels: stack.length,
     rootId: tree.find((node) => !node.kind)?.id || '',
     label: owner.label,
     svg: owner.svg,
     cat: owner.cat,
   };
+}
+
+/**
+ * A file on the way into the open component that the tree has not seen —
+ * the panel was shut while the dock passed through it. Same endpoint and
+ * cache as the section prefetch; the tree paints again when it lands.
+ */
+function fetchTemplatesForContext(win, types) {
+  for (const type of types) {
+    if (!htmlTreePrefetch.includes(type) && !htmlTreeFetching.has(type)) {
+      htmlTreePrefetch.push(type);
+    }
+  }
+
+  htmlTreeRepaintOnFetch = true;
+  runSectionTemplatePrefetch(win);
 }
 
 function htmlTreeRootName(win, sections, openUid) {
@@ -1231,7 +1291,7 @@ export function renderHtmlTree(win) {
   // fades — the way the preview fades the page around an open component.
   const component = ask('dock:component-exit-state') || {};
   const inComponent = !!component.open;
-  const around = inComponent ? contextAround(sections, openUid, roots) : null;
+  const around = inComponent ? contextAround(win, sections, openUid, roots) : null;
 
   // A search looks through folded rows too: the list filters what is here,
   // so while a query is in the box the whole file is flattened.
@@ -1262,12 +1322,19 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onQuery = () => renderHtmlTree(win);
   paintComponentExit(win);
   htmlTreeUi.inComponent = inComponent;
-  // A faded row is the file you came from: clicking one is the way back to
-  // it. The row the component unfolds from is where you already are.
+  // A faded row is a file you came through: clicking one is the way back to
+  // that file — one level out for the file just beneath, two for the one
+  // beneath that. The row the open component unfolds from is where you
+  // already are.
   htmlTreeUi.onContextRow = (id) => {
-    if (id !== around?.hostId) {
-      htmlTreeUi.onExit?.();
+    if (!around || id === around.hostId) {
+      return;
     }
+
+    const level = rows.find((item) => item.id === id)?.ctxLevel ?? around.levels - 1;
+
+    ask('dock:exit-component', around.levels - level);
+    renderHtmlTree(win);
   };
   htmlTreeUi.onSelect = (id) => {
     // A field waiting for something to point at takes the row instead of
@@ -1416,7 +1483,9 @@ export function renderHtmlTree(win) {
       cat: aroundRoot ? around.cat : tagFamily(row.tag, row.kind, row.antlers),
       // Around the open component: `dim` for the section's own rows, `host`
       // for the one the component unfolds from. '' for the component's rows.
-      context: around ? (row.id === around.hostId ? 'host' : row.id.startsWith('ctx:') ? 'dim' : '') : '',
+      // Around the open component: `host` for every call on the way down to
+      // it, `dim` for the rest of those files' rows, '' for the open one's.
+      context: around ? (around.hostIds.has(row.id) ? 'host' : row.id.startsWith('ctx') ? 'dim' : '') : '',
       // The open section IS its first tag row. Carrying the uid here is what
       // lets delete tell "this section on this page" from "this tag in the
       // file" — they are the same row, and they are not the same thing.
