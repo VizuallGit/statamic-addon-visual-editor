@@ -187,6 +187,8 @@ return [
     'section_new_static' => 'Statisk HTML',
     'section_new_with_fields' => 'Med felter',
     'section_new_template_done' => 'Sektionen er føjet til skabelonen',
+    'static_section_new' => 'Ny statisk sektion',
+    'static_section_note' => 'Laver en fil for sig under partials/static og kalder den fra sidens skabelon, uden om sektionerne. På alle sider skabelonen viser; intet en redaktør kan ændre.',
     'blueprint' => 'Blueprint',
     'blueprint_title' => 'Sidens felter (blueprint)',
     'blueprint_open_failed' => 'Blueprintet kunne ikke åbnes.',

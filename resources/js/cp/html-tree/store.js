@@ -62,6 +62,8 @@ export const htmlTreeUi = reactive({
   // everything that is not the component fades.
   inComponent: false,
   onContextRow: null,
+  // A static section was just made: forget the page template, open the new file.
+  onStaticMade: null,
   dragging: false,
   dropId: null,
   dropPlace: null,

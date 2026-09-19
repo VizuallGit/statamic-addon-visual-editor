@@ -190,6 +190,8 @@ return [
     'section_new_static' => 'Static HTML',
     'section_new_with_fields' => 'With fields',
     'section_new_template_done' => 'Section added to the template',
+    'static_section_new' => 'New static section',
+    'static_section_note' => 'Makes a file of its own under partials/static and calls it from the page\'s template, outside the sections. On every page that template renders; nothing for an editor to change.',
     'blueprint' => 'Blueprint',
     'blueprint_title' => 'The page\'s fields (blueprint)',
     'blueprint_open_failed' => 'The blueprint could not be opened.',

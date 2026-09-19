@@ -306,39 +306,71 @@ export function pageTemplateTypeNow(win) {
 }
 
 /**
- * The page's own template in the dock — `default` for a page built from
- * sections — so static markup can be written into it. Resolves once the file
- * is on screen, false when the dock could not open it.
- *
- * The template is asked of the server: the entry decides which view renders
- * it, and nothing on the page says so. And the file is waited for, not its
- * name: the dock answers `dock:current-type` with the new name the moment it
- * is asked, while the panes still hold the file being left — writing then
- * put the old panel's text into the page template. `dock:load-settled` is the
- * file landing.
+ * A static section made: a partial of its own under `partials/static`, and a
+ * call to it at the end of the page's template. Not a set — the tree lists
+ * the call as a section, and the dock opens the file alone.
  */
-export async function openPageTemplate(win) {
+export async function createStaticSection(win, { display }) {
   const type = await pageTemplateType(win);
+  const template = type.startsWith('view:') ? type.slice(5) : '';
 
-  if (!type) {
-    return false;
+  if (!template) {
+    throw new Error('no page template');
   }
 
-  if (ask('dock:current-type') === type) {
-    return true;
+  const res = await win.fetch('/!/sve/static-sections', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': csrfToken(win),
+      Accept: 'application/json',
+    },
+    credentials: 'same-origin',
+    body: JSON.stringify({ display, template }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(data.error || `static-sections ${res.status}`);
+    err.reason = data.error;
+    throw err;
   }
 
-  if (ask('dock:open-template', type) !== true) {
-    return false;
-  }
+  return data;
+}
 
-  const loading = ask('dock:load-settled');
+/**
+ * The name is the one thing a static section needs from the author: it is
+ * the file, and the row in the tree. No group — it is in no library.
+ */
+export function openStaticSectionDialog(win, { onDone, onError, onClose } = {}) {
+  const overlay = openCpOverlay(win.document, NewSectionPrompt, {
+    heading: t(win, 'static_section_new'),
+    groupLabel: '',
+    nameLabel: t(win, 'section_new_name'),
+    placeholder: t(win, 'section_new_placeholder'),
+    note: t(win, 'static_section_note'),
+    groups: [],
+    cancelLabel: t(win, 'cancel'),
+    saveLabel: t(win, 'section_new_create'),
+    onClose,
+    onOk: (display) => {
+      void (async () => {
+        try {
+          const data = await createStaticSection(win, { display });
 
-  if (loading?.then) {
-    await loading;
-  }
-
-  return ask('dock:current-type') === type && ask('dock:load-settled') === null;
+          overlay.dismiss();
+          win.Statamic?.$toast?.success(t(win, 'section_created', { name: data.section?.display || display }));
+          onDone?.(data.section || {});
+        } catch (err) {
+          overlay.dismiss();
+          win.Statamic?.$toast?.error(t(win, err.reason === 'bad_name' ? 'section_new_bad_name' : 'section_new_failed'));
+          onError?.(err);
+        }
+      })();
+    },
+  });
 }
 
 export function openNewSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {

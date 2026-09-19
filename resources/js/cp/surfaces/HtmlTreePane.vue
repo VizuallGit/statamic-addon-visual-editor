@@ -3,7 +3,7 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
-import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, openPageTemplate, revealWhenRendered } from '../../section-create.js';
+import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
 import { t } from '../../lib/i18n.js';
 import { nextTick, ref } from 'vue';
 
@@ -91,17 +91,19 @@ function onNewSection() {
       return;
     }
 
-    // Static: markup in the page's own template (`default`), opened in the
-    // dock first. Not a set: no fields, no card in the library, no row an
+    // Static: a partial of its own, called from the page's template outside
+    // the sections. Not a set: no fields, no card in the library, no row an
     // editor can move or delete — and on every page that template renders.
+    // The tree lists it as a section and opens its file alone.
     if (kind === 'static') {
-      if (await openPageTemplate(window)) {
-        insertTemplateSection(window);
-      } else {
-        window.Statamic?.$toast?.error(t(window, 'section_new_failed'));
-      }
-
-      release();
+      openStaticSectionDialog(window, {
+        onDone: (made) => {
+          release();
+          ui.onStaticMade?.(made);
+        },
+        onError: release,
+        onClose: release,
+      });
 
       return;
     }

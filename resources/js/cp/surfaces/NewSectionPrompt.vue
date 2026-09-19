@@ -26,7 +26,9 @@ onMounted(() => nextTick(() => input.value?.focus()));
 function submit() {
   const value = name.value.trim();
 
-  if (!value || !group.value || busy.value) {
+  // A group only where there are groups to choose from — a static section
+  // has none, it is in no library.
+  if (!value || (props.groups.length && !group.value) || busy.value) {
     input.value?.focus();
     return;
   }
@@ -59,10 +61,12 @@ function onKey(event) {
     <div class="sve-dialog" @click.stop>
       <div class="sve-dialog__title">{{ heading }}</div>
 
-      <label for="sve-new-section-group">{{ groupLabel }}</label>
-      <select id="sve-new-section-group" v-model="group" @keydown="onKey">
-        <option v-for="g in groups" :key="g.key" :value="g.key">{{ g.display }}</option>
-      </select>
+      <template v-if="groups.length">
+        <label for="sve-new-section-group">{{ groupLabel }}</label>
+        <select id="sve-new-section-group" v-model="group" @keydown="onKey">
+          <option v-for="g in groups" :key="g.key" :value="g.key">{{ g.display }}</option>
+        </select>
+      </template>
 
       <label for="sve-new-section-name">{{ nameLabel }}</label>
       <input

@@ -28,6 +28,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SchemaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\StaticSectionsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use Statamic\Facades\Site;
@@ -92,6 +93,11 @@ final class EditorRoutes
             // it — a template's fields, the way a section's are its fieldset.
             Route::get('/!/sve/entry-blueprint', EntryBlueprintController::class)
                 ->name('sve.entry-blueprint');
+
+            // A static section: a partial of its own, called from the page's
+            // template outside the sections loop. Same gate as a section type.
+            Route::post('/!/sve/static-sections', [StaticSectionsController::class, 'store'])
+                ->name('sve.static-sections.store');
 
             // Fresh meta + defaults for a set, so a picker-inserted section also
             // renders in the CP's own section list (see SectionMetaController).

@@ -40,11 +40,6 @@ function isDim(row) {
   return !!query.value && !found.value.hits.has(row.path);
 }
 
-// The page template's static sections stand on either side of the sections
-// list; the open section's box holds only the rows of its own file.
-const staticAbove = computed(() => shownRows.value.filter((row) => row.staticSide === 'above'));
-const staticBelow = computed(() => shownRows.value.filter((row) => row.staticSide === 'below'));
-const sectionRows = computed(() => shownRows.value.filter((row) => !row.staticSide));
 </script>
 
 <template>
@@ -53,8 +48,6 @@ const sectionRows = computed(() => shownRows.value.filter((row) => !row.staticSi
     <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
 
     <template v-if="ui.sections.length">
-      <!-- Static sections written into the page template, above the loop. -->
-      <HtmlTreeRow v-for="row in staticAbove" :key="row.id" :row="row" :dim="isDim(row)" />
       <div
         v-for="sec in shownSections"
         :key="sec.uid"
@@ -66,14 +59,12 @@ const sectionRows = computed(() => shownRows.value.filter((row) => !row.staticSi
           states say the same thing. Shut: that row, with nothing under it yet.
         -->
         <template v-if="sec.ready">
-          <HtmlTreeRow v-for="row in sectionRows" :key="row.id" :row="row" :dim="isDim(row)" />
-          <div v-if="!sectionRows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+          <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </template>
         <!-- Inside a component every other section fades, as the preview fades them. -->
         <HtmlTreeRow v-else :row="sec.row" :dim="ui.inComponent" />
       </div>
-      <!-- …and below it. -->
-      <HtmlTreeRow v-for="row in staticBelow" :key="row.id" :row="row" :dim="isDim(row)" />
     </template>
     <template v-else-if="ui.rows.length">
       <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
