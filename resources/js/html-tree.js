@@ -1032,9 +1032,14 @@ function pageStaticSections(roots, field) {
       return null;
     }
 
+    // The identity the call hands the partial (`id="static-<name>"`), which
+    // `visual_edit` writes on its root — so the preview can be asked for it
+    // the way it is asked for any section.
+    const uid = `static-${src.slice(STATIC_FOLDER.length)}`;
+
     return {
-      uid: `static:${src}`,
-      ids: [],
+      uid,
+      ids: [uid],
       type: `view:${src}`,
       tag: 'section',
       label: humanizeHandle(src.slice(STATIC_FOLDER.length)),
@@ -1127,6 +1132,7 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   // the file lands.
   if (section.static) {
     ask('dock:open-template', section.type);
+    sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: section.ids }, win);
     win.setTimeout(() => renderHtmlTree(win), 0);
 
     return;

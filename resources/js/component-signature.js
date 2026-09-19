@@ -13,8 +13,10 @@ import { parseHtmlTree } from './html-tree-parse.js';
 
 const VIEW_PREFIX = 'view:';
 const PARTIALS = 'partials/';
+/** A static section is a partial too, but a section of the page — not something to step into. */
+const STATIC = 'partials/static/';
 
-/** `view:partials/components/card` → `components/card`. Anything else → null. */
+/** `view:partials/components/card` → `components/card`. A static section or anything else → null. */
 export function componentSrcFromType(type) {
   const value = String(type || '');
 
@@ -23,6 +25,10 @@ export function componentSrcFromType(type) {
   }
 
   const view = value.slice(VIEW_PREFIX.length);
+
+  if (view.startsWith(STATIC)) {
+    return null;
+  }
 
   return view.startsWith(PARTIALS) ? view.slice(PARTIALS.length) : view;
 }

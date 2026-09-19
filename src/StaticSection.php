@@ -18,11 +18,26 @@ class StaticSection
 {
     public const FOLDER = 'partials/static';
 
-    /** The markup a static section starts as: one root, room inside. */
+    /**
+     * The markup a static section starts as: the same root every section has,
+     * so the preview outlines it, scrolls to it and marks it like the others.
+     * `id` is the call's parameter (`static-<name>`) — `visual_edit` writes it
+     * as the section's identity, the one the tree lists it under.
+     *
+     * Unlocked from the start: a file made to be written in.
+     */
     public static function scaffold(): string
     {
-        // Unlocked from the start: a file made to be written in.
-        return "{{# sve-unlocked #}}\n<section class=\"[ ] py-800\">\n    \n</section>\n";
+        return "{{# sve-unlocked #}}\n"
+            ."<section id=\"id-{{ id }}\" class=\"\" data-auto-contrast {{ visual_edit outline_inside=\"true\" section_orderable=\"true\" }}>\n"
+            ."    \n"
+            ."</section>\n";
+    }
+
+    /** The identity a static section is called with, and listed under. */
+    public static function uid(string $name): string
+    {
+        return 'static-'.$name;
     }
 
     /**
@@ -60,7 +75,7 @@ class StaticSection
 
         $src = self::FOLDER.'/'.$name;
         $contents = (string) file_get_contents($templatePath);
-        $call = '{{ partial src="'.$src.'" }}';
+        $call = '{{ partial src="'.$src.'" id="'.static::uid($name).'" }}';
         $next = rtrim($contents, "\n")."\n\n".$call."\n";
 
         if (file_put_contents($templatePath, $next) === false) {

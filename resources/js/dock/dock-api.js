@@ -545,6 +545,17 @@ function pageSectionType(win, doc, uid) {
   return '';
 }
 
+/**
+ * A static section clicked in the preview: its identity is `static-<name>`,
+ * written by the call in the page template, and its file is the partial of
+ * that name. Nothing on the page's values knows it — the name is the file.
+ */
+function staticSectionType(uid) {
+  const match = /^static-([A-Za-z0-9_-]+)$/.exec(String(uid || ''));
+
+  return match ? `view:partials/static/${match[1]}` : '';
+}
+
 export function collectionViewType(win) {
   const features = win.Statamic?.$config?.get?.('sveFeatures') || {};
 
@@ -632,6 +643,7 @@ export function syncCodeDock(win, doc, uid) {
     chromeTemplateType(win, doc) ||
     globalSectionTemplateType(doc) ||
     pageSectionType(win, doc, uid) ||
+    staticSectionType(uid) ||
     collectionViewType(win) ||
     (!uid ? dockState.lastType : '');
   const uidChanged = !!(uid && uid !== dockState.lastUid);
