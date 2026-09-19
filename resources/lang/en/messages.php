@@ -417,6 +417,8 @@ return [
     'ai_text_about' => 'About',
     'ai_text_words' => 'words',
     'reload_lp_failed' => 'Could not fetch everything again',
+    'reload_lp_full_hint' => 'Shift+click reloads the whole page',
+    'reload_lp_done' => 'Everything is up to date',
     'lp_settings_title' => 'Live Preview settings',
     'lp_settings_sidebar' => 'Open in the sidebar from the start',
     'lp_settings_width' => 'Width',

@@ -414,6 +414,8 @@ return [
     'ai_text_about' => 'Cirka',
     'ai_text_words' => 'ord',
     'reload_lp_failed' => 'Kunne ikke hente alt igen',
+    'reload_lp_full_hint' => 'Shift+klik genindlæser hele siden',
+    'reload_lp_done' => 'Alt er opdateret',
     'lp_settings_title' => 'Live Preview-indstillinger',
     'lp_settings_sidebar' => 'Åbn i sidebaren fra starten',
     'lp_settings_width' => 'Bredde',

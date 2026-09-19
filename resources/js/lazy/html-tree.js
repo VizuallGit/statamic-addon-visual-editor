@@ -47,3 +47,13 @@ export function toggleHtmlTreePanel(...args) {
 export function armHtmlTreePrefetch(...args) {
   return ifLoaded('armHtmlTreePrefetch', args, undefined);
 }
+
+/** skips until loaded — nothing is cached before the tree has run */
+export function clearHtmlTreeTemplates(...args) {
+  return ifLoaded('clearHtmlTreeTemplates', args, undefined);
+}
+
+/** skips until loaded — a tree that is not there has nothing to redraw */
+export function renderHtmlTree(...args) {
+  return ifLoaded('renderHtmlTree', args, undefined);
+}

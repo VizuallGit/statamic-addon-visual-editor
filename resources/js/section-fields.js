@@ -121,18 +121,12 @@ export function invalidateFieldCaches(win, setHandle) {
 }
 
 export async function refreshFieldsForType(win, setHandle) {
-  // `fetchSetMeta` and friends live in the section library, which is loaded on
-  // demand. Until it is, `fetchSetMeta` is a placeholder that starts the
-  // load and returns undefined — so awaiting it yields nothing, the refresh
-  // reports zero rows, and the toast still says it worked. That is what "the
-  // reload button does nothing" was.
+  // `fetchSetMeta` and friends are direct imports from the section library
+  // since WP4; the library's own panel state is still loaded on demand, so it
+  // is made sure of first. (Until 19 September 2026 a guard here still read
+  // `win.sve` — the registry removed in WP6c — and returned 0 every time: the
+  // fieldset overlay's Save refreshed nothing, without a word.)
   await ensurePanel('sections');
-
-  const sve = win.sve;
-
-  if (!sve?.fetchSetMeta || !activeContainers || !writeSetMeta) {
-    return 0;
-  }
 
   invalidateFieldCaches(win, setHandle);
 
