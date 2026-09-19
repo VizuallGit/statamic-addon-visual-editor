@@ -416,6 +416,7 @@ return [
     'lp_settings_sidebar' => 'Åbn i sidebaren fra starten',
     'lp_settings_width' => 'Bredde',
     'lp_settings_code_dock' => 'Skabelon-dock fra starten',
+    'lp_settings_html_tree_tags' => 'HTML-træ: farvede tags (fra = de klassiske kort)',
     'lp_mode_hide' => 'Skjult',
     'lp_mode_auto' => 'Auto',
     'lp_mode_show' => 'Synlig',

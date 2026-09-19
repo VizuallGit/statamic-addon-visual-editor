@@ -21,6 +21,7 @@ import { applyLpEditorWidth } from './focus-panel.js';
 import { closeSectionPicker, syncPreviewInset } from './section-library.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeOutlinePanel } from './lazy/outline.js';
+import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -191,6 +192,13 @@ function settingsProps(win, rect) {
       on: isCodeDockArmed(win),
       label: t(win, 'lp_settings_code_dock'),
     },
+    // The tree's face is a preference, not a feature: the panel reads it on
+    // every paint, and the store flips it live while the panel is open.
+    htmlTree: {
+      show: featureOn(win, 'html_tree'),
+      on: readHtmlTreeLook(win) === 'tags',
+      label: t(win, 'lp_settings_html_tree_tags'),
+    },
   };
 }
 
@@ -209,6 +217,7 @@ function bindSettingHandlers(win) {
     onWidth: (which, px) => setWidth(win, which, px),
     onTool: (key, on) => setStartupPane(win, key, on),
     onCodeDock: (on) => setCodeDock(win, on),
+    onHtmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
     onReset: () => {
       dismissLpMoreMenu();
       resetEditorLayout(win);

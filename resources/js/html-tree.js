@@ -11,7 +11,7 @@ import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
 import HtmlTreePane from './cp/surfaces/HtmlTreePane.vue';
 import HtmlTreeList from './cp/surfaces/HtmlTreeList.vue';
-import { htmlTreeUi } from './cp/html-tree/store.js';
+import { htmlTreeUi, readHtmlTreeLook } from './cp/html-tree/store.js';
 import { flattenHtmlTree, isVoidTag, parseTemplateTree } from './html-tree-parse.js';
 import {
   componentPropsOn,
@@ -43,7 +43,7 @@ import {
   toggleHiddenHtml,
 } from './html-tree-edit.js';
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
-import { HTML_ICONS, htmlTreeIcon } from './html-tree-icons.js';
+import { HTML_ICONS, htmlTreeCategory, htmlTreeIcon } from './html-tree-icons.js';
 import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
 import { serializePickTree } from './html-pick-align.js';
 import { openCpOverlay } from './cp/open-overlay.js';
@@ -164,7 +164,12 @@ export function ensureHtmlTreeStyles(doc) {
       user-select: none;
       position: relative;
       touch-action: none;
+      /* The row sets --sve-ht-depth; the classic look steps the whole card in. */
+      margin-left: calc(var(--sve-ht-depth, 0) * 12px);
     }
+    /* Only the tags look draws these two — see below. */
+    [data-sve-ht-indent],
+    [data-sve-ht-twist-gap] { display: none; }
     [data-sve-ht-dragging],
     [data-sve-ht-dragging] * {
       cursor: grabbing !important;
@@ -341,6 +346,139 @@ export function ensureHtmlTreeStyles(doc) {
       font: inherit;
       color: inherit;
     }
+
+    /* ===== The tags look ===================================================
+       The tree's own face, so it stops reading as a second block tree: flat
+       rows instead of a card each, one thin guide per level of depth, and a
+       colour per family of tag on the icon and the chip. The colours are the
+       dock's own — a <section> is the teal the HTML pane paints a tag name
+       in, a loop or a condition the purple of Antlers, a component the amber
+       of a partial call — so the tree and the pane say the same thing about
+       the same line.
+       Everything above is the classic look, untouched. The switch in Live
+       Preview settings (HTML_TREE_LOOK_KEY) decides which value the list
+       wears as data-sve-ht-look, and every rule here hangs off that. */
+    [data-sve-ht-look="tags"] {
+      --sve-ht-c-layout: #0f8a6f;
+      --sve-ht-c-list: #5f8a3a;
+      --sve-ht-c-text: #1f6fb5;
+      --sve-ht-c-link: #2b4fc9;
+      --sve-ht-c-media: #b5562a;
+      --sve-ht-c-logic: #6b4fd6;
+      --sve-ht-c-component: #a06a12;
+      --sve-ht-c-other: #6b6b6b;
+      --sve-ht-guide: rgba(128,128,128,.3);
+      --sve-ht-pick: rgba(56,88,233,.14);
+      --sve-ht-pick-hover: rgba(56,88,233,.22);
+    }
+    html.dark [data-sve-ht-look="tags"],
+    .dark [data-sve-ht-look="tags"] {
+      --sve-ht-c-layout: #4ec9b0;
+      --sve-ht-c-list: #b5cea8;
+      --sve-ht-c-text: #9cdcfe;
+      --sve-ht-c-link: #569cd6;
+      --sve-ht-c-media: #ce9178;
+      --sve-ht-c-logic: #b9a6ff;
+      --sve-ht-c-component: #d7ba7d;
+      --sve-ht-c-other: #9a9a9a;
+      --sve-ht-guide: rgba(255,255,255,.13);
+      --sve-ht-pick: rgba(56,88,233,.3);
+      --sve-ht-pick-hover: rgba(56,88,233,.4);
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-row] { --sve-ht-c: var(--sve-ht-c-other); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="layout"] { --sve-ht-c: var(--sve-ht-c-layout); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="list"] { --sve-ht-c: var(--sve-ht-c-list); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="text"] { --sve-ht-c: var(--sve-ht-c-text); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="link"] { --sve-ht-c: var(--sve-ht-c-link); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="media"] { --sve-ht-c: var(--sve-ht-c-media); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="logic"] { --sve-ht-c: var(--sve-ht-c-logic); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="component"] { --sve-ht-c: var(--sve-ht-c-component); }
+
+    /* Flat rows: no card, no indent margin — the spacer below does the
+       stepping, so the hover and the pick run the full width of the panel. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row] {
+      margin: 0;
+      padding: 0 6px 0 4px;
+      min-height: 26px;
+      gap: 5px;
+      background: none;
+      border-radius: 5px;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-row]:hover { background: rgba(128,128,128,.14); }
+    /* The picked row: our blue as a wash and a bar at the edge, not a solid
+       fill — the chip's colour has to stay readable on it. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] {
+      background: var(--sve-ht-pick);
+      color: inherit;
+      box-shadow: inset 2px 0 0 #3858e9;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current]:hover { background: var(--sve-ht-pick-hover); }
+    /* A shut section is one row in the page's list; a little air between them. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-sec] { margin-bottom: 2px; }
+    /* The open section's box, quieter: it says where you are, the bar says
+       what you picked. */
+    [data-sve-ht-look="tags"] [data-sve-ht-branch] {
+      border: 1px solid rgba(56,88,233,.45);
+      border-radius: 7px;
+      padding: 3px;
+      margin: 0 0 6px;
+      background: rgba(56,88,233,.04);
+    }
+
+    /* One guide per level, drawn on the spacer: a line every 14px, the first
+       7px in, so each sits under the twist of the row it descends from. The
+       negative margin cancels the row gap, so a depth-0 row starts flush. */
+    [data-sve-ht-look="tags"] [data-sve-ht-indent] {
+      display: block;
+      flex: none;
+      align-self: stretch;
+      width: calc(var(--sve-ht-depth, 0) * 14px);
+      margin-right: -5px;
+      background: linear-gradient(to right, var(--sve-ht-guide) 1px, transparent 1px) 7px 0 / 14px 100% repeat-x;
+      pointer-events: none;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-twist-gap] {
+      display: inline-block;
+      flex: none;
+      width: 14px;
+      height: 14px;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-twist] { opacity: .55; }
+    [data-sve-ht-look="tags"] [data-sve-ht-twist]:hover { opacity: 1; }
+    [data-sve-ht-look="tags"] [data-sve-ht-slot][data-sve-ht-id] {
+      margin-left: calc(4px + var(--sve-ht-depth, 0) * 14px);
+    }
+
+    /* The family's colour on the mark and on the chip; the name stays the
+       panel's own text colour, so the colour is a label and not the row. */
+    [data-sve-ht-look="tags"] [data-sve-ht-icon] { color: var(--sve-ht-c); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat] [data-sve-ht-tag],
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat] [data-sve-ht-kind] {
+      color: var(--sve-ht-c);
+      background: color-mix(in srgb, var(--sve-ht-c) 15%, transparent);
+      opacity: 1;
+      font-weight: 600;
+      letter-spacing: .01em;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat] [data-sve-ht-tag]:hover {
+      background: color-mix(in srgb, var(--sve-ht-c) 30%, transparent);
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-tag],
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-kind] {
+      background: color-mix(in srgb, var(--sve-ht-c) 24%, transparent);
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-name] { opacity: .82; }
+    /* A root row — a section of the page, or the file's own root — names a
+       place; the rows under it name what is in it. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-depth="0"] [data-sve-ht-name] {
+      font-weight: 600;
+      opacity: .95;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-name] { opacity: 1; }
+    [data-sve-ht-look="tags"] [data-sve-ht-eye]:hover,
+    [data-sve-ht-look="tags"] [data-sve-ht-fields]:hover,
+    [data-sve-ht-look="tags"] [data-sve-ht-dup]:hover,
+    [data-sve-ht-look="tags"] [data-sve-ht-del]:hover { background: rgba(128,128,128,.25); }
   `);
 }
 
@@ -631,6 +769,7 @@ function htmlTreeSections(win, doc) {
         // Its first tag's mark — the one it unfolds into. The set's own icon
         // used to go here, so the same section wore one shut and another open.
         svg: htmlTreeIcon(tag, '', null).svg || HTML_ICONS.section,
+        cat: htmlTreeCategory(tag, ''),
         enabled: row.enabled !== false,
       });
     });
@@ -888,6 +1027,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.pageBuilder = true;
     htmlTreeUi.emptyText = t(win, 'html_tree_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
+    htmlTreeUi.look = readHtmlTreeLook(win);
     htmlTreeUi.onRefresh = () => renderHtmlTree(win);
     htmlTreeUi.onSection = null;
     paintComponentExit(win);
@@ -969,6 +1109,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.deleteTitle = t(win, 'html_tree_delete');
   htmlTreeUi.lockedTitle = t(win, 'html_tree_locked');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
+  htmlTreeUi.look = readHtmlTreeLook(win);
   paintComponentExit(win);
   htmlTreeUi.onSelect = (id) => {
     // A field waiting for something to point at takes the row instead of
@@ -1108,6 +1249,7 @@ export function renderHtmlTree(win) {
       current: row.id === htmlTreeActiveId,
       letter: icon.letter || '',
       svg: isRoot && openSection ? openSection.svg : icon.svg || '',
+      cat: htmlTreeCategory(row.tag, row.kind),
       // The open section IS its first tag row. Carrying the uid here is what
       // lets delete tell "this section on this page" from "this tag in the
       // file" — they are the same row, and they are not the same thing.
@@ -1138,6 +1280,7 @@ export function renderHtmlTree(win) {
             name: section.label,
             kind: '',
             svg: section.svg,
+            cat: section.cat,
             letter: '',
             depth: 0,
             hasChildren: true,

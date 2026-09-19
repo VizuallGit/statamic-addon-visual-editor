@@ -18,10 +18,13 @@ const props = defineProps({
   widthMax: { type: Number, required: true },
   tools: { type: Array, required: true },
   codeDock: { type: Object, required: true },
+  // The HTML tree's face: on = coloured tag chips, off = the classic cards.
+  htmlTree: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
   onMode: { type: Function, required: true },
   onWidth: { type: Function, required: true },
   onTool: { type: Function, required: true },
   onCodeDock: { type: Function, required: true },
+  onHtmlTree: { type: Function, default: null },
   onReset: { type: Function, required: true },
   onClose: { type: Function, required: true },
 });
@@ -31,6 +34,7 @@ const editorWidth = ref(props.editorWidth);
 const dockWidth = ref(props.dockWidth);
 const tools = ref(props.tools.map((tool) => ({ ...tool })));
 const codeDockOn = ref(props.codeDock.on);
+const htmlTreeOn = ref(props.htmlTree.on);
 
 function setMode(id) {
   panelMode.value = id;
@@ -60,6 +64,11 @@ function setDockWidth(value) {
 function setCodeDock(on) {
   codeDockOn.value = on;
   props.onCodeDock(on);
+}
+
+function setHtmlTree(on) {
+  htmlTreeOn.value = on;
+  props.onHtmlTree?.(on);
 }
 </script>
 
@@ -121,10 +130,14 @@ function setCodeDock(on) {
       </label>
     </div>
 
-    <div v-if="codeDock.show" class="sve-lp-settings__section">
-      <label class="sve-lp-settings__row">
+    <div v-if="codeDock.show || htmlTree.show" class="sve-lp-settings__section">
+      <label v-if="codeDock.show" class="sve-lp-settings__row">
         <input type="checkbox" :checked="codeDockOn" @change="setCodeDock($event.target.checked)">
         <span>{{ codeDock.label }}</span>
+      </label>
+      <label v-if="htmlTree.show" class="sve-lp-settings__row">
+        <input type="checkbox" :checked="htmlTreeOn" @change="setHtmlTree($event.target.checked)">
+        <span>{{ htmlTree.label }}</span>
       </label>
     </div>
 

@@ -419,6 +419,7 @@ return [
     'lp_settings_sidebar' => 'Open in the sidebar from the start',
     'lp_settings_width' => 'Width',
     'lp_settings_code_dock' => 'Template dock from the start',
+    'lp_settings_html_tree_tags' => 'HTML tree: coloured tags (off = the classic cards)',
     'lp_mode_hide' => 'Hidden',
     'lp_mode_auto' => 'Auto',
     'lp_mode_show' => 'Visible',

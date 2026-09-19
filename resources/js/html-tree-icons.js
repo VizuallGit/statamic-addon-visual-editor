@@ -57,6 +57,107 @@ export const TEXT_TAGS = ['p', 'span', 'strong', 'em'];
 
 const SECTION_TAGS = ['section', 'article', 'header', 'footer', 'main', 'nav', 'aside'];
 
+/*
+ * The families a row can belong to, for the tree's colours.
+ *
+ * One colour per family in the tree's "tags" look (html-tree.js holds the
+ * colours, beside the rest of the tree's CSS): the row's icon and its tag chip
+ * wear it, so a section, a heading, an image, a loop and a component can be
+ * told apart before a word is read. The families follow what the row *does*
+ * on the page, not what the HTML spec calls it — a list is structure with its
+ * own shape, a link is something you press, a figure is media.
+ */
+const LAYOUT_TAGS = [
+  'div',
+  ...SECTION_TAGS,
+  'form',
+  'fieldset',
+  'details',
+  'summary',
+  'dialog',
+  'hgroup',
+  'address',
+  'table',
+  'thead',
+  'tbody',
+  'tfoot',
+  'tr',
+  'td',
+  'th',
+  'template',
+];
+const LIST_TAGS = ['ul', 'ol', 'li', 'dl', 'dt', 'dd', 'menu'];
+const TEXT_LIKE_TAGS = [
+  ...TEXT_TAGS,
+  'b',
+  'i',
+  'small',
+  'blockquote',
+  'q',
+  'cite',
+  'code',
+  'pre',
+  'label',
+  'time',
+  'mark',
+  'sub',
+  'sup',
+  'abbr',
+];
+const MEDIA_TAGS = [
+  'img',
+  'picture',
+  'svg',
+  'video',
+  'audio',
+  'iframe',
+  'canvas',
+  'figure',
+  'figcaption',
+  'source',
+  'object',
+  'embed',
+];
+const LINK_TAGS = ['a', 'button', 'input', 'select', 'textarea', 'option', 'optgroup'];
+
+/**
+ * Which family a row belongs to: `component`, `logic` (a loop or a condition),
+ * `text`, `layout`, `list`, `media`, `link` — or `other` for a tag none of
+ * the lists name. The value goes on the row as `data-sve-ht-cat`; the CSS
+ * maps it to a colour, and nothing else reads it.
+ */
+export function htmlTreeCategory(tag, kind) {
+  if (kind === 'component') {
+    return 'component';
+  }
+
+  if (kind === 'antlers') {
+    return 'logic';
+  }
+
+  if (/^h[1-6]$/.test(tag) || TEXT_LIKE_TAGS.includes(tag)) {
+    return 'text';
+  }
+
+  if (LAYOUT_TAGS.includes(tag)) {
+    return 'layout';
+  }
+
+  if (LIST_TAGS.includes(tag)) {
+    return 'list';
+  }
+
+  if (MEDIA_TAGS.includes(tag)) {
+    return 'media';
+  }
+
+  if (LINK_TAGS.includes(tag)) {
+    return 'link';
+  }
+
+  return 'other';
+}
+
 export function htmlTreeIcon(tag, kind, antlers) {
   if (kind === 'component') {
     return { svg: HTML_ICONS.component };

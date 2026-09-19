@@ -1,6 +1,32 @@
 import { reactive } from 'vue';
+import { chromeGet, chromeRemove, chromeSet } from '../../chrome-prefs.js';
+import { HTML_TREE_LOOK_KEY } from '../../lib/ids.js';
+
+/**
+ * Which face the tree wears. 'tags' is the tree's own: flat rows, a guide per
+ * level, a colour per family of tag. 'classic' is the card look it shared with
+ * the block tree, kept whole so the switch in Live Preview settings goes
+ * straight back to it. Stored per user (chrome-prefs syncs the key), read
+ * here so the panel and the settings menu agree on what the value means.
+ */
+export function readHtmlTreeLook(win) {
+  return chromeGet(win, HTML_TREE_LOOK_KEY) === 'classic' ? 'classic' : 'tags';
+}
+
+export function setHtmlTreeLook(win, look) {
+  if (look === 'classic') {
+    chromeSet(win, HTML_TREE_LOOK_KEY, 'classic');
+  } else {
+    chromeRemove(win, HTML_TREE_LOOK_KEY);
+  }
+
+  htmlTreeUi.look = readHtmlTreeLook(win);
+}
 
 export const htmlTreeUi = reactive({
+  // 'tags' or 'classic' — see readHtmlTreeLook. The list wears it as
+  // data-sve-ht-look, and every rule of the tags look hangs off that.
+  look: 'tags',
   emptyText: '',
   rows: [],
   // The page's own sections, above the tags. One row each, and the section whose

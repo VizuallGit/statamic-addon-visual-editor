@@ -84,7 +84,7 @@ function onNewSection() {
 </script>
 
 <template>
-  <div class="sve-ht-root" v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}">
+  <div class="sve-ht-root" :data-sve-ht-look="ui.look" v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}">
     <div v-if="!ui.rows.length && !ui.sections.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
 
     <template v-if="ui.sections.length">

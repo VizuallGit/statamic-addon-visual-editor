@@ -33,6 +33,8 @@ export const SECTION_PICKER_ID = '__sve-section-picker';
 export const COMMENTS_PANEL_ID = '__sve-comments-pane';
 export const OUTLINE_PANEL_ID = '__sve-outline-panel';
 export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
+/** Which face the HTML tree wears: 'classic' (cards, like the block tree) or unset = coloured tag chips. */
+export const HTML_TREE_LOOK_KEY = 'sve-html-tree-look';
 export const LISTVIEW_PANEL_ID = '__sve-listview-panel';
 export const PERF_PANEL_ID = '__sve-perf-panel';
 

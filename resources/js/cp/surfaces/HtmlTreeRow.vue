@@ -91,6 +91,12 @@ function rowBind(row) {
     bind['data-sve-ht-hidden'] = '';
   }
 
+  // The family the row belongs to (html-tree-icons.js decides) and how deep it
+  // sits. Both are for the stylesheet only: the tags look colours the icon and
+  // the chip by the family, and weights a root row's name by the depth.
+  bind['data-sve-ht-cat'] = row.cat || 'other';
+  bind['data-sve-ht-depth'] = String(row.depth);
+
   // Kept so the old stylesheet rules and the verify scripts still find a
   // section by name; it marks which state the row is in, nothing more.
   if (isShutSection(row)) {
@@ -116,7 +122,7 @@ function canHide(row) {
     role="button"
     tabindex="0"
     :title="rowTitle(row)"
-    :style="{ marginLeft: row.depth * 12 + 'px' }"
+    :style="{ '--sve-ht-depth': row.depth }"
     @click="onRowClick(row)"
     @dblclick.prevent="isShutSection(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row)"
@@ -124,6 +130,14 @@ function canHide(row) {
     @pointerdown="isShutSection(row) ? null : ui.onPointerDown?.($event, row.id)"
     @contextmenu.prevent.stop="isShutSection(row) ? null : ui.onContext?.($event, row.id)"
   >
+    <!--
+      The tags look indents with a spacer that draws one guide per level, so a
+      row's place in the tree can be followed down the column; the classic look
+      indents the row itself (margin from the same variable) and hides both
+      this and the gap below. Neither carries text, so nothing that reads a
+      row's textContent sees them.
+    -->
+    <span data-sve-ht-indent aria-hidden="true"></span>
     <button
       v-if="row.hasChildren || row.emptyBlock"
       type="button"
@@ -134,6 +148,7 @@ function canHide(row) {
       @pointerdown.stop
       @dblclick.stop
     ></button>
+    <span v-else data-sve-ht-twist-gap aria-hidden="true"></span>
     <span v-if="row.letter" data-sve-ht-letter>{{ row.letter }}</span>
     <span v-else data-sve-ht-icon v-html="row.svg"></span>
     <span data-sve-ht-text :title="ui.renameTitle">
@@ -245,7 +260,7 @@ function canHide(row) {
     data-sve-ht-slot
     :data-sve-ht-id="row.id"
     v-bind="ui.dropId === row.id && ui.dropPlace === 'inside' ? { 'data-sve-ht-over': '' } : {}"
-    :style="{ marginLeft: (row.depth + 1) * 12 + 'px' }"
+    :style="{ '--sve-ht-depth': row.depth + 1 }"
   >{{ ui.slotText }}</div>
 </template>
 
@@ -254,6 +269,8 @@ function canHide(row) {
    draws the element, and the slot is drawn here now. */
 [data-sve-ht-slot] {
   box-sizing: border-box;
+  /* One level in from the row it belongs to — the row sets the variable. */
+  margin-left: calc(var(--sve-ht-depth, 0) * 12px);
   min-height: 2em;
   margin-bottom: 0.2em;
   padding: 0.45em 0.6em;
