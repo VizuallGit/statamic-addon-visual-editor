@@ -254,7 +254,7 @@ function canHide(row) {
         still-usable.
       -->
       <button
-        v-if="canFields && row.depth === 0"
+        v-if="canFields && row.fieldsIcon"
         type="button"
         data-sve-ht-fields
         :disabled="!ui.canEdit"

@@ -14,6 +14,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\ComponentController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CreateEntryController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\DataVarsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryActivityController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryBlueprintController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
@@ -86,6 +87,11 @@ final class EditorRoutes
             // `configure fields` rather than on being able to edit a page.
             Route::post('/!/sve/section-types', [SectionTypesController::class, 'store'])
                 ->name('sve.section-types.store');
+
+            // The blueprint the open entry is edited with, and where to edit
+            // it — a template's fields, the way a section's are its fieldset.
+            Route::get('/!/sve/entry-blueprint', EntryBlueprintController::class)
+                ->name('sve.entry-blueprint');
 
             // Fresh meta + defaults for a set, so a picker-inserted section also
             // renders in the CP's own section list (see SectionMetaController).

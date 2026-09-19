@@ -93,6 +93,7 @@ export const COMMENTS_BADGE_ACTIVE_BG =
 export const LP_TOOLBAR_GAP = 8;
 export const LP_BACK_ID = '__sve-lp-back';
 export const LP_RELOAD_ID = '__sve-lp-reload';
+export const LP_BLUEPRINT_ID = '__sve-lp-blueprint';
 
 // Topbar surfaces: colour tokens the toolbar, the reload button and the pickers share
 /** Fladen bag både ikonknappen og kontrolgruppen — samme, så de hører sammen. */
@@ -107,3 +108,12 @@ export const HEADER_ICON_HOVER = 'rgba(128, 128, 128, .28)';
  * det samme, så de skal heller ikke se ens ud.
  */
 export const HEADER_FIELD_SURFACE = 'rgba(128,128,128,.3)';
+
+/**
+ * A square icon button in the Live Preview top bar — Close, reload, blueprint.
+ * Here rather than in the shell so a panel can draw one without importing it.
+ */
+export const LP_ICON_BTN_STYLE =
+  `box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;` +
+  'display:inline-flex;align-items:center;justify-content:center;padding:0;' +
+  `border:none;border-radius:.5rem;cursor:pointer;background:${HEADER_SURFACE};color:currentColor;`;

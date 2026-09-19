@@ -11,7 +11,7 @@ import { RIGHT_DOCK_ID, relayoutRightDock } from '../right-dock.js';
 import { chromeSet, clearChromePrefs } from '../chrome-prefs.js';
 import { bindMenuDismiss, dropMenu } from '../lp-menu-dismiss.js';
 import { injectStyle } from '../lib/style.js';
-import { ENTRY_EDIT_PATH, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_MODE_ID, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM } from '../lib/ids.js';
+import { ENTRY_EDIT_PATH, LP_BACK_ID, LP_BLUEPRINT_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_MODE_ID, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_RELOAD_ID, LP_SIDE_DEFAULT_REM } from '../lib/ids.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { remToPx } from '../lib/dom.js';
 import { csrfToken } from '../lib/csrf.js';
@@ -592,9 +592,11 @@ export function isOurLpChromeButton(button) {
     button.id === LP_BACK_ID ||
     button.id === '__sve-lp-more' ||
     button.id === LP_RELOAD_ID ||
+    button.id === LP_BLUEPRINT_ID ||
     !!button.closest?.(`#${LP_BACK_ID}`) ||
     !!button.closest?.('#__sve-lp-more') ||
     !!button.closest?.(`#${LP_RELOAD_ID}`) ||
+    !!button.closest?.(`#${LP_BLUEPRINT_ID}`) ||
     !!button.closest?.(`#${HEADER_TOOLBAR_ID}`) ||
     !!button.closest?.(`#${LP_PREVIEW_CHROME_ID}`) ||
     !!button.closest?.(`#${LP_MODE_ID}`) ||

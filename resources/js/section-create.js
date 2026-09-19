@@ -27,6 +27,7 @@ import { sendToPreview } from './cp.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
+import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { csrfToken } from './lib/csrf.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
@@ -65,7 +66,7 @@ export async function fetchGroups(win) {
   return [...seen].map(([key, display]) => ({ key, display }));
 }
 
-export async function createSection(win, { display, group }) {
+export async function createSection(win, { display, group, static: isStatic = false }) {
   const res = await win.fetch(API, {
     method: 'POST',
     headers: {
@@ -74,7 +75,7 @@ export async function createSection(win, { display, group }) {
       Accept: 'application/json',
     },
     credentials: 'same-origin',
-    body: JSON.stringify({ display, group }),
+    body: JSON.stringify({ display, group, static: !!isStatic }),
   });
 
   const data = await res.json().catch(() => ({}));
@@ -189,7 +190,66 @@ export function canCreateSections(win) {
   return win.Statamic?.$permissions?.has?.('configure fields') === true;
 }
 
-export function openNewSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {
+/**
+ * The first question the plus asks: static markup, or fields for an editor.
+ *
+ * Resolves 'static' or 'fields' — or null when the dialog was left, which the
+ * caller treats as Cancel: the plus unlocks and nothing is made.
+ */
+export function chooseSectionKind(win) {
+  return new Promise((resolve) => {
+    let done = false;
+    const answer = (value) => {
+      if (done) {
+        return;
+      }
+
+      done = true;
+      overlay.dismiss();
+      resolve(value === 'static' || value === 'fields' ? value : null);
+    };
+
+    const overlay = openCpOverlay(win.document, ChoiceDialog, {
+      title: t(win, 'section_new_kind'),
+      body: t(win, 'section_new_kind_note'),
+      buttons: [
+        { value: 'cancel', label: t(win, 'cancel'), variant: 'ghost' },
+        { value: 'static', label: t(win, 'section_new_static'), variant: 'primary' },
+        { value: 'fields', label: t(win, 'section_new_with_fields'), variant: 'primary' },
+      ],
+      onPick: answer,
+      onClose: () => answer(null),
+    });
+  });
+}
+
+/** The markup a section in a template starts as: one root, room inside. */
+const TEMPLATE_SECTION = '<section class="[ ] py-800">\n    \n</section>\n';
+
+/**
+ * A section written into the open template file.
+ *
+ * A page that is not built from sections — a service, a product — has no set
+ * to make: the section is the markup itself, at the end of the file. Saved at
+ * once, autosave or not: it is a thing done, not text half-typed.
+ */
+export function insertTemplateSection(win) {
+  const html = String(ask('dock:html') || '');
+  const next = `${html.replace(/\s+$/, '')}\n\n${TEMPLATE_SECTION}`;
+
+  if (ask('dock:set-html', next) !== true) {
+    win.Statamic?.$toast?.error(t(win, 'section_new_failed'));
+
+    return false;
+  }
+
+  ask('dock:save-now');
+  win.Statamic?.$toast?.success(t(win, 'section_new_template_done'));
+
+  return true;
+}
+
+export function openNewSectionDialog(win, { kind = 'fields', afterUid = null, onDone, onError, onClose } = {}) {
   void (async () => {
     let groups = [];
 
@@ -214,7 +274,7 @@ export function openNewSectionDialog(win, { afterUid = null, onDone, onError, on
       groupLabel: t(win, 'section_new_group'),
       nameLabel: t(win, 'section_new_name'),
       placeholder: t(win, 'section_new_placeholder'),
-      note: t(win, 'section_new_note'),
+      note: t(win, kind === 'static' ? 'section_new_static_note' : 'section_new_note'),
       groups,
       cancelLabel: t(win, 'cancel'),
       saveLabel: t(win, 'section_new_create'),
@@ -225,7 +285,7 @@ export function openNewSectionDialog(win, { afterUid = null, onDone, onError, on
       onOk: (display, group) => {
         void (async () => {
           try {
-            const data = await createSection(win, { display, group });
+            const data = await createSection(win, { display, group, static: kind === 'static' });
 
             overlay.dismiss();
 

@@ -3,7 +3,8 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
-import { canCreateSections, openNewSectionDialog, revealWhenRendered } from '../../section-create.js';
+import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, revealWhenRendered } from '../../section-create.js';
+import { openEntryBlueprint } from '../../lp-blueprint.js';
 import { t } from '../../lib/i18n.js';
 import { nextTick, ref } from 'vue';
 
@@ -71,17 +72,46 @@ function onNewSection() {
 
   creating.value = true;
 
-  openNewSectionDialog(window, {
-    // The new section lands after the last one on the page — the end of the
-    // list the button sits above.
-    afterUid: ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null,
-    onDone: (data) => {
+  void (async () => {
+    // Static markup, or fields for an editor — asked first, the same question
+    // on a page and in a template. What the answer makes differs by where you
+    // are.
+    const kind = await chooseSectionKind(window);
+
+    if (!kind) {
       release();
-      void openNewlyMade(data?.uid);
-    },
-    onError: release,
-    onClose: release,
-  });
+
+      return;
+    }
+
+    // A template (a service, a product) is not built from sections: the
+    // section is markup written into the file. With fields, those are the
+    // page's own — the blueprint — so it opens right after.
+    if (!(ui.sections.length || ui.pageBuilder)) {
+      const ok = insertTemplateSection(window);
+
+      release();
+
+      if (ok && kind === 'fields') {
+        openEntryBlueprint(window);
+      }
+
+      return;
+    }
+
+    openNewSectionDialog(window, {
+      kind,
+      // The new section lands after the last one on the page — the end of the
+      // list the button sits above.
+      afterUid: ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null,
+      onDone: (data) => {
+        release();
+        void openNewlyMade(data?.uid);
+      },
+      onError: release,
+      onClose: release,
+    });
+  })();
 }
 
 const SEARCH =
@@ -152,7 +182,7 @@ function setQuery(value) {
       ></button>
     </label>
     <button
-      v-if="canCreate && (ui.sections.length || ui.pageBuilder)"
+      v-if="canCreate && (ui.sections.length || ui.pageBuilder || ui.rows.length)"
       type="button"
       class="sve-ht-new"
       :title="newSectionLabel"

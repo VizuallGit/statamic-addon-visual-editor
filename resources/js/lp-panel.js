@@ -4,6 +4,7 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { ensureLpReloadButton } from './lp-reload.js';
+import { ensureLpBlueprintButton } from './lp-blueprint.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
@@ -12,7 +13,7 @@ import { persistVisibleRightPanes, visiblePaneKeys } from './right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
 import { lpHeader } from './lib/live-preview.js';
-import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
+import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_BLUEPRINT_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
 import { clearSolo, ensureLpPanelToggle } from './focus-panel.js';
 import { hideGlobalsPanel, isGlobalsOverlayOpen } from './section-library.js';
 
@@ -180,6 +181,7 @@ export function syncLpRightBarGaps(win) {
   // rammer hver tilstand editoren kan åbne i. Idempotent — den flytter ikke
   // noget der allerede står rigtigt.
   ensureLpReloadButton(win);
+  ensureLpBlueprintButton(win);
 
   const parent = save.parentElement || header;
   const gap = `${LP_TOOLBAR_GAP}px`;
@@ -215,9 +217,24 @@ export function syncLpRightBarGaps(win) {
 
   const actionTail = findLpRightActionTail(header) || save;
 
+  // The page's fields, before Close: about the page, like Save and Publish
+  // beside it — not about the editor, like the buttons after Close.
+  const blueprint = doc.getElementById(LP_BLUEPRINT_ID);
+
+  if (blueprint) {
+    if (blueprint.parentElement !== parent || blueprint.previousElementSibling !== actionTail) {
+      actionTail.after(blueprint);
+    }
+
+    blueprint.style.marginLeft = '0';
+    blueprint.style.marginRight = '0';
+  }
+
+  const backAnchor = blueprint || actionTail;
+
   if (back) {
-    if (back.parentElement !== parent || back.previousElementSibling !== actionTail) {
-      actionTail.after(back);
+    if (back.parentElement !== parent || back.previousElementSibling !== backAnchor) {
+      backAnchor.after(back);
     }
 
     back.style.marginLeft = '0';

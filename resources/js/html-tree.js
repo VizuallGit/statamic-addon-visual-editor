@@ -791,6 +791,8 @@ function htmlTreeSections(win, doc) {
         svg: htmlTreeIcon(tag, '', null).svg || HTML_ICONS.section,
         cat: tagFamily(tag),
         enabled: row.enabled !== false,
+        // Markup only, no fieldset: the root row draws no fields icon.
+        static: setMeta(win, type)?.static === true,
       });
     });
 
@@ -1414,6 +1416,9 @@ export function renderHtmlTree(win) {
       // lets delete tell "this section on this page" from "this tag in the
       // file" — they are the same row, and they are not the same thing.
       sectionRoot: isRoot && openSection ? openSection.uid : '',
+      // The fields icon: on a section's root, when it has a fieldset to open.
+      // A template's fields are its blueprint, opened from the top bar.
+      fieldsIcon: !!(isRoot && openSection && !openSection.static),
     };
   });
 

@@ -12,6 +12,9 @@ const props = defineProps({
   closeLabel: { type: String, required: true },
   onClose: { type: Function, required: true },
   onSaved: { type: Function, default: null },
+  // The URL a save in this screen goes to. The Fieldsets screen by default;
+  // a blueprint saves elsewhere, and the caller says where.
+  saveMatch: { type: RegExp, default: null },
 });
 
 const loading = ref(true);
@@ -136,7 +139,7 @@ function isFieldsetSave(response) {
     (method === 'PATCH' || method === 'PUT') &&
     status >= 200 &&
     status < 300 &&
-    /\/fields\/fieldsets\//.test(url) &&
+    (props.saveMatch || /\/fields\/fieldsets\//).test(url) &&
     !/\/edit(?:\?|$)/.test(url)
   );
 }

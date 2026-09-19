@@ -72,10 +72,9 @@ export const seamId = (key) => `__sve-seam-${key}`;
  * når den står alene (fx go-back). Ikoner inde i en gruppe bruger
  * LP_TOOLBAR_ICON_STYLE.
  */
-export const LP_ICON_BTN_STYLE =
-  `box-sizing:border-box;width:${LP_CHROME_H}px;height:${LP_CHROME_H}px;` +
-  'display:inline-flex;align-items:center;justify-content:center;padding:0;' +
-  `border:none;border-radius:.5rem;cursor:pointer;background:${HEADER_SURFACE};color:currentColor;`;
+// The style itself lives in lib/ids.js, so a panel that draws a top-bar button
+// (lp-blueprint.js) can take it without reaching into the shell.
+export { LP_ICON_BTN_STYLE } from '../lib/ids.js';
 
 /** Luften mellem ikonknappen og dens kontrolgruppe, når de er to bokse. */
 export const LP_ICON_GAP = 8;

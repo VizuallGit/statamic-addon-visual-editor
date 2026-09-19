@@ -65,7 +65,7 @@ class SectionTypeMaker
      *
      * @return array{handle: string, display: string, group: string, view: string, fieldset: string}|null
      */
-    public static function create(string $fieldsetHandle, string $group, string $display, ?string $icon = null): ?array
+    public static function create(string $fieldsetHandle, string $group, string $display, ?string $icon = null, bool $static = false): ?array
     {
         $contents = static::readFieldset($fieldsetHandle);
 
@@ -101,13 +101,20 @@ class SectionTypeMaker
         // The fields the set imports. Empty to start with: the fieldset screen
         // — or the panel — is where fields get added, and a set importing a
         // fieldset that does not exist yet is a broken set.
-        Fieldset::make($imported)->setContents([
-            'title' => $display,
-            'fields' => [],
-        ])->save();
+        //
+        // A static section has no fields and imports nothing: it is markup the
+        // author writes, placed and moved like any other section, with nothing
+        // for an editor to fill in. No fieldset file, then — one with no fields
+        // would only invite someone to add some.
+        if (! $static) {
+            Fieldset::make($imported)->setContents([
+                'title' => $display,
+                'fields' => [],
+            ])->save();
 
-        if (! is_file(Names::fieldsetPath($fieldsetFolder, $name))) {
-            return null;
+            if (! is_file(Names::fieldsetPath($fieldsetFolder, $name))) {
+                return null;
+            }
         }
 
         $view = Names::viewPath($viewFolder, $name);
@@ -129,7 +136,14 @@ class SectionTypeMaker
             $set['icon'] = $icon;
         }
 
-        $set['fields'] = [['import' => $imported]];
+        // `static: true` is what tells the type map to list a set with no
+        // fields — every other empty set is a placeholder nobody finished.
+        if ($static) {
+            $set['static'] = true;
+            $set['fields'] = [];
+        } else {
+            $set['fields'] = [['import' => $imported]];
+        }
 
         $contents['fields'][$index]['field']['sets'][$group]['sets'][$handle] = $set;
 
@@ -144,7 +158,8 @@ class SectionTypeMaker
             'display' => $display,
             'group' => $group,
             'view' => Names::VIEW_FOLDER.'/'.$viewFolder.'/'.$name,
-            'fieldset' => $imported,
+            'fieldset' => $static ? null : $imported,
+            'static' => $static,
         ];
     }
 
