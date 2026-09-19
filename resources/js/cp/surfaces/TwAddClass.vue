@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { twUi } from '../tailwind/store.js';
 
 const props = defineProps({
@@ -12,6 +12,7 @@ const props = defineProps({
   tailwindLabel: { type: String, default: '' },
   search: { type: Function, required: true },
   onAdd: { type: Function, required: true },
+  onPreview: { type: Function, default: null },
 });
 
 const typed = ref('');
@@ -49,6 +50,25 @@ const rows = computed(() => (tab.value === 'site' ? site.value : tailwind.value)
 const hint = computed(() => (tab.value === 'site' ? props.sitePlaceholder : props.placeholder));
 
 onMounted(() => nextTick(() => input.value?.focus()));
+
+/**
+ * What the list is on: the row under the marker, or, with no marker, what was
+ * typed. Told to whoever wants to show it before it is picked — with `listed`
+ * saying whether it came off a row (a class for sure) or off the keyboard.
+ */
+const previewed = computed(() => (cursor.value >= 0
+  ? { name: nameOf(rows.value[cursor.value]), listed: true }
+  : { name: typed.value.trim(), listed: false }));
+
+watch(previewed, (next, prev) => {
+  if (next.name === prev?.name && next.listed === prev?.listed) {
+    return;
+  }
+
+  props.onPreview?.(next.name, next.listed);
+});
+
+onUnmounted(() => props.onPreview?.('', false));
 
 function nameOf(row) {
   return row?.name || row?.label || '';

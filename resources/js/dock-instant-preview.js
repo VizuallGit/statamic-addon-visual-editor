@@ -23,22 +23,23 @@
  *   If anything in the structure paint throws, the class-only paint runs instead.
  *
  * Astro/Vite updates CSS in place. The dock does the same for classes: the
- * design system already in the Control Panel answers for one class
- * (milliseconds), the rule is appended to the iframe, then the class attribute
- * is swapped. The PHP morph still saves in the background. It is not on the
- * paint path.
+ * section's classes go through the same Tailwind compiler that writes the
+ * baked file, the result is one unlayered <style> last in <head>, and the
+ * class attribute is swapped. A class the strip's add list is on — under the
+ * mouse, the arrows or the keyboard — is held the same way (`sve:tw-preview`)
+ * until it is picked or left. The PHP morph still saves in the background. It
+ * is not on the paint path.
  */
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 9) {
+    if (window.__sveDockInstantPreview === 10) {
         return;
     }
-    window.__sveDockInstantPreview = 9;
+    window.__sveDockInstantPreview = 10;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
-    var STYLE_TW_HOVER_ID = '__sve-tw-hover-live';
     var STYLE_CSS_ID = '__sve-dock-css-live';
     var MODE_KEY = 'sveInstantPreview';
     var MODE_STYLE_ID = '__sve-instant-mode-style';
@@ -48,9 +49,6 @@
     var lastHtml = null;
     var lastCss = '';
     var lastSid = '';
-    var served = Object.create(null);
-    var design = null;
-    var designWait = null;
     var painting = false;
     var booted = false;
     var lastFullHtml = '';
@@ -1343,41 +1341,6 @@
         return twStateWait;
     }
 
-    function loadDesign() {
-        if (design) {
-            return Promise.resolve(design);
-        }
-
-        if (designWait) {
-            return designWait;
-        }
-
-        var url = cfg('sveTwCompile', '');
-
-        if (!url || !featureOn('tailwind_dock')) {
-            return Promise.resolve(null);
-        }
-
-        designWait = import(url)
-            .then(function (mod) {
-                if (!mod?.loadTailwindDesign) {
-                    return null;
-                }
-
-                return mod.loadTailwindDesign(window);
-            })
-            .then(function (ds) {
-                design = ds || null;
-                return design;
-            })
-            .catch(function () {
-                designWait = null;
-                return null;
-            });
-
-        return designWait;
-    }
-
     function bindPreview(doc) {
         var win = doc.defaultView;
 
@@ -1393,10 +1356,6 @@
 
             lastHtml = null;
 
-            if (!doc.getElementById(STYLE_TW_ID)) {
-                served = Object.create(null);
-            }
-
             paint();
         });
     }
@@ -1411,7 +1370,6 @@
         if (!iframe.__sveInstantLoad) {
             iframe.__sveInstantLoad = true;
             iframe.addEventListener('load', function () {
-                served = Object.create(null);
                 lastHtml = null;
                 lastSid = '';
                 schedulePaint();
@@ -1735,6 +1693,7 @@
 
         try {
             paintLive(doc, html);
+            reholdTw(doc);
         } catch (e) {
             // Never leave `painting` stuck: that would silence every later paint
             // and make the dock feel like the morph is all there is.
@@ -1745,115 +1704,73 @@
     }
 
     var twHold = null;
-    var twHeldName = '';
-    var htmlCursorHold = null;
+    var twHeldKey = '';
+    /** The hold as asked for, so a paint or a morph in between can be followed by the same hold on the fresh elements. */
+    var twHoldRequest = null;
 
-    function utilityRoot(name) {
-        var base = String(name || '').split(':').pop().replace(/!$/, '');
-        var at = base.indexOf('-');
+    /**
+     * Show a class the way accepting it would: the rule in the live sheet,
+     * the class on the tag. One compiler and one sheet, the same as a paint
+     * after a keystroke — so `py-700` next to `p-500` resolves as it will in
+     * the baked file, and a colour nobody has used yet brings its `--color-*`
+     * variable along. `valueFor(el, original)` says what the tag's class
+     * attribute becomes; `key` tells one hold from the next.
+     */
+    function holdTw(doc, request) {
+        var targets = request.find(doc);
+        var valueFor = request.valueFor;
+        var key = request.key;
+        var candidate = request.candidate;
+        var i;
+        var el;
+        var original;
 
-        return at === -1 ? base : base.slice(0, at);
-    }
-
-    function twLiveTargets(doc) {
-        var pane = paneText('html');
-        var tpl = htmlScoped() ? templateRoot(pane) : templateRoot(fullHtml() || pane);
-
-        return pickedLive(doc, tpl);
-    }
-
-    function cssForNames(names) {
-        var compiled;
-
-        if (!design?.candidatesToCss || !names.length) {
-            return '';
-        }
-
-        try {
-            compiled = design.candidatesToCss(names);
-        } catch (e) {
-            return '';
-        }
-
-        if (typeof compiled === 'string') {
-            return compiled;
-        }
-
-        if (Array.isArray(compiled)) {
-            return compiled.filter(Boolean).join('\n');
-        }
-
-        return '';
-    }
-
-    function putHoverCss(doc, name) {
-        var css = cssForNames([name]);
-        var style = doc.getElementById(STYLE_TW_HOVER_ID);
-
-        if (!css) {
-            style?.remove();
+        if (!doc || !targets.length || instantMode() !== 'astro') {
             return;
         }
 
-        if (!style) {
-            style = doc.createElement('style');
-            style.id = STYLE_TW_HOVER_ID;
-            doc.head.appendChild(style);
-        }
-
-        // Unlayered, last in the document: the hovered class must win over
-        // whatever other utility is already on the tag (bg-gray vs bg-primary).
-        style.textContent = css;
-    }
-
-    function clearHoverCss(doc) {
-        doc?.getElementById(STYLE_TW_HOVER_ID)?.remove();
-    }
-
-    function rememberHtmlCursor() {
-        var view = htmlCmView();
-
-        htmlCursorHold = view ? view.state.selection.main.head : null;
-    }
-
-    function restoreHtmlCursor() {
-        var view = htmlCmView();
-        var at = htmlCursorHold;
-
-        htmlCursorHold = null;
-
-        if (!view || at == null) {
+        if (twHeldKey === key && twHold) {
             return;
         }
 
-        if (view.state.selection.main.head === at) {
-            return;
+        restoreTwHold();
+        twHoldRequest = request;
+
+        if (twState && twBuild) {
+            try {
+                setLiveTw(doc, twBuild(twState, '<i class="' + candidate + '">'));
+            } catch (e) {
+                trace('tw: hold build failed: ' + (e && e.message));
+            }
+        } else {
+            loadCompiler().then(function () {
+                var next = previewDocument();
+
+                if (next && twState && twBuild && twHeldKey === key) {
+                    setLiveTw(next, twBuild(twState, '<i class="' + candidate + '">'));
+                }
+            });
         }
 
-        view.dispatch({
-            selection: { anchor: at },
-            scrollIntoView: true,
-        });
-    }
+        twHold = [];
 
-    function optionClassName(el) {
-        var label = el && el.querySelector('[data-sve-tw-label], .cm-completionLabel');
-
-        if (label) {
-            return (label.textContent || '').trim();
+        for (i = 0; i < targets.length; i++) {
+            el = targets[i];
+            original = el.getAttribute('class') || '';
+            el.setAttribute('class', valueFor(el, original));
+            twHold.push({ el: el, original: original });
         }
 
-        return ((el && el.getAttribute('aria-label')) || (el && el.textContent) || '').trim();
+        twHeldKey = key;
+        trace('tw: holding ' + key + ' on ' + targets.length + ' element(s)');
     }
 
     function restoreTwHold() {
         var i;
         var item;
-        var doc = previewDocument();
 
         if (!twHold) {
-            twHeldName = '';
-            clearHoverCss(doc);
+            twHeldKey = '';
             return;
         }
 
@@ -1872,154 +1789,141 @@
         }
 
         twHold = null;
-        twHeldName = '';
-        clearHoverCss(doc);
+        twHeldKey = '';
+        twHoldRequest = null;
     }
 
+    /** Forget the hold and leave the tag as it is: what it shows is about to be written. */
     function dropTwHold() {
         twHold = null;
-        twHeldName = '';
-        clearHoverCss(previewDocument());
+        twHeldKey = '';
+        twHoldRequest = null;
     }
 
+    /**
+     * After a paint or a morph the tag carries the file's classes again, and
+     * the elements may be new ones: the same hold is put back, from what was
+     * asked for, as long as the list is still open.
+     */
+    function reholdTw(doc) {
+        var request = twHoldRequest;
+
+        if (!request || !twSuggestOpen()) {
+            return;
+        }
+
+        twHold = null;
+        twHeldKey = '';
+        holdTw(doc, request);
+    }
+
+    function byHtPath(doc, path) {
+        try {
+            return Array.prototype.slice.call(
+                doc.querySelectorAll('[data-sve-ht-path="' + CSS.escape(path) + '"]')
+            );
+        } catch (e) {
+            return [];
+        }
+    }
+
+    /**
+     * The strip's add list (tw-classes.js `previewAdd`): `{ path, value }` is
+     * the tag and the class value Enter would write; `{ keep: true }` says it
+     * is being written; no detail means the list moved off or closed.
+     */
+    function onTwPreview(event) {
+        var detail = event && event.detail;
+        var doc = previewDocument();
+
+        if (!detail) {
+            restoreTwHold();
+            return;
+        }
+
+        if (detail.keep) {
+            dropTwHold();
+            return;
+        }
+
+        if (!doc || typeof detail.value !== 'string') {
+            return;
+        }
+
+        holdTw(doc, {
+            find: function (next) {
+                var found = detail.path ? byHtPath(next, detail.path) : [];
+
+                return found.length ? found : twLiveTargets(next);
+            },
+            valueFor: function () {
+                return detail.value;
+            },
+            key: 'strip:' + detail.path + ':' + detail.value,
+            candidate: detail.value,
+        });
+    }
+
+    /**
+     * The HTML pane's completion list: accepting inserts the name where the
+     * cursor is, inside the tag's class attribute, so it joins the others.
+     */
     function previewTwClass(name) {
-        var doc;
-        var targets;
-        var stem;
-        var i;
-        var el;
-        var original;
-        var next;
+        var doc = previewDocument();
 
         name = String(name || '').trim();
 
-        if (!name || instantMode() !== 'astro') {
+        if (!name || !doc) {
             return;
         }
 
-        if (twHeldName === name && twHold) {
-            return;
-        }
-
-        doc = previewDocument();
-
-        if (!doc) {
-            return;
-        }
-
-        restoreTwHold();
-        targets = twLiveTargets(doc);
-
-        if (!targets.length) {
-            return;
-        }
-
-        if (design) {
-            putHoverCss(doc, name);
-        } else {
-            loadDesign().then(function () {
-                var nextDoc = previewDocument();
-
-                if (nextDoc && twHeldName === name) {
-                    putHoverCss(nextDoc, name);
-                }
-            });
-        }
-
-        stem = utilityRoot(name);
-        twHold = [];
-
-        for (i = 0; i < targets.length; i++) {
-            el = targets[i];
-            original = el.getAttribute('class') || '';
-            next = original.split(/\s+/).filter(Boolean).filter(function (token) {
-                return utilityRoot(token) !== stem;
-            });
-            next.push(name);
-            el.setAttribute('class', next.join(' '));
-            twHold.push({ el: el, original: original });
-        }
-
-        twHeldName = name;
-    }
-
-    function twSuggestActive() {
-        return document.querySelector(
-            '[data-sve-tw-option][data-active], [data-sve-tw-option][data-cursor], ' +
-            '.cm-tooltip.sve-tw-complete li[aria-selected]'
-        );
-    }
-
-    function twSuggestOpen() {
-        return !!(
-            document.getElementById('__sve-tw-menu') ||
-            document.querySelector('.cm-tooltip.sve-tw-complete')
-        );
-    }
-
-    function bindTwMenu(menu) {
-        if (!menu || menu.__sveTwPreview) {
-            return;
-        }
-
-        menu.__sveTwPreview = true;
-        menu.addEventListener('mouseover', function (event) {
-            var option = event.target.closest && event.target.closest('[data-sve-tw-option]');
-
-            if (option) {
-                previewTwClass(optionClassName(option));
-            }
+        holdTw(doc, {
+            find: twLiveTargets,
+            valueFor: function (el, original) {
+                return original ? original + ' ' + name : name;
+            },
+            key: 'complete:' + name,
+            candidate: name,
         });
-        menu.addEventListener('mouseleave', restoreTwHold);
-        menu.addEventListener('click', function (event) {
-            if (event.target.closest && event.target.closest('[data-sve-tw-option]')) {
-                rememberHtmlCursor();
-                dropTwHold();
-                window.requestAnimationFrame(restoreHtmlCursor);
-            }
-        });
+    }
+
+    function twLiveTargets(doc) {
+        var pane = paneText('html');
+        var tpl = htmlScoped() ? templateRoot(pane) : templateRoot(fullHtml() || pane);
+
+        return pickedLive(doc, tpl);
+    }
+
+    function optionClassName(el) {
+        var label = el && el.querySelector('[data-sve-tw-label], .cm-completionLabel');
+
+        if (label) {
+            return (label.textContent || '').trim();
+        }
+
+        return ((el && el.getAttribute('aria-label')) || (el && el.textContent) || '').trim();
     }
 
     function watchTwSuggest() {
-        if (document.__sveTwSuggestWatch === 4) {
+        if (document.__sveTwSuggestWatch === 5) {
             return;
         }
 
-        document.__sveTwSuggestWatch = 4;
-        bindTwMenu(document.getElementById('__sve-tw-menu'));
+        document.__sveTwSuggestWatch = 5;
+        document.addEventListener('sve:tw-preview', onTwPreview);
 
+        // The HTML pane's completion list is CodeMirror's: hover and the
+        // arrows are read off it, since it cannot say what it is on.
         document.addEventListener(
             'mouseover',
             function (event) {
                 var option =
                     event.target &&
                     event.target.closest &&
-                    event.target.closest(
-                        '[data-sve-tw-option], .cm-tooltip.sve-tw-complete li'
-                    );
+                    event.target.closest('.cm-tooltip.sve-tw-complete li');
 
-                if (!option) {
-                    return;
-                }
-
-                previewTwClass(optionClassName(option));
-            },
-            true
-        );
-
-        document.addEventListener(
-            'click',
-            function (event) {
-                if (
-                    event.target &&
-                    event.target.closest &&
-                    event.target.closest(
-                        '[data-sve-tw-option], .cm-tooltip.sve-tw-complete li'
-                    )
-                ) {
-                    rememberHtmlCursor();
-                    dropTwHold();
-                    window.requestAnimationFrame(restoreHtmlCursor);
+                if (option) {
+                    previewTwClass(optionClassName(option));
                 }
             },
             true
@@ -2038,7 +1942,7 @@
                 }
 
                 window.requestAnimationFrame(function () {
-                    var active = twSuggestActive();
+                    var active = document.querySelector('.cm-tooltip.sve-tw-complete li[aria-selected]');
 
                     if (active) {
                         previewTwClass(optionClassName(active));
@@ -2047,17 +1951,13 @@
             },
             true
         );
+    }
 
-        new MutationObserver(function () {
-            var menu = document.getElementById('__sve-tw-menu');
-
-            if (menu) {
-                bindTwMenu(menu);
-                return;
-            }
-
-            restoreTwHold();
-        }).observe(document.body, { childList: true });
+    function twSuggestOpen() {
+        return !!(
+            document.getElementById('__sve-tw-menu') ||
+            document.querySelector('.cm-tooltip.sve-tw-complete')
+        );
     }
 
     function schedulePaint() {
@@ -2112,7 +2012,6 @@
         }
 
         dock.__sveInstantWatch = true;
-        loadDesign();
         loadCompiler();
         bindIframe();
         dock.addEventListener('input', schedulePaint, true);

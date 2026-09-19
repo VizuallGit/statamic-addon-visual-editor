@@ -123,3 +123,12 @@ export const CHANNEL = Object.freeze({
   GLOBALS: 'sve.globals',
   SECTIONS: 'sve.sections',
 });
+
+/**
+ * DOM events the Control Panel bundle sends the standalone paint script,
+ * which cannot import. The bundle dispatches these on `document`; the script
+ * spells the literal, and tests/js/protocol.test.js keeps the two the same.
+ */
+export const EVENT = Object.freeze({
+  TW_PREVIEW: 'sve:tw-preview',
+});

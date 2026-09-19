@@ -258,20 +258,6 @@ function makeCatalog(design) {
     has: (name) => known.has(name),
     /** A utility with one fixed value — `flex`, `w-fit` — not a scale. */
     isStatic: (name) => statics.has(name),
-    /**
-     * What `@theme` says a variable is, or '' when it is not a theme value.
-     *
-     * Tailwind only writes the variables a build actually used, so a rule for
-     * a colour nobody has used yet points at a `--color-*` the page has never
-     * been given. Whoever serves the rule has to serve this with it.
-     */
-    themeValue(variable) {
-      try {
-        return design.resolveThemeValue?.(variable) || '';
-      } catch {
-        return '';
-      }
-    },
     fill,
     rule,
     css,
@@ -314,7 +300,6 @@ function emptyCatalog() {
     root: nothing,
     has: () => false,
     isStatic: () => false,
-    themeValue: () => '',
     fill: () => {},
     rule: nothing,
     css: nothing,

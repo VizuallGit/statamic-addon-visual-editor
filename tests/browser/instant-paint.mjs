@@ -235,7 +235,42 @@ try {
         await sleep(700);
         const after = await cp.evaluate(() => ({ row: document.querySelector('[data-sve-ht-current]')?.textContent.trim().slice(0, 40) || '', tag: document.querySelector('.sve-tw-tag')?.textContent.trim() || '', html: (document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.textContent || '').includes('mb-500') }));
         focusKept = { ok: after.html && after.row === before.row && after.tag === before.tag, why: `before ${JSON.stringify(before)} after ${JSON.stringify(after)}` };
+
+        // Hover = what Enter would do, without Enter. The list is still open and
+        // its field empty and focused — that is how adding leaves it.
+        const probeState = async () => (await livePreview()).evaluate(() => { const el = document.querySelector('.sve-instant-probe'); return el ? { cls: el.getAttribute('class') || '', bg: getComputedStyle(el).backgroundColor, pad: getComputedStyle(el).paddingInlineStart, path: el.getAttribute('data-sve-ht-path') || '' } : null; });
+        const htmlHas = (name) => cp.evaluate((n) => (document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.textContent || '').includes(n), name);
+        await cp.evaluate(() => { window.__twPrev = []; document.addEventListener('sve:tw-preview', (e) => window.__twPrev.push(e.detail)); });
+        const diag = async () => ({ events: await cp.evaluate(() => window.__twPrev), watch: await cp.evaluate(() => document.__sveTwSuggestWatch), trace: await cp.evaluate(() => (window.__sveInstantTrace || []).slice(-4)), live: await (await livePreview()).evaluate(() => { const sec = document.querySelector('[data-sid-active]') || document.querySelector('[id^="id-"]'); return { active: sec?.tagName, sid: sec?.getAttribute('data-sid'), stamped: sec?.querySelectorAll('[data-sve-ht-path]').length, ps: [...(sec?.querySelectorAll('p') || [])].map((p) => ({ cls: p.className, path: p.getAttribute('data-sve-ht-path') })).slice(0, 6) }; }) });
+        const rest = await probeState();
+        await input.type('bg-primary-', { delay: 10 });
+        await sleep(250);
+        await page.keyboard.press('ArrowDown');
+        await sleep(150);
+        const rowName = await cp.evaluate(() => document.querySelector('[data-sve-tw-option][data-cursor] [data-sve-tw-label]')?.textContent.trim() || '');
+        const held = await probeState();
+        const written = await htmlHas(rowName);
+        const arrowOk = !!rowName && !!held && held.cls.split(/\s+/).includes(rowName) && held.bg !== rest.bg && !written;
+        step('arrowing onto a row in the add list paints it on the tag, without writing it', arrowOk, `row=${rowName} held=${held?.cls} bg ${rest.bg} → ${held?.bg}${arrowOk ? '' : ` diag=${JSON.stringify(await diag())}`}`);
+
+        // Typed: a whole class name previews on its own, and takes its family's place (px-700 for px-900).
+        // Emptied the way the field itself is: a value and an input event, which is what v-model listens for.
+        await cp.evaluate(() => { const el = document.querySelector('[data-sve-tw-add-input]'); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); el.focus(); });
+        await sleep(100);
+        await input.type('px-700', { delay: 10 });
+        await sleep(250);
+        const typedHeld = await probeState();
+        const typedWritten = await htmlHas('px-700');
+        const typedTokens = typedHeld ? typedHeld.cls.split(/\s+/) : [];
+        const typedOk = typedTokens.includes('px-700') && !typedTokens.includes('px-900') && !!typedHeld && typedHeld.pad !== rest.pad && typedHeld.pad !== '0px' && !typedWritten;
+        step('a typed class previews on its own and replaces its family', typedOk, `held=${typedHeld?.cls} padding ${rest.pad} → ${typedHeld?.pad}${typedOk ? '' : ` field=${JSON.stringify(await cp.evaluate(() => document.querySelector('[data-sve-tw-add-input]')?.value))} diag=${JSON.stringify(await diag())}`}`);
+
+        // Escape closes the list and takes the preview back.
         await page.keyboard.press('Escape');
+        await sleep(250);
+        const back = await probeState();
+        const menuGone = await cp.evaluate(() => !document.getElementById('__sve-tw-menu'));
+        step('leaving the list restores the tag', menuGone && !!back && back.cls === rest.cls && back.bg === rest.bg && back.pad === rest.pad, `menuGone=${menuGone} back=${JSON.stringify(back)} rest=${JSON.stringify(rest)}`);
       } else { focusKept.why = 'no add input'; }
     } else { focusKept.why = `plus=${!!plus} tag=${before.tag} row=${before.row}`; }
     if (!twOn) { await realClick(page, cp, '#__sve-code-dock [data-sve-style-mode]'); await sleep(300); }

@@ -44,6 +44,7 @@ import TwClassMenu from './cp/surfaces/TwClassMenu.vue';
 import TwAddClass from './cp/surfaces/TwAddClass.vue';
 import TwTagMenu from './cp/surfaces/TwTagMenu.vue';
 import { previewDocument } from './lib/preview-frame.js';
+import { EVENT } from './lib/protocol.js';
 import { injectStyle } from './lib/style.js';
 
 const MENU_ID = '__sve-tw-menu';
@@ -360,113 +361,6 @@ function ensureStyles(doc) {
 }
 
 /**
- * CSS for a class the preview has never been served.
- *
- * The preview only has rules for the classes that were in the file when it
- * last rendered — from `site.css` if a build has seen them, from the baked
- * `{{ sve_tw }}` otherwise. So swapping `bg-gray-600` for `bg-gray-400` used
- * to take the paint away and give back a class that painted nothing, until
- * the save came round with the compiled rule the better part of a second
- * later. A white flash between two greys.
- *
- * The compiler that writes that file is right here, and answering for one
- * class is a fraction of a millisecond. So the rule goes into the preview
- * before the class does, and the swap is simply correct — no waiting, and
- * nothing to keep the old class for.
- *
- * The sheet stays for the session. Its id starts with `__sve-`, which is what
- * `syncHeadStyles` looks for to leave a style alone, so a re-render does not
- * take it away and the rules do not have to be written again. When the save
- * lands, the real rule is identical and sits in the same layer.
- */
-const LIVE_STYLE_ID = '__sve-tw-live';
-
-/**
- * The theme variables a rule leans on.
- *
- * A build only writes the variables it used, so `--color-gray-400` is in no
- * stylesheet this site serves until something is grey. Handing over
- * `background-color: var(--color-gray-400)` on its own would paint nothing at
- * all — which is the white flash, made permanent. `--tw-*` is Tailwind's own
- * plumbing and comes with the `@property` blocks instead.
- */
-function themeVars(rule) {
-  const seen = new Set();
-  const lines = [];
-
-  for (const [, name] of String(rule).matchAll(/var\(\s*(--[A-Za-z0-9_-]+)/g)) {
-    if (seen.has(name) || name.startsWith('--tw-')) {
-      continue;
-    }
-
-    seen.add(name);
-
-    const value = model?.catalog?.themeValue(name);
-
-    if (value) {
-      lines.push(`    ${name}: ${value};`);
-    }
-  }
-
-  return lines.length
-    ? `@layer theme {\n  :root, :host {\n${lines.join('\n')}\n  }\n}\n`
-    : '';
-}
-
-function serveRule(doc, name) {
-  const rule = name ? model?.catalog?.rule(name) : '';
-
-  if (!rule) {
-    return;
-  }
-
-  let style = doc.getElementById(LIVE_STYLE_ID);
-
-  if (!style) {
-    style = doc.createElement('style');
-    style.id = LIVE_STYLE_ID;
-    // Tailwind's own preamble, so `utilities` is a layer even in a document
-    // that was never served one, and the rule cannot outrank the stylesheet.
-    style.textContent = '@layer theme, base, components, utilities;\n';
-    doc.head.appendChild(style);
-  }
-
-  // `@property` blocks trail the rule and describe a variable, not the class.
-  const [body, ...properties] = String(rule).split(/^(?=@property)/m);
-  const next = `${themeVars(rule)}@layer utilities {\n${body}}\n${properties.join('')}`;
-
-  if (style.textContent.includes(next)) {
-    return;
-  }
-
-  style.textContent += next;
-}
-
-function flipPreview(win, from, to) {
-  const doc = previewDocument(win);
-
-  if (!doc || !node?.path) {
-    return;
-  }
-
-  serveRule(doc, to);
-
-  for (const el of doc.querySelectorAll(`[${HT_PATH_ATTR}="${node.path}"]`)) {
-    try {
-      if (from) {
-        el.classList.remove(from);
-      }
-
-      if (to) {
-        el.classList.add(to);
-      }
-    } catch {
-      /* not a class the DOM will take — the re-render has the truth */
-    }
-  }
-}
-
-/**
  * The colour a class actually paints.
  *
  * The catalog only knows a swatch when `@theme` holds a literal — and this
@@ -720,14 +614,13 @@ function resyncNode(html) {
   }
 }
 
-function commit(win, html, nextValue, from, to) {
+function commit(win, html, nextValue) {
   const next = writeClassValue(html, node, nextValue);
 
   if (next === html) {
     return;
   }
 
-  flipPreview(win, from, to);
   ask('dock:set-html', next);
   resyncNode(next);
   render(win);
@@ -810,7 +703,7 @@ export function twSortClasses(win) {
   const next = reorderTokens(current.value, slots, sorted.map((item) => item.raw));
 
   if (next !== current.value) {
-    commit(win, current.html, next, '', '');
+    commit(win, current.html, next);
   }
 }
 
@@ -863,7 +756,7 @@ export function twSetClass(win, name) {
   );
 
   if (existing?.name === name) {
-    commit(win, current.html, replaceToken(current.value, existing, ''), name, '');
+    commit(win, current.html, replaceToken(current.value, existing, ''));
 
     return;
   }
@@ -876,14 +769,14 @@ export function twSetClass(win, name) {
       important: existing.important,
     });
 
-    commit(win, current.html, replaceToken(current.value, existing, raw), existing.raw, raw);
+    commit(win, current.html, replaceToken(current.value, existing, raw));
 
     return;
   }
 
   const raw = buildClass({ variants: variantList(), name, modifier: '', important: '' });
 
-  commit(win, current.html, appendToken(current.value, raw), '', raw);
+  commit(win, current.html, appendToken(current.value, raw));
 }
 
 /**
@@ -893,10 +786,43 @@ export function twSetClass(win, name) {
  * picked and you get `after:bg-primary-900`. Write your own prefix and it is
  * left alone.
  */
+/**
+ * The tag's class value with `typed` added, the way `twAddClass` writes it.
+ *
+ * One per family, per variant: picking `bg-white` when `bg-primary-600` is
+ * already there should be a change of background, not a second one. A name
+ * the catalog does not know — a composition, one of the site's own — has no
+ * family to collide with and simply joins the others. The variant picked in
+ * the strip goes in front unless the name brings its own.
+ *
+ * @returns {{ value: string, changed: boolean }}
+ */
+function classValueWith(value, typed) {
+  const prefix = variantKey();
+  const raw = prefix && !typed.includes(':') ? `${prefix}:${typed}` : typed;
+  const chips = currentChips(value);
+
+  if (chips.some((chip) => chip.raw === raw)) {
+    return { value, changed: false };
+  }
+
+  const { variants, base } = splitClass(raw);
+  const property = propertyOf(splitUtility(base).name);
+  const key = variants.join(':');
+  const existing = property
+    ? chips.find(
+      (chip) => !chip.dynamic && chip.variants.join(':') === key && propertyOf(chip.name) === property
+    )
+    : null;
+
+  return {
+    value: existing ? replaceToken(value, existing, raw) : appendToken(value, raw),
+    changed: true,
+  };
+}
+
 export function twAddClass(win, raw) {
   const typed = String(raw || '').trim();
-  const prefix = variantKey();
-  const value = prefix && !typed.includes(':') ? `${prefix}:${typed}` : typed;
 
   if (locked() || !typed) {
     return;
@@ -908,32 +834,47 @@ export function twAddClass(win, raw) {
     return;
   }
 
-  const already = currentChips(current.value).some((chip) => chip.raw === value);
+  const next = classValueWith(current.value, typed);
 
-  if (already) {
+  if (!next.changed) {
     return;
   }
 
-  // One per family, per variant: picking `bg-white` when `bg-primary-600` is
-  // already there should be a change of background, not a second one. A name
-  // the catalog does not know — a composition, one of the site's own — has no
-  // family to collide with and simply joins the others.
-  const { variants, base } = splitClass(value);
-  const property = propertyOf(splitUtility(base).name);
-  const key = variants.join(':');
-  const existing = property
-    ? currentChips(current.value).find(
-      (chip) => !chip.dynamic && chip.variants.join(':') === key && propertyOf(chip.name) === property
-    )
-    : null;
+  commit(win, current.html, next.value);
+}
 
-  if (existing) {
-    commit(win, current.html, replaceToken(current.value, existing, value), existing.raw, value);
+/**
+ * Show what the add list is on, before it is picked.
+ *
+ * The painting is the paint script's (dock-instant-preview.js, listening for
+ * `sve:tw-preview`): it holds the tag's would-be class value on the live
+ * elements, and the rule comes from the same compiler as a save. Here is
+ * only the answer to "what would Enter write" — the one place that knows,
+ * so hover and Enter cannot disagree. A row always previews; typed text
+ * previews once it is a class the catalog can compile.
+ */
+function previewAdd(win, name, listed) {
+  const typed = String(name || '').trim();
+  const current = typed && !locked() ? currentValue() : null;
+
+  if (!current || (!listed && !model?.catalog?.resolve(typed))) {
+    sendPreview(win, null);
 
     return;
   }
 
-  commit(win, current.html, appendToken(current.value, value), '', value.includes(':') ? '' : value);
+  const next = classValueWith(current.value, typed);
+
+  sendPreview(win, next.changed ? { path: node.path, value: next.value } : null);
+}
+
+/** The pick is about to be written: the paint script keeps what it shows and forgets the hold. */
+function keepPreview(win) {
+  sendPreview(win, { keep: true });
+}
+
+function sendPreview(win, detail) {
+  win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail }));
 }
 
 function applyChip(win, chip, nextName) {
@@ -958,7 +899,7 @@ function applyChip(win, chip, nextName) {
     })
     : '';
 
-  commit(win, current.html, replaceToken(current.value, chip, nextRaw), chip.raw, nextRaw);
+  commit(win, current.html, replaceToken(current.value, chip, nextRaw));
 }
 
 /* ------------------------------------------------------------------ *
@@ -1090,7 +1031,7 @@ export function twReorder(win, ids) {
     return;
   }
 
-  commit(win, current.html, next, '', '');
+  commit(win, current.html, next);
 }
 
 export function twHideOverlay(win) {
@@ -1348,7 +1289,9 @@ export function twOpenAddMenu(win, anchor) {
     // Left open on purpose: adding three classes should not mean opening the
     // menu and retyping the search three times. Escape or a click outside
     // closes it.
+    onPreview: (name, listed) => previewAdd(win, name, listed),
     onAdd: (value) => {
+      keepPreview(win);
       twAddClass(win, value);
     },
   });
