@@ -61,7 +61,8 @@ function isDim(row) {
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </template>
-        <HtmlTreeRow v-else :row="sec.row" />
+        <!-- Inside a component every other section fades, as the preview fades them. -->
+        <HtmlTreeRow v-else :row="sec.row" :dim="ui.inComponent" />
       </div>
     </template>
     <template v-else-if="ui.rows.length">

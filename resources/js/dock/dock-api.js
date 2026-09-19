@@ -1,4 +1,14 @@
 /**
+ * Save now, autosave or not. For a value a panel has finished writing — a
+ * component's field, a switch — not for code someone is in the middle of
+ * typing: that is what the autosave toggle is for, and it stays theirs.
+ */
+register('dock:save-now', () => {
+  flushSave(dockState.lastWin?.document);
+
+  return true;
+});
+/**
  * code-dock.js — region "dock-api", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel code-dock.js for what the shell exports.
  */

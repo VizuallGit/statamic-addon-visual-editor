@@ -58,6 +58,10 @@ export const htmlTreeUi = reactive({
   deleteTitle: '',
   lockedTitle: '',
   canEdit: false,
+  // A component is open in the dock: its rows sit inside the section's, and
+  // everything that is not the component fades.
+  inComponent: false,
+  onContextRow: null,
   dragging: false,
   dropId: null,
   dropPlace: null,

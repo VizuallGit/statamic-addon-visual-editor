@@ -73,9 +73,25 @@ function isShutSection(row) {
   return !!row.section;
 }
 
+/**
+ * A row of the file around the open component — the section's own tags,
+ * drawn faded so the component reads as the thing being edited. It cannot be
+ * picked, moved, renamed or deleted: its offsets belong to a file the dock is
+ * not holding. Clicking one is the way back out to that file.
+ */
+function isContext(row) {
+  return !!row.context;
+}
+
 function onRowClick(row) {
   if (isShutSection(row)) {
     ui.onSection?.(row.section);
+
+    return;
+  }
+
+  if (isContext(row)) {
+    ui.onContextRow?.(row.id);
 
     return;
   }
@@ -102,6 +118,12 @@ function rowBind(row, dim) {
 
   if (dim) {
     bind['data-sve-ht-dim'] = '';
+  }
+
+  // Around the open component: faded, except the row the component unfolds
+  // from, which says where you are.
+  if (isContext(row)) {
+    bind['data-sve-ht-context'] = row.context;
   }
 
   // Kept so the old stylesheet rules and the verify scripts still find a
@@ -131,11 +153,11 @@ function canHide(row) {
     :title="rowTitle(row)"
     :style="{ '--sve-ht-depth': row.depth }"
     @click="onRowClick(row)"
-    @dblclick.prevent="isShutSection(row) ? null : ui.onRename?.(row.id)"
+    @dblclick.prevent="isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row)"
     @keydown.space.prevent="onRowClick(row)"
-    @pointerdown="isShutSection(row) ? null : ui.onPointerDown?.($event, row.id)"
-    @contextmenu.prevent.stop="isShutSection(row) ? null : ui.onContext?.($event, row.id)"
+    @pointerdown="isShutSection(row) || isContext(row) ? null : ui.onPointerDown?.($event, row.id)"
+    @contextmenu.prevent.stop="isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
   >
     <!--
       The tags look indents with a spacer that draws one guide per level, each
@@ -171,7 +193,7 @@ function canHide(row) {
         to select — a single click there kept opening a menu nobody asked for.
       -->
       <button
-        v-if="!row.kind && !isShutSection(row)"
+        v-if="!row.kind && !isShutSection(row) && !isContext(row)"
         type="button"
         data-sve-ht-tag
         :title="ui.tagTitle"
@@ -207,7 +229,7 @@ function canHide(row) {
       lock answer arrives half a second after the row is drawn, so they used to
       appear and then vanish while you looked at them.
     -->
-    <span v-if="!isShutSection(row)" data-sve-ht-actions>
+    <span v-if="!isShutSection(row) && !isContext(row)" data-sve-ht-actions>
       <button
         v-if="canHide(row)"
         type="button"
