@@ -63,13 +63,22 @@ const SECTION_TAGS = ['section', 'article', 'header', 'footer', 'main', 'nav', '
  * One colour per family in the tree's "tags" look (html-tree.js holds the
  * colours, beside the rest of the tree's CSS): the row's icon and its tag chip
  * wear it, so a section, a heading, an image, a loop and a component can be
- * told apart before a word is read. The families follow what the row *does*
- * on the page, not what the HTML spec calls it — a list is structure with its
- * own shape, a link is something you press, a figure is media.
+ * told apart before a word is read. Six families and "other": few enough that
+ * no two colours sit next to each other. A list is structure, so it is
+ * layout; a link or a button is text you press, so it is text; a figure is
+ * media. The three Antlers families wear the colours of the dock toolbar's
+ * own component, loop and if buttons — the tree and the pane agree.
  */
 const LAYOUT_TAGS = [
   'div',
   ...SECTION_TAGS,
+  'ul',
+  'ol',
+  'li',
+  'dl',
+  'dt',
+  'dd',
+  'menu',
   'form',
   'fieldset',
   'details',
@@ -86,7 +95,6 @@ const LAYOUT_TAGS = [
   'th',
   'template',
 ];
-const LIST_TAGS = ['ul', 'ol', 'li', 'dl', 'dt', 'dd', 'menu'];
 const TEXT_LIKE_TAGS = [
   ...TEXT_TAGS,
   'b',
@@ -103,6 +111,13 @@ const TEXT_LIKE_TAGS = [
   'sub',
   'sup',
   'abbr',
+  'a',
+  'button',
+  'input',
+  'select',
+  'textarea',
+  'option',
+  'optgroup',
 ];
 const MEDIA_TAGS = [
   'img',
@@ -118,21 +133,23 @@ const MEDIA_TAGS = [
   'object',
   'embed',
 ];
-const LINK_TAGS = ['a', 'button', 'input', 'select', 'textarea', 'option', 'optgroup'];
 
 /**
- * Which family a row belongs to: `component`, `logic` (a loop or a condition),
- * `text`, `layout`, `list`, `media`, `link` — or `other` for a tag none of
- * the lists name. The value goes on the row as `data-sve-ht-cat`; the CSS
- * maps it to a colour, and nothing else reads it.
+ * Which family a row belongs to: `component`, `loop`, `if` (a condition, and
+ * any Antlers block the parser does not call a loop), `text`, `layout`,
+ * `media` — or `other` for a tag none of the lists name. The value goes on
+ * the row as `data-sve-ht-cat`; the CSS maps it to a colour, and nothing
+ * else reads it.
  */
-export function htmlTreeCategory(tag, kind) {
+export function htmlTreeCategory(tag, kind, antlers) {
   if (kind === 'component') {
     return 'component';
   }
 
+  // Same split as the icon: a loop is a loop, everything else Antlers is a
+  // condition — so an unfamiliar block wears the if colour, not a new one.
   if (kind === 'antlers') {
-    return 'logic';
+    return antlers === 'loop' ? 'loop' : 'if';
   }
 
   if (/^h[1-6]$/.test(tag) || TEXT_LIKE_TAGS.includes(tag)) {
@@ -143,16 +160,8 @@ export function htmlTreeCategory(tag, kind) {
     return 'layout';
   }
 
-  if (LIST_TAGS.includes(tag)) {
-    return 'list';
-  }
-
   if (MEDIA_TAGS.includes(tag)) {
     return 'media';
-  }
-
-  if (LINK_TAGS.includes(tag)) {
-    return 'link';
   }
 
   return 'other';
