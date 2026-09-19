@@ -3,13 +3,86 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
+import { canCreateSections, openNewSectionDialog, revealWhenRendered } from '../../section-create.js';
 import { t } from '../../lib/i18n.js';
+import { nextTick, ref } from 'vue';
 
 defineProps({
   title: { type: String, default: '' },
 });
 
 const searchLabel = t(window, 'html_tree_search');
+
+// Making a section writes files into the repository, so it is the developer
+// permission that decides — the same gate as deleting one. An editor never
+// sees the button at all.
+const canCreate = canCreateSections(window);
+const newSectionLabel = t(window, 'section_new');
+const creating = ref(false);
+
+const PLUS =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+
+function release() {
+  creating.value = false;
+}
+
+// Locked from click until the dialog is gone — created, failed, or cancelled.
+// Without onClose, Cancel left the lock on and the plus did nothing next time.
+
+/**
+ * Step into the section that was just made, the same move a click on its row
+ * makes.
+ *
+ * Not straight away: the row is written onto the publish form, and the tree,
+ * the panel beside the preview and the preview itself each catch up on their
+ * own clock. `onSection` bails on a uid it cannot find in the list it was
+ * built with, so the list is re-read first, and re-read again while the form
+ * renders — a second at the outside, then it is left alone.
+ */
+async function openNewlyMade(uid) {
+  if (!uid) {
+    return;
+  }
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await nextTick();
+    ui.onRefresh?.();
+
+    const section = ui.sections.find((item) => item.uid === uid);
+
+    if (section) {
+      ui.onSection?.(uid);
+      // Stepping in asks the preview for the section straight away, and the
+      // preview has not drawn it yet. So ask again when it has.
+      revealWhenRendered(window, section.ids);
+
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+function onNewSection() {
+  if (creating.value) {
+    return;
+  }
+
+  creating.value = true;
+
+  openNewSectionDialog(window, {
+    // The new section lands after the last one on the page — the end of the
+    // list the button sits above.
+    afterUid: ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null,
+    onDone: (data) => {
+      release();
+      void openNewlyMade(data?.uid);
+    },
+    onError: release,
+    onClose: release,
+  });
+}
 
 const SEARCH =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
@@ -45,10 +118,15 @@ function setQuery(value) {
       </div>
     </div>
     <!--
-      Between the bar and the sections: the way to a row in a long page. Escape
-      empties it; the keys stay here, so the dock's shortcuts do not fire while
-      typing a name.
+      Between the bar and the sections: the search, and beside it the plus
+      that makes a new section. The plus used to sit at the end of the list,
+      shaped like a row; up here, in our blue, it reads as the one action the
+      panel offers rather than as one more thing in the tree. Shown on an
+      empty page builder too — otherwise deleting the last section left no
+      way to add the next one. The search: Escape empties it; the keys stay
+      here, so the dock's shortcuts do not fire while typing a name.
     -->
+    <div class="sve-ht-tools">
     <label class="sve-ht-search" :title="searchLabel">
       <span class="sve-ht-search__icon" aria-hidden="true" v-html="SEARCH"></span>
       <input
@@ -73,6 +151,16 @@ function setQuery(value) {
         @click="setQuery('')"
       ></button>
     </label>
+    <button
+      v-if="canCreate && (ui.sections.length || ui.pageBuilder)"
+      type="button"
+      class="sve-ht-new"
+      :title="newSectionLabel"
+      :aria-label="newSectionLabel"
+      v-html="PLUS"
+      @click="onNewSection"
+    ></button>
+    </div>
     <!--
       Only when there is no Live Preview column to draw them in. Inside a
       component the fields belong on the left, where the section's own fields
@@ -109,15 +197,23 @@ function setQuery(value) {
   overflow-y: auto;
 }
 /* The pane owns the gutter (right-dock.css), so only the block margins are
-   ours. Same grey as a row, a touch rounder: a field, not another row. */
-.sve-ht-search {
+   ours. */
+.sve-ht-tools {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+/* Same grey as a row, a touch rounder: a field, not another row. */
+.sve-ht-search {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
   box-sizing: border-box;
   height: 2rem;
-  margin: 10px 0 6px;
   padding: 0 0.5rem 0 0.625rem;
   border-radius: 0.5rem;
   background: rgba(128, 128, 128, 0.14);
@@ -160,6 +256,29 @@ function setQuery(value) {
 .sve-ht-search__clear:hover {
   opacity: 1;
   background: rgba(128, 128, 128, 0.25);
+}
+/* The same blue the tree marks the picked row with: ours, and the only
+   filled thing in the panel, so it is the thing to press. */
+.sve-ht-new {
+  all: unset;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: #3858e9;
+  color: #fff;
+  cursor: pointer;
+}
+.sve-ht-new:hover {
+  background: #4a68ee;
+}
+.sve-ht-new:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: 2px;
 }
 .sve-tree-exit {
   flex: 0 0 auto;

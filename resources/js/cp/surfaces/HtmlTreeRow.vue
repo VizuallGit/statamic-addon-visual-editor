@@ -138,13 +138,15 @@ function canHide(row) {
     @contextmenu.prevent.stop="isShutSection(row) ? null : ui.onContext?.($event, row.id)"
   >
     <!--
-      The tags look indents with a spacer that draws one guide per level, so a
-      row's place in the tree can be followed down the column; the classic look
-      indents the row itself (margin from the same variable) and hides both
-      this and the gap below. Neither carries text, so nothing that reads a
-      row's textContent sees them.
+      The tags look indents with a spacer that draws one guide per level, each
+      in the colour of the row it descends from (html-tree.js works out the
+      chain), so a row's place in the tree can be followed down the column
+      and the column says what it belongs to. The classic look indents the
+      row itself (margin from the same variable) and hides both this and the
+      gap below. Neither carries text, so nothing that reads a row's
+      textContent sees them.
     -->
-    <span data-sve-ht-indent aria-hidden="true"></span>
+    <span data-sve-ht-indent aria-hidden="true"><i v-for="(cat, i) in row.guides || []" :key="i" :data-sve-ht-cat="cat"></i></span>
     <button
       v-if="row.hasChildren || row.emptyBlock"
       type="button"

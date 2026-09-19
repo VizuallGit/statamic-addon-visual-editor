@@ -369,7 +369,6 @@ export function ensureHtmlTreeStyles(doc) {
       --sve-ht-c-if: #b45309;
       --sve-ht-c-component: #0f766e;
       --sve-ht-c-other: #6b6b6b;
-      --sve-ht-guide: rgba(128,128,128,.3);
       --sve-ht-pick: rgba(56,88,233,.14);
       --sve-ht-pick-hover: rgba(56,88,233,.22);
     }
@@ -382,17 +381,19 @@ export function ensureHtmlTreeStyles(doc) {
       --sve-ht-c-if: #e8c468;
       --sve-ht-c-component: #5eead4;
       --sve-ht-c-other: #9a9a9a;
-      --sve-ht-guide: rgba(255,255,255,.13);
       --sve-ht-pick: rgba(56,88,233,.3);
       --sve-ht-pick-hover: rgba(56,88,233,.4);
     }
-    [data-sve-ht-look="tags"] [data-sve-ht-row] { --sve-ht-c: var(--sve-ht-c-other); }
-    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="layout"] { --sve-ht-c: var(--sve-ht-c-layout); }
-    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="text"] { --sve-ht-c: var(--sve-ht-c-text); }
-    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="media"] { --sve-ht-c: var(--sve-ht-c-media); }
-    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="loop"] { --sve-ht-c: var(--sve-ht-c-loop); }
-    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="if"] { --sve-ht-c: var(--sve-ht-c-if); }
-    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-cat="component"] { --sve-ht-c: var(--sve-ht-c-component); }
+    /* The family's colour, on a row and on the guide an ancestor of that
+       family leaves under itself. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row],
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="other"] { --sve-ht-c: var(--sve-ht-c-other); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="layout"] { --sve-ht-c: var(--sve-ht-c-layout); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="text"] { --sve-ht-c: var(--sve-ht-c-text); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="media"] { --sve-ht-c: var(--sve-ht-c-media); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="loop"] { --sve-ht-c: var(--sve-ht-c-loop); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="if"] { --sve-ht-c: var(--sve-ht-c-if); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="component"] { --sve-ht-c: var(--sve-ht-c-component); }
 
     /* Flat rows: no card, no indent margin — the spacer below does the
        stepping, so the hover and the pick run the full width of the panel. */
@@ -425,17 +426,24 @@ export function ensureHtmlTreeStyles(doc) {
       background: rgba(56,88,233,.04);
     }
 
-    /* One guide per level, drawn on the spacer: a line every 14px, the first
-       7px in, so each sits under the twist of the row it descends from. The
-       negative margin cancels the row gap, so a depth-0 row starts flush. */
+    /* One guide per level, drawn on the spacer: 14px per level with the line
+       7px in, so each sits under the twist of the row it descends from — in
+       that row's family colour, held back. The negative margin cancels the
+       row gap, so a depth-0 row starts flush. */
     [data-sve-ht-look="tags"] [data-sve-ht-indent] {
-      display: block;
+      display: flex;
       flex: none;
       align-self: stretch;
       width: calc(var(--sve-ht-depth, 0) * 14px);
       margin-right: -5px;
-      background: linear-gradient(to right, var(--sve-ht-guide) 1px, transparent 1px) 7px 0 / 14px 100% repeat-x;
       pointer-events: none;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-indent] i {
+      display: block;
+      flex: none;
+      width: 14px;
+      background: linear-gradient(to right, transparent 7px, var(--sve-ht-c) 7px, var(--sve-ht-c) 8px, transparent 8px);
+      opacity: .5;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-twist-gap] {
       display: inline-block;
@@ -1260,6 +1268,17 @@ export function renderHtmlTree(win) {
       sectionRoot: isRoot && openSection ? openSection.uid : '',
     };
   });
+
+  // The families above each row, one per level, for the guides the tags look
+  // draws: the guide under a loop is the loop's colour. Rows come in document
+  // order, so a stack of what sits at each depth is the chain.
+  const chain = [];
+
+  for (const row of htmlTreeUi.rows) {
+    chain.length = row.depth;
+    row.guides = chain.slice();
+    chain[row.depth] = row.cat;
+  }
 
   htmlTreeUi.sections = inSections
     ? sections.map((section) => {
