@@ -271,6 +271,31 @@ try {
         const back = await probeState();
         const menuGone = await cp.evaluate(() => !document.getElementById('__sve-tw-menu'));
         step('leaving the list restores the tag', menuGone && !!back && back.cls === rest.cls && back.bg === rest.bg && back.pad === rest.pad, `menuGone=${menuGone} back=${JSON.stringify(back)} rest=${JSON.stringify(rest)}`);
+
+        // The eye off: the list is on a row, and the tag shows nothing until it is picked.
+        const eye = await cp.$('#__sve-code-dock [data-sve-instant-hover]');
+        let eyeOff = { ok: false, why: 'no eye button' };
+        if (eye) {
+          await realClick(page, cp, '#__sve-code-dock [data-sve-instant-hover]');
+          await sleep(200);
+          const pressed = await cp.evaluate(() => document.querySelector('#__sve-code-dock [data-sve-instant-hover]')?.getAttribute('aria-pressed'));
+          await realClick(page, cp, '#__sve-code-dock [data-sve-css-add-class]');
+          const again = await cp.waitForSelector('[data-sve-tw-add-input]', { timeout: 5000 }).catch(() => null);
+          if (again) {
+            await again.type('bg-primary-', { delay: 10 });
+            await sleep(250);
+            await page.keyboard.press('ArrowDown');
+            await sleep(250);
+            const quiet = await probeState();
+            const onRow = await cp.evaluate(() => document.querySelector('[data-sve-tw-option][data-cursor] [data-sve-tw-label]')?.textContent.trim() || '');
+            eyeOff = { ok: pressed === 'false' && !!onRow && !!quiet && quiet.cls === rest.cls && quiet.bg === rest.bg, why: `pressed=${pressed} row=${onRow} probe=${JSON.stringify(quiet)}` };
+            await page.keyboard.press('Escape');
+            await sleep(200);
+          } else { eyeOff.why = 'list did not reopen'; }
+          await realClick(page, cp, '#__sve-code-dock [data-sve-instant-hover]');
+          await sleep(100);
+        }
+        step('with the eye off, a row under the arrow shows nothing until it is picked', eyeOff.ok, eyeOff.why);
       } else { focusKept.why = 'no add input'; }
     } else { focusKept.why = `plus=${!!plus} tag=${before.tag} row=${before.row}`; }
     if (!twOn) { await realClick(page, cp, '#__sve-code-dock [data-sve-style-mode]'); await sleep(300); }

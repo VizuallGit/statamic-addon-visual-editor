@@ -42,6 +42,8 @@
     var STYLE_TW_ID = '__sve-tw-dock-live';
     var STYLE_CSS_ID = '__sve-dock-css-live';
     var MODE_KEY = 'sveInstantPreview';
+    /** 'off' = a class shows only once it is picked; anything else = it shows while the list is on it. */
+    var HOVER_KEY = 'sveInstantHover';
     var MODE_STYLE_ID = '__sve-instant-mode-style';
     var ANT = '\uE000';
 
@@ -96,6 +98,28 @@
         return 'astro';
     }
 
+    function hoverPreviewOn() {
+        try {
+            return window.localStorage.getItem(HOVER_KEY) !== 'off';
+        } catch (e) {
+            return true;
+        }
+    }
+
+    function setHoverPreview(on) {
+        try {
+            window.localStorage.setItem(HOVER_KEY, on ? 'on' : 'off');
+        } catch (e) {
+            // The session still switches; it just will not remember.
+        }
+
+        if (!on) {
+            restoreTwHold();
+        }
+
+        paintToggle();
+    }
+
     function setInstantMode(next) {
         try {
             window.localStorage.setItem(MODE_KEY, next);
@@ -132,10 +156,19 @@
                 'border-radius:5px 0 0 5px;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant="morph"]{' +
-                'border-radius:0 5px 5px 0;' +
+                'border-radius:0;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-mode] button[aria-pressed="true"]{' +
                 'opacity:1;color:#93c5fd;background:rgba(56,88,233,.22);' +
+            '}' +
+            '#' + DOCK_ID + ' [data-sve-instant-hover]{' +
+                'padding:0 7px;border-radius:0 5px 5px 0;border-left:1px solid rgba(255,255,255,.12);' +
+            '}' +
+            '#' + DOCK_ID + ' [data-sve-instant-hover] svg{' +
+                'width:13px;height:13px;display:block;' +
+            '}' +
+            '#' + DOCK_ID + ' [data-sve-instant-active="morph"] [data-sve-instant-hover]{' +
+                'opacity:.25;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-tw-docs]{' +
                 'all:unset;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;' +
@@ -162,12 +195,56 @@
 
         group.setAttribute('data-sve-instant-active', mode);
 
-        Array.prototype.forEach.call(group.querySelectorAll('button'), function (button) {
+        Array.prototype.forEach.call(group.querySelectorAll('[data-sve-instant]'), function (button) {
             button.setAttribute(
                 'aria-pressed',
                 button.getAttribute('data-sve-instant') === mode ? 'true' : 'false'
             );
         });
+
+        paintHoverButton(group.querySelector('[data-sve-instant-hover]'));
+    }
+
+    var EYE_ICON =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+
+    function paintHoverButton(btn) {
+        var on = hoverPreviewOn();
+
+        if (!btn) {
+            return;
+        }
+
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.title = on
+            ? 'Klasser forhåndsvises i Live Preview mens listen står på dem — klik for at vise dem først når de vælges'
+            : 'Klasser vises først når de vælges — klik for at forhåndsvise dem mens listen står på dem';
+    }
+
+    /**
+     * The eye: a class shows in Live Preview while the add list is on it
+     * (mouse, arrows, typing), or only once it is picked. Both stay; this
+     * is the switch, remembered per browser like the mode next to it.
+     */
+    function ensureHoverButton(group) {
+        var btn = group.querySelector('[data-sve-instant-hover]');
+
+        if (btn) {
+            return;
+        }
+
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('data-sve-instant-hover', '');
+        btn.setAttribute('aria-label', 'Forhåndsvis klasser under musen og pilen');
+        btn.innerHTML = EYE_ICON;
+        btn.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            setHoverPreview(!hoverPreviewOn());
+        });
+        group.appendChild(btn);
     }
 
     function ensureTwDocs(dock) {
@@ -263,6 +340,7 @@
                 morphBtn.title = 'Venter på gemt morph, cirka ét sekund';
             }
 
+            ensureHoverButton(group);
             paintToggle();
             ensureTwDocs(dock);
             return;
@@ -291,6 +369,7 @@
             setInstantMode(btn.getAttribute('data-sve-instant'));
         });
 
+        ensureHoverButton(group);
         before = bar.querySelector('[data-sve-code-autosave]');
 
         if (before) {
@@ -1846,7 +1925,7 @@
             return;
         }
 
-        if (!doc || typeof detail.value !== 'string') {
+        if (!doc || typeof detail.value !== 'string' || !hoverPreviewOn()) {
             return;
         }
 
@@ -1873,7 +1952,7 @@
 
         name = String(name || '').trim();
 
-        if (!name || !doc) {
+        if (!name || !doc || !hoverPreviewOn()) {
             return;
         }
 
