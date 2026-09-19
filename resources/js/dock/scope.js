@@ -22,6 +22,7 @@ import { paintBack } from './layout.js';
 import { CSS_MENU_ID, DOCK_ID, LOCK_CLOSED_ICON, LOCK_OPEN_ICON, SCOPE_ICON, SCOPE_KEY, css, editors, html } from '../code-dock.js';
 import { closeCssMenu, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssFolds } from './css-sizes.js';
+import { minimalChange } from '../lib/minimal-change.js';
 
 // ===== scope =====
 export function currentSectionValues(win) {
@@ -345,8 +346,12 @@ export function writeHandleEditor(handle, text, selection) {
 
   try {
     if (current !== text) {
+      // Only what differs — a whole-document change would map a caret that
+      // sits outside the edit to the end of the file (see lib/minimal-change).
+      const [from, to, insert] = minimalChange(current, text);
+
       view.dispatch({
-        changes: { from: 0, to: current.length, insert: text },
+        changes: { from, to, insert },
         ...(selection ? { selection, scrollIntoView: true } : {}),
       });
     } else if (selection) {

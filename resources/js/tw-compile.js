@@ -29,6 +29,7 @@ const MODULES = {
 
 let sitePromise = null;
 let designPromise = null;
+let compilerPromise = null;
 let warned = false;
 
 function loadSite(win) {
@@ -45,26 +46,50 @@ function loadSite(win) {
   return sitePromise;
 }
 
-export async function compileTailwind(win, html) {
-  const site = await loadSite(win);
-  const state = await makeTailwindCompiler({
-    compile,
-    sources: { theme: themeSource, utilities: utilitiesSource },
-    site,
-    modules: MODULES,
-  });
+/**
+ * The compiler for this site, made once and kept.
+ *
+ * Building it means compiling the theme (~300 ms); building a file's classes
+ * with it is a few milliseconds. The save path and the dock's Instant paint
+ * share this one, so what the preview shows the moment you type is the same
+ * CSS the file is saved with — one bake, two speeds.
+ */
+export function loadTailwindCompiler(win) {
+  if (!compilerPromise) {
+    compilerPromise = loadSite(win)
+      .then((site) => makeTailwindCompiler({
+        compile,
+        sources: { theme: themeSource, utilities: utilitiesSource },
+        site,
+        modules: MODULES,
+      }))
+      .then((state) => {
+        if (!warned && state.missingPlugins.length) {
+          warned = true;
+          console.warn(
+            '[sve] site.css loads Tailwind plugins the Visual Editor does not carry, '
+            + 'so their classes stay with the Vite build: '
+            + state.missingPlugins.join(', ')
+          );
+        }
 
-  if (!warned && state.missingPlugins.length) {
-    warned = true;
-    console.warn(
-      '[sve] site.css loads Tailwind plugins the Visual Editor does not carry, '
-      + 'so their classes stay with the Vite build: '
-      + state.missingPlugins.join(', ')
-    );
+        return state;
+      })
+      .catch((error) => {
+        compilerPromise = null;
+
+        throw error;
+      });
   }
 
-  return buildTailwind(state, html);
+  return compilerPromise;
 }
+
+export async function compileTailwind(win, html) {
+  return buildTailwind(await loadTailwindCompiler(win), html);
+}
+
+export { buildTailwind };
 
 /**
  * The design system the dock's suggestions read.

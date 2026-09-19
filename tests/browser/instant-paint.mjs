@@ -138,7 +138,11 @@ try {
 
   // Type: a static element right after the root's opening tag — with real
   // keystrokes, so the dock's own input handlers run exactly as for a person.
-  const probe = '<p class="sve-instant-probe">instant</p>';
+  // `wrapper` is one of the site's own @utility classes; `px-900` is a class no
+  // built sheet has. Both on one tag is the case that used to go wrong: the
+  // new class landed in a lower CSS layer than the site's utilities and did
+  // nothing until the bake arrived a second later.
+  const probe = '<p class="sve-instant-probe wrapper px-900">instant</p>';
   const tile = await cp.evaluate(() => { const c = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content'); const t = c && c.cmTile; return t ? `cmTile keys: ${Object.keys(t).slice(0, 12).join(',')}; view? ${!!t.view} editorView? ${!!t.editorView}` : 'no cmTile'; });
   console.log('info CodeMirror content node —', tile);
   const lineRect = await cp.evaluate(() => {
@@ -172,6 +176,75 @@ try {
   // Server-owned attributes were not invented, the root kept its data-sid.
   const after = await (await livePreview()).evaluate(() => { const el = document.querySelector('.sve-instant-probe'); const root = el?.closest('[id^="id-"]'); return { probeSid: el?.hasAttribute('data-sid') || false, rootSid: root?.getAttribute('data-sid') || '' }; });
   step('no data-sid invented; root kept its data-sid', after.probeSid === false && after.rootSid === before.sid, JSON.stringify(after));
+
+  // Instant Tailwind: the live sheet is the bake's shape — one unlayered
+  // <style>, last in <head> — and the brand-new class already applies.
+  const tw = await (await livePreview()).evaluate(() => {
+    const el = document.querySelector('.sve-instant-probe');
+    const style = document.getElementById('__sve-tw-dock-live');
+    const probeEl = document.createElement('p'); probeEl.style.cssText = 'padding-inline-start: var(--spacing-900); position: absolute; visibility: hidden'; document.body.appendChild(probeEl);
+    const want = getComputedStyle(probeEl).paddingInlineStart; probeEl.remove();
+    return {
+      sheet: !!style,
+      last: style ? document.head.lastElementChild === style : false,
+      layered: style ? /@layer\s+tokens/.test(style.textContent) : null,
+      hasRule: style ? style.textContent.includes('.px-900') : false,
+      padding: el ? getComputedStyle(el).paddingInlineStart : null,
+      want,
+      trace: (window.__sveInstantTrace || []).filter((t) => /tw:/.test(t)).slice(-1)[0] || '',
+    };
+  });
+  if (!tw.sheet) tw.fullTrace = await cp.evaluate(() => (window.__sveInstantTrace || []).slice(-8));
+  step('new class painted instantly next to a site utility', tw.sheet && tw.last && tw.layered === false && tw.hasRule && tw.padding === tw.want && tw.want !== '0px', JSON.stringify(tw));
+
+  // Focus stays put: pick the probe's row in the HTML tree, add a class from the
+  // Tailwind strip, and the tree's current row and the strip's tag are unchanged.
+  // The tree opens with every section shut. The shut row's id is the set's
+  // `_visual_id`, which the live DOM does not carry — so the row is found by
+  // its label, which is the dock file's own name humanised.
+  const secLabel = filePath.replace(/^.*page_sections\//, '').replace(/\.antlers\.html$/, '').replace(/[\/_]+/g, ' ').trim();
+  let secRow = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return { rows: [...document.querySelectorAll('[data-sve-ht-row]')].map((r) => ({ id: r.getAttribute('data-sve-ht-id'), text: r.textContent.trim().slice(0, 30) })), label }; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(80, r.width / 2), y: r.y + r.height / 2, w: r.width }; }, secLabel);
+  if (secRow.w) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + secRow.x, b.y + secRow.y); await sleep(1500); }
+  else step('html tree shows the open section as a row', false, JSON.stringify(secRow));
+  const treeRow = await cp.evaluate(() => {
+    const rows = [...document.querySelectorAll('[data-sve-ht-row]')];
+    const tagOf = (el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim();
+    const ps = rows.filter((el) => tagOf(el) === 'p');
+    const hit = ps.find((el) => /sve-instant-probe/.test(el.textContent || '')) || ps[ps.length - 1];
+    if (!hit) return { rows: rows.length, texts: rows.slice(0, 12).map((r) => (r.textContent || '').trim().slice(0, 30)) };
+    hit.scrollIntoView({ block: 'center' });
+    const r2 = hit.getBoundingClientRect();
+    return { x: r2.x + Math.min(60, r2.width / 2), y: r2.y + r2.height / 2, text: (hit.textContent || '').trim().slice(0, 40) };
+  });
+  let focusKept = { ok: false, why: JSON.stringify(treeRow) };
+  if (treeRow.x) {
+    const cpBox = await (await cp.frameElement()).boundingBox();
+    await page.mouse.click(cpBox.x + treeRow.x, cpBox.y + treeRow.y);
+    await sleep(600);
+    // The strip only shows in Tailwind mode; the mode button toggles it.
+    const twOn = await cp.evaluate(() => document.querySelector('#__sve-code-dock [data-sve-style-mode]')?.getAttribute('aria-pressed') === 'true');
+    if (!twOn) { await realClick(page, cp, '#__sve-code-dock [data-sve-style-mode]'); await sleep(800); }
+    const before = await cp.evaluate(() => ({ row: document.querySelector('[data-sve-ht-current]')?.textContent.trim().slice(0, 40) || '', tag: document.querySelector('.sve-tw-tag')?.textContent.trim() || '' }));
+    const plus = await cp.$('#__sve-code-dock [data-sve-css-add-class]');
+    if (plus && before.tag) {
+      await realClick(page, cp, '#__sve-code-dock [data-sve-css-add-class]');
+      const input = await cp.waitForSelector('[data-sve-tw-add-input]', { timeout: 5000 }).catch(() => null);
+      if (input) {
+        await input.type('mb-500', { delay: 10 });
+        await page.keyboard.press('Enter');
+        await sleep(700);
+        const after = await cp.evaluate(() => ({ row: document.querySelector('[data-sve-ht-current]')?.textContent.trim().slice(0, 40) || '', tag: document.querySelector('.sve-tw-tag')?.textContent.trim() || '', html: (document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.textContent || '').includes('mb-500') }));
+        focusKept = { ok: after.html && after.row === before.row && after.tag === before.tag, why: `before ${JSON.stringify(before)} after ${JSON.stringify(after)}` };
+        await page.keyboard.press('Escape');
+      } else { focusKept.why = 'no add input'; }
+    } else { focusKept.why = `plus=${!!plus} tag=${before.tag} row=${before.row}`; }
+    if (!twOn) { await realClick(page, cp, '#__sve-code-dock [data-sve-style-mode]'); await sleep(300); }
+  }
+  step('tree row and strip tag stay on the tag after adding a class from the strip', focusKept.ok, focusKept.why);
+
+  // Back to the end of the probe's line, so the removal below selects all of it.
+  const probeLine = await cp.evaluate(() => { const line = [...document.querySelectorAll('#__sve-code-dock [data-sve-code-pane="html"] .cm-line')].find((l) => l.textContent.includes('sve-instant-probe')); if (!line) return null; line.scrollIntoView({ block: 'center' }); const r = line.getBoundingClientRect(); return { x: r.right - 2, y: r.y + r.height / 2 }; });
+  if (probeLine) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + probeLine.x, b.y + probeLine.y); await page.keyboard.press('End'); }
 
   // Remove the probe again — Shift+Home selects the typed line, Backspace twice
   // removes it and the newline. The morph (truth) then takes it out of the preview.

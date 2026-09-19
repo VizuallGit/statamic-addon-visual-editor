@@ -33,7 +33,10 @@
 import { readFileSync, existsSync } from 'node:fs';
 
 const stemOf = (name) => name.replace(/-[\w-]+(\.\w+)$/, '$1');
-const entryFiles = (manifest) => Object.values(manifest).filter((e) => e.isEntry).flatMap((e) => [e.file, ...(e.css || [])]);
+// Entries, and the named chunks PHP hands the CP by URL (`BuiltAssets::url('resources/js/tw-compile.js')`):
+// both are asked for under the installed hash and must answer from the working tree.
+// Vite's own `_name-HASH.js` chunks are imported by the working-tree files themselves, so they are found by name.
+const entryFiles = (manifest) => Object.entries(manifest).filter(([key, e]) => e.isEntry || key.startsWith('resources/')).flatMap(([, e]) => [e.file, ...(e.css || [])]);
 const types = { js: 'application/javascript', css: 'text/css', json: 'application/json', woff2: 'font/woff2', svg: 'image/svg+xml' };
 
 export async function serveWorktreeBuild(page, { buildDir, installedManifest, scriptsDir = null, extra = null }) {

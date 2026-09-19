@@ -1222,63 +1222,125 @@
         }
     }
 
-    function appendRule(doc, css) {
-        if (!doc?.head || !css) {
+    /**
+     * The live Tailwind sheet: the file's whole class list, built by the same
+     * compiler the save uses, in one unlayered <style> that stays last in
+     * <head> — exactly the shape `{{ sve_tw }}` pushes after the save.
+     *
+     * It used to be one rule per new class inside `@layer tokens`, which loses
+     * to the site's own utilities layer: `px-900` on a tag that also carried
+     * `wrapper` did nothing until the bake arrived a second later, while a
+     * class with no such neighbour showed at once. Same sheet, same layer, no
+     * "sometimes".
+     */
+    var twState = null;
+    var twStateWait = null;
+    var twBuild = null;
+
+    function setLiveTw(doc, css) {
+        if (!doc?.head) {
             return;
         }
 
         var style = doc.getElementById(STYLE_TW_ID);
 
+        if (!css) {
+            style?.remove();
+            return;
+        }
+
         if (!style) {
             style = doc.createElement('style');
             style.id = STYLE_TW_ID;
+        }
+
+        if (style.textContent !== css) {
+            style.textContent = css;
+        }
+
+        // Last in <head>, always — a morph may have pushed a newer sve_tw
+        // <style> after it, and the sheet being typed must win.
+        if (doc.head.lastElementChild !== style) {
             doc.head.appendChild(style);
-        } else if (style.textContent.indexOf('@layer theme, base, components, utilities') !== -1) {
-            style.textContent = '';
-            served = Object.create(null);
         }
-
-        var text = String(css);
-
-        if (style.textContent.indexOf(text) !== -1) {
-            return;
-        }
-
-        // site.css already declared `@layer … tokens, utilities`. Rules in
-        // `tokens` lose to that utilities layer, so a class the page already
-        // has keeps its look. A class only this sheet has still applies.
-        style.textContent += '@layer tokens {\n' + text + '\n}\n';
     }
 
-    function injectNew(doc, names) {
-        if (!design?.candidatesToCss || !doc) {
+    function injectLive(doc, html) {
+        if (!doc) {
             return;
         }
 
-        var missing = names.filter(function (name) {
-            return !served[name];
-        });
+        if (!twState || !twBuild) {
+            loadCompiler().then(function () {
+                var next = previewDocument();
 
-        if (!missing.length) {
+                if (next && twState && twBuild) {
+                    injectLive(next, fullHtml() || paneText('html'));
+                }
+            });
+
             return;
         }
 
-        var compiled;
+        var started = performance.now();
+        var css;
 
         try {
-            compiled = design.candidatesToCss(missing);
+            css = twBuild(twState, String(html || ''));
         } catch (e) {
+            trace('tw: build failed: ' + (e && e.message));
             return;
         }
 
-        missing.forEach(function (name, index) {
-            served[name] = true;
-            var css = compiled[index];
+        setLiveTw(doc, css);
+        trace('tw: built live sheet (' + css.length + ' B) in ' + (performance.now() - started).toFixed(1) + ' ms');
+    }
 
-            if (typeof css === 'string' && css) {
-                appendRule(doc, css);
-            }
-        });
+    function loadCompiler() {
+        if (twState) {
+            return Promise.resolve(twState);
+        }
+
+        if (twStateWait) {
+            return twStateWait;
+        }
+
+        var url = cfg('sveTwCompile', '');
+
+        if (!url || !featureOn('tailwind_dock')) {
+            trace('tw: compiler not loaded (' + (url ? 'tailwind_dock is off' : 'no sveTwCompile url') + ')');
+            return Promise.resolve(null);
+        }
+
+        var started = performance.now();
+
+        twStateWait = import(url)
+            .then(function (mod) {
+                if (!mod?.loadTailwindCompiler || !mod.buildTailwind) {
+                    trace('tw: ' + url + ' has no loadTailwindCompiler/buildTailwind — an older chunk?');
+                    return null;
+                }
+
+                twBuild = mod.buildTailwind;
+
+                return mod.loadTailwindCompiler(window);
+            })
+            .then(function (state) {
+                twState = state || null;
+
+                if (twState) {
+                    trace('tw: compiler ready in ' + (performance.now() - started).toFixed(0) + ' ms');
+                }
+
+                return twState;
+            })
+            .catch(function (e) {
+                trace('tw: compiler failed to load: ' + (e && e.message));
+                twStateWait = null;
+                return null;
+            });
+
+        return twStateWait;
     }
 
     function loadDesign() {
@@ -1665,18 +1727,7 @@
         lastHtml = html;
         painting = true;
 
-        var names = classNames(html);
-
-        if (design) {
-            injectNew(doc, names);
-        } else {
-            loadDesign().then(function () {
-                var next = previewDocument();
-                if (next) {
-                    injectNew(next, classNames(fullHtml() || paneText('html')));
-                }
-            });
-        }
+        injectLive(doc, fullHtml() || html);
 
         if (!twSuggestOpen()) {
             dropTwHold();
@@ -2062,6 +2113,7 @@
 
         dock.__sveInstantWatch = true;
         loadDesign();
+        loadCompiler();
         bindIframe();
         dock.addEventListener('input', schedulePaint, true);
         dock.addEventListener('keyup', schedulePaint, true);

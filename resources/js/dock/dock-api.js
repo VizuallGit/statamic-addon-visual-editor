@@ -39,6 +39,7 @@ import { paintStyleMode, syncTwTarget } from './style-modes.js';
 import { closeCssMenu, cssEditorText, paintCssToolState, writeParts } from './css-tools.js';
 import { ensureTwCss, flushSave, onEditorInput, primeTailwindCompile, refreshPreview, resetTailwindCompile } from './save.js';
 import { closeDataMenu, openDataVarsMenu } from './data-vars.js';
+import { minimalChange } from '../lib/minimal-change.js';
 
 // ===== dock-api =====
 let ensureDockWait = null;
@@ -921,14 +922,20 @@ register('dock:set-html', (html) => {
   const current = view.state.doc.toString();
 
   if (current !== html) {
+    // Only the span that differs is replaced. A whole-document change maps
+    // the cursor to the end of the file, and everything that follows the
+    // cursor followed it: the HTML tree's row, the Tailwind strip's tag, the
+    // preview's focus all jumped to the section root after a class was added
+    // from the strip. A minimal change keeps the caret on the tag it was in.
+    const [from, to, insert] = minimalChange(current, html);
+
     view.dispatch({
-      changes: { from: 0, to: current.length, insert: html },
+      changes: { from, to, insert },
     });
   }
 
   return true;
 });
-
 /**
  * Empty the dock panes without saving. Used when the last page section is
  * removed — `dock:set-html ''` would autosave an empty Antlers file.
