@@ -1132,13 +1132,17 @@ export function ensureStyle(doc) {
 #${DOCK_ID} .sve-cm-antlers {
   color: #b9a6ff;
 }
-#${DOCK_ID} .sve-cm-fam-layout { color: var(--sve-fam-layout); }
-#${DOCK_ID} .sve-cm-fam-text { color: var(--sve-fam-text); }
-#${DOCK_ID} .sve-cm-fam-media { color: var(--sve-fam-media); }
-#${DOCK_ID} .sve-cm-fam-loop { color: var(--sve-fam-loop); }
-#${DOCK_ID} .sve-cm-fam-if { color: var(--sve-fam-if); }
-#${DOCK_ID} .sve-cm-fam-component { color: var(--sve-fam-component); }
-#${DOCK_ID} .sve-cm-fam-other { color: var(--sve-fam-other); }
+/* The span inside as well: CodeMirror wraps a tag name in its own highlight
+   span, drawn INSIDE the family mark and carrying its own colour — measured
+   in the browser, a section sat blue on the outside and teal on the text.
+   An Antlers tag has no inner span; the second selector is for the names. */
+#${DOCK_ID} .sve-cm-fam-layout, #${DOCK_ID} .sve-cm-fam-layout span { color: var(--sve-fam-layout); }
+#${DOCK_ID} .sve-cm-fam-text, #${DOCK_ID} .sve-cm-fam-text span { color: var(--sve-fam-text); }
+#${DOCK_ID} .sve-cm-fam-media, #${DOCK_ID} .sve-cm-fam-media span { color: var(--sve-fam-media); }
+#${DOCK_ID} .sve-cm-fam-loop, #${DOCK_ID} .sve-cm-fam-loop span { color: var(--sve-fam-loop); }
+#${DOCK_ID} .sve-cm-fam-if, #${DOCK_ID} .sve-cm-fam-if span { color: var(--sve-fam-if); }
+#${DOCK_ID} .sve-cm-fam-component, #${DOCK_ID} .sve-cm-fam-component span { color: var(--sve-fam-component); }
+#${DOCK_ID} .sve-cm-fam-other, #${DOCK_ID} .sve-cm-fam-other span { color: var(--sve-fam-other); }
 #${DOCK_ID} .sve-cm-antlers-close {
   opacity: .72;
 }
