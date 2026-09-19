@@ -397,10 +397,12 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-cat="if"] { --sve-ht-c: var(--sve-fam-if); }
     [data-sve-ht-look="tags"] [data-sve-ht-cat="component"] { --sve-ht-c: var(--sve-fam-component); }
 
-    /* Flat rows: no card, no indent margin — the spacer below does the
-       stepping, so the hover and the pick run the full width of the panel. */
+    /* Flat rows, stepped in by their depth: the row's own box — its hover,
+       its pick, its bar — begins where its level begins, and the guides are
+       drawn in the margin to its left. A picked row that ran the full width
+       over the guides read as belonging to every level at once. */
     [data-sve-ht-look="tags"] [data-sve-ht-row] {
-      margin: 0;
+      margin: 0 0 0 calc(var(--sve-ht-depth, 0) * 14px);
       padding: 0 6px 0 4px;
       min-height: 26px;
       gap: 5px;
@@ -428,16 +430,17 @@ export function ensureHtmlTreeStyles(doc) {
       background: rgba(56,88,233,.04);
     }
 
-    /* One guide per level, drawn on the spacer: 14px per level with the line
-       7px in, so each sits under the twist of the row it descends from — in
-       that row's family colour, held back. The negative margin cancels the
-       row gap, so a depth-0 row starts flush. */
+    /* One guide per level, drawn in the row's left margin: 14px per level
+       with the line 7px in, so each sits under the twist of the row it
+       descends from — in that row's family colour, well held back. Out of
+       the flow, so the row's box and everything in it start at the level. */
     [data-sve-ht-look="tags"] [data-sve-ht-indent] {
       display: flex;
-      flex: none;
-      align-self: stretch;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: calc(-1 * var(--sve-ht-depth, 0) * 14px);
       width: calc(var(--sve-ht-depth, 0) * 14px);
-      margin-right: -5px;
       pointer-events: none;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-indent] i {
@@ -445,7 +448,7 @@ export function ensureHtmlTreeStyles(doc) {
       flex: none;
       width: 14px;
       background: linear-gradient(to right, transparent 7px, var(--sve-ht-c) 7px, var(--sve-ht-c) 8px, transparent 8px);
-      opacity: .5;
+      opacity: .3;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-twist-gap] {
       display: inline-block;
@@ -456,7 +459,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-twist] { opacity: .55; }
     [data-sve-ht-look="tags"] [data-sve-ht-twist]:hover { opacity: 1; }
     [data-sve-ht-look="tags"] [data-sve-ht-slot][data-sve-ht-id] {
-      margin-left: calc(4px + var(--sve-ht-depth, 0) * 14px);
+      margin-left: calc(var(--sve-ht-depth, 0) * 14px);
     }
 
     /* The family's colour on the mark and on the chip; the name stays the
