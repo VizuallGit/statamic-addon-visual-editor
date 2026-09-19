@@ -215,7 +215,7 @@ function setQuery(value) {
   box-sizing: border-box;
   height: 2rem;
   padding: 0 0.5rem 0 0.625rem;
-  border-radius: 0.5rem;
+  border-radius: 4px;
   background: rgba(128, 128, 128, 0.14);
   color: inherit;
   cursor: text;
@@ -257,8 +257,8 @@ function setQuery(value) {
   opacity: 1;
   background: rgba(128, 128, 128, 0.25);
 }
-/* The same blue the tree marks the picked row with: ours, and the only
-   filled thing in the panel, so it is the thing to press. */
+/* The search field's own grey at rest, and the blue the tree marks the
+   picked row with under the pointer: quiet until it is the thing to press. */
 .sve-ht-new {
   all: unset;
   box-sizing: border-box;
@@ -268,13 +268,14 @@ function setQuery(value) {
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 0.5rem;
-  background: #3858e9;
-  color: #fff;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.14);
+  color: inherit;
   cursor: pointer;
 }
 .sve-ht-new:hover {
-  background: #4a68ee;
+  background: #3858e9;
+  color: #fff;
 }
 .sve-ht-new:focus-visible {
   outline: 2px solid #3858e9;

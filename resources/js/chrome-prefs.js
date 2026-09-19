@@ -39,6 +39,7 @@ export const CHROME_KEYS = [
   'sve-listview-tab',
   'sve-tw-strip',
   'sve-html-tree-look',
+  'sve-fam-colors',
 ];
 
 const MIGRATED_KEY = 'sve-chrome-legacy-migrated';

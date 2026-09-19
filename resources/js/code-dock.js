@@ -3,6 +3,7 @@
  * region; this file keeps the import surface panels already use, plus the two
  * overlay entry points that stay here. Region order below is evaluation order.
  */
+import { CODE_DOCK_ID } from './lib/ids.js';
 import { loadCodeMirror } from './lib/codemirror.js';
 
 /**
@@ -124,7 +125,7 @@ export function loadCm() {
  */
 export const SCOPE_CLASS = '{{ _class }}';
 
-export const DOCK_ID = '__sve-code-dock';
+export const DOCK_ID = CODE_DOCK_ID;
 export const STYLE_ID = '__sve-code-dock-style';
 export const UNLOCK_ID = '__sve-code-dock-unlock';
 export const HEIGHT_KEY = 'sve-code-dock-height';

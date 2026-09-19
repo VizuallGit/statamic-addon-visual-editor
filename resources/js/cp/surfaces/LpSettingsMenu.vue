@@ -20,11 +20,15 @@ const props = defineProps({
   codeDock: { type: Object, required: true },
   // The HTML tree's face: on = coloured tag chips, off = the classic cards.
   htmlTree: { type: Object, default: () => ({ show: false, on: true, label: '' }) },
+  // The tag families' colours — one picker each, read by the tree and the code.
+  familyColors: { type: Object, default: () => ({ show: false, label: '', resetLabel: '', rows: [] }) },
   onMode: { type: Function, required: true },
   onWidth: { type: Function, required: true },
   onTool: { type: Function, required: true },
   onCodeDock: { type: Function, required: true },
   onHtmlTree: { type: Function, default: null },
+  onFamilyColor: { type: Function, default: null },
+  onFamilyReset: { type: Function, default: null },
   onReset: { type: Function, required: true },
   onClose: { type: Function, required: true },
 });
@@ -35,6 +39,7 @@ const dockWidth = ref(props.dockWidth);
 const tools = ref(props.tools.map((tool) => ({ ...tool })));
 const codeDockOn = ref(props.codeDock.on);
 const htmlTreeOn = ref(props.htmlTree.on);
+const familyRows = ref(props.familyColors.rows.map((row) => ({ ...row })));
 
 function setMode(id) {
   panelMode.value = id;
@@ -69,6 +74,23 @@ function setCodeDock(on) {
 function setHtmlTree(on) {
   htmlTreeOn.value = on;
   props.onHtmlTree?.(on);
+}
+
+function setFamilyColor(id, hex) {
+  const row = familyRows.value.find((item) => item.id === id);
+
+  if (row) {
+    row.value = hex;
+  }
+
+  props.onFamilyColor?.(id, hex);
+}
+
+function resetFamilyColors() {
+  familyRows.value.forEach((row) => {
+    row.value = row.def;
+  });
+  props.onFamilyReset?.();
 }
 </script>
 
@@ -139,6 +161,22 @@ function setHtmlTree(on) {
         <input type="checkbox" :checked="htmlTreeOn" @change="setHtmlTree($event.target.checked)">
         <span>{{ htmlTree.label }}</span>
       </label>
+    </div>
+
+    <div v-if="familyColors.show" class="sve-lp-settings__section">
+      <div class="sve-lp-settings__label">{{ familyColors.label }}</div>
+      <label v-for="row in familyRows" :key="row.id" class="sve-lp-settings__row">
+        <input
+          type="color"
+          class="sve-lp-settings__swatch"
+          :value="row.value"
+          @input="setFamilyColor(row.id, $event.target.value)"
+        >
+        <span>{{ row.label }}</span>
+      </label>
+      <button type="button" class="sve-lp-settings__small" @click="resetFamilyColors">
+        {{ familyColors.resetLabel }}
+      </button>
     </div>
 
     <div class="sve-lp-settings__foot">
@@ -216,6 +254,39 @@ function setHtmlTree(on) {
 .sve-lp-settings__row input {
   margin: 0;
   accent-color: var(--theme-color-primary, #4f46e5);
+}
+/* The picker is the swatch: no chrome around the colour it holds. */
+.sve-lp-settings__swatch {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+.sve-lp-settings__swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.sve-lp-settings__swatch::-webkit-color-swatch {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 4px;
+}
+.sve-lp-settings__small {
+  all: unset;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.1);
+}
+.sve-lp-settings__small:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 .sve-lp-settings__range {
   display: grid;

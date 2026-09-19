@@ -22,6 +22,7 @@ import { closeSectionPicker, syncPreviewInset } from './section-library.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeOutlinePanel } from './lazy/outline.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
+import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -199,6 +200,13 @@ function settingsProps(win, rect) {
       on: readHtmlTreeLook(win) === 'tags',
       label: t(win, 'lp_settings_html_tree_tags'),
     },
+    // One picker per family; the tree and the HTML pane both follow.
+    familyColors: {
+      show: featureOn(win, 'html_tree') || featureOn(win, 'template_dock'),
+      label: t(win, 'lp_settings_colors'),
+      resetLabel: t(win, 'lp_settings_colors_reset'),
+      rows: familyColorRows(win, (family) => t(win, `fam_${family}`)),
+    },
   };
 }
 
@@ -218,6 +226,8 @@ function bindSettingHandlers(win) {
     onTool: (key, on) => setStartupPane(win, key, on),
     onCodeDock: (on) => setCodeDock(win, on),
     onHtmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
+    onFamilyColor: (family, hex) => setFamilyColor(win, family, hex),
+    onFamilyReset: () => resetFamilyColors(win),
     onReset: () => {
       dismissLpMoreMenu();
       resetEditorLayout(win);

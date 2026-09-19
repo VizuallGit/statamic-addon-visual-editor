@@ -33,6 +33,10 @@ export const SECTION_PICKER_ID = '__sve-section-picker';
 export const COMMENTS_PANEL_ID = '__sve-comments-pane';
 export const OUTLINE_PANEL_ID = '__sve-outline-panel';
 export const HTML_TREE_PANEL_ID = '__sve-html-tree-panel';
+/** The template dock's root element (code-dock.js re-exports it as DOCK_ID). */
+export const CODE_DOCK_ID = '__sve-code-dock';
+/** Per-user colours for the tag families, JSON {family: hex}; unset = lib/tag-families.js defaults. */
+export const FAMILY_COLORS_KEY = 'sve-fam-colors';
 /** Which face the HTML tree wears: 'classic' (cards, like the block tree) or unset = coloured tag chips. */
 export const HTML_TREE_LOOK_KEY = 'sve-html-tree-look';
 export const LISTVIEW_PANEL_ID = '__sve-listview-panel';

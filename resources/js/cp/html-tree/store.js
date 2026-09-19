@@ -27,6 +27,9 @@ export const htmlTreeUi = reactive({
   // 'tags' or 'classic' — see readHtmlTreeLook. The list wears it as
   // data-sve-ht-look, and every rule of the tags look hangs off that.
   look: 'tags',
+  // The user's own family colours as inline --sve-fam-* properties on the
+  // list (family-colors.js); empty = the stylesheet's defaults.
+  familyStyle: {},
   // What the search box holds. The list filters by it on every keystroke;
   // html-tree.js is only asked to paint again (onQuery) when the box goes
   // from empty to not, or back — a search looks through folded rows too, so

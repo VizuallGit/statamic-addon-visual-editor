@@ -15,6 +15,7 @@ import { bindPartialNav, closePartialMenu } from '../dock-partials.js';
 import { bindClassTokenNav, closeClassTokenUi } from '../dock-class-tokens.js';
 import { forgetComponentProps } from '../component-props.js';
 import { syncComponentProps } from '../component-props-host.js';
+import { paintFamilyColors, readFamilyOverrides } from '../family-colors.js';
 import { t } from '../lib/i18n.js';
 import { attachDock } from '../lib/dock-host.js';
 import { HTML_TREE_PANEL_ID } from '../lib/ids.js';
@@ -81,6 +82,8 @@ async function ensureDockAsync(win) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
     dock.setAttribute('data-sve-code-chrome', 'scope-9');
+    // The user's own family colours, on the root every mark and button reads.
+    paintFamilyColors(dock, readFamilyOverrides(win));
     mountPane(dock, CodeDockChrome, {
       htmlLabel: t(win, 'code_dock_html'),
       cssLabel: t(win, 'code_dock_css'),

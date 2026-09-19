@@ -45,6 +45,7 @@ import {
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
 import { HTML_ICONS, htmlTreeIcon } from './html-tree-icons.js';
 import { familyCssVars, tagFamily } from './lib/tag-families.js';
+import { applyFamilyColors } from './family-colors.js';
 import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
 import { serializePickTree } from './html-pick-align.js';
 import { openCpOverlay } from './cp/open-overlay.js';
@@ -1108,6 +1109,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.searchEmpty = t(win, 'html_tree_search_empty');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
   htmlTreeUi.look = readHtmlTreeLook(win);
+  applyFamilyColors(win);
   htmlTreeUi.onQuery = () => renderHtmlTree(win);
   paintComponentExit(win);
   htmlTreeUi.onSelect = (id) => {

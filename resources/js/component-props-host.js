@@ -225,7 +225,11 @@ function hideTheRest(col, host) {
       return;
     }
 
-    if (child.id === FOCUS_HEADER_ID?.('data-sve-focus-header')) {
+    // The id is a constant since WP4a; this used to be a registry function
+    // and was still being called as one — a string called with `?.()` throws,
+    // so every click on a component row died here before the menu or the
+    // fields were drawn. Same test as focus-panel.js makes.
+    if (child.id === FOCUS_HEADER_ID || child.hasAttribute('data-sve-focus-header')) {
       return;
     }
 

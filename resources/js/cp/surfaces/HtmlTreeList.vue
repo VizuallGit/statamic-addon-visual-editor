@@ -42,7 +42,7 @@ function isDim(row) {
 </script>
 
 <template>
-  <div class="sve-ht-root" :data-sve-ht-look="ui.look" v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}">
+  <div class="sve-ht-root" :data-sve-ht-look="ui.look" :style="ui.familyStyle" v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}">
     <div v-if="!ui.rows.length && !ui.sections.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
     <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
 

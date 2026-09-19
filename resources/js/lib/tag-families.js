@@ -159,3 +159,69 @@ export function tagFamily(tag, kind = '', antlers = '') {
 
   return 'other';
 }
+
+const HEX = /^#[0-9a-f]{6}$/i;
+
+/**
+ * A user's own colours, read from the stored JSON: only real hex values for
+ * real families, and never one that merely repeats the default — so an
+ * untouched picker leaves nothing behind.
+ */
+export function parseFamilyOverrides(raw) {
+  let data = raw;
+
+  if (typeof raw === 'string') {
+    try {
+      data = JSON.parse(raw || 'null');
+    } catch {
+      data = null;
+    }
+  }
+
+  const out = {};
+
+  if (!data || typeof data !== 'object') {
+    return out;
+  }
+
+  for (const family of FAMILIES) {
+    const value = String(data[family] || '').toLowerCase();
+
+    if (HEX.test(value) && value !== FAMILY_COLORS.dark[family]) {
+      out[family] = value;
+    }
+  }
+
+  return out;
+}
+
+/** The overrides with one family set, or cleared when the value is empty, invalid or the default. */
+export function withFamilyColor(overrides, family, hex) {
+  const next = { ...(overrides || {}) };
+  const value = String(hex || '').toLowerCase();
+
+  if (!FAMILIES.includes(family)) {
+    return next;
+  }
+
+  if (HEX.test(value) && value !== FAMILY_COLORS.dark[family]) {
+    next[family] = value;
+  } else {
+    delete next[family];
+  }
+
+  return next;
+}
+
+/** The overrides as inline custom properties, for an element both surfaces' rules hang off. */
+export function familyColorStyle(overrides) {
+  const style = {};
+
+  for (const family of FAMILIES) {
+    if (overrides?.[family]) {
+      style[`--sve-fam-${family}`] = overrides[family];
+    }
+  }
+
+  return style;
+}
