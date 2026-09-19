@@ -261,6 +261,51 @@ export function insertTemplateSection(win) {
 }
 
 /**
+ * Which view renders the open page, as a dock type — `view:default` for a
+ * page built from sections. Asked of the server once per entry: the entry
+ * decides which view renders it, and nothing on the page says so.
+ *
+ * `pageTemplateTypeNow` is the answer as far as it has arrived: '' until the
+ * server has spoken, and whoever paints from it asks again when it has.
+ */
+const pageTemplate = { id: '', type: '', promise: null };
+
+export function pageTemplateType(win) {
+  const id = currentEntryId(win);
+
+  if (!id) {
+    return Promise.resolve('');
+  }
+
+  if (pageTemplate.id === id && pageTemplate.promise) {
+    return pageTemplate.promise;
+  }
+
+  pageTemplate.id = id;
+  pageTemplate.type = '';
+  pageTemplate.promise = win
+    .fetch(`/!/sve/entry-blueprint?id=${encodeURIComponent(id)}`, {
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+    })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      const template = String(data?.template || '').replace(/^\/+|\/+$/g, '');
+
+      pageTemplate.type = template ? `view:${template}` : '';
+
+      return pageTemplate.type;
+    })
+    .catch(() => '');
+
+  return pageTemplate.promise;
+}
+
+export function pageTemplateTypeNow(win) {
+  return pageTemplate.id === currentEntryId(win) ? pageTemplate.type : '';
+}
+
+/**
  * The page's own template in the dock — `default` for a page built from
  * sections — so static markup can be written into it. Resolves once the file
  * is on screen, false when the dock could not open it.
@@ -273,30 +318,11 @@ export function insertTemplateSection(win) {
  * file landing.
  */
 export async function openPageTemplate(win) {
-  const id = currentEntryId(win);
+  const type = await pageTemplateType(win);
 
-  if (!id) {
+  if (!type) {
     return false;
   }
-
-  let template = '';
-
-  try {
-    const res = await win.fetch(`/!/sve/entry-blueprint?id=${encodeURIComponent(id)}`, {
-      headers: { Accept: 'application/json' },
-      credentials: 'same-origin',
-    });
-
-    template = res.ok ? String((await res.json())?.template || '') : '';
-  } catch {
-    template = '';
-  }
-
-  if (!template) {
-    return false;
-  }
-
-  const type = `view:${template.replace(/^\/+|\/+$/g, '')}`;
 
   if (ask('dock:current-type') === type) {
     return true;

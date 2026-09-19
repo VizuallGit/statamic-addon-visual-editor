@@ -4,6 +4,7 @@
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
 import { t } from './lib/i18n.js';
+import { openPageTemplate, pageTemplateType, pageTemplateTypeNow } from './section-create.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
 import { ask, on, register } from './cp/bus.js';
@@ -93,6 +94,12 @@ let htmlTreeFileKey = '';
  * is the new file arriving, and that is when the tree reseats itself.
  */
 let htmlTreeReseat = false;
+/**
+ * The row to land on when the next file arrives, instead of its first tag —
+ * a static section of the page template, clicked in the list beside the
+ * sections while the dock still held one of them.
+ */
+let htmlTreeSeatId = null;
 /**
  * The markup the last paint drew. A file change is only "announced ahead" when
  * this paint still shows what the last one showed; when the markup has already
@@ -1000,6 +1007,33 @@ function fetchTemplatesForContext(win, types) {
   runSectionTemplatePrefetch(win);
 }
 
+/**
+ * The static sections of a page template: its root tags on either side of
+ * the loop that renders the page's sections. The loop itself is left out —
+ * the sections are listed as themselves.
+ *
+ * `own` when the nodes come from the file the dock holds, so the rows keep
+ * their ids and the offsets every edit is built from. Otherwise a fetched
+ * copy: cloned under ids and paths of their own (`tpl:`, `tpl/`), so they
+ * cannot be mistaken for the open file's rows.
+ */
+function pageStaticNodes(roots, field, own) {
+  // A field loop is named by its tag; only a collection loop carries a handle.
+  const at = roots.findIndex((node) => node.kind === 'antlers' && (node.tag === field || node.handle === field));
+
+  if (at === -1) {
+    return { loop: null, above: [], below: [] };
+  }
+
+  const clone = (node) => (own ? node : { ...node, id: `tpl:${node.id}`, path: `tpl/${node.path}`, children: node.children.map(clone) });
+
+  return {
+    loop: roots[at],
+    above: roots.slice(0, at).map(clone),
+    below: roots.slice(at + 1).map(clone),
+  };
+}
+
 function htmlTreeRootName(win, sections, openUid) {
   const component = ask('dock:component-exit-state');
 
@@ -1245,7 +1279,8 @@ export function renderHtmlTree(win) {
   if (reseatNow || (htmlTreeReseat !== false && html !== htmlTreeReseat)) {
     htmlTreeReseat = false;
     htmlTreeFolds.clear();
-    htmlTreeActiveId = firstTagId(roots) || null;
+    htmlTreeActiveId = (htmlTreeSeatId && hasNodeId(roots, htmlTreeSeatId) ? htmlTreeSeatId : firstTagId(roots)) || null;
+    htmlTreeSeatId = null;
   }
 
   htmlTreeLastHtml = html;
@@ -1280,7 +1315,6 @@ export function renderHtmlTree(win) {
   // sections at all. Header, footer and a collection's own template are not,
   // and a list of sections around their markup would be claiming otherwise.
   const openUid = htmlTreeShutStart ? '' : pendingUid || liveUid;
-  const inSections = !!(pendingUid || liveUid);
 
   // Inside a component, the section's own file is drawn around it: the
   // component's rows unfold from the row that calls it, and everything else
@@ -1289,11 +1323,67 @@ export function renderHtmlTree(win) {
   const inComponent = !!component.open;
   const around = inComponent ? contextAround(win, sections, openUid, roots) : null;
 
+  // A page built from sections has a template (`default`) holding the loop
+  // the sections render through, and around that loop whatever static markup
+  // was written there. The tree never shows the loop — the sections are the
+  // list they already are — but it does show the static sections, as rows
+  // above and below the list: the template's own rows while the dock holds
+  // the template, a fetched copy to click into while it holds a section.
+  const pageType = pageBuilder && !inComponent ? pageTemplateTypeNow(win) : '';
+
+  if (pageBuilder && !inComponent && !pageType) {
+    void pageTemplateType(win).then((found) => {
+      if (found) {
+        renderHtmlTree(win);
+      }
+    });
+  }
+
+  const onPageTemplate = !!pageType && type === pageType;
+
+  // Fetched on its own, not through the prefetch queue: that queue's repaint
+  // flag is taken by whichever fetch lands first, and the sections' templates
+  // are ahead of this one in it. Painted again the moment it is here.
+  if (pageType && !onPageTemplate && !htmlTreeTemplates.has(pageType) && !htmlTreeFetching.has(pageType)) {
+    htmlTreeFetching.add(pageType);
+    win
+      .fetch(`/!/sve/section-template?type=${encodeURIComponent(pageType)}`, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (typeof data?.html === 'string') {
+          htmlTreeTemplates.set(pageType, data.html);
+          renderHtmlTree(win);
+        }
+      })
+      .catch(() => {})
+      .finally(() => htmlTreeFetching.delete(pageType));
+  }
+
+  const pageStatic = pageType
+    ? pageStaticNodes(onPageTemplate ? roots : parseTemplateTree(htmlTreeTemplates.get(pageType) || ''), sectionField(win) || 'page_sections', onPageTemplate)
+    : { loop: null, above: [], below: [] };
+  const inSections = !!(pendingUid || liveUid) || onPageTemplate;
+
   // A search looks through folded rows too: the list filters what is here,
   // so while a query is in the box the whole file is flattened.
+  const flatStatic = (nodes, side) =>
+    flattenHtmlTree(nodes, htmlTreeUi.query ? new Set() : foldedIds(nodes)).map((row) => ({
+      ...row,
+      staticSide: side,
+      // A copy of the template, not the file in the dock: the row is there
+      // to click into, not to edit where it stands.
+      ...(onPageTemplate ? {} : { context: 'page' }),
+    }));
   const rows = around
     ? flattenHtmlTree(around.tree, htmlTreeUi.query ? new Set() : around.folds)
-    : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
+    : [
+        ...flatStatic(pageStatic.above, 'above'),
+        ...(onPageTemplate ? [] : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots))),
+        ...flatStatic(pageStatic.below, 'below'),
+      ];
 
   if (!html.trim() && !dockIsOpen(doc)) {
     htmlTreeUi.emptyText = t(win, 'html_tree_need_dock');
@@ -1323,6 +1413,22 @@ export function renderHtmlTree(win) {
   // beneath that. The row the open component unfolds from is where you
   // already are.
   htmlTreeUi.onContextRow = (id) => {
+    // A static section of the page template, listed beside the sections while
+    // the dock holds one of them: open the template, and land on that row.
+    if (String(id).startsWith('tpl:')) {
+      const real = String(id).slice(4);
+
+      void openPageTemplate(win).then((opened) => {
+        if (opened) {
+          htmlTreeSeatId = real;
+          htmlTreeActiveId = real;
+          renderHtmlTree(win);
+        }
+      });
+
+      return;
+    }
+
     if (!around || id === around.hostId) {
       return;
     }
@@ -1449,13 +1555,14 @@ export function renderHtmlTree(win) {
   // The first tag stands for the whole file, so that is where the file's own
   // name goes. A class there says nothing you cannot read one row down, and the
   // bracketed name of a section root is usually `{{ _class }}` — nothing at all.
-  const rootId = rows.find((item) => !item.kind)?.id;
+  const rootId = rows.find((item) => !item.kind && !item.staticSide)?.id;
 
   // Inside a component the file is not the section's, so its root tag is
   // drawn as the tag it is — with its own mark, not the section's, and not
   // standing for the section. It used to: the `<li>` wore the section's icon
-  // and name, and its bin would have deleted the page section.
-  const rootName = inComponent ? '' : htmlTreeRootName(win, sections, openUid);
+  // and name, and its bin would have deleted the page section. On the page
+  // template there is no root to name: its rows are the static sections.
+  const rootName = inComponent || onPageTemplate ? '' : htmlTreeRootName(win, sections, openUid);
 
   // The section this file belongs to, so its root tag can wear the same name
   // and mark the shut row wears. One row, two states — not two rows.
@@ -1481,7 +1588,7 @@ export function renderHtmlTree(win) {
       // for the one the component unfolds from. '' for the component's rows.
       // Around the open component: `host` for every call on the way down to
       // it, `dim` for the rest of those files' rows, '' for the open one's.
-      context: around ? (around.hostIds.has(row.id) ? 'host' : row.id.startsWith('ctx') ? 'dim' : '') : '',
+      context: around ? (around.hostIds.has(row.id) ? 'host' : row.id.startsWith('ctx') ? 'dim' : '') : row.context || '',
       // The open section IS its first tag row. Carrying the uid here is what
       // lets delete tell "this section on this page" from "this tag in the
       // file" — they are the same row, and they are not the same thing.
