@@ -97,7 +97,17 @@ export function createPropValues(name) {
       })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (!data?.blueprint || loadedKey !== key) {
+        if (loadedKey !== key) {
+          return;
+        }
+
+        // Nothing to draw — the server did not know the field. A field that
+        // was declared a moment ago is read back from disk, and the save that
+        // puts it there may still be on its way: forget the key, so the paint
+        // after the save asks again instead of showing an empty form for good.
+        if (!data?.blueprint) {
+          loadedKey = '';
+
           return;
         }
 

@@ -26,6 +26,7 @@ export const componentPropsUi = reactive({
   bindHint: '',
   statamicFields: false,
   moveLabel: '',
+  optionsLabel: '',
   bindingHandle: '',
   types: [],
   rows: [],

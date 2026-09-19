@@ -19,18 +19,23 @@ import { armComponentBind, componentBindHandle, disarmComponentBind } from './co
 import { createPropValues, propValuesReady } from './prop-values.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import HtmlTreeMenu from './cp/surfaces/HtmlTreeMenu.vue';
+import { PROP_ICONS } from './cp/component-props/icons.js';
 
 /**
  * The kinds the plus offers, in the order it offers them, and the name a new
  * field of each kind is born with.
  *
- * Three, on purpose. These are the ones a component is actually built out of;
- * the declaration format already reads more, so a fourth is a line in this
- * list rather than a feature.
+ * Every kind here is one `ComponentProps\Schema::TYPES` knows and
+ * `PropFields::config()` can draw — a kind listed on one side only is a menu
+ * entry that makes a text field, with nothing on screen to say why.
  */
 const TYPES = [
   { id: 'text', handle: 'text' },
   { id: 'bard', handle: 'rich_text' },
+  { id: 'number', handle: 'number' },
+  { id: 'boolean', handle: 'flag' },
+  { id: 'select', handle: 'choice' },
+  { id: 'color', handle: 'color' },
   { id: 'media', handle: 'image' },
   { id: 'link', handle: 'link' },
 ];
@@ -79,6 +84,9 @@ function rowsFrom(win, props) {
     handle: prop.handle || '',
     type: prop.type || 'text',
     default: prop.default || '',
+    // The choices as one line, which is how they are typed. The file holds a
+    // list; a row edited a moment ago still holds the line it was typed as.
+    options: Array.isArray(prop.options) ? prop.options.join(', ') : String(prop.options || ''),
     typeLabel: typeLabel(win, prop.type || 'text'),
     open: index === openIndex,
     binding: !!prop.handle && prop.handle === componentBindHandle(),
@@ -88,6 +96,40 @@ function rowsFrom(win, props) {
 function commit(win, props) {
   ask('dock:set-props', { win, props });
   paintComponentProps(win);
+}
+
+/** The save whose landing is already going to repaint, so it is chained once. */
+let awaitedSave = null;
+
+/**
+ * Is a save still carrying the declaration to disk?
+ *
+ * The open card's default is drawn from what the server reads back from the
+ * file, and a field added a moment ago is not in the file until the save
+ * lands. Asked before the save had landed, the server answered "no such
+ * field", the answer was kept, and the card showed no editor until it was
+ * closed and opened again. So while a save is in the air the editor is not
+ * asked for at all — the paint after the save asks, and gets the field.
+ */
+function loadAfterSave(win) {
+  const saving = ask('dock:save-settled');
+
+  if (!saving?.finally) {
+    return false;
+  }
+
+  if (awaitedSave !== saving) {
+    awaitedSave = saving;
+    saving.finally(() => {
+      if (awaitedSave === saving) {
+        awaitedSave = null;
+      }
+
+      paintComponentProps(win);
+    });
+  }
+
+  return true;
 }
 
 /** A name no other field on this component has taken. */
@@ -200,6 +242,7 @@ export function paintComponentProps(win) {
   ui.removeLabel = t(win, 'component_props_remove');
   ui.handleLabel = t(win, 'component_props_handle');
   ui.defaultLabel = t(win, 'component_props_default');
+  ui.optionsLabel = t(win, 'component_props_options');
   ui.bindLabel = t(win, 'component_props_bind');
   ui.statamicFields = propValuesReady();
   ui.defaultStore = defaultValue.ui;
@@ -236,6 +279,7 @@ export function paintComponentProps(win) {
       anchor,
       TYPES.map((kind) => ({
         label: t(win, `component_props_type_${kind.id}`),
+        icon: PROP_ICONS[kind.id] || '',
         onPick: () => {
           closeMenu();
           openIndex = props.length;
@@ -308,7 +352,7 @@ export function paintComponentProps(win) {
    * Keyed on the field it belongs to, so opening another card loads that one
    * and editing this one does not reload it underneath the cursor.
    */
-  if (ui.statamicFields && openIndex > -1 && props[openIndex]) {
+  if (ui.statamicFields && openIndex > -1 && props[openIndex] && !loadAfterSave(win)) {
     const prop = props[openIndex];
     const at = openIndex;
 
@@ -325,7 +369,10 @@ export function paintComponentProps(win) {
       handle: prop.handle,
       write: (params) => ui.onEdit?.(at, 'default', params[prop.handle] ?? ''),
     });
-  } else {
+  } else if (openIndex < 0 || !props[openIndex]) {
+    // No card open. While a save is in the air the store is left as it is —
+    // an editor someone is typing a default into must not be thrown away by
+    // the save that typing caused.
     defaultValue.forget();
   }
 

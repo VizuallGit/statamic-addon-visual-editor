@@ -66,10 +66,33 @@ class SveDefaults extends Tags
             $name = ComponentProps::param($this->shortHandle($param));
             $given = $this->contextValue($name);
 
-            $props[$name] = $this->isBlank($given) ? $fallback : $given;
+            $props[$name] = $this->literal($this->isBlank($given) ? $fallback : $given);
         }
 
         return $this->parse($props);
+    }
+
+    /**
+     * The two words a switch is written as, back into what a template tests.
+     *
+     * A parameter carries a string, and Antlers reads the string "false" as
+     * true — it is not empty. The panel writes a boolean prop as `true` or
+     * `false` and nothing else, so those two words are the two the pair turns
+     * back into booleans for `{{ if props_flag }}`. No other value is touched.
+     */
+    private function literal(mixed $value): mixed
+    {
+        $raw = $value instanceof Value ? $value->value() : $value;
+
+        if ($raw === 'true') {
+            return true;
+        }
+
+        if ($raw === 'false') {
+            return false;
+        }
+
+        return $value;
     }
 
     /**

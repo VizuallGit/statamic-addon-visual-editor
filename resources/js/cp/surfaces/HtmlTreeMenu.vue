@@ -63,7 +63,11 @@ onUnmounted(() => {
       type="button"
       :disabled="!item.onPick"
       @click="item.onPick?.()"
-    >{{ item.label }}</button>
+    >
+      <!-- A glyph in front of the word, when the item brings one. -->
+      <span v-if="item.icon" class="sve-ht-menu__icon" aria-hidden="true" v-html="item.icon"></span>
+      <span>{{ item.label }}</span>
+    </button>
   </div>
 </template>
 
@@ -84,7 +88,9 @@ onUnmounted(() => {
 }
 button {
   all: unset;
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
   box-sizing: border-box;
   width: 100%;
   padding: 0.4em 0.6em;
@@ -92,6 +98,17 @@ button {
   cursor: pointer;
   font-size: 0.8125rem;
   line-height: 1.3;
+}
+.sve-ht-menu__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 1.1em;
+  height: 1.1em;
+  opacity: 0.7;
+}
+.sve-ht-menu__icon :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
 button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);

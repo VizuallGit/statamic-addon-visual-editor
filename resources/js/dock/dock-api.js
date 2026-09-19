@@ -806,6 +806,12 @@ register('dock:exit-component', () => {
 register('dock:current-type', () => currentTemplateType());
 register('dock:current-uid', () => dockState.lastUid);
 /**
+ * The save in the air, if any. A panel that writes the file and then asks the
+ * server about what it wrote has to wait for this — the answer is read from
+ * disk, and the write is still on its way there.
+ */
+register('dock:save-settled', () => dockState.saveInFlight || null);
+/**
  * Re-render the preview without saving anything.
  *
  * For changes the dock did not make and cannot see — a field added to the

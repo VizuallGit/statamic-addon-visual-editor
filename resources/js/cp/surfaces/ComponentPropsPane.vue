@@ -13,13 +13,7 @@
 import { ref } from 'vue';
 import { componentPropsUi as ui } from '../component-props/store.js';
 import PropValues from './PropValues.vue';
-
-const ICONS = {
-  bard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
-  media:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m3 16 4.5-4.5L13 17"/><path d="m14 14 2.5-2.5L21 16"/></svg>',
-  link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>',
-};
+import { PROP_ICONS } from '../component-props/icons.js';
 
 const rowEls = ref([]);
 const dragFrom = ref(-1);
@@ -152,7 +146,7 @@ function usage(handle) {
       >
         <span class="sve-cprops__tile" :data-kind="row.type">
           <span v-if="row.type === 'text'" class="sve-cprops__letter">T</span>
-          <span v-else class="sve-cprops__glyph" v-html="ICONS[row.type] || ICONS.bard"></span>
+          <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[row.type] || PROP_ICONS.bard"></span>
         </span>
 
         <span class="sve-cprops__what">
@@ -215,6 +209,17 @@ function usage(handle) {
             <option v-for="kind in ui.types" :key="kind.id" :value="kind.id">{{ kind.label }}</option>
           </select>
         </div>
+        <!-- A choice is nothing without its choices: one line, commas between. -->
+        <input
+          v-if="row.type === 'select'"
+          class="sve-cprops__box"
+          type="text"
+          :value="row.options"
+          :placeholder="ui.optionsLabel"
+          :disabled="ui.locked"
+          spellcheck="false"
+          @change="onField(index, 'options', $event)"
+        />
         <!--
           The Control Panel's own field for the default. Rich text gets Bard,
           a picture gets the asset browser, a link gets the page picker — none

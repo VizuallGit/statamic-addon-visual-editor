@@ -14,11 +14,14 @@ final class Schema
      *
      * Every one of them ends up as a string in a partial parameter, because
      * that is all a parameter can carry. The kind is what the panel draws to
-     * fill that string in: a box, an asset, a page to point at, a list to
-     * choose from. `select` is the only one that needs anything more written
-     * down — the choices, which travel with the declaration.
+     * fill that string in: a box, a number box, a switch, a list to choose
+     * from, the theme's colour picker, an asset, a page to point at. `select`
+     * is the only one that needs anything more written down — the choices,
+     * which travel with the declaration. A `boolean` is carried as the word
+     * `true` or nothing, and `sve_defaults` hands it to the template as the
+     * boolean it names.
      */
-    public const TYPES = ['text', 'bard', 'media', 'link', 'select'];
+    public const TYPES = ['text', 'bard', 'number', 'boolean', 'select', 'color', 'media', 'link'];
 
     /**
      * What every prop is called once it reaches Antlers.
@@ -85,6 +88,13 @@ final class Schema
             // other row would put a key in the file that means nothing there.
             if ($type === 'select') {
                 $row['options'] = static::options($prop['options'] ?? []);
+            }
+
+            // A switch is on or it is not. Written as the one word the pair
+            // reads as true, or as nothing — never as "false", "0" or "off",
+            // which are all strings and all true to Antlers.
+            if ($type === 'boolean') {
+                $row['default'] = in_array(strtolower(trim($row['default'])), ['true', '1', 'on', 'yes'], true) ? 'true' : '';
             }
 
             $out[] = $row;

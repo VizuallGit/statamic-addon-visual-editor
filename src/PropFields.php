@@ -6,6 +6,7 @@ use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
 use Statamic\Fields\Field;
+use Statamic\Fields\FieldtypeRepository;
 
 /**
  * A component's fields, as the Control Panel's own fields.
@@ -107,6 +108,33 @@ class PropFields
                 'display' => $label,
                 'hide_display' => true,
             ],
+            // A text box that only takes digits: the browser's own number
+            // input, decimals included, rather than the integer field.
+            'number' => [
+                'type' => 'text',
+                'input_type' => 'number',
+                'display' => $label,
+                'hide_display' => true,
+                'placeholder' => $default,
+            ],
+            'boolean' => [
+                'type' => 'toggle',
+                'display' => $label,
+                'hide_display' => true,
+            ],
+            'select' => [
+                'type' => 'select',
+                'display' => $label,
+                'hide_display' => true,
+                'options' => static::choices($prop),
+                'clearable' => true,
+                'placeholder' => $default,
+            ],
+            'color' => [
+                'type' => static::colorFieldtype(),
+                'display' => $label,
+                'hide_display' => true,
+            ],
             default => [
                 'type' => 'text',
                 'display' => $label,
@@ -114,6 +142,48 @@ class PropFields
                 'placeholder' => $default,
             ],
         };
+    }
+
+    /**
+     * A select's choices, each its own label — the declaration holds one list,
+     * and that list is what the editor picks from and what the template gets.
+     *
+     * @return array<string, string>
+     */
+    protected static function choices(array $prop): array
+    {
+        $raw = $prop['options'] ?? [];
+        $list = is_string($raw) ? explode(',', $raw) : (is_array($raw) ? $raw : []);
+        $out = [];
+
+        foreach ($list as $option) {
+            $value = is_scalar($option) ? trim((string) $option) : '';
+
+            if ($value !== '') {
+                $out[$value] = $value;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The colour field: the site's theme picker when the site has one, so a
+     * colour prop is `var(--primary-500)` like every other colour on the site
+     * and follows the theme; the Control Panel's plain colour field otherwise.
+     * The picker is another add-on's, so it is asked for rather than assumed.
+     */
+    protected static function colorFieldtype(): string
+    {
+        // The repository, not a facade: Statamic 6 has none for fieldtypes,
+        // and a facade that does not exist is caught below as "not installed".
+        try {
+            app(FieldtypeRepository::class)->find('theme_color_picker');
+
+            return 'theme_color_picker';
+        } catch (\Throwable) {
+            return 'color';
+        }
     }
 
     /**
@@ -151,6 +221,9 @@ class PropFields
             // An asset is stored as its URL, because that is what an `src` needs.
             // The fieldtype works in container-relative paths, so it is looked up.
             'media' => ($asset = Asset::findByUrl($value)) ? [$asset->path()] : null,
+            // The one word the pair reads as on. Anything else in the call is
+            // a hand-written value the switch has no position for.
+            'boolean' => $value === 'true',
             default => $value,
         };
     }
@@ -173,6 +246,14 @@ class PropFields
             return $path ? (string) (static::asset((string) $path, $prop)?->url() ?? '') : '';
         }
 
+        // Off is written, not left out. An absent parameter means "the
+        // component's own default", and a switch turned off at one place
+        // must stay off there even where the default is on. `sve_defaults`
+        // turns the two words back into the booleans a template tests.
+        if ($type === 'boolean') {
+            return $value === true || $value === 1 || $value === '1' || $value === 'true' ? 'true' : 'false';
+        }
+
         if ($value === null || $value === '' || $value === []) {
             return '';
         }
@@ -193,6 +274,11 @@ class PropFields
             // then an apostrophe in the text would end it early. As HTML,
             // `&#39;` is the same character and cannot close anything.
             return str_replace("'", '&#39;', (string) $processed);
+        }
+
+        // A number box may answer with a number rather than a string of one.
+        if ($type === 'number') {
+            return is_numeric($processed) ? (string) $processed : '';
         }
 
         return is_string($processed) ? $processed : '';
