@@ -53,6 +53,9 @@ class EntryBlueprintController
             'collection' => $collection->handle(),
             'handle' => $blueprint->handle(),
             'title' => $blueprint->title(),
+            // The view that renders the page (`default` for a page built from
+            // sections): where static markup for the page goes.
+            'template' => (string) $entry->template(),
             'url' => cp_route('blueprints.collections.edit', [
                 'collection' => $collection->handle(),
                 'blueprint' => $blueprint->handle(),

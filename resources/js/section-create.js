@@ -30,18 +30,11 @@ import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { csrfToken } from './lib/csrf.js';
 import { previewDocument } from './lib/preview-frame.js';
+import { currentEntryId } from './lib/live-preview.js';
 import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 const API = '/!/sve/section-types';
-
-/**
- * Static section types made in this session. The set meta the page was handed
- * at load (`sveSetMeta`) says which types are static; a type made a moment ago
- * is not in it until the next load, and the tree must not draw a fields icon
- * on it in the meantime.
- */
-export const staticTypesMade = new Set();
 
 /**
  * The groups a section can be made in, in the order the page-builder fieldset
@@ -74,7 +67,7 @@ export async function fetchGroups(win) {
   return [...seen].map(([key, display]) => ({ key, display }));
 }
 
-export async function createSection(win, { display, group, static: isStatic = false }) {
+export async function createSection(win, { display, group }) {
   const res = await win.fetch(API, {
     method: 'POST',
     headers: {
@@ -83,7 +76,7 @@ export async function createSection(win, { display, group, static: isStatic = fa
       Accept: 'application/json',
     },
     credentials: 'same-origin',
-    body: JSON.stringify({ display, group, static: !!isStatic }),
+    body: JSON.stringify({ display, group }),
   });
 
   const data = await res.json().catch(() => ({}));
@@ -237,11 +230,21 @@ const TEMPLATE_SECTION = '<section class="[ ] py-800">\n    \n</section>\n';
 /**
  * A section written into the open template file.
  *
- * A page that is not built from sections — a service, a product — has no set
- * to make: the section is the markup itself, at the end of the file. Saved at
- * once, autosave or not: it is a thing done, not text half-typed.
+ * Static markup is not a set: it has no fields, no card in the library and no
+ * row on the page. It lives in the file that renders the page, at the end,
+ * and is on every page that file renders. Saved at once, autosave or not: it
+ * is a thing done, not text half-typed.
+ *
+ * A locked file refuses the write, as it refuses every other — the padlock in
+ * the dock is the way in, and the toast says so.
  */
 export function insertTemplateSection(win) {
+  if (ask('dock:is-locked') === true) {
+    win.Statamic?.$toast?.error(t(win, 'code_dock_locked'));
+
+    return false;
+  }
+
   const html = String(ask('dock:html') || '');
   const next = `${html.replace(/\s+$/, '')}\n\n${TEMPLATE_SECTION}`;
 
@@ -257,7 +260,65 @@ export function insertTemplateSection(win) {
   return true;
 }
 
-export function openNewSectionDialog(win, { kind = 'fields', afterUid = null, onDone, onError, onClose } = {}) {
+// The dock names the file it holds only once the file has arrived; until then
+// it still holds the one being left. A render round-trip, then it is given up on.
+const OPEN_EVERY_MS = 100;
+const OPEN_TRIES = 80;
+
+/**
+ * The page's own template in the dock — `default` for a page built from
+ * sections — so static markup can be written into it. Resolves once the file
+ * is on screen, false when the dock could not open it.
+ *
+ * The template is asked of the server: the entry decides which view renders
+ * it, and nothing on the page says so.
+ */
+export async function openPageTemplate(win) {
+  const id = currentEntryId(win);
+
+  if (!id) {
+    return false;
+  }
+
+  let template = '';
+
+  try {
+    const res = await win.fetch(`/!/sve/entry-blueprint?id=${encodeURIComponent(id)}`, {
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin',
+    });
+
+    template = res.ok ? String((await res.json())?.template || '') : '';
+  } catch {
+    template = '';
+  }
+
+  if (!template) {
+    return false;
+  }
+
+  const type = `view:${template.replace(/^\/+|\/+$/g, '')}`;
+
+  if (ask('dock:current-type') === type) {
+    return true;
+  }
+
+  if (ask('dock:open-template', type) !== true) {
+    return false;
+  }
+
+  for (let tries = 0; tries < OPEN_TRIES; tries += 1) {
+    if (ask('dock:current-type') === type) {
+      return true;
+    }
+
+    await new Promise((resolve) => win.setTimeout(resolve, OPEN_EVERY_MS));
+  }
+
+  return false;
+}
+
+export function openNewSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {
   void (async () => {
     let groups = [];
 
@@ -282,7 +343,7 @@ export function openNewSectionDialog(win, { kind = 'fields', afterUid = null, on
       groupLabel: t(win, 'section_new_group'),
       nameLabel: t(win, 'section_new_name'),
       placeholder: t(win, 'section_new_placeholder'),
-      note: t(win, kind === 'static' ? 'section_new_static_note' : 'section_new_note'),
+      note: t(win, 'section_new_note'),
       groups,
       cancelLabel: t(win, 'cancel'),
       saveLabel: t(win, 'section_new_create'),
@@ -293,11 +354,7 @@ export function openNewSectionDialog(win, { kind = 'fields', afterUid = null, on
       onOk: (display, group) => {
         void (async () => {
           try {
-            const data = await createSection(win, { display, group, static: kind === 'static' });
-
-            if (data.section?.static && data.section.handle) {
-              staticTypesMade.add(data.section.handle);
-            }
+            const data = await createSection(win, { display, group });
 
             overlay.dismiss();
 

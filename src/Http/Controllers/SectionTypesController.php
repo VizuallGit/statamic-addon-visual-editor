@@ -108,8 +108,6 @@ class SectionTypesController
             $group,
             mb_substr($display, 0, 60),
             trim((string) $request->input('icon', '')) ?: null,
-            // Static: markup only, no fieldset, nothing for an editor to fill in.
-            $request->boolean('static'),
         );
 
         if ($made === null) {

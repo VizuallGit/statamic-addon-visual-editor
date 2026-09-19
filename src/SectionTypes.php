@@ -51,10 +51,7 @@ class SectionTypes
 
                 // Empty Statamic placeholders (`New Set` with no fields) are not
                 // insertable section types — they would otherwise get their own card.
-                // A static section has no fields on purpose, and says so.
-                $static = ($set['static'] ?? false) === true;
-
-                if (! $static && empty($set['fields'] ?? [])) {
+                if (empty($set['fields'] ?? [])) {
                     continue;
                 }
 
@@ -75,8 +72,6 @@ class SectionTypes
                     'fieldset' => static::importOf($set),
                     'group' => (string) $groupKey,
                     'group_display' => $groupDisplay,
-                    // Markup only: the tree draws no fields icon on it.
-                    'static' => $static,
                     'image_url' => $images[$setHandle] ?? null,
                     'defaults' => static::defaults($handle, $setHandle),
                     'can_delete' => $canDelete,

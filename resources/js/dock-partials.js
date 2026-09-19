@@ -18,7 +18,8 @@ const cache = new Map();
  * map, a prefetch) must skip these; the server lists the folder instead.
  */
 export function hasToken(src) {
-  return /\{[A-Za-z_][A-Za-z0-9_]*\}/.test(String(src || ''));
+  // With or without air inside the braces: the page loop writes `{ type }`.
+  return /\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}/.test(String(src || ''));
 }
 
 export function findPartials(html) {

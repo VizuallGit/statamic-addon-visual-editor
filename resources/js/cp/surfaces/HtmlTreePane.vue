@@ -3,8 +3,7 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
-import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, revealWhenRendered } from '../../section-create.js';
-import { openEntryBlueprint } from '../../lp-blueprint.js';
+import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, openPageTemplate, revealWhenRendered } from '../../section-create.js';
 import { t } from '../../lib/i18n.js';
 import { nextTick, ref } from 'vue';
 
@@ -73,9 +72,17 @@ function onNewSection() {
   creating.value = true;
 
   void (async () => {
-    // Static markup, or fields for an editor — asked first, the same question
-    // on a page and in a template. What the answer makes differs by where you
-    // are.
+    // A template (a service, a product) is not built from sections, so there
+    // is nothing to ask: the section is static markup written into the open
+    // file. Its fields, if any, are the page's blueprint — the top bar's.
+    if (!(ui.sections.length || ui.pageBuilder)) {
+      insertTemplateSection(window);
+      release();
+
+      return;
+    }
+
+    // A page built from sections: static markup, or a section with fields.
     const kind = await chooseSectionKind(window);
 
     if (!kind) {
@@ -84,23 +91,22 @@ function onNewSection() {
       return;
     }
 
-    // A template (a service, a product) is not built from sections: the
-    // section is markup written into the file. With fields, those are the
-    // page's own — the blueprint — so it opens right after.
-    if (!(ui.sections.length || ui.pageBuilder)) {
-      const ok = insertTemplateSection(window);
+    // Static: markup in the page's own template (`default`), opened in the
+    // dock first. Not a set: no fields, no card in the library, no row an
+    // editor can move or delete — and on every page that template renders.
+    if (kind === 'static') {
+      if (await openPageTemplate(window)) {
+        insertTemplateSection(window);
+      } else {
+        window.Statamic?.$toast?.error(t(window, 'section_new_failed'));
+      }
 
       release();
-
-      if (ok && kind === 'fields') {
-        openEntryBlueprint(window);
-      }
 
       return;
     }
 
     openNewSectionDialog(window, {
-      kind,
       // The new section lands after the last one on the page — the end of the
       // list the button sits above.
       afterUid: ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null,
