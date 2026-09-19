@@ -296,6 +296,52 @@ try {
           await sleep(100);
         }
         step('with the eye off, a row under the arrow shows nothing until it is picked', eyeOff.ok, eyeOff.why);
+
+        // The chip's own menu: click the px-900 chip, filter, arrow — the same hold, as a replacement.
+        const chipHit = await cp.evaluate(() => { const el = [...document.querySelectorAll('[data-sve-tw-chip]')].find((c) => c.textContent.trim() === 'px-900'); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+        let chipStep = { ok: false, why: 'no px-900 chip' };
+        if (chipHit) {
+          const b = await (await cp.frameElement()).boundingBox();
+          await page.mouse.click(b.x + chipHit.x, b.y + chipHit.y);
+          const filter = await cp.waitForSelector('#__sve-tw-menu [data-sve-tw-filter-input]', { timeout: 5000 }).catch(() => null);
+          if (filter) {
+            await filter.type('700', { delay: 10 }); await sleep(200);
+            await page.keyboard.press('ArrowDown'); await sleep(250);
+            const row = await cp.evaluate(() => document.querySelector('[data-sve-tw-option][data-cursor] [data-sve-tw-label]')?.textContent.trim() || '');
+            const heldChip = await probeState();
+            const writtenChip = await htmlHas('px-700');
+            const tokens = heldChip ? heldChip.cls.split(/\s+/) : [];
+            chipStep = { ok: row === 'px-700' && tokens.includes('px-700') && !tokens.includes('px-900') && !!heldChip && heldChip.pad !== rest.pad && !writtenChip, why: `row=${row} held=${heldChip?.cls} pad=${heldChip?.pad} written=${writtenChip}` };
+            await page.keyboard.press('Escape'); await sleep(250);
+            const afterChip = await probeState();
+            chipStep.ok = chipStep.ok && !!afterChip && afterChip.cls === rest.cls && afterChip.pad === rest.pad;
+            chipStep.why += ` restored=${!!afterChip && afterChip.cls === rest.cls}`;
+          } else { chipStep.why = 'the chip menu has no search field'; }
+        }
+        step('the chip menu: filter, arrow — the row previews as a replacement; Escape restores', chipStep.ok, chipStep.why);
+
+        // The icon row: padding → top and bottom → the family list, the same hold.
+        let toolStep = { ok: false, why: 'no padding tool' };
+        if (await cp.$('#__sve-code-dock [data-sve-css-tool="padding"]')) {
+          await realClick(page, cp, '#__sve-code-dock [data-sve-css-tool="padding"]'); await sleep(300);
+          if (await cp.$('#__sve-code-dock [data-sve-css-kid="padding-block"]')) {
+            await realClick(page, cp, '#__sve-code-dock [data-sve-css-kid="padding-block"]');
+            const filter = await cp.waitForSelector('#__sve-tw-menu [data-sve-tw-filter-input]', { timeout: 5000 }).catch(() => null);
+            if (filter) {
+              await filter.type('700', { delay: 10 }); await sleep(200);
+              await page.keyboard.press('ArrowDown'); await sleep(250);
+              const row = await cp.evaluate(() => document.querySelector('[data-sve-tw-option][data-cursor] [data-sve-tw-label]')?.textContent.trim() || '');
+              const heldTool = await (await livePreview()).evaluate(() => { const el = document.querySelector('.sve-instant-probe'); return el ? { cls: el.getAttribute('class') || '', padBlock: getComputedStyle(el).paddingBlockStart } : null; });
+              const writtenTool = await htmlHas('py-700');
+              toolStep = { ok: row === 'py-700' && !!heldTool && heldTool.cls.split(/\s+/).includes('py-700') && heldTool.padBlock !== '0px' && !writtenTool, why: `row=${row} held=${heldTool?.cls} padBlock=${heldTool?.padBlock} written=${writtenTool}` };
+              await page.keyboard.press('Escape'); await sleep(250);
+              const afterTool = await probeState();
+              toolStep.ok = toolStep.ok && !!afterTool && afterTool.cls === rest.cls;
+              toolStep.why += ` restored=${!!afterTool && afterTool.cls === rest.cls}`;
+            } else { toolStep.why = 'the tool menu has no search field'; }
+          } else { toolStep.why = 'no padding-block choice'; }
+        }
+        step('the icon row: padding → top and bottom → filter, arrow — the row previews; Escape restores', toolStep.ok, toolStep.why);
       } else { focusKept.why = 'no add input'; }
     } else { focusKept.why = `plus=${!!plus} tag=${before.tag} row=${before.row}`; }
     if (!twOn) { await realClick(page, cp, '#__sve-code-dock [data-sve-style-mode]'); await sleep(300); }

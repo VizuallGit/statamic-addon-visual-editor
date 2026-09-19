@@ -253,6 +253,7 @@ return [
     'tw_add_placeholder_site' => 'Søg… fx wrapper',
     'tw_add_placeholder' => 'Søg… fx text-400',
     'tw_add_empty' => 'Ingen match — tryk Enter for at tilføje alligevel.',
+    'tw_filter_placeholder' => 'Søg i listen…',
     'tw_state' => 'Tilstand',
     'tw_state_none' => 'Ingen tilstand',
     'tw_classes_pick' => 'Sæt markøren i et tag i HTML-ruden — eller klik tagget i previewet.',

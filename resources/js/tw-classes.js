@@ -269,6 +269,9 @@ function ensureStyles(doc) {
     #${MENU_ID} [data-sve-tw-option][data-active] {
       background: rgba(255,255,255,.06);
     }
+    #${MENU_ID} [data-sve-tw-option][data-cursor] {
+      background: rgba(255,255,255,.1);
+    }
     #${MENU_ID} [data-sve-tw-option][data-sve-tw-off] [data-sve-tw-label] {
       opacity: .45;
       text-decoration: line-through;
@@ -320,7 +323,8 @@ function ensureStyles(doc) {
       flex: 0 0 auto;
       opacity: .5;
     }
-    #${MENU_ID} [data-sve-tw-add-input] {
+    #${MENU_ID} [data-sve-tw-add-input],
+    #${MENU_ID} [data-sve-tw-filter-input] {
       all: unset;
       flex: 1 1 auto;
       min-width: 0;
@@ -739,6 +743,32 @@ function variantChips(value) {
  * class already there is toggled off instead, so the icon row's second click
  * takes it away again.
  */
+/**
+ * What `twSetClass` would write: same family, same slot — `p-400` replaces
+ * `p-800` — and the class already there is toggled off.
+ */
+function setClassValueWith(value, name) {
+  const property = propertyOf(name);
+  const existing = variantChips(value).find(
+    (chip) => chip.name === name || (property && propertyOf(chip.name) === property)
+  );
+
+  if (existing?.name === name) {
+    return replaceToken(value, existing, '');
+  }
+
+  if (existing) {
+    return replaceToken(value, existing, buildClass({
+      variants: existing.variants,
+      name,
+      modifier: existing.modifier,
+      important: existing.important,
+    }));
+  }
+
+  return appendToken(value, buildClass({ variants: variantList(), name, modifier: '', important: '' }));
+}
+
 export function twSetClass(win, name) {
   if (locked() || !name) {
     return;
@@ -750,42 +780,24 @@ export function twSetClass(win, name) {
     return;
   }
 
-  const property = propertyOf(name);
-  const existing = variantChips(current.value).find(
-    (chip) => chip.name === name || (property && propertyOf(chip.name) === property)
-  );
-
-  if (existing?.name === name) {
-    commit(win, current.html, replaceToken(current.value, existing, ''));
-
-    return;
-  }
-
-  if (existing) {
-    const raw = buildClass({
-      variants: existing.variants,
-      name,
-      modifier: existing.modifier,
-      important: existing.important,
-    });
-
-    commit(win, current.html, replaceToken(current.value, existing, raw));
-
-    return;
-  }
-
-  const raw = buildClass({ variants: variantList(), name, modifier: '', important: '' });
-
-  commit(win, current.html, appendToken(current.value, raw));
+  commit(win, current.html, setClassValueWith(current.value, name));
 }
 
-/**
- * Whatever the reader typed or picked in the + menu.
- *
- * The selected variant goes in front — type `bg-primary-900` with `after`
- * picked and you get `after:bg-primary-900`. Write your own prefix and it is
- * left alone.
- */
+/** The icon row's menu: the row under the marker, shown as `twSetClass` would write it. */
+function previewSet(win, name) {
+  const current = name && !locked() ? currentValue() : null;
+
+  if (!current) {
+    sendPreview(win, null);
+
+    return;
+  }
+
+  const value = setClassValueWith(current.value, name);
+
+  sendPreview(win, value === current.value ? null : { path: node.path, value });
+}
+
 /**
  * The tag's class value with `typed` added, the way `twAddClass` writes it.
  *
@@ -877,17 +889,10 @@ function sendPreview(win, detail) {
   win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail }));
 }
 
-function applyChip(win, chip, nextName) {
-  if (locked()) {
-    return;
-  }
-
-  const current = currentValue();
-
-  if (!current || current.value.slice(chip.from, chip.to) !== chip.raw) {
-    render(win);
-
-    return;
+/** What `applyChip` would write for this chip, or null when the file moved under it. */
+function chipValueWith(current, chip, nextName) {
+  if (current.value.slice(chip.from, chip.to) !== chip.raw) {
+    return null;
   }
 
   const nextRaw = nextName
@@ -899,7 +904,32 @@ function applyChip(win, chip, nextName) {
     })
     : '';
 
-  commit(win, current.html, replaceToken(current.value, chip, nextRaw));
+  return replaceToken(current.value, chip, nextRaw);
+}
+
+function applyChip(win, chip, nextName) {
+  if (locked()) {
+    return;
+  }
+
+  const current = currentValue();
+  const value = current ? chipValueWith(current, chip, nextName) : null;
+
+  if (value == null) {
+    render(win);
+
+    return;
+  }
+
+  commit(win, current.html, value);
+}
+
+/** The chip's menu: the row under the marker, shown as `applyChip` would write it. */
+function previewChip(win, chip, label) {
+  const current = label && !locked() ? currentValue() : null;
+  const value = current ? chipValueWith(current, chip, label) : null;
+
+  sendPreview(win, value == null || value === current.value ? null : { path: node.path, value });
 }
 
 /* ------------------------------------------------------------------ *
@@ -1136,13 +1166,18 @@ export function twOpenToolMenu(win, anchor, property, after) {
   openMenu(win, anchor, TwClassMenu, {
     title: property,
     removeLabel: t(win, 'tw_classes_remove'),
+    searchPlaceholder: t(win, 'tw_filter_placeholder'),
     options: optionRows(win, options, active),
+    onPreview: (label) => previewSet(win, label),
     onPick: (label) => {
+      keepPreview(win);
       twSetClass(win, label);
       closeTwMenu(win);
       after?.(label);
     },
     onRemove: () => {
+      keepPreview(win);
+
       if (active) {
         twSetClass(win, active);
       }
@@ -1320,12 +1355,16 @@ function onChip(win, event, id) {
   openMenu(win, event.currentTarget, TwClassMenu, {
     title: family?.label || '',
     removeLabel: t(win, 'tw_classes_remove'),
+    searchPlaceholder: t(win, 'tw_filter_placeholder'),
     options: optionRows(win, family?.options, chip.name),
+    onPreview: (label) => previewChip(win, chip, label),
     onPick: (label) => {
+      keepPreview(win);
       applyChip(win, chip, label);
       closeTwMenu(win);
     },
     onRemove: () => {
+      keepPreview(win);
       applyChip(win, chip, '');
       closeTwMenu(win);
     },

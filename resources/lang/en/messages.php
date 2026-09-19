@@ -256,6 +256,7 @@ return [
     'tw_add_placeholder_site' => 'Search… e.g. wrapper',
     'tw_add_placeholder' => 'Search… e.g. text-400',
     'tw_add_empty' => 'No match — press Enter to add it anyway.',
+    'tw_filter_placeholder' => 'Search the list…',
     'tw_state' => 'State',
     'tw_state_none' => 'No state',
     'tw_classes_pick' => 'Put the cursor in a tag in the HTML pane — or click the tag in the preview.',
