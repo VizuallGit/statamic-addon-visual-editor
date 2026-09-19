@@ -20,6 +20,8 @@ export const dockState = {
   lastBracketNames: null,
   lastCssSelectorNames: null,
   saveInFlight: null,
+  // The fetch of the file the dock was just asked to open; null once it has landed.
+  loadInFlight: null,
   dragging: false,
   applying: false,
   htmlScopePref: true,

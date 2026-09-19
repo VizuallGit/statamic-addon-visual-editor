@@ -226,6 +226,17 @@ export async function loadTemplate(win, type, mode = 'replace') {
   clearHtmlScopeRange();
   setStatus(win.document, t(win, 'code_dock_loading'));
 
+  // Kept while the file is on its way (`dock:load-settled`), and made before
+  // the first await so it is there the moment the open was asked for: the
+  // dock names the new file before it holds it, and a panel that writes into
+  // "the open file" must wait for the file, not the name — or it writes the
+  // one being left under the new file's path.
+  let landed = () => {};
+
+  dockState.loadInFlight = new Promise((resolve) => {
+    landed = resolve;
+  });
+
   const dock = await ensureDock(win);
 
   paintLock(win);
@@ -313,6 +324,13 @@ export async function loadTemplate(win, type, mode = 'replace') {
 
       showMissing(win, type);
       setStatus(win.document, t(win, 'code_dock_error'));
+    })
+    .finally(() => {
+      if (gen === dockState.loadGen) {
+        dockState.loadInFlight = null;
+      }
+
+      landed();
     });
 }
 
@@ -837,6 +855,11 @@ register('dock:current-uid', () => dockState.lastUid);
  * disk, and the write is still on its way there.
  */
 register('dock:save-settled', () => dockState.saveInFlight || null);
+/**
+ * The load in the air, if any. `dock:current-type` answers with the new file's
+ * name the moment it is asked for; the file itself lands when this settles.
+ */
+register('dock:load-settled', () => dockState.loadInFlight || null);
 /**
  * Re-render the preview without saving anything.
  *

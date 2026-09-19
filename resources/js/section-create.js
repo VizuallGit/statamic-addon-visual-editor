@@ -260,18 +260,17 @@ export function insertTemplateSection(win) {
   return true;
 }
 
-// The dock names the file it holds only once the file has arrived; until then
-// it still holds the one being left. A render round-trip, then it is given up on.
-const OPEN_EVERY_MS = 100;
-const OPEN_TRIES = 80;
-
 /**
  * The page's own template in the dock — `default` for a page built from
  * sections — so static markup can be written into it. Resolves once the file
  * is on screen, false when the dock could not open it.
  *
  * The template is asked of the server: the entry decides which view renders
- * it, and nothing on the page says so.
+ * it, and nothing on the page says so. And the file is waited for, not its
+ * name: the dock answers `dock:current-type` with the new name the moment it
+ * is asked, while the panes still hold the file being left — writing then
+ * put the old panel's text into the page template. `dock:load-settled` is the
+ * file landing.
  */
 export async function openPageTemplate(win) {
   const id = currentEntryId(win);
@@ -307,15 +306,13 @@ export async function openPageTemplate(win) {
     return false;
   }
 
-  for (let tries = 0; tries < OPEN_TRIES; tries += 1) {
-    if (ask('dock:current-type') === type) {
-      return true;
-    }
+  const loading = ask('dock:load-settled');
 
-    await new Promise((resolve) => win.setTimeout(resolve, OPEN_EVERY_MS));
+  if (loading?.then) {
+    await loading;
   }
 
-  return false;
+  return ask('dock:current-type') === type && ask('dock:load-settled') === null;
 }
 
 export function openNewSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {

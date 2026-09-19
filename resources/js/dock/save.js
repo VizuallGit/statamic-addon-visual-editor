@@ -121,6 +121,13 @@ export function flushSave(doc) {
     return;
   }
 
+  // A file that has not arrived cannot be saved: the panes still show the
+  // one being left, and posting that under the new file's name overwrites
+  // the new file with it. Measured — a page template lost its loop this way.
+  if (!dockState.lockReady) {
+    return;
+  }
+
   const parts = readParts();
   const twReady = dockState.twCss !== null && tailwindDockOn(win) && twKeyFor(parts.html) === dockState.twKey;
 
