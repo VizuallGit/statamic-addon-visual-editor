@@ -8,6 +8,7 @@ import { splitterFill } from '../right-dock.js';
 import { PARTIAL_MENU_ID } from '../dock-partials.js';
 import { CLASS_RENAME_CHIP_ID } from '../dock-class-tokens.js';
 import { injectStyle } from '../lib/style.js';
+import { familyCssVars } from '../lib/tag-families.js';
 import { t } from '../lib/i18n.js';
 import { attachDock } from '../lib/dock-host.js';
 import { beginOverlayDrag } from '../lib/drag.js';
@@ -140,6 +141,8 @@ export function ensureStyle(doc) {
   injectStyle(doc, STYLE_ID, `
 @keyframes sve-cm-wait { to { transform: rotate(360deg); } }
 #${DOCK_ID} {
+  /* The tree's seven families, for the marks and the toolbar below. */
+  ${familyCssVars('dark')}
   position: fixed;
   /* Same band as the right dock: above the page, under Statamic stacks. */
   z-index: var(--z-index-above, 1);
@@ -747,31 +750,31 @@ export function ensureStyle(doc) {
    its own hover, or a marked button would look dead under the pointer.
    No backticks in here: this whole sheet is a template literal. */
 #${DOCK_ID} [data-sve-html-tool="component"] {
-  color: #5eead4;
-  background: rgba(45,212,191,.13);
+  color: var(--sve-fam-component);
+  background: color-mix(in srgb, var(--sve-fam-component) 13%, transparent);
   opacity: 1;
 }
 #${DOCK_ID} [data-sve-html-tool="component"]:hover,
 #${DOCK_ID} [data-sve-html-tool="component"][data-open] {
-  background: rgba(45,212,191,.26);
+  background: color-mix(in srgb, var(--sve-fam-component) 26%, transparent);
 }
 #${DOCK_ID} [data-sve-html-tool="loop"] {
-  color: #a5b4fc;
-  background: rgba(129,140,248,.15);
+  color: var(--sve-fam-loop);
+  background: color-mix(in srgb, var(--sve-fam-loop) 15%, transparent);
   opacity: 1;
 }
 #${DOCK_ID} [data-sve-html-tool="loop"]:hover,
 #${DOCK_ID} [data-sve-html-tool="loop"][data-open] {
-  background: rgba(129,140,248,.28);
+  background: color-mix(in srgb, var(--sve-fam-loop) 28%, transparent);
 }
 #${DOCK_ID} [data-sve-html-tool="if"] {
-  color: #e8c468;
-  background: rgba(234,179,8,.13);
+  color: var(--sve-fam-if);
+  background: color-mix(in srgb, var(--sve-fam-if) 13%, transparent);
   opacity: 1;
 }
 #${DOCK_ID} [data-sve-html-tool="if"]:hover,
 #${DOCK_ID} [data-sve-html-tool="if"][data-open] {
-  background: rgba(234,179,8,.26);
+  background: color-mix(in srgb, var(--sve-fam-if) 26%, transparent);
 }
 #${CSS_MENU_ID} {
   position: fixed;
@@ -1121,14 +1124,23 @@ export function ensureStyle(doc) {
 #${CLASS_RENAME_CHIP_ID}:hover {
   background: #4a4a4a;
 }
-/* Antlers. The partial call keeps its own amber; everything else that decides
-   what renders is one colour, and what closes a block is that colour held back,
-   so an opening line and its closing line do not read as the same thing. */
+/* The tree's families, in the code (antlers-highlight.js marks them; the
+   colours are the one table in lib/tag-families.js, set on the dock as
+   variables below). A tag name wears its family; an Antlers value keeps the
+   one Antlers colour; what closes a block is held back, so an opening line
+   and its closing line do not read as the same thing. */
 #${DOCK_ID} .sve-cm-antlers {
   color: #b9a6ff;
 }
+#${DOCK_ID} .sve-cm-fam-layout { color: var(--sve-fam-layout); }
+#${DOCK_ID} .sve-cm-fam-text { color: var(--sve-fam-text); }
+#${DOCK_ID} .sve-cm-fam-media { color: var(--sve-fam-media); }
+#${DOCK_ID} .sve-cm-fam-loop { color: var(--sve-fam-loop); }
+#${DOCK_ID} .sve-cm-fam-if { color: var(--sve-fam-if); }
+#${DOCK_ID} .sve-cm-fam-component { color: var(--sve-fam-component); }
+#${DOCK_ID} .sve-cm-fam-other { color: var(--sve-fam-other); }
 #${DOCK_ID} .sve-cm-antlers-close {
-  color: #8d7fc4;
+  opacity: .72;
 }
 #${DOCK_ID} .sve-cm-antlers-comment {
   color: #6b8f6b;
@@ -1137,13 +1149,13 @@ export function ensureStyle(doc) {
 #${DOCK_ID} .sve-cm-partial {
   text-decoration: underline dotted;
   text-underline-offset: 3px;
-  background: rgba(251,191,36,.16);
+  background: color-mix(in srgb, var(--sve-fam-component) 16%, transparent);
   /* Text, because the left button writes here now. The underline still says
      there is a file behind it; the right button is what opens it. */
   cursor: text;
 }
 #${DOCK_ID} .sve-cm-partial-line {
-  background: rgba(251,191,36,.12);
+  background: color-mix(in srgb, var(--sve-fam-component) 10%, transparent);
 }
 #${DOCK_ID}[data-sve-code-locked] .sve-cm-partial {
   text-decoration: none;

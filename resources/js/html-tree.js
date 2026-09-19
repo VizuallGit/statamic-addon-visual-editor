@@ -43,7 +43,8 @@ import {
   toggleHiddenHtml,
 } from './html-tree-edit.js';
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
-import { HTML_ICONS, htmlTreeCategory, htmlTreeIcon } from './html-tree-icons.js';
+import { HTML_ICONS, htmlTreeIcon } from './html-tree-icons.js';
+import { familyCssVars, tagFamily } from './lib/tag-families.js';
 import { closeTwMenu, twOpenTagMenuAt } from './tw-classes.js';
 import { serializePickTree } from './html-pick-align.js';
 import { openCpOverlay } from './cp/open-overlay.js';
@@ -352,48 +353,34 @@ export function ensureHtmlTreeStyles(doc) {
     /* ===== The tags look ===================================================
        The tree's own face, so it stops reading as a second block tree: flat
        rows instead of a card each, one thin guide per level of depth, and a
-       colour per family of tag on the icon and the chip. The three Antlers
-       families wear the dock toolbar's own colours — the component button's
-       green, the loop button's indigo, the if button's amber (dock/layout.js)
-       — so the tree and the pane say the same thing about the same line.
-       Layout is blue, text is rose, media is orange: none of the seven sits
-       next to another.
+       colour per family of tag on the icon and the chip. The colours are the
+       one table in lib/tag-families.js — the HTML pane paints a tag name, an
+       Antlers block and a partial call from the same seven, so the tree and
+       the pane say the same thing about the same line.
        Everything above is the classic look, untouched. The switch in Live
        Preview settings (HTML_TREE_LOOK_KEY) decides which value the list
        wears as data-sve-ht-look, and every rule here hangs off that. */
     [data-sve-ht-look="tags"] {
-      --sve-ht-c-layout: #2563eb;
-      --sve-ht-c-text: #be185d;
-      --sve-ht-c-media: #c2410c;
-      --sve-ht-c-loop: #4f46e5;
-      --sve-ht-c-if: #b45309;
-      --sve-ht-c-component: #0f766e;
-      --sve-ht-c-other: #6b6b6b;
+      ${familyCssVars('light')}
       --sve-ht-pick: rgba(56,88,233,.14);
       --sve-ht-pick-hover: rgba(56,88,233,.22);
     }
     html.dark [data-sve-ht-look="tags"],
     .dark [data-sve-ht-look="tags"] {
-      --sve-ht-c-layout: #60a5fa;
-      --sve-ht-c-text: #f9a8d4;
-      --sve-ht-c-media: #fb923c;
-      --sve-ht-c-loop: #a5b4fc;
-      --sve-ht-c-if: #e8c468;
-      --sve-ht-c-component: #5eead4;
-      --sve-ht-c-other: #9a9a9a;
+      ${familyCssVars('dark')}
       --sve-ht-pick: rgba(56,88,233,.3);
       --sve-ht-pick-hover: rgba(56,88,233,.4);
     }
     /* The family's colour, on a row and on the guide an ancestor of that
        family leaves under itself. */
     [data-sve-ht-look="tags"] [data-sve-ht-row],
-    [data-sve-ht-look="tags"] [data-sve-ht-cat="other"] { --sve-ht-c: var(--sve-ht-c-other); }
-    [data-sve-ht-look="tags"] [data-sve-ht-cat="layout"] { --sve-ht-c: var(--sve-ht-c-layout); }
-    [data-sve-ht-look="tags"] [data-sve-ht-cat="text"] { --sve-ht-c: var(--sve-ht-c-text); }
-    [data-sve-ht-look="tags"] [data-sve-ht-cat="media"] { --sve-ht-c: var(--sve-ht-c-media); }
-    [data-sve-ht-look="tags"] [data-sve-ht-cat="loop"] { --sve-ht-c: var(--sve-ht-c-loop); }
-    [data-sve-ht-look="tags"] [data-sve-ht-cat="if"] { --sve-ht-c: var(--sve-ht-c-if); }
-    [data-sve-ht-look="tags"] [data-sve-ht-cat="component"] { --sve-ht-c: var(--sve-ht-c-component); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="other"] { --sve-ht-c: var(--sve-fam-other); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="layout"] { --sve-ht-c: var(--sve-fam-layout); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="text"] { --sve-ht-c: var(--sve-fam-text); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="media"] { --sve-ht-c: var(--sve-fam-media); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="loop"] { --sve-ht-c: var(--sve-fam-loop); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="if"] { --sve-ht-c: var(--sve-fam-if); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="component"] { --sve-ht-c: var(--sve-fam-component); }
 
     /* Flat rows: no card, no indent margin — the spacer below does the
        stepping, so the hover and the pick run the full width of the panel. */
@@ -777,7 +764,7 @@ function htmlTreeSections(win, doc) {
         // Its first tag's mark — the one it unfolds into. The set's own icon
         // used to go here, so the same section wore one shut and another open.
         svg: htmlTreeIcon(tag, '', null).svg || HTML_ICONS.section,
-        cat: htmlTreeCategory(tag, '', ''),
+        cat: tagFamily(tag),
         enabled: row.enabled !== false,
       });
     });
@@ -1261,7 +1248,7 @@ export function renderHtmlTree(win) {
       current: row.id === htmlTreeActiveId,
       letter: icon.letter || '',
       svg: isRoot && openSection ? openSection.svg : icon.svg || '',
-      cat: htmlTreeCategory(row.tag, row.kind, row.antlers),
+      cat: tagFamily(row.tag, row.kind, row.antlers),
       // The open section IS its first tag row. Carrying the uid here is what
       // lets delete tell "this section on this page" from "this tag in the
       // file" — they are the same row, and they are not the same thing.
