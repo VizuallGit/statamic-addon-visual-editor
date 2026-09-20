@@ -32,6 +32,17 @@ let designPromise = null;
 let compilerPromise = null;
 let warned = false;
 
+/**
+ * The site's `@theme` / `@utility` blocks, fetched once — and only kept when
+ * the fetch succeeded.
+ *
+ * A failed fetch used to resolve to an empty theme, silently: the compiler
+ * then knew Tailwind's defaults and not this site, `bg-primary` compiled to
+ * nothing, the suggestions did not list it, and the save baked that missing
+ * CSS to disk. For the rest of the session. Now a failure is a failure: the
+ * caller's promise resets (they all do), the console says what the server
+ * answered, and the next paint, save or keystroke asks again.
+ */
 function loadSite(win) {
   if (!sitePromise) {
     sitePromise = win
@@ -39,8 +50,19 @@ function loadSite(win) {
         credentials: 'same-origin',
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
       })
-      .then((res) => (res.ok ? res.json() : { css: '', plugins: [] }))
-      .catch(() => ({ css: '', plugins: [] }));
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`/!/sve/tailwind-theme answered ${res.status}`);
+        }
+
+        return res.json();
+      })
+      .catch((error) => {
+        sitePromise = null;
+        console.warn('[sve] Tailwind theme not loaded, will retry:', error?.message || error);
+
+        throw error;
+      });
   }
 
   return sitePromise;

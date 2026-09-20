@@ -56,6 +56,12 @@ export function tailwindClassCompletions(win) {
       return null;
     }
 
+    // Queried again on every keystroke, on purpose. With `validFor` the list
+    // computed for `b` was kept and only filtered while `bg-pr` was typed —
+    // and that list is capped at 80 of the hundreds of `b…` names, so
+    // `bg-primary` was in it or not depending on how far the catalog had
+    // loaded when the first letter landed. Slower to load (a server), more
+    // often missing. The walk over the names costs a pass and nothing else.
     return loadCatalog(win).then((catalog) => {
       const options = suggestions(typed, catalog);
 
@@ -66,7 +72,6 @@ export function tailwindClassCompletions(win) {
       return {
         from: token ? token.from : context.pos,
         options,
-        validFor: /^[^\s"'=]*$/,
       };
     });
   };
@@ -114,7 +119,15 @@ export function loadCatalog(win) {
     catalogPromise = import('./tw-compile.js')
       .then((mod) => mod.loadTailwindDesign(win))
       .then(makeCatalog)
-      .catch(() => emptyCatalog());
+      .catch((error) => {
+        // Not remembered: a theme fetch that failed once must not leave the
+        // dock without the site's classes for the rest of the session. The
+        // next keystroke asks again.
+        catalogPromise = null;
+        console.warn('[sve] Tailwind suggestions unavailable, will retry:', error?.message || error);
+
+        return emptyCatalog();
+      });
   }
 
   return catalogPromise;
