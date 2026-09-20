@@ -81,6 +81,9 @@ const scenarios = [
   // CSS: whole pane, and a slice while the HTML pane is scoped.
   ['O1: CSS-ruden (hel fil)', { css: '.o1 { color: red }', next: TEMPLATE }],
   ['O2: CSS-ruden mens HTML er scopet (docken udstiller arket)', { scoped: true, expose: true, snippet: SNIPPET, next: SNIPPET, css: '.o2 { color: blue }', cssFull: '.o2 { color: red }\n.rest { margin: 0 }' }],
+  // Antlers in the CSS pane: known fields filled in, tagged declarations dropped, bare tags gone.
+  ['P1: CSS-ruden med Antlers (custom property, {{ id }}, bare tag)', { next: TEMPLATE, css: '{{ responsive_css }}\n#id-{{ id }} { background: {{ bg_color }}; margin: 0 }\n.blocks { --grid-cols: {{ cols }}; display: grid; color: red }',
+    expectCss: ['#id-mu2jmum7lqpp', 'margin: 0', 'display: grid', 'color: red'], forbidCss: ['{{', '--grid-cols', 'background', 'responsive_css', '\uE000'] }],
 ];
 
 const browser = await puppeteer.launch({ headless: true, executablePath: existsSync(CHROME) ? CHROME : undefined, args: ['--allow-file-access-from-files'] });
@@ -138,6 +141,13 @@ async function run(label, text) {
 
   const same = compact(result.before) === compact(result.after) && (opts.css == null || result.liveCss.includes(opts.css) === false);
   const untouched = compact(result.before) === compact(result.baseline);
+  if (opts.expectCss) {
+    const missing = opts.expectCss.filter((x) => !result.liveCss.includes(x));
+    const present = (opts.forbidCss || []).filter((x) => result.liveCss.includes(x));
+    console.log(`\n=== ${label} ===\n  mangler i levende ark:`, missing.length ? missing : 'intet', '| forbudt men til stede:', present.length ? present : 'intet');
+    console.log('  ark:', result.liveCss.replace(/\s+/g, ' ').slice(0, 200));
+    return { label, same: missing.length > 0 || present.length > 0, untouched: true, listOk: true };
+  }
   if (opts.css != null) console.log(`\n=== ${label} ===\n  levende CSS-ark indeholder rudens regel:`, result.liveCss.includes(opts.css) ? 'ja' : 'NEJ', opts.cssFull != null ? `| resten af arket med: ${result.liveCss.includes('.rest') ? 'ja' : 'NEJ'}` : '');
   if (opts.component) console.log(`\n=== ${label} ===\n  forekomster i de 3 kort:`, (result.after.match(/NY I KORTET/g) || []).length, 'x tekst,', (result.after.match(/class="group kort"/g) || []).length, 'x klasse');
   if (opts.css != null || opts.component) { console.log('  trace:', result.trace.map((t) => String(t).replace(/^\d+ /, '').slice(0, 90)).join(' | ') || '(tom)'); return { label, same, untouched, listOk: true }; }
@@ -157,4 +167,4 @@ const out = [];
 for (const [label, text] of scenarios) out.push(await run(label, text));
 await browser.close();
 console.log('\nOPSUMMERING: ' + out.map((r) => `${r.label.split(':')[0]}=${r.same ? 'venter' : 'malet'}${r.untouched ? '' : '!'}${r.listOk ? '' : ' LISTE-TAB'}`).join(', '));
-console.log('(! = den uændrede fil rørte sektionen; venter forventes kun for E1, K, L, M2 og O1)');
+console.log('(! = den uændrede fil rørte sektionen; venter forventes kun for E1, K, L, M2 og O1; P1=venter betyder FEJL)');

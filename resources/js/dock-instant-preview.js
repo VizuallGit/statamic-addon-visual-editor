@@ -2130,6 +2130,50 @@
         return scope.css + '\n' + paneText('css');
     }
 
+    /** The section the dock is on, as the page loop hands its partial the row — for the CSS pane's `{{ id }}` and friends. */
+    function cssContext(doc) {
+        var section;
+
+        try {
+            section = pageSection(doc);
+
+            return section ? sectionContext(section.getAttribute('data-sid') || '') : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * The CSS pane as it can go into the live sheet.
+     *
+     * The pane holds Antlers: `#id-{{ id }}`, `{{ responsive_css }}`,
+     * `--grid-cols: {{ cols }}`. Injected raw, a normal declaration with a tag
+     * in it is invalid and the browser drops it. A custom property takes any
+     * tokens, so `--grid-cols: {{ cols }}` was a valid declaration, sat last
+     * in <head>, won over the rendered `--grid-cols: 6` from style_push, and
+     * the media textbox's grid fell to one column the moment the dock opened.
+     *
+     * Fields the row knows are filled in, unescaped (this is CSS, not HTML).
+     * Every declaration still holding a tag goes, custom property or not, so
+     * the value the server rendered keeps standing. What is left of a tag
+     * elsewhere — a selector, a media query, `{{ responsive_css }}` on its
+     * own line — is removed too: a selector that misses matches nothing, a
+     * bare tag would otherwise swallow the next rule as its prelude.
+     */
+    function cssForLive(css, ctx) {
+        var text = String(css || '')
+            .replace(/\{\{#[\s\S]*?#\}\}/g, '')
+            .replace(/\{\{[\s\S]*?\}\}/g, function (tag) {
+                var value = resolveField(tag.slice(2, -2), ctx);
+
+                return value === null ? ANT : String(value);
+            });
+
+        return text
+            .replace(/(^|[;{}\s])([\w-]+)\s*:\s*[^;{}]*\uE000[^;{}]*(;|(?=\}))/g, '$1')
+            .replace(/\uE000/g, '');
+    }
+
     function paint() {
         if (painting || !featureOn('template_dock') || !document.getElementById(DOCK_ID)) {
             return;
@@ -2162,7 +2206,7 @@
 
         if (css !== lastCss) {
             lastCss = css;
-            putStyle(doc, STYLE_CSS_ID, css);
+            putStyle(doc, STYLE_CSS_ID, cssForLive(css, cssContext(doc)));
         }
 
         if (!html || html === lastHtml) {
