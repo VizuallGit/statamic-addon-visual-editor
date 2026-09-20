@@ -22,6 +22,10 @@
  *   - `<script>` is never created, `<style>` belongs to the CSS pane.
  *   If anything in the structure paint throws, the class-only paint runs instead.
  *
+ * The dock's text is read from the editor's state, never from its DOM: CodeMirror
+ * only renders the lines in view, so a long file read off the DOM ends where the
+ * pane's viewport does — and a scroll would then paint that cut.
+ *
  * Astro/Vite updates CSS in place. The dock does the same for classes: the
  * section's classes go through the same Tailwind compiler that writes the
  * baked file, the result is one unlayered <style> last in <head>, and the
@@ -33,10 +37,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 10) {
+    if (window.__sveDockInstantPreview === 11) {
         return;
     }
-    window.__sveDockInstantPreview = 10;
+    window.__sveDockInstantPreview = 11;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -382,16 +386,44 @@
         ensureTwDocs(dock);
     }
 
-    function paneText(handle) {
-        var pane = document.querySelector(
+    function paneContent(handle) {
+        return document.querySelector(
             '#' + DOCK_ID + ' [data-sve-code-pane="' + handle + '"] .cm-content'
         );
+    }
+
+    /**
+     * A pane's EditorView, read off its content node. @codemirror/view keeps
+     * the editor on `cmTile` since 6.38; older builds used `cmView`.
+     */
+    function paneView(handle) {
+        var el = paneContent(handle);
+
+        return el?.cmTile?.view || el?.cmView?.view || el?.cmView?.rootView?.view || null;
+    }
+
+    /**
+     * The whole document, from the editor's state. CodeMirror renders only the
+     * lines in view (plus a margin): read off the DOM, a long file ends where
+     * the viewport does, and the paint would take out whatever lies past it —
+     * on every scroll. The DOM is the fallback for a pane with no view on it.
+     */
+    function paneText(handle) {
+        var view = paneView(handle);
+        var pane;
+        var lines;
+
+        if (view && view.state && view.state.doc) {
+            return view.state.doc.toString();
+        }
+
+        pane = paneContent(handle);
 
         if (!pane) {
             return '';
         }
 
-        var lines = pane.querySelectorAll('.cm-line');
+        lines = pane.querySelectorAll('.cm-line');
 
         if (!lines.length) {
             return pane.textContent || '';
@@ -1022,20 +1054,82 @@
         return next;
     }
 
-    function morphElement(live, tpl) {
-        syncAttrs(live, tpl);
-        morphChildren(live, tpl);
+    /** The tags of an element's kids as a set: a loop renders many from one, so counts are no shape. */
+    function kidTags(el) {
+        var out = {};
+
+        elementKids(el).forEach(function (kid) {
+            out[kid.tagName] = true;
+        });
+
+        return out;
     }
 
-    function morphChildren(live, tpl) {
+    /** Same kids by tag on both sides: a leaf for a leaf, a wrapper for a wrapper. */
+    function sameShape(live, tpl) {
+        var a = kidTags(live);
+        var b = kidTags(tpl);
+        var key;
+
+        for (key in a) {
+            if (!b[key]) {
+                return false;
+            }
+        }
+
+        for (key in b) {
+            if (!a[key]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** The wrapper goes; its children take its place. */
+    function unwrap(el) {
+        while (el.firstChild) {
+            el.before(el.firstChild);
+        }
+
+        el.remove();
+    }
+
+    /** Text nodes with something in them, directly under this element. */
+    function dropDirectText(el) {
+        var i;
+        var node;
+
+        for (i = el.childNodes.length - 1; i >= 0; i--) {
+            node = el.childNodes[i];
+
+            if (node.nodeType === 3 && node.nodeValue.trim() !== '') {
+                el.removeChild(node);
+            }
+        }
+    }
+
+    /**
+     * `parentTags` are the tags the template names one level up. A live child
+     * this level no longer has, but that level does, is lifted up to it rather
+     * than removed — the parent's paint is still running and matches it there.
+     * That is what keeps a loop's output on the page while a `</div>` is typed
+     * mid-way through it. The root of a paint has no parent to hand anything to.
+     */
+    function morphElement(live, tpl, parentTags) {
+        syncAttrs(live, tpl);
+        morphChildren(live, tpl, parentTags || {});
+    }
+
+    function morphChildren(live, tpl, parentTags) {
         var doc = live.ownerDocument;
         var tplKids = elementKids(tpl);
-        var liveKids = elementKids(live);
         var tplTags = {};
         var counts = {};
         var seen = {};
         var consumed = [];
         var dynamicParent = hasMarker(directText(tpl));
+        var lifted;
         var i;
 
         tplKids.forEach(function (kid) {
@@ -1043,9 +1137,18 @@
             counts[kid.tagName] = (counts[kid.tagName] || 0) + 1;
         });
 
+        // Always read fresh: a child's paint may have lifted nodes up to here, a
+        // new wrapper may have taken some, a dropped one given its own back.
         function liveOfTag(tag) {
-            return liveKids.filter(function (kid) {
+            return elementKids(live).filter(function (kid) {
                 return kid.tagName === tag && consumed.indexOf(kid) === -1;
+            });
+        }
+
+        // Live children of a tag the template does not name at this level.
+        function strangers() {
+            return elementKids(live).filter(function (kid) {
+                return consumed.indexOf(kid) === -1 && !tplTags[kid.tagName];
             });
         }
 
@@ -1079,34 +1182,36 @@
 
                 seen[tag] = (seen[tag] || 0) + 1;
 
+                // A wrapper the template dropped: a live child the template no
+                // longer names, holding this tag. Its children take its place.
+                if (!same.length && !dynamicParent) {
+                    candidate = strangers().filter(function (kid) {
+                        return kidTags(kid)[tag];
+                    })[0];
+
+                    if (candidate) {
+                        unwrap(candidate);
+                        same = liveOfTag(tag);
+                    }
+                }
+
                 if (same.length) {
                     // One template child of a tag speaks for every live child of that
-                    // tag: a loop renders many from one.
-                    targets = counts[tag] === 1 ? same : [same[Math.min(seen[tag] - 1, same.length - 1)]];
+                    // tag where a loop can have rendered many from one — a loop always
+                    // leaves its marker in the parent's text. In a parent with none,
+                    // one speaks for one, and a deleted sibling goes below.
+                    targets = counts[tag] === 1 && dynamicParent ? same : [same[Math.min(seen[tag] - 1, same.length - 1)]];
                     targets.forEach(function (target) {
                         consumed.push(target);
-                        morphElement(target, tplEl);
+                        morphElement(target, tplEl, tplTags);
                     });
 
                     return;
                 }
 
-                // Renamed tag: the live child at this position has a tag the template
-                // no longer mentions at all.
-                candidate = liveKids.filter(function (kid) {
-                    return consumed.indexOf(kid) === -1 && !tplTags[kid.tagName];
-                })[0];
-                idx = candidate ? liveKids.indexOf(candidate) : -1;
-
-                if (candidate && idx >= 0 && Math.abs(idx - index) <= 1 && !SKIP_TAGS[candidate.tagName]) {
-                    liveKids[idx] = renameTag(candidate, tag);
-                    consumed.push(liveKids[idx]);
-                    morphElement(liveKids[idx], tplEl);
-
-                    return;
-                }
-
-                // New wrapper: its children are already on the page, unwrapped.
+                // New wrapper: its children are already on the page, unwrapped. Before
+                // the rename below — a tag around the first child is a wrapper, not
+                // that child under a new name.
                 inner = elementKids(tplEl);
 
                 if (inner.length) {
@@ -1148,10 +1253,26 @@
                             wrapper.appendChild(node);
                         });
                         consumed.push(wrapper);
-                        morphElement(wrapper, tplEl);
+                        morphElement(wrapper, tplEl, tplTags);
 
                         return;
                     }
+                }
+
+                // Renamed tag: an unmatched live child next to this position with the
+                // same children — a leaf for a leaf, a wrapper for a wrapper. Anything
+                // else is new markup, and what is on the page keeps its tag.
+                candidate = strangers().filter(function (kid) {
+                    return sameShape(kid, tplEl);
+                })[0];
+                idx = candidate ? elementKids(live).indexOf(candidate) : -1;
+
+                if (candidate && Math.abs(idx - index) <= 1) {
+                    candidate = renameTag(candidate, tag);
+                    consumed.push(candidate);
+                    morphElement(candidate, tplEl, tplTags);
+
+                    return;
                 }
 
                 // New static markup: created as written. Anything the server has to
@@ -1174,35 +1295,44 @@
         }
 
         // Live children the template no longer has — only where nothing dynamic
-        // could have put them there. A dropped wrapper gives its children back.
+        // could have put them there. One the parent's template still names goes
+        // up to the parent; a dropped wrapper gives its children back; the rest go.
         if (!dynamicParent) {
-            liveKids.forEach(function (kid) {
-                var keeps;
-
-                if (consumed.indexOf(kid) !== -1 || !kid.isConnected || SKIP_TAGS[kid.tagName]) {
+            lifted = live;
+            elementKids(live).forEach(function (kid) {
+                if (consumed.indexOf(kid) !== -1) {
                     return;
                 }
 
-                keeps = elementKids(kid).some(function (grand) {
-                    return tplTags[grand.tagName];
-                });
+                if (parentTags[kid.tagName]) {
+                    lifted.after(kid);
+                    lifted = kid;
 
-                if (keeps) {
-                    while (kid.firstChild) {
-                        kid.before(kid.firstChild);
-                    }
+                    return;
+                }
+
+                if (elementKids(kid).some(function (grand) { return tplTags[grand.tagName]; })) {
+                    unwrap(kid);
+
+                    return;
                 }
 
                 kid.remove();
             });
         }
 
-        // Leaf text: written when the template's is fully resolved.
-        if (!dynamicParent && !tplKids.length && !elementKids(live).length) {
-            var text = directText(tpl);
+        // Leaf text: written when the template's is fully resolved. Between
+        // children, text the template does not have goes — an abbreviation
+        // painted a keystroke ago, before it expanded into the tag it named.
+        if (!dynamicParent) {
+            if (!tplKids.length && !elementKids(live).length) {
+                var text = directText(tpl);
 
-            if (text.trim() !== '' && live.textContent !== text) {
-                live.textContent = text;
+                if (text.trim() !== '' && live.textContent !== text) {
+                    live.textContent = text;
+                }
+            } else if (tplKids.length && directText(tpl).trim() === '') {
+                dropDirectText(live);
             }
         }
     }
@@ -1313,6 +1443,8 @@
     var twState = null;
     var twStateWait = null;
     var twBuild = null;
+    var twLastKey = '';
+    var twLastCss = '';
 
     function setLiveTw(doc, css) {
         if (!doc?.head) {
@@ -1360,7 +1492,17 @@
         }
 
         var started = performance.now();
+        var key = classNames(html).join(' ');
         var css;
+
+        // Only the classes reach the compiler. A keystroke in text keeps the
+        // sheet and just puts it back last in <head>, where a morph may have
+        // pushed a newer sve_tw <style> after it.
+        if (key === twLastKey) {
+            setLiveTw(doc, twLastCss);
+
+            return;
+        }
 
         try {
             css = twBuild(twState, String(html || ''));
@@ -1369,6 +1511,8 @@
             return;
         }
 
+        twLastKey = key;
+        twLastCss = css;
         setLiveTw(doc, css);
         trace('tw: built live sheet (' + css.length + ' B) in ' + (performance.now() - started).toFixed(1) + ' ms');
     }
@@ -1528,16 +1672,8 @@
         return lastFullHtml;
     }
 
-    /**
-     * The HTML pane's EditorView, read off its content node. @codemirror/view
-     * keeps the editor on `cmTile` since 6.38; older builds used `cmView`.
-     */
     function htmlCmView() {
-        var el = document.querySelector(
-            '#' + DOCK_ID + ' [data-sve-code-pane="html"] .cm-content'
-        );
-
-        return el?.cmTile?.view || el?.cmView?.view || el?.cmView?.rootView?.view || null;
+        return paneView('html');
     }
 
     function twPaneTag() {
@@ -1726,6 +1862,24 @@
         }
     }
 
+    var lastPath = '';
+
+    /** The dock moved to another file: nothing remembered about the last one holds. */
+    function forgetOtherFile() {
+        var el = document.querySelector('#' + DOCK_ID + ' [data-sve-code-path]');
+        var path = el ? (el.textContent || '').trim() : '';
+
+        if (path === lastPath) {
+            return;
+        }
+
+        lastPath = path;
+        lastHtml = null;
+        lastSid = '';
+        lastFullHtml = '';
+        lastSnippet = '';
+    }
+
     function paint() {
         if (painting || !featureOn('template_dock') || !document.getElementById(DOCK_ID)) {
             return;
@@ -1735,8 +1889,12 @@
             return;
         }
 
+        forgetOtherFile();
+
         var pane = paneText('html');
-        var html = isFileRoot(pane) || htmlScoped() ? fullHtml() : pane;
+        // A scoped pane that has never shown the file's root has no whole file
+        // to give: the snippet is painted on its own rather than not at all.
+        var html = isFileRoot(pane) || htmlScoped() ? fullHtml() || pane : pane;
         var css = htmlScoped() ? lastCss : paneText('css');
         var doc = previewDocument();
 
