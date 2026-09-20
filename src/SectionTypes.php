@@ -34,6 +34,7 @@ class SectionTypes
         // Deleting a type edits the fieldset in the repository, so it is the
         // developer permission that decides — not the one for editing pages.
         $canDelete = (bool) User::current()?->can('configure fields');
+        $isSuper = (bool) User::current()?->isSuper();
 
         $types = [];
 
@@ -45,13 +46,25 @@ class SectionTypes
             $groupDisplay = $group['display'] ?? (string) $groupKey;
 
             foreach ($group['sets'] as $setHandle => $set) {
-                if (($set['hide'] ?? false) === true || in_array($setHandle, $exclude, true)) {
+                if (in_array($setHandle, $exclude, true)) {
                     continue;
                 }
 
-                // Empty Statamic placeholders (`New Set` with no fields) are not
-                // insertable section types — they would otherwise get their own card.
-                if (empty($set['fields'] ?? [])) {
+                // Kept out of the picker (`hide`): an editor never sees it. A
+                // super admin does, marked, so it can still be placed by hand
+                // and let back in.
+                $hidden = ($set['hide'] ?? false) === true;
+
+                if ($hidden && ! $isSuper) {
+                    continue;
+                }
+
+                // A static section has no fields on purpose. Empty Statamic
+                // placeholders (`New Set` with no fields) are not insertable
+                // section types — they would otherwise get their own card.
+                $static = ($set['static'] ?? false) === true;
+
+                if (! $static && empty($set['fields'] ?? [])) {
                     continue;
                 }
 
@@ -75,6 +88,10 @@ class SectionTypes
                     'image_url' => $images[$setHandle] ?? null,
                     'defaults' => static::defaults($handle, $setHandle),
                     'can_delete' => $canDelete,
+                    // Markup only, nothing for an editor to fill in.
+                    'static' => $static,
+                    // Out of the picker; only a super admin is told.
+                    'hidden' => $hidden,
                 ];
             }
         }

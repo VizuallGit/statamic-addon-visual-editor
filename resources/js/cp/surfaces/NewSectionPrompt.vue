@@ -10,6 +10,10 @@ const props = defineProps({
   // [{ key, display }] in the order the page-builder fieldset lists them, so
   // the picker reads the way the section library does.
   groups: { type: Array, required: true },
+  // A yes/no under the name, when the dialog has one to ask: shown with its
+  // label, on to start with. Handed to onOk as the third argument.
+  toggleLabel: { type: String, default: '' },
+  toggleOn: { type: Boolean, default: true },
   cancelLabel: { type: String, required: true },
   saveLabel: { type: String, required: true },
   onOk: { type: Function, required: true },
@@ -18,6 +22,7 @@ const props = defineProps({
 
 const name = ref('');
 const group = ref(props.groups[0]?.key ?? '');
+const toggle = ref(props.toggleOn);
 const input = ref(null);
 const busy = ref(false);
 
@@ -38,7 +43,7 @@ function submit() {
   // second section with the same name.
   busy.value = true;
 
-  props.onOk(value, group.value);
+  props.onOk(value, group.value, toggle.value);
 }
 
 function onOverlay(event) {
@@ -77,6 +82,11 @@ function onKey(event) {
         :placeholder="placeholder"
         @keydown="onKey"
       >
+
+      <label v-if="toggleLabel" class="sve-dialog__toggle">
+        <input v-model="toggle" type="checkbox" @keydown="onKey">
+        <span>{{ toggleLabel }}</span>
+      </label>
 
       <p v-if="note" class="sve-dialog__note">{{ note }}</p>
 
@@ -142,6 +152,20 @@ select {
   background-repeat: no-repeat;
   background-position: right 0.85em center;
   background-size: 0.85em;
+}
+.sve-dialog__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  margin: -0.2em 0 1em;
+  font-weight: 400;
+  cursor: pointer;
+}
+.sve-dialog__toggle input {
+  margin: 0;
+  width: 1em;
+  height: 1em;
+  accent-color: var(--theme-color-primary, #4f46e5);
 }
 .sve-dialog__note {
   margin: 0 0 1.1em;

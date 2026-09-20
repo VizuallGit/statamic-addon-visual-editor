@@ -22,6 +22,14 @@ use Statamic\Facades\YAML;
  * appears in the picker and the work looks lost. Here the handle is derived
  * once and everything is written from it, or nothing is.
  *
+ * A *static* section is the same set with one file fewer: markup and a
+ * registration, no fieldset. It is a row on the page like any other — placed,
+ * dragged, deleted, saved to the library — with nothing for an editor to fill
+ * in. It lives in a group of its own (`static_sections`), made the first time
+ * one is. Fields can be added later (`addFields`): the fieldset is written
+ * then, and the set imports it — the handle, the rows on every page and the
+ * markup stay as they were.
+ *
  * Like deleting, this edits YAML that lives in the repository, so it is gated
  * on `configure fields` at the controller — the same permission Statamic puts
  * on the Fieldsets screen. An editor never sees the button.
@@ -32,6 +40,9 @@ use Statamic\Facades\YAML;
 class SectionTypeMaker
 {
     public const VIEW_FOLDER = Names::VIEW_FOLDER;
+
+    /** The group static sections are registered in; made when the first one is. */
+    public const STATIC_GROUP = 'static_sections';
 
     /**
      * The markup a new section starts as.
@@ -55,18 +66,45 @@ class SectionTypeMaker
     }
 
     /**
-     * Writes the three files. Returns the new set handle, or null if any part
-     * of it could not be written.
+     * The markup a static section starts as: the same root every section has,
+     * unlocked from the first line — a file made to be written in, with no
+     * fields to open instead.
+     */
+    public static function staticScaffold(): string
+    {
+        return <<<'ANTLERS'
+        {{# sve-unlocked #}}
+        <section id="id-{{ id }}" class="[ {{ _class }} ]" data-auto-contrast {{ visual_edit outline_inside="true" section_orderable="true" }}>
+
+        </section>
+
+        ANTLERS;
+    }
+
+    /**
+     * Writes the files. Returns the new set, or null if any part of it could
+     * not be written.
      *
      * Order matters. The fieldset and the partial come first because they are
      * new files that harm nothing if the run stops halfway — the section simply
      * is not registered and nobody sees it. Registration is last because it is
      * the one step that edits a file the whole site already depends on.
      *
-     * @return array{handle: string, display: string, group: string, view: string, fieldset: string}|null
+     * Static: no fieldset, `static: true` on the set, and its group is made
+     * if it is not there yet. `hidden` writes Statamic's own `hide` — the set
+     * is kept out of the picker, so an editor cannot insert it; a super admin
+     * still can, from the library.
+     *
+     * @return array{handle: string, display: string, group: string, view: string, fieldset: ?string, static: bool, hidden: bool}|null
      */
-    public static function create(string $fieldsetHandle, string $group, string $display, ?string $icon = null): ?array
-    {
+    public static function create(
+        string $fieldsetHandle,
+        string $group,
+        string $display,
+        ?string $icon = null,
+        bool $static = false,
+        bool $hidden = false
+    ): ?array {
         $contents = static::readFieldset($fieldsetHandle);
 
         if ($contents === null) {
@@ -82,7 +120,14 @@ class SectionTypeMaker
         $groups = $contents['fields'][$index]['field']['sets'] ?? [];
 
         if (! isset($groups[$group])) {
-            return null;
+            if (! $static) {
+                return null;
+            }
+
+            $groups[$group] = [
+                'display' => __('sve::messages.static_sections_group'),
+                'sets' => [],
+            ];
         }
 
         $slug = Names::slug($display);
@@ -98,16 +143,13 @@ class SectionTypeMaker
         $handle = $viewFolder.'/'.$name;
         $imported = $fieldsetFolder.'.'.$name;
 
-        // The fields the set imports. Empty to start with: the fieldset screen
-        // — or the panel — is where fields get added, and a set importing a
-        // fieldset that does not exist yet is a broken set.
-        Fieldset::make($imported)->setContents([
-            'title' => $display,
-            'fields' => [],
-        ])->save();
-
-        if (! is_file(Names::fieldsetPath($fieldsetFolder, $name))) {
-            return null;
+        if (! $static) {
+            // The fields the set imports. Empty to start with: the fieldset
+            // screen — or the panel — is where fields get added, and a set
+            // importing a fieldset that does not exist yet is a broken set.
+            if (! static::writeFieldset($imported, $fieldsetFolder, $name, $display)) {
+                return null;
+            }
         }
 
         $view = Names::viewPath($viewFolder, $name);
@@ -117,7 +159,7 @@ class SectionTypeMaker
             return null;
         }
 
-        if (file_put_contents($view, static::scaffold()) === false) {
+        if (file_put_contents($view, $static ? static::staticScaffold() : static::scaffold()) === false) {
             return null;
         }
 
@@ -129,9 +171,20 @@ class SectionTypeMaker
             $set['icon'] = $icon;
         }
 
-        $set['fields'] = [['import' => $imported]];
+        if ($static) {
+            $set['static'] = true;
 
-        $contents['fields'][$index]['field']['sets'][$group]['sets'][$handle] = $set;
+            if ($hidden) {
+                $set['hide'] = true;
+            }
+
+            $set['fields'] = [];
+        } else {
+            $set['fields'] = [['import' => $imported]];
+        }
+
+        $groups[$group]['sets'][$handle] = $set;
+        $contents['fields'][$index]['field']['sets'] = $groups;
 
         Fieldset::make($fieldsetHandle)->setContents($contents)->save();
 
@@ -144,7 +197,162 @@ class SectionTypeMaker
             'display' => $display,
             'group' => $group,
             'view' => Names::VIEW_FOLDER.'/'.$viewFolder.'/'.$name,
-            'fieldset' => $imported,
+            'fieldset' => $static ? null : $imported,
+            'static' => $static,
+            'hidden' => $static && $hidden,
+        ];
+    }
+
+    /**
+     * Keeps a set out of the picker, or lets it back in — Statamic's own
+     * `hide`, so the native picker and the library agree. Returns the set as
+     * it is now, or null when there is no such set.
+     *
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
+     */
+    public static function setHidden(string $fieldsetHandle, string $handle, bool $hidden): ?array
+    {
+        return static::editSet($fieldsetHandle, $handle, function (array $set) use ($hidden) {
+            if ($hidden) {
+                $set['hide'] = true;
+            } else {
+                unset($set['hide']);
+            }
+
+            return $set;
+        }, 'section type '.($hidden ? 'hidden ' : 'shown ').$handle);
+    }
+
+    /**
+     * Gives a static section fields: a fieldset of its own, imported by the
+     * set from now on. Nothing else moves — the handle, the markup and every
+     * row already on a page stay as they are, which is the whole point of a
+     * static section being an ordinary set.
+     *
+     * A set that already has fields is returned as it is. A fieldset file
+     * already on disk under that name is imported, not written over: it is
+     * somebody's fields.
+     *
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
+     */
+    public static function addFields(string $fieldsetHandle, string $handle): ?array
+    {
+        $contents = static::readFieldset($fieldsetHandle);
+        $index = $contents === null ? null : static::fieldIndex($contents, $fieldsetHandle);
+
+        if ($index === null) {
+            return null;
+        }
+
+        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
+        $group = static::groupOf($groups, $handle);
+
+        if ($group === null) {
+            return null;
+        }
+
+        $set = $groups[$group]['sets'][$handle];
+
+        if (! empty($set['fields'] ?? [])) {
+            return static::describe($handle, $group, $set);
+        }
+
+        $name = basename($handle);
+        $fieldsetFolder = str_contains($handle, '/')
+            ? Names::fieldsetFolderForGroup($groups, $group)
+            : $group;
+        $imported = $fieldsetFolder.'.'.$name;
+
+        if (! is_file(Names::fieldsetPath($fieldsetFolder, $name))
+            && ! static::writeFieldset($imported, $fieldsetFolder, $name, (string) ($set['display'] ?? $name))) {
+            return null;
+        }
+
+        return static::editSet($fieldsetHandle, $handle, function (array $set) use ($imported) {
+            unset($set['static']);
+            $set['fields'] = [['import' => $imported]];
+
+            return $set;
+        }, 'section type fields '.$handle);
+    }
+
+    /** Writes an empty fieldset and checks it landed. */
+    protected static function writeFieldset(string $imported, string $folder, string $name, string $display): bool
+    {
+        Fieldset::make($imported)->setContents([
+            'title' => $display,
+            'fields' => [],
+        ])->save();
+
+        return is_file(Names::fieldsetPath($folder, $name));
+    }
+
+    /**
+     * One set in the page-builder fieldset, rewritten by `$edit` and saved.
+     *
+     * @param  callable(array): array  $edit
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
+     */
+    protected static function editSet(string $fieldsetHandle, string $handle, callable $edit, string $commit): ?array
+    {
+        $contents = static::readFieldset($fieldsetHandle);
+        $index = $contents === null ? null : static::fieldIndex($contents, $fieldsetHandle);
+
+        if ($index === null) {
+            return null;
+        }
+
+        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
+        $group = static::groupOf($groups, $handle);
+
+        if ($group === null) {
+            return null;
+        }
+
+        $set = $edit($groups[$group]['sets'][$handle]);
+        $contents['fields'][$index]['field']['sets'][$group]['sets'][$handle] = $set;
+
+        Fieldset::make($fieldsetHandle)->setContents($contents)->save();
+        SetPreviewImages::flush();
+        GitSync::after($commit);
+
+        return static::describe($handle, $group, $set);
+    }
+
+    /** The group a set handle sits in, or null. Every group is checked: which one is the site's business. */
+    protected static function groupOf(array $groups, string $handle): ?string
+    {
+        foreach ($groups as $key => $group) {
+            if (isset($group['sets'][$handle]) && is_array($group['sets'][$handle])) {
+                return (string) $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}
+     */
+    protected static function describe(string $handle, string $group, array $set): array
+    {
+        $fieldset = null;
+
+        foreach (($set['fields'] ?? []) as $field) {
+            if (is_array($field) && is_string($field['import'] ?? null) && $field['import'] !== '') {
+                $fieldset = $field['import'];
+
+                break;
+            }
+        }
+
+        return [
+            'handle' => $handle,
+            'display' => (string) ($set['display'] ?? $handle),
+            'group' => $group,
+            'fieldset' => $fieldset,
+            'static' => ($set['static'] ?? false) === true,
+            'hidden' => ($set['hide'] ?? false) === true,
         ];
     }
 

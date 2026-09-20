@@ -30,11 +30,13 @@ import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { csrfToken } from './lib/csrf.js';
 import { previewDocument } from './lib/preview-frame.js';
-import { currentEntryId } from './lib/live-preview.js';
 import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 const API = '/!/sve/section-types';
+
+/** Where the server registers static sections — `SectionTypeMaker::STATIC_GROUP`. */
+export const STATIC_GROUP = 'static_sections';
 
 /**
  * The groups a section can be made in, in the order the page-builder fieldset
@@ -59,7 +61,9 @@ export async function fetchGroups(win) {
   const seen = new Map();
 
   for (const type of data.types || []) {
-    if (type?.group && !seen.has(type.group)) {
+    // The static group is the server's own: a section with fields does not
+    // belong in it, so it is not offered.
+    if (type?.group && type.group !== STATIC_GROUP && !seen.has(type.group)) {
       seen.set(type.group, type.group_display || type.group);
     }
   }
@@ -67,16 +71,59 @@ export async function fetchGroups(win) {
   return [...seen].map(([key, display]) => ({ key, display }));
 }
 
-export async function createSection(win, { display, group }) {
+/**
+ * What this session has learned about a set since the page loaded: made
+ * static, hidden from editors, given fields. The maps handed to the page at
+ * load (`sveSetMeta`, `sveSectionTypes`) are snapshots; a set made or changed
+ * a minute ago is not in them, and the tree would otherwise offer a fields
+ * icon on a section that has none.
+ */
+const typeFlags = new Map();
+
+function remember(section) {
+  if (section?.handle) {
+    typeFlags.set(section.handle, { static: !!section.static, hidden: !!section.hidden });
+  }
+}
+
+/** Markup only — no fieldset to open. */
+export function isStaticType(win, handle) {
+  if (!handle) {
+    return false;
+  }
+
+  if (typeFlags.has(handle)) {
+    return typeFlags.get(handle).static;
+  }
+
+  return win.Statamic?.$config?.get?.('sveSetMeta')?.[handle]?.static === true;
+}
+
+/** Kept out of the picker: editors cannot insert it. */
+export function isHiddenType(win, handle) {
+  if (!handle) {
+    return false;
+  }
+
+  if (typeFlags.has(handle)) {
+    return typeFlags.get(handle).hidden;
+  }
+
+  const types = win.Statamic?.$config?.get?.('sveSectionTypes');
+
+  return Array.isArray(types) && types.some((type) => type?.handle === handle && type.hidden === true);
+}
+
+async function send(win, method, body) {
   const res = await win.fetch(API, {
-    method: 'POST',
+    method,
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-TOKEN': csrfToken(win),
       Accept: 'application/json',
     },
     credentials: 'same-origin',
-    body: JSON.stringify({ display, group }),
+    body: JSON.stringify(body),
   });
 
   const data = await res.json().catch(() => ({}));
@@ -87,7 +134,32 @@ export async function createSection(win, { display, group }) {
     throw err;
   }
 
+  remember(data.section);
+
   return data;
+}
+
+/**
+ * `static`: a set with markup and no fieldset, in the static group the server
+ * keeps. `hidden`: kept out of the picker — an editor cannot insert it.
+ */
+export function createSection(win, { display, group = '', static: isStatic = false, hidden = false }) {
+  return send(win, 'POST', { display, group, static: isStatic, hidden });
+}
+
+/**
+ * One set changed in place: `hidden` in or out of the picker, `fields` gives
+ * a static section the fieldset it was made without. The handle, the rows on
+ * every page and the markup stay as they are.
+ */
+export function updateSectionType(win, { handle, hidden, fields = false }) {
+  const body = { handle, fields };
+
+  if (typeof hidden === 'boolean') {
+    body.hidden = hidden;
+  }
+
+  return send(win, 'PATCH', body);
 }
 
 /**
@@ -261,90 +333,66 @@ export function insertTemplateSection(win) {
 }
 
 /**
- * Which view renders the open page, as a dock type — `view:default` for a
- * page built from sections. Asked of the server once per entry: the entry
- * decides which view renders it, and nothing on the page says so.
+ * Makes the section and puts it on the page — the part the two dialogs share.
  *
- * `pageTemplateTypeNow` is the answer as far as it has arrived: '' until the
- * server has spoken, and whoever paints from it asks again when it has.
+ * The section lands at the end of the list the plus sits under, then the
+ * caller steps into it: it knows the tree it is drawn in; this only knows the
+ * row it wrote. Nowhere to put it (no page-builder field in reach) — then the
+ * template is still the thing worth opening, as it always was.
  */
-const pageTemplate = { id: '', type: '', promise: null };
+async function makeSection(win, overlay, payload, { afterUid, onDone, onError }) {
+  try {
+    const data = await createSection(win, payload);
 
-export function pageTemplateType(win) {
-  const id = currentEntryId(win);
+    overlay.dismiss();
 
-  if (!id) {
-    return Promise.resolve('');
+    win.Statamic?.$toast?.success(
+      t(win, 'section_created', { name: data.section?.display || payload.display })
+    );
+
+    // An open Patterns panel is holding the list from before this section
+    // existed. Same event a saved section fires: it drops its lists and asks
+    // again, so the new card appears where the author is already looking
+    // instead of after the next reopen.
+    libraryStale(win);
+
+    const row = await placeNewSection(win, data.section?.handle, afterUid);
+
+    if (!row && data.section?.handle) {
+      ask('dock:open-template', data.section.handle);
+    }
+
+    onDone?.({ ...data, uid: row?._visual_id || '' });
+  } catch (err) {
+    overlay.dismiss();
+
+    win.Statamic?.$toast?.error(
+      t(win, err.reason === 'bad_name' ? 'section_new_bad_name' : 'section_new_failed')
+    );
+
+    onError?.(err);
   }
-
-  if (pageTemplate.id === id && pageTemplate.promise) {
-    return pageTemplate.promise;
-  }
-
-  pageTemplate.id = id;
-  pageTemplate.type = '';
-  pageTemplate.promise = win
-    .fetch(`/!/sve/entry-blueprint?id=${encodeURIComponent(id)}`, {
-      headers: { Accept: 'application/json' },
-      credentials: 'same-origin',
-    })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
-      const template = String(data?.template || '').replace(/^\/+|\/+$/g, '');
-
-      pageTemplate.type = template ? `view:${template}` : '';
-
-      return pageTemplate.type;
-    })
-    .catch(() => '');
-
-  return pageTemplate.promise;
-}
-
-export function pageTemplateTypeNow(win) {
-  return pageTemplate.id === currentEntryId(win) ? pageTemplate.type : '';
-}
-
-/**
- * A static section made: a partial of its own under `partials/static`, and a
- * call to it at the end of the page's template. Not a set — the tree lists
- * the call as a section, and the dock opens the file alone.
- */
-export async function createStaticSection(win, { display }) {
-  const type = await pageTemplateType(win);
-  const template = type.startsWith('view:') ? type.slice(5) : '';
-
-  if (!template) {
-    throw new Error('no page template');
-  }
-
-  const res = await win.fetch('/!/sve/static-sections', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-TOKEN': csrfToken(win),
-      Accept: 'application/json',
-    },
-    credentials: 'same-origin',
-    body: JSON.stringify({ display, template }),
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const err = new Error(data.error || `static-sections ${res.status}`);
-    err.reason = data.error;
-    throw err;
-  }
-
-  return data;
 }
 
 /**
- * The name is the one thing a static section needs from the author: it is
- * the file, and the row in the tree. No group — it is in no library.
+ * Tells an open Patterns panel its list is out of date.
+ *
+ * Dispatched by hand rather than through `libraryWentStale`: that lives in
+ * section-library.js, and importing it here would pull the whole library —
+ * four thousand lines of panel — into the HTML tree's chunk, which is loaded
+ * on every section.
  */
-export function openStaticSectionDialog(win, { onDone, onError, onClose } = {}) {
+export function libraryStale(win) {
+  win.document
+    .getElementById('__sve-section-picker')
+    ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
+}
+
+/**
+ * A static section: the name, and whether editors may insert it. No group —
+ * the server keeps them together in one.
+ */
+export function openStaticSectionDialog(win, { afterUid = null, onDone, onError, onClose } = {}) {
   const overlay = openCpOverlay(win.document, NewSectionPrompt, {
     heading: t(win, 'static_section_new'),
     groupLabel: '',
@@ -352,23 +400,12 @@ export function openStaticSectionDialog(win, { onDone, onError, onClose } = {}) 
     placeholder: t(win, 'section_new_placeholder'),
     note: t(win, 'static_section_note'),
     groups: [],
+    toggleLabel: t(win, 'static_section_insertable'),
     cancelLabel: t(win, 'cancel'),
     saveLabel: t(win, 'section_new_create'),
     onClose,
-    onOk: (display) => {
-      void (async () => {
-        try {
-          const data = await createStaticSection(win, { display });
-
-          overlay.dismiss();
-          win.Statamic?.$toast?.success(t(win, 'section_created', { name: data.section?.display || display }));
-          onDone?.(data.section || {});
-        } catch (err) {
-          overlay.dismiss();
-          win.Statamic?.$toast?.error(t(win, err.reason === 'bad_name' ? 'section_new_bad_name' : 'section_new_failed'));
-          onError?.(err);
-        }
-      })();
+    onOk: (display, group, insertable) => {
+      void makeSection(win, overlay, { display, static: true, hidden: !insertable }, { afterUid, onDone, onError });
     },
   });
 }
@@ -407,51 +444,7 @@ export function openNewSectionDialog(win, { afterUid = null, onDone, onError, on
       // onClose fires, so this has to be the third.
       onClose,
       onOk: (display, group) => {
-        void (async () => {
-          try {
-            const data = await createSection(win, { display, group });
-
-            overlay.dismiss();
-
-            win.Statamic?.$toast?.success(
-              t(win, 'section_created', { name: data.section?.display || display })
-            );
-
-            // An open Patterns panel is holding the list from before this
-            // section existed. Same event a saved section fires: it drops its
-            // lists and asks again, so the new card appears where the author is
-            // already looking instead of after the next reopen.
-            //
-            // Dispatched by hand rather than through `libraryWentStale`: that
-            // lives in section-library.js, and importing it here would pull the
-            // whole library — four thousand lines of panel — into the HTML
-            // tree's chunk, which is loaded on every section.
-            win.document
-              .getElementById('__sve-section-picker')
-              ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
-
-            // Onto the page, at the end of the list the plus sits under. The
-            // caller steps into it from there — it knows the tree it is drawn
-            // in; this only knows the row it wrote.
-            const row = await placeNewSection(win, data.section?.handle, afterUid);
-
-            // Nowhere to put it (no page-builder field in reach) — then the
-            // template is still the thing worth opening, as it always was.
-            if (!row && data.section?.handle) {
-              ask('dock:open-template', data.section.handle);
-            }
-
-            onDone?.({ ...data, uid: row?._visual_id || '' });
-          } catch (err) {
-            overlay.dismiss();
-
-            win.Statamic?.$toast?.error(
-              t(win, err.reason === 'bad_name' ? 'section_new_bad_name' : 'section_new_failed')
-            );
-
-            onError?.(err);
-          }
-        })();
+        void makeSection(win, overlay, { display, group }, { afterUid, onDone, onError });
       },
     });
   })();

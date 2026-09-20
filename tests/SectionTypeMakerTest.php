@@ -143,4 +143,18 @@ class SectionTypeMakerTest extends TestCase
         $this->assertStringContainsString('{{ _class }}', $html);
         $this->assertStringContainsString('visual_edit', $html);
     }
+
+    public function test_the_static_scaffold_is_a_section_with_nothing_to_fill_in(): void
+    {
+        $html = SectionTypeMaker::staticScaffold();
+
+        // The same root every section has — outlined, scoped and draggable in
+        // Live Preview — and unlocked from the first line: markup is all it
+        // will ever hold, and the dock is where it is written.
+        $this->assertStringStartsWith('{{# sve-unlocked #}}', $html);
+        $this->assertStringContainsString('id="id-{{ id }}"', $html);
+        $this->assertStringContainsString('{{ _class }}', $html);
+        $this->assertStringContainsString('visual_edit', $html);
+        $this->assertStringContainsString('section_orderable="true"', $html);
+    }
 }

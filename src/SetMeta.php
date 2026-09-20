@@ -69,7 +69,7 @@ class SetMeta
     /**
      * Every set the page builder can reach, by handle.
      *
-     * @return array<string, array{display: string, icon: ?string, instructions: ?string}>
+     * @return array<string, array{display: string, icon: ?string, instructions: ?string, static: bool}>
      */
     public static function map(): array
     {
@@ -155,12 +155,14 @@ class SetMeta
      */
     protected static function record(array &$map, string $handle, array $set): void
     {
-        $current = $map[$handle] ?? ['display' => null, 'icon' => null, 'instructions' => null];
+        $current = $map[$handle] ?? ['display' => null, 'icon' => null, 'instructions' => null, 'static' => false];
 
         $map[$handle] = [
             'display' => $current['display'] ?: ($set['display'] ?? null) ?: Str::title(Str::deslugify(basename($handle))),
             'icon' => static::preferIcon($current['icon'], static::icon($set['icon'] ?? null)),
             'instructions' => $current['instructions'] ?: ($set['instructions'] ?? null),
+            // Markup only: no fieldset to open, no fields icon in the tree.
+            'static' => ($current['static'] ?? false) || ($set['static'] ?? false) === true,
         ];
     }
 

@@ -4,7 +4,8 @@
  * Reads the template dock's HTML pane. Does not import overlay / preview / bridge.
  */
 import { t } from './lib/i18n.js';
-import { pageTemplateType, pageTemplateTypeNow } from './section-create.js';
+import { canCreateSections, isHiddenType, isStaticType, libraryStale, updateSectionType } from './section-create.js';
+import { openFieldsetOverlay } from './section-fields.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
 import { ask, on, register } from './cp/bus.js';
@@ -803,6 +804,8 @@ function htmlTreeSections(win, doc) {
         svg: htmlTreeIcon(tag, '', null).svg || HTML_ICONS.section,
         cat: tagFamily(tag),
         enabled: row.enabled !== false,
+        // Markup only: no fieldset, so no fields icon on its root.
+        static: isStaticType(win, type),
       });
     });
 
@@ -1001,61 +1004,6 @@ function fetchTemplatesForContext(win, types) {
   runSectionTemplatePrefetch(win);
 }
 
-/**
- * The static sections of a page template: its root tags on either side of
- * the loop that renders the page's sections. The loop itself is left out —
- * the sections are listed as themselves.
- *
- * `own` when the nodes come from the file the dock holds, so the rows keep
- * their ids and the offsets every edit is built from. Otherwise a fetched
- * copy: cloned under ids and paths of their own (`tpl:`, `tpl/`), so they
- * cannot be mistaken for the open file's rows.
- */
-const STATIC_FOLDER = 'partials/static/';
-
-/**
- * The static sections a page template calls, as entries for the sections
- * list: `{{ partial src="partials/static/…" }}` outside the loop, each a
- * section of its own — a file the dock opens alone — with no fields, no
- * card in the library and no row on the page. Split by their side of the
- * loop, so they stand in the list where they stand on the page.
- *
- * @returns {{ above: object[], below: object[] }}
- */
-function pageStaticSections(roots, field) {
-  // A field loop is named by its tag; only a collection loop carries a handle.
-  const at = roots.findIndex((node) => node.kind === 'antlers' && (node.tag === field || node.handle === field));
-  const entry = (node) => {
-    const src = String(node.src || '');
-
-    if (node.kind !== 'component' || !src.startsWith(STATIC_FOLDER)) {
-      return null;
-    }
-
-    // The identity the call hands the partial (`id="static-<name>"`), which
-    // `visual_edit` writes on its root — so the preview can be asked for it
-    // the way it is asked for any section.
-    const uid = `static-${src.slice(STATIC_FOLDER.length)}`;
-
-    return {
-      uid,
-      ids: [uid],
-      type: `view:${src}`,
-      tag: 'section',
-      label: humanizeHandle(src.slice(STATIC_FOLDER.length)),
-      svg: htmlTreeIcon('section', '', null).svg || HTML_ICONS.section,
-      cat: tagFamily('section'),
-      enabled: true,
-      static: true,
-    };
-  };
-  const entries = (nodes) => nodes.map(entry).filter(Boolean);
-
-  return at === -1
-    ? { above: [], below: entries(roots) }
-    : { above: entries(roots.slice(0, at)), below: entries(roots.slice(at + 1)) };
-}
-
 function htmlTreeRootName(win, sections, openUid) {
   const component = ask('dock:component-exit-state');
 
@@ -1126,17 +1074,6 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
     renderHtmlTree(win);
   }, 4000);
   renderHtmlTree(win);
-
-  // A static section is a file and nothing on the page: no row to mount, no
-  // set to focus — the dock opens the file, and the tree steps into it when
-  // the file lands.
-  if (section.static) {
-    ask('dock:open-template', section.type);
-    sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: section.ids }, win);
-    win.setTimeout(() => renderHtmlTree(win), 0);
-
-    return;
-  }
 
   // Mount the section, then focus it — in that order, and with the wait in
   // between.
@@ -1251,64 +1188,7 @@ export function renderHtmlTree(win) {
   const component = ask('dock:component-exit-state') || {};
   const inComponent = !!component.open;
 
-  // A page built from sections has a template (`default`) holding the loop
-  // the sections render through, and around that loop the calls to whatever
-  // static sections were made — partials of their own. The tree never shows
-  // the loop; the sections are the list they already are, and the static
-  // ones join that list on their side of the loop. Read from the template
-  // in the dock when the dock holds it, otherwise from a fetched copy.
-  const pageType = pageBuilder && !inComponent ? pageTemplateTypeNow(win) : '';
-
-  if (pageBuilder && !inComponent && !pageType) {
-    void pageTemplateType(win).then((found) => {
-      if (found) {
-        renderHtmlTree(win);
-      }
-    });
-  }
-
-  const onPageTemplate = !!pageType && type === pageType;
-
-  // Fetched on its own, not through the prefetch queue: that queue's repaint
-  // flag is taken by whichever fetch lands first, and the sections' templates
-  // are ahead of this one in it. Painted again the moment it is here.
-  if (pageType && !onPageTemplate && !htmlTreeTemplates.has(pageType) && !htmlTreeFetching.has(pageType)) {
-    htmlTreeFetching.add(pageType);
-    win
-      .fetch(`/!/sve/section-template?type=${encodeURIComponent(pageType)}`, {
-        credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (typeof data?.html === 'string') {
-          htmlTreeTemplates.set(pageType, data.html);
-          renderHtmlTree(win);
-        }
-      })
-      .catch(() => {})
-      .finally(() => htmlTreeFetching.delete(pageType));
-  }
-
-  const pageStatic = pageType
-    ? pageStaticSections(onPageTemplate ? roots : parseTemplateTree(htmlTreeTemplates.get(pageType) || ''), sectionField(win) || 'page_sections')
-    : { above: [], below: [] };
-  const sections = [...pageStatic.above, ...htmlTreeSections(win, doc), ...pageStatic.below];
-
-  // A static section was just made: its call is in the template now, not in
-  // the copy fetched before it — so that copy goes, and the file opens.
-  htmlTreeUi.onStaticMade = (made) => {
-    if (pageType) {
-      htmlTreeTemplates.delete(pageType);
-    }
-
-    if (made?.type) {
-      htmlTreeShutStart = false;
-      ask('dock:open-template', made.type);
-    }
-
-    renderHtmlTree(win);
-  };
+  const sections = htmlTreeSections(win, doc);
 
   // What the dock holds is newer than anything fetched earlier — a save half a
   // minute ago is in it and not in the cache.
@@ -1413,17 +1293,13 @@ export function renderHtmlTree(win) {
   // fades — the way the preview fades the page around an open component.
   const around = inComponent ? contextAround(win, sections, openUid, roots) : null;
 
-  // The page template itself in the dock shows the list and nothing of its
-  // own: its loop is the sections, its calls are the static ones.
-  const inSections = !!(pendingUid || liveUid) || onPageTemplate;
+  const inSections = !!(pendingUid || liveUid);
 
   // A search looks through folded rows too: the list filters what is here,
   // so while a query is in the box the whole file is flattened.
   const rows = around
     ? flattenHtmlTree(around.tree, htmlTreeUi.query ? new Set() : around.folds)
-    : onPageTemplate
-      ? []
-      : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
+    : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
 
   if (!html.trim() && !dockIsOpen(doc)) {
     htmlTreeUi.emptyText = t(win, 'html_tree_need_dock');
@@ -1584,9 +1460,8 @@ export function renderHtmlTree(win) {
   // Inside a component the file is not the section's, so its root tag is
   // drawn as the tag it is — with its own mark, not the section's, and not
   // standing for the section. It used to: the `<li>` wore the section's icon
-  // and name, and its bin would have deleted the page section. On the page
-  // template there is no root to name: its rows are the static sections.
-  const rootName = inComponent || onPageTemplate ? '' : htmlTreeRootName(win, sections, openUid);
+  // and name, and its bin would have deleted the page section.
+  const rootName = inComponent ? '' : htmlTreeRootName(win, sections, openUid);
 
   // The section this file belongs to, so its root tag can wear the same name
   // and mark the shut row wears. One row, two states — not two rows.
@@ -1616,12 +1491,10 @@ export function renderHtmlTree(win) {
       // The open section IS its first tag row. Carrying the uid here is what
       // lets delete tell "this section on this page" from "this tag in the
       // file" — they are the same row, and they are not the same thing.
-      // A static section is a file, not a row on the page: its root stands
-      // for nothing the page's values know.
-      sectionRoot: isRoot && openSection && !openSection.static ? openSection.uid : '',
+      sectionRoot: isRoot && openSection ? openSection.uid : '',
       // The fields icon: on a section's root, where there is a fieldset to
       // open. A template's fields are its blueprint, opened from the top bar;
-      // a static section in it has no fields at all.
+      // a static section has none — its menu offers to add them.
       fieldsIcon: !!(isRoot && openSection && !openSection.static),
     };
   });
@@ -1959,6 +1832,68 @@ export function closeHtmlTreeMenu() {
  * things, so they are named apart and this one asks first, through the same
  * confirm the block tree and the hover bar already use.
  */
+const TOGGLE_ON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 12 3 3 5-6"/></svg>';
+const TOGGLE_OFF =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>';
+
+/**
+ * What a static section's menu adds: whether editors may insert it from
+ * Patterns, and the way out of being static — fields. Both edit the fieldset
+ * in the repository, so both are gated the way making one is. Empty for a
+ * section with fields, and for anyone who cannot configure fields.
+ */
+function staticTypeItems(win, uid) {
+  const section = htmlTreeUi.sections?.find((item) => item.uid === uid);
+  const type = section?.type || '';
+
+  if (!type || !section.static || !canCreateSections(win)) {
+    return [];
+  }
+
+  const name = section.label || type;
+  const hidden = isHiddenType(win, type);
+  const failed = () => win.Statamic?.$toast?.error(t(win, 'section_update_failed'));
+
+  return [
+    {
+      label: t(win, 'static_section_insertable'),
+      icon: hidden ? TOGGLE_OFF : TOGGLE_ON,
+      onPick: () => {
+        closeHtmlTreeMenu();
+
+        void updateSectionType(win, { handle: type, hidden: !hidden })
+          .then(() => {
+            win.Statamic?.$toast?.success(
+              t(win, hidden ? 'section_shown_to_editors' : 'section_hidden_from_editors', { name })
+            );
+            // The Patterns panel's list is the one this changes.
+            libraryStale(win);
+          })
+          .catch(failed);
+      },
+    },
+    {
+      label: t(win, 'section_add_fields'),
+      onPick: () => {
+        closeHtmlTreeMenu();
+
+        // The fieldset is written and imported; the section is an ordinary
+        // one from here. Its root gets the fields icon on the next paint, and
+        // the fieldset opens straight away — adding fields was the point.
+        void updateSectionType(win, { handle: type, fields: true })
+          .then(() => {
+            win.Statamic?.$toast?.success(t(win, 'section_fields_added', { name }));
+            libraryStale(win);
+            renderHtmlTree(win);
+            openFieldsetOverlay(win, type);
+          })
+          .catch(failed);
+      },
+    },
+  ];
+}
+
 function openHtmlTreeSectionMenu(win, event, section) {
   const uid = section.row?.section || section.uid;
 
@@ -1968,6 +1903,7 @@ function openHtmlTreeSectionMenu(win, event, section) {
 
   htmlTreeMenu = openCpOverlay(win.document, HtmlTreeMenu, {
     items: [
+      ...staticTypeItems(win, uid),
       {
         label: t(win, 'html_tree_remove_section'),
         danger: true,
@@ -2038,6 +1974,8 @@ function openHtmlTreeMenu(win, event, id) {
   }
 
   show([
+    // The open section's root: the same switches its shut row offers.
+    ...(row.sectionRoot ? staticTypeItems(win, row.sectionRoot) : []),
     {
       label: t(win, 'component_make'),
       onPick: () => {

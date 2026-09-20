@@ -92,7 +92,11 @@ class SectionTypesController
         abort_unless(User::current()?->can('configure fields'), 403);
 
         $display = trim((string) $request->input('display', ''));
-        $group = trim((string) $request->input('group', ''));
+        $static = $request->boolean('static');
+
+        // A static section has no group to choose: they share one, made the
+        // first time one is.
+        $group = $static ? SectionTypeMaker::STATIC_GROUP : trim((string) $request->input('group', ''));
 
         abort_if($display === '' || $group === '', 400);
 
@@ -108,6 +112,8 @@ class SectionTypesController
             $group,
             mb_substr($display, 0, 60),
             trim((string) $request->input('icon', '')) ?: null,
+            $static,
+            $static && $request->boolean('hidden'),
         );
 
         if ($made === null) {
@@ -117,6 +123,47 @@ class SectionTypesController
         return response()->json([
             'ok' => true,
             'section' => $made,
+            'section_types' => SectionTypes::map(),
+        ]);
+    }
+
+    /**
+     * Changes one set: kept out of the picker or let back in (`hidden`), or
+     * given fields (`fields`) — the fieldset a static section was made
+     * without. Same gate as making one: both edit the fieldset in the
+     * repository.
+     */
+    public function update(Request $request)
+    {
+        abort_unless(User::current()?->can('configure fields'), 403);
+
+        $handle = trim((string) $request->input('handle', ''));
+
+        abort_if($handle === '', 400);
+
+        $section = null;
+
+        if ($request->has('hidden')) {
+            $section = SectionTypeMaker::setHidden(static::fieldsetHandle(), $handle, $request->boolean('hidden'));
+
+            if ($section === null) {
+                return response()->json(['error' => 'not_found'], 404);
+            }
+        }
+
+        if ($request->boolean('fields')) {
+            $section = SectionTypeMaker::addFields(static::fieldsetHandle(), $handle);
+
+            if ($section === null) {
+                return response()->json(['error' => 'failed'], 422);
+            }
+        }
+
+        abort_if($section === null, 400);
+
+        return response()->json([
+            'ok' => true,
+            'section' => $section,
             'section_types' => SectionTypes::map(),
         ]);
     }

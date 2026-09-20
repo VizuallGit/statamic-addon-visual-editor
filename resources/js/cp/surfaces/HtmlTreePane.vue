@@ -91,34 +91,22 @@ function onNewSection() {
       return;
     }
 
-    // Static: a partial of its own, called from the page's template outside
-    // the sections. Not a set: no fields, no card in the library, no row an
-    // editor can move or delete — and on every page that template renders.
-    // The tree lists it as a section and opens its file alone.
+    // The new section lands after the last one on the page — the end of the
+    // list the button sits above. Static: a set with markup and no fieldset,
+    // placed and opened like any other.
+    const afterUid = ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null;
+    const done = (data) => {
+      release();
+      void openNewlyMade(data?.uid);
+    };
+
     if (kind === 'static') {
-      openStaticSectionDialog(window, {
-        onDone: (made) => {
-          release();
-          ui.onStaticMade?.(made);
-        },
-        onError: release,
-        onClose: release,
-      });
+      openStaticSectionDialog(window, { afterUid, onDone: done, onError: release, onClose: release });
 
       return;
     }
 
-    openNewSectionDialog(window, {
-      // The new section lands after the last one on the page — the end of the
-      // list the button sits above.
-      afterUid: ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null,
-      onDone: (data) => {
-        release();
-        void openNewlyMade(data?.uid);
-      },
-      onError: release,
-      onClose: release,
-    });
+    openNewSectionDialog(window, { afterUid, onDone: done, onError: release, onClose: release });
   })();
 }
 
