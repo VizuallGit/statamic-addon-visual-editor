@@ -32,6 +32,7 @@ use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableStaticCacheInLivePre
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableViteHotReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\EagerImagesInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsList;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\ExplainRenderErrorInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectSchema;
@@ -187,6 +188,9 @@ class ServiceProvider extends AddonServiceProvider
             InjectSchema::class,
             OverrideGlobalsInPreview::class,
             OverrideGlobalSectionsInPreview::class,
+            // Last, so it is first on the way out: an exception page becomes words
+            // before the others read the document.
+            ExplainRenderErrorInPreview::class,
         ],
         'statamic.cp.authenticated' => [
             HideStoresFromCollectionsList::class,

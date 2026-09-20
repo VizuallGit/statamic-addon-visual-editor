@@ -46,11 +46,29 @@ const IMPLICIT = new Set(['html', 'head', 'body']);
  * Antlers tags that only exist as a pair. Any other name may be a value or a
  * single tag (`{{ responsive_css }}`, `{{ svg }}`, `{{ switch(...) }}`), and
  * whether it was meant as a loop is not something a reader can tell.
+ *
+ * Statamic's own loop tags are here by their first word: `collection`,
+ * `collection:blog`, `nav:collection:pages` all open a loop that has to close.
+ * Measured: `{{ collection from="services" }}` with no closing tag renders
+ * nothing and raises nothing on the server — this is the only place it is
+ * ever said. `collection:count` is the one that prints a number.
  */
 const PAIR_ONLY = new Set([
   'if', 'unless', 'style_push', 'script_push', 'sve_defaults', 'once',
-  'noparse', 'foreach', 'forelse',
+  'noparse', 'foreach', 'forelse', 'loop', 'cache', 'nocache', 'scope',
+  'collection', 'nav', 'structure', 'taxonomy', 'users', 'search:results',
+  'form:create', 'form:errors',
 ]);
+
+const SINGLE = new Set(['collection:count']);
+
+function pairOnly(name) {
+  if (SINGLE.has(name)) {
+    return false;
+  }
+
+  return PAIR_ONLY.has(name) || PAIR_ONLY.has(name.split(':')[0]);
+}
 
 const CLOSE_TAGS = new Set(['CloseTag', 'MismatchedCloseTag', 'IncompleteCloseTag']);
 
@@ -155,7 +173,13 @@ function tagNameAt(text, at) {
 /**
  * The Antlers findings, and the `{{ if }}` branches the HTML pass needs.
  */
-function lintAntlers(src, tags, unclosed, problems) {
+function lintAntlers(src, tags, unclosed, problems, lists) {
+  // A field the fieldset says is a list (replicator, grid, …) prints nothing
+  // on its own: `{{ blocks }}` is the start of a loop, and one that never
+  // closes is a mistake the server renders as silence. With a modifier or a
+  // fallback after it (`{{ blocks | length }}`) it is a value, and left alone.
+  const isList = (open) => lists.has(open.name) && !/\||\?\?/.test(open.rest);
+
   for (const at of unclosed) {
     const name = src.slice(at, at + 80).match(OPEN_NAME)?.[1] || '…';
 
@@ -221,7 +245,7 @@ function lintAntlers(src, tags, unclosed, problems) {
       // What was still open above the match never closed — a value most of
       // the time, which is nobody's mistake, but a pair-only tag is.
       for (const skipped of stack.slice(at + 1)) {
-        if (PAIR_ONLY.has(skipped.name)) {
+        if (pairOnly(skipped.name)) {
           problems.push({
             from: skipped.from,
             to: skipped.to,
@@ -244,12 +268,14 @@ function lintAntlers(src, tags, unclosed, problems) {
       continue;
     }
 
-    stack.push({ name, from: tag.from, to: tag.to });
+    stack.push({ name, rest, from: tag.from, to: tag.to });
   }
 
   for (const open of stack) {
-    if (PAIR_ONLY.has(open.name)) {
+    if (pairOnly(open.name)) {
       problems.push({ from: open.from, to: open.to, key: 'code_dock_problem_pair_unclosed', args: { name: open.name } });
+    } else if (isList(open)) {
+      problems.push({ from: open.from, to: open.to, key: 'code_dock_problem_list_unclosed', args: { name: open.name } });
     }
   }
 
@@ -352,11 +378,14 @@ function lintHtml(text, parser, branches, problems) {
 /**
  * @param {string} source   the template as typed
  * @param {{ parse: (text: string) => any }} parser   @codemirror/lang-html's `htmlLanguage.parser`
+ * @param {{ lists?: Iterable<string> }} [options]   `lists`: field handles the
+ *   fieldset says are lists (replicator, grid, …), so `{{ blocks }}` without
+ *   its `{{ /blocks }}` can be told from a value
  * @returns {Array<{ from: number, to: number, key: string, args: Record<string, string> }>}
  *   in document order. Empty for a template with nothing to say about, and
  *   empty rather than thrown for one the readers cannot get through.
  */
-export function lintTemplate(source, parser) {
+export function lintTemplate(source, parser, options = {}) {
   const src = String(source || '');
 
   if (!src.trim() || src.length > LIMIT) {
@@ -367,7 +396,7 @@ export function lintTemplate(source, parser) {
 
   try {
     const { tags, unclosed } = scanAntlers(src);
-    const branches = lintAntlers(src, tags, unclosed, problems);
+    const branches = lintAntlers(src, tags, unclosed, problems, new Set(options.lists || []));
 
     if (parser) {
       lintHtml(blank(src, tags), parser, branches, problems);
@@ -398,14 +427,19 @@ export function lintTemplate(source, parser) {
  * and underlines each one. Read the findings back with
  * `state.field(field).problems`.
  *
- * @param {{ Decoration, StateField, RangeSetBuilder, EditorView }} cm
+ * `relint` is an effect the dock dispatches when what the rules know changed
+ * without the document changing — the fieldset's list fields arriving.
+ *
+ * @param {{ Decoration, StateField, StateEffect, RangeSetBuilder, EditorView }} cm
  * @param {{ parse: (text: string) => any }} parser
+ * @param {() => { lists?: Iterable<string> }} [optionsFor]   read at every lint
  */
-export function templateLintDecorations(cm, parser) {
+export function templateLintDecorations(cm, parser, optionsFor = () => ({})) {
   const mark = cm.Decoration.mark({ class: 'sve-cm-problem' });
+  const relint = cm.StateEffect.define();
 
   const build = (state) => {
-    const problems = lintTemplate(state.doc.toString(), parser);
+    const problems = lintTemplate(state.doc.toString(), parser, optionsFor());
     const builder = new cm.RangeSetBuilder();
     let last = 0;
 
@@ -428,10 +462,10 @@ export function templateLintDecorations(cm, parser) {
       return build(state);
     },
     update(value, tr) {
-      return tr.docChanged ? build(tr.state) : value;
+      return tr.docChanged || tr.effects.some((effect) => effect.is(relint)) ? build(tr.state) : value;
     },
     provide: (self) => cm.EditorView.decorations.from(self, (value) => value.decorations),
   });
 
-  return { field, extensions: [field] };
+  return { field, relint, extensions: [field] };
 }

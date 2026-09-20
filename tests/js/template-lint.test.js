@@ -71,6 +71,25 @@ test('pair-only tags must close; single tags may stand alone', () => {
   assert.deepEqual(findings('{{ responsive_css }}\n{{ sve_defaults }}x{{ /sve_defaults }}'), []);
 });
 
+test("statamic's loop tags must close, by their first word", () => {
+  assert.deepEqual(findings('<ul>\n{{ collection in="services" }}\n<li>{{ title }}</li>\n</ul>'), ['pair_unclosed:collection']);
+  assert.deepEqual(findings('{{ collection:blog limit="3" }}<b>{{ title }}</b>{{ /collection }}'), []);
+  assert.deepEqual(findings('{{ nav:collection:pages }}<a>{{ title }}</a>{{ /nav }}'), []);
+  assert.deepEqual(findings('{{ collection:count from="blog" }}'), []);
+  // Closed with the opening tag again: two openings, neither closed.
+  assert.deepEqual(findings('{{ collection from="services" }}\n<b>{{ title }}</b>\n{{ collection }}'), ['pair_unclosed:collection', 'pair_unclosed:collection']);
+});
+
+test('a field the fieldset calls a list must close; a value of it may stand', () => {
+  const lists = ['blocks', 'items'];
+  const keys = (src) => lintTemplate(src, parser, { lists }).map((p) => `${p.key.replace('code_dock_problem_', '')}:${p.args.name}`);
+
+  assert.deepEqual(keys('<ul>{{ blocks }}<li>{{ title }}</li></ul>'), ['list_unclosed:blocks']);
+  assert.deepEqual(keys('<ul>{{ blocks }}<li>{{ title }}</li>{{ /blocks }}</ul>'), []);
+  assert.deepEqual(keys('<p>{{ blocks | length }} / {{ items ?? "none" }}</p>'), []);
+  assert.deepEqual(keys('<p>{{ headline }}</p>'), []);
+});
+
 test('a {{ that never gets its }} names what was being written', () => {
   const src = '<section {{ visual_edit outline_inside="true">\n<div>x</div>\n</section>';
   const [problem] = lintTemplate(src, parser);
