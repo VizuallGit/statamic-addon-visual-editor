@@ -38,7 +38,7 @@
   var html = document.querySelector('[data-sve-code-pane="html"] .cm-content');
   var css = document.querySelector('[data-sve-code-pane="css"] .cm-content');
   html.cmTile = { view: { state: { doc: { toString: function () { return window.__paneHtml; } } } } };
-  css.cmTile = { view: { state: { doc: { toString: function () { return ''; } } } } };
+  css.cmTile = { view: { state: { doc: { toString: function () { return window.__paneCss || ''; } } } } };
 </script>
 <script src="SCRIPT_SRC"></script>
 </body>

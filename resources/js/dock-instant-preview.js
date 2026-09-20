@@ -1775,14 +1775,53 @@
         );
     }
 
+    /**
+     * The whole file with the pane's current text spliced into the scoped
+     * range, from what the dock exposes on its element (`__sveHtmlScope`:
+     * the file as of its last sync and the range the pane shows). Null when
+     * the dock is older than this script or the pane is not scoped.
+     */
+    function scopedFull() {
+        var dock = document.getElementById(DOCK_ID);
+        var scope = dock && dock.__sveHtmlScope;
+        var pane;
+
+        if (!scope || typeof scope.full !== 'string' || typeof scope.from !== 'number' || typeof scope.to !== 'number') {
+            return null;
+        }
+
+        if (scope.from < 0 || scope.to < scope.from || scope.to > scope.full.length) {
+            return null;
+        }
+
+        pane = paneText('html');
+
+        return {
+            full: scope.full.slice(0, scope.from) + pane + scope.full.slice(scope.to),
+            at: scope.from,
+        };
+    }
+
     function fullHtml() {
         var pane = paneText('html');
+        var scoped;
 
         if (!htmlScoped()) {
             lastFullHtml = pane;
             lastSnippet = '';
 
             return pane;
+        }
+
+        // The dock says where the slice sits: the whole file is always known,
+        // and a `<p>` typed beside the scoped one is painted in its section.
+        scoped = scopedFull();
+
+        if (scoped) {
+            lastFullHtml = scoped.full;
+            lastSnippet = pane;
+
+            return scoped.full;
         }
 
         if (!lastFullHtml) {
@@ -1943,8 +1982,9 @@
      * the file is known, else by its tag in the active section.
      */
     function scopedRootLive(doc, pane) {
-        var full = fullHtml();
-        var snippetAt = full ? full.indexOf(pane) : -1;
+        var scoped = scopedFull();
+        var full = scoped ? scoped.full : fullHtml();
+        var snippetAt = scoped ? scoped.at : full ? full.indexOf(pane) : -1;
 
         if (snippetAt === -1) {
             return liveForOffset(doc, pane, 1, true).targets;
@@ -1953,15 +1993,36 @@
         return liveForOffset(doc, full, snippetAt + 1, false).targets;
     }
 
+    /** Every place the open component renders, as the preview marks them, of the file root's tag. */
+    function componentInstances(doc, root) {
+        var marked = doc.querySelectorAll('[data-sve-component-focused]');
+        var out = [];
+        var i;
+
+        for (i = 0; i < marked.length; i++) {
+            if (marked[i].tagName === root.tagName) {
+                out.push(marked[i]);
+            }
+        }
+
+        return out;
+    }
+
     function paintLive(doc, html) {
         var pane = paneText('html');
         var root;
         var live;
         var focused;
+        var tpl;
         var i;
         var targets;
 
-        if (htmlScoped()) {
+        // A scoped pane whose file is known paints like the whole file: the
+        // section is morphed from the file with the slice spliced in, so a
+        // sibling typed beside the scoped tag, a wrapper around it or a tag
+        // renamed all land where they belong. Only a snippet with no file to
+        // sit in is painted on its own.
+        if (htmlScoped() && html === pane) {
             root = templateRoot(pane);
             targets = scopedRootLive(doc, pane);
 
@@ -1984,6 +2045,25 @@
             return;
         }
 
+        // The open file is a component: the preview marks every place it
+        // renders, and every one is painted — a card typed once is on the page
+        // eight times. Structure and classes, like a section; the text of a
+        // `{{ props_* }}` is the caller's and waits for the morph. Used to be
+        // classes only here, so a new tag in a component waited a second.
+        focused = componentInstances(doc, root);
+
+        if (focused.length) {
+            tpl = templateRoot(html, null);
+
+            for (i = 0; i < focused.length; i++) {
+                if (!paintStructure(focused[i], html, tpl)) {
+                    syncClasses(focused[i], root);
+                }
+            }
+
+            return;
+        }
+
         live = fileRootLive(doc, root);
 
         if (!live) {
@@ -1995,18 +2075,6 @@
                 syncClasses(live, root);
             }
 
-            return;
-        }
-
-        focused = doc.querySelectorAll('[data-sve-component-focused]');
-
-        for (i = 0; i < focused.length; i++) {
-            if (focused[i].tagName === root.tagName) {
-                syncClasses(focused[i], root);
-            }
-        }
-
-        if (focused.length) {
             return;
         }
 
@@ -2035,6 +2103,33 @@
         lastSnippet = '';
     }
 
+    /**
+     * The CSS to hold live. The whole pane when the pane is the whole sheet.
+     * When the pane is a slice — the HTML pane is scoped, so the CSS pane
+     * shows the picked tag's rules — the sheet the dock exposes comes first
+     * and the slice after it: an edited rule wins over its older copy and the
+     * rest of the sheet stays. Used to keep the last whole sheet while
+     * scoped, so a CSS keystroke there waited for the morph. An older dock
+     * exposes nothing, and then the last whole sheet still stays.
+     */
+    function liveCss() {
+        var dock;
+        var scope;
+
+        if (!htmlScoped()) {
+            return paneText('css');
+        }
+
+        dock = document.getElementById(DOCK_ID);
+        scope = dock && dock.__sveHtmlScope;
+
+        if (!scope || typeof scope.css !== 'string') {
+            return lastCss;
+        }
+
+        return scope.css + '\n' + paneText('css');
+    }
+
     function paint() {
         if (painting || !featureOn('template_dock') || !document.getElementById(DOCK_ID)) {
             return;
@@ -2050,7 +2145,7 @@
         // A scoped pane that has never shown the file's root has no whole file
         // to give: the snippet is painted on its own rather than not at all.
         var html = isFileRoot(pane) || htmlScoped() ? fullHtml() || pane : pane;
-        var css = htmlScoped() ? lastCss : paneText('css');
+        var css = liveCss();
         var doc = previewDocument();
 
         if (!doc) {
@@ -2065,7 +2160,7 @@
 
         bindPreview(doc);
 
-        if (!htmlScoped() && css !== lastCss) {
+        if (css !== lastCss) {
             lastCss = css;
             putStyle(doc, STYLE_CSS_ID, css);
         }
@@ -2332,6 +2427,7 @@
         var pos;
         var full;
         var snippetAt;
+        var scoped;
 
         if (!view) {
             return { targets: [], tag: '' };
@@ -2344,8 +2440,9 @@
             return liveForOffset(doc, pane, pos, false);
         }
 
-        full = fullHtml();
-        snippetAt = full ? full.indexOf(pane) : -1;
+        scoped = scopedFull();
+        full = scoped ? scoped.full : fullHtml();
+        snippetAt = scoped ? scoped.at : full ? full.indexOf(pane) : -1;
 
         if (snippetAt === -1) {
             return liveForOffset(doc, pane, pos, true);

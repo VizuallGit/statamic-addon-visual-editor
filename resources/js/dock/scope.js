@@ -130,11 +130,33 @@ export function htmlFocusOk(from, to, length) {
   return from != null && to != null && from >= 0 && to > from && to <= length;
 }
 
+/**
+ * What the Instant paint script needs while the pane shows a slice of the
+ * file: the file as of the last sync and the slice's range in it. The script
+ * splices the pane's current text into that range, so a keystroke the dock has
+ * not synced yet is still painted against the whole file — and a `<p>` typed
+ * next to the scoped one lands in the section, not outside the snippet.
+ */
+function exposeHtmlScope() {
+  const dock = globalThis.document?.getElementById(DOCK_ID);
+
+  if (!dock) {
+    return;
+  }
+
+  // `css` is the whole sheet as of now: the CSS pane shows a slice while the
+  // HTML pane is scoped, and the paint holds the sheet plus the slice.
+  dock.__sveHtmlScope = dockState.htmlScopeActive && dockState.htmlFocus
+    ? { full: dockState.htmlFull, from: dockState.htmlFocus.from, to: dockState.htmlFocus.to, css: dockState.cssFull }
+    : null;
+}
+
 export function syncScopedHtml() {
   const text = editors.html?.state.doc.toString() ?? '';
 
   if (!dockState.htmlScopeActive || !dockState.htmlFocus) {
     dockState.htmlFull = text;
+    exposeHtmlScope();
 
     return;
   }
@@ -143,12 +165,14 @@ export function syncScopedHtml() {
     dockState.htmlScopeActive = false;
     dockState.htmlFull = text;
     dockState.htmlFocus = null;
+    exposeHtmlScope();
 
     return;
   }
 
   dockState.htmlFull = dockState.htmlFull.slice(0, dockState.htmlFocus.from) + text + dockState.htmlFull.slice(dockState.htmlFocus.to);
   dockState.htmlFocus = { from: dockState.htmlFocus.from, to: dockState.htmlFocus.from + text.length };
+  exposeHtmlScope();
 }
 
 export function currentFullHtml() {
@@ -324,11 +348,13 @@ export function openRenameClassMenu(win, token) {
 export function htmlEditorText() {
   if (dockState.htmlScopePref && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
     dockState.htmlScopeActive = true;
+    exposeHtmlScope();
 
     return dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to);
   }
 
   dockState.htmlScopeActive = false;
+  exposeHtmlScope();
 
   return dockState.htmlFull;
 }
@@ -480,6 +506,7 @@ export function showHtmlScope(caret) {
 
   dockState.htmlFocus = { from, to };
   dockState.htmlScopeActive = true;
+  exposeHtmlScope();
 
   const at = caret == null ? 0 : Math.max(0, Math.min(caret - from, to - from));
 
@@ -498,6 +525,7 @@ export function showHtmlFull(selectFocus = true, caret = null) {
   flushCssScope();
   syncScopedHtml();
   dockState.htmlScopeActive = false;
+  exposeHtmlScope();
 
   const full = dockState.htmlFull || view.state.doc.toString();
   // A caret beats the range: the tree asked to be put inside the row, not to
@@ -526,6 +554,7 @@ export function clearHtmlScopeRange() {
   dockState.cssScopeSnapshot = '';
   dockState.lastBracketNames = null;
   dockState.lastCssSelectorNames = null;
+  exposeHtmlScope();
 }
 
 /**
@@ -602,6 +631,7 @@ export function paintHtmlScope(win) {
   btn.setAttribute('aria-label', btn.title);
   btn.innerHTML = SCOPE_ICON;
   win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', dockState.htmlScopeActive);
+  exposeHtmlScope();
 }
 
 export function bindHtmlScope(win, dock) {
