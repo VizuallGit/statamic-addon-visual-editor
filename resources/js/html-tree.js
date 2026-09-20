@@ -403,14 +403,14 @@ export function ensureHtmlTreeStyles(doc) {
       /* How much of a row's own colour its pick takes: a wash, not a fill.
          The row mixes it in below — a mix written up here would read
          --sve-ht-c on the list, where no family is set. */
-      --sve-ht-pick-mix: 14%;
-      --sve-ht-pick-hover-mix: 22%;
+      --sve-ht-pick-mix: 11%;
+      --sve-ht-pick-hover-mix: 18%;
     }
     html.dark [data-sve-ht-look="tags"],
     .dark [data-sve-ht-look="tags"] {
       ${familyCssVars('dark')}
-      --sve-ht-pick-mix: 30%;
-      --sve-ht-pick-hover-mix: 40%;
+      --sve-ht-pick-mix: 24%;
+      --sve-ht-pick-hover-mix: 32%;
     }
     /* The family's colour, on a row and on the guide an ancestor of that
        family leaves under itself. */
@@ -447,6 +447,15 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current]:hover {
       background: color-mix(in srgb, var(--sve-ht-c) var(--sve-ht-pick-hover-mix), transparent);
     }
+    /* Focus: rows are reached with Tab, so a focused row that is not the
+       picked one gets a thin ring in its own colour. The picked row already
+       says where you are with its wash and bar — the ring on top of that
+       looked like a second, blue selection after every click. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row]:focus-visible {
+      outline: 1px solid color-mix(in srgb, var(--sve-ht-c) 55%, transparent);
+      outline-offset: -1px;
+    }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current]:focus-visible { outline: none; }
     /* A shut section is one row in the page's list; a little air between them. */
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-sec] { margin-bottom: 2px; }
     /* The open section's box, quieter: it says where you are, the bar says
