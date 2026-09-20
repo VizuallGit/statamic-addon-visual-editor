@@ -480,6 +480,13 @@ export function ensureHtmlTreeStyles(doc) {
       background: linear-gradient(to right, transparent 7px, var(--sve-ht-c) 7px, var(--sve-ht-c) 8px, transparent 8px);
       opacity: .2;
     }
+    /* The first row under an open parent: its innermost guide — the parent's
+       own line — starts a little below the parent's box instead of on it, so
+       a picked parent's wash and the line under it do not touch. The outer
+       guides pass through unbroken; they belong to rows further up. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row]:has(> [data-sve-ht-twist]:not([data-sve-ht-shut])) + [data-sve-ht-row] [data-sve-ht-indent] i:last-child {
+      margin-top: 5px;
+    }
     [data-sve-ht-look="tags"] [data-sve-ht-twist-gap] {
       display: inline-block;
       flex: none;
