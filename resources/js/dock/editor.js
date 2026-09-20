@@ -22,6 +22,7 @@ import { paintCssToolState } from './css-tools.js';
 import { paintHtmlToolState } from './html-tools.js';
 import { paintAlpine } from './alpine.js';
 import { syncTwTarget } from './style-modes.js';
+import { problemsUi } from './problems.js';
 
 // ===== editor =====
 /**
@@ -231,6 +232,7 @@ export function mountEditor(win, handle, parent) {
           ? partialUi().extensions
           : []),
         ...(handle === 'html' ? antlersUi().extensions : []),
+        ...(handle === 'html' ? problemsUi(win).extensions : []),
         ...(SUNDAY_AUG30 && handle === 'html' ? classTokenUi().extensions : []),
         readOnlyOf[handle].of(EditorState.readOnly.of(!!dockState.lastLocked)),
         editableOf[handle].of(EditorView.editable.of(!dockState.lastLocked)),

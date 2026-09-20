@@ -1150,6 +1150,52 @@ export function ensureStyle(doc) {
   color: #6b8f6b;
   font-style: italic;
 }
+/* Where the file is broken (template-lint.js finds it, dock/problems.js
+   paints it): the range wears a wavy line in the editor, and the strip under
+   the tool row says it in words. The strip is hidden while there is nothing
+   to say, so a file that is fine looks as it always did. */
+#${DOCK_ID} .sve-cm-problem {
+  text-decoration: underline wavy #f0716b;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+  background: rgba(240, 113, 107, .10);
+}
+#${DOCK_ID} [data-sve-html-problems] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #f5c2bf;
+  background: rgba(240, 113, 107, .10);
+  border-bottom: 1px solid rgba(240, 113, 107, .25);
+}
+#${DOCK_ID} [data-sve-html-problems][hidden] {
+  display: none;
+}
+#${DOCK_ID} [data-sve-html-problems] [data-sve-problems-title] {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: #f0716b;
+}
+#${DOCK_ID} [data-sve-html-problems] button {
+  all: unset;
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+}
+#${DOCK_ID} [data-sve-html-problems] button:hover {
+  background: rgba(255, 255, 255, .12);
+}
+#${DOCK_ID} [data-sve-html-problems] button b {
+  font-weight: 600;
+  opacity: .8;
+}
 #${DOCK_ID} .sve-cm-partial {
   text-decoration: underline dotted;
   text-underline-offset: 3px;

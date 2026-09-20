@@ -51,6 +51,11 @@ defineProps({
           <div data-sve-visual-edit-tools></div>
           <div data-sve-antlers-tools></div>
         </div>
+        <!--
+          What is wrong with the file, in words (dock/problems.js paints it;
+          template-lint.js finds it). Hidden while there is nothing to say.
+        -->
+        <div data-sve-html-problems hidden></div>
         <div data-sve-code-host></div>
       </div>
       <div data-sve-code-split data-sve-code-split-after="html"></div>

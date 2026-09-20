@@ -52,5 +52,6 @@ export const dockState = {
   htmlPartialUi: null,
   htmlAntlersUi: null,
   htmlClassTokenUi: null,
+  htmlLintUi: null,
   cssGhostUi: null,
 };
