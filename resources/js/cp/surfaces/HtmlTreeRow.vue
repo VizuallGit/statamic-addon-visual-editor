@@ -83,6 +83,25 @@ function isContext(row) {
   return !!row.context;
 }
 
+/**
+ * Press and drag. A section — shut, or the open one by its root row — moves
+ * on the page, between the other sections; any other row moves in the file.
+ * The rows of the file around an open component move nothing.
+ */
+function onPointerDown(event, row) {
+  if (isContext(row)) {
+    return;
+  }
+
+  if (isShutSection(row)) {
+    ui.onSectionPointerDown?.(event, row.section);
+  } else if (row.sectionRoot) {
+    ui.onSectionPointerDown?.(event, row.sectionRoot);
+  } else {
+    ui.onPointerDown?.(event, row.id);
+  }
+}
+
 function onRowClick(row) {
   if (isShutSection(row)) {
     ui.onSection?.(row.section);
@@ -156,7 +175,7 @@ function canHide(row) {
     @dblclick.prevent="isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row)"
     @keydown.space.prevent="onRowClick(row)"
-    @pointerdown="isShutSection(row) || isContext(row) ? null : ui.onPointerDown?.($event, row.id)"
+    @pointerdown="onPointerDown($event, row)"
     @contextmenu.prevent.stop="isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
   >
     <!--

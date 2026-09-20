@@ -40,6 +40,25 @@ function isDim(row) {
   return !!query.value && !found.value.hits.has(row.path);
 }
 
+/**
+ * The wrapper around one section's rows: named by uid, so a drag over any of
+ * its rows finds the section; the open one marked as the branch; and the
+ * drop line above or below it while a section is being dragged.
+ */
+function wrapBind(sec) {
+  const bind = { 'data-sve-ht-sec-uid': sec.uid };
+
+  if (sec.current) {
+    bind['data-sve-ht-branch'] = '';
+  }
+
+  if (ui.sectionDrop && ui.sectionDrop.uid === sec.uid) {
+    bind['data-sve-ht-drop'] = ui.sectionDrop.place;
+  }
+
+  return bind;
+}
+
 </script>
 
 <template>
@@ -51,7 +70,7 @@ function isDim(row) {
       <div
         v-for="sec in shownSections"
         :key="sec.uid"
-        v-bind="sec.current ? { 'data-sve-ht-branch': '' } : {}"
+        v-bind="wrapBind(sec)"
       >
         <!--
           Open: the file's own rows, the first of which IS this section — it

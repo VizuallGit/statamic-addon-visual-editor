@@ -142,6 +142,12 @@ let htmlTreePointerId = null;
 let htmlTreeDragUnhook = null;
 let htmlTreeSuppressClick = false;
 let htmlTreeMenu = null;
+// A section being dragged between the page's sections (not a row in a file).
+let htmlTreeSecDragUid = null;
+let htmlTreeSecDragOrigin = null;
+let htmlTreeSecDragEl = null;
+let htmlTreeSecPointerId = null;
+let htmlTreeSecDragUnhook = null;
 /**
  * A sort direction chosen before there is a field to sort by.
  *
@@ -226,6 +232,22 @@ export function ensureHtmlTreeStyles(doc) {
       outline: 2px solid #93c5fd;
       outline-offset: -2px;
     }
+    /* A section dragged between sections: the line sits above or below the
+       whole section — every row of an open one, the one row of a shut one. */
+    [data-sve-ht-sec-uid] { position: relative; }
+    [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      height: 2px;
+      background: #93c5fd;
+      pointer-events: none;
+      z-index: 2;
+    }
+    [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before { top: -2px; }
+    [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after { bottom: -2px; }
     [data-sve-ht-twist] {
       all: unset;
       box-sizing: border-box;
@@ -1379,6 +1401,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onDuplicate = (id) => duplicateHtmlTreeRow(win, id);
   htmlTreeUi.onDelete = (id) => deleteHtmlTreeRow(win, id);
   htmlTreeUi.onPointerDown = (event, id) => beginHtmlTreePointer(win, event, id);
+  htmlTreeUi.onSectionPointerDown = (event, uid) => beginSectionPointer(win, event, uid);
   htmlTreeUi.onContext = (event, id) => openHtmlTreeMenu(win, event, id);
   htmlTreeUi.onInspectCommit = (value) => commitHtmlTreeInspector(win, value);
   htmlTreeUi.onPropValue = (handle, value, bound) => commitComponentValue(win, handle, value, bound);
@@ -1544,7 +1567,13 @@ export function renderHtmlTree(win) {
         };
       })
     : [];
-  htmlTreeUi.onSection = (uid) => openHtmlTreeSection(win, doc, sections, uid, openUid);
+  // Not on the release of a drag: the click lands on the row the pointer
+  // took hold of, and that section was moved, not asked for.
+  htmlTreeUi.onSection = (uid) => {
+    if (!htmlTreeSuppressClick) {
+      openHtmlTreeSection(win, doc, sections, uid, openUid);
+    }
+  };
   htmlTreeUi.onRefresh = () => renderHtmlTree(win);
 
   paintHtmlTreeInspector(
@@ -2190,6 +2219,177 @@ function endHtmlTreeDrag() {
   htmlTreeUi.dragging = false;
   htmlTreeUi.dropId = null;
   htmlTreeUi.dropPlace = null;
+}
+
+/**
+ * Dragging a section up or down the page, from the tree.
+ *
+ * The same press-and-move the rows of a file have, but what moves is the row
+ * in `page_sections`, not markup: the preview's own drag sends `MOVE` with the
+ * index to land at, and this sends the same message from the tree — through
+ * the window, the way the preview does, so the one handler that reorders the
+ * form's values stays the one. The file the section renders through is never
+ * touched, so a locked dock does not stop it.
+ *
+ * The target is whichever section's wrapper the pointer is over — any of the
+ * open section's rows count as the open section — and before/after is the
+ * upper or lower half of that wrapper.
+ */
+function beginSectionPointer(win, event, uid) {
+  if (event.button !== 0 || !uid || htmlTreeUi.editingId) {
+    return;
+  }
+
+  if (event.target?.closest?.('button, input')) {
+    return;
+  }
+
+  endSectionDrag();
+  htmlTreeSecDragUid = uid;
+  htmlTreeSecDragOrigin = { x: event.clientX, y: event.clientY };
+  htmlTreeSecDragEl = event.currentTarget;
+  htmlTreeSecPointerId = event.pointerId;
+
+  const onMove = (move) => trackSectionPointer(win, move);
+  const onUp = (up) => finishSectionPointer(win, up);
+
+  htmlTreeSecDragUnhook = () => {
+    win.document.removeEventListener('pointermove', onMove, true);
+    win.document.removeEventListener('pointerup', onUp, true);
+    win.document.removeEventListener('pointercancel', onUp, true);
+    htmlTreeSecDragUnhook = null;
+  };
+
+  win.document.addEventListener('pointermove', onMove, true);
+  win.document.addEventListener('pointerup', onUp, true);
+  win.document.addEventListener('pointercancel', onUp, true);
+}
+
+function trackSectionPointer(win, event) {
+  if (!htmlTreeSecDragUid || !htmlTreeSecDragOrigin) {
+    return;
+  }
+
+  const dx = event.clientX - htmlTreeSecDragOrigin.x;
+  const dy = event.clientY - htmlTreeSecDragOrigin.y;
+
+  if (!htmlTreeUi.dragging && dx * dx + dy * dy < 25) {
+    return;
+  }
+
+  if (!htmlTreeUi.dragging) {
+    htmlTreeUi.dragging = true;
+
+    try {
+      htmlTreeSecDragEl?.setPointerCapture?.(htmlTreeSecPointerId);
+    } catch {
+      // Capture is optional — document listeners still track the move.
+    }
+  }
+
+  event.preventDefault();
+
+  const under = win.document.elementFromPoint(event.clientX, event.clientY);
+  const wrap = under?.closest?.('[data-sve-ht-sec-uid]');
+  const uid = wrap?.getAttribute('data-sve-ht-sec-uid') || '';
+
+  if (!uid || uid === htmlTreeSecDragUid) {
+    htmlTreeUi.sectionDrop = null;
+
+    return;
+  }
+
+  const rect = wrap.getBoundingClientRect();
+
+  htmlTreeUi.sectionDrop = {
+    uid,
+    place: event.clientY - rect.top < rect.height / 2 ? 'before' : 'after',
+  };
+}
+
+function finishSectionPointer(win, event) {
+  const uid = htmlTreeSecDragUid;
+  const drop = htmlTreeUi.sectionDrop;
+  const dragged = htmlTreeUi.dragging;
+
+  endSectionDrag();
+
+  if (dragged) {
+    htmlTreeSuppressClick = true;
+    win.setTimeout(() => {
+      htmlTreeSuppressClick = false;
+    }, 0);
+  }
+
+  if (!dragged || !uid || !drop?.uid || drop.uid === uid) {
+    return;
+  }
+
+  event?.preventDefault?.();
+  moveSectionOnPage(win, uid, drop.uid, drop.place);
+}
+
+function endSectionDrag() {
+  try {
+    htmlTreeSecDragEl?.releasePointerCapture?.(htmlTreeSecPointerId);
+  } catch {
+    // Already released, or never captured.
+  }
+
+  htmlTreeSecDragUnhook?.();
+  htmlTreeSecDragUid = null;
+  htmlTreeSecDragOrigin = null;
+  htmlTreeSecDragEl = null;
+  htmlTreeSecPointerId = null;
+  htmlTreeUi.dragging = false;
+  htmlTreeUi.sectionDrop = null;
+}
+
+/**
+ * Where the dragged section lands, as the index `MOVE` expects: the position
+ * in the list once the section has been taken out of it. Read from the
+ * publish values — the tree's list is drawn from them, but the values are
+ * what the handler counts in.
+ */
+function moveSectionOnPage(win, uid, targetUid, place) {
+  const field = sectionField(win) || 'page_sections';
+
+  for (const container of activeContainers(win.document) || []) {
+    const values = unwrapRef(container.values);
+    const list = values && typeof values === 'object' ? values[field] : null;
+
+    if (!Array.isArray(list)) {
+      continue;
+    }
+
+    const at = (id) =>
+      list.findIndex((row) => row && typeof row === 'object' && [row._visual_id, row.id, row._id].includes(id));
+    const from = at(uid);
+    const target = at(targetUid);
+
+    if (from === -1 || target === -1 || from === target) {
+      return false;
+    }
+
+    let to = place === 'before' ? target : target + 1;
+
+    if (from < to) {
+      to -= 1;
+    }
+
+    if (to === from) {
+      return false;
+    }
+
+    win.postMessage({ source: SOURCE, type: MSG.MOVE, uid, toIndex: to }, win.location.origin);
+
+    // The values move on the next task; the list is read from them.
+    win.setTimeout(() => renderHtmlTree(win), 60);
+
+    return true;
+  }
+
+  return false;
 }
 
 /**

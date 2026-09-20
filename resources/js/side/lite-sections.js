@@ -310,6 +310,93 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         return updated;
     }
 
+    /**
+     * Tells every panel about a set type that did not exist when the publish
+     * form was built.
+     *
+     * The panel renders each row from `config.sets` — the display name in the
+     * header, the fields under it. A row of a set made a minute ago (the HTML
+     * tree's plus) matched nothing there, so Statamic drew an empty shell:
+     * no header, no fields, and so no `_visual_id` input either. `findSetByUid`
+     * could not name it, every wait for it ran to the end (measured: 2.3 s
+     * before the dock was even asked for the file) and the sidebar showed
+     * nothing to edit. Added in the shape the config already has — grouped
+     * arrays in Statamic 6, grouped or flat objects on older forms — under
+     * the group the server put it in.
+     *
+     * @returns {number} panels updated
+     */
+    function addSetConfig(handle, set, group) {
+        var added = 0;
+        var i;
+        var j;
+        var config;
+        var groups;
+        var target;
+        var entry;
+        var groupKey = group || 'sections';
+
+        if (!handle || !set || typeof set !== 'object') {
+            return 0;
+        }
+
+        for (i = 0; i < livePanels.length; i++) {
+            config = livePanels[i].config;
+            groups = config && config.sets;
+
+            if (!groups || setConfigFrom(config, handle).fields) {
+                continue;
+            }
+
+            entry = Object.assign({ handle: handle, fields: [] }, set);
+
+            if (Array.isArray(groups)) {
+                target = null;
+
+                for (j = 0; j < groups.length; j++) {
+                    if (groups[j] && groups[j].handle === groupKey) {
+                        target = groups[j];
+                        break;
+                    }
+                }
+
+                if (!target) {
+                    target = { handle: groupKey, display: set.group_display || groupKey, sets: [] };
+                    groups.push(target);
+                }
+
+                if (!Array.isArray(target.sets)) {
+                    target.sets = [];
+                }
+
+                target.sets.push(entry);
+            } else {
+                if (!groups[groupKey] || !groups[groupKey].sets) {
+                    groups[groupKey] = { display: set.group_display || groupKey, sets: {} };
+                }
+
+                if (Array.isArray(groups[groupKey].sets)) {
+                    groups[groupKey].sets.push(entry);
+                } else {
+                    groups[groupKey].sets[handle] = entry;
+                }
+            }
+
+            // Same three steps as refreshSetFields: the built config is cached
+            // by set identity, and the config is a prop nothing tracks.
+            chunkCfgCache.delete(livePanels[i]);
+            livePanels[i].fieldsTick = (livePanels[i].fieldsTick || 0) + 1;
+
+            if (typeof livePanels[i].$forceUpdate === 'function') {
+                livePanels[i].$forceUpdate();
+            }
+
+            added++;
+        }
+
+        return added;
+    }
+
     function fieldsSig(fields) {
         var i;
         var out = '';
@@ -2737,7 +2824,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         stampHeaderLoadBtn(ev.doc || (ev.win && ev.win.document) || document);
     });
 
-    export { refreshSetFields as refreshLiteSetFields, openLiteSection };
+    export { refreshSetFields as refreshLiteSetFields, addSetConfig as addLiteSetConfig, openLiteSection };
 
     if (window.Statamic && typeof Statamic.booting === 'function') {
         Statamic.booting(bootUntilReady);

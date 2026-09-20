@@ -62,11 +62,15 @@ export const htmlTreeUi = reactive({
   // everything that is not the component fades.
   inComponent: false,
   onContextRow: null,
-  // A static section was just made: forget the page template, open the new file.
-  onStaticMade: null,
   dragging: false,
   dropId: null,
   dropPlace: null,
+  // A section being dragged between the page's sections: which section the
+  // pointer is over and whether it lands before or after it. Drawn on the
+  // section's wrapper in the list, not on a row — an open section is many
+  // rows, and the line belongs above or below all of them.
+  sectionDrop: null,
+  onSectionPointerDown: null,
   onSelect: null,
   onTwist: null,
   tagTitle: '',

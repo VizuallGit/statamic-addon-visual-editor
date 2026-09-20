@@ -31,6 +31,7 @@ import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { csrfToken } from './lib/csrf.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
+import { addLiteSetConfig } from './side/lite-sections.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 const API = '/!/sve/section-types';
@@ -172,11 +173,17 @@ export function updateSectionType(win, { handle, hidden, fields = false }) {
  * one thing that stays a page-load behind, and it is not the path used here.
  *
  * `afterUid` is the section to land behind (null = the top of the page).
+ * `set` is the type as the server described it (display, group, …): the
+ * panel beside the preview renders every row from the set config the form
+ * was built with, and a type made since is not in it — the row came up as an
+ * empty shell with no `_visual_id`, and everything that looks a section up by
+ * uid waited its full timeout. Told here, before the row is written.
+ *
  * Returns the row, so the caller has the uid to step into, or null when there
  * is no page-builder field to write to — a component, say, or a form that has
  * not finished mounting.
  */
-export async function placeNewSection(win, handle, afterUid = null) {
+export async function placeNewSection(win, handle, afterUid = null, set = null) {
   if (
     !handle
     || typeof fetchSetMeta !== 'function'
@@ -193,6 +200,21 @@ export async function placeNewSection(win, handle, afterUid = null) {
   // template, which is what this did before it placed anything.
   if (!meta) {
     return null;
+  }
+
+  if (set && Array.isArray(meta.definitions)) {
+    addLiteSetConfig(
+      handle,
+      {
+        display: set.display || handle,
+        icon: set.icon || null,
+        hide: set.hidden === true,
+        fields: meta.definitions,
+        // The group's name, for the header the set wears beside its own.
+        group_display: set.group_display || set.group || '',
+      },
+      set.group || ''
+    );
   }
 
   const newId = newRowId();
@@ -356,7 +378,15 @@ async function makeSection(win, overlay, payload, { afterUid, onDone, onError })
     // instead of after the next reopen.
     libraryStale(win);
 
-    const row = await placeNewSection(win, data.section?.handle, afterUid);
+    // The group's display name travels with the type map, not the section.
+    const made = data.section?.handle
+      ? {
+          ...data.section,
+          group_display:
+            (data.section_types || []).find((type) => type?.handle === data.section.handle)?.group_display || '',
+        }
+      : null;
+    const row = await placeNewSection(win, data.section?.handle, afterUid, made);
 
     if (!row && data.section?.handle) {
       ask('dock:open-template', data.section.handle);
