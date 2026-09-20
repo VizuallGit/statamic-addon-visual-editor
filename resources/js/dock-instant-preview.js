@@ -33,14 +33,23 @@
  * mouse, the arrows or the keyboard — is held the same way (`sve:tw-preview`)
  * until it is picked or left. The PHP morph still saves in the background. It
  * is not on the paint path.
+ *
+ * Which elements a class is held on is decided one way for every entry point
+ * (the HTML pane's own list, the strip's plus list, a chip's menu, the icon
+ * row — the strip renders from the HTML caret, so all four are about the tag
+ * the caret is in): the dock's text up to the caret is parsed with a sentinel
+ * where the caret is, which lands inside whatever element is open there, and
+ * that template element is paired with the live section by the rules the
+ * structure paint pairs with. Not the tree's stamps in the preview (they go
+ * stale between two morphs) and not "the first tag of that name".
  */
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 11) {
+    if (window.__sveDockInstantPreview === 12) {
         return;
     }
-    window.__sveDockInstantPreview = 11;
+    window.__sveDockInstantPreview = 12;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -1798,6 +1807,21 @@
         return hits[0] ? liveByPath(doc, hits[0]) : [];
     }
 
+    /**
+     * The live elements of a scoped pane's root: by its place in the file when
+     * the file is known, else by its tag in the active section.
+     */
+    function scopedRootLive(doc, pane) {
+        var full = fullHtml();
+        var snippetAt = full ? full.indexOf(pane) : -1;
+
+        if (snippetAt === -1) {
+            return liveForOffset(doc, pane, 1, true).targets;
+        }
+
+        return liveForOffset(doc, full, snippetAt + 1, false).targets;
+    }
+
     function paintLive(doc, html) {
         var pane = paneText('html');
         var root;
@@ -1808,7 +1832,7 @@
 
         if (htmlScoped()) {
             root = templateRoot(pane);
-            targets = pickedLive(doc, root);
+            targets = scopedRootLive(doc, pane);
 
             if (root && targets.length && targets[0].tagName === root.tagName) {
                 targets.forEach(function (el) {
@@ -1940,6 +1964,265 @@
         }
     }
 
+    // ---- One tag in the dock, its elements in the preview ---------------------
+
+    var VOID_TAGS = {
+        AREA: 1, BASE: 1, BR: 1, COL: 1, EMBED: 1, HR: 1, IMG: 1, INPUT: 1,
+        LINK: 1, META: 1, PARAM: 1, SOURCE: 1, TRACK: 1, WBR: 1,
+    };
+
+    /** Index path, element kids only, from `root` down to `el`; null when `el` is not under `root`. */
+    function indexPath(root, el) {
+        var path = [];
+        var node = el;
+        var parent;
+        var idx;
+
+        while (node && node !== root) {
+            parent = node.parentElement;
+
+            if (!parent) {
+                return null;
+            }
+
+            idx = elementKids(parent).indexOf(node);
+
+            if (idx === -1) {
+                return null;
+            }
+
+            path.unshift(idx);
+            node = parent;
+        }
+
+        return node === root ? path : null;
+    }
+
+    function elementAtPath(root, path) {
+        var el = root;
+        var i;
+
+        for (i = 0; el && i < path.length; i++) {
+            el = elementKids(el)[path[i]] || null;
+        }
+
+        return el;
+    }
+
+    /**
+     * The template element the caret is in, as an index path from the root.
+     *
+     * The text up to the caret is parsed with a sentinel appended: the browser
+     * puts it inside whatever element is open there, with the same nesting
+     * rules as the template the paint walks. A caret inside a tag
+     * (`<div class="bg-pr|">`) counts as in that element — the text is cut at
+     * its `<` and the tag closed for the parse; inside a closing tag it is the
+     * element being closed; inside a void tag (`<img …|`) the tag itself.
+     */
+    function templatePathAt(html, pos, ctx) {
+        var head = String(html).slice(0, pos);
+        var masked = head.replace(/\{\{[\s\S]*?\}\}/g, function (m) {
+            return new Array(m.length + 1).join(' ');
+        });
+        var lt = masked.lastIndexOf('<');
+        var gt = masked.lastIndexOf('>');
+        var open = null;
+        var tag;
+        var wrap;
+        var sentinel;
+        var root;
+        var el;
+        var i;
+
+        if (lt > gt) {
+            if (head[lt + 1] === '/') {
+                // Inside a closing tag, its name maybe still to come: the element
+                // being closed is the one still open at the `<`.
+                head = head.slice(0, lt);
+            } else {
+                tag = /^<([a-zA-Z][\w:-]*)/.exec(head.slice(lt));
+
+                if (!tag) {
+                    return null;
+                }
+
+                open = tag[1].toUpperCase();
+                head = head.slice(0, lt) + '<' + tag[1] + '>';
+            }
+        }
+
+        wrap = document.createElement('div');
+        wrap.innerHTML = stripAntlers(head, ctx) + '<i data-sve-caret></i>';
+        sentinel = wrap.querySelector('[data-sve-caret]');
+
+        for (i = 0; i < wrap.children.length; i++) {
+            if (wrap.children[i].tagName !== 'STYLE' && wrap.children[i].tagName !== 'SCRIPT' && wrap.children[i] !== sentinel) {
+                root = wrap.children[i];
+                break;
+            }
+        }
+
+        if (!sentinel || !root) {
+            return null;
+        }
+
+        el = open && VOID_TAGS[open] ? sentinel.previousElementSibling : sentinel.parentElement;
+        sentinel.remove();
+
+        return el && el !== wrap ? indexPath(root, el) : null;
+    }
+
+    /**
+     * The live elements paired with `wanted`, walking template and live the way
+     * the structure paint does: same tag in order; in a parent that holds a
+     * loop's marker, one template child for every live child of its tag.
+     */
+    function pairLive(live, tpl, wanted) {
+        var tplKids = elementKids(tpl);
+        var counts = {};
+        var seen = {};
+        var consumed = [];
+        var dynamicParent = hasMarker(directText(tpl));
+        var out = [];
+        var i;
+        var tplEl;
+        var tag;
+        var same;
+        var targets;
+
+        if (tpl === wanted) {
+            return [live];
+        }
+
+        tplKids.forEach(function (kid) {
+            counts[kid.tagName] = (counts[kid.tagName] || 0) + 1;
+        });
+
+        for (i = 0; i < tplKids.length; i++) {
+            tplEl = tplKids[i];
+            tag = tplEl.tagName;
+            seen[tag] = (seen[tag] || 0) + 1;
+            same = elementKids(live).filter(function (kid) {
+                return kid.tagName === tag && consumed.indexOf(kid) === -1;
+            });
+
+            if (!same.length) {
+                continue;
+            }
+
+            targets = counts[tag] === 1 && dynamicParent ? same : [same[Math.min(seen[tag] - 1, same.length - 1)]];
+            targets.forEach(function (target) {
+                consumed.push(target);
+            });
+
+            if (tplEl === wanted) {
+                return targets;
+            }
+
+            if (tplEl.contains(wanted)) {
+                targets.forEach(function (target) {
+                    out = out.concat(pairLive(target, tplEl, wanted));
+                });
+
+                return out;
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * The snippet a scoped pane shows, when the file it sits in is not known:
+     * the active section if it is that tag, else the first such tag in it.
+     * The one place left where a tag name has to do — a snippet on its own has
+     * no file to be found in.
+     */
+    function snippetRootLive(doc, tplRoot) {
+        var tag = tplRoot.tagName;
+        var active = doc.querySelector('[data-sid-active]');
+        var section = pageSection(doc);
+        var host = active || section;
+        var inner;
+
+        if (!host) {
+            return [];
+        }
+
+        if (host.tagName === tag) {
+            return [host];
+        }
+
+        inner = host.querySelector(tag.toLowerCase());
+
+        return inner ? [inner] : [];
+    }
+
+    /**
+     * The live elements for the tag at `at` in `html`: `{ targets, tag }`.
+     * `html` is the whole file when it is known, and then the section is
+     * found as the paint finds it; a snippet on its own goes through
+     * `snippetRootLive`.
+     */
+    function liveForOffset(doc, html, at, snippetOnly) {
+        var tplRoot = templateRoot(html, null);
+        var roots;
+        var path;
+        var tplEl;
+        var targets = [];
+
+        if (!tplRoot) {
+            return { targets: [], tag: '' };
+        }
+
+        roots = snippetOnly ? snippetRootLive(doc, tplRoot) : [fileRootLive(doc, tplRoot)].filter(Boolean);
+        path = templatePathAt(html, at, null);
+        tplEl = path ? elementAtPath(tplRoot, path) : null;
+
+        if (!tplEl || !roots.length) {
+            return { targets: [], tag: tplEl ? tplEl.tagName : '' };
+        }
+
+        roots.forEach(function (root) {
+            if (root.tagName === tplRoot.tagName) {
+                targets = targets.concat(pairLive(root, tplRoot, tplEl));
+            }
+        });
+
+        return { targets: targets, tag: tplEl.tagName };
+    }
+
+    /**
+     * Where the HTML caret is, in the preview. The strip shows the tag the
+     * caret is in, so this is the answer for its lists too.
+     */
+    function liveAtCaret(doc) {
+        var view = paneView('html');
+        var pane;
+        var pos;
+        var full;
+        var snippetAt;
+
+        if (!view) {
+            return { targets: [], tag: '' };
+        }
+
+        pane = view.state.doc.toString();
+        pos = view.state.selection.main.head;
+
+        if (!htmlScoped()) {
+            return liveForOffset(doc, pane, pos, false);
+        }
+
+        full = fullHtml();
+        snippetAt = full ? full.indexOf(pane) : -1;
+
+        if (snippetAt === -1) {
+            return liveForOffset(doc, pane, pos, true);
+        }
+
+        return liveForOffset(doc, full, snippetAt + pos, false);
+    }
+
     var twHold = null;
     var twHeldKey = '';
     /** The hold as asked for, so a paint or a morph in between can be followed by the same hold on the fresh elements. */
@@ -2054,20 +2337,13 @@
         holdTw(doc, request);
     }
 
-    function byHtPath(doc, path) {
-        try {
-            return Array.prototype.slice.call(
-                doc.querySelectorAll('[data-sve-ht-path="' + CSS.escape(path) + '"]')
-            );
-        } catch (e) {
-            return [];
-        }
-    }
-
     /**
-     * The strip's add list (tw-classes.js `previewAdd`): `{ path, value }` is
-     * the tag and the class value Enter would write; `{ keep: true }` says it
-     * is being written; no detail means the list moved off or closed.
+     * The strip's add list, a chip's menu and the icon row (tw-classes.js
+     * `previewAdd` / `previewChip` / `previewSet`): `{ path, value }` is the
+     * tag and the class value Enter would write; `{ keep: true }` says it is
+     * being written; no detail means the list moved off or closed. The tag is
+     * the one the HTML caret is in — the strip renders from that caret — so
+     * the elements are found exactly as for the HTML pane's own list.
      */
     function onTwPreview(event) {
         var detail = event && event.detail;
@@ -2088,15 +2364,11 @@
         }
 
         holdTw(doc, {
-            find: function (next) {
-                var found = detail.path ? byHtPath(next, detail.path) : [];
-
-                return found.length ? found : twLiveTargets(next);
-            },
+            find: twLiveTargets,
             valueFor: function () {
                 return detail.value;
             },
-            key: 'strip:' + detail.path + ':' + detail.value,
+            key: 'strip:' + (detail.path || '') + ':' + detail.value,
             candidate: detail.value,
         });
     }
@@ -2125,10 +2397,13 @@
     }
 
     function twLiveTargets(doc) {
-        var pane = paneText('html');
-        var tpl = htmlScoped() ? templateRoot(pane) : templateRoot(fullHtml() || pane);
+        var found = liveAtCaret(doc);
 
-        return pickedLive(doc, tpl);
+        if (!found.targets.length) {
+            trace('tw: no live element for the caret' + (found.tag ? ' (<' + found.tag.toLowerCase() + '>)' : ''));
+        }
+
+        return found.targets;
     }
 
     function optionClassName(el) {
