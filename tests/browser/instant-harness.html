@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script>
+  // Statamic stub: enough for dock-instant-preview.js to boot without the CP.
+  window.__handlers = {};
+  window.__paneHtml = '';
+  window.Statamic = {
+    $config: {
+      get: function (k) {
+        return {
+          sveFeatures: { template_dock: true, tailwind_dock: false },
+          sveTwCompile: '',
+          sveSectionField: 'page_sections',
+        }[k];
+      },
+    },
+    $events: {
+      $on: function (name, cb) { (window.__handlers[name] = window.__handlers[name] || []).push(cb); },
+    },
+    booting: function (cb) { cb(); },
+  };
+  window.__emit = function (name, payload) { (window.__handlers[name] || []).forEach(function (cb) { cb(payload); }); };
+</script>
+</head>
+<body>
+<div class="live-preview">
+  <div id="__sve-code-dock">
+    <span data-sve-code-path>resources/views/partials/page_sections/other_section/employees_list_2.antlers.html</span>
+    <div data-sve-code-pane="html"><div class="cm-content"></div></div>
+    <div data-sve-code-pane="css"><div class="cm-content"></div></div>
+  </div>
+  <iframe id="live-preview-iframe" style="width:900px;height:600px"></iframe>
+</div>
+<script>
+  // The panes read the editor state, not the DOM (memory: CodeMirror only draws the visible lines).
+  var html = document.querySelector('[data-sve-code-pane="html"] .cm-content');
+  var css = document.querySelector('[data-sve-code-pane="css"] .cm-content');
+  html.cmTile = { view: { state: { doc: { toString: function () { return window.__paneHtml; } } } } };
+  css.cmTile = { view: { state: { doc: { toString: function () { return ''; } } } } };
+</script>
+<script src="SCRIPT_SRC"></script>
+</body>
+</html>

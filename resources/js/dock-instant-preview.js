@@ -1119,6 +1119,109 @@
     }
 
     /**
+     * How well a live child and a template child match: the same tag, then
+     * the same class, the same kids by tag, the same finished text on a leaf.
+     * 0 when the tags differ — those are never a pair.
+     */
+    function pairScore(liveEl, tplEl) {
+        var score;
+
+        if (liveEl.tagName !== tplEl.tagName) {
+            return 0;
+        }
+
+        score = 1;
+
+        if (classValue(liveEl.getAttribute('class') || '') === classValue(tplEl.getAttribute('class') || '')) {
+            score += 1;
+        }
+
+        if (sameShape(liveEl, tplEl)) {
+            score += 1;
+        }
+
+        if (
+            !elementKids(tplEl).length &&
+            !elementKids(liveEl).length &&
+            !hasMarker(tplEl.textContent) &&
+            liveEl.textContent.trim() === tplEl.textContent.trim()
+        ) {
+            score += 1;
+        }
+
+        return score;
+    }
+
+    /**
+     * Template kids paired with live kids, in order: the alignment with the
+     * highest total score, never crossing.
+     *
+     * Four <p> in a row used to be paired by ordinal into a list that shrank
+     * as it was consumed, so the second template <p> met the third live one
+     * and every text landed one node off until the morph put it right. A
+     * wrapper typed around the <h2> took the first <div> on the page instead
+     * of wrapping the heading. In a section with one tag of each kind neither
+     * showed; in a section with a fieldset and repeated tags every keystroke
+     * painted wrong and "waited a second" for the morph.
+     *
+     * @returns {Map<Element, Element>} template kid → live kid
+     */
+    function alignKids(liveKids, tplKids) {
+        var n = tplKids.length;
+        var m = liveKids.length;
+        var dp = [];
+        var pairs = new Map();
+        var i;
+        var j;
+        var s;
+
+        for (i = 0; i <= n; i++) {
+            dp[i] = [];
+
+            for (j = 0; j <= m; j++) {
+                dp[i][j] = 0;
+            }
+        }
+
+        for (i = 1; i <= n; i++) {
+            for (j = 1; j <= m; j++) {
+                s = pairScore(liveKids[j - 1], tplKids[i - 1]);
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1], s ? dp[i - 1][j - 1] + s : 0);
+            }
+        }
+
+        i = n;
+        j = m;
+
+        while (i > 0 && j > 0) {
+            s = pairScore(liveKids[j - 1], tplKids[i - 1]);
+
+            if (s && dp[i][j] === dp[i - 1][j - 1] + s) {
+                pairs.set(tplKids[i - 1], liveKids[j - 1]);
+                i--;
+                j--;
+            } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+                i--;
+            } else {
+                j--;
+            }
+        }
+
+        return pairs;
+    }
+
+    /**
+     * A tag still being typed: `<p` with no `>` before the next `<`, or an
+     * attribute value whose quote is not closed yet. The parser then swallows
+     * the markup after it, and painting that state moved a whole list into a
+     * paragraph and dropped what it could not rebuild. The next keystroke
+     * paints; this one waits.
+     */
+    function midTag(html) {
+        return /<\/?[a-zA-Z][^<>"']*(?:"[^"]*"[^<>"']*|'[^']*'[^<>"']*)*(?:<|$|"[^"]*(?:<|$)|'[^']*(?:<|$))/.test(String(html || ''));
+    }
+
+    /**
      * `parentTags` are the tags the template names one level up. A live child
      * this level no longer has, but that level does, is lifted up to it rather
      * than removed — the parent's paint is still running and matches it there.
@@ -1135,9 +1238,13 @@
         var tplKids = elementKids(tpl);
         var tplTags = {};
         var counts = {};
-        var seen = {};
         var consumed = [];
         var dynamicParent = hasMarker(directText(tpl));
+        // In a static parent every child is one node for one: paired in order,
+        // by how alike they are. In a dynamic one a loop may have rendered many
+        // from one template child, and the pairing is by tag.
+        var pairs = dynamicParent ? null : alignKids(elementKids(live), tplKids);
+        var paired = new Set(pairs ? pairs.values() : []);
         var lifted;
         var i;
 
@@ -1146,18 +1253,23 @@
             counts[kid.tagName] = (counts[kid.tagName] || 0) + 1;
         });
 
+        // Spoken for: painted already, or waiting for its own template child.
+        function taken(kid) {
+            return consumed.indexOf(kid) !== -1 || paired.has(kid);
+        }
+
         // Always read fresh: a child's paint may have lifted nodes up to here, a
         // new wrapper may have taken some, a dropped one given its own back.
         function liveOfTag(tag) {
             return elementKids(live).filter(function (kid) {
-                return kid.tagName === tag && consumed.indexOf(kid) === -1;
+                return kid.tagName === tag && !taken(kid);
             });
         }
 
         // Live children of a tag the template does not name at this level.
         function strangers() {
             return elementKids(live).filter(function (kid) {
-                return consumed.indexOf(kid) === -1 && !tplTags[kid.tagName];
+                return !taken(kid) && !tplTags[kid.tagName];
             });
         }
 
@@ -1167,6 +1279,10 @@
             var hits;
 
             for (j = index + 1; j < tplKids.length; j++) {
+                if (pairs && pairs.get(tplKids[j])) {
+                    return pairs.get(tplKids[j]);
+                }
+
                 hits = liveOfTag(tplKids[j].tagName);
 
                 if (hits.length) {
@@ -1180,7 +1296,7 @@
         for (i = 0; i < tplKids.length; i++) {
             (function (tplEl, index) {
                 var tag = tplEl.tagName;
-                var same = liveOfTag(tag);
+                var same;
                 var targets;
                 var idx;
                 var candidate;
@@ -1189,27 +1305,36 @@
                 var fresh;
                 var anchor;
 
-                seen[tag] = (seen[tag] || 0) + 1;
+                if (pairs) {
+                    candidate = pairs.get(tplEl) || null;
 
-                // A wrapper the template dropped: a live child the template no
-                // longer names, holding this tag. Its children take its place.
-                if (!same.length && !dynamicParent) {
-                    candidate = strangers().filter(function (kid) {
-                        return kidTags(kid)[tag];
-                    })[0];
+                    if (!candidate) {
+                        // A wrapper the template dropped: a live child the template no
+                        // longer names, holding this tag. Its children take its place.
+                        candidate = strangers().filter(function (kid) {
+                            return kidTags(kid)[tag];
+                        })[0];
 
-                    if (candidate) {
-                        unwrap(candidate);
-                        same = liveOfTag(tag);
+                        if (candidate) {
+                            unwrap(candidate);
+                        }
+
+                        // The next live child of this tag nobody is waiting for — one
+                        // freed just now, or one the alignment had to leave out.
+                        candidate = liveOfTag(tag)[0] || null;
                     }
+
+                    same = candidate ? [candidate] : [];
+                } else {
+                    same = liveOfTag(tag);
                 }
 
                 if (same.length) {
-                    // One template child of a tag speaks for every live child of that
-                    // tag where a loop can have rendered many from one — a loop always
-                    // leaves its marker in the parent's text. In a parent with none,
-                    // one speaks for one, and a deleted sibling goes below.
-                    targets = counts[tag] === 1 && dynamicParent ? same : [same[Math.min(seen[tag] - 1, same.length - 1)]];
+                    // In a dynamic parent one template child of a tag speaks for every
+                    // live child of that tag where a loop can have rendered many from
+                    // one — a loop always leaves its marker in the parent's text.
+                    // Otherwise one speaks for one, and a deleted sibling goes below.
+                    targets = !pairs && counts[tag] === 1 ? same : [same[0]];
                     targets.forEach(function (target) {
                         consumed.push(target);
                         morphElement(target, tplEl, tplTags);
@@ -1309,7 +1434,7 @@
         if (!dynamicParent) {
             lifted = live;
             elementKids(live).forEach(function (kid) {
-                if (consumed.indexOf(kid) !== -1) {
+                if (taken(kid)) {
                     return;
                 }
 
@@ -1355,6 +1480,12 @@
         var ctx = null;
         var tpl = scopedRoot;
         var started = window.performance ? performance.now() : Date.now();
+
+        if (midTag(html)) {
+            trace('structure: a tag is still being typed, waiting for the next keystroke');
+
+            return true;
+        }
 
         try {
             uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
