@@ -50,13 +50,13 @@ import { t } from '../../lib/i18n.js';
                     );
                 }
 
-                return { sets, isChecked, toggle, t };
+                return { sets, isChecked, toggle, t: (key, replacements) => t(window, key, replacements) };
             },
 
             template: `
                 <div>
                     <p v-if="!sets.length" class="text-sm text-gray-600 dark:text-gray-400">
-                        {{ t(window, 'globals_picker_empty') }}
+                        {{ t('globals_picker_empty') }}
                     </p>
                     <div v-else class="flex flex-col gap-2">
                         <label

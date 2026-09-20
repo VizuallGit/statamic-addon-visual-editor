@@ -72,13 +72,13 @@ import { t } from '../../lib/i18n.js';
                         : [...selected.value, handle]);
                 }
 
-                return { sets, isChecked, toggle, t };
+                return { sets, isChecked, toggle, t: (key, replacements) => t(window, key, replacements) };
             },
 
             template: `
                 <div>
                     <p v-if="!sets.length" class="text-sm text-gray-600 dark:text-gray-400">
-                        {{ t(window, 'field_from_the_start_no_sets') }}
+                        {{ t('field_from_the_start_no_sets') }}
                     </p>
                     <div v-else class="flex flex-col gap-2">
                         <label

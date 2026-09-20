@@ -155,7 +155,7 @@ import { t } from '../../lib/i18n.js';
                     setType,
                     setInlineText,
                     levelsFor,
-                    t,
+                    t: (key, replacements) => t(window, key, replacements),
                 };
             },
 
@@ -166,7 +166,7 @@ import { t } from '../../lib/i18n.js';
                             type="text"
                             class="input-text"
                             :value="inlineText"
-                            :placeholder="t(window, 'field_from_the_start_placeholder_inline')"
+                            :placeholder="t('field_from_the_start_placeholder_inline')"
                             @input="setInlineText($event.target.value)"
                         >
                     </div>
@@ -178,7 +178,7 @@ import { t } from '../../lib/i18n.js';
                         >
                             <template v-if="block.kind === 'raw'">
                                 <span class="text-sm text-gray-600 dark:text-gray-400 grow">
-                                    {{ t(window, 'field_from_the_start_other_block', { type: block.node?.type || 'unknown' }) }}
+                                    {{ t('field_from_the_start_other_block', { type: block.node?.type || 'unknown' }) }}
                                 </span>
                             </template>
                             <template v-else>
@@ -188,18 +188,18 @@ import { t } from '../../lib/i18n.js';
                                     :value="block.kind === 'heading' ? 'h' + block.level : 'paragraph'"
                                     @change="setType(index, $event.target.value)"
                                 >
-                                    <option value="paragraph">{{ t(window, 'field_from_the_start_paragraph') }}</option>
+                                    <option value="paragraph">{{ t('field_from_the_start_paragraph') }}</option>
                                     <option
                                         v-for="level in levelsFor(block)"
                                         :key="level"
                                         :value="'h' + level"
-                                    >{{ t(window, 'field_from_the_start_headline', { level }) }}</option>
+                                    >{{ t('field_from_the_start_headline', { level }) }}</option>
                                 </select>
                                 <input
                                     type="text"
                                     class="input-text grow"
                                     :value="block.text"
-                                    :placeholder="t(window, 'field_from_the_start_placeholder')"
+                                    :placeholder="t('field_from_the_start_placeholder')"
                                     @input="update(index, { text: $event.target.value })"
                                 >
                             </template>
@@ -207,7 +207,7 @@ import { t } from '../../lib/i18n.js';
                                 type="button"
                                 class="text-sm text-gray-600 dark:text-gray-400 hover:text-current"
                                 @click="remove(index)"
-                            >{{ t(window, 'field_from_the_start_remove') }}</button>
+                            >{{ t('field_from_the_start_remove') }}</button>
                         </div>
                         <button
                             type="button"
@@ -215,7 +215,7 @@ import { t } from '../../lib/i18n.js';
                             style="width: auto;"
                             @click="add"
                         >
-                            {{ t(window, 'field_from_the_start_add') }}
+                            {{ t('field_from_the_start_add') }}
                         </button>
                     </template>
                 </div>

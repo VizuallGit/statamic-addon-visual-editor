@@ -130,7 +130,7 @@ import { t } from '../../lib/i18n.js';
                     setAudience,
                     toggleUser,
                     toggleGroup,
-                    t,
+                    t: (key, replacements) => t(window, key, replacements),
                 };
             },
 
@@ -142,21 +142,21 @@ import { t } from '../../lib/i18n.js';
                             <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
                                 <label class="inline-flex items-center gap-1.5 cursor-pointer">
                                     <input type="radio" :checked="row.audience === 'everyone'" @change="setAudience('everyone')">
-                                    <span>{{ t(window, 'toolbar_access_everyone') }}</span>
+                                    <span>{{ t('toolbar_access_everyone') }}</span>
                                 </label>
                                 <label class="inline-flex items-center gap-1.5 cursor-pointer">
                                     <input type="radio" :checked="row.audience === 'super'" @change="setAudience('super')">
-                                    <span>{{ t(window, 'toolbar_access_super') }}</span>
+                                    <span>{{ t('toolbar_access_super') }}</span>
                                 </label>
                                 <label class="inline-flex items-center gap-1.5 cursor-pointer">
                                     <input type="radio" :checked="row.audience === 'people'" @change="setAudience('people')">
-                                    <span>{{ t(window, 'toolbar_access_people') }}</span>
+                                    <span>{{ t('toolbar_access_people') }}</span>
                                 </label>
                             </div>
                             <div v-if="row.audience === 'people'" class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
-                                    <div class="text-xs font-medium mb-1 opacity-70">{{ t(window, 'toolbar_access_users') }}</div>
-                                    <p v-if="!users.length" class="text-xs opacity-60">{{ t(window, 'toolbar_access_empty_users') }}</p>
+                                    <div class="text-xs font-medium mb-1 opacity-70">{{ t('toolbar_access_users') }}</div>
+                                    <p v-if="!users.length" class="text-xs opacity-60">{{ t('toolbar_access_empty_users') }}</p>
                                     <div v-else class="flex flex-col gap-1 max-h-40 overflow-auto">
                                         <label
                                             v-for="user in users"
@@ -174,8 +174,8 @@ import { t } from '../../lib/i18n.js';
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="text-xs font-medium mb-1 opacity-70">{{ t(window, 'toolbar_access_groups') }}</div>
-                                    <p v-if="!groups.length" class="text-xs opacity-60">{{ t(window, 'toolbar_access_empty_groups') }}</p>
+                                    <div class="text-xs font-medium mb-1 opacity-70">{{ t('toolbar_access_groups') }}</div>
+                                    <p v-if="!groups.length" class="text-xs opacity-60">{{ t('toolbar_access_empty_groups') }}</p>
                                     <div v-else class="flex flex-col gap-1 max-h-40 overflow-auto">
                                         <label
                                             v-for="group in groups"
