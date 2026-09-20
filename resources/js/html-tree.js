@@ -467,7 +467,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-branch] {
       border: 1px solid color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 45%, transparent);
       border-radius: 7px;
-      padding: 2px;
+      padding: 4px;
       margin: 0 0 6px;
       background: color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 4%, transparent);
     }
