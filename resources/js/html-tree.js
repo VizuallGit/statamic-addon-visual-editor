@@ -1838,16 +1838,17 @@ const TOGGLE_OFF =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>';
 
 /**
- * What a static section's menu adds: whether editors may insert it from
- * Patterns, and the way out of being static — fields. Both edit the fieldset
- * in the repository, so both are gated the way making one is. Empty for a
- * section with fields, and for anyone who cannot configure fields.
+ * What the section's menu adds for whoever may configure fields: whether
+ * editors may insert this type from Patterns (Statamic's own `hide` on the
+ * set), and for a static section the way out of being static — fields. Both
+ * edit the fieldset in the repository, so both are gated the way making a
+ * section is. Empty for everyone else.
  */
-function staticTypeItems(win, uid) {
+function sectionTypeItems(win, uid) {
   const section = htmlTreeUi.sections?.find((item) => item.uid === uid);
   const type = section?.type || '';
 
-  if (!type || !section.static || !canCreateSections(win)) {
+  if (!type || !canCreateSections(win)) {
     return [];
   }
 
@@ -1855,7 +1856,7 @@ function staticTypeItems(win, uid) {
   const hidden = isHiddenType(win, type);
   const failed = () => win.Statamic?.$toast?.error(t(win, 'section_update_failed'));
 
-  return [
+  const items = [
     {
       label: t(win, 'static_section_insertable'),
       icon: hidden ? TOGGLE_OFF : TOGGLE_ON,
@@ -1873,7 +1874,10 @@ function staticTypeItems(win, uid) {
           .catch(failed);
       },
     },
-    {
+  ];
+
+  if (section.static) {
+    items.push({
       label: t(win, 'section_add_fields'),
       onPick: () => {
         closeHtmlTreeMenu();
@@ -1890,8 +1894,10 @@ function staticTypeItems(win, uid) {
           })
           .catch(failed);
       },
-    },
-  ];
+    });
+  }
+
+  return items;
 }
 
 function openHtmlTreeSectionMenu(win, event, section) {
@@ -1903,7 +1909,7 @@ function openHtmlTreeSectionMenu(win, event, section) {
 
   htmlTreeMenu = openCpOverlay(win.document, HtmlTreeMenu, {
     items: [
-      ...staticTypeItems(win, uid),
+      ...sectionTypeItems(win, uid),
       {
         label: t(win, 'html_tree_remove_section'),
         danger: true,
@@ -1975,7 +1981,7 @@ function openHtmlTreeMenu(win, event, id) {
 
   show([
     // The open section's root: the same switches its shut row offers.
-    ...(row.sectionRoot ? staticTypeItems(win, row.sectionRoot) : []),
+    ...(row.sectionRoot ? sectionTypeItems(win, row.sectionRoot) : []),
     {
       label: t(win, 'component_make'),
       onPick: () => {
