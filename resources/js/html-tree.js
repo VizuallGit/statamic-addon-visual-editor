@@ -815,9 +815,12 @@ function htmlTreeSections(win, doc) {
         ids,
         type: row.type,
         tag,
+        // Its own name first: a rename on the page is this section's, and two
+        // sections of one type may be called two things. The alias is the
+        // file's, shared by every section that renders through it.
         label:
-          (typeof alias === 'string' && alias.trim() ? alias.trim() : '')
-          || custom
+          custom
+          || (typeof alias === 'string' && alias.trim() ? alias.trim() : '')
           || setMeta(win, type)?.display
           || humanizeHandle(type)
           || type,
@@ -1501,7 +1504,9 @@ export function renderHtmlTree(win) {
     return {
       ...row,
       base,
-      name: htmlTreeDisplayName(base, row.path, aliases),
+      // The open page section's root already carries the section's own name
+      // (its label); the file's alias must not override it here.
+      name: isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
       current: row.id === htmlTreeActiveId,
       letter: aroundRoot ? '' : icon.letter || '',
       svg: isRoot && openSection ? openSection.svg : aroundRoot ? around.svg : icon.svg || '',
@@ -1709,16 +1714,69 @@ function finishHtmlTreeRename(win, save) {
   htmlTreeUi.editingId = null;
 
   if (save && row) {
-    writeHtmlTreeLabel(
-      ask('dock:current-type') || '',
-      row.path,
-      htmlTreeUi.draft,
-      row.base || row.klass
-    );
+    if (row.sectionRoot) {
+      // The open page section's root: the name belongs to this section on
+      // this page, not to the file every section of its type renders through
+      // — renaming one FAQ must leave the other FAQ its name.
+      writeSectionLabel(win, row.sectionRoot, htmlTreeUi.draft);
+    } else {
+      writeHtmlTreeLabel(
+        ask('dock:current-type') || '',
+        row.path,
+        htmlTreeUi.draft,
+        row.base || row.klass
+      );
+    }
   }
 
   htmlTreeUi.draft = '';
   renderHtmlTree(win);
+}
+
+/**
+ * The name one section wears on this page: `_sve_label` on its row, the same
+ * field the block tree and the focus header read. Empty, or the set's own
+ * name again, takes the field off — the row goes back to what its type is
+ * called.
+ */
+function writeSectionLabel(win, uid, label) {
+  const field = sectionField(win) || 'page_sections';
+  const next = String(label || '').replace(/\s+/g, ' ').trim();
+
+  for (const container of activeContainers(win.document) || []) {
+    const values = unwrapRef(container.values);
+    const list = values && typeof values === 'object' ? values[field] : null;
+
+    if (!Array.isArray(list)) {
+      continue;
+    }
+
+    const index = list.findIndex(
+      (row) => row && typeof row === 'object' && [row._visual_id, row.id, row._id].includes(uid)
+    );
+
+    if (index === -1) {
+      continue;
+    }
+
+    const type = globalSectionType(win, list[index]) || list[index].type;
+    const given = setMeta(win, type)?.display || humanizeHandle(type) || type;
+    const rows = JSON.parse(JSON.stringify(list));
+
+    rows[index] = { ...rows[index] };
+
+    if (!next || next === given) {
+      delete rows[index]._sve_label;
+    } else {
+      rows[index]._sve_label = next;
+    }
+
+    container.setFieldValue(field, rows);
+
+    return true;
+  }
+
+  return false;
 }
 
 function hideHtmlTreeRow(win, id) {
