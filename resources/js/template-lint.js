@@ -33,12 +33,14 @@ const VOID = new Set([
   'param', 'source', 'track', 'wbr',
 ]);
 
-/** Tags HTML itself closes for you. Leaving them open is legal, so it is not a finding. */
-const IMPLICIT = new Set([
-  'p', 'li', 'dt', 'dd', 'tr', 'td', 'th', 'option', 'optgroup', 'thead',
-  'tbody', 'tfoot', 'colgroup', 'caption', 'rb', 'rt', 'rtc', 'rp', 'html',
-  'head', 'body',
-]);
+/**
+ * Tags nobody writes a closing tag for. HTML closes `<p>` and `<li>` on its
+ * own too, but a designer who left `</p>` out did not mean to — measured:
+ * the first cut let those pass, and the first thing tried was a `<p>` with
+ * its closing tag removed, which got no word. The site's own templates close
+ * every one of them, so telling is free.
+ */
+const IMPLICIT = new Set(['html', 'head', 'body']);
 
 /**
  * Antlers tags that only exist as a pair. Any other name may be a value or a
@@ -333,6 +335,13 @@ function lintHtml(text, parser, branches, problems) {
   for (const problem of found) {
     // A tag that was never finished is one finding, not two.
     if (problem.key === 'code_dock_problem_tag_unclosed' && unfinished.has(problem.from)) {
+      continue;
+    }
+
+    // No name where the name should be: `<{{ tag }}>` … `</{{ tag }}>`, the
+    // tag decided by a field. Blanked, it reads as a tag with no name, and
+    // only the server knows what it is.
+    if (!problem.args.tag) {
       continue;
     }
 
