@@ -86,8 +86,11 @@ export function vscTheme(cm, options = {}) {
           lineHeight: '1.55',
         },
         '.cm-cursor': { borderLeftColor: '#aeafad' },
-        '.cm-activeLine': { backgroundColor: '#ffffff0d' },
-        '.cm-activeLineGutter': { backgroundColor: '#ffffff0d' },
+        // 3% white, not 5%: over the editor's #1E1E21 that stays a shade
+        // under the grips' #27272a, so the line you are on does not read as
+        // one of the handles you drag the dock by.
+        '.cm-activeLine': { backgroundColor: '#ffffff08' },
+        '.cm-activeLineGutter': { backgroundColor: '#ffffff08' },
         '.cm-gutters': {
           backgroundColor: background,
           color: '#858585',
