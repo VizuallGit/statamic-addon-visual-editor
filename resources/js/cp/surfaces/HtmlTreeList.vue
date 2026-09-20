@@ -50,6 +50,8 @@ function wrapBind(sec) {
 
   if (sec.current) {
     bind['data-sve-ht-branch'] = '';
+    // The section's family, so the tags look can draw the box in its colour.
+    bind['data-sve-ht-cat'] = sec.row?.cat || 'layout';
   }
 
   if (ui.sectionDrop && ui.sectionDrop.uid === sec.uid) {

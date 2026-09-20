@@ -400,14 +400,17 @@ export function ensureHtmlTreeStyles(doc) {
        wears as data-sve-ht-look, and every rule here hangs off that. */
     [data-sve-ht-look="tags"] {
       ${familyCssVars('light')}
-      --sve-ht-pick: rgba(56,88,233,.14);
-      --sve-ht-pick-hover: rgba(56,88,233,.22);
+      /* How much of a row's own colour its pick takes: a wash, not a fill.
+         The row mixes it in below — a mix written up here would read
+         --sve-ht-c on the list, where no family is set. */
+      --sve-ht-pick-mix: 14%;
+      --sve-ht-pick-hover-mix: 22%;
     }
     html.dark [data-sve-ht-look="tags"],
     .dark [data-sve-ht-look="tags"] {
       ${familyCssVars('dark')}
-      --sve-ht-pick: rgba(56,88,233,.3);
-      --sve-ht-pick-hover: rgba(56,88,233,.4);
+      --sve-ht-pick-mix: 30%;
+      --sve-ht-pick-hover-mix: 40%;
     }
     /* The family's colour, on a row and on the guide an ancestor of that
        family leaves under itself. */
@@ -433,26 +436,31 @@ export function ensureHtmlTreeStyles(doc) {
       border-radius: 5px;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-row]:hover { background: rgba(128,128,128,.14); }
-    /* The picked row: our blue as a wash and a bar at the edge, not a solid
-       fill — the chip's colour has to stay readable on it. */
+    /* The picked row: its own family colour as a wash and a bar at the
+       edge, not a solid fill — the name, the chip and the mark have to
+       stay readable on it. */
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] {
-      background: var(--sve-ht-pick);
+      background: color-mix(in srgb, var(--sve-ht-c) var(--sve-ht-pick-mix), transparent);
       color: inherit;
-      box-shadow: inset 2px 0 0 #3858e9;
+      box-shadow: inset 2px 0 0 var(--sve-ht-c);
     }
-    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current]:hover { background: var(--sve-ht-pick-hover); }
+    [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current]:hover {
+      background: color-mix(in srgb, var(--sve-ht-c) var(--sve-ht-pick-hover-mix), transparent);
+    }
     /* A shut section is one row in the page's list; a little air between them. */
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-sec] { margin-bottom: 2px; }
     /* The open section's box, quieter: it says where you are, the bar says
-       what you picked. Enough padding that a picked row's wash — the
-       section's own, or a child's — stops short of the border instead of
-       sitting on it. */
+       what you picked. In the section's own family colour — the wrapper
+       carries the section row's family (HtmlTreeList.vue) so the box can
+       read it; layout if it somehow does not. Enough padding that a picked
+       row's wash — the section's own, or a child's — stops short of the
+       border instead of sitting on it. */
     [data-sve-ht-look="tags"] [data-sve-ht-branch] {
-      border: 1px solid rgba(56,88,233,.45);
+      border: 1px solid color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 45%, transparent);
       border-radius: 7px;
       padding: 5px 6px;
       margin: 0 0 6px;
-      background: rgba(56,88,233,.04);
+      background: color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 4%, transparent);
     }
     /* A hair of air between the rows under a section, so the eye can tell
        them apart; a shut section already keeps its own distance (above). The
