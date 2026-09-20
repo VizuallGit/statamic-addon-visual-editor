@@ -444,14 +444,21 @@ export function ensureHtmlTreeStyles(doc) {
     /* A shut section is one row in the page's list; a little air between them. */
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-sec] { margin-bottom: 2px; }
     /* The open section's box, quieter: it says where you are, the bar says
-       what you picked. */
+       what you picked. Enough padding that a picked row's wash — the
+       section's own, or a child's — stops short of the border instead of
+       sitting on it. */
     [data-sve-ht-look="tags"] [data-sve-ht-branch] {
       border: 1px solid rgba(56,88,233,.45);
       border-radius: 7px;
-      padding: 3px;
+      padding: 5px 6px;
       margin: 0 0 6px;
       background: rgba(56,88,233,.04);
     }
+    /* A hair of air between the rows under a section, so the eye can tell
+       them apart; a shut section already keeps its own distance (above). The
+       guide reaches up across that gap so the line under a parent stays one
+       line. */
+    [data-sve-ht-look="tags"] [data-sve-ht-row] + [data-sve-ht-row] { margin-top: 2px; }
 
     /* One guide per level, drawn in the row's left margin: 14px per level
        with the line 7px in, so each sits under the twist of the row it
@@ -460,7 +467,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-indent] {
       display: flex;
       position: absolute;
-      top: 0;
+      top: -2px;
       bottom: 0;
       left: calc(-1 * var(--sve-ht-depth, 0) * 14px);
       width: calc(var(--sve-ht-depth, 0) * 14px);
@@ -471,7 +478,7 @@ export function ensureHtmlTreeStyles(doc) {
       flex: none;
       width: 14px;
       background: linear-gradient(to right, transparent 7px, var(--sve-ht-c) 7px, var(--sve-ht-c) 8px, transparent 8px);
-      opacity: .3;
+      opacity: .2;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-twist-gap] {
       display: inline-block;
