@@ -59,6 +59,8 @@
     var HOVER_KEY = 'sveInstantHover';
     var MODE_STYLE_ID = '__sve-instant-mode-style';
     var ANT = '\uE000';
+    var INSTANT_TITLE = 'Instant Preview — HTML, tekst, klasser og CSS males i previewet med det samme';
+    var MORPH_TITLE = 'Intet males med det samme — alt venter på den gemte morph, cirka ét sekund';
 
     var raf = 0;
     var lastHtml = null;
@@ -94,8 +96,10 @@
     }
 
     /**
-     * Two paints, same save path. `astro` writes classes into the iframe in
-     * the same frame. `morph` leaves the iframe to the PHP morph (~1 s).
+     * Two paints, same save path. `astro` writes structure, text, classes and
+     * CSS into the iframe in the same frame. `morph` leaves the iframe to the
+     * PHP morph (~1 s) — nothing here touches it: `paint()` returns at once,
+     * `holdTw` holds nothing, `injectLive` injects nothing.
      */
     function instantMode() {
         try {
@@ -141,8 +145,29 @@
         }
 
         lastHtml = null;
+
+        // "1 s" means the iframe is the morph's alone: no class held for a
+        // list, no live sheet from the CSS pane, no live Tailwind sheet. The
+        // sheets are put back by the first paint after "Instant" is chosen
+        // again — `lastCss` is forgotten so that paint does not skip the CSS.
+        if (next !== 'astro') {
+            restoreTwHold();
+            clearLive(previewDocument());
+            lastCss = '';
+        }
+
         paintToggle();
         schedulePaint();
+    }
+
+    /** Both live sheets out of the preview: what is left is what the server rendered. */
+    function clearLive(doc) {
+        if (!doc) {
+            return;
+        }
+
+        putStyle(doc, STYLE_CSS_ID, '');
+        setLiveTw(doc, '');
     }
 
     function ensureModeStyle() {
@@ -305,7 +330,7 @@
             return;
         }
 
-        btn.title = 'Instant Preview — klasser males med det samme';
+        btn.title = INSTANT_TITLE;
         btn.textContent = 'Instant';
 
         // Older sessions wrapped Instant for a beta badge — unwrap and drop it.
@@ -350,7 +375,7 @@
 
             if (morphBtn) {
                 morphBtn.textContent = '1 s';
-                morphBtn.title = 'Venter på gemt morph, cirka ét sekund';
+                morphBtn.title = MORPH_TITLE;
             }
 
             ensureHoverButton(group);
@@ -370,8 +395,8 @@
         group.setAttribute('role', 'group');
         group.setAttribute('aria-label', 'Instant Preview');
         group.innerHTML =
-            '<button type="button" data-sve-instant="astro" title="Instant Preview — klasser males med det samme">Instant</button>' +
-            '<button type="button" data-sve-instant="morph" title="Venter på gemt morph, cirka ét sekund">1 s</button>';
+            '<button type="button" data-sve-instant="astro" title="' + INSTANT_TITLE + '">Instant</button>' +
+            '<button type="button" data-sve-instant="morph" title="' + MORPH_TITLE + '">1 s</button>';
         group.addEventListener('click', function (event) {
             var btn = event.target.closest('[data-sve-instant]');
 
@@ -1615,7 +1640,7 @@
     }
 
     function injectLive(doc, html) {
-        if (!doc) {
+        if (!doc || instantMode() !== 'astro') {
             return;
         }
 
