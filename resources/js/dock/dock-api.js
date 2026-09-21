@@ -605,6 +605,23 @@ function chromeTemplateType(win, doc) {
  * the site has chosen (`sveChromeStyles` comes from the globals), so the
  * button never does nothing.
  */
+/** Whether the page builder holds at least one row. */
+function pageHasSectionRows(win) {
+  const field = typeof sectionField === 'function' ? sectionField(win) : 'page_sections';
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = unwrapRef(container.values) || container.values;
+    const rows = values?.[field];
+
+    if (Array.isArray(rows) && rows.length) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function emptyPageChromeType(win) {
   const preview = previewDocument(win);
 
@@ -654,14 +671,20 @@ export function syncCodeDock(win, doc, uid) {
     return;
   }
 
-  const type =
+  const resolved =
     chromeTemplateType(win, doc) ||
     globalSectionTemplateType(doc) ||
     pageSectionType(win, doc, uid) ||
     collectionViewType(win) ||
-    (!uid ? dockState.lastType : '') ||
-    emptyPageChromeType(win);
+    (!uid ? dockState.lastType : '');
+  // Only a page with no sections at all falls back to the header — and never
+  // a request for a section by uid, which must keep what it holds rather than
+  // hand the dock (and the tree with it) to the header.
+  const fallback = !resolved && !uid && !pageHasSectionRows(win) ? emptyPageChromeType(win) : '';
+  const type = resolved || fallback;
   const uidChanged = !!(uid && uid !== dockState.lastUid);
+
+  dockState.onEmptyPage = !!fallback;
 
   dockState.lastWin = win;
 
@@ -875,6 +898,8 @@ register('dock:exit-component', (levels = 1) => {
 });
 
 register('dock:current-type', () => currentTemplateType());
+// True while the dock shows the header only because the page has no sections.
+register('dock:on-empty-page', () => !!dockState.onEmptyPage);
 register('dock:current-uid', () => dockState.lastUid);
 /**
  * The save in the air, if any. A panel that writes the file and then asks the

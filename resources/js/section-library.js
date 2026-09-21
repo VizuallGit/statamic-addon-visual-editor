@@ -296,6 +296,16 @@ export function reidSection(win, section) {
  * row, so it would show in the preview but never in the CP's own section list.
  * Returns false when the field can't be located (e.g. nothing has focus yet).
  */
+/**
+ * Tells the panels that the page's rows changed. The block tree learns it
+ * through its own watch on values, but only while that panel is open; the
+ * HTML tree listens to this event alone — a section dragged in from the
+ * library sat outside it until something else repainted the tree.
+ */
+export function announcePageStructure() {
+  document.dispatchEvent(new CustomEvent('sve-page-structure'));
+}
+
 export function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) {
   const field = sectionField(win);
 
@@ -316,6 +326,7 @@ export function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) 
 
       writeSetMeta(container, field, section, rowMeta);
       container.setFieldValue(field, [section, ...JSON.parse(JSON.stringify(rows))]);
+      announcePageStructure();
 
       return true;
     }
@@ -333,6 +344,7 @@ export function insertSectionAfter(win, doc, afterUid, section, rowMeta = null) 
     // Sections live at the top level, so the meta always belongs to `field`.
     writeSetMeta(container, field, section, rowMeta);
     container.setFieldValue(parentPath, next);
+    announcePageStructure();
 
     return true;
   }
@@ -1609,12 +1621,14 @@ export function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace)
 
     if (replace) {
       container.setFieldValue(field, rows);
+      announcePageStructure();
 
       return true;
     }
 
     if (afterUid == null) {
       container.setFieldValue(field, [...rows, ...JSON.parse(JSON.stringify(existing))]);
+      announcePageStructure();
 
       return true;
     }
@@ -1629,6 +1643,7 @@ export function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace)
 
     next.splice(found.index + 1, 0, ...rows);
     container.setFieldValue(found.parentPath, next);
+    announcePageStructure();
 
     return true;
   }

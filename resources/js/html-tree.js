@@ -3067,7 +3067,19 @@ export function watchHtmlTreeDock(win) {
   // Dock HTML and page_sections both own what this tree shows. A section
   // delete updates values (and fires sve-page-structure) without touching the
   // dock — listening only to the dock left the deleted section on screen.
-  const onStructure = () => refresh();
+  const onStructure = () => {
+    refresh();
+
+    // The dock holds the header only because the page had no sections. Now
+    // it has one, and that one is what the reader wants open — not the header.
+    if (ask('dock:on-empty-page') === true) {
+      const sections = htmlTreeSections(win, win.document);
+
+      if (sections[0]) {
+        openHtmlTreeSection(win, win.document, sections, sections[0].uid, '');
+      }
+    }
+  };
 
   htmlTreeUnhook = on('dock:html-changed', refresh);
   win.document.addEventListener('sve-page-structure', onStructure);
@@ -3198,6 +3210,29 @@ export function toggleHtmlTreePanel(win) {
 
   openHtmlTreePanel(win);
 }
+
+/**
+ * Opens a section by uid the way a click on its row does — without the row
+ * having to be on screen first. The tree lists sections only while the dock
+ * holds one of them, so a section just made on an empty page (or while the
+ * dock held the header) had no row to click; the form has it all the same.
+ * Answers with the ids the preview knows it by, or null when it is not on
+ * the page.
+ */
+register('html-tree:open-section', (uid) => {
+  const win = window;
+  const doc = win.document;
+  const sections = htmlTreeSections(win, doc);
+  const section = sections.find((item) => item.uid === uid || item.ids.includes(uid));
+
+  if (!section) {
+    return null;
+  }
+
+  openHtmlTreeSection(win, doc, sections, section.uid, '');
+
+  return { uid: section.uid, ids: section.ids };
+});
 
 register('html-tree:from-preview', ({ path, src } = {}) => {
   // A field waiting for something to point at gets the click first. Nothing is

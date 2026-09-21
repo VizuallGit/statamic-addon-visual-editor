@@ -12,6 +12,7 @@
  */
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { serveWorktreeBuild } from './serve-worktree.mjs';
 
 const env = (key, fallback) => process.env[key] || fallback;
 const SITE_DIR = env('SVE_SITE_DIR', `${process.env.HOME}/Sites/vizuall-skabelon`);
@@ -21,6 +22,9 @@ const PASS = env('SVE_PASS', '');
 const ENTRY = env('SVE_ENTRY', '/cp/collections/pages/entries/68f56034-ce7c-4d33-b15d-da7fa7675662');
 const CHROME = env('SVE_CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const WATCH_MS = Number(env('SVE_WATCH_MS', '12000'));
+const ADDON_DIR = env('SVE_ADDON_DIR', `${process.env.HOME}/Sites/statamic-addon-visual-editor-vue`);
+/** SVE_WORKTREE=1: serve the working tree's build in place of the installed one. */
+const WORKTREE = env('SVE_WORKTREE', '') === '1';
 
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 
@@ -58,6 +62,11 @@ const sectionFacts = (frame) => frame.evaluate(() => {
   const els = [...document.querySelectorAll('section[id^="id-"], [data-sid][id^="id-"]')];
   return { count: els.length, sids: els.map((el) => el.getAttribute('data-sid') || el.id).join(',') };
 });
+
+if (WORKTREE) {
+  const served = await serveWorktreeBuild(page, { buildDir: env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`), installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
+  log('worktree build served:', typeof served === 'function' ? served() : served);
+}
 
 try {
   await page.goto(`${SITE_URL}/cp`, { waitUntil: 'networkidle2' });
@@ -143,7 +152,14 @@ try {
   log('toolbar tabs:', await cp.evaluate(() => [...document.querySelectorAll('#__sve-toolbar button')].map((b) => b.dataset.tab || b.title).join(' | ')));
   // The plus lives in the HTML tree, which comes with the template dock.
   step('clicked the dock icon', await clickIn(cp, '#__sve-toolbar button[data-tab="code"]'));
-  let plus = await waitIn(cp, 'button.sve-ht-new', 15000);
+  let plus = await waitIn(cp, 'button.sve-ht-new', 8000);
+  if (!plus) {
+    // The icon's first click now and then lands while the toolbar is still
+    // settling; the dock is not open, so a second click opens it.
+    const dockOpen = await cp.evaluate(() => !!document.getElementById('__sve-code-dock'));
+    log('dock open after first click:', dockOpen);
+    if (!dockOpen) { await clickIn(cp, '#__sve-toolbar button[data-tab="code"]'); plus = await waitIn(cp, 'button.sve-ht-new', 8000); }
+  }
   if (!plus) {
     log('panel facts:', await cp.evaluate(() => ({ list: !!document.querySelector('[data-sve-html-tree-list]'), search: document.querySelectorAll('.sve-ht-search').length, plus: document.querySelectorAll('.sve-ht-new').length, rightPanels: [...document.querySelectorAll('[id^="__sve-"][id$="-panel"], [id*="listview"], [id*="html-tree"]')].map((el) => el.id).join(',') })));
   }
@@ -200,6 +216,10 @@ try {
   }
   log('CP replicator sets after:', await cpRows());
   step('preview shows the new section without a save', gained, `before ${base.count}, after ${seen.count}`);
+  const dockPath = await cp.evaluate(() => (document.querySelector('[data-sve-dock-path], .sve-dock-path, #__sve-code-dock [title*=".antlers.html"]')?.textContent || [...document.querySelectorAll('#__sve-code-dock *')].map((el) => el.textContent || '').find((t) => /\.antlers\.html$/.test(t.trim())) || '').trim());
+  const treeSections = await cp.evaluate(() => { const list = document.querySelector('[data-sve-html-tree-list]'); return list ? [(list.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200)] : []; });
+  step('the dock opened the new section, not the header', !!madeHandle && dockPath.includes(madeHandle.split('/').pop()) && !/partials\/header\//.test(dockPath), dockPath || '(no path found)');
+  step('the HTML tree lists the new section', treeSections.some((t) => /probe sektion/i.test(t)), treeSections.join(' | ') || '(no rows)');
   step('the sections that were there are still there', base.sids.split(',').every((s) => seen.sids.includes(s)), `before: ${base.sids} | after: ${seen.sids}`);
 
   const probe = preview ? await preview.evaluate(() => window.__probe || []).catch(() => []) : [];

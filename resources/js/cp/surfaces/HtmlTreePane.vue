@@ -4,6 +4,7 @@ import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui } from '../html-tree/store.js';
 import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
+import { ask } from '../bus.js';
 import { t } from '../../lib/i18n.js';
 import { nextTick, ref } from 'vue';
 
@@ -45,22 +46,18 @@ async function openNewlyMade(uid) {
     return;
   }
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    await nextTick();
-    ui.onRefresh?.();
+  // The row is on the form the moment it was placed. The tree's own list
+  // cannot be waited for: it names sections only while the dock holds one of
+  // them, and on an empty page (or with the header open) it holds none.
+  await nextTick();
+  ui.onRefresh?.();
 
-    const section = ui.sections.find((item) => item.uid === uid);
+  const opened = ask('html-tree:open-section', uid);
 
-    if (section) {
-      ui.onSection?.(uid);
-      // Stepping in asks the preview for the section straight away, and the
-      // preview has not drawn it yet. So ask again when it has.
-      revealWhenRendered(window, section.ids);
-
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
+  if (opened) {
+    // Stepping in asks the preview for the section straight away, and the
+    // preview has not drawn it yet. So ask again when it has.
+    revealWhenRendered(window, opened.ids);
   }
 }
 
