@@ -2113,16 +2113,14 @@ export const CP_STYLES = `
   background: ${HEADER_ICON_HOVER} !important;
 }
 #${LP_BACK_ID} {
-  background: #fff !important;
-  color: #374151 !important;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14) !important;
+  background: var(--color-primary, #4f46e5) !important;
+  color: rgba(255, 255, 255, .86) !important;
   opacity: 1 !important;
   transition: background-color .12s ease, color .12s ease !important;
 }
 #${LP_BACK_ID}:hover {
-  background: var(--color-primary, #4f46e5) !important;
+  background: color-mix(in oklch, var(--color-primary, #4f46e5) 100%, white 30%) !important;
   color: #fff !important;
-  box-shadow: none !important;
 }
 #__sve-toolbar button[data-tab="comments"] [data-sc-badge] {
   display: inline-flex !important;
