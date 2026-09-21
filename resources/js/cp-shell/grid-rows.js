@@ -915,12 +915,11 @@ export function ensureLpBackButton(win) {
   pill.title = t(win, 'close_live_preview_title');
   pill.setAttribute('aria-label', pill.title);
   pill.style.opacity = '1';
-  // Last in the row, in the CP's primary colour (the one Publish wears): the
-  // way out reads as the one primary action among the icons, in light and dark
-  // alike. The header is a flex row, so `order` places it without moving it in
-  // the DOM (the other pills anchor to it there).
-  pill.style.background = 'var(--color-primary, #4f46e5)';
-  pill.style.color = '#fff';
+  // Last in the row. Its colour is the CP's primary (the one Publish wears),
+  // set in the shell stylesheet (add-section.js, #__sve-lp-back) where the
+  // idle and hover surfaces of the pills live. The header is a flex row, so
+  // `order` places it without moving it in the DOM (the other pills anchor
+  // to it there).
   pill.style.order = '100';
   pill.style.width = `${LP_CHROME_H}px`;
   pill.style.height = `${LP_CHROME_H}px`;

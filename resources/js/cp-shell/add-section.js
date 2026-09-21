@@ -2113,11 +2113,12 @@ export const CP_STYLES = `
   background: ${HEADER_ICON_HOVER} !important;
 }
 #${LP_BACK_ID} {
-  background: ${HEADER_ICON_HOVER} !important;
+  background: var(--color-primary, #4f46e5) !important;
+  color: #fff !important;
   opacity: 1 !important;
 }
 #${LP_BACK_ID}:hover {
-  background: rgba(128, 128, 128, .4) !important;
+  background: color-mix(in oklch, var(--color-primary, #4f46e5) 100%, white 30%) !important;
 }
 #__sve-toolbar button[data-tab="comments"] [data-sc-badge] {
   display: inline-flex !important;
