@@ -143,7 +143,7 @@ function onKey(event) {
             :aria-label="addGroupLabel"
             data-sve-new-group
             @click="startAddGroup"
-          >+</button>
+          ><span aria-hidden="true">+</span></button>
         </div>
         <div v-if="addingGroup" class="sve-dialog__add-group">
           <label for="sve-new-section-group-name">{{ addGroupNameLabel || addGroupLabel }}</label>
@@ -254,28 +254,40 @@ select {
   flex: 1 1 auto;
   min-width: 0;
 }
+/* Everything in a row stands as tall as the field beside it (2.6em at the
+   dialog's size): the plus next to the select, Create and Cancel next to the
+   group's name. The buttons keep their smaller type, so their height is
+   scaled back up to the field's. */
 .sve-dialog__row > button {
   flex: 0 0 auto;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 1em;
 }
 button.is-add {
   width: 2.6em;
   height: 2.6em;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2em;
+  font-size: 1em;
   line-height: 1;
-  border: 1px solid rgba(128, 128, 128, 0.4);
+  border: 0;
+  background: rgba(100, 116, 145, 0.45);
   opacity: 1;
 }
+button.is-add span {
+  font-size: 1.3em;
+  line-height: 1;
+}
 button.is-add:hover {
-  background: rgba(128, 128, 128, 0.18);
+  background: rgba(100, 116, 145, 0.65);
 }
 button.is-small {
-  padding: 0.55em 0.8em;
-  font-size: 0.86em;
+  padding: 0 0.95em;
+  font-size: 0.93em;
+  height: calc(2.6em / 0.93);
+  line-height: 1;
 }
 .sve-dialog__toggle {
   display: flex;
