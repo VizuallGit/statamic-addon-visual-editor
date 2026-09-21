@@ -41,6 +41,8 @@ final class ControlPanelScript
                 'sveGlobalsPickerOff' => Features::globalsPickerOffByDefault(),
                 'sveRowLimits' => RowLimits::map(),
                 'sveSectionTypes' => SectionTypes::map(),
+                // Every page-builder group in fieldset order, empty ones included.
+                'sveSectionGroups' => SectionTypes::groups(),
                 // What each set calls itself — the name, icon and instructions the
                 // focus panel puts at the top. Set config never reaches the
                 // rendered form, so it travels with the rest of the settings.

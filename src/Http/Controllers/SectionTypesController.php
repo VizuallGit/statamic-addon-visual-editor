@@ -70,7 +70,40 @@ class SectionTypesController
 
         return response()->json([
             'types' => SectionTypes::map(),
+            // Every group, empty ones too — the map only names the groups its sets sit in.
+            'groups' => SectionTypes::groups(),
             'running' => Cache::get('sve-previews:running', false),
+        ]);
+    }
+
+    /**
+     * Makes a new, empty group in the page builder. Same gate as making a
+     * section: it edits the fieldset in the repository. Answers with the group
+     * and the full list, so the dialog can select it and the library can show
+     * its chip.
+     */
+    public function storeGroup(Request $request)
+    {
+        abort_unless(User::current()?->can('configure fields'), 403);
+
+        $display = mb_substr(trim((string) $request->input('display', '')), 0, 60);
+
+        abort_if($display === '', 400);
+
+        if (SectionTypeMaker::slug($display) === null) {
+            return response()->json(['error' => 'bad_name'], 422);
+        }
+
+        $made = SectionTypeMaker::createGroup(static::fieldsetHandle(), $display);
+
+        if ($made === null) {
+            return response()->json(['error' => 'failed'], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'group' => $made,
+            'groups' => SectionTypes::groups(),
         ]);
     }
 

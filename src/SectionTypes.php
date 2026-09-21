@@ -101,6 +101,44 @@ class SectionTypes
     }
 
     /**
+     * Every group of the page builder, in fieldset order — with or without
+     * sections in it. The type map carries a group only on the sets it holds,
+     * so a group just made in the fieldset had no chip in the library and no
+     * place in the "New section" dialog until a section existed in it.
+     *
+     * @return list<array{handle: string, display: string, static: bool}>
+     */
+    public static function groups(): array
+    {
+        $handle = config('statamic-visual-editor.previews.field', 'page_sections');
+        // The file, not the repository's copy: the repository memoises a
+        // fieldset for the whole request, so a group made a moment ago in this
+        // same request (storeGroup answers with the list) would be missing.
+        $contents = SectionTypeMaker::readFieldset($handle);
+
+        if ($contents === null) {
+            return [];
+        }
+
+        $sets = (FieldsetFields::flatten($contents)[0] ?? [])['field']['sets'] ?? [];
+        $groups = [];
+
+        foreach ($sets as $groupKey => $group) {
+            if (! is_array($group) || ! isset($group['sets']) || ! is_array($group['sets'])) {
+                continue;
+            }
+
+            $groups[] = [
+                'handle' => (string) $groupKey,
+                'display' => (string) ($group['display'] ?? $groupKey),
+                'static' => (string) $groupKey === SectionTypeMaker::STATIC_GROUP,
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
      * The fieldset a set imports its fields from, or null when it declares them
      * inline. First import wins: a set built from several is rare, and the one
      * an author means by "this section's fields" is the one it leads with.

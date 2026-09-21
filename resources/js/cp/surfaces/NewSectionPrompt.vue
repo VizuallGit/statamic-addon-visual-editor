@@ -18,10 +18,73 @@ const props = defineProps({
   saveLabel: { type: String, required: true },
   onOk: { type: Function, required: true },
   onClose: { type: Function, required: true },
+  // A plus beside the group, when the dialog may make one: `onAddGroup(name)`
+  // answers with `{ key, display }` (or null when it could not), and the new
+  // group is selected at once.
+  addGroupLabel: { type: String, default: '' },
+  addGroupNameLabel: { type: String, default: '' },
+  addGroupPlaceholder: { type: String, default: '' },
+  onAddGroup: { type: Function, default: null },
 });
 
 const name = ref('');
+const groupList = ref([...props.groups]);
 const group = ref(props.groups[0]?.key ?? '');
+const addingGroup = ref(false);
+const groupName = ref('');
+const groupInput = ref(null);
+const groupBusy = ref(false);
+
+function startAddGroup() {
+  addingGroup.value = true;
+  groupName.value = '';
+  nextTick(() => groupInput.value?.focus());
+}
+
+function cancelAddGroup() {
+  addingGroup.value = false;
+  groupName.value = '';
+  nextTick(() => input.value?.focus());
+}
+
+async function submitGroup() {
+  const value = groupName.value.trim();
+
+  if (!value || groupBusy.value || !props.onAddGroup) {
+    groupInput.value?.focus();
+    return;
+  }
+
+  groupBusy.value = true;
+
+  const made = await props.onAddGroup(value);
+
+  groupBusy.value = false;
+
+  if (!made?.key) {
+    groupInput.value?.focus();
+    return;
+  }
+
+  if (!groupList.value.some((g) => g.key === made.key)) {
+    groupList.value.push(made);
+  }
+
+  group.value = made.key;
+  addingGroup.value = false;
+  groupName.value = '';
+  nextTick(() => input.value?.focus());
+}
+
+function onGroupKey(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    submitGroup();
+  } else if (event.key === 'Escape') {
+    event.stopPropagation();
+    cancelAddGroup();
+  }
+}
 const toggle = ref(props.toggleOn);
 const input = ref(null);
 const busy = ref(false);
@@ -33,7 +96,7 @@ function submit() {
 
   // A group only where there are groups to choose from — a static section
   // has none, it is in no library.
-  if (!value || (props.groups.length && !group.value) || busy.value) {
+  if (!value || (groupList.value.length && !group.value) || busy.value) {
     input.value?.focus();
     return;
   }
@@ -66,11 +129,39 @@ function onKey(event) {
     <div class="sve-dialog" @click.stop>
       <div class="sve-dialog__title">{{ heading }}</div>
 
-      <template v-if="groups.length">
+      <template v-if="groupList.length">
         <label for="sve-new-section-group">{{ groupLabel }}</label>
-        <select id="sve-new-section-group" v-model="group" @keydown="onKey">
-          <option v-for="g in groups" :key="g.key" :value="g.key">{{ g.display }}</option>
-        </select>
+        <div class="sve-dialog__row">
+          <select id="sve-new-section-group" v-model="group" :disabled="addingGroup" @keydown="onKey">
+            <option v-for="g in groupList" :key="g.key" :value="g.key">{{ g.display }}</option>
+          </select>
+          <button
+            v-if="onAddGroup && !addingGroup"
+            type="button"
+            class="is-add"
+            :title="addGroupLabel"
+            :aria-label="addGroupLabel"
+            data-sve-new-group
+            @click="startAddGroup"
+          >+</button>
+        </div>
+        <div v-if="addingGroup" class="sve-dialog__add-group">
+          <label for="sve-new-section-group-name">{{ addGroupNameLabel || addGroupLabel }}</label>
+          <div class="sve-dialog__row">
+            <input
+              id="sve-new-section-group-name"
+              ref="groupInput"
+              v-model="groupName"
+              type="text"
+              :placeholder="addGroupPlaceholder"
+              :disabled="groupBusy"
+              data-sve-new-group-name
+              @keydown="onGroupKey"
+            >
+            <button type="button" class="is-primary is-small" :disabled="groupBusy" data-sve-new-group-create @click="submitGroup">{{ saveLabel }}</button>
+            <button type="button" class="is-cancel is-small" :disabled="groupBusy" @click="cancelAddGroup">{{ cancelLabel }}</button>
+          </div>
+        </div>
       </template>
 
       <label for="sve-new-section-name">{{ nameLabel }}</label>
@@ -152,6 +243,39 @@ select {
   background-repeat: no-repeat;
   background-position: right 0.85em center;
   background-size: 0.85em;
+}
+.sve-dialog__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+.sve-dialog__row select,
+.sve-dialog__row input[type='text'] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sve-dialog__row > button {
+  flex: 0 0 auto;
+  margin-bottom: 1em;
+}
+button.is-add {
+  width: 2.6em;
+  height: 2.6em;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2em;
+  line-height: 1;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  opacity: 1;
+}
+button.is-add:hover {
+  background: rgba(128, 128, 128, 0.18);
+}
+button.is-small {
+  padding: 0.55em 0.8em;
+  font-size: 0.86em;
 }
 .sve-dialog__toggle {
   display: flex;

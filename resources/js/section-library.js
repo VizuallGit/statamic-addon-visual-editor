@@ -123,6 +123,10 @@ export function refreshSectionTypes(win, onUpdated) {
         return;
       }
 
+      if (Array.isArray(data.groups)) {
+        setSectionGroups(data.groups);
+      }
+
       if (!Array.isArray(data.types) || !data.types.length) {
         return;
       }
@@ -2214,7 +2218,13 @@ export function libraryGroupKey(type) {
 }
 
 /** Fieldset tab label (`Content sections`), then title-cased key, then "Other". */
-export function libraryGroupLabel(win, key, types) {
+export function libraryGroupLabel(win, key, types, groups = []) {
+  const named = (groups || []).find((g) => g && g.handle === key && g.display);
+
+  if (named) {
+    return named.display;
+  }
+
   const fromYaml = (types || []).find(
     (type) => type.group === key && type.group_display
   );
@@ -2233,8 +2243,36 @@ export function libraryGroupLabel(win, key, types) {
 }
 
 /** Unique group keys in fieldset order (first seen), not alphabetically. */
-export function libraryGroupKeys(types) {
+/**
+ * Every group of the page-builder fieldset, in its order — the ones with no
+ * section in them too. Handed to the page at load (`sveSectionGroups`) and
+ * refreshed with the type map; a group just made in the fieldset used to have
+ * no chip until a section existed in it.
+ */
+let sectionGroupsOverride = null;
+
+export function sectionGroups(win) {
+  if (Array.isArray(sectionGroupsOverride)) {
+    return sectionGroupsOverride;
+  }
+
+  const list = win?.Statamic?.$config?.get?.('sveSectionGroups');
+
+  return Array.isArray(list) ? list : [];
+}
+
+export function setSectionGroups(groups) {
+  sectionGroupsOverride = Array.isArray(groups) ? groups : null;
+}
+
+export function libraryGroupKeys(types, groups = []) {
   const keys = [];
+
+  (groups || []).forEach((g) => {
+    if (g && typeof g.handle === 'string' && g.handle && !keys.includes(g.handle)) {
+      keys.push(g.handle);
+    }
+  });
 
   (types || []).forEach((type) => {
     const key = libraryGroupKey(type);
@@ -2492,7 +2530,8 @@ export function mountSectionPicker(win, options = {}) {
     }
 
     const types = sectionTypes(win);
-    const ordered = libraryGroupKeys(types);
+    const groupsAll = sectionGroups(win);
+    const ordered = libraryGroupKeys(types, groupsAll);
 
     if (group && !ordered.includes(group)) {
       group = null;
@@ -2514,7 +2553,7 @@ export function mountSectionPicker(win, options = {}) {
         { key: '', label: t(win, 'library_group_all'), on: group === null },
         ...ordered.map((key) => ({
           key,
-          label: libraryGroupLabel(win, key, types),
+          label: libraryGroupLabel(win, key, types, groupsAll),
           on: group === key,
         })),
       ],

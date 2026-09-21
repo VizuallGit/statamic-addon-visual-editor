@@ -59,17 +59,52 @@ export async function fetchGroups(win) {
   }
 
   const data = await res.json();
+
+  // Every group of the fieldset, empty ones too — a group just made has no
+  // section to be found through. The static group is the server's own: a
+  // section with fields does not belong in it, so it is not offered.
+  if (Array.isArray(data.groups) && data.groups.length) {
+    return data.groups
+      .filter((g) => g && g.handle && g.handle !== STATIC_GROUP)
+      .map((g) => ({ key: g.handle, display: g.display || g.handle }));
+  }
+
   const seen = new Map();
 
   for (const type of data.types || []) {
-    // The static group is the server's own: a section with fields does not
-    // belong in it, so it is not offered.
     if (type?.group && type.group !== STATIC_GROUP && !seen.has(type.group)) {
       seen.set(type.group, type.group_display || type.group);
     }
   }
 
   return [...seen].map(([key, display]) => ({ key, display }));
+}
+
+/**
+ * A new, empty group in the page builder. Answers with `{ key, display }`;
+ * the library is told the list changed, so the group gets its chip at once.
+ */
+export async function createGroup(win, display) {
+  const res = await win.fetch(`${API}/groups`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': csrfToken(win),
+      'X-Requested-With': 'XMLHttpRequest',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ display }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || !data.group?.handle) {
+    throw new Error(data?.error === 'bad_name' ? 'bad_name' : `section-types/groups ${res.status}`);
+  }
+
+  win.document.getElementById('__sve-section-picker')?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
+
+  return { key: data.group.handle, display: data.group.display || data.group.handle };
 }
 
 /**
@@ -467,6 +502,23 @@ export function openNewSectionDialog(win, { afterUid = null, onDone, onError, on
       placeholder: t(win, 'section_new_placeholder'),
       note: t(win, 'section_new_note'),
       groups,
+      addGroupLabel: t(win, 'section_new_group_add'),
+      addGroupNameLabel: t(win, 'section_new_group_name'),
+      addGroupPlaceholder: t(win, 'section_new_group_placeholder'),
+      // The plus beside the group: a new tab in the fieldset, selected at once.
+      onAddGroup: async (name) => {
+        try {
+          const made = await createGroup(win, name);
+
+          win.Statamic?.$toast?.success(t(win, 'section_group_created', { name: made.display }));
+
+          return made;
+        } catch (err) {
+          win.Statamic?.$toast?.error(t(win, err?.message === 'bad_name' ? 'section_new_bad_name' : 'section_group_failed'));
+
+          return null;
+        }
+      },
       cancelLabel: t(win, 'cancel'),
       saveLabel: t(win, 'section_new_create'),
       // Cancel, Escape and a click on the backdrop close without creating.

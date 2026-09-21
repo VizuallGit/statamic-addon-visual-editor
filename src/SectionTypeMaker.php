@@ -204,6 +204,52 @@ class SectionTypeMaker
     }
 
     /**
+     * Makes a new, empty group in the page builder — a tab in the fieldset,
+     * with no sections yet — and returns it as `{handle, display}`. Null when
+     * the name slugs to nothing. A name already in use gets a numbered
+     * handle, the display name stays what was typed.
+     */
+    public static function createGroup(string $fieldsetHandle, string $display): ?array
+    {
+        $contents = static::readFieldset($fieldsetHandle);
+
+        if ($contents === null) {
+            return null;
+        }
+
+        $index = static::fieldIndex($contents, $fieldsetHandle);
+
+        if ($index === null) {
+            return null;
+        }
+
+        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
+        $slug = Names::slug($display);
+
+        if ($slug === null) {
+            return null;
+        }
+
+        $handle = $slug;
+
+        for ($n = 2; isset($groups[$handle]); $n++) {
+            $handle = $slug.'_'.$n;
+        }
+
+        $groups[$handle] = [
+            'display' => $display,
+            'sets' => [],
+        ];
+
+        $contents['fields'][$index]['field']['sets'] = $groups;
+
+        Fieldset::make($fieldsetHandle)->setContents($contents)->save();
+        SetPreviewImages::flush();
+
+        return ['handle' => $handle, 'display' => $display];
+    }
+
+    /**
      * Keeps a set out of the picker, or lets it back in — Statamic's own
      * `hide`, so the native picker and the library agree. Returns the set as
      * it is now, or null when there is no such set.
