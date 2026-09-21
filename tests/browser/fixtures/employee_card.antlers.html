@@ -1,0 +1,42 @@
+{{#sve_props
+[
+    {
+        "handle": "headline",
+        "type": "text",
+        "label": "Headline",
+        "default": "Headline"
+    },
+    {
+        "handle": "text",
+        "type": "text",
+        "label": "Text",
+        "default": "Position"
+    },
+    {
+        "handle": "image",
+        "type": "media",
+        "label": "Image",
+        "default": "/assets/image-4-(9).jpg"
+    }
+]
+#}}
+
+{{ sve_defaults props_headline="Headline" props_text="Position" props_image="/assets/image-4-(9).jpg" }}
+<li class="group">
+  <div class="mb-200 rounded-md overflow-clip ">
+    {{ partial:components/image :imagePath="props_image" props_width="300" props_height="200" class="w-full group-hover:scale-110 transition-transform duration-800 ease-in-out" }}
+  </div>
+  <div class="space-y-100">
+    <h3 {{ visual_edit inline_edit="true" field="props_headline" }} class="text-300" >{{ props_headline }}</h3>
+    <p>{{ props_text }}</p>
+  </div>
+
+  <div class="text-xs flex flex-col mt-100">
+    <a href="mailto:{{ email }}">{{ email }}</a>
+    <a href="tel:{{ phone }}">{{ phone }}</a>
+  </div>
+
+</li>
+
+{{ sve_tw handle="view/partials/components/employee_card" }}
+{{ /sve_defaults }}

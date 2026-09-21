@@ -5,9 +5,10 @@
 // Seconds, no login — run this before the expensive Live Preview test.
 // `node tests/browser/instant-harness.mjs` (SVE_SITE_DIR for another site checkout).
 //
-// The live section is rendered from the site's own employees_list_2 template, so
-// the file may change under the harness; every edit is anchored on markup the
-// template is known to keep (the grey box, the <ul>, the closing tags).
+// The live section is rendered from a copy of the site's employees_list_2
+// template in ./fixtures (the site's own file changes under a designer's hands,
+// and the harness lost its anchors that way); every edit is anchored on markup
+// the fixture is known to keep (the grey box, the <ul>, the closing tags).
 
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -18,7 +19,7 @@ const DIR = new URL('.', import.meta.url).pathname;
 const puppeteer = createRequire(`${SITE}/package.json`)('puppeteer');
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
-const TEMPLATE = readFileSync(`${SITE}/resources/views/partials/page_sections/other_section/employees_list_2.antlers.html`, 'utf8');
+const TEMPLATE = readFileSync(`${DIR}/fixtures/employees_list_2.antlers.html`, 'utf8');
 
 const page = readFileSync(`${DIR}/instant-harness.html`, 'utf8').replace('SCRIPT_SRC', `file://${ADDON}/resources/js/dock-instant-preview.js`);
 writeFileSync(`${DIR}/instant-harness.out.html`, page);
@@ -39,7 +40,7 @@ function render(tpl) {
 }
 
 const LIVE = `<!doctype html><html><head></head><body><main>\n${render(TEMPLATE)}\n</main></body></html>`;
-const COMPONENT = readFileSync(`${SITE}/resources/views/partials/components/employee_card.antlers.html`, 'utf8');
+const COMPONENT = readFileSync(`${DIR}/fixtures/employee_card.antlers.html`, 'utf8');
 const COMPONENT_PATH = 'resources/views/partials/components/employee_card.antlers.html';
 const SECTION_PATH = 'resources/views/partials/page_sections/other_section/employees_list_2.antlers.html';
 
@@ -70,6 +71,12 @@ const scenarios = [
   ['J: 2. <p> i den grå boks slettet', TEMPLATE.replace(greyPs[1] + '\n', '')],
   ['K: uafsluttet citationstegn i class', TEMPLATE.replace(greyPs[2], greyPs[2].replace('<p>', '<p class="bg->'))],
   ['L: uændret skabelon', TEMPLATE],
+  // The section's own row picked: the pane is scoped to the whole file, and the
+  // file the dock exposes IS the pane. Used to be taken for a snippet with no
+  // file, and nothing painted — every child waited for the morph.
+  ['Q1: sektionens egen række (scope = hele filen) — nyt <p> sidst i den grå boks', { scoped: true, expose: true, at: 0, snippet: TEMPLATE, next: inGrey((b) => b + '\n    <p>NYT AFSNIT</p>') }],
+  ['Q2: sektionens egen række (scope = hele filen) — wrapper om h2', { scoped: true, expose: true, at: 0, snippet: TEMPLATE, next: TEMPLATE.replace(H2[0], `<div class="wrap">${H2[0]}</div>`) }],
+  ['Q3: sektionens egen række UDEN udstillet fil (ældre dock) — nyt <p>', { scoped: true, expose: false, snippet: TEMPLATE, next: inGrey((b) => b + '\n    <p>NYT AFSNIT</p>') }],
   // Scoped pane: the dock shows one <p>; the section must still paint whole.
   ['M1: scopet rude (docken udstiller filen) — nabo-<p> efter det scopede', { scoped: true, expose: true, snippet: SNIPPET, next: SNIPPET + '\n    <p>NABO</p>' }],
   ['M2: scopet rude UDEN udstillet fil (ældre dock) — nabo-<p>', { scoped: true, expose: false, snippet: SNIPPET, next: SNIPPET + '\n    <p>NABO</p>' }],
@@ -105,7 +112,7 @@ async function run(label, text) {
     dock.querySelector('[data-sve-code-path]').textContent = opts.component ? paths.component : paths.section;
     dock.toggleAttribute('data-sve-html-scoped', !!opts.scoped);
     dock.__sveHtmlScope = opts.scoped && opts.expose
-      ? { full: tpl, from: snippetAt, to: snippetAt + opts.snippet.length, ...(opts.cssFull != null ? { css: opts.cssFull } : {}) }
+      ? { full: tpl, from: opts.at ?? snippetAt, to: (opts.at ?? snippetAt) + opts.snippet.length, ...(opts.cssFull != null ? { css: opts.cssFull } : {}) }
       : null;
     window.__paneCss = '';
     const iframe = document.getElementById('live-preview-iframe');
@@ -137,7 +144,7 @@ async function run(label, text) {
     const liveCss = idoc.getElementById('__sve-dock-css-live')?.textContent ?? '';
 
     return { baseline, before, after, liveCss, trace: window.__sveInstantTrace.slice() };
-  }, LIVE, ROW, file, opts.next, { scoped: !!opts.scoped, expose: !!opts.expose, snippet: opts.snippet ?? null, component: !!opts.component, css: opts.css ?? null, cssFull: opts.cssFull ?? null }, SNIPPET_AT, { component: COMPONENT_PATH, section: SECTION_PATH });
+  }, LIVE, ROW, file, opts.next, { scoped: !!opts.scoped, expose: !!opts.expose, snippet: opts.snippet ?? null, at: opts.at ?? null, component: !!opts.component, css: opts.css ?? null, cssFull: opts.cssFull ?? null }, SNIPPET_AT, { component: COMPONENT_PATH, section: SECTION_PATH });
 
   const same = compact(result.before) === compact(result.after) && (opts.css == null || result.liveCss.includes(opts.css) === false);
   const untouched = compact(result.before) === compact(result.baseline);

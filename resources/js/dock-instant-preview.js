@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 12) {
+    if (window.__sveDockInstantPreview === 13) {
         return;
     }
-    window.__sveDockInstantPreview = 12;
+    window.__sveDockInstantPreview = 13;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -1985,12 +1985,34 @@
         var scoped = scopedFull();
         var full = scoped ? scoped.full : fullHtml();
         var snippetAt = scoped ? scoped.at : full ? full.indexOf(pane) : -1;
+        var into = intoRootTag(pane);
 
         if (snippetAt === -1) {
-            return liveForOffset(doc, pane, 1, true).targets;
+            return liveForOffset(doc, pane, into, true).targets;
         }
 
-        return liveForOffset(doc, full, snippetAt + 1, false).targets;
+        return liveForOffset(doc, full, snippetAt + into, false).targets;
+    }
+
+    /**
+     * An offset inside the snippet's root tag, past its name: the point before
+     * the tag's `>`, which `templatePathAt` reads as "in this element". Used
+     * to be `<` + 1, where there is no name yet — the path came back null and
+     * the snippet's root was never found. Antlers is blanked first, so a `>`
+     * inside `{{ }}` does not end the tag early.
+     */
+    function intoRootTag(html) {
+        var masked = String(html).replace(/\{\{[\s\S]*?\}\}/g, function (m) {
+            return new Array(m.length + 1).join(' ');
+        });
+        var name = /^\s*<[a-zA-Z][\w:-]*/.exec(masked);
+        var gt = masked.indexOf('>');
+
+        if (!name) {
+            return 1;
+        }
+
+        return gt === -1 ? name[0].length : gt;
     }
 
     /** Every place the open component renders, as the preview marks them, of the file root's tag. */
@@ -2008,7 +2030,21 @@
         return out;
     }
 
-    function paintLive(doc, html) {
+    /**
+     * `snippetOnly`: the pane is a slice of a file this script does not have.
+     * A scoped pane whose file is known paints like the whole file: the
+     * section is morphed from the file with the slice spliced in, so a
+     * sibling typed beside the scoped tag, a wrapper around it or a tag
+     * renamed all land where they belong. That holds when the slice IS the
+     * whole file too — the section's own row picked in the tree, the pane
+     * and the file one and the same text. That case used to be read as a
+     * snippet with no file (the two texts were equal), and then nothing typed
+     * in it was painted, not even a static tag; every child of the section
+     * waited for the morph while the same edit painted at once with the
+     * child's own row picked. Only a snippet with no file to sit in is
+     * painted on its own.
+     */
+    function paintLive(doc, html, snippetOnly) {
         var pane = paneText('html');
         var root;
         var live;
@@ -2017,12 +2053,7 @@
         var i;
         var targets;
 
-        // A scoped pane whose file is known paints like the whole file: the
-        // section is morphed from the file with the slice spliced in, so a
-        // sibling typed beside the scoped tag, a wrapper around it or a tag
-        // renamed all land where they belong. Only a snippet with no file to
-        // sit in is painted on its own.
-        if (htmlScoped() && html === pane) {
+        if (snippetOnly) {
             root = templateRoot(pane);
             targets = scopedRootLive(doc, pane);
 
@@ -2186,9 +2217,13 @@
         forgetOtherFile();
 
         var pane = paneText('html');
-        // A scoped pane that has never shown the file's root has no whole file
-        // to give: the snippet is painted on its own rather than not at all.
-        var html = isFileRoot(pane) || htmlScoped() ? fullHtml() || pane : pane;
+        var scoped = htmlScoped();
+        // The whole file when it is known: the pane itself, or the file the
+        // dock exposes with the pane's slice spliced in. A scoped pane that has
+        // never shown the file's root has no whole file to give, and then the
+        // snippet is painted on its own rather than not at all.
+        var file = isFileRoot(pane) || scoped ? fullHtml() : '';
+        var html = file || pane;
         var css = liveCss();
         var doc = previewDocument();
 
@@ -2199,7 +2234,7 @@
         }
 
         if (!html) {
-            trace('paint: nothing to paint (scoped=' + htmlScoped() + ', file root=' + isFileRoot(pane) + ')');
+            trace('paint: nothing to paint (scoped=' + scoped + ', file root=' + isFileRoot(pane) + ')');
         }
 
         bindPreview(doc);
@@ -2223,7 +2258,7 @@
         }
 
         try {
-            paintLive(doc, html);
+            paintLive(doc, html, scoped && !file);
             reholdTw(doc);
         } catch (e) {
             // Never leave `painting` stuck: that would silence every later paint
