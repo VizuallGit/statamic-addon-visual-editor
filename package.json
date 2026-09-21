@@ -11,6 +11,7 @@
     "test:browser": "node tests/browser/live-preview-smoke.mjs",
     "test:instant": "node tests/browser/instant-paint.mjs",
     "test:section-row": "node tests/browser/instant-section-row.mjs",
+    "test:chrome": "node tests/browser/instant-chrome.mjs",
     "test:switch": "node tests/browser/section-switch.mjs",
     "test:perf": "node tests/browser/perf-server-tab.mjs"
   },

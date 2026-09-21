@@ -564,6 +564,120 @@
             });
     }
 
+    /** The file the dock shows, as its element names it. */
+    function dockPath() {
+        var el = document.querySelector('#' + DOCK_ID + ' [data-sve-code-path]');
+
+        return el ? (el.getAttribute('data-sve-code-path') || el.textContent || '').trim() : '';
+    }
+
+    /**
+     * Which half of the site frame the open file is, or ''. The file's root
+     * carries `data-sve-chrome` — the attribute the preview finds the half by
+     * — or holds the element that does, or the file sits under
+     * partials/header or partials/footer (a styled partial inside `<header>`).
+     */
+    function chromeKindOfFile(root) {
+        var marker = root && root.matches ? (root.matches('[data-sve-chrome]') ? root : root.querySelector('[data-sve-chrome]')) : null;
+        var kind = marker ? marker.getAttribute('data-sve-chrome') : '';
+        var path;
+
+        if (kind === 'header' || kind === 'footer') {
+            return kind;
+        }
+
+        path = dockPath();
+
+        if (/\/partials\/header\//.test(path)) {
+            return 'header';
+        }
+
+        if (/\/partials\/footer\//.test(path)) {
+            return 'footer';
+        }
+
+        return '';
+    }
+
+    /**
+     * The live root of a header or footer file. The preview marks each half
+     * with `data-sve-chrome`; the file's root is that element, or holds it
+     * (a wrapper around the marked tag), or sits inside it (a styled partial
+     * under `<header>`). Page sections used to be the only thing this script
+     * could find: typing in the header's file painted nothing, and the ~1 s
+     * morph was all there was.
+     */
+    function chromeLive(doc, root) {
+        var kind = chromeKindOfFile(root);
+        var host;
+        var marker;
+        var depth;
+        var node;
+        var tokens;
+        var live;
+        var i;
+        var j;
+        var cls;
+        var ok;
+
+        if (!kind) {
+            return null;
+        }
+
+        host = doc.querySelector('[data-sve-chrome="' + kind + '"]');
+
+        if (!host) {
+            trace('chrome: no [data-sve-chrome="' + kind + '"] in the preview');
+
+            return null;
+        }
+
+        marker = root.matches('[data-sve-chrome]') ? root : root.querySelector('[data-sve-chrome]');
+
+        if (marker === root) {
+            return host.tagName === root.tagName ? host : null;
+        }
+
+        if (marker) {
+            // The marked tag sits inside the file's root: the live root is as
+            // many parents up from the half as the marker is deep in the file.
+            depth = 0;
+
+            for (node = marker; node && node !== root; node = node.parentElement) {
+                depth++;
+            }
+
+            for (node = host; depth > 0 && node; depth--) {
+                node = node.parentElement;
+            }
+
+            return node && node.tagName === root.tagName ? node : null;
+        }
+
+        // A styled partial under the half's element: its root is the first
+        // element of that tag and those classes inside the half.
+        tokens = classTokens(root);
+        live = host.getElementsByTagName(root.tagName);
+
+        for (i = 0; i < live.length; i++) {
+            cls = ' ' + (live[i].getAttribute('class') || '') + ' ';
+            ok = true;
+
+            for (j = 0; j < tokens.length; j++) {
+                if (cls.indexOf(' ' + tokens[j] + ' ') === -1) {
+                    ok = false;
+                    break;
+                }
+            }
+
+            if (ok) {
+                return live[i];
+            }
+        }
+
+        return live[0] || null;
+    }
+
     /**
      * Collection templates (services/show, index) stamp `visual_edit` on an
      * inner tag, not `section_orderable` on the file root. Match the file's
@@ -583,6 +697,13 @@
 
         if (!doc || !root) {
             return null;
+        }
+
+        // A header or footer file is found by the half it is — never by a
+        // tag that happens to match a page section, which would paint the
+        // header's markup into that section.
+        if (chromeKindOfFile(root)) {
+            return chromeLive(doc, root);
         }
 
         tag = root.tagName;
@@ -742,6 +863,50 @@
      * The variables a section partial sees, as the page loop hands them over:
      * the row's own fields plus `id`, `_class` and `class`.
      */
+    /**
+     * The header's or footer's own form values, for `{{ field }}` in its
+     * file: the inline form the editor mounts for the half (`sve-chrome`),
+     * also under the global set's handle, so `{{ site_head.tagline }}` fills
+     * like `{{ tagline }}`. Null until that form is on screen — the text then
+     * waits for the morph, as any unknown field does.
+     */
+    function chromeContext(live) {
+        var host = live && live.closest ? live.closest('[data-sve-chrome]') : null;
+        var kind = host ? host.getAttribute('data-sve-chrome') : '';
+        var chrome = cfg('sveChrome', {}) || {};
+        var handle;
+        var values;
+        var ctx;
+        var i;
+
+        if (!kind) {
+            return null;
+        }
+
+        for (i = 0; i < containers.length; i++) {
+            if (containers[i].name !== 'sve-chrome') {
+                continue;
+            }
+
+            values = unwrapRef(containers[i].values);
+
+            if (!values || typeof values !== 'object') {
+                return null;
+            }
+
+            ctx = Object.assign({}, values);
+            handle = (chrome[kind] && chrome[kind].global) || chrome.global || '';
+
+            if (handle && !Object.prototype.hasOwnProperty.call(ctx, handle)) {
+                ctx[handle] = values;
+            }
+
+            return ctx;
+        }
+
+        return null;
+    }
+
     function sectionContext(uid) {
         var i;
         var values;
@@ -1514,7 +1679,7 @@
 
         try {
             uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
-            ctx = sectionContext(uid);
+            ctx = sectionContext(uid) || chromeContext(live);
             tpl = scopedRoot || templateRoot(html, ctx);
         } catch (e) {
             trace('structure: values/template failed, classes only: ' + (e && e.message));

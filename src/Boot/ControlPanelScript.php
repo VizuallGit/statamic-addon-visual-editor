@@ -60,6 +60,9 @@ final class ControlPanelScript
                 // The header/footer layout in use, for the dock's fallback on a page
                 // with no sections (dock-api.js, emptyPageChromeType).
                 'sveChromeStyles' => ScriptChrome::styles(),
+                // The file each half of the site frame IS, for the dock: the partial
+                // carrying `data-sve-chrome` (ScriptChrome::templates).
+                'sveChromeTemplates' => ScriptChrome::templates(),
                 'sveUserId' => User::current()?->id(),
                 'sveChromePrefs' => is_array($chrome = User::current()?->getPreference('sve_chrome')) ? $chrome : [],
                 'sveHiddenGlobalsTabs' => ScriptChrome::hiddenGlobalsTabs(),

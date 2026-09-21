@@ -16,8 +16,31 @@ import { autosaveEnabled, paintAutosave } from './lock-autosave.js';
 import { DOCK_ID, SAVE_MS, css, editors, html } from '../code-dock.js';
 
 // ===== save =====
+/**
+ * Whether a dock handle is a half of the site frame: under `header/` or
+ * `footer/`, or the file the server names as the half (`sveChromeTemplates`,
+ * which may be a plain `view:` file such as `partials/site_head`).
+ */
+export function isChromeTemplateType(win, type) {
+  const handle = String(type || '');
+
+  if (/^(header|footer)\//.test(handle)) {
+    return true;
+  }
+
+  const templates = win?.Statamic?.$config?.get?.('sveChromeTemplates') || {};
+
+  return Object.values(templates).some((t) => t && t.type === handle);
+}
+
 export function refreshPreview(win) {
-  if (!dockState.lastUid || !dockState.lastType || String(dockState.lastType).startsWith('view:')) {
+  const type = dockState.lastType;
+
+  // A collection view or a half of the site frame is not a section row. The
+  // last picked uid would morph that one section and leave the header (or
+  // footer) as it was; the whole document is replayed instead, and the preview
+  // morphs the focused half alone when one is focused.
+  if (!dockState.lastUid || !type || String(type).startsWith('view:') || isChromeTemplateType(win, type)) {
     replayLivePreview(win);
 
     return;

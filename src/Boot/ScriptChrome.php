@@ -3,6 +3,9 @@
 namespace MarioHamann\StatamicVisualEditor\Boot;
 
 use Illuminate\Support\Str;
+use MarioHamann\StatamicVisualEditor\CollectionViewFile;
+use MarioHamann\StatamicVisualEditor\SectionTemplate;
+use MarioHamann\StatamicVisualEditor\SectionTemplate\Paths;
 use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Site;
 use Statamic\Statamic;
@@ -89,6 +92,130 @@ final class ScriptChrome
         }
 
         return $styles;
+    }
+
+    /**
+     * The dock's file for each half of the site frame, and whether the form's
+     * layout choice (`{half}_style`) decides it.
+     *
+     * The preview finds a half by `data-sve-chrome="header"` on its root, so
+     * the partial that carries that attribute is the half's file: a header in
+     * `partials/site_head.antlers.html` is `view:partials/site_head`, a footer
+     * in `partials/footer/widgets.antlers.html` is `footer/widgets`. Used to be
+     * `{half}/{style}` for every site — on one that does not include its
+     * header through a style partial, the dock wrote to a file nothing
+     * renders: every keystroke saved, and the preview never changed.
+     *
+     * The styled partial stays the file when it carries the marker itself or
+     * a wrapper picks it through `{half}_style`; the dock then follows the
+     * layout the form chooses (`styled`). No marker anywhere keeps that rule too.
+     *
+     * @return array<string, array{type: string, styled: bool}>
+     */
+    public static function templates(): array
+    {
+        $styles = static::styles();
+        $out = [];
+
+        foreach (['header', 'footer'] as $half) {
+            $styled = $half.'/'.$styles[$half];
+            $styledPath = SectionTemplate::path($styled);
+            $markers = static::markerFiles($half);
+
+            if ($markers === []) {
+                $out[$half] = ['type' => $styled, 'styled' => true];
+
+                continue;
+            }
+
+            if ($styledPath !== null && in_array($styledPath, $markers, true)) {
+                $out[$half] = ['type' => $styled, 'styled' => true];
+
+                continue;
+            }
+
+            foreach ($markers as $marker) {
+                if ($styledPath !== null && str_contains((string) file_get_contents($marker), $half.'_style')) {
+                    $out[$half] = ['type' => $styled, 'styled' => true];
+
+                    continue 2;
+                }
+            }
+
+            $out[$half] = ['type' => static::handleFor($markers[0]) ?? $styled, 'styled' => false];
+        }
+
+        return $out;
+    }
+
+    /** Forget the scanned views — a test writes its own between calls. */
+    public static function flush(): void
+    {
+        static::$markers = [];
+    }
+
+    /** @var array<string, array<int, string>> */
+    private static array $markers = [];
+
+    /**
+     * Every Antlers view carrying `data-sve-chrome="{half}"`, real paths,
+     * shallowest first. Scanned once per request.
+     *
+     * @return array<int, string>
+     */
+    protected static function markerFiles(string $half): array
+    {
+        if (isset(static::$markers[$half])) {
+            return static::$markers[$half];
+        }
+
+        $root = realpath(resource_path('views'));
+        $found = [];
+
+        if (is_string($root)) {
+            $files = new \RecursiveIteratorIterator(
+                new \RecursiveCallbackFilterIterator(
+                    new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+                    // Published vendor views never carry the marker; skip the folder.
+                    fn (\SplFileInfo $file) => ! ($file->isDir() && $file->getFilename() === 'vendor')
+                )
+            );
+
+            foreach ($files as $file) {
+                if (! $file->isFile() || ! str_ends_with($file->getFilename(), '.antlers.html')) {
+                    continue;
+                }
+
+                $source = (string) file_get_contents($file->getPathname());
+
+                if (preg_match('/data-sve-chrome\s*=\s*["\']'.$half.'["\']/', $source)) {
+                    $found[] = $file->getPathname();
+                }
+            }
+        }
+
+        usort($found, fn ($a, $b) => [substr_count($a, DIRECTORY_SEPARATOR), $a] <=> [substr_count($b, DIRECTORY_SEPARATOR), $b]);
+
+        return static::$markers[$half] = $found;
+    }
+
+    /**
+     * The dock handle for a view: a section or chrome partial by its own
+     * handle, any other view as `view:{path}`.
+     */
+    protected static function handleFor(string $absolute): ?string
+    {
+        if ($handle = Paths::handleFromAbsolute($absolute)) {
+            return $handle;
+        }
+
+        $root = realpath(resource_path('views'));
+
+        if (! is_string($root) || ! str_starts_with($absolute, $root.DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+
+        return CollectionViewFile::type(substr($absolute, strlen($root) + 1));
     }
 
     /**

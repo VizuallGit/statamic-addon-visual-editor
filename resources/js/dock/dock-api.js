@@ -582,6 +582,33 @@ export function collectionViewType(win) {
   return '';
 }
 
+/**
+ * The dock handle for a half of the site frame.
+ *
+ * The server names the file that carries the half's root in the preview
+ * (`sveChromeTemplates`, ScriptChrome::templates): the partial with
+ * `data-sve-chrome` on it. When that is a styled partial and the form on
+ * screen picks a layout (`header_style`), the form's choice wins — switching
+ * the layout opens the layout's file. Used to be `{kind}/{style}` whatever
+ * the site renders: on a site whose header is `partials/site_head.antlers.html`
+ * the dock wrote to a file nothing renders, and every keystroke saved without
+ * a change in the preview.
+ */
+function chromeTemplateFor(win, kind, values) {
+  const templates = win.Statamic?.$config?.get?.('sveChromeTemplates') || {};
+  const server = templates[kind] && typeof templates[kind].type === 'string' ? templates[kind] : null;
+  const styles = win.Statamic?.$config?.get?.('sveChromeStyles') || {};
+  const fallback = `${kind}/${typeof styles[kind] === 'string' && styles[kind] !== '' ? styles[kind] : 'style_1'}`;
+  const handle = server?.type || fallback;
+  const style = values?.[`${kind}_style`];
+
+  if ((!server || server.styled) && typeof style === 'string' && style !== '') {
+    return `${kind}/${style}`;
+  }
+
+  return handle;
+}
+
 function chromeTemplateType(win, doc) {
   const kind = chromeInlineKind || activeChromeKind;
 
@@ -593,10 +620,7 @@ function chromeTemplateType(win, doc) {
     return '';
   }
 
-  const values = unwrapRef(chromeContainer()?.values) || {};
-  const style = values[kind === 'footer' ? 'footer_style' : 'header_style'] || 'style_1';
-
-  return `${kind}/${style}`;
+  return chromeTemplateFor(win, kind, unwrapRef(chromeContainer()?.values) || {});
 }
 
 /**
@@ -635,10 +659,7 @@ function emptyPageChromeType(win) {
     return '';
   }
 
-  const styles = win.Statamic?.$config?.get?.('sveChromeStyles') || {};
-  const style = typeof styles[kind] === 'string' && styles[kind] !== '' ? styles[kind] : 'style_1';
-
-  return `${kind}/${style}`;
+  return chromeTemplateFor(win, kind, null);
 }
 
 function globalSectionTemplateType(doc) {
