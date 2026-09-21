@@ -56,6 +56,10 @@ const scriptSource = readFileSync(SCRIPT, 'utf8');
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
+// A 'leave page?' prompt must not hold a navigation.
+page.on('dialog', (d) => d.accept().catch(() => {}));
+// SVE_ONLY_GLOBAL=1 runs the global-section stage alone.
+const ONLY_GLOBAL = env('SVE_ONLY_GLOBAL', '') === '1';
 page.on('console', (m) => { if (m.type() === 'error' || /\[sve\] instant/.test(m.text())) report.errors.push(`console: ${m.text().slice(0, 200)}`); });
 const answerScript = (req) => { if (!/\/vendor\/visual-editor\/js\/dock-instant-preview\.js/.test(req.url())) return false; req.respond({ status: 200, contentType: 'application/javascript', body: scriptSource }); return true; };
 let servedBuild = null;
@@ -157,6 +161,7 @@ try {
     console.log(`info ${name} trace: ${JSON.stringify(trace)}`);
   };
 
+  if (ONLY_GLOBAL) { console.log('info header/footer/static stages skipped'); } else {
   // ---- Header: step into it in the preview, the dock opens its file ----
   step('header editor open', await enterChrome('header'));
   await sleep(1500);
@@ -189,13 +194,20 @@ try {
     step('dock opened the static section\'s file', /page_sections\/static_section\/.+\.antlers\.html$/.test(path), path);
     if (path) { remember(path); await probe('static', path, 'section_orderable', 'sve-probe-s', 'sta', staticSel); }
   }
+  }
 
   // ---- Global section: a page row that renders a synced saved section ----
   if (GLOBAL_SOURCE) {
     writeFileSync(GLOBAL_PAGE, `---\nid: ${GLOBAL_PAGE_ID}\npublished: false\nblueprint: page\ntitle: sve-probe-global\npage_sections:\n  -\n    id: sveprobeglob\n    _visual_id: sveprobeglob\n    enabled: true\n    type: global_section\n    global_section: ${GLOBAL_SOURCE}\n---\n`);
     await sleep(1500);
-    await page.goto(`${SITE_URL}/cp/collections/pages/entries/${GLOBAL_PAGE_ID}`, { waitUntil: 'networkidle2' });
-    await sleep(1500);
+    // The stache notices a new flat file on a later request: ask until the entry answers.
+    let hasLp = false;
+    for (let i = 0; i < 8 && !hasLp; i++) {
+      await page.goto(`${SITE_URL}/cp/collections/pages/entries/${GLOBAL_PAGE_ID}`, { waitUntil: 'networkidle2' });
+      await sleep(1500);
+      hasLp = await page.evaluate(() => !![...document.querySelectorAll('button')].find((e) => /live preview/i.test(e.textContent || '')));
+    }
+    console.log(`info global: at ${page.url()} — ${await page.title()} — live preview button: ${hasLp}`);
     await page.evaluate(() => [...document.querySelectorAll('button')].find((e) => /live preview/i.test(e.textContent || ''))?.click());
     step('global: preview overlay open', await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000));
     const cp2 = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
@@ -209,13 +221,21 @@ try {
       const sel = '[data-sve-global-root] [data-sid]';
       await g.evaluate((s) => document.querySelector(s)?.scrollIntoView({ block: 'start' }), sel);
       await sleep(400);
-      await realClick(page, g, sel, 24);
-      if (await waitIn(g, '#__sve-preview-confirm [data-sve-actions] button', 8000)) {
+      // The header lies absolute over the top of the first section: click the
+      // first point down the section's middle that is the section's own.
+      const clickSection = async () => { const f = await lp2(); const hit = await f.evaluate((s) => { const el = document.querySelector(s); if (!el) return null; const r = el.getBoundingClientRect(); const x = r.x + r.width / 2; for (let y = r.y + 12; y < Math.min(r.bottom - 4, window.innerHeight - 4); y += 24) { const at = document.elementFromPoint(x, y); if (at && at.closest('[data-sve-global]') && !at.closest('[data-sve-chrome]')) return { x, y, on: at.tagName.toLowerCase() }; } return null; }, sel); if (!hit) return false; let x = hit.x, y = hit.y; for (let fr = f; fr.parentFrame(); fr = fr.parentFrame()) { const box = await (await fr.frameElement()).boundingBox(); x += box.x; y += box.y; } await page.mouse.click(x, y); console.log(`info global: clicked ${Math.round(x)},${Math.round(y)} on ${hit.on}`); return true; };
+      step('global: clicked inside the section', await clickSection());
+      const askedG = await waitIn(g, '#__sve-preview-confirm [data-sve-actions] button', 8000);
+      if (askedG) {
         await clickIn(g, () => { const b = [...document.querySelectorAll('#__sve-preview-confirm [data-sve-actions] button')].pop(); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
       }
-      step('global: section editor open', await waitIn(cp2, '#__sve-global-section-host', 15000));
+      const hostG = await waitIn(cp2, '#__sve-global-section-host', 15000);
+      const afterG = await (await lp2()).evaluate(() => ({ html: document.documentElement.className, globalAttr: !!document.querySelector('[data-sve-global]'), bar: !!document.querySelector('[id*="global-bar"]'), active: document.querySelector('[data-sid-active]')?.getAttribute('data-sid') || '' })).catch(() => null);
+      const cpG = await cp2.evaluate(() => ({ host: !!document.getElementById('__sve-global-section-host'), panel: !!document.getElementById('__sve-global-section-panel'), ids: [...document.querySelectorAll('[id^="__sve-global"]')].map((e) => e.id) }));
+      console.log(`info global: confirm shown=${askedG}; preview=${JSON.stringify(afterG)}; cp=${JSON.stringify(cpG)}`);
+      step('global: section editor open', hostG);
       await sleep(1500);
-      await realClick(page, await lp2(), sel, 24);
+      await clickSection();
       await sleep(1500);
       let dock2 = false;
       for (let attempt = 1; attempt <= 2 && !dock2; attempt++) { if (!(await cp2.$('#__sve-code-dock [data-sve-code-pane="html"] .cm-editor'))) { await realClick(page, cp2, '#__sve-toolbar button[data-tab="code"]'); await sleep(600); } dock2 = await waitIn(cp2, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000); if (!dock2) await sleep(2000); }
