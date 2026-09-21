@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
+use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\FromTheStart;
 use MarioHamann\StatamicVisualEditor\LibraryAccess;
@@ -47,7 +48,9 @@ class SectionMetaController
 
         abort_unless($collection, 404);
 
-        $blueprint = $collection->entryBlueprint();
+        $blueprint = PageBuilderBlueprint::for($collection);
+
+        abort_unless($blueprint, 404);
 
         if ($request->filled('field')) {
             // Found anywhere in the blueprint tree, so a replicator nested inside a

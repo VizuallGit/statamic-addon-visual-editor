@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
 use Statamic\Support\Str;
@@ -48,7 +49,7 @@ class SetMeta
             config('statamic-visual-editor.previews.collection', 'pages')
         );
 
-        if ($contents = $collection?->entryBlueprint()?->contents()) {
+        if ($contents = PageBuilderBlueprint::for($collection)?->contents()) {
             static::walk($contents, $sets, $grids, $seen);
         }
 

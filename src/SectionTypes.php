@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
 use Statamic\Facades\User;
@@ -160,7 +161,7 @@ class SectionTypes
             config('statamic-visual-editor.previews.collection', 'pages')
         );
 
-        $replicator = $collection?->entryBlueprint()?->fields()->all()->get($field);
+        $replicator = PageBuilderBlueprint::for($collection, $field)?->fields()->all()->get($field);
 
         return $replicator?->fieldtype()->fields($setHandle) ?: null;
     }

@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
 
+use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Illuminate\Support\Str;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -36,8 +37,7 @@ final class Rows
      */
     public static function processed(array $sections, string $collection): array
     {
-        $field = Collection::findByHandle($collection)
-            ?->entryBlueprint()
+        $field = PageBuilderBlueprint::for(Collection::findByHandle($collection), static::field())
             ?->field(static::field());
 
         if (! $field) {
@@ -70,8 +70,7 @@ final class Rows
             return $section;
         }
 
-        $field = Collection::findByHandle($collection)
-            ?->entryBlueprint()
+        $field = PageBuilderBlueprint::for(Collection::findByHandle($collection), static::field())
             ?->field(static::field());
 
         if (! $field) {
