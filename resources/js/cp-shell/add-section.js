@@ -2114,7 +2114,7 @@ export const CP_STYLES = `
 }
 #${LP_BACK_ID} {
   background: var(--color-primary, #4f46e5) !important;
-  color: #fff !important;
+  color: rgba(255, 255, 255, .86) !important;
   opacity: 1 !important;
 }
 #${LP_BACK_ID}:hover {
