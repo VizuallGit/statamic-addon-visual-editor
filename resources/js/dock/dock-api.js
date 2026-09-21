@@ -37,6 +37,7 @@ import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
 import { activeChromeKind } from '../globals-panel.js';
+import { previewDocument } from '../lib/preview-frame.js';
 import { dockState } from '../dock/state.js';
 import { bindBack, bindLayoutWatch, bindPaneToggles, bindResize, bindSplitters, ensureStyle, isPanelFrame, observeDockLayout, paintBack, paintPaneButtons, placeDock, previewBottomPad, setPath, setStatus, shieldDock, stopObservingDockLayout, storedPanes } from './layout.js';
 import { DATA_ICON, DOCK_ID, HANDLES, SCOPE_ICON, UNLOCK_ID, css, editors, html, loadCm } from '../code-dock.js';
@@ -598,6 +599,31 @@ function chromeTemplateType(win, doc) {
   return `${kind}/${style}`;
 }
 
+/**
+ * A page with no sections and nothing picked still has a header and a footer
+ * in the preview. The dock opens the header's template then, with the style
+ * the site has chosen (`sveChromeStyles` comes from the globals), so the
+ * button never does nothing.
+ */
+function emptyPageChromeType(win) {
+  const preview = previewDocument(win);
+
+  if (!preview) {
+    return '';
+  }
+
+  const kind = ['header', 'footer'].find((k) => preview.querySelector(`[data-sve-chrome="${k}"]`));
+
+  if (!kind) {
+    return '';
+  }
+
+  const styles = win.Statamic?.$config?.get?.('sveChromeStyles') || {};
+  const style = typeof styles[kind] === 'string' && styles[kind] !== '' ? styles[kind] : 'style_1';
+
+  return `${kind}/${style}`;
+}
+
 function globalSectionTemplateType(doc) {
   const host = globalSectionHost(doc) || doc.getElementById('__sve-global-section-host');
 
@@ -633,7 +659,8 @@ export function syncCodeDock(win, doc, uid) {
     globalSectionTemplateType(doc) ||
     pageSectionType(win, doc, uid) ||
     collectionViewType(win) ||
-    (!uid ? dockState.lastType : '');
+    (!uid ? dockState.lastType : '') ||
+    emptyPageChromeType(win);
   const uidChanged = !!(uid && uid !== dockState.lastUid);
 
   dockState.lastWin = win;

@@ -57,6 +57,9 @@ final class ControlPanelScript
                 // rather than by the "Global section" set.
                 'sveSavedSectionLabels' => ScriptCollections::savedSectionLabels(),
                 'sveChrome' => config('statamic-visual-editor.chrome', []),
+                // The header/footer layout in use, for the dock's fallback on a page
+                // with no sections (dock-api.js, emptyPageChromeType).
+                'sveChromeStyles' => ScriptChrome::styles(),
                 'sveUserId' => User::current()?->id(),
                 'sveChromePrefs' => is_array($chrome = User::current()?->getPreference('sve_chrome')) ? $chrome : [],
                 'sveHiddenGlobalsTabs' => ScriptChrome::hiddenGlobalsTabs(),

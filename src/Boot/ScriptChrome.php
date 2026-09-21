@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Boot;
 
 use Illuminate\Support\Str;
 use Statamic\Facades\GlobalSet;
+use Statamic\Facades\Site;
 use Statamic\Statamic;
 
 /**
@@ -61,6 +62,33 @@ final class ScriptChrome
         }
 
         return $map;
+    }
+
+    /**
+     * The layout each half of the site frame uses right now — `header_style`
+     * on the header's global, `footer_style` on the footer's — so the dock can
+     * open the header's template on a page that has no sections and nothing
+     * picked. Without a value the half is on its first style, as the chrome
+     * editor also assumes.
+     *
+     * @return array{header: string, footer: string}
+     */
+    public static function styles(): array
+    {
+        $shared = config('statamic-visual-editor.chrome.global');
+        $site = Site::current()->handle();
+        $styles = [];
+
+        foreach (['header', 'footer'] as $half) {
+            $handle = config("statamic-visual-editor.chrome.{$half}.global") ?: $shared;
+            $set = $handle ? GlobalSet::findByHandle($handle) : null;
+            $variables = $set ? ($set->in($site) ?? $set->inDefaultSite()) : null;
+            $style = $variables?->get("{$half}_style");
+
+            $styles[$half] = is_string($style) && $style !== '' ? $style : 'style_1';
+        }
+
+        return $styles;
     }
 
     /**
