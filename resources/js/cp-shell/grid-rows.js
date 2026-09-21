@@ -780,6 +780,26 @@ export function watchStatamicLpClose(win) {
 }
 
 /**
+ * Publish's colours as painted right now, so the close pill matches the CP
+ * theme in light and dark. The fallback is Statamic's indigo.
+ */
+function lpPublishButtonColors(win, header) {
+  const publish = [...header.querySelectorAll('button')].find(
+    (button) =>
+      !isOurLpChromeButton(button) &&
+      /\b(publish|publicér|udgiv)\b/i.test(`${button.textContent || ''} ${button.getAttribute('aria-label') || ''}`)
+  );
+  const painted = publish ? win.getComputedStyle(publish) : null;
+  const background = painted?.backgroundColor || '';
+  const transparent = background === '' || background === 'transparent' || /^rgba\(\s*\d+,\s*\d+,\s*\d+,\s*0\)$/.test(background);
+
+  return {
+    background: transparent ? '#4f46e5' : background,
+    color: transparent ? '#fff' : painted.color || '#fff',
+  };
+}
+
+/**
  * Keep the back control after Save & Publish (where × sat). No floating geometry —
  * the preview no longer needs to dodge a pill over the canvas.
  */
@@ -915,7 +935,14 @@ export function ensureLpBackButton(win) {
   pill.title = t(win, 'close_live_preview_title');
   pill.setAttribute('aria-label', pill.title);
   pill.style.opacity = '1';
-  pill.style.background = '#3f3f46';
+  // Last in the row, in Publish's colour: the way out reads as the one primary
+  // action among the icons. The header is a flex row, so `order` places it
+  // without moving it in the DOM (the other pills anchor to it there).
+  const primary = lpPublishButtonColors(win, header);
+
+  pill.style.background = primary.background;
+  pill.style.color = primary.color;
+  pill.style.order = '100';
   pill.style.width = `${LP_CHROME_H}px`;
   pill.style.height = `${LP_CHROME_H}px`;
   pill.style.borderRadius = '.5rem';
