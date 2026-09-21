@@ -16,6 +16,11 @@ final class Imports
     /** Take a sheet's `@import` line out of the entry. */
     public static function removeImport(string $relative): bool
     {
+        // Scripts and icons have no entry to keep in step.
+        if (Root::entry() === null) {
+            return true;
+        }
+
         $rel = Root::normalize($relative);
 
         if (! $rel || $rel === Root::ENTRY) {
@@ -49,6 +54,11 @@ final class Imports
 
     public static function ensureImport(string $relative): bool
     {
+        // Scripts and icons have no entry to keep in step.
+        if (Root::entry() === null) {
+            return true;
+        }
+
         $rel = Root::normalize($relative);
 
         if (! $rel || $rel === Root::ENTRY || Root::excluded($rel)) {
@@ -81,6 +91,11 @@ final class Imports
 
     public static function isImported(string $relative): bool
     {
+        // Scripts and icons have no entry to keep in step.
+        if (Root::entry() === null) {
+            return true;
+        }
+
         $rel = Root::normalize($relative);
 
         if (! $rel) {

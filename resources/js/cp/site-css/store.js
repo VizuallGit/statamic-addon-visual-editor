@@ -1,6 +1,11 @@
 import { reactive } from 'vue';
 
 export const siteCssUi = reactive({
+  // Which files the panel shows: css (stylesheets), js (scripts) or svg (icons).
+  kind: 'css',
+  tabs: [],
+  svgPreview: '',
+  previewLabel: '',
   root: 'resources/css',
   tree: [],
   path: '',

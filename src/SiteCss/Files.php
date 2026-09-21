@@ -19,6 +19,7 @@ final class Files
         $root = Root::root();
 
         return [
+            'kind' => Root::kind(),
             'root' => Root::relativeRoot(),
             'tree' => is_dir($root) ? static::scan($root, '') : [],
         ];
@@ -35,9 +36,10 @@ final class Files
         $rel = Root::relativeFrom($path);
 
         return [
+            'kind' => Root::kind(),
             'path' => $rel,
             'css' => (string) file_get_contents($path),
-            'imported' => $rel === Root::ENTRY || Imports::isImported($rel),
+            'imported' => $rel === Root::entry() || Imports::isImported($rel),
         ];
     }
 
@@ -50,14 +52,15 @@ final class Files
         }
 
         file_put_contents($path, $css);
-        GitSync::after('site CSS');
+        GitSync::after('site '.Root::kind());
 
         $rel = Root::relativeFrom($path);
 
         return [
+            'kind' => Root::kind(),
             'path' => $rel,
             'ok' => true,
-            'imported' => $rel === Root::ENTRY || Imports::isImported($rel),
+            'imported' => $rel === Root::entry() || Imports::isImported($rel),
         ];
     }
 
@@ -84,10 +87,10 @@ final class Files
             return null;
         }
 
-        file_put_contents($path, "/* {$rel} */\n");
-        GitSync::after('site CSS file created');
+        file_put_contents($path, Root::starter($rel));
+        GitSync::after('site '.Root::kind().' file created');
 
-        if ($rel !== Root::ENTRY) {
+        if ($rel !== Root::entry()) {
             Imports::ensureImport($rel);
         }
 
@@ -110,7 +113,7 @@ final class Files
 
         $rel = Root::relativeFrom($path);
 
-        if ($rel === Root::ENTRY) {
+        if ($rel === Root::entry()) {
             return false;
         }
 
@@ -122,7 +125,7 @@ final class Files
             return false;
         }
 
-        GitSync::after('site CSS file removed');
+        GitSync::after('site '.Root::kind().' file removed');
 
         return true;
     }
@@ -143,7 +146,7 @@ final class Files
 
         $was = Root::relativeFrom($source);
 
-        if ($was === Root::ENTRY || $rel === Root::ENTRY) {
+        if ($was === Root::entry() || $rel === Root::entry()) {
             return null;
         }
 
@@ -171,7 +174,7 @@ final class Files
             return null;
         }
 
-        GitSync::after('site CSS file renamed');
+        GitSync::after('site '.Root::kind().' file renamed');
 
         Imports::removeImport($was);
 
@@ -215,7 +218,7 @@ final class Files
                 continue;
             }
 
-            if (! str_ends_with(strtolower($name), '.css') || Root::excluded($rel)) {
+            if (! str_ends_with(strtolower($name), '.'.Root::extension()) || Root::excluded($rel)) {
                 continue;
             }
 
@@ -223,7 +226,7 @@ final class Files
                 'type' => 'file',
                 'path' => $rel,
                 'name' => $name,
-                'imported' => $rel === Root::ENTRY || Imports::isImported($rel),
+                'imported' => $rel === Root::entry() || Imports::isImported($rel),
             ];
         }
 
@@ -232,11 +235,11 @@ final class Files
                 return $a['type'] === 'dir' ? -1 : 1;
             }
 
-            if (($a['name'] ?? '') === Root::ENTRY) {
+            if (Root::entry() !== null && ($a['name'] ?? '') === Root::entry()) {
                 return -1;
             }
 
-            if (($b['name'] ?? '') === Root::ENTRY) {
+            if (Root::entry() !== null && ($b['name'] ?? '') === Root::entry()) {
                 return 1;
             }
 

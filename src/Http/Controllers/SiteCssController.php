@@ -8,23 +8,25 @@ use MarioHamann\StatamicVisualEditor\SiteClasses;
 use MarioHamann\StatamicVisualEditor\SiteCss;
 
 /**
- * Read and write files under `resources/css` from Live Preview.
+ * Read and write the site's own files from Live Preview: stylesheets under
+ * `resources/css` (the default), scripts under `resources/js`, SVG icons
+ * under `resources/svg` — chosen by `kind` on every request.
  *
  * The settings toggle and toolbar access both have to be on.
  */
 class SiteCssController
 {
-    public function index()
+    public function index(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request);
 
         return response()->json(SiteCss::listing());
     }
 
     /** The site's own class names, for the panel's add-class list. */
-    public function classes()
+    public function classes(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request, 'css');
 
         return response()->json([
             'groups' => SiteClasses::grouped(),
@@ -33,7 +35,7 @@ class SiteCssController
 
     public function show(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request);
 
         $file = SiteCss::read((string) $request->query('path', ''));
 
@@ -44,7 +46,7 @@ class SiteCssController
 
     public function update(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request);
 
         $path = (string) $request->input('path', '');
         $css = $request->input('css');
@@ -60,7 +62,7 @@ class SiteCssController
 
     public function store(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request);
 
         $path = (string) $request->input('path', '');
         $file = SiteCss::create($path);
@@ -75,7 +77,7 @@ class SiteCssController
 
     public function import(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request);
 
         $path = (string) $request->input('path', '');
 
@@ -91,7 +93,7 @@ class SiteCssController
 
     public function rename(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request);
 
         $file = SiteCss::rename(
             (string) $request->input('from', ''),
@@ -108,15 +110,23 @@ class SiteCssController
 
     public function destroy(Request $request)
     {
-        $this->authorize();
+        $this->authorize($request);
 
         abort_unless(SiteCss::delete((string) $request->input('path', '')), 422);
 
         return response()->json(SiteCss::listing());
     }
 
-    protected function authorize(): void
+    /**
+     * The feature must be on, and the kind asked for must exist. `$only`
+     * pins an action to one kind (the class list is stylesheets' business).
+     */
+    protected function authorize(Request $request, ?string $only = null): void
     {
         abort_unless(Features::allows('site_css'), 403);
+
+        $kind = $only ?? (string) ($request->input('kind') ?: $request->query('kind') ?: 'css');
+
+        abort_unless(SiteCss::use($kind), 422);
     }
 }

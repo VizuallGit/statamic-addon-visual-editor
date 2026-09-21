@@ -1,5 +1,7 @@
 /**
- * Site CSS in Live Preview — the files under resources/css.
+ * The site's own files in Live Preview: stylesheets under resources/css,
+ * scripts under resources/js and SVG icons under resources/svg — three tabs
+ * of one panel, each with its own folder, editor language and starter file.
  *
  * Own surface. Does not import overlay, preview, bridge or the template dock.
  * Saving writes the file on disk; Vite picks it up. Preview has no HMR client,
@@ -35,6 +37,8 @@ let closeBrackets;
 let closeBracketsKeymap;
 let completionKeymap;
 let css;
+let javascript;
+let html;
 let HighlightStyle;
 let syntaxHighlighting;
 let tags;
@@ -72,6 +76,8 @@ function loadCm() {
     closeBracketsKeymap = cm.autocomplete.closeBracketsKeymap;
     completionKeymap = cm.autocomplete.completionKeymap;
     css = cm.langCss.css;
+    javascript = cm.langJs.javascript;
+    html = cm.langHtml.html;
     HighlightStyle = cm.language.HighlightStyle;
     syntaxHighlighting = cm.language.syntaxHighlighting;
     tags = cm.highlight.tags;
@@ -165,9 +171,40 @@ function bumpPreviewCss(win) {
   });
 }
 
+const KINDS = ['css', 'js', 'svg'];
+
+/** The lang key for this kind: site_css_*, site_js_*, site_svg_*. */
+function key(kind, name) {
+  return `site_${kind}_${name}`;
+}
+
+/** The editor language for a kind: CSS, JavaScript, or HTML for SVG markup. */
+function languageFor(kind) {
+  if (kind === 'js') {
+    return javascript();
+  }
+
+  if (kind === 'svg') {
+    return html();
+  }
+
+  return css();
+}
+
+/** After a save: stylesheets are cache-busted in the preview; the rest needs no nudge. */
+function bumpPreview(win) {
+  if (ui.kind === 'css') {
+    bumpPreviewCss(win);
+  }
+}
+
 function paintLabels(win) {
-  ui.title = t(win, 'site_css_title');
-  ui.addLabel = t(win, 'site_css_add');
+  const kind = ui.kind;
+
+  ui.tabs = KINDS.map((k) => ({ key: k, label: t(win, `site_css_tab_${k}`) }));
+  ui.title = t(win, key(kind, 'title'));
+  ui.addLabel = t(win, key(kind, 'add'));
+  ui.previewLabel = t(win, 'site_svg_preview');
   ui.saveLabel = t(win, 'site_css_save');
   ui.reloadTitle = t(win, 'site_css_reload');
   ui.emptyLabel = t(win, 'site_css_empty');
@@ -189,6 +226,7 @@ function setCss(text) {
   applying = false;
   savedCss = text;
   ui.dirty = false;
+  ui.svgPreview = ui.kind === 'svg' ? text : '';
 }
 
 function mountEditor(win, host) {
@@ -209,7 +247,7 @@ function mountEditor(win, host) {
         highlightActiveLine(),
         highlightActiveLineGutter(),
         history(),
-        css(),
+        languageFor(ui.kind),
         closeBrackets(),
         autocompletion({
           activateOnTyping: true,
@@ -239,6 +277,11 @@ function mountEditor(win, host) {
 
           ui.dirty = editor.state.doc.toString() !== savedCss;
           ui.status = ui.dirty ? t(win, 'site_css_unsaved') : '';
+
+          // The icon redraws as it is typed.
+          if (ui.kind === 'svg') {
+            ui.svgPreview = editor.state.doc.toString();
+          }
         }),
         ...vscTheme(cm, { height: '100%', background: '#1E1E21' }),
       ],
@@ -247,8 +290,13 @@ function mountEditor(win, host) {
   });
 }
 
+/** The URL with the panel's kind on it — every endpoint takes it. */
+function withKind(url) {
+  return `${url}${url.includes('?') ? '&' : '?'}kind=${encodeURIComponent(ui.kind)}`;
+}
+
 async function request(win, url, options = {}) {
-  const res = await win.fetch(url, {
+  const res = await win.fetch(withKind(url), {
     credentials: 'same-origin',
     headers: {
       'X-Requested-With': 'XMLHttpRequest',
@@ -268,6 +316,11 @@ async function request(win, url, options = {}) {
 }
 
 function applyListing(data) {
+  // A listing for another kind (a slow answer after a tab switch) is not this one.
+  if (data.kind && data.kind !== ui.kind) {
+    return;
+  }
+
   if (data.root) {
     ui.root = data.root;
   }
@@ -305,7 +358,7 @@ async function openFile(win, path) {
   try {
     const data = await request(win, `/!/sve/site-css/file?path=${encodeURIComponent(path)}`);
 
-    if (seq !== loadSeq) {
+    if (seq !== loadSeq || (data.kind && data.kind !== ui.kind)) {
       return;
     }
 
@@ -345,7 +398,7 @@ async function saveFile(win) {
     ui.dirty = false;
     ui.imported = data.imported !== false;
     ui.status = t(win, 'site_css_saved');
-    bumpPreviewCss(win);
+    bumpPreview(win);
     win.setTimeout(() => {
       if (ui.status === t(win, 'site_css_saved')) {
         ui.status = '';
@@ -371,11 +424,11 @@ async function reloadFile(win) {
 
 function addFile(win) {
   const overlay = openCpOverlay(win.document, NamePrompt, {
-    heading: t(win, 'site_css_add_title'),
+    heading: t(win, key(ui.kind, 'add_title')),
     nameLabel: t(win, 'site_css_add_label'),
-    placeholder: t(win, 'site_css_add_placeholder'),
+    placeholder: t(win, key(ui.kind, 'add_placeholder')),
     cancelLabel: t(win, 'cancel'),
-    saveLabel: t(win, 'site_css_add'),
+    saveLabel: t(win, key(ui.kind, 'add')),
     onOk: async (name) => {
       overlay.dismiss();
 
@@ -387,7 +440,7 @@ function addFile(win) {
 
         applyListing(data);
         await openFile(win, data.path);
-        bumpPreviewCss(win);
+        bumpPreview(win);
       } catch {
         ui.status = t(win, 'site_css_error');
       }
@@ -408,7 +461,7 @@ async function importFile(win) {
 
     applyListing(data);
     ui.imported = true;
-    bumpPreviewCss(win);
+    bumpPreview(win);
   } catch {
     ui.status = t(win, 'site_css_error');
   }
@@ -448,7 +501,7 @@ function renameFile(win) {
         applyListing(data);
         ui.path = '';
         await openFile(win, data.path);
-        bumpPreviewCss(win);
+        bumpPreview(win);
       } catch {
         ui.status = t(win, 'site_css_rename_error');
       }
@@ -468,7 +521,7 @@ function deleteFile(win) {
   const path = ui.path;
 
   const overlay = openCpOverlay(win.document, ChoiceDialog, {
-    title: t(win, 'site_css_delete_title'),
+    title: t(win, key(ui.kind, 'delete_title')),
     body: `${ui.root}/${path}`,
     buttons: [
       { value: 'cancel', label: t(win, 'cancel'), variant: 'muted' },
@@ -491,7 +544,7 @@ function deleteFile(win) {
         ui.path = '';
         ui.dirty = false;
         setCss('');
-        bumpPreviewCss(win);
+        bumpPreview(win);
       } catch {
         ui.status = t(win, 'site_css_delete_error');
       }
@@ -538,7 +591,55 @@ export function closeSiteCss(win) {
   ui.tree = [];
   ui.dirty = false;
   ui.status = '';
+  ui.svgPreview = '';
   win?.document?.getElementById(PANEL_ID)?.remove();
+}
+
+/** The file a kind opens with: its Vite entry when there is one, else the first in the tree. */
+function firstFor(kind, tree) {
+  const entry = kind === 'css' ? 'site.css' : kind === 'js' ? 'site.js' : '';
+
+  return entry && tree.some((node) => node.path === entry) ? entry : firstFile(tree);
+}
+
+/**
+ * Switch the panel to another kind of file. What is open is saved first; the
+ * editor is remounted with the kind's language, and the kind's folder listed.
+ */
+async function setKind(win, kind) {
+  if (!KINDS.includes(kind) || kind === ui.kind) {
+    return;
+  }
+
+  if (ui.dirty && ui.path && !(await saveFile(win))) {
+    return;
+  }
+
+  ++loadSeq;
+  ui.kind = kind;
+  ui.path = '';
+  ui.tree = [];
+  ui.dirty = false;
+  ui.status = '';
+  ui.svgPreview = '';
+  savedCss = '';
+  paintLabels(win);
+
+  const host = win.document.getElementById(PANEL_ID)?.querySelector('[data-sve-site-css-host]');
+
+  mountEditor(win, host);
+
+  try {
+    await loadTree(win);
+
+    const first = firstFor(kind, ui.tree);
+
+    if (first) {
+      await openFile(win, first);
+    }
+  } catch {
+    ui.status = t(win, 'site_css_error');
+  }
 }
 
 export function toggleSiteCss(win) {
@@ -573,6 +674,7 @@ function openSiteCss(win) {
     onImport: () => void importFile(win),
     onRename: () => renameFile(win),
     onDelete: () => deleteFile(win),
+    onTab: (kind) => void setKind(win, kind),
   });
 
   const host = panel.querySelector('[data-sve-site-css-host]');
@@ -592,9 +694,7 @@ function openSiteCss(win) {
         return;
       }
 
-      const first = ui.tree.some((node) => node.path === 'site.css')
-        ? 'site.css'
-        : firstFile(ui.tree);
+      const first = firstFor(ui.kind, ui.tree);
 
       if (first) {
         return openFile(win, first);

@@ -11,7 +11,16 @@ defineProps({
   onImport: { type: Function, required: true },
   onRename: { type: Function, required: true },
   onDelete: { type: Function, required: true },
+  onTab: { type: Function, required: true },
 });
+
+// The icon as the browser draws it, from the text in the editor — no markup
+// is put in the page, so a script in a pasted file cannot run here.
+const svgSrc = computed(() =>
+  ui.kind === 'svg' && ui.svgPreview.trim()
+    ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(ui.svgPreview)}`
+    : ''
+);
 
 function flatten(nodes, depth = 0) {
   const out = [];
@@ -33,7 +42,19 @@ const rows = computed(() => flatten(ui.tree));
 <template>
   <div class="sve-site-css">
     <div class="sve-site-css__bar">
-      <div class="sve-site-css__title">{{ ui.title }}</div>
+      <div class="sve-site-css__tabs" role="tablist">
+        <button
+          v-for="tab in ui.tabs"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          class="sve-site-css__tab"
+          :class="{ 'is-on': ui.kind === tab.key }"
+          :aria-selected="ui.kind === tab.key"
+          :data-sve-site-files-tab="tab.key"
+          @click="onTab(tab.key)"
+        >{{ tab.label }}</button>
+      </div>
       <span class="sve-site-css__root">{{ ui.root }}</span>
       <span class="sve-site-css__status">{{ ui.status }}</span>
       <button type="button" class="sve-site-css__icon" :title="ui.reloadTitle" :disabled="!ui.path" @click="onReload">
@@ -69,6 +90,12 @@ const rows = computed(() => flatten(ui.tree));
           <span>{{ ui.notImported }}</span>
           <button type="button" @click="onImport">{{ ui.importLabel }}</button>
         </div>
+        <div v-if="ui.kind === 'svg' && ui.path" class="sve-site-css__svg" data-sve-site-svg-preview>
+          <span class="sve-site-css__svg-label">{{ ui.previewLabel }}</span>
+          <div class="sve-site-css__svg-box">
+            <img v-if="svgSrc" :src="svgSrc" alt="">
+          </div>
+        </div>
         <div data-sve-site-css-host class="sve-site-css__host"></div>
         <div v-if="!ui.path" class="sve-site-css__empty">{{ ui.emptyLabel }}</div>
       </div>
@@ -96,9 +123,66 @@ const rows = computed(() => flatten(ui.tree));
   border-bottom: 1px solid #3c3c3c;
   flex: none;
 }
-.sve-site-css__title {
+.sve-site-css__tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.sve-site-css__tab {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font: inherit;
   font-weight: 600;
+  opacity: 0.7;
+}
+.sve-site-css__tab:hover {
+  opacity: 1;
+}
+.sve-site-css__tab.is-on {
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
+  opacity: 1;
+}
+.sve-site-css__svg {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #3c3c3c;
+  background: #181818;
+  flex: none;
+}
+.sve-site-css__svg-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+.sve-site-css__svg-box {
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.06) 75%),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.06) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+  color: #fff;
+}
+.sve-site-css__svg-box img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
 }
 .sve-site-css__root {
   opacity: 0.55;

@@ -23,6 +23,22 @@ class SiteCss
     public const ENTRY = Root::ENTRY;
 
     /**
+     * Choose which files this request is about: `css` (default), `js` or
+     * `svg`. False for anything else.
+     *
+     * @see Root::use()
+     */
+    public static function use(string $kind): bool
+    {
+        return Root::use($kind);
+    }
+
+    public static function kind(): string
+    {
+        return Root::kind();
+    }
+
+    /**
      * @see Files::listing()
      */
     public static function listing(): array
