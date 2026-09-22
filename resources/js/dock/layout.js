@@ -674,6 +674,27 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-css-kids]::-webkit-scrollbar {
   display: none;
 }
+/**
+ * A row with more behind an edge fades out at that edge.
+ *
+ * The rows scroll without a bar, so the fade is the only sign that there are
+ * buttons past the edge. scroll-edges.js measures which edges have more and
+ * writes data-sve-scroll-edge; a row that fits carries nothing and is drawn
+ * whole. A mask, not an overlay: the row's own buttons fade into whatever is
+ * behind them, and nothing sits on top of them to catch a click.
+ */
+#${DOCK_ID} [data-sve-scroll-edge="right"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.75em), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.75em), transparent);
+}
+#${DOCK_ID} [data-sve-scroll-edge="left"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 2.75em);
+  mask-image: linear-gradient(to right, transparent, #000 2.75em);
+}
+#${DOCK_ID} [data-sve-scroll-edge="both"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 2.75em, #000 calc(100% - 2.75em), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 2.75em, #000 calc(100% - 2.75em), transparent);
+}
 #${DOCK_ID} [data-sve-css-sep] {
   width: 1px;
   height: 12px;

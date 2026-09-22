@@ -11,6 +11,7 @@ import { mountSurface } from '../cp/mount.js';
 import { applyBracketClass, findClassRule, sanitizeCssClassName } from '../css-scope.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
+import { elementInsertPoint } from './insert-point.js';
 import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_HEADINGS, HTML_TOOLS, editors, tags } from '../code-dock.js';
 import { onEditorInput } from './save.js';
 import { closeCssMenu, indentFromPrevious, lineIndentOf, paintCssToolState, placeCssMenu } from './css-tools.js';
@@ -242,6 +243,35 @@ function caretRange(anchor, length) {
 }
 
 /**
+ * Move the caret out of the tag, expression or comment it sits in.
+ *
+ * Markup goes between tags, never into one: a link written into the middle of
+ * a `<video …>` is a broken video, not a link. Returns the caret's position.
+ */
+function leaveTag(view) {
+  const { from } = view.state.selection.main;
+  const at = elementInsertPoint(view.state.doc.toString(), from);
+
+  if (at !== from) {
+    view.dispatch({ selection: { anchor: at } });
+  }
+
+  return at;
+}
+
+/** Write an element where the caret is — after the tag it sits in, if any. */
+export function insertHtmlElement(snippet, cursorFromStart, selectLength) {
+  const view = editors.html;
+
+  if (!view || view.state.readOnly) {
+    return;
+  }
+
+  leaveTag(view);
+  insertHtmlSnippet(snippet, cursorFromStart, selectLength);
+}
+
+/**
  * Tags whose button leaves the caret inside what it just wrote.
  *
  * Only the sectioning ones. A section is made in order to be filled, so the
@@ -324,8 +354,12 @@ export function applyHtmlTag(tag) {
 
   const sel = view.state.selection.main;
   const text = view.state.doc.toString();
+  // A selection is wrapped only when both its ends sit between tags; one that
+  // starts or ends inside a tag is not something a tag can go around.
+  const wrappable =
+    !sel.empty && elementInsertPoint(text, sel.from) === sel.from && elementInsertPoint(text, sel.to) === sel.to;
 
-  if (!sel.empty) {
+  if (wrappable) {
     const selected = text.slice(sel.from, sel.to);
     const wrapped = selected.match(new RegExp(`^<${tag}(\\s[^>]*)?>([\\s\\S]*)</${tag}>$`, 'i'));
 
@@ -391,7 +425,9 @@ export function applyHtmlTag(tag) {
     }
   }
 
-  const line = view.state.doc.lineAt(sel.head);
+  leaveTag(view);
+
+  const line = view.state.doc.lineAt(view.state.selection.main.head);
   const indent = (line.text.match(/^\s*/) || [''])[0];
 
   if (tag === 'ul') {
@@ -507,7 +543,7 @@ export function openHtmlComponentMenu(win, anchor) {
       choices,
       onPick: (tag) => {
         if (tag) {
-          insertHtmlSnippet(tag, tag.length);
+          insertHtmlElement(tag, tag.length);
           finishHtmlEdit();
         }
 

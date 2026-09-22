@@ -15,7 +15,8 @@ import { dockState } from '../dock/state.js';
 import { CSS_LENGTHS, CSS_MENU_ID, CSS_TOOL_INDEX, HTML_HEADINGS, HTML_TOOLS, STYLE_MODE_KEY, VALUES_MODE_KEY } from '../code-dock.js';
 import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintValuesMode, setValuesMode } from './style-modes.js';
 import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
-import { applyHtmlTag, finishHtmlEdit, insertHtmlSnippet, openHtmlComponentMenu, openHtmlTagMenu, tidyHtmlPane } from './html-tools.js';
+import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlTagMenu, tidyHtmlPane } from './html-tools.js';
+import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
 
 // ===== toolbars =====
@@ -204,6 +205,8 @@ export function bindCssTools(win, dock) {
   };
 
   dockState.cssToolRow();
+  watchScrollEdges(host);
+  watchScrollEdgesIn(host, '[data-sve-css-kids]');
 
   win.document.addEventListener(
     'mousedown',
@@ -298,7 +301,7 @@ export function bindHtmlTools(win, dock) {
       closeCssMenu(win.document);
 
       if (tool.snippet) {
-        insertHtmlSnippet(tool.snippet, tool.caret ?? tool.snippet.length, tool.select);
+        insertHtmlElement(tool.snippet, tool.caret ?? tool.snippet.length, tool.select);
         finishHtmlEdit();
 
         return;
@@ -308,6 +311,7 @@ export function bindHtmlTools(win, dock) {
     },
   });
 
+  watchScrollEdges(host);
   bindAntlersSnippets(win, dock);
   bindVisualEditSnippets(win, dock);
   bindDataVars(win, dock);
