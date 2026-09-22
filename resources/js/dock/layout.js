@@ -229,11 +229,12 @@ export function ensureStyle(doc) {
   margin-left: 4px;
   border-radius: 6px;
   color: #d4d4d4;
-  opacity: .55;
+  opacity: .8;
+  background: rgba(255,255,255,.1);
 }
 #${DOCK_ID} [data-sve-code-lock]:hover {
   opacity: 1;
-  background: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-code-lock][aria-pressed="true"] {
   opacity: 1;
@@ -255,11 +256,12 @@ export function ensureStyle(doc) {
   margin-left: 4px;
   border-radius: 6px;
   color: #d4d4d4;
-  opacity: .55;
+  opacity: .8;
+  background: rgba(255,255,255,.1);
 }
 #${DOCK_ID} [data-sve-html-scope]:hover {
   opacity: 1;
-  background: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-html-scope][aria-pressed="true"] {
   opacity: 1;
@@ -279,13 +281,14 @@ export function ensureStyle(doc) {
   margin-left: 4px;
   border-radius: 6px;
   color: #d4d4d4;
-  opacity: .55;
+  opacity: .8;
+  background: rgba(255,255,255,.1);
 }
 #${DOCK_ID} [data-sve-code-strip]:hover,
 #${DOCK_ID} [data-sve-code-history]:hover,
 #${DOCK_ID} [data-sve-code-history][data-open] {
   opacity: 1;
-  background: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-code-strip][aria-pressed="true"] {
   opacity: 1;
@@ -309,14 +312,15 @@ export function ensureStyle(doc) {
   margin-left: 4px;
   border-radius: 6px;
   color: #d4d4d4;
-  opacity: .6;
+  opacity: .8;
+  background: rgba(255,255,255,.1);
   font-size: 11px;
   white-space: nowrap;
 }
 #${DOCK_ID} [data-sve-values-mode]:hover,
 #${DOCK_ID} [data-sve-style-mode]:hover {
   opacity: 1;
-  background: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-values-mode][aria-pressed="true"],
 #${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
@@ -374,12 +378,13 @@ export function ensureStyle(doc) {
   margin-left: 4px;
   border-radius: 6px;
   color: #d4d4d4;
-  opacity: .55;
+  opacity: .8;
+  background: rgba(255,255,255,.1);
 }
 #${DOCK_ID} [data-sve-code-autosave]:hover,
 #${DOCK_ID} [data-sve-code-save]:hover {
   opacity: 1;
-  background: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-code-autosave][aria-pressed="true"] {
   opacity: 1;
@@ -395,7 +400,6 @@ export function ensureStyle(doc) {
   display: none;
 }
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-autosave],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-html-scope],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-style-mode],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-history],
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-strip],

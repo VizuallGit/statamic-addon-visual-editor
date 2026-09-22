@@ -49,7 +49,7 @@ import { bindAutosave, bindLock, paintAutosave } from './lock-autosave.js';
 import { mountEditor, paintHostWait } from './editor.js';
 import { paintStyleMode, syncTwTarget } from './style-modes.js';
 import { closeCssMenu, cssEditorText, paintCssToolState, writeParts } from './css-tools.js';
-import { ensureTwCss, flushSave, onEditorInput, primeTailwindCompile, refreshPreview, resetTailwindCompile } from './save.js';
+import { ensureTwCss, flushSave, isChromeTemplateType, onEditorInput, primeTailwindCompile, refreshPreview, resetTailwindCompile } from './save.js';
 import { closeDataMenu, openDataVarsMenu } from './data-vars.js';
 import { minimalChange } from '../lib/minimal-change.js';
 
@@ -646,6 +646,27 @@ function pageHasSectionRows(win) {
   return false;
 }
 
+/** Whether a top-level row of the page builder renders `type`. */
+function pageHasType(win, type) {
+  if (!type || String(type).startsWith('view:') || isChromeTemplateType(win, type)) {
+    return false;
+  }
+
+  const field = typeof sectionField === 'function' ? sectionField(win) : 'page_sections';
+  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
+
+  for (const container of containers) {
+    const values = unwrapRef(container.values) || container.values;
+    const rows = values?.[field];
+
+    if (Array.isArray(rows) && rows.some((row) => row?.type === type)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function emptyPageChromeType(win) {
   const preview = previewDocument(win);
 
@@ -714,6 +735,30 @@ export function syncCodeDock(win, doc, uid) {
   }
 
   if (!type) {
+    // Header, footer or a global section was just left, and the dock still
+    // shows its file. Nothing on the page is that file any more — so back to
+    // the page: its first section, or no file at all on an empty page. Only
+    // when no editor for those is open, and only for a file no page row
+    // renders; a section just added, whose row is not in the values yet, is.
+    if (
+      dockState.lastType &&
+      !chromeHost(doc) &&
+      !chromeEditorOpen(doc) &&
+      !globalSectionHost(doc) &&
+      !pageHasType(win, dockState.lastType)
+    ) {
+      const first = pageSectionType(win, doc, null);
+
+      dockState.lastUid = null;
+
+      if (first) {
+        flushSave(doc);
+        loadTemplate(win, first, 'replace');
+      } else {
+        closeCodeDock(doc);
+      }
+    }
+
     return;
   }
 

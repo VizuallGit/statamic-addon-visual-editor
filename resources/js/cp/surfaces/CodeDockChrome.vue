@@ -26,11 +26,13 @@ defineProps({
       <button type="button" data-sve-code-history></button>
       <button type="button" data-sve-style-mode></button>
       <button type="button" data-sve-values-mode></button>
+      <button type="button" data-sve-code-autosave aria-pressed="true"></button>
+      <button type="button" data-sve-code-save hidden></button>
+      <!-- The tree's switch stands next to the lock, at the row's end: the two
+           that decide what the panes show and whether they may be written. -->
       <button type="button" data-sve-html-scope aria-pressed="true">
         <span v-html="treeIcon"></span>
       </button>
-      <button type="button" data-sve-code-autosave aria-pressed="true"></button>
-      <button type="button" data-sve-code-save hidden></button>
       <button type="button" data-sve-code-lock hidden></button>
     </div>
     <div data-sve-code-lock-banner></div>

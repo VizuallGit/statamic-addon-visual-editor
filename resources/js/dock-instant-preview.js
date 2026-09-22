@@ -188,13 +188,20 @@
             '#' + DOCK_ID + ' [data-sve-instant-mode] button{' +
                 'all:unset;cursor:pointer;display:inline-flex;align-items:center;height:100%;' +
                 'padding:0 8px;font:600 11px/1 ui-sans-serif,system-ui,sans-serif;' +
-                'letter-spacing:.04em;text-transform:uppercase;color:#d4d4d4;opacity:.55;' +
+                'letter-spacing:.04em;text-transform:uppercase;color:#d4d4d4;opacity:.8;' +
+                'background:rgba(255,255,255,.1);' +
             '}' +
-            '#' + DOCK_ID + ' [data-sve-instant="astro"]{' +
-                'border-radius:5px 0 0 5px;' +
+            '#' + DOCK_ID + ' [data-sve-instant-mode] button:hover{' +
+                'opacity:1;background:rgba(255,255,255,.16);' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant="morph"]{' +
+                'border-radius:5px 0 0 5px;' +
+            '}' +
+            '#' + DOCK_ID + ' [data-sve-instant="astro"]{' +
                 'border-radius:0;' +
+            '}' +
+            '#' + DOCK_ID + ' [data-sve-instant-active="morph"] [data-sve-instant="astro"]{' +
+                'border-radius:0 5px 5px 0;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-mode] button[aria-pressed="true"]{' +
                 'opacity:1;color:#93c5fd;background:rgba(56,88,233,.22);' +
@@ -206,7 +213,7 @@
                 'width:13px;height:13px;display:block;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-active="morph"] [data-sve-instant-hover]{' +
-                'opacity:.25;' +
+                'display:none;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-tw-docs]{' +
                 'all:unset;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;' +
@@ -394,9 +401,10 @@
         group.setAttribute('data-sve-instant-mode', '');
         group.setAttribute('role', 'group');
         group.setAttribute('aria-label', 'Instant Preview');
+        // "1 s" first, Instant second: the eye belongs to Instant and sits at its side.
         group.innerHTML =
-            '<button type="button" data-sve-instant="astro" title="' + INSTANT_TITLE + '">Instant</button>' +
-            '<button type="button" data-sve-instant="morph" title="' + MORPH_TITLE + '">1 s</button>';
+            '<button type="button" data-sve-instant="morph" title="' + MORPH_TITLE + '">1 s</button>' +
+            '<button type="button" data-sve-instant="astro" title="' + INSTANT_TITLE + '">Instant</button>';
         group.addEventListener('click', function (event) {
             var btn = event.target.closest('[data-sve-instant]');
 

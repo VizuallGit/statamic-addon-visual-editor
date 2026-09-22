@@ -1909,6 +1909,17 @@ function hideHtmlTreeRow(win, id) {
 }
 
 function duplicateHtmlTreeRow(win, id) {
+  // The open section's root: a copy of the section on the page, the way the
+  // hover bar makes one — not a second copy of the markup in the file. The
+  // file's lock does not apply; the file is not touched.
+  const uid = htmlTreeUi.rows.find((item) => item.id === id)?.sectionRoot;
+
+  if (uid) {
+    win.postMessage({ source: SOURCE, type: MSG.DUPLICATE_ROW, uid }, win.location.origin);
+
+    return;
+  }
+
   applyHtmlEdit(win, id, duplicateHtml);
 }
 

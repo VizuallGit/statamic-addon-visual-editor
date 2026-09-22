@@ -165,6 +165,19 @@ function rowBind(row, dim) {
 function canHide(row) {
   return !row.hidden || row.wrapFrom != null;
 }
+
+/**
+ * The open section's root row acts on the PAGE — move, duplicate, remove the
+ * section — not on the file. The file's lock guards the code panes, so it has
+ * no say here: a locked template is still a section you may take off a page.
+ */
+function pageLevel(row) {
+  return !!row.sectionRoot || !!row.section;
+}
+
+function canAct(row) {
+  return ui.canEdit || pageLevel(row);
+}
 </script>
 
 <template>
@@ -306,8 +319,8 @@ function canHide(row) {
       <button
         type="button"
         data-sve-ht-dup
-        :disabled="!ui.canEdit"
-        :title="ui.canEdit ? ui.duplicateTitle : ui.lockedTitle"
+        :disabled="!canAct(row)"
+        :title="canAct(row) ? ui.duplicateTitle : ui.lockedTitle"
         v-html="DUP"
         @click.stop.prevent="ui.onDuplicate?.(row.id)"
         @pointerdown.stop
@@ -316,8 +329,8 @@ function canHide(row) {
       <button
         type="button"
         data-sve-ht-del
-        :disabled="!ui.canEdit"
-        :title="ui.canEdit ? ui.deleteTitle : ui.lockedTitle"
+        :disabled="!canAct(row)"
+        :title="canAct(row) ? ui.deleteTitle : ui.lockedTitle"
         v-html="DEL"
         @click.stop.prevent="ui.onDelete?.(row.id)"
         @pointerdown.stop
