@@ -37,6 +37,7 @@ import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
 import { activeChromeKind } from '../globals-panel.js';
+import { LAYOUT_TEMPLATE_TYPE } from '../lib/ids.js';
 import { previewDocument } from '../lib/preview-frame.js';
 import { dockState } from '../dock/state.js';
 import { bindBack, bindLayoutWatch, bindPaneToggles, bindResize, bindSplitters, ensureStyle, isPanelFrame, observeDockLayout, paintBack, paintPaneButtons, placeDock, previewBottomPad, setPath, setStatus, shieldDock, stopObservingDockLayout, storedPanes } from './layout.js';
@@ -609,8 +610,39 @@ function chromeTemplateFor(win, kind, values) {
   return handle;
 }
 
-/** The half the dock is on — 'header', 'footer' — or '' on a page or a section. */
-function chromeKindOnDock(doc) {
+/**
+ * Which part of the page's frame the dock's FILE is: 'header', 'footer',
+ * 'main' (the layout) — or '' on a section, a template, a component.
+ *
+ * Read off the file, not off the sidebar. The header's form and the header's
+ * file open at different moments, and a tree drawn from the sidebar's state
+ * showed the header's rows under a section, and a section's rows under the
+ * header, one step behind whatever had just happened.
+ */
+function frameKindOnDock() {
+  const type = currentTemplateType();
+
+  if (!type) {
+    return '';
+  }
+
+  if (type === LAYOUT_TEMPLATE_TYPE) {
+    return 'main';
+  }
+
+  const styled = type.match(/^(header|footer)\//);
+
+  if (styled) {
+    return styled[1];
+  }
+
+  const templates = dockState.lastWin?.Statamic?.$config?.get?.('sveChromeTemplates') || {};
+
+  return ['header', 'footer'].find((kind) => templates[kind]?.type === type) || '';
+}
+
+/** The half whose FORM the sidebar holds — 'header', 'footer' — or ''. */
+function chromeKindOpen(doc) {
   const kind = chromeInlineKind || activeChromeKind;
 
   if (kind !== 'header' && kind !== 'footer') {
@@ -978,8 +1010,10 @@ register('dock:current-type', () => currentTemplateType());
 // True while the dock shows the header only because the page has no sections.
 register('dock:on-empty-page', () => !!dockState.onEmptyPage);
 register('dock:current-uid', () => dockState.lastUid);
-// The half the dock holds, so the tree can draw header, main and footer around the page.
-register('dock:chrome-kind', (doc) => chromeKindOnDock(doc));
+// Which part of the frame the dock's file is, so the tree can draw header,
+// main and footer around the page — and which half's form the sidebar holds.
+register('dock:chrome-kind', () => frameKindOnDock());
+register('dock:chrome-open', (doc) => chromeKindOpen(doc));
 /**
  * The save in the air, if any. A panel that writes the file and then asks the
  * server about what it wrote has to wait for this — the answer is read from
@@ -1018,6 +1052,26 @@ register('dock:refresh-preview', () => {
   }
 
   refreshPreview(dockState.lastWin);
+
+  return true;
+});
+
+/**
+ * Open a file in the dock as the file — not stacked under the one before, the
+ * way a component opens from a partial link. The tree opens the layout so:
+ * there is nothing to go back to, because the frame's rows are the way out.
+ */
+register('dock:open-file', (type) => {
+  if (typeof type !== 'string' || !type || !dockState.lastWin) {
+    return false;
+  }
+
+  if (type === dockState.lastType) {
+    return true;
+  }
+
+  flushSave(dockState.lastWin.document);
+  void loadTemplate(dockState.lastWin, type, 'replace');
 
   return true;
 });

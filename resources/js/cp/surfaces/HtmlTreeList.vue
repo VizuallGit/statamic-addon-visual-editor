@@ -37,6 +37,14 @@ function frameShown(row) {
   return !!row && (!query.value || matchesHtmlTreeRow(row, query.value));
 }
 
+/**
+ * Standing in one part of the frame, the others fade — the way the page fades
+ * around an open component. Inside a component everything but it fades.
+ */
+function frameDim(part) {
+  return ui.inComponent || (!!ui.frame?.kind && ui.frame.kind !== part);
+}
+
 const frameFound = computed(
   () => !!ui.frame && ['header', 'main', 'footer'].some((part) => frameShown(ui.frame[part]))
 );
@@ -89,8 +97,12 @@ function wrapBind(sec) {
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
-        <HtmlTreeRow v-else-if="frameShown(ui.frame.header)" :row="ui.frame.header" :dim="ui.inComponent" />
-        <HtmlTreeRow v-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="ui.inComponent" />
+        <HtmlTreeRow v-else-if="frameShown(ui.frame.header)" :row="ui.frame.header" :dim="frameDim('header')" />
+        <div v-if="ui.frame.kind === 'main'" data-sve-ht-branch data-sve-ht-cat="layout">
+          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+          <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+        </div>
+        <HtmlTreeRow v-else-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
       </template>
       <div v-if="ui.sections.length" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
         <div
@@ -107,8 +119,8 @@ function wrapBind(sec) {
             <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
             <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
           </template>
-          <!-- Inside a component every other section fades, as the preview fades them. -->
-          <HtmlTreeRow v-else :row="sec.row" :dim="ui.inComponent" />
+          <!-- Inside a component, or another part of the frame, every section fades. -->
+          <HtmlTreeRow v-else :row="sec.row" :dim="frameDim('')" />
         </div>
       </div>
       <template v-if="ui.frame">
@@ -116,7 +128,7 @@ function wrapBind(sec) {
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
-        <HtmlTreeRow v-else-if="frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="ui.inComponent" />
+        <HtmlTreeRow v-else-if="frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="frameDim('footer')" />
       </template>
     </template>
     <template v-else-if="ui.rows.length">

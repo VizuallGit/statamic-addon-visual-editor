@@ -173,6 +173,7 @@ return [
     'html_tree_frame_main' => 'Sidens indhold',
     'html_tree_frame_open' => 'Klik for at rulle derhen — dobbeltklik for at redigere i live preview',
     'html_tree_frame_fields' => 'Åbn felterne',
+    'html_tree_frame_main_open' => 'Klik for at åbne layoutets <main> i docken — sektionerne ligger inde i den',
     'html_tree_locked' => 'Filen er låst — lås op for at ændre',
     'html_tree_search' => 'Søg i tags og navne…',
     'html_tree_search_empty' => 'Intet matcher.',

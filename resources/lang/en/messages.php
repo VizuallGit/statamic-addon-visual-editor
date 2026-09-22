@@ -176,6 +176,7 @@ return [
     'html_tree_frame_main' => 'Page content',
     'html_tree_frame_open' => 'Click to scroll to it — double-click to edit it in live preview',
     'html_tree_frame_fields' => 'Open its fields',
+    'html_tree_frame_main_open' => 'Click to open the layout\'s <main> in the dock — the sections sit inside it',
     'html_tree_locked' => 'The file is locked — unlock it to change this',
     'html_tree_search' => 'Search tags and names…',
     'html_tree_search_empty' => 'Nothing matches.',

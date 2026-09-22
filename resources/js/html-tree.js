@@ -63,7 +63,7 @@ import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
-import { HTML_TREE_PANEL_ID } from './lib/ids.js';
+import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
@@ -132,6 +132,8 @@ let htmlTreeAhead = '';
 let htmlTreePendingSame = false;
 export let htmlTreeActiveId = null;
 export let htmlTreeUnhook = null;
+// The layout file the tree last stood on <main> in — seated once per landing.
+let htmlTreeMainSeated = '';
 export let htmlTreeTimer = 0;
 let htmlTreeStructureUnhook = null;
 let htmlTreeRoots = [];
@@ -1368,6 +1370,18 @@ export function renderHtmlTree(win) {
 
   // A search looks through folded rows too: the list filters what is here,
   // so while a query is in the box the whole file is flattened.
+  // Which part of the page's frame this file is — read off the dock's file,
+  // so the rows and the frame around them can never disagree. '' on a
+  // section, a component, a template.
+  const frameKind = inSections || inComponent ? '' : String(ask('dock:chrome-kind') || '');
+  // On the layout the row to stand on is <main>, and it sits under a <body>
+  // the tree keeps folded: the way down to it opens before the rows are cut.
+  const mainNode = frameKind === 'main' ? findNodeByTag(roots, 'main') : null;
+
+  if (mainNode) {
+    expandHtmlTreePath(mainNode.path);
+  }
+
   const rows = around
     ? flattenHtmlTree(around.tree, htmlTreeUi.query ? new Set() : around.folds)
     : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
@@ -1545,9 +1559,16 @@ export function renderHtmlTree(win) {
   const held = heldVideos(win);
   let videoIndex = 0;
   // On the header's or footer's own file the root row IS that half's row in
-  // the page's frame: named as the half, with no move, no copy, no bin —
-  // a header is a header. '' on a page's section, a component, a template.
-  const chromeKind = inSections || inComponent ? '' : String(ask('dock:chrome-kind', doc) || '');
+  // the frame: named as the half, with no move, no copy, no bin — a header is
+  // a header. On the layout it is the <main> row; the rest of that file
+  // (html, head, the partial calls) is not this tree's business.
+  const chromeKind = frameKind === 'header' || frameKind === 'footer' ? frameKind : '';
+  const mainRaw = mainNode ? rows.find((row) => row.id === mainNode.id) || null : null;
+  const mainEnd = mainRaw ? nextOutside(rows, mainRaw) : -1;
+
+  if (mainRaw && !rows.slice(rows.indexOf(mainRaw), mainEnd).some((row) => row.id === htmlTreeActiveId)) {
+    htmlTreeActiveId = mainRaw.id;
+  }
 
   htmlTreeUi.rows = rows.map((row) => {
     const icon = htmlTreeIcon(row.tag, row.kind, row.antlers);
@@ -1567,13 +1588,17 @@ export function renderHtmlTree(win) {
       // (its label); the file's alias must not override it here.
       name: isRoot && chromeKind
         ? t(win, `html_tree_frame_${chromeKind}`)
-        : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
+        : row === mainRaw
+          ? t(win, 'html_tree_frame_main')
+          : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
       current: row.id === htmlTreeActiveId,
       letter: aroundRoot ? '' : icon.letter || '',
       svg: isRoot && chromeKind
         ? HTML_ICONS[chromeKind]
-        : isRoot && openSection ? openSection.svg : aroundRoot ? around.svg : icon.svg || '',
-      frame: isRoot && chromeKind ? chromeKind : '',
+        : row === mainRaw
+          ? HTML_ICONS.main
+          : isRoot && openSection ? openSection.svg : aroundRoot ? around.svg : icon.svg || '',
+      frame: isRoot && chromeKind ? chromeKind : row === mainRaw ? 'main' : '',
       cat: aroundRoot ? around.cat : tagFamily(row.tag, row.kind, row.antlers),
       // Around the open component: `dim` for the section's own rows, `host`
       // for the one the component unfolds from. '' for the component's rows.
@@ -1606,7 +1631,26 @@ export function renderHtmlTree(win) {
     chain[row.depth] = row.cat;
   }
 
-  htmlTreeUi.sections = inSections
+  if (mainRaw) {
+    const start = rows.indexOf(mainRaw);
+    const base = mainRaw.depth;
+
+    htmlTreeUi.rows = htmlTreeUi.rows.slice(start, mainEnd).map((row) => ({
+      ...row,
+      depth: row.depth - base,
+      guides: row.guides.slice(base),
+    }));
+
+    // Landing on the layout: stand on <main>, so the pane shows it.
+    if (htmlTreeMainSeated !== fileKey) {
+      htmlTreeMainSeated = fileKey;
+      win.setTimeout(() => selectHtmlTreeRow(win, mainRaw.id, rows), 0);
+    }
+  }
+
+  // The page's sections: listed under main on a section's file, and — dimmed,
+  // to click back out to — around the header's, the footer's or the layout's.
+  htmlTreeUi.sections = inSections || frameKind
     ? sections.map((section) => {
         const current = !!openUid && section.uid === openUid;
         // Tags are drawn as soon as there are tags: from the cache the moment
@@ -1640,10 +1684,22 @@ export function renderHtmlTree(win) {
         };
       })
     : [];
-  htmlTreeUi.frame = frameAroundPage(win, doc, inSections, inComponent);
+  htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind);
   htmlTreeUi.frameOpenTitle = t(win, 'html_tree_frame_open');
+  htmlTreeUi.frameMainTitle = t(win, 'html_tree_frame_main_open');
   htmlTreeUi.frameFieldsTitle = t(win, 'html_tree_frame_fields');
-  htmlTreeUi.onFrame = (kind) => scrollPreviewToFrame(win, kind);
+  // A click: on main, open the layout's <main> in the dock; on a half while
+  // standing in another part of the frame, step across to it; otherwise
+  // scroll the preview there. A double-click on a half always steps in.
+  htmlTreeUi.onFrame = (kind) => {
+    if (kind === 'main') {
+      enterFrame(win, 'main');
+    } else if (frameKind && frameKind !== kind) {
+      enterFrame(win, kind);
+    } else {
+      scrollPreviewToFrame(win, kind);
+    }
+  };
   htmlTreeUi.onFrameEnter = (kind) => enterFrame(win, kind);
   htmlTreeUi.onFrameFields = (kind) => enterFrame(win, kind);
   htmlTreeUi.onFrameTwist = () => {
@@ -1654,6 +1710,9 @@ export function renderHtmlTree(win) {
   // took hold of, and that section was moved, not asked for.
   htmlTreeUi.onSection = (uid) => {
     if (!htmlTreeSuppressClick) {
+      // From inside the header or the footer, a section is the way back out
+      // — the same way a click on it in the preview goes.
+      leaveChrome(win);
       openHtmlTreeSection(win, doc, sections, uid, openUid);
     }
   };
@@ -1675,15 +1734,14 @@ export function renderHtmlTree(win) {
  * rows to look at and to go to, not rows to edit: none of them moves, copies,
  * renames or deletes, because a header is a header.
  *
- * On a section's file the three are drawn around the page's list. On the
- * header's or footer's own file that half's root row wears the frame (stamped
- * in the rows above) and the other two stand shut around it. Anywhere else —
- * a collection's template, a component — there is no frame, and the list is
- * what it was.
+ * On a section's file the three stand around the page's list. On the
+ * header's, the footer's or the layout's own file that part's root row wears
+ * the frame (stamped in the rows above) and the other two stand shut and
+ * dimmed around it, with the sections dimmed under main — every one of them a
+ * way back out. Anywhere else — a collection's template, a component — there
+ * is no frame, and the list is what it was.
  */
-function frameAroundPage(win, doc, inSections, inComponent) {
-  const kind = inSections || inComponent ? '' : String(ask('dock:chrome-kind', doc) || '');
-
+function frameAroundPage(win, sections, inSections, inComponent, kind) {
   if (!inSections && !kind) {
     return null;
   }
@@ -1691,6 +1749,7 @@ function frameAroundPage(win, doc, inSections, inComponent) {
   const row = (part) => ({
     id: `frame:${part}`,
     frame: part,
+    synthetic: true,
     tag: part,
     name: t(win, `html_tree_frame_${part}`),
     kind: '',
@@ -1699,13 +1758,41 @@ function frameAroundPage(win, doc, inSections, inComponent) {
     letter: '',
     depth: 0,
     // Only main folds, and only when there are sections in it to fold away.
-    hasChildren: part === 'main' && inSections,
+    hasChildren: part === 'main' && sections.length > 0,
     shut: part !== 'main',
     current: false,
     hidden: false,
   });
 
   return { kind, header: row('header'), main: row('main'), footer: row('footer') };
+}
+
+/** The first node with this tag, wherever it sits in the tree. */
+function findNodeByTag(nodes, tag) {
+  for (const node of nodes || []) {
+    if (node.tag === tag && !node.kind) {
+      return node;
+    }
+
+    const inner = findNodeByTag(node.children, tag);
+
+    if (inner) {
+      return inner;
+    }
+  }
+
+  return null;
+}
+
+/** The index of the first row after `row` that is not inside it. */
+function nextOutside(rows, row) {
+  let i = rows.indexOf(row) + 1;
+
+  while (i < rows.length && rows[i].depth > row.depth) {
+    i += 1;
+  }
+
+  return i;
 }
 
 /** Scroll the preview to the header, the footer, or the content between them. */
@@ -1717,29 +1804,58 @@ function scrollPreviewToFrame(win, kind) {
 }
 
 /**
- * Step into the header or the footer: the same door a click on it in the
- * preview opens — posted to this window, the way a section's move is.
+ * Out of the header's or footer's form, when it is open: the same way a
+ * click on a page section in the preview leaves it. The form's edits stay
+ * stashed; the preview is told to drop the half's focus.
+ */
+function leaveChrome(win) {
+  const open = String(ask('dock:chrome-open', win.document) || '');
+
+  if (open !== 'header' && open !== 'footer') {
+    return false;
+  }
+
+  win.postMessage({ source: SOURCE, type: MSG.CLOSE_CHROME }, win.location.origin);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
+
+  return true;
+}
+
+/**
+ * Step into a part of the frame.
+ *
+ * A half: the same door a click on it in the preview opens — posted to this
+ * window, the way a section's move is. Stepping in closes the right panels,
+ * this one with them; it comes back once the dock holds that half's file, so
+ * the tree shows its rows — which is what the double-click asked for. Polled:
+ * the door opens on its own time (a fetch of the half's form), and nothing
+ * announces it to this module.
+ *
+ * Main: the layout's file in the dock, and the tree stands on its <main>.
  */
 function enterFrame(win, kind) {
-  if (kind !== 'header' && kind !== 'footer') {
+  const doc = win.document;
+
+  if (String(ask('dock:chrome-kind') || '') === kind) {
     return;
   }
 
-  const doc = win.document;
+  if (kind === 'main') {
+    leaveChrome(win);
+    ask('dock:open-file', LAYOUT_TEMPLATE_TYPE);
 
-  if (String(ask('dock:chrome-kind', doc) || '') === kind) {
+    return;
+  }
+
+  if (kind !== 'header' && kind !== 'footer') {
     return;
   }
 
   win.postMessage({ source: SOURCE, type: MSG.OPEN_CHROME, kind }, win.location.origin);
 
-  // Stepping in closes the right panels, this one with them. Back once the
-  // dock holds that half's file, so the tree shows its rows — which is what
-  // the double-click asked for. Polled: the door opens on its own time (a
-  // fetch of the half's form), and nothing announces it to this module.
   const started = Date.now();
   const back = async () => {
-    if (String(ask('dock:chrome-kind', doc) || '') !== kind) {
+    if (String(ask('dock:chrome-kind') || '') !== kind) {
       if (Date.now() - started < 8000) {
         win.setTimeout(back, 150);
       }

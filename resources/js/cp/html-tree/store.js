@@ -51,6 +51,7 @@ export const htmlTreeUi = reactive({
   onFrameFields: null,
   onFrameTwist: null,
   frameOpenTitle: '',
+  frameMainTitle: '',
   frameFieldsTitle: '',
   // Publish form has page_sections (even when the list is empty). The plus stays.
   pageBuilder: false,

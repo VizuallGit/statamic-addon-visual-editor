@@ -65,8 +65,8 @@ const DEL =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 function rowTitle(row) {
-  if (isFrame(row) && row.frame !== 'main') {
-    return ui.frameOpenTitle;
+  if (row.synthetic) {
+    return row.frame === 'main' ? ui.frameMainTitle : ui.frameOpenTitle;
   }
 
   if (row.kind === 'component') {
@@ -83,8 +83,10 @@ function isShutSection(row) {
 
 /**
  * Header, main or footer — the page's frame (html-tree.js builds them). A place
- * to go to and, for the two halves, to step into; never a thing to move, copy,
- * rename or delete. On the header's own file its root row wears this too.
+ * to go to and to step into; never a thing to move, copy, rename or delete.
+ * `synthetic` is the stand-in row drawn around a section's list; on the
+ * header's, the footer's or the layout's own file the real root row wears the
+ * frame instead, and that one is picked and folded like any row.
  */
 function isFrame(row) {
   return !!row.frame;
@@ -120,7 +122,7 @@ function onPointerDown(event, row) {
 }
 
 function onRowClick(row) {
-  if (isFrame(row)) {
+  if (row.synthetic) {
     ui.onFrame?.(row.frame);
 
     return;
@@ -212,7 +214,7 @@ function canAct(row) {
     :title="rowTitle(row)"
     :style="{ '--sve-ht-depth': row.depth }"
     @click="onRowClick(row)"
-    @dblclick.prevent="isFrame(row) ? ui.onFrameEnter?.(row.frame) : isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
+    @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row)"
     @keydown.space.prevent="onRowClick(row)"
     @pointerdown="onPointerDown($event, row)"
@@ -232,9 +234,9 @@ function canAct(row) {
       v-if="row.hasChildren || row.emptyBlock"
       type="button"
       data-sve-ht-twist
-      v-bind="(row.frame === 'main' ? ui.mainShut : row.shut) ? { 'data-sve-ht-shut': '' } : {}"
+      v-bind="(row.synthetic ? ui.mainShut : row.shut) ? { 'data-sve-ht-shut': '' } : {}"
       v-html="TWIST"
-      @click.stop.prevent="row.frame === 'main' ? ui.onFrameTwist?.() : isShutSection(row) ? ui.onSection?.(row.section) : ui.onTwist?.(row.id)"
+      @click.stop.prevent="row.synthetic ? ui.onFrameTwist?.() : isShutSection(row) ? ui.onSection?.(row.section) : ui.onTwist?.(row.id)"
       @pointerdown.stop
       @dblclick.stop
     ></button>
