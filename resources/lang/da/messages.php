@@ -166,6 +166,8 @@ return [
     'html_tree_duplicate' => 'Dupliker',
     'html_tree_remove_section' => 'Fjern sektion fra siden',
     'html_tree_delete' => 'Slet',
+    'html_tree_video_hold' => 'Sæt videoen på pause i live preview',
+    'html_tree_video_play' => 'Lad videoen spille i live preview',
     'html_tree_locked' => 'Filen er låst — lås op for at ændre',
     'html_tree_search' => 'Søg i tags og navne…',
     'html_tree_search_empty' => 'Intet matcher.',

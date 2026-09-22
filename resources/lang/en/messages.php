@@ -169,6 +169,8 @@ return [
     'html_tree_duplicate' => 'Duplicate',
     'html_tree_remove_section' => 'Remove section from page',
     'html_tree_delete' => 'Delete',
+    'html_tree_video_hold' => 'Pause the video in live preview',
+    'html_tree_video_play' => 'Let the video play in live preview',
     'html_tree_locked' => 'The file is locked — unlock it to change this',
     'html_tree_search' => 'Search tags and names…',
     'html_tree_search_empty' => 'Nothing matches.',

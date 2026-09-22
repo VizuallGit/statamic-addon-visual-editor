@@ -9,6 +9,9 @@ export const bridgeState = {
   editing: null,
   requestSeq: 0,
   htmlPick: null,
+  // Videos the tree holds paused in the preview, by `uid:nth` — kept across
+  // morphs, which redraw the section around a video that would start again.
+  videoHolds: new Map(),
   pickAwait: null,
   componentFocus: null,
   componentMap: [],

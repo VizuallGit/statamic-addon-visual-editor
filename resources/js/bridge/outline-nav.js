@@ -19,6 +19,7 @@ import { createClickHandler, createHoverHandler } from './sid-targets.js';
 import { finishWidthDrag, hideColumnChrome, hideGridLines, widthDrag } from './grid.js';
 import { repositionInserters, setupInserters } from './inserters.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
+import { applyVideoHolds, setVideoHold } from './video-hold.js';
 
 // ===== outline-nav =====
 /**
@@ -335,6 +336,12 @@ export function createMessageReceiver(win) {
         applyOutlineTone(win, el);
         el.setAttribute(ACTIVE_ATTR, '');
       }
+
+      return;
+    }
+
+    if (data.type === MSG.SVE_VIDEO_HOLD) {
+      setVideoHold(win, data);
 
       return;
     }
@@ -777,6 +784,10 @@ export function initBridge(win = window) {
   );
 
   win.addEventListener('statamic:preview-updated', () => {
+    if (bridgeState.videoHolds.size) {
+      applyVideoHolds(win);
+    }
+
     if (bridgeState.htmlPick) {
       applyHtmlPick(win);
     }

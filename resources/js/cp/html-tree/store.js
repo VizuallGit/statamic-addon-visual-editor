@@ -79,6 +79,10 @@ export const htmlTreeUi = reactive({
   onRenameCommit: null,
   onRenameCancel: null,
   onHide: null,
+  // The video icon on a <video> row: held paused in the preview, or let play.
+  videoHoldTitle: '',
+  videoPlayTitle: '',
+  onVideoHold: null,
   onDuplicate: null,
   onDelete: null,
   onPointerDown: null,

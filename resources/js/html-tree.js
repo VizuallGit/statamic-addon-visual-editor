@@ -273,6 +273,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-row][data-sve-ht-hidden] [data-sve-ht-actions] {
       display: inline-flex;
     }
+    [data-sve-ht-video],
     [data-sve-ht-eye],
     [data-sve-ht-fields],
     [data-sve-ht-dup],
@@ -289,6 +290,8 @@ export function ensureHtmlTreeStyles(doc) {
       opacity: .7;
       border-radius: 4px;
     }
+    [data-sve-ht-video][data-on] { opacity: 1; color: #93c5fd; }
+    [data-sve-ht-video]:hover,
     [data-sve-ht-eye]:hover,
     [data-sve-ht-fields]:hover,
     [data-sve-ht-dup]:hover,
@@ -542,6 +545,7 @@ export function ensureHtmlTreeStyles(doc) {
       opacity: .95;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-name] { opacity: 1; }
+    [data-sve-ht-look="tags"] [data-sve-ht-video]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-eye]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-fields]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-dup]:hover,
@@ -1372,6 +1376,8 @@ export function renderHtmlTree(win) {
   htmlTreeUi.showTitle = t(win, 'html_tree_show');
   htmlTreeUi.duplicateTitle = t(win, 'html_tree_duplicate');
   htmlTreeUi.deleteTitle = t(win, 'html_tree_delete');
+  htmlTreeUi.videoHoldTitle = t(win, 'html_tree_video_hold');
+  htmlTreeUi.videoPlayTitle = t(win, 'html_tree_video_play');
   htmlTreeUi.lockedTitle = t(win, 'html_tree_locked');
   htmlTreeUi.searchEmpty = t(win, 'html_tree_search_empty');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
@@ -1432,6 +1438,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onRenameCommit = () => finishHtmlTreeRename(win, true);
   htmlTreeUi.onRenameCancel = () => finishHtmlTreeRename(win, false);
   htmlTreeUi.onHide = (id) => hideHtmlTreeRow(win, id);
+  htmlTreeUi.onVideoHold = (id) => toggleVideoHold(win, id);
   htmlTreeUi.onDuplicate = (id) => duplicateHtmlTreeRow(win, id);
   htmlTreeUi.onDelete = (id) => deleteHtmlTreeRow(win, id);
   htmlTreeUi.onPointerDown = (event, id) => beginHtmlTreePointer(win, event, id);
@@ -1524,8 +1531,14 @@ export function renderHtmlTree(win) {
   // and mark the shut row wears. One row, two states — not two rows.
   const openSection = openUid && !inComponent ? sections.find((item) => item.uid === openUid) : null;
 
+  const held = heldVideos(win);
+  let videoIndex = 0;
+
   htmlTreeUi.rows = rows.map((row) => {
     const icon = htmlTreeIcon(row.tag, row.kind, row.antlers);
+    // Which of the file's videos this row is, in document order — what the
+    // preview is told to hold; -1 for anything that is not a <video>.
+    const videoNth = row.tag === 'video' && !row.kind ? videoIndex++ : -1;
     // What the row is called before a rename. Renaming back to it drops the
     // alias again, so the default must be what the alias is measured against.
     const aroundRoot = !!around && row.id === around.rootId;
@@ -1555,8 +1568,12 @@ export function renderHtmlTree(win) {
       // open. A template's fields are its blueprint, opened from the top bar;
       // a static section has none — its menu offers to add them.
       fieldsIcon: !!(isRoot && openSection && !openSection.static),
+      videoNth,
+      videoHeld: videoNth >= 0 && held.has(videoNth),
     };
   });
+
+  syncVideoHolds(win, held);
 
   // The families above each row, one per level, for the guides the tags look
   // draws: the guide under a loop is the loop's colour. Rows come in document
@@ -1808,6 +1825,83 @@ function writeSectionLabel(win, uid, label) {
   }
 
   return false;
+}
+
+const VIDEO_HOLDS_KEY = 'sveVideoHolds';
+
+/** The videos of the open file held paused, by their order in the file. */
+function heldVideos(win) {
+  const type = String(ask('dock:current-type') || '');
+
+  try {
+    const all = JSON.parse(win.localStorage.getItem(VIDEO_HOLDS_KEY) || '{}');
+    const list = type && Array.isArray(all[type]) ? all[type] : [];
+
+    return new Set(list.filter((n) => Number.isInteger(n)));
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberVideoHolds(win, held) {
+  const type = String(ask('dock:current-type') || '');
+
+  if (!type) {
+    return;
+  }
+
+  try {
+    const all = JSON.parse(win.localStorage.getItem(VIDEO_HOLDS_KEY) || '{}');
+
+    if (held.size) {
+      all[type] = [...held].sort((a, b) => a - b);
+    } else {
+      delete all[type];
+    }
+
+    win.localStorage.setItem(VIDEO_HOLDS_KEY, JSON.stringify(all));
+  } catch {
+    /* no storage: the hold lasts the session */
+  }
+}
+
+/**
+ * Tell the preview which of the open section's videos stay paused. Sent on
+ * every draw of the tree — the preview's bridge starts over on a full load,
+ * and an extra hold on a video already held costs nothing.
+ */
+function syncVideoHolds(win, held) {
+  const uid = String(ask('dock:current-uid') || '');
+
+  for (const nth of held) {
+    sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, nth, on: true }, win);
+  }
+}
+
+/**
+ * The video icon on a <video> row: hold the video paused in the preview, or
+ * let it play again. Nothing in the file changes — the site keeps its
+ * autoplay; only the editor stops watching it.
+ */
+function toggleVideoHold(win, id) {
+  const row = htmlTreeUi.rows.find((item) => item.id === id);
+
+  if (!row || !(row.videoNth >= 0)) {
+    return;
+  }
+
+  const held = heldVideos(win);
+  const on = !held.has(row.videoNth);
+
+  if (on) {
+    held.add(row.videoNth);
+  } else {
+    held.delete(row.videoNth);
+  }
+
+  rememberVideoHolds(win, held);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid: String(ask('dock:current-uid') || ''), nth: row.videoNth, on }, win);
+  renderHtmlTree(win);
 }
 
 function hideHtmlTreeRow(win, id) {

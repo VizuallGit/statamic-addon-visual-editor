@@ -114,6 +114,9 @@ export const MSG = Object.freeze({
   SVE_SECTION_VALUES: 'sve-section-values',
   SVE_THEME_SCALE: 'sve-theme-scale',
   SVE_THEME_SCALE_VALUES: 'sve-theme-scale-values',
+  // CP → preview: a <video> of the open section is held paused (or let go) —
+  // `uid` names the section, `nth` which of its videos (null = every one).
+  SVE_VIDEO_HOLD: 'sve-video-hold',
   SVE_UNLOCK_TABS: 'sve-unlock-tabs',
   THEME_SWATCHES: 'theme-swatches',
   THEME_SWATCHES_REQUEST: 'theme-swatches-request',

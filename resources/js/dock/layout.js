@@ -585,9 +585,9 @@ export function ensureStyle(doc) {
 }
 #${DOCK_ID} [data-sve-antlers-select] {
   box-sizing: border-box;
-  max-width: 148px;
+  max-width: 89px;
   height: auto;
-  padding: 0 8px 0 10px;
+  padding: 0 6px 0 8px;
   border: 0;
   border-left: 1px solid rgba(255,255,255,.06);
   border-radius: 0;

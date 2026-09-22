@@ -57,6 +57,10 @@ const EYE_OFF =
 const DUP =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>';
 
+const VIDEO =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.8 5.9v4.2L10.2 8Z" fill="currentColor" stroke="none"/></svg>';
+const VIDEO_OFF =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.3 5.8v4.4M9.7 5.8v4.4" stroke-linecap="round"/></svg>';
 const DEL =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
@@ -249,6 +253,22 @@ function canHide(row) {
       appear and then vanish while you looked at them.
     -->
     <span v-if="!isShutSection(row) && !isContext(row)" data-sve-ht-actions>
+      <!--
+        A <video> row: hold the video paused in the preview, or let it play.
+        Not behind the lock — the file is not touched, only what the editor
+        watches. Lit while held, so a still video reads as held, not broken.
+      -->
+      <button
+        v-if="row.videoNth >= 0"
+        type="button"
+        data-sve-ht-video
+        :data-on="row.videoHeld ? '' : null"
+        :title="row.videoHeld ? ui.videoPlayTitle : ui.videoHoldTitle"
+        v-html="row.videoHeld ? VIDEO_OFF : VIDEO"
+        @click.stop.prevent="ui.onVideoHold?.(row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
       <button
         v-if="canHide(row)"
         type="button"

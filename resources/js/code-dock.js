@@ -187,6 +187,7 @@ export const HTML_TOOLS = [
   { id: 'text', title: 'text', menu: 'text' },
   { id: 'a', title: 'link', tag: 'a' },
   { id: 'img', title: 'image', snippet: '<img src="" alt="">', caret: 10 },
+  { id: 'video', title: 'video', snippet: '<video src="" controls playsinline></video>', caret: 12 },
   { id: 'svg', title: 'svg', tag: 'svg' },
   { id: 'ul', title: 'list', tag: 'ul' },
   { id: 'li', title: 'list item', tag: 'li' },

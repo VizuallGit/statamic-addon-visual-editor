@@ -270,6 +270,12 @@ const FILLED_TAGS = new Set([
  * other tag opens bare.
  */
 function openTagFor(tag) {
+  // A link without an href is not a link yet; it opens with the attribute in
+  // place, and the caret goes into it.
+  if (tag === 'a') {
+    return '<a href="">';
+  }
+
   if (tag !== 'section') {
     return `<${tag}>`;
   }
@@ -395,8 +401,11 @@ export function applyHtmlTag(tag) {
   } else {
     const open = openTagFor(tag);
     const snippet = `${open}</${tag}>`;
+    const caret = tag === 'a'
+      ? open.indexOf('""') + 1
+      : FILLED_TAGS.has(tag) ? open.length : snippet.length;
 
-    insertHtmlSnippet(snippet, FILLED_TAGS.has(tag) ? open.length : snippet.length);
+    insertHtmlSnippet(snippet, caret);
   }
 
   finishHtmlEdit();
