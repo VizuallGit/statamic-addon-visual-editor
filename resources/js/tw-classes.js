@@ -22,6 +22,7 @@ import { chromeGet } from './chrome-prefs.js';
 import { ask, emit, on } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import { mountSurface } from './cp/mount.js';
+import CodeDockDataVars from './cp/surfaces/CodeDockDataVars.vue';
 import { HT_PATH_ATTR } from './html-pick-align.js';
 import { flattenHtmlTree, parseHtmlTree } from './html-tree-parse.js';
 import {
@@ -100,6 +101,17 @@ function BREAKPOINTS(win = window) {
  * is a class you put on the parent, and the Add class search knows it.
  */
 const STATES = ['', 'dark', 'hover', 'focus', 'active', 'group-hover', 'group-focus', 'before', 'after'];
+
+/**
+ * The typography plugin's element variants: `prose-p:text-400` styles every
+ * paragraph the element holds. Picked like a state, written the same way.
+ */
+const PROSE_VARIANTS = [
+  'prose-headings', 'prose-lead', 'prose-h1', 'prose-h2', 'prose-h3', 'prose-h4', 'prose-h5', 'prose-h6',
+  'prose-p', 'prose-a', 'prose-blockquote', 'prose-figure', 'prose-figcaption', 'prose-strong', 'prose-em',
+  'prose-kbd', 'prose-code', 'prose-pre', 'prose-ol', 'prose-ul', 'prose-li', 'prose-table', 'prose-thead',
+  'prose-tr', 'prose-th', 'prose-td', 'prose-img', 'prose-video', 'prose-hr',
+];
 
 /**
  * Which size the preview's own device buttons mean.
@@ -241,6 +253,11 @@ function ensureStyles(doc) {
       color: #d4d4d4;
       box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,.4);
       font-size: 0.75rem;
+    }
+    /* The state popup is the Insert data one: wider than a class menu, same look. */
+    #${MENU_ID}[data-sve-data-menu] {
+      min-width: 20rem;
+      max-width: 20rem;
     }
     #${MENU_ID} [data-sve-tw-menu-title] {
       padding: 0.1em 0.2em 0.5em;
@@ -1105,29 +1122,40 @@ function setBreakpoint(win, index) {
   emit('tw:changed');
 }
 
+/**
+ * States and prose variants in one popup — the Insert data one, with a tab
+ * for each and a search field. The first row of the states tab clears the
+ * state; a prose variant is picked the same way and written the same way.
+ */
 function openStateMenu(win, anchor) {
-  openMenu(win, anchor, TwClassMenu, {
+  const none = t(win, 'tw_state_none');
+  const known = new Set([...STATES.filter(Boolean), ...PROSE_VARIANTS]);
+
+  openMenu(win, anchor, CodeDockDataVars, {
     title: t(win, 'tw_state'),
-    removeLabel: t(win, 'tw_state_none'),
-    options: STATES.filter(Boolean).map((key) => ({
-      label: key,
-      css: '',
-      color: null,
-      active: key === variantState,
-    })),
-    onPick: (key) => {
-      variantState = STATES.includes(key) ? key : '';
-      closeTwMenu(win);
-      render(win);
-      emit('tw:changed');
+    placeholder: t(win, 'tw_state_search'),
+    emptyText: t(win, 'data_vars_empty'),
+    noSectionText: t(win, 'data_vars_empty'),
+    loopText: '',
+    tabs: [
+      { id: 'state', label: t(win, 'tw_state') },
+      { id: 'prose', label: t(win, 'tw_prose') },
+    ],
+    data: {
+      state: [
+        { var: none, id: '' },
+        ...STATES.filter(Boolean).map((key) => ({ var: key, id: key, value: key === variantState ? '●' : '' })),
+      ],
+      prose: PROSE_VARIANTS.map((key) => ({ var: key, id: key, value: key === variantState ? '●' : '' })),
     },
-    onRemove: () => {
-      variantState = '';
+    onPick: (row) => {
+      variantState = known.has(row.id) ? row.id : '';
       closeTwMenu(win);
       render(win);
       emit('tw:changed');
     },
   });
+  win.document.getElementById(MENU_ID)?.setAttribute('data-sve-data-menu', '');
 }
 
 /**

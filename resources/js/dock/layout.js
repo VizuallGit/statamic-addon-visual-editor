@@ -587,27 +587,6 @@ export function ensureStyle(doc) {
   display: flex;
   align-items: stretch;
 }
-#${DOCK_ID} [data-sve-antlers-select] {
-  box-sizing: border-box;
-  max-width: 89px;
-  height: auto;
-  padding: 0 6px 0 8px;
-  border: 0;
-  border-left: 1px solid rgba(255,255,255,.06);
-  border-radius: 0;
-  background: transparent;
-  color: #d4d4d4;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-  cursor: pointer;
-  color-scheme: dark;
-}
-#${DOCK_ID} [data-sve-antlers-select]:hover,
-#${DOCK_ID} [data-sve-antlers-select]:focus-visible {
-  background: transparent;
-}
 #${DOCK_ID} [data-sve-css-chrome] {
   flex: 0 0 auto;
   display: flex;
@@ -798,8 +777,10 @@ export function ensureStyle(doc) {
 #${DATA_MENU_ID} {
   position: fixed;
   z-index: 60;
-  box-sizing: border-box;
   width: 23rem;
+}
+[data-sve-data-menu] {
+  box-sizing: border-box;
   max-width: calc(100vw - 1.5rem);
   max-height: 24rem;
   overflow: auto;
@@ -812,7 +793,7 @@ export function ensureStyle(doc) {
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 0.75rem;
 }
-#${DATA_MENU_ID} [data-sve-data-search] {
+[data-sve-data-menu] [data-sve-data-search] {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -824,14 +805,14 @@ export function ensureStyle(doc) {
   border: 1px solid rgba(255,255,255,.18);
   background: rgba(0,0,0,.28);
 }
-#${DATA_MENU_ID} [data-sve-data-search]:focus-within {
+[data-sve-data-menu] [data-sve-data-search]:focus-within {
   border-color: rgba(147,197,253,.7);
 }
-#${DATA_MENU_ID} [data-sve-data-search] svg {
+[data-sve-data-menu] [data-sve-data-search] svg {
   flex: 0 0 auto;
   opacity: .5;
 }
-#${DATA_MENU_ID} [data-sve-data-input] {
+[data-sve-data-menu] [data-sve-data-input] {
   all: unset;
   flex: 1 1 auto;
   min-width: 0;
@@ -839,7 +820,7 @@ export function ensureStyle(doc) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
 }
-#${DATA_MENU_ID} [data-sve-data-tabs] {
+[data-sve-data-menu] [data-sve-data-tabs] {
   display: flex;
   gap: 0.2rem;
   margin-bottom: 0.45rem;
@@ -847,7 +828,7 @@ export function ensureStyle(doc) {
   border-radius: 0.45em;
   background: rgba(0,0,0,.28);
 }
-#${DATA_MENU_ID} [data-sve-data-tab] {
+[data-sve-data-menu] [data-sve-data-tab] {
   all: unset;
   flex: 1 1 0;
   box-sizing: border-box;
@@ -858,12 +839,12 @@ export function ensureStyle(doc) {
   font-size: 0.6875rem;
   opacity: .65;
 }
-#${DATA_MENU_ID} [data-sve-data-tab]:hover { opacity: 1; }
-#${DATA_MENU_ID} [data-sve-data-tab][data-active] {
+[data-sve-data-menu] [data-sve-data-tab]:hover { opacity: 1; }
+[data-sve-data-menu] [data-sve-data-tab][data-active] {
   opacity: 1;
   background: rgba(255,255,255,.14);
 }
-#${DATA_MENU_ID} [data-sve-data-group] {
+[data-sve-data-menu] [data-sve-data-group] {
   padding: 0.6em 0.5em 0.25em;
   font-size: 0.625rem;
   font-weight: 700;
@@ -871,7 +852,7 @@ export function ensureStyle(doc) {
   text-transform: uppercase;
   opacity: .45;
 }
-#${DATA_MENU_ID} [data-sve-data-option] {
+[data-sve-data-menu] [data-sve-data-option] {
   all: unset;
   box-sizing: border-box;
   display: flex;
@@ -882,11 +863,11 @@ export function ensureStyle(doc) {
   border-radius: 0.35em;
   cursor: pointer;
 }
-#${DATA_MENU_ID} [data-sve-data-option]:hover,
-#${DATA_MENU_ID} [data-sve-data-option][data-cursor] {
+[data-sve-data-menu] [data-sve-data-option]:hover,
+[data-sve-data-menu] [data-sve-data-option][data-cursor] {
   background: rgba(255,255,255,.1);
 }
-#${DATA_MENU_ID} [data-sve-data-name] {
+[data-sve-data-menu] [data-sve-data-name] {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -894,7 +875,7 @@ export function ensureStyle(doc) {
   white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
-#${DATA_MENU_ID} [data-sve-data-parent] {
+[data-sve-data-menu] [data-sve-data-parent] {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -903,7 +884,7 @@ export function ensureStyle(doc) {
   font-size: 0.625rem;
   opacity: .4;
 }
-#${DATA_MENU_ID} [data-sve-data-value] {
+[data-sve-data-menu] [data-sve-data-value] {
   flex: 0 1 auto;
   margin-left: auto;
   max-width: 45%;
@@ -914,7 +895,7 @@ export function ensureStyle(doc) {
   font-size: 0.6875rem;
   opacity: .5;
 }
-#${DATA_MENU_ID} [data-sve-data-loop] {
+[data-sve-data-menu] [data-sve-data-loop] {
   flex: 0 0 auto;
   margin-left: auto;
   padding: 0.1em 0.45em;
@@ -925,11 +906,13 @@ export function ensureStyle(doc) {
   text-transform: uppercase;
   opacity: .6;
 }
-#${DATA_MENU_ID} [data-sve-data-empty] {
+[data-sve-data-menu] [data-sve-data-empty] {
   padding: 0.5em;
   opacity: .55;
 }
 #${DOCK_ID} [data-sve-data-vars],
+#${DOCK_ID} [data-sve-antlers-btn],
+#${DOCK_ID} [data-sve-visual-edit-btn],
 #${DOCK_ID} [data-sve-html-tidy] {
   pointer-events: auto;
   flex: 0 0 auto;
@@ -949,12 +932,18 @@ export function ensureStyle(doc) {
   cursor: pointer;
 }
 #${DOCK_ID} [data-sve-data-vars] span,
+#${DOCK_ID} [data-sve-antlers-btn] span,
+#${DOCK_ID} [data-sve-visual-edit-btn] span,
 #${DOCK_ID} [data-sve-html-tidy] svg {
   display: flex;
   line-height: 1;
 }
 #${DOCK_ID} [data-sve-data-vars]:hover,
 #${DOCK_ID} [data-sve-data-vars][data-open],
+#${DOCK_ID} [data-sve-antlers-btn]:hover,
+#${DOCK_ID} [data-sve-antlers-btn][data-open],
+#${DOCK_ID} [data-sve-visual-edit-btn]:hover,
+#${DOCK_ID} [data-sve-visual-edit-btn][data-open],
 #${DOCK_ID} [data-sve-html-tidy]:hover {
   background: rgba(255,255,255,.16);
   opacity: 1;

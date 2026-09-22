@@ -10,6 +10,7 @@ export const ANTLERS_SNIPPET_GROUPS = [
   { id: 'include', lang: 'code_dock_antlers_include' },
   { id: 'fields', lang: 'code_dock_antlers_fields' },
   { id: 'output', lang: 'code_dock_antlers_output' },
+  { id: 'modifiers', lang: 'code_dock_antlers_modifiers' },
 ];
 
 export const ANTLERS_SNIPPETS = [
@@ -33,6 +34,31 @@ export const ANTLERS_SNIPPETS = [
   { id: 'variable', group: 'output', label: '{{ field }}', snippet: '{{ |field }}' },
   { id: 'trans', group: 'output', label: 'trans', snippet: '{{ trans:|key }}' },
   { id: 'comment', group: 'output', label: 'comment', snippet: '{{# | #}}' },
+  // Modifiers go in at the caret, inside the tag already there: `{{ title| }}` → `{{ title | upper }}`.
+  { id: 'mod_upper', group: 'modifiers', label: 'upper', snippet: ' | upper', inline: true },
+  { id: 'mod_lower', group: 'modifiers', label: 'lower', snippet: ' | lower', inline: true },
+  { id: 'mod_title', group: 'modifiers', label: 'title', snippet: ' | title', inline: true },
+  { id: 'mod_ucfirst', group: 'modifiers', label: 'ucfirst', snippet: ' | ucfirst', inline: true },
+  { id: 'mod_truncate', group: 'modifiers', label: 'truncate', snippet: ' | truncate:120', inline: true },
+  { id: 'mod_markdown', group: 'modifiers', label: 'markdown', snippet: ' | markdown', inline: true },
+  { id: 'mod_raw', group: 'modifiers', label: 'raw', snippet: ' | raw', inline: true },
+  { id: 'mod_nl2br', group: 'modifiers', label: 'nl2br', snippet: ' | nl2br', inline: true },
+  { id: 'mod_strip_tags', group: 'modifiers', label: 'strip_tags', snippet: ' | strip_tags', inline: true },
+  { id: 'mod_date', group: 'modifiers', label: 'date', snippet: ' | date:d.m.Y', inline: true },
+  { id: 'mod_count', group: 'modifiers', label: 'count', snippet: ' | count', inline: true },
+  { id: 'mod_first', group: 'modifiers', label: 'first', snippet: ' | first', inline: true },
+  { id: 'mod_last', group: 'modifiers', label: 'last', snippet: ' | last', inline: true },
+  { id: 'mod_reverse', group: 'modifiers', label: 'reverse', snippet: ' | reverse', inline: true },
+  { id: 'mod_sort', group: 'modifiers', label: 'sort', snippet: ' | sort:title:asc', inline: true },
+  { id: 'mod_limit', group: 'modifiers', label: 'limit', snippet: ' | limit:3', inline: true },
+  { id: 'mod_where', group: 'modifiers', label: 'where', snippet: ' | where:field:value', inline: true },
+  { id: 'mod_default', group: 'modifiers', label: 'default', snippet: ' | default:""', inline: true },
+  { id: 'mod_url', group: 'modifiers', label: 'url', snippet: ' | url', inline: true },
+  { id: 'mod_slugify', group: 'modifiers', label: 'slugify', snippet: ' | slugify', inline: true },
+  { id: 'mod_to_int', group: 'modifiers', label: 'to_int', snippet: ' | to_int', inline: true },
+  { id: 'mod_multiply', group: 'modifiers', label: 'multiply', snippet: ' | multiply:2', inline: true },
+  { id: 'mod_add', group: 'modifiers', label: 'add', snippet: ' | add:1', inline: true },
+  { id: 'mod_join', group: 'modifiers', label: 'join', snippet: ' | join:", "', inline: true },
 ];
 
 export function antlersSnippet(id) {
