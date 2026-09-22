@@ -13,6 +13,7 @@ import { bpDevice, breakpoints } from '../breakpoints.js';
 import { blocksForSize, cssMediaBlocks, foldRangesForSize, idRulesForSize } from '../css-sizes.js';
 import { mountSurface } from '../cp/mount.js';
 import { bracketToken, matchBraces } from '../css-scope.js';
+import { classDefsFresh, definedElsewhere, importClassCss, loadClassDefs } from './class-defs.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { CSS_MENU_ID, DOCK_ID, editors, foldEffect, foldedRanges, unfoldEffect } from '../code-dock.js';
@@ -363,6 +364,25 @@ export function paintCssHead(win) {
 
   cssUi.tag = target?.tag || '';
   cssUi.scope = bracketToken(target ? currentFullHtml().slice(target.from, target.openTo) : '') || '';
+  // Is that name already styled elsewhere on the site? The head says where,
+  // and a click brings those rules into this file. Asked of a catalogue kept
+  // for a while; the head paints again when a fresh one lands.
+  const scope = cssUi.scope;
+  const elsewhere = definedElsewhere(win, scope);
+
+  cssUi.scopeElsewhere = [...new Set(elsewhere.map((d) => String(d.file).replace(/^.*\//, '')))];
+  cssUi.scopeElsewhereTitle = cssUi.scopeElsewhere.length
+    ? `${t(win, 'class_defined_in', { file: cssUi.scopeElsewhere.join(', ') })} — ${t(win, 'class_defined_import')}`
+    : '';
+  cssUi.onScopeImport = () => {
+    if (importClassCss(win, scope)) {
+      paintCssHead(win);
+    }
+  };
+
+  if (scope && !classDefsFresh()) {
+    void loadClassDefs(win).then(() => paintCssHead(win));
+  }
   cssUi.canEdit = !dockState.lastLocked;
   cssUi.onTag = (event) => twOpenTagMenuAt(win, event.currentTarget, target);
   cssUi.state = dockState.cssState;

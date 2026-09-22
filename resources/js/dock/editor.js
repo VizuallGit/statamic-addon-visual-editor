@@ -11,6 +11,7 @@ import { htmlTagSync } from '../html-tag-sync.js';
 import { partialDecorations } from '../dock-partials.js';
 import { classTokenDecorations } from '../dock-class-tokens.js';
 import { tailwindClassCompletions, tailwindHoverExtension } from '../tailwind-complete.js';
+import { bracketClassCompletions, loadClassDefs, takenClassMarks } from './class-defs.js';
 import { vscTheme } from '../lib/codemirror.js';
 import { dockState } from '../dock/state.js';
 import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, StateField, autocompletion, closeBrackets, closeBracketsKeymap, cm, codeFolding, completionKeymap, defaultKeymap, editableOf, editors, highlightActiveLine, highlightActiveLineGutter, history, historyKeymap, hoverTooltip, htmlLanguage, indentWithTab, keymap, lineNumbers, readOnlyOf, tags } from '../code-dock.js';
@@ -210,6 +211,12 @@ export function mountEditor(win, handle, parent) {
               htmlLanguage.data.of({
                 autocomplete: tailwindClassCompletions(win),
               }),
+              // The dock's own `[ … ]`: the site's class names, and a mark on
+              // a name the site already defines somewhere else.
+              htmlLanguage.data.of({
+                autocomplete: bracketClassCompletions(win),
+              }),
+              takenClassMarks(win),
               tailwindHoverExtension(hoverTooltip, win),
             ]
           : []),

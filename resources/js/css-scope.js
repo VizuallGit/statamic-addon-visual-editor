@@ -621,6 +621,51 @@ function appendEmptyClass(css, name) {
   return `${source.trimEnd()}${source.trim() ? '\n' : ''}.${name} {\n}\n`;
 }
 
+/**
+ * Put declarations into the rule for `name`: into the rule the file has, or
+ * into a new one at the end. A line the rule already holds is not written
+ * twice. For bringing a class's rules in from where the site already defines
+ * it — the name was taken, and now the file says what the site says.
+ */
+export function fillClassRule(css, name, body) {
+  const source = String(css || '');
+  const norm = (line) => line.trim().replace(/;$/, '').replace(/\s+/g, ' ');
+  const lines = String(body || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => (line.endsWith(';') || line.endsWith('}') ? line : `${line};`));
+
+  if (!lines.length) {
+    return source;
+  }
+
+  const rule = findClassRule(source, name);
+
+  if (!rule) {
+    return `${source.trimEnd()}${source.trim() ? '\n\n' : ''}.${name} {\n${lines.map((line) => `  ${line}`).join('\n')}\n}\n`;
+  }
+
+  const inner = source.slice(rule.brace + 1, rule.close);
+  const have = new Set(inner.split(/[;\n]/).map(norm).filter(Boolean));
+  const fresh = lines.filter((line) => !have.has(norm(line)));
+
+  if (!fresh.length) {
+    return source;
+  }
+
+  const closeIndent = (source.slice(0, rule.close).match(/\n([ \t]*)$/) || [null, ''])[1];
+  // One step in from the rule's own line, unless the rule already shows its step.
+  const indent = (inner.match(/\n([ \t]+)\S/) || [])[1] || `${closeIndent}  `;
+  // First in the rule: what the site says comes first, and what this file
+  // says after it wins — and the dock nests the children's rules in here,
+  // which declarations belong in front of.
+  const kept = inner.replace(/^\s*\n/, '').replace(/\s+$/, '');
+  const rest = kept ? `\n${kept}` : '';
+
+  return `${source.slice(0, rule.brace + 1)}\n${fresh.map((line) => `${indent}${line}`).join('\n')}${rest}\n${closeIndent}${source.slice(rule.close)}`;
+}
+
 export function renameCssClass(css, from, to) {
   const next = sanitizeCssClassName(to);
 

@@ -10,6 +10,9 @@ import { reactive } from 'vue';
 export const cssUi = reactive({
   tag: '',
   scope: '',
+  scopeElsewhere: [],
+  scopeElsewhereTitle: '',
+  onScopeImport: null,
   onTag: null,
   sizes: [],
   onSize: null,

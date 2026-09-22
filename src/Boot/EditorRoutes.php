@@ -127,6 +127,8 @@ final class EditorRoutes
                 ->name('sve.site-css.index');
             Route::get('/!/sve/site-css/classes', [SiteCssController::class, 'classes'])
                 ->name('sve.site-css.classes');
+            Route::get('/!/sve/site-css/defined', [SiteCssController::class, 'defined'])
+                ->name('sve.site-css.defined');
             Route::get('/!/sve/site-css/file', [SiteCssController::class, 'show'])
                 ->name('sve.site-css.show');
             // The site's own code files (Utilities > Site Files). Off by default;

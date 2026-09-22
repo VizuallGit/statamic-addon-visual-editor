@@ -356,6 +356,8 @@ return [
     'code_dock_values_on' => "Show this section's own #id rule — custom properties for this size",
     'code_dock_values_off' => 'Hide the #id rule again',
     'css_state' => 'State',
+    'class_defined_in' => 'Already styled in :file',
+    'class_defined_import' => 'click to bring its rules into this file',
     'css_state_none' => 'No state',
     'css_size_all_title' => 'Every size · only the ID rule folded away',
     'css_size_base_title' => 'The base · written with no media query',

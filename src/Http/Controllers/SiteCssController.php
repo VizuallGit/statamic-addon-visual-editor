@@ -33,6 +33,16 @@ class SiteCssController
         ]);
     }
 
+    /** Every class the site defines and where — for the dock's `[ name ]` check. */
+    public function defined(Request $request)
+    {
+        $this->authorize($request, 'css');
+
+        return response()->json([
+            'defined' => SiteClasses::defined(),
+        ]);
+    }
+
     public function show(Request $request)
     {
         $this->authorize($request);

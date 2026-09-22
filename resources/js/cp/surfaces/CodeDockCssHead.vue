@@ -14,6 +14,15 @@ import { cssUi as ui } from '../css/store.js';
       @dblclick.prevent.stop="ui.onTag?.($event)"
     >&lt;{{ ui.tag }}&gt;</button>
     <span v-if="ui.scope" class="sve-css-scope">{{ ui.scope }}</span>
+    <!-- The name is taken: the site styles it in these files already. A click brings those rules in. -->
+    <button
+      v-if="ui.scope && ui.scopeElsewhere.length"
+      type="button"
+      class="sve-css-scope-taken"
+      :title="ui.scopeElsewhereTitle"
+      :disabled="!ui.canEdit"
+      @click.prevent.stop="ui.onScopeImport?.()"
+    >{{ ui.scopeElsewhere.join(', ') }}</button>
     <button
       v-for="size in ui.sizes"
       :key="size.key"
@@ -76,6 +85,25 @@ import { cssUi as ui } from '../css/store.js';
   white-space: nowrap;
   margin-right: 0.2rem;
 }
+.sve-css-scope-taken {
+  all: unset;
+  flex: none;
+  box-sizing: border-box;
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.1em 0.45em;
+  margin-right: 0.3rem;
+  border-radius: 0.36em;
+  cursor: pointer;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.14);
+}
+.sve-css-scope-taken:hover { background: rgba(248, 113, 113, 0.28); }
+.sve-css-scope-taken[disabled] { cursor: default; opacity: .6; }
 .sve-css-note {
   opacity: .5;
   overflow: hidden;

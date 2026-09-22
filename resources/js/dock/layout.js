@@ -1117,6 +1117,13 @@ export function ensureStyle(doc) {
   background: rgba(255,255,255,.28);
   border-radius: 6px;
 }
+/* A bracket name the site already defines elsewhere: red, the file in the title. */
+#${DOCK_ID} .sve-cm-class-taken {
+  color: #fca5a5;
+  text-decoration: underline wavy rgba(248,113,113,.9);
+  text-underline-offset: .18em;
+  cursor: help;
+}
 #${DOCK_ID} .sve-cm-css-token {
   background: rgba(215,186,125,.22);
   border-radius: 2px;
