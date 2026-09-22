@@ -2,7 +2,11 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Spatie\Browsershot\Browsershot;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
 /**
  * The headless browser the previews are photographed with, in one place.
@@ -16,6 +20,117 @@ use Spatie\Browsershot\Browsershot;
  */
 class PreviewBrowser
 {
+    /**
+     * The browser Browsershot launches: it runs puppeteer with `headless:
+     * 'shell'`, and that mode wants puppeteer's own build of the shell.
+     */
+    public const BROWSER = 'chrome-headless-shell';
+
+    /**
+     * Where puppeteer keeps its browsers — the same cache its installer
+     * fills, so what this class fetches is what Browsershot finds. PHP-FPM may
+     * run without HOME; the process user's home is asked for then.
+     */
+    public static function cacheDir(): string
+    {
+        if ($env = getenv('PUPPETEER_CACHE_DIR')) {
+            return rtrim($env, '/');
+        }
+
+        return rtrim(static::home(), '/').'/.cache/puppeteer';
+    }
+
+    protected static function home(): string
+    {
+        if ($home = getenv('HOME')) {
+            return $home;
+        }
+
+        if (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) {
+            return (string) (posix_getpwuid(posix_geteuid())['dir'] ?? '');
+        }
+
+        return '';
+    }
+
+    /** Any build of the shell in the cache — puppeteer picks its own from there. */
+    public static function browserInstalled(): bool
+    {
+        $dir = static::cacheDir().'/'.static::BROWSER;
+
+        return is_dir($dir) && glob($dir.'/*') !== [];
+    }
+
+    /**
+     * Fetch the browser with puppeteer's own installer, the way `npx puppeteer
+     * browsers install` does — but from here, so a site made from the starter
+     * kit photographs its sections without anybody logging in to run it.
+     * Puppeteer downloads the browser in a postinstall script that
+     * `ignore-scripts=true` (the kit's .npmrc) skips, and a puppeteer upgrade
+     * pins a new build; both leave the cache without one.
+     *
+     * Idempotent: an installed build is recognised and skipped by the
+     * installer. One at a time, so two runs do not download side by side.
+     * Returns true when the browser is there afterwards.
+     */
+    public static function install(): bool
+    {
+        $cli = base_path('node_modules/puppeteer/lib/puppeteer/node/cli.js');
+
+        if (! is_file($cli)) {
+            return false;
+        }
+
+        $node = (new ExecutableFinder)->find('node', null, ['/usr/local/bin', '/usr/bin', '/opt/homebrew/bin']);
+
+        if (! $node) {
+            Log::warning('[sve] previews: node was not found, so the browser could not be installed');
+
+            return false;
+        }
+
+        $lock = Cache::lock('sve-previews:browser-install', 900);
+
+        if (! $lock->get()) {
+            return static::browserInstalled();
+        }
+
+        try {
+            $env = array_filter([
+                'HOME' => static::home(),
+                'PUPPETEER_CACHE_DIR' => getenv('PUPPETEER_CACHE_DIR') ?: null,
+                'PATH' => getenv('PATH') ?: null,
+            ]);
+            $process = new Process([$node, $cli, 'browsers', 'install', static::BROWSER], base_path(), $env, null, 900);
+
+            $process->run();
+
+            if ($process->isSuccessful() && static::browserInstalled()) {
+                Log::info('[sve] previews: installed '.static::BROWSER.' into '.static::cacheDir());
+
+                return true;
+            }
+
+            Log::warning('[sve] previews: could not install '.static::BROWSER.': '.trim($process->getErrorOutput() ?: $process->getOutput()));
+
+            return false;
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** Did this failure say the browser is missing — the one failure a fetch fixes? */
+    public static function isMissingBrowser(\Throwable $e): bool
+    {
+        for ($error = $e; $error; $error = $error->getPrevious()) {
+            if (preg_match('/Could not find chrome/i', $error->getMessage())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Photographs $selector on $url into $path. Throws with a readable message. */
     public static function shoot(string $url, string $selector, string $path): void
     {
@@ -77,6 +192,10 @@ class PreviewBrowser
     {
         if (! is_dir(base_path('node_modules/puppeteer'))) {
             return trans('sve::messages.previews_no_puppeteer');
+        }
+
+        if (! static::browserInstalled()) {
+            return trans('sve::messages.previews_no_browser', ['browser' => static::BROWSER]);
         }
 
         return null;

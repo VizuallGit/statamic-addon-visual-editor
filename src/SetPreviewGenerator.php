@@ -126,36 +126,44 @@ class SetPreviewGenerator
         $empty = 0;
 
         foreach ($target['candidates'] as $candidate) {
-            $tmp = tempnam(sys_get_temp_dir(), 'sve_').'.png';
+            // Two attempts, for one reason only: the browser was not there, and
+            // puppeteer's installer has just put it there (PreviewBrowser::install).
+            for ($attempt = 1; $attempt <= 2; $attempt++) {
+                $tmp = tempnam(sys_get_temp_dir(), 'sve_').'.png';
 
-            try {
-                PreviewBrowser::shoot($candidate['url'], $candidate['selector'], $tmp);
+                try {
+                    PreviewBrowser::shoot($candidate['url'], $candidate['selector'], $tmp);
 
-                $filesystem->put($folder.$target['filename'], file_get_contents($tmp));
-                @unlink($tmp);
+                    $filesystem->put($folder.$target['filename'], file_get_contents($tmp));
+                    @unlink($tmp);
 
-                FieldsetImage::updateImage($handle, $target['filename']);
-                $this->deleteSuperseded($folder, $target);
+                    FieldsetImage::updateImage($handle, $target['filename']);
+                    $this->deleteSuperseded($folder, $target);
 
-                $changed = true;
+                    $changed = true;
 
-                return 'ok';
-            } catch (EmptyRenderException $e) {
-                @unlink($tmp);
-                $empty++;
+                    return 'ok';
+                } catch (EmptyRenderException $e) {
+                    @unlink($tmp);
+                    $empty++;
 
-                continue;
-            } catch (\Throwable $e) {
-                @unlink($tmp);
+                    continue 2;
+                } catch (\Throwable $e) {
+                    @unlink($tmp);
 
-                // Remembered like the empty-render memo, but briefly: a browser
-                // that failed is usually a browser that will fail again at this
-                // fingerprint, and without this every refresh spends one finding
-                // out. An hour, not thirty days, because the cause is as likely
-                // to be the machine as the section.
-                Cache::put(Targets::failedKey($handle), $target['filename'], now()->addHour());
+                    if ($attempt === 1 && PreviewBrowser::isMissingBrowser($e) && PreviewBrowser::install()) {
+                        continue;
+                    }
 
-                return 'error: '.trim($e->getMessage());
+                    // Remembered like the empty-render memo, but briefly: a browser
+                    // that failed is usually a browser that will fail again at this
+                    // fingerprint, and without this every refresh spends one finding
+                    // out. An hour, not thirty days, because the cause is as likely
+                    // to be the machine as the section.
+                    Cache::put(Targets::failedKey($handle), $target['filename'], now()->addHour());
+
+                    return 'error: '.trim($e->getMessage());
+                }
             }
         }
 
