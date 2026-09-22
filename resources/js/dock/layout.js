@@ -1078,6 +1078,72 @@ export function ensureStyle(doc) {
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
+/* The "+" menu's search: the site's classes to pick from, a red word when the
+   typed name is taken, and the one button that makes a new one. */
+#${CSS_MENU_ID} [data-sve-css-add-hint] {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #fca5a5;
+}
+#${CSS_MENU_ID} [data-sve-css-add-existing] {
+  margin: 10px 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .55;
+}
+#${CSS_MENU_ID} [data-sve-css-add-list] {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 14em;
+  overflow-y: auto;
+  margin: 0 -4px;
+}
+#${CSS_MENU_ID} [data-sve-css-add-option] {
+  all: unset;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+#${CSS_MENU_ID} [data-sve-css-add-option]:hover,
+#${CSS_MENU_ID} [data-sve-css-add-option]:focus-visible {
+  background: rgba(255,255,255,.1);
+}
+#${CSS_MENU_ID} [data-sve-css-add-detail] {
+  font-size: 10px;
+  opacity: .5;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+}
+#${CSS_MENU_ID} [data-sve-css-add-none] {
+  padding: 4px 6px;
+  opacity: .4;
+}
+#${CSS_MENU_ID} [data-sve-css-add-create] {
+  all: unset;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #3858e9;
+  cursor: pointer;
+}
+#${CSS_MENU_ID} [data-sve-css-add-create]:hover { background: #4a68ee; }
+#${CSS_MENU_ID} [data-sve-css-add-create][disabled] { opacity: .35; cursor: default; }
 #${DOCK_ID} [data-sve-code-split] {
   flex: 0 0 16px;
   cursor: col-resize;

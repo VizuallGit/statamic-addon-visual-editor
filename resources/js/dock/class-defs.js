@@ -75,6 +75,27 @@ function dockFile(win) {
   return win.document.getElementById(DOCK_ID)?.querySelector('[data-sve-code-path]')?.textContent.trim() || '';
 }
 
+/**
+ * The site's classes as a list to pick from: one row per name, with where it
+ * is defined. The file in the dock is named as such, so a class this file
+ * already has reads as one to reuse, not one to invent.
+ */
+export function siteClassOptions(win, hereLabel) {
+  const here = dockFile(win);
+  const byName = new Map();
+
+  for (const d of defs) {
+    const files = byName.get(d.name) || new Set();
+
+    files.add(d.file === here ? hereLabel : String(d.file).replace(/^.*\//, ''));
+    byName.set(d.name, files);
+  }
+
+  return [...byName]
+    .map(([name, files]) => ({ name, detail: [...files].join(', ') }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Where else the site defines this name — every file but the one in the dock. */
 export function definedElsewhere(win, name) {
   const here = dockFile(win);

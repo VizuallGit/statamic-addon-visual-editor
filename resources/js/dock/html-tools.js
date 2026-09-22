@@ -9,6 +9,7 @@ import { tidyHtml } from '../html-tidy.js';
 import { twOpenAddMenu } from '../tw-classes.js';
 import { mountSurface } from '../cp/mount.js';
 import { applyBracketClass, findClassRule, sanitizeCssClassName } from '../css-scope.js';
+import { definedElsewhere, importClassCss, loadClassDefs, siteClassOptions } from './class-defs.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { elementInsertPoint } from './insert-point.js';
@@ -629,14 +630,60 @@ function openAddClassMenu(win, anchor) {
   menu.id = CSS_MENU_ID;
   doc.body.appendChild(menu);
   placeCssMenu(win, anchor, menu);
-  menu._sveApp = mountSurface(CodeDockAddClass, menu, {
-    label: t(win, 'code_dock_css_class_name'),
-    placeholder: t(win, 'code_dock_css_class_placeholder'),
-    onAdd: (value) => {
-      addCssClassName(value);
-      closeCssMenu(doc);
-    },
-  });
+
+  // A name the site already has: in this file's CSS, or anywhere else.
+  const takenText = (raw) => {
+    const name = sanitizeCssClassName(raw);
+
+    if (!name) {
+      return '';
+    }
+
+    if (findClassRule(dockState.cssFull, name)) {
+      return t(win, 'class_exists_here');
+    }
+
+    const files = [...new Set(definedElsewhere(win, name).map((d) => String(d.file).replace(/^.*\//, '')))];
+
+    return files.length ? t(win, 'class_exists_pick', { file: files.join(', ') }) : '';
+  };
+  // Picking one that exists: onto the tag, its rule made here if this file
+  // lacks it, and its declarations brought in from wherever the site has them.
+  const pick = (name) => {
+    addCssClassName(name);
+    importClassCss(win, sanitizeCssClassName(name));
+    closeCssMenu(doc);
+  };
+  // Drawn at once from what the catalogue already holds, and again — with the
+  // typed text kept — when a fresh catalogue lands.
+  const paint = () => {
+    if (!doc.getElementById(CSS_MENU_ID)) {
+      return;
+    }
+
+    const initial = menu.querySelector('[data-sve-css-add-input]')?.value || '';
+
+    menu._sveApp?.unmount();
+    menu._sveApp = mountSurface(CodeDockAddClass, menu, {
+      label: t(win, 'code_dock_css_class_name'),
+      placeholder: t(win, 'code_dock_css_class_placeholder'),
+      initial,
+      options: siteClassOptions(win, t(win, 'class_this_file')),
+      existingLabel: t(win, 'code_dock_css_class_existing'),
+      createLabel: t(win, 'code_dock_css_class_create'),
+      takenText,
+      onPick: pick,
+      onClose: () => closeCssMenu(doc),
+      onAdd: (value) => {
+        addCssClassName(value);
+        closeCssMenu(doc);
+      },
+    });
+    placeCssMenu(win, anchor, menu);
+  };
+
+  paint();
+  void loadClassDefs(win).then(paint);
 }
 
 export function bindCssAddClass(win, dock) {
