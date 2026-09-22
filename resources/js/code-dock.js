@@ -331,17 +331,21 @@ export const CSS_GRAYS = [
  *
  * `css` is the logical property written here; `tw` the physical one Tailwind's
  * own scale is built on, because there is no `padding-block-start` utility.
+ *
+ * Every child carries its `menu`: in Tailwind mode `tw` alone opens the scale,
+ * but in CSS mode only `menu` does — a box child without one clicked to
+ * nothing there from the day the box got children until v1.1.264.
  */
 
 /** The seven parts of a box, built for whichever property owns them. */
 const boxKids = (prefix) => [
-  { id: `${prefix}-all`, icon: 'box-all', title: 'All sides', css: prefix, tw: prefix },
-  { id: `${prefix}-block`, icon: 'box-block', title: 'Top and bottom', css: `${prefix}-block`, tw: `${prefix}-block`, sep: true },
-  { id: `${prefix}-block-start`, icon: 'box-block-start', title: 'Top', css: `${prefix}-block-start`, tw: `${prefix}-top` },
-  { id: `${prefix}-block-end`, icon: 'box-block-end', title: 'Bottom', css: `${prefix}-block-end`, tw: `${prefix}-bottom` },
-  { id: `${prefix}-inline`, icon: 'box-inline', title: 'Left and right', css: `${prefix}-inline`, tw: `${prefix}-inline`, sep: true },
-  { id: `${prefix}-inline-start`, icon: 'box-inline-start', title: 'Left', css: `${prefix}-inline-start`, tw: `${prefix}-left` },
-  { id: `${prefix}-inline-end`, icon: 'box-inline-end', title: 'Right', css: `${prefix}-inline-end`, tw: `${prefix}-right` },
+  { id: `${prefix}-all`, icon: 'box-all', title: 'All sides', css: prefix, tw: prefix, menu: 'spacing' },
+  { id: `${prefix}-block`, icon: 'box-block', title: 'Top and bottom', css: `${prefix}-block`, tw: `${prefix}-block`, menu: 'spacing', sep: true },
+  { id: `${prefix}-block-start`, icon: 'box-block-start', title: 'Top', css: `${prefix}-block-start`, tw: `${prefix}-top`, menu: 'spacing' },
+  { id: `${prefix}-block-end`, icon: 'box-block-end', title: 'Bottom', css: `${prefix}-block-end`, tw: `${prefix}-bottom`, menu: 'spacing' },
+  { id: `${prefix}-inline`, icon: 'box-inline', title: 'Left and right', css: `${prefix}-inline`, tw: `${prefix}-inline`, menu: 'spacing', sep: true },
+  { id: `${prefix}-inline-start`, icon: 'box-inline-start', title: 'Left', css: `${prefix}-inline-start`, tw: `${prefix}-left`, menu: 'spacing' },
+  { id: `${prefix}-inline-end`, icon: 'box-inline-end', title: 'Right', css: `${prefix}-inline-end`, tw: `${prefix}-right`, menu: 'spacing' },
 ];
 
 /** Flex's own children: what it is, which way it runs, how it lines up. */
