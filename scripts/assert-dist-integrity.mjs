@@ -18,6 +18,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseAst } from 'rollup/parseAst';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'resources/dist/build');
@@ -113,4 +114,73 @@ if (missing.length) {
   );
 }
 
-console.log('Dist integrity ok: manifest files, live addon.js imports and locked recovery copies all exist.');
+/**
+ * No chunk may import a bare module name.
+ *
+ * Vite bundles what it can resolve and leaves the rest as an `import "name"`
+ * for the browser — which cannot resolve bare names, so the whole chunk fails
+ * to load, silently, for whoever imports it. v1.1.254 shipped tw-compile with
+ * `import "mini-svg-data-uri"` (a dependency of @tailwindcss/forms that was not
+ * installed here), and every Tailwind suggestion in the dock went empty until
+ * v1.1.263. A build with a bare import is not a build.
+ *
+ * Parsed with Rollup's own parser, not a regex: minified code is full of the
+ * words `import` and `export` next to strings that are not imports.
+ */
+function moduleSpecifiers(source) {
+  const specs = [];
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') {
+      return;
+    }
+
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+
+      return;
+    }
+
+    if (
+      (node.type === 'ImportDeclaration'
+        || node.type === 'ExportNamedDeclaration'
+        || node.type === 'ExportAllDeclaration'
+        || node.type === 'ImportExpression')
+      && node.source?.type === 'Literal'
+    ) {
+      specs.push(String(node.source.value));
+    }
+
+    for (const key of Object.keys(node)) {
+      if (key !== 'type' && key !== 'loc' && key !== 'range') {
+        visit(node[key]);
+      }
+    }
+  };
+
+  visit(parseAst(source));
+
+  return specs;
+}
+
+const bare = [];
+
+for (const name of readdirSync(ASSETS)) {
+  if (!name.endsWith('.js')) {
+    continue;
+  }
+
+  for (const spec of moduleSpecifiers(readFileSync(join(ASSETS, name), 'utf8'))) {
+    if (!/^(?:\.|\/|https?:|data:)/.test(spec)) {
+      bare.push(`${name} → ${spec}`);
+    }
+  }
+}
+
+if (bare.length) {
+  fail(
+    'Visual Editor build has bare imports the browser cannot resolve (a dependency missing from node_modules at build time):\n  '
+    + [...new Set(bare)].join('\n  ')
+  );
+}
+
+console.log('Dist integrity ok: manifest files, live addon.js imports and locked recovery copies all exist; no bare imports.');
