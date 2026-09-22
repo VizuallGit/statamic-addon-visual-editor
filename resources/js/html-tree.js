@@ -303,7 +303,8 @@ export function ensureHtmlTreeStyles(doc) {
       opacity: .7;
       border-radius: 4px;
     }
-    [data-sve-ht-video][data-on] { opacity: 1; color: #93c5fd; }
+    /* Held: lit like a hovered icon, in the row's own text colour — not an accent. */
+    [data-sve-ht-video][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
     [data-sve-ht-video]:hover,
     [data-sve-ht-eye]:hover,
     [data-sve-ht-fields]:hover,

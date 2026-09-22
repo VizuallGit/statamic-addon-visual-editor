@@ -366,6 +366,12 @@ export function injectStyles(doc) {
         /* Site chrome (header / footer): focus class on <html>. Fade is a FIXED
            scrim on html::after — NOT opacity on main. Morphing body/main used to
            paint new nodes at full opacity for a frame (= open/close flicker). */
+        /* A video the tree holds paused: said so on the video itself, because
+           a still frame looks the same paused and playing. */
+        video[data-sve-video-hold] {
+            outline: 2px dashed #60a5fa !important;
+            outline-offset: -2px;
+        }
         [data-sve-chrome] {
             position: relative;
         }
