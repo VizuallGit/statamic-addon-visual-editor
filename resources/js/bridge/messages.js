@@ -405,22 +405,27 @@ export function injectStyles(doc) {
             outline: none !important;
             cursor: auto !important;
         }
-        html.sve-chrome-focus-header::after,
-        html.sve-chrome-focus-footer::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            z-index: 2147483000;
-            background: rgba(15, 23, 42, 0.5);
-            pointer-events: auto;
+        /* The half being edited stays as it is; the REST of the page fades —
+           <main>, the other half, and any sibling of the half in <body> that
+           does not hold it. Faded by opacity on those parts, not by a scrim
+           over everything: a header with no background of its own showed the
+           scrim through it and read as faded too. The faded parts take no
+           clicks — a click on them lands on <body> and is the way out. */
+        html.sve-chrome-focus-header main,
+        html.sve-chrome-focus-header [data-sve-chrome="footer"],
+        html.sve-chrome-focus-header body > :not([data-sve-chrome="header"]):not(:has([data-sve-chrome="header"])):not(script):not(style),
+        html.sve-chrome-focus-footer main,
+        html.sve-chrome-focus-footer [data-sve-chrome="header"],
+        html.sve-chrome-focus-footer body > :not([data-sve-chrome="footer"]):not(:has([data-sve-chrome="footer"])):not(script):not(style) {
+            opacity: 0.35 !important;
+            pointer-events: none !important;
         }
         html.sve-chrome-focus-header [data-sve-chrome="header"],
         html.sve-chrome-focus-footer [data-sve-chrome="footer"] {
             outline: 3px solid #0f766e !important;
             outline-offset: -3px;
-            position: relative;
-            z-index: 2147483001;
-            pointer-events: auto;
+            opacity: 1 !important;
+            pointer-events: auto !important;
         }
         html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid],
         html.sve-chrome-focus-header [data-sve-chrome="footer"] [data-sid-field],
