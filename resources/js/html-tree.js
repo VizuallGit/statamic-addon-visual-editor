@@ -68,7 +68,7 @@ import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
-import { closeRightPanels, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
+import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { confirmCloseDiscard } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { hasToken } from './dock-partials.js';
@@ -1252,6 +1252,14 @@ export function renderHtmlTree(win) {
     htmlTreeAhead = '';
   }
 
+  // A part of the frame — the header, the footer, the layout — is never
+  // drawn ahead of the dock: only a section's template is held in hand. A
+  // section clicked and not landed left its markup here, and the layout was
+  // then read as a file with no <main> in it.
+  if (ask('dock:chrome-kind')) {
+    htmlTreeAhead = '';
+  }
+
   const html = htmlTreeAhead || dock;
   const roots = parseTemplateTree(html);
   htmlTreeRoots = roots;
@@ -1375,6 +1383,12 @@ export function renderHtmlTree(win) {
   // so the rows and the frame around them can never disagree. '' on a
   // section, a component, a template.
   const frameKind = inSections || inComponent ? '' : String(ask('dock:chrome-kind') || '');
+
+  // Off the layout, the next landing on it seats the tree on <main> again.
+  if (frameKind !== 'main') {
+    htmlTreeMainSeated = '';
+  }
+
   // On the layout the row to stand on is <main>, and it sits under a <body>
   // the tree keeps folded: the way down to it opens before the rows are cut.
   const mainNode = frameKind === 'main' ? findNodeByTag(roots, 'main') : null;
@@ -1820,9 +1834,14 @@ function scrollPreviewToFrame(win, kind) {
 }
 
 /**
- * Out of the header's or footer's form, when it is open: the same way a
- * click on a page section in the preview leaves it. The form's edits stay
- * stashed; the preview is told to drop the half's focus.
+ * Out of the header's or footer's form, when it is open: what a click on a
+ * page section in the preview does. The form's edits stay stashed; the
+ * preview is told to drop the half's focus.
+ *
+ * Done now, not by message: what follows opens another file, and the dock
+ * resolves which file from whether the half's form is still there. Posted,
+ * the leaving landed after the opening, and the dock fetched the half's
+ * file for a click that asked for a section.
  */
 function leaveChrome(win) {
   const open = String(ask('dock:chrome-open', win.document) || '');
@@ -1831,10 +1850,25 @@ function leaveChrome(win) {
     return false;
   }
 
-  win.postMessage({ source: SOURCE, type: MSG.CLOSE_CHROME }, win.location.origin);
+  dismissChromeForPageEdit(win);
   sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
 
   return true;
+}
+
+/**
+ * Nothing of the file being left may be held: no section still on its way,
+ * no markup drawn ahead of the dock, no folds, no picked row, no menu.
+ */
+function resetForFrame(win) {
+  win.clearTimeout(htmlTreePendingTimer);
+  htmlTreePendingUid = '';
+  htmlTreeAhead = '';
+  htmlTreeFolds.clear();
+  htmlTreeActiveId = null;
+  htmlTreeShutStart = false;
+  closeHtmlTreeMenu();
+  endHtmlTreeDrag();
 }
 
 /**
@@ -1858,6 +1892,8 @@ function enterFrame(win, kind) {
   if (String(ask('dock:chrome-kind') || '') === kind) {
     return;
   }
+
+  resetForFrame(win);
 
   if (kind === 'main') {
     leaveChrome(win);

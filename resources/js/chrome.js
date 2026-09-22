@@ -418,7 +418,14 @@ export async function openChromeInline(win, kind) {
   const resolver = inertiaPageResolver(win);
 
   if (!column || !resolver) {
+    // The frame's form stands in for the inline one (a production build strips
+    // the way to Inertia's resolver). No inline form, no inline kind: left
+    // set, it named the half for every dock sync after the half was left,
+    // and a click on a section fetched the header's file. The active kind
+    // carries the half while the frame is open; the dock follows it.
+    chromeInlineKind = null;
     openGlobalsPanelFrameForChrome(win, chromeKind);
+    syncCodeDock(win, doc, null);
 
     return;
   }
@@ -459,7 +466,14 @@ export async function openChromeInline(win, kind) {
 
   if (!Page || !mountChromeForm(win, host, Page, loaded.props)) {
     closeChromeInline(win);
+    // The frame's form stands in for the inline one (a production build strips
+    // the way to Inertia's resolver). No inline form, no inline kind: left
+    // set, it named the half for every dock sync after the half was left,
+    // and a click on a section fetched the header's file. The active kind
+    // carries the half while the frame is open; the dock follows it.
+    chromeInlineKind = null;
     openGlobalsPanelFrameForChrome(win, chromeKind);
+    syncCodeDock(win, doc, null);
 
     return;
   }
