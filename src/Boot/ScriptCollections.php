@@ -103,11 +103,23 @@ final class ScriptCollections
                     'handle' => $set->handle(),
                     'title' => $set->title(),
                     'url' => $variables->editUrl(),
+                    // How many fields the set's blueprint has: none means the
+                    // preview's bar for it has nothing to save and stays away.
+                    'fields' => static::fieldCount($set),
                 ] : null;
             })
             ->filter()
             ->values()
             ->all();
+    }
+
+    private static function fieldCount($set): ?int
+    {
+        try {
+            return $set->blueprint()->fields()->all()->count();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

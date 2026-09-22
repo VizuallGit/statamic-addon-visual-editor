@@ -201,9 +201,23 @@ function enterChromeFocus(win, el, reopen = true) {
 let chromeSaveBtn = null;
 let chromeStatusEl = null;
 let chromeDirty = false;
+// The half's global set has no fields: nothing can change, so no bar.
+let chromeBarOff = false;
 
-export function setChromeDirtyUI(dirty) {
+export function setChromeDirtyUI(dirty, fields = null, win = null) {
   chromeDirty = !!dirty;
+
+  if (typeof fields === 'number' && win) {
+    chromeBarOff = fields === 0;
+
+    if (chromeBarOff) {
+      win.document.getElementById(CHROME_BAR_ID)?.remove();
+      chromeSaveBtn = null;
+      chromeStatusEl = null;
+    } else if (bridgeState.chromeFocusEl && !win.document.getElementById(CHROME_BAR_ID)) {
+      mountChromeBar(win, bridgeState.chromeFocusEl.getAttribute(CHROME_ATTR) || 'header');
+    }
+  }
 
   if (chromeSaveBtn) {
     chromeSaveBtn.style.display = chromeDirty ? '' : 'none';
@@ -240,6 +254,10 @@ function mountChromeBar(win, kind) {
   const theme = cpDialogTheme(win);
 
   doc.getElementById(CHROME_BAR_ID)?.remove();
+
+  if (chromeBarOff) {
+    return;
+  }
 
   const bar = doc.createElement('div');
 

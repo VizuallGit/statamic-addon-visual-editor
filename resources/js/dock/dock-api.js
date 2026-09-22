@@ -630,6 +630,11 @@ function frameKindOnDock() {
     return 'main';
   }
 
+  // A collection's own template: the page's content, inside main.
+  if (dockState.lastWin && type === collectionViewType(dockState.lastWin)) {
+    return 'template';
+  }
+
   const styled = type.match(/^(header|footer)\//);
 
   if (styled) {
@@ -1013,6 +1018,8 @@ register('dock:current-uid', () => dockState.lastUid);
 // Which part of the frame the dock's file is, so the tree can draw header,
 // main and footer around the page — and which half's form the sidebar holds.
 register('dock:chrome-kind', () => frameKindOnDock());
+// The collection template this entry is, if it is one — the tree's way back to it.
+register('dock:collection-view', () => (dockState.lastWin ? collectionViewType(dockState.lastWin) : ''));
 register('dock:chrome-open', (doc) => chromeKindOpen(doc));
 /**
  * The save in the air, if any. A panel that writes the file and then asks the

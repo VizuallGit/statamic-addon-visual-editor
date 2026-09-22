@@ -97,18 +97,27 @@ function wrapBind(sec) {
     -->
     <template v-if="ui.frame || ui.sections.length">
       <template v-if="ui.frame">
-        <div v-if="ui.frame.kind === 'header'" data-sve-ht-branch data-sve-ht-cat="layout">
+        <div v-if="ui.frame.kind === 'header'" data-sve-ht-branch data-sve-ht-cat="header">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="frameShown(ui.frame.header)" :row="ui.frame.header" :dim="frameDim('header')" />
-        <div v-if="ui.frame.kind === 'main'" data-sve-ht-branch data-sve-ht-cat="layout">
+        <div v-if="ui.frame.kind === 'main'" data-sve-ht-branch data-sve-ht-cat="main">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
+        <!-- A collection's template: its rows inside main, where the page's sections would be. -->
+        <div v-if="ui.frame.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body>
+          <div data-sve-ht-branch data-sve-ht-cat="main">
+            <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+            <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+          </div>
+        </div>
       </template>
-      <div v-if="ui.sections.length" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
+      <div v-if="ui.sections.length || ui.frame?.template" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
+        <!-- Standing elsewhere on a template's entry: the template, the way back. -->
+        <HtmlTreeRow v-if="ui.frame?.template && frameShown(ui.frame.template)" :row="ui.frame.template" :dim="frameDim('template')" />
         <div
           v-for="sec in shownSections"
           :key="sec.uid"
@@ -128,7 +137,7 @@ function wrapBind(sec) {
         </div>
       </div>
       <template v-if="ui.frame">
-        <div v-if="ui.frame.kind === 'footer'" data-sve-ht-branch data-sve-ht-cat="layout">
+        <div v-if="ui.frame.kind === 'footer'" data-sve-ht-branch data-sve-ht-cat="footer">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>

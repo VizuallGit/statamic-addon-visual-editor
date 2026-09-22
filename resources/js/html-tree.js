@@ -219,7 +219,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-frame-body] {
       margin: 2px 0 2px 7px;
       padding-left: 7px;
-      box-shadow: inset 1px 0 0 color-mix(in srgb, var(--sve-fam-layout) 22%, transparent);
+      box-shadow: inset 1px 0 0 color-mix(in srgb, var(--sve-fam-main) 22%, transparent);
     }
     /* Main names the space between, not a thing to edit: a shade quieter. */
     [data-sve-ht-row][data-sve-ht-frame="main"] [data-sve-ht-name] { opacity: .65; font-weight: 500; }
@@ -438,6 +438,9 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-cat="loop"] { --sve-ht-c: var(--sve-fam-loop); }
     [data-sve-ht-look="tags"] [data-sve-ht-cat="if"] { --sve-ht-c: var(--sve-fam-if); }
     [data-sve-ht-look="tags"] [data-sve-ht-cat="component"] { --sve-ht-c: var(--sve-fam-component); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="header"] { --sve-ht-c: var(--sve-fam-header); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="main"] { --sve-ht-c: var(--sve-fam-main); }
+    [data-sve-ht-look="tags"] [data-sve-ht-cat="footer"] { --sve-ht-c: var(--sve-fam-footer); }
 
     /* Flat rows, stepped in by their depth: the row's own box — its hover,
        its pick, its bar — begins where its level begins, and the guides are
@@ -1414,7 +1417,9 @@ export function renderHtmlTree(win) {
   // file's — <main> on the layout, the half's own element at the root — no
   // rows: a header drawn around a section's rows is worse than a moment of
   // nothing, and the dock says when the file lands.
-  const landed = frameKind === 'main' ? !!mainNode : !frameKind || !!chromeNode;
+  const landed = frameKind === 'main'
+    ? !!mainNode
+    : frameKind === 'header' || frameKind === 'footer' ? !!chromeNode : true;
   const rows = !landed
     ? []
     : around
@@ -1638,7 +1643,11 @@ export function renderHtmlTree(win) {
           ? HTML_ICONS.main
           : isRoot && openSection ? openSection.svg : aroundRoot ? around.svg : icon.svg || '',
       frame: chromeKind && row.id === chromeRootId ? chromeKind : row === mainRaw ? 'main' : '',
-      cat: aroundRoot ? around.cat : tagFamily(row.tag, row.kind, row.antlers),
+      // The frame's rows wear the frame's own families — header, main,
+      // footer — each with its colour in the Live Preview settings.
+      cat: chromeKind && row.id === chromeRootId
+        ? chromeKind
+        : row === mainRaw ? 'main' : aroundRoot ? around.cat : tagFamily(row.tag, row.kind, row.antlers),
       // Around the open component: `dim` for the section's own rows, `host`
       // for the one the component unfolds from. '' for the component's rows.
       // Around the open component: `host` for every call on the way down to
@@ -1726,6 +1735,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind);
   htmlTreeUi.frameOpenTitle = t(win, 'html_tree_frame_open');
   htmlTreeUi.frameMainTitle = t(win, 'html_tree_frame_main_open');
+  htmlTreeUi.frameTemplateTitle = t(win, 'html_tree_frame_template_open');
   htmlTreeUi.frameFieldsTitle = t(win, 'html_tree_frame_fields');
   // A click steps in: main opens the layout's <main> in the dock; a half is
   // clicked the way it is clicked in the preview — the same question, the
@@ -1793,17 +1803,41 @@ function frameAroundPage(win, sections, inSections, inComponent, kind) {
     name: t(win, `html_tree_frame_${part}`),
     kind: '',
     svg: HTML_ICONS[part] || '',
-    cat: 'layout',
+    cat: part,
     letter: '',
     depth: 0,
-    // Only main folds, and only when there are sections in it to fold away.
-    hasChildren: part === 'main' && sections.length > 0,
+    // Only main folds, and only when there is something in it to fold away.
+    hasChildren: part === 'main' && (sections.length > 0 || kind === 'template'),
     shut: part !== 'main',
     current: false,
     hidden: false,
   });
+  const frame = { kind, header: row('header'), main: row('main'), footer: row('footer'), template: null };
 
-  return { kind, header: row('header'), main: row('main'), footer: row('footer') };
+  // On a collection template's entry, standing in the header, the footer or
+  // the layout: the template itself listed under main, the way back to it.
+  const view = kind && kind !== 'template' ? String(ask('dock:collection-view') || '') : '';
+
+  if (view) {
+    frame.template = {
+      id: 'frame:template',
+      frame: 'template',
+      synthetic: true,
+      tag: 'section',
+      name: setMeta(win, view)?.display || humanizeHandle(view.replace(/^view:/, '')),
+      kind: '',
+      svg: HTML_ICONS.section || '',
+      cat: 'main',
+      letter: '',
+      depth: 0,
+      hasChildren: false,
+      shut: true,
+      current: false,
+      hidden: false,
+    };
+  }
+
+  return frame;
 }
 
 /** The first node with this tag, wherever it sits in the tree. */
@@ -1842,7 +1876,9 @@ function nextOutside(rows, row) {
 /** Scroll the preview to the header, the footer, or the content between them. */
 function scrollPreviewToFrame(win, kind) {
   const pdoc = previewDocument(win);
-  const el = kind === 'main' ? pdoc?.querySelector('main') : pdoc?.querySelector(`[data-sve-chrome="${kind}"]`);
+  const el = kind === 'main' || kind === 'template'
+    ? pdoc?.querySelector('main')
+    : pdoc?.querySelector(`[data-sve-chrome="${kind}"]`);
 
   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1912,6 +1948,17 @@ function enterFrame(win, kind) {
   if (kind === 'main') {
     leaveChrome(win);
     ask('dock:open-file', LAYOUT_TEMPLATE_TYPE);
+
+    return;
+  }
+
+  if (kind === 'template') {
+    const view = String(ask('dock:collection-view') || '');
+
+    if (view) {
+      leaveChrome(win);
+      ask('dock:open-file', view);
+    }
 
     return;
   }

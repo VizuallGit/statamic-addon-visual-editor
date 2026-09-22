@@ -1044,9 +1044,23 @@ function markCssMenuActive(menu, property) {
 export function placeCssMenu(win, anchor, menu) {
   const rect = anchor.getBoundingClientRect();
   const pad = 8;
+  // The anchor sits in the dock, low on the screen: a list that runs past
+  // the bottom edge cannot be scrolled to. Where there is more room above,
+  // the menu opens upward; either way its height stops at the edge.
+  const below = win.innerHeight - (rect.bottom + 4) - pad;
+  const above = rect.top - 4 - pad;
+
+  // Measured unclamped: a cap from the last placement would report the cap.
+  menu.style.maxHeight = '';
+
+  const height = menu.offsetHeight || 0;
+  const upward = height > below && above > below;
 
   menu.style.left = `${Math.max(pad, Math.min(rect.left, win.innerWidth - 220))}px`;
-  menu.style.top = `${Math.max(pad, rect.bottom + 4)}px`;
+  menu.style.maxHeight = `${Math.max(120, upward ? above : below)}px`;
+  menu.style.top = upward
+    ? `${Math.max(pad, rect.top - 4 - Math.min(height, above))}px`
+    : `${Math.max(pad, rect.bottom + 4)}px`;
 }
 
 export function openCssColorMenu(win, anchor, property) {

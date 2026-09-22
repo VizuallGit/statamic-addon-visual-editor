@@ -66,7 +66,7 @@ const DEL =
 
 function rowTitle(row) {
   if (row.synthetic) {
-    return row.frame === 'main' ? ui.frameMainTitle : ui.frameOpenTitle;
+    return row.frame === 'main' ? ui.frameMainTitle : row.frame === 'template' ? ui.frameTemplateTitle : ui.frameOpenTitle;
   }
 
   if (row.kind === 'component') {

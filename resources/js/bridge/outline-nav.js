@@ -390,7 +390,7 @@ export function createMessageReceiver(win) {
     }
 
     if (data.type === MSG.SVE_CHROME_DIRTY) {
-      setChromeDirtyUI(!!data.dirty);
+      setChromeDirtyUI(!!data.dirty, data.fields, win);
 
       return;
     }

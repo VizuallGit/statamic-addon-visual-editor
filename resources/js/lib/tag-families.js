@@ -17,7 +17,9 @@
  * May import: nothing. Values and pure helpers only.
  */
 
-export const FAMILIES = ['layout', 'text', 'media', 'loop', 'if', 'component', 'other'];
+// The last three are the page's frame in the tree — header, main, footer —
+// the layout colour by default, each its own to set apart what is global.
+export const FAMILIES = ['layout', 'text', 'media', 'loop', 'if', 'component', 'other', 'header', 'main', 'footer'];
 
 /**
  * The dark set is the dock's own: the toolbar's component, loop and if
@@ -34,6 +36,9 @@ export const FAMILY_COLORS = {
     if: '#e8c468',
     component: '#5eead4',
     other: '#9a9a9a',
+    header: '#60a5fa',
+    main: '#60a5fa',
+    footer: '#60a5fa',
   },
   light: {
     layout: '#2563eb',
@@ -43,6 +48,9 @@ export const FAMILY_COLORS = {
     if: '#b45309',
     component: '#0f766e',
     other: '#6b6b6b',
+    header: '#2563eb',
+    main: '#2563eb',
+    footer: '#2563eb',
   },
 };
 
