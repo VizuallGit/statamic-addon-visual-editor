@@ -187,6 +187,70 @@ export function ensureEntryOpenStyles(doc) {
 `);
 }
 
+export const LP_OPENING_ATTR = 'data-sve-lp-opening';
+const LP_OPENING_STYLE_ID = '__sve-lp-opening-style';
+
+/**
+ * The Live Preview button while the overlay boots.
+ *
+ * The overlay comes up hidden and swaps in once it has painted, so for a
+ * second or two nothing on the form said the click had landed — and a second
+ * click opened a second overlay. The button's own icon spins meanwhile: an
+ * attribute on Statamic's element and a stylesheet, nothing replaced or
+ * rewritten, so a Statamic update cannot break it. Cleared when the overlay
+ * is idle or on screen, or after 20 s — a boot that failed must not leave a
+ * spinner behind.
+ */
+export function markLivePreviewOpening(win, button) {
+  const doc = win.document;
+
+  if (!button || button.hasAttribute(LP_OPENING_ATTR)) {
+    return;
+  }
+
+  injectStyle(doc, LP_OPENING_STYLE_ID, `
+[${LP_OPENING_ATTR}] svg {
+  transform-origin: 50% 50%;
+  animation: sve-lp-opening-spin .9s linear infinite;
+}
+@keyframes sve-lp-opening-spin {
+  to { transform: rotate(360deg); }
+}
+`);
+  button.setAttribute(LP_OPENING_ATTR, '');
+
+  // A button drawn without an icon gets the listing's dots instead.
+  if (!button.querySelector('svg')) {
+    ensureEntryOpenStyles(doc);
+
+    const dots = doc.createElement('span');
+
+    dots.setAttribute(ENTRY_OPEN_ATTR, '');
+    dots.setAttribute('aria-hidden', 'true');
+    dots.innerHTML = '<i></i><i></i><i></i><i></i>';
+    button.appendChild(dots);
+  }
+
+  let poll = 0;
+  let timer = 0;
+
+  const done = () => {
+    button.removeAttribute(LP_OPENING_ATTR);
+    button.querySelector(`[${ENTRY_OPEN_ATTR}]`)?.remove();
+    win.clearInterval(poll);
+    win.clearTimeout(timer);
+    win.removeEventListener('sve-overlay-idle', done);
+  };
+
+  poll = win.setInterval(() => {
+    if (doc.querySelector('iframe.sve-edit-overlay[data-open]')) {
+      done();
+    }
+  }, 200);
+  timer = win.setTimeout(done, 20000);
+  win.addEventListener('sve-overlay-idle', done);
+}
+
 export function clearEntryOpening(doc) {
   doc.querySelectorAll(`[${ENTRY_OPEN_ATTR}]`).forEach((el) => el.remove());
 }

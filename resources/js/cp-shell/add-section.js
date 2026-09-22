@@ -20,7 +20,7 @@ import { closeRightPanels, dismissChromeForPageEdit, handleAddRow, handleDuplica
 import { handleOpenChrome, handleOpenGlobal, notifyChromeDirty, notifyGlobalSectionDirty, saveGlobalsPanel, setChromeSidebarMode } from '../globals-panel.js';
 import { editSession, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest } from '../inline-edit.js';
 import { closeGlobalSectionPanel, forwardGlobalSectionFocus, globalSectionEditorOpen, saveGlobalSectionPanel } from '../global-section.js';
-import { claimOrigin } from '../open-in-preview.js';
+import { claimOrigin, markLivePreviewOpening } from '../open-in-preview.js';
 import { confirmCloseDiscard, handleRequestCloseChrome, handleRequestCloseGlobal, hideNavSpinner } from '../pages.js';
 import { listViewSyncTo, pinDockedPanelsUnderHeader } from '../lazy/listview.js';
 import { handleOutline } from '../lazy/outline.js';
@@ -2863,6 +2863,7 @@ export function interceptLivePreviewOpen(win) {
 
       url.searchParams.set('live-preview', '1');
       openOverlay(win, url.toString());
+      markLivePreviewOpening(win, button);
     },
     true
   );
