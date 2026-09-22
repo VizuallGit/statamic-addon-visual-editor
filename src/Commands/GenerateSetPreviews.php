@@ -42,11 +42,12 @@ class GenerateSetPreviews extends Command
         // A save this command makes must not ask for another run of it.
         PreviewRefresher::suppress();
 
-        // The browser is fetched here when the cache lacks it (a fresh site
+        // The browser is fetched here when the site lacks it (a fresh site
         // from the kit, or a puppeteer upgrade), so the run that follows has
         // one — nobody has to log in and run puppeteer's installer by hand.
+        // On Linux the system libraries it lacks come with it, into the site.
         if (! PreviewBrowser::browserInstalled()) {
-            $this->line('Fetching '.PreviewBrowser::BROWSER.' with puppeteer\'s installer…');
+            $this->line('Fetching '.PreviewBrowser::BROWSER.' into storage/'.PreviewBrowser::DIR.'…');
             PreviewBrowser::install();
         }
 

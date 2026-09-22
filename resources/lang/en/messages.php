@@ -666,7 +666,8 @@ return [
     'previews_source_global' => 'synced',
     'previews_no_source_help' => 'This section has no default values and is not used on any published page, so there is nothing to take a picture of. Give its fields defaults in the fieldset — then the preview is also exactly what you get when you drag the section in.',
     'previews_no_puppeteer' => 'Screenshots cannot be taken: puppeteer is not installed. Run `npm install` in the project directory.',
-    'previews_no_browser' => 'Screenshots cannot be taken: the :browser browser is missing. Run `npx puppeteer browsers install :browser` in the project directory.',
+    'previews_no_browser' => 'Screenshots cannot be taken: the :browser browser is missing. The editor fetches it into storage/app/sve-browser on the next run — or run `php please sve:previews` now.',
+    'previews_no_libraries' => 'Screenshots cannot be taken: the browser lacks the system library :library. On a Debian/Ubuntu server the editor fetches it into storage/app/sve-browser on the next run; elsewhere it has to be installed on the machine.',
 
     // Responsive felter: en vaerdi pr. skaermstoerrelse, sat med et flueben paa feltet.
     'responsive_setting' => 'Responsive',

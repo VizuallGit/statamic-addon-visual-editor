@@ -126,8 +126,8 @@ class SetPreviewGenerator
         $empty = 0;
 
         foreach ($target['candidates'] as $candidate) {
-            // Two attempts, for one reason only: the browser was not there, and
-            // puppeteer's installer has just put it there (PreviewBrowser::install).
+            // Two attempts, for one reason only: the browser or a library it
+            // loads was not there, and PreviewBrowser has just fetched it.
             for ($attempt = 1; $attempt <= 2; $attempt++) {
                 $tmp = tempnam(sys_get_temp_dir(), 'sve_').'.png';
 
@@ -151,7 +151,7 @@ class SetPreviewGenerator
                 } catch (\Throwable $e) {
                     @unlink($tmp);
 
-                    if ($attempt === 1 && PreviewBrowser::isMissingBrowser($e) && PreviewBrowser::install()) {
+                    if ($attempt === 1 && PreviewBrowser::repair($e)) {
                         continue;
                     }
 

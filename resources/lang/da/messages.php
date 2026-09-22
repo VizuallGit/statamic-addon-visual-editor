@@ -660,7 +660,8 @@ return [
     'previews_source_global' => 'synkroniseret',
     'previews_no_source_help' => 'Sektionen har ingen standardværdier og bruges ikke på nogen udgivet side, så der er intet at tage billede af. Giv felterne default-værdier i fieldsettet — så bliver previewet også præcis det du får, når du trækker sektionen ind.',
     'previews_no_puppeteer' => 'Der kan ikke tages screenshots: puppeteer er ikke installeret. Kør `npm install` i projektmappen.',
-    'previews_no_browser' => 'Der kan ikke tages screenshots: browseren :browser mangler. Kør `npx puppeteer browsers install :browser` i projektmappen.',
+    'previews_no_browser' => 'Der kan ikke tages screenshots: browseren :browser mangler. Editoren henter den ind i storage/app/sve-browser ved næste kørsel — eller kør `php please sve:previews` nu.',
+    'previews_no_libraries' => 'Der kan ikke tages screenshots: browseren mangler systembiblioteket :library. På en Debian/Ubuntu-server henter editoren det ind i storage/app/sve-browser ved næste kørsel; andre steder skal det installeres på maskinen.',
 
     // Responsive felter: en vaerdi pr. skaermstoerrelse, sat med et flueben paa feltet.
     'responsive_setting' => 'Responsive',
