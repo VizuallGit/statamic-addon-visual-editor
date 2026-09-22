@@ -581,11 +581,8 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-visual-edit-tools] {
   pointer-events: auto;
   flex: 0 0 auto;
-  align-self: stretch;
-  margin: -7px 0;
-  padding-right: 8px;
   display: flex;
-  align-items: stretch;
+  align-items: center;
 }
 #${DOCK_ID} [data-sve-css-chrome] {
   flex: 0 0 auto;
@@ -951,6 +948,12 @@ export function ensureStyle(doc) {
   color: #d4d4d4;
   opacity: .62;
   cursor: pointer;
+}
+/* The Antlers mark is wide; the button grows with it rather than cropping it. */
+#${DOCK_ID} [data-sve-antlers-btn] {
+  width: auto;
+  min-width: 1.65em;
+  padding: 0 0.3em;
 }
 #${DOCK_ID} [data-sve-data-vars] span,
 #${DOCK_ID} [data-sve-antlers-btn] span,
