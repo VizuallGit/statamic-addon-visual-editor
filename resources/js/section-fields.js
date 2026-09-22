@@ -209,6 +209,26 @@ export function canEditFields(win) {
   return win.Statamic?.$permissions?.has?.('configure fields') === true;
 }
 
+/**
+ * A global set's blueprint — the header's or the footer's fields — in the
+ * overlay a section's fieldset opens in. Nothing to refresh afterwards here:
+ * the half's form is fetched fresh the next time it is stepped into.
+ */
+export function openGlobalFieldsOverlay(win, handle, label) {
+  if (!handle) {
+    return;
+  }
+
+  openCpOverlay(win.document, FieldsetOverlay, {
+    heading: t(win, 'section_fields'),
+    subtitle: label,
+    src: `${cpRoot(win)}/fields/blueprints/globals/${encodeURIComponent(handle)}/edit`,
+    closeLabel: t(win, 'close'),
+    saveMatch: /\/fields\/blueprints\/globals\//,
+    onClose: () => {},
+  });
+}
+
 export function openFieldsetOverlay(win, handle, { onClose } = {}) {
   void (async () => {
     let found = null;

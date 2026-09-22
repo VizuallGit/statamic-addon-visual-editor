@@ -8,7 +8,7 @@ import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { openSettingsTab, rearmFirstSection } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
-import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
+import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
 import { publishContainers } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
@@ -410,7 +410,9 @@ export async function openChromeInline(win, kind) {
     chromeInlineKind = chromeKind;
   }
 
-  closeRightPanels(win, []);
+  // The HTML tree stays: it draws the page's frame, and stepping into the
+  // header is what it shows next — the header's rows, the rest faded.
+  closeRightPanels(win, doc.getElementById(HTML_TREE_PANEL_ID) ? [HTML_TREE_PANEL_ID] : []);
 
   const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
   const resolver = inertiaPageResolver(win);

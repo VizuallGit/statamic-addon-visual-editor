@@ -5,7 +5,8 @@
  */
 import { t } from './lib/i18n.js';
 import { canCreateSections, isHiddenType, isStaticType, libraryStale, updateSectionType } from './section-create.js';
-import { openFieldsetOverlay } from './section-fields.js';
+import { openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.js';
+import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
 import { ask, on, register } from './cp/bus.js';
@@ -1382,9 +1383,23 @@ export function renderHtmlTree(win) {
     expandHtmlTreePath(mainNode.path);
   }
 
-  const rows = around
-    ? flattenHtmlTree(around.tree, htmlTreeUi.query ? new Set() : around.folds)
-    : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
+  // The dock names its new file before it holds it. Until the markup is that
+  // file's — <main> on the layout, the half's own element at the root — no
+  // rows: a header drawn around a section's rows is worse than a moment of
+  // nothing, and the dock says when the file lands.
+  // The half's own element: the one carrying data-sve-chrome, or failing
+  // that the first <header>/<footer>. Not simply the file's first tag — a
+  // style block or a comment may stand in front of it.
+  const chromeNode = frameKind === 'header' || frameKind === 'footer'
+    ? roots.find((node) => !node.kind && html.slice(node.from, node.openTo).includes(`data-sve-chrome="${frameKind}"`))
+      || findNodeByTag(roots, frameKind)
+    : null;
+  const landed = frameKind === 'main' ? !!mainNode : !frameKind || !!chromeNode;
+  const rows = !landed
+    ? []
+    : around
+      ? flattenHtmlTree(around.tree, htmlTreeUi.query ? new Set() : around.folds)
+      : flattenHtmlTree(roots, htmlTreeUi.query ? new Set() : foldedIds(roots));
 
   if (!html.trim() && !dockIsOpen(doc)) {
     htmlTreeUi.emptyText = t(win, 'html_tree_need_dock');
@@ -1563,6 +1578,7 @@ export function renderHtmlTree(win) {
   // a header. On the layout it is the <main> row; the rest of that file
   // (html, head, the partial calls) is not this tree's business.
   const chromeKind = frameKind === 'header' || frameKind === 'footer' ? frameKind : '';
+  const chromeRootId = chromeNode ? chromeNode.id : '';
   const mainRaw = mainNode ? rows.find((row) => row.id === mainNode.id) || null : null;
   const mainEnd = mainRaw ? nextOutside(rows, mainRaw) : -1;
 
@@ -1586,19 +1602,19 @@ export function renderHtmlTree(win) {
       base,
       // The open page section's root already carries the section's own name
       // (its label); the file's alias must not override it here.
-      name: isRoot && chromeKind
+      name: chromeKind && row.id === chromeRootId
         ? t(win, `html_tree_frame_${chromeKind}`)
         : row === mainRaw
           ? t(win, 'html_tree_frame_main')
           : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
       current: row.id === htmlTreeActiveId,
       letter: aroundRoot ? '' : icon.letter || '',
-      svg: isRoot && chromeKind
+      svg: chromeKind && row.id === chromeRootId
         ? HTML_ICONS[chromeKind]
         : row === mainRaw
           ? HTML_ICONS.main
           : isRoot && openSection ? openSection.svg : aroundRoot ? around.svg : icon.svg || '',
-      frame: isRoot && chromeKind ? chromeKind : row === mainRaw ? 'main' : '',
+      frame: chromeKind && row.id === chromeRootId ? chromeKind : row === mainRaw ? 'main' : '',
       cat: aroundRoot ? around.cat : tagFamily(row.tag, row.kind, row.antlers),
       // Around the open component: `dim` for the section's own rows, `host`
       // for the one the component unfolds from. '' for the component's rows.
@@ -1688,20 +1704,20 @@ export function renderHtmlTree(win) {
   htmlTreeUi.frameOpenTitle = t(win, 'html_tree_frame_open');
   htmlTreeUi.frameMainTitle = t(win, 'html_tree_frame_main_open');
   htmlTreeUi.frameFieldsTitle = t(win, 'html_tree_frame_fields');
-  // A click: on main, open the layout's <main> in the dock; on a half while
-  // standing in another part of the frame, step across to it; otherwise
-  // scroll the preview there. A double-click on a half always steps in.
+  // A click steps in: main opens the layout's <main> in the dock; a half is
+  // clicked the way it is clicked in the preview — the same question, the
+  // same door. Already standing there, a click scrolls the preview to it.
   htmlTreeUi.onFrame = (kind) => {
-    if (kind === 'main') {
-      enterFrame(win, 'main');
-    } else if (frameKind && frameKind !== kind) {
-      enterFrame(win, kind);
-    } else {
+    if (frameKind === kind) {
       scrollPreviewToFrame(win, kind);
+    } else {
+      enterFrame(win, kind);
     }
   };
   htmlTreeUi.onFrameEnter = (kind) => enterFrame(win, kind);
-  htmlTreeUi.onFrameFields = (kind) => enterFrame(win, kind);
+  // The half's fields are its global set's blueprint.
+  htmlTreeUi.onFrameFields = (kind) =>
+    openGlobalFieldsOverlay(win, chromeGlobalHandle(win, kind), t(win, `html_tree_frame_${kind}`));
   htmlTreeUi.onFrameTwist = () => {
     htmlTreeUi.mainShut = !htmlTreeUi.mainShut;
   };
@@ -1824,14 +1840,17 @@ function leaveChrome(win) {
 /**
  * Step into a part of the frame.
  *
- * A half: the same door a click on it in the preview opens — posted to this
- * window, the way a section's move is. Stepping in closes the right panels,
- * this one with them; it comes back once the dock holds that half's file, so
- * the tree shows its rows — which is what the double-click asked for. Polled:
- * the door opens on its own time (a fetch of the half's form), and nothing
- * announces it to this module.
+ * A half: clicked in the preview, exactly as the reader clicks it there —
+ * the bridge asks its "this is global" question, and on yes steps in: focus,
+ * the page faded around it, the form, the file. Only a preview without the
+ * half (not rendered, not editable) is told directly.
  *
  * Main: the layout's file in the dock, and the tree stands on its <main>.
+ *
+ * The tree stays open through the door (chrome.js keeps it). For the case it
+ * was not open, it is drawn once the dock holds the half's file — polled,
+ * because the reader answers the question on their own time, and nothing
+ * announces the answer to this module. Gives up quietly.
  */
 function enterFrame(win, kind) {
   const doc = win.document;
@@ -1851,13 +1870,20 @@ function enterFrame(win, kind) {
     return;
   }
 
-  win.postMessage({ source: SOURCE, type: MSG.OPEN_CHROME, kind }, win.location.origin);
+  const el = previewDocument(win)?.querySelector(`[data-sve-chrome="${kind}"]`);
+
+  if (el) {
+    el.scrollIntoView({ block: 'nearest' });
+    el.dispatchEvent(new el.ownerDocument.defaultView.MouseEvent('click', { bubbles: true, cancelable: true }));
+  } else {
+    win.postMessage({ source: SOURCE, type: MSG.OPEN_CHROME, kind }, win.location.origin);
+  }
 
   const started = Date.now();
   const back = async () => {
     if (String(ask('dock:chrome-kind') || '') !== kind) {
-      if (Date.now() - started < 8000) {
-        win.setTimeout(back, 150);
+      if (Date.now() - started < 30000) {
+        win.setTimeout(back, 250);
       }
 
       return;
@@ -1867,7 +1893,7 @@ function enterFrame(win, kind) {
     openHtmlTreePanel(win);
   };
 
-  win.setTimeout(back, 150);
+  win.setTimeout(back, 250);
 }
 
 function publishHtmlPick(win, roots) {

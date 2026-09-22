@@ -296,7 +296,7 @@ function canAct(row) {
     -->
     <span v-if="isFrame(row)" data-sve-ht-actions>
       <button
-        v-if="row.frame !== 'main'"
+        v-if="row.frame !== 'main' && canFields"
         type="button"
         data-sve-ht-fields
         :title="ui.frameFieldsTitle"
