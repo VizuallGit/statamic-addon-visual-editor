@@ -355,7 +355,11 @@ export function startEditing(win, data) {
   bridgeState.editing = session;
   win.__sveInlineEdit.active = true;
 
-  el.focus();
+  // The element is already where it should be: under the click, or being
+  // scrolled to smoothly by the CP that asked for the edit. A plain focus()
+  // scrolls it into view at once and cut that smooth scroll short — a block
+  // with one field jumped while a block with none glided.
+  el.focus({ preventScroll: true });
   placeCaretFromPoint(win, clickX, clickY);
   createEditToolbar(win, session);
 }

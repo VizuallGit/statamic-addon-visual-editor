@@ -1451,7 +1451,7 @@ export function applyBlockFormat(win, session, spec) {
       el.removeAttribute('class');
     }
 
-    session.el.focus();
+    session.el.focus({ preventScroll: true });
 
     const range = win.document.createRange();
 
@@ -1481,7 +1481,7 @@ export function applyBlockFormat(win, session, spec) {
     el.classList.add(spec.className);
   }
 
-  session.el.focus();
+  session.el.focus({ preventScroll: true });
 
   const range = win.document.createRange();
 
