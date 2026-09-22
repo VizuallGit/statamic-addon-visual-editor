@@ -100,19 +100,26 @@ export function rebindChromeFocus(win, kind, attempt = 0) {
   rememberChromeKind(chromeKind);
 
   const doc = win.document;
-
-  // Fade/outline live on <html> — re-assert without removing (no flicker).
-  applyChromeFocusClass(doc, chromeKind);
-
   const again = doc.querySelector(`[${CHROME_ATTR}="${chromeKind}"]`);
 
   if (!again) {
     if (attempt < 50) {
       setTimeout(() => rebindChromeFocus(win, chromeKind, attempt + 1), 40);
+
+      return;
     }
+
+    // No such element on the page (a layout whose footer partial renders no
+    // marked footer): nothing to lift above the fade, so no fade — a scrim
+    // over the whole page with nothing in front of it is not a focus.
+    clearChromeFocusClasses(doc);
 
     return;
   }
+
+  // Fade/outline live on <html> — re-assert without removing (no flicker).
+  // Only once the element is here to stand in front of it.
+  applyChromeFocusClass(doc, chromeKind);
 
   if (bridgeState.chromeFocusEl !== again || !again.hasAttribute(CHROME_FOCUS_ATTR)) {
     doc.querySelectorAll(`[${CHROME_FOCUS_ATTR}]`).forEach((el) => {
