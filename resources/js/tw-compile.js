@@ -19,11 +19,17 @@
 import { compile, __unstable__loadDesignSystem } from 'tailwindcss';
 import themeSource from 'tailwindcss/theme.css?raw';
 import utilitiesSource from 'tailwindcss/utilities.css?raw';
+import forms from '@tailwindcss/forms';
 import typography from '@tailwindcss/typography';
 import { buildTailwind, makeDesignSystem, makeTailwindCompiler } from './tw-compile-core.js';
 
-/** Plugins this addon carries. A site using another one is told, not broken. */
+/**
+ * Plugins this addon carries, so a class from them paints at once in Instant
+ * exactly as the bake compiles it on the server (which has the site's own
+ * node_modules). A site using another one is told, not broken.
+ */
 const MODULES = {
+  '@tailwindcss/forms': forms,
   '@tailwindcss/typography': typography,
 };
 
