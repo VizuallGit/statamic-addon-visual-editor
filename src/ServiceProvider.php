@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\AfterSave;
 use Illuminate\Routing\Events\RouteMatched;
 use Illuminate\Support\Facades\Event;
 use MarioHamann\StatamicVisualEditor\Commands\GenerateSetPreviews;
@@ -369,6 +370,10 @@ class ServiceProvider extends AddonServiceProvider
         });
 
         LivePreviewConfig::register();
+
+        // After a save or publish the editor stays open — the site default for
+        // every collection, under any preference a user or role has set.
+        AfterSave::register();
 
         ControlPanelScript::register();
 

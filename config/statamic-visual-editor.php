@@ -396,6 +396,20 @@ return [
     |               whole site (nor a colour change leave it untouched).
     |
     */
+    /*
+    |--------------------------------------------------------------------------
+    | After save
+    |--------------------------------------------------------------------------
+    |
+    | Where a save or a publish lands. Statamic's own default is the collection
+    | listing, which closes Live Preview on the page just edited; the editor
+    | supplies "continue_editing" as the site default for every collection.
+    | A user's or role's own preference, and resources/preferences.yaml, still
+    | win. Set to null to leave it to Statamic, or to 'listing' / 'create_another'.
+    |
+    */
+    'after_save' => 'continue_editing',
+
     'previews' => [
         'field' => 'page_sections',
         'theme_global' => 'theme_settings',
