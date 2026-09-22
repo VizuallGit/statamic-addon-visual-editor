@@ -60,6 +60,8 @@ const inGrey = (fn) => TEMPLATE.replace(GREY, (m, open, body, close) => open + f
 const scenarios = [
   ['A: nyt <p> sidst i den grå boks', inGrey((b) => b + '\n    <p>NYT AFSNIT</p>')],
   ['B: wrapper om h2', TEMPLATE.replace(H2[0], `<div class="wrap">${H2[0]}</div>`)],
+  // The dock shows ANOTHER section's file (a reload picked the wrong active section): nothing may be painted into this one.
+  ['S: dockens fil tilhører en anden sektion — intet males', { next: TEMPLATE.replace(H2[0], `<div class="wrap">${H2[0]}</div>`), path: 'resources/views/partials/page_sections/hero/style_1.antlers.html', expectUnchanged: true }],
   ['C: h2 → h3', TEMPLATE.replace(H2[0], H2[0].replace('<h2', '<h3').replace('</h2>', '</h3>'))],
   ['D: nyt <p> lige efter </ul>', TEMPLATE.replace('</ul>\n', '</ul>\n<p>EFTER LISTEN</p>\n')],
   ['E1: skriver "<p" (ufærdigt) i den grå boks', inGrey((b) => b + '\n    <p')],
@@ -113,7 +115,7 @@ async function run(label, text) {
     const dock = document.getElementById('__sve-code-dock');
     // The mode is remembered per origin: set it for every scenario, not just R.
     try { localStorage.setItem('sveInstantPreview', opts.mode || 'astro'); } catch { /* file:// without storage: astro is the default */ }
-    dock.querySelector('[data-sve-code-path]').textContent = opts.component ? paths.component : paths.section;
+    dock.querySelector('[data-sve-code-path]').textContent = opts.path || (opts.component ? paths.component : paths.section);
     dock.toggleAttribute('data-sve-html-scoped', !!opts.scoped);
     dock.__sveHtmlScope = opts.scoped && opts.expose
       ? { full: tpl, from: opts.at ?? snippetAt, to: (opts.at ?? snippetAt) + opts.snippet.length, ...(opts.cssFull != null ? { css: opts.cssFull } : {}) }
@@ -148,7 +150,7 @@ async function run(label, text) {
     const liveCss = idoc.getElementById('__sve-dock-css-live')?.textContent ?? '';
 
     return { baseline, before, after, liveCss, trace: window.__sveInstantTrace.slice() };
-  }, LIVE, ROW, file, opts.next, { scoped: !!opts.scoped, expose: !!opts.expose, snippet: opts.snippet ?? null, at: opts.at ?? null, mode: opts.mode ?? null, component: !!opts.component, css: opts.css ?? null, cssFull: opts.cssFull ?? null }, SNIPPET_AT, { component: COMPONENT_PATH, section: SECTION_PATH });
+  }, LIVE, ROW, file, opts.next, { scoped: !!opts.scoped, expose: !!opts.expose, snippet: opts.snippet ?? null, at: opts.at ?? null, mode: opts.mode ?? null, component: !!opts.component, css: opts.css ?? null, cssFull: opts.cssFull ?? null, path: opts.path ?? null }, SNIPPET_AT, { component: COMPONENT_PATH, section: SECTION_PATH });
 
   const same = compact(result.before) === compact(result.after) && (opts.css == null || result.liveCss.includes(opts.css) === false);
   const untouched = compact(result.before) === compact(result.baseline);
@@ -178,4 +180,4 @@ const out = [];
 for (const [label, text] of scenarios) out.push(await run(label, text));
 await browser.close();
 console.log('\nOPSUMMERING: ' + out.map((r) => `${r.label.split(':')[0]}=${r.same ? 'venter' : 'malet'}${r.untouched ? '' : '!'}${r.listOk ? '' : ' LISTE-TAB'}`).join(', '));
-console.log('(! = den uændrede fil rørte sektionen; venter forventes kun for E1, K, L, R og M2; P1=venter betyder FEJL)');
+console.log('(! = den uændrede fil rørte sektionen; venter forventes kun for E1, K, L, R, M2 og S (fremmed fil); P1=venter betyder FEJL)');

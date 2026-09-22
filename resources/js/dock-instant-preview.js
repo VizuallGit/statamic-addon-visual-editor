@@ -564,6 +564,49 @@
             });
     }
 
+    /**
+     * The page-section type the dock's file renders (`hero/style_2`), from its
+     * path; '' for a header/footer, a component or a collection view file.
+     */
+    function dockSectionType() {
+        var m = /partials\/page_sections\/(.+)\.antlers\.html$/.exec(dockPath());
+
+        return m ? m[1] : '';
+    }
+
+    /**
+     * Whether `live` is a section the dock's file renders: by the row's `type`
+     * in the publish form, else by the `_class` the shell puts on the root.
+     *
+     * The section to paint used to be whatever looked active. After a reload,
+     * or with a section picked in another panel, that could be a different
+     * section than the file open in the dock — and the file's markup was
+     * morphed into it: the other section lost every child the file did not
+     * have and kept a headline that happened to match. A live root the file
+     * does not own is left to the morph now.
+     */
+    function paintsOwnSection(live) {
+        var type = dockSectionType();
+        var uid;
+        var ctx;
+        var cls;
+
+        if (!type || !live) {
+            return true;
+        }
+
+        uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
+        ctx = sectionContext(uid);
+
+        if (ctx && typeof ctx.type === 'string' && ctx.type !== '') {
+            return ctx.type === type;
+        }
+
+        cls = ' ' + (live.getAttribute('class') || '') + ' ';
+
+        return cls.indexOf(' ' + classFromType(type) + ' ') !== -1;
+    }
+
     /** The file the dock shows, as its element names it. */
     function dockPath() {
         var el = document.querySelector('#' + DOCK_ID + ' [data-sve-code-path]');
@@ -2245,7 +2288,15 @@
 
         if (snippetOnly) {
             root = templateRoot(pane);
-            targets = scopedRootLive(doc, pane);
+            targets = scopedRootLive(doc, pane).filter(function (el) {
+                if (paintsOwnSection(el)) {
+                    return true;
+                }
+
+                trace('paintLive: ' + el.tagName.toLowerCase() + ' is not the section the dock\'s file renders (' + dockSectionType() + '); left to the morph');
+
+                return false;
+            });
 
             if (root && targets.length && targets[0].tagName === root.tagName) {
                 targets.forEach(function (el) {
@@ -2291,6 +2342,12 @@
             trace('paintLive: no live root for <' + root.tagName.toLowerCase() + '>');
         }
 
+        if (live && !paintsOwnSection(live)) {
+            trace('paintLive: ' + live.tagName.toLowerCase() + '#' + live.id + ' is not the section the dock\'s file renders (' + dockSectionType() + '); left to the morph');
+
+            return;
+        }
+
         if (live && live.tagName === root.tagName) {
             if (!paintStructure(live, html, null)) {
                 syncClasses(live, root);
@@ -2299,7 +2356,7 @@
             return;
         }
 
-        targets = pickedLive(doc, root);
+        targets = pickedLive(doc, root).filter(paintsOwnSection);
 
         if (targets.length && targets[0].tagName === root.tagName) {
             syncClasses(targets[0], root);
