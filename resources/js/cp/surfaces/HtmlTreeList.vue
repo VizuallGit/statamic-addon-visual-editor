@@ -38,11 +38,15 @@ function frameShown(row) {
 }
 
 /**
- * Standing in one part of the frame, the others fade — the way the page fades
- * around an open component. Inside a component everything but it fades.
+ * Standing in the header or the footer, the rest fades — the way the page
+ * fades around it in the preview. Standing on the layout's <main> fades
+ * nothing: the page is what it is about. Inside a component everything but
+ * it fades.
  */
 function frameDim(part) {
-  return ui.inComponent || (!!ui.frame?.kind && ui.frame.kind !== part);
+  const kind = ui.frame?.kind;
+
+  return ui.inComponent || ((kind === 'header' || kind === 'footer') && kind !== part);
 }
 
 const frameFound = computed(

@@ -1397,17 +1397,23 @@ export function renderHtmlTree(win) {
     expandHtmlTreePath(mainNode.path);
   }
 
+  // The half's own element: the one carrying data-sve-chrome, or failing
+  // that the first <header>/<footer>. Not simply the file's first tag — a
+  // scope like {{ site_foot }}, a style block or a comment may stand around
+  // it, and the tree stands on the element, as it stands on <main>.
+  const chromeNode = frameKind === 'header' || frameKind === 'footer'
+    ? findNodeWhere(roots, (node) => html.slice(node.from, node.openTo).includes(`data-sve-chrome="${frameKind}"`))
+      || findNodeByTag(roots, frameKind)
+    : null;
+
+  if (chromeNode) {
+    expandHtmlTreePath(chromeNode.path);
+  }
+
   // The dock names its new file before it holds it. Until the markup is that
   // file's — <main> on the layout, the half's own element at the root — no
   // rows: a header drawn around a section's rows is worse than a moment of
   // nothing, and the dock says when the file lands.
-  // The half's own element: the one carrying data-sve-chrome, or failing
-  // that the first <header>/<footer>. Not simply the file's first tag — a
-  // style block or a comment may stand in front of it.
-  const chromeNode = frameKind === 'header' || frameKind === 'footer'
-    ? roots.find((node) => !node.kind && html.slice(node.from, node.openTo).includes(`data-sve-chrome="${frameKind}"`))
-      || findNodeByTag(roots, frameKind)
-    : null;
   const landed = frameKind === 'main' ? !!mainNode : !frameKind || !!chromeNode;
   const rows = !landed
     ? []
@@ -1594,10 +1600,13 @@ export function renderHtmlTree(win) {
   const chromeKind = frameKind === 'header' || frameKind === 'footer' ? frameKind : '';
   const chromeRootId = chromeNode ? chromeNode.id : '';
   const mainRaw = mainNode ? rows.find((row) => row.id === mainNode.id) || null : null;
-  const mainEnd = mainRaw ? nextOutside(rows, mainRaw) : -1;
+  // The row the frame stands on — <main> on the layout, the half's element on
+  // its file — and where its subtree ends. Only that subtree is drawn.
+  const frameRaw = mainRaw || (chromeRootId ? rows.find((row) => row.id === chromeRootId) || null : null);
+  const frameEnd = frameRaw ? nextOutside(rows, frameRaw) : -1;
 
-  if (mainRaw && !rows.slice(rows.indexOf(mainRaw), mainEnd).some((row) => row.id === htmlTreeActiveId)) {
-    htmlTreeActiveId = mainRaw.id;
+  if (frameRaw && !rows.slice(rows.indexOf(frameRaw), frameEnd).some((row) => row.id === htmlTreeActiveId)) {
+    htmlTreeActiveId = frameRaw.id;
   }
 
   htmlTreeUi.rows = rows.map((row) => {
@@ -1661,18 +1670,18 @@ export function renderHtmlTree(win) {
     chain[row.depth] = row.cat;
   }
 
-  if (mainRaw) {
-    const start = rows.indexOf(mainRaw);
-    const base = mainRaw.depth;
+  if (frameRaw) {
+    const start = rows.indexOf(frameRaw);
+    const base = frameRaw.depth;
 
-    htmlTreeUi.rows = htmlTreeUi.rows.slice(start, mainEnd).map((row) => ({
+    htmlTreeUi.rows = htmlTreeUi.rows.slice(start, frameEnd).map((row) => ({
       ...row,
       depth: row.depth - base,
       guides: row.guides.slice(base),
     }));
 
     // Landing on the layout: stand on <main>, so the pane shows it.
-    if (htmlTreeMainSeated !== fileKey) {
+    if (mainRaw && htmlTreeMainSeated !== fileKey) {
       htmlTreeMainSeated = fileKey;
       win.setTimeout(() => selectHtmlTreeRow(win, mainRaw.id, rows), 0);
     }
@@ -1799,12 +1808,17 @@ function frameAroundPage(win, sections, inSections, inComponent, kind) {
 
 /** The first node with this tag, wherever it sits in the tree. */
 function findNodeByTag(nodes, tag) {
+  return findNodeWhere(nodes, (node) => node.tag === tag);
+}
+
+/** The first tag node the test accepts, wherever it sits in the tree. */
+function findNodeWhere(nodes, test) {
   for (const node of nodes || []) {
-    if (node.tag === tag && !node.kind) {
+    if (!node.kind && test(node)) {
       return node;
     }
 
-    const inner = findNodeByTag(node.children, tag);
+    const inner = findNodeWhere(node.children, test);
 
     if (inner) {
       return inner;
