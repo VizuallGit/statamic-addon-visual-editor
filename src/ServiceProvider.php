@@ -353,6 +353,15 @@ class ServiceProvider extends AddonServiceProvider
         // (e.g. the preview generator settings) resolve.
         $this->mergeConfigFrom(__DIR__.'/../config/statamic-visual-editor.php', 'statamic-visual-editor');
 
+        // Statamic registers an addon's commands only when PHP runs in the
+        // console. The Section Previews utility runs `sve:previews` from a
+        // web request (Artisan::call), where the command then does not exist
+        // and the button answers with a 500. Registering them here as well
+        // makes the command the same thing in both places.
+        if (! $this->app->runningInConsole()) {
+            $this->commands($this->commands);
+        }
+
         // Put back any hashed chunk addon.js still names, then refuse a
         // silent blank toolbar. public/vendor is a pointer, not a second build.
         BuiltAssets::recover();
