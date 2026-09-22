@@ -24,7 +24,7 @@ import {
 } from './cp.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import { emit } from './cp/bus.js';
-import { relayoutCodeDock } from './code-dock-lazy.js';
+import { relayoutCodeDock, syncCodeDock } from './code-dock-lazy.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
 import SectionLibraryPane from './cp/surfaces/SectionLibraryPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
@@ -2159,11 +2159,19 @@ export function dismissChromeForPageEdit(win) {
   // have it once that form is out of the way. Its stash stays until the section
   // click that got us here has been answered — the preview is still rendering the
   // header as it is being typed.
-  closeChromeInline(win, { refresh: false });
+  const closedInline = closeChromeInline(win, { refresh: false }) !== false;
+
   unlockChromeGlobalsTabs(win);
   sveState.forcePanelOpen = false;
   syncPreviewInset(win);
   syncSectionLibraryAvailability(win);
+
+  // The inline form sends the dock back to the page as it closes. The
+  // frame's form (the fallback a production build takes) does not, and the
+  // dock — and the tree on it — stayed on the header after Close or Escape.
+  if (!closedInline) {
+    syncCodeDock(win, win.document, sveState.soloUid);
+  }
 }
 
 /** Visible width of the widest panel in `ids` (0 if none). */

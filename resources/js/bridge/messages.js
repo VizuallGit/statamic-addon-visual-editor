@@ -374,7 +374,7 @@ export function injectStyles(doc) {
             position: absolute;
             top: 0;
             left: 0;
-            background: #0f766e;
+            background: #60a5fa;
             color: #fff;
             font: 500 10px/1 sans-serif;
             padding: 4px 8px;
@@ -389,8 +389,8 @@ export function injectStyles(doc) {
             opacity: 1;
         }
         html:not([class*="sve-chrome-focus-"]) [data-sve-chrome]:hover {
-            outline: 2px dashed #0f766e;
-            outline-offset: -2px;
+            outline: 1px dashed #60a5fa;
+            outline-offset: -1px;
             cursor: pointer;
         }
         /* Chrome this site does not let anyone edit: no label, no outline, no
@@ -420,10 +420,13 @@ export function injectStyles(doc) {
             opacity: 0.35 !important;
             pointer-events: none !important;
         }
+        /* One hairline in the tree's own colour for the frame (layout blue),
+           not a green band: the half is lit by the rest fading, and the line
+           only says where its edge is. */
         html.sve-chrome-focus-header [data-sve-chrome="header"],
         html.sve-chrome-focus-footer [data-sve-chrome="footer"] {
-            outline: 3px solid #0f766e !important;
-            outline-offset: -3px;
+            outline: 1px solid #60a5fa !important;
+            outline-offset: -1px;
             opacity: 1 !important;
             pointer-events: auto !important;
         }
