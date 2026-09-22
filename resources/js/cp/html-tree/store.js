@@ -42,6 +42,16 @@ export const htmlTreeUi = reactive({
   // The page's own sections, above the tags. One row each, and the section whose
   // file the dock is showing is the only one holding its tags — see html-tree.js.
   sections: [],
+  // The page's frame around the sections: header, main, footer — or null when
+  // the file on screen is neither a page's section nor the header or footer.
+  frame: null,
+  mainShut: false,
+  onFrame: null,
+  onFrameEnter: null,
+  onFrameFields: null,
+  onFrameTwist: null,
+  frameOpenTitle: '',
+  frameFieldsTitle: '',
   // Publish form has page_sections (even when the list is empty). The plus stays.
   pageBuilder: false,
   onSection: null,

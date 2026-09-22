@@ -609,6 +609,17 @@ function chromeTemplateFor(win, kind, values) {
   return handle;
 }
 
+/** The half the dock is on — 'header', 'footer' — or '' on a page or a section. */
+function chromeKindOnDock(doc) {
+  const kind = chromeInlineKind || activeChromeKind;
+
+  if (kind !== 'header' && kind !== 'footer') {
+    return '';
+  }
+
+  return chromeHost(doc) || chromeEditorOpen(doc) ? kind : '';
+}
+
 function chromeTemplateType(win, doc) {
   const kind = chromeInlineKind || activeChromeKind;
 
@@ -967,6 +978,8 @@ register('dock:current-type', () => currentTemplateType());
 // True while the dock shows the header only because the page has no sections.
 register('dock:on-empty-page', () => !!dockState.onEmptyPage);
 register('dock:current-uid', () => dockState.lastUid);
+// The half the dock holds, so the tree can draw header, main and footer around the page.
+register('dock:chrome-kind', (doc) => chromeKindOnDock(doc));
 /**
  * The save in the air, if any. A panel that writes the file and then asks the
  * server about what it wrote has to wait for this — the answer is read from

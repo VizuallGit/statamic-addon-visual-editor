@@ -32,8 +32,16 @@ const shownSections = computed(() => {
     matchesHtmlTreeRow(sec.row, query.value) || (sec.current && sec.ready && shownRows.value.length > 0)
   );
 });
+/** A frame row shows when nothing is searched for, or when it is what was. */
+function frameShown(row) {
+  return !!row && (!query.value || matchesHtmlTreeRow(row, query.value));
+}
+
+const frameFound = computed(
+  () => !!ui.frame && ['header', 'main', 'footer'].some((part) => frameShown(ui.frame[part]))
+);
 const nothingFound = computed(
-  () => !!query.value && !shownSections.value.length && !shownRows.value.length
+  () => !!query.value && !shownSections.value.length && !shownRows.value.length && !frameFound.value
 );
 
 function isDim(row) {
@@ -68,24 +76,48 @@ function wrapBind(sec) {
     <div v-if="!ui.rows.length && !ui.sections.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
     <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
 
-    <template v-if="ui.sections.length">
-      <div
-        v-for="sec in shownSections"
-        :key="sec.uid"
-        v-bind="wrapBind(sec)"
-      >
-        <!--
-          Open: the file's own rows, the first of which IS this section — it
-          carries the name and mark built alongside the shut row, so the two
-          states say the same thing. Shut: that row, with nothing under it yet.
-        -->
-        <template v-if="sec.ready">
+    <!--
+      The page's frame around the sections: header, then main with the
+      sections in it, then footer. On the header's or footer's own file that
+      half's rows stand in its place, in a box, and the other two stand shut.
+      Without a frame (a collection's template, a component) the list is the
+      file's rows, as it always was.
+    -->
+    <template v-if="ui.frame || ui.sections.length">
+      <template v-if="ui.frame">
+        <div v-if="ui.frame.kind === 'header'" data-sve-ht-branch data-sve-ht-cat="layout">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
-        </template>
-        <!-- Inside a component every other section fades, as the preview fades them. -->
-        <HtmlTreeRow v-else :row="sec.row" :dim="ui.inComponent" />
+        </div>
+        <HtmlTreeRow v-else-if="frameShown(ui.frame.header)" :row="ui.frame.header" :dim="ui.inComponent" />
+        <HtmlTreeRow v-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="ui.inComponent" />
+      </template>
+      <div v-if="ui.sections.length" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
+        <div
+          v-for="sec in shownSections"
+          :key="sec.uid"
+          v-bind="wrapBind(sec)"
+        >
+          <!--
+            Open: the file's own rows, the first of which IS this section — it
+            carries the name and mark built alongside the shut row, so the two
+            states say the same thing. Shut: that row, with nothing under it yet.
+          -->
+          <template v-if="sec.ready">
+            <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+            <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+          </template>
+          <!-- Inside a component every other section fades, as the preview fades them. -->
+          <HtmlTreeRow v-else :row="sec.row" :dim="ui.inComponent" />
+        </div>
       </div>
+      <template v-if="ui.frame">
+        <div v-if="ui.frame.kind === 'footer'" data-sve-ht-branch data-sve-ht-cat="layout">
+          <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
+          <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+        </div>
+        <HtmlTreeRow v-else-if="frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="ui.inComponent" />
+      </template>
     </template>
     <template v-else-if="ui.rows.length">
       <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />

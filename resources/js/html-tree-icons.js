@@ -10,6 +10,17 @@
  */
 
 export const HTML_ICONS = {
+  /*
+   * The page's frame — what the layout puts around every page's sections. The
+   * same box as the others, with the band where the part sits: header up, footer
+   * down, main the space between.
+   */
+  header:
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.4"/><path d="M2 6h12" /><path d="M4.5 4.25h3" stroke-width="1.6"/></svg>',
+  footer:
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.4"/><path d="M2 10h12" /><path d="M4.5 11.75h3" stroke-width="1.6"/></svg>',
+  main:
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="1.4"/><path d="M2 5.5h12M2 10.5h12" stroke-dasharray="2 1.6"/><path d="M5 8h6" stroke-width="1.6"/></svg>',
   div: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="2.5" y="3.5" width="11" height="9" rx="1.2" stroke-dasharray="2.6 2"/></svg>',
   /*
    * Section, text and link are the set the reader picked, at our size: the

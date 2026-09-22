@@ -65,6 +65,10 @@ const DEL =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
 function rowTitle(row) {
+  if (isFrame(row) && row.frame !== 'main') {
+    return ui.frameOpenTitle;
+  }
+
   if (row.kind === 'component') {
     return row.src ? `partial:${row.src}` : row.tag;
   }
@@ -75,6 +79,15 @@ function rowTitle(row) {
 /** A section nobody has opened yet: the same row, without a file behind it. */
 function isShutSection(row) {
   return !!row.section;
+}
+
+/**
+ * Header, main or footer — the page's frame (html-tree.js builds them). A place
+ * to go to and, for the two halves, to step into; never a thing to move, copy,
+ * rename or delete. On the header's own file its root row wears this too.
+ */
+function isFrame(row) {
+  return !!row.frame;
 }
 
 /**
@@ -93,7 +106,7 @@ function isContext(row) {
  * The rows of the file around an open component move nothing.
  */
 function onPointerDown(event, row) {
-  if (isContext(row)) {
+  if (isContext(row) || isFrame(row)) {
     return;
   }
 
@@ -107,6 +120,12 @@ function onPointerDown(event, row) {
 }
 
 function onRowClick(row) {
+  if (isFrame(row)) {
+    ui.onFrame?.(row.frame);
+
+    return;
+  }
+
   if (isShutSection(row)) {
     ui.onSection?.(row.section);
 
@@ -155,6 +174,10 @@ function rowBind(row, dim) {
     bind['data-sve-ht-sec'] = '';
   }
 
+  if (isFrame(row)) {
+    bind['data-sve-ht-frame'] = row.frame;
+  }
+
   if (!isShutSection(row) && ui.dropId === row.id && ui.dropPlace) {
     bind['data-sve-ht-drop'] = ui.dropPlace;
   }
@@ -189,11 +212,11 @@ function canAct(row) {
     :title="rowTitle(row)"
     :style="{ '--sve-ht-depth': row.depth }"
     @click="onRowClick(row)"
-    @dblclick.prevent="isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
+    @dblclick.prevent="isFrame(row) ? ui.onFrameEnter?.(row.frame) : isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row)"
     @keydown.space.prevent="onRowClick(row)"
     @pointerdown="onPointerDown($event, row)"
-    @contextmenu.prevent.stop="isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
+    @contextmenu.prevent.stop="isFrame(row) || isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
   >
     <!--
       The tags look indents with a spacer that draws one guide per level, each
@@ -209,9 +232,9 @@ function canAct(row) {
       v-if="row.hasChildren || row.emptyBlock"
       type="button"
       data-sve-ht-twist
-      v-bind="row.shut ? { 'data-sve-ht-shut': '' } : {}"
+      v-bind="(row.frame === 'main' ? ui.mainShut : row.shut) ? { 'data-sve-ht-shut': '' } : {}"
       v-html="TWIST"
-      @click.stop.prevent="isShutSection(row) ? ui.onSection?.(row.section) : ui.onTwist?.(row.id)"
+      @click.stop.prevent="row.frame === 'main' ? ui.onFrameTwist?.() : isShutSection(row) ? ui.onSection?.(row.section) : ui.onTwist?.(row.id)"
       @pointerdown.stop
       @dblclick.stop
     ></button>
@@ -229,7 +252,7 @@ function canAct(row) {
         to select — a single click there kept opening a menu nobody asked for.
       -->
       <button
-        v-if="!row.kind && !isShutSection(row) && !isContext(row)"
+        v-if="!row.kind && !isShutSection(row) && !isContext(row) && !isFrame(row)"
         type="button"
         data-sve-ht-tag
         :title="ui.tagTitle"
@@ -265,7 +288,23 @@ function canAct(row) {
       lock answer arrives half a second after the row is drawn, so they used to
       appear and then vanish while you looked at them.
     -->
-    <span v-if="!isShutSection(row) && !isContext(row)" data-sve-ht-actions>
+    <!--
+      The frame's rows: one door, on the header and the footer — their fields,
+      which is stepping into that half. Main has nothing to open.
+    -->
+    <span v-if="isFrame(row)" data-sve-ht-actions>
+      <button
+        v-if="row.frame !== 'main'"
+        type="button"
+        data-sve-ht-fields
+        :title="ui.frameFieldsTitle"
+        v-html="FIELDS"
+        @click.stop.prevent="ui.onFrameFields?.(row.frame)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
+    </span>
+    <span v-else-if="!isShutSection(row) && !isContext(row)" data-sve-ht-actions>
       <!--
         A <video> row: hold the video paused in the preview, or let it play.
         Not behind the lock — the file is not touched, only what the editor
