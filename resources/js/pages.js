@@ -342,7 +342,7 @@ export function confirmCloseDiscard(
  */
 export function handleRequestCloseChrome(win) {
   const finish = () => {
-    dismissChromeForPageEdit(win);
+    dismissChromeForPageEdit(win, { syncDock: true });
     // Closing the header/footer closes the drawer describing it. Parked, not
     // destroyed — form and stash survive, so stepping back in is instant. Only
     // on this deliberate exit: stepping sideways into a page section goes

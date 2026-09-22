@@ -1988,7 +1988,9 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === MSG.CLOSE_CHROME) {
       // Stepping out of header/footer (e.g. clicking a page section): free the
       // left edge so the section editor isn't stacked under Theme Settings.
-      dismissChromeForPageEdit(win);
+      // The dock follows: a click on a section brings its own load right
+      // after this (same type, no second fetch); a click on empty page does not.
+      dismissChromeForPageEdit(win, { syncDock: true });
     } else if (data.type === MSG.REQUEST_CLOSE_CHROME) {
       handleRequestCloseChrome(win);
     } else if (data.type === MSG.SVE_CHROME_DIRTY_QUERY) {

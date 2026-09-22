@@ -2150,7 +2150,7 @@ export function releaseLeftEdgeIfFree(win) {
  * Theme Settings overlay is parked (form + stash intact) — only chrome designs
  * and tab-lock are cleared.
  */
-export function dismissChromeForPageEdit(win) {
+export function dismissChromeForPageEdit(win, { syncDock = false } = {}) {
   hideGlobalsPanel(win, { release: false });
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
   removeChromeModeToggles(win);
@@ -2169,7 +2169,10 @@ export function dismissChromeForPageEdit(win) {
   // The inline form sends the dock back to the page as it closes. The
   // frame's form (the fallback a production build takes) does not, and the
   // dock — and the tree on it — stayed on the header after Close or Escape.
-  if (!closedInline) {
+  // Only when asked: on a deliberate exit, where nothing else is about to
+  // load. A section click dismisses too, with its own load right behind it —
+  // syncing here as well loaded the PREVIOUS section over the clicked one.
+  if (syncDock && !closedInline) {
     syncCodeDock(win, win.document, sveState.soloUid);
   }
 }
