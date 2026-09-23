@@ -30,13 +30,35 @@ const keys = ref(false);
 
 const query = computed(() => typed.value.trim().toLowerCase());
 
-/** Section is a flat list; page and site arrive grouped. One shape from here on. */
-const groups = computed(() => {
-  const raw = props.data[tab.value] || [];
+/** Typing searches every tab at once: the tabs stop mattering, and none is lit. */
+const searching = computed(() => !!query.value);
 
-  return Array.isArray(raw) && raw.length && raw[0]?.items
-    ? raw
-    : [{ handle: tab.value, label: '', items: raw, bare: true }];
+/**
+ * Section is a flat list; page and site arrive grouped. One shape from here
+ * on. While searching, every tab's rows are here under that tab's name, so a
+ * hit says where it lives — nobody should have to guess which tab holds
+ * `svg` before they can look for it.
+ */
+const groups = computed(() => {
+  const shape = (id, label) => {
+    const raw = props.data[id] || [];
+
+    if (Array.isArray(raw) && raw.length && raw[0]?.items) {
+      return raw.map((group) => ({
+        ...group,
+        tab: id,
+        label: searching.value ? (group.label ? `${label} · ${group.label}` : label) : group.label,
+      }));
+    }
+
+    return [{ handle: id, tab: id, label: searching.value ? label : '', items: raw, bare: !searching.value }];
+  };
+
+  if (!searching.value) {
+    return shape(tab.value, '');
+  }
+
+  return props.tabs.flatMap((item) => shape(item.id, item.label));
 });
 
 const shown = computed(() => {
@@ -132,6 +154,7 @@ function submit() {
 
 function switchTo(id) {
   tab.value = id;
+  typed.value = '';
   cursor.value = -1;
 }
 </script>
@@ -162,7 +185,7 @@ function switchTo(id) {
       :key="item.id"
       type="button"
       data-sve-data-tab
-      :data-active="tab === item.id ? '' : undefined"
+      :data-active="!searching && tab === item.id ? '' : undefined"
       @click.prevent.stop="switchTo(item.id)"
     >{{ item.label }}</button>
   </div>
@@ -172,11 +195,11 @@ function switchTo(id) {
   </div>
 
   <div ref="rowsEl" @mousemove="keys = false">
-    <template v-for="group in shown" :key="group.handle">
+    <template v-for="group in shown" :key="group.tab + '::' + group.handle">
       <div v-if="!group.bare" data-sve-data-group>{{ group.label }}</div>
       <button
         v-for="row in group.items"
-        :key="group.handle + '::' + row.var + '::' + (row.parent || '')"
+        :key="group.tab + '::' + group.handle + '::' + row.var + '::' + (row.parent || '')"
         type="button"
         data-sve-data-option
         :data-cursor="indexOf(row) === cursor ? '' : undefined"
