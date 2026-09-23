@@ -15,7 +15,7 @@ import { dockState } from '../dock/state.js';
 import { CSS_LENGTHS, CSS_MENU_ID, CSS_TOOL_INDEX, HTML_HEADINGS, HTML_TOOLS, STYLE_MODE_KEY, VALUES_MODE_KEY } from '../code-dock.js';
 import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintValuesMode, setValuesMode } from './style-modes.js';
 import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
-import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlSvgMenu, openHtmlTagMenu, tidyHtmlPane } from './html-tools.js';
+import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlTagMenu, tidyHtmlPane } from './html-tools.js';
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
 import { bindAntlersSnippets, bindDataVars, bindVisualEditSnippets } from './data-vars.js';
 
@@ -298,11 +298,6 @@ export function bindHtmlTools(win, dock) {
         return;
       }
 
-      if (tool.menu === 'svg') {
-        openHtmlSvgMenu(win, btn);
-
-        return;
-      }
 
       closeCssMenu(win.document);
 

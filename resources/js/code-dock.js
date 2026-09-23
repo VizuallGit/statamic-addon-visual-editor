@@ -188,9 +188,6 @@ export const HTML_TOOLS = [
   { id: 'a', title: 'link', tag: 'a' },
   { id: 'img', title: 'image', snippet: '<img src="" alt="">', caret: 10 },
   { id: 'video', title: 'video', snippet: '<video src="" controls playsinline></video>', caret: 12 },
-  // Three ways to write an icon: the tag itself, Statamic's `{{ svg }}` from
-  // resources/svg, or an Iconify field. One button, the choice in its menu.
-  { id: 'svg', title: 'svg', tag: 'svg', menu: 'svg' },
   { id: 'ul', title: 'list', tag: 'ul' },
   { id: 'li', title: 'list item', tag: 'li' },
   { id: 'component', title: 'component', menu: 'component' },

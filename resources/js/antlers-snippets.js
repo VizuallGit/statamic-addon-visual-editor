@@ -26,6 +26,7 @@ export const ANTLERS_SNIPPETS = [
   { id: 'partial', group: 'include', label: 'partial', snippet: '{{ partial:|path }}' },
   { id: 'partial_exists', group: 'include', label: 'partial:if_exists', snippet: '{{ partial:if_exists src="|path" }}' },
   { id: 'svg', group: 'include', label: 'svg', snippet: '{{ svg src="|icon" }}' },
+  { id: 'iconify', group: 'include', label: 'iconify', snippet: '{{ iconify:|icon }}' },
   { id: 'nocache', group: 'include', label: 'nocache', snippet: '{{ nocache }}\n  \n{{ /nocache }}' },
   { id: 'assets', group: 'fields', label: 'assets', snippet: '{{ |assets }}\n  <img src="{{ url }}" alt="{{ alt }}">\n{{ /assets }}' },
   { id: 'asset', group: 'fields', label: 'asset', snippet: '{{ |image }}\n  <img src="{{ url }}" alt="{{ alt }}">\n{{ /image }}' },
