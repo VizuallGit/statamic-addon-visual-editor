@@ -194,7 +194,7 @@ function switchTo(id) {
     {{ tab === 'section' && !(data.section || []).length ? noSectionText : emptyText }}
   </div>
 
-  <div ref="rowsEl" @mousemove="keys = false">
+  <div ref="rowsEl" data-sve-data-rows @mousemove="keys = false">
     <template v-for="group in shown" :key="group.tab + '::' + group.handle">
       <div v-if="!group.bare" data-sve-data-group>{{ group.label }}</div>
       <button

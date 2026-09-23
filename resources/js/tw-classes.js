@@ -254,6 +254,19 @@ function ensureStyles(doc) {
       box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,.4);
       font-size: 0.75rem;
     }
+    /* A menu with a search and rows under it: the search and the tabs stay
+       put, and only the rows scroll — the state popup and the class list. */
+    #${MENU_ID}:has([data-sve-tw-rows]),
+    #${MENU_ID}[data-sve-data-menu] {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #${MENU_ID} [data-sve-tw-rows] {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+    }
     /* The state popup is the Insert data one: wider than a class menu, same look. */
     #${MENU_ID}[data-sve-data-menu] {
       min-width: 20rem;

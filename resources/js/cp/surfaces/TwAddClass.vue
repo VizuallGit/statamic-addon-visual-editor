@@ -202,7 +202,7 @@ function submit() {
   </div>
 
   <div v-if="!rows.length" data-sve-tw-add-empty>{{ emptyText }}</div>
-  <div ref="rowsEl" @mousemove="keys = false">
+  <div ref="rowsEl" data-sve-tw-rows @mousemove="keys = false">
     <button
       v-for="(row, index) in rows"
       :key="row.name || row.label"

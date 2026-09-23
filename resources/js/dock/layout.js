@@ -799,9 +799,12 @@ export function ensureStyle(doc) {
 }
 [data-sve-data-menu] {
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   max-width: calc(100vw - 1.5rem);
   max-height: 24rem;
-  overflow: auto;
+  /* The search and the tabs stay put; only the rows under them scroll. */
+  overflow: hidden;
   padding: 0.5rem;
   border-radius: 0.5em;
   background: #252526;
@@ -837,6 +840,11 @@ export function ensureStyle(doc) {
   color: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.75rem;
+}
+[data-sve-data-menu] [data-sve-data-rows] {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 [data-sve-data-menu] [data-sve-data-tabs] {
   display: flex;
