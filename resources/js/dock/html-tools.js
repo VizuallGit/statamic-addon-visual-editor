@@ -516,6 +516,49 @@ export function openHtmlTagMenu(win, anchor, tags) {
 }
 
 /**
+ * Pick how an icon is written: an inline `<svg>` tag, Statamic's `{{ svg }}`
+ * tag for a file under resources/svg, or an Iconify field's icon. The two
+ * Antlers forms land with a placeholder field handle selected, so typing
+ * replaces it — the handle is the section's to know, not the button's.
+ */
+export function openHtmlSvgMenu(win, anchor) {
+  const doc = win.document;
+  const current = htmlElementAtCursor()?.name || '';
+  const write = {
+    inline: () => applyHtmlTag('svg'),
+    statamic: () => {
+      insertHtmlElement('{{ svg src="icon_field" }}', 13, 10);
+      finishHtmlEdit();
+    },
+    iconify: () => {
+      insertHtmlElement('{{ iconify:icon_field }}', 11, 10);
+      finishHtmlEdit();
+    },
+  };
+
+  closeCssMenu(doc);
+  anchor.setAttribute('data-open', '');
+
+  const menu = doc.createElement('div');
+
+  menu.id = CSS_MENU_ID;
+  doc.body.appendChild(menu);
+  placeCssMenu(win, anchor, menu);
+  menu._sveApp = mountSurface(CodeDockMenu, menu, {
+    kind: 'choices',
+    choices: [
+      { value: 'inline', label: t(win, 'code_dock_svg_inline'), hint: '<svg>', active: current === 'svg' },
+      { value: 'statamic', label: t(win, 'code_dock_svg_statamic'), hint: '{{ svg src="…" }}' },
+      { value: 'iconify', label: t(win, 'code_dock_svg_iconify'), hint: '{{ iconify:… }}' },
+    ],
+    onPick: (value) => {
+      closeCssMenu(doc);
+      write[value]?.();
+    },
+  });
+}
+
+/**
  * Pick a component to write in at the cursor.
  *
  * The list is the folder, read fresh each time the button is used — a
