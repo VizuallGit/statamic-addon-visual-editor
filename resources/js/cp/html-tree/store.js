@@ -51,6 +51,7 @@ export const htmlTreeUi = reactive({
   onFrameFields: null,
   onFrameTwist: null,
   frameOpenTitle: '',
+  frameEmptyText: '',
   frameMainTitle: '',
   frameTemplateTitle: '',
   frameFieldsTitle: '',

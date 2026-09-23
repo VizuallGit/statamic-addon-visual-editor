@@ -175,6 +175,7 @@ return [
     'html_tree_frame_footer' => 'Footer',
     'html_tree_frame_main' => 'Page content',
     'html_tree_frame_open' => 'Click to edit it in live preview — the same as clicking it there',
+    'html_tree_frame_no_sections' => 'No sections yet. Press + above to add one.',
     'html_tree_frame_fields' => 'Its fields (the global set\'s blueprint)',
     'html_tree_frame_main_open' => 'Click to open the layout\'s <main> in the dock — the sections sit inside it',
     'html_tree_frame_template_open' => 'Click to open the template in the dock',

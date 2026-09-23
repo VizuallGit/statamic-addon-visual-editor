@@ -85,7 +85,7 @@ function wrapBind(sec) {
 
 <template>
   <div class="sve-ht-root" :data-sve-ht-look="ui.look" :style="ui.familyStyle" v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}">
-    <div v-if="!ui.rows.length && !ui.sections.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
+    <div v-if="!ui.rows.length && !ui.sections.length && !ui.frame" class="sve-ht-empty">{{ ui.emptyText }}</div>
     <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
 
     <!--
@@ -107,6 +107,10 @@ function wrapBind(sec) {
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
+        <!-- An empty page: main with nothing in it yet, and where the next section goes. -->
+        <div v-if="!ui.frame.kind && !ui.sections.length && !query" v-show="!ui.mainShut" data-sve-ht-frame-body>
+          <div class="sve-ht-empty">{{ ui.frameEmptyText }}</div>
+        </div>
         <!-- A collection's template: its rows inside main, where the page's sections would be. -->
         <div v-if="ui.frame.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body>
           <div data-sve-ht-branch data-sve-ht-cat="main">

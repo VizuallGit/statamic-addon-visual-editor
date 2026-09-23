@@ -1289,17 +1289,25 @@ export function renderHtmlTree(win) {
 
   // Page with every section removed: the dock may still hold the last file.
   // Showing those tags as if they belonged here is the hang after delete.
-  if (pageBuilder && !sections.length) {
+  // The frame stays: header, main and footer are the layout's, not the
+  // sections', and main is where the next section lands. Only when the
+  // header or the footer has been opened on purpose does the file drawn
+  // below belong here, and the normal path draws it inside its frame.
+  const openPart = String(ask('dock:chrome-kind') || '');
+
+  if (pageBuilder && !sections.length && (!openPart || ask('dock:on-empty-page'))) {
     htmlTreeRoots = [];
     htmlTreeUi.rows = [];
     htmlTreeUi.sections = [];
-    htmlTreeUi.frame = null;
+    htmlTreeUi.frame = frameAroundPage(win, [], false, false, '', true);
+    htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
     htmlTreeUi.pageBuilder = true;
     htmlTreeUi.emptyText = t(win, 'html_tree_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
     htmlTreeUi.look = readHtmlTreeLook(win);
     htmlTreeUi.onRefresh = () => renderHtmlTree(win);
     htmlTreeUi.onSection = null;
+    bindFrame(win, '');
     paintComponentExit(win);
     mountPane(list, HtmlTreeList);
     publishHtmlPick(win, []);
@@ -1735,27 +1743,8 @@ export function renderHtmlTree(win) {
       })
     : [];
   htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind);
-  htmlTreeUi.frameOpenTitle = t(win, 'html_tree_frame_open');
-  htmlTreeUi.frameMainTitle = t(win, 'html_tree_frame_main_open');
-  htmlTreeUi.frameTemplateTitle = t(win, 'html_tree_frame_template_open');
-  htmlTreeUi.frameFieldsTitle = t(win, 'html_tree_frame_fields');
-  // A click steps in: main opens the layout's <main> in the dock; a half is
-  // clicked the way it is clicked in the preview — the same question, the
-  // same door. Already standing there, a click scrolls the preview to it.
-  htmlTreeUi.onFrame = (kind) => {
-    if (frameKind === kind) {
-      scrollPreviewToFrame(win, kind);
-    } else {
-      enterFrame(win, kind);
-    }
-  };
-  htmlTreeUi.onFrameEnter = (kind) => enterFrame(win, kind);
-  // The half's fields are its global set's blueprint.
-  htmlTreeUi.onFrameFields = (kind) =>
-    openGlobalFieldsOverlay(win, chromeGlobalHandle(win, kind), t(win, `html_tree_frame_${kind}`));
-  htmlTreeUi.onFrameTwist = () => {
-    htmlTreeUi.mainShut = !htmlTreeUi.mainShut;
-  };
+  htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
+  bindFrame(win, frameKind);
 
   // Not on the release of a drag: the click lands on the row the pointer
   // took hold of, and that section was moved, not asked for.
@@ -1777,6 +1766,31 @@ export function renderHtmlTree(win) {
   publishHtmlPick(win, roots);
 }
 
+/** The frame's titles and clicks, the same on a full page and an empty one. */
+function bindFrame(win, frameKind) {
+  htmlTreeUi.frameOpenTitle = t(win, 'html_tree_frame_open');
+  htmlTreeUi.frameMainTitle = t(win, 'html_tree_frame_main_open');
+  htmlTreeUi.frameTemplateTitle = t(win, 'html_tree_frame_template_open');
+  htmlTreeUi.frameFieldsTitle = t(win, 'html_tree_frame_fields');
+  // A click steps in: main opens the layout's <main> in the dock; a half is
+  // clicked the way it is clicked in the preview — the same question, the
+  // same door. Already standing there, a click scrolls the preview to it.
+  htmlTreeUi.onFrame = (kind) => {
+    if (frameKind === kind) {
+      scrollPreviewToFrame(win, kind);
+    } else {
+      enterFrame(win, kind);
+    }
+  };
+  htmlTreeUi.onFrameEnter = (kind) => enterFrame(win, kind);
+  // The half's fields are its global set's blueprint.
+  htmlTreeUi.onFrameFields = (kind) =>
+    openGlobalFieldsOverlay(win, chromeGlobalHandle(win, kind), t(win, `html_tree_frame_${kind}`));
+  htmlTreeUi.onFrameTwist = () => {
+    htmlTreeUi.mainShut = !htmlTreeUi.mainShut;
+  };
+}
+
 /**
  * The page's frame: header, main and footer, drawn around the sections.
  *
@@ -1792,8 +1806,10 @@ export function renderHtmlTree(win) {
  * way back out. Anywhere else — a collection's template, a component — there
  * is no frame, and the list is what it was.
  */
-function frameAroundPage(win, sections, inSections, inComponent, kind) {
-  if (!inSections && !kind) {
+function frameAroundPage(win, sections, inSections, inComponent, kind, emptyPage = false) {
+  // An empty page has no section to stand on and no part open — and still a
+  // frame, because the frame is the layout's, not the sections'.
+  if (!inSections && !kind && !emptyPage) {
     return null;
   }
 
