@@ -21,6 +21,48 @@ function pauseAgain(event) {
   event.target.pause();
 }
 
+/**
+ * What the parser would have set. Chrome takes a media element's muted state
+ * from the `muted` attribute only while parsing; an element the editor makes
+ * itself — a tag renamed in the dock, a morph's copy — keeps the attribute and
+ * loses the state. An unmuted video neither autoplays nor plays on request
+ * until somebody clicks the page, which in the preview nobody does.
+ */
+function mirrorMuted(el) {
+  if (el.hasAttribute('muted') && !el.muted) {
+    el.muted = true;
+  }
+}
+
+/**
+ * Play, as the file asks — and muted for the preview's sake if the browser
+ * refuses otherwise: the preview is not the site, and a silent picture of the
+ * section beats a still one.
+ */
+function play(el) {
+  mirrorMuted(el);
+
+  let playing;
+
+  try {
+    playing = el.play();
+  } catch {
+    return;
+  }
+
+  playing?.catch?.(() => {
+    if (!el.muted) {
+      el.muted = true;
+
+      try {
+        el.play()?.catch?.(() => {});
+      } catch {
+        /* nothing more to try without a gesture */
+      }
+    }
+  });
+}
+
 function hold(el) {
   if (!el.hasAttribute(VIDEO_HOLD_ATTR)) {
     el.setAttribute(VIDEO_HOLD_ATTR, '');
@@ -47,15 +89,11 @@ function release(el) {
     el.removeAttribute(AUTOPLAY_ATTR);
     el.setAttribute('autoplay', '');
     el.autoplay = true;
-
-    try {
-      const playing = el.play();
-
-      playing?.catch?.(() => {});
-    } catch {
-      /* a browser that refuses autoplay after a gesture-less release */
-    }
   }
+
+  // The icon says play, so it plays — whether or not the file autoplays, and
+  // whether or not the hold happened to see the attribute when it was set.
+  play(el);
 }
 
 /**
@@ -108,4 +146,15 @@ export function applyVideoHolds(win) {
   });
 
   want.forEach(hold);
+
+  // The rest play as the file says. A morph can hand back a video that has
+  // `autoplay` and never started — the attribute added to a loaded element
+  // starts nothing — or one that lost its muted state on the way; both are
+  // put right here, after every draw. A video with controls is the viewer's
+  // to pause, and is left as it is.
+  doc.querySelectorAll('video[autoplay]:not([controls])').forEach((video) => {
+    if (!want.has(video) && video.paused && !video.ended) {
+      play(video);
+    }
+  });
 }

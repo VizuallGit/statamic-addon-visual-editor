@@ -1299,6 +1299,13 @@
             next.appendChild(live.firstChild);
         }
 
+        // Chrome takes a media element's muted state from the attribute only
+        // while parsing. This copy keeps the attribute and would lose the
+        // state, and an unmuted video neither autoplays nor plays on request.
+        if ('muted' in next && next.hasAttribute('muted')) {
+            next.muted = true;
+        }
+
         live.replaceWith(next);
 
         return next;

@@ -784,9 +784,9 @@ export function initBridge(win = window) {
   );
 
   win.addEventListener('statamic:preview-updated', () => {
-    if (bridgeState.videoHolds.size) {
-      applyVideoHolds(win);
-    }
+    // Holds put back, and autoplay put right, on every draw — not only while
+    // something is held: the morph itself can leave a video standing still.
+    applyVideoHolds(win);
 
     if (bridgeState.htmlPick) {
       applyHtmlPick(win);
