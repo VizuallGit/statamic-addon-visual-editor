@@ -86,14 +86,16 @@ import { MSG, SOURCE } from './lib/protocol.js';
 // to drop a card from the picker isn't worth asking for.
 export let sectionTypesOverride = null;
 
+/**
+ * The section types the Patterns panel offers. A hidden set (`hide: true` —
+ * the global-section carrier, a set taken out of use) is not offered to
+ * anyone, super admins included: it has nothing to show and nothing to place
+ * by hand. The Global tab places the carrier itself.
+ */
 export function sectionTypes(win) {
-  if (sectionTypesOverride) {
-    return sectionTypesOverride;
-  }
+  const list = sectionTypesOverride || win.Statamic?.$config?.get?.('sveSectionTypes');
 
-  const list = win.Statamic?.$config?.get?.('sveSectionTypes');
-
-  return Array.isArray(list) ? list : [];
+  return Array.isArray(list) ? list.filter((type) => type?.hidden !== true) : [];
 }
 
 /**

@@ -52,8 +52,9 @@ class SectionTypes
                 }
 
                 // Kept out of the picker (`hide`): an editor never sees it. A
-                // super admin does, marked, so it can still be placed by hand
-                // and let back in.
+                // super admin's list carries it, flagged, so the tree can name
+                // the rows it draws — the Patterns panel leaves it out for
+                // everyone.
                 $hidden = ($set['hide'] ?? false) === true;
 
                 if ($hidden && ! $isSuper) {
