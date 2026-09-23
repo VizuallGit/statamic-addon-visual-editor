@@ -19,6 +19,10 @@ export const ANTLERS_SNIPPETS = [
   { id: 'if_elseif', group: 'logic', label: 'if / elseif / else', snippet: '{{ if |field }}\n  \n{{ elseif other }}\n  \n{{ else }}\n  \n{{ /if }}' },
   { id: 'unless', group: 'logic', label: 'unless', snippet: '{{ unless |field }}\n  \n{{ /unless }}' },
   { id: 'unless_else', group: 'logic', label: 'unless / else', snippet: '{{ unless |field }}\n  \n{{ else }}\n  \n{{ /unless }}' },
+  // A field's text: what it ends with, starts with, or holds.
+  { id: 'if_ends_with', group: 'logic', label: "if … ends_with('…')", snippet: "{{ if (|field | ends_with('.mp4')) }}\n  \n{{ /if }}" },
+  { id: 'if_starts_with', group: 'logic', label: "if … starts_with('…')", snippet: "{{ if (|field | starts_with('http')) }}\n  \n{{ /if }}" },
+  { id: 'if_contains', group: 'logic', label: "if … contains('…')", snippet: "{{ if (|field | contains('word')) }}\n  \n{{ /if }}" },
   // Inside a nav loop: the page being viewed, and the one above it.
   { id: 'is_current', group: 'logic', label: 'is_current', snippet: '{{ if |is_current }}\n  \n{{ /if }}' },
   { id: 'is_parent', group: 'logic', label: 'is_parent', snippet: '{{ if |is_parent }}\n  \n{{ /if }}' },
@@ -70,6 +74,9 @@ export const ANTLERS_SNIPPETS = [
   { id: 'mod_multiply', group: 'modifiers', label: 'multiply', snippet: ' | multiply:2', inline: true },
   { id: 'mod_add', group: 'modifiers', label: 'add', snippet: ' | add:1', inline: true },
   { id: 'mod_join', group: 'modifiers', label: 'join', snippet: ' | join:", "', inline: true },
+  { id: 'mod_ends_with', group: 'modifiers', label: 'ends_with', snippet: " | ends_with('.mp4')", inline: true },
+  { id: 'mod_starts_with', group: 'modifiers', label: 'starts_with', snippet: " | starts_with('http')", inline: true },
+  { id: 'mod_contains', group: 'modifiers', label: 'contains', snippet: " | contains('word')", inline: true },
 ];
 
 export function antlersSnippet(id) {
