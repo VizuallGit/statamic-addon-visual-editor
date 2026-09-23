@@ -10,6 +10,7 @@ export const ANTLERS_SNIPPET_GROUPS = [
   { id: 'include', lang: 'code_dock_antlers_include' },
   { id: 'fields', lang: 'code_dock_antlers_fields' },
   { id: 'output', lang: 'code_dock_antlers_output' },
+  { id: 'dates', lang: 'code_dock_antlers_dates' },
   { id: 'modifiers', lang: 'code_dock_antlers_modifiers' },
 ];
 
@@ -49,6 +50,21 @@ export const ANTLERS_SNIPPETS = [
   { id: 'variable', group: 'output', label: '{{ field }}', snippet: '{{ |field }}' },
   { id: 'trans', group: 'output', label: 'trans', snippet: '{{ trans:|key }}' },
   { id: 'comment', group: 'output', label: 'comment', snippet: '{{# | #}}' },
+  // Dates, the Danish way. `date:` takes a PHP format; `iso_format` writes
+  // month and weekday names in the site's language (the site's locale in
+  // resources/sites.yaml). The time is the app's timezone (config/app.php).
+  { id: 'date_short', group: 'dates', label: '23.09.2026', snippet: '{{ |date | format:d.m.Y }}' },
+  { id: 'date_long', group: 'dates', label: '23. september 2026', snippet: "{{ |date | iso_format('D. MMMM YYYY') }}" },
+  { id: 'date_weekday', group: 'dates', label: 'onsdag 23. september', snippet: "{{ |date | iso_format('dddd D. MMMM') }}" },
+  { id: 'date_time', group: 'dates', label: '23.09.2026 14:30', snippet: "{{ |date | format('d.m.Y H:i') }}" },
+  { id: 'date_time_only', group: 'dates', label: '14:30', snippet: "{{ |date | format('H:i') }}" },
+  { id: 'date_year', group: 'dates', label: 'year', snippet: '{{ |date | format:Y }}' },
+  { id: 'date_month', group: 'dates', label: 'month (name)', snippet: "{{ |date | iso_format('MMMM') }}" },
+  { id: 'date_day', group: 'dates', label: 'day', snippet: '{{ |date | format:j }}' },
+  { id: 'date_relative', group: 'dates', label: 'relative (3 dage siden)', snippet: '{{ |date | relative }}' },
+  { id: 'date_now', group: 'dates', label: 'now', snippet: '{{ now | format:d.m.Y }}' },
+  { id: 'date_now_year', group: 'dates', label: 'year now (© 2026)', snippet: '{{ now | format:Y }}' },
+  { id: 'date_iso', group: 'dates', label: 'datetime attribute (ISO)', snippet: '<time datetime="{{ |date | format:Y-m-d }}">{{ date | format:d.m.Y }}</time>' },
   // Modifiers go in at the caret, inside the tag already there: `{{ title| }}` → `{{ title | upper }}`.
   { id: 'mod_upper', group: 'modifiers', label: 'upper', snippet: ' | upper', inline: true },
   { id: 'mod_lower', group: 'modifiers', label: 'lower', snippet: ' | lower', inline: true },
@@ -59,7 +75,9 @@ export const ANTLERS_SNIPPETS = [
   { id: 'mod_raw', group: 'modifiers', label: 'raw', snippet: ' | raw', inline: true },
   { id: 'mod_nl2br', group: 'modifiers', label: 'nl2br', snippet: ' | nl2br', inline: true },
   { id: 'mod_strip_tags', group: 'modifiers', label: 'strip_tags', snippet: ' | strip_tags', inline: true },
-  { id: 'mod_date', group: 'modifiers', label: 'date', snippet: ' | date:d.m.Y', inline: true },
+  { id: 'mod_format', group: 'modifiers', label: 'format (date)', snippet: ' | format:d.m.Y', inline: true },
+  { id: 'mod_iso_format', group: 'modifiers', label: 'iso_format', snippet: " | iso_format('D. MMMM YYYY')", inline: true },
+  { id: 'mod_relative', group: 'modifiers', label: 'relative', snippet: ' | relative', inline: true },
   { id: 'mod_count', group: 'modifiers', label: 'count', snippet: ' | count', inline: true },
   { id: 'mod_first', group: 'modifiers', label: 'first', snippet: ' | first', inline: true },
   { id: 'mod_last', group: 'modifiers', label: 'last', snippet: ' | last', inline: true },

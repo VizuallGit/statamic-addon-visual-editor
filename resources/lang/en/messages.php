@@ -715,6 +715,7 @@ return [
     'code_dock_antlers_include' => 'Include',
     'code_dock_antlers_fields' => 'Fields',
     'code_dock_antlers_output' => 'Output',
+    'code_dock_antlers_dates' => 'Dates',
     'code_dock_visual_edit' => 'Visual edit',
     'code_dock_antlers_modifiers' => 'Modifiers',
     'code_dock_antlers_search' => 'Search… e.g. if, collection, upper',

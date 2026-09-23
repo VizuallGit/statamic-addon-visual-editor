@@ -709,6 +709,7 @@ return [
     'code_dock_antlers_include' => 'Inkludér',
     'code_dock_antlers_fields' => 'Felter',
     'code_dock_antlers_output' => 'Output',
+    'code_dock_antlers_dates' => 'Datoer',
     'code_dock_visual_edit' => 'Visual edit',
     'code_dock_antlers_modifiers' => 'Modifiers',
     'code_dock_antlers_search' => 'Søg… fx if, collection, upper',
