@@ -59,6 +59,12 @@
     var HOVER_KEY = 'sveInstantHover';
     var MODE_STYLE_ID = '__sve-instant-mode-style';
     var ANT = '\uE000';
+    // A block's opener ({{ if … }}, {{ items }} with a {{ /items }} later) and
+    // its closer keep their own marks: what stands between them is the
+    // server's to draw, and instant paint must not build or rename it.
+    var ANT_OPEN = '\uE001';
+    var ANT_CLOSE = '\uE002';
+    var ANT_ANY = /[\uE000-\uE002]/;
     var INSTANT_TITLE = 'Instant Preview — HTML, tekst, klasser og CSS males i previewet med det samme';
     var MORPH_TITLE = 'Intet males med det samme — alt venter på den gemte morph, cirka ét sekund';
 
@@ -1049,13 +1055,55 @@
      * treats as "not ours to paint".
      */
     function stripAntlers(html, ctx) {
-        return String(html)
-            .replace(/\{\{#[\s\S]*?#\}\}/g, '')
-            .replace(/\{\{[\s\S]*?\}\}/g, function (tag) {
-                var value = resolveField(tag.slice(2, -2), ctx);
+        var source = String(html).replace(/\{\{#[\s\S]*?#\}\}/g, '');
+        var closers = {};
+        var m;
+        var re = /\{\{\s*\/([a-zA-Z0-9_:.-]+)/g;
 
-                return value === null ? ANT : escapeHtml(value);
-            });
+        while ((m = re.exec(source))) {
+            closers[m[1]] = true;
+        }
+
+        return source.replace(/\{\{[\s\S]*?\}\}/g, function (tag) {
+            var body = tag.slice(2, -2).trim();
+            var name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
+            var value;
+
+            if (body.charAt(0) === '/') {
+                return ANT_CLOSE;
+            }
+
+            if (name === 'if' || name === 'unless' || closers[name]) {
+                return ANT_OPEN;
+            }
+
+            value = resolveField(body, ctx);
+
+            return value === null ? ANT : escapeHtml(value);
+        });
+    }
+
+    /**
+     * Inside a block — after an opener among the siblings before it that no
+     * closer has answered yet. Openers and closers are text; counted from
+     * the parent's first child, a block closed before this element does not
+     * count.
+     */
+    function inBlock(el) {
+        var depth = 0;
+        var node = el.previousSibling;
+        var text;
+
+        while (node) {
+            if (node.nodeType === 3) {
+                text = node.data;
+                depth += text.split(ANT_OPEN).length - text.split(ANT_CLOSE).length;
+            }
+
+            node = node.previousSibling;
+        }
+
+        return depth > 0;
     }
 
     function templateRoot(html, ctx) {
@@ -1091,7 +1139,7 @@
         return String(value || '')
             .split(/\s+/)
             .filter(function (name) {
-                return name && name !== '[' && name !== ']' && name.indexOf(ANT) === -1;
+                return name && name !== '[' && name !== ']' && !hasMarker(name);
             })
             .join(' ');
     }
@@ -1100,7 +1148,7 @@
         var next;
         var prev;
 
-        if (!el || String(value).indexOf(ANT) !== -1) {
+        if (!el || hasMarker(value)) {
             return;
         }
 
@@ -1183,7 +1231,7 @@
     var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, TEMPLATE: 1 };
 
     function hasMarker(text) {
-        return String(text || '').indexOf(ANT) !== -1;
+        return ANT_ANY.test(String(text || ''));
     }
 
     function elementKids(el) {
@@ -1591,6 +1639,14 @@
                     return;
                 }
 
+                // Inside {{ if }}, {{ unless }} or a loop, what the template shows is
+                // not what the page shows: the branch may be the other one, the loop
+                // may draw many or none. A same-tag child was painted above; anything
+                // structural — a wrapper, a rename, new markup — waits for the morph.
+                if (inBlock(tplEl)) {
+                    return;
+                }
+
                 // New wrapper: its children are already on the page, unwrapped. Before
                 // the rename below — a tag around the first child is a wrapper, not
                 // that child under a new name.
@@ -1643,10 +1699,15 @@
 
                 // Renamed tag: an unmatched live child next to this position with the
                 // same children — a leaf for a leaf, a wrapper for a wrapper. Anything
-                // else is new markup, and what is on the page keeps its tag.
-                candidate = strangers().filter(function (kid) {
-                    return sameShape(kid, tplEl);
-                })[0];
+                // else is new markup, and what is on the page keeps its tag. Never for
+                // a template element the server has to fill in: what stands next to
+                // it on the page may be a field's own output (a heading a Bard field
+                // drew), and it was being renamed into a <video> that shows nothing.
+                candidate = isDynamic(tplEl)
+                    ? null
+                    : strangers().filter(function (kid) {
+                          return sameShape(kid, tplEl);
+                      })[0];
                 idx = candidate ? elementKids(live).indexOf(candidate) : -1;
 
                 if (candidate && Math.abs(idx - index) <= 1) {

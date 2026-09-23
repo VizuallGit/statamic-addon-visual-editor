@@ -73,6 +73,11 @@ const scenarios = [
   ['J: 2. <p> i den grå boks slettet', TEMPLATE.replace(greyPs[1] + '\n', '')],
   ['K: uafsluttet citationstegn i class', TEMPLATE.replace(greyPs[2], greyPs[2].replace('<p>', '<p class="bg->'))],
   ['L: uændret skabelon', TEMPLATE],
+  // A live <h1> a field drew, and a template <video> the server must fill in at
+  // that spot: the heading stays — it is not a renamed tag.
+  ['N: statisk <img> inde i {{ if }} ud for felt-output — overskriften beholdes', TEMPLATE.replace('<h1>fdsfdsffdgdfhgfdh</h1>', '{{ if media }}<img src="/x.jpg" class="w-full">{{ /if }}')],
+  ['O: {{ if }} omkring et eksisterende statisk element — intet omdøbes', TEMPLATE.replace('<h1>fdsfdsffdgdfhgfdh</h1>', '{{ if headline }}<h1>fdsfdsffdgdfhgfdh</h1>{{ /if }}')],
+  ['M: felt-output ud for et Antlers-<video> beholdes', TEMPLATE.replace('<h1>fdsfdsffdgdfhgfdh</h1>', "{{ if (media | ends_with('.mp4')) }}<video src=\"{{ media }}\" autoplay muted></video>{{ else }}<img src=\"{{ media }}\">{{ /if }}")],
   // The section's own row picked: the pane is scoped to the whole file, and the
   // file the dock exposes IS the pane. Used to be taken for a snippet with no
   // file, and nothing painted — every child waited for the morph.
@@ -172,6 +177,10 @@ async function run(label, text) {
   console.log('  trace:', result.trace.map((t) => String(t).replace(/^\d+ /, '').slice(0, 100)).join(' | ') || '(tom)');
   console.log('  p-tekster i den grå boks:', ps(result.after), ' (før:', ps(result.before) + ')');
   console.log('  ul med 3 kort intakt:', listOk ? 'ja' : 'NEJ');
+  // A heading a field drew, next to a template <video> the server fills in: it must not be renamed.
+  const h1 = (result.after.match(/<h1[^>]*>([^<]*)<\/h1>/) || [])[1];
+  const videoText = (result.after.match(/<video[^>]*>([^<]*)<\/video>/) || [])[1];
+  console.log('  h1 i sektionen:', h1 ? JSON.stringify(h1.slice(0, 30)) : 'NEJ', '| tekst i <video>:', videoText ? JSON.stringify(videoText.slice(0, 30)) : 'ingen');
   if (!same) console.log('  efter:', compact(result.after).slice(0, 360));
   return { label, same, untouched, listOk };
 }

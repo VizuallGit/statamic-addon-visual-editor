@@ -665,7 +665,12 @@ export function collectStatamicLpCloseButtons(header) {
   const save = findLpSaveButton(header);
   const scope =
     header.closest('.live-preview, [data-live-preview], .live-preview-ui') || header;
-  const buttons = [...scope.querySelectorAll('button')].filter((button) => !isOurLpChromeButton(button));
+  // Only the bar's own buttons. The scope is widened because Statamic's ×
+  // may sit outside the header element — never into the publish form, where
+  // an asset row's "Remove" (×) was being taken for it and hidden.
+  const buttons = [...scope.querySelectorAll('button')].filter(
+    (button) => !isOurLpChromeButton(button) && !button.closest('.form-group, [class*="fieldtype"], .publish-fields, [data-sve-panel-column], [data-sve-focus-set]')
+  );
 
   return buttons.filter((button) => {
     // Prefer buttons after Save & Publish — that is where Statamic puts ×.
