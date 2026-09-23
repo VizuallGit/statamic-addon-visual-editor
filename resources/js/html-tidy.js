@@ -65,18 +65,19 @@ export function tidyHtml(source) {
 
     offset += line.length + 1;
 
-    if (!trimmed) {
-      out.push('');
-
-      continue;
-    }
-
     const first = start + (line.length - line.trimStart().length);
     const inside = nodes.filter((node) => node.from < first && first < node.to);
 
     if (inside.some((node) => VERBATIM.has(node.tag))) {
       out.push(line);
 
+      continue;
+    }
+
+    // An empty line says nothing about structure, and the indentation is what
+    // is being tidied: every one of them goes, so a closing tag follows the
+    // last child without a gap of blank lines above it.
+    if (!trimmed) {
       continue;
     }
 
@@ -88,5 +89,5 @@ export function tidyHtml(source) {
     out.push(unit.repeat(Math.max(depth, 0)) + trimmed);
   }
 
-  return out.join('\n');
+  return out.join('\n') + (html.endsWith('\n') ? '\n' : '');
 }
