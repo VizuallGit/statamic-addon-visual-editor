@@ -261,6 +261,20 @@ try {
     const log2 = await (await livePreview()).evaluate(() => window.__sveHoldLog.splice(0));
     step('and the next press plays it again', run.moved && run.b?.paused === false && run.b?.held === false, `${pressed}; ${JSON.stringify(run.b)}; messages: ${log2.join(', ')}`);
 
+    // 2b''. A hold remembered for the OTHER section's file (as the old, desynced
+    //       editor could store it) must not reach this video when that section
+    //       is opened: that file has no video, so the hold names nothing.
+    const otherType = (away.match(/page_sections\/(.+?)\.antlers\.html/) || [])[1] || '';
+    if (otherType) {
+      await cp.evaluate((type) => { const all = JSON.parse(localStorage.getItem('sveVideoHolds') || '{}'); all[type] = [0]; localStorage.setItem('sveVideoHolds', JSON.stringify(all)); }, otherType);
+      await clickSection(other.id); await sleep(2500);
+      run = await advancing(await livePreview(), 'sve-video-probe');
+      const log5 = await (await livePreview()).evaluate(() => window.__sveHoldLog.splice(0));
+      step('a hold stored for the other file leaves this video alone', run.moved && run.b?.paused === false && run.b?.held === false, `type ${otherType}; ${JSON.stringify(run.b)}; messages: ${log5.join(', ')}`);
+      await cp.evaluate((type) => { const all = JSON.parse(localStorage.getItem('sveVideoHolds') || '{}'); delete all[type]; localStorage.setItem('sveVideoHolds', JSON.stringify(all)); }, otherType);
+      await clickSection(mine.id); await sleep(2500);
+    }
+
     // 2b'. Into the header and out again: the video keeps playing there too.
     const headerRow = await cp.evaluate(() => { const el = [...document.querySelectorAll('[data-sve-ht-row]')].find((r) => /\bheader\b/i.test(r.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '') && (r.getAttribute('data-sve-ht-frame') || /Header/.test(r.textContent))); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(70, r.width / 2), y: r.y + r.height / 2, text: el.textContent.trim().slice(0, 20) }; });
     if (headerRow) {

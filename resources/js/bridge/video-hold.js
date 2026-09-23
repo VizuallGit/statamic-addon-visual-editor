@@ -100,7 +100,10 @@ function release(el) {
 /**
  * The videos a hold speaks of: those of the section `uid` names. A uid may
  * be a block inside the section that holds no video itself; then the nearest
- * marked ancestor with one is taken, and the page as a whole when none is.
+ * marked ancestor with one is taken. A hold that names nothing with a video
+ * in it means nothing — it used to mean every video on the page, so a hold
+ * remembered for one section stopped the video in another the moment that
+ * section was opened.
  */
 function videosOf(doc, uid, uids = []) {
   let scope = sidElement(doc, uid, uids);
@@ -109,7 +112,7 @@ function videosOf(doc, uid, uids = []) {
     scope = scope.parentElement?.closest?.(`[${SID_ATTR}]`) || null;
   }
 
-  return [...(scope || doc).querySelectorAll('video')];
+  return scope ? [...scope.querySelectorAll('video')] : [];
 }
 
 /** The videos one hold speaks of. */
