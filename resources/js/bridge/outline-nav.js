@@ -785,6 +785,8 @@ export function initBridge(win = window) {
   );
 
   watchVideoPauses(win);
+  // A fresh document knows no holds; the panel remembers them.
+  win.parent.postMessage({ source: SOURCE, type: MSG.SVE_VIDEO_HOLDS_REQUEST }, win.location.origin);
 
   win.addEventListener('statamic:preview-updated', () => {
     // Holds put back, and autoplay put right, on every draw — not only while

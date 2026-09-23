@@ -117,6 +117,8 @@ export const MSG = Object.freeze({
   // CP → preview: a <video> of the open section is held paused (or let go) —
   // `uid` names the section, `nth` which of its videos (null = every one).
   SVE_VIDEO_HOLD: 'sve-video-hold',
+  // Preview → CP, at boot: send me the remembered holds.
+  SVE_VIDEO_HOLDS_REQUEST: 'sve-video-holds-request',
   SVE_UNLOCK_TABS: 'sve-unlock-tabs',
   THEME_SWATCHES: 'theme-swatches',
   THEME_SWATCHES_REQUEST: 'theme-swatches-request',

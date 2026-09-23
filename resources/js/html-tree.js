@@ -9,6 +9,7 @@ import { openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.j
 import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
+import { heldVideos, rememberVideoHolds, syncStoredVideoHolds } from './cp-shell/video-holds.js';
 import { ask, on, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
@@ -1597,7 +1598,7 @@ export function renderHtmlTree(win) {
   // and mark the shut row wears. One row, two states — not two rows.
   const openSection = openUid && !inComponent ? sections.find((item) => item.uid === openUid) : null;
 
-  const held = heldVideos(win);
+  const held = heldVideos(win, String(ask('dock:current-type') || ''));
   let videoIndex = 0;
   // On the header's or footer's own file the root row IS that half's row in
   // the frame: named as the half, with no move, no copy, no bin — a header is
@@ -1667,7 +1668,7 @@ export function renderHtmlTree(win) {
     };
   });
 
-  syncVideoHolds(win, held);
+  syncStoredVideoHolds(win);
 
   // The families above each row, one per level, for the guides the tags look
   // draws: the guide under a loop is the loop's colour. Rows come in document
@@ -2189,58 +2190,6 @@ function writeSectionLabel(win, uid, label) {
   return false;
 }
 
-const VIDEO_HOLDS_KEY = 'sveVideoHolds';
-
-/** The videos of the open file held paused, by their order in the file. */
-function heldVideos(win) {
-  const type = String(ask('dock:current-type') || '');
-
-  try {
-    const all = JSON.parse(win.localStorage.getItem(VIDEO_HOLDS_KEY) || '{}');
-    const list = type && Array.isArray(all[type]) ? all[type] : [];
-
-    return new Set(list.filter((n) => Number.isInteger(n)));
-  } catch {
-    return new Set();
-  }
-}
-
-function rememberVideoHolds(win, held) {
-  const type = String(ask('dock:current-type') || '');
-
-  if (!type) {
-    return;
-  }
-
-  try {
-    const all = JSON.parse(win.localStorage.getItem(VIDEO_HOLDS_KEY) || '{}');
-
-    if (held.size) {
-      all[type] = [...held].sort((a, b) => a - b);
-    } else {
-      delete all[type];
-    }
-
-    win.localStorage.setItem(VIDEO_HOLDS_KEY, JSON.stringify(all));
-  } catch {
-    /* no storage: the hold lasts the session */
-  }
-}
-
-/**
- * Tell the preview which of the open section's videos stay paused. Sent on
- * every draw of the tree — the preview's bridge starts over on a full load,
- * and an extra hold on a video already held costs nothing.
- */
-function syncVideoHolds(win, held) {
-  const uid = String(ask('dock:current-uid') || '');
-  const uids = uid ? topLevelSectionIds(uid, win.document) : [];
-
-  for (const nth of held) {
-    sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, uids, nth, on: true }, win);
-  }
-}
-
 /**
  * The video icon on a <video> row: hold the video paused in the preview, or
  * let it play again. Nothing in the file changes — the site keeps its
@@ -2253,7 +2202,8 @@ function toggleVideoHold(win, id) {
     return;
   }
 
-  const held = heldVideos(win);
+  const type = String(ask('dock:current-type') || '');
+  const held = heldVideos(win, type);
   const on = !held.has(row.videoNth);
 
   if (on) {
@@ -2264,7 +2214,7 @@ function toggleVideoHold(win, id) {
 
   const uid = String(ask('dock:current-uid') || '');
 
-  rememberVideoHolds(win, held);
+  rememberVideoHolds(win, type, held);
   sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], nth: row.videoNth, on }, win);
   renderHtmlTree(win);
 }

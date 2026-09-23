@@ -90,7 +90,7 @@ try {
   await sleep(1500);
   await page.evaluate(() => [...document.querySelectorAll('button')].find((e) => /live preview/i.test(e.textContent || ''))?.click());
   step('preview overlay open', await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000));
-  const cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
+  let cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
   step('working-tree script served', served > 0, `${served} request(s)${servedBuild ? `; ${servedBuild()} build files from the working tree` : ''}`);
   await waitIn(cp, '#__sve-toolbar button', 20000);
   const livePreview = async () => { const el = await cp.$('#live-preview-iframe'); return el ? el.contentFrame() : null; };
@@ -166,20 +166,21 @@ try {
   const secLabel = (filePath || '').replace(/^.*page_sections\//, '').replace(/\.antlers\.html$/, '').replace(/[\/_]+/g, ' ').trim();
   const secRow = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 }; }, secLabel);
   if (secRow) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + secRow.x, b.y + secRow.y); await sleep(1500); }
-  const videoRow = async () => cp.evaluate(() => {
+  const videoRow = async (marker = 'sve-video-probe(?!2)') => cp.evaluate((m) => {
+    const re = new RegExp(m);
     const rows = [...document.querySelectorAll('[data-sve-ht-row]')];
-    const hit = rows.find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && /sve-video-probe(?!2)/.test(el.textContent || ''));
+    const hit = rows.find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && re.test(el.textContent || ''));
     if (!hit) return null;
     hit.scrollIntoView({ block: 'center' });
     const r = hit.getBoundingClientRect();
     return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2, w: r.width };
-  });
-  const pressVideoIcon = async () => {
-    const row = await videoRow();
+  }, marker);
+  const pressVideoIcon = async (marker = 'sve-video-probe(?!2)') => {
+    const row = await videoRow(marker);
     if (!row) return 'no video row in the tree';
     const b = await (await cp.frameElement()).boundingBox();
     await page.mouse.move(b.x + row.x, b.y + row.y); await sleep(250);
-    const icon = await cp.evaluate(() => { const rows = [...document.querySelectorAll('[data-sve-ht-row]')]; const hit = rows.find((el) => /sve-video-probe(?!2)/.test(el.textContent || '')); const btn = hit?.querySelector('[data-sve-ht-video]'); if (!btn) return null; const r = btn.getBoundingClientRect(); return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2, on: btn.hasAttribute('data-on') } : { hidden: true }; });
+    const icon = await cp.evaluate((m) => { const re = new RegExp(m); const rows = [...document.querySelectorAll('[data-sve-ht-row]')]; const hit = rows.find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && re.test(el.textContent || '')); const btn = hit?.querySelector('[data-sve-ht-video]'); if (!btn) return null; const r = btn.getBoundingClientRect(); return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2, on: btn.hasAttribute('data-on') } : { hidden: true }; }, marker);
     if (!icon || icon.hidden) return `video icon not clickable: ${JSON.stringify(icon)}`;
     await page.mouse.click(b.x + icon.x, b.y + icon.y);
     return `pressed (was ${icon.on ? 'held' : 'playing'})`;
@@ -348,6 +349,48 @@ try {
   await sleep(3500);
   run = await advancing(await livePreview(), 'sve-video-probe2');
   step('the renamed video plays after the morph', run.moved && run.b?.muted === true && run.b?.paused === false, JSON.stringify(run.b));
+  // 3b. Two videos in one file: the icon on the second holds the second only.
+  pressed = await pressVideoIcon('sve-video-probe2'); await sleep(900);
+  const a1 = await stateOf(await livePreview(), 'sve-video-probe');
+  const b1 = await stateOf(await livePreview(), 'sve-video-probe2');
+  step('holding the second video leaves the first playing', !!b1 && b1.paused === true && b1.held === true && !!a1 && a1.paused === false && a1.held === false, `${pressed}; first ${JSON.stringify(a1)}; second ${JSON.stringify(b1)}`);
+  pressed = await pressVideoIcon('sve-video-probe2'); await sleep(900);
+  const b2 = await advancing(await livePreview(), 'sve-video-probe2');
+  step('and the second plays again on its own icon', b2.moved && b2.b?.held === false, `${pressed}; ${JSON.stringify(b2.b)}`);
+
+  // 4. Remembered across a reload: held stays held, released stays playing —
+  //    before anything is opened in the dock or the tree.
+  const reopen = async () => {
+    await page.reload({ waitUntil: 'networkidle2' }); await sleep(1500);
+    if (!(await page.$('iframe.sve-edit-overlay[data-open]'))) {
+      await page.evaluate(() => [...document.querySelectorAll('button')].find((e) => /live preview/i.test(e.textContent || ''))?.click());
+    }
+    await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000);
+    cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
+    await waitIn(cp, '#__sve-toolbar button', 20000);
+    for (let i = 0; i < 25; i++) { const f = await livePreview(); if (f && await f.evaluate(() => !!document.querySelector('.sve-video-probe')).catch(() => false)) break; await sleep(1000); }
+    await sleep(2500);
+  };
+  const probeRow = async () => { const r = await cp.evaluate(() => !!document.querySelector('[data-sve-ht-row]')); return r; };
+  // Hold it, then reload.
+  if (!(await videoRow())) { const row = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 }; }, secLabel); if (row) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + row.x, b.y + row.y); await sleep(1500); } }
+  pressed = await pressVideoIcon(); await sleep(900);
+  held = await stateOf(await livePreview(), 'sve-video-probe');
+  step('held before the reload', !!held && held.paused === true && held.held === true, `${pressed}; ${JSON.stringify(held)}`);
+  await reopen();
+  held = await stateOf(await livePreview(), 'sve-video-probe');
+  step('still held after a reload, nothing opened', !!held && held.paused === true && held.held === true, `${JSON.stringify(held)}; tree drawn: ${await probeRow()}`);
+  const otherAfter = await advancing(await livePreview(), 'sve-video-probe2');
+  step('the other video plays after that reload', otherAfter.moved && otherAfter.b?.held === false, JSON.stringify(otherAfter.b));
+  // Release it (the tree must show the row again), then reload.
+  await realClick(page, await livePreview(), '[id^="id-"]'); await sleep(2000);
+  if (!(await videoRow())) { const row = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 }; }, secLabel); if (row) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + row.x, b.y + row.y); await sleep(1500); } }
+  pressed = await pressVideoIcon(); await sleep(900);
+  run = await advancing(await livePreview(), 'sve-video-probe');
+  step('released before the reload', run.moved && run.b?.held === false, `${pressed}; ${JSON.stringify(run.b)}`);
+  await reopen();
+  run = await advancing(await livePreview(), 'sve-video-probe');
+  step('still playing after a reload', run.moved && run.b?.paused === false && run.b?.held === false, JSON.stringify(run.b));
 } catch (e) {
   report.errors.push(`exception: ${e.message} @ ${(e.stack || "").split("\n")[1] || ""}`); report.ok = false;
 } finally {
