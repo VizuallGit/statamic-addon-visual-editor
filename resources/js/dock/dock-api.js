@@ -715,22 +715,6 @@ function pageHasType(win, type) {
   return false;
 }
 
-function emptyPageChromeType(win) {
-  const preview = previewDocument(win);
-
-  if (!preview) {
-    return '';
-  }
-
-  const kind = ['header', 'footer'].find((k) => preview.querySelector(`[data-sve-chrome="${k}"]`));
-
-  if (!kind) {
-    return '';
-  }
-
-  return chromeTemplateFor(win, kind, null);
-}
-
 function globalSectionTemplateType(doc) {
   const host = globalSectionHost(doc) || doc.getElementById('__sve-global-section-host');
 
@@ -767,10 +751,11 @@ export function syncCodeDock(win, doc, uid) {
     pageSectionType(win, doc, uid) ||
     collectionViewType(win) ||
     (!uid ? dockState.lastType : '');
-  // Only a page with no sections at all falls back to the header — and never
-  // a request for a section by uid, which must keep what it holds rather than
-  // hand the dock (and the tree with it) to the header.
-  const fallback = !resolved && !uid && !pageHasSectionRows(win) ? emptyPageChromeType(win) : '';
+  // Nothing chosen on a page with no sections: the layout's <main> — the
+  // page's content is the default place to stand, and what a new section
+  // lands in. Never for a request for a section by uid, which must keep what
+  // it holds rather than hand the dock (and the tree with it) elsewhere.
+  const fallback = !resolved && !uid && !pageHasSectionRows(win) ? LAYOUT_TEMPLATE_TYPE : '';
   const type = resolved || fallback;
   const uidChanged = !!(uid && uid !== dockState.lastUid);
 
@@ -785,8 +770,8 @@ export function syncCodeDock(win, doc, uid) {
   if (!type) {
     // Header, footer or a global section was just left, and the dock still
     // shows its file. Nothing on the page is that file any more — so back to
-    // the page: its first section, or no file at all on an empty page. Only
-    // when no editor for those is open, and only for a file no page row
+    // the page's content: the layout's <main>, with the sections under it.
+    // Only when no editor for those is open, and only for a file no page row
     // renders; a section just added, whose row is not in the values yet, is.
     if (
       dockState.lastType &&
@@ -795,16 +780,9 @@ export function syncCodeDock(win, doc, uid) {
       !globalSectionHost(doc) &&
       !pageHasType(win, dockState.lastType)
     ) {
-      const first = pageSectionType(win, doc, null);
-
       dockState.lastUid = null;
-
-      if (first) {
-        flushSave(doc);
-        loadTemplate(win, first, 'replace');
-      } else {
-        closeCodeDock(doc);
-      }
+      flushSave(doc);
+      loadTemplate(win, LAYOUT_TEMPLATE_TYPE, 'replace');
     }
 
     return;

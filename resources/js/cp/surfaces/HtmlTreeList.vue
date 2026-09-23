@@ -102,26 +102,33 @@ function wrapBind(sec) {
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="frameShown(ui.frame.header)" :row="ui.frame.header" :dim="frameDim('header')" />
-        <div v-if="ui.frame.kind === 'main'" data-sve-ht-branch data-sve-ht-cat="main">
+      </template>
+      <!--
+        Main and what it holds. With the layout open, main's own rows and the
+        page's sections sit in one box — the sections are main's children, the
+        way a block's rows are its. Otherwise main is a shut row with the
+        sections (or the slot where they go) stepping in under it.
+      -->
+      <div v-bind="ui.frame?.kind === 'main' ? { 'data-sve-ht-branch': '', 'data-sve-ht-cat': 'main' } : {}">
+        <template v-if="ui.frame?.kind === 'main'">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
-        </div>
-        <HtmlTreeRow v-else-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
+        </template>
+        <HtmlTreeRow v-else-if="ui.frame && frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
         <!-- A collection's template: its rows inside main, where the page's sections would be. -->
-        <div v-if="ui.frame.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body>
+        <div v-if="ui.frame?.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body>
           <div data-sve-ht-branch data-sve-ht-cat="main">
             <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
             <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
           </div>
         </div>
-      </template>
       <div v-if="ui.sections.length || ui.frame" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
         <!-- Standing elsewhere on a template's entry: the template, the way back. -->
         <HtmlTreeRow v-if="ui.frame?.template && frameShown(ui.frame.template)" :row="ui.frame.template" :dim="frameDim('template')" />
         <!--
-          No sections: the place they go, drawn as the slot an empty block shows
-          — a dashed box, roomier. It belongs to main, so it stands there whatever
-          part of the frame is open, and whether or not main is the open file.
+          No sections: the slot where they go, the same slot an empty block
+          shows — it belongs to main, so it stands there whatever part of the
+          frame is open.
         -->
         <div v-if="ui.frame && !ui.frame.template && !ui.sections.length && !query" data-sve-ht-frame-slot :data-dim="frameDim('') ? '' : undefined">{{ ui.frameEmptyText }}</div>
         <div
@@ -142,6 +149,7 @@ function wrapBind(sec) {
           <HtmlTreeRow v-else :row="sec.row" :dim="frameDim('')" />
         </div>
       </div>
+      </div>
       <template v-if="ui.frame">
         <div v-if="ui.frame.kind === 'footer'" data-sve-ht-branch data-sve-ht-cat="footer">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
@@ -157,23 +165,21 @@ function wrapBind(sec) {
 </template>
 
 <style scoped>
-[data-sve-ht-frame-slot][data-dim] {
-  opacity: 0.3;
-}
+/* The same slot an empty block shows ([data-sve-ht-slot] in the row), one level in. */
 [data-sve-ht-frame-slot] {
   box-sizing: border-box;
-  margin: 0.35em 0.5em 0.6em 12px;
-  min-height: 4.5em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1em 1.2em;
+  margin-left: 12px;
+  min-height: 2em;
+  margin-bottom: 0.2em;
+  padding: 0.45em 0.6em;
   border: 1px dashed rgba(128, 128, 128, 0.45);
-  border-radius: 0.5rem;
-  font-size: 0.75rem;
-  line-height: 1.35;
-  text-align: center;
-  opacity: 0.6;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  opacity: 0.5;
+}
+[data-sve-ht-frame-slot][data-dim] {
+  opacity: 0.3;
 }
 .sve-ht-empty {
   padding: 28px 6px;

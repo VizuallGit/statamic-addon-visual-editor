@@ -1287,19 +1287,18 @@ export function renderHtmlTree(win) {
   // clicked. They are the same as soon as the file lands.
   const liveUid = currentSectionUid(win, doc, sections);
 
-  // Page with every section removed: the dock may still hold the last file.
-  // Showing those tags as if they belonged here is the hang after delete.
-  // The frame stays: header, main and footer are the layout's, not the
-  // sections', and main is where the next section lands. Only when the
-  // header or the footer has been opened on purpose does the file drawn
-  // below belong here, and the normal path draws it inside its frame.
+  // Page with every section removed while the dock still holds the last
+  // section's file: showing those tags as if they belonged here is the hang
+  // after delete. The frame stays — header, main and footer are the layout's,
+  // not the sections' — and the dock's usual answer on such a page is the
+  // layout's <main>, which the normal path draws inside its frame.
   const openPart = String(ask('dock:chrome-kind') || '');
 
   // The tag colours from the settings, on every drawing — the empty page's
   // frame too, or its header and footer wear the defaults until a file opens.
   applyFamilyColors(win);
 
-  if (pageBuilder && !sections.length && (!openPart || ask('dock:on-empty-page'))) {
+  if (pageBuilder && !sections.length && !openPart) {
     htmlTreeRoots = [];
     htmlTreeUi.rows = [];
     htmlTreeUi.sections = [];
@@ -1960,10 +1959,7 @@ function resetForFrame(win) {
 function enterFrame(win, kind) {
   const doc = win.document;
 
-  // Already standing there: nothing to enter. Not on an empty page, where the
-  // dock shows the header only because there is nothing else — that header
-  // is not open, and a click on its row must open it.
-  if (String(ask('dock:chrome-kind') || '') === kind && !ask('dock:on-empty-page')) {
+  if (String(ask('dock:chrome-kind') || '') === kind) {
     return;
   }
 
@@ -3513,8 +3509,8 @@ export function watchHtmlTreeDock(win) {
   const onStructure = () => {
     refresh();
 
-    // The dock holds the header only because the page had no sections. Now
-    // it has one, and that one is what the reader wants open — not the header.
+    // The dock holds the layout only because the page had no sections. Now
+    // it has one, and that one is what the reader wants open — not the layout.
     if (ask('dock:on-empty-page') === true) {
       const sections = htmlTreeSections(win, win.document);
 
