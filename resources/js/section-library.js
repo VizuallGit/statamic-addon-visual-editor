@@ -23,7 +23,7 @@ import {
   setHeaderTab,
 } from './cp.js';
 import { openCpOverlay } from './cp/open-overlay.js';
-import { emit } from './cp/bus.js';
+import { ask, emit } from './cp/bus.js';
 import { relayoutCodeDock, syncCodeDock } from './code-dock-lazy.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
 import SectionLibraryPane from './cp/surfaces/SectionLibraryPane.vue';
@@ -2175,7 +2175,11 @@ export function dismissChromeForPageEdit(win, { syncDock = false } = {}) {
   // load. A section click dismisses too, with its own load right behind it —
   // syncing here as well loaded the PREVIOUS section over the clicked one.
   if (syncDock && !closedInline) {
-    syncCodeDock(win, win.document, sveState.soloUid);
+    // Closed on purpose: back to the page's content. The dock decides it
+    // outright; only when its module is not there yet does the plain sync do.
+    if (!ask('dock:leave-part')) {
+      syncCodeDock(win, win.document, null);
+    }
   }
 }
 

@@ -983,6 +983,23 @@ register('dock:current-type', () => currentTemplateType());
 // True while the dock shows the header only because the page has no sections.
 register('dock:on-empty-page', () => !!dockState.onEmptyPage);
 register('dock:current-uid', () => dockState.lastUid);
+// A part of the frame was closed on purpose (the bar's Close, Escape): the
+// page's content is the place to stand again — said outright, not inferred
+// from whether the part's editor is still in the DOM, which on a server (the
+// docked editor) it is for a moment longer.
+register('dock:leave-part', () => {
+  const win = dockState.lastWin;
+
+  if (!win) {
+    return false;
+  }
+
+  dockState.lastUid = null;
+  flushSave(win.document);
+  void loadTemplate(win, LAYOUT_TEMPLATE_TYPE, 'replace');
+
+  return true;
+});
 // Which part of the frame the dock's file is, so the tree can draw header,
 // main and footer around the page — and which half's form the sidebar holds.
 register('dock:chrome-kind', () => frameKindOnDock());
