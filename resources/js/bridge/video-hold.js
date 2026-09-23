@@ -148,6 +148,46 @@ export function setVideoHold(win, data) {
   applyVideoHolds(win);
 }
 
+/**
+ * The rule, stated once: an autoplay video that is not held plays. Whatever
+ * pauses it — a redraw, a section left, a frame opened over it, the browser
+ * — is undone on the next tick, unless the icon holds it or the viewer has
+ * controls of their own. Nothing else in the editor may stop a video.
+ */
+export function watchVideoPauses(win) {
+  const doc = win.document;
+
+  if (doc._sveVideoWatch) {
+    return;
+  }
+
+  doc._sveVideoWatch = true;
+  doc.addEventListener(
+    'pause',
+    (event) => {
+      const el = event.target;
+
+      if (!(el instanceof win.HTMLVideoElement)) {
+        return;
+      }
+
+      win.setTimeout(() => {
+        if (
+          el.isConnected &&
+          el.paused &&
+          !el.ended &&
+          el.hasAttribute('autoplay') &&
+          !el.hasAttribute('controls') &&
+          !el.hasAttribute(VIDEO_HOLD_ATTR)
+        ) {
+          play(el);
+        }
+      }, 0);
+    },
+    true
+  );
+}
+
 /** Every held video paused, every released one let go — after a morph too. */
 export function applyVideoHolds(win) {
   const doc = win.document;

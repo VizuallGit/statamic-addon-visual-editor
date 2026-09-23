@@ -239,6 +239,14 @@ try {
   if (mine && other) {
     const dockPath = () => cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : ''; });
     await clickSection(other.id); await sleep(2500);
+    // Away is not a reason to stop: the video keeps playing while another
+    // section has the focus, whether or not it is on screen.
+    run = await advancing(await livePreview(), 'sve-video-probe');
+    step('keeps playing while another section is open', run.moved && run.b?.paused === false, `${JSON.stringify(run.b)}; visible: ${await (await livePreview()).evaluate(() => { const v = document.querySelector('.sve-video-probe'); const r = v.getBoundingClientRect(); return `${Math.round(r.top)}..${Math.round(r.bottom)} of ${window.innerHeight}`; })}`);
+    await (await livePreview()).evaluate(() => document.querySelector('.sve-video-probe').pause());
+    await sleep(400);
+    run = await advancing(await livePreview(), 'sve-video-probe');
+    step('a pause from elsewhere is undone (autoplay, not held)', run.moved && run.b?.paused === false, JSON.stringify(run.b));
     const away = `${await dockPath()}; ${await spied()}`;
     await clickSection(mine.id); await sleep(2500);
     step('back on the video section (via the preview)', (await dockPath()) === filePath, `away: ${away} | back: ${await dockPath()}; ${await spied()}`);
@@ -252,6 +260,20 @@ try {
     run = await advancing(await livePreview(), 'sve-video-probe');
     const log2 = await (await livePreview()).evaluate(() => window.__sveHoldLog.splice(0));
     step('and the next press plays it again', run.moved && run.b?.paused === false && run.b?.held === false, `${pressed}; ${JSON.stringify(run.b)}; messages: ${log2.join(', ')}`);
+
+    // 2b'. Into the header and out again: the video keeps playing there too.
+    const headerRow = await cp.evaluate(() => { const el = [...document.querySelectorAll('[data-sve-ht-row]')].find((r) => /\bheader\b/i.test(r.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '') && (r.getAttribute('data-sve-ht-frame') || /Header/.test(r.textContent))); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(70, r.width / 2), y: r.y + r.height / 2, text: el.textContent.trim().slice(0, 20) }; });
+    if (headerRow) {
+      const bb = await (await cp.frameElement()).boundingBox();
+      await page.mouse.click(bb.x + headerRow.x, bb.y + headerRow.y, { clickCount: 2 }); await sleep(3000);
+      run = await advancing(await livePreview(), 'sve-video-probe');
+      const inHeader = await cp.evaluate(() => !!document.querySelector('#__sve-chrome-host, #__sve-globals-panel, [data-sve-chrome-form]'));
+      step('keeps playing while the header is open', run.moved && run.b?.paused === false, `header open: ${inHeader}; ${JSON.stringify(run.b)}`);
+      await page.keyboard.press('Escape'); await sleep(1500);
+      await clickSection(mine.id); await sleep(2500);
+    } else {
+      console.log('info no header row in the tree');
+    }
 
     // 2c. The same round trip through the HTML tree's section rows: a shut
     //     section is a row with data-sve-ht-sec; clicking it opens that one.

@@ -19,7 +19,7 @@ import { createClickHandler, createHoverHandler } from './sid-targets.js';
 import { finishWidthDrag, hideColumnChrome, hideGridLines, widthDrag } from './grid.js';
 import { repositionInserters, setupInserters } from './inserters.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
-import { applyVideoHolds, setVideoHold } from './video-hold.js';
+import { applyVideoHolds, setVideoHold, watchVideoPauses } from './video-hold.js';
 
 // ===== outline-nav =====
 /**
@@ -783,6 +783,8 @@ export function initBridge(win = window) {
     },
     true
   );
+
+  watchVideoPauses(win);
 
   win.addEventListener('statamic:preview-updated', () => {
     // Holds put back, and autoplay put right, on every draw — not only while
