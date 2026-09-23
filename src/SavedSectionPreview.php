@@ -72,6 +72,7 @@ class SavedSectionPreview
             PreviewBrowser::shoot($url, $selector, $tmp);
 
             $filesystem->put($path, file_get_contents($tmp));
+            PreviewFile::keep($container, $path);
         } catch (\Throwable $e) {
             @unlink($tmp);
 

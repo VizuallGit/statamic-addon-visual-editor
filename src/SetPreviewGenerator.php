@@ -137,6 +137,10 @@ class SetPreviewGenerator
                     $filesystem->put($folder.$target['filename'], file_get_contents($tmp));
                     @unlink($tmp);
 
+                    if ($container = AssetContainer::find(Sets::previewImageConfig()['container'])) {
+                        PreviewFile::keep($container, $folder.$target['filename']);
+                    }
+
                     FieldsetImage::updateImage($handle, $target['filename']);
                     $this->deleteSuperseded($folder, $target);
 

@@ -16,6 +16,22 @@ use Statamic\Facades\Asset;
  */
 class PreviewFile
 {
+    /**
+     * Tell Statamic about a preview image just written to the container's
+     * disk. Writing the file is not enough: the container's index and the
+     * `.meta/<file>.yaml` are Statamic's, and on a server the Stache watcher is
+     * off, so a file nobody registered stays invisible — "No preview" in the
+     * panel and "Missing" on the utility page — until somebody warms the
+     * Stache by hand. Saving the asset adds it to the index and writes the meta.
+     */
+    public static function keep(AssetContainer $container, string $path): void
+    {
+        $asset = Asset::find($container->handle().'::'.$path)
+            ?? Asset::make()->container($container->handle())->path($path);
+
+        $asset->saveQuietly();
+    }
+
     public static function forget(AssetContainer $container, string $path): void
     {
         if ($asset = Asset::find($container->handle().'::'.$path)) {
