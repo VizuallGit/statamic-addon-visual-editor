@@ -107,9 +107,13 @@ function wrapBind(sec) {
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
-        <!-- An empty page: main with nothing in it yet, and where the next section goes. -->
+        <!--
+          An empty page: main with nothing in it yet. Drawn as the slot an empty
+          block shows — a dashed box, roomier — so it reads as a place things go,
+          not as a gap with a sentence in it.
+        -->
         <div v-if="!ui.frame.kind && !ui.sections.length && !query" v-show="!ui.mainShut" data-sve-ht-frame-body>
-          <div class="sve-ht-empty">{{ ui.frameEmptyText }}</div>
+          <div data-sve-ht-frame-slot>{{ ui.frameEmptyText }}</div>
         </div>
         <!-- A collection's template: its rows inside main, where the page's sections would be. -->
         <div v-if="ui.frame.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body>
@@ -155,6 +159,21 @@ function wrapBind(sec) {
 </template>
 
 <style scoped>
+[data-sve-ht-frame-slot] {
+  box-sizing: border-box;
+  margin: 0.35em 0.5em 0.6em 12px;
+  min-height: 4.5em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em 1.2em;
+  border: 1px dashed rgba(128, 128, 128, 0.45);
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0.6;
+}
 .sve-ht-empty {
   padding: 28px 6px;
   text-align: center;
