@@ -546,10 +546,12 @@ export function openHtmlSvgMenu(win, anchor) {
   placeCssMenu(win, anchor, menu);
   menu._sveApp = mountSurface(CodeDockMenu, menu, {
     kind: 'choices',
+    // The Antlers forms first: they are what a theme writes; the bare tag is
+    // for the rare hand-drawn icon.
     choices: [
-      { value: 'inline', label: t(win, 'code_dock_svg_inline'), hint: '<svg>', active: current === 'svg' },
       { value: 'statamic', label: t(win, 'code_dock_svg_statamic'), hint: '{{ svg src="…" }}' },
       { value: 'iconify', label: t(win, 'code_dock_svg_iconify'), hint: '{{ iconify:… }}' },
+      { value: 'inline', label: t(win, 'code_dock_svg_inline'), hint: '<svg>', active: current === 'svg' },
     ],
     onPick: (value) => {
       closeCssMenu(doc);
