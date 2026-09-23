@@ -297,6 +297,7 @@ export function createMessageReceiver(win) {
 
       bridgeState.htmlPick = {
         uid: data.uid || '',
+        uids: Array.isArray(data.uids) ? data.uids : [],
         tag: data.tag || '',
         klass: data.klass || '',
         all: !!data.all,

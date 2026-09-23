@@ -56,6 +56,23 @@ export function isPickChrome(el) {
   return el.hasAttribute('data-sve-menu') || el.hasAttribute('data-sve-chrome');
 }
 
+/** The element carrying any of a row's identities as `data-sid`, or null. */
+export function sidElement(doc, uid, uids = []) {
+  for (const id of [...(Array.isArray(uids) ? uids : []), uid]) {
+    if (typeof id !== 'string' || id === '') {
+      continue;
+    }
+
+    const el = doc.querySelector(`[data-sid="${CSS.escape(id)}"]`);
+
+    if (el) {
+      return el;
+    }
+  }
+
+  return null;
+}
+
 export function unstampHtmlPick(doc) {
   doc.querySelectorAll(`[${HT_PATH_ATTR}]`).forEach((el) => el.removeAttribute(HT_PATH_ATTR));
 }
@@ -70,9 +87,11 @@ export function unstampHtmlPick(doc) {
  *
  * With a uid there is exactly one: that is a section, and a section is itself.
  */
-export function findPickRoots(doc, { uid, tag, klass } = {}) {
-  if (uid) {
-    const el = doc.querySelector(`[data-sid="${CSS.escape(uid)}"]`);
+export function findPickRoots(doc, { uid, uids, tag, klass } = {}) {
+  if (uid || uids?.length) {
+    // The dock holds the row's `_visual_id`; the preview's `data-sid` is its
+    // `id` first. Every identity the row has is tried, the way the morph does.
+    const el = sidElement(doc, uid, uids);
 
     return el ? [el] : [];
   }
@@ -90,9 +109,9 @@ export function findPickRoots(doc, { uid, tag, klass } = {}) {
   });
 }
 
-export function findPickRoot(doc, { uid, tag, klass } = {}) {
-  if (uid) {
-    const el = doc.querySelector(`[data-sid="${CSS.escape(uid)}"]`);
+export function findPickRoot(doc, { uid, uids, tag, klass } = {}) {
+  if (uid || uids?.length) {
+    const el = sidElement(doc, uid, uids);
 
     if (el) {
       return el;
@@ -125,13 +144,15 @@ export function stampHtmlPick(root, nodes) {
  * mean each root wiped the one before it, and only the last would answer a
  * click.
  */
-export function stampHtmlPickAll(roots, nodes) {
-  const doc = roots?.[0]?.ownerDocument;
-
+export function stampHtmlPickAll(roots, nodes, doc = roots?.[0]?.ownerDocument) {
   if (!doc) {
     return;
   }
 
+  // Cleared even when nothing is found to stamp. A pick whose root is not on
+  // the page used to leave the previous file's stamps standing, and a click on
+  // that file then reported a path into a tree that no longer showed it —
+  // instead of the section, so neither dock nor focus moved.
   unstampHtmlPick(doc);
 
   if (!nodes?.length) {

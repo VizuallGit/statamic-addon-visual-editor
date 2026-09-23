@@ -13,6 +13,7 @@
  */
 import { bridgeState } from './state.js';
 import { SID_ATTR } from '../bridge.js';
+import { sidElement } from '../html-pick-align.js';
 
 export const VIDEO_HOLD_ATTR = 'data-sve-video-hold';
 const AUTOPLAY_ATTR = 'data-sve-video-autoplay';
@@ -101,8 +102,8 @@ function release(el) {
  * be a block inside the section that holds no video itself; then the nearest
  * marked ancestor with one is taken, and the page as a whole when none is.
  */
-function videosOf(doc, uid) {
-  let scope = uid ? doc.querySelector(`[${SID_ATTR}="${CSS.escape(uid)}"]`) : null;
+function videosOf(doc, uid, uids = []) {
+  let scope = sidElement(doc, uid, uids);
 
   while (scope && !scope.querySelector('video')) {
     scope = scope.parentElement?.closest?.(`[${SID_ATTR}]`) || null;
@@ -111,15 +112,37 @@ function videosOf(doc, uid) {
   return [...(scope || doc).querySelectorAll('video')];
 }
 
+/** The videos one hold speaks of. */
+function targetsOf(doc, item) {
+  const videos = videosOf(doc, item.uid, item.uids);
+
+  // A loop draws more videos than the file has tags: the nth row past the
+  // end means every one of them.
+  return item.nth === null || item.nth >= videos.length ? videos : [videos[item.nth]].filter(Boolean);
+}
+
 export function setVideoHold(win, data) {
   const uid = typeof data.uid === 'string' ? data.uid : '';
+  const uids = Array.isArray(data.uids) ? data.uids.filter((id) => typeof id === 'string') : [];
   const nth = Number.isInteger(data.nth) ? data.nth : null;
   const key = `${uid}:${nth === null ? '*' : nth}`;
 
   if (data.on) {
-    bridgeState.videoHolds.set(key, { uid, nth });
+    bridgeState.videoHolds.set(key, { uid, uids, nth });
   } else {
+    // Play wins over every hold that reaches the same video, not only the one
+    // with the same name. The panel names the section it has open, and after
+    // a trip through another section and back that name can differ from the
+    // one the hold was set with; a hold left behind under the old name would
+    // keep the video still while the icon says play.
+    const released = new Set(targetsOf(win.document, { uid, uids, nth }));
+
     bridgeState.videoHolds.delete(key);
+    bridgeState.videoHolds.forEach((item, name) => {
+      if (targetsOf(win.document, item).some((video) => released.has(video))) {
+        bridgeState.videoHolds.delete(name);
+      }
+    });
   }
 
   applyVideoHolds(win);
@@ -131,12 +154,7 @@ export function applyVideoHolds(win) {
   const want = new Set();
 
   for (const item of bridgeState.videoHolds.values()) {
-    const videos = videosOf(doc, item.uid);
-    // A loop draws more videos than the file has tags: the nth row past the
-    // end means every one of them.
-    const targets = item.nth === null || item.nth >= videos.length ? videos : [videos[item.nth]];
-
-    targets.forEach((video) => video && want.add(video));
+    targetsOf(doc, item).forEach((video) => want.add(video));
   }
 
   doc.querySelectorAll(`video[${VIDEO_HOLD_ATTR}]`).forEach((video) => {

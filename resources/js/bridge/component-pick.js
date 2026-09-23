@@ -138,7 +138,7 @@ export function applyHtmlPick(win) {
 
   const roots = findPickRoots(win.document, bridgeState.htmlPick);
 
-  stampHtmlPickAll(bridgeState.htmlPick.all ? roots : roots.slice(0, 1), bridgeState.htmlPick.nodes);
+  stampHtmlPickAll(bridgeState.htmlPick.all ? roots : roots.slice(0, 1), bridgeState.htmlPick.nodes, win.document);
   reportAwaitedPick(win);
 }
 

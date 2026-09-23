@@ -32,6 +32,8 @@ const PUBLIC_COPY = VIDEO_FILE ? `${SITE_DIR}/public/sve-video-probe.mp4` : null
 const SRC = env('SVE_VIDEO_SRC', PUBLIC_COPY ? `${SITE_URL}/sve-video-probe.mp4` : 'https://vizuall-demo.vizdev.dk/assets/video/vizuall-showreel-2026-bredformat-august-2_1_1_1-1.mp4');
 if (PUBLIC_COPY) copyFileSync(VIDEO_FILE, PUBLIC_COPY);
 const SCRIPT = `${ADDON_DIR}/resources/js/dock-instant-preview.js`;
+// SVE_OTHER: a word in the class or tree label of the section to visit on the round trip (e.g. "static").
+const OTHER = env('SVE_OTHER', '');
 
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -191,6 +193,98 @@ try {
   await sleep(2500);
   run = await advancing(await livePreview(), 'sve-video-probe');
   step('still playing after the morph that follows', run.moved && run.b?.paused === false, JSON.stringify(run.b));
+
+  // 2b. Into another section and back: the icon must still speak of this
+  //     video. The spy records which section each hold message names.
+  await (await livePreview()).evaluate(() => {
+    window.__sveHoldLog = [];
+    window.addEventListener('message', (e) => { if (e.data && e.data.type === 'sve-video-hold') window.__sveHoldLog.push(`${e.data.on ? 'hold' : 'play'} ${String(e.data.uid).slice(0, 14)}:${e.data.nth}`); });
+    window.__sveHits = [];
+    document.addEventListener('click', (e) => { const t = e.target; window.__sveHits.push(`${t.tagName.toLowerCase()}.${String(t.className).slice(0, 20)} sec=${t.closest('[id^="id-"]')?.id || '-'}`); }, true);
+  });
+  await cp.evaluate(() => { window.__sveMsgs = []; window.addEventListener('message', (e) => { const d = e.data || {}; if (d.type === 'click') window.__sveMsgs.push(`click${d.uid ? ' uid=' + String(d.uid).slice(0, 12) : ''}${d.field ? ' field=' + d.field + ' scope=' + String(d.scope || '').slice(0, 12) : ''}${d.htmlPath ? ' path=' + d.htmlPath.slice(0, 18) : ''}`); }); });
+  const spied = async () => `hits: ${await (await livePreview()).evaluate(() => (window.__sveHits || []).splice(0).join(' | ')).catch(() => 'n/a')}; msgs: ${await cp.evaluate(() => (window.__sveMsgs || []).splice(0).join(' | ')).catch(() => 'n/a')}`;
+  const clickSection = async (id) => {
+    const f = await livePreview();
+    // A point that is inside the section AND inside the preview's own viewport:
+    // the dock and the tree cover the bottom and the right of the CP, so the
+    // section's centre is not always a place a click can reach.
+    const r = await f.evaluate((i) => {
+      const el = document.getElementById(i);
+      if (!el) return null;
+      el.scrollIntoView({ block: 'start' });
+      const q = el.getBoundingClientRect();
+      const top = Math.max(q.top, 0); const bottom = Math.min(q.bottom, window.innerHeight);
+      // The editor draws its own toolbar over the section's top edge: walk down
+      // until the point under the pointer really is this section.
+      for (let y = top + 24; y < bottom - 10; y += 32) {
+        for (const x of [q.x + Math.min(q.width / 3, 240), q.x + q.width / 2]) {
+          const hit = document.elementFromPoint(x, y);
+          // A spot of the section itself, not a field in it: a field click narrows the tree to that block.
+          if (hit && hit.closest('[id^="id-"]')?.id === i && !hit.closest('[id^="__sve"], [data-sve-menu], [data-sve-belt], [data-sve-chrome-bar], [data-sid-field], [data-sid-inline-edit], a, button')) return { x, y };
+        }
+      }
+      return null;
+    }, id);
+    if (!r) return false;
+    let x = r.x; let y = r.y;
+    for (let fr = f; fr.parentFrame(); fr = fr.parentFrame()) { const box = await (await fr.frameElement()).boundingBox(); x += box.x; y += box.y; }
+    await page.mouse.click(x, y);
+    return true;
+  };
+  const sections = await (await livePreview()).evaluate(() => [...document.querySelectorAll('[id^="id-"]')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }).map((el) => ({ id: el.id, sid: (el.getAttribute('data-sid') || '').slice(0, 14), cls: el.className.slice(0, 60), video: !!el.querySelector('.sve-video-probe') })));
+  const mine = sections.find((sec) => sec.video);
+  const other = sections.find((sec) => !sec.video && (!OTHER || sec.cls.includes(OTHER))) || sections.find((sec) => !sec.video);
+  step('a second section to visit', !!mine && !!other, `${other ? `${other.id} [${other.cls}]` : '-'}; all: ${sections.map((sec) => `${sec.id}${sec.video ? ' (video)' : ''}`).join(', ')}`);
+  if (mine && other) {
+    const dockPath = () => cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : ''; });
+    await clickSection(other.id); await sleep(2500);
+    const away = `${await dockPath()}; ${await spied()}`;
+    await clickSection(mine.id); await sleep(2500);
+    step('back on the video section (via the preview)', (await dockPath()) === filePath, `away: ${away} | back: ${await dockPath()}; ${await spied()}`);
+    const secRow2 = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2, open: el.hasAttribute('data-sve-ht-open') || el.getAttribute('aria-expanded') === 'true' }; }, secLabel);
+    if (secRow2 && !(await videoRow())) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + secRow2.x, b.y + secRow2.y); await sleep(1500); }
+    pressed = await pressVideoIcon(); await sleep(900);
+    held = await stateOf(await livePreview(), 'sve-video-probe');
+    const log1 = await (await livePreview()).evaluate(() => window.__sveHoldLog.splice(0));
+    step('after the round trip the icon still stops it', !!held && held.paused === true && held.held === true, `${pressed}; ${JSON.stringify(held)}; messages: ${log1.join(', ')}; section sid ${mine.sid}`);
+    pressed = await pressVideoIcon(); await sleep(900);
+    run = await advancing(await livePreview(), 'sve-video-probe');
+    const log2 = await (await livePreview()).evaluate(() => window.__sveHoldLog.splice(0));
+    step('and the next press plays it again', run.moved && run.b?.paused === false && run.b?.held === false, `${pressed}; ${JSON.stringify(run.b)}; messages: ${log2.join(', ')}`);
+
+    // 2c. The same round trip through the HTML tree's section rows: a shut
+    //     section is a row with data-sve-ht-sec; clicking it opens that one.
+    const shutRow = (wantLabel) => cp.evaluate((label) => {
+      const rows = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')];
+      const el = label ? rows.find((r) => (r.textContent || '').toLowerCase().includes(label.toLowerCase())) : rows[0];
+      if (!el) return null;
+      el.scrollIntoView({ block: 'center' });
+      const r = el.getBoundingClientRect();
+      return { x: r.x + Math.min(80, r.width / 2), y: r.y + r.height / 2, text: (el.textContent || '').trim().slice(0, 30) };
+    }, wantLabel);
+    const b = await (await cp.frameElement()).boundingBox();
+    let viaTree = false;
+    let hops = [];
+    const otherRow = (await shutRow(OTHER)) || (await shutRow(''));
+    if (otherRow) {
+      await page.mouse.click(b.x + otherRow.x, b.y + otherRow.y); await sleep(2500); hops.push(`→ ${otherRow.text} (${await dockPath()})`);
+      const backRow = await shutRow(secLabel);
+      if (backRow) { await page.mouse.click(b.x + backRow.x, b.y + backRow.y); await sleep(2500); viaTree = true; hops.push(`→ ${backRow.text}`); }
+    }
+    const secRows = hops;
+    step('round trip through the tree rows', viaTree && (await dockPath()) === filePath, `${secRows.join(' ')}; dock: ${await dockPath()}`);
+    if (viaTree) {
+      pressed = await pressVideoIcon(); await sleep(900);
+      held = await stateOf(await livePreview(), 'sve-video-probe');
+      const log3 = await (await livePreview()).evaluate(() => window.__sveHoldLog.splice(0));
+      step('after the tree round trip the icon stops it', !!held && held.paused === true && held.held === true, `${pressed}; ${JSON.stringify(held)}; messages: ${log3.join(', ')}`);
+      pressed = await pressVideoIcon(); await sleep(900);
+      run = await advancing(await livePreview(), 'sve-video-probe');
+      const log4 = await (await livePreview()).evaluate(() => window.__sveHoldLog.splice(0));
+      step('and plays again', run.moved && run.b?.paused === false && run.b?.held === false, `${pressed}; ${JSON.stringify(run.b)}; messages: ${log4.join(', ')}`);
+    }
+  }
 
   // 3. Renamed tag in the dock: a <div> with the video's attributes becomes a
   //    <video>, and keeps its muted state (the copy is made with createElement).

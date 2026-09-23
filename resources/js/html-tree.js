@@ -2027,6 +2027,11 @@ function sendPick(win, roots) {
       type: MSG.SVE_HTML_PICK,
       on: true,
       uid,
+      // The dock names the row by `_visual_id`; the preview's `data-sid` is
+      // the row's `id` first. Every identity goes along, so the section is
+      // found whichever one its markup carries — a uid that matched nothing
+      // left the previous file's stamps standing.
+      uids: uid ? topLevelSectionIds(uid, win.document) : [],
       // Only a component renders in more than one place, and only there should
       // every match be stamped. A section that happens to arrive without a uid
       // must still line up with one element — matching on tag and class alone
@@ -2229,9 +2234,10 @@ function rememberVideoHolds(win, held) {
  */
 function syncVideoHolds(win, held) {
   const uid = String(ask('dock:current-uid') || '');
+  const uids = uid ? topLevelSectionIds(uid, win.document) : [];
 
   for (const nth of held) {
-    sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, nth, on: true }, win);
+    sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, uids, nth, on: true }, win);
   }
 }
 
@@ -2256,8 +2262,10 @@ function toggleVideoHold(win, id) {
     held.delete(row.videoNth);
   }
 
+  const uid = String(ask('dock:current-uid') || '');
+
   rememberVideoHolds(win, held);
-  sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid: String(ask('dock:current-uid') || ''), nth: row.videoNth, on }, win);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], nth: row.videoNth, on }, win);
   renderHtmlTree(win);
 }
 
