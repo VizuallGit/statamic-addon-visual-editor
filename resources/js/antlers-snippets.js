@@ -19,10 +19,20 @@ export const ANTLERS_SNIPPETS = [
   { id: 'if_elseif', group: 'logic', label: 'if / elseif / else', snippet: '{{ if |field }}\n  \n{{ elseif other }}\n  \n{{ else }}\n  \n{{ /if }}' },
   { id: 'unless', group: 'logic', label: 'unless', snippet: '{{ unless |field }}\n  \n{{ /unless }}' },
   { id: 'unless_else', group: 'logic', label: 'unless / else', snippet: '{{ unless |field }}\n  \n{{ else }}\n  \n{{ /unless }}' },
+  // Inside a nav loop: the page being viewed, and the one above it.
+  { id: 'is_current', group: 'logic', label: 'is_current', snippet: '{{ if |is_current }}\n  \n{{ /if }}' },
+  { id: 'is_parent', group: 'logic', label: 'is_parent', snippet: '{{ if |is_parent }}\n  \n{{ /if }}' },
+  { id: 'is_current_or_parent', group: 'logic', label: 'is_current || is_parent', snippet: '{{ if |is_current || is_parent }}\n  \n{{ /if }}' },
   { id: 'loop', group: 'loops', label: 'loop', snippet: '{{ |items }}\n  {{ title }}\n{{ /items }}' },
   { id: 'collection', group: 'loops', label: 'collection', snippet: '{{ collection from="|handle" }}\n  {{ title }}\n{{ /collection }}' },
   { id: 'collection_as', group: 'loops', label: 'collection as', snippet: '{{ collection from="|handle" as="entries" }}\n  {{ if no_results }}\n    \n  {{ /if }}\n  {{ entries }}\n    {{ title }}\n  {{ /entries }}\n{{ /collection }}' },
   { id: 'foreach', group: 'loops', label: 'foreach', snippet: '{{ foreach:|items }}\n  {{ key }}: {{ value }}\n{{ /foreach:items }}' },
+  // Navigation: the tree by handle, the page being viewed marked; with the
+  // home page in front of it; one level down; the way here.
+  { id: 'nav', group: 'loops', label: 'nav', snippet: '{{ nav:|main }}\n  <a href="{{ url }}"{{ if is_current || is_parent }} aria-current="page"{{ /if }}>{{ title }}</a>\n{{ /nav:main }}' },
+  { id: 'nav_home', group: 'loops', label: 'nav include_home', snippet: '{{ nav:|main include_home="true" }}\n  <a href="{{ url }}"{{ if is_current || is_parent }} aria-current="page"{{ /if }}>{{ title }}</a>\n{{ /nav:main }}' },
+  { id: 'nav_children', group: 'loops', label: 'nav children', snippet: '{{ nav:|main }}\n  <a href="{{ url }}">{{ title }}</a>\n  {{ if children }}\n    {{ children }}\n      <a href="{{ url }}">{{ title }}</a>\n    {{ /children }}\n  {{ /if }}\n{{ /nav:main }}' },
+  { id: 'breadcrumbs', group: 'loops', label: 'nav:breadcrumbs', snippet: '{{ nav:breadcrumbs }}\n  <a href="{{ url }}">{{ title }}</a>\n{{ /nav:breadcrumbs }}' },
   { id: 'partial', group: 'include', label: 'partial', snippet: '{{ partial:|path }}' },
   { id: 'partial_exists', group: 'include', label: 'partial:if_exists', snippet: '{{ partial:if_exists src="|path" }}' },
   { id: 'svg', group: 'include', label: 'svg', snippet: '{{ svg src="|icon" }}' },
