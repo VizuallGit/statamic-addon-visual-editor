@@ -205,7 +205,7 @@ try {
   const secLabel = filePath.replace(/^.*page_sections\//, '').replace(/\.antlers\.html$/, '').replace(/[\/_]+/g, ' ').trim();
   let secRow = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return { rows: [...document.querySelectorAll('[data-sve-ht-row]')].map((r) => ({ id: r.getAttribute('data-sve-ht-id'), text: r.textContent.trim().slice(0, 30) })), label }; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(80, r.width / 2), y: r.y + r.height / 2, w: r.width }; }, secLabel);
   if (secRow.w) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + secRow.x, b.y + secRow.y); await sleep(1500); }
-  else step('html tree shows the open section as a row', false, JSON.stringify(secRow));
+  else step('html tree shows the open section as a row', false, `${JSON.stringify(secRow)}; dock now: ${await cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : '-'; })}`);
   const treeRow = await cp.evaluate(() => {
     const rows = [...document.querySelectorAll('[data-sve-ht-row]')];
     const tagOf = (el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim();
@@ -354,11 +354,16 @@ try {
 
   // Remove the probe again — Shift+Home selects the typed line, Backspace twice
   // removes it and the newline. The morph (truth) then takes it out of the preview.
+  // The caret may have left the pane (a tree row was clicked, a menu opened):
+  // put it back at the end of the typed line first.
+  const probeLineAgain = await cp.evaluate(() => { const line = [...document.querySelectorAll('#__sve-code-dock [data-sve-code-pane="html"] .cm-line')].find((l) => l.textContent.includes('sve-instant-probe')); if (!line) return null; line.scrollIntoView({ block: 'center' }); const r = line.getBoundingClientRect(); return { x: r.right - 2, y: r.y + r.height / 2 }; });
+  if (probeLineAgain) { const box = await (await cp.frameElement()).boundingBox(); await page.mouse.click(box.x + probeLineAgain.x, box.y + probeLineAgain.y); await page.keyboard.press("End"); }
   await page.keyboard.down('Shift'); await page.keyboard.press('Home'); await page.keyboard.up('Shift');
   await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace');
   await sleep(3500);
   const gone = await (await livePreview()).evaluate(() => !document.querySelector('.sve-instant-probe'));
-  step('probe gone after the morph', gone);
+  const still = await cp.evaluate(() => (document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.textContent || '').includes('sve-instant-probe'));
+  step('probe gone after the morph', gone, `pane still has it: ${still}; file on disk has it: ${abs && existsSync(abs) ? readFileSync(abs, 'utf8').includes('sve-instant-probe') : 'n/a'}`);
 } catch (e) {
   report.errors.push(`exception: ${e.message}`); report.ok = false;
 } finally {

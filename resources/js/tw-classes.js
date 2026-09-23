@@ -267,6 +267,12 @@ function ensureStyles(doc) {
       min-height: 0;
       overflow-y: auto;
     }
+    /* The search and the tabs keep their height however long the list is. */
+    #${MENU_ID} [data-sve-tw-search],
+    #${MENU_ID} [data-sve-tw-tabs],
+    #${MENU_ID} [data-sve-tw-add-empty] {
+      flex: 0 0 auto;
+    }
     /* The state popup is the Insert data one: wider than a class menu, same look. */
     #${MENU_ID}[data-sve-data-menu] {
       min-width: 20rem;

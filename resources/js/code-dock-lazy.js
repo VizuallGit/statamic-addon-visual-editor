@@ -64,6 +64,13 @@ export function prefetchCodeDock(win) {
  * The one call that may load the editor — and only when the dock is on. Every
  * preview render asks; a site with the dock switched off must never pay.
  */
+/**
+ * The section asked for before the editor existed. A click on the page with
+ * the dock shut still says what is chosen; when the dock is opened later with
+ * nothing named, it opens on that — not on the default.
+ */
+let wanted = null;
+
 export function syncCodeDock(win, doc, uid) {
   if (dock) {
     dock.syncCodeDock(win, doc, uid);
@@ -71,11 +78,15 @@ export function syncCodeDock(win, doc, uid) {
     return;
   }
 
+  if (uid) {
+    wanted = uid;
+  }
+
   if (!win || !doc || !templateDockAllowed(win) || !isCodeDockArmed(win)) {
     return;
   }
 
-  void loadCodeDock().then((mod) => mod.syncCodeDock(win, doc, uid));
+  void loadCodeDock().then((mod) => mod.syncCodeDock(win, doc, uid || wanted));
 }
 
 export function closeCodeDock(doc) {

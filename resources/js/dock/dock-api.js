@@ -677,23 +677,6 @@ function chromeTemplateType(win, doc) {
  * the site has chosen (`sveChromeStyles` comes from the globals), so the
  * button never does nothing.
  */
-/** Whether the page builder holds at least one row. */
-function pageHasSectionRows(win) {
-  const field = typeof sectionField === 'function' ? sectionField(win) : 'page_sections';
-  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
-
-  for (const container of containers) {
-    const values = unwrapRef(container.values) || container.values;
-    const rows = values?.[field];
-
-    if (Array.isArray(rows) && rows.length) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 /** Whether a top-level row of the page builder renders `type`. */
 function pageHasType(win, type) {
   if (!type || String(type).startsWith('view:') || isChromeTemplateType(win, type)) {
@@ -737,6 +720,14 @@ export function syncCodeDock(win, doc, uid) {
     return;
   }
 
+  const uidChanged = !!(uid && uid !== dockState.lastUid);
+
+  // The section asked for is remembered even while the dock is shut: opened
+  // later with nothing named, it shows what was chosen, not the default.
+  if (uid) {
+    dockState.lastUid = uid;
+  }
+
   if (!win || !doc || isPanelFrame(doc) || !templateDockAllowed(win) || !isCodeDockArmed(win)) {
     if (doc) {
       closeCodeDock(doc);
@@ -745,46 +736,45 @@ export function syncCodeDock(win, doc, uid) {
     return;
   }
 
+  // A file the page no longer shows is not kept, and neither is the section
+  // chosen before it: the header or the footer just closed, a global section
+  // left, a section deleted. Only when no editor for those is open, and only
+  // for a file no page row renders — a section just added, whose row is not
+  // in the values yet, is still the page's.
+  const leftBehind =
+    !uid &&
+    !!dockState.lastType &&
+    dockState.lastType !== LAYOUT_TEMPLATE_TYPE &&
+    !chromeHost(doc) &&
+    !chromeEditorOpen(doc) &&
+    !globalSectionHost(doc) &&
+    !pageHasType(win, dockState.lastType);
+
+  if (leftBehind) {
+    dockState.lastUid = null;
+  }
+
+  const chosen = uid || dockState.lastUid || '';
   const resolved =
     chromeTemplateType(win, doc) ||
     globalSectionTemplateType(doc) ||
-    pageSectionType(win, doc, uid) ||
+    (chosen ? pageSectionType(win, doc, chosen) : '') ||
     collectionViewType(win) ||
-    (!uid ? dockState.lastType : '');
-  // Nothing chosen on a page with no sections: the layout's <main> — the
-  // page's content is the default place to stand, and what a new section
-  // lands in. Never for a request for a section by uid, which must keep what
-  // it holds rather than hand the dock (and the tree with it) elsewhere.
-  const fallback = !resolved && !uid && !pageHasSectionRows(win) ? LAYOUT_TEMPLATE_TYPE : '';
-  const type = resolved || fallback;
-  const uidChanged = !!(uid && uid !== dockState.lastUid);
+    (!uid && !leftBehind ? dockState.lastType : '');
+  // Nothing chosen — on opening, after a part of the frame closed, with the
+  // chosen section gone: the layout's <main>. The page's content is the place
+  // to stand by default, and what a new section lands in. Never for a request
+  // for a section by uid, which must keep what it holds rather than hand the
+  // dock (and the tree with it) elsewhere.
+  const type = resolved || (!uid ? LAYOUT_TEMPLATE_TYPE : '');
 
-  dockState.onEmptyPage = !!fallback;
+  // On the layout because nothing else was chosen, not because it was: the
+  // first section added to such a page is what the reader wants open.
+  dockState.onEmptyPage = !resolved && !uid;
 
   dockState.lastWin = win;
 
-  if (uid) {
-    dockState.lastUid = uid;
-  }
-
   if (!type) {
-    // Header, footer or a global section was just left, and the dock still
-    // shows its file. Nothing on the page is that file any more — so back to
-    // the page's content: the layout's <main>, with the sections under it.
-    // Only when no editor for those is open, and only for a file no page row
-    // renders; a section just added, whose row is not in the values yet, is.
-    if (
-      dockState.lastType &&
-      !chromeHost(doc) &&
-      !chromeEditorOpen(doc) &&
-      !globalSectionHost(doc) &&
-      !pageHasType(win, dockState.lastType)
-    ) {
-      dockState.lastUid = null;
-      flushSave(doc);
-      loadTemplate(win, LAYOUT_TEMPLATE_TYPE, 'replace');
-    }
-
     return;
   }
 

@@ -97,7 +97,9 @@ try {
   let hasSection = false;
   for (let i = 0; i < 25 && !hasSection; i++) { const f = await livePreview(); hasSection = f ? await f.evaluate(() => !!document.querySelector('[id^="id-"]')).catch(() => false) : false; if (!hasSection) await sleep(1000); }
   step('preview section rendered', hasSection);
+  await cp.evaluate(() => { window.__sveMsgs = []; window.addEventListener('message', (e) => { const d = e.data || {}; if (d.type && /click|edit-request/.test(d.type)) window.__sveMsgs.push(`${d.type}${d.uid ? ' uid=' + String(d.uid).slice(0, 12) : ''}${d.field ? ' field=' + d.field + ' scope=' + String(d.scope || '').slice(0, 12) : ''}${d.htmlPath ? ' path=' + d.htmlPath.slice(0, 18) : ''}`); }); });
   await realClick(page, await livePreview(), '[id^="id-"]'); await sleep(2000);
+  console.log('info first click —', await cp.evaluate(() => (window.__sveMsgs || []).splice(0).join(' | ')), '| dock file:', await cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()).replace(/^.*views\//, '') : '(dock shut)'; }));
   let dock = false;
   for (let attempt = 1; attempt <= 2 && !dock; attempt++) { await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]'); await sleep(600); dock = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000); if (!dock) await sleep(1000); }
   step('code dock open with an HTML pane', dock);
@@ -179,9 +181,18 @@ try {
     const row = await videoRow(marker);
     if (!row) return 'no video row in the tree';
     const b = await (await cp.frameElement()).boundingBox();
-    await page.mouse.move(b.x + row.x, b.y + row.y); await sleep(250);
-    const icon = await cp.evaluate((m) => { const re = new RegExp(m); const rows = [...document.querySelectorAll('[data-sve-ht-row]')]; const hit = rows.find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && re.test(el.textContent || '')); const btn = hit?.querySelector('[data-sve-ht-video]'); if (!btn) return null; const r = btn.getBoundingClientRect(); return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2, on: btn.hasAttribute('data-on') } : { hidden: true }; }, marker);
-    if (!icon || icon.hidden) return `video icon not clickable: ${JSON.stringify(icon)}`;
+    const iconOf = () => cp.evaluate((m) => { const re = new RegExp(m); const rows = [...document.querySelectorAll('[data-sve-ht-row]')]; const hit = rows.find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && re.test(el.textContent || '')); const btn = hit?.querySelector('[data-sve-ht-video]'); if (!btn) return null; const r = btn.getBoundingClientRect(); return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2, on: btn.hasAttribute('data-on') } : { hidden: true }; }, marker);
+    // The icons show on hover, and on the row that is current: hover first, and
+    // when the pointer does not take (a scrim, a dialog), select the row.
+    await page.mouse.move(b.x + row.x - 6, b.y + row.y); await page.mouse.move(b.x + row.x, b.y + row.y); await sleep(300);
+    let icon = await iconOf();
+    if (!icon || icon.hidden) { await page.mouse.click(b.x + row.x, b.y + row.y); await sleep(500); icon = await iconOf(); }
+    if (!icon || icon.hidden) {
+      const why = await cp.evaluate((m) => { const re = new RegExp(m); const hit = [...document.querySelectorAll('[data-sve-ht-row]')].find((el) => re.test(el.textContent || '')); const dock = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return `dock=${dock ? (dock.getAttribute('data-sve-code-path') || dock.textContent.trim()).replace(/^.*page_sections\//, '') : '-'} row=${hit ? [...hit.attributes].map((a) => a.name + (a.value ? '=' + a.value.slice(0, 12) : '')).join(' ') : '-'} inBox=${!!hit?.closest('[data-sve-ht-branch]')} actions=${hit ? getComputedStyle(hit.querySelector('[data-sve-ht-actions]') || hit).display : '-'}`; }, marker);
+      const covers = await cp.evaluate(() => [...document.querySelectorAll('.sve-dialog, [role="dialog"], .modal, [data-sve-scrim], #__sve-preview-confirm, .v-modal')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => `${e.tagName.toLowerCase()}#${e.id || ''}.${String(e.className).slice(0, 30)}`).join(', ') || 'none');
+      const under = await cp.evaluate((m) => { const re = new RegExp(m); const hit = [...document.querySelectorAll('[data-sve-ht-row]')].find((el) => re.test(el.textContent || '')); if (!hit) return '-'; const r = hit.getBoundingClientRect(); const top = document.elementFromPoint(r.x + 60, r.y + r.height / 2); return top ? `${top.tagName.toLowerCase()}#${top.id || ''}.${String(top.className).slice(0, 40)} insideRow=${hit.contains(top)}` : 'nothing'; }, marker);
+      return `video icon not clickable: ${JSON.stringify(icon)}; ${why}; dialogs: ${covers}; under pointer: ${under}`;
+    }
     await page.mouse.click(b.x + icon.x, b.y + icon.y);
     return `pressed (was ${icon.on ? 'held' : 'playing'})`;
   };
@@ -368,6 +379,18 @@ try {
     await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000);
     cp = await (await page.$('iframe.sve-edit-overlay')).contentFrame();
     await waitIn(cp, '#__sve-toolbar button', 20000);
+    // Statamic's own modals (licence, working copy) take the first clicks
+    // after a reload: close them before measuring anything.
+    // The modal sits in the outer page (the entry form), above the overlay.
+    for (let i = 0; i < 4; i++) {
+      await sleep(1000);
+      const where = await page.evaluate(() => [...document.querySelectorAll('.vue-portal-target .modal, [role="dialog"]')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => (e.textContent || '').trim().slice(0, 40)));
+      const inner = await cp.evaluate(() => [...document.querySelectorAll('.vue-portal-target .modal, [role="dialog"]')].filter((e) => e.getBoundingClientRect().width > 0).length);
+      if (!where.length && !inner) break;
+      const closed = await page.evaluate(() => { const m = [...document.querySelectorAll('.vue-portal-target .modal, [role="dialog"]')].find((e) => e.getBoundingClientRect().width > 0); const b = m && [...m.querySelectorAll('button')].find((x) => /close|cancel|luk|annull|ok|got it|dismiss/i.test(x.textContent || '') || x.getAttribute('aria-label') === 'Close'); if (b) { b.click(); return b.textContent.trim().slice(0, 20) || 'close'; } return ''; });
+      if (!closed) await page.keyboard.press('Escape');
+      console.log(`info reopen — modal ${JSON.stringify(where)} inner=${inner} → ${closed ? 'closed via "' + closed + '"' : 'escaped'}`);
+    }
     for (let i = 0; i < 25; i++) { const f = await livePreview(); if (f && await f.evaluate(() => !!document.querySelector('.sve-video-probe')).catch(() => false)) break; await sleep(1000); }
     await sleep(2500);
   };

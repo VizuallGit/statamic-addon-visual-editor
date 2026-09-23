@@ -1913,6 +1913,12 @@ export function createMessageListener(doc = document, win = window) {
         }
       }
     } else if (data.type === MSG.EDIT_REQUEST) {
+      // A click that starts editing text is a click on that section too: the
+      // dock follows it, as it follows any other click on the page.
+      if (data.scope) {
+        syncCodeDock(win, doc, data.scope);
+      }
+
       handleEditRequest(data, doc, win);
     } else if (data.type === MSG.EDIT_INPUT) {
       handleEditInput(data, doc);

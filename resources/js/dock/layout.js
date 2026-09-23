@@ -846,6 +846,11 @@ export function ensureStyle(doc) {
   min-height: 0;
   overflow-y: auto;
 }
+/* The search and the tabs keep their height however long the list is. */
+[data-sve-data-menu] [data-sve-data-search],
+[data-sve-data-menu] [data-sve-data-tabs] {
+  flex: 0 0 auto;
+}
 [data-sve-data-menu] [data-sve-data-tabs] {
   display: flex;
   gap: 0.2rem;

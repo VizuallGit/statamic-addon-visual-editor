@@ -320,7 +320,12 @@ export function createClickHandler(win) {
     }
 
     if (bridgeState.htmlPick) {
-      const picked = event.target.closest?.(`[${HT_PATH_ATTR}]`);
+      const stamped = event.target.closest?.(`[${HT_PATH_ATTR}]`);
+      // The layout's <main> is stamped above the page's sections. A click on
+      // a section under it is the section's — it opens that file, whose own
+      // stamps then place the click — not a tag of the layout's.
+      const section = event.target.closest?.('[data-sid-section-orderable]');
+      const picked = stamped && section && stamped !== section && stamped.contains(section) ? null : stamped;
 
       // Picking a tag for the tree and editing the text in it are not rivals:
       // the click can say which tag it was and still open the field. Only a
