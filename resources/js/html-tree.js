@@ -1295,6 +1295,10 @@ export function renderHtmlTree(win) {
   // below belong here, and the normal path draws it inside its frame.
   const openPart = String(ask('dock:chrome-kind') || '');
 
+  // The tag colours from the settings, on every drawing — the empty page's
+  // frame too, or its header and footer wear the defaults until a file opens.
+  applyFamilyColors(win);
+
   if (pageBuilder && !sections.length && (!openPart || ask('dock:on-empty-page'))) {
     htmlTreeRoots = [];
     htmlTreeUi.rows = [];
@@ -1457,7 +1461,6 @@ export function renderHtmlTree(win) {
   htmlTreeUi.searchEmpty = t(win, 'html_tree_search_empty');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
   htmlTreeUi.look = readHtmlTreeLook(win);
-  applyFamilyColors(win);
   htmlTreeUi.onQuery = () => renderHtmlTree(win);
   paintComponentExit(win);
   htmlTreeUi.inComponent = inComponent;
@@ -1957,7 +1960,10 @@ function resetForFrame(win) {
 function enterFrame(win, kind) {
   const doc = win.document;
 
-  if (String(ask('dock:chrome-kind') || '') === kind) {
+  // Already standing there: nothing to enter. Not on an empty page, where the
+  // dock shows the header only because there is nothing else — that header
+  // is not open, and a click on its row must open it.
+  if (String(ask('dock:chrome-kind') || '') === kind && !ask('dock:on-empty-page')) {
     return;
   }
 

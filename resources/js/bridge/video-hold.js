@@ -43,25 +43,20 @@ function mirrorMuted(el) {
 function play(el) {
   mirrorMuted(el);
 
-  let playing;
+  Promise.resolve()
+    .then(() => el.play())
+    .catch(() => {
+      if (el.muted) {
+        throw new Error('refused');
+      }
 
-  try {
-    playing = el.play();
-  } catch {
-    return;
-  }
-
-  playing?.catch?.(() => {
-    if (!el.muted) {
       el.muted = true;
 
-      try {
-        el.play()?.catch?.(() => {});
-      } catch {
-        /* nothing more to try without a gesture */
-      }
-    }
-  });
+      return el.play();
+    })
+    .catch(() => {
+      /* nothing more to try without a gesture */
+    });
 }
 
 function hold(el) {

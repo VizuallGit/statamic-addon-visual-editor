@@ -107,14 +107,6 @@ function wrapBind(sec) {
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
         <HtmlTreeRow v-else-if="frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
-        <!--
-          An empty page: main with nothing in it yet. Drawn as the slot an empty
-          block shows — a dashed box, roomier — so it reads as a place things go,
-          not as a gap with a sentence in it.
-        -->
-        <div v-if="!ui.frame.kind && !ui.sections.length && !query" v-show="!ui.mainShut" data-sve-ht-frame-body>
-          <div data-sve-ht-frame-slot>{{ ui.frameEmptyText }}</div>
-        </div>
         <!-- A collection's template: its rows inside main, where the page's sections would be. -->
         <div v-if="ui.frame.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body>
           <div data-sve-ht-branch data-sve-ht-cat="main">
@@ -123,9 +115,15 @@ function wrapBind(sec) {
           </div>
         </div>
       </template>
-      <div v-if="ui.sections.length || ui.frame?.template" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
+      <div v-if="ui.sections.length || ui.frame" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
         <!-- Standing elsewhere on a template's entry: the template, the way back. -->
         <HtmlTreeRow v-if="ui.frame?.template && frameShown(ui.frame.template)" :row="ui.frame.template" :dim="frameDim('template')" />
+        <!--
+          No sections: the place they go, drawn as the slot an empty block shows
+          — a dashed box, roomier. It belongs to main, so it stands there whatever
+          part of the frame is open, and whether or not main is the open file.
+        -->
+        <div v-if="ui.frame && !ui.frame.template && !ui.sections.length && !query" data-sve-ht-frame-slot :data-dim="frameDim('') ? '' : undefined">{{ ui.frameEmptyText }}</div>
         <div
           v-for="sec in shownSections"
           :key="sec.uid"
@@ -159,6 +157,9 @@ function wrapBind(sec) {
 </template>
 
 <style scoped>
+[data-sve-ht-frame-slot][data-dim] {
+  opacity: 0.3;
+}
 [data-sve-ht-frame-slot] {
   box-sizing: border-box;
   margin: 0.35em 0.5em 0.6em 12px;
