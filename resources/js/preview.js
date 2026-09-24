@@ -17,6 +17,12 @@ import { MSG, SOURCE } from './lib/protocol.js';
  *
  * chromeKind is also pushed from the CP on `sve.globals` so we don't depend
  * solely on the html class surviving every race.
+ *
+ * The breakpoint overview's copies of the preview (mirror.js) morph with the
+ * same code: `morphRender` is what applyUpdate does once it has the HTML, and
+ * the overview, while it is open, sets `window.__sveMirror` on this window so
+ * each render is handed on to the copies instead of being fetched again by
+ * every one of them. Closed, the property does not exist.
  */
 
 const STYLE_ID = '__sve-preview-styles';
@@ -137,7 +143,7 @@ let lastThemeScaleCss = '';
  * Apply live --primary-* from Theme Settings (lys/sat). Kept at end of <head>
  * so it beats layout_style_push after morph.
  */
-function applyThemeScaleCss(css) {
+export function applyThemeScaleCss(css) {
   if (css) {
     lastThemeScaleCss = css;
   }
@@ -217,7 +223,7 @@ function editingActive() {
   return !!window.__sveInlineEdit?.active;
 }
 
-function normalizeChromeKind(kind) {
+export function normalizeChromeKind(kind) {
   return kind === 'footer' || kind === 'header' ? kind : null;
 }
 
@@ -504,6 +510,23 @@ async function applyUpdate(url, sectionUids) {
     }
   }
 
+  if (!morphRender(updated, chromeKind, sectionUids, scoped)) {
+    return;
+  }
+
+  // The breakpoint overview's copies follow this render (mirror.js). The
+  // overview sets the hook while it is open and takes it away with itself;
+  // closed, the property does not exist and this line does nothing.
+  window.__sveMirror?.({ html: text, chromeKind, sectionUids: sectionUids || null, scoped, themeScale: lastThemeScaleCss });
+}
+
+/**
+ * This document morphed to a render: head styles synced, the live theme scale
+ * put back on top, then the focused chrome, the one section or the whole body.
+ * What applyUpdate does once it has the HTML — and what a copy of the preview
+ * (mirror.js) does with the HTML the preview hands it. True when it morphed.
+ */
+export function morphRender(updated, chromeKind, sectionUids, scoped) {
   const savedScrollY = window.scrollY;
 
   try {
@@ -525,7 +548,7 @@ async function applyUpdate(url, sectionUids) {
       morphFullBody(updated);
     }
   } catch {
-    return;
+    return false;
   }
 
   window.dispatchEvent(new CustomEvent('statamic:preview-updated'));
@@ -534,6 +557,8 @@ async function applyUpdate(url, sectionUids) {
 
   restoreScroll();
   requestAnimationFrame(restoreScroll);
+
+  return true;
 }
 
 window.addEventListener('message', (event) => {

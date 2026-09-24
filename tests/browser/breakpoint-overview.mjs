@@ -6,8 +6,10 @@
  * there and visible; closed, the overview costs nothing (no chunk fetched, no
  * extra iframe); open, there is one live view frame per breakpoint at its real
  * width, without the bridge, following what is typed on the left; zoom and pan
- * work; and closing leaves the editor exactly as it was — the preview frame's
- * src, transform and window, the iframe count and the event listeners.
+ * work; picking a size at 100 % scrolls the row so its frame is whole in view
+ * (wider than the pane: left edge at the pane's left edge); and closing leaves
+ * the editor exactly as it was — the preview frame's src, transform and
+ * window, the iframe count and the event listeners.
  *
  * Measures, does not assume: "visible" is a box, a display and a hit test,
  * not a node in the DOM; clicks are real mouse clicks at page coordinates.
@@ -16,16 +18,29 @@
  *   SVE_PREFS   layout to start from; default {"sve-lp-panel-mode":"show"} so
  *               the fields on the left can be typed in
  *
- * Two checks need this checkout's PHP (the `sve_view` flag in
- * InjectBridgeScript, the new strings). Against a site whose installed addon
- * predates them — every SVE_WORKTREE=1 run before `composer update` — they say
- * so and are skipped; InjectBridgeScriptTest proves the flag meanwhile. After
- * `composer update` they are enforced.
+ * The size with the ring is the preview itself, in its slot in the row: the
+ * layer has a hole there, clicks reach the bridge, a wheel over it pans the
+ * row, FOCUS pans the row, a click on another size makes it the active one,
+ * and closing puts the preview back exactly as it was. The other sizes are
+ * copies of the preview (mirror.js): one server render per change, each copy
+ * morphed from the preview's own render a task later; the tree's video hold
+ * and the dock's Instant paint reach every frame. The
+ * installed PHP decides which script a copy's document loads. Against a site
+ * whose InjectBridgeScript predates mirror.js — every SVE_WORKTREE=1 run
+ * before `composer update` — the copy documents are fetched by the test and
+ * handed the checkout's mirror.js in place of the installed preview.js, so the
+ * copies under test are this checkout's; InjectBridgeScriptTest proves the
+ * PHP line meanwhile. Without SVE_WORKTREE, the mirror checks are skipped
+ * until `composer update`, and enforced after it.
+ *
+ * Optional:
+ *   SVE_VIDEO_FILE  an mp4 on disk, copied into public/ for the video steps
+ *                   (skipped without it)
  *
  *   node tests/browser/breakpoint-overview.mjs
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { serveWorktreeBuild } from './serve-worktree.mjs';
@@ -51,9 +66,16 @@ const skip = (name, why) => console.log(`skip ${name} — ${why}`);
 const LAYER = '#__sve-bp-overview';
 const BUTTON = '#__sve-preview-chrome [data-overview]';
 
-// What the installed PHP knows. The flag and the strings ship with this feature.
+// What the installed PHP knows. The flag and the strings ship with this feature; mirror.js came later.
 const INSTALLED_MIDDLEWARE = `${SITE_DIR}/vendor/statamic-addon/visual-editor/src/Http/Middleware/InjectBridgeScript.php`;
 const PHP_HAS_VIEW_FLAG = existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('sve_view');
+const PHP_HAS_MIRROR = existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('mirror.js');
+// The copies run this checkout's mirror.js: through the PHP once installed, or through the rewrite below meanwhile.
+const MIRROR_UNDER_TEST = PHP_HAS_MIRROR || WORKTREE;
+const MIRROR_FILE = WORKTREE ? JSON.parse(readFileSync(`${BUILD_DIR}/manifest.json`, 'utf8'))['resources/js/mirror.js']?.file : '';
+const VIDEO_FILE = env('SVE_VIDEO_FILE', '');
+const VIDEO_PUBLIC = `${SITE_DIR}/public/sve-bpo-video.mp4`;
+const startedAt = Date.now();
 
 // The entry is typed into and must not change on disk: nothing is saved.
 const ENTRY_ID = ENTRY.split('/').pop();
@@ -133,7 +155,19 @@ seedLayoutPrefs(PREFS);
 info('layout prefs', JSON.stringify(PREFS));
 info('installed PHP', PHP_HAS_VIEW_FLAG ? 'knows sve_view — every check is enforced' : 'predates sve_view (vendor has the released addon) — the no-bridge and string checks are skipped until composer update');
 const entryBefore = md5(entryFile);
+// The section file the dock autosaves into during the video and Instant steps; put back in `finally`.
+let filePath = '';
+let original = null;
+let twPath = null;
+let twExisted = true;
 
+// Until `composer update`, the installed InjectBridgeScript still puts
+// preview.js into a copy's document. The test then answers a copy frame's
+// request for that preview.js with this checkout's mirror.js — what the
+// checkout's PHP injects — keyed on the frame that asks. The document itself
+// stays the server's (a document the test fulfilled had no address space in
+// Chrome's eyes, and its video was blocked as a private-network request).
+const SWAPPING = WORKTREE && !PHP_HAS_MIRROR;
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
@@ -144,9 +178,17 @@ page.on('request', (req) => { const m = req.url().match(/\/(?:vendor\/visual-edi
 const chunkLoaded = () => [...loadedAssets].filter((f) => /^breakpoint-overview-/.test(f));
 
 let served = null;
+let copyScriptsSwapped = 0;
+const isCopyScript = (req) => SWAPPING && !!MIRROR_FILE && /\/assets\/preview-[^/?#]+\.js/.test(req.url()) && /[?&]sve_view=/.test(req.frame()?.url() || '');
 if (WORKTREE) {
-  served = await serveWorktreeBuild(page, { buildDir: BUILD_DIR, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
+  served = await serveWorktreeBuild(page, { buildDir: BUILD_DIR, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js`, extra: (req) => {
+    if (!isCopyScript(req)) return false;
+    copyScriptsSwapped++;
+    req.respond({ status: 200, contentType: 'application/javascript', body: readFileSync(`${BUILD_DIR}/${MIRROR_FILE}`) });
+    return true;
+  } });
   info('build served from', ADDON_DIR);
+  info('copy frames', PHP_HAS_MIRROR ? 'the installed PHP injects mirror.js' : `the installed PHP predates mirror.js — a copy frame's request for preview.js is answered with ${MIRROR_FILE}`);
 }
 // DevTools, for counting event listeners. A remote object id only resolves in
 // the session that made it, and a window reached from another frame's context
@@ -184,6 +226,7 @@ async function listenerSnapshot(cp) {
     cpDocument: await listenersOn(cp, 'document'),
     pane: await listenersOn(cp, "document.querySelector('.live-preview-contents')"),
     previewWindow: await listenersOn(preview, 'window'),
+    previewDocument: await listenersOn(preview, 'document'),
   };
 }
 /** The overview's own listeners per object, as sorted type lists. */
@@ -282,7 +325,8 @@ try {
     const lr = layer.getBoundingClientRect();
     const canvas = layer.querySelector('.sve-bpo-canvas');
     const scale = new DOMMatrix(getComputedStyle(canvas).transform).a;
-    const top = document.elementFromPoint(lr.x + lr.width / 2, lr.y + lr.height / 2);
+    // Beside the active size's frame, where the layer has no hole: at the row's left gutter.
+    const top = document.elementFromPoint(lr.x + 6, lr.y + lr.height / 2);
     return {
       covers: ['left', 'top', 'width', 'height'].every((k) => Math.abs(lr[k] - box[k]) <= 1),
       rect: `${Math.round(lr.left)},${Math.round(lr.top)} ${Math.round(lr.width)}x${Math.round(lr.height)} (pane content box ${Math.round(box.left)},${Math.round(box.top)} ${Math.round(box.width)}x${Math.round(box.height)})`,
@@ -301,7 +345,7 @@ try {
     };
   }, LAYER);
   step('the layer covers the preview pane (its content box, not the docks)', shape.covers, shape.rect);
-  step('the layer sits in Live Preview’s own stacking context, just above the pane', shape.parent === 'live-preview-main' && shape.z === '2' && shape.onTop, `parent=.${shape.parent} z-index=${shape.z} on top at its centre=${shape.onTop}`);
+  step('the layer sits in Live Preview’s own stacking context, just above the pane', shape.parent === 'live-preview-main' && shape.z === '2' && shape.onTop, `parent=.${shape.parent} z-index=${shape.z} on top at its left gutter=${shape.onTop}`);
   step('one view frame per breakpoint', shape.frames.length === config.bps.length && shape.frames.length === expected.length, `${shape.frames.length} frames, ${config.bps.length} breakpoints`);
   step('frames narrowest first, each at its breakpoint width × zoom',
     shape.frames.every((f, i) => f.bp === expected[i]?.handle && Math.abs(f.w - expected[i].width * shape.scale) <= 1.5 && (i === 0 || f.x > shape.frames[i - 1].x)),
@@ -309,38 +353,67 @@ try {
   step('every frame is on screen and labelled', shape.frames.every((f) => f.shown && /\d+ px$/.test(f.label)), shape.frames.map((f) => `"${f.label}"`).join(' '));
   // The flag's value is the frame's size: one URL per frame, or Chrome queues
   // their requests behind each other (its cache lock) and every update waits.
-  step('every frame loads with sve_view=<its size>, one URL each',
-    shape.frames.every((f) => new URL(f.src).searchParams.get('sve_view') === f.bp) && new Set(shape.frames.map((f) => f.src)).size === shape.frames.length,
-    shape.frames.map((f) => `${f.bp}: …${f.src.slice(f.src.indexOf('sve_view'))}`).join(' | '));
+  const activeHandle = shape.frames.find((f) => f.active)?.bp || '';
+  const copyFrames = shape.frames.filter((f) => !f.active);
+  step('every other size loads with sve_view=<its size>, one URL each; the active size’s frame stays blank — the preview stands there',
+    copyFrames.every((f) => new URL(f.src).searchParams.get('sve_view') === f.bp) && new Set(copyFrames.map((f) => f.src)).size === copyFrames.length && shape.frames.filter((f) => f.active).every((f) => f.src === 'about:blank'),
+    shape.frames.map((f) => `${f.bp}: ${f.active ? f.src : '…' + f.src.slice(f.src.indexOf('sve_view'))}`).join(' | '));
+  const inSlot = await cp.evaluate((layerSel, bp) => {
+    const layer = document.querySelector(layerSel);
+    const slot = layer.querySelector(`[data-bp="${bp}"] iframe`).getBoundingClientRect();
+    const f = document.getElementById('live-preview-iframe');
+    const r = f.getBoundingClientRect();
+    const hit = document.elementFromPoint(slot.x + slot.width / 2, slot.y + Math.min(slot.height / 2, 200));
+    const zoomBtn = layer.querySelector('[data-bpo="in"]').getBoundingClientRect();
+    const zoomHit = document.elementFromPoint(zoomBtn.x + zoomBtn.width / 2, zoomBtn.y + zoomBtn.height / 2);
+    return { same: ['x', 'y', 'width', 'height'].every((k) => Math.abs(slot[k] - r[k]) <= 1), slot: `${Math.round(slot.x)},${Math.round(slot.y)} ${Math.round(slot.width)}x${Math.round(slot.height)}`, frame: `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`, hit: hit ? `${hit.tagName.toLowerCase()}#${hit.id}` : 'nothing', clip: (layer.querySelector('.sve-bpo-scroll').style.clipPath || '').startsWith('polygon(evenodd'), band: JSON.stringify(f.contentWindow.__sveBand), fixed: getComputedStyle(f).position, zoomBar: !!zoomHit && !!zoomHit.closest('.sve-bpo-zoom') };
+  }, LAYER, activeHandle);
+  step('the active size is the preview itself: the iframe stands in the slot, and a point in the slot hits it, through the layer’s hole', inSlot.same && inSlot.hit === 'iframe#live-preview-iframe' && inSlot.clip && inSlot.fixed === 'fixed', `slot ${inSlot.slot}, preview ${inSlot.frame}, hit ${inSlot.hit}, band ${inSlot.band}`);
+  step('the zoom bar stays on top of the preview, whole and clickable', inSlot.zoomBar);
   step('frames take no clicks (view only)', shape.frames.every((f) => f.pe === 'none'), shape.frames.map((f) => f.pe).join(' '));
   const baseHandle = config.bps.find((b) => b.base)?.handle;
   step('the ring is on the size the fields edit (default: the base size)', shape.frames.filter((f) => f.active).map((f) => f.bp).join() === baseHandle, `active=${shape.frames.filter((f) => f.active).map((f) => f.bp).join() || 'none'}`);
   step('the button says it is on', shape.pressed === 'true');
   step('iframes in the CP document = before + one per breakpoint', shape.iframes === iframesBefore + expected.length, `${shape.iframes} = ${iframesBefore} + ${expected.length}`);
 
-  // 5. Each view frame loaded the page. Without the bridge; the preview keeps its own.
-  const frames = await until(async () => {
-    const handles = await cp.$$(`${LAYER} iframe`);
+  // 5. Each copy loaded the page. Without the bridge; the preview keeps its own.
+  //    The active size's frame is blank by design and is left out here.
+  const copyHandles = async () => { const out = []; for (const h of await cp.$$(`${LAYER} iframe`)) { if ((await (await h.getProperty('src')).jsonValue()) !== 'about:blank') out.push(h); } return out; };
+  const copiesLoaded = (count) => until(async () => {
+    const handles = await copyHandles();
+    if (handles.length !== count) return null;
     const out = [];
     for (const h of handles) {
       const f = await h.contentFrame();
       if (!f || !(await f.evaluate(() => document.readyState === 'complete' && !!document.querySelector('[data-sid-field="headline"]')).catch(() => false))) return null;
       out.push(f);
     }
-    return out.length === expected.length ? out : null;
+    return out;
   }, 30000, 300);
-  step('every view frame loaded the page', !!frames);
-  const inside = frames ? await Promise.all(frames.map((f) => f.evaluate(() => ({
+  const copySpecs = expected.filter((b) => b.handle !== activeHandle);
+  const copyNames = copySpecs.map((b) => b.handle);
+  const frames = await copiesLoaded(copyNames.length);
+  step('every copy loaded the page', !!frames, `${copyNames.join(', ')} (the preview is ${activeHandle})`);
+  // Under test with the installed PHP, mirror.js arrives under preview.js's
+  // URL; what tells them apart is what runs: mirror.js watches video pauses
+  // (`document._sveVideoWatch`), preview.js does not.
+  const inside = frames ? await Promise.all(frames.map((f) => f.evaluate((swapped) => ({
     bridge: !!document.querySelector('script[src*="bridge"]'),
-    preview: !!document.querySelector('script[src*="preview"]'),
+    preview: !swapped && !!document.querySelector('script[src*="/preview-"]'),
+    mirror: (swapped || !!document.querySelector('script[src*="/mirror-"]')) && document._sveVideoWatch === true,
     bridgeRan: '__sveBridgeReady' in window,
     bridgeUi: document.querySelectorAll('#__sve-bridge-styles, #__sve-inserters').length,
     width: innerWidth,
-  })))) : [];
+  }), SWAPPING))) : [];
   const mainHasBridge = await main.evaluate(() => !!document.querySelector('script[src*="bridge"]') && '__sveBridgeReady' in window);
   step('the preview itself still has its bridge', mainHasBridge);
-  step('every view frame runs preview.js (it can morph)', inside.length > 0 && inside.every((f) => f.preview));
-  step('every view frame is laid out at its breakpoint width', inside.length > 0 && inside.every((f, i) => f.width === expected[i].width), inside.map((f) => f.width).join(' '));
+  if (MIRROR_UNDER_TEST) {
+    step('every view frame runs mirror.js alone — not preview.js, not the bridge', inside.length > 0 && inside.every((f) => f.mirror && !f.preview && !f.bridge), JSON.stringify(inside.map((f) => ({ mirror: f.mirror, preview: f.preview, bridge: f.bridge }))));
+    if (SWAPPING) step('each copy frame was handed mirror.js by the test in place of the installed preview.js', copyScriptsSwapped >= copySpecs.length, `${copyScriptsSwapped} request(s)`);
+  } else {
+    skip('every view frame runs mirror.js', 'the installed InjectBridgeScript predates mirror.js and this is not a working-tree run');
+  }
+  step('every copy is laid out at its breakpoint width', inside.length > 0 && inside.every((f, i) => f.width === copySpecs[i].width), inside.map((f) => f.width).join(' '));
   if (PHP_HAS_VIEW_FLAG) {
     step('no bridge in any view frame: no script, never ran, no badges/outlines/toolbar', inside.every((f) => !f.bridge && !f.bridgeRan && f.bridgeUi === 0), JSON.stringify(inside));
   } else {
@@ -350,6 +423,11 @@ try {
   // 6. Type on the left: every frame follows (forwarded statamic.preview.updated), no reload.
   if (frames && field) {
     for (const f of frames) await f.evaluate(() => { window.__sveBpoFrameMarker = 1; });
+    // When each window's morph finished, on one clock (Date.now is shared across same-origin frames).
+    for (const f of [main, ...frames]) await f.evaluate(() => { window.__sveBpoMorphs = []; window.addEventListener('statamic:preview-updated', () => window.__sveBpoMorphs.push(Date.now())); });
+    const fetches = { preview: 0, copies: 0 };
+    const countFetch = (req) => { const u = req.url(); if (!/live-preview=/.test(u) || req.method() !== 'GET') return; if (/[?&]sve_view=/.test(u)) fetches.copies++; else fetches.preview++; };
+    page.on('request', countFetch);
     const token = `Q${Date.now().toString(36).slice(-5)}`;
     const target = await cp.evaluate(() => {
       const editor = document.querySelector('.live-preview-editor');
@@ -371,7 +449,7 @@ try {
     const has = (f) => f.evaluate((tk) => document.body.textContent.includes(tk), token).catch(() => false);
     // When each one first shows it: the preview, then every view frame.
     const seen = {};
-    const names = ['preview', ...expected.map((b) => b.handle)];
+    const names = ['preview', ...copyNames];
     const reached = await until(async () => {
       const now = Date.now() - typedAt;
       const got = await Promise.all([main, ...frames].map(has));
@@ -381,6 +459,17 @@ try {
     const took = Date.now() - typedAt;
     const kept = await Promise.all(frames.map((f) => f.evaluate(() => window.__sveBpoFrameMarker === 1).catch(() => false)));
     step('typing on the left reaches the preview and every view frame within 3 s', !!reached && took <= 3000, `${reached ? `${took} ms after the last key` : 'not within 10 s'} (${names.map((n) => `${n} ${seen[n] ?? '–'} ms`).join(', ')}); token ${token}`);
+    await sleep(400);
+    page.off('request', countFetch);
+    const morphs = await Promise.all([main, ...frames].map((f) => f.evaluate(() => window.__sveBpoMorphs || []).catch(() => [])));
+    const previewMorph = morphs[0][morphs[0].length - 1];
+    const lag = morphs.slice(1).map((list) => (list.length && previewMorph ? list[list.length - 1] - previewMorph : null));
+    if (MIRROR_UNDER_TEST) {
+      step('one server render per change: the preview fetched, the copies did not', fetches.preview >= 1 && fetches.copies === 0, `preview ${fetches.preview} fetch(es), copies ${fetches.copies}`);
+      step('every copy morphed within 50 ms of the preview (the same render, handed on — not a round trip)', lag.every((ms) => ms !== null && ms >= 0 && ms <= 50), `after the preview's morph: ${copyNames.map((n, i) => `${n} ${lag[i] ?? '–'} ms`).join(', ')}`);
+    } else {
+      skip('one server render per change', 'mirror.js is not under test in this run');
+    }
     if (process.env.SVE_DEBUG) {
       page.off('request', onReq);
       page.off('response', onRes);
@@ -415,13 +504,32 @@ try {
   await sleep(300);
   const zWheel = await zoomState();
   step('the wheel scrolls the layer', zWheel.top > zIn.top && zWheel.left > zIn.left, `scroll ${zIn.left},${zIn.top} → ${zWheel.left},${zWheel.top}`);
-  await page.mouse.move(cx, cy);
+  // Somewhere on the row that is not the preview: a drag on the preview itself
+  // is the editor's (a section move), not a pan. The first point on a grid
+  // over the layer that the scroller answers for, outside the active slot.
+  const grip = await cp.evaluate((sel) => {
+    const layer = document.querySelector(sel);
+    const s = layer.querySelector('.sve-bpo-scroll');
+    const lr = layer.getBoundingClientRect();
+    const slot = layer.querySelector('[data-active] iframe')?.getBoundingClientRect();
+    for (let y = lr.y + 10; y < lr.bottom - 60; y += 40) {
+      for (let x = lr.x + 10; x < lr.right - 10; x += 40) {
+        if (slot && x >= slot.left - 4 && x <= slot.right + 4 && y >= slot.top - 4 && y <= slot.bottom + 4) continue;
+        const top = document.elementFromPoint(x, y);
+        if (top && s.contains(top) && !top.closest('.sve-bpo-zoom')) return { x, y };
+      }
+    }
+    return null;
+  }, LAYER);
+  const gripX = layerBox.x - (await absoluteRect(cp, LAYER)).x + (grip?.x ?? cx);
+  const gripY = layerBox.y - (await absoluteRect(cp, LAYER)).y + (grip?.y ?? cy);
+  await page.mouse.move(gripX, gripY);
   await page.mouse.down();
-  await page.mouse.move(cx + 120, cy + 90, { steps: 6 });
+  await page.mouse.move(gripX + 120, gripY + 90, { steps: 6 });
   await page.mouse.up();
   await sleep(200);
   const zDrag = await zoomState();
-  step('dragging pans the layer', zDrag.left < zWheel.left && zDrag.top < zWheel.top, `scroll ${zWheel.left},${zWheel.top} → ${zDrag.left},${zDrag.top}`);
+  step('dragging the row (not the preview) pans the layer', !!grip && zDrag.left < zWheel.left && zDrag.top < zWheel.top, `from ${grip ? `${Math.round(grip.x)},${Math.round(grip.y)}` : 'no free point'}: scroll ${zWheel.left},${zWheel.top} → ${zDrag.left},${zDrag.top}`);
   await page.keyboard.down('Control');
   await page.mouse.wheel({ deltaY: 300 });
   await page.keyboard.up('Control');
@@ -476,11 +584,14 @@ try {
   const back = await until(async () => {
     const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
     if (states.some((s) => s.out || !s.mark)) return null;
-    const handles = await cp.$$(`${LAYER} iframe`);
-    for (const h of handles) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector('[data-sid-field="headline"]')).catch(() => false))) return null; }
+    for (const h of await copyHandles()) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector('[data-sid-field="headline"]')).catch(() => false))) return null; }
     return states;
   }, 20000, 300);
-  step('marked in again, every size is back in the row and loaded', !!back && back.every((s, i) => new URL(s.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((s) => s.src.slice(s.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
+  step('marked in again, every size is back in the row and every copy loaded', !!back && back.every((s, i) => expected[i].handle === activeHandle ? s.src === 'about:blank' : new URL(s.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((s) => s.src === 'about:blank' ? 'blank (the preview)' : s.src.slice(s.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
+  const activeMark = await sizeState(activeHandle);
+  await realClick(page, cp, markSel(activeHandle));
+  await sleep(300);
+  step('the active size’s mark does nothing: the size being edited stays in the row', !(await sizeState(activeHandle)).out && (await sizeState(activeHandle)).mark === activeMark.mark, `${activeHandle} still in`);
 
   // 8. Escape closes; everything is as it was.
   await page.keyboard.press('Escape');
@@ -512,24 +623,22 @@ try {
   //    again, and the same button closes it.
   const listenersBefore = await listenerSnapshot(cp);
   await realClick(page, cp, BUTTON);
-  await waitIn(cp, LAYER, 10000);
-  await until(async () => {
-    const handles = await cp.$$(`${LAYER} iframe`);
-    // Loaded means the page, not the about:blank every new iframe starts as.
-    for (const h of handles) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => document.readyState === 'complete' && !!document.querySelector('[data-sid-field="headline"]')).catch(() => false))) return false; }
-    return handles.length === expected.length;
-  }, 30000, 300);
+  step('the button opens it again', await waitIn(cp, LAYER, 10000));
+  await copiesLoaded(expected.length - 1);
   const listenersOpen = await listenerSnapshot(cp);
+  const hookOpen = await cp.evaluate(() => typeof document.getElementById('live-preview-iframe').contentWindow.__sveMirror);
   await realClick(page, cp, BUTTON);
   // The button's click runs through import(): the close lands a task later.
   const closedByButton = await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
   step('the same button closes it', !!closedByButton);
   const listenersAfter = await listenerSnapshot(cp);
+  const hookAfter = await cp.evaluate(() => { const w = document.getElementById('live-preview-iframe').contentWindow; return { mirror: '__sveMirror' in w, band: '__sveBand' in w, fixed: getComputedStyle(document.getElementById('live-preview-iframe')).position }; });
+  step('open, the preview window carries the mirror hook; closed, the hook and the band are gone and the iframe is no longer fixed', hookOpen === 'function' && !hookAfter.mirror && !hookAfter.band && hookAfter.fixed !== 'fixed', `open: ${hookOpen}, after close: mirror ${hookAfter.mirror}, band ${hookAfter.band}, position ${hookAfter.fixed}`);
   // The measurement has to see the overview's own listeners while it is open,
   // or a clean "after" proves nothing: Escape and the ring on the CP window,
   // the preview's load on the pane, the preview's morph on its window.
   const own = { before: ownListeners(listenersBefore), open: ownListeners(listenersOpen), after: ownListeners(listenersAfter) };
-  const want = { cpWindow: ['keydown', 'sve:breakpoint'], cpDocument: [], pane: ['load(capture)'], previewWindow: ['statamic:preview-updated'] };
+  const want = { cpWindow: ['keydown', 'sve:breakpoint'], cpDocument: [], pane: ['load(capture)'], previewWindow: ['message'], previewDocument: ['wheel'] };
   const show = (map) => Object.entries(map).map(([k, types]) => `${k} [${types.join(' ')}]`).join(', ');
   step('before opening, the overview has no listener anywhere (DevTools)', Object.values(own.before).every((types) => types.length === 0), show(own.before));
   step('open, DevTools sees exactly the overview’s own listeners', JSON.stringify(own.open) === JSON.stringify(Object.fromEntries(Object.entries(want).map(([k, v]) => [k, [...v].sort()]))), show(own.open));
@@ -546,6 +655,120 @@ try {
   await realClick(page, cp, `#__sve-preview-chrome [data-device="${mobile.device}"]`);
   const ring = await until(() => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-active]`)].map((el) => el.dataset.bp).join() || null, LAYER), 3000);
   step('picking a device in the top bar moves the ring', ring === mobile.handle, `ring on ${ring} after picking ${mobile.device}`);
+
+  // 10b. At 100 % the row is wider than the pane. Picking a size in the top
+  //      bar scrolls the row sideways so that size's frame stands whole in
+  //      view — measured as the frame's box against the scroller's, after a
+  //      real click on each button, in an order where every click has to undo
+  //      the scroll the one before it left. Desktop is as wide as the pane and
+  //      so can never be whole: its left edge stands at the pane's left edge.
+  await realClick(page, cp, `${LAYER} [data-bpo="actual"]`);
+  await sleep(250);
+  const atActual = await zoomState();
+  step('at 100 % the row is wider than the pane, so there is something to scroll to', Math.abs(atActual.scale - 1) < 0.001 && atActual.sw > atActual.cw, `scale ${atActual.scale.toFixed(3)}, row ${atActual.sw} px in a ${atActual.cw} px pane`);
+  const placeOf = (handle) => cp.evaluate((sel, bp) => {
+    const s = document.querySelector(`${sel} .sve-bpo-scroll`);
+    const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`);
+    const v = s.getBoundingClientRect();
+    const r = f.getBoundingClientRect();
+    return { left: Math.round(r.left - v.left), right: Math.round(r.right - v.left), width: Math.round(r.width), view: s.clientWidth, scrollLeft: Math.round(s.scrollLeft), ring: document.querySelector(`${sel} [data-active]`)?.dataset.bp || '' };
+  }, LAYER, handle);
+  const RING = 4; // 2 px outline + 2 px offset, kept in view with the frame
+  const widest = expected[expected.length - 1];
+  const narrowest = expected[0];
+  const order = [widest, narrowest, ...expected.slice(1, -1), widest, narrowest];
+  const scrolls = [];
+  let allWhole = true;
+  for (const b of order) {
+    await realClick(page, cp, `#__sve-preview-chrome [data-device="${b.device}"]`);
+    const at = await until(async () => { const p = await placeOf(b.handle); return p.ring === b.handle ? p : null; }, 3000, 50);
+    if (!at) { allWhole = false; step(`picking ${b.device} moves the ring`, false, 'ring not on it within 3 s'); continue; }
+    const wider = at.width + RING * 2 >= at.view;
+    const whole = wider ? at.left >= 0 && at.left <= RING + 1 : at.left >= RING - 1 && at.right <= at.view - RING + 1;
+    allWhole = allWhole && whole;
+    scrolls.push(at.scrollLeft);
+    step(`picking ${b.device}: its frame is ${wider ? 'at the pane\'s left edge (wider than the pane)' : 'whole in view'}`, whole, `frame ${at.left}…${at.right} px in a ${at.view} px pane (width ${at.width}), row scrolled to ${at.scrollLeft}`);
+  }
+  // The row moved between the picks: the narrowest and the widest cannot both be in view at 100 %.
+  step('the row scrolled to get there (it was not already in view)', allWhole && new Set(scrolls).size > 1, `scroll positions ${scrolls.join(' → ')}`);
+  await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+  await sleep(250);
+
+  // 10c. The active size is the preview, with the whole editor: a click in it
+  //      reaches the bridge, a wheel over it pans the row, FOCUS pans the row
+  //      to the element, a click on another size makes that size the active
+  //      one and swaps the preview and the copy, and a confirm card opened in
+  //      the page-high preview sits in the part of it that is on screen.
+  const previewNow = async () => (await cp.$('#live-preview-iframe'))?.contentFrame();
+  const rowGeo = () => cp.evaluate((sel) => {
+    const layer = document.querySelector(sel);
+    const s = layer.querySelector('.sve-bpo-scroll');
+    const f = document.getElementById('live-preview-iframe');
+    const active = layer.querySelector('[data-active]');
+    const slot = active?.querySelector('iframe').getBoundingClientRect();
+    const fr = f.getBoundingClientRect();
+    const view = s.getBoundingClientRect();
+    return { active: active?.dataset.bp || '', scroll: [s.scrollLeft, s.scrollTop], max: [s.scrollWidth - s.clientWidth, s.scrollHeight - s.clientHeight], z: new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a, slot: slot ? { x: slot.x, y: slot.y, w: slot.width, h: slot.height } : null, frame: { x: fr.x, y: fr.y, w: fr.width, h: fr.height }, view: { x: view.x, y: view.y, w: s.clientWidth, h: s.clientHeight }, pressed: [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join() };
+  }, LAYER);
+  const overlayBox2 = await (await page.$('iframe.sve-edit-overlay')).boundingBox();
+  const inActive = async (previewPoint) => { const g = await rowGeo(); return { x: overlayBox2.x + g.frame.x + previewPoint.x * g.z, y: overlayBox2.y + g.frame.y + previewPoint.y * g.z, g }; };
+  await cp.evaluate(() => { window.__sveBpoMsgs = []; window.addEventListener('message', (e) => { const d = e.data || {}; if (d.source === 'statamic-visual-editor' && /^(click|hover|edit-request)$/.test(d.type)) window.__sveBpoMsgs.push(`${d.type}${d.field ? ' field=' + d.field : ''}${d.uid ? ' uid' : ''}`); }); });
+  const headlineAt = await (await previewNow()).evaluate(() => { const el = document.querySelector('[data-sid-field="headline"]'); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  // The row scrolled so the headline is on screen, then a real click on it in the active frame.
+  await cp.evaluate((sel, y) => { const layer = document.querySelector(sel); const s = layer.querySelector('.sve-bpo-scroll'); const z = new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a; s.scrollTop = Math.max(0, y * z - 200); }, LAYER, headlineAt.y);
+  await sleep(300);
+  let at = await inActive(headlineAt);
+  await page.mouse.move(at.x, at.y); await sleep(300);
+  await page.mouse.click(at.x, at.y); await sleep(1500);
+  const msgs = await cp.evaluate(() => (window.__sveBpoMsgs || []).splice(0));
+  const fieldShown = await cp.evaluate(() => { const editor = document.querySelector('.live-preview-editor'); const r = editor?.getBoundingClientRect(); return !!r && r.right > 0 && [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && /professionelle/i.test(el.value ?? el.textContent ?? ''); }); });
+  step('a click on the headline in the active frame reaches the bridge and opens the field on the left, as in one preview', msgs.some((m) => /^click field=headline/.test(m)) && fieldShown, `bridge sent [${msgs.join(', ')}] at ${Math.round(at.x)},${Math.round(at.y)} (${at.g.active} at zoom ${at.g.z.toFixed(3)}); field shown: ${fieldShown}`);
+  // Keys in the preview are the bridge's: Escape there ends the edit the click began, and never closes the overview.
+  await page.keyboard.press('Escape'); await sleep(400);
+  const stillOpen = !!(await cp.$(LAYER));
+  step('Escape inside the active frame is the bridge’s and leaves the overview open', stillOpen);
+  if (!stillOpen) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); await copiesLoaded(expected.length - 1); }
+  // A wheel over the active frame pans the row; the preview moves with it in the same turn.
+  const g0 = await rowGeo();
+  await page.mouse.move(overlayBox2.x + g0.frame.x + Math.min(g0.frame.w, g0.view.w) / 2, overlayBox2.y + Math.max(g0.frame.y, g0.view.y) + 100);
+  await page.mouse.wheel({ deltaY: 200 }); await sleep(300);
+  const g1 = await rowGeo();
+  step('a wheel over the active frame pans the row, and the preview stays in its slot', g1.scroll[1] - g0.scroll[1] >= 100 && Math.abs(g1.frame.y - g1.slot.y) <= 1 && Math.abs((g0.frame.y - g1.frame.y) - (g1.scroll[1] - g0.scroll[1])) <= 1, `scroll ${g0.scroll[1]} → ${g1.scroll[1]}; preview top ${Math.round(g0.frame.y)} → ${Math.round(g1.frame.y)}; slot top ${Math.round(g1.slot.y)}`);
+  // FOCUS with a uid — what a section clicked in the Control Panel sends — pans the row to that section, top first.
+  await cp.evaluate((sel) => { document.querySelector(`${sel} .sve-bpo-scroll`).scrollTop = 0; }, LAYER); await sleep(200);
+  const lastSection = await (await previewNow()).evaluate(() => { const list = [...document.querySelectorAll('[data-sid-section-orderable]')]; const el = list[list.length - 1]; return { sid: el.getAttribute('data-sid'), top: el.getBoundingClientRect().top }; });
+  const gBefore = await rowGeo();
+  // Where the section's top is in the row, and the scroll that puts it 48 px (× zoom) below the view's top — or as far as the row goes, as the bridge's own scroll would at the page's end.
+  const sectionTop = gBefore.slot.y - gBefore.view.y + lastSection.top * gBefore.z;
+  const wantScroll = Math.min(Math.max(0, Math.round(sectionTop - 48 * gBefore.z)), gBefore.max[1]);
+  await cp.evaluate((sid) => document.getElementById('live-preview-iframe').contentWindow.postMessage({ source: 'statamic-visual-editor', type: 'focus', uid: sid }, '*'), lastSection.sid);
+  await sleep(700);
+  const g2 = await rowGeo();
+  const sectionOnScreen = g2.slot.y - g2.view.y + lastSection.top * g2.z;
+  step('FOCUS on a section pans the row so the section stands at the top of the view (or as far as the row goes), and the preview keeps its slot', g2.scroll[1] > 0 && Math.abs(g2.scroll[1] - wantScroll) <= 2 && Math.abs(g2.frame.y - g2.slot.y) <= 1, `scroll ${gBefore.scroll[1]} → ${g2.scroll[1]} (wanted ${wantScroll}, the row's most ${gBefore.max[1]}); section at ${Math.round(sectionOnScreen)} px from the view top`);
+  // A click on another size's frame makes it the active one: the preview moves there, and the size it left gets a copy.
+  const wasActive = g2.active;
+  const other = expected.find((b) => b.handle !== wasActive && b.handle === activeHandle) || expected.find((b) => b.handle !== wasActive);
+  await cp.evaluate((sel) => { document.querySelector(`${sel} .sve-bpo-scroll`).scrollTop = 0; }, LAYER); await sleep(200);
+  const target = await cp.evaluate((sel, bp) => { const r = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 150) }; }, LAYER, other.handle);
+  await page.mouse.click(overlayBox2.x + target.x, overlayBox2.y + target.y);
+  const swapped = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.pressed === other.device && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 && Math.abs(g.frame.w - g.slot.w) <= 1 ? g : null; }, 5000, 100);
+  const left = await until(() => cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`); const src = f.getAttribute('src') || ''; return src.includes(`sve_view=${bp}`) && !!f.contentDocument?.querySelector('[data-sid-field="headline"]') ? src.slice(src.indexOf('sve_view')) : null; }, LAYER, wasActive), 20000, 300);
+  step(`a click on the ${other.device} frame makes it the active size: the preview stands there, and ${wasActive} is a copy again`, !!swapped && !!left, swapped ? `active ${swapped.active}, pressed ${swapped.pressed}, preview ${Math.round(swapped.frame.w)} px wide in the slot; ${wasActive}'s frame: ${left || 'not loaded within 20 s'}` : 'no swap within 5 s');
+  // A confirm card in the page-high preview: in the part of the page that is on screen.
+  const header = await (await previewNow()).evaluate(() => { const el = document.querySelector('[data-sve-chrome="header"]'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 20) }; });
+  if (header) {
+    at = await inActive(header);
+    await page.mouse.move(at.x, at.y); await sleep(300);
+    await page.mouse.click(at.x, at.y);
+    const card = await until(() => (previewNow().then((f) => f.evaluate(() => { const o = document.getElementById('__sve-preview-confirm'); if (!o) return null; const r = o.firstElementChild.getBoundingClientRect(); const band = window.__sveBand; const btn = o.querySelector('[data-sve-actions] button'); const b = btn?.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, band, cancel: b ? { x: b.x + b.width / 2, y: b.y + b.height / 2, label: btn.textContent.trim() } : null }; }))), 4000, 100);
+    step('a confirm card opened in the active frame sits inside the part of the page on screen', !!card && !!card.band && card.top >= card.band.top - 1 && card.bottom <= card.band.top + card.band.height + 1, card ? `card ${Math.round(card.top)}..${Math.round(card.bottom)} in band ${Math.round(card.band.top)}..${Math.round(card.band.top + card.band.height)}` : 'no confirm card within 4 s (the header click asked nothing)');
+    if (card?.cancel) { at = await inActive(card.cancel); await page.mouse.click(at.x, at.y); await sleep(500); step(`${card.cancel.label} in that card can be clicked where it shows`, await (await previewNow()).evaluate(() => !document.getElementById('__sve-preview-confirm'))); }
+  } else {
+    skip('a confirm card in the active frame', 'the page has no header to ask about');
+  }
+  await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+  await sleep(250);
 
   // 11. The preview loads a new document while the overview is open (a page
   //     switch, or Statamic swapping the iframe when the URL changes): the
@@ -572,9 +795,9 @@ try {
       await page.keyboard.press('End');
       await page.keyboard.type(` ${token}`, { delay: 20 });
       const typedAt = Date.now();
-      const viewFrames = await Promise.all((await cp.$$(`${LAYER} iframe`)).map((h) => h.contentFrame()));
+      const viewFrames = (await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean);
       const has = (f) => f.evaluate((tk) => document.body.textContent.includes(tk), token).catch(() => false);
-      const reached = await until(async () => (await has(reloaded)) && (await Promise.all(viewFrames.map(has))).every(Boolean), 10000, 100);
+      const reached = await until(async () => viewFrames.length > 0 && (await has(reloaded)) && (await Promise.all(viewFrames.map(has))).every(Boolean), 10000, 100);
       step('after the reload, typing still reaches every view frame', !!reached, reached ? `${Date.now() - typedAt} ms` : 'not within 10 s');
       for (let i = 0; i < token.length + 1; i++) await page.keyboard.press('Backspace');
       await until(async () => !(await has(reloaded)), 10000, 150);
@@ -586,14 +809,234 @@ try {
   await page.keyboard.press('Escape');
   await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
 
+  // 12. The tree's video hold and the dock's Instant paint reach every frame.
+  //     Both need the dock on the section's own file: open the dock, then click
+  //     a bare spot of the headline's section (a field click scopes the pane to
+  //     that block), unlock the template for the test, and back the file up —
+  //     the dock autosaves every keystroke.
+  const livePreview = async () => (await cp.$('#live-preview-iframe'))?.contentFrame();
+  const dockPath = () => cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : ''; });
+  const clickSection = async (id) => {
+    const f = await livePreview();
+    // A point inside the section and inside the preview's viewport, on the
+    // section itself rather than a field in it (a field click narrows the pane).
+    const r = await f.evaluate((i) => {
+      const el = document.getElementById(i);
+      if (!el) return null;
+      el.scrollIntoView({ block: 'start' });
+      const q = el.getBoundingClientRect();
+      const top = Math.max(q.top, 0); const bottom = Math.min(q.bottom, window.innerHeight);
+      for (let y = top + 24; y < bottom - 10; y += 32) {
+        for (const x of [q.x + Math.min(q.width / 3, 240), q.x + q.width / 2]) {
+          const hit = document.elementFromPoint(x, y);
+          if (hit && hit.closest('[id^="id-"]')?.id === i && !hit.closest('[id^="__sve"], [data-sve-menu], [data-sve-belt], [data-sve-chrome-bar], [data-sid-field], [data-sid-inline-edit], a, button')) return { x, y };
+        }
+      }
+      return null;
+    }, id);
+    if (!r) return false;
+    let x = r.x; let y = r.y;
+    for (let fr = f; fr.parentFrame(); fr = fr.parentFrame()) { const box = await (await fr.frameElement()).boundingBox(); x += box.x; y += box.y; }
+    await page.mouse.click(x, y);
+    return true;
+  };
+  let dockOpen = false;
+  for (let attempt = 1; attempt <= 2 && !dockOpen; attempt++) { await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]'); await sleep(600); dockOpen = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000); if (!dockOpen) await sleep(1000); }
+  step('code dock open', dockOpen);
+  const sectionId = await (await livePreview()).evaluate(() => document.querySelector('[data-sid-field="headline"]')?.closest('[id^="id-"]')?.id || '');
+  let onFile = false;
+  for (let attempt = 0; attempt < 3 && dockOpen && !onFile; attempt++) {
+    await clickSection(sectionId); await sleep(2000);
+    onFile = /page_sections\//.test(await dockPath()) && !(await cp.evaluate(() => !!document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-html-scoped')));
+  }
+  filePath = await dockPath();
+  step('the dock shows the headline section’s whole file', onFile, filePath || '(no file)');
+  const abs = filePath ? (filePath.startsWith('/') ? filePath : `${SITE_DIR}/${filePath}`) : null;
+  if (onFile && abs && existsSync(abs)) original = readFileSync(abs, 'utf8');
+  const twMatch = (filePath || '').match(/page_sections\/(.+)\.antlers\.html$/);
+  twPath = twMatch ? `${SITE_DIR}/resources/visual-editor/tw/${twMatch[1]}.css` : null;
+  twExisted = twPath ? existsSync(twPath) : true;
+  if (onFile && await cp.evaluate(() => document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked'))) {
+    await realClick(page, cp, '#__sve-code-dock [data-sve-code-lock]');
+    if (await waitIn(cp, '.sve-dialog .sve-dialog__actions button', 8000)) {
+      const box = await (await cp.frameElement()).boundingBox();
+      const r = await cp.evaluate(() => { const b = [...document.querySelectorAll('.sve-dialog .sve-dialog__actions button')].pop(); const q = b.getBoundingClientRect(); return { x: q.x + q.width / 2, y: q.y + q.height / 2 }; });
+      await page.mouse.click(box.x + r.x, box.y + r.y);
+    }
+    let unlocked = false;
+    for (let i = 0; i < 20 && !unlocked; i++) { await sleep(500); unlocked = await cp.evaluate(() => !document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-code-locked')); }
+    step('template unlocked for the test', unlocked);
+    onFile = onFile && unlocked;
+  }
+  const ready = onFile && original !== null;
+
+  // A line right after the root tag opens, as one input event: `<v…` would open the dock's tag popup.
+  const typeAfterRoot = async (text) => {
+    const lineRect = await cp.evaluate(() => {
+      const lines = [...document.querySelectorAll('#__sve-code-dock [data-sve-code-pane="html"] .cm-line')];
+      let acc = '';
+      for (const line of lines) {
+        acc += line.textContent + '\n';
+        const open = acc.search(/<(section|div|article|header)\b/);
+        if (open !== -1 && acc.indexOf('>', open) !== -1) { line.scrollIntoView({ block: 'center' }); const r = line.getBoundingClientRect(); return { x: r.right - 2, y: r.y + r.height / 2 }; }
+      }
+      return null;
+    });
+    if (!lineRect) return false;
+    const box = await (await cp.frameElement()).boundingBox();
+    await page.mouse.click(box.x + lineRect.x, box.y + lineRect.y);
+    await page.keyboard.press('End');
+    await page.keyboard.press('Enter');
+    await cp.evaluate((t) => document.execCommand('insertText', false, t), text);
+    const pane = await cp.evaluate(() => document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.textContent || '');
+    const close = text.match(/<\/[a-z]+>$/)?.[0];
+    if (close && pane.split(close).length - 1 > (original.split(close).length - 1) + 1) { for (let i = 0; i < close.length; i++) await page.keyboard.press('Backspace'); }
+    return true;
+  };
+  // The whole line, through the editor's state: a keyboard Home on a wrapped
+  // line reaches only the last visual segment, and the rest stayed behind.
+  const removeLine = (marker) => cp.evaluate((m) => {
+    const view = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.cmTile?.view;
+    if (!view) return false;
+    const at = view.state.doc.toString().indexOf(m);
+    if (at === -1) return false;
+    const line = view.state.doc.lineAt(at);
+    view.dispatch({ changes: { from: line.from, to: Math.min(line.to + 1, view.state.doc.length) } });
+    return !view.state.doc.toString().includes(m);
+  }, marker);
+  const loadedCopies = () => copiesLoaded(expected.length - 1);
+  const openOverview = async () => { if (!(await cp.$(LAYER))) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); } return loadedCopies(); };
+  const closeOverview = async () => { await page.keyboard.press('Escape'); await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000); };
+  const copyHandleNames = async () => { const out = []; for (const h of await copyHandles()) out.push(await h.evaluate((el) => el.closest('[data-bp]').dataset.bp)); return out; };
+  const frameNames = ['preview', ...copyNames];
+
+  // 12a. Video: a hold from the tree stops it in the preview and in every copy;
+  //      a remembered hold is there from a copy's first draw; play plays everywhere.
+  const stateOf = (frame, cls) => frame.evaluate((c) => { const v = document.querySelector('.' + c); if (!v) return null; return { muted: v.muted, paused: v.paused, held: v.hasAttribute('data-sve-video-hold'), t: +v.currentTime.toFixed(2) }; }, cls).catch(() => null);
+  const advancing = async (frame, cls, ms = 900) => { const a = await stateOf(frame, cls); await sleep(ms); const b = await stateOf(frame, cls); return { a, b, moved: !!a && !!b && b.t > a.t }; };
+  // Playing: not paused, and the time advancing — once the file has arrived, which takes a moment in a fresh frame.
+  const playing = async (frame, cls) => { const b = await until(async () => { const r = await advancing(frame, cls, 400); return r.moved && r.b.paused === false ? r.b : null; }, 8000, 150); return { moved: !!b, b: b || (await stateOf(frame, cls)) }; };
+  const showVideo = (r) => (r ? `${r.paused ? 'paused' : 'playing'}${r.held ? ' held' : ''} t=${r.t}` : 'no video');
+  const videoRow = async (marker) => cp.evaluate((m) => {
+    const rows = [...document.querySelectorAll('[data-sve-ht-row]')];
+    const hit = rows.find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && (el.textContent || '').includes(m));
+    if (!hit) return null;
+    hit.scrollIntoView({ block: 'center' });
+    const r = hit.getBoundingClientRect();
+    return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 };
+  }, marker);
+  const pressVideoIcon = async (marker) => {
+    const row = await videoRow(marker);
+    if (!row) return 'no video row in the tree';
+    const b = await (await cp.frameElement()).boundingBox();
+    const iconOf = () => cp.evaluate((m) => { const hit = [...document.querySelectorAll('[data-sve-ht-row]')].find((el) => (el.querySelector('[data-sve-ht-tag], [data-sve-ht-kind]')?.textContent || '').trim() === 'video' && (el.textContent || '').includes(m)); const btn = hit?.querySelector('[data-sve-ht-video]'); if (!btn) return null; const r = btn.getBoundingClientRect(); return r.width ? { x: r.x + r.width / 2, y: r.y + r.height / 2, on: btn.hasAttribute('data-on') } : { hidden: true }; }, marker);
+    await page.mouse.move(b.x + row.x - 6, b.y + row.y); await page.mouse.move(b.x + row.x, b.y + row.y); await sleep(300);
+    let icon = await iconOf();
+    if (!icon || icon.hidden) { await page.mouse.click(b.x + row.x, b.y + row.y); await sleep(500); icon = await iconOf(); }
+    if (!icon || icon.hidden) return `video icon not clickable: ${JSON.stringify(icon)}`;
+    await page.mouse.click(b.x + icon.x, b.y + icon.y);
+    return `pressed (was ${icon.on ? 'held' : 'playing'})`;
+  };
+  const videoOk = ready && !!VIDEO_FILE && existsSync(VIDEO_FILE);
+  if (videoOk) {
+    copyFileSync(VIDEO_FILE, VIDEO_PUBLIC);
+    step('typed a muted autoplay video into the section', await typeAfterRoot(`<video class="sve-bpo-video" autoplay="true" muted="true" playsinline src="${SITE_URL}/sve-bpo-video.mp4"></video>`));
+    await sleep(3500); // the save and the morph
+    let run = await playing(await livePreview(), 'sve-bpo-video');
+    step('the preview plays it after the morph', run.moved && run.b?.paused === false, showVideo(run.b));
+    let copies = await openOverview();
+    const plays = copies ? await Promise.all(copies.map((f) => playing(f, 'sve-bpo-video'))) : [];
+    step('open, every copy shows the video playing', !!copies && plays.every((r) => r.moved && r.b?.paused === false), copies ? plays.map((r, i) => `${copyNames[i]} ${showVideo(r.b)}`).join(', ') : 'copies did not load');
+    // The tree: the section's row unfolds its tags; the video row carries the hold icon.
+    if (!(await cp.$('[data-sve-ht-row]'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]'); await sleep(1500); }
+    const secLabel = (filePath || '').replace(/^.*page_sections\//, '').replace(/\.antlers\.html$/, '').replace(/[\/_]+/g, ' ').trim();
+    const secRow = await cp.evaluate((label) => { const el = [...document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]')].find((r) => r.textContent.toLowerCase().includes(label.toLowerCase())); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + Math.min(60, r.width / 2), y: r.y + r.height / 2 }; }, secLabel);
+    if (secRow && !(await videoRow('sve-bpo-video'))) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + secRow.x, b.y + secRow.y); await sleep(1500); }
+    let pressed = await pressVideoIcon('sve-bpo-video'); await sleep(900);
+    let all = [await livePreview(), ...(copies || [])];
+    const held = await Promise.all(all.map((f) => stateOf(f, 'sve-bpo-video')));
+    step('the tree’s hold stops the video in the preview and in every copy', held.length === expected.length && held.every((r) => r && r.paused === true && r.held === true), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(held[i])}`).join(', ')}`);
+    // Closed and opened again: a copy loads fresh from the server and is held from its first draw.
+    await closeOverview();
+    copies = await openOverview();
+    await sleep(800);
+    const remembered = copies ? await Promise.all(copies.map((f) => stateOf(f, 'sve-bpo-video'))) : [];
+    step('reopened, every copy has the remembered hold from its first draw', !!copies && remembered.every((r) => r && r.paused === true && r.held === true), copies ? remembered.map((r, i) => `${copyNames[i]} ${showVideo(r)}`).join(', ') : 'copies did not load');
+    pressed = await pressVideoIcon('sve-bpo-video'); await sleep(900);
+    all = [await livePreview(), ...(copies || [])];
+    const playAgain = await Promise.all(all.map((f) => playing(f, 'sve-bpo-video')));
+    step('the next press plays it again in the preview and in every copy', playAgain.length === expected.length && playAgain.every((r) => r.moved && r.b?.paused === false && r.b?.held === false), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(playAgain[i]?.b)}`).join(', ')}`);
+    step('the video line removed again', await removeLine('sve-bpo-video'));
+    await sleep(3500);
+  } else {
+    skip('video in every frame', !ready ? 'the dock is not on the section file' : 'no SVE_VIDEO_FILE on disk');
+  }
+
+  // 12b. Instant: a tag typed in the dock is in the preview and in every copy
+  //      in the same frame — well before any morph — with the field text kept.
+  if (ready) {
+    const copies = await openOverview();
+    const all = [await livePreview(), ...(copies || [])];
+    for (const f of all) await f.evaluate(() => { window.__sveBpoMorphs = []; window.addEventListener('statamic:preview-updated', () => window.__sveBpoMorphs.push(Date.now())); });
+    const typedOk = await typeAfterRoot('<aside class="sve-bpo-probe">probe</aside>');
+    const typedAt = Date.now();
+    const firstSeen = new Array(all.length).fill(null);
+    await until(async () => {
+      const got = await Promise.all(all.map((f) => f.evaluate(() => !!document.querySelector('.sve-bpo-probe')).catch(() => false)));
+      const now = Date.now() - typedAt;
+      got.forEach((ok, i) => { if (ok && firstSeen[i] === null) firstSeen[i] = now; });
+      return got.every(Boolean);
+    }, 2500, 15);
+    const morphed = await Promise.all(all.map((f) => f.evaluate(() => (window.__sveBpoMorphs || []).length).catch(() => 0)));
+    const instantOk = typedOk && !!copies && firstSeen.every((ms) => ms !== null) && morphed.every((n) => n === 0);
+    step('Instant: the new tag is in the preview and in every copy before any morph', instantOk, frameNames.map((n, i) => `${n} ${firstSeen[i] ?? '–'} ms${morphed[i] ? ' (a morph had run)' : ''}`).join(', '));
+    if (!instantOk) info('paint script', await cp.evaluate(() => { const view = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.cmTile?.view; const text = view ? view.state.doc.toString() : ''; const at = text.indexOf('sve-bpo-probe'); return `mode=${localStorage.getItem('sveInstantPreview')} v${window.__sveDockInstantPreview} | pane around the probe: ${JSON.stringify(text.slice(Math.max(0, at - 160), at + 80))} | trace: ${(window.__sveInstantTrace || []).slice(-6).map((l) => l.replace(/^\d+ /, '')).join(' → ')}`; }));
+    const textKept = await Promise.all(all.map((f) => f.evaluate(() => /professionelle/i.test(document.body.textContent)).catch(() => false)));
+    step('and the field text is still there in every frame', textKept.every(Boolean), textKept.join(' '));
+    step('the probe line removed again', await removeLine('sve-bpo-probe'));
+    await sleep(3500);
+    const gone = await Promise.all(all.map((f) => f.evaluate(() => !document.querySelector('.sve-bpo-probe')).catch(() => true)));
+    step('removed, the morph takes it out of every frame', gone.every(Boolean), gone.join(' '));
+    await closeOverview();
+  } else {
+    skip('Instant in every frame', 'the dock is not on the section file');
+  }
+
   if (process.env.SVE_DEBUG) await page.screenshot({ path: `${tmpdir()}/sve-breakpoint-overview.png` });
   await sleep(800);
 } catch (e) {
   report.errors.push(`exception: ${e.message}`);
   report.ok = false;
 } finally {
+  // The dock flushes a pending save when the page unloads: close the browser
+  // first, then put the section file back exactly as it was (lock marker
+  // included) once it has been untouched for six seconds, and drop the history
+  // snapshots and the baked Tailwind file the test's keystrokes made.
   await browser.close();
-  await sleep(1500); // a debounced layout POST may still be landing
+  await sleep(2000);
+  if (original !== null && filePath) {
+    const abs = filePath.startsWith('/') ? filePath : `${SITE_DIR}/${filePath}`;
+    let stable = 0;
+    for (let i = 0; i < 60 && stable < 9; i++) {
+      if (readFileSync(abs, 'utf8') !== original) { writeFileSync(abs, original); stable = 0; } else { stable++; }
+      await sleep(700);
+    }
+    step('section file restored', readFileSync(abs, 'utf8') === original, abs.replace(SITE_DIR + '/', ''));
+    const historyDir = `${SITE_DIR}/storage/statamic-visual-editor/history/${filePath.replace(/\//g, '_')}`;
+    if (existsSync(historyDir)) {
+      let removed = 0;
+      for (const name of readdirSync(historyDir)) { const file = `${historyDir}/${name}`; if (statSync(file).mtimeMs >= startedAt - 1000) { unlinkSync(file); removed++; } }
+      if (!readdirSync(historyDir).length) rmdirSync(historyDir);
+      info('history snapshots from this run removed', String(removed));
+    }
+    if (twPath && !twExisted && existsSync(twPath)) {
+      unlinkSync(twPath);
+      const dir = twPath.slice(0, twPath.lastIndexOf('/'));
+      if (!readdirSync(dir).length) rmdirSync(dir);
+      info('baked Tailwind file from this run removed', twPath.replace(SITE_DIR + '/', ''));
+    }
+  }
+  if (existsSync(VIDEO_PUBLIC)) unlinkSync(VIDEO_PUBLIC);
   seedLayoutPrefs(null);
 }
 

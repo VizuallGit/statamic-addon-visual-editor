@@ -15,7 +15,7 @@ import { initBridge } from './bridge/outline-nav.js';
 export const ACTIVE_ATTR = 'data-sid-active';
 export const HOVER_ATTR = 'data-sid-hover';
 export const INNER_ATTR = 'data-sid-inner';
-export const SID_ATTR = 'data-sid';
+export { SID_ATTR } from './lib/ids.js';
 export const SID_FIELD_ATTR = 'data-sid-field';
 export const TOOLBAR_ATTR = 'data-sid-toolbar';
 /** Opt-in from `{{ visual_edit section-orderable="true" }}` — tag-agnostic page section. */

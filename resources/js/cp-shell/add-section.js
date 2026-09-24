@@ -12,7 +12,7 @@ import { ensurePanel, markLivePreviewReady } from '../lazy-panels.js';
 import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, GLOBAL_SECTION_PANEL_ID, HEADER_ICON_HOVER, LP_BACK_ID, LP_COVER_ID } from '../lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { livePreviewEditorEl } from '../lib/live-preview.js';
-import { previewFrame } from '../lib/preview-frame.js';
+import { previewCopies, previewFrame } from '../lib/preview-frame.js';
 import { syncStoredVideoHolds } from './video-holds.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
@@ -30,7 +30,7 @@ import { collectAncestorSets, expandSet, findFieldElement, findSetByUid, handleF
 import { applyDeclaredDefaults, restoreDockedHeaderPanels, scheduleHtmlTreePrefetch } from './header-toolbar.js';
 import { tellPreviewWherePillIs } from './grid-rows.js';
 import { openOverlay } from '../cp.js';
-import { MSG, SOURCE } from '../lib/protocol.js';
+import { MIRRORED, MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== add-section =====
 // --- Add section ("+" in the preview) -------------------------------------------
@@ -2663,6 +2663,16 @@ export function sendToPreview(message, win) {
     // origin would silently drop messages. This is admin-only functionality so
     // the cross-origin exposure is acceptable.
     iframe.contentWindow.postMessage(message, '*');
+
+    // What every frame shows — a video held or let go — reaches the preview's
+    // copies too: the breakpoint overview's frames, while it is open. Closed,
+    // there are none (lib/preview-frame.js). The bridge's own messages —
+    // editing, hover, focus — stay with the preview.
+    if (MIRRORED.includes(message?.type)) {
+      for (const copy of previewCopies(win.document)) {
+        copy.postMessage(message, '*');
+      }
+    }
   }
 }
 

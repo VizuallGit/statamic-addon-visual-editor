@@ -168,10 +168,10 @@ class InjectBridgeScriptTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
-    // View frames (the breakpoint overview): morph, but never edited
+    // View frames (the breakpoint overview): copies of the preview, never edited
     // -------------------------------------------------------------------------
 
-    public function test_view_frame_loads_preview_without_the_bridge(): void
+    public function test_view_frame_loads_mirror_alone_without_the_bridge(): void
     {
         $middleware = $this->makeMiddleware(livePreview: true, bridgeUrl: 'http://localhost/bridge.js');
         $html = '<html><head></head><body></body></html>';
@@ -181,6 +181,9 @@ class InjectBridgeScriptTest extends TestCase
 
         $this->assertStringNotContainsString('http://localhost/bridge.js', $content);
         $this->assertSame(1, substr_count($content, '<script type="module"'));
+        // The one script is the built mirror entry — not preview.js, which a copy takes in through mirror.js.
+        $this->assertMatchesRegularExpression('#src="/!/sve/build/assets/mirror-[\w-]+\.js"#', $content);
+        $this->assertStringNotContainsString('/assets/preview-', $content);
         $this->assertStringContainsString('</script></body>', $content);
     }
 

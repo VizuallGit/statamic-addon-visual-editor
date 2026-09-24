@@ -12,7 +12,7 @@
  * Nothing here reaches the file; the site keeps its autoplay.
  */
 import { bridgeState } from './state.js';
-import { SID_ATTR } from '../bridge.js';
+import { SID_ATTR } from '../lib/ids.js';
 import { sidElement } from '../html-pick-align.js';
 
 export const VIDEO_HOLD_ATTR = 'data-sve-video-hold';

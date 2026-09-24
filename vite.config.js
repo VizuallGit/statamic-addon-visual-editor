@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import statamic from '@statamic/cms/vite-plugin';
 import { keepImportedChunks } from './scripts/vite-keep-imported-chunks.js';
+import { mirrorGraph } from './scripts/vite-mirror-graph.js';
 
 export default defineConfig({
   /**
@@ -31,10 +32,13 @@ export default defineConfig({
         'resources/js/bridge.js',
         'resources/js/preview.js',
         'resources/js/overlay-host.js',
+        // The breakpoint overview's copies of the preview; self-contained (see mirrorGraph).
+        'resources/js/mirror.js',
       ],
       publicDirectory: 'resources/dist',
     }),
     statamic(),
     keepImportedChunks(),
+    mirrorGraph(),
   ],
 });

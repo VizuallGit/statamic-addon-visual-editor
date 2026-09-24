@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BP_OVERVIEW_ID } from '../../resources/js/lib/ids.js';
 import {
   GAP,
   HEIGHT_CAP,
@@ -16,14 +17,18 @@ import {
   fitZoom,
   frameHeight,
   framesTop,
+  holePolygon,
+  isDrag,
   isTransparent,
   knockoutColor,
   labelColor,
   overviewFrames,
+  revealScroll,
   rowWidth,
   stashFlags,
   stepZoom,
   viewUrl,
+  visibleBand,
 } from '../../resources/js/breakpoint-overview.js';
 
 const JS = join(dirname(fileURLToPath(import.meta.url)), '../../resources/js');
@@ -152,6 +157,65 @@ test('zooming keeps the point under the pointer where it was', () => {
   }
 });
 
+test('picking a size scrolls the row the shortest way until its frame is whole in view', () => {
+  // A 1440 px view over a row at 100 %: mobile 375 wide at 48, tablet 810 at
+  // 487, desktop 1440 at 1361 — the padding and gaps between them.
+  const view = 1440;
+  const mobile = [48, 423];
+  const tablet = [487, 1297];
+  const desktop = [1361, 2801];
+
+  // Already in view: nothing moves.
+  assert.equal(revealScroll(0, view, ...mobile), 0);
+  assert.equal(revealScroll(0, view, ...tablet), 0);
+  assert.equal(revealScroll(100, view, ...tablet), 100);
+  // Off to the right: its right edge comes to the view's right edge.
+  assert.equal(revealScroll(0, view, 1361, 2000), 2000 - view);
+  // Off to the left: its left edge comes to the view's left edge.
+  assert.equal(revealScroll(1361, view, ...mobile), 48);
+  assert.equal(revealScroll(1361, view, ...tablet), 487);
+  // Partly out on either side counts as out.
+  assert.equal(revealScroll(1000, view, ...tablet), 487);
+  assert.equal(revealScroll(400, view, 1000, 2000), 560);
+});
+
+test('a frame wider than the view stands with its left edge at the view\'s left edge, wherever the row was', () => {
+  const desktop = [1361, 2801];
+
+  assert.equal(revealScroll(0, 1440, ...desktop), 1361);
+  assert.equal(revealScroll(3000, 1440, ...desktop), 1361);
+  assert.equal(revealScroll(1361, 1440, ...desktop), 1361);
+  assert.equal(revealScroll(1500, 1440, ...desktop), 1361);
+  // Exactly as wide as the view is "wider": the left edge, not the right.
+  assert.equal(revealScroll(700, 1440, 0, 1440), 0);
+});
+
+test('the hole: the layer’s outline and then the slot’s, under the even-odd rule', () => {
+  assert.equal(
+    holePolygon(1440, 848, { left: 687.9, top: 32, width: 727.836, height: 1225.7 }),
+    'polygon(evenodd, 0 0, 1440px 0, 1440px 848px, 0 848px, 0 0, 687.9px 32px, 687.9px 1257.7px, 1415.74px 1257.7px, 1415.74px 32px, 687.9px 32px)'
+  );
+});
+
+test('the visible band: the part of the slot inside the view, in the page’s own pixels', () => {
+  const view = { left: 0, top: 52, width: 1440, height: 848 };
+
+  // The slot starts below the view's top and runs past its bottom.
+  assert.deepEqual(visibleBand({ left: 688, top: 84, width: 728, height: 1226 }, view, 0.5), { left: 0, top: 0, width: 1456, height: 1632 });
+  // Panned down: the slot's top is above the view.
+  assert.deepEqual(visibleBand({ left: 688, top: -216, width: 728, height: 1226 }, view, 0.5), { left: 0, top: 536, width: 1456, height: 1696 });
+  // Panned past it: nothing of it on screen.
+  assert.deepEqual(visibleBand({ left: 688, top: -2000, width: 728, height: 1226 }, view, 0.5).height, 0);
+  // A frame wider than the view: only what is inside counts.
+  assert.deepEqual(visibleBand({ left: -100, top: 84, width: 1600, height: 400 }, view, 1), { left: 100, top: 0, width: 1440, height: 400 });
+});
+
+test('a pointer that barely moved between down and up is a click, not a pan', () => {
+  assert.equal(isDrag({ x: 10, y: 10 }, { x: 12, y: 13 }), false);
+  assert.equal(isDrag({ x: 10, y: 10 }, { x: 15, y: 10 }), true);
+  assert.equal(isDrag({ x: 10, y: 10 }, { x: 10, y: 4 }), true);
+});
+
 test('a frame is its document tall, filling the view at least and cut at the cap', () => {
   assert.equal(frameHeight(3200.2, 1500), 3201);
   assert.equal(frameHeight(900, 1567.4), 1568);
@@ -210,10 +274,18 @@ test('closed costs nothing: no timers, no MutationObserver, no stored state', ()
   }
 });
 
-test('it hangs nothing on window and registers nothing on the bus', () => {
+test('it hangs nothing on its own window and registers nothing on the bus', () => {
+  // The one thing it sets outside itself is `__sveMirror` on the preview's
+  // window, while open; tests/js/mirror.test.js holds that, and the browser
+  // proof sees it gone after a close.
   assert.ok(!/window\.\w+\s*=/.test(code), 'assigns onto window');
   assert.ok(!/\bregister\(/.test(code), 'registers a bus handler');
-  assert.ok(!/\bemit\(/.test(code), 'emits on the bus');
+});
+
+test('the layer id is the shared one: the paint script spells it, lib/preview-frame.js reads it', () => {
+  assert.ok(code.includes('const LAYER_ID = BP_OVERVIEW_ID;'));
+  assert.ok(readFileSync(join(JS, 'dock-instant-preview.js'), 'utf8').includes(`getElementById('${BP_OVERVIEW_ID}')`), 'dock-instant-preview.js spells BP_OVERVIEW_ID');
+  assert.ok(readFileSync(join(JS, 'lib/preview-frame.js'), 'utf8').includes('BP_OVERVIEW_ID'));
 });
 
 test('no file depends on it: the button import()s it and nothing imports it statically', () => {
@@ -224,7 +296,7 @@ test('no file depends on it: the button import()s it and nothing imports it stat
   });
   const users = walk(JS)
     .filter((file) => !file.endsWith('breakpoint-overview.js'))
-    .filter((file) => readFileSync(file, 'utf8').includes('breakpoint-overview'))
+    .filter((file) => /(?:from\s*|import\(\s*)['"][^'"]*breakpoint-overview\.js['"]/.test(readFileSync(file, 'utf8')))
     .map((file) => relative(JS, file));
 
   assert.deepEqual(users, ['cp-shell/block-order.js']);

@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 13) {
+    if (window.__sveDockInstantPreview === 14) {
         return;
     }
-    window.__sveDockInstantPreview = 13;
+    window.__sveDockInstantPreview = 14;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -158,7 +158,7 @@
         // again — `lastCss` is forgotten so that paint does not skip the CSS.
         if (next !== 'astro') {
             restoreTwHold();
-            clearLive(previewDocument());
+            previewDocuments().forEach(clearLive);
             lastCss = '';
         }
 
@@ -482,17 +482,78 @@
         }).join('\n');
     }
 
-    function previewDocument() {
+    /** The preview iframe: Statamic's `#live-preview-iframe`, or the one nested in it when the CP itself sits in a frame. */
+    function previewFrameEl() {
         var iframe = document.getElementById('live-preview-iframe');
 
         try {
-            var doc = iframe?.contentDocument || null;
-            var nested = doc?.getElementById('live-preview-iframe');
+            var nested = iframe?.contentDocument?.getElementById('live-preview-iframe');
 
-            return nested?.contentDocument || doc;
+            return nested || iframe || null;
         } catch (e) {
             return null;
         }
+    }
+
+    function previewDocument() {
+        var iframe = previewFrameEl();
+
+        try {
+            return iframe?.contentDocument || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * The documents to paint: the preview's first, then — while the breakpoint
+     * overview is open — its copies', the frames in the overview's layer that
+     * hold a page (a size switched out is blank). The layer is in the document
+     * only while the overview is open, so closed this is the preview alone
+     * after one lookup by id. `__sve-bp-overview` is BP_OVERVIEW_ID in
+     * lib/ids.js; tests/js/breakpoint-overview.test.js keeps the two the same.
+     */
+    function previewDocuments() {
+        var iframe = previewFrameEl();
+        var docs = [];
+        var doc;
+        var layer;
+        var frames;
+        var i;
+        var src;
+
+        try {
+            doc = iframe?.contentDocument || null;
+        } catch (e) {
+            doc = null;
+        }
+
+        if (!doc) {
+            return docs;
+        }
+
+        docs.push(doc);
+        layer = iframe.ownerDocument.getElementById('__sve-bp-overview');
+
+        if (!layer) {
+            return docs;
+        }
+
+        frames = layer.querySelectorAll('iframe');
+
+        for (i = 0; i < frames.length; i++) {
+            src = frames[i].getAttribute('src') || '';
+
+            try {
+                if (src && src !== 'about:blank' && frames[i].contentDocument) {
+                    docs.push(frames[i].contentDocument);
+                }
+            } catch (e) {
+                /* not ours */
+            }
+        }
+
+        return docs;
     }
 
     function outermostSid(from) {
@@ -1930,10 +1991,10 @@
 
         if (!twState || !twBuild) {
             loadCompiler().then(function () {
-                var next = previewDocument();
-
-                if (next && twState && twBuild) {
-                    injectLive(next, fullHtml() || paneText('html'));
+                if (twState && twBuild) {
+                    previewDocuments().forEach(function (next) {
+                        injectLive(next, fullHtml() || paneText('html'));
+                    });
                 }
             });
 
@@ -2548,9 +2609,11 @@
         var file = isFileRoot(pane) || scoped ? fullHtml() : '';
         var html = file || pane;
         var css = liveCss();
-        var doc = previewDocument();
+        // The preview, and while the overview is open its copies: every one
+        // gets the same paint in this same frame.
+        var docs = previewDocuments();
 
-        if (!doc) {
+        if (!docs.length) {
             trace('paint: no preview document');
 
             return;
@@ -2560,11 +2623,15 @@
             trace('paint: nothing to paint (scoped=' + scoped + ', file root=' + isFileRoot(pane) + ')');
         }
 
-        bindPreview(doc);
+        docs.forEach(function (doc) {
+            bindPreview(doc);
+        });
 
         if (css !== lastCss) {
             lastCss = css;
-            putStyle(doc, STYLE_CSS_ID, cssForLive(css, cssContext(doc)));
+            docs.forEach(function (doc) {
+                putStyle(doc, STYLE_CSS_ID, cssForLive(css, cssContext(doc)));
+            });
         }
 
         if (!html || html === lastHtml) {
@@ -2574,15 +2641,19 @@
         lastHtml = html;
         painting = true;
 
-        injectLive(doc, fullHtml() || html);
+        docs.forEach(function (doc) {
+            injectLive(doc, fullHtml() || html);
+        });
 
         if (!twSuggestOpen()) {
             dropTwHold();
         }
 
         try {
-            paintLive(doc, html, scoped && !file);
-            reholdTw(doc);
+            docs.forEach(function (doc) {
+                paintLive(doc, html, scoped && !file);
+            });
+            reholdTw();
         } catch (e) {
             // Never leave `painting` stuck: that would silence every later paint
             // and make the dock feel like the morph is all there is.
@@ -2866,16 +2937,23 @@
      * variable along. `valueFor(el, original)` says what the tag's class
      * attribute becomes; `key` tells one hold from the next.
      */
-    function holdTw(doc, request) {
-        var targets = request.find(doc);
+    function holdTw(docs, request) {
+        var targets = [];
         var valueFor = request.valueFor;
         var key = request.key;
         var candidate = request.candidate;
         var i;
         var el;
         var original;
+        var css;
 
-        if (!doc || !targets.length || instantMode() !== 'astro') {
+        // The tag in every document that shows the page — the preview's, and
+        // the overview's copies' while it is open.
+        for (i = 0; i < docs.length; i++) {
+            targets = targets.concat(request.find(docs[i]));
+        }
+
+        if (!targets.length || instantMode() !== 'astro') {
             return;
         }
 
@@ -2888,16 +2966,19 @@
 
         if (twState && twBuild) {
             try {
-                setLiveTw(doc, twBuild(twState, '<i class="' + candidate + '">'));
+                css = twBuild(twState, '<i class="' + candidate + '">');
+                docs.forEach(function (doc) {
+                    setLiveTw(doc, css);
+                });
             } catch (e) {
                 trace('tw: hold build failed: ' + (e && e.message));
             }
         } else {
             loadCompiler().then(function () {
-                var next = previewDocument();
-
-                if (next && twState && twBuild && twHeldKey === key) {
-                    setLiveTw(next, twBuild(twState, '<i class="' + candidate + '">'));
+                if (twState && twBuild && twHeldKey === key) {
+                    previewDocuments().forEach(function (next) {
+                        setLiveTw(next, twBuild(twState, '<i class="' + candidate + '">'));
+                    });
                 }
             });
         }
@@ -2955,7 +3036,7 @@
      * the elements may be new ones: the same hold is put back, from what was
      * asked for, as long as the list is still open.
      */
-    function reholdTw(doc) {
+    function reholdTw() {
         var request = twHoldRequest;
 
         if (!request || !twSuggestOpen()) {
@@ -2964,7 +3045,7 @@
 
         twHold = null;
         twHeldKey = '';
-        holdTw(doc, request);
+        holdTw(previewDocuments(), request);
     }
 
     /**
@@ -2977,7 +3058,7 @@
      */
     function onTwPreview(event) {
         var detail = event && event.detail;
-        var doc = previewDocument();
+        var docs = previewDocuments();
 
         if (!detail) {
             restoreTwHold();
@@ -2989,11 +3070,11 @@
             return;
         }
 
-        if (!doc || typeof detail.value !== 'string' || !hoverPreviewOn()) {
+        if (!docs.length || typeof detail.value !== 'string' || !hoverPreviewOn()) {
             return;
         }
 
-        holdTw(doc, {
+        holdTw(docs, {
             find: twLiveTargets,
             valueFor: function () {
                 return detail.value;
@@ -3008,15 +3089,15 @@
      * cursor is, inside the tag's class attribute, so it joins the others.
      */
     function previewTwClass(name) {
-        var doc = previewDocument();
+        var docs = previewDocuments();
 
         name = String(name || '').trim();
 
-        if (!name || !doc || !hoverPreviewOn()) {
+        if (!name || !docs.length || !hoverPreviewOn()) {
             return;
         }
 
-        holdTw(doc, {
+        holdTw(docs, {
             find: twLiveTargets,
             valueFor: function (el, original) {
                 return original ? original + ' ' + name : name;

@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { csrfToken } from '../../resources/js/lib/csrf.js';
-import { previewFrame, previewDocument } from '../../resources/js/lib/preview-frame.js';
+import { previewCopies, previewFrame, previewDocument } from '../../resources/js/lib/preview-frame.js';
 import { injectStyle } from '../../resources/js/lib/style.js';
 import { t, statamicTranslate } from '../../resources/js/lib/i18n.js';
 import { dockParent, attachDock } from '../../resources/js/lib/dock-host.js';
@@ -50,6 +50,25 @@ test('previewFrame finds the direct #live-preview-iframe', () => {
   const doc = fakeDocument({ byId: { 'live-preview-iframe': frame } });
   assert.equal(previewFrame(doc), frame);
   assert.equal(previewFrame({ document: doc }), frame, 'accepts a window too');
+});
+
+test('previewCopies lists the overview’s frames that hold a page, and none while the overview is closed', () => {
+  const frame = { contentDocument: fakeDocument(), ownerDocument: null };
+  const closed = fakeDocument({ byId: { 'live-preview-iframe': frame } });
+
+  frame.ownerDocument = closed;
+  assert.deepEqual(previewCopies(closed), []);
+  assert.deepEqual(previewCopies(fakeDocument()), [], 'no preview, no copies');
+
+  const loaded = { getAttribute: () => 'http://site.test/?sve_view=mobile', contentWindow: { name: 'mobile' } };
+  const blank = { getAttribute: () => 'about:blank', contentWindow: { name: 'tablet' } };
+  const unset = { getAttribute: () => null, contentWindow: { name: 'laptop' } };
+  const layer = { querySelectorAll: (sel) => (sel === 'iframe' ? [loaded, blank, unset] : []) };
+  const open = fakeDocument({ byId: { 'live-preview-iframe': frame, '__sve-bp-overview': layer } });
+
+  frame.ownerDocument = open;
+  assert.deepEqual(previewCopies(open).map((w) => w.name), ['mobile']);
+  assert.deepEqual(previewCopies({ document: open }).map((w) => w.name), ['mobile'], 'accepts a window too');
 });
 
 test('previewFrame prefers a preview nested inside the direct frame (CP embedded in a frame)', () => {

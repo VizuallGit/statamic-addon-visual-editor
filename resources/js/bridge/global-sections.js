@@ -7,6 +7,7 @@ import { SID_ATTR, t } from '../bridge.js';
 import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR } from './row-toolbar.js';
 import { setupInserters } from './inserters.js';
 import { exitChromeFocus } from './header-footer.js';
+import { alongBandBottom, centreInBand } from './viewport.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== global-sections =====
@@ -238,6 +239,8 @@ export function showPreviewConfirm(win, { title, body, confirmLabel, cancelLabel
     `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${title}</div>` +
     `<div style="font-size:13px;color:${theme.muted};line-height:1.45;margin-bottom:18px;">${body}</div>` +
     '<div data-sve-actions style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;"></div>';
+  // In the overview's row the page is shown whole: the card goes to the middle of what is on screen.
+  centreInBand(win, overlay, card);
 
   const actions = card.querySelector('[data-sve-actions]');
   const close = () => overlay.remove();
@@ -323,6 +326,7 @@ export function mountGlobalBar(win) {
 
   bar.id = GLOBAL_BAR_ID;
   bar.style.cssText = sveFocusBarStyle(theme);
+  alongBandBottom(win, bar, 24);
 
   const text = doc.createElement('span');
 

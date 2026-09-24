@@ -103,6 +103,9 @@ export const MSG = Object.freeze({
   SVE_HTML_PICK: 'sve-html-pick',
   SVE_HTML_PICK_FOCUS: 'sve-html-pick-focus',
   SVE_LOCK_TAB: 'sve-lock-tab',
+  // CP → a copy of the preview (mirror.js, the breakpoint overview's frames):
+  // the preview just morphed to this render — do the same, without fetching.
+  SVE_MIRROR: 'sve-mirror',
   SVE_PILL_BOX: 'sve-pill-box',
   SVE_PILL_BOX_REQUEST: 'sve-pill-box-request',
   SVE_RESTORE_CHROME: 'sve-restore-chrome',
@@ -123,6 +126,14 @@ export const MSG = Object.freeze({
   THEME_SWATCHES: 'theme-swatches',
   THEME_SWATCHES_REQUEST: 'theme-swatches-request',
 });
+
+/**
+ * Types a copy of the preview (mirror.js) handles as well as the preview:
+ * what every frame shows. While the breakpoint overview is open, sendToPreview
+ * posts these to the copies too; everything else is the bridge's — editing,
+ * hover, focus — and reaches only the preview.
+ */
+export const MIRRORED = Object.freeze([MSG.SVE_VIDEO_HOLD]);
 
 export const CHANNEL = Object.freeze({
   GLOBALS: 'sve.globals',

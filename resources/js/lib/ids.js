@@ -10,6 +10,16 @@
  * May import: nothing. Values only, no logic.
  */
 
+// The preview document
+/** The row identity `{{ visual_edit }}` writes on a set's element; bridge.js re-exports it for its regions. */
+export const SID_ATTR = 'data-sid';
+/**
+ * The breakpoint overview's layer (breakpoint-overview.js draws it, only while
+ * open). Its frames are the preview's copies: lib/preview-frame.js lists them
+ * and the paint script spells the id — while the layer is absent, there are none.
+ */
+export const BP_OVERVIEW_ID = '__sve-bp-overview';
+
 // Live Preview shell (lp-panel.js draws these)
 export const LP_MODE_ID = '__sve-lp-mode';
 export const LP_TOGGLE_ID = '__sve-lp-toggle';

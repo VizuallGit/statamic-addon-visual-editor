@@ -5,6 +5,7 @@
 import { bridgeState } from '../bridge/state.js';
 import { featureOn, t } from '../bridge.js';
 import { CHROME_ATTR, CHROME_BAR_ID, CHROME_FOCUS_ATTR, cpDialogTheme, exitGlobalFocus, showPreviewConfirm, sveFocusBarStyle, svePrimaryBtn, sveSecondaryBtn } from './global-sections.js';
+import { alongBandBottom } from './viewport.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== header-footer =====
@@ -263,6 +264,7 @@ function mountChromeBar(win, kind) {
 
   bar.id = CHROME_BAR_ID;
   bar.style.cssText = sveFocusBarStyle(theme);
+  alongBandBottom(win, bar, 24);
 
   const text = doc.createElement('span');
 

@@ -1,12 +1,30 @@
 /**
- * Every screen size side by side in Live Preview: live frames, view only.
+ * Every screen size side by side in Live Preview: the preview in its row.
  *
  * Owns the breakpoint overview — one layer over the preview pane
- * (`#__sve-bp-overview`) holding one iframe per breakpoint ("view frames"),
- * its zoom and pan, and passing preview updates on to those frames. The
- * top-bar button `[data-overview]` (cp-shell/block-order.js) is the only way
- * in: an `import()` on click. No file imports this module statically, and it
- * puts nothing on `window` or the bus.
+ * (`#__sve-bp-overview`) holding one frame per breakpoint, its zoom and pan,
+ * and the preview's place in that row. The top-bar button `[data-overview]`
+ * (cp-shell/block-order.js) is the only way in: an `import()` on click. No
+ * file imports this module statically, and it puts nothing on `window`.
+ *
+ * The size with the ring — the one the fields on the left edit — is the
+ * preview itself, with the whole editor: the layer's scroller has a hole cut
+ * where that size stands (a clip-path, so clicks fall through), and the preview iframe,
+ * which never leaves `.live-preview-contents` (Statamic finds it there as
+ * firstChild and would make a new one), is laid under the hole at the slot's
+ * exact screen position, the breakpoint's width, the page's height and the
+ * row's scale. Only cp-shell/block-order.js writes those styles: the overview
+ * hands it the slot on the bus (`lp:preview-slot`) on every pan, zoom and
+ * resize, and null on close. The frame at that size is never loaded — the
+ * preview stands there. A click in another size's frame makes that size the
+ * active one, as the top-bar button does, and the preview and the frame swap.
+ *
+ * The row pans by script, never by native scroll: a wheel over the layer, or
+ * over the preview (its document is page-high and has nothing to scroll),
+ * moves the row and places the preview in the same turn, so the two never
+ * drift a frame apart. FOCUS from the fields on the left, which the bridge
+ * answers with a scroll the page-high preview cannot make, pans the row to the
+ * element the bridge pulsed instead.
  *
  * Closed, it costs nothing. Everything `openBreakpointOverview` binds —
  * listeners, the ResizeObserver — is a function in `overviewState.cleanups`,
@@ -14,9 +32,9 @@
  * layer and its `<style>`, and empties the state. Nothing here binds any other
  * way, and nothing here uses a timer or a MutationObserver.
  *
- * The preview frame is never touched: not its src, style, transform or window.
- * block-order.js owns those and writes them again on every pass; the layer
- * only covers the frame. It sits inside Live Preview's own stacking context,
+ * The preview frame's src and window are never touched, and its styles only
+ * through block-order.js, which owns them and writes them again on every
+ * pass. The layer sits inside Live Preview's own stacking context,
  * as the last child of `.live-preview-main` with z-index 2 — above the pane
  * (1), below the editor column (3), the docks, the top bar, Statamic's modals
  * and every dropdown portal (measured 24 Sep 2026). Never inside
@@ -26,18 +44,30 @@
  *
  * View frames load the preview URL with `sve_view=<their size>` (one URL per
  * frame, see viewUrl); InjectBridgeScript answers any `sve_view` with
- * preview.js and no bridge.js, so they morph but show no
- * badges, hover or toolbar and send nothing back. Updates are forwarded, not
- * made up: once the preview's own preview.js has morphed it dispatches
- * `statamic:preview-updated` on its window, and each view frame is posted
- * Statamic's `statamic.preview.updated` with the latest URL and morphs itself.
- * The dock's Instant paint happens in the covered preview only, so the frames
- * show what the server rendered, about a second later.
+ * mirror.js alone — the preview's morph and the bridge's video hold, no
+ * bridge — so they show the page but take no clicks and send nothing back.
+ * They are copies, not previews of their own: while the overview is open the
+ * preview's window carries `__sveMirror` (set here, taken away on close), and
+ * preview.js calls it with each render it has just morphed to — the HTML, the
+ * section, the chrome. The same render is posted to every frame in the row
+ * (SVE_MIRROR), which morphs to it without a fetch of its own: one server
+ * render per change however many sizes are open, and the copies a task behind
+ * the preview rather than a round trip. A frame still loading gets the latest
+ * render once it has loaded, and the remembered video holds with it
+ * (`video-holds:sync` on the bus). The dock's Instant paint and the tree's
+ * video hold reach every frame as well, through lib/preview-frame.js's list of
+ * copies and the paint script's own.
  *
  * While open, each size's button in the top bar carries a mark at its icon's
  * top-right corner: filled, the size is in the row; a ring, it is out and its
  * frame is blank (a size not looked at costs nothing). The choice lives for
  * the page, never stored.
+ *
+ * Picking a size — a button in the top bar, or Full width crossing a
+ * breakpoint — moves the ring and, when the row is wider than the pane,
+ * scrolls the row sideways so that size's frame stands whole in view; a frame
+ * wider than the pane stands with its left edge at the pane's left edge (the
+ * owner's rule, 24 Sep 2026). Sideways only, and only the row's own scroll.
  *
  * May import: lib/, breakpoints.js, chrome-prefs.js (chromeGet), cp-state.js
  * (sveState, read only), cp/bus.js. Not cp-shell/*: scripts/assert-isolation.mjs
@@ -45,27 +75,36 @@
  * the shell reads them — `sveBreakpoints`, Statamic's `livePreview.devices`,
  * the stored device.
  *
- * Bus: asks `lp:lastPreviewUrl`. DOM events, only while open:
- * `statamic:preview-updated` on the preview's and the view frames' windows,
- * `load` on the pane (capture), `sve:breakpoint` and `keydown` on the CP window.
+ * Bus: asks `lp:lastPreviewUrl`, `lp:preview-slot` and `lp:set-device`;
+ * emits `video-holds:sync` for a frame that has loaded. DOM events, only while
+ * open: `statamic:preview-updated` on the view frames' windows, `load` on the
+ * pane (capture), `sve:breakpoint` and `keydown` on the CP window, `wheel`
+ * and `message` on the preview's document and window — and
+ * `__sveMirror` and `__sveBand` (the visible part of the page, for the
+ * bridge's viewport-anchored UI) on the preview's window.
  *
  * The whole feature, to remove it without a trace: this file; the button in
  * cp-shell/block-order.js; `breakpoint_overview` in Features::KEYS and in
- * resources/blueprints/settings.yaml; `sve_view` in InjectBridgeScript; the
+ * resources/blueprints/settings.yaml; `sve_view` in InjectBridgeScript;
+ * mirror.js and scripts/vite-mirror-graph.js; the `__sveMirror` line in
+ * preview.js; `SVE_MIRROR` and `MIRRORED` in lib/protocol.js; `previewCopies`
+ * in lib/preview-frame.js and its use in sendToPreview; `video-holds:sync` in
+ * cp-shell/video-holds.js; `previewDocuments` in dock-instant-preview.js; the
  * `bp_overview*` strings; the narrow-window rule at the end of
  * resources/css/addon.css; tests/js and tests/browser breakpoint-overview.
  */
-import { ask } from './cp/bus.js';
+import { ask, emit } from './cp/bus.js';
 import { bpForDevice, bpFromWidth, breakpoints } from './breakpoints.js';
 import { chromeGet } from './chrome-prefs.js';
 import { sveState } from './cp-state.js';
 import { remToPx } from './lib/dom.js';
 import { t } from './lib/i18n.js';
-import { LP_ICON_IDLE_OPACITY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
+import { BP_OVERVIEW_ID, LP_ICON_IDLE_OPACITY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
 import { previewFrame } from './lib/preview-frame.js';
+import { MSG, SOURCE } from './lib/protocol.js';
 import { injectStyle } from './lib/style.js';
 
-const LAYER_ID = '__sve-bp-overview';
+const LAYER_ID = BP_OVERVIEW_ID;
 const STYLE_ID = '__sve-bp-overview-style';
 const ON_CLASS = 'sve-bpo-on';
 
@@ -89,7 +128,8 @@ export const ZOOM_MIN = 0.05;
 export const ZOOM_MAX = 2;
 const ZOOM_STEPS = [0.1, 0.15, 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2];
 
-/** The 2px ring round the size the fields edit. */
+/** The ring round the size the fields edit: this many screen pixels wide, and as many off the frame, at every zoom. */
+const RING_PX = 2;
 const SIZE_BLUE = 'rgb(96, 165, 250)';
 
 /**
@@ -226,6 +266,65 @@ export function anchoredScroll(scroll, pointer, before, after, z0, z1) {
   return after + ((scroll + pointer - before) / z0) * z1 - pointer;
 }
 
+/**
+ * The scroll that shows a frame whole: the frame spans `left` to `right` in
+ * scroll pixels, the view is `width` wide and scrolled to `scrollLeft`. A frame
+ * already in view leaves the scroll alone; one off to a side comes in by the
+ * shortest way; one wider than the view stands with its left edge at the
+ * view's left edge. Not `scrollIntoView`: that leaves a frame wider than the
+ * view where it is, and would scroll the Control Panel behind the row too.
+ */
+export function revealScroll(scrollLeft, width, left, right) {
+  if (right - left >= width || left < scrollLeft) {
+    return left;
+  }
+
+  if (right > scrollLeft + width) {
+    return right - width;
+  }
+
+  return scrollLeft;
+}
+
+/**
+ * The layer with a hole in it: a polygon that runs round the layer and then
+ * round the hole, under the even-odd rule, so the hole is neither painted nor
+ * hit — clicks there reach the preview beneath. All in layer pixels.
+ */
+export function holePolygon(width, height, hole) {
+  const px = (n) => `${Math.round(n * 100) / 100}px`;
+  const x1 = px(hole.left);
+  const y1 = px(hole.top);
+  const x2 = px(hole.left + hole.width);
+  const y2 = px(hole.top + hole.height);
+
+  return `polygon(evenodd, 0 0, ${px(width)} 0, ${px(width)} ${px(height)}, 0 ${px(height)}, 0 0, ${x1} ${y1}, ${x1} ${y2}, ${x2} ${y2}, ${x2} ${y1}, ${x1} ${y1})`;
+}
+
+/**
+ * The part of the slot that is on screen, in the preview's own pixels — what
+ * the bridge treats as the viewport for UI it anchors to the viewport. `slot`
+ * and `view` are screen rects; `scale` is the row's zoom.
+ */
+export function visibleBand(slot, view, scale) {
+  const left = Math.max(slot.left, view.left);
+  const top = Math.max(slot.top, view.top);
+  const right = Math.min(slot.left + slot.width, view.left + view.width);
+  const bottom = Math.min(slot.top + slot.height, view.top + view.height);
+
+  return {
+    left: Math.max(0, (left - slot.left) / scale),
+    top: Math.max(0, (top - slot.top) / scale),
+    width: Math.max(0, (right - left) / scale),
+    height: Math.max(0, (bottom - top) / scale),
+  };
+}
+
+/** Did the pointer move enough between down and up to be a pan rather than a click? */
+export function isDrag(from, to, slop = 4) {
+  return Math.abs(to.x - from.x) > slop || Math.abs(to.y - from.y) > slop;
+}
+
 /** A view frame's height: its document's, no lower than the view, no higher than the cap. */
 export function frameHeight(docHeight, floor, cap = HEIGHT_CAP) {
   const height = Math.ceil(Number(docHeight) || 0);
@@ -326,7 +425,7 @@ function emptyState() {
   return {
     win: null, // the Control Panel window the button lives in
     layer: null,
-    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind, hidden, badge }
+    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind, hidden, badge, active }
     cleanups: [], // everything open bound; close runs them all
     styles: [],
     contents: null, // Statamic's `.live-preview-contents`
@@ -334,14 +433,20 @@ function emptyState() {
     sizer: null,
     canvas: null,
     level: null,
-    main: null, // the preview iframe updates are forwarded from
+    main: null, // the preview iframe whose renders the frames mirror
     unbindMain: null,
+    render: null, // the last render the preview handed over (see mirror)
     zoom: 1,
     labelSpace: 32,
     preview: '', // the preview URL the frames were last sent (each adds its own view flag)
-    active: '', // breakpoint handle that has the ring
+    active: '', // breakpoint handle that has the ring — the preview's own slot
     pan: null,
   };
+}
+
+/** The frame the preview stands in: the active size's, when it is in the row. */
+function activeEntry() {
+  return overviewState.frames.find((entry) => entry.active && !entry.hidden) || null;
 }
 
 const overviewState = emptyState();
@@ -408,6 +513,11 @@ export function openBreakpointOverview(win) {
     mountBadges(win);
     paintActive(activeBreakpoint(win));
     paintButton(win, true);
+    // block-order.js writes the slot from here on, and puts the ordinary
+    // geometry back when told the slot is gone — the last thing close does.
+    overviewState.cleanups.push(() => ask('lp:preview-slot', { win, slot: null }));
+    placePreview();
+    measureActive();
 
     for (const entry of overviewState.frames) {
       if (!entry.hidden) {
@@ -489,7 +599,7 @@ function build(win, host, specs) {
     item.append(label, el);
     canvas.appendChild(item);
 
-    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, badge: null };
+    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, badge: null, active: false };
   });
 
   sizer.appendChild(canvas);
@@ -557,8 +667,8 @@ function overviewCss() {
   const L = `#${LAYER_ID}`;
 
   return `
-${L} { position: fixed; z-index: 2; box-sizing: border-box; overflow: hidden; background: var(--sve-bpo-bg); color: var(--sve-bpo-fg); font-family: inherit; }
-${L} .sve-bpo-scroll { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; cursor: grab; }
+${L} { position: fixed; z-index: 2; box-sizing: border-box; overflow: hidden; color: var(--sve-bpo-fg); font-family: inherit; pointer-events: none; }
+${L} .sve-bpo-scroll { position: absolute; inset: 0; overflow: hidden; overscroll-behavior: contain; cursor: grab; background: var(--sve-bpo-bg); pointer-events: auto; }
 ${L} .sve-bpo-scroll[data-panning] { cursor: grabbing; }
 ${L} .sve-bpo-sizer { position: relative; margin: 0 auto; overflow: hidden; }
 ${L} .sve-bpo-canvas { --z: 1; position: absolute; left: 0; top: 0; box-sizing: border-box; display: flex; align-items: flex-start; gap: ${GAP}px; padding: ${PAD}px; transform-origin: 0 0; pointer-events: none; }
@@ -566,8 +676,8 @@ ${L} .sve-bpo-item { position: relative; flex: none; }
 ${L} .sve-bpo-label { position: absolute; left: 0; bottom: 100%; margin-bottom: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); font-weight: 500; line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: auto; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-label { opacity: 1; font-weight: 600; }
 ${L} .sve-bpo-frame { display: block; border: 0; background: #fff; }
-${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(2px / var(--z)) solid ${SIZE_BLUE}; outline-offset: calc(2px / var(--z)); }
-${L} .sve-bpo-zoom { position: absolute; right: .75rem; bottom: .75rem; display: inline-flex; align-items: center; gap: .125rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .9); color: #fafafa; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .3); font-size: .75rem; line-height: 1; }
+${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(${RING_PX}px / var(--z)) solid ${SIZE_BLUE}; outline-offset: calc(${RING_PX}px / var(--z)); }
+${L} .sve-bpo-zoom { position: absolute; right: .75rem; bottom: .75rem; pointer-events: auto; display: inline-flex; align-items: center; gap: .125rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .9); color: #fafafa; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .3); font-size: .75rem; line-height: 1; }
 ${L} .sve-bpo-zoom button { box-sizing: border-box; min-width: 1.75rem; height: 1.75rem; padding: 0 .5rem; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; }
 ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
@@ -626,6 +736,8 @@ function applyZoom(z) {
   if (level.textContent !== percent) {
     level.textContent = percent;
   }
+
+  placePreview();
 }
 
 /** Zoom to `next`, keeping the point at `anchor` (scroller pixels; default the middle) still. */
@@ -648,6 +760,7 @@ function setZoom(next, anchor = null) {
   applyZoom(z1);
   scroller.scrollLeft = anchoredScroll(left, x, x0, centring(z1), z0, z1);
   scroller.scrollTop = anchoredScroll(top, y, framesTop(z0, labelSpace), framesTop(z1, labelSpace), z0, z1);
+  placePreview();
 }
 
 function zoomAction(action) {
@@ -685,7 +798,7 @@ function measure(entry) {
   }
 
   try {
-    height = documentHeight(entry.el.contentDocument);
+    height = documentHeight(entry.active ? overviewState.main.contentDocument : entry.el.contentDocument);
   } catch {
     return;
   }
@@ -701,6 +814,55 @@ function measure(entry) {
   applyZoom(overviewState.zoom);
 }
 
+/** The preview's page height, after a render, a load or a change of size: its slot follows. */
+function measureActive() {
+  const entry = activeEntry();
+
+  if (entry) {
+    measure(entry);
+  }
+}
+
+/**
+ * The preview into its slot: block-order.js is told where the active frame
+ * stands on screen and writes the iframe there; the layer gets its hole cut
+ * at the same rect; and the bridge is told which part of the page is on
+ * screen. On every pan, zoom, resize and swap — in the same turn as the row
+ * moves, so the preview never trails it.
+ */
+function placePreview() {
+  const { win, layer, scroller, main, zoom } = overviewState;
+  const entry = activeEntry();
+
+  if (!layer || !main) {
+    return;
+  }
+
+  const mainWin = main.contentWindow;
+
+  if (!entry) {
+    ask('lp:preview-slot', { win, slot: null });
+    setStyle(scroller, 'clip-path', '');
+
+    if (mainWin) {
+      delete mainWin.__sveBand;
+    }
+
+    return;
+  }
+
+  const rect = entry.el.getBoundingClientRect();
+  const view = scroller.getBoundingClientRect();
+
+  ask('lp:preview-slot', { win, slot: { left: rect.left, top: rect.top, width: entry.spec.width, height: entry.height, scale: zoom } });
+  // Cut in the scroller, not the layer: the zoom bar beside it stays whole and on top of the preview.
+  setStyle(scroller, 'clip-path', holePolygon(view.width, view.height, { left: rect.left - view.left, top: rect.top - view.top, width: rect.width, height: rect.height }));
+
+  if (mainWin) {
+    mainWin.__sveBand = visibleBand(rect, { left: view.left, top: view.top, width: scroller.clientWidth, height: scroller.clientHeight }, zoom);
+  }
+}
+
 /**
  * A frame's own URL for a preview URL: the view flag carries its size, and the
  * preview's unsaved-work flags ride along (see stashFlags).
@@ -710,10 +872,25 @@ function frameUrl(entry, preview) {
 }
 
 function navigate(entry, preview) {
+  // The preview stands in the active size's place: its frame is never loaded.
+  if (entry.active) {
+    return;
+  }
+
   entry.ready = false;
   entry.stale = false;
   entry.src = frameUrl(entry, preview);
   entry.el.src = entry.src;
+}
+
+/** The frame let go: no page, no morphs, no video. */
+function blank(entry) {
+  entry.unbind?.();
+  entry.unbind = null;
+  entry.ready = false;
+  entry.stale = false;
+  entry.src = '';
+  entry.el.src = 'about:blank';
 }
 
 /**
@@ -723,7 +900,8 @@ function navigate(entry, preview) {
  */
 function toggleSize(entry) {
   // The last size in the row stays: an empty overview is just a grey pane.
-  if (!entry.hidden && shown().length === 1) {
+  // The active size stays too: it is the preview, the one being edited.
+  if (!entry.hidden && (shown().length === 1 || entry.active)) {
     return;
   }
 
@@ -732,24 +910,20 @@ function toggleSize(entry) {
 
   if (entry.hidden) {
     hiddenSizes.add(entry.spec.handle);
-    entry.unbind?.();
-    entry.unbind = null;
-    entry.ready = false;
-    entry.stale = false;
-    entry.src = '';
-    entry.el.src = 'about:blank';
+    blank(entry);
   } else {
     hiddenSizes.delete(entry.spec.handle);
     navigate(entry, overviewState.preview);
   }
 
   applyZoom(overviewState.zoom);
+  measureActive();
   paintBadges();
 }
 
-/** A frame still loading would miss the message: it gets the newest URL when it has loaded. */
-function post(entry, preview) {
-  if (entry.hidden) {
+/** A frame still loading would miss the render: it gets the latest one when it has loaded. */
+function post(entry, render) {
+  if (entry.hidden || entry.active || !render) {
     return;
   }
 
@@ -759,10 +933,8 @@ function post(entry, preview) {
     return;
   }
 
-  const url = frameUrl(entry, preview);
-
   try {
-    entry.el.contentWindow?.postMessage({ name: 'statamic.preview.updated', url }, new URL(url).origin);
+    entry.el.contentWindow?.postMessage({ source: SOURCE, type: MSG.SVE_MIRROR, render }, new URL(entry.src).origin);
   } catch {
     /* the frame is on its way out */
   }
@@ -792,9 +964,13 @@ function frameLoaded(entry) {
   entry.unbind = () => frameWin.removeEventListener('statamic:preview-updated', onUpdated);
   measure(entry);
 
+  // Fresh from the server, the copy knows no video holds; the panel remembers
+  // them and answers to this window (cp-shell/video-holds.js).
+  emit('video-holds:sync', { win: overviewState.win, target: frameWin });
+
   if (entry.stale) {
     entry.stale = false;
-    post(entry, overviewState.preview);
+    post(entry, overviewState.render);
   }
 }
 
@@ -809,17 +985,22 @@ function documentHref(frame) {
   }
 }
 
-/** The preview morphed: send the frames the same update. */
-function forward() {
+/**
+ * The preview morphed to a render (preview.js calls this through
+ * `__sveMirror`): every frame in the row morphs to the same one. The preview
+ * URL is read again on the way, for a size switched in later.
+ */
+function mirror(render) {
   const { win, main } = overviewState;
   const preview = ask('lp:lastPreviewUrl') || documentHref(main);
 
-  if (!viewUrl(preview, win.location.href)) {
-    return;
+  if (viewUrl(preview, win.location.href)) {
+    overviewState.preview = preview;
   }
 
-  overviewState.preview = preview;
-  overviewState.frames.forEach((entry) => post(entry, preview));
+  overviewState.render = render;
+  overviewState.frames.forEach((entry) => post(entry, render));
+  measureActive();
 }
 
 function bindMain(main) {
@@ -833,8 +1014,40 @@ function bindMain(main) {
     return;
   }
 
-  mainWin.addEventListener('statamic:preview-updated', forward);
-  overviewState.unbindMain = () => mainWin.removeEventListener('statamic:preview-updated', forward);
+  // The hook preview.js calls after each render it morphs to (applyUpdate
+  // there): on the preview's window for the while, gone with the overview.
+  mainWin.__sveMirror = mirror;
+
+  // The preview is page-high in the row: a wheel over it pans the row, and
+  // FOCUS — which the bridge answers with a scroll the page cannot make — pans
+  // the row to the element it pulsed. Keys in the preview stay the bridge's:
+  // Escape there ends an edit or a menu, never the overview.
+  const doc = mainWin.document;
+  const onMessage = (event) => {
+    if (event.data?.source === SOURCE && event.data.type === MSG.FOCUS) {
+      revealPulsed();
+    }
+  };
+
+  doc.addEventListener('wheel', onPreviewWheel, { passive: false });
+  mainWin.addEventListener('message', onMessage);
+
+  overviewState.unbindMain = () => {
+    try {
+      doc.removeEventListener('wheel', onPreviewWheel, { passive: false });
+      mainWin.removeEventListener('message', onMessage);
+      delete mainWin.__sveMirror;
+      delete mainWin.__sveBand;
+    } catch {
+      /* the window is gone */
+    }
+  };
+}
+
+function onKey(event) {
+  if (event.key === 'Escape' && !event.defaultPrevented) {
+    closeBreakpointOverview(overviewState.win);
+  }
 }
 
 // --- Binding ---------------------------------------------------------------------------
@@ -851,8 +1064,8 @@ function bind(win, view) {
   overviewState.cleanups.push(() => overviewState.unbindMain?.());
 
   // The preview loaded a document: another page, or Statamic swapped in a new
-  // iframe (it does when the URL changes). Its window is new either way — bind
-  // again, and send the frames there. `load` does not bubble; capture sees it.
+  // iframe (it does when the URL changes). Its window is new either way — hook
+  // it again, and take the frames along. `load` does not bubble; capture sees it.
   listen(
     contents,
     'load',
@@ -864,6 +1077,8 @@ function bind(win, view) {
       }
 
       bindMain(main);
+      placePreview();
+      measureActive();
 
       const preview = documentHref(main) || ask('lp:lastPreviewUrl');
 
@@ -873,10 +1088,10 @@ function bind(win, view) {
 
       overviewState.preview = preview;
 
+      // Another page: the frames go there too. The same page: they show it
+      // already, and the next render reaches them through the new window's hook.
       for (const entry of shown()) {
-        if (entry.src === frameUrl(entry, preview)) {
-          post(entry, preview);
-        } else {
+        if (entry.src !== frameUrl(entry, preview)) {
           navigate(entry, preview);
         }
       }
@@ -895,22 +1110,22 @@ function bind(win, view) {
     }
 
     place();
+    placePreview();
     paintButton(win, true);
   });
 
   observer.observe(contents);
   overviewState.cleanups.push(() => observer.disconnect());
 
-  const onKey = (event) => {
-    if (event.key === 'Escape' && !event.defaultPrevented) {
-      closeBreakpointOverview(win);
-    }
-  };
-
   [...new Set([view, win])].forEach((target) => listen(target, 'keydown', onKey));
 
-  // The size the fields on the left are editing; the ring follows it.
-  listen(win, 'sve:breakpoint', (event) => paintActive(event.detail?.bp));
+  // The size the fields on the left are editing: the ring follows it, and the
+  // row scrolls to it — on every pick, so a size picked again comes back into
+  // view after a pan away from it.
+  listen(win, 'sve:breakpoint', (event) => {
+    paintActive(event.detail?.bp);
+    revealActive();
+  });
 
   listen(scroller, 'wheel', onWheel, { passive: false });
   listen(scroller, 'pointerdown', onPanStart);
@@ -919,19 +1134,44 @@ function bind(win, view) {
   listen(scroller, 'pointercancel', onPanEnd);
 }
 
-/** Ctrl/Cmd + wheel and trackpad pinch zoom around the pointer; a plain wheel scrolls. */
+/** Ctrl/Cmd + wheel and trackpad pinch zoom around the pointer; a plain wheel pans. */
 function onWheel(event) {
-  if (!event.ctrlKey && !event.metaKey) {
+  const rect = overviewState.scroller.getBoundingClientRect();
+
+  wheel(event, { x: event.clientX - rect.left, y: event.clientY - rect.top });
+}
+
+/** The same wheel over the preview: its pointer position, in its own pixels, put into the row's. */
+function onPreviewWheel(event) {
+  const entry = activeEntry();
+
+  if (!entry) {
     return;
   }
 
+  const slot = entry.el.getBoundingClientRect();
+  const rect = overviewState.scroller.getBoundingClientRect();
+  const z = overviewState.zoom;
+
+  wheel(event, { x: slot.left - rect.left + event.clientX * z, y: slot.top - rect.top + event.clientY * z });
+}
+
+/** Pan or zoom the row by script, and place the preview in the same turn. */
+function wheel(event, anchor) {
   event.preventDefault();
 
   const { scroller, zoom } = overviewState;
-  const rect = scroller.getBoundingClientRect();
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroller.clientHeight : 1;
 
-  setZoom(zoom * Math.exp(-event.deltaY * unit * 0.0015), { x: event.clientX - rect.left, y: event.clientY - rect.top });
+  if (event.ctrlKey || event.metaKey) {
+    setZoom(zoom * Math.exp(-event.deltaY * unit * 0.0015), anchor);
+
+    return;
+  }
+
+  scroller.scrollLeft += event.deltaX * unit;
+  scroller.scrollTop += event.deltaY * unit;
+  placePreview();
 }
 
 function onPanStart(event) {
@@ -944,7 +1184,7 @@ function onPanStart(event) {
   }
 
   event.preventDefault();
-  overviewState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY };
+  overviewState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY } };
   scroller.setPointerCapture(event.pointerId);
   scroller.dataset.panning = '';
 }
@@ -960,6 +1200,7 @@ function onPanMove(event) {
   scroller.scrollTop -= event.clientY - pan.y;
   pan.x = event.clientX;
   pan.y = event.clientY;
+  placePreview();
 }
 
 function onPanEnd(event) {
@@ -974,6 +1215,21 @@ function onPanEnd(event) {
 
   if (scroller.hasPointerCapture(event.pointerId)) {
     scroller.releasePointerCapture(event.pointerId);
+  }
+
+  // A click, not a pan, on one of the other sizes: that size becomes the one
+  // the fields edit — the same door as its button in the top bar — and the
+  // preview moves into its place.
+  if (event.type === 'pointerup' && !isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
+    const hit = shown().find((entry) => {
+      const r = entry.el.getBoundingClientRect();
+
+      return event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+    });
+
+    if (hit && !hit.active) {
+      ask('lp:set-device', { win: overviewState.win, key: hit.spec.device });
+    }
   }
 }
 
@@ -1082,7 +1338,11 @@ function paintBadges() {
   }
 }
 
-/** The ring: which size the Responsive fields on the left are editing. */
+/**
+ * The ring: which size the Responsive fields on the left are editing — and
+ * the preview's place. The size that was active gets its frame loaded; the
+ * one that is active now gives its frame up, and the preview stands there.
+ */
 function paintActive(handle) {
   if (!handle || handle === overviewState.active) {
     return;
@@ -1102,6 +1362,80 @@ function paintActive(handle) {
     if (entry.label.title !== (on ? title : '')) {
       entry.label.title = on ? title : '';
     }
+
+    if (entry.active === on) {
+      continue;
+    }
+
+    entry.active = on;
+
+    if (on) {
+      blank(entry);
+    } else if (!entry.hidden && overviewState.layer) {
+      navigate(entry, overviewState.preview);
+    }
+  }
+
+  if (overviewState.layer) {
+    placePreview();
+    measureActive();
+  }
+}
+
+/**
+ * FOCUS from the fields on the left: the bridge marked and pulsed the element
+ * and asked the page to scroll, which a page-high frame cannot. The row pans
+ * so that element stands in view, top first — as the bridge's scroll would.
+ */
+function revealPulsed() {
+  const { scroller, zoom } = overviewState;
+  const entry = activeEntry();
+  const el = overviewState.main.contentDocument?.querySelector('.sve-cp-pulse');
+
+  if (!entry || !el) {
+    return;
+  }
+
+  const slot = entry.el.getBoundingClientRect();
+  const view = scroller.getBoundingClientRect();
+  const rect = el.getBoundingClientRect();
+  const top = slot.top - view.top + scroller.scrollTop + rect.top * zoom;
+  const left = slot.left - view.left + scroller.scrollLeft + rect.left * zoom;
+  // Top first, as the bridge's `block: 'start'` would; sideways only as far as needed.
+  const next = {
+    top: Math.max(0, Math.round(top - PAD * zoom)),
+    left: revealScroll(scroller.scrollLeft, scroller.clientWidth, left, left + rect.width * zoom),
+  };
+
+  if (next.top !== scroller.scrollTop || next.left !== scroller.scrollLeft) {
+    scroller.scrollTop = next.top;
+    scroller.scrollLeft = next.left;
+    placePreview();
+  }
+}
+
+/**
+ * The active frame whole in view, ring included: the row scrolled sideways by
+ * revealScroll, and only when that changes anything. A size switched out of
+ * the row has no frame to show.
+ */
+function revealActive() {
+  const { scroller, active } = overviewState;
+  const entry = shown().find((item) => item.spec.handle === active);
+
+  if (!entry) {
+    return;
+  }
+
+  const view = scroller.getBoundingClientRect();
+  const frame = entry.el.getBoundingClientRect();
+  const start = scroller.scrollLeft;
+  const ring = RING_PX * 2;
+  const next = revealScroll(start, scroller.clientWidth, frame.left - view.left + start - ring, frame.right - view.left + start + ring);
+
+  if (next !== start) {
+    scroller.scrollLeft = next;
+    placePreview();
   }
 }
 

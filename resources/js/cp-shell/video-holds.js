@@ -9,7 +9,12 @@
  * the holds when its bridge boots, and gets one message per section on the
  * page whose file has a hold — not only the file the dock has open, because
  * after a reload nothing is open yet.
+ *
+ * A copy of the preview — one of the breakpoint overview's frames — knows no
+ * holds either, and it never asks: the overview asks for it over the bus
+ * (`video-holds:sync`, with the copy's window) once the copy has loaded.
  */
+import { on } from '../cp/bus.js';
 import { sectionField } from '../lib/config.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
@@ -89,9 +94,8 @@ function sectionRows(win, doc) {
  * page whose file has one. An extra hold on a video already held costs
  * nothing, so this is safe to send on every boot and every draw.
  */
-export function syncStoredVideoHolds(win, doc = win.document) {
+export function syncStoredVideoHolds(win, doc = win.document, target = previewFrame(doc)?.contentWindow) {
   const holds = readHolds(win);
-  const target = previewFrame(doc)?.contentWindow;
 
   if (!target) {
     return;
@@ -111,3 +115,9 @@ export function syncStoredVideoHolds(win, doc = win.document) {
     }
   }
 }
+
+on('video-holds:sync', ({ win, target } = {}) => {
+  if (win && target) {
+    syncStoredVideoHolds(win, win.document, target);
+  }
+});

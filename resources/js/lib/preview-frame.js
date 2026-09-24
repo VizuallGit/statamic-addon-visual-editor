@@ -10,11 +10,17 @@
  *      (the CP embedded in a frame), the inner one is the preview;
  *   3. otherwise any iframe in the document whose content holds the preview.
  *
- * Both functions accept a Window or a Document. Cross-origin frames are skipped
- * silently: Live Preview is same-origin, anything else is not ours.
+ * Every function accepts a Window or a Document. Cross-origin frames are
+ * skipped silently: Live Preview is same-origin, anything else is not ours.
  *
- * May import: nothing.
+ * `previewCopies` is the one list of the preview's copies — the breakpoint
+ * overview's frames, which show the page but are not the preview. It reads the
+ * overview's layer, which is in the document only while the overview is open;
+ * closed, the list is empty after one lookup by id.
+ *
+ * May import: lib/ids.js.
  */
+import { BP_OVERVIEW_ID } from './ids.js';
 function documentOf(winOrDoc) {
   return winOrDoc?.document || winOrDoc || null;
 }
@@ -57,4 +63,30 @@ export function previewFrame(winOrDoc) {
 /** The document rendered inside the preview iframe, or null. */
 export function previewDocument(winOrDoc) {
   return contentDocumentOf(previewFrame(winOrDoc));
+}
+
+/**
+ * The windows of the preview's copies that hold a page: the breakpoint
+ * overview's frames, while it is open, minus a size switched out (blanked to
+ * about:blank) and one with no page yet. Not the preview's own window.
+ */
+export function previewCopies(winOrDoc) {
+  const frame = previewFrame(winOrDoc);
+  const layer = frame?.ownerDocument.getElementById(BP_OVERVIEW_ID);
+
+  if (!layer) {
+    return [];
+  }
+
+  const out = [];
+
+  for (const copy of layer.querySelectorAll('iframe')) {
+    const src = copy.getAttribute('src') || '';
+
+    if (src && src !== 'about:blank' && copy.contentWindow) {
+      out.push(copy.contentWindow);
+    }
+  }
+
+  return out;
 }

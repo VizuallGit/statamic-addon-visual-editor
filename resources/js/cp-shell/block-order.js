@@ -354,6 +354,71 @@ register('lp:set-device', ({ win, key } = {}) => {
   }
 });
 
+/**
+ * The breakpoint overview's slot for the preview, or null.
+ *
+ * While the overview is open the preview stands in its row, at the active
+ * size's place, and this file — the one writer of the iframe's styles — writes
+ * that geometry in place of the device and zoom geometry: fixed at the slot's
+ * screen position, the breakpoint's width, the page's height, scaled like the
+ * row. The overview hands the slot over on the bus on every pan, zoom and
+ * resize, and null when it closes; then the properties added here are taken
+ * away and the ordinary writes take over again. Closed, the slot is null and
+ * every pass checks that and nothing more.
+ */
+let lpPreviewSlot = null;
+
+/** Properties the slot adds to the iframe; removed again when the slot goes. */
+const LP_SLOT_PROPS = ['position', 'left', 'top', 'margin'];
+
+register('lp:preview-slot', ({ win, slot } = {}) => {
+  if (!win) {
+    return;
+  }
+
+  lpPreviewSlot = slot && Number.isFinite(slot.width) && Number.isFinite(slot.height) ? slot : null;
+
+  if (!lpPreviewSlot) {
+    const iframe = previewFrame(win.document);
+
+    LP_SLOT_PROPS.forEach((prop) => {
+      if (iframe?.style.getPropertyValue(prop)) {
+        iframe.style.removeProperty(prop);
+      }
+    });
+  }
+
+  applyLpDevice(win);
+  applyLpZoom(win);
+});
+
+/** The slot's geometry on the iframe. Idempotent, like every write in this file. */
+function applyLpPreviewSlot(iframe, slot) {
+  const want = {
+    position: 'fixed',
+    left: `${Math.round(slot.left * 100) / 100}px`,
+    top: `${Math.round(slot.top * 100) / 100}px`,
+    width: `${slot.width}px`,
+    height: `${slot.height}px`,
+    margin: '0px',
+    transform: `scale(${slot.scale})`,
+    'transform-origin': '0px 0px',
+  };
+
+  Object.entries(want).forEach(([prop, value]) => {
+    if (iframe.style.getPropertyValue(prop) !== value) {
+      iframe.style.setProperty(prop, value, 'important');
+    }
+  });
+
+  // Statamic's device chrome would draw round a frame that is one of a row.
+  ['border-radius', 'box-shadow', 'max-height'].forEach((prop) => {
+    if (iframe.style.getPropertyValue(prop)) {
+      iframe.style.removeProperty(prop);
+    }
+  });
+}
+
 export function lpWidthToBp(width, win = window) {
   return bpFromWidth(width, win);
 }
@@ -389,6 +454,13 @@ export function applyLpDevice(win, key = lpStoredDevice(win)) {
   const iframe = previewFrame(doc);
 
   if (!iframe) {
+    return;
+  }
+
+  // In the overview's row, the slot is the geometry; nothing else is written.
+  if (lpPreviewSlot) {
+    applyLpPreviewSlot(iframe, lpPreviewSlot);
+
     return;
   }
 
@@ -695,6 +767,13 @@ export function applyLpZoom(win, percent = lpStoredZoom(win)) {
   const contents = win.document.querySelector('.live-preview-contents');
 
   if (!iframe) {
+    return;
+  }
+
+  // In the overview's row, the slot's scale is the zoom.
+  if (lpPreviewSlot) {
+    applyLpPreviewSlot(iframe, lpPreviewSlot);
+
     return;
   }
 

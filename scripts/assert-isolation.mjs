@@ -4,9 +4,10 @@
  *
  * Three zones, three rules:
  *
- *   kernel   preview.js, overlay-host.js, bridge.js (+ the bridge-side modules
- *            listed in KERNEL_SIDE) run inside the preview document. They may
- *            import each other and npm packages, never the CP shell or a panel.
+ *   kernel   preview.js, overlay-host.js, bridge.js, mirror.js (+ the
+ *            bridge-side modules listed in KERNEL_SIDE) run inside the preview
+ *            document or a copy of it. They may import each other and npm
+ *            packages, never the CP shell or a panel.
  *
  *   cp/      Vue surfaces and stores. May not import the kernel, the CP shell
  *            (cp.js) or the Live Preview lifecycle (lp-replay.js). Hard rule,
@@ -31,7 +32,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const JS = join(ROOT, 'resources/js');
 const ALLOWLIST = join(ROOT, 'scripts/isolation-allowlist.json');
 
-const KERNEL = ['preview.js', 'overlay-host.js', 'bridge.js'];
+const KERNEL = ['preview.js', 'overlay-host.js', 'bridge.js', 'mirror.js'];
 /** Modules that run in the preview document alongside bridge.js. */
 const KERNEL_SIDE = ['html-pick-align.js', 'ai-text-bridge.js', 'ai-text-icon.js'];
 /** Directories whose files are kernel code too (bridge.js's regions after WP5c). */
