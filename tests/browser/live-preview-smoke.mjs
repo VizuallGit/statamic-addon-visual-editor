@@ -441,7 +441,9 @@ if (report.worktree) step('working-tree build was what the CP loaded', /^[1-9]/.
   // something loads by hand — a second copy of the editor running beside it.
   const files = (manifest) => Object.values(manifest).flatMap((e) => [e.file, ...(e.css || []), ...(e.assets || [])]).map((f) => f.replace(/^assets\//, ''));
   const installed = JSON.parse(readFileSync(`${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, 'utf8'));
-  const entries = Object.values(installed).filter((e) => e.isEntry).map((e) => e.file.replace(/^assets\//, ''));
+  // Every entry Live Preview itself loads. mirror.js is an entry too, but only
+  // the breakpoint overview's copies load it — never the preview.
+  const entries = Object.entries(installed).filter(([key, e]) => e.isEntry && key !== 'resources/js/mirror.js').map(([, e]) => e.file.replace(/^assets\//, ''));
   const allowed = new Set(files(installed));
   if (WORKTREE) for (const f of files(JSON.parse(readFileSync(`${env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`)}/manifest.json`, 'utf8')))) allowed.add(f);
   const missing = entries.filter((f) => !loadedAssets.has(f));
