@@ -17,6 +17,7 @@ import {
   fitZoom,
   frameHeight,
   framesTop,
+  glideEase,
   holePolygon,
   isDrag,
   isTransparent,
@@ -269,9 +270,23 @@ const source = readFileSync(join(JS, 'breakpoint-overview.js'), 'utf8');
 const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 test('closed costs nothing: no timers, no MutationObserver, no stored state', () => {
-  for (const banned of ['setInterval(', 'setTimeout(', 'requestAnimationFrame(', 'MutationObserver', 'chromeSet', 'localStorage', 'sessionStorage', 'sve-lp-zoom']) {
+  // An animation frame is not a timer: the glide asks for one only while a
+  // reveal is under way, and stopGlide cancels it on a wheel, a drag, a zoom
+  // and on close.
+  for (const banned of ['setInterval(', 'setTimeout(', 'MutationObserver', 'chromeSet', 'localStorage', 'sessionStorage', 'sve-lp-zoom']) {
     assert.ok(!code.includes(banned), `breakpoint-overview.js uses ${banned}`);
   }
+
+  assert.ok(/function stopGlide\(/.test(code) && /cancelAnimationFrame\(/.test(code), 'a glide can be cut short');
+});
+
+test('a glide starts fast and lands gently, and never overshoots', () => {
+  assert.equal(glideEase(0), 0);
+  assert.equal(glideEase(1), 1);
+  assert.equal(glideEase(2), 1);
+  assert.equal(glideEase(-1), 0);
+  assert.ok(glideEase(0.25) > 0.25 && glideEase(0.5) > 0.8 && glideEase(0.5) < 0.9);
+  assert.ok(glideEase(0.5) - glideEase(0.25) > glideEase(1) - glideEase(0.75), 'slower towards the end');
 });
 
 test('it hangs nothing on its own window and registers nothing on the bus', () => {

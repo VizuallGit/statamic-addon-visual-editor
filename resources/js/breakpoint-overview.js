@@ -67,7 +67,8 @@
  * breakpoint — moves the ring and, when the row is wider than the pane,
  * scrolls the row sideways so that size's frame stands whole in view; a frame
  * wider than the pane stands with its left edge at the pane's left edge (the
- * owner's rule, 24 Sep 2026). Sideways only, and only the row's own scroll.
+ * owner's rule, 24 Sep 2026). Sideways only, and only the row's own scroll —
+ * as a glide, not a jump, with the preview placed in every frame of it.
  *
  * May import: lib/, breakpoints.js, chrome-prefs.js (chromeGet), cp-state.js
  * (sveState, read only), cp/bus.js. Not cp-shell/*: scripts/assert-isolation.mjs
@@ -99,7 +100,7 @@ import { chromeGet } from './chrome-prefs.js';
 import { sveState } from './cp-state.js';
 import { remToPx } from './lib/dom.js';
 import { t } from './lib/i18n.js';
-import { BP_OVERVIEW_ID, LP_ICON_IDLE_OPACITY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
+import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { injectStyle } from './lib/style.js';
@@ -139,8 +140,8 @@ const SIZE_BLUE = 'rgb(96, 165, 250)';
  */
 const MARK_CENTER_X = 20;
 
-/** The size marks take the icons' own resting tone: currentColor at the idle opacity. */
-const MARK_TONE = Math.round(Number(LP_ICON_IDLE_OPACITY) * 100);
+/** The size marks' colour (the owner's, 25 Sep 2026); a size switched out shows a fainter ring of it. */
+const MARK_COLOR = '#FFAE6B';
 
 const MINUS_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>';
@@ -320,6 +321,13 @@ export function visibleBand(slot, view, scale) {
   };
 }
 
+/** How far along a glide is at time `t` of 1: fast off the mark, gentle at the end. */
+export function glideEase(t) {
+  const x = Math.min(1, Math.max(0, t));
+
+  return 1 - (1 - x) ** 3;
+}
+
 /** Did the pointer move enough between down and up to be a pan rather than a click? */
 export function isDrag(from, to, slop = 4) {
   return Math.abs(to.x - from.x) > slop || Math.abs(to.y - from.y) > slop;
@@ -441,6 +449,7 @@ function emptyState() {
     preview: '', // the preview URL the frames were last sent (each adds its own view flag)
     active: '', // breakpoint handle that has the ring — the preview's own slot
     pan: null,
+    glide: null, // the animation frame of a reveal under way
   };
 }
 
@@ -541,6 +550,8 @@ export function closeBreakpointOverview(win) {
 /** Undo everything open did, last bound first, and forget it. */
 function teardown(win) {
   const state = overviewState;
+
+  stopGlide();
 
   for (const cleanup of state.cleanups.splice(0).reverse()) {
     try {
@@ -683,7 +694,7 @@ ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} svg { opacity: 1; }
-#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge { --sve-bpo-mark: color-mix(in srgb, currentColor ${MARK_TONE}%, var(--sve-bpo-knock)); position: absolute; box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid color-mix(in srgb, currentColor 40%, var(--sve-bpo-knock)); background: var(--sve-bpo-knock); box-shadow: 0 0 0 2.5px var(--sve-bpo-knock); cursor: pointer; }
+#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge { --sve-bpo-mark: ${MARK_COLOR}; position: absolute; box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid color-mix(in srgb, ${MARK_COLOR} 45%, var(--sve-bpo-knock)); background: var(--sve-bpo-knock); box-shadow: 0 0 0 2.5px var(--sve-bpo-knock); cursor: pointer; }
 #${LP_PREVIEW_CHROME_ID} .sve-bpo-badge::after { content: ''; position: absolute; inset: -.25rem -.25rem -.0625rem -.125rem; }
 #${LP_PREVIEW_CHROME_ID} .sve-bpo-badge[data-on] { border-color: var(--sve-bpo-mark); background: var(--sve-bpo-mark); }
 `;
@@ -749,6 +760,8 @@ function setZoom(next, anchor = null) {
   if (Math.abs(z1 - z0) < 0.0001) {
     return;
   }
+
+  stopGlide();
 
   const x = anchor ? anchor.x : scroller.clientWidth / 2;
   const y = anchor ? anchor.y : scroller.clientHeight / 2;
@@ -1159,6 +1172,7 @@ function onPreviewWheel(event) {
 /** Pan or zoom the row by script, and place the preview in the same turn. */
 function wheel(event, anchor) {
   event.preventDefault();
+  stopGlide();
 
   const { scroller, zoom } = overviewState;
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroller.clientHeight : 1;
@@ -1184,6 +1198,7 @@ function onPanStart(event) {
   }
 
   event.preventDefault();
+  stopGlide();
   overviewState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY } };
   scroller.setPointerCapture(event.pointerId);
   scroller.dataset.panning = '';
@@ -1408,14 +1423,66 @@ function revealPulsed() {
   };
 
   if (next.top !== scroller.scrollTop || next.left !== scroller.scrollLeft) {
-    scroller.scrollTop = next.top;
-    scroller.scrollLeft = next.left;
-    placePreview();
+    glideTo(next.left, next.top);
   }
 }
 
+const GLIDE_MS = 320;
+
 /**
- * The active frame whole in view, ring included: the row scrolled sideways by
+ * The row scrolled to `left`/`top` with an animation rather than a jump — a
+ * size picked in the top bar, a section focused on the left. By script, one
+ * animation frame at a time, and the preview placed in each: native smooth
+ * scrolling runs on the compositor, and the preview would trail it a frame.
+ * A wheel, a drag, a zoom or a close cuts the glide short. Reduced motion
+ * means a jump.
+ */
+function glideTo(left, top = overviewState.scroller.scrollTop) {
+  const { scroller } = overviewState;
+  const view = scroller.ownerDocument.defaultView;
+  const from = { left: scroller.scrollLeft, top: scroller.scrollTop };
+  const delta = { left: left - from.left, top: top - from.top };
+
+  stopGlide();
+
+  if (!delta.left && !delta.top) {
+    return;
+  }
+
+  if (view.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    scroller.scrollLeft = left;
+    scroller.scrollTop = top;
+    placePreview();
+
+    return;
+  }
+
+  const started = view.performance.now();
+  const step = (now) => {
+    const t = (now - started) / GLIDE_MS;
+    const eased = glideEase(t);
+
+    scroller.scrollLeft = from.left + delta.left * eased;
+    scroller.scrollTop = from.top + delta.top * eased;
+    placePreview();
+    overviewState.glide = t < 1 ? view.requestAnimationFrame(step) : null;
+  };
+
+  overviewState.glide = view.requestAnimationFrame(step);
+}
+
+function stopGlide() {
+  const { scroller, glide } = overviewState;
+
+  if (glide && scroller) {
+    scroller.ownerDocument.defaultView.cancelAnimationFrame(glide);
+  }
+
+  overviewState.glide = null;
+}
+
+/**
+ * The active frame whole in view, ring included: the row glided sideways by
  * revealScroll, and only when that changes anything. A size switched out of
  * the row has no frame to show.
  */
@@ -1434,8 +1501,7 @@ function revealActive() {
   const next = revealScroll(start, scroller.clientWidth, frame.left - view.left + start - ring, frame.right - view.left + start + ring);
 
   if (next !== start) {
-    scroller.scrollLeft = next;
-    placePreview();
+    glideTo(next);
   }
 }
 

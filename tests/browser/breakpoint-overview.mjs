@@ -170,6 +170,9 @@ let twExisted = true;
 const SWAPPING = WORKTREE && !PHP_HAS_MIRROR;
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
+// Headless Chrome asks for reduced motion, and the row would then jump: the
+// glide is measured as a person with the default setting sees it.
+await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
 page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
@@ -563,6 +566,7 @@ try {
   // One tone on every button — the lit one included — so the marks sit beside the buttons, not in them.
   step('every size in the row has an on/off mark at its icon, in one tone', marks.length === expected.length && marks.every((m) => m.on && m.w > 0 && !m.inButton) && new Set(marks.map((m) => m.tone)).size === 1,
     `${marks.map((m) => `${m.bp}:${m.on ? 'on' : 'off'}`).join(' ')} · tone ${marks[0]?.tone}`);
+  step('the marks are the owner’s orange, #FFAE6B', marks.length > 0 && marks.every((m) => m.tone === 'rgb(255, 174, 107)'), marks[0]?.tone || 'no marks');
   const middle = expected[Math.min(1, expected.length - 1)];
   const markSel = (handle) => `#__sve-preview-chrome .sve-bpo-badge[data-bpo-badge="${handle}"]`;
   const pressedBefore = await pressedDevice();
@@ -671,7 +675,8 @@ try {
     const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`);
     const v = s.getBoundingClientRect();
     const r = f.getBoundingClientRect();
-    return { left: Math.round(r.left - v.left), right: Math.round(r.right - v.left), width: Math.round(r.width), view: s.clientWidth, scrollLeft: Math.round(s.scrollLeft), ring: document.querySelector(`${sel} [data-active]`)?.dataset.bp || '' };
+    const p = document.getElementById('live-preview-iframe').getBoundingClientRect();
+    return { left: Math.round(r.left - v.left), right: Math.round(r.right - v.left), width: Math.round(r.width), view: s.clientWidth, scrollLeft: Math.round(s.scrollLeft), ring: document.querySelector(`${sel} [data-active]`)?.dataset.bp || '', previewInSlot: Math.abs(p.left - r.left) <= 1 && Math.abs(p.top - r.top) <= 1 };
   }, LAYER, handle);
   const RING = 4; // 2 px outline + 2 px offset, kept in view with the frame
   const widest = expected[expected.length - 1];
@@ -679,15 +684,23 @@ try {
   const order = [widest, narrowest, ...expected.slice(1, -1), widest, narrowest];
   const scrolls = [];
   let allWhole = true;
+  const isWhole = (at) => { const wider = at.width + RING * 2 >= at.view; return wider ? at.left >= 0 && at.left <= RING + 1 : at.left >= RING - 1 && at.right <= at.view - RING + 1; };
   for (const b of order) {
     await realClick(page, cp, `#__sve-preview-chrome [data-device="${b.device}"]`);
-    const at = await until(async () => { const p = await placeOf(b.handle); return p.ring === b.handle ? p : null; }, 3000, 50);
-    if (!at) { allWhole = false; step(`picking ${b.device} moves the ring`, false, 'ring not on it within 3 s'); continue; }
+    // The reveal is a glide of about a third of a second, not a jump: it lands
+    // after some time, passes through positions on the way, and the preview
+    // stands in its slot at every reading — placed in the same turn as the row.
+    const seenAt = Date.now();
+    const positions = new Set();
+    let trailed = 0;
+    const at = await until(async () => { const p = await placeOf(b.handle); if (p.ring === b.handle) { positions.add(p.scrollLeft); if (!p.previewInSlot) trailed++; } return p.ring === b.handle && isWhole(p) ? p : null; }, 3000, 15);
+    const landed = Date.now() - seenAt;
+    if (!at) { allWhole = false; step(`picking ${b.device} moves the ring and brings its frame into view`, false, `not within 3 s: ${JSON.stringify(await placeOf(b.handle))}`); continue; }
     const wider = at.width + RING * 2 >= at.view;
-    const whole = wider ? at.left >= 0 && at.left <= RING + 1 : at.left >= RING - 1 && at.right <= at.view - RING + 1;
-    allWhole = allWhole && whole;
+    const moved = scrolls.length === 0 || scrolls[scrolls.length - 1] !== at.scrollLeft;
     scrolls.push(at.scrollLeft);
-    step(`picking ${b.device}: its frame is ${wider ? 'at the pane\'s left edge (wider than the pane)' : 'whole in view'}`, whole, `frame ${at.left}…${at.right} px in a ${at.view} px pane (width ${at.width}), row scrolled to ${at.scrollLeft}`);
+    step(`picking ${b.device}: its frame is ${wider ? 'at the pane\'s left edge (wider than the pane)' : 'whole in view'}`, true, `frame ${at.left}…${at.right} px in a ${at.view} px pane (width ${at.width}), row scrolled to ${at.scrollLeft}`);
+    if (moved) step(`picking ${b.device}: the row glided there rather than jumping, with the preview in its slot the whole way`, landed >= 200 && positions.size >= 3 && trailed === 0, `landed after ${landed} ms through ${positions.size} positions; preview trailing the slot at ${trailed} of the readings`);
   }
   // The row moved between the picks: the narrowest and the widest cannot both be in view at 100 %.
   step('the row scrolled to get there (it was not already in view)', allWhole && new Set(scrolls).size > 1, `scroll positions ${scrolls.join(' → ')}`);

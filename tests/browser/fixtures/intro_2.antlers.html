@@ -1,0 +1,11 @@
+<section id="id-{{ id }}" class="wrapper py-800 flow-y" {{ visual_edit outline_inside="true" section_orderable="true" }} aria-label="{{ text | raw | bard_items | where:type:heading | first | bard_text }}">
+    <div {{ visual_edit inline_edit="true" field="text" }} class="flow-y prose-p:max-w-[45ch] prose-p:text-400 prose-p:font-light prose-p:opacity-70" >
+        {{ text  }}
+    <div>dfsfjdgfdggfdggf</div>
+    </div>
+    {{ if (media | ends_with('.mp4')) }}
+        <video class="flow-space-500" src="{{ media }}" autoplay muted playsinline></video>
+    {{ else }}
+        {{ partial:components/image props_width="1600" props_height="900" props_quality="50" :props_image="media" class="flow-space-500" }}
+    {{ /if }}
+</section>

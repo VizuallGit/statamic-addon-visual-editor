@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 14) {
+    if (window.__sveDockInstantPreview === 15) {
         return;
     }
-    window.__sveDockInstantPreview = 14;
+    window.__sveDockInstantPreview = 15;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -1452,6 +1452,73 @@
         return true;
     }
 
+    /**
+     * Nodes the paint built from the template. In a parent a field draws into
+     * they are the only live nodes a static template child may claim without
+     * looking alike: a paragraph typed a keystroke ago still has half its
+     * text to come.
+     */
+    var painted = new WeakSet();
+
+    /**
+     * The same text, as it is being typed: equal, or sharing enough of its
+     * start and end — a letter added or removed at the end or in the middle
+     * keeps most of both. A field's own paragraph next to it shares neither.
+     */
+    function sameTextBeingTyped(a, b) {
+        var short = Math.min(a.length, b.length);
+        var head = 0;
+        var tail = 0;
+
+        if (a === b) {
+            return true;
+        }
+
+        if (!short) {
+            return false;
+        }
+
+        while (head < short && a[head] === b[head]) {
+            head++;
+        }
+
+        while (tail < short - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) {
+            tail++;
+        }
+
+        return (head + tail) * 10 >= short * 6;
+    }
+
+    /**
+     * In a parent a field or a loop draws into, the page holds nodes the
+     * template never names — the heading and the paragraphs a Bard field
+     * drew. A static template child there may claim only a live child that is
+     * recognisably its own: one the paint made, a leaf whose finished text is
+     * the template's as it is being typed, or a container of the same class,
+     * shape and text. Anything else is the field's and is left as it is. Used
+     * to be "the first live child of that tag", which put the typed text into
+     * the field's paragraph and renamed its heading.
+     */
+    function ownsLive(liveEl, tplEl) {
+        if (liveEl.tagName !== tplEl.tagName) {
+            return false;
+        }
+
+        if (painted.has(liveEl)) {
+            return true;
+        }
+
+        if (!elementKids(tplEl).length && !elementKids(liveEl).length) {
+            return sameTextBeingTyped(liveEl.textContent.trim(), tplEl.textContent.trim());
+        }
+
+        return (
+            sameShape(liveEl, tplEl) &&
+            classValue(liveEl.getAttribute('class') || '') === classValue(tplEl.getAttribute('class') || '') &&
+            sameTextBeingTyped(liveEl.textContent.trim(), tplEl.textContent.trim())
+        );
+    }
+
     /** The wrapper goes; its children take its place. */
     function unwrap(el) {
         while (el.firstChild) {
@@ -1662,6 +1729,11 @@
                 var fresh;
                 var anchor;
 
+                // A loop's one template child, or one the server fills in, speaks
+                // for the live children of its tag; a static child beside a field
+                // speaks only for what is its own (ownsLive).
+                var byTag = inBlock(tplEl) || isDynamic(tplEl);
+
                 if (pairs) {
                     candidate = pairs.get(tplEl) || null;
 
@@ -1682,8 +1754,12 @@
                     }
 
                     same = candidate ? [candidate] : [];
-                } else {
+                } else if (byTag) {
                     same = liveOfTag(tag);
+                } else {
+                    same = liveOfTag(tag).filter(function (kid) {
+                        return ownsLive(kid, tplEl);
+                    });
                 }
 
                 if (same.length) {
@@ -1691,7 +1767,7 @@
                     // live child of that tag where a loop can have rendered many from
                     // one — a loop always leaves its marker in the parent's text.
                     // Otherwise one speaks for one, and a deleted sibling goes below.
-                    targets = !pairs && counts[tag] === 1 ? same : [same[0]];
+                    targets = !pairs && byTag && counts[tag] === 1 ? same : [same[0]];
                     targets.forEach(function (target) {
                         consumed.push(target);
                         morphElement(target, tplEl, tplTags);
@@ -1717,7 +1793,7 @@
                     var found = [];
                     var ok = inner.every(function (kid) {
                         var hits = liveOfTag(kid.tagName).filter(function (hit) {
-                            return found.indexOf(hit) === -1;
+                            return found.indexOf(hit) === -1 && (pairs || ownsLive(hit, kid));
                         });
                         var own = !isDynamic(kid) ? kid.textContent.trim() : '';
 
@@ -1751,6 +1827,7 @@
                         found.forEach(function (node) {
                             wrapper.appendChild(node);
                         });
+                        painted.add(wrapper);
                         consumed.push(wrapper);
                         morphElement(wrapper, tplEl, tplTags);
 
@@ -1764,7 +1841,8 @@
                 // a template element the server has to fill in: what stands next to
                 // it on the page may be a field's own output (a heading a Bard field
                 // drew), and it was being renamed into a <video> that shows nothing.
-                candidate = isDynamic(tplEl)
+                // Nor in a parent a field draws into, for the same reason.
+                candidate = isDynamic(tplEl) || dynamicParent
                     ? null
                     : strangers().filter(function (kid) {
                           return sameShape(kid, tplEl);
@@ -1794,6 +1872,7 @@
                     live.appendChild(fresh);
                 }
 
+                painted.add(fresh);
                 consumed.push(fresh);
             })(tplKids[i], i);
         }
