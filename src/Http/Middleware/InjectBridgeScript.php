@@ -38,7 +38,7 @@ class InjectBridgeScript
             return $response;
         }
 
-        $tags = collect(['resources/js/bridge.js', 'resources/js/preview.js'])
+        $tags = collect($this->scriptEntries($request))
             ->map(fn ($entry) => $this->resolveScriptUrl($entry))
             ->map(fn ($url) => '<script type="module" src="'.e($url).'"></script>')
             ->implode('');
@@ -48,6 +48,23 @@ class InjectBridgeScript
         $response->setContent($this->injectHead($content));
 
         return $response;
+    }
+
+    /**
+     * The built entries this preview document loads.
+     *
+     * `sve_view` marks a view frame: one of the breakpoint overview's sizes
+     * side by side. It must morph like the preview, so it keeps preview.js,
+     * but it is only looked at, never edited — without the bridge there are
+     * no badges, no hover, no toolbar and no clicks back to the Control Panel.
+     * Only its presence counts; the value is the frame's size (`sve_view=mobile`),
+     * which gives each frame a URL of its own.
+     */
+    protected function scriptEntries(Request $request): array
+    {
+        return $request->query('sve_view') !== null
+            ? ['resources/js/preview.js']
+            : ['resources/js/bridge.js', 'resources/js/preview.js'];
     }
 
     /**

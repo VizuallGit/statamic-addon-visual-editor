@@ -168,6 +168,59 @@ class InjectBridgeScriptTest extends TestCase
     }
 
     // -------------------------------------------------------------------------
+    // View frames (the breakpoint overview): morph, but never edited
+    // -------------------------------------------------------------------------
+
+    public function test_view_frame_loads_preview_without_the_bridge(): void
+    {
+        $middleware = $this->makeMiddleware(livePreview: true, bridgeUrl: 'http://localhost/bridge.js');
+        $html = '<html><head></head><body></body></html>';
+
+        $response = $middleware->handle(Request::create('/?sve_view=1', 'GET'), fn () => $this->makeHtmlResponse($html));
+        $content = $response->getContent();
+
+        $this->assertStringNotContainsString('http://localhost/bridge.js', $content);
+        $this->assertSame(1, substr_count($content, '<script type="module"'));
+        $this->assertStringContainsString('</script></body>', $content);
+    }
+
+    public function test_view_flag_counts_by_presence_whatever_size_it_names(): void
+    {
+        $middleware = $this->makeMiddleware(livePreview: true, bridgeUrl: 'http://localhost/bridge.js');
+        $html = '<html><head></head><body></body></html>';
+
+        foreach (['mobile', 'laptop', '1'] as $size) {
+            $response = $middleware->handle(Request::create('/?sve_view='.$size, 'GET'), fn () => $this->makeHtmlResponse($html));
+
+            $this->assertStringNotContainsString('http://localhost/bridge.js', $response->getContent(), "sve_view={$size}");
+        }
+    }
+
+    public function test_view_frame_keeps_the_head_the_morph_relies_on(): void
+    {
+        $middleware = $this->makeMiddleware(livePreview: true);
+        $html = '<html><head></head><body></body></html>';
+
+        $response = $middleware->handle(Request::create('/?sve_view=1', 'GET'), fn () => $this->makeHtmlResponse($html));
+        $content = $response->getContent();
+
+        $this->assertStringContainsString('window.__sveStrings', $content);
+        $this->assertStringContainsString("data.type !== 'full-reload'", $content);
+    }
+
+    public function test_preview_without_the_view_flag_still_loads_bridge_and_preview(): void
+    {
+        $middleware = $this->makeMiddleware(livePreview: true, bridgeUrl: 'http://localhost/bridge.js');
+        $html = '<html><head></head><body></body></html>';
+
+        $response = $middleware->handle($this->makeRequest(), fn () => $this->makeHtmlResponse($html));
+        $content = $response->getContent();
+
+        $this->assertStringContainsString('http://localhost/bridge.js', $content);
+        $this->assertSame(2, substr_count($content, '<script type="module"'));
+    }
+
+    // -------------------------------------------------------------------------
     // Last </body> replacement (strrpos robustness)
     // -------------------------------------------------------------------------
 

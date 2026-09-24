@@ -36,6 +36,16 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: breakpoint_overview
+            field:
+              type: toggle
+              display: 'All screen sizes'
+              instructions: 'A button in the Live Preview top bar, next to zoom, that shows every screen size side by side as live pages — to look at, not to edit. Nothing is loaded until it is clicked. Off, the button is gone.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
             handle: pages
             field:
               type: toggle

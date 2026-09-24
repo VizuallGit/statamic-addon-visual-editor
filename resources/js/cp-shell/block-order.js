@@ -7,6 +7,7 @@ import { bpBase, bpDevice, bpForDevice, bpFromWidth, bpInherits, breakpoints } f
 import { bindTips } from '../cp/tip.js';
 import { t } from '../lib/i18n.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
+import { featureOn } from '../lib/config.js';
 import { LP_CONTROL_H, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_PREVIEW_CHROME_ID, LP_TOOLBAR_GAP } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { lpHeader } from '../lib/live-preview.js';
@@ -918,6 +919,28 @@ export function ensureLpPreviewChrome(win) {
         setLpZoom(win, next);
       }
     });
+
+    // Every size side by side (breakpoint-overview.js), first in the zoom
+    // group — both are about how the preview is looked at. One button and one
+    // import() on click; the module paints it. Nothing else exists until then.
+    if (featureOn(win, 'breakpoint_overview')) {
+      const overview = doc.createElement('button');
+
+      overview.type = 'button';
+      overview.dataset.overview = '';
+      overview.title = t(win, 'bp_overview');
+      overview.setAttribute('aria-pressed', 'false');
+      overview.innerHTML =
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="5" height="16" rx="1.25"/><rect x="9.5" y="4" width="5" height="16" rx="1.25"/><rect x="16.5" y="4" width="5" height="16" rx="1.25"/></svg>';
+      overview.style.cssText =
+        `${FRAMED_CONTROL_STYLE}width:28px;padding:0;display:inline-flex;align-items:center;justify-content:center;opacity:${LP_ICON_IDLE_OPACITY};`;
+      overview.addEventListener('click', () => {
+        import('../breakpoint-overview.js').then((m) => m.toggleBreakpointOverview(win));
+      });
+
+      zoom.appendChild(overview);
+      zoom.appendChild(lpModeSeparator(doc));
+    }
 
     zoom.appendChild(zoomOut);
     zoom.appendChild(lpModeSeparator(doc));

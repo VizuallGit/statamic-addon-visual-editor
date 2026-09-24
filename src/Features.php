@@ -54,6 +54,9 @@ class Features
     public const KEYS = [
         'panel',
         'page_activity',
+        // The Live Preview top bar's "all screen sizes" button. On unless the
+        // settings or config say false: closed, it is one button and nothing else.
+        'breakpoint_overview',
         'pages',
         'globals',
         'sections',
