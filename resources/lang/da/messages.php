@@ -506,6 +506,7 @@ return [
     'bp_overview_fit' => 'Tilpas alle',
     'bp_overview_actual' => 'Faktisk størrelse (100 %)',
     'bp_overview_active' => 'Felterne til venstre gælder for denne størrelse',
+    'bp_overview_toggle' => 'Vis eller skjul :size i oversigten',
     'back_save_and_leave' => 'Gem og gå tilbage',
     'back_save_and_close' => 'Gem og luk',
     'back_save_publish_and_leave' => 'Gem, publicér og gå tilbage',

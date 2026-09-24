@@ -43,6 +43,10 @@ return [
     | - panel:             the page-settings panel (Hide/Auto/Show + its tabs)
     | - page_activity:     an icon in the Live Preview top bar that opens this
     |                      page's revision list (Statamic revisions). On by default.
+    | - breakpoint_overview: an icon in the Live Preview top bar, left of the
+    |                      screen sizes, that shows every size side by side as
+    |                      live pages — to look at, not to edit. Nothing loads
+    |                      until it is clicked. On by default.
     | - pages:             the collection/entry picker, for moving between pages
     | - globals:           the globals picker (Theme Settings and friends)
     | - globals_picker:    which global sets that menu lists, by handle. Null
@@ -139,6 +143,7 @@ return [
     'features' => [
         'panel' => true,
         'page_activity' => true,
+        'breakpoint_overview' => true,
         'pages' => true,
         'globals' => true,
         // Not a toggle: handles shown in the globe menu. Null = all except

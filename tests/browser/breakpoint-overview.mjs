@@ -114,7 +114,10 @@ async function visible(frame, selector) {
 
 function seedLayoutPrefs(prefs) {
   const file = `${SITE_DIR}/users/${USER}.yaml`;
-  let yaml = readFileSync(file, 'utf8').replace(/^  sve_chrome:\n(?:    .*\n)*/m, '');
+  // Either form the CP saves: a block of keys, or an empty `sve_chrome: {}`.
+  // Leaving the inline one and adding a block gave the user a duplicate key,
+  // and Statamic answered every login with a 500.
+  let yaml = readFileSync(file, 'utf8').replace(/^  sve_chrome:[^\n]*\n(?:    .*\n)*/m, '');
   const entries = Object.entries(prefs || {});
   if (entries.length) {
     const block = `  sve_chrome:\n${entries.map(([k, v]) => `    ${k}: '${String(v).replace(/'/g, "''")}'\n`).join('')}`;
@@ -233,12 +236,12 @@ try {
   // 3. Closed: the button is there and can be seen; the module was never fetched.
   const btn = await visible(cp, BUTTON);
   step('button in the top bar is visible', btn.ok, btn.why);
-  step('button sits inside #__sve-preview-chrome, between the device icons and zoom', await cp.evaluate((sel) => {
+  step('button stands on its own in #__sve-preview-chrome, left of the device icons', await cp.evaluate((sel) => {
     const b = document.querySelector(sel);
     const chrome = document.getElementById('__sve-preview-chrome');
     const devices = chrome?.querySelector('[data-sve-devices]');
-    const zoomOut = chrome?.querySelector('[data-zoom="out"]');
-    return !!b && chrome.contains(b) && !!(devices.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(b.compareDocumentPosition(zoomOut) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const zoom = chrome?.querySelector('[data-sve-zoom]');
+    return !!b && chrome.contains(b) && !devices.contains(b) && !zoom.contains(b) && !!(b.compareDocumentPosition(devices) & Node.DOCUMENT_POSITION_FOLLOWING);
   }, BUTTON));
   if (config.strings) {
     const title = await cp.evaluate((sel) => { const b = document.querySelector(sel); return b.getAttribute('title') || b.getAttribute('data-tip') || ''; }, BUTTON);
@@ -430,6 +433,44 @@ try {
   const fits = await cp.evaluate((sel) => { const layer = document.querySelector(sel); const lr = layer.getBoundingClientRect(); return [...layer.querySelectorAll('iframe')].every((f) => { const r = f.getBoundingClientRect(); return r.left >= lr.left - 1 && r.right <= lr.right + 1; }); }, LAYER);
   step('fit all: every frame is in view again', Math.abs(zFit.scale - z0.scale) < 0.002 && fits, `scale ${zFit.scale.toFixed(3)} (opened at ${z0.scale.toFixed(3)})`);
 
+  // 7b. While open, every size's button in the top bar carries a mark. Its
+  //     click takes that size out of the row (frame blanked) and nothing else —
+  //     the size the fields edit stays; again, and the size is back, live.
+  const pressedDevice = () => cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join());
+  const rowWidthNow = () => cp.evaluate((sel) => document.querySelector(`${sel} .sve-bpo-sizer`).getBoundingClientRect().width, LAYER);
+  const sizeState = (bp) => cp.evaluate((sel, handle) => {
+    const item = document.querySelector(`${sel} [data-bp="${handle}"]`);
+    return { out: !!item && item.hidden && getComputedStyle(item).display === 'none', src: item?.querySelector('iframe')?.getAttribute('src') || '', mark: document.querySelector(`.sve-bpo-badge[data-bpo-badge="${handle}"]`)?.hasAttribute('data-on') };
+  }, LAYER, bp);
+  const marks = await cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device] .sve-bpo-badge')].map((b) => ({ bp: b.dataset.bpoBadge, on: b.hasAttribute('data-on'), w: b.getBoundingClientRect().width })));
+  step('every size in the row has an on/off mark on its top-bar button', marks.length === expected.length && marks.every((m) => m.on && m.w > 0), marks.map((m) => `${m.bp}:${m.on ? 'on' : 'off'}`).join(' '));
+  const middle = expected[Math.min(1, expected.length - 1)];
+  const markSel = (handle) => `#__sve-preview-chrome .sve-bpo-badge[data-bpo-badge="${handle}"]`;
+  const pressedBefore = await pressedDevice();
+  const rowBefore = await rowWidthNow();
+  await realClick(page, cp, markSel(middle.handle));
+  await sleep(300);
+  const off = await sizeState(middle.handle);
+  const rowOff = await rowWidthNow();
+  step(`${middle.device}'s mark takes it out of the row, its frame blanked`, off.out && off.src === 'about:blank' && off.mark === false && rowOff < rowBefore, `out=${off.out} src=${off.src} mark on=${off.mark} row ${Math.round(rowBefore)}→${Math.round(rowOff)} px`);
+  step('the mark does not change the size the fields edit', (await pressedDevice()) === pressedBefore, `pressed device stays ${pressedBefore}`);
+  // The last size in the row cannot be switched out: an empty overview is a grey pane.
+  const restSizes = expected.filter((b) => b.handle !== middle.handle);
+  for (const b of restSizes.slice(0, -1)) await realClick(page, cp, markSel(b.handle));
+  const last = restSizes[restSizes.length - 1];
+  await realClick(page, cp, markSel(last.handle));
+  await sleep(300);
+  step('the last size in the row stays in', !(await sizeState(last.handle)).out, `${last.handle} still shown`);
+  for (const b of [...restSizes.slice(0, -1), middle]) await realClick(page, cp, markSel(b.handle));
+  const back = await until(async () => {
+    const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
+    if (states.some((s) => s.out || !s.mark)) return null;
+    const handles = await cp.$$(`${LAYER} iframe`);
+    for (const h of handles) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector('[data-sid-field="headline"]')).catch(() => false))) return null; }
+    return states;
+  }, 20000, 300);
+  step('marked in again, every size is back in the row and loaded', !!back && back.every((s, i) => new URL(s.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((s) => s.src.slice(s.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
+
   // 8. Escape closes; everything is as it was.
   await page.keyboard.press('Escape');
   const layerGone = await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
@@ -444,9 +485,12 @@ try {
       css: f?.style.cssText,
       cls: f?.className,
       marker: f?.contentWindow?.__sveBpoMarker,
+      marks: document.querySelectorAll('.sve-bpo-badge').length,
+      positioned: [...document.querySelectorAll('#__sve-preview-chrome [data-device]')].filter((b) => b.style.position).length,
     };
   });
   step('Escape closes: layer and its style gone, button off', !!layerGone && !after.style && after.pressed === 'false');
+  step('closed, the marks are gone and the size buttons are as they were', after.marks === 0 && after.positioned === 0, `marks ${after.marks}, size buttons with an inline position ${after.positioned}`);
   step('Escape did not close Live Preview', opened && !!(await page.$('iframe.sve-edit-overlay[data-open]')) && after.src != null);
   step('iframes in the CP document back to before', after.iframes === iframesBefore, `${after.iframes} (before ${iframesBefore})`);
   step('the preview frame is untouched: same src, transform and window', after.src === mainBefore.src && after.transform === mainBefore.transform && after.marker === 'before',

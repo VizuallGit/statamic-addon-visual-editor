@@ -325,15 +325,13 @@
  *
  * Topbaren kan ikke skrumpe: bliver den bredere end vinduet, skubbes ⋮ og ✕
  * ud af syne. Målt 24. sep 2026 sker det under ca. 1124 px uden knappen og
- * under ca. 1165 px med den — så under 73em (1168 px) står knappen og dens
- * skillestreg af, og topbaren er som før knappen kom. Her og ikke i JS: en
- * regel i stilarket koster intet, mens en måling ville køre ved hver pass.
- * Knappen sættes af cp-shell/block-order.js; oversigten bor i
- * breakpoint-overview.js.
+ * under ca. 1164 px med den — så under 73em (1168 px) står knappen af, og
+ * topbaren er som før knappen kom. Her og ikke i JS: en regel i stilarket
+ * koster intet, mens en måling ville køre ved hver pass. Knappen sættes af
+ * cp-shell/block-order.js; oversigten bor i breakpoint-overview.js.
  */
 @media (width < 73em) {
-    #__sve-preview-chrome [data-overview],
-    #__sve-preview-chrome [data-overview] + span {
+    #__sve-preview-chrome [data-overview] {
         display: none !important;
     }
 }

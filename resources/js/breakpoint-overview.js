@@ -34,10 +34,15 @@
  * The dock's Instant paint happens in the covered preview only, so the frames
  * show what the server rendered, about a second later.
  *
- * May import: lib/, breakpoints.js, chrome-prefs.js (chromeGet), cp/bus.js.
- * Not cp-shell/*: scripts/assert-isolation.mjs holds every file outside the
- * shell to the bus, so the sizes are read where the shell reads them —
- * `sveBreakpoints`, Statamic's `livePreview.devices`, the stored device.
+ * While open, each size's button in the top bar carries a mark: filled, the
+ * size is in the row; hollow, it is out and its frame is blank (a size not
+ * looked at costs nothing). The choice lives for the page, never stored.
+ *
+ * May import: lib/, breakpoints.js, chrome-prefs.js (chromeGet), cp-state.js
+ * (sveState, read only), cp/bus.js. Not cp-shell/*: scripts/assert-isolation.mjs
+ * holds every file outside the shell to the bus, so the sizes are read where
+ * the shell reads them — `sveBreakpoints`, Statamic's `livePreview.devices`,
+ * the stored device.
  *
  * Bus: asks `lp:lastPreviewUrl`. DOM events, only while open:
  * `statamic:preview-updated` on the preview's and the view frames' windows,
@@ -50,8 +55,9 @@
  * resources/css/addon.css; tests/js and tests/browser breakpoint-overview.
  */
 import { ask } from './cp/bus.js';
-import { bpBase, bpForDevice, breakpoints } from './breakpoints.js';
+import { bpForDevice, bpFromWidth, breakpoints } from './breakpoints.js';
 import { chromeGet } from './chrome-prefs.js';
+import { sveState } from './cp-state.js';
 import { remToPx } from './lib/dom.js';
 import { t } from './lib/i18n.js';
 import { LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
@@ -115,7 +121,7 @@ export function overviewFrames(list, devices) {
  * three frames sharing one URL took three renders' time per keystroke, not one
  * (measured 24 Sep 2026: 411/805/1232 ms against 415 ms each).
  */
-export function viewUrl(url, base, value = '1') {
+export function viewUrl(url, base, value = '1', flags = []) {
   if (!url) {
     return '';
   }
@@ -125,10 +131,37 @@ export function viewUrl(url, base, value = '1') {
 
     out.searchParams.set(VIEW_FLAG, value);
 
+    for (const flag of flags) {
+      out.searchParams.set(flag, '1');
+    }
+
     return out.toString();
   } catch {
     return '';
   }
+}
+
+/**
+ * The unsaved-work flags the preview itself fetches with, read where the
+ * Control Panel sets them. While a global set is edited beside the page the
+ * preview asks for the stash with `sve_globals=1`; while a global section is,
+ * with `sve_sections=1`. A frame fetched without them would render the saved
+ * values and disagree with the preview it stands in for. An empty stash on
+ * the server renders as if the flag were not there, so a flag sent a moment
+ * too early or late costs nothing.
+ */
+export function stashFlags(state = sveState) {
+  const flags = [];
+
+  if (state.globalsStashActive) {
+    flags.push('sve_globals');
+  }
+
+  if (state.sectionPanelValues) {
+    flags.push('sve_sections');
+  }
+
+  return flags;
 }
 
 export function clampZoom(z) {
@@ -251,7 +284,7 @@ function emptyState() {
   return {
     win: null, // the Control Panel window the button lives in
     layer: null,
-    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind }
+    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind, hidden, badge }
     cleanups: [], // everything open bound; close runs them all
     styles: [],
     contents: null, // Statamic's `.live-preview-contents`
@@ -270,6 +303,9 @@ function emptyState() {
 }
 
 const overviewState = emptyState();
+
+/** Sizes switched out of the row, by handle. Outlives a close, not the page. */
+const hiddenSizes = new Set();
 
 function listen(target, type, fn, options) {
   target.addEventListener(type, fn, options);
@@ -327,11 +363,14 @@ export function openBreakpointOverview(win) {
   try {
     build(win, host, specs);
     bind(win, view);
-    paintActive(bpForDevice(chromeGet(win, 'sve-lp-device'), win)?.handle || bpBase(win));
+    mountBadges(win);
+    paintActive(activeBreakpoint(win));
     paintButton(win, true);
 
     for (const entry of overviewState.frames) {
-      navigate(entry, preview);
+      if (!entry.hidden) {
+        navigate(entry, preview);
+      }
     }
   } catch (error) {
     // Whatever got bound before the throw is undone too.
@@ -397,7 +436,10 @@ function build(win, host, specs) {
     const label = make(doc, 'div', 'sve-bpo-label');
     const el = make(doc, 'iframe', 'sve-bpo-frame');
 
+    const hidden = hiddenSizes.has(spec.handle);
+
     item.dataset.bp = spec.handle;
+    item.hidden = hidden;
     label.textContent = `${spec.label} · ${spec.width} px`;
     el.title = spec.label;
     el.tabIndex = -1;
@@ -405,7 +447,7 @@ function build(win, host, specs) {
     item.append(label, el);
     canvas.appendChild(item);
 
-    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null };
+    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, badge: null };
   });
 
   sizer.appendChild(canvas);
@@ -488,13 +530,21 @@ ${L} .sve-bpo-zoom button { box-sizing: border-box; min-width: 1.75rem; height: 
 ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
+#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge { position: absolute; top: -.1875rem; right: -.1875rem; box-sizing: border-box; width: .5625rem; height: .5625rem; border-radius: 50%; border: 1.5px solid currentColor; background: transparent; opacity: .6; cursor: pointer; }
+#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge::after { content: ''; position: absolute; inset: -.3125rem; border-radius: 50%; }
+#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge[data-on] { background: currentColor; opacity: 1; }
 `;
 }
 
 // --- Geometry ------------------------------------------------------------------------
 
+/** The frames in the row: every size not switched out. */
+function shown() {
+  return overviewState.frames.filter((entry) => !entry.hidden);
+}
+
 function widths() {
-  return overviewState.frames.map((entry) => entry.spec.width);
+  return shown().map((entry) => entry.spec.width);
 }
 
 /** Follow the pane: a dock opening, the editor column, the window. */
@@ -520,7 +570,7 @@ function floorHeight() {
 function applyZoom(z) {
   const { canvas, sizer, level, labelSpace } = overviewState;
   const top = framesTop(z, labelSpace);
-  const tallest = Math.max(0, ...overviewState.frames.map((entry) => entry.height));
+  const tallest = Math.max(0, ...shown().map((entry) => entry.height));
   const percent = `${Math.round(z * 100)}%`;
 
   overviewState.zoom = z;
@@ -587,6 +637,10 @@ function documentHeight(doc) {
 function measure(entry) {
   let height = 0;
 
+  if (entry.hidden) {
+    return;
+  }
+
   try {
     height = documentHeight(entry.el.contentDocument);
   } catch {
@@ -604,9 +658,12 @@ function measure(entry) {
   applyZoom(overviewState.zoom);
 }
 
-/** A frame's own URL for a preview URL: the view flag carries its size. */
+/**
+ * A frame's own URL for a preview URL: the view flag carries its size, and the
+ * preview's unsaved-work flags ride along (see stashFlags).
+ */
 function frameUrl(entry, preview) {
-  return viewUrl(preview, overviewState.win.location.href, entry.spec.handle);
+  return viewUrl(preview, overviewState.win.location.href, entry.spec.handle, stashFlags());
 }
 
 function navigate(entry, preview) {
@@ -616,8 +673,43 @@ function navigate(entry, preview) {
   entry.el.src = entry.src;
 }
 
+/**
+ * Switch one size in or out of the row. Out, the frame is blanked at once —
+ * no page, no morphs, no video — and comes back with the current preview when
+ * switched in again. The zoom stays; the row re-packs and re-centres by itself.
+ */
+function toggleSize(entry) {
+  // The last size in the row stays: an empty overview is just a grey pane.
+  if (!entry.hidden && shown().length === 1) {
+    return;
+  }
+
+  entry.hidden = !entry.hidden;
+  entry.item.hidden = entry.hidden;
+
+  if (entry.hidden) {
+    hiddenSizes.add(entry.spec.handle);
+    entry.unbind?.();
+    entry.unbind = null;
+    entry.ready = false;
+    entry.stale = false;
+    entry.src = '';
+    entry.el.src = 'about:blank';
+  } else {
+    hiddenSizes.delete(entry.spec.handle);
+    navigate(entry, overviewState.preview);
+  }
+
+  applyZoom(overviewState.zoom);
+  paintBadges();
+}
+
 /** A frame still loading would miss the message: it gets the newest URL when it has loaded. */
 function post(entry, preview) {
+  if (entry.hidden) {
+    return;
+  }
+
   if (!entry.ready) {
     entry.stale = true;
 
@@ -737,7 +829,14 @@ function bind(win, view) {
       }
 
       overviewState.preview = preview;
-      overviewState.frames.forEach((entry) => (entry.src === frameUrl(entry, preview) ? post(entry, preview) : navigate(entry, preview)));
+
+      for (const entry of shown()) {
+        if (entry.src === frameUrl(entry, preview)) {
+          post(entry, preview);
+        } else {
+          navigate(entry, preview);
+        }
+      }
     },
     true
   );
@@ -836,6 +935,94 @@ function onPanEnd(event) {
 }
 
 // --- Paint -------------------------------------------------------------------------------
+
+/**
+ * The size the fields on the left edit right now: a device's own, or — in
+ * Full width — the one the pane's width falls in, read as dispatchLpBreakpoint
+ * reads it. Later changes arrive as `sve:breakpoint`.
+ */
+function activeBreakpoint(win) {
+  const row = bpForDevice(chromeGet(win, 'sve-lp-device'), win);
+
+  if (row) {
+    return row.handle;
+  }
+
+  const { contents } = overviewState;
+  const view = contents.ownerDocument.defaultView;
+  const box = contentBox(contents.getBoundingClientRect(), view.getComputedStyle(contents), contents.clientWidth, contents.clientHeight);
+
+  return bpFromWidth(box.width || 1200, win);
+}
+
+/**
+ * A mark on each size's button in the top bar: filled, the size is in the
+ * row; hollow, it is out. Clicking the mark switches the size and only that —
+ * the button's own click, which changes the size the fields edit, never sees
+ * it. The mark sits inside the button, so the button is made its anchor for
+ * the while; its style is put back on close.
+ */
+function mountBadges(win) {
+  const chrome = win.document.getElementById(LP_PREVIEW_CHROME_ID);
+
+  for (const entry of overviewState.frames) {
+    const btn = chrome?.querySelector(`[data-device="${win.CSS.escape(entry.spec.device)}"]`);
+
+    if (!btn) {
+      continue;
+    }
+
+    const badge = btn.ownerDocument.createElement('span');
+    const position = btn.style.getPropertyValue('position');
+
+    badge.className = 'sve-bpo-badge';
+    badge.dataset.bpoBadge = entry.spec.handle;
+    badge.setAttribute('role', 'switch');
+    badge.title = t(win, 'bp_overview_toggle', { size: entry.spec.label });
+    btn.style.setProperty('position', 'relative');
+    btn.appendChild(badge);
+
+    listen(badge, 'click', (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      toggleSize(entry);
+    });
+
+    overviewState.cleanups.push(() => {
+      badge.remove();
+
+      if (position) {
+        btn.style.setProperty('position', position);
+      } else {
+        btn.style.removeProperty('position');
+      }
+    });
+
+    entry.badge = badge;
+  }
+
+  paintBadges();
+}
+
+function paintBadges() {
+  for (const entry of overviewState.frames) {
+    const { badge } = entry;
+
+    if (!badge) {
+      continue;
+    }
+
+    const on = !entry.hidden;
+
+    if (badge.hasAttribute('data-on') !== on) {
+      badge.toggleAttribute('data-on', on);
+    }
+
+    if (badge.getAttribute('aria-checked') !== String(on)) {
+      badge.setAttribute('aria-checked', String(on));
+    }
+  }
+}
 
 /** The ring: which size the Responsive fields on the left are editing. */
 function paintActive(handle) {

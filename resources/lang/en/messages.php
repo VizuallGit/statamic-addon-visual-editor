@@ -509,6 +509,7 @@ return [
     'bp_overview_fit' => 'Fit all',
     'bp_overview_actual' => 'Actual size (100%)',
     'bp_overview_active' => 'The fields on the left apply to this size',
+    'bp_overview_toggle' => 'Show or hide :size in the overview',
     'back_save_and_leave' => 'Save and go back',
     'back_save_and_close' => 'Save and close',
     'back_save_publish_and_leave' => 'Save, publish and go back',

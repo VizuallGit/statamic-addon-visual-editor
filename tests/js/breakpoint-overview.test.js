@@ -20,6 +20,7 @@ import {
   labelColor,
   overviewFrames,
   rowWidth,
+  stashFlags,
   stepZoom,
   viewUrl,
 } from '../../resources/js/breakpoint-overview.js';
@@ -80,6 +81,25 @@ test('the view URL keeps the token and adds the view flag once', () => {
   assert.equal(viewUrl(''), '');
   assert.equal(viewUrl(null), '');
   assert.equal(viewUrl('/no-base'), '');
+});
+
+test('the unsaved-work flags the preview fetches with ride along on a frame URL', () => {
+  const url = 'http://site.test/landing?token=qJYs';
+  const both = new URL(viewUrl(url, undefined, 'tablet', ['sve_globals', 'sve_sections']));
+
+  assert.equal(both.searchParams.get('sve_globals'), '1');
+  assert.equal(both.searchParams.get('sve_sections'), '1');
+  assert.equal(both.searchParams.get(VIEW_FLAG), 'tablet');
+  assert.equal(both.searchParams.get('token'), 'qJYs');
+  assert.equal(new URL(viewUrl(url, undefined, 'tablet', [])).searchParams.has('sve_globals'), false);
+});
+
+test('which flags: the globals stash while a global set is edited, the section stash while a global section is', () => {
+  assert.deepEqual(stashFlags({ globalsStashActive: false, sectionPanelValues: null }), []);
+  assert.deepEqual(stashFlags({ globalsStashActive: true, sectionPanelValues: null }), ['sve_globals']);
+  assert.deepEqual(stashFlags({ globalsStashActive: false, sectionPanelValues: { id: 'x', values: {} } }), ['sve_sections']);
+  assert.deepEqual(stashFlags({ globalsStashActive: true, sectionPanelValues: { id: 'x', values: {} } }), ['sve_globals', 'sve_sections']);
+  assert.deepEqual(stashFlags({}), []);
 });
 
 test('fit all puts every frame, gap and padding in the view, never above 100%', () => {
