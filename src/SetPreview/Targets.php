@@ -128,10 +128,13 @@ final class Targets
     /**
      * The subjects a handle could be photographed as, best first.
      *
-     * Defaults lead, because that is the section the picker inserts. A real
-     * instance follows as the understudy, for the types whose template draws
-     * nothing without content — see shoot(). An explicit config override replaces
-     * both, since somebody has said in so many words what to photograph.
+     * A real instance leads: the section as it stands on a page — the editor's
+     * working copy included, since that is what Live Preview shows — is the
+     * picture of what the section looks like. The fieldset's defaults follow
+     * as the understudy, for a type no page uses yet, and for one whose
+     * instance draws nothing — see shoot(). An explicit config override
+     * replaces both, since somebody has said in so many words what to
+     * photograph.
      *
      * @return array<int, array{url: string, selector: string, data: array, source: string}>
      */
@@ -149,18 +152,6 @@ final class Targets
         }
 
         $candidates = [];
-        $defaults = SectionDefaults::for($handle);
-
-        if (SectionDefaults::hasContent($defaults)) {
-            $candidates[] = [
-                'url' => URL::temporarySignedRoute('sve.section-defaults-preview', now()->addMinutes(30), [
-                    'type' => $handle,
-                ]),
-                'selector' => $selector,
-                'data' => $defaults,
-                'source' => 'defaults',
-            ];
-        }
 
         if ($instance = static::findInstance($handle)) {
             [$entryId, $sectionId, $data] = $instance;
@@ -176,12 +167,27 @@ final class Targets
             ];
         }
 
+        $defaults = SectionDefaults::for($handle);
+
+        if (SectionDefaults::hasContent($defaults)) {
+            $candidates[] = [
+                'url' => URL::temporarySignedRoute('sve.section-defaults-preview', now()->addMinutes(30), [
+                    'type' => $handle,
+                ]),
+                'selector' => $selector,
+                'data' => $defaults,
+                'source' => 'defaults',
+            ];
+        }
+
         return $candidates;
     }
 
     /**
-     * Finds a real, enabled instance of the given section type on a published
-     * entry, on the default site.
+     * Finds a real, enabled instance of the given section type on an entry of
+     * the default site — read through the entry's working copy when it has
+     * one, so an edit saved but not yet published is what gets photographed,
+     * exactly as Live Preview shows it. Published entries are searched first.
      *
      * Every collection is searched, not only the one previews render inside: a site
      * may well keep its examples somewhere other than its pages (a "Sections"
@@ -199,11 +205,11 @@ final class Targets
             $entries = Entry::query()
                 ->where('collection', $collection)
                 ->where('site', Site::default()->handle())
-                ->where('published', true)
-                ->get();
+                ->get()
+                ->sortByDesc(fn ($entry) => $entry->published() ? 1 : 0);
 
             foreach ($entries as $entry) {
-                $sections = $entry->value($field);
+                $sections = static::editorsView($entry)->value($field);
 
                 if (! is_array($sections)) {
                     continue;
@@ -227,6 +233,22 @@ final class Targets
         }
 
         return null;
+    }
+
+    /**
+     * The entry as the editor sees it: its working copy when it has one, else
+     * the entry itself. Statamic's PreviewHost renders the same way, so the
+     * picture and Live Preview agree.
+     */
+    public static function editorsView($entry)
+    {
+        try {
+            return method_exists($entry, 'hasWorkingCopy') && $entry->hasWorkingCopy()
+                ? $entry->fromWorkingCopy()
+                : $entry;
+        } catch (\Throwable) {
+            return $entry;
+        }
     }
 
     /**

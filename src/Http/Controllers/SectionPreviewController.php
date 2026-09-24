@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use MarioHamann\StatamicVisualEditor\PreviewHost;
+use MarioHamann\StatamicVisualEditor\SetPreview\Targets;
 use Statamic\Facades\Entry;
 
 /**
@@ -27,6 +28,10 @@ class SectionPreviewController extends Controller
         $model = Entry::find($entry);
 
         abort_unless($model, 404);
+
+        // The editor's working copy when there is one — the section as Live
+        // Preview shows it, saved but not yet published.
+        $model = Targets::editorsView($model);
 
         $field = config('statamic-visual-editor.previews.field', 'page_sections');
         $sections = $model->value($field);
