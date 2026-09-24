@@ -34,10 +34,10 @@
  * The dock's Instant paint happens in the covered preview only, so the frames
  * show what the server rendered, about a second later.
  *
- * While open, each size's button in the top bar carries a mark under its icon:
- * filled, the size is in the row; a ring, it is out and its frame is blank (a
- * size not looked at costs nothing). The choice lives for the page, never
- * stored.
+ * While open, each size's button in the top bar carries a mark at its icon's
+ * top-right corner: filled, the size is in the row; a ring, it is out and its
+ * frame is blank (a size not looked at costs nothing). The choice lives for
+ * the page, never stored.
  *
  * May import: lib/, breakpoints.js, chrome-prefs.js (chromeGet), cp-state.js
  * (sveState, read only), cp/bus.js. Not cp-shell/*: scripts/assert-isolation.mjs
@@ -61,7 +61,7 @@ import { chromeGet } from './chrome-prefs.js';
 import { sveState } from './cp-state.js';
 import { remToPx } from './lib/dom.js';
 import { t } from './lib/i18n.js';
-import { LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
+import { LP_ICON_IDLE_OPACITY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 
@@ -89,13 +89,18 @@ export const ZOOM_MIN = 0.05;
 export const ZOOM_MAX = 2;
 const ZOOM_STEPS = [0.1, 0.15, 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2];
 
-/**
- * The overview's one blue: the 2px ring round the size the fields edit, and
- * the size marks — filled while a size is in the row, a fainter ring while
- * it is out.
- */
+/** The 2px ring round the size the fields edit. */
 const SIZE_BLUE = 'rgb(96, 165, 250)';
-const SIZE_BLUE_FAINT = 'rgba(96, 165, 250, .6)';
+
+/**
+ * Where a size mark sits on its top-bar button, from the owner's drawing
+ * (24 Sep 2026): its centre this many pixels in from the button's left edge,
+ * on the button's top edge — the icon's top-right corner, like a badge.
+ */
+const MARK_CENTER_X = 20;
+
+/** The size marks take the icons' own resting tone: currentColor at the idle opacity. */
+const MARK_TONE = Math.round(Number(LP_ICON_IDLE_OPACITY) * 100);
 
 const MINUS_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>';
@@ -260,6 +265,34 @@ export function isTransparent(color) {
   }
 
   return /\/\s*0%?\s*\)$/.test(value);
+}
+
+/**
+ * The colour `top` actually shows over the opaque `base`, as one opaque CSS
+ * colour: a knock-out ring round a mark has to be the surface it sits on, and
+ * the top bar's groups are a see-through grey over the header. `color-mix` in
+ * sRGB is exactly alpha compositing, and it takes any `base` — rgb() or oklch().
+ */
+export function knockoutColor(top, base) {
+  const value = String(top || '').trim();
+  const rgba = value.match(/^rgba\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)[\s,/]+([\d.]+%?)\s*\)$/);
+
+  if (!rgba) {
+    return isTransparent(value) ? base : value;
+  }
+
+  const alpha = rgba[4].endsWith('%') ? parseFloat(rgba[4]) / 100 : Number(rgba[4]);
+  const color = `rgb(${rgba[1]}, ${rgba[2]}, ${rgba[3]})`;
+
+  if (alpha >= 1) {
+    return color;
+  }
+
+  if (alpha <= 0) {
+    return base;
+  }
+
+  return `color-mix(in srgb, ${color} ${Math.round(alpha * 1000) / 10}%, ${base})`;
 }
 
 /** Label colour that reads on the pane: light on a dark background, dark on a light one. */
@@ -539,9 +572,10 @@ ${L} .sve-bpo-zoom button { box-sizing: border-box; min-width: 1.75rem; height: 
 ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
-#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge { position: absolute; left: 50%; bottom: -.1875rem; transform: translateX(-50%); box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid ${SIZE_BLUE_FAINT}; background: transparent; cursor: pointer; }
-#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge::after { content: ''; position: absolute; inset: -.125rem -.3125rem -.25rem; }
-#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge[data-on] { border-color: ${SIZE_BLUE}; background: ${SIZE_BLUE}; }
+#${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} svg { opacity: 1; }
+#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge { --sve-bpo-mark: color-mix(in srgb, currentColor ${MARK_TONE}%, var(--sve-bpo-knock)); position: absolute; box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid color-mix(in srgb, currentColor 40%, var(--sve-bpo-knock)); background: var(--sve-bpo-knock); box-shadow: 0 0 0 2.5px var(--sve-bpo-knock); cursor: pointer; }
+#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge::after { content: ''; position: absolute; inset: -.25rem -.25rem -.0625rem -.125rem; }
+#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge[data-on] { border-color: var(--sve-bpo-mark); background: var(--sve-bpo-mark); }
 `;
 }
 
@@ -965,32 +999,55 @@ function activeBreakpoint(win) {
 }
 
 /**
- * A mark under each size's icon in the top bar: filled blue, the size is in
- * the row; a fainter blue ring, it is out. Clicking the mark switches the size
- * and only that — the button's own click, which changes the size the fields
- * edit, never sees it, and the mark's hit area stops short of the icon. The
- * mark sits inside the button, so the button is made its anchor for the while;
- * its style is put back on close.
+ * A mark on each size's top-bar button, at the icon's top-right corner: filled
+ * in the icons' own resting grey, the size is in the row; a fainter ring, it is
+ * out. A knock-out ring in the group's own colour keeps it clear of a lit
+ * (purple) button. Clicking the mark switches the size and only that; the
+ * button's click, which changes the size the fields edit, never sees it.
+ *
+ * The marks sit in the size group beside the buttons, not inside them: a button
+ * at rest is drawn at 70% opacity and the lit one at 100%, and a mark inside
+ * would take that on — grey on one button, white on the other. The group is
+ * made their anchor for the while; its style is put back on close.
  */
 function mountBadges(win) {
-  const chrome = win.document.getElementById(LP_PREVIEW_CHROME_ID);
+  const group = win.document.getElementById(LP_PREVIEW_CHROME_ID)?.querySelector('[data-sve-devices]');
+
+  if (!group) {
+    return;
+  }
+
+  const view = group.ownerDocument.defaultView;
+  const knock = knockoutColor(view.getComputedStyle(group).backgroundColor, paneBackground(view, group.parentElement));
+  const position = group.style.getPropertyValue('position');
+
+  group.style.setProperty('position', 'relative');
+  overviewState.cleanups.push(() => {
+    if (position) {
+      group.style.setProperty('position', position);
+    } else {
+      group.style.removeProperty('position');
+    }
+  });
 
   for (const entry of overviewState.frames) {
-    const btn = chrome?.querySelector(`[data-device="${win.CSS.escape(entry.spec.device)}"]`);
+    const btn = group.querySelector(`[data-device="${win.CSS.escape(entry.spec.device)}"]`);
 
     if (!btn) {
       continue;
     }
 
-    const badge = btn.ownerDocument.createElement('span');
-    const position = btn.style.getPropertyValue('position');
+    const badge = group.ownerDocument.createElement('span');
 
     badge.className = 'sve-bpo-badge';
     badge.dataset.bpoBadge = entry.spec.handle;
     badge.setAttribute('role', 'switch');
     badge.title = t(win, 'bp_overview_toggle', { size: entry.spec.label });
-    btn.style.setProperty('position', 'relative');
-    btn.appendChild(badge);
+    badge.style.setProperty('--sve-bpo-knock', knock);
+    // Centred on the measured point, whatever the mark's own size in rem.
+    badge.style.left = `calc(${btn.offsetLeft + MARK_CENTER_X}px - .1875rem)`;
+    badge.style.top = `calc(${btn.offsetTop}px - .1875rem)`;
+    group.appendChild(badge);
 
     listen(badge, 'click', (event) => {
       event.stopPropagation();
@@ -998,16 +1055,7 @@ function mountBadges(win) {
       toggleSize(entry);
     });
 
-    overviewState.cleanups.push(() => {
-      badge.remove();
-
-      if (position) {
-        btn.style.setProperty('position', position);
-      } else {
-        btn.style.removeProperty('position');
-      }
-    });
-
+    overviewState.cleanups.push(() => badge.remove());
     entry.badge = badge;
   }
 

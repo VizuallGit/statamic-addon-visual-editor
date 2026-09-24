@@ -244,6 +244,9 @@ try {
     const after = (a, c) => !!(a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
     return !!b && chrome.contains(b) && !devices.contains(b) && !zoom.contains(b) && after(devices, b) && after(b, zoom);
   }, BUTTON));
+  const iconAtRest = await cp.evaluate((sel) => ({ icon: getComputedStyle(document.querySelector(`${sel} svg`)).opacity, zoom: getComputedStyle(document.querySelector('#__sve-preview-chrome [data-zoom="out"]')).opacity }), BUTTON);
+  step('at rest its icon is as dim as the zoom icons', iconAtRest.icon === iconAtRest.zoom && Number(iconAtRest.icon) < 1, `icon ${iconAtRest.icon}, zoom ${iconAtRest.zoom}`);
+  const groupPositionBefore = await cp.evaluate(() => document.querySelector('#__sve-preview-chrome [data-sve-devices]').style.position);
   if (config.strings) {
     const title = await cp.evaluate((sel) => { const b = document.querySelector(sel); return b.getAttribute('title') || b.getAttribute('data-tip') || ''; }, BUTTON);
     step('button has its translated name', !!title && title !== 'bp_overview', `"${title}"`);
@@ -267,6 +270,8 @@ try {
   const layerUp = await waitIn(cp, LAYER, 10000);
   step('click opens the layer', layerUp);
   step('the module was fetched on the click', chunkLoaded().length === 1, chunkLoaded().join(' ') || 'no chunk');
+  const iconOpen = await cp.evaluate((sel) => getComputedStyle(document.querySelector(`${sel} svg`)).opacity, BUTTON);
+  step('open, its icon is at full strength', iconOpen === '1', `icon ${iconOpen}`);
 
   const shape = await cp.evaluate((layerSel) => {
     const layer = document.querySelector(layerSel);
@@ -443,8 +448,13 @@ try {
     const item = document.querySelector(`${sel} [data-bp="${handle}"]`);
     return { out: !!item && item.hidden && getComputedStyle(item).display === 'none', src: item?.querySelector('iframe')?.getAttribute('src') || '', mark: document.querySelector(`.sve-bpo-badge[data-bpo-badge="${handle}"]`)?.hasAttribute('data-on') };
   }, LAYER, bp);
-  const marks = await cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device] .sve-bpo-badge')].map((b) => ({ bp: b.dataset.bpoBadge, on: b.hasAttribute('data-on'), w: b.getBoundingClientRect().width })));
-  step('every size in the row has an on/off mark on its top-bar button', marks.length === expected.length && marks.every((m) => m.on && m.w > 0), marks.map((m) => `${m.bp}:${m.on ? 'on' : 'off'}`).join(' '));
+  const marks = await cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-sve-devices] .sve-bpo-badge')].map((b) => {
+    const r = b.getBoundingClientRect();
+    return { bp: b.dataset.bpoBadge, on: b.hasAttribute('data-on'), w: r.width, inButton: !!b.closest('[data-device]'), tone: getComputedStyle(b).backgroundColor };
+  }));
+  // One tone on every button — the lit one included — so the marks sit beside the buttons, not in them.
+  step('every size in the row has an on/off mark at its icon, in one tone', marks.length === expected.length && marks.every((m) => m.on && m.w > 0 && !m.inButton) && new Set(marks.map((m) => m.tone)).size === 1,
+    `${marks.map((m) => `${m.bp}:${m.on ? 'on' : 'off'}`).join(' ')} · tone ${marks[0]?.tone}`);
   const middle = expected[Math.min(1, expected.length - 1)];
   const markSel = (handle) => `#__sve-preview-chrome .sve-bpo-badge[data-bpo-badge="${handle}"]`;
   const pressedBefore = await pressedDevice();
@@ -487,11 +497,11 @@ try {
       cls: f?.className,
       marker: f?.contentWindow?.__sveBpoMarker,
       marks: document.querySelectorAll('.sve-bpo-badge').length,
-      positioned: [...document.querySelectorAll('#__sve-preview-chrome [data-device]')].filter((b) => b.style.position).length,
+      groupPosition: document.querySelector('#__sve-preview-chrome [data-sve-devices]')?.style.position,
     };
   });
   step('Escape closes: layer and its style gone, button off', !!layerGone && !after.style && after.pressed === 'false');
-  step('closed, the marks are gone and the size buttons are as they were', after.marks === 0 && after.positioned === 0, `marks ${after.marks}, size buttons with an inline position ${after.positioned}`);
+  step('closed, the marks are gone and the size group is as it was', after.marks === 0 && after.groupPosition === groupPositionBefore, `marks ${after.marks}, group position "${after.groupPosition}" (was "${groupPositionBefore}")`);
   step('Escape did not close Live Preview', opened && !!(await page.$('iframe.sve-edit-overlay[data-open]')) && after.src != null);
   step('iframes in the CP document back to before', after.iframes === iframesBefore, `${after.iframes} (before ${iframesBefore})`);
   step('the preview frame is untouched: same src, transform and window', after.src === mainBefore.src && after.transform === mainBefore.transform && after.marker === 'before',

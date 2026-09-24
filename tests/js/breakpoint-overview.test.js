@@ -17,6 +17,7 @@ import {
   frameHeight,
   framesTop,
   isTransparent,
+  knockoutColor,
   labelColor,
   overviewFrames,
   rowWidth,
@@ -175,6 +176,15 @@ test('transparent means no alpha — not a colour whose last channel is 0', () =
   assert.equal(isTransparent('rgb(10, 20, 0)'), false);
   assert.equal(isTransparent('rgba(49, 49, 52, 0.5)'), false);
   assert.equal(isTransparent('oklch(0.274 0.006 286.033)'), false);
+});
+
+test('a knock-out ring is the see-through group colour laid over the header, as one colour', () => {
+  assert.equal(knockoutColor('rgba(128, 128, 128, 0.16)', 'rgb(30, 30, 30)'), 'color-mix(in srgb, rgb(128, 128, 128) 16%, rgb(30, 30, 30))');
+  assert.equal(knockoutColor('rgba(128 128 128 / 16%)', 'oklch(0.2 0 0)'), 'color-mix(in srgb, rgb(128, 128, 128) 16%, oklch(0.2 0 0))');
+  assert.equal(knockoutColor('rgb(46, 46, 48)', 'rgb(30, 30, 30)'), 'rgb(46, 46, 48)');
+  assert.equal(knockoutColor('rgba(0, 0, 0, 0)', 'rgb(30, 30, 30)'), 'rgb(30, 30, 30)');
+  assert.equal(knockoutColor('rgba(10, 20, 30, 1)', 'rgb(30, 30, 30)'), 'rgb(10, 20, 30)');
+  assert.equal(knockoutColor('', 'Canvas'), 'Canvas');
 });
 
 test('labels are light on a dark pane and dark on a light one', () => {

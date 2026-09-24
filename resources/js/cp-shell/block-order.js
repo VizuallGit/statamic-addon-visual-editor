@@ -869,8 +869,9 @@ export function ensureLpPreviewChrome(win) {
 
     // Every size side by side (breakpoint-overview.js): an icon of its own,
     // right of the sizes it shows and before zoom, square like reload and
-    // blueprint. One button and one import() on click; the module paints it.
-    // Nothing else exists until then.
+    // blueprint. At rest the icon — not the button's surface — has the zoom
+    // icons' idle opacity; the module lifts it while the overview is open.
+    // One button and one import() on click. Nothing else exists until then.
     if (featureOn(win, 'breakpoint_overview')) {
       const overview = doc.createElement('button');
 
@@ -879,7 +880,7 @@ export function ensureLpPreviewChrome(win) {
       overview.title = t(win, 'bp_overview');
       overview.setAttribute('aria-pressed', 'false');
       overview.innerHTML =
-        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><path d="M17.25 14v6.5M14 17.25h6.5"/></svg>';
+        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="${LP_ICON_IDLE_OPACITY}"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><path d="M17.25 14v6.5M14 17.25h6.5"/></svg>`;
       overview.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
       overview.addEventListener('click', () => {
         import('../breakpoint-overview.js').then((m) => m.toggleBreakpointOverview(win));
