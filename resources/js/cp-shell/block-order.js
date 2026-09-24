@@ -860,10 +860,17 @@ export function ensureLpPreviewChrome(win) {
       `display:inline-flex;align-items:center;gap:${LP_TOOLBAR_GAP}px;flex-shrink:0;`;
     bindTips(win, chrome);
 
+    const devices = doc.createElement('div');
+
+    devices.dataset.sveDevices = '';
+    // Lidt tættere inde i device-gruppen (samme cluster), ikke mellem clusters.
+    devices.style.cssText = `${HEADER_GROUP_STYLE}gap:4px;`;
+    chrome.appendChild(devices);
+
     // Every size side by side (breakpoint-overview.js): an icon of its own,
-    // left of the sizes it shows, square like reload and blueprint. One button
-    // and one import() on click; the module paints it. Nothing else exists
-    // until then.
+    // right of the sizes it shows and before zoom, square like reload and
+    // blueprint. One button and one import() on click; the module paints it.
+    // Nothing else exists until then.
     if (featureOn(win, 'breakpoint_overview')) {
       const overview = doc.createElement('button');
 
@@ -880,13 +887,6 @@ export function ensureLpPreviewChrome(win) {
 
       chrome.appendChild(overview);
     }
-
-    const devices = doc.createElement('div');
-
-    devices.dataset.sveDevices = '';
-    // Lidt tættere inde i device-gruppen (samme cluster), ikke mellem clusters.
-    devices.style.cssText = `${HEADER_GROUP_STYLE}gap:4px;`;
-    chrome.appendChild(devices);
 
     const zoom = doc.createElement('div');
 

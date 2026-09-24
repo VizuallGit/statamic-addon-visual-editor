@@ -34,9 +34,10 @@
  * The dock's Instant paint happens in the covered preview only, so the frames
  * show what the server rendered, about a second later.
  *
- * While open, each size's button in the top bar carries a mark: filled, the
- * size is in the row; hollow, it is out and its frame is blank (a size not
- * looked at costs nothing). The choice lives for the page, never stored.
+ * While open, each size's button in the top bar carries a mark under its icon:
+ * filled, the size is in the row; a ring, it is out and its frame is blank (a
+ * size not looked at costs nothing). The choice lives for the page, never
+ * stored.
  *
  * May import: lib/, breakpoints.js, chrome-prefs.js (chromeGet), cp-state.js
  * (sveState, read only), cp/bus.js. Not cp-shell/*: scripts/assert-isolation.mjs
@@ -87,6 +88,14 @@ const BASE_WIDTH = 1440;
 export const ZOOM_MIN = 0.05;
 export const ZOOM_MAX = 2;
 const ZOOM_STEPS = [0.1, 0.15, 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2];
+
+/**
+ * The overview's one blue: the 2px ring round the size the fields edit, and
+ * the size marks — filled while a size is in the row, a fainter ring while
+ * it is out.
+ */
+const SIZE_BLUE = 'rgb(96, 165, 250)';
+const SIZE_BLUE_FAINT = 'rgba(96, 165, 250, .6)';
 
 const MINUS_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>';
@@ -523,16 +532,16 @@ ${L} .sve-bpo-canvas { --z: 1; position: absolute; left: 0; top: 0; box-sizing: 
 ${L} .sve-bpo-item { position: relative; flex: none; }
 ${L} .sve-bpo-label { position: absolute; left: 0; bottom: 100%; margin-bottom: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); font-weight: 500; line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: auto; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-label { opacity: 1; font-weight: 600; }
-${L} .sve-bpo-frame { display: block; border: 0; background: #fff; box-shadow: 0 calc(.25rem / var(--z)) calc(1.5rem / var(--z)) rgba(0, 0, 0, .35); }
-${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(3px / var(--z)) solid ${LP_PRIMARY_FLAT}; outline-offset: calc(3px / var(--z)); }
+${L} .sve-bpo-frame { display: block; border: 0; background: #fff; }
+${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(2px / var(--z)) solid ${SIZE_BLUE}; outline-offset: calc(2px / var(--z)); }
 ${L} .sve-bpo-zoom { position: absolute; right: .75rem; bottom: .75rem; display: inline-flex; align-items: center; gap: .125rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .9); color: #fafafa; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .3); font-size: .75rem; line-height: 1; }
 ${L} .sve-bpo-zoom button { box-sizing: border-box; min-width: 1.75rem; height: 1.75rem; padding: 0 .5rem; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; }
 ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
-#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge { position: absolute; top: -.1875rem; right: -.1875rem; box-sizing: border-box; width: .5625rem; height: .5625rem; border-radius: 50%; border: 1.5px solid currentColor; background: transparent; opacity: .6; cursor: pointer; }
-#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge::after { content: ''; position: absolute; inset: -.3125rem; border-radius: 50%; }
-#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge[data-on] { background: currentColor; opacity: 1; }
+#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge { position: absolute; left: 50%; bottom: -.1875rem; transform: translateX(-50%); box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid ${SIZE_BLUE_FAINT}; background: transparent; cursor: pointer; }
+#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge::after { content: ''; position: absolute; inset: -.125rem -.3125rem -.25rem; }
+#${LP_PREVIEW_CHROME_ID} [data-device] .sve-bpo-badge[data-on] { border-color: ${SIZE_BLUE}; background: ${SIZE_BLUE}; }
 `;
 }
 
@@ -956,11 +965,12 @@ function activeBreakpoint(win) {
 }
 
 /**
- * A mark on each size's button in the top bar: filled, the size is in the
- * row; hollow, it is out. Clicking the mark switches the size and only that —
- * the button's own click, which changes the size the fields edit, never sees
- * it. The mark sits inside the button, so the button is made its anchor for
- * the while; its style is put back on close.
+ * A mark under each size's icon in the top bar: filled blue, the size is in
+ * the row; a fainter blue ring, it is out. Clicking the mark switches the size
+ * and only that — the button's own click, which changes the size the fields
+ * edit, never sees it, and the mark's hit area stops short of the icon. The
+ * mark sits inside the button, so the button is made its anchor for the while;
+ * its style is put back on close.
  */
 function mountBadges(win) {
   const chrome = win.document.getElementById(LP_PREVIEW_CHROME_ID);

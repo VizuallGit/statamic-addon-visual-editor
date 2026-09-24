@@ -236,12 +236,13 @@ try {
   // 3. Closed: the button is there and can be seen; the module was never fetched.
   const btn = await visible(cp, BUTTON);
   step('button in the top bar is visible', btn.ok, btn.why);
-  step('button stands on its own in #__sve-preview-chrome, left of the device icons', await cp.evaluate((sel) => {
+  step('button stands on its own in #__sve-preview-chrome, between the device icons and zoom', await cp.evaluate((sel) => {
     const b = document.querySelector(sel);
     const chrome = document.getElementById('__sve-preview-chrome');
     const devices = chrome?.querySelector('[data-sve-devices]');
     const zoom = chrome?.querySelector('[data-sve-zoom]');
-    return !!b && chrome.contains(b) && !devices.contains(b) && !zoom.contains(b) && !!(b.compareDocumentPosition(devices) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const after = (a, c) => !!(a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return !!b && chrome.contains(b) && !devices.contains(b) && !zoom.contains(b) && after(devices, b) && after(b, zoom);
   }, BUTTON));
   if (config.strings) {
     const title = await cp.evaluate((sel) => { const b = document.querySelector(sel); return b.getAttribute('title') || b.getAttribute('data-tip') || ''; }, BUTTON);
