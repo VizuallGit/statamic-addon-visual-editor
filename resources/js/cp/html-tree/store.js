@@ -1,6 +1,6 @@
 import { reactive } from 'vue';
 import { chromeGet, chromeRemove, chromeSet } from '../../chrome-prefs.js';
-import { HTML_TREE_LOOK_KEY } from '../../lib/ids.js';
+import { HTML_TREE_LAYERS_KEY, HTML_TREE_LOOK_KEY } from '../../lib/ids.js';
 
 /**
  * Which face the tree wears. 'tags' is the tree's own: flat rows, a guide per
@@ -23,10 +23,34 @@ export function setHtmlTreeLook(win, look) {
   htmlTreeUi.look = readHtmlTreeLook(win);
 }
 
+/**
+ * The layers look, on trial: the tags look with full-width rows, no box
+ * around the open section, no guide lines and no bar on the picked row. A
+ * switch of its own rather than a third look, so turning it off goes back to
+ * whichever look was set before — tags or classic — untouched. Off unless
+ * switched on, per user like the look.
+ */
+export function readHtmlTreeLayers(win) {
+  return chromeGet(win, HTML_TREE_LAYERS_KEY) === '1';
+}
+
+export function setHtmlTreeLayers(win, on) {
+  if (on) {
+    chromeSet(win, HTML_TREE_LAYERS_KEY, '1');
+  } else {
+    chromeRemove(win, HTML_TREE_LAYERS_KEY);
+  }
+
+  htmlTreeUi.layers = readHtmlTreeLayers(win);
+}
+
 export const htmlTreeUi = reactive({
   // 'tags' or 'classic' — see readHtmlTreeLook. The list wears it as
   // data-sve-ht-look, and every rule of the tags look hangs off that.
   look: 'tags',
+  // The layers look on trial (readHtmlTreeLayers). On, the list wears the
+  // tags look plus data-sve-ht-layers, whatever look is set.
+  layers: false,
   // The user's own family colours as inline --sve-fam-* properties on the
   // list (family-colors.js); empty = the stylesheet's defaults.
   familyStyle: {},

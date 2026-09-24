@@ -179,6 +179,8 @@ return [
     'html_tree_locked' => 'Filen er låst — lås op for at ændre',
     'html_tree_search' => 'Søg i tags og navne…',
     'html_tree_search_empty' => 'Intet matcher.',
+    'html_tree_layers_on' => 'Prøv det nye udseende: rækker i fuld bredde, uden kasser og linjer',
+    'html_tree_layers_off' => 'Tilbage til det nuværende udseende',
 
     'section_fields' => 'Sektionens felter',
     'section_fields_none' => 'Denne sektion har ikke sit eget fieldset.',

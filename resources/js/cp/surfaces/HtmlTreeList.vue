@@ -84,7 +84,17 @@ function wrapBind(sec) {
 </script>
 
 <template>
-  <div class="sve-ht-root" :data-sve-ht-look="ui.look" :style="ui.familyStyle" v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}">
+  <div
+    class="sve-ht-root"
+    :data-sve-ht-look="ui.layers ? 'tags' : ui.look"
+    :data-sve-ht-layers="ui.layers ? '' : null"
+    :style="ui.familyStyle"
+    v-bind="ui.dragging ? { 'data-sve-ht-dragging': '' } : {}"
+  >
+    <!--
+      The layers look on trial is the tags look with a few rules on top, so it
+      wears data-sve-ht-look="tags" as well; off, the look is exactly as set.
+    -->
     <div v-if="!ui.rows.length && !ui.sections.length && !ui.frame" class="sve-ht-empty">{{ ui.emptyText }}</div>
     <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
 

@@ -2,7 +2,7 @@
 import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
-import { htmlTreeUi as ui } from '../html-tree/store.js';
+import { htmlTreeUi as ui, readHtmlTreeLayers, setHtmlTreeLayers } from '../html-tree/store.js';
 import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
 import { ask } from '../bus.js';
 import { t } from '../../lib/i18n.js';
@@ -13,6 +13,19 @@ defineProps({
 });
 
 const searchLabel = t(window, 'html_tree_search');
+
+// The layers look on trial (cp/html-tree/store.js). Read here, where its
+// switch is: the list is mounted inside this pane, so it is set before the
+// first row is drawn. The template gets a bound function, never window.
+ui.layers = readHtmlTreeLayers(window);
+const layersOnLabel = t(window, 'html_tree_layers_on');
+const layersOffLabel = t(window, 'html_tree_layers_off');
+const LAYERS =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>';
+
+function toggleLayers() {
+  setHtmlTreeLayers(window, !ui.layers);
+}
 
 // Making a section writes files into the repository, so it is the developer
 // permission that decides — the same gate as deleting one. An editor never
@@ -134,6 +147,20 @@ function setQuery(value) {
     <div class="sve-pane-bar" data-sve-pane-bar>
       <div data-sve-right-title>{{ title }}</div>
       <div data-sve-right-actions>
+        <!--
+          The layers look on trial beside the current one: one click either
+          way, so the two can be compared on the same page before one goes.
+          Lit while the layers look is on.
+        -->
+        <button
+          type="button"
+          data-sve-ht-layers-switch
+          :aria-pressed="ui.layers ? 'true' : 'false'"
+          :title="ui.layers ? layersOffLabel : layersOnLabel"
+          :aria-label="ui.layers ? layersOffLabel : layersOnLabel"
+          v-html="LAYERS"
+          @click="toggleLayers"
+        ></button>
         <button type="button" data-sve-right-pin aria-pressed="false"></button>
         <button type="button" data-sve-close aria-label="Close">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -208,6 +235,39 @@ function setQuery(value) {
 </template>
 
 <style scoped>
+/* The layers switch: shaped like the pin beside it (right-dock.css), and
+   lit the way a pressed pin is. */
+[data-sve-ht-layers-switch] {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 1.25rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: currentColor;
+  opacity: 0.55;
+  line-height: 1;
+}
+[data-sve-ht-layers-switch]:hover {
+  opacity: 0.85;
+}
+[data-sve-ht-layers-switch][aria-pressed="true"] {
+  opacity: 1;
+}
+[data-sve-ht-layers-switch]:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: -2px;
+}
+[data-sve-ht-layers-switch] :deep(svg) {
+  width: 0.8125rem;
+  height: 0.8125rem;
+  display: block;
+}
 .sve-html-tree {
   display: flex;
   flex-direction: column;

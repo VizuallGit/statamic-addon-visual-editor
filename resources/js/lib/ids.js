@@ -39,6 +39,8 @@ export const CODE_DOCK_ID = '__sve-code-dock';
 export const FAMILY_COLORS_KEY = 'sve-fam-colors';
 /** Which face the HTML tree wears: 'classic' (cards, like the block tree) or unset = coloured tag chips. */
 export const HTML_TREE_LOOK_KEY = 'sve-html-tree-look';
+/** The layers look on trial over the tags look: '1' = on, unset = off. Switched in the tree's top bar. */
+export const HTML_TREE_LAYERS_KEY = 'sve-html-tree-layers';
 export const LISTVIEW_PANEL_ID = '__sve-listview-panel';
 export const PERF_PANEL_ID = '__sve-perf-panel';
 

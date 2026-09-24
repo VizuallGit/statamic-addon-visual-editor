@@ -568,6 +568,70 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-fields]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-dup]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-del]:hover { background: rgba(128,128,128,.25); }
+
+    /* ===== The layers look, on trial =======================================
+       The tags look above with six things changed, so the two can be put
+       side by side before one of them goes. The switch in the tree's top
+       bar (HTML_TREE_LAYERS_KEY) puts data-sve-ht-layers on the list, and
+       every rule here hangs off it: switched off, not one of them applies.
+       1. No box around the open section; the picked row says where you are.
+       2. No guide lines; the indent alone says what belongs to what.
+       3. No bar at the picked row's edge.
+       4. The picked row wears the neutral grey of a hovered one.
+       5. Every row runs the full width of the list, and only what is in it
+          steps in with its depth, so a hover or a pick is one band.
+       6. The icons a size smaller.
+       The frame body stepped the sections in with its own margin; here it
+       hands that level on as --sve-ht-base instead, and a row adds it to its
+       depth, so a section's rows still start one level in under main. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-branch] {
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      margin: 0;
+      background: none;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-body] {
+      --sve-ht-base: 1;
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-indent] { display: none; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] {
+      margin-left: 0;
+      padding-left: calc(0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current],
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current]:hover {
+      background: rgba(128,128,128,.14);
+      box-shadow: none;
+    }
+    /* A drop line starts where the row's content starts, so a drag still
+       shows the level it lands on now that the row itself spans them all. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="after"]::after {
+      left: calc(0.5rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
+      left: calc(0.5rem + var(--sve-ht-base, 0) * 0.875rem);
+    }
+    /* The empty slots keep their place: a block's one level under it, and
+       main's where the frame body's margin used to put it. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-slot][data-sve-ht-id] {
+      margin-left: calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-slot] {
+      margin-left: calc(var(--sve-ht-base, 0) * 0.875rem + 0.75rem);
+    }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.75rem; height: 0.75rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg { width: 0.5625rem; height: 0.5625rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-eye] svg,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-fields] svg,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-dup] svg,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.625rem; height: 0.625rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
   `);
 }
 
