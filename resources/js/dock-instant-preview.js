@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 15) {
+    if (window.__sveDockInstantPreview === 16) {
         return;
     }
-    window.__sveDockInstantPreview = 15;
+    window.__sveDockInstantPreview = 16;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -1461,12 +1461,16 @@
     var painted = new WeakSet();
 
     /**
-     * The same text, as it is being typed: equal, or sharing enough of its
-     * start and end — a letter added or removed at the end or in the middle
-     * keeps most of both. A field's own paragraph next to it shares neither.
+     * The same text, as it is being typed: equal, or sharing most of the
+     * longer one at its start and end — a letter added or removed at the end
+     * or in the middle keeps nearly all of both. Measured against the longer
+     * text, and never on fewer than four shared letters: a single "f" typed
+     * next to a field's paragraph that happens to start with f is not that
+     * paragraph, and used to take its text.
      */
     function sameTextBeingTyped(a, b) {
         var short = Math.min(a.length, b.length);
+        var long = Math.max(a.length, b.length);
         var head = 0;
         var tail = 0;
 
@@ -1486,7 +1490,7 @@
             tail++;
         }
 
-        return (head + tail) * 10 >= short * 6;
+        return head + tail >= 4 && (head + tail) * 10 >= long * 6;
     }
 
     /**
@@ -1499,6 +1503,22 @@
      * to be "the first live child of that tag", which put the typed text into
      * the field's paragraph and renamed its heading.
      */
+    /**
+     * The server drew what the template says, word for word: from now on the
+     * node is the paint's own, so a later deletion in the dock takes it away
+     * at once instead of a second later.
+     */
+    function adopt(liveEl, tplEl) {
+        if (
+            !painted.has(liveEl) &&
+            !isDynamic(tplEl) &&
+            liveEl.textContent.trim() === tplEl.textContent.trim() &&
+            classValue(liveEl.getAttribute('class') || '') === classValue(tplEl.getAttribute('class') || '')
+        ) {
+            painted.add(liveEl);
+        }
+    }
+
     function ownsLive(liveEl, tplEl) {
         if (liveEl.tagName !== tplEl.tagName) {
             return false;
@@ -1640,9 +1660,21 @@
      * the markup after it, and painting that state moved a whole list into a
      * paragraph and dropped what it could not rebuild. The next keystroke
      * paints; this one waits.
+     *
+     * The same for a closing tag with no name yet — `</` on its own, which
+     * the parser reads as a comment running to the next `>` (a `</p>` being
+     * deleted letter by letter passes through it, and the field's wrapper
+     * then swallowed the video after it, which the paint removed) — and for
+     * a comment not closed yet.
      */
     function midTag(html) {
-        return /<\/?[a-zA-Z][^<>"']*(?:"[^"]*"[^<>"']*|'[^']*'[^<>"']*)*(?:<|$|"[^"]*(?:<|$)|'[^']*(?:<|$))/.test(String(html || ''));
+        var text = String(html || '');
+
+        return (
+            /<\/?[a-zA-Z][^<>"']*(?:"[^"]*"[^<>"']*|'[^']*'[^<>"']*)*(?:<|$|"[^"]*(?:<|$)|'[^']*(?:<|$))/.test(text) ||
+            /<\/(?![a-zA-Z])/.test(text) ||
+            /<!--(?![\s\S]*?-->)/.test(text)
+        );
     }
 
     /**
@@ -1757,9 +1789,16 @@
                 } else if (byTag) {
                     same = liveOfTag(tag);
                 } else {
+                    // What the paint made comes first; a look-alike only when there is none.
                     same = liveOfTag(tag).filter(function (kid) {
-                        return ownsLive(kid, tplEl);
+                        return painted.has(kid);
                     });
+
+                    if (!same.length) {
+                        same = liveOfTag(tag).filter(function (kid) {
+                            return ownsLive(kid, tplEl);
+                        });
+                    }
                 }
 
                 if (same.length) {
@@ -1769,6 +1808,10 @@
                     // Otherwise one speaks for one, and a deleted sibling goes below.
                     targets = !pairs && byTag && counts[tag] === 1 ? same : [same[0]];
                     targets.forEach(function (target) {
+                        if (!pairs && !byTag) {
+                            adopt(target, tplEl);
+                        }
+
                         consumed.push(target);
                         morphElement(target, tplEl, tplTags);
                     });
@@ -1875,6 +1918,17 @@
                 painted.add(fresh);
                 consumed.push(fresh);
             })(tplKids[i], i);
+        }
+
+        // In a parent a field draws into, the only live children that may go are
+        // the paint's own — built here from a static template child that the
+        // template no longer has. The field's output stays whatever the template says.
+        if (dynamicParent) {
+            elementKids(live).forEach(function (kid) {
+                if (!taken(kid) && painted.has(kid)) {
+                    kid.remove();
+                }
+            });
         }
 
         // Live children the template no longer has — only where nothing dynamic

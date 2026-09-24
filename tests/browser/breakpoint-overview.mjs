@@ -75,6 +75,11 @@ const MIRROR_UNDER_TEST = PHP_HAS_MIRROR || WORKTREE;
 const MIRROR_FILE = WORKTREE ? JSON.parse(readFileSync(`${BUILD_DIR}/manifest.json`, 'utf8'))['resources/js/mirror.js']?.file : '';
 const VIDEO_FILE = env('SVE_VIDEO_FILE', '');
 const VIDEO_PUBLIC = `${SITE_DIR}/public/sve-bpo-video.mp4`;
+// Against another site (SVE_SITE_URL): a video that site already serves, the
+// field to click in the preview and a word its text holds on the left.
+const VIDEO_SRC = env('SVE_VIDEO_SRC', '');
+const FIELD = env('SVE_FIELD', 'headline');
+const FIELD_TEXT = env('SVE_FIELD_TEXT', 'professionelle');
 const startedAt = Date.now();
 
 // The entry is typed into and must not change on disk: nothing is saved.
@@ -136,6 +141,7 @@ async function visible(frame, selector) {
 
 function seedLayoutPrefs(prefs) {
   const file = `${SITE_DIR}/users/${USER}.yaml`;
+  if (!existsSync(file)) return;
   // Either form the CP saves: a block of keys, or an empty `sve_chrome: {}`.
   // Leaving the inline one and adding a block gave the user a duplicate key,
   // and Statamic answered every login with a 500.
@@ -173,6 +179,8 @@ const page = await browser.newPage();
 // Headless Chrome asks for reduced motion, and the row would then jump: the
 // glide is measured as a person with the default setting sees it.
 await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+// The field to click and a word of its text, handed to every frame the page opens.
+await page.evaluateOnNewDocument((field, text) => { window.__sveTestField = field; window.__sveTestFieldText = text; }, FIELD, FIELD_TEXT);
 page.on('pageerror', (e) => report.errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`console: ${m.text().slice(0, 200)}`); });
 page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
@@ -255,7 +263,7 @@ try {
   step('top bar built', await waitIn(cp, '#__sve-preview-chrome [data-sve-zoom]', 20000));
   const previewReady = await until(async () => {
     const f = await (await cp.$('#live-preview-iframe'))?.contentFrame();
-    return f && (await f.evaluate(() => !!document.querySelector('[data-sid-field="headline"]'))) ? f : null;
+    return f && (await f.evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`))) ? f : null;
   }, 25000, 500);
   step('the preview rendered a headline', !!previewReady);
   await sleep(2500); // prefs hydrate, the device and zoom settle, the preview morphs once or twice
@@ -270,12 +278,12 @@ try {
 
   // 2. The fields of the headline's section on the left: click the headline in the preview.
   const main = previewReady;
-  await realClick(page, main, '[data-sid-field="headline"]');
+  await realClick(page, main, `[data-sid-field="${FIELD}"]`);
   const field = await until(() => cp.evaluate(() => {
     const editor = document.querySelector('.live-preview-editor');
     const r = editor?.getBoundingClientRect();
     if (!r || r.right <= 0) return null;
-    return [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && /professionelle/i.test(el.value ?? el.textContent ?? ''); });
+    return [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && new RegExp(window.__sveTestFieldText, 'i').test(el.value ?? el.textContent ?? ''); });
   }), 12000, 300);
   step('the headline field is on screen on the left', !!field);
 
@@ -388,7 +396,7 @@ try {
     const out = [];
     for (const h of handles) {
       const f = await h.contentFrame();
-      if (!f || !(await f.evaluate(() => document.readyState === 'complete' && !!document.querySelector('[data-sid-field="headline"]')).catch(() => false))) return null;
+      if (!f || !(await f.evaluate(() => document.readyState === 'complete' && !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)).catch(() => false))) return null;
       out.push(f);
     }
     return out;
@@ -434,7 +442,7 @@ try {
     const token = `Q${Date.now().toString(36).slice(-5)}`;
     const target = await cp.evaluate(() => {
       const editor = document.querySelector('.live-preview-editor');
-      const el = [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].find((e) => /professionelle/i.test(e.value ?? e.textContent ?? ''));
+      const el = [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? ''));
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
       const r = el.getBoundingClientRect();
       return { x: r.right - 12, y: r.top + Math.min(r.height / 2, 14) };
@@ -588,7 +596,7 @@ try {
   const back = await until(async () => {
     const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
     if (states.some((s) => s.out || !s.mark)) return null;
-    for (const h of await copyHandles()) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector('[data-sid-field="headline"]')).catch(() => false))) return null; }
+    for (const h of await copyHandles()) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)).catch(() => false))) return null; }
     return states;
   }, 20000, 300);
   step('marked in again, every size is back in the row and every copy loaded', !!back && back.every((s, i) => expected[i].handle === activeHandle ? s.src === 'about:blank' : new URL(s.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((s) => s.src === 'about:blank' ? 'blank (the preview)' : s.src.slice(s.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
@@ -726,7 +734,7 @@ try {
   const overlayBox2 = await (await page.$('iframe.sve-edit-overlay')).boundingBox();
   const inActive = async (previewPoint) => { const g = await rowGeo(); return { x: overlayBox2.x + g.frame.x + previewPoint.x * g.z, y: overlayBox2.y + g.frame.y + previewPoint.y * g.z, g }; };
   await cp.evaluate(() => { window.__sveBpoMsgs = []; window.addEventListener('message', (e) => { const d = e.data || {}; if (d.source === 'statamic-visual-editor' && /^(click|hover|edit-request)$/.test(d.type)) window.__sveBpoMsgs.push(`${d.type}${d.field ? ' field=' + d.field : ''}${d.uid ? ' uid' : ''}`); }); });
-  const headlineAt = await (await previewNow()).evaluate(() => { const el = document.querySelector('[data-sid-field="headline"]'); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  const headlineAt = await (await previewNow()).evaluate(() => { const el = document.querySelector(`[data-sid-field="${window.__sveTestField}"]`); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
   // The row scrolled so the headline is on screen, then a real click on it in the active frame.
   await cp.evaluate((sel, y) => { const layer = document.querySelector(sel); const s = layer.querySelector('.sve-bpo-scroll'); const z = new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a; s.scrollTop = Math.max(0, y * z - 200); }, LAYER, headlineAt.y);
   await sleep(300);
@@ -734,7 +742,7 @@ try {
   await page.mouse.move(at.x, at.y); await sleep(300);
   await page.mouse.click(at.x, at.y); await sleep(1500);
   const msgs = await cp.evaluate(() => (window.__sveBpoMsgs || []).splice(0));
-  const fieldShown = await cp.evaluate(() => { const editor = document.querySelector('.live-preview-editor'); const r = editor?.getBoundingClientRect(); return !!r && r.right > 0 && [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && /professionelle/i.test(el.value ?? el.textContent ?? ''); }); });
+  const fieldShown = await cp.evaluate(() => { const editor = document.querySelector('.live-preview-editor'); const r = editor?.getBoundingClientRect(); return !!r && r.right > 0 && [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && new RegExp(window.__sveTestFieldText, 'i').test(el.value ?? el.textContent ?? ''); }); });
   step('a click on the headline in the active frame reaches the bridge and opens the field on the left, as in one preview', msgs.some((m) => /^click field=headline/.test(m)) && fieldShown, `bridge sent [${msgs.join(', ')}] at ${Math.round(at.x)},${Math.round(at.y)} (${at.g.active} at zoom ${at.g.z.toFixed(3)}); field shown: ${fieldShown}`);
   // Keys in the preview are the bridge's: Escape there ends the edit the click began, and never closes the overview.
   await page.keyboard.press('Escape'); await sleep(400);
@@ -766,7 +774,7 @@ try {
   const target = await cp.evaluate((sel, bp) => { const r = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 150) }; }, LAYER, other.handle);
   await page.mouse.click(overlayBox2.x + target.x, overlayBox2.y + target.y);
   const swapped = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.pressed === other.device && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 && Math.abs(g.frame.w - g.slot.w) <= 1 ? g : null; }, 5000, 100);
-  const left = await until(() => cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`); const src = f.getAttribute('src') || ''; return src.includes(`sve_view=${bp}`) && !!f.contentDocument?.querySelector('[data-sid-field="headline"]') ? src.slice(src.indexOf('sve_view')) : null; }, LAYER, wasActive), 20000, 300);
+  const left = await until(() => cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`); const src = f.getAttribute('src') || ''; return src.includes(`sve_view=${bp}`) && !!f.contentDocument?.querySelector(`[data-sid-field="${window.__sveTestField}"]`) ? src.slice(src.indexOf('sve_view')) : null; }, LAYER, wasActive), 20000, 300);
   step(`a click on the ${other.device} frame makes it the active size: the preview stands there, and ${wasActive} is a copy again`, !!swapped && !!left, swapped ? `active ${swapped.active}, pressed ${swapped.pressed}, preview ${Math.round(swapped.frame.w)} px wide in the slot; ${wasActive}'s frame: ${left || 'not loaded within 20 s'}` : 'no swap within 5 s');
   // A confirm card in the page-high preview: in the part of the page that is on screen.
   const header = await (await previewNow()).evaluate(() => { const el = document.querySelector('[data-sve-chrome="header"]'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 20) }; });
@@ -790,13 +798,13 @@ try {
     await cp.evaluate(() => { const f = document.getElementById('live-preview-iframe'); f.contentWindow.__sveBpoReload = 1; f.src = f.getAttribute('src'); });
     const reloaded = await until(async () => {
       const f = await (await cp.$('#live-preview-iframe'))?.contentFrame();
-      return f && (await f.evaluate(() => window.__sveBpoReload !== 1 && document.readyState === 'complete' && !!document.querySelector('[data-sid-field="headline"]'))) ? f : null;
+      return f && (await f.evaluate(() => window.__sveBpoReload !== 1 && document.readyState === 'complete' && !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`))) ? f : null;
     }, 20000, 200);
     step('the preview reloaded while the overview was open', !!reloaded);
     await sleep(1500);
     const token = `R${Date.now().toString(36).slice(-5)}`;
     const target = await cp.evaluate(() => {
-      const el = [...document.querySelectorAll('.live-preview-editor .ProseMirror[contenteditable="true"], .live-preview-editor input[type="text"], .live-preview-editor textarea')].find((e) => /professionelle/i.test(e.value ?? e.textContent ?? ''));
+      const el = [...document.querySelectorAll('.live-preview-editor .ProseMirror[contenteditable="true"], .live-preview-editor input[type="text"], .live-preview-editor textarea')].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? ''));
       if (!el) return null;
       el.scrollIntoView({ block: 'center', behavior: 'instant' });
       const r = el.getBoundingClientRect();
@@ -856,7 +864,7 @@ try {
   let dockOpen = false;
   for (let attempt = 1; attempt <= 2 && !dockOpen; attempt++) { await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]'); await sleep(600); dockOpen = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000); if (!dockOpen) await sleep(1000); }
   step('code dock open', dockOpen);
-  const sectionId = await (await livePreview()).evaluate(() => document.querySelector('[data-sid-field="headline"]')?.closest('[id^="id-"]')?.id || '');
+  const sectionId = await (await livePreview()).evaluate(() => document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)?.closest('[id^="id-"]')?.id || '');
   let onFile = false;
   for (let attempt = 0; attempt < 3 && dockOpen && !onFile; attempt++) {
     await clickSection(sectionId); await sleep(2000);
@@ -950,10 +958,10 @@ try {
     await page.mouse.click(b.x + icon.x, b.y + icon.y);
     return `pressed (was ${icon.on ? 'held' : 'playing'})`;
   };
-  const videoOk = ready && !!VIDEO_FILE && existsSync(VIDEO_FILE);
+  const videoOk = ready && (!!VIDEO_SRC || (!!VIDEO_FILE && existsSync(VIDEO_FILE)));
   if (videoOk) {
-    copyFileSync(VIDEO_FILE, VIDEO_PUBLIC);
-    step('typed a muted autoplay video into the section', await typeAfterRoot(`<video class="sve-bpo-video" autoplay="true" muted="true" playsinline src="${SITE_URL}/sve-bpo-video.mp4"></video>`));
+    if (!VIDEO_SRC) copyFileSync(VIDEO_FILE, VIDEO_PUBLIC);
+    step('typed a muted autoplay video into the section', await typeAfterRoot(`<video class="sve-bpo-video" autoplay="true" muted="true" playsinline src="${VIDEO_SRC || `${SITE_URL}/sve-bpo-video.mp4`}"></video>`));
     await sleep(3500); // the save and the morph
     let run = await playing(await livePreview(), 'sve-bpo-video');
     step('the preview plays it after the morph', run.moved && run.b?.paused === false, showVideo(run.b));
@@ -982,7 +990,7 @@ try {
     step('the video line removed again', await removeLine('sve-bpo-video'));
     await sleep(3500);
   } else {
-    skip('video in every frame', !ready ? 'the dock is not on the section file' : 'no SVE_VIDEO_FILE on disk');
+    skip('video in every frame', !ready ? 'the dock is not on the section file (another site, or no file to back up)' : 'no SVE_VIDEO_FILE on disk and no SVE_VIDEO_SRC');
   }
 
   // 12b. Instant: a tag typed in the dock is in the preview and in every copy
@@ -1004,7 +1012,7 @@ try {
     const instantOk = typedOk && !!copies && firstSeen.every((ms) => ms !== null) && morphed.every((n) => n === 0);
     step('Instant: the new tag is in the preview and in every copy before any morph', instantOk, frameNames.map((n, i) => `${n} ${firstSeen[i] ?? '–'} ms${morphed[i] ? ' (a morph had run)' : ''}`).join(', '));
     if (!instantOk) info('paint script', await cp.evaluate(() => { const view = document.querySelector('#__sve-code-dock [data-sve-code-pane="html"] .cm-content')?.cmTile?.view; const text = view ? view.state.doc.toString() : ''; const at = text.indexOf('sve-bpo-probe'); return `mode=${localStorage.getItem('sveInstantPreview')} v${window.__sveDockInstantPreview} | pane around the probe: ${JSON.stringify(text.slice(Math.max(0, at - 160), at + 80))} | trace: ${(window.__sveInstantTrace || []).slice(-6).map((l) => l.replace(/^\d+ /, '')).join(' → ')}`; }));
-    const textKept = await Promise.all(all.map((f) => f.evaluate(() => /professionelle/i.test(document.body.textContent)).catch(() => false)));
+    const textKept = await Promise.all(all.map((f) => f.evaluate(() => new RegExp(window.__sveTestFieldText, 'i').test(document.body.textContent)).catch(() => false)));
     step('and the field text is still there in every frame', textKept.every(Boolean), textKept.join(' '));
     step('the probe line removed again', await removeLine('sve-bpo-probe'));
     await sleep(3500);

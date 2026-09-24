@@ -29,7 +29,7 @@ const FIELD = '<h1>Strategisk branding</h1><p>fdsfdsfgfdgfdg</p>';
 const PATH = 'resources/views/partials/page_sections/intro/intro_2.antlers.html';
 
 /** The section as the server renders it: the field drawn, the tags gone, the if resolved to an <img>. */
-function render(tpl) {
+function render(tpl, { video = false } = {}) {
   return tpl
     .replace(/\{\{#[\s\S]*?#\}\}/g, '')
     .replace(/\{\{\s*id\s*\}\}/g, ROW.id)
@@ -37,7 +37,7 @@ function render(tpl) {
     .replace(/\{\{\s*visual_edit outline_inside[^}]*\}\}/g, `data-sid="${ROW._visual_id}" data-sid-section-orderable="true" data-sid-outline-inside="true"`)
     .replace(/\{\{\s*visual_edit inline_edit[^}]*\}\}/g, 'data-sid-field="text" data-sid-inline-edit="true"')
     .replace(/\{\{\s*text\s*\}\}/g, FIELD)
-    .replace(/\{\{\s*if \(media[\s\S]*?\{\{\s*\/if\s*\}\}/g, '<img src="/x.jpg" class="flow-space-500">')
+    .replace(/\{\{\s*if \(media[\s\S]*?\{\{\s*\/if\s*\}\}/g, video ? '<video class="flow-space-500" src="x.mp4" autoplay muted playsinline></video>' : '<img src="/x.jpg" class="flow-space-500">')
     .replace(/\{\{[\s\S]*?\}\}/g, '');
 }
 
@@ -57,16 +57,25 @@ const scenarios = [
   ['a class on the static div: the field is untouched', { next: TEMPLATE.replace('<div>dfsfjdgfdggfdggf</div>', '<div class="mt-500">dfsfjdgfdggfdggf</div>'), expect: `${FIELD}<div class="mt-500">dfsfjdgfdggfdggf</div>` }],
   ['a class on the field’s wrapper: the field is untouched', { next: TEMPLATE.replace('prose-p:opacity-70"', 'prose-p:opacity-70 gap-300"'), expect: `${FIELD}${STATIC}`, wrapperClass: 'gap-300' }],
   ['CSS typed in the CSS pane: the live sheet holds it, the markup is untouched', { next: TEMPLATE, css: '#id-{{ id }} { --x: 1 }\n@scope(.intro-2) { :scope { padding-block: 4rem } }', expect: `${FIELD}${STATIC}`, expectCss: ['#id-mu2intro0001 { --x: 1 }', 'padding-block: 4rem'] }],
+  // Deleting again. A node the paint made goes at once; so does the server's
+  // copy of it after the morph, adopted when it matched the template word for word.
+  ['the typed <p> deleted again: gone at once, the field untouched', { first: afterDiv('    <p>fcdsfds</p>'), next: TEMPLATE, expect: `${FIELD}${STATIC}` }],
+  ['deleted after the morph drew it: gone at once too', { first: afterDiv('    <p>fcdsfds</p>'), live: render(afterDiv('    <p>fcdsfds</p>')), next: TEMPLATE, expect: `${FIELD}${STATIC}` }],
+  // Half-deleted states the parser reads differently — `</` swallows what follows as a comment — wait for the next keystroke.
+  ['half-deleted `<p>f</` beside the video: nothing changes, the video stays', { first: afterText('    <p>f</p>'), live: render(afterText('    <p>f</p>'), { video: true }), next: afterText('    <p>f</'), expect: `${FIELD}<p>f</p>${STATIC}`, video: true }],
+  ['half-deleted `<p>f<`: the typed paragraph shows "f<", the field is untouched, the video stays', { first: afterText('    <p>f</p>'), live: render(afterText('    <p>f</p>'), { video: true }), next: afterText('    <p>f<'), expect: `${FIELD}<p>f&lt; </p>${STATIC}`, video: true }],
+  // One letter typed next to a paragraph that happens to start with it: not that paragraph.
+  ['a one-letter <p>V</p> beside a field paragraph starting with V: a new node, the field untouched', { next: afterText('    <p>V</p>'), live: render(TEMPLATE).replace('fdsfdsfgfdgfdg', 'Vi hjælper virksomheder'), expect: `<h1>Strategisk branding</h1><p>Vi hjælper virksomheder</p><p>V</p>${STATIC}` }],
 ];
 
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--allow-file-access-from-files'] });
 const tab = await browser.newPage();
 tab.on('pageerror', (e) => console.log('  pageerror:', String(e).slice(0, 200)));
-const kids = (html) => { const m = html.match(/<div data-sid-field="text"[^>]*>([\s\S]*?)<\/div>\s*<img/); return m ? m[1].replace(/\s+/g, ' ').replace(/> </g, '><').replace(/<(\w+)([^>]*)>/g, (all, tag, attrs) => `<${tag}${/class="[^"]*"/.test(attrs) ? ' ' + attrs.match(/class="[^"]*"/)[0] : ''}>`).trim() : '(no field div)'; };
+const kids = (html) => { const m = html.match(/<div data-sid-field="text"[^>]*>([\s\S]*?)<\/div>\s*(?:<img|<video)/); return m ? m[1].replace(/\s+/g, ' ').replace(/> </g, '><').replace(/<(\w+)([^>]*)>/g, (all, tag, attrs) => `<${tag}${/class="[^"]*"/.test(attrs) ? ' ' + attrs.match(/class="[^"]*"/)[0] : ''}>`).trim() : '(no field div)'; };
 let ok = true;
 for (const [label, opts] of scenarios) {
   await tab.goto(`file://${OUT}`);
-  const live = opts.live || `<!doctype html><html><head></head><body><main>\n${render(TEMPLATE)}\n</main></body></html>`;
+  const live = `<!doctype html><html><head></head><body><main>\n${opts.live || render(TEMPLATE)}\n</main></body></html>`;
   const r = await tab.evaluate(async (live, row, first, next, path, css) => {
     const dock = document.getElementById('__sve-code-dock');
     try { localStorage.setItem('sveInstantPreview', 'astro'); } catch { /* file:// */ }
@@ -89,16 +98,17 @@ for (const [label, opts] of scenarios) {
     // The paint that follows a morph: the same pane again.
     iframe.contentWindow.dispatchEvent(new CustomEvent('statamic:preview-updated'));
     await new Promise((r) => setTimeout(r, 80));
-    return { after, again: idoc.querySelector('section').outerHTML, wrapperClass: idoc.querySelector('[data-sid-field="text"]').className, liveCss: idoc.getElementById('__sve-dock-css-live')?.textContent ?? '' };
+    return { after, again: idoc.querySelector('section').outerHTML, wrapperClass: idoc.querySelector('[data-sid-field="text"]').className, liveCss: idoc.getElementById('__sve-dock-css-live')?.textContent ?? '', video: !!idoc.querySelector('section > video') };
   }, live, ROW, opts.first || TEMPLATE, opts.next, PATH, opts.css ?? null);
   const got = kids(r.after);
   const again = kids(r.again);
   let pass = got === opts.expect && again === opts.expect;
   if (opts.wrapperClass) pass = pass && r.wrapperClass.split(/\s+/).includes(opts.wrapperClass);
   if (opts.expectCss) pass = pass && opts.expectCss.every((x) => r.liveCss.includes(x));
+  if (opts.video) pass = pass && r.video;
   ok = ok && pass;
   console.log(`${pass ? 'ok ' : 'FAIL'} ${label}`);
-  if (!pass) console.log(`     want ${opts.expect}\n     got  ${got}\n     again ${again}${opts.wrapperClass ? `\n     wrapper class ${r.wrapperClass}` : ''}${opts.expectCss ? `\n     live css ${r.liveCss.replace(/\s+/g, ' ').slice(0, 200)}` : ''}`);
+  if (!pass) console.log(`     want ${opts.expect}\n     got  ${got}\n     again ${again}${opts.wrapperClass ? `\n     wrapper class ${r.wrapperClass}` : ''}${opts.expectCss ? `\n     live css ${r.liveCss.replace(/\s+/g, ' ').slice(0, 200)}` : ''}${opts.video ? `\n     video in the section: ${r.video}` : ''}`);
 }
 await browser.close();
 console.log(JSON.stringify({ ok }));
