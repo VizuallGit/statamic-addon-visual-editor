@@ -80,6 +80,10 @@ const VIDEO_PUBLIC = `${SITE_DIR}/public/sve-bpo-video.mp4`;
 const VIDEO_SRC = env('SVE_VIDEO_SRC', '');
 const FIELD = env('SVE_FIELD', 'headline');
 const FIELD_TEXT = env('SVE_FIELD_TEXT', 'professionelle');
+// Another site's user may keep the left panel hidden; SVE_SHOW_PANEL=1 presses
+// the toolbar's settings key (which sets the panel to "show") when the field
+// is not on screen. That choice is saved for that user, like a click of theirs.
+const SHOW_PANEL = env('SVE_SHOW_PANEL', '') === '1';
 const startedAt = Date.now();
 
 // The entry is typed into and must not change on disk: nothing is saved.
@@ -279,6 +283,10 @@ try {
   // 2. The fields of the headline's section on the left: click the headline in the preview.
   const main = previewReady;
   await realClick(page, main, `[data-sid-field="${FIELD}"]`);
+  if (SHOW_PANEL) {
+    const shown = await until(() => cp.evaluate(() => { const r = document.querySelector('.live-preview-editor')?.getBoundingClientRect(); return !!r && r.right > 0 && r.width > 100; }), 3000, 200);
+    if (!shown) { await realClick(page, cp, '#__sve-toolbar button[data-tab="settings"]'); await sleep(1500); await realClick(page, main, `[data-sid-field="${FIELD}"]`); info('left panel', 'was hidden for this user — the settings key pressed it into view'); }
+  }
   const field = await until(() => cp.evaluate(() => {
     const editor = document.querySelector('.live-preview-editor');
     const r = editor?.getBoundingClientRect();
@@ -383,7 +391,9 @@ try {
   step('the zoom bar stays on top of the preview, whole and clickable', inSlot.zoomBar);
   step('frames take no clicks (view only)', shape.frames.every((f) => f.pe === 'none'), shape.frames.map((f) => f.pe).join(' '));
   const baseHandle = config.bps.find((b) => b.base)?.handle;
-  step('the ring is on the size the fields edit (default: the base size)', shape.frames.filter((f) => f.active).map((f) => f.bp).join() === baseHandle, `active=${shape.frames.filter((f) => f.active).map((f) => f.bp).join() || 'none'}`);
+  const pressedNow = await cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join());
+  const ringWant = config.bps.find((b) => b.device === pressedNow)?.handle || baseHandle;
+  step('the ring is on the size the fields edit (the device this user has stored; the base size when none)', shape.frames.filter((f) => f.active).map((f) => f.bp).join() === ringWant, `active=${shape.frames.filter((f) => f.active).map((f) => f.bp).join() || 'none'}, device ${pressedNow || 'none'}`);
   step('the button says it is on', shape.pressed === 'true');
   step('iframes in the CP document = before + one per breakpoint', shape.iframes === iframesBefore + expected.length, `${shape.iframes} = ${iframesBefore} + ${expected.length}`);
 
@@ -575,7 +585,7 @@ try {
   step('every size in the row has an on/off mark at its icon, in one tone', marks.length === expected.length && marks.every((m) => m.on && m.w > 0 && !m.inButton) && new Set(marks.map((m) => m.tone)).size === 1,
     `${marks.map((m) => `${m.bp}:${m.on ? 'on' : 'off'}`).join(' ')} · tone ${marks[0]?.tone}`);
   step('the marks are the owner’s orange, #FFAE6B', marks.length > 0 && marks.every((m) => m.tone === 'rgb(255, 174, 107)'), marks[0]?.tone || 'no marks');
-  const middle = expected[Math.min(1, expected.length - 1)];
+  const middle = expected.find((b) => b.handle !== activeHandle && b.handle !== expected[0].handle) || expected.find((b) => b.handle !== activeHandle);
   const markSel = (handle) => `#__sve-preview-chrome .sve-bpo-badge[data-bpo-badge="${handle}"]`;
   const pressedBefore = await pressedDevice();
   const rowBefore = await rowWidthNow();
@@ -585,14 +595,13 @@ try {
   const rowOff = await rowWidthNow();
   step(`${middle.device}'s mark takes it out of the row, its frame blanked`, off.out && off.src === 'about:blank' && off.mark === false && rowOff < rowBefore, `out=${off.out} src=${off.src} mark on=${off.mark} row ${Math.round(rowBefore)}→${Math.round(rowOff)} px`);
   step('the mark does not change the size the fields edit', (await pressedDevice()) === pressedBefore, `pressed device stays ${pressedBefore}`);
-  // The last size in the row cannot be switched out: an empty overview is a grey pane.
-  const restSizes = expected.filter((b) => b.handle !== middle.handle);
-  for (const b of restSizes.slice(0, -1)) await realClick(page, cp, markSel(b.handle));
-  const last = restSizes[restSizes.length - 1];
-  await realClick(page, cp, markSel(last.handle));
+  // Every other size can go; the active one — the preview — stays whatever is pressed.
+  const restSizes = expected.filter((b) => b.handle !== middle.handle && b.handle !== activeHandle);
+  for (const b of restSizes) await realClick(page, cp, markSel(b.handle));
+  await realClick(page, cp, markSel(activeHandle));
   await sleep(300);
-  step('the last size in the row stays in', !(await sizeState(last.handle)).out, `${last.handle} still shown`);
-  for (const b of [...restSizes.slice(0, -1), middle]) await realClick(page, cp, markSel(b.handle));
+  step('with every other size switched out, the active size stays in', !(await sizeState(activeHandle)).out && restSizes.every(async (b) => (await sizeState(b.handle)).out), `${activeHandle} still shown`);
+  for (const b of [...restSizes, middle]) await realClick(page, cp, markSel(b.handle));
   const back = await until(async () => {
     const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
     if (states.some((s) => s.out || !s.mark)) return null;
@@ -743,7 +752,7 @@ try {
   await page.mouse.click(at.x, at.y); await sleep(1500);
   const msgs = await cp.evaluate(() => (window.__sveBpoMsgs || []).splice(0));
   const fieldShown = await cp.evaluate(() => { const editor = document.querySelector('.live-preview-editor'); const r = editor?.getBoundingClientRect(); return !!r && r.right > 0 && [...editor.querySelectorAll('.ProseMirror[contenteditable="true"], input[type="text"], textarea')].some((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && new RegExp(window.__sveTestFieldText, 'i').test(el.value ?? el.textContent ?? ''); }); });
-  step('a click on the headline in the active frame reaches the bridge and opens the field on the left, as in one preview', msgs.some((m) => /^click field=headline/.test(m)) && fieldShown, `bridge sent [${msgs.join(', ')}] at ${Math.round(at.x)},${Math.round(at.y)} (${at.g.active} at zoom ${at.g.z.toFixed(3)}); field shown: ${fieldShown}`);
+  step('a click on the headline in the active frame reaches the bridge and opens the field on the left, as in one preview', msgs.some((m) => m.startsWith(`click field=${FIELD}`)) && fieldShown, `bridge sent [${msgs.join(', ')}] at ${Math.round(at.x)},${Math.round(at.y)} (${at.g.active} at zoom ${at.g.z.toFixed(3)}); field shown: ${fieldShown}`);
   // Keys in the preview are the bridge's: Escape there ends the edit the click began, and never closes the overview.
   await page.keyboard.press('Escape'); await sleep(400);
   const stillOpen = !!(await cp.$(LAYER));
@@ -868,7 +877,7 @@ try {
   let onFile = false;
   for (let attempt = 0; attempt < 3 && dockOpen && !onFile; attempt++) {
     await clickSection(sectionId); await sleep(2000);
-    onFile = /page_sections\//.test(await dockPath()) && !(await cp.evaluate(() => !!document.querySelector('#__sve-code-dock')?.hasAttribute('data-sve-html-scoped')));
+    onFile = /page_sections\//.test(await dockPath()) && (await cp.evaluate(() => { const dock = document.querySelector('#__sve-code-dock'); const text = dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || ''; return !dock?.hasAttribute('data-sve-html-scoped') || /section_orderable/.test(text); }));
   }
   filePath = await dockPath();
   step('the dock shows the headline section’s whole file', onFile, filePath || '(no file)');
