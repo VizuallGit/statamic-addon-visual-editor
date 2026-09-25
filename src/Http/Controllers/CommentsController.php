@@ -31,6 +31,8 @@ class CommentsController
             'x' => 'required|numeric|min:0|max:100',
             'y' => 'required|numeric|min:0|max:100',
             'body' => 'required|string|max:5000',
+            // The screen size the comment is for: 'all', or a breakpoint handle. Older comments have none and count as 'all'.
+            'breakpoint' => 'sometimes|string|max:40',
         ]);
 
         $user = $this->userPayload();
@@ -39,6 +41,7 @@ class CommentsController
         $comment = [
             'id' => CommentStore::newId(),
             'visual_id' => $data['visual_id'],
+            'breakpoint' => $data['breakpoint'] ?? 'all',
             'x' => round((float) $data['x'], 2),
             'y' => round((float) $data['y'], 2),
             'resolved' => false,
@@ -82,9 +85,10 @@ class CommentsController
             'visual_id' => 'sometimes|string|max:80',
             'x' => 'sometimes|numeric|min:0|max:100',
             'y' => 'sometimes|numeric|min:0|max:100',
+            'breakpoint' => 'sometimes|string|max:40',
         ]);
 
-        abort_unless($request->hasAny(['resolved', 'visual_id', 'x', 'y']), 422);
+        abort_unless($request->hasAny(['resolved', 'visual_id', 'x', 'y', 'breakpoint']), 422);
 
         $thread = $this->store->find($entry, $comment);
 
@@ -104,6 +108,10 @@ class CommentsController
 
         if (array_key_exists('y', $data)) {
             $thread['y'] = round((float) $data['y'], 2);
+        }
+
+        if (array_key_exists('breakpoint', $data)) {
+            $thread['breakpoint'] = $data['breakpoint'];
         }
 
         $this->store->put($entry, $thread);

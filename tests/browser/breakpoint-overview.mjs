@@ -68,6 +68,9 @@ const BUTTON = '#__sve-preview-chrome [data-overview]';
 
 // What the installed PHP knows. The flag and the strings ship with this feature; mirror.js came later.
 const INSTALLED_MIDDLEWARE = `${SITE_DIR}/vendor/statamic-addon/visual-editor/src/Http/Middleware/InjectBridgeScript.php`;
+// The comments API keeps a screen size per comment from v1.1.324 on; the vendor copy may be older until `composer update`.
+const INSTALLED_COMMENTS = `${SITE_DIR}/vendor/statamic-addon/visual-editor/src/Http/Controllers/CommentsController.php`;
+const PHP_HAS_COMMENT_SIZE = existsSync(INSTALLED_COMMENTS) && /'breakpoint'/.test(readFileSync(INSTALLED_COMMENTS, 'utf8'));
 const PHP_HAS_VIEW_FLAG = existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('sve_view');
 const PHP_HAS_MIRROR = existsSync(INSTALLED_MIDDLEWARE) && readFileSync(INSTALLED_MIDDLEWARE, 'utf8').includes('mirror.js');
 // The copies run this checkout's mirror.js: through the PHP once installed, or through the rewrite below meanwhile.
@@ -807,36 +810,6 @@ try {
   const sameDocument = await cp.evaluate((sel, bp) => !!document.querySelector(`${sel} [data-bp="${bp}"] iframe`)?.contentDocument?.__sveSameDocument, LAYER, wasActive);
   step(`${wasActive}'s frame was not reloaded by the switch: the page was already there, under the preview`, sameDocument, sameDocument ? 'same document before and after' : 'a new document — the frame loaded again');
 
-  // 10d. The label above a frame (its name and width) is a way in too, and the way back.
-  const labelPoint = (bp) => cp.evaluate((sel, handle) => { const r = document.querySelector(`${sel} [data-bp="${handle}"] .sve-bpo-label`).getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 40), y: r.y + r.height / 2 }; }, LAYER, bp);
-  let lp = await labelPoint(wasActive);
-  await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
-  const byLabel = await until(async () => { const g = await rowGeo(); return g.active === wasActive && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
-  step(`a click on ${wasActive}'s label makes it the active size again`, !!byLabel, byLabel ? `active ${byLabel.active}, pressed ${byLabel.pressed}` : 'not within 5 s');
-  lp = await labelPoint(other.handle);
-  await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
-  const backByLabel = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
-  step(`and ${other.device}'s label brings the preview back there`, !!backByLabel, backByLabel ? `active ${backByLabel.active}` : 'not within 5 s');
-
-  // 10d2. The other frames step back while a size is picked; with Responsive (the strip's "All") every frame stands alike.
-  const frameOpacities = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-bp]`)].map((item) => ({ bp: item.dataset.bp, active: item.hasAttribute('data-active'), opacity: getComputedStyle(item.querySelector('iframe')).opacity })), LAYER);
-  // Read once the 150 ms fade after the last switch has settled.
-  const settled = (want) => until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.opacity === (x.active ? '1' : want)) ? o : null; }, 3000, 50);
-  let ops = (await settled('0.8')) || (await frameOpacities());
-  step('with a size picked, every other frame stands at 80 % and the picked one at 100 %', ops.some((o) => o.active) && ops.every((o) => o.active ? o.opacity === '1' : o.opacity === '0.8'), ops.map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
-  const responsive = await cp.$('#__sve-preview-chrome [data-device="Responsive"]');
-  if (responsive) {
-    const pickedBefore = await pressedDevice();
-    await realClick(page, cp, '#__sve-preview-chrome [data-device="Responsive"]');
-    const alike = await until(async () => { const o = await frameOpacities(); return o.every((x) => x.opacity === '1') ? o : null; }, 3000, 100);
-    step('Responsive picked: every frame stands alike at 100 %', !!alike, (alike || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
-    await realClick(page, cp, `#__sve-preview-chrome [data-device="${other.device}"]`);
-    const back = await until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.active ? x.opacity === '1' : x.opacity === '0.8') ? o : null; }, 3000, 100);
-    step(`${other.device} picked again: the others step back again`, !!back, (back || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' ') + ` (was ${pickedBefore})`);
-  } else {
-    skip('Responsive: every frame alike', 'no Responsive button in the top bar');
-  }
-
   // 10e. An inline edit in the preview reaches every frame as it is typed: the
   //      preview holds its morphs back while the edit lasts, so the frames are painted.
   const fieldPoint = await (await previewNow()).evaluate((field) => { const el = document.querySelector(`[data-sid-field="${field}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24) }; }, FIELD);
@@ -863,6 +836,8 @@ try {
   } else {
     skip('inline edit mirrored into the frames', `no [data-sid-field="${FIELD}"] in the preview`);
   }
+  await sleep(250);
+
   // A confirm card in the page-high preview: in the part of the page that is on screen.
   const header = await (await previewNow()).evaluate(() => { const el = document.querySelector('[data-sve-chrome="header"]'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 20) }; });
   if (header) {
@@ -876,7 +851,127 @@ try {
     skip('a confirm card in the active frame', 'the page has no header to ask about');
   }
   await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
-  await sleep(250);
+
+  // 10d. The label above a frame (its name and width) is a way in too, and the way back.
+  const labelPoint = (bp) => cp.evaluate((sel, handle) => { const r = document.querySelector(`${sel} [data-bp="${handle}"] .sve-bpo-label`).getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 40), y: r.y + r.height / 2 }; }, LAYER, bp);
+  let lp = await labelPoint(wasActive);
+  await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+  const byLabel = await until(async () => { const g = await rowGeo(); return g.active === wasActive && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
+  step(`a click on ${wasActive}'s label makes it the active size again`, !!byLabel, byLabel ? `active ${byLabel.active}, pressed ${byLabel.pressed}` : 'not within 5 s');
+  lp = await labelPoint(other.handle);
+  await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+  const backByLabel = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
+  step(`and ${other.device}'s label brings the preview back there`, !!backByLabel, backByLabel ? `active ${backByLabel.active}` : 'not within 5 s');
+
+  // 10d2. The other frames step back while a size is picked; with Responsive (the strip's "All") every frame stands alike.
+  const frameOpacities = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-bp]`)].map((item) => ({ bp: item.dataset.bp, active: item.hasAttribute('data-active'), opacity: getComputedStyle(item.querySelector('iframe')).opacity })), LAYER);
+  // Read once the 150 ms fade after the last switch has settled.
+  const settled = (want) => until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.opacity === (x.active ? '1' : want)) ? o : null; }, 3000, 50);
+  let ops = (await settled('0.7')) || (await frameOpacities());
+  step('with a size picked, every other frame stands at 70 % and the picked one at 100 %', ops.some((o) => o.active) && ops.every((o) => o.active ? o.opacity === '1' : o.opacity === '0.7'), ops.map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
+  const responsive = await cp.$('#__sve-preview-chrome [data-device="Responsive"]');
+  if (responsive) {
+    const pickedBefore = await pressedDevice();
+    await realClick(page, cp, '#__sve-preview-chrome [data-device="Responsive"]');
+    const alike = await until(async () => { const o = await frameOpacities(); return o.every((x) => x.opacity === '1') ? o : null; }, 3000, 100);
+    step('Responsive picked: every frame stands alike at 100 %', !!alike, (alike || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
+    await realClick(page, cp, `#__sve-preview-chrome [data-device="${other.device}"]`);
+    const back = await until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.active ? x.opacity === '1' : x.opacity === '0.7') ? o : null; }, 3000, 100);
+    step(`${other.device} picked again: the others step back again`, !!back, (back || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' ') + ` (was ${pickedBefore})`);
+  } else {
+    skip('Responsive: every frame alike', 'no Responsive button in the top bar');
+  }
+
+  // 10f. A section dragged in from the library: the row zooms so the active
+  //      frame's whole page is in view, and the release puts zoom and scroll back.
+  await realClick(page, cp, '#__sve-toolbar button[data-tab="sections"]');
+  const libraryCard = await until(() => cp.evaluate(() => { const el = document.querySelector('[data-sve-lib-kind]'); if (!el) return null; const r = el.getBoundingClientRect(); return r.width > 20 && r.height > 20 ? { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 60) } : null; }), 10000, 250);
+  if (libraryCard) {
+    await realClick(page, cp, `${LAYER} [data-bpo="actual"]`);
+    await sleep(500);
+    const gBefore = await rowGeo();
+    const whole = (g) => g.frame.x >= g.view.x - 1 && g.frame.x + g.frame.w <= g.view.x + g.view.w + 1 && g.frame.y >= g.view.y - 1 && g.frame.y + g.frame.h <= g.view.y + g.view.h + 1;
+    info('before the drag', `zoom ${gBefore.z.toFixed(3)}, scroll ${gBefore.scroll.join(',')}, active frame whole in view: ${whole(gBefore)}`);
+    await cp.evaluate(() => { window.__bpLog = []; const orig = window.dispatchEvent.bind(window); window.__bpOrigDispatch = orig; window.dispatchEvent = function (event) { if (event?.type === 'sve:breakpoint') window.__bpLog.push({ t: Math.round(performance.now()), bp: event.detail?.bp, device: event.detail?.device, stack: String(new Error().stack).split('\n').slice(2, 6).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\/[^ ]*\/assets\//, '')).join(' < ') }); return orig(event); }; });
+    const cardAt = { x: overlayBox2.x + libraryCard.x, y: overlayBox2.y + libraryCard.y };
+    await page.mouse.move(cardAt.x, cardAt.y);
+    await page.mouse.down();
+    await page.mouse.move(cardAt.x + 24, cardAt.y + 12, { steps: 4 }); // sideways first: a vertical move inside the list is a scroll
+    const overFrame = await inActive({ x: 160, y: 160 });
+    await page.mouse.move(overFrame.x, overFrame.y, { steps: 8 });
+    const gDrag = await until(async () => { const g = await rowGeo(); return whole(g) && g.z < gBefore.z ? g : null; }, 3000, 100);
+    step('dragging a library card over the row zooms it so the active frame is whole in view', !!gDrag, gDrag ? `zoom ${gBefore.z.toFixed(3)} → ${gDrag.z.toFixed(3)}, frame ${Math.round(gDrag.frame.h)} px high in a ${Math.round(gDrag.view.h)} px pane` : `not within 3 s: ${JSON.stringify(await rowGeo())}`);
+    // Let go over the library again: nothing is inserted, and the row goes back to where it was.
+    await page.mouse.move(cardAt.x, cardAt.y, { steps: 6 });
+    await page.mouse.up();
+    const gAfter = await until(async () => { const g = await rowGeo(); return Math.abs(g.z - gBefore.z) < 0.001 && g.scroll[0] === gBefore.scroll[0] && g.scroll[1] === gBefore.scroll[1] ? g : null; }, 3000, 100);
+    const bpLog = await cp.evaluate(() => { const log = window.__bpLog || []; if (window.__bpOrigDispatch) { window.dispatchEvent = window.__bpOrigDispatch; delete window.__bpOrigDispatch; } return log; });
+    step('released outside the preview: zoom and scroll are as before the drag', !!gAfter, (gAfter ? `zoom ${gAfter.z.toFixed(3)}, scroll ${gAfter.scroll.join(',')}` : `not within 3 s: ${JSON.stringify(await rowGeo())}`) + (bpLog.length ? ` — sve:breakpoint fired ${bpLog.length}× during the drag: ${bpLog.map((e) => `${e.bp}/${e.device} via ${e.stack}`).join(' || ')}` : ' — no sve:breakpoint during the drag'));
+    await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+  } else {
+    skip('a library drag zooms the row', 'no library card on screen');
+  }
+  await realClick(page, cp, '#__sve-toolbar button[data-tab="sections"]');
+  await sleep(400);
+
+  // 10g. Comments belong to a screen size: made on the picked size, shown there
+  //      and nowhere else, and the hit layer follows the frame when the row pans.
+  await realClick(page, cp, '#__sve-toolbar button[data-tab="comments"]');
+  const commentsPane = await waitIn(cp, '[data-sve-right-pane="comments"]', 10000);
+  if (commentsPane && (await cp.$('[data-sve-comments-place]'))) {
+    await realClick(page, cp, '[data-sve-comments-place]');
+    await until(() => cp.evaluate(() => document.querySelector('[data-sve-comments-place]')?.getAttribute('aria-pressed') === 'true'), 3000, 100);
+    const gComment = await rowGeo();
+    const sizeNow = gComment.active;
+    const spot = await inActive({ x: 120, y: 120 });
+    await page.mouse.click(spot.x, spot.y);
+    const draftSize = await until(() => cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] [data-sc-size] select')?.value || null), 5000, 100);
+    step('a click in the active frame opens a new comment for the size being looked at', draftSize === sizeNow, `size picker says ${draftSize}, the ring is on ${sizeNow}`);
+    await cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] textarea')?.focus());
+    const token = `Kommentar ${Math.random().toString(36).slice(2, 6)}`;
+    await page.keyboard.type(token);
+    await cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] button.is-primary')?.click());
+    // The entry the API files the comment under, read off the request itself.
+    let commentsEntry = '';
+    let createdId = '';
+    const onCommentPost = async (res) => { const m = res.request().method() === 'POST' && res.url().match(/\/!\/sve\/comments\/([^/?#]+)$/); if (!m) return; commentsEntry = m[1]; try { createdId = (await res.json())?.comment?.id || ''; } catch { /* not json */ } };
+    page.on('response', onCommentPost);
+    const pinId = await until(() => (createdId ? cp.evaluate((id) => (document.querySelector(`[data-sc-pin="${id}"]`) ? id : null), createdId) : Promise.resolve(null)), 8000, 150);
+    page.off('response', onCommentPost);
+    step('the comment is saved and its pin stands in the frame', !!pinId, pinId ? `pin ${pinId}` : 'no pin within 8 s');
+    const sizeLabel = expected.find((b) => b.handle === sizeNow)?.device || sizeNow;
+    const away = expected.find((b) => b.handle !== sizeNow);
+    if (PHP_HAS_COMMENT_SIZE) {
+      const where = await until(() => cp.evaluate((tk) => [...document.querySelectorAll('.sve-comments__row')].find((row) => row.textContent.includes(tk))?.querySelector('.sve-comments__where')?.textContent.trim() || null, token), 5000, 150);
+      step('the list on the right names the size the comment is for', !!where && where.includes(sizeLabel), where || 'row not found');
+      // Another size: the pin goes; back again: it returns.
+      lp = await labelPoint(away.handle);
+      await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+      const gone = await until(() => cp.evaluate((id) => !document.querySelector(`[data-sc-pin="${id}"]`), pinId), 4000, 100);
+      step(`on ${away.device} the ${sizeLabel} comment's pin is not shown`, !!gone, gone ? 'gone' : 'still there after 4 s');
+      lp = await labelPoint(sizeNow);
+      await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+      const backAgain = await until(() => cp.evaluate((id) => !!document.querySelector(`[data-sc-pin="${id}"]`), pinId), 4000, 100);
+      step(`back on ${sizeLabel} the pin is there again`, !!backAgain);
+    } else {
+      skip('the comment is kept for one size (list label, pin only on that size)', 'the installed PHP predates the size field — enforced after composer update');
+    }
+    // A pan of the row: the hit layer sits exactly on the frame afterwards.
+    const panAt = await cp.evaluate((sel) => { const s = document.querySelector(`${sel} .sve-bpo-scroll`); const r = s.getBoundingClientRect(); return { x: r.x + 12, y: r.y + r.height / 2 }; }, LAYER);
+    await page.mouse.move(overlayBox2.x + panAt.x, overlayBox2.y + panAt.y);
+    await page.mouse.wheel({ deltaY: 160 });
+    await sleep(400);
+    const layer = await cp.evaluate(() => { const hit = document.getElementById('sc-cp-hit'); const frame = document.getElementById('live-preview-iframe'); if (!hit || !frame) return null; const h = hit.getBoundingClientRect(); const f = frame.getBoundingClientRect(); return { dx: Math.abs(h.x - f.x), dy: Math.abs(h.y - f.y), dw: Math.abs(h.width - f.width), dh: Math.abs(h.height - f.height), display: getComputedStyle(hit).display }; });
+    step('after a pan the comments hit layer lies exactly on the preview frame', !!layer && layer.display !== 'none' && layer.dx <= 1 && layer.dy <= 1 && layer.dw <= 1 && layer.dh <= 1, layer ? `offset ${layer.dx.toFixed(1)},${layer.dy.toFixed(1)} size Δ ${layer.dw.toFixed(1)},${layer.dh.toFixed(1)}` : 'no hit layer');
+    // Tidy up: the comment deleted through the API, as the card's Slet would.
+    const deleted = pinId && commentsEntry ? await cp.evaluate(async (entry, id) => { const token = window.Statamic?.$config?.get('csrfToken') || document.querySelector('meta[name="csrf-token"]')?.content || ''; const r = await fetch(`/!/sve/comments/${entry}/${id}`, { method: 'DELETE', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': token, 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } }); return r.status; }, commentsEntry, pinId) : null;
+    step('the test comment is deleted again', deleted === 200 || deleted === 204, `DELETE → ${deleted} (entry ${commentsEntry || '?'})`);
+    await page.keyboard.press('Escape');
+  } else {
+    skip('comments per screen size', 'the comments pane did not open (feature off, or no access)');
+  }
+  await realClick(page, cp, '#__sve-toolbar button[data-tab="comments"]');
+  await sleep(400);
 
   // 11. The preview loads a new document while the overview is open (a page
   //     switch, or Statamic swapping the iframe when the URL changes): the
@@ -934,10 +1029,10 @@ try {
       el.scrollIntoView({ block: 'start' });
       const q = el.getBoundingClientRect();
       const top = Math.max(q.top, 0); const bottom = Math.min(q.bottom, window.innerHeight);
-      for (let y = top + 24; y < bottom - 10; y += 32) {
-        for (const x of [q.x + Math.min(q.width / 3, 240), q.x + q.width / 2]) {
-          const hit = document.elementFromPoint(x, y);
-          if (hit && hit.closest('[id^="id-"]')?.id === i && !hit.closest('[id^="__sve"], [data-sve-menu], [data-sve-belt], [data-sve-chrome-bar], [data-sid-field], [data-sid-inline-edit], a, button')) return { x, y };
+      // The section element itself under the pointer — its padding, not a wrapper inside it, which would scope the dock to that wrapper.
+      for (let y = top + 3; y < bottom - 3; y += 6) {
+        for (const x of [q.x + 3, q.x + Math.min(q.width / 3, 240), q.x + q.width / 2, q.x + q.width - 3]) {
+          if (document.elementFromPoint(x, y) === el) return { x, y };
         }
       }
       return null;
@@ -953,12 +1048,22 @@ try {
   step('code dock open', dockOpen);
   const sectionId = await (await livePreview()).evaluate(() => document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)?.closest('[id^="id-"]')?.id || '');
   let onFile = false;
+  const wholeFileShown = () => cp.evaluate(() => { const dock = document.querySelector('#__sve-code-dock'); const text = dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || ''; return !dock?.hasAttribute('data-sve-html-scoped') || /section_orderable/.test(text); });
   for (let attempt = 0; attempt < 3 && dockOpen && !onFile; attempt++) {
     await clickSection(sectionId); await sleep(2000);
-    onFile = /page_sections\//.test(await dockPath()) && (await cp.evaluate(() => { const dock = document.querySelector('#__sve-code-dock'); const text = dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || ''; return !dock?.hasAttribute('data-sve-html-scoped') || /section_orderable/.test(text); }));
+    onFile = /page_sections\//.test(await dockPath()) && (await wholeFileShown());
+    if (onFile) break;
+    // A bare spot is hard to hit in a section full of fields, and a click inside a wrapper scopes the
+    // dock to that tag: the section's own row in the HTML tree opens its whole file.
+    if (!(await cp.$('[data-sve-ht-row]'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]').catch(() => null); await sleep(1500); }
+    // The open section's own root row: the one with the eye whose label starts with "section" (the other sections' rows are the [sec] rows).
+    const row = await cp.evaluate(() => { const r = [...document.querySelectorAll('[data-sve-ht-row]')].find((x) => x.querySelector('[data-sve-ht-eye]') && /^section/.test((x.textContent || '').trim())); if (!r) return null; r.scrollIntoView({ block: 'center' }); const q = r.getBoundingClientRect(); return { x: q.x + Math.min(60, q.width / 2), y: q.y + q.height / 2 }; });
+    info('dock scope', `attempt ${attempt + 1}: bare spot ${onFile ? 'gave the whole file' : 'did not'}; root row in the tree ${row ? 'found' : 'not found'}`);
+    if (row) { const b = await (await cp.frameElement()).boundingBox(); await page.mouse.click(b.x + row.x, b.y + row.y); await sleep(2500); onFile = /page_sections\//.test(await dockPath()) && (await wholeFileShown()); }
   }
   filePath = await dockPath();
-  step('the dock shows the headline section’s whole file', onFile, filePath || '(no file)');
+  const dockState = await cp.evaluate(() => { const dock = document.querySelector('#__sve-code-dock'); const text = dock?.querySelector('[data-sve-code-pane="html"] .cm-content')?.cmTile?.view?.state.doc.toString() || ''; return `scoped=${dock?.getAttribute('data-sve-html-scoped')} rows=${document.querySelectorAll('[data-sve-ht-row][data-sve-ht-sec]').length} pane="${text.replace(/\s+/g, ' ').slice(0, 70)}"`; });
+  step('the dock shows the headline section’s whole file', onFile, `${filePath || '(no file)'} — ${dockState}`);
   const abs = filePath ? (filePath.startsWith('/') ? filePath : `${SITE_DIR}/${filePath}`) : null;
   if (onFile && abs && existsSync(abs)) original = readFileSync(abs, 'utf8');
   const twMatch = (filePath || '').match(/page_sections\/(.+)\.antlers\.html$/);

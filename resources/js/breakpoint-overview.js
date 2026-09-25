@@ -478,6 +478,7 @@ function emptyState() {
     preview: '', // the preview URL the frames were last sent (each adds its own view flag)
     active: '', // breakpoint handle that has the ring — the preview's own slot
     dim: false, // a size is picked in the top bar: the other frames step back
+    drop: null, // zoom and scroll from before a library drag, put back on its end
     pan: null,
     glide: null, // the animation frame of a reveal under way
     editing: null, // the field wrapper an inline edit in the preview is typing into
@@ -1067,8 +1068,16 @@ function bindMain(main) {
   // Escape there ends an edit or a menu, never the overview.
   const doc = mainWin.document;
   const onMessage = (event) => {
-    if (event.data?.source === SOURCE && event.data.type === MSG.FOCUS) {
+    if (event.data?.source !== SOURCE) {
+      return;
+    }
+
+    if (event.data.type === MSG.FOCUS) {
       revealPulsed();
+    } else if (event.data.type === MSG.EXT_DRAG_START) {
+      fitForDrop();
+    } else if (event.data.type === MSG.EXT_DRAG_END) {
+      leaveDrop();
     }
   };
 
@@ -1231,11 +1240,16 @@ function bind(win, view) {
 
   // The size the fields on the left are editing: the ring follows it, and the
   // row scrolls to it — on every pick, so a size picked again comes back into
-  // view after a pan away from it.
+  // view after a pan away from it. Not when the top bar merely says the size
+  // again (a rebuild, a pane resize): during a library drag that pulled the
+  // row away from where the drop had just put it. Nor while a drop is on.
   listen(win, 'sve:breakpoint', (event) => {
     paintActive(event.detail?.bp);
     paintDim(sizePicked(event.detail?.device));
-    revealActive();
+
+    if (event.detail?.reason === 'pick' && !overviewState.drop) {
+      revealActive();
+    }
   });
 
   listen(scroller, 'wheel', onWheel, { passive: false });
@@ -1531,13 +1545,58 @@ function revealPulsed() {
   }
 }
 
+/**
+ * A section dragged in from the library: the row zooms so the active frame's
+ * whole page is in view — anywhere on it the drop can land — and pans to it;
+ * the release puts zoom and scroll back. In one preview the bridge scales the
+ * page down inside the frame for this; a page-high frame has nothing to
+ * scale, and the drop landed where the page happened to be scrolled to.
+ */
+function fitForDrop() {
+  const { scroller, zoom, labelSpace } = overviewState;
+  const entry = activeEntry();
+
+  if (!entry || overviewState.drop) {
+    return;
+  }
+
+  overviewState.drop = { zoom, left: scroller.scrollLeft, top: scroller.scrollTop };
+
+  const fit = Math.min(
+    (scroller.clientWidth - PAD * 2) / entry.spec.width,
+    (scroller.clientHeight - labelSpace - PAD * 2) / Math.max(1, entry.height)
+  );
+
+  applyZoom(clampZoom(fit));
+
+  const view = scroller.getBoundingClientRect();
+  const rect = entry.el.getBoundingClientRect();
+
+  glideTo(
+    Math.max(0, Math.round(rect.left - view.left + scroller.scrollLeft - PAD)),
+    Math.max(0, Math.round(rect.top - view.top + scroller.scrollTop - labelSpace - PAD))
+  );
+}
+
+function leaveDrop() {
+  const drop = overviewState.drop;
+
+  if (!drop) {
+    return;
+  }
+
+  overviewState.drop = null;
+  applyZoom(drop.zoom);
+  glideTo(drop.left, drop.top);
+}
+
 const GLIDE_MS = 320;
 /**
  * The frames that are not the picked size, while one is picked in the top
- * bar: stepped back a fifth, so the eye lands on the one with the ring. With
+ * bar: stepped back to 70 %, so the eye lands on the one with the ring. With
  * no size picked — Responsive, the strip's "All" — every frame stands alike.
  */
-const DIM_OPACITY = 0.8;
+const DIM_OPACITY = 0.7;
 
 /**
  * The row scrolled to `left`/`top` with an animation rather than a jump — a

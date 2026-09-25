@@ -3323,10 +3323,15 @@ export function beginCardDrag(win, cardEl, kind, item) {
     let ghost = null;
     let moved = false;
 
+    // In the page's own pixels: the frame may be drawn scaled — a device
+    // preset, or the overview's row — and the bridge measures its sections
+    // unscaled. The ratio of the drawn box to the layout box is the scale.
     const toPreview = (e) => {
       const r = frame.getBoundingClientRect();
+      const sx = frame.offsetWidth ? r.width / frame.offsetWidth : 1;
+      const sy = frame.offsetHeight ? r.height / frame.offsetHeight : 1;
 
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+      return { x: (e.clientX - r.left) / (sx || 1), y: (e.clientY - r.top) / (sy || 1) };
     };
 
     const stopListen = () => {

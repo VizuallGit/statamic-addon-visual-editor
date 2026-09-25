@@ -11,6 +11,11 @@ const props = defineProps({
   sectionLabel: { type: String, required: true },
   sectionOptions: { type: Array, required: true },
   sectionValue: { type: String, default: '__page' },
+  // The screen size the comment is for ('all', or a breakpoint handle); no options, no picker.
+  sizeLabel: { type: String, default: '' },
+  sizeOptions: { type: Array, default: () => [] },
+  sizeValue: { type: String, default: 'all' },
+  onAssignSize: { type: Function, default: null },
   messages: { type: Array, default: () => [] },
   placeholder: { type: String, required: true },
   draftBody: { type: String, default: '' },
@@ -77,6 +82,24 @@ function onInput(value) {
         @change="onAssign($event.target.value)"
       >
         <option v-for="opt in sectionOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
+      </select>
+    </div>
+    <div v-if="sizeOptions.length" class="sve-thread__section" data-sc-size>
+      <label>{{ sizeLabel }}</label>
+      <select
+        :value="sizeValue"
+        :style="{
+          borderColor: theme.inputBorder,
+          background: theme.input,
+          color: 'inherit',
+          colorScheme: theme.scheme,
+          borderRadius: theme.radius,
+        }"
+        @mousedown="stop"
+        @pointerdown="stop"
+        @change="onAssignSize?.($event.target.value)"
+      >
+        <option v-for="opt in sizeOptions" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
       </select>
     </div>
     <div v-if="!isDraft" class="sve-thread__messages">

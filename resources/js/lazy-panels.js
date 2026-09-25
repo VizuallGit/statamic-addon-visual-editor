@@ -219,6 +219,14 @@ export function ensurePanel(key) {
       .then((mod) => {
         loaded[key] = Array.isArray(mod) ? mod[0] : mod;
 
+        // The comments panel is drawn by the block tree's module: loading it
+        // is loading the list view too, and the lazy/listview.js stubs the
+        // comments tab goes through answer from that key. Without this the
+        // tab did nothing until the tree had been opened once (25 Sep 2026).
+        if (key === 'comments' && !loaded.listview) {
+          loaded.listview = loaded[key];
+        }
+
         refreshRightDockHooks();
 
         return loaded[key];

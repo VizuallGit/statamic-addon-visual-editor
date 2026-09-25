@@ -10,6 +10,9 @@ import CommentPins from './cp/surfaces/CommentPins.vue';
 import { commentsSidebar } from './cp/comments/store.js';
 import { mountSurface } from './cp/mount.js';
 import { mountPane } from './cp/mount-pane.js';
+import { ask } from './cp/bus.js';
+import { bpForDevice, breakpoints } from './breakpoints.js';
+import { chromeGet } from './chrome-prefs.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { t } from './lib/i18n.js';
@@ -100,6 +103,40 @@ export function initComments() {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * The screen size a comment is made for: the size the fields edit — a
+   * device's breakpoint — or 'all' with Responsive, where no size is picked.
+   * A comment made on Desktop belongs to Desktop: its pin shows there and
+   * nowhere else; one made for all sizes shows everywhere.
+   */
+  function activeSize() {
+    const device = chromeGet(window, 'sve-lp-device');
+    const row = device ? bpForDevice(device, window) : null;
+
+    return row ? row.handle : 'all';
+  }
+
+  function sizeOptions() {
+    return [{ id: 'all', label: 'Alle størrelser' }].concat(
+      breakpoints(window).map((row) => ({ id: row.handle, label: row.label }))
+    );
+  }
+
+  function sizeLabel(handle) {
+    return sizeOptions().find((option) => option.id === handle)?.label || 'Alle størrelser';
+  }
+
+  function commentSize(comment) {
+    return comment?.breakpoint || 'all';
+  }
+
+  /** On the size being looked at: made for it, or for all sizes. The draft always is — it is being written here. */
+  function commentOnSize(comment) {
+    const size = commentSize(comment);
+
+    return comment?.id === '__draft' || size === 'all' || size === activeSize();
   }
 
   async function request(path, options = {}) {
@@ -617,6 +654,7 @@ export function initComments() {
       x: rel.x,
       y: rel.y,
       body: '',
+      breakpoint: activeSize(),
     };
     openId = '__draft';
     paintUi();
@@ -695,6 +733,10 @@ export function initComments() {
       const section = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
 
       if (!section && comment.visual_id && comment.visual_id !== '__page' && comment.id !== '__draft') {
+        return;
+      }
+
+      if (!commentOnSize(comment)) {
         return;
       }
 
@@ -1085,6 +1127,34 @@ export function initComments() {
     }
   }
 
+  /** The size a comment is for, changed: on the draft at once, on a saved one through the API. */
+  async function assignSize(comment, size) {
+    if (!size || size === commentSize(comment)) {
+      return;
+    }
+
+    if (comment.id === '__draft' && draft) {
+      draft.breakpoint = size;
+      paintUi();
+      focusComposer();
+      return;
+    }
+
+    try {
+      const result = await request(
+        `/!/sve/comments/${encodeURIComponent(entryId)}/${encodeURIComponent(comment.id)}`,
+        { method: 'PATCH', body: JSON.stringify({ breakpoint: size }) }
+      );
+
+      comments = comments.map((item) => (item.id === comment.id ? result.comment : item));
+      openId = comment.id;
+      paintUi();
+      focusComposer();
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
   function sectionPicker(comment, theme) {
     const wrap = document.createElement('div');
     const label = document.createElement('label');
@@ -1155,7 +1225,7 @@ export function initComments() {
         id: comment.id,
         author: first.author_name || 'User',
         time: timeAgo(first.created_at),
-        where: comment.resolved ? `Løst · ${commentLabel(comment)}` : commentLabel(comment),
+        where: [comment.resolved ? 'Løst' : null, commentLabel(comment), commentSize(comment) === 'all' ? null : sizeLabel(commentSize(comment))].filter(Boolean).join(' · '),
         snippet: snippet(comment) || 'Kommentar',
         resolved: !!comment.resolved,
         active: openId === comment.id,
@@ -1182,6 +1252,14 @@ export function initComments() {
   function revealComment(comment) {
     openId = comment.id;
     draft = null;
+
+    // A comment for one size is looked at on that size: the top bar switches there, as its own button would.
+    const size = commentSize(comment);
+    const row = size === 'all' ? null : breakpoints(window).find((item) => item.handle === size);
+
+    if (row && size !== activeSize()) {
+      ask('lp:set-device', { win: window, key: row.device });
+    }
 
     const ctx = previewCtx();
     const section = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
@@ -1224,6 +1302,10 @@ export function initComments() {
       const section = ctx ? sectionById(ctx.doc, comment.visual_id) : null;
 
       if (!section && comment.visual_id && comment.visual_id !== '__page' && comment.id !== '__draft') {
+        return;
+      }
+
+      if (!commentOnSize(comment)) {
         return;
       }
 
@@ -1383,6 +1465,10 @@ export function initComments() {
       sectionLabel: 'Sektion',
       sectionOptions: options,
       sectionValue: comment.visual_id || '__page',
+      sizeLabel: 'Skærmstørrelse',
+      sizeOptions: sizeOptions(),
+      sizeValue: commentSize(comment),
+      onAssignSize: (value) => assignSize(comment, value),
       messages: (comment.messages || []).map((message) => ({
         author: message.author_name || 'User',
         time: timeAgo(message.created_at),
@@ -1453,7 +1539,7 @@ export function initComments() {
     try {
       const result = await request(`/!/sve/comments/${encodeURIComponent(entryId)}`, {
         method: 'POST',
-        body: JSON.stringify({ visual_id: draft.visual_id, x: draft.x, y: draft.y, body }),
+        body: JSON.stringify({ visual_id: draft.visual_id, x: draft.x, y: draft.y, body, breakpoint: draft.breakpoint || 'all' }),
       });
 
       comments.push(result.comment);
@@ -1547,6 +1633,17 @@ export function initComments() {
       loadComments();
     });
     window.addEventListener('resize', layoutGeometry);
+    // The preview drawn somewhere else — a zoom, a device, the overview's row
+    // panning under it: the hit layer, the pins and the card follow at once.
+    // Without this the layer stayed where the frame had been, and a click on
+    // the dock placed a comment (25 Sep 2026).
+    window.addEventListener('sve:preview-geometry', layoutGeometry);
+    // The size the fields edit changed: the pins for that size show, the others go.
+    window.addEventListener('sve:breakpoint', () => {
+      if (commentsPaneOpen()) {
+        paintUi();
+      }
+    });
     let lastDark = isDark();
     new MutationObserver(() => {
       const next = isDark();

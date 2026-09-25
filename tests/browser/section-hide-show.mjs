@@ -240,8 +240,9 @@ try {
 
   if (original !== null) {
     await sleep(2500);
-    // The dock's own save adds `{{ sve_tw }}` to a file that lacks it; the eye's wrap and unwrap must leave nothing else.
-    const bare = (text) => text.replace(/\n*\{\{ sve_tw \}\}\n*/g, '\n\n');
+    // The dock's own save adds `{{ sve_tw }}` to a file that lacks it and squeezes runs of blank
+    // lines; the eye's wrap and unwrap must leave nothing else.
+    const bare = (text) => text.replace(/\n*\{\{ sve_tw \}\}\n*/g, '\n\n').replace(/\n{2,}/g, '\n\n');
     const now = bare(readFileSync(absolute(filePath), 'utf8'));
     const was = bare(original);
     const at = [...now].findIndex((ch, i) => ch !== was[i]);

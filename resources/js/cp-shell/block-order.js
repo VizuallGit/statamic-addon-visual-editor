@@ -392,6 +392,19 @@ register('lp:preview-slot', ({ win, slot } = {}) => {
   applyLpZoom(win);
 });
 
+/**
+ * The preview iframe stands somewhere else now — a zoom, a device, the
+ * overview's slot: whatever draws on top of it in the CP (the comments' hit
+ * layer and pins) lays itself out again on this.
+ */
+function previewGeometryChanged(win) {
+  try {
+    win.dispatchEvent(new CustomEvent('sve:preview-geometry'));
+  } catch {
+    /* ignore */
+  }
+}
+
 /** The slot's geometry on the iframe. Idempotent, like every write in this file. */
 function applyLpPreviewSlot(iframe, slot) {
   const want = {
@@ -431,7 +444,14 @@ export function lpShouldFillPane(win) {
   return lpStoredDevice(win) === 'Responsive';
 }
 
-export function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
+/**
+ * `reason` says why: 'pick' — a size chosen (top bar, strip, a click on a
+ * frame in the overview); 'sync' — the top bar rebuilt and says the size
+ * again; 'resize' — Responsive crossed a breakpoint as the pane changed.
+ * The overview scrolls to the size on a pick only: a rebuild during a library
+ * drag used to pull the row away from where the drop had put it.
+ */
+export function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win), reason = 'pick') {
   let bp = bpBase(win);
 
   if (deviceKey === 'Responsive') {
@@ -442,7 +462,7 @@ export function dispatchLpBreakpoint(win, deviceKey = lpStoredDevice(win)) {
 
   try {
     win.dispatchEvent(
-      new CustomEvent('sve:breakpoint', { detail: { bp, device: deviceKey } })
+      new CustomEvent('sve:breakpoint', { detail: { bp, device: deviceKey, reason } })
     );
   } catch {
     /* ignore */
@@ -460,6 +480,7 @@ export function applyLpDevice(win, key = lpStoredDevice(win)) {
   // In the overview's row, the slot is the geometry; nothing else is written.
   if (lpPreviewSlot) {
     applyLpPreviewSlot(iframe, lpPreviewSlot);
+    previewGeometryChanged(win);
 
     return;
   }
@@ -560,6 +581,7 @@ export function applyLpDevice(win, key = lpStoredDevice(win)) {
   if (iframe.style.getPropertyValue('box-shadow') !== 'none') {
     iframe.style.setProperty('box-shadow', 'none', 'important');
   }
+  previewGeometryChanged(win);
 }
 
 /** When Fit/Responsive is active, re-broadcast breakpoint as the pane resizes. */
@@ -622,7 +644,7 @@ export function watchLpResponsiveWidth(win) {
     }
 
     lpResponsiveWidthLastBp = bp;
-    dispatchLpBreakpoint(win, 'Responsive');
+    dispatchLpBreakpoint(win, 'Responsive', 'resize');
     paintLpPreviewChrome(win);
   };
 
@@ -773,6 +795,7 @@ export function applyLpZoom(win, percent = lpStoredZoom(win)) {
   // In the overview's row, the slot's scale is the zoom.
   if (lpPreviewSlot) {
     applyLpPreviewSlot(iframe, lpPreviewSlot);
+    previewGeometryChanged(win);
 
     return;
   }
@@ -854,6 +877,7 @@ export function applyLpZoom(win, percent = lpStoredZoom(win)) {
       iframe.style.marginRight = wantMarginR;
     }
   }
+  previewGeometryChanged(win);
 }
 
 /** Hide Statamic's Pop out / device <Select…> — our chrome replaces them. */
@@ -1102,7 +1126,7 @@ export function ensureLpPreviewChrome(win) {
   // into tablet or mobile from the last session, and a drag there has to be
   // written down without waiting for the device to be clicked first.
   watchBlockOrder(win);
-  dispatchLpBreakpoint(win);
+  dispatchLpBreakpoint(win, undefined, 'sync');
 }
 
 export function paintLpPreviewChrome(win) {
