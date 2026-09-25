@@ -947,6 +947,38 @@ try {
   }
   await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
 
+  // 10f3. A section deleted while an inline edit is under way in another one leaves
+  //       the preview and every copy at once — not when the edit happens to end.
+  const editField = await (await previewNow()).evaluate((field) => { const el = document.querySelector(`[data-sid-field="${field}"]`); const sec = el?.closest('[data-sid-section-orderable]'); const others = [...document.querySelectorAll('[data-sid-section-orderable]')].map((s) => s.getAttribute('data-sid')).filter((u) => u !== sec?.getAttribute('data-sid')); if (!el || !others.length) return null; const r = el.getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24), victim: others[others.length - 1] }; }, FIELD);
+  if (editField) {
+    const gField = await rowGeo();
+    const fieldSpot = await inActive({ x: editField.x, y: Math.max(editField.y, Math.max(0, (gField.view.y - gField.frame.y) / gField.z) + 40) });
+    await page.mouse.click(fieldSpot.x, fieldSpot.y);
+    const editingNow = await until(() => previewNow().then((f) => f.evaluate(() => !!window.__sveInlineEdit?.active)), 6000, 100);
+    if (editingNow) {
+      await (await previewNow()).evaluate((u) => window.parent.postMessage({ source: 'statamic-visual-editor', type: 'remove-row', uid: u, confirm: true }, window.location.origin), editField.victim);
+      await until(() => cp.evaluate(() => !!document.getElementById('__sve-close-discard')), 5000, 50);
+      const tDel = Date.now();
+      await cp.evaluate(() => { const btn = [...document.querySelectorAll('#__sve-close-discard button')].find((b) => /Delete section|Slet/.test(b.textContent)); btn?.click(); });
+      const goneAt = await until(() => previewNow().then((f) => f.evaluate((u) => !document.querySelector(`[data-sid="${u}"]`), editField.victim)).then((g) => (g ? Date.now() - tDel : null)), 6000, 50);
+      step('deleted while another section is being edited inline: gone from the preview within 2 s', goneAt != null && goneAt <= 2000, goneAt != null ? `after ${goneAt} ms` : 'still there after 6 s');
+      const copiesGoneAt = await until(async () => { const states = await Promise.all((await copyHandles()).map(async (h) => { const f = await h.contentFrame(); return f ? f.evaluate((u) => !document.querySelector(`[data-sid="${u}"]`), editField.victim).catch(() => false) : false; })); return states.every(Boolean) ? Date.now() - tDel : null; }, 6000, 100);
+      step('and from every copy within 2 s', copiesGoneAt != null && copiesGoneAt <= 2000, copiesGoneAt != null ? `after ${copiesGoneAt} ms` : 'not within 6 s');
+      const stillEditing = await (await previewNow()).evaluate(() => !!window.__sveInlineEdit?.active);
+      step('the inline edit was left alone', stillEditing);
+      // Escape to the element being edited — the key goes where the focus is, and the dialog's button took it to the CP.
+      await (await previewNow()).evaluate(() => document.querySelector('[data-sve-editing]')?.focus());
+      await page.keyboard.press('Escape');
+      const ended = await until(() => previewNow().then((f) => f.evaluate(() => !window.__sveInlineEdit?.active)), 4000, 100);
+      step('Escape ends the inline edit again', !!ended);
+      await sleep(1500); // the full render the edit held back
+    } else {
+      skip('deleted while another section is being edited', 'the click did not start an inline edit');
+    }
+  } else {
+    skip('deleted while another section is being edited', 'no second section to delete');
+  }
+
   // 10g. Comments belong to a screen size: made on the picked size, shown there
   //      and nowhere else, and the hit layer follows the frame when the row pans.
   await realClick(page, cp, '#__sve-toolbar button[data-tab="comments"]');
@@ -1028,15 +1060,18 @@ try {
       return { x: r.right - 12, y: r.top + Math.min(r.height / 2, 14) };
     });
     if (reloaded && target) {
-      const overlayBox = await (await page.$('iframe.sve-edit-overlay')).boundingBox();
-      await page.mouse.click(overlayBox.x + target.x, overlayBox.y + target.y);
+      // Focus the field itself: after a section left the page, the panel's rows have moved and a coordinate can miss.
+      await cp.evaluate(() => { const el = [...document.querySelectorAll('.live-preview-editor .ProseMirror[contenteditable="true"], .live-preview-editor input[type="text"], .live-preview-editor textarea')].find((e) => new RegExp(window.__sveTestFieldText, 'i').test(e.value ?? e.textContent ?? '')); el?.focus(); });
       await page.keyboard.press('End');
       await page.keyboard.type(` ${token}`, { delay: 20 });
       const typedAt = Date.now();
       const viewFrames = (await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean);
       const has = (f) => f.evaluate((tk) => document.body.textContent.includes(tk), token).catch(() => false);
+      const netAfter = []; const onNet = (r) => { if (/live-preview=|\/preview\?/.test(r.url())) netAfter.push(`${r.method()} ${r.url().replace(SITE_URL, '').replace(/(token|live-preview)=[^&]+/g, '$1=…').slice(0, 60)}`); }; page.on('request', onNet);
       const reached = await until(async () => viewFrames.length > 0 && (await has(reloaded)) && (await Promise.all(viewFrames.map(has))).every(Boolean), 10000, 100);
-      step('after the reload, typing still reaches every view frame', !!reached, reached ? `${Date.now() - typedAt} ms` : 'not within 10 s');
+      page.off('request', onNet);
+      const where = reached ? '' : ` — left field has it: ${await cp.evaluate((tk) => [...document.querySelectorAll('.live-preview-editor .ProseMirror, .live-preview-editor input, .live-preview-editor textarea')].some((e) => (e.value ?? e.textContent ?? '').includes(tk)), token)}; preview: ${await has(reloaded)}; copies: ${(await Promise.all(viewFrames.map(has))).join(',')}; requests: ${netAfter.join(' | ') || 'none'}; inline edit active in the preview: ${await reloaded.evaluate(() => !!window.__sveInlineEdit?.active)}`;
+      step('after the reload, typing still reaches every view frame', !!reached, reached ? `${Date.now() - typedAt} ms` : `not within 10 s${where}`);
       for (let i = 0; i < token.length + 1; i++) await page.keyboard.press('Backspace');
       await until(async () => !(await has(reloaded)), 10000, 150);
     } else {

@@ -71,8 +71,11 @@ test('preview.js hands a render on through the one hook the overview sets, after
   const preview = readFileSync(join(JS, 'preview.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const overview = readFileSync(join(JS, 'breakpoint-overview.js'), 'utf8');
 
-  assert.equal((preview.match(/__sveMirror/g) || []).length, 1, 'one line in preview.js');
-  assert.ok(/window\.__sveMirror\?\.\(/.test(preview), 'an optional call: closed, the property does not exist');
+  // Two things go through the one hook: a render after a morph, and the sections a
+  // deletion took off the page while an inline edit held the full render back.
+  assert.equal((preview.match(/__sveMirror/g) || []).length, 2, 'a render and a removal, nothing else, in preview.js');
+  assert.ok(/window\.__sveMirror\?\.\(\{ html: text/.test(preview), 'the render: an optional call — closed, the property does not exist');
+  assert.ok(/window\.__sveMirror\?\.\(\{ removed: ids \}\)/.test(preview), 'the removal: the same optional call');
   assert.ok(/mainWin\.__sveMirror = mirror;/.test(overview), 'the overview sets it on the preview’s window');
   assert.ok(/delete mainWin\.__sveMirror;/.test(overview), 'and takes it away again');
 });

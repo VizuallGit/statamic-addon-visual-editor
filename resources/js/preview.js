@@ -223,6 +223,64 @@ function editingActive() {
   return !!window.__sveInlineEdit?.active;
 }
 
+/**
+ * An update scoped to sections the inline edit is not in: nothing it morphs
+ * can touch the element being typed into, so it need not wait for the edit
+ * to end. A section deleted while the previous one was stepped into for
+ * editing waited for that edit — until the next click, seconds later.
+ */
+function updateOutsideEdit(sectionUids) {
+  const ids = normalizeSectionUids(sectionUids);
+  const el = document.querySelector('[data-sve-editing]');
+
+  if (!ids.length || !el) {
+    return false;
+  }
+
+  return ids.every((uid) => !findSectionNode(document, [uid])?.contains(el));
+}
+
+/** Sections taken off the page at once — here, and in every copy of the preview. */
+function removeSections(ids) {
+  ids.forEach((uid) => findSectionNode(document, [uid])?.remove());
+  window.dispatchEvent(new CustomEvent('statamic:preview-updated'));
+  window.__sveMirror?.({ removed: ids });
+}
+
+/**
+ * A full update held back by an inline edit: the render is fetched all the
+ * same, and the page's sections it no longer has go at once — a section
+ * deleted while the previous one was stepped into for editing used to stay
+ * until the edit ended, seconds later. The morph itself waits for the edit.
+ */
+async function trimDuringEdit(url) {
+  let text;
+
+  try {
+    text = await fetchPreviewHtml(url, []);
+  } catch {
+    return;
+  }
+
+  if (text == null || !editingActive()) {
+    return;
+  }
+
+  const updated = new DOMParser().parseFromString(text, 'text/html');
+
+  if (updated.getElementById('sve-edit-button')) {
+    return;
+  }
+
+  const gone = [...document.querySelectorAll('[data-sid-section-orderable]')]
+    .map((el) => el.getAttribute(SID_ATTR))
+    .filter((uid) => uid && !findSectionNode(updated.body, [uid]));
+
+  if (gone.length) {
+    removeSections(gone);
+  }
+}
+
 export function normalizeChromeKind(kind) {
   return kind === 'footer' || kind === 'header' ? kind : null;
 }
@@ -499,6 +557,18 @@ async function applyUpdate(url, sectionUids) {
   }
 
   if (scoped && !findSectionNode(updated.body, ids)) {
+    // The render has no such section: it left the page. While an inline
+    // edit is under way elsewhere it goes at once — its node, and the same
+    // node in every copy — and the whole page follows when the edit ends;
+    // a full morph now would run over the element being typed into.
+    if (editingActive()) {
+      removeSections(ids);
+      pendingUrl = url;
+      pendingSectionUids = null;
+
+      return;
+    }
+
     try {
       text = await fetchPreviewHtml(url, []);
     } catch {
@@ -602,14 +672,17 @@ window.addEventListener('message', (event) => {
     return;
   }
 
-  if (editingActive()) {
+  const uids = event.data.sectionUids || event.data.sectionUid || null;
+
+  if (editingActive() && !updateOutsideEdit(uids)) {
     pendingUrl = event.data.url;
-    pendingSectionUids = event.data.sectionUids || event.data.sectionUid || null;
+    pendingSectionUids = uids;
+    trimDuringEdit(event.data.url);
 
     return;
   }
 
-  applyUpdate(event.data.url, event.data.sectionUids || event.data.sectionUid || null);
+  applyUpdate(event.data.url, uids);
 });
 
 window.addEventListener('sve:clear-pending-preview', () => {

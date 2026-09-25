@@ -31,6 +31,15 @@ import { MSG, SOURCE } from './lib/protocol.js';
 
 /** The preview morphed to this render: do the same, from the same HTML. */
 function applyMirror(render) {
+  // Sections the preview took off the page at once — a deletion while an
+  // inline edit elsewhere holds the full render back — go from the copy too.
+  if (Array.isArray(render?.removed)) {
+    render.removed.forEach((uid) => document.querySelector(`[data-sid="${CSS.escape(String(uid))}"]`)?.remove());
+    window.dispatchEvent(new CustomEvent('statamic:preview-updated'));
+
+    return;
+  }
+
   if (!render || typeof render.html !== 'string') {
     return;
   }
