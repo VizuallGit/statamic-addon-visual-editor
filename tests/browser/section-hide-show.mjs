@@ -87,7 +87,12 @@ page.on('console', (m) => { if (m.type() === 'error') report.errors.push(`consol
 page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 160)}`); });
 // Every Live Preview render fetched: scoped to one section (sve_sid) or the whole page.
 const fetches = [];
-page.on('request', (r) => { if (/live-preview=/.test(r.url()) && r.method() === 'GET') fetches.push(/[?&]sve_sid=/.test(r.url()) ? 'section' : 'page'); });
+// A request for the Instant paint's placeholder character (U+E000 in a src): a Control Panel page per element per frame.
+const placeholderRequests = [];
+page.on('request', (r) => {
+  if (/live-preview=/.test(r.url()) && r.method() === 'GET') fetches.push(/[?&]sve_sid=/.test(r.url()) ? 'section' : 'page');
+  if (/%EE%80%8[0-2]/i.test(r.url())) placeholderRequests.push(r.url().replace(SITE_URL, '').slice(0, 80));
+});
 if (WORKTREE) {
   await serveWorktreeBuild(page, { buildDir: BUILD_DIR, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
   info('build served from', ADDON_DIR);
@@ -256,6 +261,7 @@ try {
   seedLayoutPrefs(null);
 }
 
+step('no request for a placeholder URL (an <img> or <video> built from the template must not load U+E000)', placeholderRequests.length === 0, placeholderRequests.length ? `${placeholderRequests.length} request(s), e.g. ${placeholderRequests[0]}` : 'none');
 const errors = report.errors.filter((e) => !/favicon|ERR_ABORTED|status of 4|ERR_NETWORK_CHANGED/.test(e));
 step('no page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 console.log(report.ok ? '\nPASS' : '\nFAIL');

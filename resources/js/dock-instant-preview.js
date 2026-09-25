@@ -1167,10 +1167,24 @@
         return depth > 0;
     }
 
-    function templateRoot(html, ctx) {
-        var wrap = document.createElement('div');
+    /**
+     * The template parsed into a <template>'s content: an inert document,
+     * where `src="{{ media }}"` — a placeholder after stripAntlers — loads
+     * nothing. Parsed into a div of this document, every such <img> and
+     * <video> asked the server for the placeholder URL: a Control Panel page
+     * per element per frame, seconds of server time after each paint, and the
+     * next save or render waited behind them (25 Sep 2026).
+     */
+    function parseTemplate(html) {
+        var tpl = document.createElement('template');
 
-        wrap.innerHTML = stripAntlers(html, ctx);
+        tpl.innerHTML = html;
+
+        return tpl.content;
+    }
+
+    function templateRoot(html, ctx) {
+        var wrap = parseTemplate(stripAntlers(html, ctx));
 
         for (var i = 0; i < wrap.children.length; i++) {
             var el = wrap.children[i];
@@ -1368,7 +1382,10 @@
      * where an attribute would).
      */
     function buildStatic(doc, tplEl) {
-        var el = doc.importNode(tplEl, true);
+        // Scrubbed in the template's own inert document, then brought over: an
+        // <img> or <video> created in the page with a placeholder src would
+        // have asked the server for it before the attribute came off.
+        var el = tplEl.cloneNode(true);
         var scripts = el.querySelectorAll('script, style, template');
         var all;
         var i;
@@ -1391,7 +1408,7 @@
             }
         }
 
-        return el;
+        return doc.importNode(el, true);
     }
 
     /** Same node, new tag: every attribute and child comes along. */
@@ -2883,8 +2900,7 @@
             }
         }
 
-        wrap = document.createElement('div');
-        wrap.innerHTML = stripAntlers(head, ctx) + '<i data-sve-caret></i>';
+        wrap = parseTemplate(stripAntlers(head, ctx) + '<i data-sve-caret></i>');
         sentinel = wrap.querySelector('[data-sve-caret]');
 
         for (i = 0; i < wrap.children.length; i++) {
