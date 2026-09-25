@@ -9,9 +9,11 @@
   window.Statamic = {
     $config: {
       get: function (k) {
+        // A test may hand in a compiler module (window.__twCompileUrl): the
+        // Tailwind dock is then on, as on a site with the bake.
         return {
-          sveFeatures: { template_dock: true, tailwind_dock: false },
-          sveTwCompile: '',
+          sveFeatures: { template_dock: true, tailwind_dock: !!window.__twCompileUrl },
+          sveTwCompile: window.__twCompileUrl || '',
           sveSectionField: 'page_sections',
         }[k];
       },
@@ -37,7 +39,8 @@
   // The panes read the editor state, not the DOM (memory: CodeMirror only draws the visible lines).
   var html = document.querySelector('[data-sve-code-pane="html"] .cm-content');
   var css = document.querySelector('[data-sve-code-pane="css"] .cm-content');
-  html.cmTile = { view: { state: { doc: { toString: function () { return window.__paneHtml; } } } } };
+  // The HTML caret (window.__paneCaret): where the strip's lists and the completion list look for their tag.
+  html.cmTile = { view: { state: { doc: { toString: function () { return window.__paneHtml; } }, selection: { main: { get head() { return window.__paneCaret || 0; } } } } } };
   css.cmTile = { view: { state: { doc: { toString: function () { return window.__paneCss || ''; } } } } };
 </script>
 <script src="SCRIPT_SRC"></script>

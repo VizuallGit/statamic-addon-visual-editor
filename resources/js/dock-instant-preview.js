@@ -53,6 +53,8 @@
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
+    /** The class a list is on: its CSS beside the file's sheet, never in its place. */
+    var STYLE_TW_HOLD_ID = '__sve-tw-hold-live';
     var STYLE_CSS_ID = '__sve-dock-css-live';
     var MODE_KEY = 'sveInstantPreview';
     /** 'off' = a class shows only once it is picked; anything else = it shows while the list is on it. */
@@ -2128,10 +2130,56 @@
         }
 
         // Last in <head>, always — a morph may have pushed a newer sve_tw
-        // <style> after it, and the sheet being typed must win.
+        // <style> after it, and the sheet being typed must win. The hold's
+        // sheet, when there is one, goes after it again.
+        if (doc.head.lastElementChild !== style) {
+            doc.head.appendChild(style);
+
+            var hold = doc.getElementById(STYLE_TW_HOLD_ID);
+
+            if (hold) {
+                doc.head.appendChild(hold);
+            }
+        }
+    }
+
+    /**
+     * The CSS of the class a list is on, in a sheet after the file's own. It
+     * used to go into the file's sheet in place of everything else there, so
+     * while a list was open every class the dock had added and the bake had
+     * not yet — a `py-800` beside the one being picked — lost its CSS, and
+     * the padding fell away on hover (25 Sep 2026).
+     */
+    function setHoldTw(doc, css) {
+        if (!doc?.head) {
+            return;
+        }
+
+        var style = doc.getElementById(STYLE_TW_HOLD_ID);
+
+        if (!css) {
+            style?.remove();
+            return;
+        }
+
+        if (!style) {
+            style = doc.createElement('style');
+            style.id = STYLE_TW_HOLD_ID;
+        }
+
+        if (style.textContent !== css) {
+            style.textContent = css;
+        }
+
         if (doc.head.lastElementChild !== style) {
             doc.head.appendChild(style);
         }
+    }
+
+    function clearHoldTw() {
+        previewDocuments().forEach(function (doc) {
+            setHoldTw(doc, '');
+        });
     }
 
     function injectLive(doc, html) {
@@ -2928,7 +2976,6 @@
     function pairLive(live, tpl, wanted) {
         var tplKids = elementKids(tpl);
         var counts = {};
-        var seen = {};
         var consumed = [];
         var dynamicParent = hasMarker(directText(tpl));
         var out = [];
@@ -2949,7 +2996,6 @@
         for (i = 0; i < tplKids.length; i++) {
             tplEl = tplKids[i];
             tag = tplEl.tagName;
-            seen[tag] = (seen[tag] || 0) + 1;
             same = elementKids(live).filter(function (kid) {
                 return kid.tagName === tag && consumed.indexOf(kid) === -1;
             });
@@ -2958,7 +3004,15 @@
                 continue;
             }
 
-            targets = counts[tag] === 1 && dynamicParent ? same : [same[Math.min(seen[tag] - 1, same.length - 1)]];
+            // The next live child of this tag nobody has claimed — `same` is
+            // already the unclaimed ones, in order — and none when they are
+            // used up: a div still being typed, which the paint has not built
+            // yet, is nowhere on the page. It used to index `same` by the
+            // template's ordinal while `same` shrank with every claim, so the
+            // first div's caret found the second div and the second's the
+            // first, and a class picked for a new div was held on the div
+            // above it (25 Sep 2026: "the styling lands on the other div").
+            targets = counts[tag] === 1 && dynamicParent ? same : same.length ? [same[0]] : [];
             targets.forEach(function (target) {
                 consumed.push(target);
             });
@@ -3035,6 +3089,8 @@
                 targets = targets.concat(pairLive(root, tplRoot, tplEl));
             }
         });
+
+        trace('tw: caret in <' + tplEl.tagName.toLowerCase() + '> at [' + path.join(',') + '] → ' + targets.length + ' live element(s)' + (targets.length ? ': ' + targets.map(function (el) { return '<' + el.tagName.toLowerCase() + (el.getAttribute('class') ? ' class="' + el.getAttribute('class') + '"' : '') + '>'; }).join(' ') : ''));
 
         return { targets: targets, tag: tplEl.tagName };
     }
@@ -3117,7 +3173,7 @@
             try {
                 css = twBuild(twState, '<i class="' + candidate + '">');
                 docs.forEach(function (doc) {
-                    setLiveTw(doc, css);
+                    setHoldTw(doc, css);
                 });
             } catch (e) {
                 trace('tw: hold build failed: ' + (e && e.message));
@@ -3126,7 +3182,7 @@
             loadCompiler().then(function () {
                 if (twState && twBuild && twHeldKey === key) {
                     previewDocuments().forEach(function (next) {
-                        setLiveTw(next, twBuild(twState, '<i class="' + candidate + '">'));
+                        setHoldTw(next, twBuild(twState, '<i class="' + candidate + '">'));
                     });
                 }
             });
@@ -3171,13 +3227,18 @@
         twHold = null;
         twHeldKey = '';
         twHoldRequest = null;
+        clearHoldTw();
     }
 
-    /** Forget the hold and leave the tag as it is: what it shows is about to be written. */
+    /**
+     * Forget the hold and leave the tag as it is: what it shows is about to be
+     * written, and the paint that writes it builds the file's sheet with it.
+     */
     function dropTwHold() {
         twHold = null;
         twHeldKey = '';
         twHoldRequest = null;
+        clearHoldTw();
     }
 
     /**

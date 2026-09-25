@@ -14,6 +14,7 @@
     "test:chrome": "node tests/browser/instant-chrome.mjs",
     "test:switch": "node tests/browser/section-switch.mjs",
     "test:hide-show": "node tests/browser/section-hide-show.mjs",
+    "test:two-divs": "node tests/browser/instant-two-divs.mjs",
     "test:perf": "node tests/browser/perf-server-tab.mjs"
   },
   "dependencies": {
