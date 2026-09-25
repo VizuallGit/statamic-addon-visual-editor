@@ -373,10 +373,11 @@ try {
   // The flag's value is the frame's size: one URL per frame, or Chrome queues
   // their requests behind each other (its cache lock) and every update waits.
   const activeHandle = shape.frames.find((f) => f.active)?.bp || '';
-  const copyFrames = shape.frames.filter((f) => !f.active);
-  step('every other size loads with sve_view=<its size>, one URL each; the active size’s frame stays blank — the preview stands there',
-    copyFrames.every((f) => new URL(f.src).searchParams.get('sve_view') === f.bp) && new Set(copyFrames.map((f) => f.src)).size === copyFrames.length && shape.frames.filter((f) => f.active).every((f) => f.src === 'about:blank'),
-    shape.frames.map((f) => `${f.bp}: ${f.active ? f.src : '…' + f.src.slice(f.src.indexOf('sve_view'))}`).join(' | '));
+  // The active size's frame loads too: its copy sits under the preview, clipped out
+  // by the hole, and shows the moment the preview moves to another size.
+  step('every size loads with sve_view=<its size>, one URL each — the active size’s frame too, under the preview',
+    shape.frames.every((f) => new URL(f.src).searchParams.get('sve_view') === f.bp) && new Set(shape.frames.map((f) => f.src)).size === shape.frames.length,
+    shape.frames.map((f) => `${f.bp}${f.active ? ' (active)' : ''}: …${f.src.slice(f.src.indexOf('sve_view'))}`).join(' | '));
   const inSlot = await cp.evaluate((layerSel, bp) => {
     const layer = document.querySelector(layerSel);
     const slot = layer.querySelector(`[data-bp="${bp}"] iframe`).getBoundingClientRect();
@@ -397,8 +398,8 @@ try {
   step('the button says it is on', shape.pressed === 'true');
   step('iframes in the CP document = before + one per breakpoint', shape.iframes === iframesBefore + expected.length, `${shape.iframes} = ${iframesBefore} + ${expected.length}`);
 
-  // 5. Each copy loaded the page. Without the bridge; the preview keeps its own.
-  //    The active size's frame is blank by design and is left out here.
+  // 5. Each copy loaded the page, the one under the preview included. Without the
+  //    bridge; the preview keeps its own. A frame switched out of the row is blank.
   const copyHandles = async () => { const out = []; for (const h of await cp.$$(`${LAYER} iframe`)) { if ((await (await h.getProperty('src')).jsonValue()) !== 'about:blank') out.push(h); } return out; };
   const copiesLoaded = (count) => until(async () => {
     const handles = await copyHandles();
@@ -411,8 +412,9 @@ try {
     }
     return out;
   }, 30000, 300);
-  const copySpecs = expected.filter((b) => b.handle !== activeHandle);
-  const copyNames = copySpecs.map((b) => b.handle);
+  // Every frame in the row, in order — the active size's copy under the preview among them.
+  const copySpecs = expected;
+  const copyNames = copySpecs.map((b) => (b.handle === activeHandle ? `${b.handle} (under the preview)` : b.handle));
   const frames = await copiesLoaded(copyNames.length);
   step('every copy loaded the page', !!frames, `${copyNames.join(', ')} (the preview is ${activeHandle})`);
   // Under test with the installed PHP, mirror.js arrives under preview.js's
@@ -608,7 +610,7 @@ try {
     for (const h of await copyHandles()) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)).catch(() => false))) return null; }
     return states;
   }, 20000, 300);
-  step('marked in again, every size is back in the row and every copy loaded', !!back && back.every((s, i) => expected[i].handle === activeHandle ? s.src === 'about:blank' : new URL(s.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((s) => s.src === 'about:blank' ? 'blank (the preview)' : s.src.slice(s.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
+  step('marked in again, every size is back in the row and every copy loaded', !!back && back.every((s, i) => new URL(s.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((s) => s.src === 'about:blank' ? 'blank' : s.src.slice(s.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
   const activeMark = await sizeState(activeHandle);
   await realClick(page, cp, markSel(activeHandle));
   await sleep(300);
@@ -645,7 +647,7 @@ try {
   const listenersBefore = await listenerSnapshot(cp);
   await realClick(page, cp, BUTTON);
   step('the button opens it again', await waitIn(cp, LAYER, 10000));
-  await copiesLoaded(expected.length - 1);
+  await copiesLoaded(expected.length);
   const listenersOpen = await listenerSnapshot(cp);
   const hookOpen = await cp.evaluate(() => typeof document.getElementById('live-preview-iframe').contentWindow.__sveMirror);
   await realClick(page, cp, BUTTON);
@@ -659,7 +661,8 @@ try {
   // or a clean "after" proves nothing: Escape and the ring on the CP window,
   // the preview's load on the pane, the preview's morph on its window.
   const own = { before: ownListeners(listenersBefore), open: ownListeners(listenersOpen), after: ownListeners(listenersAfter) };
-  const want = { cpWindow: ['keydown', 'sve:breakpoint'], cpDocument: [], pane: ['load(capture)'], previewWindow: ['message'], previewDocument: ['wheel'] };
+  // On the preview: the FOCUS message and the edit's end on its window; wheel and input (an inline edit's keystrokes) on its document.
+  const want = { cpWindow: ['keydown', 'sve:breakpoint'], cpDocument: [], pane: ['load(capture)'], previewWindow: ['message', 'sve:inline-edit-end'], previewDocument: ['input(capture)', 'wheel'] };
   const show = (map) => Object.entries(map).map(([k, types]) => `${k} [${types.join(' ')}]`).join(', ');
   step('before opening, the overview has no listener anywhere (DevTools)', Object.values(own.before).every((types) => types.length === 0), show(own.before));
   step('open, DevTools sees exactly the overview’s own listeners', JSON.stringify(own.open) === JSON.stringify(Object.fromEntries(Object.entries(want).map(([k, v]) => [k, [...v].sort()]))), show(own.open));
@@ -757,7 +760,7 @@ try {
   await page.keyboard.press('Escape'); await sleep(400);
   const stillOpen = !!(await cp.$(LAYER));
   step('Escape inside the active frame is the bridge’s and leaves the overview open', stillOpen);
-  if (!stillOpen) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); await copiesLoaded(expected.length - 1); }
+  if (!stillOpen) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); await copiesLoaded(expected.length); }
   // A wheel over the active frame pans the row; the preview moves with it in the same turn.
   const g0 = await rowGeo();
   await page.mouse.move(overlayBox2.x + g0.frame.x + Math.min(g0.frame.w, g0.view.w) / 2, overlayBox2.y + Math.max(g0.frame.y, g0.view.y) + 100);
@@ -781,10 +784,52 @@ try {
   const other = expected.find((b) => b.handle !== wasActive && b.handle === activeHandle) || expected.find((b) => b.handle !== wasActive);
   await cp.evaluate((sel) => { document.querySelector(`${sel} .sve-bpo-scroll`).scrollTop = 0; }, LAYER); await sleep(200);
   const target = await cp.evaluate((sel, bp) => { const r = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 150) }; }, LAYER, other.handle);
+  // The document in the frame the preview is about to leave, marked: a reload would lose the mark.
+  await cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`); if (f.contentDocument) f.contentDocument.__sveSameDocument = true; }, LAYER, wasActive);
   await page.mouse.click(overlayBox2.x + target.x, overlayBox2.y + target.y);
   const swapped = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.pressed === other.device && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 && Math.abs(g.frame.w - g.slot.w) <= 1 ? g : null; }, 5000, 100);
   const left = await until(() => cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`); const src = f.getAttribute('src') || ''; return src.includes(`sve_view=${bp}`) && !!f.contentDocument?.querySelector(`[data-sid-field="${window.__sveTestField}"]`) ? src.slice(src.indexOf('sve_view')) : null; }, LAYER, wasActive), 20000, 300);
   step(`a click on the ${other.device} frame makes it the active size: the preview stands there, and ${wasActive} is a copy again`, !!swapped && !!left, swapped ? `active ${swapped.active}, pressed ${swapped.pressed}, preview ${Math.round(swapped.frame.w)} px wide in the slot; ${wasActive}'s frame: ${left || 'not loaded within 20 s'}` : 'no swap within 5 s');
+  const sameDocument = await cp.evaluate((sel, bp) => !!document.querySelector(`${sel} [data-bp="${bp}"] iframe`)?.contentDocument?.__sveSameDocument, LAYER, wasActive);
+  step(`${wasActive}'s frame was not reloaded by the switch: the page was already there, under the preview`, sameDocument, sameDocument ? 'same document before and after' : 'a new document — the frame loaded again');
+
+  // 10d. The label above a frame (its name and width) is a way in too, and the way back.
+  const labelPoint = (bp) => cp.evaluate((sel, handle) => { const r = document.querySelector(`${sel} [data-bp="${handle}"] .sve-bpo-label`).getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 40), y: r.y + r.height / 2 }; }, LAYER, bp);
+  let lp = await labelPoint(wasActive);
+  await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+  const byLabel = await until(async () => { const g = await rowGeo(); return g.active === wasActive && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
+  step(`a click on ${wasActive}'s label makes it the active size again`, !!byLabel, byLabel ? `active ${byLabel.active}, pressed ${byLabel.pressed}` : 'not within 5 s');
+  lp = await labelPoint(other.handle);
+  await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+  const backByLabel = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
+  step(`and ${other.device}'s label brings the preview back there`, !!backByLabel, backByLabel ? `active ${backByLabel.active}` : 'not within 5 s');
+
+  // 10e. An inline edit in the preview reaches every frame as it is typed: the
+  //      preview holds its morphs back while the edit lasts, so the frames are painted.
+  const fieldPoint = await (await previewNow()).evaluate((field) => { const el = document.querySelector(`[data-sid-field="${field}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24) }; }, FIELD);
+  if (fieldPoint) {
+    at = await inActive(fieldPoint);
+    await page.mouse.click(at.x, at.y);
+    const editing = await until(() => previewNow().then((f) => f.evaluate(() => !!document.querySelector('[data-sve-editing], [contenteditable="true"]'))), 6000, 100);
+    if (editing) {
+      const token = `Zq${Math.random().toString(36).slice(2, 5)}`;
+      const viewFrames = (await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean);
+      const holds = (f) => f.evaluate((tk) => document.body.textContent.includes(tk), token).catch(() => false);
+      await page.keyboard.type(token);
+      const typedDone = Date.now();
+      const painted = await until(async () => (await Promise.all(viewFrames.map(holds))).every(Boolean) ? Date.now() - typedDone : null, 3000, 10);
+      step('typing inline in the preview paints the text into every frame at once', painted != null && painted <= 100, painted != null ? `every frame had it ${painted} ms after the last key (${viewFrames.length} frames)` : `not in every frame within 3 s: ${(await Promise.all(viewFrames.map(holds))).join(',')}`);
+      const noMarks = await Promise.all(viewFrames.map((f) => f.evaluate(() => !document.querySelector('[contenteditable="true"], [data-sve-editing]')).catch(() => false)));
+      step('the frames took the text, not the editing marks', noMarks.every(Boolean), noMarks.join(','));
+      await page.keyboard.press('Escape');
+      const restored = await until(async () => { const inPreview = await holds(await previewNow()); const inFrames = await Promise.all(viewFrames.map(holds)); return !inPreview && inFrames.every((v) => !v) ? true : null; }, 4000, 50);
+      step('Escape cancels the edit, and every frame shows the old text again', !!restored, restored ? 'gone from the preview and every frame' : `preview ${await holds(await previewNow())}, frames ${(await Promise.all(viewFrames.map(holds))).join(',')}`);
+    } else {
+      skip('inline edit mirrored into the frames', 'a click on the field did not start an inline edit');
+    }
+  } else {
+    skip('inline edit mirrored into the frames', `no [data-sid-field="${FIELD}"] in the preview`);
+  }
   // A confirm card in the page-high preview: in the part of the page that is on screen.
   const header = await (await previewNow()).evaluate(() => { const el = document.querySelector('[data-sve-chrome="header"]'); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 20) }; });
   if (header) {
@@ -934,7 +979,7 @@ try {
     view.dispatch({ changes: { from: line.from, to: Math.min(line.to + 1, view.state.doc.length) } });
     return !view.state.doc.toString().includes(m);
   }, marker);
-  const loadedCopies = () => copiesLoaded(expected.length - 1);
+  const loadedCopies = () => copiesLoaded(expected.length);
   const openOverview = async () => { if (!(await cp.$(LAYER))) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); } return loadedCopies(); };
   const closeOverview = async () => { await page.keyboard.press('Escape'); await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000); };
   const copyHandleNames = async () => { const out = []; for (const h of await copyHandles()) out.push(await h.evaluate((el) => el.closest('[data-bp]').dataset.bp)); return out; };
@@ -985,7 +1030,7 @@ try {
     let pressed = await pressVideoIcon('sve-bpo-video'); await sleep(900);
     let all = [await livePreview(), ...(copies || [])];
     const held = await Promise.all(all.map((f) => stateOf(f, 'sve-bpo-video')));
-    step('the tree’s hold stops the video in the preview and in every copy', held.length === expected.length && held.every((r) => r && r.paused === true && r.held === true), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(held[i])}`).join(', ')}`);
+    step('the tree’s hold stops the video in the preview and in every copy', held.length === expected.length + 1 && held.every((r) => r && r.paused === true && r.held === true), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(held[i])}`).join(', ')}`);
     // Closed and opened again: a copy loads fresh from the server and is held from its first draw.
     await closeOverview();
     copies = await openOverview();
@@ -995,7 +1040,7 @@ try {
     pressed = await pressVideoIcon('sve-bpo-video'); await sleep(900);
     all = [await livePreview(), ...(copies || [])];
     const playAgain = await Promise.all(all.map((f) => playing(f, 'sve-bpo-video')));
-    step('the next press plays it again in the preview and in every copy', playAgain.length === expected.length && playAgain.every((r) => r.moved && r.b?.paused === false && r.b?.held === false), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(playAgain[i]?.b)}`).join(', ')}`);
+    step('the next press plays it again in the preview and in every copy', playAgain.length === expected.length + 1 && playAgain.every((r) => r.moved && r.b?.paused === false && r.b?.held === false), `${pressed}; ${frameNames.map((n, i) => `${n} ${showVideo(playAgain[i]?.b)}`).join(', ')}`);
     step('the video line removed again', await removeLine('sve-bpo-video'));
     await sleep(3500);
   } else {

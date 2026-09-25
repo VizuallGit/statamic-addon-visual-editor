@@ -15,9 +15,12 @@
  * exact screen position, the breakpoint's width, the page's height and the
  * row's scale. Only cp-shell/block-order.js writes those styles: the overview
  * hands it the slot on the bus (`lp:preview-slot`) on every pan, zoom and
- * resize, and null on close. The frame at that size is never loaded — the
- * preview stands there. A click in another size's frame makes that size the
- * active one, as the top-bar button does, and the preview and the frame swap.
+ * resize, and null on close. The frame at that size is loaded like the
+ * others and mirrors like the others — under the preview, clipped out by the
+ * hole, so that a switch of size shows it at once (25 Sep 2026: the old size's
+ * frame loading from the server after the switch read as a refresh — blank,
+ * then the page again). A click in another size's frame makes that size the
+ * active one, as the top-bar button does, and the preview moves there.
  *
  * The row pans by script, never by native scroll: a wheel over the layer, or
  * over the preview (its document is page-high and has nothing to scroll),
@@ -100,7 +103,7 @@ import { chromeGet } from './chrome-prefs.js';
 import { sveState } from './cp-state.js';
 import { remToPx } from './lib/dom.js';
 import { t } from './lib/i18n.js';
-import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
+import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, SID_ATTR, SID_FIELD_ATTR } from './lib/ids.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { injectStyle } from './lib/style.js';
@@ -427,6 +430,32 @@ export function labelColor(background) {
   return light;
 }
 
+/**
+ * Where a field wrapper stands in its document: its place among every field
+ * wrapper, with its field name and the set it belongs to as a check. The
+ * copies hold the same document as the preview, so the same place holds the
+ * same wrapper there — and a copy that does not agree is left to the morph.
+ */
+export function fieldPlace(doc, wrapper) {
+  const all = doc.querySelectorAll(`[${SID_FIELD_ATTR}]`);
+
+  return {
+    index: Array.prototype.indexOf.call(all, wrapper),
+    field: wrapper.getAttribute(SID_FIELD_ATTR) || '',
+    uid: wrapper.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) || '',
+  };
+}
+
+export function fieldAt(doc, place) {
+  const el = place.index < 0 ? null : doc.querySelectorAll(`[${SID_FIELD_ATTR}]`)[place.index];
+
+  if (!el || (el.getAttribute(SID_FIELD_ATTR) || '') !== place.field || (el.closest(`[${SID_ATTR}]`)?.getAttribute(SID_ATTR) || '') !== place.uid) {
+    return null;
+  }
+
+  return el;
+}
+
 // --- State ---------------------------------------------------------------------
 
 function emptyState() {
@@ -450,6 +479,7 @@ function emptyState() {
     active: '', // breakpoint handle that has the ring — the preview's own slot
     pan: null,
     glide: null, // the animation frame of a reveal under way
+    editing: null, // the field wrapper an inline edit in the preview is typing into
   };
 }
 
@@ -685,6 +715,7 @@ ${L} .sve-bpo-sizer { position: relative; margin: 0 auto; overflow: hidden; }
 ${L} .sve-bpo-canvas { --z: 1; position: absolute; left: 0; top: 0; box-sizing: border-box; display: flex; align-items: flex-start; gap: ${GAP}px; padding: ${PAD}px; transform-origin: 0 0; pointer-events: none; }
 ${L} .sve-bpo-item { position: relative; flex: none; }
 ${L} .sve-bpo-label { position: absolute; left: 0; bottom: 100%; margin-bottom: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); font-weight: 500; line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: auto; }
+${L} .sve-bpo-item:not([data-active]) .sve-bpo-label { cursor: pointer; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-label { opacity: 1; font-weight: 600; }
 ${L} .sve-bpo-frame { display: block; border: 0; background: #fff; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(${RING_PX}px / var(--z)) solid ${SIZE_BLUE}; outline-offset: calc(${RING_PX}px / var(--z)); }
@@ -885,11 +916,6 @@ function frameUrl(entry, preview) {
 }
 
 function navigate(entry, preview) {
-  // The preview stands in the active size's place: its frame is never loaded.
-  if (entry.active) {
-    return;
-  }
-
   entry.ready = false;
   entry.stale = false;
   entry.src = frameUrl(entry, preview);
@@ -936,7 +962,7 @@ function toggleSize(entry) {
 
 /** A frame still loading would miss the render: it gets the latest one when it has loaded. */
 function post(entry, render) {
-  if (entry.hidden || entry.active || !render) {
+  if (entry.hidden || !render) {
     return;
   }
 
@@ -1044,17 +1070,84 @@ function bindMain(main) {
 
   doc.addEventListener('wheel', onPreviewWheel, { passive: false });
   mainWin.addEventListener('message', onMessage);
+  // An inline edit types into the preview alone; the frames take each keystroke (mirrorField).
+  doc.addEventListener('input', onPreviewInput, true);
+  mainWin.addEventListener('sve:inline-edit-end', onInlineEditEnd);
 
   overviewState.unbindMain = () => {
     try {
       doc.removeEventListener('wheel', onPreviewWheel, { passive: false });
       mainWin.removeEventListener('message', onMessage);
+      doc.removeEventListener('input', onPreviewInput, true);
+      mainWin.removeEventListener('sve:inline-edit-end', onInlineEditEnd);
+      overviewState.editing = null;
       delete mainWin.__sveMirror;
       delete mainWin.__sveBand;
     } catch {
       /* the window is gone */
     }
   };
+}
+
+/**
+ * An inline edit in the preview, painted into every frame as it is typed. The
+ * preview holds back its morphs while the edit lasts (preview.js), so the
+ * copies would show the old text until the edit ends. Each input paints the
+ * edited field's wrapper into the same wrapper of every loaded frame; the
+ * morph after the edit is the truth. The edit's end paints the wrapper once
+ * more: a cancelled edit puts the old markup back without an input event.
+ */
+function onPreviewInput(event) {
+  const wrapper = event.target?.closest?.(`[${SID_FIELD_ATTR}]`);
+
+  if (!wrapper) {
+    return;
+  }
+
+  overviewState.editing = wrapper;
+  mirrorField(wrapper);
+}
+
+function onInlineEditEnd() {
+  const wrapper = overviewState.editing;
+
+  overviewState.editing = null;
+
+  if (wrapper?.isConnected) {
+    mirrorField(wrapper);
+  }
+}
+
+function mirrorField(wrapper) {
+  const place = fieldPlace(wrapper.ownerDocument, wrapper);
+  const html = wrapper.innerHTML;
+
+  for (const entry of shown()) {
+    let target = null;
+
+    if (!entry.ready) {
+      continue;
+    }
+
+    try {
+      target = fieldAt(entry.el.contentDocument, place);
+    } catch {
+      continue;
+    }
+
+    if (!target || target.innerHTML === html) {
+      continue;
+    }
+
+    target.innerHTML = html;
+
+    // The preview's editing marks stay in the preview.
+    for (const el of target.querySelectorAll('[contenteditable], [data-sve-editing], [data-sve-locked]')) {
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('data-sve-editing');
+      el.removeAttribute('data-sve-locked');
+    }
+  }
 }
 
 function onKey(event) {
@@ -1236,11 +1329,9 @@ function onPanEnd(event) {
   // the fields edit — the same door as its button in the top bar — and the
   // preview moves into its place.
   if (event.type === 'pointerup' && !isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
-    const hit = shown().find((entry) => {
-      const r = entry.el.getBoundingClientRect();
-
-      return event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
-    });
+    const inside = (r) => event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom;
+    // The frame or the label above it (its name and width).
+    const hit = shown().find((entry) => inside(entry.el.getBoundingClientRect()) || inside(entry.label.getBoundingClientRect()));
 
     if (hit && !hit.active) {
       ask('lp:set-device', { win: overviewState.win, key: hit.spec.device });
@@ -1355,8 +1446,9 @@ function paintBadges() {
 
 /**
  * The ring: which size the Responsive fields on the left are editing — and
- * the preview's place. The size that was active gets its frame loaded; the
- * one that is active now gives its frame up, and the preview stands there.
+ * the preview's place. The frames stay as they are: the size that was active
+ * shows its own copy the moment the preview leaves it, and the copy of the
+ * size that is active now sits under the preview, out of sight.
  */
 function paintActive(handle) {
   if (!handle || handle === overviewState.active) {
@@ -1383,12 +1475,6 @@ function paintActive(handle) {
     }
 
     entry.active = on;
-
-    if (on) {
-      blank(entry);
-    } else if (!entry.hidden && overviewState.layer) {
-      navigate(entry, overviewState.preview);
-    }
   }
 
   if (overviewState.layer) {

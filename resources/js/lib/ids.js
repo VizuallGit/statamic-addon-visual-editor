@@ -13,6 +13,8 @@
 // The preview document
 /** The row identity `{{ visual_edit }}` writes on a set's element; bridge.js re-exports it for its regions. */
 export const SID_ATTR = 'data-sid';
+/** The field a `visual_edit` tag rendered, on its wrapper (`field=`). */
+export const SID_FIELD_ATTR = 'data-sid-field';
 /**
  * The breakpoint overview's layer (breakpoint-overview.js draws it, only while
  * open). Its frames are the preview's copies: lib/preview-frame.js lists them
