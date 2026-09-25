@@ -1538,6 +1538,29 @@
         }
     }
 
+    /**
+     * Of the live children a static template child may claim, the one most
+     * like it — class, kids, text, and text as it is being typed — first of
+     * equals. As a one-element list, or empty.
+     */
+    function bestOwn(candidates, tplEl) {
+        var best = null;
+        var bestScore = -1;
+        var i;
+        var score;
+
+        for (i = 0; i < candidates.length; i++) {
+            score = pairScore(candidates[i], tplEl) + (sameTextBeingTyped(candidates[i].textContent.trim(), tplEl.textContent.trim()) ? 0.5 : 0);
+
+            if (score > bestScore) {
+                best = candidates[i];
+                bestScore = score;
+            }
+        }
+
+        return best ? [best] : [];
+    }
+
     function ownsLive(liveEl, tplEl) {
         if (liveEl.tagName !== tplEl.tagName) {
             return false;
@@ -1808,16 +1831,15 @@
                 } else if (byTag) {
                     same = liveOfTag(tag);
                 } else {
-                    // What the paint made comes first; a look-alike only when there is none.
-                    same = liveOfTag(tag).filter(function (kid) {
-                        return painted.has(kid);
-                    });
-
-                    if (!same.length) {
-                        same = liveOfTag(tag).filter(function (kid) {
-                            return ownsLive(kid, tplEl);
-                        });
-                    }
+                    // Its own: what the paint made, or a look-alike (ownsLive) —
+                    // and of those the one most like it. It used to be the first
+                    // painted one of the tag, whatever it held: with two divs of
+                    // one tag beside each other, both the paint's, a class typed
+                    // on the second was painted onto the first, and the first's
+                    // classes onto the second (25 Sep 2026).
+                    same = bestOwn(liveOfTag(tag).filter(function (kid) {
+                        return painted.has(kid) || ownsLive(kid, tplEl);
+                    }), tplEl);
                 }
 
                 if (same.length) {

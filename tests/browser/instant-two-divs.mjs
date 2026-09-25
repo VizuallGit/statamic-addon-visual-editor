@@ -52,7 +52,21 @@ const d = (cls, text) => `<div class="${cls}">${text}</div>`;
 
 // Each scenario: the pane states in order, what the two divs must show after every state, and how the morph comes between (none | replace | patch).
 const scenarios = [];
-for (const morph of ['none', 'replace', 'patch']) {
+const four = (d1, d2) => two(d1, `${d2}\n  ${D1}\n  <div class="bg-primary">fdssdff</div>`);
+for (const morph of ['none', 'replace', 'patch', 'replace-last-two']) {
+  scenarios.push([`four divs, the last two twins of the first two: a class typed on the second lands there only (morph: ${morph})`, {
+    states: typed('bg-primary-700', 'bg-primary-700 mt-500').map((c) => four(D1, d(c, 'fdssdff'))),
+    morph,
+  }]);
+  scenarios.push([`four divs: the second's class deleted to "bg-primary" — now a twin of the fourth — then "-300" typed (morph: ${morph})`, {
+    states: [...deleted('bg-primary-700', 'bg-primary').map((c) => four(D1, d(c, 'fdssdff'))), ...typed('bg-primary', 'bg-primary-300').slice(1).map((c) => four(D1, d(c, 'fdssdff')))],
+    morph,
+  }]);
+  scenarios.push([`four divs: the first's class changed while the third is its twin (morph: ${morph})`, {
+    states: [...deleted('bg-primary-600 py-800', 'bg-primary- py-800').map((c) => four(d(c, 'fdsfds fdsf'), D2)), ...typed('bg-primary- py-800', 'bg-primary-300 py-800').slice(1).map((c) => four(d(c, 'fdsfds fdsf'), D2))],
+    morph,
+  }]);
+  if (morph === 'replace-last-two') continue;
   scenarios.push([`class of the second div deleted to "bg-primary", then "-300" typed (morph: ${morph})`, {
     states: states([D1], [...deleted('bg-primary-700', 'bg-primary').map((c) => d(c, 'fdssdff')), ...typed('bg-primary', 'bg-primary-300').slice(1).map((c) => d(c, 'fdssdff'))]),
     morph,
@@ -205,6 +219,15 @@ for (const [label, opts] of scenarios) {
         const tmp = document.createElement('div'); tmp.innerHTML = renders[i];
         const fresh = tmp.querySelector('section'); const old = idoc.querySelector('section');
         if (fresh && old) { old.replaceWith(idoc.importNode(fresh, true)); }
+        iframe.contentWindow.dispatchEvent(new CustomEvent('statamic:preview-updated'));
+        await new Promise((r) => setTimeout(r, 40));
+        out.push({ i: i + 0.5, divs: snapshot(), field: idoc.querySelector('[data-sid-field="text"]')?.innerHTML.replace(/\s+/g, ' ').trim(), sections: idoc.querySelectorAll('section').length, afterMorph: true });
+      } else if (morph === 'replace-last-two' && i % 2 === 1 && !half) {
+        // The server's render of this state, but only the last two divs swapped for fresh nodes: the first two stay the paint's own.
+        const tmp = document.createElement('div'); tmp.innerHTML = renders[i];
+        const want = [...tmp.querySelectorAll('section > div:not([data-sid-field])')];
+        const have = [...idoc.querySelectorAll('section > div:not([data-sid-field])')];
+        have.slice(-2).forEach((h, k) => { const w = want[want.length - 2 + k]; if (w) h.replaceWith(idoc.importNode(w, true)); else h.remove(); });
         iframe.contentWindow.dispatchEvent(new CustomEvent('statamic:preview-updated'));
         await new Promise((r) => setTimeout(r, 40));
         out.push({ i: i + 0.5, divs: snapshot(), field: idoc.querySelector('[data-sid-field="text"]')?.innerHTML.replace(/\s+/g, ' ').trim(), sections: idoc.querySelectorAll('section').length, afterMorph: true });
