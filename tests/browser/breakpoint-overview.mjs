@@ -603,7 +603,8 @@ try {
   // One tone on every button — the lit one included — so the marks sit beside the buttons, not in them.
   step('every size in the row has an on/off mark at its icon, in one tone', marks.length === expected.length && marks.every((m) => m.on && m.w > 0 && !m.inButton) && new Set(marks.map((m) => m.tone)).size === 1,
     `${marks.map((m) => `${m.bp}:${m.on ? 'on' : 'off'}`).join(' ')} · tone ${marks[0]?.tone}`);
-  step('the marks are the owner’s orange, #FFAE6B', marks.length > 0 && marks.every((m) => m.tone === 'rgb(255, 174, 107)'), marks[0]?.tone || 'no marks');
+  // A mark for a size in the row is filled with the ring's blue — the same colour that frames the active size.
+  step('the marks of the sizes in the row are the ring’s blue', marks.length > 0 && marks.every((m) => m.tone === 'rgb(96, 165, 250)'), marks[0]?.tone || 'no marks');
   const middle = expected.find((b) => b.handle !== activeHandle && b.handle !== expected[0].handle) || expected.find((b) => b.handle !== activeHandle);
   const markSel = (handle) => `#__sve-preview-chrome .sve-bpo-badge[data-bpo-badge="${handle}"]`;
   const pressedBefore = await pressedDevice();
@@ -955,10 +956,14 @@ try {
     await until(() => cp.evaluate(() => document.querySelector('[data-sve-comments-place]')?.getAttribute('aria-pressed') === 'true'), 3000, 100);
     const gComment = await rowGeo();
     const sizeNow = gComment.active;
-    const spot = await inActive({ x: 120, y: 120 });
+    // A point of the frame that is on screen: the row may stand scrolled so the frame's top is above the pane.
+    const gSpot = await rowGeo();
+    const visibleTop = Math.max(0, (gSpot.view.y - gSpot.frame.y) / gSpot.z);
+    const spot = await inActive({ x: 120, y: visibleTop + 80 });
+    const hitBefore = await cp.evaluate((pt) => { const hit = document.getElementById('sc-cp-hit'); const r = hit?.getBoundingClientRect(); const under = document.elementsFromPoint(pt.x, pt.y).slice(0, 3).map((el) => el.id || el.className?.toString().slice(0, 20) || el.tagName); return { hit: r ? `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)} ${getComputedStyle(hit).display}` : 'none', under }; }, { x: spot.x - overlayBox2.x, y: spot.y - overlayBox2.y });
     await page.mouse.click(spot.x, spot.y);
     const draftSize = await until(() => cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] [data-sc-size] select')?.value || null), 5000, 100);
-    step('a click in the active frame opens a new comment for the size being looked at', draftSize === sizeNow, `size picker says ${draftSize}, the ring is on ${sizeNow}`);
+    step('a click in the active frame opens a new comment for the size being looked at', draftSize === sizeNow, `size picker says ${draftSize}, the ring is on ${sizeNow}` + (draftSize ? '' : ` — hit layer ${hitBefore.hit}; under the click: ${hitBefore.under.join(' > ')}; draft card: ${await cp.evaluate(() => !!document.querySelector('[data-sc-thread="__draft"]'))}`));
     await cp.evaluate(() => document.querySelector('[data-sc-thread="__draft"] textarea')?.focus());
     const token = `Kommentar ${Math.random().toString(36).slice(2, 6)}`;
     await page.keyboard.type(token);
@@ -976,13 +981,11 @@ try {
     if (PHP_HAS_COMMENT_SIZE) {
       const where = await until(() => cp.evaluate((tk) => [...document.querySelectorAll('.sve-comments__row')].find((row) => row.textContent.includes(tk))?.querySelector('.sve-comments__where')?.textContent.trim() || null, token), 5000, 150);
       step('the list on the right names the size the comment is for', !!where && where.includes(sizeLabel), where || 'row not found');
-      // Another size: the pin goes; back again: it returns.
-      lp = await labelPoint(away.handle);
-      await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+      // Another size — through the top bar's own button, which is always on screen (a frame's label may stand above the pane).
+      await realClick(page, cp, `#__sve-preview-chrome [data-device="${away.device}"]`);
       const gone = await until(() => cp.evaluate((id) => !document.querySelector(`[data-sc-pin="${id}"]`), pinId), 4000, 100);
-      step(`on ${away.device} the ${sizeLabel} comment's pin is not shown`, !!gone, gone ? 'gone' : 'still there after 4 s');
-      lp = await labelPoint(sizeNow);
-      await page.mouse.click(overlayBox2.x + lp.x, overlayBox2.y + lp.y);
+      step(`on ${away.device} the ${sizeLabel} comment's pin is not shown`, !!gone, gone ? 'gone' : `still there after 4 s (pressed ${await pressedDevice()})`);
+      await realClick(page, cp, `#__sve-preview-chrome [data-device="${expected.find((b) => b.handle === sizeNow)?.device || sizeNow}"]`);
       const backAgain = await until(() => cp.evaluate((id) => !!document.querySelector(`[data-sc-pin="${id}"]`), pinId), 4000, 100);
       step(`back on ${sizeLabel} the pin is there again`, !!backAgain);
     } else {
