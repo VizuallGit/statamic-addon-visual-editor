@@ -259,6 +259,51 @@ export function generateSteps(base, { tints = 0, shades = 0 } = {}) {
 }
 
 /**
+ * How a family's steps were made: `{ tints, shades, generated }`.
+ *
+ * Generated means the steps are exactly what generateSteps() gives for those
+ * counts — then the panel shows the counts and remakes the steps when the
+ * base changes. Anything else (the theme's own 50–950, hand-picked steps) is
+ * kept as it is until someone asks for tints or shades.
+ */
+export function familyMode(family) {
+  const steps = family.steps || [];
+  const base = hexToOklch(family.value);
+
+  if (!steps.length) {
+    return { tints: 0, shades: 0, generated: true };
+  }
+
+  if (!base) {
+    return { tints: 0, shades: 0, generated: false };
+  }
+
+  let tints = 0;
+  let shades = 0;
+
+  for (const step of steps) {
+    const color = hexToOklch(step.value);
+
+    if (!color) {
+      return { tints: 0, shades: 0, generated: false };
+    }
+
+    color.l > base.l ? tints++ : shades++;
+  }
+
+  const made = tints <= MAX_VARIANTS && shades <= MAX_VARIANTS ? generateSteps(family.value, { tints, shades }) : [];
+  const same =
+    made.length === steps.length &&
+    made.every((m, i) => m.name === steps[i].name && m.value === String(steps[i].value).trim().toLowerCase());
+
+  return same ? { tints, shades, generated: true } : { tints: 0, shades: 0, generated: false };
+}
+
+export function isHex(value) {
+  return parseHex(value) !== null;
+}
+
+/**
  * Whether `name` can be a new color. Returns an error key, or null when fine.
  * `taken` is the names already in the file.
  */

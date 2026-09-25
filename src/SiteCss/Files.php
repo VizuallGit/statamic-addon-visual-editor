@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\SiteCss;
 
 use MarioHamann\StatamicVisualEditor\GitSync;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController\Persist;
 
 /**
  * The style manager's file operations: listing, read, write, create,
@@ -53,6 +54,9 @@ final class Files
 
         file_put_contents($path, $css);
         GitSync::after('site '.Root::kind());
+        // The theme colors are read from site.css on every render
+        // ({{ theme_tokens }}), so a cached page would keep the old ones.
+        Persist::flushStaticCache();
 
         $rel = Root::relativeFrom($path);
 

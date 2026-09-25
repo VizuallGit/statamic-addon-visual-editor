@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   STEPS,
+  familyMode,
   generateSteps,
   hexToOklch,
   lightnessNumber,
@@ -184,4 +185,20 @@ test('a new color name must be a plain, free CSS name', () => {
   assert.equal(nameProblem('moss-2', taken), 'number');
   assert.equal(nameProblem('current', taken), 'reserved');
   assert.equal(nameProblem('primary', taken), 'taken');
+});
+
+test('generated steps are recognised with their counts; the theme’s own steps are not', () => {
+  const steps = generateSteps('#55613f', { tints: 2, shades: 3 }).map(({ name, value }) => ({ name, value }));
+
+  assert.deepEqual(familyMode({ value: '#55613f', steps }), { tints: 2, shades: 3, generated: true });
+  assert.deepEqual(familyMode({ value: '#55613F', steps }), { tints: 2, shades: 3, generated: true });
+  assert.deepEqual(familyMode({ value: '#55613f', steps: [] }), { tints: 0, shades: 0, generated: true });
+
+  const primary = readColors(SITE_CSS)[2];
+
+  assert.equal(familyMode(primary).generated, false);
+
+  // One hand-edited step makes the family its own again.
+  steps[0] = { ...steps[0], value: '#ff0000' };
+  assert.equal(familyMode({ value: '#55613f', steps }).generated, false);
 });
