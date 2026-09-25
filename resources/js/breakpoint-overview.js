@@ -477,6 +477,7 @@ function emptyState() {
     labelSpace: 32,
     preview: '', // the preview URL the frames were last sent (each adds its own view flag)
     active: '', // breakpoint handle that has the ring — the preview's own slot
+    dim: false, // a size is picked in the top bar: the other frames step back
     pan: null,
     glide: null, // the animation frame of a reveal under way
     editing: null, // the field wrapper an inline edit in the preview is typing into
@@ -551,6 +552,7 @@ export function openBreakpointOverview(win) {
     bind(win, view);
     mountBadges(win);
     paintActive(activeBreakpoint(win));
+    paintDim(sizePicked(chromeGet(win, 'sve-lp-device')));
     paintButton(win, true);
     // block-order.js writes the slot from here on, and puts the ordinary
     // geometry back when told the slot is gone — the last thing close does.
@@ -717,6 +719,8 @@ ${L} .sve-bpo-item { position: relative; flex: none; }
 ${L} .sve-bpo-label { position: absolute; left: 0; bottom: 100%; margin-bottom: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); font-weight: 500; line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: auto; }
 ${L} .sve-bpo-item:not([data-active]) .sve-bpo-label { cursor: pointer; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-label { opacity: 1; font-weight: 600; }
+${L} .sve-bpo-frame { transition: opacity .15s; }
+${L} .sve-bpo-canvas[data-dim] .sve-bpo-item:not([data-active]) .sve-bpo-frame { opacity: ${DIM_OPACITY}; }
 ${L} .sve-bpo-frame { display: block; border: 0; background: #fff; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(${RING_PX}px / var(--z)) solid ${SIZE_BLUE}; outline-offset: calc(${RING_PX}px / var(--z)); }
 ${L} .sve-bpo-zoom { position: absolute; right: .75rem; bottom: .75rem; pointer-events: auto; display: inline-flex; align-items: center; gap: .125rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .9); color: #fafafa; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .3); font-size: .75rem; line-height: 1; }
@@ -1230,6 +1234,7 @@ function bind(win, view) {
   // view after a pan away from it.
   listen(win, 'sve:breakpoint', (event) => {
     paintActive(event.detail?.bp);
+    paintDim(sizePicked(event.detail?.device));
     revealActive();
   });
 
@@ -1483,6 +1488,19 @@ function paintActive(handle) {
   }
 }
 
+/** A device in the top bar, as against Responsive — the width of the pane, the strip's "All". */
+function sizePicked(device) {
+  return !!device && device !== 'Responsive';
+}
+
+function paintDim(on) {
+  overviewState.dim = on;
+
+  if (overviewState.canvas && overviewState.canvas.hasAttribute('data-dim') !== on) {
+    overviewState.canvas.toggleAttribute('data-dim', on);
+  }
+}
+
 /**
  * FOCUS from the fields on the left: the bridge marked and pulsed the element
  * and asked the page to scroll, which a page-high frame cannot. The row pans
@@ -1514,6 +1532,12 @@ function revealPulsed() {
 }
 
 const GLIDE_MS = 320;
+/**
+ * The frames that are not the picked size, while one is picked in the top
+ * bar: stepped back a fifth, so the eye lands on the one with the ring. With
+ * no size picked — Responsive, the strip's "All" — every frame stands alike.
+ */
+const DIM_OPACITY = 0.8;
 
 /**
  * The row scrolled to `left`/`top` with an animation rather than a jump — a

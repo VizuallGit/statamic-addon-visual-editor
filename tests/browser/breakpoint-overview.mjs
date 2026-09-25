@@ -818,6 +818,25 @@ try {
   const backByLabel = await until(async () => { const g = await rowGeo(); return g.active === other.handle && g.slot && Math.abs(g.frame.x - g.slot.x) <= 1 ? g : null; }, 5000, 100);
   step(`and ${other.device}'s label brings the preview back there`, !!backByLabel, backByLabel ? `active ${backByLabel.active}` : 'not within 5 s');
 
+  // 10d2. The other frames step back while a size is picked; with Responsive (the strip's "All") every frame stands alike.
+  const frameOpacities = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-bp]`)].map((item) => ({ bp: item.dataset.bp, active: item.hasAttribute('data-active'), opacity: getComputedStyle(item.querySelector('iframe')).opacity })), LAYER);
+  // Read once the 150 ms fade after the last switch has settled.
+  const settled = (want) => until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.opacity === (x.active ? '1' : want)) ? o : null; }, 3000, 50);
+  let ops = (await settled('0.8')) || (await frameOpacities());
+  step('with a size picked, every other frame stands at 80 % and the picked one at 100 %', ops.some((o) => o.active) && ops.every((o) => o.active ? o.opacity === '1' : o.opacity === '0.8'), ops.map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
+  const responsive = await cp.$('#__sve-preview-chrome [data-device="Responsive"]');
+  if (responsive) {
+    const pickedBefore = await pressedDevice();
+    await realClick(page, cp, '#__sve-preview-chrome [data-device="Responsive"]');
+    const alike = await until(async () => { const o = await frameOpacities(); return o.every((x) => x.opacity === '1') ? o : null; }, 3000, 100);
+    step('Responsive picked: every frame stands alike at 100 %', !!alike, (alike || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' '));
+    await realClick(page, cp, `#__sve-preview-chrome [data-device="${other.device}"]`);
+    const back = await until(async () => { const o = await frameOpacities(); return o.some((x) => x.active) && o.every((x) => x.active ? x.opacity === '1' : x.opacity === '0.8') ? o : null; }, 3000, 100);
+    step(`${other.device} picked again: the others step back again`, !!back, (back || (await frameOpacities())).map((o) => `${o.bp}${o.active ? '*' : ''} ${o.opacity}`).join(' ') + ` (was ${pickedBefore})`);
+  } else {
+    skip('Responsive: every frame alike', 'no Responsive button in the top bar');
+  }
+
   // 10e. An inline edit in the preview reaches every frame as it is typed: the
   //      preview holds its morphs back while the edit lasts, so the frames are painted.
   const fieldPoint = await (await previewNow()).evaluate((field) => { const el = document.querySelector(`[data-sid-field="${field}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24) }; }, FIELD);
