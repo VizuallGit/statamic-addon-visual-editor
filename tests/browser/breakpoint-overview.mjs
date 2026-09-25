@@ -282,10 +282,24 @@ try {
 
   // 2. The fields of the headline's section on the left: click the headline in the preview.
   const main = previewReady;
-  await realClick(page, main, `[data-sid-field="${FIELD}"]`);
+  // On the text itself: a tall field's empty gap between its lines opens nothing on the left.
+  const clickFieldText = async (frame) => {
+    const pt = await frame.evaluate((field) => {
+      const el = document.querySelector(`[data-sid-field="${field}"]`);
+      if (!el) return null;
+      const texty = [el, ...el.querySelectorAll('*')].find((n) => [...n.childNodes].some((c) => c.nodeType === 3 && c.nodeValue.trim())) || el;
+      const r = texty.getBoundingClientRect();
+      return { x: r.x + Math.min(r.width / 2, 120), y: r.y + Math.min(r.height / 2, 24) };
+    }, FIELD);
+    if (!pt) throw new Error(`no [data-sid-field="${FIELD}"] in the preview`);
+    let { x, y } = pt;
+    for (let f = frame; f.parentFrame(); f = f.parentFrame()) { const box = await (await f.frameElement()).boundingBox(); x += box.x; y += box.y; }
+    await page.mouse.click(x, y);
+  };
+  await clickFieldText(main);
   if (SHOW_PANEL) {
     const shown = await until(() => cp.evaluate(() => { const r = document.querySelector('.live-preview-editor')?.getBoundingClientRect(); return !!r && r.right > 0 && r.width > 100; }), 3000, 200);
-    if (!shown) { await realClick(page, cp, '#__sve-toolbar button[data-tab="settings"]'); await sleep(1500); await realClick(page, main, `[data-sid-field="${FIELD}"]`); info('left panel', 'was hidden for this user — the settings key pressed it into view'); }
+    if (!shown) { await realClick(page, cp, '#__sve-toolbar button[data-tab="settings"]'); await sleep(1500); await clickFieldText(main); info('left panel', 'was hidden for this user — the settings key pressed it into view'); }
   }
   const field = await until(() => cp.evaluate(() => {
     const editor = document.querySelector('.live-preview-editor');
