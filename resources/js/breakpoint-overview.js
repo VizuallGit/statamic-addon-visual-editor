@@ -1434,8 +1434,9 @@ const GLIDE_MS = 320;
  * size picked in the top bar, a section focused on the left. By script, one
  * animation frame at a time, and the preview placed in each: native smooth
  * scrolling runs on the compositor, and the preview would trail it a frame.
- * A wheel, a drag, a zoom or a close cuts the glide short. Reduced motion
- * means a jump.
+ * A wheel, a drag, a zoom or a close cuts the glide short. It glides whatever
+ * the system's motion setting says: the owner asked for the movement, twice
+ * (25 Sep 2026) — a jump here read as a fault, not as calm.
  */
 function glideTo(left, top = overviewState.scroller.scrollTop) {
   const { scroller } = overviewState;
@@ -1446,14 +1447,6 @@ function glideTo(left, top = overviewState.scroller.scrollTop) {
   stopGlide();
 
   if (!delta.left && !delta.top) {
-    return;
-  }
-
-  if (view.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-    scroller.scrollLeft = left;
-    scroller.scrollTop = top;
-    placePreview();
-
     return;
   }
 

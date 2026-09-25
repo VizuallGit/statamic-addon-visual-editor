@@ -462,6 +462,13 @@ async function applyUpdate(url, sectionUids) {
   const seq = ++updateSeq;
   const chromeKind = focusedChromeKind();
   let ids = chromeKind ? [] : normalizeSectionUids(sectionUids);
+
+  // A section this document does not hold (hidden in the file, then shown
+  // again) has nothing to morph onto: fetch the whole page, morph the body.
+  if (ids.length && !findSectionNode(document, ids)) {
+    ids = [];
+  }
+
   let scoped = ids.length > 0;
   let text;
 
