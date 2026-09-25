@@ -125,10 +125,16 @@ try {
   step('the field sits in a section', !!sectionId, sectionId);
 
   // 2. The dock on that section's file, unlocked, and the tree open.
-  await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]');
-  step('the dock opened', await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000));
+  // A licensing dialog on a production site takes the first click now and then: one more try.
+  let dock = false;
+  for (let attempt = 0; attempt < 2 && !dock; attempt++) {
+    await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]');
+    dock = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000);
+  }
+  step('the dock opened', dock);
   const dockPath = () => cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : ''; });
-  if (!(await cp.$('[data-sve-ht-row]'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]'); await sleep(1500); }
+  // The tree comes with the dock; a site with the older toolbar tab needs it pressed.
+  if (!(await cp.$('[data-sve-ht-row]')) && (await cp.$('#__sve-toolbar button[data-tab="html_tree"]'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="html_tree"]'); await sleep(1500); }
   step('the tree is open', !!(await cp.$('[data-sve-ht-row]')));
   // The section's row in the tree opens its file in the dock.
   for (let attempt = 0; attempt < 3; attempt++) {
