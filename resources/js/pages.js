@@ -139,12 +139,12 @@ function pickerEntryId(win, entries) {
  * Overlay that covers only the Live Preview iframe (falls back to full viewport).
  * Keeps confirms visually centered in the preview pane, not the whole CP.
  *
- * Only the part of the iframe that is on screen: in the overview's row the
- * frame is page-high and drawn scaled, so its box reaches far below the pane
- * — the overlay went down over the dock and the card sat out of sight in the
- * middle of the page (25 Sep 2026). Clipped to the pane, the card stands in
- * the middle of what is seen; in one preview the frame is inside the pane
- * and nothing changes.
+ * In the overview's row the question is about the page every frame shows, so
+ * the overlay covers the whole pane — every size — with the card in its
+ * middle. It used to cover the active frame's box, which there is page-high
+ * and drawn scaled: it went down over the dock and the card sat out of sight
+ * in the middle of the page (25 Sep 2026). In one preview the frame is
+ * inside the pane and the overlay covers the frame, as it always has.
  */
 export function createPreviewCenteredOverlay(doc, id) {
   const overlay = doc.createElement('div');
@@ -155,20 +155,8 @@ export function createPreviewCenteredOverlay(doc, id) {
 
   const iframe = doc.getElementById('live-preview-iframe');
   const pane = doc.querySelector('.live-preview-contents');
-  let rect = iframe?.getBoundingClientRect?.();
-
-  if (rect && pane) {
-    const box = pane.getBoundingClientRect();
-    const left = Math.max(rect.left, box.left);
-    const top = Math.max(rect.top, box.top);
-
-    rect = {
-      left,
-      top,
-      width: Math.min(rect.right, box.right) - left,
-      height: Math.min(rect.bottom, box.bottom) - top,
-    };
-  }
+  const overview = doc.getElementById('__sve-bp-overview');
+  const rect = overview && pane ? pane.getBoundingClientRect() : iframe?.getBoundingClientRect?.();
 
   if (rect && rect.width > 0 && rect.height > 0) {
     overlay.style.cssText =
