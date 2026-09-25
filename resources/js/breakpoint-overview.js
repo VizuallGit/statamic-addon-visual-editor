@@ -144,7 +144,12 @@ const SIZE_BLUE = 'rgb(96, 165, 250)';
 const MARK_CENTER_X = 20;
 
 /** The size marks' colour (the owner's, 25 Sep 2026); a size switched out shows a fainter ring of it. */
-const MARK_COLOR = '#FFAE6B';
+/**
+ * The size marks in the top bar: a hollow grey ring for a size out of the
+ * row, filled with the ring's own blue for one in it — the same blue that
+ * frames the active size, so the two say "in the preview" in one colour
+ * (25 Sep 2026; they were orange for a day).
+ */
 
 const MINUS_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>';
@@ -730,7 +735,7 @@ ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} svg { opacity: 1; }
-#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge { --sve-bpo-mark: ${MARK_COLOR}; position: absolute; box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid color-mix(in srgb, ${MARK_COLOR} 45%, var(--sve-bpo-knock)); background: var(--sve-bpo-knock); box-shadow: 0 0 0 2.5px var(--sve-bpo-knock); cursor: pointer; }
+#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge { --sve-bpo-mark: ${SIZE_BLUE}; position: absolute; box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid color-mix(in srgb, currentColor 40%, var(--sve-bpo-knock)); background: var(--sve-bpo-knock); box-shadow: 0 0 0 2.5px var(--sve-bpo-knock); cursor: pointer; }
 #${LP_PREVIEW_CHROME_ID} .sve-bpo-badge::after { content: ''; position: absolute; inset: -.25rem -.25rem -.0625rem -.125rem; }
 #${LP_PREVIEW_CHROME_ID} .sve-bpo-badge[data-on] { border-color: var(--sve-bpo-mark); background: var(--sve-bpo-mark); }
 `;

@@ -924,6 +924,28 @@ try {
   await realClick(page, cp, '#__sve-toolbar button[data-tab="sections"]');
   await sleep(400);
 
+  // 10f2. Deleting a section from the row asks first — with the card in the part of the frame
+  //       on screen, the overlay no lower than the pane, and Escape closing the card alone.
+  await realClick(page, cp, `${LAYER} [data-bpo="actual"]`);
+  await sleep(500);
+  const askUid = await (await previewNow()).evaluate(() => document.querySelector('[data-sid-section-orderable]')?.getAttribute('data-sid') || '');
+  if (askUid) {
+    // The preview's own message, as the hover bar's minus sends it.
+    await (await previewNow()).evaluate((uid) => window.parent.postMessage({ source: 'statamic-visual-editor', type: 'remove-row', uid, confirm: true }, window.location.origin), askUid);
+    const ask = await until(() => cp.evaluate(() => { const o = document.getElementById('__sve-close-discard'); if (!o) return null; const card = o.firstElementChild; const pane = document.querySelector('.live-preview-contents').getBoundingClientRect(); const r = o.getBoundingClientRect(); const c = card.getBoundingClientRect(); return { overlay: { x: r.x, y: r.y, w: r.width, h: r.height, bottom: r.bottom }, pane: { x: pane.x, y: pane.y, w: pane.width, h: pane.height, bottom: pane.bottom }, card: { top: c.top, bottom: c.bottom, w: c.width }, title: card.textContent.trim().slice(0, 30) }; }), 5000, 100);
+    const inPane = ask && ask.overlay.y >= ask.pane.y - 1 && ask.overlay.bottom <= ask.pane.bottom + 1 && ask.card.top >= ask.pane.y && ask.card.bottom <= ask.pane.bottom;
+    step('the delete question stands in the frame\'s part on screen: overlay no lower than the pane, card in view', !!inPane, ask ? `overlay ${Math.round(ask.overlay.y)}..${Math.round(ask.overlay.bottom)} in pane ${Math.round(ask.pane.y)}..${Math.round(ask.pane.bottom)}; card ${Math.round(ask.card.top)}..${Math.round(ask.card.bottom)} "${ask.title}"` : 'no question within 5 s');
+    await page.keyboard.press('Escape');
+    await sleep(400);
+    const afterEscape = await cp.evaluate(() => ({ ask: !!document.getElementById('__sve-close-discard'), overview: !!document.getElementById('__sve-bp-overview') }));
+    step('Escape closes the question and leaves the overview open', !afterEscape.ask && afterEscape.overview, JSON.stringify(afterEscape));
+    const stillThere = await (await previewNow()).evaluate((uid) => !!document.querySelector(`[data-sid="${uid}"]`), askUid);
+    step('the section is still on the page', stillThere);
+  } else {
+    skip('the delete question in the row', 'no orderable section in the preview');
+  }
+  await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+
   // 10g. Comments belong to a screen size: made on the picked size, shown there
   //      and nowhere else, and the hit layer follows the frame when the row pans.
   await realClick(page, cp, '#__sve-toolbar button[data-tab="comments"]');
