@@ -763,7 +763,8 @@ try {
   const overlayBox2 = await (await page.$('iframe.sve-edit-overlay')).boundingBox();
   const inActive = async (previewPoint) => { const g = await rowGeo(); return { x: overlayBox2.x + g.frame.x + previewPoint.x * g.z, y: overlayBox2.y + g.frame.y + previewPoint.y * g.z, g }; };
   await cp.evaluate(() => { window.__sveBpoMsgs = []; window.addEventListener('message', (e) => { const d = e.data || {}; if (d.source === 'statamic-visual-editor' && /^(click|hover|edit-request)$/.test(d.type)) window.__sveBpoMsgs.push(`${d.type}${d.field ? ' field=' + d.field : ''}${d.uid ? ' uid' : ''}`); }); });
-  const headlineAt = await (await previewNow()).evaluate(() => { const el = document.querySelector(`[data-sid-field="${window.__sveTestField}"]`); el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+  // The field's place in the preview — read once the document holds it again (a morph may be replacing it this instant).
+  const headlineAt = await until(() => previewNow().then((f) => f.evaluate(() => { const el = document.querySelector(`[data-sid-field="${window.__sveTestField}"]`); if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })), 8000, 200);
   // The row scrolled so the headline is on screen, then a real click on it in the active frame.
   await cp.evaluate((sel, y) => { const layer = document.querySelector(sel); const s = layer.querySelector('.sve-bpo-scroll'); const z = new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a; s.scrollTop = Math.max(0, y * z - 200); }, LAYER, headlineAt.y);
   await sleep(300);
@@ -893,18 +894,27 @@ try {
     const whole = (g) => g.frame.x >= g.view.x - 1 && g.frame.x + g.frame.w <= g.view.x + g.view.w + 1 && g.frame.y >= g.view.y - 1 && g.frame.y + g.frame.h <= g.view.y + g.view.h + 1;
     info('before the drag', `zoom ${gBefore.z.toFixed(3)}, scroll ${gBefore.scroll.join(',')}, active frame whole in view: ${whole(gBefore)}`);
     await cp.evaluate(() => { window.__bpLog = []; const orig = window.dispatchEvent.bind(window); window.__bpOrigDispatch = orig; window.dispatchEvent = function (event) { if (event?.type === 'sve:breakpoint') window.__bpLog.push({ t: Math.round(performance.now()), bp: event.detail?.bp, device: event.detail?.device, stack: String(new Error().stack).split('\n').slice(2, 6).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\/[^ ]*\/assets\//, '')).join(' < ') }); return orig(event); }; });
+    await cp.evaluate((sel) => { const canvas = document.querySelector(`${sel} .sve-bpo-canvas`); window.__zoomLog = []; window.__zoomLogOn = true; const tick = () => { window.__zoomLog.push(new DOMMatrix(getComputedStyle(canvas).transform).a.toFixed(3)); if (window.__zoomLogOn) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }, LAYER);
     const cardAt = { x: overlayBox2.x + libraryCard.x, y: overlayBox2.y + libraryCard.y };
     await page.mouse.move(cardAt.x, cardAt.y);
     await page.mouse.down();
     await page.mouse.move(cardAt.x + 24, cardAt.y + 12, { steps: 4 }); // sideways first: a vertical move inside the list is a scroll
     const overFrame = await inActive({ x: 160, y: 160 });
     await page.mouse.move(overFrame.x, overFrame.y, { steps: 8 });
-    const gDrag = await until(async () => { const g = await rowGeo(); return whole(g) && g.z < gBefore.z ? g : null; }, 3000, 100);
-    step('dragging a library card over the row zooms it so the active frame is whole in view', !!gDrag, gDrag ? `zoom ${gBefore.z.toFixed(3)} → ${gDrag.z.toFixed(3)}, frame ${Math.round(gDrag.frame.h)} px high in a ${Math.round(gDrag.view.h)} px pane` : `not within 3 s: ${JSON.stringify(await rowGeo())}`);
+    const gDrag = await until(async () => { const g = await rowGeo(); return whole(g) && g.z < gBefore.z ? g : null; }, 3000, 30);
+    await sleep(400);
+    const gSettled = await rowGeo();
+    step('dragging a library card over the row zooms it so the active frame is whole in view', !!gDrag && whole(gSettled), gDrag ? `zoom ${gBefore.z.toFixed(3)} → ${gSettled.z.toFixed(3)}, frame ${Math.round(gSettled.frame.h)} px high in a ${Math.round(gSettled.view.h)} px pane` : `not within 3 s: ${JSON.stringify(await rowGeo())}`);
+    // Every zoom the row passed through, one per animation frame: a glide shows several, a jump one.
+    const zoomsOut = await cp.evaluate(() => { const seen = [...new Set(window.__zoomLog)]; window.__zoomLog = []; return seen; });
+    step('the zoom-out glides rather than jumping, as in one preview', zoomsOut.length >= 3, `${zoomsOut.length} zoom values on the way out: ${zoomsOut.slice(0, 8).join(' ')}${zoomsOut.length > 8 ? ' …' : ''}`);
     // Let go over the library again: nothing is inserted, and the row goes back to where it was.
     await page.mouse.move(cardAt.x, cardAt.y, { steps: 6 });
     await page.mouse.up();
-    const gAfter = await until(async () => { const g = await rowGeo(); return Math.abs(g.z - gBefore.z) < 0.001 && g.scroll[0] === gBefore.scroll[0] && g.scroll[1] === gBefore.scroll[1] ? g : null; }, 3000, 100);
+    const gAfter = await until(async () => { const g = await rowGeo(); return Math.abs(g.z - gBefore.z) < 0.001 && g.scroll[0] === gBefore.scroll[0] && g.scroll[1] === gBefore.scroll[1] ? g : null; }, 3000, 30);
+    await sleep(100);
+    const zoomsBack = await cp.evaluate(() => { window.__zoomLogOn = false; return [...new Set(window.__zoomLog)]; });
+    step('the zoom back glides too', zoomsBack.length >= 3, `${zoomsBack.length} zoom values on the way back`);
     const bpLog = await cp.evaluate(() => { const log = window.__bpLog || []; if (window.__bpOrigDispatch) { window.dispatchEvent = window.__bpOrigDispatch; delete window.__bpOrigDispatch; } return log; });
     step('released outside the preview: zoom and scroll are as before the drag', !!gAfter, (gAfter ? `zoom ${gAfter.z.toFixed(3)}, scroll ${gAfter.scroll.join(',')}` : `not within 3 s: ${JSON.stringify(await rowGeo())}`) + (bpLog.length ? ` — sve:breakpoint fired ${bpLog.length}× during the drag: ${bpLog.map((e) => `${e.bp}/${e.device} via ${e.stack}`).join(' || ')}` : ' — no sve:breakpoint during the drag'));
     await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);

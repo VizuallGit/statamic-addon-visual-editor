@@ -1562,32 +1562,72 @@ function fitForDrop() {
 
   overviewState.drop = { zoom, left: scroller.scrollLeft, top: scroller.scrollTop };
 
-  const fit = Math.min(
-    (scroller.clientWidth - PAD * 2) / entry.spec.width,
-    (scroller.clientHeight - labelSpace - PAD * 2) / Math.max(1, entry.height)
+  const fit = clampZoom(
+    Math.min(
+      (scroller.clientWidth - PAD * 2) / entry.spec.width,
+      (scroller.clientHeight - labelSpace - PAD * 2) / Math.max(1, entry.height)
+    )
   );
 
-  applyZoom(clampZoom(fit));
+  // Zoomed out over the same time and curve as the bridge zooms the page in
+  // one preview, the active frame's top-left corner held in place — no jump.
+  zoomGlide(fit, () => {
+    const view = scroller.getBoundingClientRect();
+    const rect = entry.el.getBoundingClientRect();
 
-  const view = scroller.getBoundingClientRect();
-  const rect = entry.el.getBoundingClientRect();
-
-  glideTo(
-    Math.max(0, Math.round(rect.left - view.left + scroller.scrollLeft - PAD)),
-    Math.max(0, Math.round(rect.top - view.top + scroller.scrollTop - labelSpace - PAD))
-  );
+    scroller.scrollLeft = Math.max(0, scroller.scrollLeft + rect.left - view.left - PAD);
+    scroller.scrollTop = Math.max(0, scroller.scrollTop + rect.top - view.top - labelSpace - PAD);
+  });
 }
 
 function leaveDrop() {
   const drop = overviewState.drop;
+  const { scroller } = overviewState;
 
   if (!drop) {
     return;
   }
 
   overviewState.drop = null;
-  applyZoom(drop.zoom);
-  glideTo(drop.left, drop.top);
+
+  const from = { left: scroller.scrollLeft, top: scroller.scrollTop };
+
+  // Back the same way: zoom and scroll together, to where the drag began.
+  zoomGlide(drop.zoom, (t) => {
+    scroller.scrollLeft = from.left + (drop.left - from.left) * t;
+    scroller.scrollTop = from.top + (drop.top - from.top) * t;
+  });
+}
+
+const DROP_ZOOM_MS = 350;
+
+/**
+ * The row zoomed to `target` one animation frame at a time — the same 350 ms
+ * ease the bridge gives the page in one preview — `place(eased)` setting the
+ * scroll for each step and the preview placed in each. A wheel, a drag, a
+ * zoom or a close cuts it short, as with a scroll glide.
+ */
+function zoomGlide(target, place) {
+  const { scroller } = overviewState;
+  const view = scroller.ownerDocument.defaultView;
+  const from = overviewState.zoom;
+  const delta = target - from;
+
+  stopGlide();
+
+  const started = view.performance.now();
+  const step = (now) => {
+    const t = Math.min(1, (now - started) / DROP_ZOOM_MS);
+    const eased = glideEase(t);
+
+    applyZoom(from + delta * eased);
+    place(eased);
+    placePreview();
+
+    overviewState.glide = t < 1 ? view.requestAnimationFrame(step) : null;
+  };
+
+  overviewState.glide = view.requestAnimationFrame(step);
 }
 
 const GLIDE_MS = 320;
