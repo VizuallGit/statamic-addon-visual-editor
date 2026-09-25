@@ -8,7 +8,8 @@
         <span class="sve-colors__title">{{ ui.labels.title }}</span>
         <span class="sve-colors__subtitle">{{ ui.labels.subtitle }}</span>
       </span>
-      <button type="button" class="sve-colors__ghost-icon" :title="ui.labels.close" @click="onClose">
+      <!-- data-sve-close: ours, so the hider for Statamic's own Live Preview × leaves it alone. -->
+      <button type="button" class="sve-colors__ghost-icon" data-sve-close :title="ui.labels.close" @click="onClose">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </header>
