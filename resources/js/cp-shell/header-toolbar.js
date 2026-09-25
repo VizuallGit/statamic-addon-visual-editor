@@ -10,7 +10,7 @@ import { SELECTORS } from '../cp-selectors.js';
 import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templateDockAllowed } from '../code-dock-lazy.js';
 import { aiPanelAllowed, closeAiPanel, ensureAiPanel, isAiPanelOpen, toggleAiPanel } from '../ai-panel-lazy.js';
 import { closeSiteCss, isSiteCssOpen, siteCssAllowed, toggleSiteCss } from '../site-css-lazy.js';
-import { THEME_COLORS_ICON, closeThemeColors, isThemeColorsOpen, themeColorsAllowed, toggleThemeColors } from '../theme-colors-lazy.js';
+import { THEME_PANEL_ICON, closeThemePanel, isThemePanelOpen, themePanelAllowed, toggleThemePanel } from '../theme-panel-lazy.js';
 import { beginRightShellSwap, endRightShellSwap, isRightDockTool, isToolbarShortcut, relayoutRightDock, releaseRightShellIfEmpty, rememberedListViewTab, rememberedRightPaneKeys, revealRightPane } from '../right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
@@ -510,8 +510,8 @@ export const TOOLBAR_ICONS = {
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<path d="M8 4c-3 1-4 3-4 6v1c0 1.2-1 2-2 2 1 0 2 .8 2 2v1c0 3 1 5 4 6"/>' +
     '<path d="M16 4c3 1 4 3 4 6v1c0 1.2 1 2 2 2-1 0-2 .8-2 2v1c0 3-1 5-4 6"/></svg>',
-  // The site's theme colors: a palette.
-  theme_colors: THEME_COLORS_ICON,
+  // The site's theme (colors, sizes, type, button): a palette.
+  theme: THEME_PANEL_ICON,
 };
 
 /** Keep toolbar glyphs in sync after icon redesigns (toolbar mounts once). */
@@ -550,7 +550,7 @@ export function ensureHeaderToolbar(win) {
     doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="rightdock"]')?.remove();
     ensureCodeDockToolbarButton(win);
     ensureSiteCssToolbarButton(win);
-    ensureThemeColorsToolbarButton(win);
+    ensureThemePanelToolbarButton(win);
     ensureAiToolbarButton(win);
     ensureAiTextToolbarButton(win);
     ensureSchemaToolbarButton(win);
@@ -835,16 +835,16 @@ export function ensureSiteCssToolbarButton(win) {
   }
 }
 
-export function toggleThemeColorsButton(win) {
-  if (!themeColorsAllowed(win)) {
+export function toggleThemePanelButton(win) {
+  if (!themePanelAllowed(win)) {
     return;
   }
 
-  void toggleThemeColors(win).then(() => applyHeaderTab(win));
+  void toggleThemePanel(win).then(() => applyHeaderTab(win));
 }
 
 /** The palette icon, right after the stylesheet icon: both edit site.css. */
-export function ensureThemeColorsToolbarButton(win) {
+export function ensureThemePanelToolbarButton(win) {
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
@@ -852,13 +852,13 @@ export function ensureThemeColorsToolbarButton(win) {
     return;
   }
 
-  const existing = bar.querySelector('button[data-tab="theme_colors"]');
+  const existing = bar.querySelector('button[data-tab="theme"]');
 
-  if (!themeColorsAllowed(win)) {
+  if (!themePanelAllowed(win)) {
     existing?.remove();
 
-    if (isThemeColorsOpen(doc)) {
-      closeThemeColors(win);
+    if (isThemePanelOpen(doc)) {
+      closeThemePanel(win);
     }
 
     return;
@@ -871,12 +871,12 @@ export function ensureThemeColorsToolbarButton(win) {
   const btn = doc.createElement('button');
 
   btn.type = 'button';
-  btn.dataset.tab = 'theme_colors';
+  btn.dataset.tab = 'theme';
   btn.dataset.iconVer = 'stairs-toc-20260821';
-  btn.title = t(win, 'theme_colors_toggle');
-  btn.innerHTML = TOOLBAR_ICONS.theme_colors;
+  btn.title = t(win, 'theme_panel_toggle');
+  btn.innerHTML = TOOLBAR_ICONS.theme;
   btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
-  btn.addEventListener('click', () => toggleThemeColorsButton(win));
+  btn.addEventListener('click', () => toggleThemePanelButton(win));
 
   const anchor = bar.querySelector('button[data-tab="site_css"]') || bar.querySelector('button[data-tab="code"]');
 
@@ -1720,7 +1720,7 @@ export function applyHeaderTab(win) {
   hideLpLabel(doc);
   ensureCodeDockToolbarButton(win);
   ensureSiteCssToolbarButton(win);
-  ensureThemeColorsToolbarButton(win);
+  ensureThemePanelToolbarButton(win);
   ensureCommentsToolbarButton(win);
   ensurePageEditsToolbarButton(win);
   ensureAiToolbarButton(win);
@@ -1892,8 +1892,8 @@ export function applyHeaderTab(win) {
           ? isCodeDockArmed(win)
           : tab === 'site_css'
             ? isSiteCssOpen(win.document)
-          : tab === 'theme_colors'
-            ? isThemeColorsOpen(win.document)
+          : tab === 'theme'
+            ? isThemePanelOpen(win.document)
           : tab === 'edits'
             ? !!pageEditsOpen()
           : tab === 'aitext'

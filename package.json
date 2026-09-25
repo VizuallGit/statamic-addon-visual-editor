@@ -15,7 +15,7 @@
     "test:switch": "node tests/browser/section-switch.mjs",
     "test:hide-show": "node tests/browser/section-hide-show.mjs",
     "test:two-divs": "node tests/browser/instant-two-divs.mjs",
-    "test:colors": "node tests/browser/theme-colors.mjs",
+    "test:theme": "node tests/browser/theme-panel.mjs",
     "test:perf": "node tests/browser/perf-server-tab.mjs"
   },
   "dependencies": {

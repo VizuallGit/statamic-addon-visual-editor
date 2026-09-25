@@ -12,7 +12,7 @@ import {
   readColors,
   takenNames,
   writeColors,
-} from '../../resources/js/cp/theme-colors/palette.js';
+} from '../../resources/js/cp/theme-panel/palette.js';
 
 const SITE_CSS = `@import "tailwindcss";
 

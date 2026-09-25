@@ -1,0 +1,658 @@
+/**
+ * The theme panel in Live Preview: colors, the size scale, typography and the
+ * button — the tokens in the site's site.css `@theme`, edited like a design
+ * tool, one tab each.
+ *
+ * Own surface. Does not import overlay, preview, bridge or the template dock.
+ * Two speeds: a change paints into the preview at once (the variables are set
+ * on the preview's `<html>`); Save writes site.css through the site-css
+ * endpoint, and the site's `{{ theme_tokens }}` tag serves the saved values
+ * on the next render — no build.
+ */
+import './cp/theme-panel/theme-panel.css';
+import { mountSurface } from './cp/mount.js';
+import { openCpOverlay } from './cp/open-overlay.js';
+import { t } from './lib/i18n.js';
+import { csrfToken } from './lib/csrf.js';
+import { previewCopies, previewDocument } from './lib/preview-frame.js';
+import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
+import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
+import { themePanelUi as ui } from './cp/theme-panel/store.js';
+import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, writeColors } from './cp/theme-panel/palette.js';
+import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
+import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
+import { BUTTON_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+
+export const PANEL_ID = '__sve-theme';
+
+const ENTRY = 'site.css';
+
+const TABS = ['colors', 'spacing', 'type', 'button'];
+
+let app = null;
+let keySeq = 0;
+let loadSeq = 0;
+/** Custom properties this panel has set on the preview, so they can be taken off again. */
+let painted = new Set();
+/** The tokens as they stood in the file when it was read or saved — a save writes only what differs. */
+let savedTokens = new Map();
+let onFrameLoad = null;
+
+async function request(win, url, options = {}) {
+  const res = await win.fetch(`${url}${url.includes('?') ? '&' : '?'}kind=css`, {
+    credentials: 'same-origin',
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-CSRF-TOKEN': csrfToken(win),
+      Accept: 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...options,
+  });
+
+  if (!res.ok) {
+    throw new Error(String(res.status));
+  }
+
+  return res.json();
+}
+
+async function readFile(win) {
+  const data = await request(win, `/!/sve/site-css/file?path=${encodeURIComponent(ENTRY)}`);
+
+  return String(data.css || '');
+}
+
+function colorUi(family) {
+  return {
+    key: `color-${++keySeq}`,
+    name: family.name,
+    value: family.value,
+    steps: family.steps,
+    ...familyMode(family),
+    fresh: false,
+    problem: null,
+  };
+}
+
+function sizeUi(name, value) {
+  const size = parseSize(value);
+
+  return size ? { key: `size-${++keySeq}`, name, value, min: size.min, max: size.max, fresh: false, problem: null } : null;
+}
+
+function plainFamilies(families) {
+  return families.map(({ name, value, steps }) => ({ name, value, steps }));
+}
+
+/** The families the page has fonts for, plus the ones the theme names. */
+function fontFamilies(win) {
+  const names = new Set();
+  const doc = previewDocument(win);
+
+  try {
+    doc?.fonts?.forEach((face) => names.add(face.family.replace(/^['"]|['"]$/g, '')));
+  } catch {
+    // no FontFaceSet: the theme's own families below are enough
+  }
+
+  [ui.type['font-base'], ui.type['font-heading']].forEach((stack) => stack && names.add(firstFamily(stack)));
+  names.delete('Iconfont');
+
+  return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b));
+}
+
+function remember(css) {
+  const tokens = readTokens(css);
+
+  ui.saved = css;
+  savedTokens = tokens;
+  ui.families = readColors(css).map(colorUi);
+  ui.sizes = [...tokens].filter(([name]) => name.startsWith('size-')).map(([name, value]) => sizeUi(name, value)).filter(Boolean);
+  ui.maxViewport = parseSize(tokens.get('container-width'))?.max || inferViewport(ui.sizes.map((s) => s.value)) || 1280;
+  ui.type = Object.fromEntries(TYPE_TOKENS.map((name) => [name, tokens.get(name) || '']));
+  ui.button = Object.fromEntries(BUTTON_TOKENS.map((name) => [name, tokens.get(name) || '']));
+  ui.leadings = [...tokens]
+    .filter(([name, value]) => name.startsWith('leading-') && /^[\d.]+$/.test(value))
+    .map(([name, value]) => ({ name: name.slice('leading-'.length), value }));
+  ui.dirty = false;
+}
+
+/** The container width as written: unchanged, the file's own text. */
+function containerValue() {
+  const saved = savedTokens.get('container-width');
+
+  return parseSize(saved)?.max === ui.maxViewport ? saved : `${Number((ui.maxViewport / 16).toFixed(4))}rem`;
+}
+
+/** A size as written: unchanged (same min, max and container), the file's own text. */
+function sizeText(size) {
+  const saved = parseSize(size.value);
+  const viewport = parseSize(savedTokens.get('container-width'))?.max;
+
+  if (size.value && saved && saved.min === size.min && saved.max === size.max && (viewport === ui.maxViewport || saved.min === saved.max)) {
+    return size.value;
+  }
+
+  return sizeValue(size.min, size.max, ui.maxViewport);
+}
+
+/** Every token the panel manages besides colors, as the tabs say: name => value. */
+function desiredTokens() {
+  const out = { 'container-width': containerValue() };
+
+  for (const size of ui.sizes) {
+    if (!size.problem) {
+      out[size.name] = sizeText(size);
+    }
+  }
+
+  for (const [name, value] of Object.entries({ ...ui.type, ...ui.button })) {
+    if (value) {
+      out[name] = value;
+    }
+  }
+
+  return out;
+}
+
+/** What a save changes in the file: the tokens that differ from it, and sizes that are gone (null). */
+function tokenChanges() {
+  const want = desiredTokens();
+  const changes = {};
+
+  for (const [name, value] of Object.entries(want)) {
+    if (savedTokens.get(name) !== value) {
+      changes[name] = value;
+    }
+  }
+
+  for (const name of savedTokens.keys()) {
+    if (name.startsWith('size-') && !(name in want) && !ui.sizes.some((s) => s.name === name)) {
+      changes[name] = null;
+    }
+  }
+
+  return changes;
+}
+
+/** The documents that show the page: the preview, and the breakpoint overview's frames. */
+function pageDocuments(win) {
+  return [previewDocument(win), ...previewCopies(win).map((w) => w.document)].filter(Boolean);
+}
+
+/** The custom properties `{{ theme_tokens }}` would write for this state: colors (plus short names) and the rest. */
+function propertiesFor(families, tokens) {
+  const want = new Map();
+
+  for (const f of families) {
+    if (f.problem) {
+      continue;
+    }
+
+    const set = (name, value) => {
+      want.set(`--color-${name}`, value);
+      want.set(`--${name}`, `var(--color-${name})`);
+    };
+
+    if (f.value) {
+      set(f.name, f.value);
+    }
+
+    (f.steps || []).forEach((step) => set(`${f.name}-${step.name}`, step.value));
+  }
+
+  for (const [name, value] of Object.entries(tokens)) {
+    if (value !== null && isManaged(name)) {
+      want.set(`--${name}`, value);
+    }
+  }
+
+  return want;
+}
+
+/** Set every value on the preview's `<html>`, and take off the ones that are gone. */
+function paint(win, want = propertiesFor(ui.families, desiredTokens())) {
+  for (const doc of pageDocuments(win)) {
+    const style = doc.documentElement.style;
+
+    for (const [name, value] of want) {
+      style.setProperty(name, value);
+    }
+
+    for (const name of painted) {
+      if (!want.has(name)) {
+        style.removeProperty(name);
+      }
+    }
+  }
+
+  painted = new Set(want.keys());
+}
+
+function changed(win) {
+  ui.dirty = true;
+  ui.status = '';
+  paint(win);
+}
+
+const findColor = (key) => ui.families.find((f) => f.key === key) || null;
+const findSize = (key) => ui.sizes.find((s) => s.key === key) || null;
+
+/** Steps follow the counts; with both at zero a generated family has none. */
+function remake(f) {
+  if (f.tints || f.shades) {
+    f.steps = generateSteps(f.value, { tints: f.tints, shades: f.shades }).map(({ name, value }) => ({ name, value }));
+    f.generated = true;
+  } else if (f.generated) {
+    f.steps = [];
+  }
+}
+
+/** Why `name` cannot be a new color, or null. The preview is asked whether the site already has `--name`. */
+function colorProblem(win, f, name) {
+  const problem = nameProblem(name, ui.families.filter((o) => o !== f).map((o) => o.name));
+
+  if (problem) {
+    return problem;
+  }
+
+  const doc = previewDocument(win);
+  const existing = !painted.has(`--${name}`) && doc
+    ? doc.defaultView.getComputedStyle(doc.documentElement).getPropertyValue(`--${name}`).trim()
+    : '';
+
+  return existing ? 'clash' : null;
+}
+
+function sizeProblem(size, name) {
+  if (!/^size-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
+    return 'format';
+  }
+
+  return ui.sizes.some((o) => o !== size && o.name === name) ? 'taken' : null;
+}
+
+/** Ask before a saved thing is removed: templates may use it. */
+function confirmRemove(win, title, body, remove) {
+  const overlay = openCpOverlay(win.document, ChoiceDialog, {
+    title,
+    body,
+    buttons: [
+      { value: 'cancel', label: t(win, 'cancel'), variant: 'muted' },
+      { value: 'ok', label: t(win, 'theme_panel_remove'), variant: 'danger' },
+    ],
+    onPick: (value) => {
+      overlay.dismiss();
+
+      if (value === 'ok') {
+        remove();
+        changed(win);
+      }
+    },
+    onClose: () => overlay.dismiss(),
+  });
+}
+
+const handlers = (win) => ({
+  onClose: () => closeThemePanel(win),
+  onSave: () => void saveTheme(win),
+  onTab: (tab) => {
+    if (TABS.includes(tab)) {
+      ui.tab = tab;
+    }
+  },
+
+  // Colors
+  onAddColor: () => {
+    const f = colorUi({ name: '', value: '#6b7280', steps: [] });
+
+    f.fresh = true;
+    f.problem = 'empty';
+    ui.families.unshift(f);
+    ui.openKey = f.key;
+    ui.dirty = true;
+  },
+  onOpen: (key) => {
+    ui.openKey = ui.openKey === key ? '' : key;
+  },
+  onName: (key, name) => {
+    const f = findColor(key);
+
+    if (f?.fresh) {
+      f.name = String(name).trim();
+      f.problem = colorProblem(win, f, f.name);
+      changed(win);
+    }
+  },
+  onColor: (key, value) => {
+    const f = findColor(key);
+    const v = String(value).trim();
+
+    if (!f || !isHex(v)) {
+      return;
+    }
+
+    f.value = v.toLowerCase();
+
+    if (f.generated) {
+      remake(f);
+    }
+
+    changed(win);
+  },
+  onToggle: (key, kind, on) => {
+    const f = findColor(key);
+
+    if (f) {
+      f[kind] = on ? f[kind] || 3 : 0;
+      remake(f);
+      changed(win);
+    }
+  },
+  onCount: (key, kind, n) => {
+    const f = findColor(key);
+
+    if (f) {
+      f[kind] = Math.max(0, Math.min(MAX_VARIANTS, n));
+      remake(f);
+      changed(win);
+    }
+  },
+  onStep: (key, name, value) => {
+    const f = findColor(key);
+    const step = f?.steps.find((s) => s.name === name);
+
+    if (step && !f.generated && isHex(value)) {
+      step.value = String(value).toLowerCase();
+      changed(win);
+    }
+  },
+  onRemoveColor: (key) => {
+    const f = findColor(key);
+    const remove = () => {
+      ui.families = ui.families.filter((o) => o !== f);
+    };
+
+    if (!f || isCoreColor(f.name)) {
+      return;
+    }
+
+    if (f.fresh) {
+      remove();
+      changed(win);
+
+      return;
+    }
+
+    confirmRemove(win, t(win, 'theme_colors_remove_title', { name: f.name }), t(win, 'theme_colors_remove_body', { name: f.name }), remove);
+  },
+
+  // Spacing
+  onAddSize: () => {
+    const last = ui.sizes[ui.sizes.length - 1];
+    const size = {
+      key: `size-${++keySeq}`,
+      name: nextSizeName(ui.sizes.map((s) => s.name)),
+      value: '',
+      min: last ? last.min : 16,
+      max: last ? last.max : 16,
+      fresh: true,
+      problem: null,
+    };
+
+    ui.sizes.push(size);
+    ui.selectedSize = size.key;
+    changed(win);
+  },
+  onSizeName: (key, name) => {
+    const size = findSize(key);
+
+    if (size?.fresh) {
+      size.name = `size-${String(name).trim().replace(/^size-/, '')}`;
+      size.problem = sizeProblem(size, size.name);
+      changed(win);
+    }
+  },
+  onSize: (key, field, px) => {
+    const size = findSize(key);
+    const n = Number(px);
+
+    if (size && (field === 'min' || field === 'max') && Number.isFinite(n) && n > 0) {
+      size[field] = n;
+      changed(win);
+    }
+  },
+  onSelectSize: (key) => {
+    ui.selectedSize = key;
+  },
+  onRemoveSize: (key) => {
+    const size = findSize(key);
+    const remove = () => {
+      ui.sizes = ui.sizes.filter((s) => s !== size);
+    };
+
+    if (!size) {
+      return;
+    }
+
+    if (size.fresh) {
+      remove();
+      changed(win);
+
+      return;
+    }
+
+    confirmRemove(win, t(win, 'theme_spacing_remove_title', { name: size.name }), t(win, 'theme_spacing_remove_body'), remove);
+  },
+  onViewport: (px) => {
+    const n = Math.round(Number(px));
+
+    if (Number.isFinite(n) && n > MIN_VIEWPORT) {
+      ui.maxViewport = n;
+      changed(win);
+    }
+  },
+
+  // Typography and button
+  onType: (name, value) => {
+    if (TYPE_TOKENS.includes(name)) {
+      ui.type[name] = value;
+      changed(win);
+    }
+  },
+  onButton: (name, value) => {
+    if (BUTTON_TOKENS.includes(name)) {
+      ui.button[name] = value;
+      changed(win);
+    }
+  },
+});
+
+async function load(win) {
+  const mine = ++loadSeq;
+
+  ui.loading = true;
+  ui.status = '';
+
+  try {
+    const css = await readFile(win);
+
+    if (mine !== loadSeq || !isThemePanelOpen(win.document)) {
+      return;
+    }
+
+    remember(css);
+    ui.fonts = fontFamilies(win);
+  } catch {
+    ui.status = t(win, 'theme_panel_error');
+  } finally {
+    ui.loading = false;
+  }
+}
+
+/**
+ * Write every tab into the file as it is on disk now, not as it was when the
+ * panel opened: colors touch only color lines, tokens only the lines that
+ * changed, so an edit made in the stylesheet editor meanwhile survives.
+ */
+export async function saveTheme(win) {
+  if (ui.saving || !ui.dirty) {
+    return true;
+  }
+
+  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem)) {
+    ui.status = t(win, 'theme_panel_fix_names');
+
+    return false;
+  }
+
+  ui.saving = true;
+  ui.status = t(win, 'theme_panel_saving');
+
+  try {
+    const changes = tokenChanges();
+    const css = writeTokens(writeColors(await readFile(win), plainFamilies(ui.families)), changes);
+
+    await request(win, '/!/sve/site-css', {
+      method: 'POST',
+      body: JSON.stringify({ path: ENTRY, css }),
+    });
+
+    const { tab, openKey, selectedSize } = ui;
+
+    remember(css);
+    Object.assign(ui, { tab, openKey: ui.families.some((f) => f.key === openKey) ? openKey : '', selectedSize });
+    ui.status = t(win, 'theme_panel_saved');
+    win.setTimeout(() => {
+      if (ui.status === t(win, 'theme_panel_saved')) {
+        ui.status = '';
+      }
+    }, 1200);
+
+    return true;
+  } catch {
+    ui.status = t(win, 'theme_panel_error');
+
+    return false;
+  } finally {
+    ui.saving = false;
+  }
+}
+
+export function themePanelAllowed(win) {
+  return win.Statamic?.$config?.get?.('sveFeatures')?.site_css === true;
+}
+
+export function isThemePanelOpen(doc) {
+  return !!doc?.getElementById(PANEL_ID);
+}
+
+function teardown(win) {
+  // What is saved stays painted: the page on screen was rendered before the
+  // save and still carries the old values in its <head>.
+  const saved = readTokens(ui.saved);
+
+  paint(win, propertiesFor(readColors(ui.saved), Object.fromEntries(saved)));
+
+  if (onFrameLoad) {
+    win.document.removeEventListener('load', onFrameLoad, true);
+    onFrameLoad = null;
+  }
+
+  app?.unmount();
+  app = null;
+  ui.families = [];
+  ui.sizes = [];
+  ui.openKey = '';
+  ui.dirty = false;
+  ui.status = '';
+  win.document.getElementById(PANEL_ID)?.remove();
+}
+
+/** Close; with unsaved changes, ask first. */
+export function closeThemePanel(win) {
+  if (!ui.dirty) {
+    teardown(win);
+
+    return;
+  }
+
+  const overlay = openCpOverlay(win.document, ChoiceDialog, {
+    title: t(win, 'theme_panel_unsaved_title'),
+    body: t(win, 'theme_panel_unsaved_body'),
+    buttons: [
+      { value: 'discard', label: t(win, 'theme_panel_discard'), variant: 'muted' },
+      { value: 'save', label: t(win, 'theme_panel_save'), variant: 'primary' },
+    ],
+    onPick: async (value) => {
+      overlay.dismiss();
+
+      if (value === 'save' && !(await saveTheme(win))) {
+        return;
+      }
+
+      teardown(win);
+    },
+    onClose: () => overlay.dismiss(),
+  });
+}
+
+function placePanel(win, el) {
+  const parent = win.document.querySelector('.live-preview') || win.document.body;
+  const header = parent.querySelector('.live-preview-header');
+
+  if (win.getComputedStyle(parent).position === 'static') {
+    parent.style.position = 'relative';
+  }
+
+  parent.appendChild(el);
+  el.style.top = `${header ? Math.round(header.getBoundingClientRect().height) : 0}px`;
+}
+
+/** Every `theme_*` string the panel shows, by key without the prefix. */
+function labels(win) {
+  const strings = win.Statamic?.$config?.get?.('sveStrings') || {};
+
+  return Object.fromEntries(
+    Object.keys(strings)
+      .filter((key) => /^theme_(panel|colors|spacing|type|button)_/.test(key))
+      .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
+  );
+}
+
+function openThemePanel(win) {
+  const doc = win.document;
+  const panel = doc.createElement('div');
+
+  panel.id = PANEL_ID;
+  panel.style.cssText = 'position:absolute;right:0;bottom:0;width:23rem;max-width:100%;z-index:40;';
+  ui.labels = labels(win);
+  placePanel(win, panel);
+  app = mountSurface(ThemePanelPane, panel, handlers(win));
+
+  // A preview that reloads (another edit, a size switched on) gets the
+  // unsaved values back.
+  onFrameLoad = (event) => {
+    if (event.target?.tagName === 'IFRAME') {
+      win.setTimeout(() => paint(win), 0);
+    }
+  };
+  doc.addEventListener('load', onFrameLoad, true);
+
+  void load(win);
+}
+
+export function toggleThemePanel(win) {
+  if (!themePanelAllowed(win)) {
+    return;
+  }
+
+  if (isThemePanelOpen(win.document)) {
+    closeThemePanel(win);
+
+    return;
+  }
+
+  openThemePanel(win);
+}
