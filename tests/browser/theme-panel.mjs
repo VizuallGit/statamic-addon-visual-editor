@@ -2,8 +2,9 @@
 /**
  * The theme panel, in a real Live Preview, with real mouse clicks.
  *
- * Opens the palette icon and goes through the four tabs: changes a color and
- * sees the preview repaint, makes a new color with tints and shades, changes
+ * Opens the palette icon and goes through four of its tabs (Fonts has its own
+ * test, theme-fonts.mjs): changes a color and sees the preview repaint, makes
+ * a new color with tints and shades, changes
  * a size and adds one, points H1 at another size, rounds the button — then
  * saves once and reads the result back from site.css and from the public page
  * (served by the site's `{{ theme_tokens }}` — no build). site.css is put back
@@ -249,7 +250,7 @@ try {
   // The panel's own sheet: its flex column and the tab row that scrolls.
   step('its stylesheet loaded', look.display === 'flex' && look.tabs === 'auto', JSON.stringify(look));
   step('it sits in the shared right sidebar', await cp.evaluate((p) => !!document.querySelector(`#__sve-right-dock ${p}`), PANEL));
-  step('each tab has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__tab .sve-theme__tab-icon svg`).length === 4, PANEL));
+  step('each tab has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__tab .sve-theme__tab-icon svg`).length === 5, PANEL));
 
   const knewBefore = await dockTailwind(cp, '<div class="bg-testmoss-500 p-1300 text-1300"></div>');
 

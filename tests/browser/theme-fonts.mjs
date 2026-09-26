@@ -221,16 +221,19 @@ try {
   await shot(page, '2-list');
   await click(page, cp, '[data-sve-google-font="Rubik"]');
   step('the family opens with its variants', await waitFor(cp, () => document.querySelectorAll('[data-sve-font-variant]').length === 14), await text(cp, '.sve-fontdlg__title'));
-  step('Regular is ticked, latin chosen', await cp.evaluate(() => document.querySelector('[data-sve-font-variant="400"]')?.classList.contains('is-on') && document.querySelector('[data-sve-font-subset="latin"]')?.classList.contains('is-on')));
+  // Rubik is variable: Regular comes as the one upright file, so every upright weight is ticked with it.
+  step('variable: Regular brings every upright weight, latin chosen', await cp.evaluate(() => ['300', '400', '500', '600', '700', '800', '900'].every((v) => document.querySelector(`[data-sve-font-variant="${v}"]`)?.classList.contains('is-on'))
+    && !document.querySelector('[data-sve-font-variant="400i"]')?.classList.contains('is-on')
+    && document.querySelector('[data-sve-font-subset="latin"]')?.classList.contains('is-on')));
   step('the sample is drawn in Rubik', await waitFor(cp, async () => {
     await document.fonts.ready;
 
     return [...document.fonts].some((f) => f.family.includes('sve-gf-rubik') && f.status === 'loaded');
   }));
-  await click(page, cp, '[data-sve-font-variant="700"]');
-  step('variable: one tick takes every upright weight', await cp.evaluate(() => ['300', '400', '500', '600', '700', '800', '900'].every((v) => document.querySelector(`[data-sve-font-variant="${v}"]`)?.classList.contains('is-on'))
-    && !document.querySelector('[data-sve-font-variant="700i"]')?.classList.contains('is-on')));
-  step('the size of one file is shown', await waitFor(cp, () => /KB/.test(document.querySelector('[data-sve-font-size]')?.textContent || '')), await text(cp, '[data-sve-font-size]'));
+  step('the size of one file is shown', await waitFor(cp, () => /KB/.test(document.querySelector('[data-sve-font-size]')?.textContent || '') && /\b1\b/.test(document.querySelector('[data-sve-font-size]')?.textContent || '')), await text(cp, '[data-sve-font-size]'));
+  await click(page, cp, '[data-sve-font-variant="700i"]');
+  step('one italic tick takes every italic weight: two files', await waitFor(cp, () => ['300i', '400i', '700i', '900i'].every((v) => document.querySelector(`[data-sve-font-variant="${v}"]`)?.classList.contains('is-on'))
+    && /\b2\b/.test(document.querySelector('[data-sve-font-size]')?.textContent || '')), await text(cp, '[data-sve-font-size]'));
   await shot(page, '3-family');
   await click(page, cp, '[data-sve-font-install]');
   step('install closes the dialog', await waitFor(cp, (d) => !document.querySelector(d), DIALOG, 30000));
@@ -240,7 +243,7 @@ try {
   const rubikFiles = existsSync(`${FONTS_DIR}/rubik`) ? readdirSync(`${FONTS_DIR}/rubik`) : [];
 
   step('fonts.css got Rubik, and kept every line it had', fontsCss.includes('font-family: "Rubik";') && originalFonts.split('\n').every((line) => fontsCss.includes(line)));
-  step('the file is in public/fonts/rubik, as WOFF2', rubikFiles.length === 1 && readFileSync(`${FONTS_DIR}/rubik/${rubikFiles[0]}`).subarray(0, 4).toString() === 'wOF2', rubikFiles.join(' '));
+  step('the files are in public/fonts/rubik, as WOFF2', rubikFiles.length === 2 && readFileSync(`${FONTS_DIR}/rubik/${rubikFiles[0]}`).subarray(0, 4).toString() === 'wOF2', rubikFiles.join(' '));
 
   // ── Typography: the new font is a choice at once, and the preview draws it ──
   await click(page, cp, `${PANEL} [data-sve-theme-tab="type"]`);
