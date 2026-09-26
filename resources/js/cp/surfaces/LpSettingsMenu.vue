@@ -257,6 +257,122 @@ function pick(id) {
 .sve-lp-settings__tool.is-off .sve-lp-settings__tool-name {
   opacity: 0.5;
 }
+.sve-lp-settings__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+/* The row being dragged lifts a little; the others make room as it passes. */
+.sve-lp-settings__tool.is-dragging {
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.35);
+}
+.sve-lp-settings__handle {
+  all: unset;
+  flex: none;
+  width: 0.875rem;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1;
+  opacity: 0.4;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.sve-lp-settings__handle:hover,
+.sve-lp-settings__handle:focus-visible {
+  opacity: 0.9;
+}
+.sve-lp-settings__tool.is-dragging .sve-lp-settings__handle {
+  cursor: grabbing;
+  opacity: 0.9;
+}
+/* Presets: one pill each; the user's own carry an × to delete them. */
+.sve-lp-settings__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.sve-lp-settings__pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.sve-lp-settings__pill > button,
+button.sve-lp-settings__pill {
+  all: unset;
+  cursor: pointer;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.sve-lp-settings__pill.is-own > button:first-child {
+  padding-right: 0.25rem;
+}
+.sve-lp-settings__pill:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.sve-lp-settings__pill.is-on {
+  background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
+  color: #fff;
+}
+.sve-lp-settings__pill.is-add {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  opacity: 0.8;
+}
+.sve-lp-settings__pill.is-add:hover {
+  opacity: 1;
+}
+.sve-lp-settings__pill .sve-lp-settings__pill-x {
+  padding: 0.25rem 0.5rem 0.25rem 0.125rem;
+  opacity: 0.6;
+}
+.sve-lp-settings__pill .sve-lp-settings__pill-x:hover {
+  opacity: 1;
+}
+.sve-lp-settings__name {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+.sve-lp-settings__name input {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.375rem;
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  outline: none;
+}
+.sve-lp-settings__name input:focus {
+  border-color: var(--theme-color-primary, #4f46e5);
+}
+.sve-lp-settings__small.is-primary {
+  background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
+  color: #fff;
+}
+.sve-lp-settings__link {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.65;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sve-lp-settings__link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
 /* Width: label, slider and value on one line. */
 .sve-lp-settings__range {
   display: grid;

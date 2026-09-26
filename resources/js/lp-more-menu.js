@@ -8,7 +8,7 @@ import { LP_BACK_MENU_ID, LP_ICON_BTN_STYLE, applyHeaderTab, ensureRightTool, re
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './right-dock.js';
 import { closeAiPanel } from './ai-panel-lazy.js';
-import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock } from './code-dock-lazy.js';
+import { closeCodeDock, isCodeDockArmed, setCodeDockArmed, syncCodeDock, templateDockAllowed } from './code-dock-lazy.js';
 import { bindMenuDismiss, dropMenu } from './lp-menu-dismiss.js';
 import { mountSurface } from './cp/mount.js';
 import LpSettingsMenu from './cp/surfaces/LpSettingsMenu.vue';
@@ -23,7 +23,19 @@ import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeOutlinePanel } from './lazy/outline.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
-import { openToolbarTool, setToolbarToolShown, showAllToolbarTools, syncHiddenToolbarIcons, toolbarTools } from './toolbar-visibility.js';
+import {
+  openToolbarTool,
+  readToolbarOrder,
+  readUserPresets,
+  setHiddenTools,
+  setToolbarOrder,
+  setToolbarToolShown,
+  showAllToolbarTools,
+  syncToolbarLayout,
+  toolbarTools,
+  writeUserPresets,
+} from './toolbar-visibility.js';
+import { PRESET_NAME_MAX, cleanPreset, newPresetId, presetHidden } from './lib/toolbar-presets.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -213,6 +225,33 @@ function treeProps(win) {
   };
 }
 
+/** The site's two presets (Settings → Top bar presets), named in the CP user's language. */
+function sitePresets(win) {
+  const list = win.Statamic?.$config?.get?.('sveToolbarPresets');
+
+  return (Array.isArray(list) ? list : [])
+    .map((raw) => cleanPreset(raw))
+    .filter(Boolean)
+    .map((preset) => ({ ...preset, label: t(win, `toolbar_preset_${preset.id}`), own: false }));
+}
+
+function allPresets(win) {
+  return [
+    ...sitePresets(win),
+    ...readUserPresets(win).map((preset) => ({ ...preset, label: preset.name, own: true })),
+  ];
+}
+
+/** What the Top bar tab shows — read each time the tab opens, as a preset may have changed it. */
+function toolbarState(win) {
+  return {
+    tools: toolbarTools(win),
+    presets: allPresets(win),
+    dock: isCodeDockArmed(win),
+    ordered: readToolbarOrder(win).length > 0,
+  };
+}
+
 function toolbarProps(win) {
   return {
     label: t(win, 'lp_settings_toolbar'),
@@ -221,8 +260,54 @@ function toolbarProps(win) {
     openLabel: t(win, 'lp_settings_toolbar_open'),
     closeLabel: t(win, 'lp_settings_toolbar_close'),
     showAllLabel: t(win, 'lp_settings_toolbar_all'),
-    tools: toolbarTools(win),
+    dragLabel: t(win, 'lp_settings_toolbar_drag'),
+    orderResetLabel: t(win, 'lp_settings_toolbar_order_reset'),
+    presetsLabel: t(win, 'lp_settings_presets'),
+    newPresetLabel: t(win, 'lp_settings_preset_new'),
+    namePlaceholder: t(win, 'lp_settings_preset_name'),
+    saveLabel: t(win, 'lp_settings_preset_save'),
+    cancelLabel: t(win, 'lp_settings_preset_cancel'),
+    deleteLabel: t(win, 'lp_settings_preset_delete'),
+    editLabel: t(win, 'lp_settings_preset_edit'),
+    // Only for a user who may edit the addon's settings.
+    editUrl: win.Statamic?.$config?.get?.('sveToolbarPresetsUrl') || '',
+    nameMax: PRESET_NAME_MAX,
+    dockAllowed: templateDockAllowed(win),
   };
+}
+
+/** Show what a preset shows, and open or close the template dock the way it says. */
+function applyPreset(win, id) {
+  const preset = allPresets(win).find((item) => item.id === id);
+
+  if (!preset) {
+    return;
+  }
+
+  setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
+
+  if (templateDockAllowed(win) && isCodeDockArmed(win) !== preset.dock) {
+    setCodeDock(win, preset.dock);
+  }
+}
+
+/** The bar as it is now, under a name of the user's. */
+function saveOwnPreset(win, name) {
+  const own = readUserPresets(win);
+  const preset = cleanPreset({
+    id: newPresetId(Date.now(), own.map((item) => item.id)),
+    name,
+    tools: toolbarTools(win).filter((tool) => tool.shown).map((tool) => tool.key),
+    dock: isCodeDockArmed(win),
+  }, { user: true });
+
+  if (!preset) {
+    return null;
+  }
+
+  writeUserPresets(win, [...own, preset]);
+
+  return { ...preset, label: preset.name, own: true };
 }
 
 function settingsProps(win, rect) {
@@ -269,8 +354,15 @@ function bindSettingHandlers(win) {
       htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
       familyColor: (family, hex) => setFamilyColor(win, family, hex),
       familyReset: () => resetFamilyColors(win),
+      dockOn: () => isCodeDockArmed(win),
+      toolbarState: () => toolbarState(win),
       toolbarShown: (key, shown) => setToolbarToolShown(win, key, shown),
       toolbarShowAll: () => showAllToolbarTools(win),
+      toolbarOrder: (keys) => setToolbarOrder(win, keys),
+      toolbarOrderReset: () => setToolbarOrder(win, []),
+      toolbarPreset: (id) => applyPreset(win, id),
+      toolbarPresetSave: (name) => saveOwnPreset(win, name),
+      toolbarPresetDelete: (id) => writeUserPresets(win, readUserPresets(win).filter((item) => item.id !== id)),
       // The menu goes first: the tool opens where the menu was.
       toolbarOpen: (key) => {
         dismissLpMoreMenu();
@@ -278,10 +370,14 @@ function bindSettingHandlers(win) {
       },
     },
     onReset: () => {
+      const own = readUserPresets(win);
+
       dismissLpMoreMenu();
       resetEditorLayout(win);
-      // The reset cleared the stored list with every other layout key.
-      syncHiddenToolbarIcons(win);
+      // The reset clears every layout key, the icons and their order with them.
+      // A user's own presets are not layout: they are put back.
+      writeUserPresets(win, own);
+      syncToolbarLayout(win);
     },
     onClose: dismissLpMoreMenu,
   };

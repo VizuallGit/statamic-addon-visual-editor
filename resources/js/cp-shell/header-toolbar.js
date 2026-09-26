@@ -15,7 +15,7 @@ import { beginRightShellSwap, endRightShellSwap, isRightDockTool, isToolbarShort
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
-import { syncHiddenToolbarIcons } from '../toolbar-visibility.js';
+import { syncToolbarLayout } from '../toolbar-visibility.js';
 import { COLLECTION_PICKER_ID, FOCUS_LOCKED_TABS, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_LOCKED_OPACITY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { featureOn, sectionField } from '../lib/config.js';
@@ -547,9 +547,9 @@ export function ensureHeaderToolbar(win) {
   const doc = win.document;
   const header = lpHeader(doc);
 
-  // The icons a user left out are hidden by one stylesheet, not here: the
-  // ensure* calls below re-create and re-show buttons on every pass.
-  syncHiddenToolbarIcons(win);
+  // Which icons show, and in which order, is one stylesheet, not here: the
+  // ensure* calls below re-create, re-show and re-place buttons on every pass.
+  syncToolbarLayout(win);
 
   if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
     doc.getElementById(HEADER_TOOLBAR_ID)?.querySelector('button[data-tab="rightdock"]')?.remove();

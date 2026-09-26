@@ -11,7 +11,9 @@ const props = defineProps({
   on: { type: Object, required: true },
 });
 
-const codeDockOn = ref(props.codeDock.on);
+// Read now, not from the props: a preset in the Top bar tab may have opened
+// or closed the dock since the menu was built.
+const codeDockOn = ref(props.on.dockOn ? props.on.dockOn() : props.codeDock.on);
 const htmlTreeOn = ref(props.htmlTree.on);
 const familyRows = ref(props.familyColors.rows.map((row) => ({ ...row })));
 

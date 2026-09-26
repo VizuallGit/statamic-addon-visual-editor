@@ -257,6 +257,100 @@ tabs:
                 enabled: 'equals true'
                 comments: 'equals true'
       -
+        display: 'Top bar presets'
+        instructions: 'The two presets every editor can pick in Live Preview under ⋮ → Top bar. A preset shows the icons ticked here and opens the template dock or not; everyone keeps their own order. An icon a user has no access to stays hidden whatever a preset says. Editors can still tick icons on and off themselves, and save presets of their own.'
+        fields:
+          -
+            handle: toolbar_preset_developer_tools
+            field:
+              type: checkboxes
+              display: 'Developer: icons'
+              options:
+                pages: 'Pages'
+                globals: 'Globals'
+                sections: 'Patterns'
+                listview: 'Block tree'
+                outline: 'Accessibility'
+                performance: 'Performance'
+                code: 'Template dock'
+                site_css: 'Stylesheets'
+                theme: 'Theme'
+                ai: 'AI'
+                aitext: 'AI text'
+                schema: 'Structured data'
+                edits: 'Edit history'
+                comments: 'Comments'
+              default:
+                - pages
+                - globals
+                - sections
+                - listview
+                - outline
+                - performance
+                - code
+                - site_css
+                - theme
+                - ai
+                - aitext
+                - schema
+                - edits
+                - comments
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: toolbar_preset_editor_tools
+            field:
+              type: checkboxes
+              display: 'Content editor: icons'
+              options:
+                pages: 'Pages'
+                globals: 'Globals'
+                sections: 'Patterns'
+                listview: 'Block tree'
+                outline: 'Accessibility'
+                performance: 'Performance'
+                code: 'Template dock'
+                site_css: 'Stylesheets'
+                theme: 'Theme'
+                ai: 'AI'
+                aitext: 'AI text'
+                schema: 'Structured data'
+                edits: 'Edit history'
+                comments: 'Comments'
+              default:
+                - pages
+                - globals
+                - listview
+                - outline
+                - ai
+                - aitext
+                - edits
+                - comments
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: toolbar_preset_developer_dock
+            field:
+              type: toggle
+              display: 'Developer: template dock open'
+              instructions: 'The HTML/CSS dock opens with Live Preview when this preset is picked.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: toolbar_preset_editor_dock
+            field:
+              type: toggle
+              display: 'Content editor: template dock open'
+              instructions: 'The HTML/CSS dock opens with Live Preview when this preset is picked.'
+              default: false
+              width: 50
+              if:
+                enabled: 'equals true'
+      -
         display: 'Editing on the page'
         fields:
           -

@@ -2,15 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PEEK_ATTR,
-  hiddenToolbarCss,
   openToolbarTool,
   readHiddenTools,
+  readUserPresets,
+  setToolbarOrder,
   setToolbarToolShown,
   showAllToolbarTools,
-  syncHiddenToolbarIcons,
+  syncToolbarLayout,
+  toolbarCss,
   toolbarTools,
+  writeUserPresets,
 } from '../../resources/js/toolbar-visibility.js';
-import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEY } from '../../resources/js/lib/ids.js';
+import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEY, TOOLBAR_ORDER_KEY, TOOLBAR_PRESETS_KEY } from '../../resources/js/lib/ids.js';
 
 /** A button the way header-toolbar.js leaves it: data-tab, title, an svg, aria-pressed. */
 function fakeButton(tab, { title = tab, pressed = false, display = '' } = {}) {
@@ -33,8 +36,11 @@ function fakeButton(tab, { title = tab, pressed = false, display = '' } = {}) {
 }
 
 /** Just enough window for chrome-prefs.js, the sheet and the icon row. */
-function fakeWin({ stored = null, buttons = [], frames = {} } = {}) {
-  const store = new Map(stored == null ? [] : [[TOOLBAR_HIDDEN_KEY, stored]]);
+function fakeWin({ stored = null, order = null, buttons = [], frames = {} } = {}) {
+  const store = new Map([
+    ...(stored == null ? [] : [[TOOLBAR_HIDDEN_KEY, stored]]),
+    ...(order == null ? [] : [[TOOLBAR_ORDER_KEY, order]]),
+  ]);
   const head = new Map();
   const bar = {
     querySelectorAll: () => buttons,
@@ -91,16 +97,17 @@ function fakeWin({ stored = null, buttons = [], frames = {} } = {}) {
 }
 
 test('the sheet hides a plain icon by its button and a framed one by its frame, unless it is peeking', () => {
-  const css = hiddenToolbarCss(['performance', 'pages']);
+  const css = toolbarCss({ hidden: ['performance', 'pages'] });
 
   assert.match(css, /#__sve-toolbar button\[data-tab="performance"\]:not\(\[data-sve-peek\]\)/);
   assert.match(css, /#__sve-frame-pages:not\(\[data-sve-peek\]\)\{display:none!important\}/);
-  assert.equal(hiddenToolbarCss([]), '');
+  assert.equal(toolbarCss({ hidden: [] }), '');
+  assert.equal(toolbarCss(), '');
 });
 
 test('page settings and anything that is not a tab key never reach the sheet', () => {
-  assert.equal(hiddenToolbarCss(['settings']), '');
-  assert.equal(hiddenToolbarCss(['a"]{x}', 'Pages', '']), '');
+  assert.equal(toolbarCss({ hidden: ['settings'], order: ['settings'] }), '');
+  assert.equal(toolbarCss({ hidden: ['a"]{x}', 'Pages', ''], order: ['a"]{x}'] }), '');
 });
 
 test('the stored list is read back clean', () => {
@@ -133,7 +140,7 @@ test('hiding and showing writes the list and the sheet; the last one shown clear
 test('a pass with nothing stored adds no sheet', () => {
   const win = fakeWin();
 
-  syncHiddenToolbarIcons(win);
+  syncToolbarLayout(win);
   assert.equal(win.sheet(), null);
 });
 
@@ -198,4 +205,50 @@ test('a shown tool, or one already open, is just pressed', () => {
   assert.equal(open.hasAttribute(PEEK_ATTR), false);
   assert.equal(win.observers.length, 0);
   assert.equal(openToolbarTool(win, 'nope'), false);
+});
+
+test('an order pins page settings first and places each icon, frames and all', () => {
+  const css = toolbarCss({ order: ['comments', 'pages', 'settings', 'performance'] });
+
+  assert.match(css, /#__sve-toolbar>button\[data-tab="settings"\]\{order:-1\}/);
+  assert.match(css, /#__sve-toolbar>button\[data-tab="comments"\],#__sve-toolbar>#__sve-frame-comments\{order:1\}/);
+  assert.match(css, /#__sve-toolbar>#__sve-frame-pages\{order:2\}/);
+  assert.match(css, /data-tab="performance"\],#__sve-toolbar>#__sve-frame-performance\{order:3\}/);
+  assert.doesNotMatch(css, /data-tab="settings"\],/);
+});
+
+test('setting an order writes it and the sheet; an empty one goes back to the drawn order', () => {
+  const win = fakeWin();
+
+  setToolbarOrder(win, ['edits', 'pages', 'edits']);
+  assert.equal(win.store.get(TOOLBAR_ORDER_KEY), '["edits","pages"]');
+  assert.match(win.sheet(), /data-tab="edits"\],#__sve-toolbar>#__sve-frame-edits\{order:1\}/);
+
+  setToolbarOrder(win, []);
+  assert.equal(win.store.has(TOOLBAR_ORDER_KEY), false);
+  assert.equal(win.sheet(), null);
+});
+
+test('the list follows the order; a tool the order does not know comes after', () => {
+  const win = fakeWin({
+    order: '["performance","pages"]',
+    buttons: [fakeButton('settings'), fakeButton('pages'), fakeButton('globals'), fakeButton('performance')],
+  });
+
+  assert.deepEqual(toolbarTools(win).map((tool) => tool.key), ['performance', 'pages', 'globals']);
+});
+
+test("a user's own presets are stored clean", () => {
+  const win = fakeWin();
+
+  writeUserPresets(win, [
+    { id: 'u-abc', name: '  Kunde-demo  ', tools: ['pages', 'pages', 'x"y'], dock: true },
+    { id: 'developer', name: 'Not mine', tools: [] },
+    { id: 'u-def', name: '   ', tools: [] },
+  ]);
+  assert.deepEqual(readUserPresets(win), [{ id: 'u-abc', name: 'Kunde-demo', tools: ['pages'], dock: true }]);
+
+  writeUserPresets(win, []);
+  assert.equal(win.store.has(TOOLBAR_PRESETS_KEY), false);
+  assert.deepEqual(readUserPresets(win), []);
 });

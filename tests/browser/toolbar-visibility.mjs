@@ -5,8 +5,12 @@
  *
  * Opens ⋮ → Top bar, hides a panel tool and Pages (a framed one), waits out
  * several toolbar passes and a full reload to see they stay hidden, opens both
- * from the menu (the icon shows while open and goes again when closed), then
- * Show all and the reset bring every icon back.
+ * from the menu (the icon shows while open and goes again when closed), and
+ * Show all brings every icon back. Then the order: a row dragged by its handle
+ * moves the icon in the bar, survives a reload, and Default order undoes it.
+ * Then the presets: the site's Developer and Content editor (skipped when the
+ * site's PHP does not provide them yet), and one of the user's own — saved,
+ * picked again, kept by the reset, deleted.
  *
  * The run never saves the editor layout to the server: every write to
  * /!/sve/chrome-prefs is answered here and goes nowhere, so the reset step
@@ -154,11 +158,34 @@ const visibleIcons = (frame) => frame.evaluate((bar) => [...document.querySelect
   .filter((el) => el.getBoundingClientRect().width > 0)
   .map((el) => el.dataset.tab), BAR);
 
-const stored = (frame) => frame.evaluate((key) => {
+const storedKey = (frame, key) => frame.evaluate((k) => {
   const id = window.Statamic?.$config?.get?.('sveUserId');
 
-  return localStorage.getItem(id ? `sve-u:${id}:${key}` : key);
-}, 'sve-toolbar-hidden');
+  return localStorage.getItem(id ? `sve-u:${id}:${k}` : k);
+}, key);
+const stored = (frame) => storedKey(frame, 'sve-toolbar-hidden');
+
+/** The icons on screen, left to right as they are drawn (CSS order included). */
+const barOrder = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} button[data-tab]`)]
+  .filter((el) => el.getBoundingClientRect().width > 0)
+  .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
+  .map((el) => el.dataset.tab), BAR);
+
+const listOrder = (frame) => frame.evaluate((m) => [...document.querySelectorAll(`${m} [data-sve-toolbar-tool]`)].map((el) => el.dataset.sveToolbarTool), MENU);
+
+const sameSet = (a, b) => a.length === b.length && a.every((key) => b.includes(key));
+
+/** Drag a row by its handle, with the real mouse, onto the upper half of another row. */
+async function dragRow(page, frame, key, onto) {
+  const from = await pointIn(frame, `${toolRow(key)} [data-sve-toolbar-drag]`);
+  const to = await pointIn(frame, toolRow(onto));
+
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x, to.y - 6, { steps: 16 });
+  await page.mouse.up();
+  await sleep(300);
+}
 
 const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/toolbar-visibility-${name}.png` });
 
@@ -338,12 +365,86 @@ try {
   step('Show all brings every icon back', (await visibleIcons(cp)).join() === before.join(), (await visibleIcons(cp)).join(' '));
   step('and clears the stored list', (await stored(cp)) === null);
 
-  await click(page, cp, `${toolRow(panelTool)} input[type="checkbox"]`);
+  // ── Order: drag a row with the real mouse ─────────────────────────────
+  const rows = await listOrder(cp);
+  const mover = rows[rows.length - 1];
+
+  await dragRow(page, cp, mover, rows[0]);
+  step('dragging a row moves it to the top of the list', (await listOrder(cp))[0] === mover, (await listOrder(cp)).join(' '));
+  step('and in the top bar, right after Page settings', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
+  step('Page settings stays first', (await barOrder(cp))[0] === 'settings');
+  step('the order is stored', JSON.parse((await storedKey(cp, 'sve-toolbar-order')) || '[]')[0] === mover);
+
+  await page.keyboard.press('Escape');
+  cp = await openLivePreview(page);
+  step('the order survives a reload', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
+
+  await openMenuTab(page, cp, 'toolbar');
+  step('the list opens in that order', (await listOrder(cp))[0] === mover);
+  await click(page, cp, `${MENU} [data-sve-toolbar-order-reset]`);
   await sleep(300);
-  step('hidden again for the reset', !(await seen(cp, icon(panelTool))));
+  step('Default order puts the bar back', (await barOrder(cp)).join() === before.join(), (await barOrder(cp)).join(' '));
+  step('and the list', (await listOrder(cp)).join() === expected.join());
+
+  // ── The site's presets ────────────────────────────────────────────────
+  const sitePresets = await cp.evaluate(() => window.Statamic?.$config?.get?.('sveToolbarPresets') || []);
+  const dockArmed = async () => (await storedKey(cp, 'sve-code-dock-armed')) === '1';
+
+  if (!sitePresets.length) {
+    console.log("info site presets not provided by this site's PHP (older than the build) — those steps skipped");
+  } else {
+    const editorPreset = sitePresets.find((preset) => preset.id === 'editor');
+    const developerPreset = sitePresets.find((preset) => preset.id === 'developer');
+
+    step('Developer and Content editor are offered', !!(await cp.$(`${MENU} [data-sve-toolbar-preset="developer"]`)) && !!(await cp.$(`${MENU} [data-sve-toolbar-preset="editor"]`)));
+    await click(page, cp, `${MENU} [data-sve-toolbar-preset="editor"] button`);
+    await sleep(800);
+
+    const shownEditor = await visibleIcons(cp);
+
+    step('Content editor shows its icons', sameSet(shownEditor, before.filter((key) => key === 'settings' || editorPreset.tools.includes(key))), shownEditor.join(' '));
+    step('and is marked as on', await cp.$eval(`${MENU} [data-sve-toolbar-preset="editor"]`, (el) => el.classList.contains('is-on')));
+    step('the template dock follows it', (await dockArmed()) === editorPreset.dock);
+
+    await click(page, cp, `${MENU} [data-sve-toolbar-preset="developer"] button`);
+    await sleep(800);
+    step('Developer shows its icons', sameSet(await visibleIcons(cp), before.filter((key) => key === 'settings' || developerPreset.tools.includes(key))), (await visibleIcons(cp)).join(' '));
+    step('and the template dock follows it', (await dockArmed()) === developerPreset.dock);
+  }
+
+  // ── A preset of one's own ─────────────────────────────────────────────
+  await click(page, cp, `${MENU} [data-sve-toolbar-all]`).catch(() => {});
+  await sleep(200);
+  await click(page, cp, `${toolRow(panelTool)} input[type="checkbox"]`);
+  await sleep(200);
+  await click(page, cp, `${MENU} [data-sve-toolbar-preset-new]`);
+  await cp.waitForSelector(`${MENU} [data-sve-toolbar-preset-name]`, { timeout: 3000 });
+  await page.keyboard.type('Test preset');
+  await page.keyboard.press('Enter');
+  await sleep(300);
+
+  const own = await cp.evaluate((m) => document.querySelector(`${m} [data-sve-toolbar-preset^="u-"]`)?.dataset.sveToolbarPreset || '', MENU);
+
+  step('a new preset is saved under its name', !!own && /Test preset/.test(await cp.$eval(`${MENU} [data-sve-toolbar-preset="${own}"]`, (el) => el.textContent)));
+  step('and is on', await cp.$eval(`${MENU} [data-sve-toolbar-preset="${own}"]`, (el) => el.classList.contains('is-on')));
+
+  await click(page, cp, `${MENU} [data-sve-toolbar-all]`);
+  await sleep(300);
+  step('Show all leaves the preset', !(await cp.$eval(`${MENU} [data-sve-toolbar-preset="${own}"]`, (el) => el.classList.contains('is-on'))));
+  await click(page, cp, `${MENU} [data-sve-toolbar-preset="${own}"] button`);
+  await sleep(500);
+  step('picking it again hides what it hides', !(await seen(cp, icon(panelTool))));
+
+  // ── The reset: the layout goes, the user's own presets stay ───────────
   await click(page, cp, `${MENU} .sve-lp-settings__reset`);
   await sleep(800);
   step('Reset Live Preview settings brings it back', await seen(cp, icon(panelTool)));
+  await openMenuTab(page, cp, 'toolbar');
+  step('and keeps the preset of your own', !!(await cp.$(`${MENU} [data-sve-toolbar-preset="${own}"]`)));
+  await click(page, cp, `${MENU} [data-sve-toolbar-preset="${own}"] [data-sve-toolbar-preset-delete]`);
+  await sleep(300);
+  step('× deletes it', !(await cp.$(`${MENU} [data-sve-toolbar-preset="${own}"]`)) && (await storedKey(cp, 'sve-toolbar-presets')) === null);
+  await page.keyboard.press('Escape');
 
   const jsErrors = errors.filter((line) => !line.startsWith('console: Failed to load resource'));
   // With SVE_WORKTREE the page HTML still carries the installed build's

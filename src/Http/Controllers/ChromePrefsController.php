@@ -34,6 +34,8 @@ class ChromePrefsController
         'sve-ai-panel-mode',
         'sve-listview-tab',
         'sve-toolbar-hidden',
+        'sve-toolbar-order',
+        'sve-toolbar-presets',
     ];
 
     public function update(Request $request)

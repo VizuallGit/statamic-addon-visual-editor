@@ -14,6 +14,7 @@ use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
+use MarioHamann\StatamicVisualEditor\ToolbarPresets;
 use Statamic\Facades\User;
 use Statamic\Statamic;
 
@@ -72,6 +73,10 @@ final class ControlPanelScript
                 // site gets (Addons > Statamic Visual Editor).
                 'sveEnabled' => Features::editorEnabled(),
                 'sveFeatures' => Features::visible(),
+                // Developer / Content editor for the top bar (⋮ → Top bar), and
+                // where they are edited — only for a user who may edit them.
+                'sveToolbarPresets' => ToolbarPresets::all(),
+                'sveToolbarPresetsUrl' => ToolbarPresets::settingsUrl(),
                 'sveAiReady' => AiChat::ready(),
                 'sveAiTextReady' => AiCopy::ready(),
                 'sveComments' => static::commentsPayload(),
