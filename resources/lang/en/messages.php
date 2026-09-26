@@ -862,6 +862,7 @@ return [
     'theme_classes_empty' => 'No classes match.',
     'theme_classes_ambient' => 'AMBIENT',
     'theme_classes_ambient_why' => 'This rule matches something inside something else, so it cannot be put on an element on its own.',
+    'theme_classes_read_only' => 'This rule lives in a file other than site.css; edit it in the Stylesheets panel.',
     'theme_classes_chip_all' => 'All',
     'theme_classes_chip_utility' => 'Utilities',
     'theme_classes_chip_class' => 'Classes',

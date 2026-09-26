@@ -856,6 +856,7 @@ return [
     'theme_classes_empty' => 'Ingen klasser matcher.',
     'theme_classes_ambient' => 'AFLEDT',
     'theme_classes_ambient_why' => 'Reglen rammer noget inde i noget andet, så den kan ikke sættes på et element alene.',
+    'theme_classes_read_only' => 'Reglen bor i en anden fil end site.css og rettes i Stylesheets-panelet.',
     'theme_classes_chip_all' => 'Alle',
     'theme_classes_chip_utility' => 'Utilities',
     'theme_classes_chip_class' => 'Klasser',

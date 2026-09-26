@@ -1345,20 +1345,43 @@
   opacity: 0.65;
 }
 
+.sve-theme__search {
+  display: block;
+  width: 100%;
+  margin-block: 0.25rem 0;
+}
+.sve-theme__search input {
+  width: 100%;
+  height: 2rem;
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: 0.3125rem;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.sve-theme__search input::placeholder {
+  opacity: 0.5;
+}
+
 /* Classes tab — one list of every class the site's CSS defines. The chips
    filter it; a row says where the class lives, not what it looks like. */
-.sve-theme__chips {
+.sve-theme__filters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
   margin-block: 0.5rem 0.75rem;
 }
-.sve-theme__chip {
+.sve-theme__filter {
+  /* `.sve-theme__chip` next door is the colour swatch: a fixed 1.875rem box
+     with `flex: none`. These are words, so they size to what they say. */
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  min-height: 1.625rem;
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  height: 1.625rem;
-  padding: 0 0.625rem;
+  padding: 0.25rem 0.625rem;
   border: 0;
   border-radius: 62.4375rem;
   background: rgba(255, 255, 255, 0.07);
@@ -1367,15 +1390,15 @@
   opacity: 0.7;
   cursor: pointer;
 }
-.sve-theme__chip:hover {
+.sve-theme__filter:hover {
   opacity: 1;
 }
-.sve-theme__chip.is-on {
+.sve-theme__filter.is-on {
   background: rgba(255, 255, 255, 0.16);
   color: #fff !important;
   opacity: 1;
 }
-.sve-theme__chip-count {
+.sve-theme__filter-count {
   font-variant-numeric: tabular-nums;
   opacity: 0.6;
 }
