@@ -302,7 +302,13 @@ try {
         return { note };
       }
 
-      const link = await preview.evaluate(() => document.querySelector('link[href*="/build/assets/"][href$=".css"], link[href*="/build/assets/"][href*=".css?"]')?.getAttribute('href') || '');
+      // The frame as it is NOW — the handle from before the save can go stale
+      // when the preview re-renders, and then reports the old link forever.
+      const el = await cp.$('#live-preview-iframe');
+      const now = el ? await el.contentFrame() : null;
+      const link = now
+        ? await now.evaluate(() => document.querySelector('link[href*="/build/assets/"][href$=".css"], link[href*="/build/assets/"][href*=".css?"]')?.getAttribute('href') || '').catch(() => '')
+        : '';
 
       if (link && link !== linkBefore) {
         return { link };
