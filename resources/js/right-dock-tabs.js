@@ -29,6 +29,7 @@ import { closeSectionPicker } from './section-library.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeHtmlTreePanel } from './lazy/html-tree.js';
 import { closeOutlinePanel } from './lazy/outline.js';
+import { closeThemePanel } from './theme-panel-lazy.js';
 
 export const TOOL_PLACEMENT = {
   settings: 'topbar',
@@ -86,6 +87,7 @@ const PANE_BY_ID = {
   '__sve-section-picker': 'sections',
   '__sve-ai-panel': 'ai',
   '__sve-perf-panel': 'performance',
+  '__sve-theme': 'theme',
 };
 
 const PIN_OFF =
@@ -599,6 +601,9 @@ function closeDockPane(win, panel) {
     closeCommentsPanel(win);
   } else if (key === 'sections') {
     closeSectionPicker(win);
+  } else if (key === 'theme') {
+    // Its own close: asks about unsaved changes, repaints what is saved.
+    closeThemePanel(win);
   } else {
     panel.remove();
     releaseRightShellIfEmpty(win);

@@ -1286,6 +1286,20 @@ export function twWantFamilies(win) {
 let siteClasses = [];
 let siteClassesWanted = false;
 
+// site.css was saved: the model and the swatches were read from the old theme.
+// Drop them and, with a tag selected, redraw — wantModel() loads the new ones.
+if (typeof window !== 'undefined') {
+  window.addEventListener('sve:site-css-saved', () => {
+    model = null;
+    modelWanted = false;
+    colorCache.clear();
+
+    if (node) {
+      render(window);
+    }
+  });
+}
+
 function wantSiteClasses(win) {
   if (siteClassesWanted) {
     return;

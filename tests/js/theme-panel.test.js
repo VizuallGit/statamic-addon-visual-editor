@@ -111,3 +111,23 @@ test('a new size is named after the largest number', () => {
   assert.equal(nextSizeName(['size-sm', 'size-100', 'size-1200']), 'size-1300');
   assert.equal(nextSizeName(['size-sm']), 'size-100');
 });
+
+test('a new size’s Tailwind lines land after their neighbours, in number order', () => {
+  const css = `@theme {
+    --text-900: var(--size-900);
+    --spacing-1200: var(--size-1200);
+    --spacing-container: var(--container-padding);
+    --size-1200: 9rem;
+}`;
+  const out = writeTokens(css, { 'size-1300': '10rem', 'spacing-1300': 'var(--size-1300)', 'text-1300': 'var(--size-1300)' });
+
+  assert.equal(out, `@theme {
+    --text-900: var(--size-900);
+    --text-1300: var(--size-1300);
+    --spacing-1200: var(--size-1200);
+    --spacing-1300: var(--size-1300);
+    --spacing-container: var(--container-padding);
+    --size-1200: 9rem;
+    --size-1300: 10rem;
+}`);
+});

@@ -68,6 +68,7 @@ import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeHtmlTreePanel } from './lazy/html-tree.js';
 import { closeOutlinePanel } from './lazy/outline.js';
 import { closePerformancePanel } from './lazy/performance.js';
+import { THEME_PANEL_ID, closeThemePanel } from './theme-panel-lazy.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== library =====
@@ -1976,6 +1977,11 @@ export function closeRightPanelsInner(win, keepIds) {
 
   if (!keepIds.includes(PERF_PANEL_ID)) {
     closePerformancePanel(win);
+  }
+
+  if (!keepIds.includes(THEME_PANEL_ID)) {
+    // Another tool takes the sidebar: no question, unsaved changes kept for the next open.
+    closeThemePanel(win, { force: true });
   }
 
   if (!keepIds.includes(LISTVIEW_PANEL_ID)) {

@@ -399,6 +399,11 @@ async function saveFile(win) {
     ui.imported = data.imported !== false;
     ui.status = t(win, 'site_css_saved');
     bumpPreview(win);
+
+    if (ui.kind === 'css') {
+      // The dock's Tailwind forgets the theme it kept (tw-compile and friends).
+      win.dispatchEvent(new CustomEvent('sve:site-css-saved', { detail: { path: ui.path } }));
+    }
     win.setTimeout(() => {
       if (ui.status === t(win, 'site_css_saved')) {
         ui.status = '';

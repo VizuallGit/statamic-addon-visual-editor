@@ -143,6 +143,38 @@ async function waitFor(frame, fn, arg, ms = 8000) {
   return false;
 }
 
+/**
+ * The Tailwind chunk to ask. The CP names the installed one; with SVE_WORKTREE
+ * that is the old build, so the working tree's own chunk (served by
+ * serveWorktreeBuild under the same folder) is asked instead.
+ */
+const worktreeTwFile = (() => {
+  try {
+    const manifest = JSON.parse(readFileSync(`${ADDON_DIR}/resources/dist/build/manifest.json`, 'utf8'));
+
+    return manifest['resources/js/tw-compile.js']?.file || '';
+  } catch {
+    return '';
+  }
+})();
+
+/** What the dock's Tailwind knows right now: its class list, and the CSS it compiles for `html`. */
+const dockTailwind = (frame, html) => frame.evaluate(async (markup, file) => {
+  const installed = window.Statamic?.$config?.get?.('sveTwCompile');
+
+  if (!installed) {
+    return null;
+  }
+
+  const base = new URL(installed, location.href);
+  const url = file ? new URL(file.replace(/^assets\//, ''), base).href : base.href;
+  const mod = await import(url);
+  const design = await mod.loadTailwindDesign(window);
+  const names = (design.getClassList() || []).map((entry) => (Array.isArray(entry) ? entry[0] : entry));
+
+  return { names, css: mod.buildTailwind(await mod.loadTailwindCompiler(window), markup) || '' };
+}, html, WORKTREE ? worktreeTwFile : '');
+
 const rootVar = (frame, name) => frame.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
 const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/theme-panel-${name}.png` });
 
@@ -207,7 +239,21 @@ try {
   await click(page, cp, icon);
   step('panel opens on Colors with the colors from site.css', await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__card`).length >= 7, PANEL),
     await cp.evaluate((p) => [...document.querySelectorAll(`${p} .sve-theme__token`)].map((e) => e.textContent.trim()).join(' '), PANEL));
-  step('its stylesheet loaded', (await cp.evaluate((p) => getComputedStyle(document.querySelector(`${p} .sve-theme`)).backgroundColor, PANEL)) === 'rgb(30, 30, 33)');
+  const look = await cp.evaluate((p) => {
+    const el = document.querySelector(`${p} .sve-theme`);
+    const cs = getComputedStyle(el);
+
+    return { bg: cs.backgroundColor, display: cs.display, tabs: getComputedStyle(el.querySelector('.sve-theme__tabs')).overflowX };
+  }, PANEL);
+
+  // The panel's own sheet: its flex column and the tab row that scrolls.
+  step('its stylesheet loaded', look.display === 'flex' && look.tabs === 'auto', JSON.stringify(look));
+  step('it sits in the shared right sidebar', await cp.evaluate((p) => !!document.querySelector(`#__sve-right-dock ${p}`), PANEL));
+  step('each tab has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__tab .sve-theme__tab-icon svg`).length === 4, PANEL));
+
+  const knewBefore = await dockTailwind(cp, '<div class="bg-testmoss-500 p-1300 text-1300"></div>');
+
+  step('the dock\'s Tailwind does not know the new classes yet', !!knewBefore && !knewBefore.names.includes('bg-testmoss-500') && !knewBefore.names.includes('p-1300'));
 
   if (!WORKTREE) {
     const tab = await cp.evaluate((p) => document.querySelector(`${p} [data-sve-theme-tab="spacing"]`)?.textContent.trim() || '', PANEL);
@@ -253,6 +299,19 @@ try {
 
   step('4 tints and 3 shades, named by lightness', steps.length === 7, steps.join(' '));
   step('the new color paints into the preview', await waitFor(preview, () => getComputedStyle(document.documentElement).getPropertyValue('--color-testmoss').trim() === '#55613f'));
+
+  // Another tool takes the sidebar: the panel goes without a question, and
+  // comes back with the unsaved changes.
+  if (await cp.$('#__sve-toolbar button[data-tab="outline"]')) {
+    await click(page, cp, '#__sve-toolbar button[data-tab="outline"]');
+    step('another tool replaces it in the sidebar', await waitFor(cp, (p) => !document.querySelector(p) && !!document.querySelector('#__sve-right-dock #__sve-outline-panel'), PANEL));
+    await click(page, cp, icon);
+    step('back again with the unsaved changes', await waitFor(cp, (p) => {
+      const panel = document.querySelector(p);
+
+      return !!panel && !panel.querySelector('.sve-theme__save')?.disabled && [...panel.querySelectorAll('.sve-theme__token')].some((t) => t.textContent.trim() === '--testmoss');
+    }, PANEL));
+  }
   await shot(page, '1-colors');
 
   // ── Spacing ───────────────────────────────────────────────────────────
@@ -301,6 +360,8 @@ try {
   step('save finishes', saved, await cp.evaluate((p) => document.querySelector(`${p} .sve-theme__status`)?.textContent.trim() || '', PANEL));
 
   const expect = [
+    '--spacing-1300: var(--size-1300);',
+    '--text-1300: var(--size-1300);',
     '--color-primary: #ff0000;',
     '--color-testmoss: #55613f;',
     '--size-500: clamp(1.5rem, 1.1667rem + 1.6667vw, 2.5rem);',
@@ -312,13 +373,21 @@ try {
   step('site.css has every change', expect.every((line) => css.includes(line)), expect.filter((line) => !css.includes(line)).join(' | '));
 
   const touched = css.split('\n').filter((line) => !original.includes(line) && line.trim() !== '')
-    .filter((line) => !/--color-(testmoss|primary)\b|--size-(500|1300):|--font-size-h1:|--button-radius:/.test(line));
+    .filter((line) => !/--color-(testmoss|primary)\b|--size-(500|1300):|--(spacing|text)-1300:|--font-size-h1:|--button-radius:/.test(line));
 
   step('nothing else in site.css changed', touched.length === 0, touched.slice(0, 3).join(' | '));
 
   const html = await (await fetch(`${SITE_URL}/`)).text();
 
   step('the public page serves the saved theme (no build)', expect.every((line) => html.includes(line)), expect.filter((line) => !html.includes(line)).join(' | '));
+
+  const knewAfter = await dockTailwind(cp, '<div class="bg-testmoss-500 p-1300 text-1300"></div>');
+
+  step('the dock\'s Tailwind knows them straight after the save, no reload',
+    !!knewAfter && ['bg-testmoss-500', 'p-1300', 'text-1300'].every((name) => knewAfter.names.includes(name))
+      && ['.bg-testmoss-500', '.p-1300', '.text-1300'].every((rule) => knewAfter.css.includes(rule)),
+    knewAfter ? ['bg-testmoss-500', 'p-1300', 'text-1300'].filter((name) => !knewAfter.names.includes(name)).join(' ') : 'no compiler');
+  step('and the classes that were there still are', !!knewAfter && ['bg-primary-600', 'p-500', 'text-300', 'font-heading'].every((name) => knewAfter.names.includes(name)));
 
   await click(page, cp, `${PANEL} .sve-theme__ghost`);
   step('closes without asking once saved', await waitFor(cp, (p) => !document.querySelector(p), PANEL));

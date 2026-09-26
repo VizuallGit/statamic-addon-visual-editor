@@ -15,6 +15,8 @@ import { openCpOverlay } from './cp/open-overlay.js';
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewCopies, previewDocument } from './lib/preview-frame.js';
+import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
+import { closeRightPanels } from './section-library.js';
 import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { themePanelUi as ui } from './cp/theme-panel/store.js';
@@ -23,7 +25,9 @@ import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
 import { BUTTON_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 
-export const PANEL_ID = '__sve-theme';
+import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
+
+export { PANEL_ID };
 
 const ENTRY = 'site.css';
 
@@ -142,8 +146,23 @@ function desiredTokens() {
   const out = { 'container-width': containerValue() };
 
   for (const size of ui.sizes) {
-    if (!size.problem) {
-      out[size.name] = sizeText(size);
+    if (size.problem) {
+      continue;
+    }
+
+    out[size.name] = sizeText(size);
+
+    // A size new in this session is a Tailwind class through `--spacing-*` and
+    // `--text-*` (`p-1300`, `text-1300`), pointing at itself. The file's own
+    // sizes keep exactly the lines they have.
+    if (!savedTokens.has(size.name)) {
+      const suffix = size.name.slice('size-'.length);
+
+      for (const utility of ['spacing', 'text']) {
+        if (!savedTokens.has(`${utility}-${suffix}`)) {
+          out[`${utility}-${suffix}`] = `var(--${size.name})`;
+        }
+      }
     }
   }
 
@@ -170,6 +189,22 @@ function tokenChanges() {
   for (const name of savedTokens.keys()) {
     if (name.startsWith('size-') && !(name in want) && !ui.sizes.some((s) => s.name === name)) {
       changes[name] = null;
+    }
+  }
+
+  // A removed size takes along its `--spacing-*` / `--text-*` lines, but only
+  // lines that point at exactly it — nothing else is touched.
+  for (const [name, value] of Object.entries(changes)) {
+    if (value !== null || !name.startsWith('size-')) {
+      continue;
+    }
+
+    const suffix = name.slice('size-'.length);
+
+    for (const utility of ['spacing', 'text']) {
+      if (savedTokens.get(`${utility}-${suffix}`) === `var(--${name})`) {
+        changes[`${utility}-${suffix}`] = null;
+      }
     }
   }
 
@@ -523,6 +558,9 @@ export async function saveTheme(win) {
 
     remember(css);
     Object.assign(ui, { tab, openKey: ui.families.some((f) => f.key === openKey) ? openKey : '', selectedSize });
+    // The dock's Tailwind forgets the theme it kept, so the new colors, sizes
+    // and fonts are classes it suggests and paints straight away.
+    win.dispatchEvent(new CustomEvent('sve:site-css-saved', { detail: { path: ENTRY } }));
     ui.status = t(win, 'theme_panel_saved');
     win.setTimeout(() => {
       if (ui.status === t(win, 'theme_panel_saved')) {
@@ -548,12 +586,16 @@ export function isThemePanelOpen(doc) {
   return !!doc?.getElementById(PANEL_ID);
 }
 
-function teardown(win) {
-  // What is saved stays painted: the page on screen was rendered before the
-  // save and still carries the old values in its <head>.
-  const saved = readTokens(ui.saved);
-
-  paint(win, propertiesFor(readColors(ui.saved), Object.fromEntries(saved)));
+/**
+ * Take the panel down. `keep` (another tool took the sidebar with unsaved
+ * changes): the edits stay in the store and painted, for the next open.
+ * Otherwise what is saved stays painted — the page on screen was rendered
+ * before the save and still carries the old values in its <head>.
+ */
+function teardown(win, { keep = false } = {}) {
+  if (!keep) {
+    paint(win, propertiesFor(readColors(ui.saved), Object.fromEntries(readTokens(ui.saved))));
+  }
 
   if (onFrameLoad) {
     win.document.removeEventListener('load', onFrameLoad, true);
@@ -562,21 +604,41 @@ function teardown(win) {
 
   app?.unmount();
   app = null;
-  ui.families = [];
-  ui.sizes = [];
-  ui.openKey = '';
-  ui.dirty = false;
+
+  if (!keep) {
+    ui.families = [];
+    ui.sizes = [];
+    ui.openKey = '';
+    ui.dirty = false;
+  }
+
   ui.status = '';
   win.document.getElementById(PANEL_ID)?.remove();
+  releaseRightShellIfEmpty(win);
+  // The shell listens for this: the top-bar icon, the preview's inset.
+  win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
 }
 
-/** Close; with unsaved changes, ask first. */
-export function closeThemePanel(win) {
-  if (!ui.dirty) {
-    teardown(win);
+/** True while the unsaved-changes question is on screen — a second close waits for it. */
+let asking = false;
+
+/**
+ * Close. With unsaved changes, ask first — unless `force`: another tool is
+ * taking the sidebar, and the changes are kept for the next open instead.
+ * Safe to call twice (the sidebar's own close button and ours both do).
+ */
+export function closeThemePanel(win, { force = false } = {}) {
+  if (!isThemePanelOpen(win.document) || asking) {
+    return;
+  }
+
+  if (force || !ui.dirty) {
+    teardown(win, { keep: force && ui.dirty });
 
     return;
   }
+
+  asking = true;
 
   const overlay = openCpOverlay(win.document, ChoiceDialog, {
     title: t(win, 'theme_panel_unsaved_title'),
@@ -588,26 +650,21 @@ export function closeThemePanel(win) {
     onPick: async (value) => {
       overlay.dismiss();
 
-      if (value === 'save' && !(await saveTheme(win))) {
-        return;
+      try {
+        if (value === 'save' && !(await saveTheme(win))) {
+          return;
+        }
+
+        teardown(win);
+      } finally {
+        asking = false;
       }
-
-      teardown(win);
     },
-    onClose: () => overlay.dismiss(),
+    onClose: () => {
+      asking = false;
+      overlay.dismiss();
+    },
   });
-}
-
-function placePanel(win, el) {
-  const parent = win.document.querySelector('.live-preview') || win.document.body;
-  const header = parent.querySelector('.live-preview-header');
-
-  if (win.getComputedStyle(parent).position === 'static') {
-    parent.style.position = 'relative';
-  }
-
-  parent.appendChild(el);
-  el.style.top = `${header ? Math.round(header.getBoundingClientRect().height) : 0}px`;
 }
 
 /** Every `theme_*` string the panel shows, by key without the prefix. */
@@ -621,15 +678,22 @@ function labels(win) {
   );
 }
 
+/**
+ * Into the shared right sidebar, like every other tool: the others close
+ * (pinned ones stay), the preview moves over for it, and the sidebar's own
+ * pin and close sit in the panel's header.
+ */
 function openThemePanel(win) {
   const doc = win.document;
   const panel = doc.createElement('div');
 
+  closeRightPanels(win, [PANEL_ID]);
   panel.id = PANEL_ID;
-  panel.style.cssText = 'position:absolute;right:0;bottom:0;width:23rem;max-width:100%;z-index:40;';
+  panel.style.cssText = RIGHT_PANEL_FILL;
   ui.labels = labels(win);
-  placePanel(win, panel);
   app = mountSurface(ThemePanelPane, panel, handlers(win));
+  // Tells the shell (sve-right-dock-change): the top-bar icon lights, the preview moves over.
+  showInRightShell(win, panel);
 
   // A preview that reloads (another edit, a size switched on) gets the
   // unsaved values back.
@@ -639,6 +703,14 @@ function openThemePanel(win) {
     }
   };
   doc.addEventListener('load', onFrameLoad, true);
+
+  // Unsaved changes from before another tool took the sidebar: back as they were.
+  if (ui.dirty && ui.saved) {
+    ui.fonts = fontFamilies(win);
+    paint(win);
+
+    return;
+  }
 
   void load(win);
 }

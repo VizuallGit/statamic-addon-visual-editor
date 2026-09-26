@@ -2130,6 +2130,18 @@
     var twLastKey = '';
     var twLastCss = '';
 
+    // site.css was saved (the theme panel, the stylesheet editor): this
+    // compiler knew the old theme. Drop it — loadCompiler() fetches the new
+    // one — and paint now, so a class for a color made a moment ago shows
+    // without a reload.
+    window.addEventListener('sve:site-css-saved', function () {
+        twState = null;
+        twStateWait = null;
+        twLastKey = '';
+        twLastCss = '';
+        schedulePaint();
+    });
+
     function setLiveTw(doc, css) {
         if (!doc?.head) {
             return;

@@ -114,8 +114,12 @@ function rewrite(body, wanted, home) {
 
     const group = groupOf(name);
     const [base, n] = sortKey(name);
-    let at = -1;
-    let firstOfGroup = -1;
+    // After the last of its own kind with a smaller number (`spacing-1300`
+    // after `spacing-1200`); else before the first with a larger one; else
+    // after the group's last line; else after the block's last declaration.
+    let afterSmaller = -1;
+    let firstLarger = -1;
+    let lastOfGroup = -1;
 
     kept.forEach((line, i) => {
       const d = DECL.exec(line);
@@ -124,21 +128,24 @@ function rewrite(body, wanted, home) {
         return;
       }
 
-      if (firstOfGroup === -1) {
-        firstOfGroup = i;
-      }
-
       const [b, m] = sortKey(d[2]);
 
-      if (b !== base || m < n) {
-        at = i;
+      lastOfGroup = i;
+
+      if (b === base && m < n) {
+        afterSmaller = i;
+      } else if (b === base && m > n && firstLarger === -1) {
+        firstLarger = i;
       }
     });
 
-    if (at === -1 && firstOfGroup !== -1) {
-      at = firstOfGroup - 1;
+    let at = afterSmaller;
+
+    if (at === -1 && firstLarger !== -1) {
+      at = firstLarger - 1;
+    } else if (at === -1 && lastOfGroup !== -1) {
+      at = lastOfGroup;
     } else if (at === -1) {
-      // No group yet: after the block's last declaration.
       at = kept.map((line) => DECL.test(line)).lastIndexOf(true);
     }
 

@@ -24,6 +24,14 @@ const SLICE = 2000;
 
 let families = null;
 
+// site.css was saved: the families came from the old catalog. Built again on
+// the next menu (see forgetTailwindTheme in tw-compile).
+if (typeof window !== 'undefined') {
+  window.addEventListener('sve:site-css-saved', () => {
+    families = null;
+  });
+}
+
 export function loadFamilies(win) {
   if (!families) {
     families = loadCatalog(win).then((catalog) => {

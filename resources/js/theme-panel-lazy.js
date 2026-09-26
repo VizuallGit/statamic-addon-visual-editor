@@ -5,27 +5,27 @@
  * is opened, so a Live Preview session that never touches it never parses it.
  * Gated like the stylesheet editor: both write site.css.
  */
-const PANEL_ID = '__sve-theme';
+/** The panel's element in the right sidebar — the shell and closeRightPanels() know it by this. */
+export const THEME_PANEL_ID = '__sve-theme';
 
 let panel = null;
 let loading = null;
 
-/** A palette: what the icon opens is the site's theme. */
+/** A swatch book: the theme is more than its colors (the palette is the Colors tab's icon). */
 export const THEME_PANEL_ICON =
   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
   'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
-  '<circle cx="13.5" cy="6.5" r="1" fill="currentColor" stroke="none"/>' +
-  '<circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/>' +
-  '<circle cx="8.5" cy="7.5" r="1" fill="currentColor" stroke="none"/>' +
-  '<circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/>' +
-  '<path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.55-2.5 5.55-5.55C21.97 6.01 17.46 2 12 2z"/></svg>';
+  '<path d="M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z"/>' +
+  '<path d="M16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7"/>' +
+  '<path d="M7 17h.01"/>' +
+  '<path d="m11 8 2.3-2.3a2.4 2.4 0 0 1 3.404.004L18.6 7.6a2.4 2.4 0 0 1 .026 3.434L9.9 19.8"/></svg>';
 
 export function themePanelAllowed(win) {
   return win.Statamic?.$config?.get?.('sveFeatures')?.site_css === true;
 }
 
 export function isThemePanelOpen(doc) {
-  return !!doc?.getElementById(PANEL_ID);
+  return !!doc?.getElementById(THEME_PANEL_ID);
 }
 
 export function loadThemePanel() {
@@ -55,12 +55,16 @@ export function toggleThemePanel(win) {
   return loadThemePanel().then((mod) => mod.toggleThemePanel(win));
 }
 
-export function closeThemePanel(win) {
+/**
+ * Close the panel. `{ force: true }` is another tool taking the sidebar: no
+ * question asked, and unsaved changes are kept for the next time it opens.
+ */
+export function closeThemePanel(win, options = {}) {
   if (panel) {
-    panel.closeThemePanel(win);
+    panel.closeThemePanel(win, options);
 
     return;
   }
 
-  win?.document?.getElementById(PANEL_ID)?.remove();
+  win?.document?.getElementById(THEME_PANEL_ID)?.remove();
 }

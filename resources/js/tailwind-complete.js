@@ -39,6 +39,14 @@ const VARIANT_PREVIEW = 24;
 
 let catalogPromise = null;
 
+// site.css was saved: the catalog was built from the old theme. Built again on
+// the next suggestion, from the new one (see forgetTailwindTheme in tw-compile).
+if (typeof window !== 'undefined') {
+  window.addEventListener('sve:site-css-saved', () => {
+    catalogPromise = null;
+  });
+}
+
 export function tailwindDockOn(win) {
   return win?.Statamic?.$config?.get?.('sveFeatures')?.tailwind_dock === true;
 }

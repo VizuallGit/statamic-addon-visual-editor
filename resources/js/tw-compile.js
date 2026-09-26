@@ -143,3 +143,19 @@ export function loadTailwindDesign(win) {
 
   return designPromise;
 }
+
+/**
+ * Forget the site's theme once site.css was saved (the theme panel, the
+ * stylesheet editor): the next compile, suggestion or paint fetches it again,
+ * so a color or size made a moment ago is a class the dock knows at once.
+ * Only what was kept is dropped — nothing about how a class compiles changes.
+ */
+export function forgetTailwindTheme() {
+  sitePromise = null;
+  designPromise = null;
+  compilerPromise = null;
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('sve:site-css-saved', forgetTailwindTheme);
+}

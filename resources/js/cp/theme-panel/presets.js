@@ -64,7 +64,7 @@ export function sizeRef(value) {
  * every render — the same list as its MANAGED pattern (app/Tags/ThemeTokens.php
  * on the site), so what the panel paints is what the page will get.
  */
-const MANAGED = /^(?:size-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|button-[\w-]+|btn-radius)$/;
+const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|button-[\w-]+|btn-radius)$/;
 
 export function isManaged(name) {
   return MANAGED.test(name);
