@@ -38,6 +38,7 @@ class ToolbarAccess
         'ai_text',
         'schema',
         'comments',
+        'page_activity',
     ];
 
     public const AUDIENCE_EVERYONE = 'everyone';
@@ -62,6 +63,7 @@ class ToolbarAccess
         'ai_text' => self::AUDIENCE_EVERYONE,
         'schema' => self::AUDIENCE_SUPER,
         'comments' => self::AUDIENCE_EVERYONE,
+        'page_activity' => self::AUDIENCE_EVERYONE,
     ];
 
     /**

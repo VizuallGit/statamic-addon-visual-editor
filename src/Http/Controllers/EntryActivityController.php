@@ -20,7 +20,7 @@ class EntryActivityController
 {
     public function __invoke(string $entry)
     {
-        abort_unless(Features::editorEnabled() && Features::enabled('page_activity'), 403);
+        abort_unless(Features::editorEnabled() && Features::allows('page_activity'), 403);
 
         $user = User::current();
 

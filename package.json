@@ -18,6 +18,7 @@
     "test:theme": "node tests/browser/theme-panel.mjs",
     "test:utilities": "node tests/browser/theme-utilities.mjs",
     "test:fonts": "node tests/browser/theme-fonts.mjs",
+    "test:toolbar": "node tests/browser/toolbar-visibility.mjs",
     "test:perf": "node tests/browser/perf-server-tab.mjs"
   },
   "dependencies": {

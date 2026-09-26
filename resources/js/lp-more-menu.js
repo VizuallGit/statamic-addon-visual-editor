@@ -1,6 +1,6 @@
 /**
- * Overflow menu to the right of Close: Live Preview defaults + reset.
- * Does not import the kernel.
+ * Overflow menu to the right of Close: Live Preview defaults + reset, in three
+ * tabs (sidebars, HTML tree, top bar icons). Does not import the kernel.
  */
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
@@ -23,6 +23,7 @@ import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeOutlinePanel } from './lazy/outline.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
+import { openToolbarTool, setToolbarToolShown, showAllToolbarTools, syncHiddenToolbarIcons, toolbarTools } from './toolbar-visibility.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -48,6 +49,8 @@ const LP_MORE_ICON_SVG =
 let menuApp = null;
 let menuHost = null;
 let awayHandler = null;
+// The tab the menu opens on: the one it was left on, for this page load.
+let lastTab = 'sidebars';
 
 function parseJson(win, key, fallback) {
   try {
@@ -155,7 +158,7 @@ function setCodeDock(win, on) {
   applyHeaderTab(win);
 }
 
-function settingsProps(win, rect) {
+function sidebarsProps(win) {
   const tools = SIDEBAR_TOOLS.filter(([id]) => {
     const key = id === 'ai' ? 'ai_panel' : id;
 
@@ -167,14 +170,7 @@ function settingsProps(win, rect) {
   }));
 
   return {
-    top: Math.round(rect.bottom + 8),
-    right: Math.round(win.innerWidth - rect.right),
-    title: t(win, 'lp_settings_title'),
     panelLabel: t(win, 'panel'),
-    sidebarLabel: t(win, 'lp_settings_sidebar'),
-    widthLabel: t(win, 'lp_settings_width'),
-    resetLabel: t(win, 'reset_lp_settings'),
-    resetTitle: t(win, 'reset_lp_settings_title'),
     modes: [
       { id: 'hide', label: t(win, 'lp_mode_hide') },
       { id: 'auto', label: t(win, 'lp_mode_auto') },
@@ -184,10 +180,17 @@ function settingsProps(win, rect) {
       ? chromeGet(win, 'sve-lp-panel-mode')
       : 'hide',
     editorWidth: clampWidth(win, chromeGet(win, 'statamic.live-preview.editor-width')),
+    sidebarLabel: t(win, 'lp_settings_sidebar'),
+    tools,
     dockWidth: clampWidth(win, chromeGet(win, DOCK_WIDTH_KEY)),
+    widthLabel: t(win, 'lp_settings_width'),
     widthMin: remToPx(win, LP_SIDE_MIN_REM),
     widthMax: remToPx(win, LP_SIDE_MAX_REM),
-    tools,
+  };
+}
+
+function treeProps(win) {
+  return {
     codeDock: {
       show: featureOn(win, 'template_dock'),
       on: isCodeDockArmed(win),
@@ -210,6 +213,40 @@ function settingsProps(win, rect) {
   };
 }
 
+function toolbarProps(win) {
+  return {
+    label: t(win, 'lp_settings_toolbar'),
+    hint: t(win, 'lp_settings_toolbar_hint'),
+    emptyLabel: t(win, 'lp_settings_toolbar_empty'),
+    openLabel: t(win, 'lp_settings_toolbar_open'),
+    closeLabel: t(win, 'lp_settings_toolbar_close'),
+    showAllLabel: t(win, 'lp_settings_toolbar_all'),
+    tools: toolbarTools(win),
+  };
+}
+
+function settingsProps(win, rect) {
+  const tree = treeProps(win);
+  const hasTree = tree.codeDock.show || tree.htmlTree.show || tree.familyColors.show;
+
+  return {
+    top: Math.round(rect.bottom + 8),
+    right: Math.round(win.innerWidth - rect.right),
+    title: t(win, 'lp_settings_title'),
+    tabs: [
+      { id: 'sidebars', label: t(win, 'lp_settings_tab_sidebars') },
+      hasTree ? { id: 'tree', label: t(win, 'lp_settings_tab_tree') } : null,
+      { id: 'toolbar', label: t(win, 'lp_settings_tab_toolbar') },
+    ].filter(Boolean),
+    tab: lastTab,
+    sidebars: sidebarsProps(win),
+    tree,
+    toolbar: toolbarProps(win),
+    resetLabel: t(win, 'reset_lp_settings'),
+    resetTitle: t(win, 'reset_lp_settings_title'),
+  };
+}
+
 export function dismissLpMoreMenu() {
   awayHandler?.();
   awayHandler = null;
@@ -221,16 +258,30 @@ export function dismissLpMoreMenu() {
 
 function bindSettingHandlers(win) {
   return {
-    onMode: (mode) => setPanelMode(win, mode),
-    onWidth: (which, px) => setWidth(win, which, px),
-    onTool: (key, on) => setStartupPane(win, key, on),
-    onCodeDock: (on) => setCodeDock(win, on),
-    onHtmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
-    onFamilyColor: (family, hex) => setFamilyColor(win, family, hex),
-    onFamilyReset: () => resetFamilyColors(win),
+    onTab: (id) => {
+      lastTab = id;
+    },
+    on: {
+      mode: (mode) => setPanelMode(win, mode),
+      width: (which, px) => setWidth(win, which, px),
+      tool: (key, on) => setStartupPane(win, key, on),
+      codeDock: (on) => setCodeDock(win, on),
+      htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
+      familyColor: (family, hex) => setFamilyColor(win, family, hex),
+      familyReset: () => resetFamilyColors(win),
+      toolbarShown: (key, shown) => setToolbarToolShown(win, key, shown),
+      toolbarShowAll: () => showAllToolbarTools(win),
+      // The menu goes first: the tool opens where the menu was.
+      toolbarOpen: (key) => {
+        dismissLpMoreMenu();
+        openToolbarTool(win, key);
+      },
+    },
     onReset: () => {
       dismissLpMoreMenu();
       resetEditorLayout(win);
+      // The reset cleared the stored list with every other layout key.
+      syncHiddenToolbarIcons(win);
     },
     onClose: dismissLpMoreMenu,
   };

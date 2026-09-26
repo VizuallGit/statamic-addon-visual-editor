@@ -36,6 +36,15 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: page_activity_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: page_activity
+              if:
+                enabled: 'equals true'
+                page_activity: 'equals true'
+          -
             handle: breakpoint_overview
             field:
               type: toggle

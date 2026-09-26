@@ -33,6 +33,7 @@ class ChromePrefsController
         'sve-code-dock-armed',
         'sve-ai-panel-mode',
         'sve-listview-tab',
+        'sve-toolbar-hidden',
     ];
 
     public function update(Request $request)

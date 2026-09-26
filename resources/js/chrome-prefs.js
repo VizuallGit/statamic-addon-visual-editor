@@ -41,6 +41,7 @@ export const CHROME_KEYS = [
   'sve-html-tree-look',
   'sve-html-tree-layers',
   'sve-fam-colors',
+  'sve-toolbar-hidden',
 ];
 
 const MIGRATED_KEY = 'sve-chrome-legacy-migrated';

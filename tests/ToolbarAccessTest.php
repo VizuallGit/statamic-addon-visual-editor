@@ -16,7 +16,7 @@ class ToolbarAccessTest extends TestCase
 
     public function test_other_icons_default_to_everyone(): void
     {
-        foreach (['pages', 'globals', 'sections', 'listview', 'html_tree', 'ai_panel', 'comments'] as $key) {
+        foreach (['pages', 'globals', 'sections', 'listview', 'html_tree', 'ai_panel', 'comments', 'page_activity'] as $key) {
             $this->assertSame(ToolbarAccess::AUDIENCE_EVERYONE, ToolbarAccess::rule($key)['audience'], $key);
         }
     }
@@ -95,6 +95,20 @@ class ToolbarAccessTest extends TestCase
         Features::flush();
 
         $this->assertFalse(Features::allows('template_dock', $this->user(super: true)));
+    }
+
+    public function test_edit_history_follows_its_own_access_rule(): void
+    {
+        config([
+            'statamic-visual-editor.features.page_activity' => true,
+            'statamic-visual-editor.features.page_activity_access' => ['audience' => 'super'],
+        ]);
+        Features::flush();
+
+        $this->assertFalse(Features::allows('page_activity', $this->user(super: false)));
+        $this->assertTrue(Features::allows('page_activity', $this->user(super: true)));
+        $this->assertFalse(Features::visible($this->user(super: false))['page_activity']);
+        $this->assertTrue(Features::visible($this->user(super: true))['page_activity']);
     }
 
     public function test_normalize_fills_defaults_for_missing_keys(): void
