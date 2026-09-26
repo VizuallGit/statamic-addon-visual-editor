@@ -54,6 +54,7 @@ function pick(id) {
         :class="{ 'is-on': current === item.id }"
         :aria-selected="current === item.id ? 'true' : 'false'"
         :data-sve-lp-settings-tab="item.id"
+        :title="item.label"
         @click="pick(item.id)"
       >
         {{ item.label }}
@@ -106,10 +107,14 @@ function pick(id) {
   background: #2a2a2d;
   flex: none;
 }
+/* Equal thirds that never push each other out: a long label ends in … */
 .sve-lp-settings__tab {
   all: unset;
   box-sizing: border-box;
   flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   height: 1.75rem;
   padding: 0 0.5rem;
   border-radius: 0.25rem;

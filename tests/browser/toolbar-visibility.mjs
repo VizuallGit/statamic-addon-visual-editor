@@ -6,8 +6,13 @@
  * Opens ⋮ → Top bar, hides a panel tool and Pages (a framed one), waits out
  * several toolbar passes and a full reload to see they stay hidden, opens both
  * from the menu (the icon shows while open and goes again when closed), then
- * Show all and the reset bring every icon back. The test user's editor
- * preferences are put back exactly as they were.
+ * Show all and the reset bring every icon back.
+ *
+ * The run never saves the editor layout to the server: every write to
+ * /!/sve/chrome-prefs is answered here and goes nowhere, so the reset step
+ * cannot wipe the layout of a real person — the account may be one somebody
+ * works in (the demo's admin). The choice lives in the browser's own storage,
+ * which is what the reload reads. A local test user's file is also put back.
  *
  *   cd ~/Sites/vizuall-skabelon && SVE_PASS='…' \
  *     node ~/Sites/statamic-addon-visual-editor-vue/tests/browser/toolbar-visibility.mjs
@@ -15,10 +20,11 @@
  * Same env as live-preview-smoke.mjs: SVE_SITE_DIR, SVE_SITE_URL, SVE_USER,
  * SVE_PASS, SVE_ENTRY, SVE_CHROME. SVE_SHOTS=<dir> saves screenshots.
  * SVE_WORKTREE=1 serves this checkout's build instead of the installed one;
- * the strings and the saved preference then still go through the installed
- * PHP, so labels are not checked and the reload reads the browser's copy.
+ * the strings then still come from the installed PHP, so labels are not
+ * checked. Against another site, SVE_INSTALLED_MANIFEST=<file> is that site's
+ * /vendor/visual-editor/build/manifest.json, saved locally.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { serveWorktreeBuild } from './serve-worktree.mjs';
 
@@ -49,12 +55,28 @@ const tabButton = (id) => `${MENU} [data-sve-lp-settings-tab="${id}"]`;
 const toolRow = (key) => `${MENU} [data-sve-toolbar-tool="${key}"]`;
 const icon = (key) => `${BAR} button[data-tab="${key}"]`;
 
-// The editor keeps its layout on the user as `sve_chrome`; start clean and put
-// the file back as it was, whatever happens.
+// A local test user keeps its layout as `sve_chrome` in its file; start clean
+// and put the file back as it was, whatever happens. Another site's user has
+// no file here, and its layout is only read (see blockPrefsWrite).
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
-const userYaml = readFileSync(USER_FILE, 'utf8');
+const userYaml = existsSync(USER_FILE) ? readFileSync(USER_FILE, 'utf8') : null;
 
-writeFileSync(USER_FILE, userYaml.replace(/^  sve_chrome:\n(?:    .*\n)*/m, ''));
+if (userYaml !== null) {
+  writeFileSync(USER_FILE, userYaml.replace(/^  sve_chrome:\n(?:    .*\n)*/m, ''));
+}
+
+/** Answer every layout save ourselves: nothing this run does reaches the account. */
+let prefsWritesBlocked = 0;
+const blockPrefsWrite = (req) => {
+  if (req.method() === 'GET' || !req.url().includes('/!/sve/chrome-prefs')) {
+    return false;
+  }
+
+  prefsWritesBlocked++;
+  req.respond({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+
+  return true;
+};
 
 /** Page coordinates of the first visible match inside `frame`, through its parent frames. */
 async function pointIn(frame, selector) {
@@ -176,13 +198,31 @@ page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 200)}`));
 page.on('response', (r) => r.status() >= 500 && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
 
+// A missing file is named by its URL, not by the console's bare "Failed to
+// load resource": one from the editor's build fails the run, the site's own
+// (an image, a font) is listed and left to the site.
+const missing = [];
+
+const askedBy = (req) => {
+  const from = req.initiator?.();
+
+  return from ? ` (${from.type}${from.url ? ' ' + from.url.replace(SITE_URL, '').slice(0, 80) : ''})` : '';
+};
+
+page.on('response', (r) => r.status() >= 400 && r.status() < 500 && missing.push(`${r.status()} ${r.url().replace(SITE_URL, '').slice(0, 160)}${askedBy(r.request())}`));
+page.on('requestfailed', (req) => missing.push(`${req.failure()?.errorText || 'failed'} ${req.url().replace(SITE_URL, '').slice(0, 160)}${askedBy(req)}`));
+
 if (WORKTREE) {
   await serveWorktreeBuild(page, {
     buildDir: `${ADDON_DIR}/resources/dist/build`,
-    installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`,
+    installedManifest: env('SVE_INSTALLED_MANIFEST', `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`),
     scriptsDir: `${ADDON_DIR}/resources/js`,
+    extra: blockPrefsWrite,
   });
   console.log('info build served from the working tree');
+} else {
+  await page.setRequestInterception(true);
+  page.on('request', (req) => blockPrefsWrite(req) || req.continue());
 }
 
 try {
@@ -305,13 +345,37 @@ try {
   await sleep(800);
   step('Reset Live Preview settings brings it back', await seen(cp, icon(panelTool)));
 
-  step('no JS errors', errors.length === 0, errors.slice(0, 5).join(' | '));
+  const jsErrors = errors.filter((line) => !line.startsWith('console: Failed to load resource'));
+  // With SVE_WORKTREE the page HTML still carries the installed build's
+  // modulepreload links (the site's PHP writes them from its own manifest), so
+  // a shared chunk whose hash changed is preloaded under its old name and
+  // misses. That is the harness, not the build: HTML and files come from one
+  // manifest on a real site. Only those parser-made requests are set aside.
+  const preloadMiss = (line) => WORKTREE && / \(parser /.test(line);
+  const editorMissing = missing.filter((line) => /visual-editor|\/!\/sve\//.test(line) && !preloadMiss(line));
+  const preloads = [...new Set(missing.filter((line) => /visual-editor/.test(line) && preloadMiss(line)).map((line) => line.split(' (')[0]))];
+
+  if (preloads.length) {
+    console.log(`info installed preload links not in the working tree (expected with SVE_WORKTREE): ${preloads.join(' | ')}`);
+  }
+
+  step('no JS errors', jsErrors.length === 0, jsErrors.slice(0, 5).join(' | '));
+  step('no missing editor files', editorMissing.length === 0, editorMissing.slice(0, 5).join(' | '));
+
+  if (missing.length) {
+    console.log(`info the site's own missing files: ${[...new Set(missing)].filter((line) => !/visual-editor|\/!\/sve\//.test(line)).slice(0, 8).join(' | ')}`);
+  }
 } catch (e) {
   step('run', false, e.message);
 } finally {
   await browser.close();
-  writeFileSync(USER_FILE, userYaml);
+
+  if (userYaml !== null) {
+    writeFileSync(USER_FILE, userYaml);
+  }
 }
+
+console.log(`info ${prefsWritesBlocked} layout save(s) kept off the server`);
 
 console.log(failed ? `\n${failed} step(s) failed` : '\nall steps passed');
 process.exit(failed ? 1 : 0);

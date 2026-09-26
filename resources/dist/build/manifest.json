@@ -3,8 +3,8 @@
     "file": "assets/ai-text-icon-DhkKFnOS.js",
     "name": "ai-text-icon"
   },
-  "_codemirror-DbDlV8-X.js": {
-    "file": "assets/codemirror-DbDlV8-X.js",
+  "_codemirror-BVM6YKLa.js": {
+    "file": "assets/codemirror-BVM6YKLa.js",
     "name": "codemirror",
     "imports": [
       "resources/js/addon.js"
@@ -59,8 +59,12 @@
     "name": "index",
     "isDynamicEntry": true
   },
-  "_outline-panel-BpXieT_P.js": {
-    "file": "assets/outline-panel-BpXieT_P.js",
+  "_outline-panel-CQMkWeVv.css": {
+    "file": "assets/outline-panel-CQMkWeVv.css",
+    "src": "_outline-panel-CQMkWeVv.css"
+  },
+  "_outline-panel-uUYhdY-N.js": {
+    "file": "assets/outline-panel-uUYhdY-N.js",
     "name": "outline-panel",
     "isDynamicEntry": true,
     "imports": [
@@ -75,12 +79,8 @@
       "assets/outline-panel-CQMkWeVv.css"
     ]
   },
-  "_outline-panel-CQMkWeVv.css": {
-    "file": "assets/outline-panel-CQMkWeVv.css",
-    "src": "_outline-panel-CQMkWeVv.css"
-  },
-  "_preview-context-BIrrLy2W.js": {
-    "file": "assets/preview-context-BIrrLy2W.js",
+  "_preview-context-BlfpIy_p.js": {
+    "file": "assets/preview-context-BlfpIy_p.js",
     "name": "preview-context",
     "imports": [
       "resources/js/addon.js"
@@ -94,8 +94,12 @@
     "file": "assets/tw-candidates-wYTeDvRv.js",
     "name": "tw-candidates"
   },
-  "_tw-classes-COD_ik2T.js": {
-    "file": "assets/tw-classes-COD_ik2T.js",
+  "_tw-classes-CQOhfT3T.css": {
+    "file": "assets/tw-classes-CQOhfT3T.css",
+    "src": "_tw-classes-CQOhfT3T.css"
+  },
+  "_tw-classes-Yc4Y6dVf.js": {
+    "file": "assets/tw-classes-Yc4Y6dVf.js",
     "name": "tw-classes",
     "imports": [
       "resources/js/addon.js",
@@ -109,10 +113,6 @@
     "css": [
       "assets/tw-classes-CQOhfT3T.css"
     ]
-  },
-  "_tw-classes-CQOhfT3T.css": {
-    "file": "assets/tw-classes-CQOhfT3T.css",
-    "src": "_tw-classes-CQOhfT3T.css"
   },
   "node_modules/@codemirror/autocomplete/dist/index.js": {
     "file": "assets/index-C_pm8ee_.js",
@@ -211,19 +211,19 @@
     "isDynamicEntry": true
   },
   "resources/js/a11y-scan.js": {
-    "file": "assets/a11y-scan-Cr6SR3TQ.js",
+    "file": "assets/a11y-scan-BT5zw_pO.js",
     "name": "a11y-scan",
     "src": "resources/js/a11y-scan.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_outline-panel-BpXieT_P.js",
+      "_outline-panel-uUYhdY-N.js",
       "_protocol-Brvy2KuB.js",
       "_ai-text-icon-DhkKFnOS.js"
     ]
   },
   "resources/js/addon.js": {
-    "file": "assets/addon-C3Jey92Q.js",
+    "file": "assets/addon-dNyesjkq.js",
     "name": "addon",
     "src": "resources/js/addon.js",
     "isEntry": true,
@@ -235,7 +235,7 @@
       "resources/js/code-dock.js",
       "resources/js/ai-panel.js",
       "resources/js/block-tree.js",
-      "_outline-panel-BpXieT_P.js",
+      "_outline-panel-uUYhdY-N.js",
       "resources/js/html-tree.js",
       "resources/js/performance-panel.js",
       "resources/js/page-activity.js",
@@ -255,36 +255,36 @@
       "resources/js/file-manager.js"
     ],
     "css": [
-      "assets/addon-C2RpSyy7.css"
+      "assets/addon-BNEd-vzA.css"
     ]
   },
   "resources/js/ai-panel.js": {
-    "file": "assets/ai-panel-CxPZ-mqx.js",
+    "file": "assets/ai-panel-B3m4KCWt.js",
     "name": "ai-panel",
     "src": "resources/js/ai-panel.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/cp/surfaces/AiPanel.vue",
       "resources/js/addon.js",
-      "_preview-context-BIrrLy2W.js",
+      "_preview-context-BlfpIy_p.js",
       "_protocol-Brvy2KuB.js",
       "_ai-text-icon-DhkKFnOS.js"
     ]
   },
   "resources/js/ai-text.js": {
-    "file": "assets/ai-text-DVbe9caf.js",
+    "file": "assets/ai-text-ByxEwDD9.js",
     "name": "ai-text",
     "src": "resources/js/ai-text.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
       "_protocol-Brvy2KuB.js",
-      "_preview-context-BIrrLy2W.js",
+      "_preview-context-BlfpIy_p.js",
       "_ai-text-icon-DhkKFnOS.js"
     ]
   },
   "resources/js/block-tree.js": {
-    "file": "assets/block-tree-Bi81eyjE.js",
+    "file": "assets/block-tree-DRWI3gry.js",
     "name": "block-tree",
     "src": "resources/js/block-tree.js",
     "isDynamicEntry": true,
@@ -298,7 +298,7 @@
     ]
   },
   "resources/js/breakpoint-overview.js": {
-    "file": "assets/breakpoint-overview-CnpuDmwv.js",
+    "file": "assets/breakpoint-overview-CDjaFKou.js",
     "name": "breakpoint-overview",
     "src": "resources/js/breakpoint-overview.js",
     "isDynamicEntry": true,
@@ -320,15 +320,15 @@
     ]
   },
   "resources/js/code-dock.js": {
-    "file": "assets/code-dock-SxCZoO6H.js",
+    "file": "assets/code-dock-BXfY0G2e.js",
     "name": "code-dock",
     "src": "resources/js/code-dock.js",
     "isDynamicEntry": true,
     "imports": [
       "_ai-text-icon-DhkKFnOS.js",
-      "_codemirror-DbDlV8-X.js",
+      "_codemirror-BVM6YKLa.js",
       "resources/js/addon.js",
-      "_tw-classes-COD_ik2T.js",
+      "_tw-classes-Yc4Y6dVf.js",
       "_protocol-Brvy2KuB.js",
       "_tw-candidates-wYTeDvRv.js",
       "_html-tag-sync-d11C5bRZ.js",
@@ -351,7 +351,7 @@
     ]
   },
   "resources/js/comments.js": {
-    "file": "assets/comments-BCfmjIuK.js",
+    "file": "assets/comments-BMynRK5K.js",
     "name": "comments",
     "src": "resources/js/comments.js",
     "isDynamicEntry": true,
@@ -365,13 +365,13 @@
     ]
   },
   "resources/js/cp/surfaces/AiPanel.vue": {
-    "file": "assets/AiPanel-Cc4RevV-.js",
+    "file": "assets/AiPanel-C2x3-THM.js",
     "name": "AiPanel",
     "src": "resources/js/cp/surfaces/AiPanel.vue",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_preview-context-BIrrLy2W.js",
+      "_preview-context-BlfpIy_p.js",
       "_protocol-Brvy2KuB.js",
       "_ai-text-icon-DhkKFnOS.js"
     ],
@@ -380,7 +380,7 @@
     ]
   },
   "resources/js/cp/surfaces/FieldsetOverlay.vue": {
-    "file": "assets/FieldsetOverlay-CyuIQreE.js",
+    "file": "assets/FieldsetOverlay-DinrEaNm.js",
     "name": "FieldsetOverlay",
     "src": "resources/js/cp/surfaces/FieldsetOverlay.vue",
     "isDynamicEntry": true,
@@ -394,14 +394,14 @@
     ]
   },
   "resources/js/file-manager.js": {
-    "file": "assets/file-manager-DmWEk1Yw.js",
+    "file": "assets/file-manager-C9Dj7Wz9.js",
     "name": "file-manager",
     "src": "resources/js/file-manager.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
       "_html-tag-sync-d11C5bRZ.js",
-      "_codemirror-DbDlV8-X.js",
+      "_codemirror-BVM6YKLa.js",
       "_protocol-Brvy2KuB.js",
       "_ai-text-icon-DhkKFnOS.js",
       "_index-Dpuj8sxX.js",
@@ -420,7 +420,7 @@
     ]
   },
   "resources/js/html-tree.js": {
-    "file": "assets/html-tree-7n4aFaob.js",
+    "file": "assets/html-tree-Bkmp_Py1.js",
     "name": "html-tree",
     "src": "resources/js/html-tree.js",
     "isDynamicEntry": true,
@@ -429,7 +429,7 @@
       "_protocol-Brvy2KuB.js",
       "resources/js/section-fields.js",
       "_ai-text-icon-DhkKFnOS.js",
-      "_tw-classes-COD_ik2T.js",
+      "_tw-classes-Yc4Y6dVf.js",
       "_html-pick-align-CLq5l-p4.js",
       "resources/js/cp/surfaces/FieldsetOverlay.vue"
     ],
@@ -457,7 +457,7 @@
     ]
   },
   "resources/js/page-activity.js": {
-    "file": "assets/page-activity-DVMGTUsc.js",
+    "file": "assets/page-activity-C-iczMoM.js",
     "name": "page-activity",
     "src": "resources/js/page-activity.js",
     "isDynamicEntry": true,
@@ -471,7 +471,7 @@
     ]
   },
   "resources/js/performance-panel.js": {
-    "file": "assets/performance-panel-Cpr7M8as.js",
+    "file": "assets/performance-panel-17seSZhx.js",
     "name": "performance-panel",
     "src": "resources/js/performance-panel.js",
     "isDynamicEntry": true,
@@ -491,7 +491,7 @@
     ]
   },
   "resources/js/schema-panel.js": {
-    "file": "assets/schema-panel-p7rqhnli.js",
+    "file": "assets/schema-panel-CIKXY0JG.js",
     "name": "schema-panel",
     "src": "resources/js/schema-panel.js",
     "isDynamicEntry": true,
@@ -502,7 +502,7 @@
     ]
   },
   "resources/js/section-fields.js": {
-    "file": "assets/section-fields-BHQwFhTT.js",
+    "file": "assets/section-fields-CShlOU3J.js",
     "name": "section-fields",
     "src": "resources/js/section-fields.js",
     "isDynamicEntry": true,
@@ -514,13 +514,13 @@
     ]
   },
   "resources/js/site-css.js": {
-    "file": "assets/site-css-CARBwLhS.js",
+    "file": "assets/site-css-Dm9CVuOp.js",
     "name": "site-css",
     "src": "resources/js/site-css.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_codemirror-DbDlV8-X.js",
+      "_codemirror-BVM6YKLa.js",
       "_protocol-Brvy2KuB.js",
       "_ai-text-icon-DhkKFnOS.js"
     ],
@@ -529,13 +529,13 @@
     ]
   },
   "resources/js/theme-panel.js": {
-    "file": "assets/theme-panel-BKEHxbXd.js",
+    "file": "assets/theme-panel-CO_18fmT.js",
     "name": "theme-panel",
     "src": "resources/js/theme-panel.js",
     "isDynamicEntry": true,
     "imports": [
       "resources/js/addon.js",
-      "_codemirror-DbDlV8-X.js",
+      "_codemirror-BVM6YKLa.js",
       "_protocol-Brvy2KuB.js",
       "_ai-text-icon-DhkKFnOS.js"
     ],
