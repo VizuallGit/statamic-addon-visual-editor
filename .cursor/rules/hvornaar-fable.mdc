@@ -1,0 +1,31 @@
+---
+description: Hvornår en opgave skal vente på Fable, og hvornår Cursor/Opus må tage den
+alwaysApply: true
+---
+
+# Hvornår skal Fable tage opgaven?
+
+Spørger ejeren "kan du det, eller er det en Fable-opgave?", så afgør det her — og svar ærligt, før du rører noget.
+
+## VENT PÅ FABLE — rør det ikke
+
+1. **Kernen (låst overflade):** `preview.js`, `overlay-host.js`, `bridge.js` + `bridge/`, `mirror.js`, `lp-replay.js`, `cp.js` + `cp-shell/`, `code-dock.js` + `dock/`, `dock-instant-preview.js`. Også når fejlen "bare" skal have én linje.
+2. **Protokollen:** postMessage-typer, `data-sid`/`data-sve-*`-attributter, `lib/protocol.js`, `{{ visual_edit }}`-outputtet.
+3. **Udgivelse & drift:** `npm run cp:build`, alt under `resources/dist`, sitets `composer.lock`, Packagist-kæden, server/demo over SSH, GitHub Actions, starter-kit-struktur.
+4. **Statamic-integritet:** alt der wrapper, subclasser eller erstatter Statamics egne fieldtypes eller CP-komponenter.
+5. **Migrering** af indhold, fieldsets eller `_visual_id`.
+6. **Fejl langt fra ændringen** ("noget andet brækkede") — det er en grænsefejl; læg den til Fable i stedet for at tilføje en retry/fallback.
+
+## FRI BANE for Cursor/Opus — små, afgrænsede opgaver
+
+- Udseende og tekster i paneler: `resources/js/cp/surfaces/*.vue`, panelernes CSS (fx `cp/theme-panel/theme-panel.css`), ikoner, strenge i `resources/lang/`.
+- Rene hjælpefunktioner med enhedstest i `tests/js/`.
+- Dokumentation og kommentarer.
+
+## Regler uanset hvem der koder
+
+- Kør `npm test` og `npm run isolate` før commit. Rør aldrig `resources/dist` i hånden.
+- Skal ændringen bygges eller udgives for at kunne ses (cp:build → commit → tag → composer), så **stop efter koden og sig det** — udgivelseskæden er Fables.
+- Én overflade pr. opgave. Ingen "mens vi er her"-rettelser.
+
+**Tommelfingerregel:** ændrer opgaven hvordan preview/morph/overlay/bridge/dock-kernen eller udgivelsen **virker** → Fable. Ændrer den hvordan noget **ser ud** eller hvad der **står** → fri bane. I tvivl → sig "vent på Fable".
