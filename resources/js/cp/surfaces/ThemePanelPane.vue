@@ -1,17 +1,17 @@
 <template>
   <div class="sve-theme">
-    <!-- data-sve-pane-bar: the right sidebar puts its pin next to our close here. -->
-    <header class="sve-theme__head" data-sve-pane-bar>
-      <span class="sve-theme__icon" aria-hidden="true" v-html="THEME_PANEL_ICON"></span>
-      <span class="sve-theme__titles">
-        <span class="sve-theme__title">{{ ui.labels.panel_title }}</span>
-        <span class="sve-theme__subtitle">{{ ui.labels.panel_subtitle }}</span>
-      </span>
-      <!-- data-sve-close: ours, so the hider for Statamic's own Live Preview × leaves it alone. -->
-      <button type="button" class="sve-theme__ghost" data-sve-close :title="ui.labels.panel_close" @click="onClose">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-    </header>
+    <!-- The right sidebar's own bar, as every pane has it: title, then pin and
+         close together (the sidebar paints the pin). data-sve-close is ours,
+         so the hider for Statamic's own Live Preview × leaves it alone. -->
+    <div class="sve-pane-bar" data-sve-pane-bar>
+      <div data-sve-right-title :title="ui.labels.panel_subtitle">{{ ui.labels.panel_title }}</div>
+      <div data-sve-right-actions>
+        <button type="button" data-sve-right-pin aria-pressed="false"></button>
+        <button type="button" data-sve-close :aria-label="ui.labels.panel_close" :title="ui.labels.panel_close" @click="onClose">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+    </div>
 
     <!-- One row that scrolls sideways when the tabs do not fit, with a fade saying
          there is more. The fades are siblings: a mask on the scroller resets its
@@ -68,7 +68,6 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { THEME_PANEL_ICON } from '../../theme-panel-lazy.js';
 import ThemeColorsTab from './ThemeColorsTab.vue';
 import ThemeSpacingTab from './ThemeSpacingTab.vue';
 import ThemeFontsTab from './ThemeFontsTab.vue';

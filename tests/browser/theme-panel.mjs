@@ -489,7 +489,7 @@ try {
   step('the H1 weight line is gone, its line height stays', !readFileSync(CSS_FILE, 'utf8').includes('--h1-weight:') && readFileSync(CSS_FILE, 'utf8').includes('--h1-line-height: 1.25;'));
   step('saved with the same names', savedNames.every((name) => readFileSync(CSS_FILE, 'utf8').includes(`--color-testmoss-${name}:`)) && readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;'));
 
-  await click(page, cp, `${PANEL} .sve-theme__ghost`);
+  await click(page, cp, `${PANEL} [data-sve-close]`);
   step('closes without asking once saved', await waitFor(cp, (p) => !document.querySelector(p), PANEL));
 } catch (err) {
   step('ran to the end', false, err.message);

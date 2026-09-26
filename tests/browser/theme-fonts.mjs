@@ -302,7 +302,7 @@ try {
   step('Escape closes the dialog and leaves the panel open', await waitFor(cp, (p) => !document.querySelector('[data-sve-font-dialog]') && !!document.querySelector(p), PANEL));
 
   // The Typography choice was only painted: leave without saving it.
-  await click(page, cp, `${PANEL} .sve-theme__ghost`);
+  await click(page, cp, `${PANEL} [data-sve-close]`);
   await waitFor(cp, () => [...document.querySelectorAll('.sve-dialog button')].some((b) => b.classList.contains('muted')));
   await cp.evaluate(() => [...document.querySelectorAll('.sve-dialog button')].find((b) => b.classList.contains('muted'))?.click());
   step('the panel closes; site.css was never written', await waitFor(cp, (p) => !document.querySelector(p), PANEL) && readFileSync(SITE_CSS, 'utf8') === originalSite);
