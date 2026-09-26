@@ -24,7 +24,7 @@ import { themePanelUi as ui } from './cp/theme-panel/store.js';
 import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, remakeSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
-import { BUTTON_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
@@ -179,7 +179,7 @@ function desiredTokens() {
   return out;
 }
 
-/** What a save changes in the file: the tokens that differ from it, and sizes that are gone (null). */
+/** What a save changes in the file: the tokens that differ from it; sizes and heading overrides that are gone (null). */
 function tokenChanges() {
   const want = desiredTokens();
   const changes = {};
@@ -192,6 +192,11 @@ function tokenChanges() {
 
   for (const name of savedTokens.keys()) {
     if (name.startsWith('size-') && !(name in want) && !ui.sizes.some((s) => s.name === name)) {
+      changes[name] = null;
+    }
+
+    // A heading level set back to "as the headings" loses its own line.
+    if (LEVEL_TOKENS.includes(name) && !ui.type[name]) {
       changes[name] = null;
     }
   }

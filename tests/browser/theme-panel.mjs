@@ -176,6 +176,22 @@ const dockTailwind = (frame, html) => frame.evaluate(async (markup, file) => {
   return { names, css: mod.buildTailwind(await mod.loadTailwindCompiler(window), markup) || '' };
 }, html, WORKTREE ? worktreeTwFile : '');
 
+/** A heading or paragraph made in the preview for a moment: its computed weight and line height (as a ratio). */
+const probe = (frame, tag) => frame.evaluate((t) => {
+  const el = document.createElement(t);
+
+  el.textContent = 'Probe';
+  document.body.append(el);
+
+  const cs = getComputedStyle(el);
+  const out = { weight: cs.fontWeight, ratio: Math.round((parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) * 100) / 100 };
+
+  el.remove();
+
+  return out;
+}, tag);
+const cellClass = (frame, cell) => frame.evaluate((c) => document.querySelector(`[data-sve-type-cell="${c}"]`)?.className || '', cell);
+
 const rootVar = (frame, name) => frame.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
 const shot = async (page, name) => SHOTS && page.screenshot({ path: `${SHOTS}/theme-panel-${name}.png` });
 
@@ -337,13 +353,51 @@ try {
   // ── Typography ────────────────────────────────────────────────────────
   await click(page, cp, `${PANEL} [data-sve-theme-tab="type"]`);
   step('Typography shows the scale as Aa', await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__aa-row`).length === 17, PANEL));
-  step('H1 → size-800', await choose(cp, `${PANEL} .sve-theme__headings select`, 'size-800', 0));
+  step('H1 → size-800', await choose(cp, `${PANEL} [data-sve-type-cell="h1-size"] select`, 'size-800'));
   // A custom property's computed value has var() filled in: compare with what --size-800 is.
   step('the preview gets the new H1 size', await waitFor(preview, () => {
     const cs = getComputedStyle(document.documentElement);
 
     return cs.getPropertyValue('--font-size-h1').trim() === cs.getPropertyValue('--size-800').trim();
   }));
+
+  // Body and headings each have a weight and a line height; a level can have its own.
+  step('Typography has Body and Headings, and the six levels', await cp.evaluate(() => !!document.querySelector('[data-sve-type-body]') && !!document.querySelector('[data-sve-type-headings]')
+    && document.querySelectorAll('[data-sve-type-levels] [data-sve-type-cell$="-weight"]').length === 6));
+  step('a level follows the headings (dimmed) until it has its own', /is-inherited/.test(await cellClass(cp, 'h2-weight')) && (await probe(preview, 'h2')).weight === '700', JSON.stringify(await probe(preview, 'h2')));
+  step('headings → 600', await choose(cp, '[data-sve-type="heading-weight"]', '600'));
+  step('every heading paints at 600', await waitFor(preview, () => {
+    const h = document.createElement('h4');
+
+    document.body.append(h);
+
+    const w = getComputedStyle(h).fontWeight;
+
+    h.remove();
+
+    return w === '600';
+  }));
+  step('H1 gets its own weight 300 and line height 1.25', await choose(cp, '[data-sve-type-cell="h1-weight"] select', '300') && await choose(cp, '[data-sve-type-cell="h1-line-height"] select', '1.25'));
+  step('H1 paints its own; H2 still follows the headings', await waitFor(preview, () => {
+    const make = (t) => {
+      const el = document.createElement(t);
+
+      document.body.append(el);
+
+      const cs = getComputedStyle(el);
+      const r = [cs.fontWeight, Math.round((parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) * 100) / 100];
+
+      el.remove();
+
+      return r;
+    };
+    const [h1w, h1r] = make('h1');
+    const [h2w] = make('h2');
+
+    return h1w === '300' && h1r === 1.25 && h2w === '600';
+  }), `${JSON.stringify(await probe(preview, 'h1'))} ${JSON.stringify(await probe(preview, 'h2'))}`);
+  step('the H1 cells show a value of their own', /is-own/.test(await cellClass(cp, 'h1-weight')) && /is-own/.test(await cellClass(cp, 'h1-line-height')));
+  step('body text → 500', await choose(cp, '[data-sve-type="body-weight"]', '500') && await waitFor(preview, () => getComputedStyle(document.body).fontWeight === '500'));
   await shot(page, '3-type');
 
   // ── Button ────────────────────────────────────────────────────────────
@@ -369,12 +423,16 @@ try {
     '--size-1300: clamp(5.625rem, 4.375rem + 6.25vw, 9.375rem);',
     '--font-size-h1: var(--size-800);',
     '--button-radius: 0.5rem;',
+    '--body-weight: 500;',
+    '--heading-weight: 600;',
+    '--h1-weight: 300;',
+    '--h1-line-height: 1.25;',
   ];
 
   step('site.css has every change', expect.every((line) => css.includes(line)), expect.filter((line) => !css.includes(line)).join(' | '));
 
   const touched = css.split('\n').filter((line) => !original.includes(line) && line.trim() !== '')
-    .filter((line) => !/--color-(testmoss|primary)\b|--size-(500|1300):|--(spacing|text)-1300:|--font-size-h1:|--button-radius:/.test(line));
+    .filter((line) => !/--color-(testmoss|primary)\b|--size-(500|1300):|--(spacing|text)-1300:|--font-size-h1:|--button-radius:|--(body-weight|heading-weight|h1-weight|h1-line-height):/.test(line));
 
   step('nothing else in site.css changed', touched.length === 0, touched.slice(0, 3).join(' | '));
 
@@ -417,6 +475,9 @@ try {
   }, [firstStep, mossFirst]));
   step('rename by lightness is offered, not done', await waitFor(cp, (o) => !!document.querySelector(`${o} .sve-theme__rename button`), OPEN)
     && JSON.stringify(await stepNames()) === JSON.stringify(savedNames));
+  // H1 back to following the headings: its own line goes with the next save.
+  await click(page, cp, `${PANEL} [data-sve-theme-tab="type"]`);
+  step('H1 weight back to "as the headings"', await choose(cp, '[data-sve-type-cell="h1-weight"] select', '') && /is-inherited/.test(await cellClass(cp, 'h1-weight')));
   await click(page, cp, `${PANEL} .sve-theme__save`);
 
   // The file itself says when the save is done (the button is disabled while saving too).
@@ -425,6 +486,7 @@ try {
   }
 
   await waitFor(cp, (p) => !!document.querySelector(`${p} .sve-theme__save`)?.disabled && !/sav|gemmer/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || ''), PANEL, 5000);
+  step('the H1 weight line is gone, its line height stays', !readFileSync(CSS_FILE, 'utf8').includes('--h1-weight:') && readFileSync(CSS_FILE, 'utf8').includes('--h1-line-height: 1.25;'));
   step('saved with the same names', savedNames.every((name) => readFileSync(CSS_FILE, 'utf8').includes(`--color-testmoss-${name}:`)) && readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;'));
 
   await click(page, cp, `${PANEL} .sve-theme__ghost`);
