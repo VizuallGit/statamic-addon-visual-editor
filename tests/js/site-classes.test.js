@@ -60,6 +60,14 @@ test('a name only ever written as a place stays ambient', () => {
   assert.equal(rows[0].ambient, true);
 });
 
+test('a section naming its own class in the dock is a class, not a place', () => {
+  const rows = classRows([
+    { name: 'event-card', file: 'partials/event.antlers.html', selector: '[ event-card ]', css: '', kind: 'bracket' },
+  ]);
+
+  assert.equal(rows[0].ambient, false, 'a [ name ] goes on an element like any other class');
+});
+
 test('the chips split the list without dropping or doubling a row', () => {
   const rows = classRows([
     { name: 'wrapper', file: 'site.css', selector: '@utility wrapper', css: 'padding: 1rem;', kind: 'utility' },

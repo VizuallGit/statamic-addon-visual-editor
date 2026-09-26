@@ -67,7 +67,9 @@ export function classRows(defined) {
       ambient: true,
     };
 
-    const ambient = isAmbient(row.selector);
+    // A `[ name ]` is a section naming its own class in the dock. It is a
+    // class you put on an element, written in another hand — never a place.
+    const ambient = row.kind === 'bracket' ? false : isAmbient(row.selector);
 
     if (row.kind === 'utility') {
       seen.kind = 'utility';

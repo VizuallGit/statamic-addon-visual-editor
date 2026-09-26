@@ -102,7 +102,18 @@ class SiteClasses
             foreach (static::files($cssRoot) as $path) {
                 $file = static::relativeToBase($path, $cssRoot, \MarioHamann\StatamicVisualEditor\SiteCss\Root::relativeRoot());
 
-                foreach (static::leafRules((string) @file_get_contents($path)) as $rule) {
+                $css = (string) @file_get_contents($path);
+
+                foreach (static::leafRules($css) as $rule) {
+                    static::pushRule($out, $file, $rule);
+                }
+
+                // leafRules() only sees the innermost rules, so a `@utility`
+                // with a nested block — `flow-y`, `image-overlay` — never
+                // reaches pushRule as a utility at all. Those blocks are read
+                // whole here, and only the ones leafRules already had are
+                // skipped.
+                foreach (static::utilityRules($css) as $rule) {
                     static::pushRule($out, $file, $rule);
                 }
             }
@@ -144,6 +155,12 @@ class SiteClasses
         $selector = $rule['selector'];
 
         if (preg_match('/^@utility\s+([A-Za-z_][\w-]*)/', $selector, $m)) {
+            foreach ($out as $had) {
+                if (($had['kind'] ?? '') === 'utility' && $had['name'] === $m[1] && $had['file'] === $file) {
+                    return;
+                }
+            }
+
             $out[] = ['name' => $m[1], 'file' => $file, 'selector' => $selector, 'css' => $rule['css'], 'kind' => 'utility'];
 
             return;
@@ -158,6 +175,122 @@ class SiteClasses
         foreach (array_unique($names[1] ?? []) as $name) {
             $out[] = ['name' => $name, 'file' => $file, 'selector' => $selector, 'css' => $rule['css'], 'kind' => 'rule'];
         }
+    }
+
+    /**
+     * Every top-level `@utility` block, whole: `{ selector, css }`, the body
+     * as written. Braces are counted, and comments and strings skipped, so a
+     * nested block or a brace inside `content: '}'` does not end one early.
+     *
+     * @return list<array{selector: string, css: string}>
+     */
+    public static function utilityRules(string $css): array
+    {
+        $text = (string) $css;
+        $out = [];
+        $depth = 0;
+        $i = 0;
+        $len = strlen($text);
+
+        while ($i < $len) {
+            $ch = $text[$i];
+
+            if ($ch === '/' && ($text[$i + 1] ?? '') === '*') {
+                $end = strpos($text, '*/', $i + 2);
+                $i = $end === false ? $len : $end + 2;
+
+                continue;
+            }
+
+            if ($ch === '"' || $ch === "'") {
+                $i = static::skipString($text, $i);
+
+                continue;
+            }
+
+            if ($ch === '{') {
+                $depth++;
+            } elseif ($ch === '}') {
+                $depth = max(0, $depth - 1);
+            } elseif ($depth === 0 && $ch === '@' && preg_match('/^@utility\s+([A-Za-z_][\w-]*)/', substr($text, $i, 64), $m)) {
+                $open = strpos($text, '{', $i);
+
+                if ($open !== false) {
+                    $close = static::matchBrace($text, $open);
+
+                    if ($close !== null) {
+                        $out[] = [
+                            'selector' => '@utility '.$m[1],
+                            'css' => trim(substr($text, $open + 1, $close - $open - 1)),
+                        ];
+                        $i = $close + 1;
+
+                        continue;
+                    }
+                }
+            }
+
+            $i++;
+        }
+
+        return $out;
+    }
+
+    /** Where the block opened at `$open` closes, or null if it never does. */
+    protected static function matchBrace(string $text, int $open): ?int
+    {
+        $depth = 0;
+        $len = strlen($text);
+
+        for ($i = $open; $i < $len; $i++) {
+            $ch = $text[$i];
+
+            if ($ch === '/' && ($text[$i + 1] ?? '') === '*') {
+                $end = strpos($text, '*/', $i + 2);
+                $i = $end === false ? $len : $end + 1;
+
+                continue;
+            }
+
+            if ($ch === '"' || $ch === "'") {
+                $i = static::skipString($text, $i) - 1;
+
+                continue;
+            }
+
+            if ($ch === '{') {
+                $depth++;
+            } elseif ($ch === '}') {
+                $depth--;
+
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** Past the string that opens at `$i`, escapes included. */
+    protected static function skipString(string $text, int $i): int
+    {
+        $quote = $text[$i];
+        $len = strlen($text);
+
+        for ($j = $i + 1; $j < $len; $j++) {
+            if ($text[$j] === '\\') {
+                $j++;
+
+                continue;
+            }
+
+            if ($text[$j] === $quote) {
+                return $j + 1;
+            }
+        }
+
+        return $len;
     }
 
     /**
