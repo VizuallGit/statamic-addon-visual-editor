@@ -70,6 +70,7 @@
       <ThemeTypeTab v-else-if="ui.tab === 'type'" :h="props" />
       <ThemeButtonTab v-else-if="ui.tab === 'button'" :h="props" />
       <ThemeUtilitiesTab v-else-if="ui.tab === 'utilities'" :h="props" />
+      <ThemeClassesTab v-else-if="ui.tab === 'classes'" :h="props" />
       <ThemePropsTab v-else-if="ui.tab === 'props'" :h="props" />
     </div>
   </div>
@@ -84,6 +85,7 @@ import ThemeFontsTab from './ThemeFontsTab.vue';
 import ThemeTypeTab from './ThemeTypeTab.vue';
 import ThemeButtonTab from './ThemeButtonTab.vue';
 import ThemeUtilitiesTab from './ThemeUtilitiesTab.vue';
+import ThemeClassesTab from './ThemeClassesTab.vue';
 import ThemePropsTab from './ThemePropsTab.vue';
 
 const svg = (paths) =>
@@ -114,6 +116,10 @@ const TABS = [
   {
     key: 'utilities',
     icon: svg('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/>'),
+  },
+  {
+    key: 'classes',
+    icon: svg('<path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/><path d="M14 4l-4 16"/>'),
   },
   {
     key: 'props',
@@ -176,6 +182,9 @@ const props = defineProps({
   onViewport: { type: Function, required: true },
   onAddFont: { type: Function, required: true },
   onType: { type: Function, required: true },
+  onClassQuery: { type: Function, required: true },
+  onClassChip: { type: Function, required: true },
+  onOpenClass: { type: Function, required: true },
   onButton: { type: Function, required: true },
   onAddUtility: { type: Function, required: true },
   onOpenUtility: { type: Function, required: true },

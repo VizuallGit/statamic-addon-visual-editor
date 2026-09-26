@@ -28,6 +28,7 @@ import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
+import { CLASS_CHIPS, classRows } from './cp/theme-panel/site-classes.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from './cp/theme-panel/utility-paint.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
@@ -37,7 +38,7 @@ export { PANEL_ID };
 const ENTRY = 'site.css';
 const VARS = 'var.css';
 
-const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'utilities', 'props'];
+const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'utilities', 'classes', 'props'];
 
 let app = null;
 let keySeq = 0;
@@ -565,12 +566,44 @@ function confirmRemove(win, title, body, remove) {
   });
 }
 
+/**
+ * What the site's CSS defines, for the Classes tab — asked for the first time
+ * the tab is opened, not on every panel load. A failure leaves the list empty
+ * rather than throwing: the tab then says so, and the other tabs still work.
+ */
+let classRowsAsked = false;
+
+function loadClassRows(win) {
+  if (classRowsAsked) {
+    return;
+  }
+
+  classRowsAsked = true;
+
+  win
+    .fetch('/!/sve/site-css/defined', {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .then((res) => (res.ok ? res.json() : { defined: [] }))
+    .then((data) => {
+      ui.classRows = classRows(Array.isArray(data?.defined) ? data.defined : []);
+    })
+    .catch(() => {
+      classRowsAsked = false;
+    });
+}
+
 const handlers = (win) => ({
   onClose: () => closeThemePanel(win),
   onSave: () => void saveTheme(win),
   onTab: (tab) => {
     if (TABS.includes(tab)) {
       ui.tab = tab;
+
+      if (tab === 'classes') {
+        loadClassRows(win);
+      }
     }
   },
 
@@ -763,6 +796,17 @@ const handlers = (win) => ({
   },
   onOpenUtility: (key) => {
     ui.openUtility = ui.openUtility === key ? '' : key;
+  },
+
+  // Classes
+  onClassQuery: (query) => {
+    ui.classQuery = String(query || '');
+  },
+  onClassChip: (chip) => {
+    ui.classChip = CLASS_CHIPS.includes(chip) ? chip : 'all';
+  },
+  onOpenClass: (name) => {
+    ui.openClass = ui.openClass === name ? '' : name;
   },
   onUtilityName: (key, name) => {
     const u = findUtility(key);
@@ -1074,7 +1118,7 @@ function labels(win) {
 
   return Object.fromEntries(
     Object.keys(strings)
-      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|utilities|props)_/.test(key))
+      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|utilities|classes|props)_/.test(key))
       .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
   );
 }

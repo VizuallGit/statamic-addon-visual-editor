@@ -29,6 +29,12 @@ import { reactive } from 'vue';
  * name. `buildNote` says why the server did not build the site's CSS after
  * the last save, empty when it did.
  *
+ * `classRows` (Classes): every class the site's CSS defines, folded to one row
+ * per name by site-classes.js — `{ name, kind, files, selectors, props,
+ * ambient }`. Read-only here: the tab says what exists and where, and the
+ * Utilities tab is still what writes. `classChip` and `classQuery` are the
+ * chip and the search box over the list, `openClass` the name unfolded.
+ *
  * `saved` is site.css as last read or written.
  */
 export const themePanelUi = reactive({
@@ -51,6 +57,10 @@ export const themePanelUi = reactive({
   utilities: [],
   savedUtilities: {},
   openUtility: '',
+  classRows: [],
+  classQuery: '',
+  classChip: 'all',
+  openClass: '',
   props: [],
   savedProps: {},
   openProp: '',
