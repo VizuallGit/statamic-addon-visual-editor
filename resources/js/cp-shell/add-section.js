@@ -13,7 +13,7 @@ import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, 
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { livePreviewEditorEl } from '../lib/live-preview.js';
 import { previewCopies, previewFrame } from '../lib/preview-frame.js';
-import { syncStoredVideoHolds } from './video-holds.js';
+import { syncStoredVideoHolds } from '../video-holds.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn, soloSection } from '../focus-panel.js';

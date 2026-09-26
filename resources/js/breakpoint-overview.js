@@ -93,7 +93,7 @@
  * mirror.js and scripts/vite-mirror-graph.js; the `__sveMirror` line in
  * preview.js; `SVE_MIRROR` and `MIRRORED` in lib/protocol.js; `previewCopies`
  * in lib/preview-frame.js and its use in sendToPreview; `video-holds:sync` in
- * cp-shell/video-holds.js; `previewDocuments` in dock-instant-preview.js; the
+ * video-holds.js; `previewDocuments` in dock-instant-preview.js; the
  * `bp_overview*` strings; the narrow-window rule at the end of
  * resources/css/addon.css; tests/js and tests/browser breakpoint-overview.
  */
@@ -1014,7 +1014,7 @@ function frameLoaded(entry) {
   measure(entry);
 
   // Fresh from the server, the copy knows no video holds; the panel remembers
-  // them and answers to this window (cp-shell/video-holds.js).
+  // them and answers to this window (video-holds.js).
   emit('video-holds:sync', { win: overviewState.win, target: frameWin });
 
   if (entry.stale) {

@@ -9,7 +9,7 @@ import { openFieldsetOverlay, openGlobalFieldsOverlay } from './section-fields.j
 import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
-import { heldVideos, rememberVideoHolds, syncStoredVideoHolds } from './cp-shell/video-holds.js';
+import { heldVideos, rememberVideoHolds, syncStoredVideoHolds } from './video-holds.js';
 import { ask, on, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';

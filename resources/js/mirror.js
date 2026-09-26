@@ -15,7 +15,7 @@
  *                   keeps, from the bridge's own module: a pause in the tree
  *                   stops the video in every frame. The remembered holds are
  *                   sent by the overview once this frame has loaded
- *                   (cp-shell/video-holds.js, over the bus).
+ *                   (video-holds.js, over the bus).
  *
  * preview.js is imported for its morph and its guards. Its own listener for
  * Statamic's `statamic.preview.updated` stays idle here: Statamic posts that

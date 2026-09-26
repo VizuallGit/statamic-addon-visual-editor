@@ -14,12 +14,12 @@
  * holds either, and it never asks: the overview asks for it over the bus
  * (`video-holds:sync`, with the copy's window) once the copy has loaded.
  */
-import { on } from '../cp/bus.js';
-import { sectionField } from '../lib/config.js';
-import { previewFrame } from '../lib/preview-frame.js';
-import { MSG, SOURCE } from '../lib/protocol.js';
-import { activeContainers } from '../lib/publish-containers.js';
-import { unwrapRef } from '../lib/values.js';
+import { on } from './cp/bus.js';
+import { sectionField } from './lib/config.js';
+import { previewFrame } from './lib/preview-frame.js';
+import { MSG, SOURCE } from './lib/protocol.js';
+import { activeContainers } from './lib/publish-containers.js';
+import { unwrapRef } from './lib/values.js';
 
 const VIDEO_HOLDS_KEY = 'sveVideoHolds';
 
