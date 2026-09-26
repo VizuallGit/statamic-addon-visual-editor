@@ -138,6 +138,7 @@ const props = defineProps({
   onCount: { type: Function, required: true },
   onStep: { type: Function, required: true },
   onRemoveColor: { type: Function, required: true },
+  onRenameByLightness: { type: Function, required: true },
   onAddSize: { type: Function, required: true },
   onSizeName: { type: Function, required: true },
   onSize: { type: Function, required: true },

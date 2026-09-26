@@ -389,6 +389,43 @@ try {
     knewAfter ? ['bg-testmoss-500', 'p-1300', 'text-1300'].filter((name) => !knewAfter.names.includes(name)).join(' ') : 'no compiler');
   step('and the classes that were there still are', !!knewAfter && ['bg-primary-600', 'p-500', 'text-300', 'font-heading'].every((name) => knewAfter.names.includes(name)));
 
+  // Saved, the color's step names are written in templates: a new base keeps
+  // them and only changes their colors; renaming by lightness is offered,
+  // never done.
+  await click(page, cp, `${PANEL} [data-sve-theme-tab="colors"]`);
+  await waitFor(cp, (p) => document.querySelectorAll(`${p} .sve-theme__card`).length > 0, PANEL);
+
+  const mossCard = await cp.evaluate((p) => [...document.querySelectorAll(`${p} .sve-theme__card`)].findIndex((c) => c.querySelector('.sve-theme__token')?.textContent.trim() === '--testmoss'), PANEL);
+
+  await click(page, cp, `${PANEL} .sve-theme__card:nth-of-type(${mossCard + 1}) .sve-theme__row`);
+  await waitFor(cp, (o) => !!document.querySelector(o), OPEN);
+
+  const stepNames = () => cp.evaluate((o) => [...document.querySelectorAll(`${o} .sve-theme__swatch-name`)].map((e) => e.textContent.trim()), OPEN);
+  const savedNames = await stepNames();
+  const firstStep = savedNames[0];
+  const mossFirst = await rootVar(preview, `--color-testmoss-${firstStep}`);
+
+  step('the saved color has its steps', savedNames.length === 7, savedNames.join(' '));
+  step('no rename offered while the names fit', await cp.evaluate((o) => !document.querySelector(`${o} .sve-theme__rename`), OPEN));
+  await retype(page, cp, TEXT_INPUTS, '#0b0b41', 1);
+  step('a new base keeps every step name', JSON.stringify(await stepNames()) === JSON.stringify(savedNames), (await stepNames()).join(' '));
+  step('the same name paints the new shade', await waitFor(preview, (args) => {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(`--color-testmoss-${args[0]}`).trim();
+
+    return v && v !== args[1];
+  }, [firstStep, mossFirst]));
+  step('rename by lightness is offered, not done', await waitFor(cp, (o) => !!document.querySelector(`${o} .sve-theme__rename button`), OPEN)
+    && JSON.stringify(await stepNames()) === JSON.stringify(savedNames));
+  await click(page, cp, `${PANEL} .sve-theme__save`);
+
+  // The file itself says when the save is done (the button is disabled while saving too).
+  for (let t0 = Date.now(); Date.now() - t0 < 10000 && !readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;');) {
+    await sleep(100);
+  }
+
+  await waitFor(cp, (p) => !!document.querySelector(`${p} .sve-theme__save`)?.disabled && !/sav|gemmer/i.test(document.querySelector(`${p} .sve-theme__status`)?.textContent || ''), PANEL, 5000);
+  step('saved with the same names', savedNames.every((name) => readFileSync(CSS_FILE, 'utf8').includes(`--color-testmoss-${name}:`)) && readFileSync(CSS_FILE, 'utf8').includes('--color-testmoss: #0b0b41;'));
+
   await click(page, cp, `${PANEL} .sve-theme__ghost`);
   step('closes without asking once saved', await waitFor(cp, (p) => !document.querySelector(p), PANEL));
 } catch (err) {

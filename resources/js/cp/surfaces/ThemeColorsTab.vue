@@ -74,6 +74,16 @@
         </div>
       </template>
 
+      <!-- Names stay when the color changes; only these two ever take one away. -->
+      <template v-if="gone(f).length || canRename(f)">
+        <div class="sve-theme__rule"></div>
+        <p v-if="gone(f).length" class="sve-theme__note">{{ goneLabel(f) }}</p>
+        <div v-if="canRename(f)" class="sve-theme__rename">
+          <button type="button" class="sve-theme__add" @click="h.onRenameByLightness(f.key)">{{ ui.labels.colors_rename }}</button>
+          <span class="sve-theme__hint">{{ ui.labels.colors_rename_hint }}</span>
+        </div>
+      </template>
+
       <template v-if="!f.generated && f.steps.length">
         <div class="sve-theme__rule"></div>
         <span class="sve-theme__label">{{ ui.labels.colors_steps }}</span>
@@ -98,7 +108,7 @@
 
 <script setup>
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { hexToOklch, isCoreColor as isCore } from '../theme-panel/palette.js';
+import { hexToOklch, isCoreColor as isCore, namedByLightness } from '../theme-panel/palette.js';
 
 defineProps({ h: { type: Object, required: true } });
 
@@ -133,6 +143,26 @@ function stepsLabel(f) {
   const last = f.steps[f.steps.length - 1].name;
 
   return f.steps.length === 1 ? first : `${f.steps.length} · ${first}–${last}`;
+}
+
+/** Step names that were saved and are not there now: the next save takes them away. */
+function gone(f) {
+  if (f.fresh) {
+    return [];
+  }
+
+  const now = new Set(f.steps.map((s) => String(s.name)));
+
+  return (ui.savedSteps[f.name] || []).filter((name) => !now.has(name));
+}
+
+function goneLabel(f) {
+  return (ui.labels.colors_gone || '').replace(':names', gone(f).map((name) => `${f.name}-${name}`).join(', '));
+}
+
+/** A saved color's made steps whose names no longer say how light they are — after a big change of base. */
+function canRename(f) {
+  return !f.fresh && f.generated && (f.tints || f.shades) && f.steps.length > 0 && !namedByLightness(f, { tints: f.tints, shades: f.shades });
 }
 
 function problemLabel(f) {

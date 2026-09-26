@@ -217,40 +217,50 @@ function clampCount(n) {
 }
 
 /**
- * Tints and shades of `base`, named by lightness, lightest first.
- * Returns `[{ name: '300', value: '#…', kind: 'tint' | 'shade' }]`.
+ * The colors of `base`'s tints and shades, nearest the base first:
+ * `{ tints: ['#…', …], shades: ['#…', …] }`.
  */
-export function generateSteps(base, { tints = 0, shades = 0 } = {}) {
+export function stepValues(base, { tints = 0, shades = 0 } = {}) {
   const color = hexToOklch(base);
+  const out = { tints: [], shades: [] };
 
   if (!color) {
-    return [];
+    return out;
   }
 
   const nTints = clampCount(tints);
   const nShades = clampCount(shades);
   const darkest = Math.min(DARKEST, color.l * 0.6);
   const lightest = Math.max(LIGHTEST, color.l);
-  const made = [];
 
   for (let i = 1; i <= nTints; i++) {
     const t = i / (nTints + 1);
 
-    made.push({
-      kind: 'tint',
-      value: oklchToHex({ l: color.l + (lightest - color.l) * t, c: color.c * (1 - 0.6 * t), h: color.h }),
-    });
+    out.tints.push(oklchToHex({ l: color.l + (lightest - color.l) * t, c: color.c * (1 - 0.6 * t), h: color.h }));
   }
 
   for (let i = 1; i <= nShades; i++) {
     const t = i / (nShades + 1);
 
-    made.push({
-      kind: 'shade',
-      value: oklchToHex({ l: color.l + (darkest - color.l) * t, c: color.c * (1 - 0.3 * t), h: color.h }),
-    });
+    out.shades.push(oklchToHex({ l: color.l + (darkest - color.l) * t, c: color.c * (1 - 0.3 * t), h: color.h }));
   }
 
+  return out;
+}
+
+/**
+ * Tints and shades of `base`, named by lightness, lightest first.
+ * Returns `[{ name: '300', value: '#…', kind: 'tint' | 'shade' }]`.
+ *
+ * How a family's steps are named the first time — and again only when
+ * someone asks for it ("rename by lightness"); see remakeSteps().
+ */
+export function generateSteps(base, counts = {}) {
+  const values = stepValues(base, counts);
+  const made = [
+    ...values.tints.map((value) => ({ kind: 'tint', value })),
+    ...values.shades.map((value) => ({ kind: 'shade', value })),
+  ];
   const names = nameSteps(made.map((step) => step.value));
 
   return made
@@ -258,13 +268,112 @@ export function generateSteps(base, { tints = 0, shades = 0 } = {}) {
     .sort((a, b) => Number(a.name) - Number(b.name));
 }
 
+/** A free number strictly between `lo` and `hi`, as close to `ideal` as the free ones allow — else past `hi`. */
+function freeNumber(ideal, lo, hi, taken) {
+  let best = null;
+  let bestScore = Infinity;
+
+  for (let n = 5; n < 1000; n += 5) {
+    if (n <= lo || n >= hi || taken.has(String(n))) {
+      continue;
+    }
+
+    const score = Math.abs(n - ideal) + (STEPS.includes(n) ? 0 : n % 25 === 0 ? 40 : 60);
+
+    if (score < bestScore) {
+      best = n;
+      bestScore = score;
+    }
+  }
+
+  if (best !== null) {
+    return String(best);
+  }
+
+  let n = Math.max(lo, hi, 995) + 5;
+
+  while (taken.has(String(n))) {
+    n += 5;
+  }
+
+  return String(n);
+}
+
+const num = (name) => Number(name);
+
+/**
+ * Tints and shades of `base` that keep the names they already have.
+ *
+ * A step's name is written in templates (`bg-moss-350`), so it must not move
+ * when the color does. The first time a family gets steps they are named by
+ * lightness (generateSteps); after that a new base only changes their colors.
+ * The tint nearest the base keeps the nearest tint's name, and so on
+ * outwards; a step added at the far end gets a new name past the others
+ * (lighter tints lower, darker shades higher); a step taken away frees the
+ * outermost name.
+ *
+ * `previous` are the family's steps before, `previousBase` the base they were
+ * made from — which of them were tints is decided against that base, not the
+ * new one (a light gray turned navy would otherwise call every step a tint).
+ * Returns `[{ name, value, kind }]`, in number order.
+ */
+export function remakeSteps(base, counts, previous = [], previousBase = base) {
+  if (!hexToOklch(base)) {
+    return [];
+  }
+
+  if (!previous.length) {
+    return generateSteps(base, counts);
+  }
+
+  const was = hexToOklch(previousBase) || hexToOklch(base);
+  const values = stepValues(base, counts);
+  const before = previous.map((step) => ({ name: String(step.name), l: hexToOklch(step.value)?.l ?? 0 }));
+  // Nearest the base first: a tint is lighter than the base, so the nearest has the highest number.
+  const oldTints = before.filter((s) => s.l > was.l).map((s) => s.name).sort((a, b) => num(b) - num(a));
+  const oldShades = before.filter((s) => s.l <= was.l).map((s) => s.name).sort((a, b) => num(a) - num(b));
+  const taken = new Set();
+  const out = [];
+
+  let hi = oldTints.length ? Infinity : oldShades.length ? num(oldShades[0]) : 1000;
+
+  values.tints.forEach((value, k) => {
+    const name = k < oldTints.length ? oldTints[k] : freeNumber(lightnessNumber(value), 0, hi, new Set([...taken, ...oldShades]));
+
+    taken.add(name);
+    hi = Math.min(hi, num(name));
+    out.push({ name, value, kind: 'tint' });
+  });
+
+  let lo = oldShades.length ? -Infinity : Math.max(0, ...out.map((s) => num(s.name)).filter(Number.isFinite));
+
+  values.shades.forEach((value, k) => {
+    const name = k < oldShades.length ? oldShades[k] : freeNumber(lightnessNumber(value), lo, 1000, taken);
+
+    taken.add(name);
+    lo = Math.max(lo, num(name));
+    out.push({ name, value, kind: 'shade' });
+  });
+
+  return out.sort((a, b) => num(a.name) - num(b.name));
+}
+
+/** Whether the steps carry the names generateSteps() would give them now — if not, "rename by lightness" has something to do. */
+export function namedByLightness(family, counts) {
+  const want = generateSteps(family.value, counts).map((s) => s.name).sort();
+  const have = (family.steps || []).map((s) => String(s.name)).sort();
+
+  return want.length === have.length && want.every((name, i) => name === have[i]);
+}
+
 /**
  * How a family's steps were made: `{ tints, shades, generated }`.
  *
- * Generated means the steps are exactly what generateSteps() gives for those
- * counts — then the panel shows the counts and remakes the steps when the
- * base changes. Anything else (the theme's own 50–950, hand-picked steps) is
- * kept as it is until someone asks for tints or shades.
+ * Generated means the steps are the colors stepValues() gives for those
+ * counts — whatever they are called, since names stay put when the base
+ * changes (remakeSteps). Then the panel shows the counts and remakes the
+ * steps with the base. Anything else (the theme's own 50–950, hand-picked
+ * steps) is kept as it is until someone asks for tints or shades.
  */
 export function familyMode(family) {
   const steps = family.steps || [];
@@ -291,10 +400,14 @@ export function familyMode(family) {
     color.l > base.l ? tints++ : shades++;
   }
 
-  const made = tints <= MAX_VARIANTS && shades <= MAX_VARIANTS ? generateSteps(family.value, { tints, shades }) : [];
-  const same =
-    made.length === steps.length &&
-    made.every((m, i) => m.name === steps[i].name && m.value === String(steps[i].value).trim().toLowerCase());
+  if (tints > MAX_VARIANTS || shades > MAX_VARIANTS) {
+    return { tints: 0, shades: 0, generated: false };
+  }
+
+  const made = stepValues(family.value, { tints, shades });
+  const want = [...made.tints, ...made.shades].sort();
+  const have = steps.map((s) => String(s.value).trim().toLowerCase()).sort();
+  const same = want.length === have.length && want.every((value, i) => value === have[i]);
 
   return same ? { tints, shades, generated: true } : { tints: 0, shades: 0, generated: false };
 }

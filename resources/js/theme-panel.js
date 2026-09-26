@@ -20,7 +20,7 @@ import { closeRightPanels } from './section-library.js';
 import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { themePanelUi as ui } from './cp/theme-panel/store.js';
-import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, writeColors } from './cp/theme-panel/palette.js';
+import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, remakeSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
 import { BUTTON_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
@@ -112,6 +112,8 @@ function remember(css) {
   ui.saved = css;
   savedTokens = tokens;
   ui.families = readColors(css).map(colorUi);
+  // Each color's step names as saved: what the Colors tab says will go on the next save.
+  ui.savedSteps = Object.fromEntries(ui.families.map((f) => [f.name, f.steps.map((s) => String(s.name))]));
   ui.sizes = [...tokens].filter(([name]) => name.startsWith('size-')).map(([name, value]) => sizeUi(name, value)).filter(Boolean);
   ui.maxViewport = parseSize(tokens.get('container-width'))?.max || inferViewport(ui.sizes.map((s) => s.value)) || 1280;
   ui.type = Object.fromEntries(TYPE_TOKENS.map((name) => [name, tokens.get(name) || '']));
@@ -274,10 +276,18 @@ function changed(win) {
 const findColor = (key) => ui.families.find((f) => f.key === key) || null;
 const findSize = (key) => ui.sizes.find((s) => s.key === key) || null;
 
-/** Steps follow the counts; with both at zero a generated family has none. */
-function remake(f) {
+/**
+ * Steps follow the counts; with both at zero a generated family has none.
+ * A saved color's step names stay (remakeSteps) — templates may use them —
+ * `previousBase` being the base the current steps were made from. A color not
+ * saved yet is used nowhere, so its names simply follow lightness.
+ */
+function remake(f, previousBase = f.value) {
   if (f.tints || f.shades) {
-    f.steps = generateSteps(f.value, { tints: f.tints, shades: f.shades }).map(({ name, value }) => ({ name, value }));
+    const counts = { tints: f.tints, shades: f.shades };
+
+    f.steps = (f.fresh ? generateSteps(f.value, counts) : remakeSteps(f.value, counts, f.steps, previousBase))
+      .map(({ name, value }) => ({ name, value }));
     f.generated = true;
   } else if (f.generated) {
     f.steps = [];
@@ -368,13 +378,24 @@ const handlers = (win) => ({
       return;
     }
 
+    const before = f.value;
+
     f.value = v.toLowerCase();
 
     if (f.generated) {
-      remake(f);
+      remake(f, before);
     }
 
     changed(win);
+  },
+  // Names by lightness again, asked for: classes with the old names stop working (the tab says which).
+  onRenameByLightness: (key) => {
+    const f = findColor(key);
+
+    if (f?.generated && (f.tints || f.shades)) {
+      f.steps = generateSteps(f.value, { tints: f.tints, shades: f.shades }).map(({ name, value }) => ({ name, value }));
+      changed(win);
+    }
   },
   onToggle: (key, kind, on) => {
     const f = findColor(key);

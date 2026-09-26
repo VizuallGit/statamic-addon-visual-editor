@@ -4,6 +4,9 @@ import {
   STEPS,
   familyMode,
   generateSteps,
+  namedByLightness,
+  remakeSteps,
+  stepValues,
   hexToOklch,
   lightnessNumber,
   nameProblem,
@@ -201,4 +204,78 @@ test('generated steps are recognised with their counts; the theme’s own steps 
   // One hand-edited step makes the family its own again.
   steps[0] = { ...steps[0], value: '#ff0000' };
   assert.equal(familyMode({ value: '#55613f', steps }).generated, false);
+});
+
+// The panel's --ttt: a light gray first, then navy.
+const GRAY = '#c4c4d4';
+const NAVY = '#0b0b41';
+const names = (steps) => steps.map((s) => s.name);
+const plainSteps = (steps) => steps.map(({ name, value }) => ({ name, value }));
+
+test('a new base keeps every step’s name and only changes its color', () => {
+  const first = plainSteps(generateSteps(GRAY, { tints: 3, shades: 3 }));
+  const again = remakeSteps(NAVY, { tints: 3, shades: 3 }, first, GRAY);
+  const navy = stepValues(NAVY, { tints: 3, shades: 3 });
+
+  assert.deepEqual(names(again), names(first));
+  assert.deepEqual(again.map((s) => s.value).sort(), [...navy.tints, ...navy.shades].sort());
+  // …and back: still the same names.
+  assert.deepEqual(names(remakeSteps(GRAY, { tints: 3, shades: 3 }, plainSteps(again), NAVY)), names(first));
+});
+
+test('the nearest tint keeps the nearest tint’s name, and so on outwards', () => {
+  const first = plainSteps(generateSteps(GRAY, { tints: 3, shades: 0 }));
+  const again = remakeSteps(NAVY, { tints: 3, shades: 0 }, first, GRAY);
+  const byName = Object.fromEntries(again.map((s) => [s.name, s.value]));
+  const navy = stepValues(NAVY, { tints: 3 }).tints;
+  // Nearest the base = the highest tint number.
+  const nearestFirst = names(first).sort((a, b) => Number(b) - Number(a));
+
+  nearestFirst.forEach((name, k) => assert.equal(byName[name], navy[k]));
+});
+
+test('one tint more keeps the others and names the new one lighter; one less frees the outermost', () => {
+  const first = plainSteps(generateSteps(NAVY, { tints: 3, shades: 3 }));
+  const more = remakeSteps(NAVY, { tints: 4, shades: 3 }, first, NAVY);
+  const oldNames = names(first);
+  const added = names(more).filter((n) => !oldNames.includes(n));
+
+  assert.equal(added.length, 1);
+  assert.ok(oldNames.every((n) => names(more).includes(n)), 'no old name lost');
+
+  const tintNames = names(generateSteps(NAVY, { tints: 3, shades: 0 }));
+
+  assert.ok(Number(added[0]) < Math.min(...tintNames.map(Number)), `${added[0]} is below the tints`);
+
+  const less = remakeSteps(NAVY, { tints: 2, shades: 3 }, first, NAVY);
+
+  assert.equal(less.length, 5);
+  assert.ok(!names(less).includes(String(Math.min(...tintNames.map(Number)))), 'the lightest tint’s name is the one freed');
+});
+
+test('one shade more gets a name past the darkest', () => {
+  const first = plainSteps(generateSteps(GRAY, { tints: 2, shades: 2 }));
+  const more = remakeSteps(GRAY, { tints: 2, shades: 3 }, first, GRAY);
+  const added = names(more).filter((n) => !names(first).includes(n));
+
+  assert.equal(added.length, 1);
+  assert.ok(Number(added[0]) > Math.max(...names(first).map(Number)));
+});
+
+test('tints turned on for a family with shades only are named below its shades', () => {
+  const shades = plainSteps(generateSteps(GRAY, { shades: 3 }));
+  const both = remakeSteps(GRAY, { tints: 2, shades: 3 }, shades, GRAY);
+  const tintNames = names(both).filter((n) => !names(shades).includes(n));
+
+  assert.equal(tintNames.length, 2);
+  assert.ok(tintNames.every((n) => Number(n) < Math.min(...names(shades).map(Number))));
+});
+
+test('a family whose names stayed put is still recognised as made, and can be renamed by lightness', () => {
+  const first = plainSteps(generateSteps(GRAY, { tints: 3, shades: 3 }));
+  const again = plainSteps(remakeSteps(NAVY, { tints: 3, shades: 3 }, first, GRAY));
+
+  assert.deepEqual(familyMode({ value: NAVY, steps: again }), { tints: 3, shades: 3, generated: true });
+  assert.equal(namedByLightness({ value: NAVY, steps: again }, { tints: 3, shades: 3 }), false);
+  assert.equal(namedByLightness({ value: GRAY, steps: first }, { tints: 3, shades: 3 }), true);
 });

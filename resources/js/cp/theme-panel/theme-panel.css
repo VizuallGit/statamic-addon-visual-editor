@@ -796,3 +796,14 @@
   padding: 0.75em 1.5em;
   line-height: 1;
 }
+
+/* Colors: rename by lightness — the button, and what it costs */
+.sve-theme__rename {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+.sve-theme__rename .sve-theme__hint {
+  margin: 0;
+}
