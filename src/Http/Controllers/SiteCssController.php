@@ -4,6 +4,8 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController\Persist;
+use MarioHamann\StatamicVisualEditor\SiteBuild;
 use MarioHamann\StatamicVisualEditor\SiteClasses;
 use MarioHamann\StatamicVisualEditor\SiteCss;
 
@@ -68,6 +70,23 @@ class SiteCssController
         abort_unless($file, 404);
 
         return response()->json($file);
+    }
+
+    /**
+     * Build the site's CSS again, as a deploy would: the Theme panel's
+     * Utilities tab calls this after it saved `@utility` blocks. See SiteBuild.
+     */
+    public function build(Request $request)
+    {
+        $this->authorize($request, 'css');
+
+        $result = SiteBuild::run();
+
+        if ($result['ok']) {
+            Persist::flushStaticCache();
+        }
+
+        return response()->json($result);
     }
 
     public function store(Request $request)

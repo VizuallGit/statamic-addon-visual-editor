@@ -266,7 +266,7 @@ try {
   // The panel's own sheet: its flex column and the tab row that scrolls.
   step('its stylesheet loaded', look.display === 'flex' && look.tabs === 'auto', JSON.stringify(look));
   step('it sits in the shared right sidebar', await cp.evaluate((p) => !!document.querySelector(`#__sve-right-dock ${p}`), PANEL));
-  step('each tab has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__tab .sve-theme__tab-icon svg`).length === 5, PANEL));
+  step('each tab has its icon', await cp.evaluate((p) => document.querySelectorAll(`${p} .sve-theme__tab .sve-theme__tab-icon svg`).length === 6, PANEL));
 
   const knewBefore = await dockTailwind(cp, '<div class="bg-testmoss-500 p-1300 text-1300"></div>');
 

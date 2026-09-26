@@ -120,6 +120,29 @@ export async function compileTailwind(win, html) {
 export { buildTailwind };
 
 /**
+ * CSS for `candidates` against a draft of the site's `@theme` / `@utility`
+ * blocks: the Theme panel's Utilities tab, before the draft is saved. A
+ * compiler of its own each call, because the draft changes with every
+ * keystroke; the kept compiler above is not touched. The site's own utility
+ * names are not skipped here — they are what is being drawn.
+ */
+export async function compileDraft(win, css, candidates) {
+  if (!candidates.length) {
+    return '';
+  }
+
+  const site = await loadSite(win);
+  const state = await makeTailwindCompiler({
+    compile,
+    sources: { theme: themeSource, utilities: utilitiesSource },
+    site: { ...site, css },
+    modules: MODULES,
+  });
+
+  return state.compiler.build(candidates);
+}
+
+/**
  * The design system the dock's suggestions read.
  *
  * Built from the same input as the compiler above, so what the list offers is

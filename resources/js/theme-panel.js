@@ -26,6 +26,8 @@ import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
 import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
+import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
+import { paintUtilities, swapSiteCss, utilityCandidates } from './cp/theme-panel/utility-paint.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
 
@@ -33,7 +35,7 @@ export { PANEL_ID };
 
 const ENTRY = 'site.css';
 
-const TABS = ['colors', 'spacing', 'fonts', 'type', 'button'];
+const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'utilities'];
 
 let app = null;
 let keySeq = 0;
@@ -42,6 +44,13 @@ let loadSeq = 0;
 let painted = new Set();
 /** The tokens as they stood in the file when it was read or saved — a save writes only what differs. */
 let savedTokens = new Map();
+/** The `@utility` bodies as they stood in the file when it was read or saved. */
+let savedUtilities = new Map();
+/** Utilities saved while the server could not build the site's CSS: still drawn in the preview. */
+const unbuilt = new Set();
+let utilitySeq = 0;
+let utilityTimer = null;
+let utilitiesPainted = false;
 let onFrameLoad = null;
 
 async function request(win, url, options = {}) {
@@ -123,7 +132,125 @@ function remember(css) {
   ui.leadings = [...tokens]
     .filter(([name, value]) => name.startsWith('leading-') && /^[\d.]+$/.test(value))
     .map(([name, value]) => ({ name: name.slice('leading-'.length), value }));
+  // A utility keeps its key over a save, so its open editor stays as it is.
+  const keys = new Map(ui.utilities.map((u) => [u.name, u.key]));
+
+  savedUtilities = utilityBodies(css);
+  ui.savedUtilities = Object.fromEntries(savedUtilities);
+  ui.utilities = [...savedUtilities].map(([name, body]) => utilityUi(name, body, keys.get(name)));
   ui.dirty = false;
+}
+
+function utilityUi(name, body, key = `utility-${++keySeq}`) {
+  return { key, name, body, fresh: false, problem: null };
+}
+
+const findUtility = (key) => ui.utilities.find((u) => u.key === key) || null;
+
+/** A new utility's name first, then braces that do not pair up. */
+function utilityProblem(u) {
+  const name = u.fresh ? utilityNameProblem(u.name, ui.utilities.filter((o) => o !== u).map((o) => o.name)) : null;
+
+  return name || bodyProblem(u.body);
+}
+
+/**
+ * What a save changes among the utilities: `{ name: body }` for a new or
+ * edited one, `{ name: null }` for one that is gone. `forPaint` keeps a body
+ * whose braces do not pair up yet — the preview tries it; a save never does.
+ */
+function utilityChanges(forPaint = false) {
+  const changes = {};
+
+  for (const u of ui.utilities) {
+    const usable = !u.problem || (forPaint && u.problem === 'braces');
+
+    if (usable && savedUtilities.get(u.name) !== dedent(u.body)) {
+      changes[u.name] = u.body;
+    }
+  }
+
+  for (const name of savedUtilities.keys()) {
+    if (!ui.utilities.some((u) => u.name === name)) {
+      changes[name] = null;
+    }
+  }
+
+  return changes;
+}
+
+/**
+ * Draw the utilities being edited, and the saved ones the server has not
+ * built yet, into the preview's built stylesheet (utility-paint.js), compiled
+ * by the dock's Tailwind. The newest call wins; CSS that Tailwind cannot read
+ * yet (half typed) leaves the last paint on screen.
+ */
+async function drawUtilities(win) {
+  const mine = ++utilitySeq;
+  const changes = utilityChanges(true);
+  const names = [...new Set([...Object.keys(changes), ...unbuilt])];
+  const docs = pageDocuments(win);
+
+  if (!names.length) {
+    if (utilitiesPainted) {
+      paintUtilities(docs, [], '');
+      utilitiesPainted = false;
+    }
+
+    return;
+  }
+
+  const candidates = utilityCandidates(docs, names);
+  const draft = compilerCss(writeUtilities(ui.saved, changes));
+
+  try {
+    const { compileDraft } = await import('./tw-compile.js');
+    const css = await compileDraft(win, draft, candidates);
+
+    if (mine === utilitySeq) {
+      paintUtilities(pageDocuments(win), names, css);
+      utilitiesPainted = true;
+    }
+  } catch {
+    // Not CSS Tailwind can read yet: the next keystroke tries again.
+  }
+}
+
+function utilityChanged(win) {
+  ui.dirty = true;
+  ui.status = '';
+  win.clearTimeout(utilityTimer);
+  utilityTimer = win.setTimeout(() => void drawUtilities(win), 120);
+}
+
+/**
+ * Build the site's CSS on the server (SiteBuild.php) and put the new file in
+ * the preview, which then shows exactly what visitors get. When the server
+ * cannot build, the tab says why and the paint stays.
+ */
+async function buildSiteCss(win) {
+  ui.status = t(win, 'theme_utilities_building');
+
+  let reason = 'error';
+
+  try {
+    const data = await request(win, '/!/sve/site-css/build', { method: 'POST', body: '{}' });
+
+    if (data.ok && data.css) {
+      unbuilt.clear();
+      ui.buildNote = '';
+      // Once the new sheet is in, anything typed during the build is drawn on it.
+      pageDocuments(win).forEach((doc) => swapSiteCss(doc, data.css, () => void drawUtilities(win)));
+
+      return;
+    }
+
+    reason = data.reason || reason;
+  } catch {
+    // The server did not answer: said below.
+  }
+
+  ui.buildNote = t(win, 'theme_utilities_not_built', { reason: t(win, `theme_utilities_reason_${reason}`) });
 }
 
 /** The container width as written: unchanged, the file's own text. */
@@ -562,6 +689,55 @@ const handlers = (win) => ({
       changed(win);
     }
   },
+
+  // Utilities: the editor's text is the body; the preview follows it.
+  onAddUtility: () => {
+    const u = { key: `utility-${++keySeq}`, name: '', body: '', fresh: true, problem: 'empty' };
+
+    ui.utilities.unshift(u);
+    ui.openUtility = u.key;
+    ui.dirty = true;
+  },
+  onOpenUtility: (key) => {
+    ui.openUtility = ui.openUtility === key ? '' : key;
+  },
+  onUtilityName: (key, name) => {
+    const u = findUtility(key);
+
+    if (u?.fresh) {
+      u.name = String(name).trim();
+      u.problem = utilityProblem(u);
+      utilityChanged(win);
+    }
+  },
+  onUtilityBody: (key, body) => {
+    const u = findUtility(key);
+
+    if (u) {
+      u.body = String(body);
+      u.problem = utilityProblem(u);
+      utilityChanged(win);
+    }
+  },
+  onRemoveUtility: (key) => {
+    const u = findUtility(key);
+    const remove = () => {
+      ui.utilities = ui.utilities.filter((o) => o !== u);
+      utilityChanged(win);
+    };
+
+    if (!u) {
+      return;
+    }
+
+    if (u.fresh) {
+      remove();
+
+      return;
+    }
+
+    confirmRemove(win, t(win, 'theme_utilities_remove_title', { name: u.name }), t(win, 'theme_utilities_remove_body', { name: u.name }), remove);
+  },
 });
 
 async function load(win) {
@@ -579,6 +755,7 @@ async function load(win) {
     }
 
     remember(css);
+    ui.buildNote = '';
     ui.fonts = fontFamilies(win);
   } catch {
     ui.status = t(win, 'theme_panel_error');
@@ -597,8 +774,10 @@ export async function saveTheme(win) {
     return true;
   }
 
-  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem)) {
-    ui.status = t(win, 'theme_panel_fix_names');
+  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem)) {
+    const braces = ui.utilities.some((u) => u.problem === 'braces');
+
+    ui.status = t(win, braces ? 'theme_utilities_braces' : 'theme_panel_fix_names');
 
     return false;
   }
@@ -608,20 +787,34 @@ export async function saveTheme(win) {
 
   try {
     const changes = tokenChanges();
-    const css = writeTokens(writeColors(await readFile(win), plainFamilies(ui.families)), changes);
+    const utilityEdits = utilityChanges();
+    const css = writeUtilities(writeTokens(writeColors(await readFile(win), plainFamilies(ui.families)), changes), utilityEdits);
 
     await request(win, '/!/sve/site-css', {
       method: 'POST',
       body: JSON.stringify({ path: ENTRY, css }),
     });
 
-    const { tab, openKey, selectedSize } = ui;
+    const { tab, openKey, selectedSize, openUtility } = ui;
 
     remember(css);
-    Object.assign(ui, { tab, openKey: ui.families.some((f) => f.key === openKey) ? openKey : '', selectedSize });
+    Object.assign(ui, {
+      tab,
+      openKey: ui.families.some((f) => f.key === openKey) ? openKey : '',
+      selectedSize,
+      openUtility: ui.utilities.some((u) => u.key === openUtility) ? openUtility : '',
+    });
     // The dock's Tailwind forgets the theme it kept, so the new colors, sizes
     // and fonts are classes it suggests and paints straight away.
     win.dispatchEvent(new CustomEvent('sve:site-css-saved', { detail: { path: ENTRY } }));
+
+    // A utility is a rule in the built stylesheet, not a token on :root: the
+    // page shows the saved one once the site's CSS is built again.
+    if (Object.keys(utilityEdits).length) {
+      Object.keys(utilityEdits).forEach((name) => unbuilt.add(name));
+      await buildSiteCss(win);
+    }
+
     ui.status = t(win, 'theme_panel_saved');
     win.setTimeout(() => {
       if (ui.status === t(win, 'theme_panel_saved')) {
@@ -656,6 +849,11 @@ export function isThemePanelOpen(doc) {
 function teardown(win, { keep = false } = {}) {
   if (!keep) {
     paint(win, propertiesFor(readColors(ui.saved), Object.fromEntries(readTokens(ui.saved))));
+    // Utilities as saved: what was only typed leaves the preview; what was
+    // saved but not built yet stays drawn.
+    ui.utilities = [...savedUtilities].map(([name, body]) => utilityUi(name, body));
+    win.clearTimeout(utilityTimer);
+    void drawUtilities(win);
   }
 
   if (onFrameLoad) {
@@ -670,6 +868,7 @@ function teardown(win, { keep = false } = {}) {
     ui.families = [];
     ui.sizes = [];
     ui.openKey = '';
+    ui.openUtility = '';
     ui.dirty = false;
   }
 
@@ -734,7 +933,7 @@ function labels(win) {
 
   return Object.fromEntries(
     Object.keys(strings)
-      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button)_/.test(key))
+      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|utilities)_/.test(key))
       .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
   );
 }
@@ -760,7 +959,10 @@ function openThemePanel(win) {
   // unsaved values back.
   onFrameLoad = (event) => {
     if (event.target?.tagName === 'IFRAME') {
-      win.setTimeout(() => paint(win), 0);
+      win.setTimeout(() => {
+        paint(win);
+        void drawUtilities(win);
+      }, 0);
     }
   };
   doc.addEventListener('load', onFrameLoad, true);

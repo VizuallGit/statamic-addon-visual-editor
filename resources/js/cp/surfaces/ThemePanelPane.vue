@@ -50,6 +50,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         {{ ui.labels.fonts_add }}
       </button>
+      <button v-else-if="ui.tab === 'utilities'" type="button" class="sve-theme__add" data-sve-utility-add @click="onAddUtility">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        {{ ui.labels.utilities_add }}
+      </button>
       <span class="sve-theme__status">{{ ui.status }}</span>
       <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{ ui.labels.panel_save }}</button>
     </div>
@@ -61,6 +65,7 @@
       <ThemeFontsTab v-else-if="ui.tab === 'fonts'" :h="props" />
       <ThemeTypeTab v-else-if="ui.tab === 'type'" :h="props" />
       <ThemeButtonTab v-else-if="ui.tab === 'button'" :h="props" />
+      <ThemeUtilitiesTab v-else-if="ui.tab === 'utilities'" :h="props" />
     </div>
   </div>
 </template>
@@ -73,11 +78,12 @@ import ThemeSpacingTab from './ThemeSpacingTab.vue';
 import ThemeFontsTab from './ThemeFontsTab.vue';
 import ThemeTypeTab from './ThemeTypeTab.vue';
 import ThemeButtonTab from './ThemeButtonTab.vue';
+import ThemeUtilitiesTab from './ThemeUtilitiesTab.vue';
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, a button. */
+/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, a button, braces. */
 const TABS = [
   {
     key: 'colors',
@@ -98,6 +104,10 @@ const TABS = [
   {
     key: 'button',
     icon: svg('<rect x="2" y="7" width="20" height="10" rx="5"/><path d="M8 12h8"/>'),
+  },
+  {
+    key: 'utilities',
+    icon: svg('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/>'),
   },
 ];
 
@@ -157,5 +167,10 @@ const props = defineProps({
   onAddFont: { type: Function, required: true },
   onType: { type: Function, required: true },
   onButton: { type: Function, required: true },
+  onAddUtility: { type: Function, required: true },
+  onOpenUtility: { type: Function, required: true },
+  onUtilityName: { type: Function, required: true },
+  onUtilityBody: { type: Function, required: true },
+  onRemoveUtility: { type: Function, required: true },
 });
 </script>

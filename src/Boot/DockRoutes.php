@@ -70,6 +70,8 @@ final class DockRoutes
                     ->name('sve.site-css.update');
                 Route::post('/!/sve/site-css/create', [SiteCssController::class, 'store'])
                     ->name('sve.site-css.store');
+                Route::post('/!/sve/site-css/build', [SiteCssController::class, 'build'])
+                    ->name('sve.site-css.build');
                 Route::post('/!/sve/file-manager/file', [FileManagerController::class, 'update'])
                     ->name('sve.file-manager.update');
                 Route::post('/!/sve/file-manager/rename', [FileManagerController::class, 'rename'])

@@ -22,6 +22,13 @@ import { reactive } from 'vue';
  * Fonts kits, `{ url, families }`. `fontsWritable` says whether this server
  * can add to the folder. They change the moment a font is added — no save.
  *
+ * `utilities` (Utilities): the `@utility` blocks, `{ key, name, body, fresh,
+ * problem }` — the body dedented, as the tab's editor shows it; `fresh` for
+ * one not saved yet (only its name can change), `problem` a name or brace
+ * problem that stops the save. `savedUtilities` are the bodies as saved, by
+ * name. `buildNote` says why the server did not build the site's CSS after
+ * the last save, empty when it did.
+ *
  * `saved` is site.css as last read or written.
  */
 export const themePanelUi = reactive({
@@ -41,6 +48,10 @@ export const themePanelUi = reactive({
   fontsWritable: true,
   fontsStylesheet: '/fonts/fonts.css',
   fontsStatus: '',
+  utilities: [],
+  savedUtilities: {},
+  openUtility: '',
+  buildNote: '',
   saved: '',
   dirty: false,
   loading: false,
