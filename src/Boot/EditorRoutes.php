@@ -16,6 +16,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\DataVarsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryActivityController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryBlueprintController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\FontsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
@@ -131,6 +132,19 @@ final class EditorRoutes
                 ->name('sve.site-css.defined');
             Route::get('/!/sve/site-css/file', [SiteCssController::class, 'show'])
                 ->name('sve.site-css.show');
+            // The Theme panel's Fonts tab: the site's fonts folder and its fonts.css.
+            Route::get('/!/sve/fonts', [FontsController::class, 'index'])
+                ->name('sve.fonts.index');
+            Route::get('/!/sve/fonts/google', [FontsController::class, 'catalog'])
+                ->name('sve.fonts.google');
+            Route::get('/!/sve/fonts/google/plan', [FontsController::class, 'plan'])
+                ->name('sve.fonts.google.plan');
+            Route::post('/!/sve/fonts/google', [FontsController::class, 'installGoogle'])
+                ->name('sve.fonts.google.install');
+            Route::post('/!/sve/fonts/upload', [FontsController::class, 'upload'])
+                ->name('sve.fonts.upload');
+            Route::post('/!/sve/fonts/adobe', [FontsController::class, 'adobe'])
+                ->name('sve.fonts.adobe');
             // The site's own code files (Utilities > Site Files). Off by default;
             // FileManager decides which paths exist at all.
             Route::get('/!/sve/file-manager', [FileManagerController::class, 'index'])

@@ -807,3 +807,450 @@
 .sve-theme__rename .sve-theme__hint {
   margin: 0;
 }
+
+/* Fonts tab: each installed family in itself */
+.sve-theme__add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.sve-theme__fonts-status {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #5eead4;
+}
+.sve-theme__fonts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.sve-theme__font {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  background: #1c1c1f;
+}
+.sve-theme__font-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.sve-theme__font-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.2;
+}
+.sve-theme__font-uses {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+.sve-theme__font-uses span {
+  padding: 0.1875rem 0.4375rem;
+  border-radius: 999px;
+  background: rgba(13, 148, 136, 0.18);
+  color: #5eead4;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.sve-theme__font-meta {
+  font-size: 0.75rem;
+  opacity: 0.55;
+  overflow-wrap: anywhere;
+}
+.sve-theme__font-kit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  color: #fff;
+  font-size: 1rem;
+}
+
+/* The "Add font" dialog, over the whole Control Panel */
+.sve-fontdlg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+.sve-theme.sve-fontdlg {
+  flex: none;
+  width: min(46rem, 100%);
+  height: min(44rem, 100%);
+  border: 1px solid #3c3c3c;
+  border-radius: 1.125rem;
+  overflow: hidden;
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.5);
+}
+.sve-fontdlg__head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 0.875rem 0.875rem 1.25rem;
+  border-bottom: 1px solid #2f2f33;
+  flex: none;
+}
+.sve-fontdlg__title {
+  flex: 1;
+  min-width: 0;
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+.sve-fontdlg__sources {
+  margin: 0.875rem 1.25rem 0;
+  flex: none;
+}
+.sve-fontdlg__search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.875rem 1.25rem 0.5rem;
+  flex: none;
+}
+.sve-fontdlg__search input::-webkit-search-cancel-button {
+  filter: invert(1);
+}
+.sve-fontdlg__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem 1.25rem 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.sve-fontdlg__list {
+  gap: 0.25rem;
+  padding-top: 0.25rem;
+}
+.sve-fontdlg__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.sve-fontdlg__chip {
+  height: 1.875rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 0.625rem;
+  background: #2a2a2d;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sve-fontdlg__chip:hover {
+  background: #333337;
+}
+.sve-fontdlg__chip.is-on {
+  background: #4a4a50;
+  color: #fff !important;
+}
+
+/* The list: a family per row, its name in itself */
+.sve-fontdlg__family {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name badge' 'meta badge';
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border: 0;
+  border-radius: 0.875rem;
+  background: #26262a;
+  text-align: left;
+  cursor: pointer;
+}
+.sve-fontdlg__family:hover {
+  background: #2e2e33;
+}
+.sve-fontdlg__family-name {
+  grid-area: name;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 1.375rem;
+  font-weight: 400;
+  line-height: 1.25;
+}
+.sve-fontdlg__family-meta {
+  grid-area: meta;
+  font-size: 0.75rem;
+  opacity: 0.55;
+}
+.sve-fontdlg__badge {
+  grid-area: badge;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(13, 148, 136, 0.18);
+  color: #5eead4;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.sve-fontdlg__more {
+  display: block;
+  height: 1px;
+}
+
+/* One family: the sample, its variants and scripts */
+.sve-fontdlg__sample {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-radius: 1rem;
+  background: #2a2a2d;
+}
+.sve-fontdlg__sample-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+.sve-fontdlg__sample-text {
+  margin: 0;
+  color: #fff;
+  font-size: 2.5rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.sve-fontdlg__group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.25rem;
+  font-weight: 650;
+  opacity: 0.8;
+}
+.sve-fontdlg__group-head button {
+  border: 0;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.75;
+  cursor: pointer;
+}
+.sve-fontdlg__group-head button:hover {
+  opacity: 1;
+}
+.sve-fontdlg__hint {
+  margin: -0.25rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.55;
+}
+.sve-fontdlg__variants {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+.sve-fontdlg__variant {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  height: 2.75rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: #26262a;
+  text-align: left;
+  cursor: pointer;
+}
+.sve-fontdlg__variant:hover:not(:disabled) {
+  background: #303035;
+}
+.sve-fontdlg__variant.is-on {
+  background: #3d3d43;
+}
+.sve-fontdlg__variant.is-installed {
+  opacity: 0.55;
+  cursor: default;
+}
+.sve-fontdlg__variant.is-empty {
+  background: transparent;
+  cursor: default;
+}
+.sve-fontdlg__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1px solid #5a5a60;
+  border-radius: 0.3125rem;
+  flex: none;
+}
+.sve-fontdlg__check svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  opacity: 0;
+}
+.sve-fontdlg__variant.is-on .sve-fontdlg__check {
+  border-color: #fff;
+  background: #fff;
+  color: #1E1E21;
+}
+.sve-fontdlg__variant.is-on .sve-fontdlg__check svg {
+  opacity: 1;
+}
+.sve-fontdlg__variant-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 1.0625rem;
+  line-height: 1.3;
+}
+.sve-fontdlg__variant-num {
+  flex: none;
+  font-size: 0.75rem;
+  font-weight: 650;
+  opacity: 0.5;
+}
+
+/* Footer: size, message, actions */
+.sve-fontdlg__foot {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid #2f2f33;
+  background: #1a1a1d;
+  flex: none;
+}
+.sve-fontdlg__size {
+  flex: none;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.sve-fontdlg__size b {
+  color: #fff;
+  font-size: 0.9375rem;
+  letter-spacing: 0;
+}
+.sve-fontdlg__error {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: #f2a2a2;
+  font-size: 0.75rem;
+}
+.sve-fontdlg__ghost {
+  height: 1.875rem;
+  padding: 0 0.875rem;
+  border: 0;
+  border-radius: 0.625rem;
+  background: transparent;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sve-fontdlg__ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Upload */
+.sve-fontdlg__drop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1.75rem 1rem;
+  border: 1px dashed #4a4a50;
+  border-radius: 1rem;
+  background: #1c1c1f;
+  text-align: center;
+  cursor: pointer;
+}
+.sve-fontdlg__drop:hover,
+.sve-fontdlg__drop.is-over {
+  border-color: #0d9488;
+  background: rgba(13, 148, 136, 0.08);
+}
+.sve-fontdlg__drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.sve-fontdlg__drop svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  opacity: 0.6;
+}
+.sve-fontdlg__drop-title {
+  color: #fff;
+  font-weight: 600;
+}
+.sve-fontdlg__drop-hint {
+  font-size: 0.75rem;
+  opacity: 0.55;
+}
+.sve-fontdlg__convert {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.875rem;
+  background: #26262a;
+}
+.sve-fontdlg__convert-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+.sve-fontdlg__convert-text .sve-fontdlg__hint {
+  margin: 0;
+}
+.sve-fontdlg__upload {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 0.875rem;
+  background: #26262a;
+}
+.sve-fontdlg__upload-top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.sve-fontdlg__upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+.sve-fontdlg__upload-size {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  overflow-wrap: anywhere;
+}
+.sve-fontdlg__kit-families {
+  color: #fff;
+}

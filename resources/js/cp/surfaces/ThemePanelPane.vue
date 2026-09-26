@@ -46,6 +46,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         {{ ui.labels.spacing_add }}
       </button>
+      <button v-else-if="ui.tab === 'fonts'" type="button" class="sve-theme__add" data-sve-font-add :disabled="!ui.fontsWritable" @click="onAddFont">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        {{ ui.labels.fonts_add }}
+      </button>
       <span class="sve-theme__status">{{ ui.status }}</span>
       <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{ ui.labels.panel_save }}</button>
     </div>
@@ -54,6 +58,7 @@
       <p v-if="ui.loading" class="sve-theme__empty">{{ ui.labels.panel_loading }}</p>
       <ThemeColorsTab v-else-if="ui.tab === 'colors'" :h="props" />
       <ThemeSpacingTab v-else-if="ui.tab === 'spacing'" :h="props" />
+      <ThemeFontsTab v-else-if="ui.tab === 'fonts'" :h="props" />
       <ThemeTypeTab v-else-if="ui.tab === 'type'" :h="props" />
       <ThemeButtonTab v-else-if="ui.tab === 'button'" :h="props" />
     </div>
@@ -66,13 +71,14 @@ import { themePanelUi as ui } from '../theme-panel/store.js';
 import { THEME_PANEL_ICON } from '../../theme-panel-lazy.js';
 import ThemeColorsTab from './ThemeColorsTab.vue';
 import ThemeSpacingTab from './ThemeSpacingTab.vue';
+import ThemeFontsTab from './ThemeFontsTab.vue';
 import ThemeTypeTab from './ThemeTypeTab.vue';
 import ThemeButtonTab from './ThemeButtonTab.vue';
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-/** Each tab with its icon: a palette, a ruler, a T, a button. */
+/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, a button. */
 const TABS = [
   {
     key: 'colors',
@@ -81,6 +87,10 @@ const TABS = [
   {
     key: 'spacing',
     icon: svg('<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>'),
+  },
+  {
+    key: 'fonts',
+    icon: svg('<path d="M21 14h-5"/><path d="M16 16v-3.5a2.5 2.5 0 0 1 5 0V16"/><path d="M4.5 13h6"/><path d="m3 16 4.5-9 4.5 9"/>'),
   },
   {
     key: 'type',
@@ -145,6 +155,7 @@ const props = defineProps({
   onSelectSize: { type: Function, required: true },
   onRemoveSize: { type: Function, required: true },
   onViewport: { type: Function, required: true },
+  onAddFont: { type: Function, required: true },
   onType: { type: Function, required: true },
   onButton: { type: Function, required: true },
 });

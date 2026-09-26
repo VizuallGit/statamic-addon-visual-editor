@@ -242,6 +242,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Fonts (the Theme panel's Fonts tab)
+    |--------------------------------------------------------------------------
+    |
+    | Where fonts added from Google Fonts, uploaded or linked as an Adobe
+    | Fonts kit go, and the URL they are served at. `fonts.css` in that folder
+    | lists them; the site's `{{ theme_tokens }}` links it on every page.
+    |
+    */
+    'fonts' => [
+        'root' => public_path('fonts'),
+        'url' => '/fonts',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Site files (Utilities > Site Files)
     |--------------------------------------------------------------------------
     |

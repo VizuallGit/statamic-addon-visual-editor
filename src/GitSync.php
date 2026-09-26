@@ -15,9 +15,10 @@ use Statamic\Facades\Git;
  * Statamic's git automation (config/statamic/git.php, STATAMIC_GIT_*) already
  * commits the content it knows about. It does not know the files this addon
  * writes: section templates, the baked Tailwind CSS, site CSS, component
- * partials, the dock's history and comments. This class adds those paths and,
- * after each write, does what a Control Panel save does — asks Statamic to
- * commit — when the site runs with automatic commits. With automatic commits
+ * partials, the dock's history and comments, the fonts added in the Theme
+ * panel. This class adds those paths and, after each write, does what a
+ * Control Panel save does — asks Statamic to commit — when the site runs
+ * with automatic commits. With automatic commits
  * off, `php please git:commit` on a schedule (the site's routes/console.php)
  * picks everything up in one go, which is the model for a dock that saves
  * every few seconds.
@@ -32,6 +33,7 @@ class GitSync
             resource_path('visual-editor'),
             resource_path('css'),
             storage_path('statamic-visual-editor'),
+            Fonts\Folder::path(),
         ];
     }
 

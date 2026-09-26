@@ -19,11 +19,13 @@ import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './
 import { closeRightPanels } from './section-library.js';
 import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
+import FontDialog from './cp/surfaces/FontDialog.vue';
 import { themePanelUi as ui } from './cp/theme-panel/store.js';
 import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, remakeSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
 import { BUTTON_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
 
@@ -31,7 +33,7 @@ export { PANEL_ID };
 
 const ENTRY = 'site.css';
 
-const TABS = ['colors', 'spacing', 'type', 'button'];
+const TABS = ['colors', 'spacing', 'fonts', 'type', 'button'];
 
 let app = null;
 let keySeq = 0;
@@ -89,9 +91,9 @@ function plainFamilies(families) {
   return families.map(({ name, value, steps }) => ({ name, value, steps }));
 }
 
-/** The families the page has fonts for, plus the ones the theme names. */
+/** The families in fonts.css and the ones the page has fonts for, plus the ones the theme names. */
 function fontFamilies(win) {
-  const names = new Set();
+  const names = new Set(installedNames());
   const doc = previewDocument(win);
 
   try {
@@ -318,6 +320,35 @@ function sizeProblem(size, name) {
   return ui.sizes.some((o) => o !== size && o.name === name) ? 'taken' : null;
 }
 
+/**
+ * The "Add font" dialog over the Control Panel. What it installs is on the
+ * server already; here the store takes the new list, the Typography dropdowns
+ * offer the font, and the preview fetches the new fonts.css.
+ */
+function openFontDialog(win) {
+  const overlay = openCpOverlay(win.document, FontDialog, {
+    win,
+    onInstalled: (listing, message) => {
+      overlay.dismiss();
+      fontsInstalled(win, listing, message);
+    },
+    onClose: () => {},
+  });
+}
+
+let fontsStatusTimer = null;
+
+function fontsInstalled(win, listing, message) {
+  applyListing(win, listing);
+  ui.fonts = fontFamilies(win);
+  refreshPageFonts(pageDocuments(win));
+  ui.fontsStatus = message || '';
+  win.clearTimeout(fontsStatusTimer);
+  fontsStatusTimer = win.setTimeout(() => {
+    ui.fontsStatus = '';
+  }, 5000);
+}
+
 /** Ask before a saved thing is removed: templates may use it. */
 function confirmRemove(win, title, body, remove) {
   const overlay = openCpOverlay(win.document, ChoiceDialog, {
@@ -510,6 +541,9 @@ const handlers = (win) => ({
     }
   },
 
+  // Fonts: added at once, no Save — the dropdowns and the preview have them straight away.
+  onAddFont: () => openFontDialog(win),
+
   // Typography and button
   onType: (name, value) => {
     if (TYPE_TOKENS.includes(name)) {
@@ -532,7 +566,8 @@ async function load(win) {
   ui.status = '';
 
   try {
-    const css = await readFile(win);
+    // The fonts are a list of their own; the theme loads without them.
+    const [css] = await Promise.all([readFile(win), loadFonts(win).catch(() => false)]);
 
     if (mine !== loadSeq || !isThemePanelOpen(win.document)) {
       return;
@@ -694,7 +729,7 @@ function labels(win) {
 
   return Object.fromEntries(
     Object.keys(strings)
-      .filter((key) => /^theme_(panel|colors|spacing|type|button)_/.test(key))
+      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button)_/.test(key))
       .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
   );
 }

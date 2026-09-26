@@ -13,8 +13,14 @@ import { reactive } from 'vue';
  * width), in px.
  *
  * `type` and `button` (Typography, Button): the tokens' CSS values as they
- * stand in the file, by token name. `fonts` are the families the page has
- * loaded, `leadings` the line heights in `@theme` — the choices offered.
+ * stand in the file, by token name. `fonts` are the families the dropdowns
+ * offer (fonts.css, the faces the page has loaded, the theme's own), `leadings`
+ * the line heights in `@theme` — the choices offered.
+ *
+ * `installed` (Fonts): fonts.css read back, `{ name, faces: [{ weight, style,
+ * url, unicodeRange, missing }], files, bytes }` per family; `kits` its Adobe
+ * Fonts kits, `{ url, families }`. `fontsWritable` says whether this server
+ * can add to the folder. They change the moment a font is added — no save.
  *
  * `saved` is site.css as last read or written.
  */
@@ -30,6 +36,11 @@ export const themePanelUi = reactive({
   button: {},
   fonts: [],
   leadings: [],
+  installed: [],
+  kits: [],
+  fontsWritable: true,
+  fontsStylesheet: '/fonts/fonts.css',
+  fontsStatus: '',
   saved: '',
   dirty: false,
   loading: false,
