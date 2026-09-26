@@ -658,7 +658,7 @@ export function takenNames(families) {
 
 /**
  * Colors the theme always has. Sections are wireframed in gray and imported
- * into every site, so the gray scale can be changed but never removed.
+ * into every site, so the gray scale can be seen but never edited or removed.
  */
 export const CORE_COLORS = ['gray'];
 

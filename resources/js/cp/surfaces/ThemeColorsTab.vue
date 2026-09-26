@@ -21,7 +21,7 @@
           <input
             type="text"
             :value="f.name"
-            :readonly="!f.fresh"
+            :readonly="locked(f) || !f.fresh"
             spellcheck="false"
             autocomplete="off"
             @input="h.onName(f.key, $event.target.value)"
@@ -34,11 +34,12 @@
         <span class="sve-theme__label">{{ ui.labels.colors_color }}</span>
         <span class="sve-theme__input">
           <span class="sve-theme__picker" :style="{ background: f.value }">
-            <input type="color" :value="hexOf(f.value)" @input="h.onColor(f.key, $event.target.value)">
+            <input v-if="!locked(f)" type="color" :value="hexOf(f.value)" @input="h.onColor(f.key, $event.target.value)">
           </span>
           <input
             type="text"
             :value="f.value"
+            :readonly="locked(f)"
             spellcheck="false"
             autocomplete="off"
             @change="h.onColor(f.key, $event.target.value)"
@@ -46,8 +47,8 @@
         </span>
       </label>
 
-      <!-- Tints and shades are made from the base; a family of steps only (the gray scale) keeps its steps. -->
-      <template v-for="kind in (f.value ? ['tints', 'shades'] : [])" :key="kind">
+      <!-- Tints and shades are made from the base. A locked color (gray) only shows its steps. -->
+      <template v-for="kind in (f.value && !locked(f) ? ['tints', 'shades'] : [])" :key="kind">
         <div class="sve-theme__rule"></div>
         <div class="sve-theme__switch-row">
           <span class="sve-theme__label">{{ ui.labels[`colors_${kind}`] }}</span>
@@ -88,14 +89,20 @@
         <div class="sve-theme__rule"></div>
         <span class="sve-theme__label">{{ ui.labels.colors_steps }}</span>
         <div class="sve-theme__swatches">
-          <label v-for="s in f.steps" :key="s.name" class="sve-theme__swatch is-editable" :title="`--${f.name}-${s.name}  ${s.value}`">
-            <span class="sve-theme__swatch-color" :style="{ background: s.value }">
-              <input type="color" :value="hexOf(s.value)" @input="h.onStep(f.key, s.name, $event.target.value)">
+          <template v-for="s in f.steps" :key="s.name">
+            <span v-if="locked(f)" class="sve-theme__swatch" :title="`--${f.name}-${s.name}  ${s.value}`">
+              <span class="sve-theme__swatch-color" :style="{ background: s.value }"></span>
+              <span class="sve-theme__swatch-name">{{ s.name }}</span>
             </span>
-            <span class="sve-theme__swatch-name">{{ s.name }}</span>
-          </label>
+            <label v-else class="sve-theme__swatch is-editable" :title="`--${f.name}-${s.name}  ${s.value}`">
+              <span class="sve-theme__swatch-color" :style="{ background: s.value }">
+                <input type="color" :value="hexOf(s.value)" @input="h.onStep(f.key, s.name, $event.target.value)">
+              </span>
+              <span class="sve-theme__swatch-name">{{ s.name }}</span>
+            </label>
+          </template>
         </div>
-        <p v-if="f.value" class="sve-theme__note">{{ (ui.labels.colors_replace_warning || '').replace(':count', f.steps.length) }}</p>
+        <p v-if="f.value && !locked(f)" class="sve-theme__note">{{ (ui.labels.colors_replace_warning || '').replace(':count', f.steps.length) }}</p>
       </template>
 
       <template v-if="!isCore(f.name)">
@@ -111,6 +118,11 @@ import { themePanelUi as ui } from '../theme-panel/store.js';
 import { hexToOklch, isCoreColor as isCore, namedByLightness } from '../theme-panel/palette.js';
 
 defineProps({ h: { type: Object, required: true } });
+
+/** Gray is part of every site. It can be opened and read, never edited. */
+function locked(f) {
+  return isCore(f.name);
+}
 
 /** A native color input only takes `#rrggbb`. */
 function hexOf(value) {

@@ -27,6 +27,7 @@ import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from 
 import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
+import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from './cp/theme-panel/utility-paint.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
@@ -34,8 +35,9 @@ import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
 export { PANEL_ID };
 
 const ENTRY = 'site.css';
+const VARS = 'var.css';
 
-const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'utilities'];
+const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'utilities', 'props'];
 
 let app = null;
 let keySeq = 0;
@@ -72,8 +74,8 @@ async function request(win, url, options = {}) {
   return res.json();
 }
 
-async function readFile(win) {
-  const data = await request(win, `/!/sve/site-css/file?path=${encodeURIComponent(ENTRY)}`);
+async function readFile(win, path = ENTRY) {
+  const data = await request(win, `/!/sve/site-css/file?path=${encodeURIComponent(path)}`);
 
   return String(data.css || '');
 }
@@ -146,6 +148,61 @@ function utilityUi(name, body, key = `utility-${++keySeq}`) {
 }
 
 const findUtility = (key) => ui.utilities.find((u) => u.key === key) || null;
+
+function propProblem(p) {
+  const name = propNameProblem(p.name, ui.props.filter((o) => o !== p).map((o) => o.name));
+
+  if (name) {
+    return name;
+  }
+
+  const value = propValueProblem(p.value);
+
+  if (value === 'empty') {
+    return 'value';
+  }
+
+  return value === 'chars' ? 'valuechars' : null;
+}
+
+function rememberProps(css) {
+  const keys = new Map(ui.props.map((p) => [p.name, p.key]));
+
+  ui.vars = css;
+  ui.savedProps = Object.fromEntries(readCustomProps(css).map((p) => [p.name, p.value]));
+  ui.props = readCustomProps(css).map((p) => ({
+    key: keys.get(p.name) || `prop-${++keySeq}`,
+    name: p.name,
+    value: p.value,
+    fresh: false,
+    problem: null,
+  }));
+}
+
+/** What a save changes in var.css: `{ name: value }` or `{ name: null }` to remove. */
+function propChanges() {
+  const out = {};
+
+  for (const p of ui.props) {
+    if (p.problem || !p.name) {
+      continue;
+    }
+
+    const value = p.value.trim();
+
+    if (p.fresh || ui.savedProps[p.name] !== value) {
+      out[p.name] = value;
+    }
+  }
+
+  for (const name of Object.keys(ui.savedProps)) {
+    if (!ui.props.some((p) => p.name === name)) {
+      out[name] = null;
+    }
+  }
+
+  return out;
+}
 
 /** A new utility's name first, then braces that do not pair up. */
 function utilityProblem(u) {
@@ -384,6 +441,12 @@ function propertiesFor(families, tokens) {
 
 /** Set every value on the preview's `<html>`, and take off the ones that are gone. */
 function paint(win, want = propertiesFor(ui.families, desiredTokens())) {
+  for (const p of ui.props) {
+    if (p.name && !p.problem) {
+      want.set(`--${p.name}`, p.value);
+    }
+  }
+
   for (const doc of pageDocuments(win)) {
     const style = doc.documentElement.style;
 
@@ -537,7 +600,7 @@ const handlers = (win) => ({
     const f = findColor(key);
     const v = String(value).trim();
 
-    if (!f || !isHex(v)) {
+    if (!f || isCoreColor(f.name) || !isHex(v)) {
       return;
     }
 
@@ -555,7 +618,7 @@ const handlers = (win) => ({
   onRenameByLightness: (key) => {
     const f = findColor(key);
 
-    if (f?.generated && (f.tints || f.shades)) {
+    if (f?.generated && !isCoreColor(f.name) && (f.tints || f.shades)) {
       f.steps = generateSteps(f.value, { tints: f.tints, shades: f.shades }).map(({ name, value }) => ({ name, value }));
       changed(win);
     }
@@ -563,7 +626,7 @@ const handlers = (win) => ({
   onToggle: (key, kind, on) => {
     const f = findColor(key);
 
-    if (f) {
+    if (f && !isCoreColor(f.name)) {
       f[kind] = on ? f[kind] || 3 : 0;
       remake(f);
       changed(win);
@@ -572,7 +635,7 @@ const handlers = (win) => ({
   onCount: (key, kind, n) => {
     const f = findColor(key);
 
-    if (f) {
+    if (f && !isCoreColor(f.name)) {
       f[kind] = Math.max(0, Math.min(MAX_VARIANTS, n));
       remake(f);
       changed(win);
@@ -582,7 +645,7 @@ const handlers = (win) => ({
     const f = findColor(key);
     const step = f?.steps.find((s) => s.name === name);
 
-    if (step && !f.generated && isHex(value)) {
+    if (step && !f.generated && !isCoreColor(f.name) && isHex(value)) {
       step.value = String(value).toLowerCase();
       changed(win);
     }
@@ -738,6 +801,55 @@ const handlers = (win) => ({
 
     confirmRemove(win, t(win, 'theme_utilities_remove_title', { name: u.name }), t(win, 'theme_utilities_remove_body', { name: u.name }), remove);
   },
+
+  // Custom properties in var.css. The preview follows the value; Save writes the file.
+  onAddProp: () => {
+    const p = { key: `prop-${++keySeq}`, name: '', value: '', fresh: true, problem: 'empty' };
+
+    ui.props.unshift(p);
+    ui.openProp = p.key;
+    ui.dirty = true;
+  },
+  onOpenProp: (key) => {
+    ui.openProp = ui.openProp === key ? '' : key;
+  },
+  onPropName: (key, name) => {
+    const p = ui.props.find((o) => o.key === key);
+
+    if (p?.fresh) {
+      p.name = String(name).trim();
+      p.problem = propProblem(p);
+      changed(win);
+    }
+  },
+  onPropValue: (key, value) => {
+    const p = ui.props.find((o) => o.key === key);
+
+    if (p) {
+      p.value = String(value);
+      p.problem = propProblem(p);
+      changed(win);
+    }
+  },
+  onRemoveProp: (key) => {
+    const p = ui.props.find((o) => o.key === key);
+    const remove = () => {
+      ui.props = ui.props.filter((o) => o !== p);
+      changed(win);
+    };
+
+    if (!p) {
+      return;
+    }
+
+    if (p.fresh) {
+      remove();
+
+      return;
+    }
+
+    confirmRemove(win, t(win, 'theme_props_remove_title', { name: p.name }), t(win, 'theme_props_remove_body'), remove);
+  },
 });
 
 async function load(win) {
@@ -748,13 +860,22 @@ async function load(win) {
 
   try {
     // The fonts are a list of their own; the theme loads without them.
-    const [css] = await Promise.all([readFile(win), loadFonts(win).catch(() => false)]);
+    const [css, vars] = await Promise.all([
+      readFile(win),
+      readFile(win, VARS).catch(() => null),
+      loadFonts(win).catch(() => false),
+    ]);
 
     if (mine !== loadSeq || !isThemePanelOpen(win.document)) {
       return;
     }
 
     remember(css);
+
+    if (vars !== null) {
+      rememberProps(vars);
+    }
+
     ui.buildNote = '';
     ui.fonts = fontFamilies(win);
   } catch {
@@ -774,7 +895,7 @@ export async function saveTheme(win) {
     return true;
   }
 
-  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem)) {
+  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem) || ui.props.some((p) => p.problem)) {
     const braces = ui.utilities.some((u) => u.problem === 'braces');
 
     ui.status = t(win, braces ? 'theme_utilities_braces' : 'theme_panel_fix_names');
@@ -795,7 +916,19 @@ export async function saveTheme(win) {
       body: JSON.stringify({ path: ENTRY, css }),
     });
 
-    const { tab, openKey, selectedSize, openUtility } = ui;
+    const propEdits = propChanges();
+
+    if (ui.vars && Object.keys(propEdits).length) {
+      const next = writeCustomProps(ui.vars, propEdits);
+
+      await request(win, '/!/sve/site-css', {
+        method: 'POST',
+        body: JSON.stringify({ path: VARS, css: next }),
+      });
+      rememberProps(next);
+    }
+
+    const { tab, openKey, selectedSize, openUtility, openProp } = ui;
 
     remember(css);
     Object.assign(ui, {
@@ -803,6 +936,7 @@ export async function saveTheme(win) {
       openKey: ui.families.some((f) => f.key === openKey) ? openKey : '',
       selectedSize,
       openUtility: ui.utilities.some((u) => u.key === openUtility) ? openUtility : '',
+      openProp: ui.props.some((p) => p.key === openProp) ? openProp : '',
     });
     // The dock's Tailwind forgets the theme it kept, so the new colors, sizes
     // and fonts are classes it suggests and paints straight away.
@@ -810,7 +944,7 @@ export async function saveTheme(win) {
 
     // A utility is a rule in the built stylesheet, not a token on :root: the
     // page shows the saved one once the site's CSS is built again.
-    if (Object.keys(utilityEdits).length) {
+    if (Object.keys(utilityEdits).length || Object.keys(propEdits).length) {
       Object.keys(utilityEdits).forEach((name) => unbuilt.add(name));
       await buildSiteCss(win);
     }
@@ -852,6 +986,13 @@ function teardown(win, { keep = false } = {}) {
     // Utilities as saved: what was only typed leaves the preview; what was
     // saved but not built yet stays drawn.
     ui.utilities = [...savedUtilities].map(([name, body]) => utilityUi(name, body));
+    ui.props = Object.entries(ui.savedProps).map(([name, value]) => ({
+      key: `prop-${++keySeq}`,
+      name,
+      value,
+      fresh: false,
+      problem: null,
+    }));
     win.clearTimeout(utilityTimer);
     void drawUtilities(win);
   }
@@ -933,7 +1074,7 @@ function labels(win) {
 
   return Object.fromEntries(
     Object.keys(strings)
-      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|utilities)_/.test(key))
+      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|utilities|props)_/.test(key))
       .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
   );
 }

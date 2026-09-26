@@ -54,6 +54,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         {{ ui.labels.utilities_add }}
       </button>
+      <button v-else-if="ui.tab === 'props'" type="button" class="sve-theme__add" data-sve-prop-add @click="onAddProp">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        {{ ui.labels.props_add }}
+      </button>
       <span class="sve-theme__status">{{ ui.status }}</span>
       <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{ ui.labels.panel_save }}</button>
     </div>
@@ -66,6 +70,7 @@
       <ThemeTypeTab v-else-if="ui.tab === 'type'" :h="props" />
       <ThemeButtonTab v-else-if="ui.tab === 'button'" :h="props" />
       <ThemeUtilitiesTab v-else-if="ui.tab === 'utilities'" :h="props" />
+      <ThemePropsTab v-else-if="ui.tab === 'props'" :h="props" />
     </div>
   </div>
 </template>
@@ -79,6 +84,7 @@ import ThemeFontsTab from './ThemeFontsTab.vue';
 import ThemeTypeTab from './ThemeTypeTab.vue';
 import ThemeButtonTab from './ThemeButtonTab.vue';
 import ThemeUtilitiesTab from './ThemeUtilitiesTab.vue';
+import ThemePropsTab from './ThemePropsTab.vue';
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
@@ -108,6 +114,10 @@ const TABS = [
   {
     key: 'utilities',
     icon: svg('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/>'),
+  },
+  {
+    key: 'props',
+    icon: svg('<path d="M4 8h6M4 16h6M14 8h6M14 16h6M9 6v12M19 6v12"/>'),
   },
 ];
 
@@ -172,5 +182,10 @@ const props = defineProps({
   onUtilityName: { type: Function, required: true },
   onUtilityBody: { type: Function, required: true },
   onRemoveUtility: { type: Function, required: true },
+  onAddProp: { type: Function, required: true },
+  onOpenProp: { type: Function, required: true },
+  onPropName: { type: Function, required: true },
+  onPropValue: { type: Function, required: true },
+  onRemoveProp: { type: Function, required: true },
 });
 </script>
