@@ -387,7 +387,9 @@ try {
   step('and the list', (await listOrder(cp)).join() === expected.join());
 
   // ── The site's presets ────────────────────────────────────────────────
-  const sitePresets = await cp.evaluate(() => window.Statamic?.$config?.get?.('sveToolbarPresets') || []);
+  // Statamic's config hands back reactive proxies, which do not cross into
+  // the test as values — made plain JSON in the page first.
+  const sitePresets = await cp.evaluate(() => JSON.parse(JSON.stringify(window.Statamic?.$config?.get?.('sveToolbarPresets') || [])));
   const dockArmed = async () => (await storedKey(cp, 'sve-code-dock-armed')) === '1';
 
   if (!sitePresets.length) {
