@@ -715,4 +715,23 @@ return [
         ],
     ],
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Templates board
+    |--------------------------------------------------------------------------
+    |
+    | Collections that get no column of their own.
+    |
+    | The page collection renders through the site's own views (`default`,
+    | `home`), which are already cards in the site's column — a column for it
+    | would be the same two templates under a second name. `sections` is a
+    | gallery of examples, not a set of pages anyone designs a template for.
+    |
+    */
+
+    'template_board' => [
+        'skip' => ['pages', 'sections'],
+    ],
+
 ];

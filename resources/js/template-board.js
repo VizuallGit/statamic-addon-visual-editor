@@ -26,12 +26,24 @@ const BOARD_HOST = 'sve-template-board';
 const STYLE_ID = '__sve-template-board-style';
 const MENU_ID = '__sve-template-board-menu';
 
-/** The three columns, in reading order, and which rows land in each. */
-const GROUPS = [
-  { id: 'site', label: 'template_board_group_site', kinds: ['site'] },
-  { id: 'collections', label: 'template_board_group_collections', kinds: ['collection'] },
-  { id: 'taxonomies', label: 'template_board_group_taxonomies', kinds: ['taxonomy'] },
-];
+/**
+ * The columns, in reading order: the site's own first, then one per collection
+ * and one per taxonomy.
+ *
+ * A column per source, not one column holding them all. A new collection is a
+ * new column, which is the question anyone opening this screen is asking —
+ * "what templates does Services have" — and a single stack of every
+ * collection's cards answers it by making you read the whole pile.
+ */
+function columns(win, rows) {
+  const site = rows.filter((row) => row.kind === 'site');
+  const rest = rows.filter((row) => row.kind !== 'site');
+
+  return [
+    { id: 'site', title: t(win, 'template_board_group_site'), rows: site },
+    ...rest.map((row) => ({ id: row.handle, title: row.title, rows: [row] })),
+  ];
+}
 
 /**
  * The stylesheet is written here rather than imported.
@@ -151,7 +163,7 @@ const slotLabel = (win, slot) => t(win, `template_board_slot_${slot}`);
  * called "Show" says nothing.
  */
 function cardLabel(win, row, card) {
-  return row.kind === 'site' ? slotLabel(win, card.slot) : `${row.title} ${slotLabel(win, card.slot)}`;
+  return slotLabel(win, card.slot);
 }
 
 // ===== the add menu =====
@@ -276,16 +288,16 @@ async function open(win, row, card, anchor) {
 
 // ===== columns =====
 
-function columnNode(win, group, rows) {
+function columnNode(win, group) {
   const node = el(win, 'section', { 'data-sve-tb-col': '', 'data-group': group.id });
   const head = el(win, 'header', { 'data-sve-tb-head': '' });
 
-  head.appendChild(el(win, 'span', { 'data-sve-tb-title': '' }, t(win, group.label)));
+  head.appendChild(el(win, 'span', { 'data-sve-tb-title': '' }, group.title));
 
   const here = [];
   const missing = [];
 
-  for (const row of rows) {
+  for (const row of group.rows) {
     for (const card of row.cards) {
       (card.exists || card.broken ? here : missing).push({ row, card });
     }
@@ -354,8 +366,8 @@ async function paint(win, host) {
 
   const board = el(win, 'div', { 'data-sve-tb-board': '' });
 
-  for (const group of GROUPS) {
-    board.appendChild(columnNode(win, group, rows.filter((row) => group.kinds.includes(row.kind))));
+  for (const group of columns(win, rows)) {
+    board.appendChild(columnNode(win, group));
   }
 
   host.appendChild(board);

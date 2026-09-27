@@ -95,7 +95,7 @@ final class TemplateBoard
      */
     public static function sourceRows(): array
     {
-        $stores = Stores::all();
+        $stores = array_merge(Stores::all(), static::skipped());
         $rows = [];
 
         foreach (Collection::all() as $collection) {
@@ -111,6 +111,22 @@ final class TemplateBoard
         }
 
         return $rows;
+    }
+
+    /**
+     * Collections that get no column of their own.
+     *
+     * The page collection renders through the site's own views — `default`
+     * and `home` — which are already cards in the site's column. A column for
+     * it would be the same two templates under a second name.
+     *
+     * @return list<string>
+     */
+    public static function skipped(): array
+    {
+        $configured = config('statamic-visual-editor.template_board.skip', ['pages', 'sections']);
+
+        return is_array($configured) ? array_values(array_filter($configured, 'is_string')) : [];
     }
 
     public static function sourceRow(string $handle, string $title, string $kind, mixed $source = null): array
