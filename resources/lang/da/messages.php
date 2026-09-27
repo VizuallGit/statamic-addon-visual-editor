@@ -1235,4 +1235,20 @@ return [
     'data_vars_collection' => 'Collection: :handle',
     'data_vars_no_section' => 'Ingen sektion er åben, så der er ingen sektionsfelter at vise.',
     'data_vars_loop' => 'løkke',
+
+    // Skabelon-tavlen.
+    'template_board_title' => 'Skabeloner',
+    'template_board_intro' => 'Alle de skabeloner sitet kan tegne, med en række pr. collection og taksonomi. Et kort er fyldt, fordi view-filen findes — scaffolder du en fra en collection, dukker den op her af sig selv.',
+    'template_board_site' => 'Sitet',
+    'template_board_empty' => 'Ingen skabelon endnu',
+    'template_board_create' => 'Opret',
+    'template_board_broken' => 'View-filen er væk',
+    'template_board_open' => 'Åbn',
+    'template_board_slot_layout' => 'Layout',
+    'template_board_slot_home' => 'Forside',
+    'template_board_slot_default' => 'Standardside',
+    'template_board_slot_error' => '404-side',
+    'template_board_slot_search' => 'Søgeresultater',
+    'template_board_slot_index' => 'Index',
+    'template_board_slot_show' => 'Show',
 ];

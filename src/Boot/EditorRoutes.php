@@ -30,6 +30,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
 use Statamic\Facades\Site;
 
@@ -237,6 +238,12 @@ final class EditorRoutes
 
             Route::post('/!/sve/collection-presets/apply', CollectionPresetController::class)
                 ->name('sve.collection-presets.apply');
+
+            // The Templates board: every row, and filling one empty slot.
+            Route::get('/!/sve/template-board', [TemplateBoardController::class, 'index'])
+                ->name('sve.template-board.index');
+            Route::post('/!/sve/template-board', [TemplateBoardController::class, 'store'])
+                ->name('sve.template-board.store');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)

@@ -63,6 +63,7 @@ import './chrome.js';
 import { initCp } from './cp.js';
 import { initAiLauncher } from './ai-launcher.js';
 import { initFileManager } from './file-manager-boot.js';
+import { initTemplateBoard } from './template-board-boot.js';
 
 Statamic.booting(() => {
   installResponsiveConditions();
@@ -71,4 +72,5 @@ Statamic.booting(() => {
   initCp();
   initAiLauncher();
   initFileManager();
+  initTemplateBoard();
 });

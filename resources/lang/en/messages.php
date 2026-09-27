@@ -1242,4 +1242,20 @@ return [
     'data_vars_collection' => 'Collection: :handle',
     'data_vars_no_section' => 'No section is open, so there are no section fields to list.',
     'data_vars_loop' => 'loop',
+
+    // Templates board — the grid of every template the site can have.
+    'template_board_title' => 'Templates',
+    'template_board_intro' => 'Every template this site can render, one row per collection and taxonomy. A card is filled because the view file exists — scaffold one from a collection and it appears here on its own.',
+    'template_board_site' => 'Site',
+    'template_board_empty' => 'No template yet',
+    'template_board_create' => 'Create',
+    'template_board_broken' => 'The view file is gone',
+    'template_board_open' => 'Open',
+    'template_board_slot_layout' => 'Layout',
+    'template_board_slot_home' => 'Frontpage',
+    'template_board_slot_default' => 'Default page',
+    'template_board_slot_error' => '404 page',
+    'template_board_slot_search' => 'Search results',
+    'template_board_slot_index' => 'Index',
+    'template_board_slot_show' => 'Show',
 ];

@@ -60,11 +60,36 @@ final class StoreCollections
                 ->filter(fn ($collection) => in_array($collection->handle(), $navHandles, true))
                 ->each(function ($collection) use ($nav) {
                     $nav->content($collection->title())
-                        ->url($collection->showUrl())
+                        ->url(static::storeNavUrl($collection))
                         ->icon($collection->icon() ?: 'content-writing')
                         ->can('view', $collection);
                 });
         });
+    }
+
+    /**
+     * Where a store's Content nav item goes.
+     *
+     * Templates gets the board — a row per collection and taxonomy, which is
+     * what anyone opening "Templates" is looking for. Every other store keeps
+     * its ordinary listing.
+     *
+     * Nothing about the collection itself changes: its listing is still there,
+     * on the URL Statamic gives it, and switching the toggle off brings the
+     * nav item straight back to it. The URL is built the way Utility::url()
+     * builds it, off the index route, so this does not depend on a named route
+     * that may not exist yet when the nav is assembled.
+     */
+    protected static function storeNavUrl($collection): string
+    {
+        if (
+            $collection->handle() === Stores::collectionTemplates()
+            && Features::enabled('collection_templates')
+        ) {
+            return cp_route('utilities.index').'/template-board';
+        }
+
+        return $collection->showUrl();
     }
 
     /**

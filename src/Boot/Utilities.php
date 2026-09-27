@@ -49,6 +49,28 @@ final class Utilities
         // `can:access <handle> utility` middleware on the route, and the
         // Features::allows() check in the view closure below, which runs when
         // the page is asked for.
+        // The Templates board: every template the site can have, one row per
+        // collection and taxonomy. Same registration shape as Site Files, and
+        // the same reason for Utility::extend() — see the note above.
+        //
+        // The Content nav's own "Templates" item points here instead of at the
+        // collection listing (StoreCollections::storeNavUrl). The listing is
+        // untouched and still reachable at its own URL.
+        Utility::extend(function () {
+            if (Features::enabled('collection_templates')) {
+                Utility::register('template-board')
+                    ->view('sve::utilities.template-board', function () {
+                        abort_unless(Features::allows('collection_templates'), 403);
+
+                        return [];
+                    })
+                    ->title(__('sve::messages.template_board_title'))
+                    ->navTitle(__('sve::messages.template_board_title'))
+                    ->icon('fieldtype-template')
+                    ->description(__('sve::messages.template_board_intro'));
+            }
+        });
+
         Utility::extend(function () {
             if (Features::enabled('file_manager')) {
                 Utility::register('site-files')
