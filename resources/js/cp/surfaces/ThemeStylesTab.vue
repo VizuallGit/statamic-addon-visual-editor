@@ -109,6 +109,7 @@
           :label="`${ui.labels.utilities_css || 'CSS'} .${row.name || ''}`"
           :on-change="(body) => change(row, body)"
           :on-save="h.onSave"
+          :tokens="tokens"
         />
 
         <button type="button" class="sve-theme__remove" @click="remove(row)">
@@ -190,6 +191,16 @@ const shownChips = computed(() =>
  * The editable rule behind a row, and which of the two files it is in — or
  * null for a rule the tab does not own and only shows.
  */
+/**
+ * The custom properties `var(` should offer: the site's own from var.css, and
+ * the theme's colours and sizes, which are what a rule reaches for most.
+ */
+const tokens = computed(() => [
+  ...(ui.props || []).map((p) => `--${p.name}`),
+  ...(ui.families || []).flatMap((f) => [`--color-${f.name}`, ...(f.steps || []).map((s) => `--color-${f.name}-${s.name || s}`)]),
+  ...(ui.sizes || []).map((s) => `--size-${s.name}`),
+].filter((n) => n && !n.endsWith('-')));
+
 function propFor(row) {
   return (ui.props || []).find((p) => p.key === row.key) || { name: '', value: '', fresh: true };
 }

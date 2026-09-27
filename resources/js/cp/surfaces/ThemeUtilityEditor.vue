@@ -5,17 +5,23 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { loadCodeMirror, vscTheme } from '../../lib/codemirror.js';
+import { cssCompletions } from '../theme-panel/css-complete.js';
 
 /**
- * One utility's CSS in the Utilities tab: CodeMirror with CSS completion, the
- * body only (what goes between `@utility name {` and `}`). Every change goes
- * up as it is typed; Mod-S saves the panel.
+ * One rule's CSS in the Styles tab: CodeMirror over the body only — what goes
+ * between `{` and `}`. Every change goes up as it is typed; Mod-S saves.
+ *
+ * Completion is ours, not the CSS language's. Without a selector around it a
+ * bare `background` parses as one, so CodeMirror's own source offers nothing
+ * where a property is wanted. `tokens` are the theme's custom properties, for
+ * inside `var(`.
  */
 const props = defineProps({
   value: { type: String, default: '' },
   label: { type: String, default: '' },
   onChange: { type: Function, required: true },
   onSave: { type: Function, required: true },
+  tokens: { type: Array, default: () => [] },
 });
 
 const host = ref(null);
@@ -42,7 +48,11 @@ onMounted(async () => {
         history(),
         cm.langCss.css(),
         closeBrackets(),
-        autocompletion({ activateOnTyping: true, tooltipClass: () => 'sve-theme-complete' }),
+        autocompletion({
+          activateOnTyping: true,
+          tooltipClass: () => 'sve-theme-complete',
+          override: [cssCompletions(() => props.tokens)],
+        }),
         // In the CP's <body>, so the list is not cut off by the sidebar.
         tooltips({ parent: host.value.ownerDocument.body }),
         keymap.of([
