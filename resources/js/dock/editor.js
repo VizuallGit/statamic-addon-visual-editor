@@ -24,6 +24,7 @@ import { paintHtmlToolState } from './html-tools.js';
 import { paintAlpine } from './alpine.js';
 import { syncTwTarget } from './style-modes.js';
 import { problemsUi } from './problems.js';
+import { lockedUi } from './locked-tags.js';
 
 // ===== editor =====
 /**
@@ -240,6 +241,8 @@ export function mountEditor(win, handle, parent) {
           : []),
         ...(handle === 'html' ? antlersUi().extensions : []),
         ...(handle === 'html' ? problemsUi(win).extensions : []),
+        // Plumbing the reader may see but not change: {{ vite }}, {{ yield_* }}.
+        ...(handle === 'html' ? lockedUi().extensions : []),
         ...(SUNDAY_AUG30 && handle === 'html' ? classTokenUi().extensions : []),
         readOnlyOf[handle].of(EditorState.readOnly.of(!!dockState.lastLocked)),
         editableOf[handle].of(EditorView.editable.of(!dockState.lastLocked)),
