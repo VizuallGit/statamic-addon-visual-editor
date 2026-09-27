@@ -90,7 +90,7 @@ defineProps({ h: { type: Object, required: true } });
 
 /** Until the lang file carries them — a raw key on screen reads as a bug. */
 const fallback = {
-  hint: 'Alle klasser sitets CSS definerer. Klik på en for at se hvor den bor.',
+  hint: 'Sitets egne klasser: utilities fra site.css og klasserne i din egen CSS-fil. En sektions regler hører til sektionen og følger med, når den eksporteres — derfor står de ikke her.',
   search: 'Søg…',
   empty: 'Ingen klasser matcher.',
   ambient: 'AFLEDT',

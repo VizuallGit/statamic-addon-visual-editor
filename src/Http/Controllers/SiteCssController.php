@@ -42,6 +42,8 @@ class SiteCssController
 
         return response()->json([
             'defined' => SiteClasses::defined(),
+            'entry' => \MarioHamann\StatamicVisualEditor\SiteCss\Root::ENTRY,
+            'classes' => (string) config('statamic-visual-editor.site_css_classes', \MarioHamann\StatamicVisualEditor\SiteCss\Root::CLASSES),
         ]);
     }
 

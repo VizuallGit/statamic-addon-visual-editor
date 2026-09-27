@@ -877,7 +877,7 @@ return [
     'theme_props_value_chars' => 'The value is one declaration, without a semicolon or braces',
     'theme_utilities_add' => 'New utility',
     'theme_panel_tab_classes' => 'Classes',
-    'theme_classes_hint' => 'Every class the site\'s CSS defines — utilities and plain ones. Click one to see where it lives.',
+    'theme_classes_hint' => 'The site\'s own classes: utilities from site.css and the classes in your own stylesheet. A section\'s rules belong to the section and travel with it, so they are not listed here.',
     'theme_classes_search' => 'Search classes…',
     'theme_classes_empty' => 'No classes match.',
     'theme_classes_ambient' => 'AMBIENT',

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyUsage,
+  ownedRules,
   chipKeeps,
   classRows,
   filterRows,
@@ -149,4 +150,28 @@ test('usage reads as what it is', () => {
 
   assert.equal(usageLabel(dead), 'Ubrugt');
   assert.equal(chipKeeps('unused', dead), true);
+});
+
+test('the tab owns two files: site.css utilities and the site\'s own classes', () => {
+  const kept = ownedRules(
+    [
+      { name: 'wrapper', file: 'resources/css/site.css', selector: '@utility wrapper', css: 'padding: 0;', kind: 'utility' },
+      { name: 'btn', file: 'resources/css/custom-classes.css', selector: '.btn', css: 'gap: 1em;', kind: 'rule' },
+      { name: 'hero', file: 'resources/views/partials/page_sections/hero.antlers.html', selector: '.hero', css: '', kind: 'rule' },
+      { name: 'cp-input', file: 'resources/css/cp.css', selector: '.dark .cp-input', css: '', kind: 'rule' },
+      { name: 'link-parent', file: 'resources/css/base.css', selector: '.link-parent::after', css: '', kind: 'rule' },
+    ],
+    { entry: 'site.css', classes: 'custom-classes.css' }
+  );
+
+  assert.deepEqual(kept.map((r) => r.name), ['wrapper', 'btn']);
+});
+
+test('a plain rule in site.css is not a class the tab offers', () => {
+  const kept = ownedRules(
+    [{ name: 'stray', file: 'resources/css/site.css', selector: '.stray', css: '', kind: 'rule' }],
+    { entry: 'site.css', classes: 'custom-classes.css' }
+  );
+
+  assert.deepEqual(kept, [], 'site.css is the utilities file; its plain rules are not the vocabulary');
 });

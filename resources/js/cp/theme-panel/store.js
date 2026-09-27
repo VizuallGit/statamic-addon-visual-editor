@@ -31,9 +31,11 @@ import { reactive } from 'vue';
  *
  * `classRows` (Classes): every class the site's CSS defines, folded to one row
  * per name by site-classes.js — `{ name, kind, files, selectors, props,
- * ambient }`. Read-only here: the tab says what exists and where, and the
- * Utilities tab is still what writes. `classChip` and `classQuery` are the
- * chip and the search box over the list, `openClass` the name unfolded.
+ * ambient }`, and only from the two files the tab owns — `classSources`:
+ * site.css's utilities and the site's own classes file. A section's rules are
+ * the section's and travel with it, so they are not in here. `classChip` and
+ * `classQuery` are the chip and the search box over the list, `openClass` the
+ * name unfolded.
  *
  * `saved` is site.css as last read or written.
  */
@@ -58,6 +60,7 @@ export const themePanelUi = reactive({
   savedUtilities: {},
   openUtility: '',
   classRows: [],
+  classSources: { entry: 'site.css', classes: 'custom-classes.css' },
   classQuery: '',
   classChip: 'all',
   openClass: '',

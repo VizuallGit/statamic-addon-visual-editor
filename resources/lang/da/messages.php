@@ -871,7 +871,7 @@ return [
     'theme_props_value_chars' => 'Værdien er én erklæring, uden semikolon eller tuborgklammer',
     'theme_utilities_add' => 'Ny utility',
     'theme_panel_tab_classes' => 'Klasser',
-    'theme_classes_hint' => 'Alle klasser sitets CSS definerer — utilities og almindelige. Klik på en for at se hvor den bor.',
+    'theme_classes_hint' => 'Sitets egne klasser: utilities fra site.css og klasserne i din egen CSS-fil. En sektions regler hører til sektionen og følger med, når den eksporteres — derfor står de ikke her.',
     'theme_classes_search' => 'Søg i klasser…',
     'theme_classes_empty' => 'Ingen klasser matcher.',
     'theme_classes_ambient' => 'AFLEDT',

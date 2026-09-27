@@ -11,6 +11,14 @@ final class Root
     public const ENTRY = 'site.css';
 
     /**
+     * The one stylesheet the Classes tab writes plain classes into, beside
+     * site.css's utilities. Everything else the site has — a section's own
+     * rules, base.css, the CP's own stylesheet — belongs to whoever wrote it
+     * and is not offered as a site-wide class.
+     */
+    public const CLASSES = 'custom-classes.css';
+
+    /**
      * The three kinds of file the panel manages, each in its own folder:
      * stylesheets in resources/css (with `site.css` as the Vite entry and its
      * `@import` lines kept in step), scripts in resources/js, and SVG icons in

@@ -35,6 +35,41 @@ export function isAmbient(selector) {
   return !/^\.[A-Za-z_][\w-]*$/.test(compound);
 }
 
+/**
+ * The rules the Classes tab owns, out of everything the site defines.
+ *
+ * Two files, and only two: site.css's `@utility` blocks, and the one
+ * stylesheet the site keeps its own classes in. Everything else belongs to
+ * whoever wrote it — a section's rules travel with the section when it is
+ * exported, base.css and type.css style elements rather than offer classes,
+ * and the CP's own stylesheet is not even loaded on the site. Listing those
+ * would be a list you cannot act on.
+ */
+export function ownedRules(defined, { entry = 'site.css', classes = 'custom-classes.css' } = {}) {
+  const inFile = (file, name) => {
+    const f = String(file || '');
+
+    return f === name || f.endsWith(`/${name}`);
+  };
+
+  return (Array.isArray(defined) ? defined : []).filter((row) => {
+    if (inFile(row.file, classes)) {
+      return true;
+    }
+
+    return row.kind === 'utility' && inFile(row.file, entry);
+  });
+}
+
+/** Whether a row is one the tab can write, and into which file. */
+export function ownerOf(row, { entry = 'site.css', classes = 'custom-classes.css' } = {}) {
+  if (row?.kind === 'utility') {
+    return entry;
+  }
+
+  return row?.files?.some((f) => f === classes || String(f).endsWith(`/${classes}`)) ? classes : '';
+}
+
 /** The name a row is filed under, without the leading dot. */
 function rowName(row) {
   return String(row?.name || '').replace(/^\./, '');
