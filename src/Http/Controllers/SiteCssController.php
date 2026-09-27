@@ -45,6 +45,18 @@ class SiteCssController
         ]);
     }
 
+    /** How often each of the site's own class names is actually written. */
+    public function usage(Request $request)
+    {
+        $this->authorize($request, 'css');
+
+        $names = array_values(array_unique(array_column(SiteClasses::defined(), 'name')));
+
+        return response()->json([
+            'usage' => \MarioHamann\StatamicVisualEditor\ClassUsage::count($names),
+        ]);
+    }
+
     public function show(Request $request)
     {
         $this->authorize($request);

@@ -46,6 +46,7 @@
         <span class="sve-theme__meta">{{ rowSummary(row, labels) }}</span>
       </span>
       <span v-if="row.ambient" class="sve-theme__badge">{{ ui.labels.classes_ambient || fallback.ambient }}</span>
+      <span v-if="usage(row)" class="sve-theme__usage" :class="{ 'is-unused': row.now === 0 }">{{ usage(row) }}</span>
     </button>
 
     <div v-if="ui.openClass === row.name" class="sve-theme__card-body">
@@ -67,6 +68,14 @@
       </template>
 
       <p class="sve-theme__hint">{{ row.files.join(', ') }}</p>
+
+      <!-- Where it is written today, and what a delete would cost. -->
+      <template v-if="row.counted">
+        <p v-if="row.now === 0 && row.history > 0" class="sve-theme__hint">
+          {{ ui.labels.classes_history_warn || fallback.historyWarn }}
+        </p>
+        <p v-for="f in row.where" :key="f" class="sve-theme__hint sve-theme__where">{{ f }}</p>
+      </template>
     </div>
   </section>
 </template>
@@ -74,7 +83,7 @@
 <script setup>
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { CLASS_CHIPS, chipKeeps, filterRows, rowSummary } from '../theme-panel/site-classes.js';
+import { CLASS_CHIPS, chipKeeps, filterRows, rowSummary, usageLabel } from '../theme-panel/site-classes.js';
 import ThemeUtilityEditor from './ThemeUtilityEditor.vue';
 
 defineProps({ h: { type: Object, required: true } });
@@ -87,7 +96,9 @@ const fallback = {
   ambient: 'AFLEDT',
   ambientWhy: 'Denne regel rammer noget inde i noget andet — den kan ikke sættes på et element alene.',
   readOnly: 'Denne regel bor i en anden fil end site.css og rettes i Stylesheets-panelet.',
-  chips: { all: 'Alle', utility: 'Utilities', class: 'Klasser', ambient: 'Afledte' },
+  historyWarn: 'Intet bruger den i dag, men dockens historik gør. Sletter du den, mister en fortrydelse sin styling.',
+  chipsUnused: 'Ubrugte',
+  chips: { all: 'Alle', utility: 'Utilities', class: 'Klasser', ambient: 'Afledte', unused: 'Ubrugte' },
 };
 
 const labels = computed(() => ({
@@ -95,6 +106,14 @@ const labels = computed(() => ({
   prop_many: ui.labels.classes_prop_many,
   no_props: ui.labels.classes_no_props,
 }));
+
+function usage(row) {
+  return usageLabel(row, {
+    used: ui.labels.classes_used,
+    history_only: ui.labels.classes_history_only,
+    unused: ui.labels.classes_unused,
+  });
+}
 
 const shown = computed(() => filterRows(ui.classRows, { chip: ui.classChip, query: ui.classQuery }));
 

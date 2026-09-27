@@ -28,7 +28,7 @@ import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
-import { CLASS_CHIPS, classRows } from './cp/theme-panel/site-classes.js';
+import { CLASS_CHIPS, applyUsage, classRows } from './cp/theme-panel/site-classes.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from './cp/theme-panel/utility-paint.js';
 
 import { THEME_PANEL_ID as PANEL_ID } from './theme-panel-lazy.js';
@@ -588,6 +588,22 @@ function loadClassRows(win) {
     .then((res) => (res.ok ? res.json() : { defined: [] }))
     .then((data) => {
       ui.classRows = classRows(Array.isArray(data?.defined) ? data.defined : []);
+
+      // The count walks the whole site, so it comes after: the list is usable
+      // straight away and the usage fills in. Until it lands nothing reads as
+      // unused — see chipKeeps().
+      return win
+        .fetch('/!/sve/site-css/usage', {
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((counted) => {
+          if (counted?.usage) {
+            ui.classRows = applyUsage(ui.classRows, counted.usage);
+          }
+        })
+        .catch(() => {});
     })
     .catch(() => {
       classRowsAsked = false;

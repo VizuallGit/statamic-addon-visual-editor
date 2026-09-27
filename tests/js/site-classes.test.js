@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyUsage,
   chipKeeps,
   classRows,
   filterRows,
   isAmbient,
   rowSummary,
+  usageLabel,
 } from '../../resources/js/cp/theme-panel/site-classes.js';
 
 test('a selector you can put on an element is not ambient', () => {
@@ -107,4 +109,44 @@ test('the summary says where it lives and how much it sets', () => {
 
   assert.equal(rowSummary(row), 'site.css · 2 egenskaber');
   assert.equal(rowSummary(row, { prop_many: 'properties' }), 'site.css · 2 properties');
+});
+
+test('nothing reads as unused before the count has arrived', () => {
+  const rows = classRows([
+    { name: 'card', file: 'site.css', selector: '@utility card', css: 'padding: 1rem;', kind: 'utility' },
+  ]);
+
+  assert.equal(chipKeeps('unused', rows[0]), false, 'no count yet is not the same as no usage');
+  assert.equal(usageLabel(rows[0]), '', 'and it says nothing rather than guessing');
+});
+
+test('a class only the dock history still writes is not called unused', () => {
+  const rows = applyUsage(
+    classRows([{ name: 'bg-gray-950', file: 'site.css', selector: '.bg-gray-950', css: 'color: red;', kind: 'rule' }]),
+    { 'bg-gray-950': { now: 0, history: 4, files: [] } }
+  );
+
+  assert.equal(rows[0].now, 0);
+  assert.equal(rows[0].history, 4);
+  assert.equal(usageLabel(rows[0]), 'Kun i historikken (4)');
+  assert.equal(chipKeeps('unused', rows[0]), true, 'it is still in the unused chip — with the warning beside it');
+});
+
+test('usage reads as what it is', () => {
+  const [used] = applyUsage(
+    classRows([{ name: 'wrapper', file: 'site.css', selector: '@utility wrapper', css: 'padding: 0;', kind: 'utility' }]),
+    { wrapper: { now: 19, history: 139, files: ['resources/views/a.antlers.html'] } }
+  );
+
+  assert.equal(usageLabel(used), 'Brugt 19 gange');
+  assert.equal(chipKeeps('unused', used), false);
+  assert.deepEqual(used.where, ['resources/views/a.antlers.html']);
+
+  const [dead] = applyUsage(
+    classRows([{ name: 'split-gap-md', file: 'site.css', selector: '@utility split-gap-md', css: 'gap: 0;', kind: 'utility' }]),
+    { 'split-gap-md': { now: 0, history: 0, files: [] } }
+  );
+
+  assert.equal(usageLabel(dead), 'Ubrugt');
+  assert.equal(chipKeeps('unused', dead), true);
 });

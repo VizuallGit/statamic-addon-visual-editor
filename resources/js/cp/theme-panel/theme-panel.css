@@ -1428,3 +1428,22 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* How often a class is written, on the right of its row. Dimmed when nothing
+   uses it — a fact to read, not an alarm. */
+.sve-theme__usage {
+  flex: none;
+  font-size: 0.625rem !important;
+  font-weight: 600 !important;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+.sve-theme__usage.is-unused {
+  opacity: 0.45;
+}
+.sve-theme__where {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.625rem !important;
+  opacity: 0.6;
+  word-break: break-all;
+}

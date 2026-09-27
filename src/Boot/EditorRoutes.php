@@ -128,6 +128,8 @@ final class EditorRoutes
                 ->name('sve.site-css.index');
             Route::get('/!/sve/site-css/classes', [SiteCssController::class, 'classes'])
                 ->name('sve.site-css.classes');
+            Route::get('/!/sve/site-css/usage', [SiteCssController::class, 'usage'])
+                ->name('sve.site-css.usage');
             Route::get('/!/sve/site-css/defined', [SiteCssController::class, 'defined'])
                 ->name('sve.site-css.defined');
             Route::get('/!/sve/site-css/file', [SiteCssController::class, 'show'])

@@ -100,14 +100,37 @@ export function classRows(defined) {
 }
 
 /**
- * The chips over the list. 'unused' is left out on purpose while the usage
- * count cannot be trusted — a chip that hides a class the page is still using
- * is worse than no chip.
+ * How often each row's class is actually written, from the server's count:
+ * `{ name: { now, history, files } }`. `now` is what "unused" means; `history`
+ * is the dock's own versions, which Tailwind still reads — so a row at 0 now
+ * and more than 0 in history is one whose CSS a rollback still needs.
  */
-export const CLASS_CHIPS = ['all', 'utility', 'class', 'ambient'];
+export function applyUsage(rows, usage) {
+  const counts = usage || {};
+
+  return (rows || []).map((row) => {
+    const u = counts[row.name] || {};
+
+    return {
+      ...row,
+      now: Number(u.now || 0),
+      history: Number(u.history || 0),
+      where: Array.isArray(u.files) ? u.files : [],
+      counted: !!usage,
+    };
+  });
+}
+
+/** The chips over the list. */
+export const CLASS_CHIPS = ['all', 'utility', 'class', 'ambient', 'unused'];
 
 /** Whether a chip keeps a row. */
 export function chipKeeps(chip, row) {
+  if (chip === 'unused') {
+    // Only once the count has arrived — before that, nothing is "unused".
+    return !!row.counted && row.now === 0;
+  }
+
   if (chip === 'utility') {
     return row.kind === 'utility';
   }
@@ -140,6 +163,27 @@ export function filterRows(rows, { chip = 'all', query = '' } = {}) {
       || row.files.some((f) => f.toLowerCase().includes(q))
       || row.props.some((p) => p.toLowerCase().includes(q));
   });
+}
+
+/**
+ * What a row's usage reads as: nothing while the count is still on its way,
+ * then how often it is written, and — when only the dock's history has it —
+ * that deleting it is what breaks a rollback.
+ */
+export function usageLabel(row, labels = {}) {
+  if (!row.counted) {
+    return '';
+  }
+
+  if (row.now > 0) {
+    return (labels.used || 'Brugt :n gange').replace(':n', String(row.now));
+  }
+
+  if (row.history > 0) {
+    return (labels.history_only || 'Kun i historikken (:n)').replace(':n', String(row.history));
+  }
+
+  return labels.unused || 'Ubrugt';
 }
 
 /** `wrapper — site.css · 4 properties`, the line under a row's name. */
