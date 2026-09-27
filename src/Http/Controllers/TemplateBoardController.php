@@ -66,7 +66,6 @@ class TemplateBoardController extends Controller
         }
 
         $this->write($view, $handle, $slot);
-        $this->routeFor($slot, $view);
 
         // A show view nothing points at is never rendered. Statamic decides an
         // entry's template from the collection's own `template:` setting, not
@@ -78,7 +77,16 @@ class TemplateBoardController extends Controller
         // Preview has something to open. `ensure` is idempotent and keeps the
         // one-index-one-show rule; the site's own views are not a source's, so
         // they get no row.
+        // The row first: it is the door, and the response is useless without it.
+        // The route is a side effect, and a template nobody can open is worse
+        // than a template with no URL yet.
         $entry = CollectionViewTemplates::ensure($handle, $this->kindFor($handle, $slot), $view, $title);
+
+        try {
+            $this->routeFor($slot, $view);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json([
             'ok' => true,
