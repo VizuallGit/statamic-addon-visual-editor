@@ -53,6 +53,7 @@ const step = (name, ok, detail = '') => {
 };
 
 const BAR = '#__sve-toolbar';
+const PRESET_NAME = `sve-test ${Date.now().toString(36)}`;
 const MORE = '#__sve-lp-more';
 const MENU = '#__sve-lp-more-menu';
 const tabButton = (id) => `${MENU} [data-sve-lp-settings-tab="${id}"]`;
@@ -221,6 +222,35 @@ async function openMenuTab(page, cp, tab) {
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
 
+// The layout save is stubbed inside every document, before its own scripts
+// run: nothing is sent at all. The interception below is the second fence.
+// (27 Sep 2026: one save after the reset step got past interception alone
+// and replaced the demo admin's saved layout — hence both, and the check at
+// the end that the account's saved layout on the server is unchanged.)
+await page.evaluateOnNewDocument((path) => {
+  const real = window.fetch;
+
+  window.fetch = function fetch(input, init) {
+    const url = typeof input === 'string' ? input : input?.url || '';
+    const method = String(init?.method || input?.method || 'GET').toUpperCase();
+
+    if (url.includes(path) && method !== 'GET') {
+      window.__sveTestPrefsStubbed = (window.__sveTestPrefsStubbed || 0) + 1;
+
+      return Promise.resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    }
+
+    return real.apply(this, arguments);
+  };
+}, '/!/sve/chrome-prefs');
+
+/** The account's layout as the server has it, read off a fresh CP page. */
+async function serverLayout() {
+  await page.goto(`${SITE_URL}/cp/dashboard`, { waitUntil: 'networkidle2' });
+
+  return page.evaluate(() => JSON.stringify(window.Statamic?.$config?.get?.('sveChromePrefs') || {}));
+}
+
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => m.type() === 'error' && errors.push(`console: ${m.text().slice(0, 200)}`));
 page.on('response', (r) => r.status() >= 500 && errors.push(`HTTP ${r.status()} ${r.request().method()} ${r.url().replace(SITE_URL, '').slice(0, 140)}`));
@@ -261,10 +291,34 @@ try {
   step('login', !/login/.test(page.url()));
   errors.length = 0;
 
+  const layoutBefore = await serverLayout();
+
   let cp = await openLivePreview(page);
   const before = await visibleIcons(cp);
 
   step('the top bar has its icons', before.length > 3, before.join(' '));
+
+  // Page settings in a box of its own: a topbar gap between it and the rest,
+  // each with its own surface (the row's own is taken off).
+  const box = await cp.evaluate((bar) => {
+    const row = document.querySelector(bar);
+    const icons = [...row.querySelectorAll(':scope > button[data-tab], :scope > [id^="__sve-frame-"]')]
+      .filter((el) => el.getBoundingClientRect().width > 0)
+      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+    const settings = row.querySelector(':scope > button[data-tab="settings"]').getBoundingClientRect();
+    const next = icons.find((el) => el.dataset.tab !== 'settings')?.getBoundingClientRect();
+    const own = getComputedStyle(row.querySelector(':scope > button[data-tab="settings"]'), '::before');
+    const rest = getComputedStyle(row, '::before');
+
+    return {
+      gap: next ? Math.round(next.left - settings.right) : 0,
+      ownBox: own.content !== 'none' && own.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      restBox: rest.content !== 'none' && rest.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      rowBg: getComputedStyle(row).backgroundColor,
+    };
+  }, BAR);
+
+  step('Page settings stands in a box of its own', box.ownBox && box.restBox && box.gap >= 16 && box.rowBg === 'rgba(0, 0, 0, 0)', JSON.stringify(box));
 
   // ── The menu ──────────────────────────────────────────────────────────
   await click(page, cp, MORE);
@@ -421,14 +475,18 @@ try {
   await sleep(200);
   await click(page, cp, `${MENU} [data-sve-toolbar-preset-new]`);
   await cp.waitForSelector(`${MENU} [data-sve-toolbar-preset-name]`, { timeout: 3000 });
-  await page.keyboard.type('Test preset');
+  await page.keyboard.type(PRESET_NAME);
   await page.keyboard.press('Enter');
   await sleep(300);
 
-  const own = await cp.evaluate((m) => document.querySelector(`${m} [data-sve-toolbar-preset^="u-"]`)?.dataset.sveToolbarPreset || '', MENU);
+  // Found by its name: the account may have presets of its own already.
+  const own = await cp.evaluate((m, name) => [...document.querySelectorAll(`${m} [data-sve-toolbar-preset^="u-"]`)]
+    .find((el) => el.textContent.includes(name))?.dataset.sveToolbarPreset || '', MENU, PRESET_NAME);
 
-  step('a new preset is saved under its name', !!own && /Test preset/.test(await cp.$eval(`${MENU} [data-sve-toolbar-preset="${own}"]`, (el) => el.textContent)));
-  step('and is on', await cp.$eval(`${MENU} [data-sve-toolbar-preset="${own}"]`, (el) => el.classList.contains('is-on')));
+  step('a new preset is saved under its name', !!own);
+  // The first preset that is the bar is marked; the account may hold an
+  // identical one of its own ahead of this one.
+  step('and a preset of your own with that bar is on', !!(await cp.$(`${MENU} [data-sve-toolbar-preset^="u-"].is-on`)));
 
   await click(page, cp, `${MENU} [data-sve-toolbar-all]`);
   await sleep(300);
@@ -445,7 +503,7 @@ try {
   step('and keeps the preset of your own', !!(await cp.$(`${MENU} [data-sve-toolbar-preset="${own}"]`)));
   await click(page, cp, `${MENU} [data-sve-toolbar-preset="${own}"] [data-sve-toolbar-preset-delete]`);
   await sleep(300);
-  step('× deletes it', !(await cp.$(`${MENU} [data-sve-toolbar-preset="${own}"]`)) && (await storedKey(cp, 'sve-toolbar-presets')) === null);
+  step('× deletes it', !(await cp.$(`${MENU} [data-sve-toolbar-preset="${own}"]`)) && !String(await storedKey(cp, 'sve-toolbar-presets')).includes(own));
   await page.keyboard.press('Escape');
 
   const jsErrors = errors.filter((line) => !line.startsWith('console: Failed to load resource'));
@@ -462,6 +520,7 @@ try {
     console.log(`info installed preload links not in the working tree (expected with SVE_WORKTREE): ${preloads.join(' | ')}`);
   }
 
+  step("the account's saved layout on the server is unchanged", (await serverLayout()) === layoutBefore);
   step('no JS errors', jsErrors.length === 0, jsErrors.slice(0, 5).join(' | '));
   step('no missing editor files', editorMissing.length === 0, editorMissing.slice(0, 5).join(' | '));
 

@@ -237,6 +237,9 @@ function sitePresets(win) {
 
 function allPresets(win) {
   return [
+    // All: every icon, the dock left as it is — the bar nobody has changed,
+    // so it is the one on until someone does.
+    { id: 'all', tools: toolbarTools(win).map((tool) => tool.key), dock: null, label: t(win, 'toolbar_preset_all'), own: false },
     ...sitePresets(win),
     ...readUserPresets(win).map((preset) => ({ ...preset, label: preset.name, own: true })),
   ];
@@ -276,7 +279,7 @@ function toolbarProps(win) {
   };
 }
 
-/** Show what a preset shows, and open or close the template dock the way it says. */
+/** Show what a preset shows, and open or close the HTML dock the way it says (All leaves it). */
 function applyPreset(win, id) {
   const preset = allPresets(win).find((item) => item.id === id);
 
@@ -286,7 +289,7 @@ function applyPreset(win, id) {
 
   setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
 
-  if (templateDockAllowed(win) && isCodeDockArmed(win) !== preset.dock) {
+  if (preset.dock !== null && templateDockAllowed(win) && isCodeDockArmed(win) !== preset.dock) {
     setCodeDock(win, preset.dock);
   }
 }

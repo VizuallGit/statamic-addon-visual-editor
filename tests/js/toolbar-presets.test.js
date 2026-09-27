@@ -20,6 +20,14 @@ test('a preset is on when the shown icons are its own, and the dock agrees where
   assert.equal(presetMatches(editor, { available, shown: ['pages'] }), false);
 });
 
+test('All leaves the dock alone, so either dock state is All', () => {
+  const all = { id: 'all', tools: available, dock: null };
+
+  assert.equal(presetMatches(all, { available, shown: available, dock: true, dockAllowed: true }), true);
+  assert.equal(presetMatches(all, { available, shown: available, dock: false, dockAllowed: true }), true);
+  assert.deepEqual(presetHidden(all, available), []);
+});
+
 test('an icon the user does not have does not count against a preset', () => {
   const lean = ['pages', 'globals', 'edits'];
 

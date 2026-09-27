@@ -2,8 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
 import { moveKey, presetMatches } from '../../lib/toolbar-presets.js';
 
-// Top bar tab. Presets on top: the site's two (Developer, Content editor —
-// edited on the settings screen) and the user's own. Under them one row per
+// Top bar tab. Presets on top: All, the site's two (Developer, Content
+// editor — edited on the settings screen) and the user's own. Under them one row per
 // icon, in the user's order: drag the handle to move it, the box to show or
 // hide it, Open to press a hidden one. The list is read off the toolbar
 // itself, so a tool this user may not use — no button — is not in it.
@@ -68,7 +68,7 @@ function applyPreset(preset) {
     tool.shown = preset.tools.includes(tool.key);
   });
 
-  if (props.dockAllowed) {
+  if (props.dockAllowed && preset.dock !== null) {
     dock.value = preset.dock;
   }
 

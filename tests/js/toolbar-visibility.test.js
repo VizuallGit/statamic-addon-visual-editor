@@ -15,6 +15,9 @@ import {
 } from '../../resources/js/toolbar-visibility.js';
 import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEY, TOOLBAR_ORDER_KEY, TOOLBAR_PRESETS_KEY } from '../../resources/js/lib/ids.js';
 
+/** The sheet with nothing hidden and no order: Page settings' own box. */
+const BOX = toolbarCss();
+
 /** A button the way header-toolbar.js leaves it: data-tab, title, an svg, aria-pressed. */
 function fakeButton(tab, { title = tab, pressed = false, display = '' } = {}) {
   const attrs = new Map([['aria-pressed', pressed ? 'true' : 'false']]);
@@ -101,13 +104,13 @@ test('the sheet hides a plain icon by its button and a framed one by its frame, 
 
   assert.match(css, /#__sve-toolbar button\[data-tab="performance"\]:not\(\[data-sve-peek\]\)/);
   assert.match(css, /#__sve-frame-pages:not\(\[data-sve-peek\]\)\{display:none!important\}/);
-  assert.equal(toolbarCss({ hidden: [] }), '');
-  assert.equal(toolbarCss(), '');
+  assert.equal(toolbarCss({ hidden: [] }), BOX);
+  assert.equal(toolbarCss(), BOX);
 });
 
 test('page settings and anything that is not a tab key never reach the sheet', () => {
-  assert.equal(toolbarCss({ hidden: ['settings'], order: ['settings'] }), '');
-  assert.equal(toolbarCss({ hidden: ['a"]{x}', 'Pages', ''], order: ['a"]{x}'] }), '');
+  assert.equal(toolbarCss({ hidden: ['settings'], order: ['settings'] }), BOX);
+  assert.equal(toolbarCss({ hidden: ['a"]{x}', 'Pages', ''], order: ['a"]{x}'] }), BOX);
 });
 
 test('the stored list is read back clean', () => {
@@ -134,14 +137,14 @@ test('hiding and showing writes the list and the sheet; the last one shown clear
 
   showAllToolbarTools(win);
   assert.equal(win.store.has(TOOLBAR_HIDDEN_KEY), false);
-  assert.equal(win.sheet(), null);
+  assert.equal(win.sheet(), BOX);
 });
 
-test('a pass with nothing stored adds no sheet', () => {
+test('a pass with nothing stored adds only the Page settings box', () => {
   const win = fakeWin();
 
   syncToolbarLayout(win);
-  assert.equal(win.sheet(), null);
+  assert.equal(win.sheet(), BOX);
 });
 
 test('the list is the icon row itself, without page settings', () => {
@@ -226,7 +229,7 @@ test('setting an order writes it and the sheet; an empty one goes back to the dr
 
   setToolbarOrder(win, []);
   assert.equal(win.store.has(TOOLBAR_ORDER_KEY), false);
-  assert.equal(win.sheet(), null);
+  assert.equal(win.sheet(), BOX);
 });
 
 test('the list follows the order; a tool the order does not know comes after', () => {
@@ -251,4 +254,14 @@ test("a user's own presets are stored clean", () => {
   writeUserPresets(win, []);
   assert.equal(win.store.has(TOOLBAR_PRESETS_KEY), false);
   assert.deepEqual(readUserPresets(win), []);
+});
+
+test('Page settings gets a box of its own, one topbar gap before the rest', () => {
+  assert.match(BOX, /#__sve-toolbar\{background:transparent!important;position:relative;isolation:isolate\}/);
+  // 5 pad + 28 icon + 5 pad, then the 8 px topbar gap.
+  assert.match(BOX, /#__sve-toolbar::before\{[^}]*left:46px;[^}]*background:rgba\(128,128,128,\.16\)/);
+  assert.match(BOX, /button\[data-tab="settings"\]::before\{[^}]*inset:-5px;[^}]*z-index:-1\}/);
+  // 5 + 8 + 5 − the row's own 4 px gap: the rest starts inside its box.
+  assert.match(BOX, /button\[data-tab="settings"\]\{position:relative;margin-right:14px\}/);
+  assert.doesNotMatch(BOX, /display:none|order:/);
 });

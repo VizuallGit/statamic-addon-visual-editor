@@ -478,7 +478,7 @@ return [
     'lp_settings_title' => 'Live Preview-indstillinger',
     'lp_settings_sidebar' => 'Åbn i sidebaren fra starten',
     'lp_settings_width' => 'Bredde',
-    'lp_settings_code_dock' => 'Skabelon-dock fra starten',
+    'lp_settings_code_dock' => 'HTML-dock fra starten',
     'lp_settings_html_tree_tags' => 'HTML-træ: farvede tags (fra = de klassiske kort)',
     'lp_settings_colors' => 'HTML-træ og kode: farver',
     'lp_settings_colors_reset' => 'Standardfarver',
@@ -491,6 +491,7 @@ return [
     'lp_settings_toolbar_close' => 'Luk',
     'lp_settings_toolbar_all' => 'Vis alle',
     'lp_settings_toolbar_empty' => 'Der er ingen værktøjer i topbaren at vælge imellem.',
+    'toolbar_preset_all' => 'Alle',
     'toolbar_preset_developer' => 'Udvikler',
     'toolbar_preset_editor' => 'Indholdsredaktør',
     'lp_settings_presets' => 'Presets',
@@ -707,7 +708,7 @@ return [
     'responsive_inherit_from' => 'Arv igen fra :device',
 
     // Super-admin skabelon-dock (sektionens Antlers-fil)
-    'code_dock_toggle' => 'Rediger sektionsskabelon',
+    'code_dock_toggle' => 'HTML-dock',
     'code_dock_label' => 'Skabelon',
     'code_dock_html' => 'HTML',
     'code_dock_css' => 'CSS',

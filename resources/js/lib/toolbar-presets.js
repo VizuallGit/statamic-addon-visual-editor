@@ -1,11 +1,11 @@
 /**
  * Top bar presets and order, as plain data — no storage, no DOM.
  *
- * A preset is { id, tools: [tab key, …], dock: bool }: the icons it shows and
- * whether the template dock opens. The site's two (Developer, Content editor)
- * come from PHP (ToolbarPresets); a user's own carry a `name` and an id that
- * starts with `u-`. The order is not part of a preset: it is the user's own,
- * whichever preset is on.
+ * A preset is { id, tools: [tab key, …], dock: bool | null }: the icons it
+ * shows and whether the HTML dock opens — null leaves the dock as it is (All).
+ * The site's two (Developer, Content editor) come from PHP (ToolbarPresets); a
+ * user's own carry a `name` and an id that starts with `u-`. The order is not
+ * part of a preset: it is the user's own, whichever preset is on.
  *
  * May import: nothing.
  */
@@ -51,7 +51,7 @@ export function presetMatches(preset, { available, shown, dock = false, dockAllo
     return false;
   }
 
-  return !dockAllowed || preset.dock === dock;
+  return !dockAllowed || preset.dock === null || preset.dock === dock;
 }
 
 /** A new user preset's id: time-based, so two in the same list never meet. */

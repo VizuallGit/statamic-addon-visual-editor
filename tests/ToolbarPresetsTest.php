@@ -41,7 +41,7 @@ class ToolbarPresetsTest extends TestCase
     public function test_unsaved_presets_are_the_defaults(): void
     {
         $this->assertSame([
-            ['id' => 'developer', 'tools' => ToolbarPresets::TOOLS, 'dock' => true],
+            ['id' => 'developer', 'tools' => ['sections', 'code', 'site_css', 'theme'], 'dock' => true],
             ['id' => 'editor', 'tools' => ToolbarPresets::DEFAULTS['editor']['tools'], 'dock' => false],
         ], ToolbarPresets::all());
     }

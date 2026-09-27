@@ -481,7 +481,7 @@ return [
     'lp_settings_title' => 'Live Preview settings',
     'lp_settings_sidebar' => 'Open in the sidebar from the start',
     'lp_settings_width' => 'Width',
-    'lp_settings_code_dock' => 'Template dock from the start',
+    'lp_settings_code_dock' => 'HTML dock from the start',
     'lp_settings_html_tree_tags' => 'HTML tree: coloured tags (off = the classic cards)',
     'lp_settings_colors' => 'HTML tree and code: colours',
     'lp_settings_colors_reset' => 'Default colours',
@@ -494,6 +494,7 @@ return [
     'lp_settings_toolbar_close' => 'Close',
     'lp_settings_toolbar_all' => 'Show all',
     'lp_settings_toolbar_empty' => 'No tools in the top bar to choose from.',
+    'toolbar_preset_all' => 'All',
     'toolbar_preset_developer' => 'Developer',
     'toolbar_preset_editor' => 'Content editor',
     'lp_settings_presets' => 'Presets',
@@ -713,7 +714,7 @@ return [
     'responsive_inherit_from' => 'Inherit from :device again',
 
     // Super-admin template dock (section Antlers file)
-    'code_dock_toggle' => 'Edit section template',
+    'code_dock_toggle' => 'HTML dock',
     'code_dock_label' => 'Template',
     'code_dock_html' => 'HTML',
     'code_dock_css' => 'CSS',

@@ -6,8 +6,9 @@ use Statamic\Facades\Addon;
 use Statamic\Facades\User;
 
 /**
- * The two presets every Live Preview top bar starts with: Developer and
- * Content editor.
+ * The two presets the site sets for the Live Preview top bar: Developer and
+ * Content editor. The menu puts All in front of them — every icon, the dock
+ * left as it is — which needs no setting and is the state nobody has changed.
  *
  * A preset says which icons show and whether the template dock opens with
  * Live Preview. The site edits both on the settings screen (Top bar presets);
@@ -42,7 +43,7 @@ class ToolbarPresets
     /** @var array<string, array{tools: list<string>, dock: bool}> */
     public const DEFAULTS = [
         'developer' => [
-            'tools' => self::TOOLS,
+            'tools' => ['sections', 'code', 'site_css', 'theme'],
             'dock' => true,
         ],
         'editor' => [

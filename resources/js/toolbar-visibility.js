@@ -9,7 +9,8 @@
  * the row is a flex box, so `order` places an icon without touching the DOM —
  * the buttons stay where their neighbours are placed after them, and "open"
  * below presses the real button, so a hidden tool opens the one way it always
- * did. Page settings is always first and always shown.
+ * did. Page settings is always first, always shown, and drawn in a box of its
+ * own, apart from the rest.
  *
  * The Live Preview settings menu (⋮ → Top bar) is the only writer. A tool this
  * user has no access to never gets a button, so it never reaches that list.
@@ -19,7 +20,10 @@
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import {
   HEADER_FRAME_PREFIX,
+  HEADER_SURFACE,
   HEADER_TOOLBAR_ID,
+  LP_CONTROL_PAD,
+  LP_TOOLBAR_GAP,
   TOOLBAR_HIDDEN_KEY,
   TOOLBAR_ORDER_KEY,
   TOOLBAR_PRESETS_KEY,
@@ -35,6 +39,30 @@ export const PEEK_ATTR = 'data-sve-peek';
 const ALWAYS_SHOWN = ['settings'];
 
 const TOOL_KEY = /^[a-z][a-z0-9_]*$/;
+
+/** The row's own gap and an icon's width, as header-toolbar.js draws them. */
+const ROW_GAP = 4;
+const ICON_W = 28;
+
+/**
+ * Page settings in a box of its own, the way the device group has the
+ * breakpoint overview beside it. The row's surface is taken off and drawn
+ * twice: around Page settings (its ::before, one control-pad out, under the
+ * button's own lit colour), and behind the rest from one topbar gap further
+ * on. Paint only — the button stays in the row, where everything that looks
+ * for it (the lit state, the width picker's anchor) still finds it.
+ */
+function settingsBoxCss() {
+  const bar = `#${HEADER_TOOLBAR_ID}`;
+  const box = LP_CONTROL_PAD * 2 + ICON_W;
+
+  return [
+    `${bar}{background:transparent!important;position:relative;isolation:isolate}`,
+    `${bar}::before{content:"";position:absolute;top:0;bottom:0;right:0;left:${box + LP_TOOLBAR_GAP}px;border-radius:.5rem;background:${HEADER_SURFACE};z-index:-1}`,
+    `${bar}>button[data-tab="settings"]{position:relative;margin-right:${LP_CONTROL_PAD * 2 + LP_TOOLBAR_GAP - ROW_GAP}px}`,
+    `${bar}>button[data-tab="settings"]::before{content:"";position:absolute;inset:-${LP_CONTROL_PAD}px;border-radius:.5rem;background:${HEADER_SURFACE};z-index:-1}`,
+  ];
+}
 
 function validKey(key) {
   return typeof key === 'string' && TOOL_KEY.test(key) && !ALWAYS_SHOWN.includes(key);
@@ -71,19 +99,24 @@ export function readToolbarOrder(win) {
 }
 
 /**
- * The sheet. A hidden framed tool (pages, globals) goes as a whole: its
- * control sits in the frame, and a control without its icon is a stray. An
- * ordered row pins Page settings in front; an icon the order does not know
- * (a tool added since) sits right after it.
+ * The sheet: Page settings' own box, always; then the hidden icons — a
+ * framed tool (pages, globals) goes as a whole, as its control sits in the
+ * frame and a control without its icon is a stray; then the order, which pins
+ * Page settings in front and puts an icon it does not know (a tool added
+ * since) right after it.
  */
 export function toolbarCss({ hidden = [], order = [] } = {}) {
-  const rules = hidden
+  const rules = settingsBoxCss();
+
+  hidden
     .filter(validKey)
     .map(
       (key) =>
         `#${HEADER_TOOLBAR_ID} button[data-tab="${key}"]:not([${PEEK_ATTR}]),` +
         `#${HEADER_FRAME_PREFIX}${key}:not([${PEEK_ATTR}]){display:none!important}`
-    );
+    )
+    .forEach((rule) => rules.push(rule));
+
   const ordered = order.filter(validKey);
 
   if (ordered.length) {
@@ -104,12 +137,6 @@ export function syncToolbarLayout(win) {
   const doc = win.document;
   const css = toolbarCss({ hidden: readHiddenTools(win), order: readToolbarOrder(win) });
   let style = doc.getElementById(STYLE_ID);
-
-  if (!css) {
-    style?.remove();
-
-    return;
-  }
 
   if (!style) {
     style = doc.createElement('style');
