@@ -136,5 +136,28 @@
         return pending.then(replay);
     };
 
+    // The theme panel writes the colours to site.css, and the swatch route
+    // reads that file: the body kept here is a palette that no longer exists.
+    // Drop it on save, so the next picker to ask is served the saved colours
+    // — a reload of the whole CP used to be the only way to see them.
+    //
+    // A CP form can sit in an iframe, and the panel fires on the window it
+    // lives in, so all three are listened to. addEventListener ignores the
+    // same function twice on one target, so the usual case costs nothing.
+    function forgetSwatches() {
+        delete cache.swatches;
+        delete inflight.swatches;
+    }
+
+    [window, window.parent, window.top].forEach(function (w) {
+        try {
+            if (w) {
+                w.addEventListener('sve:site-css-saved', forgetSwatches);
+            }
+        } catch (err) {
+            /* cross-origin */
+        }
+    });
+
     window.fetch.__sveDedupeCpFetch = true;
 })();
