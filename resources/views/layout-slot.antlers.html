@@ -1,0 +1,8 @@
+{{#
+    The page's content, when the layout itself is what is being edited.
+
+    The layout renders with this in place of a page, so `{{ template_content }}`
+    shows as the empty box it is — the slot every page fills. Nothing here is
+    part of any page; it exists so the hole has a shape.
+#}}
+<div data-sve-layout-slot style="min-height:8rem;display:flex;align-items:center;justify-content:center;border:1px dashed currentColor;border-radius:.375rem;opacity:.45;font:.875rem/1 system-ui,sans-serif">{{ trans key="sve::messages.layout_slot" }}</div>

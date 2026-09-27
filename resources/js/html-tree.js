@@ -1462,7 +1462,35 @@ export function renderHtmlTree(win) {
   // Which part of the page's frame this file is — read off the dock's file,
   // so the rows and the frame around them can never disagree. '' on a
   // section, a component, a template.
-  const frameKind = inSections || inComponent ? '' : String(ask('dock:chrome-kind') || '');
+  const dockKind = inSections || inComponent ? '' : String(ask('dock:chrome-kind') || '');
+
+  /*
+   * The layout is the dock's answer to two different questions.
+   *
+   * Asked for — the reader opened it — it is the file on screen, and the tree
+   * shows its body. Unasked, it is only where the dock stands when nothing is
+   * chosen (dock-api: `onEmptyPage = !resolved && !uid`), and the reader is
+   * looking at a page. Both say `main`, which is why a page's tree still drew
+   * the frame after it was taken out of `frameAroundPage`: the frame was never
+   * there because a section was open, it was there because the dock had
+   * quietly fallen back to the layout.
+   *
+   * Header and footer are never a fallback, so they pass through untouched.
+   */
+  const pageView = pageBuilder && dockKind === 'main' && ask('dock:on-empty-page') === true;
+
+  /*
+   * The frame belongs to the layout, and only to the layout.
+   *
+   * A collection's show or index is its own markup — the section, its heading,
+   * its image — and drawing a header and a footer around it says the template
+   * owns a page's frame, which it does not. The layout owns that, and opening
+   * the layout is where you see it. Same for a page: its tree is its sections.
+   *
+   * `template` is the dock's word for a collection view; `pageView` is the
+   * layout standing in for a page nobody has chosen anything on.
+   */
+  const frameKind = pageView || dockKind === 'template' ? '' : dockKind;
 
   // Off the layout, the next landing on it seats the tree on <main> again.
   if (frameKind !== 'main') {
@@ -1475,6 +1503,15 @@ export function renderHtmlTree(win) {
 
   if (mainNode) {
     expandHtmlTreePath(mainNode.path);
+
+    // And <main> itself, on the first landing only. What is inside it —
+    // `{{ template_content }}`, the hole every page fills — is the reason
+    // anyone opens the layout; arriving with it folded asks for a twist
+    // before the file says anything. Flipped once per landing, so a reader
+    // who folds it back keeps it folded.
+    if (htmlTreeMainSeated !== fileKey) {
+      htmlTreeFolds.add(mainNode.path);
+    }
   }
 
   // The half's own element: the one carrying data-sve-chrome, or failing
@@ -1497,7 +1534,7 @@ export function renderHtmlTree(win) {
   const landed = frameKind === 'main'
     ? !!mainNode
     : frameKind === 'header' || frameKind === 'footer' ? !!chromeNode : true;
-  const rows = !landed
+  const rows = pageView || !landed
     ? []
     : around
       ? flattenHtmlTree(around.tree, htmlTreeUi.query ? new Set() : around.folds)
@@ -1683,7 +1720,20 @@ export function renderHtmlTree(win) {
   const mainRaw = mainNode ? rows.find((row) => row.id === mainNode.id) || null : null;
   // The row the frame stands on — <main> on the layout, the half's element on
   // its file — and where its subtree ends. Only that subtree is drawn.
-  const frameRaw = mainRaw || (chromeRootId ? rows.find((row) => row.id === chromeRootId) || null : null);
+  /*
+   * On the layout the tree shows the whole body — header, main and footer as
+   * the file actually writes them, with `{{ template_content }}` under main.
+   *
+   * It used to cut to `<main>` alone, which answered "what wraps the sections"
+   * with the one part that does not wrap anything. The frame drawn around a
+   * page said the same thing in synthetic rows; this says it in the file, so
+   * clicking a part opens the thing that renders it. `mainRaw` still carries
+   * the stamp and the landing seat — it is a row in here, not the root.
+   */
+  const bodyRaw = mainRaw
+    ? rows.find((row) => row.tag === 'body' && row.depth < mainRaw.depth) || null
+    : null;
+  const frameRaw = bodyRaw || mainRaw || (chromeRootId ? rows.find((row) => row.id === chromeRootId) || null : null);
   const frameEnd = frameRaw ? nextOutside(rows, frameRaw) : -1;
 
   if (frameRaw && !rows.slice(rows.indexOf(frameRaw), frameEnd).some((row) => row.id === htmlTreeActiveId)) {
@@ -1774,7 +1824,7 @@ export function renderHtmlTree(win) {
 
   // The page's sections: listed under main on a section's file, and — dimmed,
   // to click back out to — around the header's, the footer's or the layout's.
-  htmlTreeUi.sections = inSections || frameKind
+  htmlTreeUi.sections = pageBuilder && (inSections || frameKind || pageView)
     ? sections.map((section) => {
         const current = !!openUid && section.uid === openUid;
         // Tags are drawn as soon as there are tags: from the cache the moment
@@ -1808,7 +1858,7 @@ export function renderHtmlTree(win) {
         };
       })
     : [];
-  htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind);
+  htmlTreeUi.frame = frameAroundPage(win, sections, inSections, inComponent, frameKind, false, !!bodyRaw);
   htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
   bindFrame(win, frameKind);
 
@@ -1872,10 +1922,27 @@ function bindFrame(win, frameKind) {
  * way back out. Anywhere else — a collection's template, a component — there
  * is no frame, and the list is what it was.
  */
-function frameAroundPage(win, sections, inSections, inComponent, kind, emptyPage = false) {
-  // An empty page has no section to stand on and no part open — and still a
-  // frame, because the frame is the layout's, not the sections'.
-  if (!inSections && !kind && !emptyPage) {
+function frameAroundPage(win, sections, inSections, inComponent, kind, emptyPage = false, bodyShown = false) {
+  /*
+   * The frame is drawn when it is the subject, and when there is nothing else
+   * to draw. Not around a page's sections.
+   *
+   * It used to stand around every page: header at the top, the sections in
+   * main, footer at the bottom. Three rows of the layout, repeated on every
+   * page, above the one list the page actually owns. The layout has its own
+   * screen now — open it and the real `<body>` is there, header and footer as
+   * the file writes them — so a page's tree is its sections and nothing else.
+   *
+   * An empty page keeps the frame: with no sections it is the only thing there
+   * is to show, and the only way to go anywhere from there.
+   */
+  if (!kind && !emptyPage) {
+    return null;
+  }
+
+  // On the layout itself the file already shows all three parts. Drawing the
+  // synthetic ones around them would say everything twice.
+  if (bodyShown) {
     return null;
   }
 

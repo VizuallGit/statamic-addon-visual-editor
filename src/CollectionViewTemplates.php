@@ -73,7 +73,7 @@ class CollectionViewTemplates
 
     public static function ensure(string $sourceHandle, string $kind, string $view, string $sourceTitle): ?EntryContract
     {
-        if (! in_array($kind, ['index', 'show'], true)) {
+        if (! in_array($kind, ['index', 'show', 'layout', 'page'], true)) {
             return null;
         }
 
@@ -88,6 +88,16 @@ class CollectionViewTemplates
             ->where('source_collection', $sourceHandle)
             ->where('kind', $kind)
             ->first();
+
+        if (! $existing && in_array($kind, ['layout', 'page'], true)) {
+            // The layout belongs to the site, not to a collection, so an older
+            // row for it may carry no source at all.
+            $existing = Entry::query()
+                ->where('collection', $store)
+                ->where('kind', $kind)
+                ->get()
+                ->first(fn ($entry) => (string) $entry->get('view') === $view);
+        }
 
         if ($existing) {
             return $existing;

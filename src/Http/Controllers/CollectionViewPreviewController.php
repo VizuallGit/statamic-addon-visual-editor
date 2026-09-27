@@ -39,8 +39,38 @@ class CollectionViewPreviewController extends Controller
         $sourceHandle = static::scalar(static::raw($template, 'source_collection'));
         $view = CollectionViewTemplates::normalizeView((string) static::raw($template, 'view'));
 
-        abort_unless($view && in_array($kind, ['index', 'show'], true), 404);
+        abort_unless($view && in_array($kind, ['index', 'show', 'layout', 'page'], true), 404);
         abort_unless(static::viewExists($view), 404);
+
+        /*
+         * The layout is the one template that is not a page's.
+         *
+         * Every other kind renders a view INSIDE the layout. This renders the
+         * layout itself, with a placeholder where a page would be — so
+         * `{{ template_content }}` shows as the empty box it is, and the
+         * header and footer around it are the real ones. No entry is involved,
+         * so no source collection is needed.
+         */
+        if ($kind === 'layout') {
+            return static::previewResponse(
+                app(View::class)
+                    ->template('sve::layout-slot')
+                    ->layout($view)
+                    ->render()
+            );
+        }
+
+        // The site's own pages — 404, search, the frontpage. A view like any
+        // other, rendered inside the layout; there is just no collection
+        // behind it, so there is no entry to cascade.
+        if ($kind === 'page') {
+            return static::previewResponse(
+                app(View::class)
+                    ->template($view)
+                    ->layout(config('statamic.system.layout', 'layout'))
+                    ->render()
+            );
+        }
 
         $source = Collection::findByHandle($sourceHandle);
 

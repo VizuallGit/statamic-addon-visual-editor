@@ -68,10 +68,13 @@ final class TemplateBoard
      */
     public static function siteRow(): array
     {
+        $byView = static::siteEntries();
         $cards = [];
 
         foreach (static::SITE_SLOTS as $slot => $view) {
-            $cards[] = static::card($slot, $view, null);
+            $card = static::card($slot, $view, $byView[$view] ?? null);
+            $card['kind'] = $slot === 'layout' ? 'layout' : 'page';
+            $cards[] = $card;
         }
 
         return [
@@ -230,6 +233,40 @@ final class TemplateBoard
         }
 
         return (bool) preg_match('#^[A-Za-z0-9][A-Za-z0-9_/-]*$#', $view);
+    }
+
+    /**
+     * The site's own template rows, by the view each one points at.
+     *
+     * They belong to no collection, so there is nothing to look them up by
+     * but the file — which is also the only thing that makes one of them the
+     * same row twice.
+     *
+     * @return array<string, mixed>
+     */
+    public static function siteEntries(): array
+    {
+        $store = Stores::collectionTemplates();
+
+        if (! Collection::findByHandle($store)) {
+            return [];
+        }
+
+        $found = [];
+
+        foreach (Entry::query()->where('collection', $store)->get() as $entry) {
+            if (! in_array($entry->get('kind'), ['layout', 'page'], true)) {
+                continue;
+            }
+
+            $view = $entry->get('view');
+
+            if (is_string($view) && $view !== '' && ! isset($found[$view])) {
+                $found[$view] = $entry;
+            }
+        }
+
+        return $found;
     }
 
     /**

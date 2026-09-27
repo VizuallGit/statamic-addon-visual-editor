@@ -43,9 +43,23 @@ class TemplateBoardController extends Controller
 
         abort_unless($view !== null, 404);
 
-        // Already there — say so rather than writing over someone's template.
+        /*
+         * The file is already there — so this is "open it", not "make it".
+         *
+         * A template with no CP row cannot be opened in Live Preview at all:
+         * a view file is not an entry. Making the row on demand is what turns
+         * a card into a door. Nothing is written over.
+         */
         if (TemplateBoard::viewFile($view) !== null) {
-            return response()->json(['ok' => false, 'reason' => 'exists', 'view' => $view], 409);
+            $entry = CollectionViewTemplates::ensure($handle, $this->kindFor($handle, $slot), $view, $title);
+
+            return response()->json([
+                'ok' => true,
+                'view' => $view,
+                'file' => TemplateBoard::viewFile($view),
+                'entry' => $entry?->id(),
+                'edit' => $entry?->editUrl(),
+            ]);
         }
 
         $this->write($view, $handle, $slot);
@@ -60,9 +74,7 @@ class TemplateBoardController extends Controller
         // Preview has something to open. `ensure` is idempotent and keeps the
         // one-index-one-show rule; the site's own views are not a source's, so
         // they get no row.
-        $entry = in_array($slot, TemplateBoard::SOURCE_SLOTS, true)
-            ? CollectionViewTemplates::ensure($handle, $slot, $view, $title)
-            : null;
+        $entry = CollectionViewTemplates::ensure($handle, $this->kindFor($handle, $slot), $view, $title);
 
         return response()->json([
             'ok' => true,
@@ -71,6 +83,21 @@ class TemplateBoardController extends Controller
             'entry' => $entry?->id(),
             'edit' => $entry?->editUrl(),
         ]);
+    }
+
+    /**
+     * What kind of row this slot makes.
+     *
+     * `layout` renders itself; `page` renders inside the layout with no entry
+     * behind it; `index` and `show` are a collection's, as before.
+     */
+    protected function kindFor(string $handle, string $slot): string
+    {
+        if ($handle !== '_site') {
+            return $slot;
+        }
+
+        return $slot === 'layout' ? 'layout' : 'page';
     }
 
     /**

@@ -1,12 +1,17 @@
 /**
- * The Templates board: every template this site can render, one row per
- * collection and taxonomy, with the site's own row first.
+ * The Templates board: three columns — the site's own, the collections', the
+ * taxonomies'.
  *
- * Read-mostly. The rows come from `/!/sve/template-board`, which builds them
+ * A column is a stack of cards; a card is a template you can open. That is the
+ * whole screen: no paths to read and no settings on the face of it. What a
+ * column is missing is offered under the + in its header, not drawn as a hole
+ * in the stack.
+ *
+ * Read-mostly. The data comes from `/!/sve/template-board`, which builds it
  * from the views folder — so a template scaffolded anywhere else appears here
  * the next time the page is opened, without this file knowing about it.
  *
- * Plain DOM on purpose: the page is a list of links, and a Vue app on a
+ * Plain DOM on purpose: the page is a grid of links, and a Vue app on a
  * Utilities page would have to be mounted, unmounted and kept in step with
  * Inertia for no gain. Colours come from the CP's own custom properties, so
  * the board follows the panel's theme instead of carrying a second one.
@@ -19,6 +24,14 @@ import { csrfToken } from './lib/csrf.js';
 /** Kept in step with HOST_ID in template-board-boot.js. */
 const BOARD_HOST = 'sve-template-board';
 const STYLE_ID = '__sve-template-board-style';
+const MENU_ID = '__sve-template-board-menu';
+
+/** The three columns, in reading order, and which rows land in each. */
+const GROUPS = [
+  { id: 'site', label: 'template_board_group_site', kinds: ['site'] },
+  { id: 'collections', label: 'template_board_group_collections', kinds: ['collection'] },
+  { id: 'taxonomies', label: 'template_board_group_taxonomies', kinds: ['taxonomy'] },
+];
 
 /**
  * The stylesheet is written here rather than imported.
@@ -29,35 +42,72 @@ const STYLE_ID = '__sve-template-board-style';
  * px only for hairlines.
  */
 const CSS = `
-#${BOARD_HOST} { display: flex; flex-direction: column; gap: 1.75rem; }
-#${BOARD_HOST} [data-sve-tb-row] { display: flex; flex-direction: column; gap: .625rem; }
+#${BOARD_HOST} { --sve-tb-card: 10.25rem; --sve-tb-line: 1px solid var(--c-border, rgba(127,127,127,.2)); }
+#${BOARD_HOST} [data-sve-tb-board] { display: flex; align-items: stretch; min-height: 24rem; }
+#${BOARD_HOST} [data-sve-tb-col] {
+  display: flex; flex-direction: column; flex: 0 0 auto;
+  width: calc(var(--sve-tb-card) + 3.25rem);
+  border-right: var(--sve-tb-line);
+}
+#${BOARD_HOST} [data-sve-tb-col]:last-child { border-right: 0; }
+
+/* The header band across the tops of the columns. */
 #${BOARD_HOST} [data-sve-tb-head] {
-  display: flex; align-items: baseline; gap: .5rem;
-  padding-bottom: .375rem; border-bottom: 1px solid var(--c-border, rgba(127,127,127,.25));
+  display: flex; align-items: center; gap: .4375rem;
+  height: 2.875rem; padding: 0 1.125rem; line-height: 1;
+  background: var(--c-bg-secondary, rgba(127,127,127,.07));
+  border-right: var(--sve-tb-line);
 }
-#${BOARD_HOST} [data-sve-tb-title] { font-weight: 600; line-height: 1; }
-#${BOARD_HOST} [data-sve-tb-kind] { font-size: .8em; opacity: .55; line-height: 1; }
-#${BOARD_HOST} [data-sve-tb-cards] {
-  display: grid; gap: .75rem;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+#${BOARD_HOST} [data-sve-tb-col]:last-child [data-sve-tb-head] { border-right: 0; }
+#${BOARD_HOST} [data-sve-tb-title] { font-size: .9375rem; white-space: nowrap; }
+#${BOARD_HOST} [data-sve-tb-add] {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.375em; height: 1.375em; line-height: 1;
+  font-size: 1em; border: 0; border-radius: .25rem;
+  background: none; color: inherit; opacity: .6; cursor: pointer;
 }
+#${BOARD_HOST} [data-sve-tb-add]:hover { opacity: 1; background: rgba(127,127,127,.2); }
+
+#${BOARD_HOST} [data-sve-tb-stack] { display: flex; flex-direction: column; gap: 1.5rem; padding: 1.5rem 1.125rem; }
+
+/* A card: the thumbnail, with its name under it. */
 #${BOARD_HOST} [data-sve-tb-card] {
-  display: flex; flex-direction: column; gap: .3125rem;
-  min-height: 5.5rem; padding: .75rem;
-  border: 1px solid var(--c-border, rgba(127,127,127,.25));
-  border-radius: .5rem;
-  text-align: left; font: inherit; color: inherit; background: none;
+  display: block; width: var(--sve-tb-card);
+  padding: 0; border: 0; background: none; color: inherit;
+  font: inherit; text-align: left; cursor: pointer;
 }
-#${BOARD_HOST} [data-sve-tb-card][data-filled] { cursor: pointer; }
-#${BOARD_HOST} [data-sve-tb-card][data-filled]:hover { border-color: currentColor; }
-#${BOARD_HOST} [data-sve-tb-card][data-empty] { border-style: dashed; align-items: center; justify-content: center; }
-#${BOARD_HOST} [data-sve-tb-card][data-broken] { border-color: var(--c-danger, #dc2626); }
-#${BOARD_HOST} [data-sve-tb-slot] { font-weight: 600; line-height: 1.2; }
-#${BOARD_HOST} [data-sve-tb-file] { font-size: .8em; opacity: .6; font-family: ui-monospace, monospace; word-break: break-all; }
-#${BOARD_HOST} [data-sve-tb-note] { font-size: .8em; }
-#${BOARD_HOST} [data-sve-tb-card][data-broken] [data-sve-tb-note] { color: var(--c-danger, #dc2626); }
-#${BOARD_HOST} [data-sve-tb-card][data-shared] [data-sve-tb-note] { opacity: .6; }
-#${BOARD_HOST} [data-sve-tb-busy] { opacity: .5; pointer-events: none; }
+#${BOARD_HOST} [data-sve-tb-shot] {
+  display: block; height: 12.5rem; border-radius: .25rem;
+  background-color: rgba(127,127,127,.08);
+  background-image: repeating-linear-gradient(-45deg, rgba(127,127,127,.1) 0 .625rem, transparent .625rem 1.25rem);
+}
+#${BOARD_HOST} [data-sve-tb-card]:hover [data-sve-tb-shot] { outline: 1px solid currentColor; }
+#${BOARD_HOST} [data-sve-tb-label] { display: block; margin-top: .625rem; font-size: .8125rem; font-weight: 600; line-height: 1.3; }
+#${BOARD_HOST} [data-sve-tb-note] { display: block; font-size: .75rem; opacity: .45; line-height: 1.3; }
+#${BOARD_HOST} [data-sve-tb-card][data-broken] [data-sve-tb-shot] { outline: 1px solid var(--c-danger, #dc2626); }
+#${BOARD_HOST} [data-sve-tb-card][data-broken] [data-sve-tb-note] { color: var(--c-danger, #dc2626); opacity: 1; }
+
+/* An empty column says so once, in the space a card would take. */
+#${BOARD_HOST} [data-sve-tb-none] {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .875rem;
+  width: var(--sve-tb-card); height: 12.5rem; padding: 1rem;
+  border: var(--sve-tb-line); border-radius: .25rem;
+  text-align: center; font-size: .8125rem; line-height: 1.45; opacity: .7;
+}
+#${BOARD_HOST} [data-sve-tb-busy] { opacity: .45; pointer-events: none; }
+
+/* The add menu is appended to <body>: a panel's stacking context traps it. */
+#${MENU_ID} {
+  position: fixed; z-index: 99999; min-width: 12rem; max-height: 20rem; overflow-y: auto; padding: .3125rem;
+  border: 1px solid var(--c-border, rgba(127,127,127,.3)); border-radius: .5rem;
+  background: var(--c-bg, #262626); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.4);
+}
+#${MENU_ID} button {
+  display: block; width: 100%; padding: .5rem .625rem; line-height: 1.2;
+  border: 0; border-radius: .3125rem; background: none;
+  color: var(--c-text, inherit); font: inherit; text-align: left; cursor: pointer;
+}
+#${MENU_ID} button:hover { background: rgba(127,127,127,.22); }
 `;
 
 function ensureStyle(win) {
@@ -70,14 +120,6 @@ function ensureStyle(win) {
   style.id = STYLE_ID;
   style.textContent = CSS;
   win.document.head.appendChild(style);
-}
-
-/**
- * A slot's name on screen. Falls back to the slot key, which is what makes a
- * missing translation visible rather than blank.
- */
-function slotLabel(win, slot) {
-  return t(win, `template_board_slot_${slot}`);
 }
 
 function el(win, tag, attrs = {}, text = '') {
@@ -98,70 +140,112 @@ function el(win, tag, attrs = {}, text = '') {
   return node;
 }
 
-function cardNode(win, host, row, card) {
-  const filled = card.exists && !card.broken;
+/** A slot's name on screen; the key shows through when a string is missing. */
+const slotLabel = (win, slot) => t(win, `template_board_slot_${slot}`);
+
+/**
+ * What a card calls itself.
+ *
+ * The site's templates are named by what they are — Layout, 404. A
+ * collection's are named by whose they are, because a column full of cards
+ * called "Show" says nothing.
+ */
+function cardLabel(win, row, card) {
+  return row.kind === 'site' ? slotLabel(win, card.slot) : `${row.title} ${slotLabel(win, card.slot)}`;
+}
+
+// ===== the add menu =====
+
+function closeMenu(win) {
+  win.document.getElementById(MENU_ID)?.remove();
+}
+
+/**
+ * What this column could still have, offered where the + was.
+ *
+ * Appended to <body> rather than to the column: a panel makes its own stacking
+ * context, and a menu inside one is clipped by it.
+ */
+function openMenu(win, button, missing) {
+  closeMenu(win);
+
+  if (!missing.length) {
+    return;
+  }
+
+  const menu = el(win, 'div', { id: MENU_ID });
+  const box = button.getBoundingClientRect();
+
+  menu.style.left = `${Math.round(box.left)}px`;
+  menu.style.top = `${Math.round(box.bottom + 4)}px`;
+
+  for (const { row, card } of missing) {
+    const item = el(win, 'button', { type: 'button' }, cardLabel(win, row, card));
+
+    item.addEventListener('click', () => {
+      closeMenu(win);
+      void open(win, row, card, button);
+    });
+    menu.appendChild(item);
+  }
+
+  win.document.body.appendChild(menu);
+
+  const away = (event) => {
+    if (!menu.contains(event.target) && event.target !== button) {
+      closeMenu(win);
+      win.removeEventListener('pointerdown', away, true);
+    }
+  };
+
+  win.addEventListener('pointerdown', away, true);
+}
+
+// ===== cards =====
+
+function cardNode(win, row, card) {
   const node = el(win, 'button', {
     type: 'button',
     'data-sve-tb-card': '',
     'data-slot': card.slot,
-    'data-filled': filled || null,
-    'data-empty': !card.exists && !card.broken ? '' : null,
     'data-broken': card.broken ? '' : null,
-    'data-shared': card.shared ? '' : null,
+    title: card.file || card.view,
   });
 
-  node.appendChild(el(win, 'span', { 'data-sve-tb-slot': '' }, slotLabel(win, card.slot)));
+  node.appendChild(el(win, 'span', { 'data-sve-tb-shot': '' }));
+  node.appendChild(el(win, 'span', { 'data-sve-tb-label': '' }, cardLabel(win, row, card)));
 
   if (card.broken) {
-    node.appendChild(el(win, 'span', { 'data-sve-tb-file': '' }, `${card.view}.antlers.html`));
     node.appendChild(el(win, 'span', { 'data-sve-tb-note': '' }, t(win, 'template_board_broken')));
-  } else if (card.exists) {
-    node.appendChild(el(win, 'span', { 'data-sve-tb-file': '' }, card.file));
-
-    // A template several collections point at. Not empty — but editing it
-    // changes every one of them, and the card is the only place to find out.
-    if (card.shared) {
-      node.appendChild(el(win, 'span', { 'data-sve-tb-note': '' }, t(win, 'template_board_shared')));
-    }
-  } else {
-    node.appendChild(el(win, 'span', { 'data-sve-tb-note': '' }, t(win, 'template_board_empty')));
+  } else if (card.shared) {
+    node.appendChild(el(win, 'span', { 'data-sve-tb-note': '' }, t(win, 'template_board_shared_short')));
+    node.title = t(win, 'template_board_shared');
   }
 
-  node.addEventListener('click', () => onCard(win, host, row, card, node));
+  node.addEventListener('click', () => {
+    if (!card.broken) {
+      void open(win, row, card, node);
+    }
+  });
 
   return node;
 }
 
 /**
- * A filled card opens its template; an empty one makes it.
+ * Open a template — making its CP row first if it has none.
  *
- * A template with a CP row opens that row, because the row is what carries the
- * Live Preview target — a view file on its own has no entry and cannot be
- * previewed. The site's own views have no row, so those open in Site Files,
- * which is the editor that can write them today.
+ * A view file is not an entry, and Live Preview can only open an entry. The
+ * row is the door; the board makes it on demand rather than asking anyone to
+ * create one by hand.
  */
-function onCard(win, host, row, card, node) {
-  if (card.broken) {
-    return;
-  }
-
-  if (card.exists) {
-    win.location.href = card.edit || filesUrl(win);
+async function open(win, row, card, anchor) {
+  if (card.edit) {
+    win.location.href = card.edit;
 
     return;
   }
 
-  create(win, host, row, card, node);
-}
-
-function filesUrl(win) {
-  const cp = win.Statamic?.$config?.get?.('cpUrl') || '/cp';
-
-  return `${String(cp).replace(/\/$/, '')}/utilities/site-files`;
-}
-
-async function create(win, host, row, card, node) {
-  node.setAttribute('data-sve-tb-busy', '');
+  anchor?.setAttribute('data-sve-tb-busy', '');
 
   try {
     const res = await win.fetch('/!/sve/template-board', {
@@ -176,52 +260,80 @@ async function create(win, host, row, card, node) {
 
     const body = await res.json().catch(() => ({}));
 
-    if (!res.ok || !body.ok) {
-      node.removeAttribute('data-sve-tb-busy');
-      win.Statamic?.$toast?.error(body.reason === 'exists' ? body.view : t(win, 'template_board_empty'));
+    if (!res.ok || !body.ok || !body.edit) {
+      anchor?.removeAttribute('data-sve-tb-busy');
+      win.Statamic?.$toast?.error(body.view || card.view);
 
       return;
     }
 
-    // Straight into the new template when it has a row to open; otherwise the
-    // board redraws with the card now filled.
-    if (body.edit) {
-      win.location.href = body.edit;
-
-      return;
-    }
-
-    await paint(win, host);
+    win.location.href = body.edit;
   } catch (err) {
-    node.removeAttribute('data-sve-tb-busy');
-    console.error('[sve] create template', err);
+    anchor?.removeAttribute('data-sve-tb-busy');
+    console.error('[sve] open template', err);
   }
 }
 
-function rowNode(win, host, row) {
-  const node = el(win, 'section', { 'data-sve-tb-row': '', 'data-handle': row.handle });
+// ===== columns =====
+
+function columnNode(win, group, rows) {
+  const node = el(win, 'section', { 'data-sve-tb-col': '', 'data-group': group.id });
   const head = el(win, 'header', { 'data-sve-tb-head': '' });
 
-  head.appendChild(el(win, 'h2', { 'data-sve-tb-title': '' }, row.title));
+  head.appendChild(el(win, 'span', { 'data-sve-tb-title': '' }, t(win, group.label)));
 
-  if (row.kind !== 'site') {
-    head.appendChild(el(win, 'span', { 'data-sve-tb-kind': '' }, row.handle));
+  const here = [];
+  const missing = [];
+
+  for (const row of rows) {
+    for (const card of row.cards) {
+      (card.exists || card.broken ? here : missing).push({ row, card });
+    }
+  }
+
+  if (missing.length) {
+    const add = el(win, 'button', { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') }, '+');
+
+    add.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openMenu(win, add, missing);
+    });
+    head.appendChild(add);
   }
 
   node.appendChild(head);
 
-  const cards = el(win, 'div', { 'data-sve-tb-cards': '' });
+  const stack = el(win, 'div', { 'data-sve-tb-stack': '' });
 
-  for (const card of row.cards) {
-    cards.appendChild(cardNode(win, host, row, card));
+  for (const { row, card } of here) {
+    stack.appendChild(cardNode(win, row, card));
   }
 
-  node.appendChild(cards);
+  if (!here.length) {
+    const none = el(win, 'div', { 'data-sve-tb-none': '' });
+
+    none.appendChild(el(win, 'span', {}, t(win, 'template_board_none')));
+
+    const plus = el(win, 'button', { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') }, '+');
+
+    plus.addEventListener('click', (event) => {
+      event.stopPropagation();
+      openMenu(win, plus, missing);
+    });
+    none.appendChild(plus);
+    stack.appendChild(none);
+  }
+
+  node.appendChild(stack);
 
   return node;
 }
 
 async function paint(win, host) {
+  if (!host) {
+    return;
+  }
+
   const res = await win.fetch('/!/sve/template-board', {
     headers: { 'X-Requested-With': 'XMLHttpRequest' },
   });
@@ -240,9 +352,13 @@ async function paint(win, host) {
 
   host.textContent = '';
 
-  for (const row of rows) {
-    host.appendChild(rowNode(win, host, row));
+  const board = el(win, 'div', { 'data-sve-tb-board': '' });
+
+  for (const group of GROUPS) {
+    board.appendChild(columnNode(win, group, rows.filter((row) => group.kinds.includes(row.kind))));
   }
+
+  host.appendChild(board);
 }
 
 /**
@@ -256,6 +372,8 @@ export function syncTemplateBoard(win = window) {
   const host = win.document.getElementById(BOARD_HOST);
 
   if (!host) {
+    closeMenu(win);
+
     return;
   }
 
