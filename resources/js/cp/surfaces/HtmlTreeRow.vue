@@ -366,7 +366,13 @@ function canAct(row) {
         @pointerdown.stop
         @dblclick.stop
       ></button>
+      <!--
+        Not on the layout's header and footer calls (`frameCall`, html-tree.js):
+        a second header is not a copy anyone means, and without the call every
+        page loses its header. The eye and the menu's Open stay.
+      -->
       <button
+        v-if="!row.frameCall"
         type="button"
         data-sve-ht-dup
         :disabled="!canAct(row)"
@@ -377,6 +383,7 @@ function canAct(row) {
         @dblclick.stop
       ></button>
       <button
+        v-if="!row.frameCall"
         type="button"
         data-sve-ht-del
         :disabled="!canAct(row)"

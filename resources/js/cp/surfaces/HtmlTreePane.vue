@@ -175,6 +175,11 @@ function setQuery(value) {
       empty page builder too — otherwise deleting the last section left no
       way to add the next one. The search: Escape empties it; the keys stay
       here, so the dock's shortcuts do not fire while typing a name.
+
+      Off on the site layout's own file: without a page builder the plus
+      writes a section into the open file, and the layout is the frame every
+      page renders inside — not a place sections go. A page builder keeps it
+      whatever file the dock holds: there it adds to the page, not the file.
     -->
     <div class="sve-ht-tools">
     <label class="sve-ht-search" :title="searchLabel">
@@ -202,7 +207,7 @@ function setQuery(value) {
       ></button>
     </label>
     <button
-      v-if="canCreate && (ui.sections.length || ui.pageBuilder || ui.rows.length)"
+      v-if="canCreate && (ui.sections.length || ui.pageBuilder || (ui.rows.length && !ui.layoutFile))"
       type="button"
       class="sve-ht-new"
       :title="newSectionLabel"

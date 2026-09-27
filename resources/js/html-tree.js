@@ -73,6 +73,7 @@ import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, handleRem
 import { confirmCloseDiscard } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { hasToken } from './dock-partials.js';
+import { componentSrcFromType } from './component-signature.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
 
@@ -1369,6 +1370,7 @@ export function renderHtmlTree(win) {
     htmlTreeUi.frame = frameAroundPage(win, [], false, false, '', true);
     htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
     htmlTreeUi.pageBuilder = true;
+    htmlTreeUi.layoutFile = false;
     htmlTreeUi.emptyText = t(win, 'html_tree_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
     htmlTreeUi.look = readHtmlTreeLook(win);
@@ -1491,6 +1493,10 @@ export function renderHtmlTree(win) {
    * layout standing in for a page nobody has chosen anything on.
    */
   const frameKind = pageView || dockKind === 'template' ? '' : dockKind;
+
+  // The layout's own file, drawn as itself: the one answer the plus and the
+  // header/footer calls below go by.
+  htmlTreeUi.layoutFile = frameKind === 'main';
 
   // Off the layout, the next landing on it seats the tree on <main> again.
   if (frameKind !== 'main') {
@@ -1740,8 +1746,20 @@ export function renderHtmlTree(win) {
     htmlTreeActiveId = frameRaw.id;
   }
 
+  // On the layout: which partial call draws the header and which the footer.
+  const frameCalls = htmlTreeUi.layoutFile ? frameCallKinds(win) : null;
+
   htmlTreeUi.rows = rows.map((row) => {
-    const icon = htmlTreeIcon(row.tag, row.kind, row.antlers);
+    /*
+     * On the layout, `{{ partial:site_head }}` and its footer twin are the
+     * page's header and footer, not one more component: the chip says which,
+     * the row wears that half's mark and family, and there is no copy and no
+     * bin (HtmlTreeRow and deleteHtmlTreeRow read `frameCall`). Still a call —
+     * `kind` stays 'component', so the eye, the menu's Open and the values
+     * work as on any other.
+     */
+    const frameCall = frameCalls && row.kind === 'component' ? frameCalls.get(row.src) || '' : '';
+    const icon = frameCall ? { svg: HTML_ICONS[frameCall] } : htmlTreeIcon(row.tag, row.kind, row.antlers);
     // Which of the file's videos this row is, in document order — what the
     // preview is told to hold; -1 for anything that is not a <video>.
     const videoNth = row.tag === 'video' && !row.kind ? videoIndex++ : -1;
@@ -1753,6 +1771,9 @@ export function renderHtmlTree(win) {
 
     return {
       ...row,
+      // The chip. A frame call shows the half, the way <main> shows `main`.
+      tag: frameCall || row.tag,
+      frameCall,
       base,
       // The open page section's root already carries the section's own name
       // (its label); the file's alias must not override it here.
@@ -1773,7 +1794,7 @@ export function renderHtmlTree(win) {
       // footer — each with its colour in the Live Preview settings.
       cat: chromeKind && row.id === chromeRootId
         ? chromeKind
-        : row === mainRaw ? 'main' : aroundRoot ? around.cat : tagFamily(row.tag, row.kind, row.antlers),
+        : row === mainRaw ? 'main' : aroundRoot ? around.cat : frameCall || tagFamily(row.tag, row.kind, row.antlers),
       // Around the open component: `dim` for the section's own rows, `host`
       // for the one the component unfolds from. '' for the component's rows.
       // Around the open component: `host` for every call on the way down to
@@ -2011,6 +2032,31 @@ function findNodeWhere(nodes, test) {
   }
 
   return null;
+}
+
+/**
+ * The partial calls that draw the header and the footer: `src` → 'header' |
+ * 'footer'.
+ *
+ * The server names the file each half IS — the partial carrying
+ * `data-sve-chrome` (`sveChromeTemplates`, the same answer the dock reads to
+ * tell a header's file from a section's). A call opens `view:partials/{src}`
+ * (openComponentRow), so the call whose file that is draws the half. A half
+ * whose file is a styled `header/…` handle rather than a view names no call.
+ */
+function frameCallKinds(win) {
+  const templates = win.Statamic?.$config?.get?.('sveChromeTemplates') || {};
+  const calls = new Map();
+
+  for (const kind of ['header', 'footer']) {
+    const src = componentSrcFromType(templates[kind]?.type);
+
+    if (src) {
+      calls.set(src, kind);
+    }
+  }
+
+  return calls;
 }
 
 /** The index of the first row after `row` that is not inside it. */
@@ -2480,6 +2526,12 @@ function deleteHtmlTreeRow(win, id) {
   if (uid) {
     removeSectionFromPage(win, uid);
 
+    return;
+  }
+
+  // The layout's header and footer calls have no bin, and no other way in
+  // either: taking one out takes that half off every page.
+  if (htmlTreeUi.rows.find((item) => item.id === id)?.frameCall) {
     return;
   }
 
@@ -3697,6 +3749,7 @@ export function closeHtmlTreePanel(win) {
   htmlTreeUi.draft = '';
   htmlTreeUi.sections = [];
   htmlTreeUi.pageBuilder = false;
+  htmlTreeUi.layoutFile = false;
   htmlTreePendingUid = '';
   win?.clearTimeout?.(htmlTreePendingTimer);
 

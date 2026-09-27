@@ -81,6 +81,10 @@ export const htmlTreeUi = reactive({
   frameFieldsTitle: '',
   // Publish form has page_sections (even when the list is empty). The plus stays.
   pageBuilder: false,
+  // The dock's file is the site layout (`view:layout`) and the tree is drawing
+  // its body — not the layout standing in for a page with nothing chosen. The
+  // layout is not built from sections, so the plus does not write into it.
+  layoutFile: false,
   onSection: null,
   // Read the page again now, rather than waiting for the dock to announce a new
   // file. A section added from inside the panel changes the form's values and
