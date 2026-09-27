@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   publishContainers, addContainer, onContainer, registerContainerSource, registerContainerEvents, activeContainers,
+  pageHasSectionField,
 } from '../../resources/js/lib/publish-containers.js';
 
 const container = (name) => ({ name, setFieldValue() {}, values: {} });
@@ -47,4 +48,18 @@ test('activeContainers is newest first, then the registered sources last', () =>
   registerContainerSource(() => panel);
   registerContainerSource(() => null);
   assert.deepEqual(activeContainers(emptyDoc).map((c) => c.name), ['c', 'b', 'panel']);
+});
+
+test('pageHasSectionField: a form whose values carry the page builder, empty or not', () => {
+  const win = { Statamic: { $config: { get: (key) => (key === 'sveSectionField' ? 'blocks' : undefined) } } };
+
+  // None of the forms so far carries the field.
+  assert.equal(pageHasSectionField(win, emptyDoc), false);
+
+  // A ref, as Statamic hands values out, holding the field with no rows in it.
+  addContainer({ name: 'page', setFieldValue() {}, values: { __v_isRef: true, value: { blocks: [] } } });
+  assert.equal(pageHasSectionField(win, emptyDoc), true);
+
+  // Without the setting the field is page_sections, which no form carries.
+  assert.equal(pageHasSectionField({}, emptyDoc), false);
 });

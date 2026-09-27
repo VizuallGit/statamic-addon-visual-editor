@@ -66,7 +66,7 @@ import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
-import { activeContainers } from './lib/publish-containers.js';
+import { activeContainers, pageHasSectionField } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
@@ -175,14 +175,17 @@ export function htmlTreePanel(doc) {
 
 export function ensureHtmlTreeStyles(doc) {
   injectStyle(doc, HTML_TREE_STYLE_ID, `
+    /* The row's content starts 0.625rem in from its own edge — the inset the
+       search field above gives its icon — so the twist lines up with the rest
+       of the panel instead of hugging the gutter. */
     [data-sve-ht-row] {
       all: unset;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 5px 8px;
-      min-height: 28px;
+      padding: 0.375rem 0.5rem 0.375rem 0.625rem;
+      min-height: 1.875rem;
       margin-bottom: 3px;
       background: rgba(128,128,128,.16);
       border-radius: 6px;
@@ -454,11 +457,13 @@ export function ensureHtmlTreeStyles(doc) {
     /* Flat rows, stepped in by their depth: the row's own box — its hover,
        its pick, its bar — begins where its level begins, and the guides are
        drawn in the margin to its left. A picked row that ran the full width
-       over the guides read as belonging to every level at once. */
+       over the guides read as belonging to every level at once. The content
+       starts at the panel's inset (0.625rem, as the search field's icon);
+       the box keeps a hair of air above and below it. */
     [data-sve-ht-look="tags"] [data-sve-ht-row] {
       margin: 0 0 0 calc(var(--sve-ht-depth, 0) * 14px);
-      padding: 0 6px 0 4px;
-      min-height: 26px;
+      padding: 0.0625rem 0.375rem 0.0625rem 0.625rem;
+      min-height: 1.75rem;
       gap: 5px;
       background: none;
       border-radius: 5px;
@@ -508,13 +513,15 @@ export function ensureHtmlTreeStyles(doc) {
     /* One guide per level, drawn in the row's left margin: 14px per level
        with the line 7px in, so each sits under the twist of the row it
        descends from — in that row's family colour, well held back. Out of
-       the flow, so the row's box and everything in it start at the level. */
+       the flow, so the row's box and everything in it start at the level.
+       Moved in by the 0.375rem the twist moved when the row's inset went
+       from 0.25rem to 0.625rem, so a line stands where it stood against it. */
     [data-sve-ht-look="tags"] [data-sve-ht-indent] {
       display: flex;
       position: absolute;
       top: -2px;
       bottom: 0;
-      left: calc(-1 * var(--sve-ht-depth, 0) * 14px);
+      left: calc(0.375rem - var(--sve-ht-depth, 0) * 14px);
       width: calc(var(--sve-ht-depth, 0) * 14px);
       pointer-events: none;
     }
@@ -607,7 +614,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-indent] { display: none; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] {
       margin-left: 0;
-      padding-left: calc(0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+      padding-left: calc(0.625rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current],
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current]:hover {
@@ -618,11 +625,11 @@ export function ensureHtmlTreeStyles(doc) {
        shows the level it lands on now that the row itself spans them all. */
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="before"]::before,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="after"]::after {
-      left: calc(0.5rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+      left: calc(0.875rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
-      left: calc(0.5rem + var(--sve-ht-base, 0) * 0.875rem);
+      left: calc(0.875rem + var(--sve-ht-base, 0) * 0.875rem);
     }
     /* The empty slots keep their place: a block's one level under it, and
        main's where the frame body's margin used to put it. */
@@ -879,22 +886,6 @@ function sectionRootTags(win) {
  * section and there was no other door into the rest. The block tree has always
  * read the page this way; this is the same reading, one row per section.
  */
-/** True when this publish form is a page builder, even with zero sections. */
-function pageHasSectionField(win, doc) {
-  const field = sectionField(win) || 'page_sections';
-
-  for (const container of activeContainers(doc) || []) {
-    const values = unwrapRef(container.values);
-    const list = values && typeof values === 'object' ? values[field] : null;
-
-    if (Array.isArray(list)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 function htmlTreeSections(win, doc) {
   const field = sectionField(win) || 'page_sections';
   const tags = sectionRootTags(win);
@@ -1494,9 +1485,16 @@ export function renderHtmlTree(win) {
    * there because a section was open, it was there because the dock had
    * quietly fallen back to the layout.
    *
+   * On a page built from sections the dock no longer falls back at all: with
+   * nothing chosen it holds no file (dock-api: `showBlank`), and the first
+   * section opened is what it loads. No file and no section on its way is the
+   * same page as the unasked layout — the page's sections, shut. A section
+   * clicked and not landed yet is not: its tags are drawn ahead of the dock.
+   *
    * Header and footer are never a fallback, so they pass through untouched.
    */
-  const pageView = pageBuilder && dockKind === 'main' && ask('dock:on-empty-page') === true;
+  const dockEmpty = !type && !inSections;
+  const pageView = pageBuilder && (dockEmpty || (dockKind === 'main' && ask('dock:on-empty-page') === true));
 
   /*
    * The frame belongs to the layout, and only to the layout.
@@ -1506,8 +1504,8 @@ export function renderHtmlTree(win) {
    * owns a page's frame, which it does not. The layout owns that, and opening
    * the layout is where you see it. Same for a page: its tree is its sections.
    *
-   * `template` is the dock's word for a collection view; `pageView` is the
-   * layout standing in for a page nobody has chosen anything on.
+   * `template` is the dock's word for a collection view; `pageView` is a page
+   * nobody has chosen anything on — an empty dock, or the layout standing in.
    */
   const frameKind = pageView || dockKind === 'template' ? '' : dockKind;
 
@@ -3757,8 +3755,9 @@ export function watchHtmlTreeDock(win) {
   const onStructure = () => {
     refresh();
 
-    // The dock holds the layout only because the page had no sections. Now
-    // it has one, and that one is what the reader wants open — not the layout.
+    // The dock holds no file only because nothing was chosen — on an empty
+    // page, nothing could be. Now it has a section, and that one is what the
+    // reader wants open.
     if (ask('dock:on-empty-page') === true) {
       const sections = htmlTreeSections(win, win.document);
 

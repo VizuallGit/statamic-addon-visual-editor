@@ -737,6 +737,7 @@ return [
     'code_dock_not_writable' => 'The server cannot write this template file — check the permissions on resources/views',
     'code_dock_tw_not_writable' => 'Saved, but the Tailwind CSS could not be written to resources/visual-editor/tw — the classes will not show on the site',
     'code_dock_missing' => 'No template file for this section',
+    'code_dock_pick_section' => 'Click a section to open its template',
     'code_dock_html_scope' => 'HTML tree — show it, and narrow the panes to what you pick',
     'code_dock_html_scope_off' => 'Hide the HTML tree and show the whole file',
     'code_dock_antlers' => 'Antlers',

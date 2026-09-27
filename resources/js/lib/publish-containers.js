@@ -14,10 +14,13 @@
  *   registerContainerSource(fn)    fn(doc) → an extra container to consult last
  *   activeContainers(doc)          newest first, DOM fallback, then the extra sources
  *   containerFromDom(doc)          the container behind the publish form on screen
+ *   pageHasSectionField(win, doc)  whether the page on screen is built from sections
  *
  * May import: lib/, cp-selectors.js (constants only).
  */
 import { SELECTORS } from '../cp-selectors.js';
+import { sectionField } from './config.js';
+import { unwrapRef } from './values.js';
 
 // Publish containers captured from Statamic's `publish-container-created`
 // event, in the order they were created.
@@ -137,4 +140,20 @@ export function activeContainers(doc) {
   }
 
   return list;
+}
+
+/**
+ * Whether the page on screen is built from sections: a form whose values
+ * carry the page builder's field, empty or not. Asked of the values, not of
+ * whether the sidebar has drawn a set — the dock and the HTML tree both go by
+ * this answer, so they cannot disagree about which kind of page it is.
+ */
+export function pageHasSectionField(win, doc) {
+  const field = sectionField(win);
+
+  return activeContainers(doc).some((container) => {
+    const values = unwrapRef(container.values);
+
+    return !!values && typeof values === 'object' && Array.isArray(values[field]);
+  });
 }

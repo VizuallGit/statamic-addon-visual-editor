@@ -731,6 +731,7 @@ return [
     'code_dock_not_writable' => 'Serveren kan ikke skrive skabelonfilen — tjek rettighederne på resources/views',
     'code_dock_tw_not_writable' => 'Gemt, men Tailwind-CSS’en kunne ikke skrives til resources/visual-editor/tw — klasserne vil mangle på sitet',
     'code_dock_missing' => 'Ingen skabelonfil til denne sektion',
+    'code_dock_pick_section' => 'Klik på en sektion for at åbne dens skabelon',
     'code_dock_html_scope' => 'HTML-træ — vis det, og indsnævr ruderne til det du vælger',
     'code_dock_html_scope_off' => 'Skjul HTML-træet og vis hele filen',
     'code_dock_antlers' => 'Antlers',

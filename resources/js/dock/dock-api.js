@@ -31,7 +31,7 @@ import { attachDock } from '../lib/dock-host.js';
 import { HTML_TREE_PANEL_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { sectionField } from '../lib/config.js';
-import { activeContainers } from '../lib/publish-containers.js';
+import { activeContainers, pageHasSectionField } from '../lib/publish-containers.js';
 import { setTypeForUid } from '../focus-panel.js';
 import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
@@ -211,6 +211,63 @@ async function showMissing(win, type) {
   paintHtmlScope(win);
   paintBack(win);
   paintAutosave(win);
+  placeDock(win, dock);
+}
+
+/** The load generation the dock was emptied at. Unchanged since: still empty. */
+let blankGen = -1;
+
+/**
+ * The dock with no file in it: a page built from sections, nothing on it
+ * chosen yet. The panes stand empty and read-only and the bar says what fills
+ * them — the file follows the first section opened, not the page opening.
+ *
+ * Asked on every sync while nothing is chosen, so standing empty already is
+ * the end of it. Leaving a file saves what was typed into it first, and a load
+ * still on its way is dropped (`loadGen`): it would fill the panes after they
+ * were emptied.
+ */
+async function showBlank(win, doc) {
+  if (blankGen === dockState.loadGen && !dockState.lastType && win.document.getElementById(DOCK_ID)) {
+    return;
+  }
+
+  flushSave(doc);
+
+  const gen = ++dockState.loadGen;
+
+  blankGen = gen;
+  dockState.lastType = null;
+  dockState.typeStack = [];
+  dockState.lastParts = { html: '', css: '', js: '' };
+  dockState.lastProps = [];
+  dockState.propsDirty = false;
+  dockState.lastLocked = false;
+  dockState.lockReady = false;
+  dockState.loadInFlight = null;
+  resetTailwindCompile();
+  clearHtmlScopeRange();
+
+  const dock = await ensureDock(win);
+
+  // A file asked for while the dock was being built wins.
+  if (gen !== dockState.loadGen) {
+    return;
+  }
+
+  writeParts(dockState.lastParts, true);
+  // No file, so no component: the fade lifts and the field column goes back.
+  syncComponentFocus(win);
+  void syncComponentMap(win);
+  syncComponentProps(win);
+  setPath(win.document, '');
+  setStatus(win.document, t(win, 'code_dock_pick_section'));
+  paintLock(win);
+  paintHtmlScope(win);
+  paintBack(win);
+  paintAutosave(win);
+  paintStyleMode(win);
+  paintStrip(win);
   placeDock(win, dock);
 }
 
@@ -762,17 +819,26 @@ export function syncCodeDock(win, doc, uid) {
     collectionViewType(win) ||
     (!uid && !leftBehind ? dockState.lastType : '');
   // Nothing chosen — on opening, after a part of the frame closed, with the
-  // chosen section gone: the layout's <main>. The page's content is the place
-  // to stand by default, and what a new section lands in. Never for a request
-  // for a section by uid, which must keep what it holds rather than hand the
-  // dock (and the tree with it) elsewhere.
-  const type = resolved || (!uid ? LAYOUT_TEMPLATE_TYPE : '');
+  // chosen section gone. On a page built from sections the dock then holds no
+  // file: the reader opens a section and that is what loads. Any other page
+  // has no section to open, so it stands on the layout's <main>. Never for a
+  // request for a section by uid, which must keep what it holds rather than
+  // hand the dock (and the tree with it) elsewhere.
+  const nothingChosen = !resolved && !uid;
+  const blank = nothingChosen && pageHasSectionField(win, win.document);
+  const type = resolved || (nothingChosen && !blank ? LAYOUT_TEMPLATE_TYPE : '');
 
-  // On the layout because nothing else was chosen, not because it was: the
+  // Where the dock stands because nothing was chosen, not because it was: the
   // first section added to such a page is what the reader wants open.
-  dockState.onEmptyPage = !resolved && !uid;
+  dockState.onEmptyPage = nothingChosen;
 
   dockState.lastWin = win;
+
+  if (blank) {
+    void showBlank(win, doc);
+
+    return;
+  }
 
   if (!type) {
     return;
@@ -980,7 +1046,8 @@ register('dock:exit-component', (levels = 1) => {
 });
 
 register('dock:current-type', () => currentTemplateType());
-// True while the dock shows the header only because the page has no sections.
+// True while nothing on the page is chosen: the dock stands empty on a page
+// built from sections, on the layout on any other.
 register('dock:on-empty-page', () => !!dockState.onEmptyPage);
 register('dock:current-uid', () => dockState.lastUid);
 // A part of the frame was closed on purpose (the bar's Close, Escape): the
@@ -1057,6 +1124,10 @@ register('dock:open-file', (type) => {
   if (typeof type !== 'string' || !type || !dockState.lastWin) {
     return false;
   }
+
+  // Asked for by name: the reader's choice now, not where the dock stood for
+  // want of one — the layout opened from an empty page is drawn as the layout.
+  dockState.onEmptyPage = false;
 
   if (type === dockState.lastType) {
     return true;
