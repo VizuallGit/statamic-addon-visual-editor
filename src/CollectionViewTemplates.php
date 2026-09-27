@@ -105,17 +105,27 @@ class CollectionViewTemplates
 
         $site = Site::default()->handle();
 
+        $siteOwned = in_array($kind, ['layout', 'page'], true);
+
+        $data = [
+            'title' => $siteOwned ? $sourceTitle : $sourceTitle.' '.$kind,
+            'kind' => $kind,
+            'view' => $view,
+        ];
+
+        // The layout and the site's own pages belong to no collection, and
+        // writing a handle that is not one makes Statamic throw the moment the
+        // row is augmented: `Collection [_site] not found`.
+        if (! $siteOwned) {
+            $data['source_collection'] = $sourceHandle;
+        }
+
         $entry = Entry::make()
             ->collection($store)
             ->locale($site)
             ->published(true)
-            ->slug($sourceHandle.'-'.$kind)
-            ->data([
-                'title' => $sourceTitle.' '.$kind,
-                'kind' => $kind,
-                'source_collection' => $sourceHandle,
-                'view' => $view,
-            ]);
+            ->slug($siteOwned ? str_replace('/', '-', $view) : $sourceHandle.'-'.$kind)
+            ->data($data);
 
         $entry->save();
 
