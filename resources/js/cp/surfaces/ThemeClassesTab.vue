@@ -15,7 +15,7 @@
 
   <nav class="sve-theme__filters" role="tablist">
     <button
-      v-for="chip in CLASS_CHIPS"
+      v-for="chip in shownChips"
       :key="chip"
       type="button"
       role="tab"
@@ -116,6 +116,15 @@ function usage(row) {
 }
 
 const shown = computed(() => filterRows(ui.classRows, { chip: ui.classChip, query: ui.classQuery }));
+
+/**
+ * A chip with nothing behind it is noise — `Ambient 0` says only that the
+ * concept exists. It comes back the day a rule earns it. The one in hand
+ * stays, so the list does not move under a selection that just emptied.
+ */
+const shownChips = computed(() =>
+  CLASS_CHIPS.filter((chip) => chip === 'all' || chip === ui.classChip || count(chip) > 0)
+);
 
 /** The `@utility` block behind a row, when site.css is what defines it. */
 function utilityFor(row) {
