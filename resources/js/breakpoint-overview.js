@@ -61,10 +61,13 @@
  * video hold reach every frame as well, through lib/preview-frame.js's list of
  * copies and the paint script's own.
  *
- * While open, each size's button in the top bar carries a mark at its icon's
- * top-right corner: filled, the size is in the row; a ring, it is out and its
- * frame is blank (a size not looked at costs nothing). The choice lives for
- * the page, never stored.
+ * Which sizes stand in the row is a menu on the overview button's right-click
+ * (openSizesMenu), open or closed: a checkbox per size. Unticked, the size is
+ * out and its frame blank (a size not looked at costs nothing). The active
+ * size and the last one ticked cannot go (sizeLock), and a size picked in the
+ * top bar while out comes back in — it is the preview. The choice lives for
+ * the page, never stored. (Until 27 Sep 2026 this was a dot on each size's
+ * top-bar button.)
  *
  * Picking a size — a button in the top bar, or Full width crossing a
  * breakpoint — moves the ring and, when the row is wider than the pane,
@@ -74,7 +77,8 @@
  * as a glide, not a jump, with the preview placed in every frame of it.
  *
  * May import: lib/, breakpoints.js, chrome-prefs.js (chromeGet), cp-state.js
- * (sveState, read only), cp/bus.js. Not cp-shell/*: scripts/assert-isolation.mjs
+ * (sveState, read only), cp/bus.js, lp-menu-dismiss.js (the sizes menu closes
+ * as the top bar's other menus do). Not cp-shell/*: scripts/assert-isolation.mjs
  * holds every file outside the shell to the bus, so the sizes are read where
  * the shell reads them — `sveBreakpoints`, Statamic's `livePreview.devices`,
  * the stored device.
@@ -107,6 +111,7 @@ import { BP_OVERVIEW_ID, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, SID_ATTR, SID_FI
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { injectStyle } from './lib/style.js';
+import { bindMenuDismiss } from './lp-menu-dismiss.js';
 
 const LAYER_ID = BP_OVERVIEW_ID;
 const STYLE_ID = '__sve-bp-overview-style';
@@ -136,20 +141,9 @@ const ZOOM_STEPS = [0.1, 0.15, 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2];
 const RING_PX = 2;
 const SIZE_BLUE = 'rgb(96, 165, 250)';
 
-/**
- * Where a size mark sits on its top-bar button, from the owner's drawing
- * (24 Sep 2026): its centre this many pixels in from the button's left edge,
- * on the button's top edge — the icon's top-right corner, like a badge.
- */
-const MARK_CENTER_X = 20;
-
-/** The size marks' colour (the owner's, 25 Sep 2026); a size switched out shows a fainter ring of it. */
-/**
- * The size marks in the top bar: a hollow grey ring for a size out of the
- * row, filled with the ring's own blue for one in it — the same blue that
- * frames the active size, so the two say "in the preview" in one colour
- * (25 Sep 2026; they were orange for a day).
- */
+/** The sizes menu (a right-click on the overview button): its portal and its `<style>`, both only while it is open. */
+const MENU_ID = '__sve-bp-sizes-menu';
+const MENU_STYLE_ID = '__sve-bp-sizes-menu-style';
 
 const MINUS_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>';
@@ -383,31 +377,24 @@ export function isTransparent(color) {
 }
 
 /**
- * The colour `top` actually shows over the opaque `base`, as one opaque CSS
- * colour: a knock-out ring round a mark has to be the surface it sits on, and
- * the top bar's groups are a see-through grey over the header. `color-mix` in
- * sRGB is exactly alpha compositing, and it takes any `base` — rgb() or oklch().
+ * Why a size may not leave the row, or '' when it may. `sizes` is every size
+ * as `{ handle, hidden, active }`. The active size is the preview — the one
+ * the fields on the left edit — so it stays ('active'); the last size in the
+ * row stays too, or the overview is an empty grey pane ('last'). A size that
+ * is already out may always come back in.
  */
-export function knockoutColor(top, base) {
-  const value = String(top || '').trim();
-  const rgba = value.match(/^rgba\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)[\s,/]+([\d.]+%?)\s*\)$/);
+export function sizeLock(sizes, handle) {
+  const size = sizes.find((row) => row.handle === handle);
 
-  if (!rgba) {
-    return isTransparent(value) ? base : value;
+  if (!size || size.hidden) {
+    return '';
   }
 
-  const alpha = rgba[4].endsWith('%') ? parseFloat(rgba[4]) / 100 : Number(rgba[4]);
-  const color = `rgb(${rgba[1]}, ${rgba[2]}, ${rgba[3]})`;
-
-  if (alpha >= 1) {
-    return color;
+  if (size.active) {
+    return 'active';
   }
 
-  if (alpha <= 0) {
-    return base;
-  }
-
-  return `color-mix(in srgb, ${color} ${Math.round(alpha * 1000) / 10}%, ${base})`;
+  return sizes.filter((row) => !row.hidden).length <= 1 ? 'last' : '';
 }
 
 /** Label colour that reads on the pane: light on a dark background, dark on a light one. */
@@ -467,7 +454,7 @@ function emptyState() {
   return {
     win: null, // the Control Panel window the button lives in
     layer: null,
-    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind, hidden, badge, active }
+    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind, hidden, active }
     cleanups: [], // everything open bound; close runs them all
     styles: [],
     contents: null, // Statamic's `.live-preview-contents`
@@ -553,11 +540,15 @@ export function openBreakpointOverview(win) {
 
   Object.assign(overviewState, { win, main, contents, preview, labelSpace: remToPx(view, LABEL_REM) });
 
+  const active = activeBreakpoint(win);
+
+  // Opened on a size that was switched out: it comes back in — it is the preview.
+  hiddenSizes.delete(active);
+
   try {
     build(win, host, specs);
     bind(win, view);
-    mountBadges(win);
-    paintActive(activeBreakpoint(win));
+    paintActive(active);
     paintDim(sizePicked(chromeGet(win, 'sve-lp-device')));
     paintButton(win, true);
     // block-order.js writes the slot from here on, and puts the ordinary
@@ -648,7 +639,7 @@ function build(win, host, specs) {
     item.append(label, el);
     canvas.appendChild(item);
 
-    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, badge: null, active: false };
+    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, active: false };
   });
 
   sizer.appendChild(canvas);
@@ -735,9 +726,24 @@ ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} svg { opacity: 1; }
-#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge { --sve-bpo-mark: ${SIZE_BLUE}; position: absolute; box-sizing: border-box; width: .375rem; height: .375rem; border-radius: 50%; border: 1.5px solid color-mix(in srgb, currentColor 40%, var(--sve-bpo-knock)); background: var(--sve-bpo-knock); box-shadow: 0 0 0 2.5px var(--sve-bpo-knock); cursor: pointer; }
-#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge::after { content: ''; position: absolute; inset: -.25rem -.25rem -.0625rem -.125rem; }
-#${LP_PREVIEW_CHROME_ID} .sve-bpo-badge[data-on] { border-color: var(--sve-bpo-mark); background: var(--sve-bpo-mark); }
+`;
+}
+
+/** The sizes menu, dressed as the top bar's ⋮ menu (LpSettingsMenu.vue): same surface, type and checkbox colour. */
+function menuCss() {
+  const M = `#${MENU_ID}`;
+
+  return `
+${M} { position: fixed; z-index: 2147483001; box-sizing: border-box; min-width: 14rem; padding: .375rem; border-radius: .625rem; background: #343439; color: rgba(255, 255, 255, .92); box-shadow: 0 .75rem 2.5rem rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .12); font: 500 .8125rem/1.3 ui-sans-serif, system-ui, sans-serif; }
+${M} .sve-bpo-menu-title { padding: .25rem .375rem .375rem; font-size: .75rem; font-weight: 600; opacity: .6; }
+${M} label { display: flex; align-items: center; gap: .5rem; padding: .375rem; border-radius: .375rem; cursor: pointer; }
+${M} label:hover { background: rgba(255, 255, 255, .08); }
+${M} label[data-locked] { cursor: default; }
+${M} label[data-locked]:hover { background: none; }
+${M} input { flex: none; margin: 0; accent-color: var(--theme-color-primary, #4f46e5); cursor: inherit; }
+${M} input:disabled { opacity: .5; }
+${M} .sve-bpo-menu-name { flex: 1; white-space: nowrap; }
+${M} .sve-bpo-menu-width { opacity: .5; font-variant-numeric: tabular-nums; white-space: nowrap; }
 `;
 }
 
@@ -948,9 +954,7 @@ function blank(entry) {
  * switched in again. The zoom stays; the row re-packs and re-centres by itself.
  */
 function toggleSize(entry) {
-  // The last size in the row stays: an empty overview is just a grey pane.
-  // The active size stays too: it is the preview, the one being edited.
-  if (!entry.hidden && (shown().length === 1 || entry.active)) {
+  if (sizeLock(openSizes(), entry.spec.handle)) {
     return;
   }
 
@@ -967,7 +971,11 @@ function toggleSize(entry) {
 
   applyZoom(overviewState.zoom);
   measureActive();
-  paintBadges();
+}
+
+/** The open row's sizes, as sizeLock and the sizes menu read them. */
+function openSizes() {
+  return overviewState.frames.map(({ spec, hidden, active }) => ({ ...spec, hidden, active }));
 }
 
 /** A frame still loading would miss the render: it gets the latest one when it has loaded. */
@@ -1377,95 +1385,157 @@ function activeBreakpoint(win) {
     return row.handle;
   }
 
-  const { contents } = overviewState;
+  // Closed (the sizes menu asks too), the pane is found where open finds it.
+  const contents = overviewState.contents || previewFrame(win.document)?.closest('.live-preview-contents');
+
+  if (!contents) {
+    return bpFromWidth(1200, win);
+  }
+
   const view = contents.ownerDocument.defaultView;
   const box = contentBox(contents.getBoundingClientRect(), view.getComputedStyle(contents), contents.clientWidth, contents.clientHeight);
 
   return bpFromWidth(box.width || 1200, win);
 }
 
-/**
- * A mark on each size's top-bar button, at the icon's top-right corner: filled
- * in the icons' own resting grey, the size is in the row; a fainter ring, it is
- * out. A knock-out ring in the group's own colour keeps it clear of a lit
- * (purple) button. Clicking the mark switches the size and only that; the
- * button's click, which changes the size the fields edit, never sees it.
- *
- * The marks sit in the size group beside the buttons, not inside them: a button
- * at rest is drawn at 70% opacity and the lit one at 100%, and a mark inside
- * would take that on — grey on one button, white on the other. The group is
- * made their anchor for the while; its style is put back on close.
- */
-function mountBadges(win) {
-  const group = win.document.getElementById(LP_PREVIEW_CHROME_ID)?.querySelector('[data-sve-devices]');
+// --- The sizes menu --------------------------------------------------------------------
 
-  if (!group) {
+/** The open sizes menu: its portal and the dismiss listeners it bound. */
+let sizesMenu = null;
+
+/**
+ * Every size, narrowest first, as the menu shows it — the open row's own
+ * state, or, closed, the choice that open will read. Closed, the active size
+ * counts as in: open brings it back whatever was chosen.
+ */
+function menuSizes(win) {
+  if (overviewState.layer) {
+    return openSizes();
+  }
+
+  const active = activeBreakpoint(win);
+
+  return overviewFrames(breakpoints(win), win.Statamic?.$config?.get?.('livePreview.devices')).map((spec) => ({
+    ...spec,
+    hidden: spec.handle !== active && hiddenSizes.has(spec.handle),
+    active: spec.handle === active,
+  }));
+}
+
+/** One size in or out: the row's own switch while open; closed, only the choice open reads. */
+function switchSize(win, handle) {
+  const entry = overviewState.frames.find((row) => row.spec.handle === handle);
+
+  if (entry) {
+    toggleSize(entry);
+
     return;
   }
 
-  const view = group.ownerDocument.defaultView;
-  const knock = knockoutColor(view.getComputedStyle(group).backgroundColor, paneBackground(view, group.parentElement));
-  const position = group.style.getPropertyValue('position');
-
-  group.style.setProperty('position', 'relative');
-  overviewState.cleanups.push(() => {
-    if (position) {
-      group.style.setProperty('position', position);
-    } else {
-      group.style.removeProperty('position');
-    }
-  });
-
-  for (const entry of overviewState.frames) {
-    const btn = group.querySelector(`[data-device="${win.CSS.escape(entry.spec.device)}"]`);
-
-    if (!btn) {
-      continue;
-    }
-
-    const badge = group.ownerDocument.createElement('span');
-
-    badge.className = 'sve-bpo-badge';
-    badge.dataset.bpoBadge = entry.spec.handle;
-    badge.setAttribute('role', 'switch');
-    badge.title = t(win, 'bp_overview_toggle', { size: entry.spec.label });
-    badge.style.setProperty('--sve-bpo-knock', knock);
-    // Centred on the measured point, whatever the mark's own size in rem.
-    badge.style.left = `calc(${btn.offsetLeft + MARK_CENTER_X}px - .1875rem)`;
-    badge.style.top = `calc(${btn.offsetTop}px - .1875rem)`;
-    group.appendChild(badge);
-
-    listen(badge, 'click', (event) => {
-      event.stopPropagation();
-      event.preventDefault();
-      toggleSize(entry);
-    });
-
-    overviewState.cleanups.push(() => badge.remove());
-    entry.badge = badge;
+  if (sizeLock(menuSizes(win), handle)) {
+    return;
   }
 
-  paintBadges();
+  if (hiddenSizes.has(handle)) {
+    hiddenSizes.delete(handle);
+  } else {
+    hiddenSizes.add(handle);
+  }
 }
 
-function paintBadges() {
-  for (const entry of overviewState.frames) {
-    const { badge } = entry;
+/**
+ * The right-click on the overview button (cp-shell/block-order.js): which
+ * sizes stand in the row, a checkbox each, open or closed. A portal on the
+ * CP's body, under the button; it closes as the top bar's ⋮ menu does — a
+ * pointer outside, a click in the preview, Escape (which the overview then
+ * leaves alone). Its style and listeners go with it.
+ */
+export function openSizesMenu(win, anchor) {
+  closeSizesMenu();
 
-    if (!badge) {
-      continue;
-    }
+  const doc = win.document;
+  const sizes = menuSizes(win);
 
-    const on = !entry.hidden;
-
-    if (badge.hasAttribute('data-on') !== on) {
-      badge.toggleAttribute('data-on', on);
-    }
-
-    if (badge.getAttribute('aria-checked') !== String(on)) {
-      badge.setAttribute('aria-checked', String(on));
-    }
+  if (!sizes.length) {
+    return;
   }
+
+  const style = injectStyle(doc, MENU_STYLE_ID, menuCss());
+  const menu = make(doc, 'div', 'sve-bpo-menu');
+  const title = make(doc, 'div', 'sve-bpo-menu-title');
+
+  menu.id = MENU_ID;
+  menu.setAttribute('role', 'group');
+  title.id = `${MENU_ID}-title`;
+  title.textContent = t(win, 'bp_overview_sizes');
+  menu.setAttribute('aria-labelledby', title.id);
+  menu.appendChild(title);
+
+  const rows = sizes.map((size) => {
+    const row = doc.createElement('label');
+    const box = doc.createElement('input');
+    const name = make(doc, 'span', 'sve-bpo-menu-name');
+    const width = make(doc, 'span', 'sve-bpo-menu-width');
+
+    row.dataset.bp = size.handle;
+    box.type = 'checkbox';
+    name.textContent = size.label;
+    width.textContent = `${size.width} px`;
+    row.append(box, name, width);
+    menu.appendChild(row);
+
+    box.addEventListener('change', () => {
+      switchSize(win, size.handle);
+      paint();
+    });
+
+    return { row, box };
+  });
+
+  // Every row again after each switch: one size going can lock another (the last one ticked).
+  const paint = () => {
+    const now = menuSizes(win);
+
+    rows.forEach(({ row, box }) => {
+      const size = now.find((s) => s.handle === row.dataset.bp);
+      const lock = size ? sizeLock(now, size.handle) : '';
+
+      box.checked = !!size && !size.hidden;
+      box.disabled = !!lock;
+      row.toggleAttribute('data-locked', !!lock);
+      row.title = lock === 'active' ? t(win, 'bp_overview_active') : lock === 'last' ? t(win, 'bp_overview_last') : '';
+    });
+  };
+
+  paint();
+  doc.body.appendChild(menu);
+
+  // Under the button, its left edge on the button's, kept inside the window.
+  const at = anchor.getBoundingClientRect();
+  const gap = remToPx(win, 0.375);
+  const room = win.innerWidth - menu.offsetWidth - gap;
+
+  menu.style.left = `${Math.round(Math.max(gap, Math.min(at.left, room)))}px`;
+  menu.style.top = `${Math.round(at.bottom + gap)}px`;
+
+  sizesMenu = {
+    menu,
+    style,
+    unbind: bindMenuDismiss(win, (target) => menu.contains(target), closeSizesMenu),
+  };
+}
+
+export function closeSizesMenu() {
+  if (!sizesMenu) {
+    return;
+  }
+
+  const { menu, style, unbind } = sizesMenu;
+
+  sizesMenu = null;
+  unbind();
+  menu.remove();
+  style.remove();
 }
 
 /**
@@ -1499,6 +1569,14 @@ function paintActive(handle) {
     }
 
     entry.active = on;
+  }
+
+  // Picked in the top bar while switched out: it comes back in. It is the
+  // preview now, and a size out of the row has no slot to lay it in.
+  const picked = overviewState.frames.find((entry) => entry.active);
+
+  if (picked?.hidden) {
+    toggleSize(picked);
   }
 
   if (overviewState.layer) {

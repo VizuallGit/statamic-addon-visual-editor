@@ -21,11 +21,11 @@ import {
   holePolygon,
   isDrag,
   isTransparent,
-  knockoutColor,
   labelColor,
   overviewFrames,
   revealScroll,
   rowWidth,
+  sizeLock,
   stashFlags,
   stepZoom,
   viewUrl,
@@ -243,13 +243,30 @@ test('transparent means no alpha — not a colour whose last channel is 0', () =
   assert.equal(isTransparent('oklch(0.274 0.006 286.033)'), false);
 });
 
-test('a knock-out ring is the see-through group colour laid over the header, as one colour', () => {
-  assert.equal(knockoutColor('rgba(128, 128, 128, 0.16)', 'rgb(30, 30, 30)'), 'color-mix(in srgb, rgb(128, 128, 128) 16%, rgb(30, 30, 30))');
-  assert.equal(knockoutColor('rgba(128 128 128 / 16%)', 'oklch(0.2 0 0)'), 'color-mix(in srgb, rgb(128, 128, 128) 16%, oklch(0.2 0 0))');
-  assert.equal(knockoutColor('rgb(46, 46, 48)', 'rgb(30, 30, 30)'), 'rgb(46, 46, 48)');
-  assert.equal(knockoutColor('rgba(0, 0, 0, 0)', 'rgb(30, 30, 30)'), 'rgb(30, 30, 30)');
-  assert.equal(knockoutColor('rgba(10, 20, 30, 1)', 'rgb(30, 30, 30)'), 'rgb(10, 20, 30)');
-  assert.equal(knockoutColor('', 'Canvas'), 'Canvas');
+test('a size may leave the row unless it is the preview or the last one in it', () => {
+  const sizes = [
+    { handle: 'mobile', hidden: false, active: false },
+    { handle: 'tablet', hidden: false, active: false },
+    { handle: 'laptop', hidden: false, active: true },
+  ];
+
+  assert.equal(sizeLock(sizes, 'mobile'), '');
+  assert.equal(sizeLock(sizes, 'laptop'), 'active');
+  assert.equal(sizeLock(sizes, 'nope'), '');
+
+  // The last one ticked stays; one already out may always come back.
+  const one = [
+    { handle: 'mobile', hidden: true, active: false },
+    { handle: 'tablet', hidden: false, active: false },
+    { handle: 'laptop', hidden: true, active: false },
+  ];
+
+  assert.equal(sizeLock(one, 'tablet'), 'last');
+  assert.equal(sizeLock(one, 'mobile'), '');
+  assert.equal(sizeLock(one, 'laptop'), '');
+
+  // The active size says why it stays even when it is also the last one.
+  assert.equal(sizeLock([{ handle: 'laptop', hidden: false, active: true }], 'laptop'), 'active');
 });
 
 test('labels are light on a dark pane and dark on a light one', () => {

@@ -133,6 +133,12 @@ async function realClick(page, frame, selector) {
   return r;
 }
 
+async function realRightClick(page, frame, selector) {
+  const r = await absoluteRect(frame, selector);
+  await page.mouse.click(r.x + r.w / 2, r.y + r.h / 2, { button: 'right' });
+  return r;
+}
+
 /** Is it on screen: a box, displayed, visible, and what a click at its centre hits. */
 async function visible(frame, selector) {
   return frame.evaluate((sel) => {
@@ -328,7 +334,7 @@ try {
   const groupPositionBefore = await cp.evaluate(() => document.querySelector('#__sve-preview-chrome [data-sve-devices]').style.position);
   if (config.strings) {
     const title = await cp.evaluate((sel) => { const b = document.querySelector(sel); return b.getAttribute('title') || b.getAttribute('data-tip') || ''; }, BUTTON);
-    step('button has its translated name', !!title && title !== 'bp_overview', `"${title}"`);
+    step('button has its translated name', !!title && title !== 'bp_overview_button', `"${title}"`);
   } else {
     skip('button has its translated name', 'the installed addon has no bp_overview string yet');
   }
@@ -587,52 +593,68 @@ try {
   const fits = await cp.evaluate((sel) => { const layer = document.querySelector(sel); const lr = layer.getBoundingClientRect(); return [...layer.querySelectorAll('iframe')].every((f) => { const r = f.getBoundingClientRect(); return r.left >= lr.left - 1 && r.right <= lr.right + 1; }); }, LAYER);
   step('fit all: every frame is in view again', Math.abs(zFit.scale - z0.scale) < 0.002 && fits, `scale ${zFit.scale.toFixed(3)} (opened at ${z0.scale.toFixed(3)})`);
 
-  // 7b. While open, every size's button in the top bar carries a mark. Its
-  //     click takes that size out of the row (frame blanked) and nothing else —
-  //     the size the fields edit stays; again, and the size is back, live.
+  // 7b. A right-click on the overview button opens the sizes menu: a checkbox
+  //     per size. Unticking takes that size out of the row (frame blanked) and
+  //     nothing else — the size the fields edit stays; ticking brings it back,
+  //     live. The active size and the last one ticked cannot go. (Until 27 Sep
+  //     2026 these were dots on the size buttons.)
+  const MENU = '#__sve-bp-sizes-menu';
   const pressedDevice = () => cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join());
   const rowWidthNow = () => cp.evaluate((sel) => document.querySelector(`${sel} .sve-bpo-sizer`).getBoundingClientRect().width, LAYER);
   const sizeState = (bp) => cp.evaluate((sel, handle) => {
     const item = document.querySelector(`${sel} [data-bp="${handle}"]`);
-    return { out: !!item && item.hidden && getComputedStyle(item).display === 'none', src: item?.querySelector('iframe')?.getAttribute('src') || '', mark: document.querySelector(`.sve-bpo-badge[data-bpo-badge="${handle}"]`)?.hasAttribute('data-on') };
+    return { out: !!item && item.hidden && getComputedStyle(item).display === 'none', src: item?.querySelector('iframe')?.getAttribute('src') || '' };
   }, LAYER, bp);
-  const marks = await cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-sve-devices] .sve-bpo-badge')].map((b) => {
-    const r = b.getBoundingClientRect();
-    return { bp: b.dataset.bpoBadge, on: b.hasAttribute('data-on'), w: r.width, inButton: !!b.closest('[data-device]'), tone: getComputedStyle(b).backgroundColor };
-  }));
-  // One tone on every button — the lit one included — so the marks sit beside the buttons, not in them.
-  step('every size in the row has an on/off mark at its icon, in one tone', marks.length === expected.length && marks.every((m) => m.on && m.w > 0 && !m.inButton) && new Set(marks.map((m) => m.tone)).size === 1,
-    `${marks.map((m) => `${m.bp}:${m.on ? 'on' : 'off'}`).join(' ')} · tone ${marks[0]?.tone}`);
-  // A mark for a size in the row is filled with the ring's blue — the same colour that frames the active size.
-  step('the marks of the sizes in the row are the ring’s blue', marks.length > 0 && marks.every((m) => m.tone === 'rgb(96, 165, 250)'), marks[0]?.tone || 'no marks');
+  const menuRows = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} label[data-bp]`)].map((row) => ({ bp: row.dataset.bp, on: row.querySelector('input').checked, locked: row.querySelector('input').disabled })), MENU);
+  const layerOpen = () => cp.evaluate((sel) => !!document.querySelector(sel), LAYER);
+  const openMenu = async () => {
+    await realRightClick(page, cp, BUTTON);
+    // The right-click runs through import(): the menu lands a task later.
+    return !!(await until(() => cp.evaluate((sel) => !!document.querySelector(sel), MENU), 5000));
+  };
+  const tick = (handle) => realClick(page, cp, `${MENU} label[data-bp="${handle}"] input`);
+  const closeMenu = async () => {
+    await page.keyboard.press('Escape');
+    return !!(await until(() => cp.evaluate((sel) => !document.querySelector(sel) && !document.getElementById('__sve-bp-sizes-menu-style'), MENU), 3000));
+  };
+
+  step('no marks on the size buttons', await cp.evaluate(() => document.querySelectorAll('.sve-bpo-badge').length === 0));
+  step('a right-click on the button opens the sizes menu', await openMenu());
+  const menuSeen = await visible(cp, MENU);
+  const menuBox = await absoluteRect(cp, MENU);
+  const buttonBox = await absoluteRect(cp, BUTTON);
+  step('the menu is on screen, under the button', menuSeen.ok && menuBox.y >= buttonBox.y + buttonBox.h, `${menuSeen.why}; button bottom ${Math.round(buttonBox.y + buttonBox.h)}`);
+  step('the right-click left the overview open', await layerOpen());
+  const rows0 = await menuRows();
+  step('one ticked row per size, narrowest first; only the active one locked', rows0.map((r) => r.bp).join() === expected.map((b) => b.handle).join() && rows0.every((r) => r.on && r.locked === (r.bp === activeHandle)),
+    rows0.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' '));
   const middle = expected.find((b) => b.handle !== activeHandle && b.handle !== expected[0].handle) || expected.find((b) => b.handle !== activeHandle);
-  const markSel = (handle) => `#__sve-preview-chrome .sve-bpo-badge[data-bpo-badge="${handle}"]`;
   const pressedBefore = await pressedDevice();
   const rowBefore = await rowWidthNow();
-  await realClick(page, cp, markSel(middle.handle));
+  await tick(middle.handle);
   await sleep(300);
   const off = await sizeState(middle.handle);
   const rowOff = await rowWidthNow();
-  step(`${middle.device}'s mark takes it out of the row, its frame blanked`, off.out && off.src === 'about:blank' && off.mark === false && rowOff < rowBefore, `out=${off.out} src=${off.src} mark on=${off.mark} row ${Math.round(rowBefore)}→${Math.round(rowOff)} px`);
-  step('the mark does not change the size the fields edit', (await pressedDevice()) === pressedBefore, `pressed device stays ${pressedBefore}`);
-  // Every other size can go; the active one — the preview — stays whatever is pressed.
+  step(`unticking ${middle.device} takes it out of the row, its frame blanked`, off.out && off.src === 'about:blank' && rowOff < rowBefore, `out=${off.out} src=${off.src} row ${Math.round(rowBefore)}→${Math.round(rowOff)} px`);
+  step('the menu stays open, the row unticked', (await menuRows()).find((r) => r.bp === middle.handle)?.on === false);
+  step('unticking does not change the size the fields edit', (await pressedDevice()) === pressedBefore, `pressed device stays ${pressedBefore}`);
+  // Every other size can go; the active one — the preview — stays, and is the last one ticked.
   const restSizes = expected.filter((b) => b.handle !== middle.handle && b.handle !== activeHandle);
-  for (const b of restSizes) await realClick(page, cp, markSel(b.handle));
-  await realClick(page, cp, markSel(activeHandle));
+  for (const b of restSizes) await tick(b.handle);
   await sleep(300);
-  step('with every other size switched out, the active size stays in', !(await sizeState(activeHandle)).out && restSizes.every(async (b) => (await sizeState(b.handle)).out), `${activeHandle} still shown`);
-  for (const b of [...restSizes, middle]) await realClick(page, cp, markSel(b.handle));
+  const rowsOne = await menuRows();
+  const restOut = (await Promise.all(restSizes.map((b) => sizeState(b.handle)))).every((st) => st.out);
+  step('with every other size unticked, the active size stays in, ticked and locked', !(await sizeState(activeHandle)).out && restOut && rowsOne.filter((r) => r.on).map((r) => r.bp).join() === activeHandle && rowsOne.find((r) => r.bp === activeHandle)?.locked,
+    rowsOne.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' '));
+  for (const b of [...restSizes, middle]) await tick(b.handle);
   const back = await until(async () => {
     const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
-    if (states.some((s) => s.out || !s.mark)) return null;
+    if (states.some((st) => st.out)) return null;
     for (const h of await copyHandles()) { const f = await h.contentFrame(); if (!f || !(await f.evaluate(() => !!document.querySelector(`[data-sid-field="${window.__sveTestField}"]`)).catch(() => false))) return null; }
     return states;
   }, 20000, 300);
-  step('marked in again, every size is back in the row and every copy loaded', !!back && back.every((s, i) => new URL(s.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((s) => s.src === 'about:blank' ? 'blank' : s.src.slice(s.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
-  const activeMark = await sizeState(activeHandle);
-  await realClick(page, cp, markSel(activeHandle));
-  await sleep(300);
-  step('the active size’s mark does nothing: the size being edited stays in the row', !(await sizeState(activeHandle)).out && (await sizeState(activeHandle)).mark === activeMark.mark, `${activeHandle} still in`);
+  step('ticked in again, every size is back in the row and every copy loaded', !!back && back.every((st, i) => new URL(st.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((st) => st.src === 'about:blank' ? 'blank' : st.src.slice(st.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
+  step('Escape closes the menu and its style, and leaves the overview open', (await closeMenu()) && (await layerOpen()));
 
   // 8. Escape closes; everything is as it was.
   await page.keyboard.press('Escape');
@@ -648,12 +670,11 @@ try {
       css: f?.style.cssText,
       cls: f?.className,
       marker: f?.contentWindow?.__sveBpoMarker,
-      marks: document.querySelectorAll('.sve-bpo-badge').length,
       groupPosition: document.querySelector('#__sve-preview-chrome [data-sve-devices]')?.style.position,
     };
   });
   step('Escape closes: layer and its style gone, button off', !!layerGone && !after.style && after.pressed === 'false');
-  step('closed, the marks are gone and the size group is as it was', after.marks === 0 && after.groupPosition === groupPositionBefore, `marks ${after.marks}, group position "${after.groupPosition}" (was "${groupPositionBefore}")`);
+  step('closed, the size group is as it was', after.groupPosition === groupPositionBefore, `group position "${after.groupPosition}" (was "${groupPositionBefore}")`);
   step('Escape did not close Live Preview', opened && !!(await page.$('iframe.sve-edit-overlay[data-open]')) && after.src != null);
   step('iframes in the CP document back to before', after.iframes === iframesBefore, `${after.iframes} (before ${iframesBefore})`);
   step('the preview frame is untouched: same src, transform and window', after.src === mainBefore.src && after.transform === mainBefore.transform && after.marker === 'before',
@@ -690,13 +711,32 @@ try {
   if (process.env.SVE_DEBUG) for (const [name, snap] of Object.entries({ open: listenersOpen, after: listenersAfter })) console.log(`DEBUG own listeners ${name}:`, Object.entries(snap).map(([k, list]) => `${k} ${list.filter((l) => /^breakpoint-overview-/.test(l.script)).map((l) => `${l.type}@${l.at}`).join(' ')}`).join(' | '));
   if (Object.values(others).some((list) => list.length)) info('bound by others while it was open', Object.entries(others).filter(([, l]) => l.length).map(([k, l]) => `${k}: ${[...new Set(l)].join(' ')}`).join(' | '));
 
+  // 9b. Closed, the menu still chooses: a right-click opens it without the
+  //     overview, and a size unticked there is out when the overview opens.
+  const outClosed = expected.find((b) => b.handle !== activeHandle);
+  step('closed, a right-click opens the sizes menu and not the overview', (await openMenu()) && !(await layerOpen()));
+  await tick(outClosed.handle);
+  step(`closed, ${outClosed.device} can be unticked`, (await menuRows()).find((r) => r.bp === outClosed.handle)?.on === false);
+  await closeMenu();
+
   // 10. The ring follows the size the fields edit (a device picked in the top bar).
   const mobile = expected[0];
   await realClick(page, cp, BUTTON);
   await waitIn(cp, LAYER, 10000);
+  step(`opened, ${outClosed.device} — unticked while closed — is out of the row`, (await sizeState(outClosed.handle)).out);
   await realClick(page, cp, `#__sve-preview-chrome [data-device="${mobile.device}"]`);
   const ring = await until(() => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-active]`)].map((el) => el.dataset.bp).join() || null, LAYER), 3000);
   step('picking a device in the top bar moves the ring', ring === mobile.handle, `ring on ${ring} after picking ${mobile.device}`);
+  if (outClosed.handle === mobile.handle) {
+    // A size picked while out comes back in: it is the preview now.
+    const picked = await until(async () => { const st = await sizeState(mobile.handle); return !st.out && st.src !== 'about:blank' ? st : null; }, 3000);
+    step('a size picked in the top bar while out comes back into the row', !!picked, picked ? picked.src.slice(picked.src.indexOf('sve_view')) : 'still out');
+  } else {
+    await openMenu();
+    await tick(outClosed.handle);
+    await closeMenu();
+  }
+  await copiesLoaded(expected.length);
 
   // 10b. At 100 % the row is wider than the pane. Picking a size in the top
   //      bar scrolls the row sideways so that size's frame stands whole in

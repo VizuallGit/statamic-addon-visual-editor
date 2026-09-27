@@ -4,7 +4,7 @@
  */
 import { emit, register } from '../cp/bus.js';
 import { bpBase, bpDevice, bpForDevice, bpFromWidth, bpInherits, breakpoints } from '../breakpoints.js';
-import { bindTips } from '../cp/tip.js';
+import { bindTips, hideTip } from '../cp/tip.js';
 import { t } from '../lib/i18n.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { featureOn } from '../lib/config.js';
@@ -974,19 +974,27 @@ export function ensureLpPreviewChrome(win) {
     // right of the sizes it shows and before zoom, square like reload and
     // blueprint. At rest the icon — not the button's surface — has the zoom
     // icons' idle opacity; the module lifts it while the overview is open.
-    // One button and one import() on click. Nothing else exists until then.
+    // One button and one import(), on click or right-click (the menu of which
+    // sizes stand in the row). Nothing else exists until then.
     if (featureOn(win, 'breakpoint_overview')) {
       const overview = doc.createElement('button');
+      const overviewModule = () => import('../breakpoint-overview.js');
 
       overview.type = 'button';
       overview.dataset.overview = '';
-      overview.title = t(win, 'bp_overview');
+      overview.title = t(win, 'bp_overview_button');
       overview.setAttribute('aria-pressed', 'false');
       overview.innerHTML =
         `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" opacity="${LP_ICON_IDLE_OPACITY}"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><path d="M17.25 14v6.5M14 17.25h6.5"/></svg>`;
       overview.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
       overview.addEventListener('click', () => {
-        import('../breakpoint-overview.js').then((m) => m.toggleBreakpointOverview(win));
+        overviewModule().then((m) => m.toggleBreakpointOverview(win));
+      });
+      overview.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        // The tip stands where the menu opens.
+        hideTip(doc);
+        overviewModule().then((m) => m.openSizesMenu(win, overview));
       });
 
       chrome.appendChild(overview);
