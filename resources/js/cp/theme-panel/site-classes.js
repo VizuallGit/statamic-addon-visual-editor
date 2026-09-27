@@ -179,6 +179,14 @@ export function variableRows(props, file = 'var.css') {
 /** The chips over the list. */
 export const CLASS_CHIPS = ['all', 'utility', 'class', 'variable', 'ambient', 'unused'];
 
+/**
+ * The chips that always show, empty or not: each one is also how you reach
+ * its New button, so hiding an empty one would mean the first class could
+ * never be made. The rest — ambient, unused — only ever filter, and a chip
+ * that says `0` is noise.
+ */
+export const CLASS_CHIPS_ALWAYS = ['all', 'utility', 'class', 'variable'];
+
 /** Whether a chip keeps a row. */
 export function chipKeeps(chip, row) {
   if (chip === 'variable') {

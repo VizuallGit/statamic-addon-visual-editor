@@ -136,7 +136,7 @@
 <script setup>
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { CLASS_CHIPS, chipKeeps, filterRows, rowSummary, usageLabel, variableRows } from '../theme-panel/site-classes.js';
+import { CLASS_CHIPS, CLASS_CHIPS_ALWAYS, chipKeeps, filterRows, rowSummary, usageLabel, variableRows } from '../theme-panel/site-classes.js';
 import ThemeUtilityEditor from './ThemeUtilityEditor.vue';
 
 const { h } = defineProps({ h: { type: Object, required: true } });
@@ -176,12 +176,14 @@ const allRows = computed(() => [...ui.classRows, ...variableRows(ui.props, ui.va
 const shown = computed(() => filterRows(allRows.value, { chip: ui.classChip, query: ui.classQuery }));
 
 /**
- * A chip with nothing behind it is noise — `Ambient 0` says only that the
- * concept exists. It comes back the day a rule earns it. The one in hand
- * stays, so the list does not move under a selection that just emptied.
+ * A chip that only filters is noise when empty — `Ambient 0` says no more than
+ * that the concept exists. A chip you can create in always shows: it is the
+ * way to its New button, and an empty Classes chip would mean the first class
+ * could never be made. The one in hand stays either way, so the list does not
+ * move under a selection that just emptied.
  */
 const shownChips = computed(() =>
-  CLASS_CHIPS.filter((chip) => chip === 'all' || chip === ui.classChip || count(chip) > 0)
+  CLASS_CHIPS.filter((chip) => CLASS_CHIPS_ALWAYS.includes(chip) || chip === ui.classChip || count(chip) > 0)
 );
 
 /**

@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CLASS_CHIPS_ALWAYS,
   applyUsage,
   variableRows,
   ownedRules,
@@ -187,5 +188,15 @@ test('a variable sits in the same list, but only under All and Variables', () =>
 
   for (const chip of ['utility', 'class', 'ambient', 'unused']) {
     assert.equal(chipKeeps(chip, v), false, `a variable has no ${chip}`);
+  }
+});
+
+test('every chip you can create in stays, so the first one can be made', () => {
+  for (const chip of ['utility', 'class', 'variable']) {
+    assert.ok(CLASS_CHIPS_ALWAYS.includes(chip), `${chip} is how you reach its New button`);
+  }
+
+  for (const chip of ['ambient', 'unused']) {
+    assert.ok(!CLASS_CHIPS_ALWAYS.includes(chip), `${chip} only filters, so it may hide when empty`);
   }
 });

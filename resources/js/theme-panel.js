@@ -40,7 +40,7 @@ const ENTRY = 'site.css';
 const VARS = 'var.css';
 const CLASSES = 'custom-classes.css';
 
-const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'styles'];
+const TABS = ['colors', 'spacing', 'fonts', 'type', 'styles', 'button'];
 
 let app = null;
 let keySeq = 0;

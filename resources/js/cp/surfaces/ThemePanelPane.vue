@@ -118,12 +118,12 @@ const TABS = [
     icon: svg('<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>'),
   },
   {
-    key: 'button',
-    icon: svg('<rect x="2" y="7" width="20" height="10" rx="5"/><path d="M8 12h8"/>'),
-  },
-  {
     key: 'styles',
     icon: svg('<path d="M12 2 4 7v10l8 5 8-5V7Z"/><path d="M12 12 4 7"/><path d="m12 12 8-5"/><path d="M12 12v10"/>'),
+  },
+  {
+    key: 'button',
+    icon: svg('<rect x="2" y="7" width="20" height="10" rx="5"/><path d="M8 12h8"/>'),
   },
 ];
 
