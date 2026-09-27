@@ -131,7 +131,7 @@ const CSS = `
   background: var(--c-bg, #262626); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.4);
 }
 #${MENU_ID} button {
-  display: block; width: 100%; padding: .4375rem .625rem; font-size: .75rem; line-height: 1.3;
+  display: block; width: 100%; padding: .4375rem .625rem; font-size: .875rem; line-height: 1.25;
   border: 0; border-radius: .3125rem; background: none;
   color: var(--c-text, inherit); font: inherit; text-align: left; cursor: pointer;
 }
