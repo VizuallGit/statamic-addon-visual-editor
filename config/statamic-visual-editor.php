@@ -732,6 +732,11 @@ return [
 
     'template_board' => [
         'skip' => ['pages', 'sections'],
+
+        // What a new template starts as. One file per slot —
+        // search.antlers.html, error.antlers.html, index.antlers.html … —
+        // edited on the site like the collection presets are.
+        'presets' => null,
     ],
 
 ];

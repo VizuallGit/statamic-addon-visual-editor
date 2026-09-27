@@ -4,11 +4,14 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use MarioHamann\StatamicVisualEditor\CollectionPresets;
 use MarioHamann\StatamicVisualEditor\CollectionViewTemplates;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\TemplateBoard;
 use Statamic\Contracts\Entries\Collection as CollectionContract;
 use Statamic\Facades\Collection;
+use Statamic\Facades\Entry;
+use Statamic\Facades\Site;
 use Statamic\Facades\Taxonomy;
 use Statamic\Facades\User;
 
@@ -63,6 +66,7 @@ class TemplateBoardController extends Controller
         }
 
         $this->write($view, $handle, $slot);
+        $this->routeFor($slot, $view);
 
         // A show view nothing points at is never rendered. Statamic decides an
         // entry's template from the collection's own `template:` setting, not
@@ -133,6 +137,49 @@ class TemplateBoardController extends Controller
     }
 
     /**
+     * The page that gives a template a URL.
+     *
+     * A view file has no address — `search.antlers.html` renders nothing until
+     * something routes to it. Statamic's own way to route to a view is a page
+     * entry whose `template` names it, which is also the way the editor can
+     * move it, rename it or unpublish it later. No route file is touched.
+     *
+     * Only for the search page: 404 is wired up by Laravel, the frontpage and
+     * the default page are the page collection's business, and the layout is
+     * not a page at all.
+     */
+    protected function routeFor(string $slot, string $view): void
+    {
+        if ($slot !== 'search') {
+            return;
+        }
+
+        $handle = (string) config('statamic-visual-editor.previews.collection', 'pages');
+        $pages = Collection::findByHandle($handle);
+
+        if (! $pages) {
+            return;
+        }
+
+        $taken = Entry::query()
+            ->where('collection', $handle)
+            ->where('slug', 'search')
+            ->first();
+
+        if ($taken) {
+            return;
+        }
+
+        Entry::make()
+            ->collection($handle)
+            ->locale(Site::default()->handle())
+            ->published(true)
+            ->slug('search')
+            ->data(['title' => 'Søgeresultater', 'template' => $view])
+            ->save();
+    }
+
+    /**
      * Point the source at the show view that was just written.
      *
      * Only when it has no template of its own: a collection already rendering
@@ -178,20 +225,57 @@ class TemplateBoardController extends Controller
         file_put_contents($path, $this->starter($handle, $slot));
     }
 
+    /**
+     * What a new template starts as.
+     *
+     * **The site owns this.** A file in `resources/visual-editor/template-presets/`
+     * is what gets written, so the markup a Search page begins with is edited
+     * in VS Code like the collection presets are — not buried in this class.
+     * `{collection}` is replaced with the source's handle.
+     *
+     * The built-ins below are a floor, not a design: enough that a new
+     * template renders something the moment it opens, and worth replacing.
+     */
     protected function starter(string $handle, string $slot): string
     {
-        if ($slot === 'index') {
-            return "{{ collection:{$handle} }}\n"
-                ."    <article>\n"
-                ."        <h2><a href=\"{{ url }}\">{{ title }}</a></h2>\n"
-                ."    </article>\n"
-                ."{{ /collection:{$handle} }}\n";
-        }
-
-        if ($slot === 'show') {
-            return "<article>\n    <h1>{{ title }}</h1>\n\n    {{ content }}\n</article>\n";
-        }
-
-        return "<h1>{{ title }}</h1>\n";
+        return $this->preset($slot, $handle) ?? $this->builtIn($handle, $slot);
     }
+
+    public static function presetDirectory(): string
+    {
+        $configured = config('statamic-visual-editor.template_board.presets');
+
+        return is_string($configured) && $configured !== ''
+            ? rtrim($configured, '/')
+            : resource_path('visual-editor/template-presets');
+    }
+
+    protected function preset(string $slot, string $handle): ?string
+    {
+        if (! preg_match('/^[a-z_]+$/', $slot)) {
+            return null;
+        }
+
+        $path = static::presetDirectory().'/'.$slot.'.antlers.html';
+
+        if (! is_file($path)) {
+            return null;
+        }
+
+        $body = file_get_contents($path);
+
+        return is_string($body)
+            ? str_replace(CollectionPresets::PLACEHOLDER, $handle, str_replace('{collection}', $handle, $body))
+            : null;
+    }
+
+    protected function builtIn(string $handle, string $slot): string
+    {
+        return match ($slot) {
+            'index' => "{{ collection:{$handle} }}\n    <article>\n        <h2><a href=\"{{ url }}\">{{ title }}</a></h2>\n    </article>\n{{ /collection:{$handle} }}\n",
+            'show' => "<article>\n    <h1>{{ title }}</h1>\n\n    {{ content }}\n</article>\n",
+            default => "<h1>{{ title }}</h1>\n",
+        };
+    }
+
 }
