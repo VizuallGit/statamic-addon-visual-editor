@@ -799,7 +799,7 @@ return [
     'theme_panel_discard' => 'Kassér',
     'theme_panel_remove' => 'Slet',
     'theme_panel_tab_colors' => 'Farver',
-    'theme_panel_tab_spacing' => 'Afstande',
+    'theme_panel_tab_spacing' => 'Fluid sizes',
     'theme_panel_tab_fonts' => 'Fonte',
     'theme_panel_tab_type' => 'Typografi',
     'theme_panel_tab_button' => 'Knapper',

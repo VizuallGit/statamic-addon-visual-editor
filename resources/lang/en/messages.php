@@ -805,7 +805,7 @@ return [
     'theme_panel_discard' => 'Discard',
     'theme_panel_remove' => 'Delete',
     'theme_panel_tab_colors' => 'Colors',
-    'theme_panel_tab_spacing' => 'Spacing',
+    'theme_panel_tab_spacing' => 'Fluid sizes',
     'theme_panel_tab_fonts' => 'Fonts',
     'theme_panel_tab_type' => 'Typography',
     'theme_panel_tab_button' => 'Buttons',
