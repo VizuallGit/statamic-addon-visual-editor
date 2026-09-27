@@ -36,6 +36,7 @@ class ChromePrefsController
         'sve-toolbar-hidden',
         'sve-toolbar-order',
         'sve-toolbar-presets',
+        'sve-toolbar-preset',
     ];
 
     public function update(Request $request)

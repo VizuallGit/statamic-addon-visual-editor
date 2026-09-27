@@ -20,12 +20,16 @@
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import {
   HEADER_FRAME_PREFIX,
+  HEADER_ICON_HOVER,
   HEADER_SURFACE,
   HEADER_TOOLBAR_ID,
+  LP_CHROME_H,
   LP_CONTROL_PAD,
+  LP_ICON_IDLE_OPACITY,
   LP_TOOLBAR_GAP,
   TOOLBAR_HIDDEN_KEY,
   TOOLBAR_ORDER_KEY,
+  TOOLBAR_PRESET_KEY,
   TOOLBAR_PRESETS_KEY,
 } from './lib/ids.js';
 import { cleanPreset, inOrder } from './lib/toolbar-presets.js';
@@ -40,27 +44,31 @@ const ALWAYS_SHOWN = ['settings'];
 
 const TOOL_KEY = /^[a-z][a-z0-9_]*$/;
 
-/** The row's own gap and an icon's width, as header-toolbar.js draws them. */
+/** The row's own gap, as header-toolbar.js draws it. */
 const ROW_GAP = 4;
-const ICON_W = 28;
 
 /**
- * Page settings in a box of its own, the way the device group has the
- * breakpoint overview beside it. The row's surface is taken off and drawn
- * twice: around Page settings (its ::before, one control-pad out, under the
- * button's own lit colour), and behind the rest from one topbar gap further
- * on. Paint only — the button stays in the row, where everything that looks
- * for it (the lit state, the width picker's anchor) still finds it.
+ * Page settings as a button of its own, like the breakpoint overview beside
+ * the device group: the full square, its surface grey at rest and the whole
+ * of it blue when on — no group padding around it. The row's surface is taken
+ * off and drawn again behind the rest, one topbar gap further on; only that
+ * group keeps its padding. Paint only: the button stays in the row, where
+ * everything that looks for it (the lit state, the width picker's anchor)
+ * still finds it, and its inline size is overruled here, not rewritten.
  */
 function settingsBoxCss() {
   const bar = `#${HEADER_TOOLBAR_ID}`;
-  const box = LP_CONTROL_PAD * 2 + ICON_W;
+  const btn = `${bar}>button[data-tab="settings"]`;
+  const idle = `${btn}:not([aria-pressed="true"])`;
 
   return [
     `${bar}{background:transparent!important;position:relative;isolation:isolate}`,
-    `${bar}::before{content:"";position:absolute;top:0;bottom:0;right:0;left:${box + LP_TOOLBAR_GAP}px;border-radius:.5rem;background:${HEADER_SURFACE};z-index:-1}`,
-    `${bar}>button[data-tab="settings"]{position:relative;margin-right:${LP_CONTROL_PAD * 2 + LP_TOOLBAR_GAP - ROW_GAP}px}`,
-    `${bar}>button[data-tab="settings"]::before{content:"";position:absolute;inset:-${LP_CONTROL_PAD}px;border-radius:.5rem;background:${HEADER_SURFACE};z-index:-1}`,
+    `${bar}::before{content:"";position:absolute;top:0;bottom:0;right:0;left:${LP_CHROME_H + LP_TOOLBAR_GAP}px;border-radius:.5rem;background:${HEADER_SURFACE};z-index:-1}`,
+    // Out over the row's padding on the left; the rest starts inside its own.
+    `${btn}{flex-shrink:0;width:${LP_CHROME_H}px!important;height:${LP_CHROME_H}px!important;margin:0 ${LP_TOOLBAR_GAP + LP_CONTROL_PAD - ROW_GAP}px 0 -${LP_CONTROL_PAD}px;border-radius:.5rem!important;opacity:1!important}`,
+    `${idle}{background:${HEADER_SURFACE}!important}`,
+    `${idle}:hover{background:${HEADER_ICON_HOVER}!important}`,
+    `${idle} svg{opacity:${LP_ICON_IDLE_OPACITY}}`,
   ];
 }
 
@@ -195,6 +203,21 @@ export function writeUserPresets(win, presets) {
     chromeSet(win, TOOLBAR_PRESETS_KEY, JSON.stringify(clean));
   } else {
     chromeRemove(win, TOOLBAR_PRESETS_KEY);
+  }
+}
+
+/** The preset this user last picked ('' = none). */
+export function readPickedPreset(win) {
+  const id = chromeGet(win, TOOLBAR_PRESET_KEY) || '';
+
+  return /^[a-z0-9_-]+$/.test(id) ? id : '';
+}
+
+export function writePickedPreset(win, id) {
+  if (id) {
+    chromeSet(win, TOOLBAR_PRESET_KEY, id);
+  } else {
+    chromeRemove(win, TOOLBAR_PRESET_KEY);
   }
 }
 

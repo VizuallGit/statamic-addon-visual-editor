@@ -118,6 +118,8 @@ export const TOOLBAR_HIDDEN_KEY = 'sve-toolbar-hidden';
 export const TOOLBAR_ORDER_KEY = 'sve-toolbar-order';
 /** Per-user presets of their own, JSON [{ id: 'u-…', name, tools, dock }]. */
 export const TOOLBAR_PRESETS_KEY = 'sve-toolbar-presets';
+/** The preset this user last picked, by id — marked when two presets are the same bar. */
+export const TOOLBAR_PRESET_KEY = 'sve-toolbar-preset';
 
 // Topbar surfaces: colour tokens the toolbar, the reload button and the pickers share
 /** Fladen bag både ikonknappen og kontrolgruppen — samme, så de hører sammen. */

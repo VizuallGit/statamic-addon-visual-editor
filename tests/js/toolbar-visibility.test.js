@@ -4,6 +4,7 @@ import {
   PEEK_ATTR,
   openToolbarTool,
   readHiddenTools,
+  readPickedPreset,
   readUserPresets,
   setToolbarOrder,
   setToolbarToolShown,
@@ -11,6 +12,7 @@ import {
   syncToolbarLayout,
   toolbarCss,
   toolbarTools,
+  writePickedPreset,
   writeUserPresets,
 } from '../../resources/js/toolbar-visibility.js';
 import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEY, TOOLBAR_ORDER_KEY, TOOLBAR_PRESETS_KEY } from '../../resources/js/lib/ids.js';
@@ -256,12 +258,26 @@ test("a user's own presets are stored clean", () => {
   assert.deepEqual(readUserPresets(win), []);
 });
 
-test('Page settings gets a box of its own, one topbar gap before the rest', () => {
+test('Page settings is a button of its own, full square, one topbar gap before the rest', () => {
   assert.match(BOX, /#__sve-toolbar\{background:transparent!important;position:relative;isolation:isolate\}/);
-  // 5 pad + 28 icon + 5 pad, then the 8 px topbar gap.
-  assert.match(BOX, /#__sve-toolbar::before\{[^}]*left:46px;[^}]*background:rgba\(128,128,128,\.16\)/);
-  assert.match(BOX, /button\[data-tab="settings"\]::before\{[^}]*inset:-5px;[^}]*z-index:-1\}/);
-  // 5 + 8 + 5 − the row's own 4 px gap: the rest starts inside its box.
-  assert.match(BOX, /button\[data-tab="settings"\]\{position:relative;margin-right:14px\}/);
+  // The rest's surface starts one 32 px button and the 8 px topbar gap in.
+  assert.match(BOX, /#__sve-toolbar::before\{[^}]*left:40px;[^}]*background:rgba\(128,128,128,\.16\)/);
+  // Full 32 px square out over the row's 5 px padding; 8 + 5 − the row's 4 px gap after it.
+  assert.match(BOX, /button\[data-tab="settings"\]\{flex-shrink:0;width:32px!important;height:32px!important;margin:0 9px 0 -5px;border-radius:\.5rem!important;opacity:1!important\}/);
+  // Grey surface at rest (hover lighter), the icon dimmed; lit, the button's own blue fills it.
+  assert.match(BOX, /\[data-tab="settings"\]:not\(\[aria-pressed="true"\]\)\{background:rgba\(128,128,128,\.16\)!important\}/);
+  assert.match(BOX, /:not\(\[aria-pressed="true"\]\) svg\{opacity:0\.7\}/);
+  assert.doesNotMatch(BOX, /::before\{[^}]*inset/);
   assert.doesNotMatch(BOX, /display:none|order:/);
+});
+
+test('the picked preset is remembered, and only as an id', () => {
+  const win = fakeWin();
+
+  writePickedPreset(win, 'u-abc');
+  assert.equal(readPickedPreset(win), 'u-abc');
+  writePickedPreset(win, '');
+  assert.equal(readPickedPreset(win), '');
+  win.store.set('sve-toolbar-preset', 'x"y');
+  assert.equal(readPickedPreset(win), '');
 });

@@ -208,6 +208,27 @@ async function openLivePreview(page) {
   return cp;
 }
 
+/**
+ * Start from the bar nobody has changed, through the menu itself: Show all and
+ * Default order, where the account's own stored choice put anything else.
+ * Nothing is saved (see above) — this is the test browser's copy only.
+ */
+async function cleanSlate(page, cp, { order = true } = {}) {
+  await openMenuTab(page, cp, 'toolbar');
+
+  for (const button of order ? ['[data-sve-toolbar-all]', '[data-sve-toolbar-order-reset]'] : ['[data-sve-toolbar-all]']) {
+    if (await cp.$(`${MENU} ${button}`)) {
+      await click(page, cp, `${MENU} ${button}`);
+      await sleep(200);
+    }
+  }
+
+  // The menu opens on the tab it was left on: leave it on the first.
+  await click(page, cp, tabButton('sidebars'));
+  await page.keyboard.press('Escape');
+  await sleep(300);
+}
+
 async function openMenuTab(page, cp, tab) {
   if (!(await cp.$(MENU))) {
     await click(page, cp, MORE);
@@ -302,31 +323,38 @@ try {
     : step(name, ok, detail));
 
   let cp = await openLivePreview(page);
+
+  await cleanSlate(page, cp);
+
   const before = await visibleIcons(cp);
 
   step('the top bar has its icons', before.length > 3, before.join(' '));
 
-  // Page settings in a box of its own: a topbar gap between it and the rest,
-  // each with its own surface (the row's own is taken off).
+  // Page settings as a button of its own, like the breakpoint overview: the
+  // full 32 px square from the row's left edge, its own surface, then a topbar
+  // gap and the rest on a surface of their own (the row's is taken off).
   const box = await cp.evaluate((bar) => {
     const row = document.querySelector(bar);
-    const icons = [...row.querySelectorAll(':scope > button[data-tab], :scope > [id^="__sve-frame-"]')]
-      .filter((el) => el.getBoundingClientRect().width > 0)
-      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-    const settings = row.querySelector(':scope > button[data-tab="settings"]').getBoundingClientRect();
-    const next = icons.find((el) => el.dataset.tab !== 'settings')?.getBoundingClientRect();
-    const own = getComputedStyle(row.querySelector(':scope > button[data-tab="settings"]'), '::before');
+    const btn = row.querySelector(':scope > button[data-tab="settings"]');
+    const r = btn.getBoundingClientRect();
+    const rowBox = row.getBoundingClientRect();
+    const next = [...row.querySelectorAll(':scope > button[data-tab], :scope > [id^="__sve-frame-"]')]
+      .filter((el) => el !== btn && el.getBoundingClientRect().width > 0)
+      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)[0]?.getBoundingClientRect();
     const rest = getComputedStyle(row, '::before');
 
     return {
-      gap: next ? Math.round(next.left - settings.right) : 0,
-      ownBox: own.content !== 'none' && own.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      left: Math.round(r.left - rowBox.left),
+      bg: getComputedStyle(btn).backgroundColor,
+      gap: next ? Math.round(next.left - r.right) : 0,
       restBox: rest.content !== 'none' && rest.backgroundColor !== 'rgba(0, 0, 0, 0)',
       rowBg: getComputedStyle(row).backgroundColor,
     };
   }, BAR);
 
-  step('Page settings stands in a box of its own', box.ownBox && box.restBox && box.gap >= 16 && box.rowBg === 'rgba(0, 0, 0, 0)', JSON.stringify(box));
+  step('Page settings is a full button of its own', box.w === 32 && box.h === 32 && box.left === 0 && box.bg !== 'rgba(0, 0, 0, 0)' && box.restBox && box.gap >= 12 && box.rowBg === 'rgba(0, 0, 0, 0)', JSON.stringify(box));
 
   // ── The menu ──────────────────────────────────────────────────────────
   await click(page, cp, MORE);
@@ -394,6 +422,25 @@ try {
     reloadStep('sve-toolbar-hidden', 'Pages still hidden after a reload', !(await seen(cp, `#__sve-frame-${framed}`)));
   }
 
+  // The account's own hidden icons came back with the reload: this run's two
+  // are hidden again, the rest shown, before the steps that open them.
+  if (accountHas('sve-toolbar-hidden')) {
+    await openMenuTab(page, cp, 'toolbar');
+
+    if (await cp.$(`${MENU} [data-sve-toolbar-all]`)) {
+      await click(page, cp, `${MENU} [data-sve-toolbar-all]`);
+      await sleep(200);
+    }
+
+    for (const key of framed ? [panelTool, framed] : [panelTool]) {
+      await click(page, cp, `${toolRow(key)} input[type="checkbox"]`);
+      await sleep(150);
+    }
+
+    await page.keyboard.press('Escape');
+    await sleep(300);
+  }
+
   // ── Open a hidden tool from the menu ──────────────────────────────────
   await openMenuTab(page, cp, 'toolbar');
   await click(page, cp, `${toolRow(panelTool)} [data-sve-toolbar-open]`);
@@ -439,6 +486,13 @@ try {
 
   await page.keyboard.press('Escape');
   cp = await openLivePreview(page);
+
+  // The account's own hidden icons came back with the reload; the order steps
+  // look at every icon.
+  if (accountHas('sve-toolbar-hidden')) {
+    await cleanSlate(page, cp, { order: false });
+  }
+
   reloadStep('sve-toolbar-order', 'the order survives a reload', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
 
   await openMenuTab(page, cp, 'toolbar');
@@ -478,6 +532,28 @@ try {
     await sleep(800);
     step('Developer shows its icons', sameSet(await visibleIcons(cp), before.filter((key) => key === 'settings' || developerPreset.tools.includes(key))), (await visibleIcons(cp)).join(' '));
     step('and the template dock follows it', (await dockArmed()) === developerPreset.dock);
+
+    // A copy of Developer is the same bar: the one picked is the one marked.
+    const isOn = (id) => cp.$eval(`${MENU} [data-sve-toolbar-preset="${id}"]`, (el) => el.classList.contains('is-on')).catch(() => false);
+
+    await click(page, cp, `${MENU} [data-sve-toolbar-preset-new]`);
+    await cp.waitForSelector(`${MENU} [data-sve-toolbar-preset-name]`, { timeout: 3000 });
+    await page.keyboard.type(`${PRESET_NAME} copy`);
+    await page.keyboard.press('Enter');
+    await sleep(400);
+
+    const copy = await cp.evaluate((m, name) => [...document.querySelectorAll(`${m} [data-sve-toolbar-preset^="u-"]`)]
+      .find((el) => el.textContent.includes(name))?.dataset.sveToolbarPreset || '', MENU, `${PRESET_NAME} copy`);
+
+    step('a copy of Developer, just saved, is the one marked', !!copy && (await isOn(copy)) && !(await isOn('developer')));
+    await click(page, cp, `${MENU} [data-sve-toolbar-preset="developer"] button`);
+    await sleep(400);
+    step('picking Developer marks Developer', (await isOn('developer')) && !(await isOn(copy)));
+    await click(page, cp, `${MENU} [data-sve-toolbar-preset="${copy}"] button`);
+    await sleep(400);
+    step('picking the copy marks the copy', (await isOn(copy)) && !(await isOn('developer')));
+    await click(page, cp, `${MENU} [data-sve-toolbar-preset="${copy}"] [data-sve-toolbar-preset-delete]`);
+    await sleep(300);
   }
 
   // ── A preset of one's own ─────────────────────────────────────────────

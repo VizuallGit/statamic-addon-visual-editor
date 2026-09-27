@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
-import { moveKey, presetMatches } from '../../lib/toolbar-presets.js';
+import { activePreset, moveKey } from '../../lib/toolbar-presets.js';
 
 // Top bar tab. Presets on top: All, the site's two (Developer, Content
 // editor — edited on the settings screen) and the user's own. Under them one row per
@@ -36,13 +36,14 @@ const tools = ref(state.tools.map((tool) => ({ ...tool })));
 const presets = ref(state.presets.map((preset) => ({ ...preset })));
 const dock = ref(state.dock);
 const ordered = ref(state.ordered);
+const picked = ref(state.picked || '');
 
 const anyHidden = computed(() => tools.value.some((tool) => !tool.shown));
 const activeId = computed(() => {
   const available = tools.value.map((tool) => tool.key);
   const shown = tools.value.filter((tool) => tool.shown).map((tool) => tool.key);
 
-  return presets.value.find((preset) => presetMatches(preset, { available, shown, dock: dock.value, dockAllowed: props.dockAllowed }))?.id || '';
+  return activePreset(presets.value, { available, shown, dock: dock.value, dockAllowed: props.dockAllowed }, picked.value)?.id || '';
 });
 
 function setShown(key, value) {
@@ -64,6 +65,7 @@ function showAll() {
 
 // ── Presets ─────────────────────────────────────────────────────────────
 function applyPreset(preset) {
+  picked.value = preset.id;
   tools.value.forEach((tool) => {
     tool.shown = preset.tools.includes(tool.key);
   });
@@ -99,12 +101,19 @@ function saveNew() {
 
   if (preset) {
     presets.value.push(preset);
+    // A new preset is the bar as it stands: it is the one on now.
+    picked.value = preset.id;
+    props.on.toolbarPreset(preset.id);
   }
 
   adding.value = false;
 }
 
 function deletePreset(preset) {
+  if (picked.value === preset.id) {
+    picked.value = '';
+  }
+
   presets.value = presets.value.filter((item) => item.id !== preset.id);
   props.on.toolbarPresetDelete(preset.id);
 }

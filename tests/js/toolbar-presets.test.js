@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PRESET_NAME_MAX, cleanPreset, inOrder, moveKey, newPresetId, presetHidden, presetMatches } from '../../resources/js/lib/toolbar-presets.js';
+import { PRESET_NAME_MAX, activePreset, cleanPreset, inOrder, moveKey, newPresetId, presetHidden, presetMatches } from '../../resources/js/lib/toolbar-presets.js';
 
 const editor = { id: 'editor', tools: ['pages', 'globals', 'listview', 'edits'], dock: false };
 const available = ['pages', 'globals', 'sections', 'listview', 'code', 'edits'];
@@ -61,4 +61,16 @@ test('moving a key places it, clamped', () => {
   assert.deepEqual(moveKey(['a', 'b', 'c', 'd'], 'd', 0), ['d', 'a', 'b', 'c']);
   assert.deepEqual(moveKey(['a', 'b'], 'a', 99), ['b', 'a']);
   assert.deepEqual(moveKey(['a', 'b'], 'z', 0), ['a', 'b']);
+});
+
+test('of two presets that are the same bar, the picked one is on', () => {
+  const developer = { id: 'developer', tools: ['sections', 'code'], dock: true };
+  const copy = { id: 'u-cosom', name: 'Cosom', tools: ['sections', 'code'], dock: true };
+  const state = { available: ['pages', 'sections', 'code'], shown: ['sections', 'code'], dock: true, dockAllowed: true };
+
+  assert.equal(activePreset([developer, copy], state).id, 'developer');
+  assert.equal(activePreset([developer, copy], state, 'u-cosom').id, 'u-cosom');
+  // Picked but no longer the bar: the first that is takes over.
+  assert.equal(activePreset([developer, copy], { ...state, shown: ['sections'] }, 'u-cosom'), null);
+  assert.equal(activePreset([developer, copy], state, 'gone').id, 'developer');
 });

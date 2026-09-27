@@ -54,6 +54,21 @@ export function presetMatches(preset, { available, shown, dock = false, dockAllo
   return !dockAllowed || preset.dock === null || preset.dock === dock;
 }
 
+/**
+ * The preset to mark. Two presets can be the same bar (a user's own copy of
+ * Developer): then the one the user picked is the one that is on, and only
+ * when it no longer matches does the first that does take over.
+ */
+export function activePreset(presets, state, picked = '') {
+  const chosen = presets.find((preset) => preset.id === picked);
+
+  if (chosen && presetMatches(chosen, state)) {
+    return chosen;
+  }
+
+  return presets.find((preset) => presetMatches(preset, state)) || null;
+}
+
 /** A new user preset's id: time-based, so two in the same list never meet. */
 export function newPresetId(now = Date.now(), taken = []) {
   let n = now;

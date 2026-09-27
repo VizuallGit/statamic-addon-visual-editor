@@ -25,6 +25,7 @@ import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 import {
   openToolbarTool,
+  readPickedPreset,
   readToolbarOrder,
   readUserPresets,
   setHiddenTools,
@@ -33,6 +34,7 @@ import {
   showAllToolbarTools,
   syncToolbarLayout,
   toolbarTools,
+  writePickedPreset,
   writeUserPresets,
 } from './toolbar-visibility.js';
 import { PRESET_NAME_MAX, cleanPreset, newPresetId, presetHidden } from './lib/toolbar-presets.js';
@@ -252,6 +254,7 @@ function toolbarState(win) {
     presets: allPresets(win),
     dock: isCodeDockArmed(win),
     ordered: readToolbarOrder(win).length > 0,
+    picked: readPickedPreset(win),
   };
 }
 
@@ -287,6 +290,7 @@ function applyPreset(win, id) {
     return;
   }
 
+  writePickedPreset(win, preset.id);
   setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
 
   if (preset.dock !== null && templateDockAllowed(win) && isCodeDockArmed(win) !== preset.dock) {
@@ -365,7 +369,13 @@ function bindSettingHandlers(win) {
       toolbarOrderReset: () => setToolbarOrder(win, []),
       toolbarPreset: (id) => applyPreset(win, id),
       toolbarPresetSave: (name) => saveOwnPreset(win, name),
-      toolbarPresetDelete: (id) => writeUserPresets(win, readUserPresets(win).filter((item) => item.id !== id)),
+      toolbarPresetDelete: (id) => {
+        writeUserPresets(win, readUserPresets(win).filter((item) => item.id !== id));
+
+        if (readPickedPreset(win) === id) {
+          writePickedPreset(win, '');
+        }
+      },
       // The menu goes first: the tool opens where the menu was.
       toolbarOpen: (key) => {
         dismissLpMoreMenu();
