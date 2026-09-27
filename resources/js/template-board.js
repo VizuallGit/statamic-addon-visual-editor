@@ -36,12 +36,24 @@ const MENU_ID = '__sve-template-board-menu';
  * collection's cards answers it by making you read the whole pile.
  */
 function columns(win, rows) {
-  const site = rows.filter((row) => row.kind === 'site');
-  const rest = rows.filter((row) => row.kind !== 'site');
+  const of = (kind) => rows.filter((row) => row.kind === kind);
+  const column = (row) => ({
+    id: row.handle,
+    kind: t(win, `template_board_kind_${row.kind}`),
+    title: row.title,
+    rows: [row],
+  });
+  const taxonomies = of('taxonomy');
 
   return [
-    { id: 'site', title: t(win, 'template_board_group_site'), rows: site },
-    ...rest.map((row) => ({ id: row.handle, title: row.title, rows: [row] })),
+    { id: 'site', title: t(win, 'template_board_group_site'), rows: of('site') },
+    ...of('collection').map(column),
+    // A site with no taxonomies still gets the column. Without it the screen
+    // says taxonomies cannot have templates, when the truth is only that none
+    // exist yet — and the first one anybody makes has nowhere to appear.
+    ...(taxonomies.length
+      ? taxonomies.map(column)
+      : [{ id: '_taxonomies', kind: t(win, 'template_board_kind_taxonomy'), title: t(win, 'template_board_group_taxonomies'), rows: [] }]),
   ];
 }
 
@@ -72,6 +84,8 @@ const CSS = `
 }
 #${BOARD_HOST} [data-sve-tb-col]:last-child [data-sve-tb-head] { border-right: 0; }
 #${BOARD_HOST} [data-sve-tb-title] { font-size: .9375rem; white-space: nowrap; }
+/* What kind of thing the column is, said once, ahead of its name. */
+#${BOARD_HOST} [data-sve-tb-kind] { font-size: .75rem; opacity: .45; white-space: nowrap; }
 #${BOARD_HOST} [data-sve-tb-add] {
   display: inline-flex; align-items: center; justify-content: center;
   width: 1.375em; height: 1.375em; line-height: 1;
@@ -292,6 +306,10 @@ function columnNode(win, group) {
   const node = el(win, 'section', { 'data-sve-tb-col': '', 'data-group': group.id });
   const head = el(win, 'header', { 'data-sve-tb-head': '' });
 
+  if (group.kind) {
+    head.appendChild(el(win, 'span', { 'data-sve-tb-kind': '' }, group.kind));
+  }
+
   head.appendChild(el(win, 'span', { 'data-sve-tb-title': '' }, group.title));
 
   const here = [];
@@ -324,15 +342,20 @@ function columnNode(win, group) {
   if (!here.length) {
     const none = el(win, 'div', { 'data-sve-tb-none': '' });
 
-    none.appendChild(el(win, 'span', {}, t(win, 'template_board_none')));
+    none.appendChild(el(win, 'span', {}, t(win, missing.length ? 'template_board_none' : 'template_board_none_source')));
 
-    const plus = el(win, 'button', { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') }, '+');
+    // No + when there is nothing it could make: an empty taxonomy column is
+    // waiting for a taxonomy, not for a template.
+    if (missing.length) {
+      const plus = el(win, 'button', { type: 'button', 'data-sve-tb-add': '', title: t(win, 'template_board_create') }, '+');
 
-    plus.addEventListener('click', (event) => {
-      event.stopPropagation();
-      openMenu(win, plus, missing);
-    });
-    none.appendChild(plus);
+      plus.addEventListener('click', (event) => {
+        event.stopPropagation();
+        openMenu(win, plus, missing);
+      });
+      none.appendChild(plus);
+    }
+
     stack.appendChild(none);
   }
 
