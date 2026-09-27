@@ -50,6 +50,12 @@ class TemplateBoardController extends Controller
 
         $this->write($view, $handle, $slot);
 
+        // A show view nothing points at is never rendered. Statamic decides an
+        // entry's template from the collection's own `template:` setting, not
+        // from the file's name — Scaffold Views writes the file AND the
+        // setting, and so must this.
+        $this->pointAtShowView($handle, $slot, $view);
+
         // A collection's or taxonomy's template also needs the CP row, so Live
         // Preview has something to open. `ensure` is idempotent and keeps the
         // one-index-one-show rule; the site's own views are not a source's, so
@@ -97,6 +103,36 @@ class TemplateBoardController extends Controller
         $view = TemplateBoard::viewPath($handle, $slot);
 
         return [TemplateBoard::safeView($view) ? $view : null, $source->title()];
+    }
+
+    /**
+     * Point the source at the show view that was just written.
+     *
+     * Only when it has no template of its own: a collection already rendering
+     * through `skabelon_sections` chose that, and the board is not the place
+     * to quietly change what a site renders. Those cards are drawn as shared
+     * rather than empty, so this should not come up — the guard is here
+     * because silently repointing a live collection is the worse failure.
+     */
+    protected function pointAtShowView(string $handle, string $slot, string $view): void
+    {
+        if ($slot !== 'show') {
+            return;
+        }
+
+        $collection = Collection::findByHandle($handle);
+
+        if (! $collection) {
+            return;
+        }
+
+        $current = $collection->template();
+
+        if (is_string($current) && $current !== '' && $current !== 'default') {
+            return;
+        }
+
+        $collection->template($view)->save();
     }
 
     /**

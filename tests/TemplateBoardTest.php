@@ -22,7 +22,7 @@ class TemplateBoardTest extends TestCase
         // The collections the tests make are written to the fixture site, and
         // nothing else clears them — without this they are left behind in the
         // repo and the next run starts from a different site than this one.
-        foreach (['journal', 'ghosts'] as $handle) {
+        foreach (['journal', 'ghosts', 'worked', 'shared', 'nothing'] as $handle) {
             Collection::findByHandle($handle)?->delete();
         }
 
@@ -75,6 +75,42 @@ class TemplateBoardTest extends TestCase
 
         $this->assertSame(['index', 'show'], array_column($row['cards'], 'slot'));
         $this->assertSame(['cases/index', 'cases/show'], array_column($row['cards'], 'view'));
+    }
+
+    /**
+     * The collection's own `template:` decides what renders an entry. Guessing
+     * `{handle}/show` made three of four collections on a real site look as
+     * though they had no template at all.
+     */
+    public function test_the_show_card_follows_the_collections_own_template(): void
+    {
+        $own = Collection::make('worked')->title('Worked')->template('worked/show');
+        $own->save();
+
+        $shared = Collection::make('shared')->title('Shared')->template('default');
+        $shared->save();
+
+        $this->assertSame('worked/show', TemplateBoard::showView('worked', $own));
+        $this->assertSame('default', TemplateBoard::showView('shared', $shared));
+    }
+
+    public function test_a_shared_template_is_marked_shared_not_empty(): void
+    {
+        $shared = Collection::make('shared')->title('Shared')->template('default');
+        $shared->save();
+
+        $own = Collection::make('worked')->title('Worked')->template('worked/show');
+        $own->save();
+
+        $card = fn ($row) => collect($row['cards'])->firstWhere('slot', 'show');
+
+        $this->assertTrue($card(TemplateBoard::sourceRow('shared', 'Shared', 'collection', $shared))['shared']);
+        $this->assertFalse($card(TemplateBoard::sourceRow('worked', 'Worked', 'collection', $own))['shared']);
+    }
+
+    public function test_the_show_view_falls_back_to_the_convention_without_a_source(): void
+    {
+        $this->assertSame('nothing/show', TemplateBoard::showView('nothing', null));
     }
 
     public function test_the_site_row_leads_with_layout(): void

@@ -100,23 +100,36 @@ final class TemplateBoard
                 continue;
             }
 
-            $rows[] = static::sourceRow($collection->handle(), $collection->title(), 'collection');
+            $rows[] = static::sourceRow($collection->handle(), $collection->title(), 'collection', $collection);
         }
 
         foreach (Taxonomy::all() as $taxonomy) {
-            $rows[] = static::sourceRow($taxonomy->handle(), $taxonomy->title(), 'taxonomy');
+            $rows[] = static::sourceRow($taxonomy->handle(), $taxonomy->title(), 'taxonomy', $taxonomy);
         }
 
         return $rows;
     }
 
-    public static function sourceRow(string $handle, string $title, string $kind): array
+    public static function sourceRow(string $handle, string $title, string $kind, mixed $source = null): array
     {
         $entries = static::entriesFor($handle);
         $cards = [];
 
         foreach (static::SOURCE_SLOTS as $slot) {
-            $cards[] = static::card($slot, static::viewPath($handle, $slot), $entries[$slot] ?? null);
+            $view = $slot === 'show'
+                ? static::showView($handle, $source)
+                : static::viewPath($handle, $slot);
+
+            $card = static::card($slot, $view, $entries[$slot] ?? null);
+
+            // A template the collection shares with others — `default`, or a
+            // file of its own name. Saying so is the point: the card is not
+            // empty, and editing it would change every collection pointing at
+            // the same view.
+            $card['shared'] = $slot === 'show' && ! str_starts_with($view, $handle.'/');
+            $card['create'] = static::viewPath($handle, $slot);
+
+            $cards[] = $card;
         }
 
         return [
@@ -125,6 +138,28 @@ final class TemplateBoard
             'kind' => $kind,
             'cards' => $cards,
         ];
+    }
+
+    /**
+     * Which view a source actually renders an entry with.
+     *
+     * **Its own setting, not the naming convention.** `cases/show` is only what
+     * Statamic's Scaffold Views happens to write into `template:`; a collection
+     * is free to point anywhere, and several point at `default`. Guessing the
+     * path made three of four collections on a real site look as though they
+     * had no template at all.
+     */
+    public static function showView(string $handle, mixed $source = null): string
+    {
+        $source ??= Collection::findByHandle($handle) ?: Taxonomy::findByHandle($handle);
+
+        $template = is_object($source) && method_exists($source, 'template')
+            ? $source->template()
+            : null;
+
+        return is_string($template) && $template !== ''
+            ? $template
+            : static::viewPath($handle, 'show');
     }
 
     /**

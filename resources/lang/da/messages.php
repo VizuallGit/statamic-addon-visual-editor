@@ -1242,6 +1242,7 @@ return [
     'template_board_site' => 'Sitet',
     'template_board_empty' => 'Ingen skabelon endnu',
     'template_board_create' => 'Opret',
+    'template_board_shared' => 'Delt — andre collections tegner også med den',
     'template_board_broken' => 'View-filen er væk',
     'template_board_open' => 'Åbn',
     'template_board_slot_layout' => 'Layout',

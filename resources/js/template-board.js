@@ -56,6 +56,7 @@ const CSS = `
 #${BOARD_HOST} [data-sve-tb-file] { font-size: .8em; opacity: .6; font-family: ui-monospace, monospace; word-break: break-all; }
 #${BOARD_HOST} [data-sve-tb-note] { font-size: .8em; }
 #${BOARD_HOST} [data-sve-tb-card][data-broken] [data-sve-tb-note] { color: var(--c-danger, #dc2626); }
+#${BOARD_HOST} [data-sve-tb-card][data-shared] [data-sve-tb-note] { opacity: .6; }
 #${BOARD_HOST} [data-sve-tb-busy] { opacity: .5; pointer-events: none; }
 `;
 
@@ -106,6 +107,7 @@ function cardNode(win, host, row, card) {
     'data-filled': filled || null,
     'data-empty': !card.exists && !card.broken ? '' : null,
     'data-broken': card.broken ? '' : null,
+    'data-shared': card.shared ? '' : null,
   });
 
   node.appendChild(el(win, 'span', { 'data-sve-tb-slot': '' }, slotLabel(win, card.slot)));
@@ -115,6 +117,12 @@ function cardNode(win, host, row, card) {
     node.appendChild(el(win, 'span', { 'data-sve-tb-note': '' }, t(win, 'template_board_broken')));
   } else if (card.exists) {
     node.appendChild(el(win, 'span', { 'data-sve-tb-file': '' }, card.file));
+
+    // A template several collections point at. Not empty — but editing it
+    // changes every one of them, and the card is the only place to find out.
+    if (card.shared) {
+      node.appendChild(el(win, 'span', { 'data-sve-tb-note': '' }, t(win, 'template_board_shared')));
+    }
   } else {
     node.appendChild(el(win, 'span', { 'data-sve-tb-note': '' }, t(win, 'template_board_empty')));
   }

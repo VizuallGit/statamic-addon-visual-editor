@@ -1249,6 +1249,7 @@ return [
     'template_board_site' => 'Site',
     'template_board_empty' => 'No template yet',
     'template_board_create' => 'Create',
+    'template_board_shared' => 'Shared — other collections render with this too',
     'template_board_broken' => 'The view file is gone',
     'template_board_open' => 'Open',
     'template_board_slot_layout' => 'Layout',
