@@ -596,8 +596,9 @@ try {
   // 7b. A right-click on the overview button opens the sizes menu: a checkbox
   //     per size. Unticking takes that size out of the row (frame blanked) and
   //     nothing else — the size the fields edit stays; ticking brings it back,
-  //     live. The active size and the last one ticked cannot go. (Until 27 Sep
-  //     2026 these were dots on the size buttons.)
+  //     live. Any size may go but the last one ticked; when the size being
+  //     edited goes, the preview moves to the nearest size still in. (Until
+  //     27 Sep 2026 these were dots on the size buttons.)
   const MENU = '#__sve-bp-sizes-menu';
   const pressedDevice = () => cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join());
   const rowWidthNow = () => cp.evaluate((sel) => document.querySelector(`${sel} .sve-bpo-sizer`).getBoundingClientRect().width, LAYER);
@@ -626,7 +627,7 @@ try {
   step('the menu is on screen, under the button', menuSeen.ok && menuBox.y >= buttonBox.y + buttonBox.h, `${menuSeen.why}; button bottom ${Math.round(buttonBox.y + buttonBox.h)}`);
   step('the right-click left the overview open', await layerOpen());
   const rows0 = await menuRows();
-  step('one ticked row per size, narrowest first; only the active one locked', rows0.map((r) => r.bp).join() === expected.map((b) => b.handle).join() && rows0.every((r) => r.on && r.locked === (r.bp === activeHandle)),
+  step('one ticked row per size, narrowest first; none locked', rows0.map((r) => r.bp).join() === expected.map((b) => b.handle).join() && rows0.every((r) => r.on && !r.locked),
     rows0.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' '));
   const middle = expected.find((b) => b.handle !== activeHandle && b.handle !== expected[0].handle) || expected.find((b) => b.handle !== activeHandle);
   const pressedBefore = await pressedDevice();
@@ -638,15 +639,21 @@ try {
   step(`unticking ${middle.device} takes it out of the row, its frame blanked`, off.out && off.src === 'about:blank' && rowOff < rowBefore, `out=${off.out} src=${off.src} row ${Math.round(rowBefore)}→${Math.round(rowOff)} px`);
   step('the menu stays open, the row unticked', (await menuRows()).find((r) => r.bp === middle.handle)?.on === false);
   step('unticking does not change the size the fields edit', (await pressedDevice()) === pressedBefore, `pressed device stays ${pressedBefore}`);
-  // Every other size can go; the active one — the preview — stays, and is the last one ticked.
-  const restSizes = expected.filter((b) => b.handle !== middle.handle && b.handle !== activeHandle);
-  for (const b of restSizes) await tick(b.handle);
-  await sleep(300);
+  // The size being edited may go too: the preview moves first to the nearest
+  // size still in (the same door as its top-bar button), then the size leaves.
+  const ringOn = () => cp.evaluate((sel) => [...document.querySelectorAll(`${sel} [data-active]`)].map((el) => el.dataset.bp).join(), LAYER);
+  const stillIn = expected.filter((b) => b.handle !== middle.handle && b.handle !== activeHandle);
+  const nearest = stillIn.reduce((best, b) => { const active = expected.find((e) => e.handle === activeHandle); const gap = Math.abs(b.width - active.width); return !best || gap < best.gap || (gap === best.gap && b.width < best.width) ? { ...b, gap } : best; }, null);
+  await tick(activeHandle);
+  const moved = await until(async () => ((await ringOn()) === nearest?.handle && (await sizeState(activeHandle)).out ? true : null), 3000);
+  step('unticking the size being edited: the ring and the preview move to the nearest size still in, and it leaves the row', !!moved && (await pressedDevice()) === nearest?.device,
+    `ring on ${await ringOn()} (want ${nearest?.handle}), pressed ${await pressedDevice()}, ${activeHandle} out=${(await sizeState(activeHandle)).out}`);
+  const slot = await cp.evaluate((sel, bp) => { const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`).getBoundingClientRect(); const p = document.getElementById('live-preview-iframe').getBoundingClientRect(); return Math.abs(f.left - p.left) < 2 && Math.abs(f.top - p.top) < 2 && Math.abs(f.width - p.width) < 2; }, LAYER, nearest?.handle);
+  step('the preview stands in the new size’s slot', slot);
   const rowsOne = await menuRows();
-  const restOut = (await Promise.all(restSizes.map((b) => sizeState(b.handle)))).every((st) => st.out);
-  step('with every other size unticked, the active size stays in, ticked and locked', !(await sizeState(activeHandle)).out && restOut && rowsOne.filter((r) => r.on).map((r) => r.bp).join() === activeHandle && rowsOne.find((r) => r.bp === activeHandle)?.locked,
+  step('one size left: it is the only one ticked, and locked', rowsOne.filter((r) => r.on).map((r) => r.bp).join() === nearest?.handle && rowsOne.find((r) => r.bp === nearest?.handle)?.locked,
     rowsOne.map((r) => `${r.bp}:${r.on ? 'on' : 'off'}${r.locked ? ' (locked)' : ''}`).join(' '));
-  for (const b of [...restSizes, middle]) await tick(b.handle);
+  for (const b of expected.filter((e) => e.handle !== nearest?.handle)) await tick(b.handle);
   const back = await until(async () => {
     const states = await Promise.all(expected.map((b) => sizeState(b.handle)));
     if (states.some((st) => st.out)) return null;
@@ -655,6 +662,9 @@ try {
   }, 20000, 300);
   step('ticked in again, every size is back in the row and every copy loaded', !!back && back.every((st, i) => new URL(st.src).searchParams.get('sve_view') === expected[i].handle), back ? back.map((st) => st.src === 'about:blank' ? 'blank' : st.src.slice(st.src.indexOf('sve_view'))).join(' | ') : 'not within 20 s');
   step('Escape closes the menu and its style, and leaves the overview open', (await closeMenu()) && (await layerOpen()));
+  // The size the fields edited before, picked again in the top bar, for the steps below.
+  await realClick(page, cp, `#__sve-preview-chrome [data-device="${expected.find((b) => b.handle === activeHandle).device}"]`);
+  step('picked again in the top bar, the ring is back where it began', !!(await until(async () => ((await ringOn()) === activeHandle ? true : null), 3000)), `ring on ${await ringOn()}`);
 
   // 8. Escape closes; everything is as it was.
   await page.keyboard.press('Escape');

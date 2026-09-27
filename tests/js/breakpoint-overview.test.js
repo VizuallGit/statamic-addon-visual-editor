@@ -22,6 +22,7 @@ import {
   isDrag,
   isTransparent,
   labelColor,
+  nearestSize,
   overviewFrames,
   revealScroll,
   rowWidth,
@@ -243,7 +244,7 @@ test('transparent means no alpha — not a colour whose last channel is 0', () =
   assert.equal(isTransparent('oklch(0.274 0.006 286.033)'), false);
 });
 
-test('a size may leave the row unless it is the preview or the last one in it', () => {
+test('any size may leave the row but the last one in it', () => {
   const sizes = [
     { handle: 'mobile', hidden: false, active: false },
     { handle: 'tablet', hidden: false, active: false },
@@ -251,22 +252,36 @@ test('a size may leave the row unless it is the preview or the last one in it', 
   ];
 
   assert.equal(sizeLock(sizes, 'mobile'), '');
-  assert.equal(sizeLock(sizes, 'laptop'), 'active');
+  // The size being edited too: the preview moves on (nearestSize).
+  assert.equal(sizeLock(sizes, 'laptop'), '');
   assert.equal(sizeLock(sizes, 'nope'), '');
 
   // The last one ticked stays; one already out may always come back.
   const one = [
-    { handle: 'mobile', hidden: true, active: false },
-    { handle: 'tablet', hidden: false, active: false },
-    { handle: 'laptop', hidden: true, active: false },
+    { handle: 'mobile', hidden: true },
+    { handle: 'tablet', hidden: false },
+    { handle: 'laptop', hidden: true },
   ];
 
   assert.equal(sizeLock(one, 'tablet'), 'last');
   assert.equal(sizeLock(one, 'mobile'), '');
   assert.equal(sizeLock(one, 'laptop'), '');
+});
 
-  // The active size says why it stays even when it is also the last one.
-  assert.equal(sizeLock([{ handle: 'laptop', hidden: false, active: true }], 'laptop'), 'active');
+test('the preview moves to the size still in the row nearest in width, the narrower on a tie', () => {
+  const sizes = [
+    { handle: 'mobile', width: 375, hidden: false },
+    { handle: 'tablet', width: 810, hidden: false },
+    { handle: 'laptop', width: 1440, hidden: false },
+  ];
+
+  assert.equal(nearestSize(sizes, 'laptop'), 'tablet');
+  assert.equal(nearestSize(sizes, 'mobile'), 'tablet');
+  assert.equal(nearestSize(sizes, 'tablet'), 'mobile');
+  assert.equal(nearestSize(sizes.map((row) => ({ ...row, hidden: row.handle === 'tablet' })), 'laptop'), 'mobile');
+  assert.equal(nearestSize([{ handle: 'a', width: 500 }, { handle: 'b', width: 700 }, { handle: 'c', width: 300 }], 'a'), 'c');
+  assert.equal(nearestSize([{ handle: 'laptop', width: 1440 }], 'laptop'), '');
+  assert.equal(nearestSize(sizes.map((row) => ({ ...row, hidden: row.handle !== 'laptop' })), 'laptop'), '');
 });
 
 test('labels are light on a dark pane and dark on a light one', () => {

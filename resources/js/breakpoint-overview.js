@@ -63,9 +63,10 @@
  *
  * Which sizes stand in the row is a menu on the overview button's right-click
  * (openSizesMenu), open or closed: a checkbox per size. Unticked, the size is
- * out and its frame blank (a size not looked at costs nothing). The active
- * size and the last one ticked cannot go (sizeLock), and a size picked in the
- * top bar while out comes back in — it is the preview. The choice lives for
+ * out and its frame blank (a size not looked at costs nothing). Any size may
+ * go but the last one ticked (sizeLock); when the size being edited goes, the
+ * preview moves to the nearest size still in (nearestSize), and a size picked
+ * in the top bar while out comes back in — it is the preview. The choice lives for
  * the page, never stored. (Until 27 Sep 2026 this was a dot on each size's
  * top-bar button.)
  *
@@ -378,10 +379,11 @@ export function isTransparent(color) {
 
 /**
  * Why a size may not leave the row, or '' when it may. `sizes` is every size
- * as `{ handle, hidden, active }`. The active size is the preview — the one
- * the fields on the left edit — so it stays ('active'); the last size in the
- * row stays too, or the overview is an empty grey pane ('last'). A size that
- * is already out may always come back in.
+ * as `{ handle, hidden }`. Any size may go — the one being edited too (the
+ * preview moves on, see nearestSize) — except the last one in the row, or the
+ * overview is an empty grey pane ('last'). A size that is out may always come
+ * back in. (Until 27 Sep 2026 the size being edited was locked as well; the
+ * owner wants to choose freely, one at least.)
  */
 export function sizeLock(sizes, handle) {
   const size = sizes.find((row) => row.handle === handle);
@@ -390,11 +392,32 @@ export function sizeLock(sizes, handle) {
     return '';
   }
 
-  if (size.active) {
-    return 'active';
+  return sizes.filter((row) => !row.hidden).length <= 1 ? 'last' : '';
+}
+
+/**
+ * Where the preview goes when its size leaves the row: the size still in the
+ * row nearest in width, the narrower on a tie. `sizes` as `{ handle, width,
+ * hidden }`; '' when no other size is in.
+ */
+export function nearestSize(sizes, handle) {
+  const from = sizes.find((row) => row.handle === handle);
+  const width = Number(from?.width) || 0;
+  let best = null;
+
+  for (const row of sizes) {
+    if (row.handle === handle || row.hidden) {
+      continue;
+    }
+
+    const gap = Math.abs(row.width - width);
+
+    if (!best || gap < best.gap || (gap === best.gap && row.width < best.width)) {
+      best = { handle: row.handle, width: row.width, gap };
+    }
   }
 
-  return sizes.filter((row) => !row.hidden).length <= 1 ? 'last' : '';
+  return best?.handle || '';
 }
 
 /** Label colour that reads on the pane: light on a dark background, dark on a light one. */
@@ -540,10 +563,21 @@ export function openBreakpointOverview(win) {
 
   Object.assign(overviewState, { win, main, contents, preview, labelSpace: remToPx(view, LABEL_REM) });
 
-  const active = activeBreakpoint(win);
+  let active = activeBreakpoint(win);
 
-  // Opened on a size that was switched out: it comes back in — it is the preview.
-  hiddenSizes.delete(active);
+  // Opened on a size switched out in the menu: the preview starts at the
+  // nearest size still in, as if its button had been picked. None left in
+  // (the sizes changed since): the size being edited comes back.
+  if (hiddenSizes.has(active)) {
+    const next = specs.find((spec) => spec.handle === nearestSize(specs.map((spec) => ({ ...spec, hidden: hiddenSizes.has(spec.handle) })), active));
+
+    if (next) {
+      ask('lp:set-device', { win, key: next.device });
+      active = activeBreakpoint(win);
+    }
+
+    hiddenSizes.delete(active);
+  }
 
   try {
     build(win, host, specs);
@@ -956,6 +990,22 @@ function blank(entry) {
 function toggleSize(entry) {
   if (sizeLock(openSizes(), entry.spec.handle)) {
     return;
+  }
+
+  // The size being edited goes out: first the preview moves to the nearest
+  // size still in the row — the same door as that size's button in the top
+  // bar, which answers at once (sve:breakpoint → paintActive) — so it is never
+  // left without a slot.
+  if (!entry.hidden && entry.active) {
+    const next = overviewState.frames.find((row) => row.spec.handle === nearestSize(openSizes(), entry.spec.handle));
+
+    if (next) {
+      ask('lp:set-device', { win: overviewState.win, key: next.spec.device });
+    }
+
+    if (entry.active) {
+      return;
+    }
   }
 
   entry.hidden = !entry.hidden;
@@ -1385,13 +1435,7 @@ function activeBreakpoint(win) {
     return row.handle;
   }
 
-  // Closed (the sizes menu asks too), the pane is found where open finds it.
-  const contents = overviewState.contents || previewFrame(win.document)?.closest('.live-preview-contents');
-
-  if (!contents) {
-    return bpFromWidth(1200, win);
-  }
-
+  const { contents } = overviewState;
   const view = contents.ownerDocument.defaultView;
   const box = contentBox(contents.getBoundingClientRect(), view.getComputedStyle(contents), contents.clientWidth, contents.clientHeight);
 
@@ -1403,22 +1447,15 @@ function activeBreakpoint(win) {
 /** The open sizes menu: its portal and the dismiss listeners it bound. */
 let sizesMenu = null;
 
-/**
- * Every size, narrowest first, as the menu shows it — the open row's own
- * state, or, closed, the choice that open will read. Closed, the active size
- * counts as in: open brings it back whatever was chosen.
- */
+/** Every size, narrowest first, as the menu shows it — the open row's own state, or, closed, the choice that open will read. */
 function menuSizes(win) {
   if (overviewState.layer) {
     return openSizes();
   }
 
-  const active = activeBreakpoint(win);
-
   return overviewFrames(breakpoints(win), win.Statamic?.$config?.get?.('livePreview.devices')).map((spec) => ({
     ...spec,
-    hidden: spec.handle !== active && hiddenSizes.has(spec.handle),
-    active: spec.handle === active,
+    hidden: hiddenSizes.has(spec.handle),
   }));
 }
 
@@ -1503,7 +1540,7 @@ export function openSizesMenu(win, anchor) {
       box.checked = !!size && !size.hidden;
       box.disabled = !!lock;
       row.toggleAttribute('data-locked', !!lock);
-      row.title = lock === 'active' ? t(win, 'bp_overview_active') : lock === 'last' ? t(win, 'bp_overview_last') : '';
+      row.title = lock === 'last' ? t(win, 'bp_overview_last') : '';
     });
   };
 
