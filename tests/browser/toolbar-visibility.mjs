@@ -292,6 +292,14 @@ try {
   errors.length = 0;
 
   const layoutBefore = await serverLayout();
+  // What the account keeps on the server wins when a page loads — that is how
+  // another browser comes back as the user left it. This run saves nothing, so
+  // where the account has its own hidden icons or order stored, a reload brings
+  // those back and the reload steps for them cannot show this run's choice.
+  const accountHas = (key) => Object.prototype.hasOwnProperty.call(JSON.parse(layoutBefore), key);
+  const reloadStep = (key, name, ok, detail) => (accountHas(key)
+    ? console.log(`info ${name} — skipped: the account has its own ${key} on the server`)
+    : step(name, ok, detail));
 
   let cp = await openLivePreview(page);
   const before = await visibleIcons(cp);
@@ -380,10 +388,10 @@ try {
 
   // ── A reload ──────────────────────────────────────────────────────────
   cp = await openLivePreview(page);
-  step(`${panelTool} still hidden after a reload`, !(await seen(cp, icon(panelTool))));
+  reloadStep('sve-toolbar-hidden', `${panelTool} still hidden after a reload`, !(await seen(cp, icon(panelTool))));
 
   if (framed) {
-    step('Pages still hidden after a reload', !(await seen(cp, `#__sve-frame-${framed}`)));
+    reloadStep('sve-toolbar-hidden', 'Pages still hidden after a reload', !(await seen(cp, `#__sve-frame-${framed}`)));
   }
 
   // ── Open a hidden tool from the menu ──────────────────────────────────
@@ -431,14 +439,18 @@ try {
 
   await page.keyboard.press('Escape');
   cp = await openLivePreview(page);
-  step('the order survives a reload', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
+  reloadStep('sve-toolbar-order', 'the order survives a reload', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
 
   await openMenuTab(page, cp, 'toolbar');
-  step('the list opens in that order', (await listOrder(cp))[0] === mover);
+  reloadStep('sve-toolbar-order', 'the list opens in that order', (await listOrder(cp))[0] === mover);
   await click(page, cp, `${MENU} [data-sve-toolbar-order-reset]`);
   await sleep(300);
-  step('Default order puts the bar back', (await barOrder(cp)).join() === before.join(), (await barOrder(cp)).join(' '));
-  step('and the list', (await listOrder(cp)).join() === expected.join());
+  // Default order = the order the toolbar draws them in (the DOM), which is
+  // not `before` when the account had an order of its own at the start.
+  const drawn = await visibleIcons(cp);
+
+  step('Default order puts the bar back', (await barOrder(cp)).join() === drawn.join(), (await barOrder(cp)).join(' '));
+  step('and the list', (await listOrder(cp)).join() === drawn.filter((key) => key !== 'settings').join());
 
   // ── The site's presets ────────────────────────────────────────────────
   // Statamic's config hands back reactive proxies, which do not cross into
