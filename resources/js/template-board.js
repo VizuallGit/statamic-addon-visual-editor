@@ -133,7 +133,7 @@ const CSS = `
 #${MENU_ID} button {
   /* The font shorthand comes first: it resets font-size, so a size set before
      it is thrown away. That is why this menu rendered at 16px with .75rem. */
-  font: inherit; font-size: .75rem; line-height: 1.3;
+  font: inherit; font-size: .875rem; line-height: 1.3;
   display: block; width: 100%; padding: .4375rem .625rem;
   border: 0; border-radius: .3125rem; background: none;
   color: var(--c-text, inherit); text-align: left; cursor: pointer;
