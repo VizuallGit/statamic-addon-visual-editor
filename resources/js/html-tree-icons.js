@@ -62,6 +62,13 @@ export const HTML_ICONS = {
     + '<path d="M2.6 6.6 4.4 8.25 2.6 9.9"/></svg>',
   other:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5.2 3.5 2.8 8l2.4 4.5"/><path d="M10.8 3.5 13.2 8l-2.4 4.5"/></svg>',
+  /*
+   * A slot: the hole a page's own markup drops into. Drawn as the arrival
+   * rather than the container — the dashed box is what the layout owns, the
+   * arrow is what the page brings. A plain dashed box would read as `div`.
+   */
+  slot:
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7.6" width="12" height="6" rx="1.2" stroke-dasharray="2.6 2"/><path d="M8 2.2v4.1"/><path d="M6.1 4.5 8 6.4l1.9-1.9"/></svg>',
 };
 
 import { SECTION_TAGS, TEXT_TAGS } from './lib/tag-families.js';
@@ -72,6 +79,10 @@ export { TEXT_TAGS };
 export function htmlTreeIcon(tag, kind, antlers) {
   if (kind === 'component') {
     return { svg: HTML_ICONS.component };
+  }
+
+  if (kind === 'slot') {
+    return { svg: HTML_ICONS.slot };
   }
 
   if (kind === 'antlers') {

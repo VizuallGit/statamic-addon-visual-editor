@@ -16,7 +16,7 @@ import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './
 import HtmlTreePane from './cp/surfaces/HtmlTreePane.vue';
 import HtmlTreeList from './cp/surfaces/HtmlTreeList.vue';
 import { htmlTreeUi, readHtmlTreeLook } from './cp/html-tree/store.js';
-import { flattenHtmlTree, isVoidTag, parseTemplateTree } from './html-tree-parse.js';
+import { flattenHtmlTree, isTaglessRow, isVoidTag, parseTemplateTree } from './html-tree-parse.js';
 import {
   componentPropsOn,
   fetchComponentProps,
@@ -2596,6 +2596,11 @@ function openHtmlTreeMenu(win, event, id) {
     return;
   }
 
+  // A slot is a hole, not a tag: nothing in the menu applies to it.
+  if (row.kind === 'slot') {
+    return;
+  }
+
   if (!htmlTreeUi.canEdit) {
     return;
   }
@@ -2763,7 +2768,7 @@ function trackHtmlTreePointer(win, event) {
   htmlTreeUi.dropPlace = dropPlace(
     event.clientY - rect.top,
     rect.height,
-    !isVoidTag(row.tag) && row.kind !== 'component'
+    !isVoidTag(row.tag) && !isTaglessRow(row)
   );
 }
 
@@ -3419,7 +3424,7 @@ function addHtmlTreeBranch(win, kind) {
  * content lives in another file.
  */
 function insertPointFor(html, row) {
-  if (!html || !row || row.kind === 'component' || isVoidTag(row.tag)) {
+  if (!html || !row || isTaglessRow(row) || isVoidTag(row.tag)) {
     return null;
   }
 

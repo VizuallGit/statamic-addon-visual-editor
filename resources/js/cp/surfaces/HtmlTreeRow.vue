@@ -93,6 +93,15 @@ function isFrame(row) {
 }
 
 /**
+ * `{{ template_content }}` / `{{ yield:… }}` — where the page's own markup
+ * lands. Shown so `<main>` does not read as empty, but there is no tag behind
+ * it: it cannot be moved, renamed, wrapped or deleted.
+ */
+function isSlot(row) {
+  return row.kind === 'slot';
+}
+
+/**
  * A row of the file around the open component — the section's own tags,
  * drawn faded so the component reads as the thing being edited. It cannot be
  * picked, moved, renamed or deleted: its offsets belong to a file the dock is
@@ -108,7 +117,7 @@ function isContext(row) {
  * The rows of the file around an open component move nothing.
  */
 function onPointerDown(event, row) {
-  if (isContext(row) || isFrame(row)) {
+  if (isContext(row) || isFrame(row) || isSlot(row)) {
     return;
   }
 
@@ -214,11 +223,11 @@ function canAct(row) {
     :title="rowTitle(row)"
     :style="{ '--sve-ht-depth': row.depth }"
     @click="onRowClick(row)"
-    @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
+    @dblclick.prevent="row.synthetic ? ui.onFrameEnter?.(row.frame) : isFrame(row) || isSlot(row) || isShutSection(row) || isContext(row) ? null : ui.onRename?.(row.id)"
     @keydown.enter.prevent="onRowClick(row)"
     @keydown.space.prevent="onRowClick(row)"
     @pointerdown="onPointerDown($event, row)"
-    @contextmenu.prevent.stop="isFrame(row) || isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
+    @contextmenu.prevent.stop="isFrame(row) || isSlot(row) || isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
   >
     <!--
       The tags look indents with a spacer that draws one guide per level, each
@@ -306,7 +315,7 @@ function canAct(row) {
         @dblclick.stop
       ></button>
     </span>
-    <span v-else-if="!isShutSection(row) && !isContext(row)" data-sve-ht-actions>
+    <span v-else-if="!isShutSection(row) && !isContext(row) && !isSlot(row)" data-sve-ht-actions>
       <!--
         A <video> row: hold the video paused in the preview, or let it play.
         Not behind the lock — the file is not touched, only what the editor

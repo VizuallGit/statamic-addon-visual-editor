@@ -1,10 +1,13 @@
 /**
  * HTML tags in an Antlers file — not Antlers tags, not the rendered page.
  *
- * One Antlers tag is the exception: `{{ partial:… }}`. A partial is a piece of
- * the page with a name, so it earns a row — a component node, with the call's
- * own offsets, sitting where the call sits. It has no children here: what is
- * inside it belongs to that file, and is edited by opening it.
+ * Two Antlers tags are the exception, because both are places the page is
+ * assembled from. `{{ partial:… }}` is a piece of the page with a name, so it
+ * earns a row — a component node, with the call's own offsets, sitting where
+ * the call sits. It has no children here: what is inside it belongs to that
+ * file, and is edited by opening it. `{{ template_content }}` and
+ * `{{ yield:… }}` are the holes the renderer fills; without a row, the element
+ * around them reads as empty.
  *
  * `{{ … }}` is blanked to spaces of the same length so offsets still match
  * the source, then a tag scanner walks the result. Closing tags never become
@@ -289,6 +292,61 @@ function addAntlersBlocks(roots, source) {
 }
 
 /**
+ * The holes a layout leaves for the page: `{{ template_content }}` and
+ * `{{ yield:name }}`.
+ *
+ * Both are single tags, so the tag parse blanks them and the block parse — which
+ * only keeps pairs that close — never sees them. Without a row, `<main>` reads
+ * as an empty element, which is the one thing it is not: it is where every
+ * page's own markup lands.
+ *
+ * The row is labelled with the token itself rather than a translated phrase.
+ * The reader is looking at a file they can edit, and the name in the row is the
+ * text they would search for in it.
+ */
+const SLOT = /\{\{\s*(template_content|yield:[^\s}]+)\s*\}\}/g;
+
+function addSlots(roots, source) {
+  const masked = String(source || '').replace(/\{\{#[\s\S]*?#\}\}/g, (chunk) => ' '.repeat(chunk.length));
+
+  SLOT.lastIndex = 0;
+
+  let match;
+
+  while ((match = SLOT.exec(masked))) {
+    const from = match.index;
+    const to = from + match[0].length;
+    const name = match[1].trim();
+    const host = deepestHost(roots, from, to);
+    const siblings = host ? host.children : roots;
+
+    const node = {
+      id: `slot-${from}`,
+      tag: 'slot',
+      kind: 'slot',
+      klass: name,
+      path: `${host ? `${host.path}/` : ''}s${from}:slot`,
+      label: name,
+      from,
+      to,
+      openTo: to,
+      hidden: !!host?.hidden,
+      children: [],
+    };
+
+    let at = siblings.findIndex((item) => item.from > from);
+
+    if (at === -1) {
+      at = siblings.length;
+    }
+
+    siblings.splice(at, 0, node);
+  }
+
+  return roots;
+}
+
+/**
  * Component rows are added after the tags are parsed, never during — so every
  * tag keeps the sibling index its path is built from, and a template that gains
  * a component does not renumber the rows around it.
@@ -340,11 +398,11 @@ export function parseHtmlTree(html) {
   return parseRange(source, masked, 0, masked.length);
 }
 
-/** Tags, conditions, loops and components — what the HTML tree panel shows. */
+/** Tags, conditions, loops, components and slots — what the HTML tree shows. */
 export function parseTemplateTree(html) {
   const source = String(html || '');
 
-  return addComponents(addAntlersBlocks(parseHtmlTree(source), source), source);
+  return addSlots(addComponents(addAntlersBlocks(parseHtmlTree(source), source), source), source);
 }
 
 export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
@@ -396,4 +454,16 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
 
 export function isVoidTag(tag) {
   return VOID.has(String(tag || '').toLowerCase());
+}
+
+/**
+ * A row that stands for no tag in this file: a `{{ partial }}` call, whose
+ * markup lives in another file, and a slot, which is a hole the renderer
+ * fills. Neither has an opening tag to write a class into or an inside to drop
+ * anything into, so every path that edits the file has to step over them.
+ */
+export function isTaglessRow(row) {
+  const kind = row?.kind;
+
+  return kind === 'component' || kind === 'slot';
 }
