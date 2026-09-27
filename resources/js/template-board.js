@@ -87,7 +87,7 @@ const CSS = `
 #${BOARD_HOST} [data-sve-tb-col]:last-child [data-sve-tb-head] { border-right: 0; }
 #${BOARD_HOST} [data-sve-tb-title] { font-size: .9375rem; white-space: nowrap; }
 /* What kind of thing the column is, said once, ahead of its name. */
-#${BOARD_HOST} [data-sve-tb-kind] { font-size: .75rem; opacity: .45; white-space: nowrap; }
+#${BOARD_HOST} [data-sve-tb-kind] { font-size: .9375rem; opacity: .45; white-space: nowrap; }
 #${BOARD_HOST} [data-sve-tb-add] {
   display: inline-flex; align-items: center; justify-content: center;
   width: 1.375em; height: 1.375em; line-height: 1;
@@ -131,9 +131,12 @@ const CSS = `
   background: var(--c-bg, #262626); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.4);
 }
 #${MENU_ID} button {
-  display: block; width: 100%; padding: .4375rem .625rem; font-size: .75rem; line-height: 1.3;
+  /* The font shorthand comes first: it resets font-size, so a size set before
+     it is thrown away. That is why this menu rendered at 16px with .75rem. */
+  font: inherit; font-size: .75rem; line-height: 1.3;
+  display: block; width: 100%; padding: .4375rem .625rem;
   border: 0; border-radius: .3125rem; background: none;
-  color: var(--c-text, inherit); font: inherit; text-align: left; cursor: pointer;
+  color: var(--c-text, inherit); text-align: left; cursor: pointer;
 }
 #${MENU_ID} button:hover { background: rgba(127,127,127,.22); }
 `;
