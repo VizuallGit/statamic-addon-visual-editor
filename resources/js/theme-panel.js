@@ -40,7 +40,7 @@ const ENTRY = 'site.css';
 const VARS = 'var.css';
 const CLASSES = 'custom-classes.css';
 
-const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'utilities', 'classes', 'props'];
+const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'styles'];
 
 let app = null;
 let keySeq = 0;
@@ -633,7 +633,7 @@ const handlers = (win) => ({
     if (TABS.includes(tab)) {
       ui.tab = tab;
 
-      if (tab === 'classes') {
+      if (tab === 'styles') {
         loadClassRows(win);
       }
     }

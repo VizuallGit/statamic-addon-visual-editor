@@ -54,22 +54,22 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         {{ ui.labels.utilities_add }}
       </button>
-      <!-- Two files, so two buttons: a utility goes into site.css, a class
-           into the site's own stylesheet. -->
-      <template v-else-if="ui.tab === 'classes'">
-        <button type="button" class="sve-theme__add" data-sve-class-add @click="onAddClass">
+      <!-- One button, and the chip says which: with All in hand there is no
+           one thing "new" would mean, so there is no button. -->
+      <template v-else-if="ui.tab === 'styles'">
+        <button v-if="ui.classChip === 'utility'" type="button" class="sve-theme__add" data-sve-class-add-utility @click="onAddUtilityFromClasses">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          {{ ui.labels.classes_add || 'Ny klasse' }}
+          {{ ui.labels.classes_add_utility }}
         </button>
-        <button type="button" class="sve-theme__add" data-sve-class-add-utility @click="onAddUtilityFromClasses">
+        <button v-else-if="ui.classChip === 'class'" type="button" class="sve-theme__add" data-sve-class-add @click="onAddClass">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          {{ ui.labels.classes_add_utility || 'Ny utility' }}
+          {{ ui.labels.classes_add }}
+        </button>
+        <button v-else-if="ui.classChip === 'variable'" type="button" class="sve-theme__add" data-sve-prop-add @click="onAddProp">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          {{ ui.labels.props_add }}
         </button>
       </template>
-      <button v-else-if="ui.tab === 'props'" type="button" class="sve-theme__add" data-sve-prop-add @click="onAddProp">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        {{ ui.labels.props_add }}
-      </button>
       <span class="sve-theme__status">{{ ui.status }}</span>
       <button type="button" class="sve-theme__save" :disabled="!ui.dirty || ui.saving" @click="onSave">{{ ui.labels.panel_save }}</button>
     </div>
@@ -81,9 +81,7 @@
       <ThemeFontsTab v-else-if="ui.tab === 'fonts'" :h="props" />
       <ThemeTypeTab v-else-if="ui.tab === 'type'" :h="props" />
       <ThemeButtonTab v-else-if="ui.tab === 'button'" :h="props" />
-      <ThemeUtilitiesTab v-else-if="ui.tab === 'utilities'" :h="props" />
-      <ThemeClassesTab v-else-if="ui.tab === 'classes'" :h="props" />
-      <ThemePropsTab v-else-if="ui.tab === 'props'" :h="props" />
+      <ThemeStylesTab v-else-if="ui.tab === 'styles'" :h="props" />
     </div>
   </div>
 </template>
@@ -96,9 +94,7 @@ import ThemeSpacingTab from './ThemeSpacingTab.vue';
 import ThemeFontsTab from './ThemeFontsTab.vue';
 import ThemeTypeTab from './ThemeTypeTab.vue';
 import ThemeButtonTab from './ThemeButtonTab.vue';
-import ThemeUtilitiesTab from './ThemeUtilitiesTab.vue';
-import ThemeClassesTab from './ThemeClassesTab.vue';
-import ThemePropsTab from './ThemePropsTab.vue';
+import ThemeStylesTab from './ThemeStylesTab.vue';
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
@@ -126,16 +122,8 @@ const TABS = [
     icon: svg('<rect x="2" y="7" width="20" height="10" rx="5"/><path d="M8 12h8"/>'),
   },
   {
-    key: 'utilities',
-    icon: svg('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/>'),
-  },
-  {
-    key: 'classes',
-    icon: svg('<path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/><path d="M14 4l-4 16"/>'),
-  },
-  {
-    key: 'props',
-    icon: svg('<path d="M4 8h6M4 16h6M14 8h6M14 16h6M9 6v12M19 6v12"/>'),
+    key: 'styles',
+    icon: svg('<path d="M12 2 4 7v10l8 5 8-5V7Z"/><path d="M12 12 4 7"/><path d="m12 12 8-5"/><path d="M12 12v10"/>'),
   },
 ];
 

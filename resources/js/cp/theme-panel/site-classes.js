@@ -156,11 +156,40 @@ export function applyUsage(rows, usage) {
   });
 }
 
+/**
+ * The custom properties as rows in the same list. A variable is not a class —
+ * you cannot put it on an element — but it is the same job: something the
+ * theme defines, with a name and a definition, that you come here to add,
+ * change or remove. The chip keeps them apart.
+ */
+export function variableRows(props, file = 'var.css') {
+  return (props || []).map((p) => ({
+    name: `--${p.name || ''}`,
+    kind: 'variable',
+    key: p.key,
+    files: [file],
+    selectors: [],
+    props: [],
+    ambient: false,
+    value: p.value || '',
+    fresh: !!p.fresh,
+  }));
+}
+
 /** The chips over the list. */
-export const CLASS_CHIPS = ['all', 'utility', 'class', 'ambient', 'unused'];
+export const CLASS_CHIPS = ['all', 'utility', 'class', 'variable', 'ambient', 'unused'];
 
 /** Whether a chip keeps a row. */
 export function chipKeeps(chip, row) {
+  if (chip === 'variable') {
+    return row.kind === 'variable';
+  }
+
+  // A variable has no usage and no selector, so it sits out of the rest.
+  if (row.kind === 'variable') {
+    return chip === 'all';
+  }
+
   if (chip === 'unused') {
     // Only once the count has arrived — before that, nothing is "unused".
     return !!row.counted && row.now === 0;

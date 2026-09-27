@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyUsage,
+  variableRows,
   ownedRules,
   chipKeeps,
   classRows,
@@ -174,4 +175,17 @@ test('a plain rule in site.css is not a class the tab offers', () => {
   );
 
   assert.deepEqual(kept, [], 'site.css is the utilities file; its plain rules are not the vocabulary');
+});
+
+test('a variable sits in the same list, but only under All and Variables', () => {
+  const [v] = variableRows([{ key: 'p1', name: 'gutter', value: 'var(--size-700)' }], 'var.css');
+
+  assert.equal(v.name, '--gutter');
+  assert.equal(v.value, 'var(--size-700)');
+  assert.equal(chipKeeps('all', v), true);
+  assert.equal(chipKeeps('variable', v), true);
+
+  for (const chip of ['utility', 'class', 'ambient', 'unused']) {
+    assert.equal(chipKeeps(chip, v), false, `a variable has no ${chip}`);
+  }
 });
