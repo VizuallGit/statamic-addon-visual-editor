@@ -9,13 +9,12 @@
  *
  * Kept as a filter rather than a whole read-only editor: everything else in
  * the file stays editable, and the guard is on the text itself, so it holds
- * however the edit arrives — typing, paste, Emmet, an autocomplete, undo of
- * something that spanned it.
+ * however a person's edit arrives — typing, paste, Emmet, an autocomplete.
  *
  * May import: code-dock.js re-exports only.
  */
 import { Decoration, EditorState, EditorView, RangeSetBuilder, StateField } from '../code-dock.js';
-import { lockedRanges } from '../lib/locked-tags.js';
+import { editedByHand, lockedRanges } from '../lib/locked-tags.js';
 
 /**
  * Built inside the call, never at import time.
@@ -45,6 +44,10 @@ let cached = null;
  * CodeMirror drops any change touching one and keeps the rest, so a paste
  * across the whole file still lands — minus the lines nobody should be
  * editing.
+ *
+ * Only for edits a person made. The dock's own dispatches replace the pane
+ * wholesale, and dropping part of one of those strands the old tags in the
+ * new text — see `editedByHand`.
  */
 export function lockedUi() {
   if (cached) {
@@ -72,7 +75,11 @@ export function lockedUi() {
     extensions: [
       field,
       style,
-      EditorState.changeFilter.of((tr) => lockedRanges(tr.startState.doc.toString())),
+      EditorState.changeFilter.of((tr) =>
+        editedByHand((event) => tr.isUserEvent(event))
+          ? lockedRanges(tr.startState.doc.toString())
+          : true
+      ),
     ],
   };
 
