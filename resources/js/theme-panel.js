@@ -28,6 +28,7 @@ import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
+import { classNameProblem, readClasses, writeClasses } from './cp/theme-panel/custom-classes.js';
 import { CLASS_CHIPS, applyUsage, classRows, ownedRules } from './cp/theme-panel/site-classes.js';
 import { paintUtilities, swapSiteCss, utilityCandidates } from './cp/theme-panel/utility-paint.js';
 
@@ -37,6 +38,7 @@ export { PANEL_ID };
 
 const ENTRY = 'site.css';
 const VARS = 'var.css';
+const CLASSES = 'custom-classes.css';
 
 const TABS = ['colors', 'spacing', 'fonts', 'type', 'button', 'utilities', 'classes', 'props'];
 
@@ -587,8 +589,21 @@ function loadClassRows(win) {
     })
     .then((res) => (res.ok ? res.json() : { defined: [] }))
     .then((data) => {
-      ui.classSources = { entry: data?.entry || 'site.css', classes: data?.classes || 'custom-classes.css' };
+      ui.classSources = { entry: data?.entry || 'site.css', classes: data?.classes || CLASSES };
       ui.classRows = classRows(ownedRules(data?.defined, ui.classSources));
+
+      readFile(win, ui.classSources.classes)
+        .then((css) => {
+          ui.classFile = String(css || '');
+          ui.classes = readClasses(ui.classFile).map((c) => ({ key: `class-${++keySeq}`, name: c.name, body: c.body, fresh: false, problem: null }));
+          ui.savedClasses = Object.fromEntries(ui.classes.map((c) => [c.name, c.body]));
+        })
+        .catch(() => {
+          // No classes file yet — the first "New class" makes it.
+          ui.classFile = '';
+          ui.classes = [];
+          ui.savedClasses = {};
+        });
 
       // The count walks the whole site, so it comes after: the list is usable
       // straight away and the usage fills in. Until it lands nothing reads as
@@ -816,6 +831,62 @@ const handlers = (win) => ({
   },
 
   // Classes
+  onAddUtilityFromClasses: () => {
+    const u = { key: `utility-${++keySeq}`, name: '', body: '', fresh: true, problem: 'empty' };
+
+    ui.utilities.unshift(u);
+    ui.classRows = [{ name: '', kind: 'utility', files: [ui.classSources.entry], selectors: [], props: [], ambient: false, fresh: true, key: u.key }, ...ui.classRows];
+    ui.openClassKey = u.key;
+    ui.dirty = true;
+  },
+  onAddClass: () => {
+    const c = { key: `class-${++keySeq}`, name: '', body: '', fresh: true, problem: 'empty' };
+
+    ui.classes.unshift(c);
+    ui.classRows = [{ name: '', kind: 'rule', files: [ui.classSources.classes], selectors: [], props: [], ambient: false, fresh: true, key: c.key }, ...ui.classRows];
+    ui.openClass = '';
+    ui.openClassKey = c.key;
+    ui.dirty = true;
+  },
+  onClassName: (key, name) => {
+    const c = ui.classes.find((o) => o.key === key);
+
+    if (c?.fresh) {
+      c.name = String(name).trim().replace(/^\./, '');
+      c.problem = classNameProblem(c.name, ui.classes.filter((o) => o !== c).map((o) => o.name));
+
+      const row = ui.classRows.find((r) => r.key === key);
+
+      if (row) {
+        row.name = c.name;
+      }
+
+      ui.dirty = true;
+    }
+  },
+  onClassBody: (key, body) => {
+    const c = ui.classes.find((o) => o.key === key);
+
+    if (c) {
+      c.body = String(body);
+      ui.dirty = true;
+    }
+  },
+  onRemoveClass: (key) => {
+    const c = ui.classes.find((o) => o.key === key);
+
+    if (!c) {
+      return;
+    }
+
+    ui.classes = ui.classes.filter((o) => o !== c);
+    ui.classRows = ui.classRows.filter((r) => r.name !== c.name || r.kind === 'utility');
+    ui.removedClasses = [...(ui.removedClasses || []), c.name].filter((n) => n);
+    ui.dirty = true;
+  },
+  onOpenClassKey: (key) => {
+    ui.openClassKey = ui.openClassKey === key ? '' : key;
+  },
   onClassQuery: (query) => {
     ui.classQuery = String(query || '');
   },
@@ -951,12 +1022,36 @@ async function load(win) {
  * panel opened: colors touch only color lines, tokens only the lines that
  * changed, so an edit made in the stylesheet editor meanwhile survives.
  */
+/**
+ * `{ name: body }` for every class whose body moved, and `{ name: null }` for
+ * every one removed. A nameless fresh row is skipped — it is not a class yet.
+ */
+function classChanges() {
+  const out = {};
+
+  for (const name of ui.removedClasses || []) {
+    out[name] = null;
+  }
+
+  for (const c of ui.classes) {
+    if (!c.name) {
+      continue;
+    }
+
+    if (c.fresh || ui.savedClasses[c.name] !== dedent(c.body)) {
+      out[c.name] = c.body;
+    }
+  }
+
+  return out;
+}
+
 export async function saveTheme(win) {
   if (ui.saving || !ui.dirty) {
     return true;
   }
 
-  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem) || ui.props.some((p) => p.problem)) {
+  if (ui.families.some((f) => f.problem) || ui.sizes.some((s) => s.problem) || ui.utilities.some((u) => u.problem) || ui.props.some((p) => p.problem) || ui.classes.some((c) => c.problem)) {
     const braces = ui.utilities.some((u) => u.problem === 'braces');
 
     ui.status = t(win, braces ? 'theme_utilities_braces' : 'theme_panel_fix_names');
@@ -989,6 +1084,22 @@ export async function saveTheme(win) {
       rememberProps(next);
     }
 
+    const classEdits = classChanges();
+
+    if (Object.keys(classEdits).length) {
+      const next = writeClasses(ui.classFile, classEdits);
+
+      await request(win, '/!/sve/site-css', {
+        method: 'POST',
+        body: JSON.stringify({ path: ui.classSources.classes, css: next }),
+      });
+
+      ui.classFile = next;
+      ui.savedClasses = Object.fromEntries(ui.classes.filter((c) => c.name).map((c) => [c.name, dedent(c.body)]));
+      ui.classes.forEach((c) => { c.fresh = false; });
+      ui.removedClasses = [];
+    }
+
     const { tab, openKey, selectedSize, openUtility, openProp } = ui;
 
     remember(css);
@@ -1005,7 +1116,7 @@ export async function saveTheme(win) {
 
     // A utility is a rule in the built stylesheet, not a token on :root: the
     // page shows the saved one once the site's CSS is built again.
-    if (Object.keys(utilityEdits).length || Object.keys(propEdits).length) {
+    if (Object.keys(utilityEdits).length || Object.keys(propEdits).length || Object.keys(classEdits).length) {
       Object.keys(utilityEdits).forEach((name) => unbuilt.add(name));
       await buildSiteCss(win);
     }

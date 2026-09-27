@@ -54,6 +54,18 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         {{ ui.labels.utilities_add }}
       </button>
+      <!-- Two files, so two buttons: a utility goes into site.css, a class
+           into the site's own stylesheet. -->
+      <template v-else-if="ui.tab === 'classes'">
+        <button type="button" class="sve-theme__add" data-sve-class-add @click="onAddClass">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          {{ ui.labels.classes_add || 'Ny klasse' }}
+        </button>
+        <button type="button" class="sve-theme__add" data-sve-class-add-utility @click="onAddUtilityFromClasses">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          {{ ui.labels.classes_add_utility || 'Ny utility' }}
+        </button>
+      </template>
       <button v-else-if="ui.tab === 'props'" type="button" class="sve-theme__add" data-sve-prop-add @click="onAddProp">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         {{ ui.labels.props_add }}
@@ -185,6 +197,12 @@ const props = defineProps({
   onClassQuery: { type: Function, required: true },
   onClassChip: { type: Function, required: true },
   onOpenClass: { type: Function, required: true },
+  onAddClass: { type: Function, required: true },
+  onClassName: { type: Function, required: true },
+  onClassBody: { type: Function, required: true },
+  onRemoveClass: { type: Function, required: true },
+  onOpenClassKey: { type: Function, required: true },
+  onAddUtilityFromClasses: { type: Function, required: true },
   onButton: { type: Function, required: true },
   onAddUtility: { type: Function, required: true },
   onOpenUtility: { type: Function, required: true },

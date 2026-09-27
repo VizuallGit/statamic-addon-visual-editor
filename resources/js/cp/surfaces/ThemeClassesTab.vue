@@ -34,34 +34,54 @@
 
   <section
     v-for="row in shown"
-    :key="row.name"
+    :key="row.key || row.name"
     class="sve-theme__card"
-    :class="{ 'is-open': ui.openClass === row.name, 'is-ambient': row.ambient }"
+    :class="{ 'is-open': isOpen(row), 'is-ambient': row.ambient }"
     :data-sve-class="row.name"
   >
-    <button type="button" class="sve-theme__row" :aria-expanded="ui.openClass === row.name" @click="h.onOpenClass(row.name)">
+    <button type="button" class="sve-theme__row" :aria-expanded="isOpen(row)" @click="open(row)">
       <span class="sve-theme__utility-mark" aria-hidden="true">{{ row.kind === 'utility' ? '{}' : '.' }}</span>
       <span class="sve-theme__row-text">
-        <span class="sve-theme__token">{{ row.name }}</span>
+        <span class="sve-theme__token">{{ row.name || '…' }}</span>
         <span class="sve-theme__meta">{{ rowSummary(row, labels) }}</span>
       </span>
       <span v-if="row.ambient" class="sve-theme__badge">{{ ui.labels.classes_ambient || fallback.ambient }}</span>
       <span v-if="usage(row)" class="sve-theme__usage" :class="{ 'is-unused': row.now === 0 }">{{ usage(row) }}</span>
     </button>
 
-    <div v-if="ui.openClass === row.name" class="sve-theme__card-body">
+    <div v-if="isOpen(row)" class="sve-theme__card-body">
       <p v-if="row.ambient" class="sve-theme__hint">{{ ui.labels.classes_ambient_why || fallback.ambientWhy }}</p>
 
-      <!-- A utility is site.css's own, so the Utilities tab's editor writes it
-           here too — same body, same save. Anything else lives in a file this
-           tab does not own, so it is shown as it stands, with where. -->
-      <ThemeUtilityEditor
-        v-if="utilityFor(row)"
-        :value="utilityFor(row).body"
-        :label="`${ui.labels.utilities_css || 'CSS'} .${row.name}`"
-        :on-change="(body) => h.onUtilityBody(utilityFor(row).key, body)"
-        :on-save="h.onSave"
-      />
+      <!-- Both files the tab owns are written here: a utility through the
+           Utilities tab's own handlers, a class through the classes file's.
+           Same editor, same Save. -->
+      <template v-if="edit(row)">
+        <label v-if="edit(row).entry.fresh" class="sve-theme__field">
+          <span class="sve-theme__label">{{ ui.labels.classes_name || fallback.name }}</span>
+          <span class="sve-theme__input" :class="{ 'is-bad': edit(row).entry.problem }">
+            <span class="sve-theme__dashes">.</span>
+            <input
+              type="text"
+              :value="edit(row).entry.name"
+              spellcheck="false"
+              autocomplete="off"
+              data-sve-class-name
+              @input="rename(row, $event.target.value)"
+            >
+          </span>
+        </label>
+
+        <ThemeUtilityEditor
+          :value="edit(row).entry.body"
+          :label="`${ui.labels.utilities_css || 'CSS'} .${row.name || ''}`"
+          :on-change="(body) => change(row, body)"
+          :on-save="h.onSave"
+        />
+
+        <button type="button" class="sve-theme__remove" @click="remove(row)">
+          {{ ui.labels.classes_remove || fallback.remove }}
+        </button>
+      </template>
       <template v-else>
         <pre v-for="sel in row.selectors" :key="sel" class="sve-theme__selector">{{ sel }}</pre>
         <p class="sve-theme__hint">{{ ui.labels.classes_read_only || fallback.readOnly }}</p>
@@ -86,7 +106,7 @@ import { themePanelUi as ui } from '../theme-panel/store.js';
 import { CLASS_CHIPS, chipKeeps, filterRows, rowSummary, usageLabel } from '../theme-panel/site-classes.js';
 import ThemeUtilityEditor from './ThemeUtilityEditor.vue';
 
-defineProps({ h: { type: Object, required: true } });
+const { h } = defineProps({ h: { type: Object, required: true } });
 
 /** Until the lang file carries them — a raw key on screen reads as a bug. */
 const fallback = {
@@ -96,6 +116,8 @@ const fallback = {
   ambient: 'AFLEDT',
   ambientWhy: 'Denne regel rammer noget inde i noget andet — den kan ikke sættes på et element alene.',
   readOnly: 'Denne regel bor i en anden fil end site.css og rettes i Stylesheets-panelet.',
+  name: 'Navn',
+  remove: 'Slet klasse',
   historyWarn: 'Intet bruger den i dag, men dockens historik gør. Sletter du den, mister en fortrydelse sin styling.',
   chipsUnused: 'Ubrugte',
   chips: { all: 'Alle', utility: 'Utilities', class: 'Klasser', ambient: 'Afledte', unused: 'Ubrugte' },
@@ -126,9 +148,42 @@ const shownChips = computed(() =>
   CLASS_CHIPS.filter((chip) => chip === 'all' || chip === ui.classChip || count(chip) > 0)
 );
 
-/** The `@utility` block behind a row, when site.css is what defines it. */
-function utilityFor(row) {
-  return row.kind === 'utility' ? (ui.utilities || []).find((u) => u.name === row.name) : null;
+/**
+ * The editable rule behind a row, and which of the two files it is in — or
+ * null for a rule the tab does not own and only shows.
+ */
+function edit(row) {
+  const from = row.kind === 'utility' ? ui.utilities : ui.classes;
+  const entry = (from || []).find((e) => (row.key ? e.key === row.key : e.name === row.name));
+
+  return entry ? { kind: row.kind === 'utility' ? 'utility' : 'class', entry } : null;
+}
+
+/** A fresh row has no name yet, so it is held open by its key. */
+function isOpen(row) {
+  return row.key ? ui.openClassKey === row.key : ui.openClass === row.name;
+}
+
+function open(row) {
+  return row.key ? h.onOpenClassKey(row.key) : h.onOpenClass(row.name);
+}
+
+function rename(row, name) {
+  const e = edit(row);
+
+  return e.kind === 'utility' ? h.onUtilityName(e.entry.key, name) : h.onClassName(e.entry.key, name);
+}
+
+function change(row, body) {
+  const e = edit(row);
+
+  return e.kind === 'utility' ? h.onUtilityBody(e.entry.key, body) : h.onClassBody(e.entry.key, body);
+}
+
+function remove(row) {
+  const e = edit(row);
+
+  return e.kind === 'utility' ? h.onRemoveUtility(e.entry.key) : h.onRemoveClass(e.entry.key);
 }
 
 function count(chip) {

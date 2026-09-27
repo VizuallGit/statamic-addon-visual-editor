@@ -37,6 +37,11 @@ import { reactive } from 'vue';
  * `classQuery` are the chip and the search box over the list, `openClass` the
  * name unfolded.
  *
+ * `classes` are the editable rules in that classes file, `{ key, name, body,
+ * fresh, problem }` — the same shape as `utilities`, because they are the
+ * other half of what the tab writes. `savedClasses` are the bodies as saved,
+ * by name, and `classFile` the file as last read or written.
+ *
  * `saved` is site.css as last read or written.
  */
 export const themePanelUi = reactive({
@@ -61,6 +66,11 @@ export const themePanelUi = reactive({
   openUtility: '',
   classRows: [],
   classSources: { entry: 'site.css', classes: 'custom-classes.css' },
+  classes: [],
+  savedClasses: {},
+  classFile: '',
+  openClassKey: '',
+  removedClasses: [],
   classQuery: '',
   classChip: 'all',
   openClass: '',
