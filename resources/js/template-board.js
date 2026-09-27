@@ -53,7 +53,9 @@ function columns(win, rows) {
     // exist yet — and the first one anybody makes has nowhere to appear.
     ...(taxonomies.length
       ? taxonomies.map(column)
-      : [{ id: '_taxonomies', kind: t(win, 'template_board_kind_taxonomy'), title: t(win, 'template_board_group_taxonomies'), rows: [] }]),
+      // No kind on the stand-in: it is not a taxonomy, it is the place one
+      // would go. "Taxonomy Taxonomies" reads as a stutter.
+      : [{ id: '_taxonomies', title: t(win, 'template_board_group_taxonomies'), rows: [] }]),
   ];
 }
 
