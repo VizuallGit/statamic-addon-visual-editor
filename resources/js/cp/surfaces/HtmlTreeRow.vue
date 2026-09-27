@@ -196,8 +196,17 @@ function rowBind(row, dim) {
   return bind;
 }
 
+/**
+ * A row that stays (`fixed`, html-tree.js): the layout's header and footer
+ * calls, and the <body>. No eye, no copy, no bin — hidden or taken out, that
+ * half is off every page, or the page is.
+ */
+function isFixed(row) {
+  return !!row.fixed;
+}
+
 function canHide(row) {
-  return !row.hidden || row.wrapFrom != null;
+  return !isFixed(row) && (!row.hidden || row.wrapFrom != null);
 }
 
 /**
@@ -367,12 +376,11 @@ function canAct(row) {
         @dblclick.stop
       ></button>
       <!--
-        Not on the layout's header and footer calls (`frameCall`, html-tree.js):
-        a second header is not a copy anyone means, and without the call every
-        page loses its header. The eye and the menu's Open stay.
+        Not on a fixed row (isFixed): a second header or a second <body> is not
+        a copy anyone means, and without either every page loses it.
       -->
       <button
-        v-if="!row.frameCall"
+        v-if="!isFixed(row)"
         type="button"
         data-sve-ht-dup
         :disabled="!canAct(row)"
@@ -383,7 +391,7 @@ function canAct(row) {
         @dblclick.stop
       ></button>
       <button
-        v-if="!row.frameCall"
+        v-if="!isFixed(row)"
         type="button"
         data-sve-ht-del
         :disabled="!canAct(row)"

@@ -63,6 +63,14 @@ export const HTML_ICONS = {
   other:
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M5.2 3.5 2.8 8l2.4 4.5"/><path d="M10.8 3.5 13.2 8l-2.4 4.5"/></svg>',
   /*
+   * The document's <body>: the same brackets, drawn to the frame's box — as
+   * tall as the header's, main's and footer's (2.5 to 13.5) and at the weight
+   * of their accent strokes. At the size of `other` it sat above the three
+   * parts it holds as the faintest mark in the tree.
+   */
+  body:
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 2 8l3 5.5"/><path d="M11 2.5 14 8l-3 5.5"/></svg>',
+  /*
    * A slot: the hole a page's own markup drops into. Drawn as the arrival
    * rather than the container — the dashed box is what the layout owns, the
    * arrow is what the page brings. A plain dashed box would read as `div`.
@@ -122,6 +130,10 @@ export function htmlTreeIcon(tag, kind, antlers) {
 
   if (tag === 'img' || tag === 'picture' || tag === 'svg') {
     return { svg: HTML_ICONS.img };
+  }
+
+  if (tag === 'body') {
+    return { svg: HTML_ICONS.body };
   }
 
   return { svg: HTML_ICONS.other };

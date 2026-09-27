@@ -137,6 +137,12 @@ export let htmlTreeActiveId = null;
 export let htmlTreeUnhook = null;
 // The layout file the tree last stood on <main> in — seated once per landing.
 let htmlTreeMainSeated = '';
+/**
+ * The path of the layout's <body> while the tree is cut to it, '' otherwise.
+ * The rows above it are not drawn, so it is the top the reader sees — and it
+ * folds the way the top does: open unless the folds say otherwise (htmlTreeShut).
+ */
+let htmlTreeTopPath = '';
 export let htmlTreeTimer = 0;
 let htmlTreeStructureUnhook = null;
 let htmlTreeRoots = [];
@@ -1272,9 +1278,17 @@ function firstTagId(nodes) {
   return '';
 }
 
-/** Is this row shut? Open at the top, shut below it, flipped where asked. */
+/**
+ * Is this row shut? Open at the top, shut below it, flipped where asked.
+ *
+ * On the layout the top is also the <body> the tree is cut to. As a row below
+ * <html> it would start shut whenever the folds start afresh — the panel opened
+ * again, say — and the whole layout would be one folded row.
+ */
 function htmlTreeShut(node, depth) {
-  return htmlTreeFolds.has(node.path) ? depth === 0 : depth > 0;
+  const top = depth === 0 || node.path === htmlTreeTopPath;
+
+  return htmlTreeFolds.has(node.path) ? top : !top;
 }
 
 /**
@@ -1333,6 +1347,9 @@ export function renderHtmlTree(win) {
   const html = htmlTreeAhead || dock;
   const roots = parseTemplateTree(html);
   htmlTreeRoots = roots;
+  // A new tree has no <body> to be cut to until the layout below says so, and
+  // the files around an open component are folded before it does.
+  htmlTreeTopPath = '';
   const type = ask('dock:current-type') || '';
   const aliases = readHtmlTreeLabels(type);
   const pageBuilder = pageHasSectionField(win, doc);
@@ -1503,19 +1520,30 @@ export function renderHtmlTree(win) {
     htmlTreeMainSeated = '';
   }
 
-  // On the layout the row to stand on is <main>, and it sits under a <body>
-  // the tree keeps folded: the way down to it opens before the rows are cut.
+  // On the layout the row to stand on is <main>, and the <body> it sits in is
+  // the row the tree is cut to (bodyRaw, below) — the top the reader sees.
   const mainNode = frameKind === 'main' ? findNodeByTag(roots, 'main') : null;
+  const bodyNode = mainNode
+    ? findNodeWhere(roots, (node) => node.tag === 'body' && hasNodeId(node.children, mainNode.id))
+    : null;
+
+  htmlTreeTopPath = bodyNode ? bodyNode.path : '';
 
   if (mainNode) {
-    expandHtmlTreePath(mainNode.path);
+    // The way down to the row the tree is cut to opens on every paint: the
+    // rows above it are not drawn, so nobody could open them again. Up to that
+    // row, not through it. The way on to <main> used to be opened on every
+    // paint, which opened the <body> again straight after its chevron shut it
+    // — the chevron did nothing.
+    expandHtmlTreePath((bodyNode || mainNode).path);
 
-    // And <main> itself, on the first landing only. What is inside it —
-    // `{{ template_content }}`, the hole every page fills — is the reason
-    // anyone opens the layout; arriving with it folded asks for a twist
+    // And on through to <main> itself, on the first landing only. What is
+    // inside it — `{{ template_content }}`, the hole every page fills — is the
+    // reason anyone opens the layout; arriving with it folded asks for a twist
     // before the file says anything. Flipped once per landing, so a reader
-    // who folds it back keeps it folded.
+    // who folds <main> or the <body> back keeps it folded.
     if (htmlTreeMainSeated !== fileKey) {
+      expandHtmlTreePath(mainNode.path);
       htmlTreeFolds.add(mainNode.path);
     }
   }
@@ -1735,10 +1763,11 @@ export function renderHtmlTree(win) {
    * page said the same thing in synthetic rows; this says it in the file, so
    * clicking a part opens the thing that renders it. `mainRaw` still carries
    * the stamp and the landing seat — it is a row in here, not the root.
+   *
+   * Found from the parsed tree, not from <main>'s row: with the <body> folded
+   * <main> is not drawn, and the cut has to hold without it.
    */
-  const bodyRaw = mainRaw
-    ? rows.find((row) => row.tag === 'body' && row.depth < mainRaw.depth) || null
-    : null;
+  const bodyRaw = bodyNode ? rows.find((row) => row.id === bodyNode.id) || null : null;
   const frameRaw = bodyRaw || mainRaw || (chromeRootId ? rows.find((row) => row.id === chromeRootId) || null : null);
   const frameEnd = frameRaw ? nextOutside(rows, frameRaw) : -1;
 
@@ -1753,12 +1782,15 @@ export function renderHtmlTree(win) {
     /*
      * On the layout, `{{ partial:site_head }}` and its footer twin are the
      * page's header and footer, not one more component: the chip says which,
-     * the row wears that half's mark and family, and there is no copy and no
-     * bin (HtmlTreeRow and deleteHtmlTreeRow read `frameCall`). Still a call —
-     * `kind` stays 'component', so the eye, the menu's Open and the values
-     * work as on any other.
+     * the row wears that half's mark and family, and it is `fixed` (below).
+     * Still a call — `kind` stays 'component', so the menu's Open and the
+     * values work as on any other.
      */
     const frameCall = frameCalls && row.kind === 'component' ? frameCalls.get(row.src) || '' : '';
+    // The document's <body>, in whatever file writes it: a document has one,
+    // and everything on the page is inside it. It wears main's family — the
+    // page itself, coloured where main is in the Live Preview settings.
+    const body = row.tag === 'body' && !row.kind;
     const icon = frameCall ? { svg: HTML_ICONS[frameCall] } : htmlTreeIcon(row.tag, row.kind, row.antlers);
     // Which of the file's videos this row is, in document order — what the
     // preview is told to hold; -1 for anything that is not a <video>.
@@ -1774,6 +1806,14 @@ export function renderHtmlTree(win) {
       // The chip. A frame call shows the half, the way <main> shows `main`.
       tag: frameCall || row.tag,
       frameCall,
+      /*
+       * A row that stays: no eye, no copy, no bin (HtmlTreeRow), and the hide,
+       * duplicate and delete handlers refuse it too. The layout's header and
+       * footer calls — hidden or gone, that half is off every page — and the
+       * <body>, which is the page itself. A second of any of them is not a
+       * copy anyone means.
+       */
+      fixed: !!frameCall || body,
       base,
       // The open page section's root already carries the section's own name
       // (its label); the file's alias must not override it here.
@@ -1791,10 +1831,11 @@ export function renderHtmlTree(win) {
           : isRoot && openSection ? openSection.svg : aroundRoot ? around.svg : icon.svg || '',
       frame: chromeKind && row.id === chromeRootId ? chromeKind : row === mainRaw ? 'main' : '',
       // The frame's rows wear the frame's own families — header, main,
-      // footer — each with its colour in the Live Preview settings.
+      // footer — each with its colour in the Live Preview settings. The
+      // <body> wears main's.
       cat: chromeKind && row.id === chromeRootId
         ? chromeKind
-        : row === mainRaw ? 'main' : aroundRoot ? around.cat : frameCall || tagFamily(row.tag, row.kind, row.antlers),
+        : row === mainRaw || body ? 'main' : aroundRoot ? around.cat : frameCall || tagFamily(row.tag, row.kind, row.antlers),
       // Around the open component: `dim` for the section's own rows, `host`
       // for the one the component unfolds from. '' for the component's rows.
       // Around the open component: `host` for every call on the way down to
@@ -2263,8 +2304,9 @@ function expandHtmlTreePath(path) {
 
       if (walk(node.children, depth + 1)) {
         // `htmlTreeShut` reads the flip against the default for that depth: the
-        // top level is open already, everything under it is not.
-        if (depth === 0) {
+        // top — the first level, or the layout's <body> — is open already,
+        // everything under it is not.
+        if (depth === 0 || node.path === htmlTreeTopPath) {
           htmlTreeFolds.delete(node.path);
         } else {
           htmlTreeFolds.add(node.path);
@@ -2414,11 +2456,28 @@ function toggleVideoHold(win, id) {
   renderHtmlTree(win);
 }
 
+/**
+ * A `fixed` row (renderHtmlTree): the layout's header or footer call, or the
+ * <body>. Its buttons are not drawn; this is the other way in — the handlers
+ * below — shut as well.
+ */
+function isFixedHtmlTreeRow(id) {
+  return !!htmlTreeUi.rows.find((item) => item.id === id)?.fixed;
+}
+
 function hideHtmlTreeRow(win, id) {
+  if (isFixedHtmlTreeRow(id)) {
+    return;
+  }
+
   applyHtmlEdit(win, id, toggleHiddenHtml);
 }
 
 function duplicateHtmlTreeRow(win, id) {
+  if (isFixedHtmlTreeRow(id)) {
+    return;
+  }
+
   // The open section's root: a copy of the section on the page, the way the
   // hover bar makes one — not a second copy of the markup in the file. The
   // file's lock does not apply; the file is not touched.
@@ -2518,6 +2577,13 @@ on('row:removed', ({ uid, parentPath, doc, win }) => {
  * section's name and sits in a list of sections, so that is what it is about.
  */
 function deleteHtmlTreeRow(win, id) {
+  // No bin on a fixed row, and no other way in either: taking the header or
+  // the footer call out takes that half off every page, and without the
+  // <body> there is no page.
+  if (isFixedHtmlTreeRow(id)) {
+    return;
+  }
+
   // Shut, a section is a row of its own in `sections`. Open, the section is the
   // first of the file's tag rows — the one carrying `sectionRoot`.
   const shut = htmlTreeUi.sections?.find((item) => item.row?.id === id);
@@ -2526,12 +2592,6 @@ function deleteHtmlTreeRow(win, id) {
   if (uid) {
     removeSectionFromPage(win, uid);
 
-    return;
-  }
-
-  // The layout's header and footer calls have no bin, and no other way in
-  // either: taking one out takes that half off every page.
-  if (htmlTreeUi.rows.find((item) => item.id === id)?.frameCall) {
     return;
   }
 
