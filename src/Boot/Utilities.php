@@ -90,38 +90,37 @@ final class Utilities
     }
 
     /**
-     * Take the addon's Utility page back out of the nav for people who may
-     * not open it.
+     * Take the addon's Utility pages back out of the Utilities nav.
      *
-     * The route has to exist for the whole site — it is built before anyone has
-     * signed in — so "may this person use it" is answered here instead, where
-     * there is a user to ask about. Statamic matches a nav child by its display
-     * name, and the URL is the only thing that can name one page and no other.
+     * Site Files, for people who may not open it. The route has to exist for
+     * the whole site — it is built before anyone has signed in — so "may this
+     * person use it" is answered here instead, where there is a user to ask
+     * about. Statamic matches a nav child by its display name, and the URL is
+     * the only thing that can name one page and no other.
      *
-     * The Utilities index page can still list a page this user will be refused:
-     * Statamic builds that list from the `access <handle> utility` permission
-     * alone, and clicking through gives them the 403 the view closure raises.
+     * The Templates board, for everybody. It is opened from Content → Templates
+     * (StoreCollections::storeNavUrl); being a Utility is only where its route
+     * and its permission come from. addon.css takes it off the Utilities index
+     * page too, which Statamic builds from the permission alone.
+     *
+     * The Utilities index page can still list Site Files for a user who will be
+     * refused, and clicking through gives them the 403 the view closure raises.
      * A tool the site has switched off is never registered at all, so that case
      * does not arise.
      */
     protected static function hideUtilitiesFromNav(): void
     {
         Nav::extend(function ($nav) {
-            // Only pages that were registered: a feature the site has switched
-            // off has no nav item to take away. The URL is built the way
-            // Utility::url() builds it, off the index route, so nothing here
-            // depends on a named route that may not exist.
+            // The URL is built the way Utility::url() builds it, off the index
+            // route, so nothing here depends on a named route that may not exist.
             $hidden = collect([
                 'site-files' => 'file_manager',
             ])
                 ->filter(fn ($feature) => Features::enabled($feature) && ! Features::allows($feature))
                 ->keys()
+                ->push('template-board')
                 ->map(fn ($slug) => cp_route('utilities.index').'/'.$slug)
                 ->all();
-
-            if ($hidden === []) {
-                return;
-            }
 
             if (! $parent = $nav->find('Tools', 'Utilities')) {
                 return;

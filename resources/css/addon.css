@@ -335,3 +335,15 @@
         display: none !important;
     }
 }
+
+/**
+ * Skabeloner står ikke på Utilities-siden.
+ *
+ * Tavlen åbnes fra Content → Skabeloner. At den er registreret som Utility er
+ * kun dér, dens adresse og rettighed kommer fra. Menupunktet under Utilities
+ * fjernes i PHP (Boot/Utilities.php); oversigtssiden har ingen krog — Statamic
+ * bygger listen ud fra rettigheden alene — så kortet skjules her.
+ */
+#main-content a[href$="/utilities/template-board"].group {
+    display: none;
+}
