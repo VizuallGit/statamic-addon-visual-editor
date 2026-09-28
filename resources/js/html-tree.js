@@ -669,12 +669,11 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-row]:has(> [data-sve-ht-twist]:not([data-sve-ht-shut])) + [data-sve-ht-row] [data-sve-ht-indent] i:last-child {
       margin-top: 5px;
     }
-    [data-sve-ht-look="tags"] [data-sve-ht-twist-gap] {
-      display: inline-block;
-      flex: none;
-      width: 14px;
-      height: 14px;
-    }
+    /* No arrow, no room kept for one: a row with nothing to fold draws its
+       mark where the arrow would stand. (The owner's call, 28 Sep 2026 — the
+       empty gap read as an extra indent above all in a template, where the
+       sections loop and a lone child have nothing to fold.) The base rule
+       keeps [data-sve-ht-twist-gap] hidden. */
     [data-sve-ht-look="tags"] [data-sve-ht-twist] { opacity: .55; }
     [data-sve-ht-look="tags"] [data-sve-ht-twist]:hover { opacity: 1; }
     [data-sve-ht-look="tags"] [data-sve-ht-slot][data-sve-ht-id] {
