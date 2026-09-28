@@ -626,19 +626,25 @@ function createHost(win) {
     const elsewhere = dest && dest.pathname !== win.location.pathname;
 
     if (saved || elsewhere) {
+      if (elsewhere) {
+        // The frames stay up: the editor covers the page while the browser
+        // fetches the destination, and the navigation tears document and
+        // frames down together. Detaching first showed the site underneath
+        // until the admin answered — the flash on "Back to admin".
+        win.location.href = dest.href;
+
+        return;
+      }
+
       detachFrames();
 
-      if (elsewhere) {
-        win.location.href = dest.href;
-      } else {
-        try {
-          win.sessionStorage.setItem('sve-noanim', '1');
-        } catch {
-          /* ignore */
-        }
-
-        win.location.reload();
+      try {
+        win.sessionStorage.setItem('sve-noanim', '1');
+      } catch {
+        /* ignore */
       }
+
+      win.location.reload();
 
       return;
     }
