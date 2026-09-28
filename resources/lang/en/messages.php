@@ -491,6 +491,8 @@ return [
     'back_to_site_title' => 'Leave the editor and go back to the live site',
     'back_to_admin' => 'Back to admin',
     'back_to_admin_title' => 'Close Live Preview and return to the Control Panel',
+    'open_in_new_tab' => 'Open in new tab',
+    'open_in_new_tab_title' => 'Open the page in a new tab — the editor stays open',
     'close_live_preview' => 'Close live preview',
     'close_live_preview_title' => 'Close Live Preview',
     'more_lp_title' => 'More',

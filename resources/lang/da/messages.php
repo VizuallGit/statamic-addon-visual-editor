@@ -488,6 +488,8 @@ return [
     'back_to_site_title' => 'Forlad editoren og gå tilbage til live-sitet',
     'back_to_admin' => 'Tilbage til admin',
     'back_to_admin_title' => 'Luk Live Preview og gå tilbage til Control Panel',
+    'open_in_new_tab' => 'Åbn i ny fane',
+    'open_in_new_tab_title' => 'Åbn siden i en ny fane — editoren bliver stående',
     'close_live_preview' => 'Luk live preview',
     'close_live_preview_title' => 'Luk Live Preview',
     'more_lp_title' => 'Mere',

@@ -585,6 +585,12 @@ const LP_BACK_SITE_ICON_SVG =
   '<path d="M7 14h7"></path>' +
   '<path d="m11 11 3 3-3 3"></path></svg>';
 
+const LP_NEW_TAB_ICON_SVG =
+  LP_MENU_ICON +
+  '<path d="M15 3h6v6"></path>' +
+  '<path d="M10 14 21 3"></path>' +
+  '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"></path></svg>';
+
 
 export function isOurLpChromeButton(button) {
   return (
@@ -1264,6 +1270,16 @@ export function openLpBackMenu(win, pill) {
   item(t(win, 'back_to_site'), t(win, 'back_to_site_title'), LP_BACK_SITE_ICON_SVG, () => {
     confirmLeaveIfDirty(win, () => leaveToFrontend(win));
   });
+
+  // Not a way out: the editor stays open behind the new tab, so unsaved work is
+  // neither asked about nor carried over — the tab shows the published page.
+  const visitUrl = visitUrlOf(win);
+
+  if (visitUrl) {
+    item(t(win, 'open_in_new_tab'), t(win, 'open_in_new_tab_title'), LP_NEW_TAB_ICON_SVG, () => {
+      win.open(visitUrl, '_blank', 'noopener');
+    });
+  }
 
   doc.body.appendChild(menu);
   menu.tabIndex = -1;
