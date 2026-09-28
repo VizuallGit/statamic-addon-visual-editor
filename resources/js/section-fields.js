@@ -24,7 +24,7 @@ import { dataGet, unwrapRef } from './lib/values.js';
 import { pageBuilderQuery, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { fetchSetMeta, hydrateExistingMeta, sectionMetaCache, writeSetMeta } from './section-library.js';
-import { refreshLiteSetFields } from './side/lite-sections.js';
+import { addLiteSetConfig, refreshLiteSetFields } from './side/lite-sections.js';
 
 const API = '/!/sve/section-types';
 
@@ -48,8 +48,8 @@ export function currentSetHandle() {
   return type;
 }
 
-/** The fieldset a section type imports its fields from, or null. */
-export async function fieldsetFor(win, handle) {
+/** A section type as the server lists it (display, group, fieldset, …), or null. */
+async function sectionType(win, handle) {
   // The page's own list: a section of a lawyer's page builder is not in the pages'.
   const res = await win.fetch(`${API}?${pageBuilderQuery(win)}`, {
     headers: { Accept: 'application/json' },
@@ -61,7 +61,13 @@ export async function fieldsetFor(win, handle) {
   }
 
   const data = await res.json();
-  const type = (data.types || []).find((row) => row?.handle === handle);
+
+  return (data.types || []).find((row) => row?.handle === handle) || null;
+}
+
+/** The fieldset a section type imports its fields from, or null. */
+export async function fieldsetFor(win, handle) {
+  const type = await sectionType(win, handle);
 
   return type ? { fieldset: type.fieldset || null, display: type.display || handle } : null;
 }
@@ -200,8 +206,26 @@ export async function refreshFieldsForType(win, setHandle) {
   // in the overlay is saved and real but absent from the panel until a reload —
   // the panel draws its list from the set config the publish form was built
   // with, and that is a snapshot from page load.
-  if (Array.isArray(meta.definitions)) {
-    refreshLiteSetFields(setHandle, meta.definitions);
+  if (Array.isArray(meta.definitions) && !refreshLiteSetFields(setHandle, meta.definitions) && touched) {
+    // No panel knew the set at all: a type made after the page loaded — in
+    // Statamic's Fieldsets screen, by hand, in another tab — and put on the
+    // page from the library. Its rows are drawn as empty shells and there was
+    // no field list to replace. The panel is told about the type the way a
+    // section made with "New section" is (`placeNewSection`), and they draw.
+    const type = await sectionType(win, setHandle);
+
+    if (type) {
+      addLiteSetConfig(
+        setHandle,
+        {
+          display: type.display || setHandle,
+          hide: type.hidden === true,
+          fields: meta.definitions,
+          group_display: type.group_display || type.group || '',
+        },
+        type.group || ''
+      );
+    }
   }
 
   return touched;
