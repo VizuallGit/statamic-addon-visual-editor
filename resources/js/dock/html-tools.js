@@ -13,6 +13,7 @@ import { definedElsewhere, importClassCss, loadClassDefs, siteClassOptions } fro
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { elementInsertPoint } from './insert-point.js';
+import { findHtmlClose, readHtmlTag, skipHtmlNoise, tagAtCursor } from './tag-scan.js';
 import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_HEADINGS, HTML_TOOLS, editors, tags } from '../code-dock.js';
 import { onEditorInput } from './save.js';
 import { closeCssMenu, indentFromPrevious, lineIndentOf, paintCssToolState, placeCssMenu } from './css-tools.js';
@@ -21,95 +22,6 @@ import { applyCssScope, flushCssScope, rememberBracketNames, rememberCssSelector
 // ===== html-tools =====
 function cssChrome(dock) {
   return dock?.querySelector('[data-sve-css-chrome]');
-}
-
-function skipHtmlNoise(text, i) {
-  if (text.startsWith('{{', i)) {
-    const end = text.indexOf('}}', i + 2);
-
-    return end === -1 ? text.length : end + 2;
-  }
-
-  if (text.startsWith('<!--', i)) {
-    const end = text.indexOf('-->', i + 4);
-
-    return end === -1 ? text.length : end + 3;
-  }
-
-  return i;
-}
-
-function readHtmlTag(text, i) {
-  if (text[i] !== '<') {
-    return null;
-  }
-
-  const close = text.indexOf('>', i + 1);
-
-  if (close === -1) {
-    return null;
-  }
-
-  const chunk = text.slice(i, close + 1);
-  const closing = chunk.match(/^<\/([A-Za-z][A-Za-z0-9:-]*)\s*>/);
-
-  if (closing) {
-    return { kind: 'close', name: closing[1].toLowerCase(), from: i, to: close + 1 };
-  }
-
-  const opening = chunk.match(/^<([A-Za-z][A-Za-z0-9:-]*)/);
-
-  if (!opening) {
-    return { kind: 'other', from: i, to: close + 1 };
-  }
-
-  const name = opening[1].toLowerCase();
-  const self =
-    /\/\s*>$/.test(chunk) ||
-    ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'].includes(
-      name
-    );
-
-  return { kind: self ? 'void' : 'open', name, from: i, to: close + 1 };
-}
-
-function findHtmlClose(text, name, from) {
-  let depth = 1;
-  let i = from;
-
-  while (i < text.length) {
-    const next = skipHtmlNoise(text, i);
-
-    if (next !== i) {
-      i = next;
-      continue;
-    }
-
-    if (text[i] !== '<') {
-      i += 1;
-      continue;
-    }
-
-    const tag = readHtmlTag(text, i);
-
-    if (!tag) {
-      break;
-    }
-
-    if (tag.kind === 'open' && tag.name === name) {
-      depth += 1;
-    } else if (tag.kind === 'close' && tag.name === name) {
-      depth -= 1;
-
-      if (depth === 0) {
-        return tag;
-      }
-    }
-
-    i = tag.to;
-  }
-
-  return null;
 }
 
 export function htmlElementAtCursor() {
@@ -306,6 +218,19 @@ const FILLED_TAGS = new Set([
 ]);
 
 /**
+ * Tags that cannot hold one of their own.
+ *
+ * An h1 inside an h1 is not HTML, and neither is a p in a p or an a in an a,
+ * so a new one written from inside one goes after the element instead.
+ *
+ * A function, not a set built when the module loads: HTML_HEADINGS comes
+ * from code-dock.js, which imports this module, and does not exist yet then.
+ */
+function isNonSelfNesting(tag) {
+  return isHeadingTag(tag) || tag === 'p' || tag === 'a';
+}
+
+/**
  * The opening tag a toolbar button writes.
  *
  * A section carries the attributes the site configures for it, so a new one is
@@ -404,40 +329,49 @@ export function applyHtmlTag(tag) {
     return;
   }
 
+  // A button takes its element away only from inside one of that element's
+  // own tags — `<di|v>` or `</di|v>`. From its content it writes a new one.
+  const pos = sel.head;
+  const under = tagAtCursor(text, pos);
+
+  if (under && under.name === tag && under.open && under.close) {
+    dispatchHtmlChanges(
+      view,
+      [
+        { from: under.close.from, to: under.close.to, insert: '' },
+        { from: under.open.from, to: under.open.to, insert: '' },
+      ],
+      { anchor: under.open.from },
+      TOOLBAR_EVENT
+    );
+    finishHtmlEdit();
+
+    return;
+  }
+
   const el = htmlElementAtCursor();
 
-  if (el?.open && el.close) {
-    if (el.name === tag) {
-      dispatchHtmlChanges(
-        view,
-        [
-          { from: el.close.from, to: el.close.to, insert: '' },
-          { from: el.open.from, to: el.open.to, insert: '' },
-        ],
-        { anchor: el.open.from },
-        TOOLBAR_EVENT
-      );
-      finishHtmlEdit();
+  if (el?.open && el.close && isHeadingTag(el.name) && isHeadingTag(tag) && el.name !== tag) {
+    const openRaw = text.slice(el.open.from, el.open.to).replace(new RegExp(`^<${el.name}`, 'i'), `<${tag}`);
 
-      return;
-    }
+    dispatchHtmlChanges(
+      view,
+      [
+        { from: el.close.from, to: el.close.to, insert: `</${tag}>` },
+        { from: el.open.from, to: el.open.to, insert: openRaw },
+      ],
+      { anchor: el.open.from + tag.length + 1 },
+      TOOLBAR_EVENT
+    );
+    finishHtmlEdit();
 
-    if (isHeadingTag(el.name) && isHeadingTag(tag)) {
-      const openRaw = text.slice(el.open.from, el.open.to).replace(new RegExp(`^<${el.name}`, 'i'), `<${tag}`);
+    return;
+  }
 
-      dispatchHtmlChanges(
-        view,
-        [
-          { from: el.close.from, to: el.close.to, insert: `</${tag}>` },
-          { from: el.open.from, to: el.open.to, insert: openRaw },
-        ],
-        { anchor: el.open.from + tag.length + 1 },
-        TOOLBAR_EVENT
-      );
-      finishHtmlEdit();
-
-      return;
-    }
+  // The same tag from its content, and one that cannot hold itself: the new
+  // one goes after the element, not into it.
+  if (el?.open && el.name === tag && isNonSelfNesting(tag)) {
+    view.dispatch({ selection: { anchor: el.close ? el.close.to : el.open.to } });
   }
 
   leaveTag(view);
