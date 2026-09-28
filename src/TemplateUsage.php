@@ -27,7 +27,7 @@ final class TemplateUsage
     public const NAMED_PAGES = 3;
 
     /**
-     * @return array{view: string, name: string, everything: bool, used_by: list<string>, sections_fields: list<string>, open: ?array{handle: string, slot: string}}
+     * @return array{view: string, name: string, everything: bool, used_by: list<array{name: string, kind: string, url: ?string}>, sections_fields: list<string>, open: ?array{handle: string, slot: string}}
      */
     public static function of(string $view): array
     {
@@ -61,22 +61,26 @@ final class TemplateUsage
      * The collections and taxonomies drawn with the view, then the single
      * pages that pick it themselves (a search page, a front page).
      *
-     * @return list<string>
+     * Each with where it opens: a collection or taxonomy its own CP listing
+     * (the Live Preview drawer frames it), a page its edit screen. The count
+     * of pages not named has nowhere to go.
+     *
+     * @return list<array{name: string, kind: string, url: ?string}>
      */
     public static function usedBy(string $view): array
     {
         $stores = Stores::all();
-        $names = [];
+        $items = [];
 
         foreach (Collection::all() as $collection) {
             if (! in_array($collection->handle(), $stores, true) && $collection->template() === $view) {
-                $names[] = (string) $collection->title();
+                $items[] = ['name' => (string) $collection->title(), 'kind' => 'collection', 'url' => $collection->showUrl()];
             }
         }
 
         foreach (Taxonomy::all() as $taxonomy) {
             if ($taxonomy->template() === $view || $taxonomy->termTemplate() === $view) {
-                $names[] = (string) $taxonomy->title();
+                $items[] = ['name' => (string) $taxonomy->title(), 'kind' => 'taxonomy', 'url' => $taxonomy->showUrl()];
             }
         }
 
@@ -86,18 +90,22 @@ final class TemplateUsage
             $own = $entry->get('template');
 
             if ($own === $view && ! in_array($entry->collectionHandle(), $stores, true)) {
-                $pages[] = (string) ($entry->value('title') ?: $entry->slug());
+                $pages[] = ['name' => (string) ($entry->value('title') ?: $entry->slug()), 'kind' => 'page', 'url' => $entry->editUrl()];
             }
         }
 
-        $names = array_merge($names, array_slice($pages, 0, static::NAMED_PAGES));
+        $items = array_merge($items, array_slice($pages, 0, static::NAMED_PAGES));
         $more = count($pages) - static::NAMED_PAGES;
 
         if ($more > 0) {
-            $names[] = trans_choice('sve::messages.template_usage_more_pages', $more, ['count' => $more]);
+            $items[] = [
+                'name' => trans_choice('sve::messages.template_usage_more_pages', $more, ['count' => $more]),
+                'kind' => 'more',
+                'url' => null,
+            ];
         }
 
-        return $names;
+        return $items;
     }
 
     /**

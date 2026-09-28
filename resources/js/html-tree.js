@@ -68,13 +68,14 @@ import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields } from './lib/config.js';
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
-import { openTemplateSlot, templateUsage } from './lp-templates.js';
+import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
+import { openCollections } from './lp-collections.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
 import { activeContainers, pageHasSectionField } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
-import { confirmCloseDiscard } from './pages.js';
+import { confirmCloseDiscard, navigateFromLp } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { hasToken } from './dock-partials.js';
 import { componentSrcFromType } from './component-signature.js';
@@ -174,7 +175,9 @@ function paintUsedBy(win, collectionView) {
 
     // One chip per collection, taxonomy or page drawn with it; the layout
     // frames every page, so it gets the one chip that says so.
-    const items = usage.everything ? [t(win, 'html_tree_used_by_everything')] : usage.used_by;
+    const items = usage.everything
+      ? [{ name: t(win, 'html_tree_used_by_everything'), kind: 'everything', url: null }]
+      : usage.used_by.map((item) => ({ ...item, ...usedByOpener(win, item) }));
 
     htmlTreeUi.templateSections = Array.isArray(usage.sections_fields) ? usage.sections_fields : [];
     htmlTreeUi.usedBy = {
@@ -182,9 +185,28 @@ function paintUsedBy(win, collectionView) {
       label: t(win, 'html_tree_used_by'),
       items,
       empty: items.length ? '' : t(win, 'html_tree_used_by_nobody'),
-      hint: items.length ? t(win, 'html_tree_used_by_hint', { list: items.join(', ') }) : '',
+      hint: items.length ? t(win, 'html_tree_used_by_hint', { list: items.map((item) => item.name).join(', ') }) : '',
     };
   });
+}
+
+/**
+ * Where a "Used by" chip goes. A collection or a taxonomy opens its own
+ * listing in the collections drawer; a page opens itself in Live Preview,
+ * unsaved work asked about first. The count of pages not named goes nowhere.
+ */
+function usedByOpener(win, item) {
+  if (!item.url) {
+    return { openLabel: '', onOpen: null };
+  }
+
+  const openLabel = t(win, 'html_tree_used_by_open', { name: item.name });
+
+  if (item.kind === 'page') {
+    return { openLabel, onOpen: (anchor) => navigateFromLp(win, anchor, inLivePreview(win, item.url)) };
+  }
+
+  return { openLabel, onOpen: (anchor) => openCollections(win, { anchor, url: item.url, subtitle: item.name }) };
 }
 
 /**

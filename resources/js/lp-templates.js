@@ -38,8 +38,8 @@ function allowed(win) {
   );
 }
 
-/** The template's edit screen, arriving with Live Preview open. */
-function inLivePreview(win, url) {
+/** An edit screen, arriving with Live Preview open. */
+export function inLivePreview(win, url) {
   const next = new URL(url, win.location.href);
 
   next.searchParams.set('live-preview', '1');

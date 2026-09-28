@@ -284,7 +284,16 @@ function setQuery(value) {
         {{ ui.usedBy.label }}
       </span>
       <span class="sve-ht-used-by__chips">
-        <span v-for="item in ui.usedBy.items" :key="item" class="sve-ht-used-by__chip">{{ item }}</span>
+        <template v-for="item in ui.usedBy.items" :key="item.kind + ':' + item.name">
+          <button
+            v-if="item.onOpen"
+            type="button"
+            class="sve-ht-used-by__chip sve-ht-used-by__chip--open"
+            :title="item.openLabel"
+            @click="item.onOpen($event.currentTarget)"
+          >{{ item.name }}</button>
+          <span v-else class="sve-ht-used-by__chip">{{ item.name }}</span>
+        </template>
         <span v-if="ui.usedBy.empty" class="sve-ht-used-by__empty">{{ ui.usedBy.empty }}</span>
       </span>
     </div>
@@ -511,8 +520,20 @@ function setQuery(value) {
   padding: 0.1875rem 0.5rem;
   border-radius: 999px;
   background: rgba(128, 128, 128, 0.2);
+  font-size: 0.625rem;
   font-weight: 600;
   white-space: nowrap;
+}
+/* A chip that goes somewhere: its collection, its taxonomy, its page. */
+.sve-ht-used-by__chip--open {
+  border: 0;
+  color: inherit;
+  font-family: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+.sve-ht-used-by__chip--open:hover {
+  background: rgba(128, 128, 128, 0.34);
 }
 .sve-ht-used-by__empty {
   opacity: 0.55;

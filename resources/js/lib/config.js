@@ -25,6 +25,11 @@ export function featureOn(win, key) {
   return win.Statamic?.$config?.get?.('sveFeatures')?.[key] !== false;
 }
 
+/** Where the Control Panel lives (`/cp` unless the site moved it), no trailing slash. */
+export function cpRoot(win) {
+  return String(win.Statamic?.$config?.get?.('cpRoot') || '/cp').replace(/\/+$/, '');
+}
+
 /** The field a page's sections live in when its blueprint marks none (`page_sections`). */
 export function defaultSectionField(win) {
   return win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections';

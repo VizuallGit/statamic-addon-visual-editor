@@ -19,6 +19,9 @@ const props = defineProps({
   // The URL a save in this screen goes to. The Fieldsets screen by default;
   // a blueprint saves elsewhere, and the caller says where.
   saveMatch: { type: RegExp, default: null },
+  // Asked about every page the framed screen moves to, with its URL. True
+  // keeps the frame where it is: the caller has taken the visit elsewhere.
+  onNavigate: { type: Function, default: null },
 });
 
 const loading = ref(true);
@@ -168,8 +171,36 @@ function watchSave(win) {
   return true;
 }
 
+/**
+ * Every move inside the Control Panel is an Inertia visit, and Inertia asks the
+ * document first: `inertia:before`, cancelable. That is the one place a click
+ * on a link, a table row or a button all pass through. Prefetches ask too —
+ * a link hovered is not a link followed, so they are let through.
+ */
+function watchVisits() {
+  const doc = frame.value?.contentDocument;
+
+  if (!props.onNavigate || !doc || doc.__sveVisitWatch) {
+    return;
+  }
+
+  doc.__sveVisitWatch = true;
+  doc.addEventListener('inertia:before', (event) => {
+    const visit = event.detail?.visit;
+
+    if (!visit?.url || visit.prefetch || String(visit.method || 'get').toLowerCase() !== 'get') {
+      return;
+    }
+
+    if (props.onNavigate(String(visit.url))) {
+      event.preventDefault();
+    }
+  });
+}
+
 function onFrameLoad() {
   trimChrome();
+  watchVisits();
 
   const win = frame.value?.contentWindow;
 

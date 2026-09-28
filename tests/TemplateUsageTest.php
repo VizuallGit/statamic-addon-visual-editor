@@ -42,9 +42,11 @@ class TemplateUsageTest extends TestCase
     {
         $usage = TemplateUsage::of('default');
 
-        $this->assertContains('People', $usage['used_by']);
-        $this->assertContains('Loose pages', $usage['used_by']);
-        $this->assertNotContains('Services', $usage['used_by']);
+        $names = array_column($usage['used_by'], 'name');
+
+        $this->assertContains('People', $names);
+        $this->assertContains('Loose pages', $names);
+        $this->assertNotContains('Services', $names);
         $this->assertFalse($usage['everything']);
         // The Default page card on the board.
         $this->assertSame(['handle' => '_site', 'slot' => 'default'], $usage['open']);
@@ -55,7 +57,10 @@ class TemplateUsageTest extends TestCase
     {
         $usage = TemplateUsage::of('usage_services/show');
 
-        $this->assertSame(['Services'], $usage['used_by']);
+        $this->assertSame(['Services'], array_column($usage['used_by'], 'name'));
+        // A collection opens its own listing, in the Live Preview drawer.
+        $this->assertSame('collection', $usage['used_by'][0]['kind']);
+        $this->assertSame(Collection::findByHandle('usage_services')->showUrl(), $usage['used_by'][0]['url']);
         $this->assertSame(['handle' => 'usage_services', 'slot' => 'show'], $usage['open']);
         $this->assertSame('Services · '.__('sve::messages.template_board_slot_show'), $usage['name']);
     }
@@ -87,10 +92,16 @@ class TemplateUsageTest extends TestCase
 
     public function test_a_page_that_picks_a_template_itself_is_named(): void
     {
-        Entry::make()->collection('usage_pages')->slug('search')
-            ->data(['title' => 'Søgeresultater', 'template' => 'search'])->save();
+        $page = Entry::make()->collection('usage_pages')->slug('search')
+            ->data(['title' => 'Søgeresultater', 'template' => 'search']);
+        $page->save();
 
-        $this->assertSame(['Søgeresultater'], TemplateUsage::of('search')['used_by']);
+        $usedBy = TemplateUsage::of('search')['used_by'];
+
+        $this->assertSame(['Søgeresultater'], array_column($usedBy, 'name'));
+        // A page opens itself.
+        $this->assertSame('page', $usedBy[0]['kind']);
+        $this->assertSame($page->editUrl(), $usedBy[0]['url']);
     }
 
     public function test_an_entry_is_drawn_by_its_own_template_else_its_collections(): void
