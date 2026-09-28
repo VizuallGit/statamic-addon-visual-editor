@@ -4,13 +4,17 @@ namespace MarioHamann\StatamicVisualEditor;
 
 use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Statamic\Facades\Collection;
-use Statamic\Facades\Fieldset;
 use Statamic\Facades\User;
+use Statamic\Fields\Blueprint;
 
 /**
  * The page-builder's section types, for the visual "Add section" picker: each
  * type's handle, display name, fieldset group, preview image and default field
- * values. Groups follow the replicator set tabs in the page_sections fieldset.
+ * values. Groups follow the replicator set tabs of the page's sections field.
+ *
+ * Which field that is, and which file its list is written in, is the page's
+ * blueprint's to say ({@see SectionField}); without one, the pages collection's
+ * page builder — the `page_sections` fieldset on this site.
  *
  * The defaults are computed the same way Statamic applies them when you add a
  * set (each field's `default`), so inserting a section from the picker starts
@@ -19,16 +23,18 @@ use Statamic\Facades\User;
  */
 class SectionTypes
 {
-    public static function map(): array
+    public static function map(?Blueprint $blueprint = null): array
     {
-        $handle = config('statamic-visual-editor.previews.field', 'page_sections');
-        $fieldset = Fieldset::find($handle);
+        $blueprint ??= static::defaultBlueprint();
+        $handle = $blueprint ? SectionField::of($blueprint) : SectionField::fallback();
+        $list = $blueprint ? SectionField::listOf($blueprint) : SectionList::fallback();
+        $contents = $list->read();
+        $sets = $contents === null ? null : $list->sets($contents);
 
-        if (! $fieldset) {
+        if ($sets === null) {
             return [];
         }
 
-        $sets = (FieldsetFields::of($fieldset)[0] ?? [])['field']['sets'] ?? [];
         $images = SetPreviewImages::map();
         $exclude = (array) config('statamic-visual-editor.previews.exclude', []);
 
@@ -88,7 +94,7 @@ class SectionTypes
                     'group' => (string) $groupKey,
                     'group_display' => $groupDisplay,
                     'image_url' => $images[$setHandle] ?? null,
-                    'defaults' => static::defaults($handle, $setHandle),
+                    'defaults' => static::defaults($blueprint, $handle, $setHandle),
                     'can_delete' => $canDelete,
                     // Markup only, nothing for an editor to fill in.
                     'static' => $static,
@@ -109,19 +115,20 @@ class SectionTypes
      *
      * @return list<array{handle: string, display: string, static: bool}>
      */
-    public static function groups(): array
+    public static function groups(?Blueprint $blueprint = null): array
     {
-        $handle = config('statamic-visual-editor.previews.field', 'page_sections');
+        $blueprint ??= static::defaultBlueprint();
+        $list = $blueprint ? SectionField::listOf($blueprint) : SectionList::fallback();
         // The file, not the repository's copy: the repository memoises a
         // fieldset for the whole request, so a group made a moment ago in this
         // same request (storeGroup answers with the list) would be missing.
-        $contents = SectionTypeMaker::readFieldset($handle);
+        $contents = $list->read();
+        $sets = $contents === null ? null : $list->sets($contents);
 
-        if ($contents === null) {
+        if ($sets === null) {
             return [];
         }
 
-        $sets = (FieldsetFields::flatten($contents)[0] ?? [])['field']['sets'] ?? [];
         $groups = [];
 
         foreach ($sets as $groupKey => $group) {
@@ -162,9 +169,9 @@ class SectionTypes
      * from the entry blueprint (imports and nested sets already flattened), field
      * by field so one that can't produce a default doesn't sink the rest.
      */
-    protected static function defaults(string $field, string $setHandle): array
+    protected static function defaults(?Blueprint $blueprint, string $field, string $setHandle): array
     {
-        if (! $setFields = static::setFields($field, $setHandle)) {
+        if (! $setFields = static::setFields($blueprint, $field, $setHandle)) {
             return [];
         }
 
@@ -194,14 +201,18 @@ class SectionTypes
      * field references are already flattened — a section that imports its design
      * tabby from a shared fieldset reads the same as one declaring it inline.
      */
-    protected static function setFields(string $field, string $setHandle): ?\Statamic\Fields\Fields
+    protected static function setFields(?Blueprint $blueprint, string $field, string $setHandle): ?\Statamic\Fields\Fields
     {
-        $collection = Collection::findByHandle(
-            config('statamic-visual-editor.previews.collection', 'pages')
-        );
-
-        $replicator = PageBuilderBlueprint::for($collection, $field)?->fields()->all()->get($field);
+        $replicator = $blueprint?->fields()->all()->get($field);
 
         return $replicator?->fieldtype()->fields($setHandle) ?: null;
+    }
+
+    /** The pages collection's page builder: the list a page with no blueprint to go by gets. */
+    protected static function defaultBlueprint(): ?Blueprint
+    {
+        return PageBuilderBlueprint::for(Collection::findByHandle(
+            config('statamic-visual-editor.previews.collection', 'pages')
+        ));
     }
 }

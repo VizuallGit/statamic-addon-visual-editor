@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor\Listeners;
 
+use MarioHamann\StatamicVisualEditor\SectionField;
 use Statamic\Events\EntryBlueprintFound;
 use Statamic\Facades\Blink;
 use Statamic\Facades\Fieldset;
@@ -23,7 +24,8 @@ class UseLiteSections
             return;
         }
 
-        $handle = (string) config('statamic-visual-editor.previews.field', 'page_sections');
+        // This blueprint's own sections field: the one it marks, or the default name.
+        $handle = SectionField::of($event->blueprint);
 
         if ($handle === '') {
             return;

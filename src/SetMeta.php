@@ -64,6 +64,19 @@ class SetMeta
             static::walk($fieldset->contents(), $sets, $grids, $seen);
         }
 
+        // …and the page builders other blueprints keep for themselves: one that
+        // marks a sections field of its own (a lawyer's CV sections) names sets
+        // the pages never reach.
+        $own = SectionList::fallback()->key();
+
+        foreach (Collection::all() as $other) {
+            foreach ($other->entryBlueprints() as $blueprint) {
+                if (SectionField::in($blueprint) && SectionField::listOf($blueprint)->key() !== $own) {
+                    static::walk($blueprint->contents(), $sets, $grids, $seen);
+                }
+            }
+        }
+
         return ['sets' => $sets, 'grids' => $grids];
     }
 

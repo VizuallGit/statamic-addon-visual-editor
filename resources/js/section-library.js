@@ -55,7 +55,7 @@ import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, FOCUS_LOCKED_TABS, GLOBALS_PANEL_
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
-import { featureOn, sectionField } from './lib/config.js';
+import { defaultSectionField, featureOn, pageBuilderParams, pageBuilderQuery, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
 import { clearSolo, focusPanelOn, hideSettingsBar, sectionSettingsFields, soloSection, soloSectionSettings } from './focus-panel.js';
@@ -85,6 +85,10 @@ import { MSG, SOURCE } from './lib/protocol.js';
 // The type list is handed over at page render. Deleting one replaces it here for
 // the rest of the session — the config is a snapshot, and reloading the CP just
 // to drop a card from the picker isn't worth asking for.
+//
+// Held with the sections field it is the list of (`{ field, types }`): a page
+// whose blueprint marks a field of its own has a list of its own, and the
+// snapshot handed over at render is the default field's.
 export let sectionTypesOverride = null;
 
 /**
@@ -92,11 +96,33 @@ export let sectionTypesOverride = null;
  * the global-section carrier, a set taken out of use) is not offered to
  * anyone, super admins included: it has nothing to show and nothing to place
  * by hand. The Global tab places the carrier itself.
+ *
+ * The list for the page on screen: the one fetched for its sections field, or
+ * the render's snapshot when that field is the default one. A page with a
+ * field of its own shows nothing until its list has come back.
  */
 export function sectionTypes(win) {
-  const list = sectionTypesOverride || win.Statamic?.$config?.get?.('sveSectionTypes');
+  const field = sectionField(win);
+  const list =
+    sectionTypesOverride?.field === field
+      ? sectionTypesOverride.types
+      : field === defaultSectionField(win)
+        ? win.Statamic?.$config?.get?.('sveSectionTypes')
+        : null;
 
   return Array.isArray(list) ? list.filter((type) => type?.hidden !== true) : [];
+}
+
+/** Which page's list, for a section-types or section-meta URL (`pageBuilderQuery`). */
+export function blueprintQuery(win) {
+  return pageBuilderQuery(win);
+}
+
+/** One cache key per page builder: two of them may both have a set of this name. */
+function pageBuilderKey(win) {
+  const { blueprint, collection, sections_field: field } = pageBuilderParams(win);
+
+  return blueprint || `${collection}.${field}`;
 }
 
 /**
@@ -116,7 +142,7 @@ export function refreshSectionTypes(win, onUpdated) {
   const gen = ++sectionTypesGen;
 
   win
-    .fetch('/!/sve/section-types', {
+    .fetch(`/!/sve/section-types?${blueprintQuery(win)}`, {
       credentials: 'same-origin',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
     })
@@ -137,7 +163,7 @@ export function refreshSectionTypes(win, onUpdated) {
       const handles = data.types.map((type) => `${type.handle}\t${type.display || ''}`).join('\n');
       const images = data.types.map((type) => type.image_url || '').join('\n');
 
-      sectionTypesOverride = data.types;
+      sectionTypesOverride = { field: data.field || sectionField(win), types: data.types };
 
       const listChanged = handles !== lastTypeHandles;
       const imagesChanged = images !== lastTypeImages;
@@ -601,7 +627,7 @@ export const sectionMetaCache = new Map();
  * `field` so it resolves the nested replicator instead of the top-level one.
  */
 export async function fetchNestedSetMeta(win, field, setHandle, sectionType = '') {
-  const key = `${field}::${setHandle}::${sectionType}`;
+  const key = `${pageBuilderKey(win)}::${field}::${setHandle}::${sectionType}`;
 
   if (sectionMetaCache.has(key)) {
     return sectionMetaCache.get(key);
@@ -617,7 +643,8 @@ export async function fetchNestedSetMeta(win, field, setHandle, sectionType = ''
     const url =
       `/!/sve/section-meta?collection=${encodeURIComponent(collection)}` +
       `&field=${encodeURIComponent(field)}&set=${encodeURIComponent(setHandle)}` +
-      (sectionType ? `&section=${encodeURIComponent(sectionType)}` : '');
+      (sectionType ? `&section=${encodeURIComponent(sectionType)}` : '') +
+      `&${blueprintQuery(win)}`;
 
     const res = await win.fetch(url, {
       credentials: 'same-origin',
@@ -1396,8 +1423,11 @@ export async function fetchSetMeta(win, setHandle) {
     return null;
   }
 
-  if (sectionMetaCache.has(setHandle)) {
-    return sectionMetaCache.get(setHandle);
+  // Per page builder: two of them may both have a set of this name.
+  const key = `${pageBuilderKey(win)}::${setHandle}`;
+
+  if (sectionMetaCache.has(key)) {
+    return sectionMetaCache.get(key);
   }
 
   const collection = currentCollection(win);
@@ -1408,7 +1438,8 @@ export async function fetchSetMeta(win, setHandle) {
 
   const pending = (async () => {
     const url =
-      `/!/sve/section-meta?collection=${encodeURIComponent(collection)}&set=${encodeURIComponent(setHandle)}`;
+      `/!/sve/section-meta?collection=${encodeURIComponent(collection)}&set=${encodeURIComponent(setHandle)}` +
+      `&${blueprintQuery(win)}`;
 
     const res = await win.fetch(url, {
       credentials: 'same-origin',
@@ -1422,18 +1453,18 @@ export async function fetchSetMeta(win, setHandle) {
     return res.json();
   })();
 
-  sectionMetaCache.set(setHandle, pending);
+  sectionMetaCache.set(key, pending);
 
   try {
     const data = await pending;
 
     if (!data) {
-      sectionMetaCache.delete(setHandle);
+      sectionMetaCache.delete(key);
     }
 
     return data;
   } catch {
-    sectionMetaCache.delete(setHandle);
+    sectionMetaCache.delete(key);
 
     return null;
   }
@@ -2498,6 +2529,9 @@ export function mountSectionPicker(win, options = {}) {
   let query = '';
   let group = null; // null = all groups
   let typesAsked = false;
+  // The sections field the list was asked for: another page may have a field,
+  // and so a list, of its own.
+  let typesAskedFor = '';
 
 
   // Natural-height preview cards in a CSS-columns masonry grid. The image sets
@@ -2820,8 +2854,9 @@ export function mountSectionPicker(win, options = {}) {
     renderGroups();
 
     if (active === 'page') {
-      if (!typesAsked) {
+      if (!typesAsked || typesAskedFor !== sectionField(win)) {
         typesAsked = true;
+        typesAskedFor = sectionField(win);
         refreshSectionTypes(win, applyTypeRefresh);
       }
 
@@ -3116,7 +3151,7 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
   }
 
   const usageUrl = isType
-    ? `/!/sve/section-types/usage?handle=${encodeURIComponent(item.handle)}`
+    ? `/!/sve/section-types/usage?handle=${encodeURIComponent(item.handle)}&${blueprintQuery(win)}`
     : `/!/sve/saved-sections/${encodeURIComponent(item.id)}/usage`;
 
   win
@@ -3172,7 +3207,7 @@ export function deleteLibraryItem(win, kind, item, removeUsages, onDeleted) {
     kind === 'template'
       ? `/!/sve/templates/${encodeURIComponent(item.id)}`
       : kind === 'page'
-        ? `/!/sve/section-types?handle=${encodeURIComponent(item.handle)}${suffix ? `&${suffix}` : ''}`
+        ? `/!/sve/section-types?handle=${encodeURIComponent(item.handle)}&${blueprintQuery(win)}${suffix ? `&${suffix}` : ''}`
         : `/!/sve/saved-sections/${encodeURIComponent(item.id)}${suffix ? `?${suffix}` : ''}`;
 
   win
@@ -3203,7 +3238,7 @@ export function deleteLibraryItem(win, kind, item, removeUsages, onDeleted) {
         // The picker's type list came from the page render, and one of them no
         // longer exists. The server sent the fresh list back with the delete.
         if (Array.isArray(body.section_types)) {
-          sectionTypesOverride = body.section_types;
+          sectionTypesOverride = { field: sectionField(win), types: body.section_types };
         }
       }
 

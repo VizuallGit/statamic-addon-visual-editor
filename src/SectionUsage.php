@@ -32,14 +32,15 @@ class SectionUsage
     }
 
     /**
-     * The field sections live in. Used to scope a match by set handle: a row's
-     * `type` alone doesn't say what kind of thing it is, and a *block* set inside
-     * a section could perfectly well be called `code_block` too. Only rows in a
-     * list under this key are sections.
+     * The field sections live in on this entry's page. Used to scope a match by
+     * set handle: a row's `type` alone doesn't say what kind of thing it is, and
+     * a *block* set inside a section could perfectly well be called `code_block`
+     * too. Only rows in a list under this key are sections. Each entry's own
+     * blueprint says which field that is ({@see SectionField}).
      */
-    protected static function scope(): string
+    protected static function scope($entry): string
     {
-        return config('statamic-visual-editor.previews.field', 'page_sections');
+        return SectionField::of($entry->blueprint());
     }
 
     /**
@@ -51,25 +52,25 @@ class SectionUsage
     {
         // Unscoped: the match is on a set handle *and* an entry id, which can't
         // collide with anything else, so a reference is found wherever it sits.
-        return static::collect(static::referenceMatcher($id), null);
+        return static::collect(static::referenceMatcher($id), false);
     }
 
     /** Every entry holding a section of this type. */
     public static function ofType(string $type): array
     {
-        return static::collect(static::typeMatcher($type), static::scope());
+        return static::collect(static::typeMatcher($type), true);
     }
 
     /** Removes every reference to the saved section. Returns entries touched. */
     public static function strip(string $id): int
     {
-        return static::remove(static::referenceMatcher($id), null);
+        return static::remove(static::referenceMatcher($id), false);
     }
 
     /** Removes every section of this type. Returns entries touched. */
     public static function stripType(string $type): int
     {
-        return static::remove(static::typeMatcher($type), static::scope());
+        return static::remove(static::typeMatcher($type), true);
     }
 
     /**
@@ -96,14 +97,17 @@ class SectionUsage
         return fn ($row) => is_array($row) && ($row['type'] ?? null) === $type;
     }
 
-    /** The entries whose data matches, with how many rows each one holds. */
-    protected static function collect(callable $matches, ?string $scope): array
+    /**
+     * The entries whose data matches, with how many rows each one holds.
+     * `$scoped`: only rows in the entry's sections field count.
+     */
+    protected static function collect(callable $matches, bool $scoped): array
     {
         $usages = [];
 
         foreach (Collection::handles() as $handle) {
             foreach (Entry::query()->where('collection', $handle)->get() as $entry) {
-                $count = static::countIn($entry->data()->all(), $matches, $scope);
+                $count = static::countIn($entry->data()->all(), $matches, $scoped ? static::scope($entry) : null);
 
                 if ($count === 0) {
                     continue;
@@ -130,13 +134,14 @@ class SectionUsage
      * events are what invalidate the static cache and record the change — skip
      * them and a cached page keeps serving a section that no longer exists.
      */
-    protected static function remove(callable $matches, ?string $scope): int
+    protected static function remove(callable $matches, bool $scoped): int
     {
         $touched = 0;
 
         foreach (Collection::handles() as $handle) {
             foreach (Entry::query()->where('collection', $handle)->get() as $entry) {
                 $data = $entry->data()->all();
+                $scope = $scoped ? static::scope($entry) : null;
 
                 if (static::countIn($data, $matches, $scope) === 0) {
                     continue;

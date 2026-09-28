@@ -14,6 +14,10 @@ use Statamic\Fields\Blueprint;
  * reached the form (the next one replaced it), and the tree could not name
  * the sections already on the page. Hidden blueprints count too — the home
  * page's usually is.
+ *
+ * "Holds the page builder" is {@see SectionField}'s answer: the Replicator the
+ * blueprint marks as its sections, or the one with the default name. Given a
+ * `$field`, a blueprint with a field of that handle is looked for instead.
  */
 final class PageBuilderBlueprint
 {
@@ -26,15 +30,17 @@ final class PageBuilderBlueprint
             return null;
         }
 
-        $field ??= (string) config('statamic-visual-editor.previews.field', 'page_sections');
+        $holds = $field === null
+            ? fn ($blueprint) => SectionField::in($blueprint)
+            : fn ($blueprint) => $blueprint->hasField($field);
         $default = $collection->entryBlueprint();
 
-        if ($default && $default->hasField($field)) {
+        if ($default && $holds($default)) {
             return $default;
         }
 
         foreach ($collection->entryBlueprints() as $blueprint) {
-            if ($blueprint->hasField($field)) {
+            if ($holds($blueprint)) {
                 return $blueprint;
             }
         }

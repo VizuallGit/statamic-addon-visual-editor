@@ -33,6 +33,7 @@ import { previewDocument } from './lib/preview-frame.js';
 import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter, newRowId } from './section-library.js';
 import { addLiteSetConfig } from './side/lite-sections.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { pageBuilderParams, pageBuilderQuery } from './lib/config.js';
 
 const API = '/!/sve/section-types';
 
@@ -49,7 +50,9 @@ export const STATIC_GROUP = 'static_sections';
  * anyway.
  */
 export async function fetchGroups(win) {
-  const res = await win.fetch(API, {
+  // The groups of the page's own list — its blueprint may mark a sections
+  // field of its own (`SectionField`), with groups the pages do not have.
+  const res = await win.fetch(`${API}?${pageBuilderQuery(win)}`, {
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
   });
@@ -94,7 +97,7 @@ export async function createGroup(win, display) {
       'X-Requested-With': 'XMLHttpRequest',
       Accept: 'application/json',
     },
-    body: JSON.stringify({ display }),
+    body: JSON.stringify({ display, ...pageBuilderParams(win) }),
   });
   const data = await res.json().catch(() => ({}));
 
@@ -159,7 +162,9 @@ async function send(win, method, body) {
       Accept: 'application/json',
     },
     credentials: 'same-origin',
-    body: JSON.stringify(body),
+    // Which page's list: made, hidden and given fields in the file of the
+    // sections field its blueprint marks.
+    body: JSON.stringify({ ...body, ...pageBuilderParams(win) }),
   });
 
   const data = await res.json().catch(() => ({}));

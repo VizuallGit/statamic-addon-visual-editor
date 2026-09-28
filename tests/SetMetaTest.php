@@ -32,8 +32,27 @@ class SetMetaTest extends TestCase
 
         $collection = Mockery::mock(CollectionModel::class);
         $collection->shouldReceive('entryBlueprint')->andReturn($blueprint);
+        $collection->shouldReceive('entryBlueprints')->andReturn(collect([$blueprint]));
+
+        // A second collection with a page builder of its own: a Replicator in
+        // the blueprint itself, marked as the page's sections.
+        $lawyer = Blueprint::make('lawyer')->setContents([
+            'tabs' => ['main' => ['sections' => [['fields' => [[
+                'handle' => 'lawyer_info',
+                'field' => [
+                    'type' => 'replicator',
+                    'sve_sections' => true,
+                    'sets' => ['cv' => ['sets' => [
+                        'cv/education' => ['display' => 'Uddannelse', 'icon' => 'lucide:graduation-cap', 'fields' => []],
+                    ]]],
+                ],
+            ]]]]]],
+        ]);
+        $lawyers = Mockery::mock(CollectionModel::class);
+        $lawyers->shouldReceive('entryBlueprints')->andReturn(collect([$lawyer]));
 
         Collection::shouldReceive('findByHandle')->with('pages')->andReturn($collection);
+        Collection::shouldReceive('all')->andReturn(collect([$collection, $lawyers]));
 
         $fieldsets = [
             'page_sections' => $this->pageSections(),
@@ -59,6 +78,16 @@ class SetMetaTest extends TestCase
 
         $this->assertSame('Content', $sets['content']['display']);
         $this->assertNull($sets['content']['icon']);
+    }
+
+    public function test_a_page_builder_of_another_collection_names_its_own_sets(): void
+    {
+        $sets = SetMeta::map();
+
+        $this->assertSame('Uddannelse', $sets['cv/education']['display']);
+        $this->assertSame('lucide:graduation-cap', $sets['cv/education']['icon']);
+        // The pages' own sets are still there.
+        $this->assertSame('Hero style 2', $sets['hero/style_2']['display']);
     }
 
     public function test_a_resolvable_svg_icon_wins_over_an_earlier_bare_name(): void

@@ -621,6 +621,8 @@ return [
     // Replicator / Bard field settings
     'field_locked_rows' => 'Lock rows',
     'field_locked_rows_instructions' => 'Rows can still be edited and hidden, but not moved, duplicated, or deleted. Locked rows get a padlock icon instead of the drag handle.',
+    'field_page_sections' => 'The page\'s sections',
+    'field_page_sections_instructions' => 'This field is the page builder: Patterns, the block tree and the HTML tree use it, and new sections are added to its list. Switch it on for one field per blueprint. Where none is, the field called page_sections is used.',
     'field_unique_sets' => 'Only one of each',
     'field_unique_sets_instructions' => 'The checked types can only be added once. When one of them is in the list, it cannot be selected again until the row is deleted.',
     'field_from_the_start' => 'From the start',

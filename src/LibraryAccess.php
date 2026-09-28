@@ -190,7 +190,6 @@ class LibraryAccess
      */
     public static function scan(): array
     {
-        $scope = Scan::scope();
         $set = Scan::globalSet();
         $skip = Scan::stores();
 
@@ -203,7 +202,8 @@ class LibraryAccess
             }
 
             foreach (Entry::query()->where('collection', $handle)->get() as $entry) {
-                Scan::walk($entry->data()->all(), $scope, $set, $types, $globals);
+                // Each page's own sections field, per its blueprint.
+                Scan::walk($entry->data()->all(), SectionField::of($entry->blueprint()), $set, $types, $globals);
             }
         }
 

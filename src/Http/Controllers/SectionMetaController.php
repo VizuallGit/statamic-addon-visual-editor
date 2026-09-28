@@ -2,10 +2,10 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
-use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\FromTheStart;
 use MarioHamann\StatamicVisualEditor\LibraryAccess;
+use MarioHamann\StatamicVisualEditor\SectionField;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Fieldset;
 use Statamic\Facades\User;
@@ -42,24 +42,32 @@ class SectionMetaController
             // the top-level page-builder field — for the in-preview block inserter.
             'field' => ['nullable', 'string'],
             'section' => ['nullable', 'string'],
+            // Which of the collection's blueprints the page's form was built
+            // from, and its sections field (SectionField::blueprintFor) —
+            // `field` above is taken: it names a nested replicator.
+            'blueprint' => ['nullable', 'string'],
+            'sections_field' => ['nullable', 'string'],
         ]);
 
         $collection = Collection::findByHandle($request->collection);
 
         abort_unless($collection, 404);
 
-        $blueprint = PageBuilderBlueprint::for($collection);
+        $blueprint = SectionField::blueprintFor($request->blueprint, $request->collection, $request->sections_field);
 
         abort_unless($blueprint, 404);
+
+        // The field this page's sections live in: the one its blueprint marks,
+        // or the default name.
+        $sectionsHandle = SectionField::of($blueprint);
 
         if ($request->filled('field')) {
             // Found anywhere in the blueprint tree, so a replicator nested inside a
             // section set resolves the same as a top-level one.
             $config = $this->findReplicatorConfig($blueprint->contents(), $request->field);
-            $parentField = $blueprint->fields()->all()->get(config('statamic-visual-editor.previews.field', 'page_sections'));
+            $parentField = $blueprint->fields()->all()->get($sectionsHandle);
         } else {
-            $fieldHandle = config('statamic-visual-editor.previews.field', 'page_sections');
-            $parentField = $blueprint->fields()->all()->get($fieldHandle);
+            $parentField = $blueprint->fields()->all()->get($sectionsHandle);
             $config = $parentField?->config();
         }
 

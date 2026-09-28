@@ -615,6 +615,8 @@ return [
     // Replicator / Bard-feltindstillinger
     'field_locked_rows' => 'Lås rækker',
     'field_locked_rows_instructions' => 'Rækkerne kan stadig redigeres og skjules, men ikke flyttes, duplikeres eller slettes. Låste rækker får et hængelås-ikon i stedet for trækhåndtaget.',
+    'field_page_sections' => 'Sidens sektioner',
+    'field_page_sections_instructions' => 'Feltet er sidens page builder: Patterns, Block tree og HTML-træet bruger det, og nye sektioner lægges i dets liste. Slå det til på ét felt pr. blueprint. Hvor intet er slået til, bruges feltet der hedder page_sections.',
     'field_unique_sets' => 'Kun én af hver',
     'field_unique_sets_instructions' => 'De afkrydsede typer kan kun tilføjes én gang. Når en af dem ligger i listen, kan den ikke vælges igen før rækken er slettet.',
     'field_from_the_start' => 'Fra starten',

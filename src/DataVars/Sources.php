@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\DataVars;
 
 use MarioHamann\StatamicVisualEditor\PageBuilderBlueprint;
+use MarioHamann\StatamicVisualEditor\SectionField;
 use Statamic\Facades\Collection;
 use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Site;
@@ -121,9 +122,8 @@ final class Sources
         // The blueprint that holds the page builder — not the collection's first
         // one, which on a site with a landing-page blueprint has no sections at
         // all, and left the Data panel without the section's fields.
-        $field = PageBuilderBlueprint::for($entry)?->fields()->all()->get(
-            config('statamic-visual-editor.previews.field', 'page_sections')
-        );
+        $blueprint = PageBuilderBlueprint::for($entry);
+        $field = $blueprint?->fields()->all()->get(SectionField::of($blueprint));
 
         foreach (Rows::flattenSets($field?->config()['sets'] ?? []) as $handle => $config) {
             if ($handle === $set) {

@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor;
 
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker\Names;
 use Statamic\Facades\Fieldset;
-use Statamic\Facades\YAML;
 
 /**
  * Making a section *type* — the mirror image of deleting one.
@@ -95,29 +94,26 @@ class SectionTypeMaker
      * is kept out of the picker, so an editor cannot insert it; a super admin
      * still can, from the library.
      *
+     * `$list` is where the page builder's sets are written: a {@see SectionList},
+     * or a fieldset handle for the site's own list.
+     *
      * @return array{handle: string, display: string, group: string, view: string, fieldset: ?string, static: bool, hidden: bool}|null
      */
     public static function create(
-        string $fieldsetHandle,
+        SectionList|string $list,
         string $group,
         string $display,
         ?string $icon = null,
         bool $static = false,
         bool $hidden = false
     ): ?array {
-        $contents = static::readFieldset($fieldsetHandle);
+        $list = static::list($list);
+        $contents = $list->read();
+        $groups = $contents === null ? null : $list->sets($contents);
 
-        if ($contents === null) {
+        if ($groups === null) {
             return null;
         }
-
-        $index = static::fieldIndex($contents, $fieldsetHandle);
-
-        if ($index === null) {
-            return null;
-        }
-
-        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
 
         if (! isset($groups[$group])) {
             if (! $static) {
@@ -184,9 +180,8 @@ class SectionTypeMaker
         }
 
         $groups[$group]['sets'][$handle] = $set;
-        $contents['fields'][$index]['field']['sets'] = $groups;
 
-        Fieldset::make($fieldsetHandle)->setContents($contents)->save();
+        $list->save($list->withSets($contents, $groups));
 
         // The image map is built by walking every fieldset once per request and
         // cached; there is a set in it now that was not there before.
@@ -209,21 +204,16 @@ class SectionTypeMaker
      * the name slugs to nothing. A name already in use gets a numbered
      * handle, the display name stays what was typed.
      */
-    public static function createGroup(string $fieldsetHandle, string $display): ?array
+    public static function createGroup(SectionList|string $list, string $display): ?array
     {
-        $contents = static::readFieldset($fieldsetHandle);
+        $list = static::list($list);
+        $contents = $list->read();
+        $groups = $contents === null ? null : $list->sets($contents);
 
-        if ($contents === null) {
+        if ($groups === null) {
             return null;
         }
 
-        $index = static::fieldIndex($contents, $fieldsetHandle);
-
-        if ($index === null) {
-            return null;
-        }
-
-        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
         $slug = Names::slug($display);
 
         if ($slug === null) {
@@ -241,9 +231,7 @@ class SectionTypeMaker
             'sets' => [],
         ];
 
-        $contents['fields'][$index]['field']['sets'] = $groups;
-
-        Fieldset::make($fieldsetHandle)->setContents($contents)->save();
+        $list->save($list->withSets($contents, $groups));
         SetPreviewImages::flush();
 
         return ['handle' => $handle, 'display' => $display];
@@ -256,9 +244,9 @@ class SectionTypeMaker
      *
      * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
      */
-    public static function setHidden(string $fieldsetHandle, string $handle, bool $hidden): ?array
+    public static function setHidden(SectionList|string $list, string $handle, bool $hidden): ?array
     {
-        return static::editSet($fieldsetHandle, $handle, function (array $set) use ($hidden) {
+        return static::editSet($list, $handle, function (array $set) use ($hidden) {
             if ($hidden) {
                 $set['hide'] = true;
             } else {
@@ -281,16 +269,16 @@ class SectionTypeMaker
      *
      * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
      */
-    public static function addFields(string $fieldsetHandle, string $handle): ?array
+    public static function addFields(SectionList|string $list, string $handle): ?array
     {
-        $contents = static::readFieldset($fieldsetHandle);
-        $index = $contents === null ? null : static::fieldIndex($contents, $fieldsetHandle);
+        $list = static::list($list);
+        $contents = $list->read();
+        $groups = $contents === null ? null : $list->sets($contents);
 
-        if ($index === null) {
+        if ($groups === null) {
             return null;
         }
 
-        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
         $group = static::groupOf($groups, $handle);
 
         if ($group === null) {
@@ -314,7 +302,7 @@ class SectionTypeMaker
             return null;
         }
 
-        return static::editSet($fieldsetHandle, $handle, function (array $set) use ($imported) {
+        return static::editSet($list, $handle, function (array $set) use ($imported) {
             unset($set['static']);
             $set['fields'] = [['import' => $imported]];
 
@@ -339,16 +327,16 @@ class SectionTypeMaker
      * @param  callable(array): array  $edit
      * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}|null
      */
-    protected static function editSet(string $fieldsetHandle, string $handle, callable $edit, string $commit): ?array
+    protected static function editSet(SectionList|string $list, string $handle, callable $edit, string $commit): ?array
     {
-        $contents = static::readFieldset($fieldsetHandle);
-        $index = $contents === null ? null : static::fieldIndex($contents, $fieldsetHandle);
+        $list = static::list($list);
+        $contents = $list->read();
+        $groups = $contents === null ? null : $list->sets($contents);
 
-        if ($index === null) {
+        if ($groups === null) {
             return null;
         }
 
-        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
         $group = static::groupOf($groups, $handle);
 
         if ($group === null) {
@@ -356,9 +344,9 @@ class SectionTypeMaker
         }
 
         $set = $edit($groups[$group]['sets'][$handle]);
-        $contents['fields'][$index]['field']['sets'][$group]['sets'][$handle] = $set;
+        $groups[$group]['sets'][$handle] = $set;
 
-        Fieldset::make($fieldsetHandle)->setContents($contents)->save();
+        $list->save($list->withSets($contents, $groups));
         SetPreviewImages::flush();
         GitSync::after($commit);
 
@@ -410,28 +398,13 @@ class SectionTypeMaker
      */
     public static function readFieldset(string $handle): ?array
     {
-        $path = Fieldset::directory().'/'.str_replace('.', '/', $handle).'.yaml';
-
-        return is_file($path) ? (YAML::file($path)->parse() ?: []) : null;
+        return SectionList::fieldset($handle)->read();
     }
 
-    /** The index of the page-builder field within the fieldset's own fields. */
-    public static function fieldIndex(array $contents, string $handle): ?int
+    /** A list as given: a fieldset handle is the site's own kind of list. */
+    protected static function list(SectionList|string $list): SectionList
     {
-        foreach (($contents['fields'] ?? []) as $index => $field) {
-            if (($field['handle'] ?? null) === $handle && isset($field['field']['sets'])) {
-                return $index;
-            }
-        }
-
-        // A fieldset holding one Replicator whose handle differs from its own.
-        foreach (($contents['fields'] ?? []) as $index => $field) {
-            if (isset($field['field']['sets'])) {
-                return $index;
-            }
-        }
-
-        return null;
+        return $list instanceof SectionList ? $list : SectionList::fieldset($list);
     }
 
     /**

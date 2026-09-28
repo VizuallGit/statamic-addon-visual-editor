@@ -85,12 +85,14 @@ class LivePreviewSectionScope
             return;
         }
 
-        $field = (string) config('statamic-visual-editor.previews.field', 'page_sections');
         $content = $cascade->content();
 
         if (! is_object($content) || ! method_exists($content, 'get') || ! method_exists($content, 'set')) {
             return;
         }
+
+        // The page's own sections field, per its blueprint (SectionField).
+        $field = SectionField::of(method_exists($content, 'blueprint') ? $content->blueprint() : null);
 
         $rows = $content->get($field);
 

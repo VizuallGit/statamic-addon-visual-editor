@@ -5,13 +5,14 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use MarioHamann\StatamicVisualEditor\GitSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use MarioHamann\StatamicVisualEditor\SectionField;
+use MarioHamann\StatamicVisualEditor\SectionList;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\SectionUsage;
 use MarioHamann\StatamicVisualEditor\SetPreviewImages;
-use Statamic\Facades\Fieldset;
 use Statamic\Facades\User;
-use Statamic\Facades\YAML;
+use Statamic\Fields\Blueprint;
 
 /**
  * Deleting a section *type* — the set itself, out of the page-builder fieldset.
@@ -29,21 +30,31 @@ use Statamic\Facades\YAML;
  * renders it, and the set's preview image. Any of the three can be shared, and
  * an orphan file is a harmless thing to clean up by hand — an over-eager delete
  * is not.
+ *
+ * Every request may say which page it comes from — `blueprint` (its fully
+ * qualified handle), `collection` and `sections_field` ({@see
+ * SectionField::blueprintFor()}): the section types are that blueprint's
+ * sections field's, written in that field's own file. Without them, the pages
+ * collection's page builder — the site's `page_sections` list.
  */
 class SectionTypesController
 {
-    /** The page-builder fieldset whose sets are the site's section types. */
-    protected static function fieldsetHandle(): string
+    /** The blueprint of the page the request comes from. */
+    protected static function blueprint(Request $request): ?Blueprint
     {
-        return config('statamic-visual-editor.previews.field', 'page_sections');
+        return SectionField::blueprintFor(
+            (string) $request->input('blueprint', ''),
+            (string) $request->input('collection', ''),
+            (string) $request->input('sections_field', ''),
+        );
     }
 
-    /** A fieldset's contents as they are on disk, or null when it has no file. */
-    protected static function readFieldset(string $handle): ?array
+    /** Where that page's section types are written. */
+    protected static function list(Request $request): SectionList
     {
-        $path = Fieldset::directory().'/'.str_replace('.', '/', $handle).'.yaml';
+        $blueprint = static::blueprint($request);
 
-        return is_file($path) ? (YAML::file($path)->parse() ?: []) : null;
+        return $blueprint ? SectionField::listOf($blueprint) : SectionList::fallback();
     }
 
     /**
@@ -68,10 +79,14 @@ class SectionTypesController
         // generator may have just rewritten.
         SetPreviewImages::flush();
 
+        $blueprint = static::blueprint($request);
+
         return response()->json([
-            'types' => SectionTypes::map(),
+            'types' => SectionTypes::map($blueprint),
             // Every group, empty ones too — the map only names the groups its sets sit in.
-            'groups' => SectionTypes::groups(),
+            'groups' => SectionTypes::groups($blueprint),
+            // The page's sections field, so the client can tell whose list this is.
+            'field' => $blueprint ? SectionField::of($blueprint) : SectionField::fallback(),
             'running' => Cache::get('sve-previews:running', false),
         ]);
     }
@@ -94,7 +109,7 @@ class SectionTypesController
             return response()->json(['error' => 'bad_name'], 422);
         }
 
-        $made = SectionTypeMaker::createGroup(static::fieldsetHandle(), $display);
+        $made = SectionTypeMaker::createGroup(static::list($request), $display);
 
         if ($made === null) {
             return response()->json(['error' => 'failed'], 422);
@@ -103,7 +118,7 @@ class SectionTypesController
         return response()->json([
             'ok' => true,
             'group' => $made,
-            'groups' => SectionTypes::groups(),
+            'groups' => SectionTypes::groups(static::blueprint($request)),
         ]);
     }
 
@@ -141,7 +156,7 @@ class SectionTypesController
         }
 
         $made = SectionTypeMaker::create(
-            static::fieldsetHandle(),
+            static::list($request),
             $group,
             mb_substr($display, 0, 60),
             trim((string) $request->input('icon', '')) ?: null,
@@ -156,7 +171,7 @@ class SectionTypesController
         return response()->json([
             'ok' => true,
             'section' => $made,
-            'section_types' => SectionTypes::map(),
+            'section_types' => SectionTypes::map(static::blueprint($request)),
         ]);
     }
 
@@ -177,7 +192,7 @@ class SectionTypesController
         $section = null;
 
         if ($request->has('hidden')) {
-            $section = SectionTypeMaker::setHidden(static::fieldsetHandle(), $handle, $request->boolean('hidden'));
+            $section = SectionTypeMaker::setHidden(static::list($request), $handle, $request->boolean('hidden'));
 
             if ($section === null) {
                 return response()->json(['error' => 'not_found'], 404);
@@ -185,7 +200,7 @@ class SectionTypesController
         }
 
         if ($request->boolean('fields')) {
-            $section = SectionTypeMaker::addFields(static::fieldsetHandle(), $handle);
+            $section = SectionTypeMaker::addFields(static::list($request), $handle);
 
             if ($section === null) {
                 return response()->json(['error' => 'failed'], 422);
@@ -197,7 +212,7 @@ class SectionTypesController
         return response()->json([
             'ok' => true,
             'section' => $section,
-            'section_types' => SectionTypes::map(),
+            'section_types' => SectionTypes::map(static::blueprint($request)),
         ]);
     }
 
@@ -245,7 +260,7 @@ class SectionTypesController
 
         // The set leaves the fieldset first. If that fails there is nothing to
         // clean up after, and the pages still render what they have.
-        abort_unless(static::removeSet($handle), 404);
+        abort_unless(static::removeSet(static::list($request), $handle), 404);
         GitSync::after('section type removed '.$handle);
 
         $removed = $usages ? SectionUsage::stripType($handle) : 0;
@@ -255,7 +270,7 @@ class SectionTypesController
             'removed_from' => $removed,
             // The picker's list came from the page render and is now a type out
             // of date. Hand back the fresh one rather than making it reload.
-            'section_types' => SectionTypes::map(),
+            'section_types' => SectionTypes::map(static::blueprint($request)),
         ]);
     }
 
@@ -270,34 +285,23 @@ class SectionTypesController
     }
 
     /**
-     * Takes the set out of the page-builder fieldset and saves it.
+     * Takes the set out of the page builder's list and saves it.
      *
      * The sets are grouped, and which group a set sits in is the site's business,
      * so every group is checked rather than assuming one. Returns false when the
      * handle isn't there — the caller turns that into a 404 instead of writing an
-     * unchanged file.
+     * unchanged file. Read from the file, not the repository's copy
+     * ({@see SectionList}).
      */
-    protected static function removeSet(string $handle): bool
+    protected static function removeSet(SectionList $list, string $handle): bool
     {
-        $fieldsetHandle = static::fieldsetHandle();
+        $contents = $list->read();
+        $groups = $contents === null ? null : $list->sets($contents);
 
-        // From the file, not from the repository's copy. That copy is the one this
-        // addon injects `_visual_id` into at runtime — in memory on purpose, so
-        // imported fieldsets are not expanded onto disk — and saving it writes
-        // those injected fields into the author's YAML for good.
-        $contents = static::readFieldset($fieldsetHandle);
-
-        if ($contents === null) {
+        if ($groups === null) {
             return false;
         }
 
-        $index = static::fieldIndex($contents, $fieldsetHandle);
-
-        if ($index === null) {
-            return false;
-        }
-
-        $groups = $contents['fields'][$index]['field']['sets'] ?? [];
         $found = false;
 
         foreach (array_keys($groups) as $group) {
@@ -305,7 +309,7 @@ class SectionTypesController
                 continue;
             }
 
-            unset($contents['fields'][$index]['field']['sets'][$group]['sets'][$handle]);
+            unset($groups[$group]['sets'][$handle]);
             $found = true;
         }
 
@@ -313,31 +317,12 @@ class SectionTypesController
             return false;
         }
 
-        Fieldset::make($fieldsetHandle)->setContents($contents)->save();
+        $list->save($list->withSets($contents, $groups));
 
         // The image map is built by walking every fieldset once per request and
         // cached; the set it just described is gone.
         SetPreviewImages::flush();
 
         return true;
-    }
-
-    /** The index of the page-builder field within the fieldset's own fields. */
-    protected static function fieldIndex(array $contents, string $handle): ?int
-    {
-        foreach (($contents['fields'] ?? []) as $index => $field) {
-            if (($field['handle'] ?? null) === $handle && isset($field['field']['sets'])) {
-                return $index;
-            }
-        }
-
-        // A fieldset holding one Replicator whose handle differs from its own.
-        foreach (($contents['fields'] ?? []) as $index => $field) {
-            if (isset($field['field']['sets'])) {
-                return $index;
-            }
-        }
-
-        return null;
     }
 }

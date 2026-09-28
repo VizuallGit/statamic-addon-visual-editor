@@ -21,7 +21,7 @@ import { ensurePanel } from './lazy-panels.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
 import { dataGet, unwrapRef } from './lib/values.js';
-import { sectionField } from './lib/config.js';
+import { pageBuilderQuery, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { fetchSetMeta, hydrateExistingMeta, sectionMetaCache, writeSetMeta } from './section-library.js';
 import { refreshLiteSetFields } from './side/lite-sections.js';
@@ -50,7 +50,8 @@ export function currentSetHandle() {
 
 /** The fieldset a section type imports its fields from, or null. */
 export async function fieldsetFor(win, handle) {
-  const res = await win.fetch(API, {
+  // The page's own list: a section of a lawyer's page builder is not in the pages'.
+  const res = await win.fetch(`${API}?${pageBuilderQuery(win)}`, {
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
   });
@@ -69,7 +70,8 @@ export async function fieldsetFor(win, handle) {
  * Drop cached section-meta for this set, and nothing else.
  *
  * One cache stands between a saved fieldset and what the editor shows: the
- * library's `sectionMetaCache`, keyed by set handle or `field::set::section`.
+ * library's `sectionMetaCache`, keyed by `<page builder>::set` or
+ * `<page builder>::field::set::section`.
  * (Until WP6b-2 there were three — the prefetch script answered
  * `/!/sve/section-meta?…` from its own URL-keyed Map with no expiry, so asking
  * the server again did not ask the server again.) Only this set's keys go —

@@ -23,4 +23,23 @@ class SveLiteSections extends Replicator
     {
         return 'sve_lite_sections';
     }
+
+    /**
+     * Replicator's meta, plus the answer to "which field is the page's
+     * sections, on which blueprint". The listener swapped exactly that field
+     * ({@see \MarioHamann\StatamicVisualEditor\SectionField}), and the meta is
+     * what the Control Panel gets with the form — Statamic's
+     * `publish-container-created` carries `meta` but not the blueprint. Read
+     * by `sectionField()` in lib/config.js.
+     */
+    public function preload()
+    {
+        $parent = $this->field()?->parent();
+        $blueprint = is_object($parent) && method_exists($parent, 'blueprint') ? $parent->blueprint() : null;
+
+        return array_merge(parent::preload(), [
+            'sve_sections' => true,
+            'sve_blueprint' => is_object($blueprint) ? (string) $blueprint->fullyQualifiedHandle() : null,
+        ]);
+    }
 }

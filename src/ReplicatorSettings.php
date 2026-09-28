@@ -44,6 +44,15 @@ class ReplicatorSettings
         // tilføjes gennem editorens egen menu, som ikke er den vælger JS'en
         // kender — fluebenet ville stå der og ikke gøre noget.
         Replicator::appendConfigFields([
+            // Hvilket felt der er sidens sektioner — se SectionField. Felt-
+            // navnet bestemmer siden selv; uden flueben er det `page_sections`.
+            SectionField::KEY => [
+                'display' => __('sve::messages.field_page_sections'),
+                'instructions' => __('sve::messages.field_page_sections_instructions'),
+                'type' => 'toggle',
+                'default' => false,
+                'width' => 50,
+            ],
             'unique_sets' => [
                 'display' => __('sve::messages.field_unique_sets'),
                 'instructions' => __('sve::messages.field_unique_sets_instructions'),

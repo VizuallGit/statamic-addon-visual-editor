@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 
 use Illuminate\Support\Facades\Log;
+use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
 
 /**
@@ -13,6 +14,9 @@ use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
  */
 trait ResolvesScope
 {
+    /** @var \WeakMap<object, string>|null blueprint → its sections field */
+    private static ?\WeakMap $sectionsFields = null;
+
     /**
      * The page section this tag renders inside, by set handle
      * ("featured_section/style_2"), or '' when it cannot be told.
@@ -37,7 +41,7 @@ trait ResolvesScope
                 return '';
             }
 
-            $field = (string) config('statamic-visual-editor.previews.field', 'page_sections');
+            $field = $this->sectionsFieldOf($page);
 
             foreach ((array) $page->value($field) as $section) {
                 if (is_array($section) && ($section['_visual_id'] ?? null) === $uid) {
@@ -75,7 +79,7 @@ trait ResolvesScope
                 return [];
             }
 
-            $field = (string) config('statamic-visual-editor.previews.field', 'page_sections');
+            $field = $this->sectionsFieldOf($page);
 
             return BlueprintFields::typeChainTo((array) $page->value($field), $uid) ?? [];
         } catch (\Throwable $e) {
@@ -88,6 +92,24 @@ trait ResolvesScope
     protected function resolveType(): string
     {
         return (string) $this->context->get('type', '');
+    }
+
+    /**
+     * The field the page's sections live in, per its blueprint
+     * ({@see SectionField}). Asked by several resolvers for every tag on the
+     * page, so remembered per blueprint object for as long as it lives.
+     */
+    protected function sectionsFieldOf($page): string
+    {
+        $blueprint = method_exists($page, 'blueprint') ? $page->blueprint() : null;
+
+        if (! is_object($blueprint)) {
+            return SectionField::fallback();
+        }
+
+        self::$sectionsFields ??= new \WeakMap;
+
+        return self::$sectionsFields[$blueprint] ??= SectionField::of($blueprint);
     }
 
     /** @see BlueprintFields::fieldsByHandle */
