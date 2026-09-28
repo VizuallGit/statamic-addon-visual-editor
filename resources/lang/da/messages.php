@@ -194,6 +194,7 @@ return [
     'html_tree_frame_header' => 'Header',
     'html_tree_frame_footer' => 'Footer',
     'html_tree_frame_main' => 'Sidens indhold',
+    'html_tree_frame_edit' => 'Rediger :frame',
     'html_tree_frame_open' => 'Klik for at redigere den i live preview — som et klik på den der',
     'html_tree_frame_no_sections' => 'Ingen sektioner endnu. Tryk + ovenfor for at tilføje en.',
     'html_tree_frame_fields' => 'Dens felter (det globale sæts blueprint)',

@@ -197,6 +197,7 @@ return [
     'html_tree_frame_header' => 'Header',
     'html_tree_frame_footer' => 'Footer',
     'html_tree_frame_main' => 'Page content',
+    'html_tree_frame_edit' => 'Edit the :frame',
     'html_tree_frame_open' => 'Click to edit it in live preview — the same as clicking it there',
     'html_tree_frame_no_sections' => 'No sections yet. Press + above to add one.',
     'html_tree_frame_fields' => 'Its fields (the global set\'s blueprint)',

@@ -2032,11 +2032,18 @@ export function renderHtmlTree(win) {
       base,
       // The open page section's root already carries the section's own name
       // (its label); the file's alias must not override it here.
-      name: chromeKind && row.id === chromeRootId
-        ? t(win, `html_tree_frame_${chromeKind}`)
-        : row === mainRaw
-          ? t(win, 'html_tree_frame_main')
-          : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
+      /*
+       * A frame call is named for the half it draws, not for the file behind
+       * it: the same `Header` the frame's own rows wear on a page. Meeting
+       * `site_head` here and `Header` after stepping in read as two places.
+       */
+      name: frameCall
+        ? t(win, `html_tree_frame_${frameCall}`)
+        : chromeKind && row.id === chromeRootId
+          ? t(win, `html_tree_frame_${chromeKind}`)
+          : row === mainRaw
+            ? t(win, 'html_tree_frame_main')
+            : isRoot && openSection ? base : htmlTreeDisplayName(base, row.path, aliases),
       current: row.id === htmlTreeActiveId,
       letter: aroundRoot ? '' : icon.letter || '',
       svg: chromeKind && row.id === chromeRootId
@@ -3057,6 +3064,30 @@ function openHtmlTreeMenu(win, event, id) {
       },
     });
   };
+
+  /*
+   * The layout's header and footer calls are the frame, not one more
+   * component. Their menu offers the frame's own door — `enterFrame`, the
+   * same question and the same step-in a click on the half gives in the
+   * preview — instead of pushing the file into the dock behind it: opening
+   * `site_head` that way left the preview unfocused and the half's form shut,
+   * so the site had two ways in that ended somewhere different.
+   */
+  if (row.frameCall) {
+    show([
+      {
+        // The same word the confirm uses, so the menu and the question it
+        // opens name one thing: "Edit the header" -> "Global header".
+        label: t(win, 'html_tree_frame_edit', { frame: t(win, `chrome_${row.frameCall}`) }),
+        onPick: () => {
+          closeHtmlTreeMenu();
+          enterFrame(win, row.frameCall);
+        },
+      },
+    ]);
+
+    return;
+  }
 
   if (row.kind === 'component') {
     openComponentRow(win, row, show);
