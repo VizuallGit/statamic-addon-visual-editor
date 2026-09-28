@@ -11,6 +11,7 @@
  * moves the window it is in, and in a frame that would be the frame.
  */
 import { t } from './lib/i18n.js';
+import { csrfToken } from './lib/csrf.js';
 import { lpHeader } from './lib/live-preview.js';
 import { HEADER_SURFACE, LP_BACK_ID, LP_BLUEPRINT_ID, LP_CHROME_H, LP_ICON_BTN_STYLE, LP_TEMPLATES_ID } from './lib/ids.js';
 import { navigateFromLp } from './pages.js';
@@ -88,6 +89,69 @@ export function openTemplateBoard(win, anchor = null) {
       opening = false;
     }
   })();
+}
+
+/**
+ * Who is drawn with a template (`{ view }`), or which template draws an entry
+ * (`{ entry }`): `{ view, name, everything, used_by, open }` from the server
+ * (TemplateUsage), or null. Asked once per page load and kept: the answer
+ * changes only when a collection is pointed at another template, and that is
+ * a page load away anyway.
+ */
+const usages = new Map();
+
+export function templateUsage(win, query) {
+  const key = query.entry ? `entry:${query.entry}` : `view:${query.view}`;
+
+  if (!usages.has(key)) {
+    const params = new URLSearchParams(query.entry ? { entry: query.entry } : { view: query.view });
+
+    usages.set(
+      key,
+      win
+        .fetch(`/!/sve/template-usage?${params}`, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null)
+    );
+  }
+
+  return usages.get(key);
+}
+
+/**
+ * Open one of the board's templates in Live Preview (`{ handle, slot }`, as
+ * TemplateUsage names it), making its CP row first when it has none — the
+ * request a card on the board makes. Unsaved work is asked about first.
+ */
+export async function openTemplateSlot(win, anchor, slot) {
+  try {
+    const res = await win.fetch('/!/sve/template-board', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken(win),
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ handle: slot.handle, slot: slot.slot }),
+    });
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok || !body.edit) {
+      win.Statamic?.$toast?.error(t(win, 'html_tree_open_template_failed'));
+
+      return;
+    }
+
+    navigateFromLp(win, anchor, inLivePreview(win, body.edit));
+  } catch (err) {
+    console.error('[sve] open template', err);
+    win.Statamic?.$toast?.error(t(win, 'html_tree_open_template_failed'));
+  }
 }
 
 /**

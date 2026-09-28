@@ -104,7 +104,21 @@ function wrapBind(sec) {
       The layers look on trial is the tags look with a few rules on top, so it
       wears data-sve-ht-look="tags" as well; off, the look is exactly as set.
     -->
-    <div v-if="!ui.rows.length && !ui.sections.length && !ui.frame" class="sve-ht-empty">{{ ui.emptyText }}</div>
+    <!--
+      A page drawn whole by a template it shares with other pages: which one,
+      and the way to it. No rows — the file is not this page's to edit.
+    -->
+    <div v-if="ui.pageTemplate" class="sve-ht-page-template">
+      <p v-if="ui.pageTemplate.text" class="sve-ht-page-template__text">{{ ui.pageTemplate.text }}</p>
+      <p class="sve-ht-page-template__note">{{ ui.pageTemplate.note }}</p>
+      <button
+        v-if="ui.pageTemplate.canOpen"
+        type="button"
+        class="sve-ht-page-template__open"
+        @click="ui.pageTemplate.onOpen($event.currentTarget)"
+      >{{ ui.pageTemplate.openLabel }}</button>
+    </div>
+    <div v-else-if="!ui.rows.length && !ui.sections.length && !ui.frame" class="sve-ht-empty">{{ ui.emptyText }}</div>
     <div v-else-if="nothingFound" class="sve-ht-empty">{{ ui.searchEmpty }}</div>
 
     <!--
@@ -208,5 +222,39 @@ function wrapBind(sec) {
 }
 .sve-ht-root[data-sve-ht-dragging] {
   cursor: grabbing;
+}
+/* The shared template's name and the way to it: a note, not a row. */
+.sve-ht-page-template {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1.25rem 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.sve-ht-page-template__text {
+  margin: 0;
+  font-weight: 600;
+}
+.sve-ht-page-template__note {
+  margin: 0;
+  opacity: 0.65;
+}
+.sve-ht-page-template__open {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  margin-top: 0.25rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--theme-color-primary, #4f46e5);
+  color: #fff;
+}
+.sve-ht-page-template__open:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: 2px;
 }
 </style>

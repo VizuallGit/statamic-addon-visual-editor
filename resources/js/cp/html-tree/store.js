@@ -85,6 +85,13 @@ export const htmlTreeUi = reactive({
   // its body — not the layout standing in for a page with nothing chosen. The
   // layout is not built from sections, so the plus does not write into it.
   layoutFile: false,
+  // A page not built from sections: its markup is a template it shares with
+  // others. The tree names that template and opens it instead of drawing the
+  // file — `{ text, note, openLabel, canOpen, onOpen(anchor) }`, or null.
+  pageTemplate: null,
+  // A template open on its own entry: who is drawn with it —
+  // `{ label, text }` for the line above the tree, or null.
+  usedBy: null,
   onSection: null,
   // Read the page again now, rather than waiting for the dock to announce a new
   // file. A section added from inside the panel changes the form's values and

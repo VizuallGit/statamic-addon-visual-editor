@@ -244,6 +244,9 @@ final class EditorRoutes
                 ->name('sve.template-board.index');
             Route::post('/!/sve/template-board', [TemplateBoardController::class, 'store'])
                 ->name('sve.template-board.store');
+            // Who is drawn with a template, and which template draws an entry.
+            Route::get('/!/sve/template-usage', [TemplateBoardController::class, 'usage'])
+                ->name('sve.template-usage');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)

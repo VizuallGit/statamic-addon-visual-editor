@@ -217,6 +217,14 @@ function setQuery(value) {
     ></button>
     </div>
     <!--
+      A template open on its own entry: who is drawn with it. Editing it is a
+      change to every one of them, and this is where that is said.
+    -->
+    <div v-if="ui.usedBy" class="sve-ht-used-by" :title="`${ui.usedBy.label}: ${ui.usedBy.text}`">
+      <span class="sve-ht-used-by__label">{{ ui.usedBy.label }}:</span>
+      <span class="sve-ht-used-by__text">{{ ui.usedBy.text }}</span>
+    </div>
+    <!--
       Only when there is no Live Preview column to draw them in. Inside a
       component the fields belong on the left, where the section's own fields
       would otherwise be sitting in the way.
@@ -368,6 +376,28 @@ function setQuery(value) {
 .sve-ht-new:focus-visible {
   outline: 2px solid #3858e9;
   outline-offset: 2px;
+}
+/* One line under the search: who else a change to this template reaches. */
+.sve-ht-used-by {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 0.35em;
+  margin: 0 0 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sve-ht-used-by__label {
+  flex: none;
+  opacity: 0.55;
+}
+.sve-ht-used-by__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
 }
 .sve-tree-exit {
   flex: 0 0 auto;

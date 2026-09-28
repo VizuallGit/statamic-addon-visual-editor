@@ -261,7 +261,12 @@ async function showBlank(win, doc) {
   void syncComponentMap(win);
   syncComponentProps(win);
   setPath(win.document, '');
-  setStatus(win.document, t(win, 'code_dock_pick_section'));
+  // What fills the dock: a section on a page built from them, the page's
+  // template (opened from the HTML tree) anywhere else.
+  setStatus(
+    win.document,
+    t(win, pageHasSectionField(win, win.document) ? 'code_dock_pick_section' : 'code_dock_open_template')
+  );
   paintLock(win);
   paintHtmlScope(win);
   paintBack(win);
@@ -819,14 +824,16 @@ export function syncCodeDock(win, doc, uid) {
     collectionViewType(win) ||
     (!uid && !leftBehind ? dockState.lastType : '');
   // Nothing chosen — on opening, after a part of the frame closed, with the
-  // chosen section gone. On a page built from sections the dock then holds no
-  // file: the reader opens a section and that is what loads. Any other page
-  // has no section to open, so it stands on the layout's <main>. Never for a
-  // request for a section by uid, which must keep what it holds rather than
-  // hand the dock (and the tree with it) elsewhere.
+  // chosen section gone. The dock then holds no file. On a page built from
+  // sections the reader opens a section and that is what loads. Any other page
+  // is drawn by a template it shares with other pages — and the layout, which
+  // this used to fall back to, frames every page there is — so neither is
+  // opened from here: the HTML tree names the page's template and opens it on
+  // its own entry. Never for a request for a section by uid, which must keep
+  // what it holds rather than hand the dock (and the tree with it) elsewhere.
   const nothingChosen = !resolved && !uid;
-  const blank = nothingChosen && pageHasSectionField(win, win.document);
-  const type = resolved || (nothingChosen && !blank ? LAYOUT_TEMPLATE_TYPE : '');
+  const blank = nothingChosen;
+  const type = resolved;
 
   // Where the dock stands because nothing was chosen, not because it was: the
   // first section added to such a page is what the reader wants open.

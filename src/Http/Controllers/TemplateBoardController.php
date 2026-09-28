@@ -8,6 +8,7 @@ use MarioHamann\StatamicVisualEditor\CollectionPresets;
 use MarioHamann\StatamicVisualEditor\CollectionViewTemplates;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\TemplateBoard;
+use MarioHamann\StatamicVisualEditor\TemplateUsage;
 use Statamic\Contracts\Entries\Collection as CollectionContract;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
@@ -31,6 +32,32 @@ class TemplateBoardController extends Controller
         abort_unless(Features::allows('collection_templates'), 404);
 
         return response()->json(TemplateBoard::rows());
+    }
+
+    /**
+     * Who is drawn with a template (`view`), or which template draws an entry
+     * (`entry`) — for the HTML tree ({@see TemplateUsage}). Asked on every
+     * page, so only a signed-in user is required; the way in (`open`) is the
+     * board's, and without the board the template is named, not opened.
+     */
+    public function usage(Request $request)
+    {
+        abort_unless(User::current(), 403);
+
+        $entry = trim((string) $request->query('entry', ''));
+        $view = trim((string) $request->query('view', ''), '/');
+
+        $usage = $entry !== ''
+            ? TemplateUsage::forEntry(Entry::find($entry))
+            : (TemplateBoard::safeView($view) ? TemplateUsage::of($view) : null);
+
+        abort_unless($usage !== null, 404);
+
+        if (! Features::allows('collection_templates')) {
+            $usage['open'] = null;
+        }
+
+        return response()->json($usage);
     }
 
     public function store(Request $request)

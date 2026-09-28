@@ -64,7 +64,9 @@ import {
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
-import { featureOn, sectionField } from './lib/config.js';
+import { collectionTemplatesCollection, featureOn, sectionField } from './lib/config.js';
+import { currentCollection, currentEntryId } from './lib/live-preview.js';
+import { openTemplateSlot, templateUsage } from './lp-templates.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
 import { activeContainers, pageHasSectionField } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
@@ -76,6 +78,98 @@ import { hasToken } from './dock-partials.js';
 import { componentSrcFromType } from './component-signature.js';
 
 export const HTML_TREE_STYLE_ID = '__sve-html-tree-style';
+
+/**
+ * Is the page on screen one whose markup is a template it shares with others?
+ *
+ * A page built from sections is edited through its sections, and a template's
+ * own entry (the templates collection, opened from the board) is where a
+ * template is edited. Anything else — a service, a case, an employee — is drawn
+ * whole by its collection's template, which draws every other entry of it too,
+ * and `default` draws the pages as well. Editing that from one page is how a
+ * change meant for one page lands on all of them, so the tree names the
+ * template and opens it instead. Header, footer and a component opened on the
+ * page are the reader's own choice and are drawn as usual.
+ */
+function pageOnSharedTemplate(win, pageBuilder, inComponent) {
+  if (pageBuilder || inComponent) {
+    return false;
+  }
+
+  const part = String(ask('dock:chrome-kind') || '');
+
+  if (part === 'header' || part === 'footer') {
+    return false;
+  }
+
+  const entry = currentEntryId(win);
+
+  return !!entry && entry !== 'create' && currentCollection(win) !== collectionTemplatesCollection(win);
+}
+
+/** What the tree says in place of a shared template's rows (`htmlTreeUi.pageTemplate`). */
+function pageTemplateUi(win, entry) {
+  const ui = {
+    entry,
+    text: '',
+    note: t(win, 'html_tree_page_template_note'),
+    openLabel: t(win, 'html_tree_open_template'),
+    canOpen: false,
+    onOpen: null,
+  };
+
+  // The answer is on its way; the line fills in when it lands, if this page
+  // is still the one on screen.
+  void templateUsage(win, { entry }).then((usage) => {
+    if (!usage || htmlTreeUi.pageTemplate?.entry !== entry) {
+      return;
+    }
+
+    htmlTreeUi.pageTemplate = {
+      ...htmlTreeUi.pageTemplate,
+      text: t(win, 'html_tree_page_template', { name: usage.name }),
+      canOpen: !!usage.open,
+      onOpen: usage.open ? (anchor) => openTemplateSlot(win, anchor, usage.open) : null,
+    };
+  });
+
+  return ui;
+}
+
+/**
+ * The line above a template open on its own entry: who is drawn with it. Only
+ * while the dock holds the template's own file — a section or a component
+ * opened from it is not what the line is about.
+ */
+function paintUsedBy(win, collectionView) {
+  const view = collectionView.replace(/^view:/, '');
+
+  if (!view || ask('dock:current-type') !== collectionView) {
+    htmlTreeUi.usedBy = null;
+
+    return;
+  }
+
+  if (htmlTreeUi.usedBy?.view === view) {
+    return;
+  }
+
+  htmlTreeUi.usedBy = null;
+
+  void templateUsage(win, { view }).then((usage) => {
+    if (!usage || ask('dock:current-type') !== collectionView) {
+      return;
+    }
+
+    const text = usage.everything
+      ? t(win, 'html_tree_used_by_everything')
+      : usage.used_by.length
+        ? usage.used_by.join(', ')
+        : t(win, 'html_tree_used_by_nobody');
+
+    htmlTreeUi.usedBy = { view, label: t(win, 'html_tree_used_by'), text };
+  });
+}
 
 /**
  * The rows whose fold the reader has flipped, by path.
@@ -1378,6 +1472,36 @@ export function renderHtmlTree(win) {
   // The section the dock is actually holding, and the one the reader just
   // clicked. They are the same as soon as the file lands.
   const liveUid = currentSectionUid(win, doc, sections);
+
+  // A page drawn by a template it shares: the template's name and the way to
+  // it, and no rows — see pageOnSharedTemplate.
+  if (pageOnSharedTemplate(win, pageBuilder, inComponent)) {
+    const entry = currentEntryId(win);
+
+    htmlTreeRoots = [];
+    htmlTreeUi.rows = [];
+    htmlTreeUi.sections = [];
+    htmlTreeUi.frame = null;
+    htmlTreeUi.pageBuilder = false;
+    htmlTreeUi.layoutFile = false;
+    htmlTreeUi.usedBy = null;
+    htmlTreeUi.emptyText = '';
+
+    if (htmlTreeUi.pageTemplate?.entry !== entry) {
+      htmlTreeUi.pageTemplate = pageTemplateUi(win, entry);
+    }
+
+    htmlTreeUi.onRefresh = () => renderHtmlTree(win);
+    htmlTreeUi.onSection = null;
+    paintComponentExit(win);
+    mountPane(list, HtmlTreeList);
+    publishHtmlPick(win, []);
+
+    return;
+  }
+
+  htmlTreeUi.pageTemplate = null;
+  paintUsedBy(win, String(ask('dock:collection-view') || ''));
 
   // Page with every section removed while the dock still holds the last
   // section's file: showing those tags as if they belonged here is the hang
