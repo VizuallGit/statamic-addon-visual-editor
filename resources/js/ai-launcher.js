@@ -7,8 +7,8 @@
  * either. So it sits in the corner the way a support chat does: one button,
  * always in reach, remembers whether you left it open.
  *
- * Not on the Live Preview screen: the dock is already there, and two of the
- * same chat on one screen is one too many.
+ * Not on the Live Preview screen, nor in a screen it frames: the dock is
+ * already there, and two of the same chat on one screen is one too many.
  *
  * Appended to document.body, which Inertia keeps across CP navigation, so the
  * window survives moving from one screen to the next. Only its visibility is
@@ -38,9 +38,23 @@ function allowed(win) {
   return win.Statamic?.$config?.get?.('sveFeatures')?.ai_panel === true;
 }
 
-/** Live Preview docks the same chat itself. */
+/**
+ * Live Preview docks the same chat itself — and so is every Control Panel
+ * screen it frames: Site settings in the globals panel, a blueprint or the
+ * collections in a drawer. Those are pages of their own, with no `.live-preview`
+ * in them, so the frame's parent is asked too.
+ */
 function inLivePreview(win) {
-  return !!win.document.querySelector('.live-preview');
+  if (win.document.querySelector('.live-preview')) {
+    return true;
+  }
+
+  try {
+    return win.parent !== win && !!win.parent.document.querySelector('.live-preview');
+  } catch {
+    // A parent on another origin is not the Control Panel's Live Preview.
+    return false;
+  }
 }
 
 const CSS = `

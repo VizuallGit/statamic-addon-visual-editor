@@ -32,6 +32,7 @@ import { closePerformancePanel, togglePerformancePanel } from '../lazy/performan
 import { pageEditsOpen, togglePageEdits } from '../lazy/page-activity.js';
 import { closeSchema, isSchemaOpen, schemaAllowed, toggleSchema } from '../lazy/schema.js';
 import { openCollections } from '../lp-collections.js';
+import { soleGlobalSet, toggleSoleGlobalSet } from '../globals-panel.js';
 import { openTemplateBoard, templateBoardAllowed } from '../lp-templates.js';
 import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
@@ -208,7 +209,10 @@ export function loadHeaderTab(win) {
 
   const stored = chromeGet(win, 'sve-header-tab');
 
-  sveState.headerTab = stored && headerTabAvailable(win, stored) ? stored : null;
+  // Globals remembered unfolded from when there was a menu to pick from: with
+  // one set there is no menu, and the icon opens the set itself.
+  sveState.headerTab =
+    stored && headerTabAvailable(win, stored) && !(stored === 'globals' && soleGlobalSet(win)) ? stored : null;
 }
 
 /** Re-open docked right panels that were showing last time — pins, order, extras. */
@@ -1535,6 +1539,15 @@ export function toggleHeaderTab(win, key) {
       persistDockedPanel(win);
       applyHeaderTab(win);
     })();
+
+    return;
+  }
+
+  // One global set: nothing to pick between, so the icon opens it (and closes
+  // it) rather than unfolding a menu with one choice in it.
+  if (key === 'globals' && toggleSoleGlobalSet(win)) {
+    setHeaderTab(win, null);
+    applyHeaderTab(win);
 
     return;
   }

@@ -81,6 +81,45 @@ export function pickerGlobalSets(win) {
 }
 
 /**
+ * The one set the globe menu would list, or null when it lists more (or none).
+ * One set is nothing to pick between: the globe icon opens it instead of
+ * unfolding a menu with a single choice in it.
+ */
+export function soleGlobalSet(win) {
+  const sets = pickerGlobalSets(win);
+
+  return sets.length === 1 ? sets[0] : null;
+}
+
+/**
+ * The globe icon when there is one set: open it, or close it when it is the
+ * panel on screen — unsaved changes asked about first, as the panel's own
+ * close does. False when there is a menu to unfold instead.
+ */
+export function toggleSoleGlobalSet(win) {
+  const set = soleGlobalSet(win);
+
+  if (!set) {
+    return false;
+  }
+
+  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
+  const showing =
+    !!panel &&
+    !panel.hidden &&
+    !panel.hasAttribute('data-sve-chrome-hidden') &&
+    panel.getAttribute('data-sve-globals-handle') === set.handle;
+
+  if (showing) {
+    confirmLeaveGlobalsOverlay(win, () => closeGlobalsPanel(win));
+  } else {
+    openGlobalsPanel(win, set);
+  }
+
+  return true;
+}
+
+/**
  * Clicking the page closes what the sidebar has open.
  *
  * Every popover in the CP — the colour picker, the select and dropdown menus —
