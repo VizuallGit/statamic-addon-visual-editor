@@ -61,11 +61,12 @@ const VIDEO =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.8 5.9v4.2L10.2 8Z" fill="currentColor" stroke="none"/></svg>';
 const VIDEO_OFF =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.3 5.8v4.4M9.7 5.8v4.4" stroke-linecap="round"/></svg>';
-// Lucide's lock and lock-open.
+// A lock and an open lock, drawn in the same band as the bin and the copy
+// (4–20 of 24) so the four icons read as one size.
 const LOCK_ON =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 const LOCK_OFF =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.9-.9"/></svg>';
 
 const DEL =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
@@ -373,24 +374,7 @@ function canAct(row) {
         @pointerdown.stop
         @dblclick.stop
       ></button>
-      <!--
-        The padlock. Open: anyone who may edit the file locks the element and
-        everything inside it. Shut and lit: locked — only a developer (configure
-        fields) unlocks, and is asked first.
-      -->
-      <button
-        v-if="canLock(row)"
-        type="button"
-        data-sve-ht-lock
-        :data-on="row.locked ? '' : null"
-        :disabled="!ui.canEdit || (row.locked && !ui.canUnlock)"
-        :title="row.locked ? (ui.canUnlock ? ui.unlockTitle : ui.lockedByTitle) : ui.lockTitle"
-        :aria-pressed="row.locked ? 'true' : 'false'"
-        v-html="row.locked ? LOCK_ON : LOCK_OFF"
-        @click.stop.prevent="ui.onLock?.(row.id)"
-        @pointerdown.stop
-        @dblclick.stop
-      ></button>
+
       <button
         v-if="canHide(row)"
         type="button"
@@ -437,6 +421,24 @@ function canAct(row) {
         :title="canAct(row) ? ui.duplicateTitle : ui.lockedTitle"
         v-html="DUP"
         @click.stop.prevent="ui.onDuplicate?.(row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
+      <!--
+        The padlock. Open: anyone who may edit the file locks the element and
+        everything inside it. Shut and lit: locked — only a developer (configure
+        fields) unlocks, and is asked first.
+      -->
+      <button
+        v-if="canLock(row)"
+        type="button"
+        data-sve-ht-lock
+        :data-on="row.locked ? '' : null"
+        :disabled="!ui.canEdit || (row.locked && !ui.canUnlock)"
+        :title="row.locked ? (ui.canUnlock ? ui.unlockTitle : ui.lockedByTitle) : ui.lockTitle"
+        :aria-pressed="row.locked ? 'true' : 'false'"
+        v-html="row.locked ? LOCK_ON : LOCK_OFF"
+        @click.stop.prevent="ui.onLock?.(row.id)"
         @pointerdown.stop
         @dblclick.stop
       ></button>
