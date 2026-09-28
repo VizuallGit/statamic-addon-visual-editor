@@ -345,7 +345,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-frame-body][data-sve-ht-under-main] { margin-left: 12px; }
     [data-sve-ht-look="tags"] [data-sve-ht-frame-body][data-sve-ht-under-main] {
       margin: 2px 0 2px 7px;
-      padding-left: 7px;
+      padding-left: calc(var(--sve-ht-step) - 7px);
       box-shadow: inset 1px 0 0 color-mix(in srgb, var(--sve-fam-main) 22%, transparent);
     }
     /* Main names the space between, not a thing to edit: a shade quieter. */
@@ -586,8 +586,13 @@ export function ensureHtmlTreeStyles(doc) {
        over the guides read as belonging to every level at once. The content
        starts at the panel's inset (--sve-ht-inset, above); the box keeps a
        hair of air above and below it. */
+    /* One level is exactly the twist and the air after it (14px + 5px), so
+       a row one level in starts where its parent's mark stands: a child
+       without a twist has its mark right under the parent's, a child with
+       one has its twist there. Every level, every look of these rows. */
+    [data-sve-ht-look="tags"] { --sve-ht-step: 19px; }
     [data-sve-ht-look="tags"] [data-sve-ht-row] {
-      margin: 0 0 0 calc(var(--sve-ht-depth, 0) * 14px);
+      margin: 0 0 0 calc(var(--sve-ht-depth, 0) * var(--sve-ht-step));
       padding: 0.0625rem 0.375rem 0.0625rem var(--sve-ht-inset);
       min-height: 1.75rem;
       gap: 5px;
@@ -651,14 +656,14 @@ export function ensureHtmlTreeStyles(doc) {
       position: absolute;
       top: -2px;
       bottom: 0;
-      left: calc(var(--sve-ht-inset) - 0.25rem - var(--sve-ht-depth, 0) * 14px);
-      width: calc(var(--sve-ht-depth, 0) * 14px);
+      left: calc(var(--sve-ht-inset) - 0.25rem - var(--sve-ht-depth, 0) * var(--sve-ht-step));
+      width: calc(var(--sve-ht-depth, 0) * var(--sve-ht-step));
       pointer-events: none;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-indent] i {
       display: block;
       flex: none;
-      width: 14px;
+      width: var(--sve-ht-step);
       background: linear-gradient(to right, transparent 7px, var(--sve-ht-c) 7px, var(--sve-ht-c) 8px, transparent 8px);
       opacity: .2;
     }
@@ -677,7 +682,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-twist] { opacity: .55; }
     [data-sve-ht-look="tags"] [data-sve-ht-twist]:hover { opacity: 1; }
     [data-sve-ht-look="tags"] [data-sve-ht-slot][data-sve-ht-id] {
-      margin-left: calc(var(--sve-ht-depth, 0) * 14px);
+      margin-left: calc(var(--sve-ht-depth, 0) * var(--sve-ht-step));
     }
 
     /* The family's colour on the mark and on the chip; the name stays the
@@ -748,7 +753,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-indent] { display: none; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] {
       margin-left: 0;
-      padding-left: calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+      padding-left: calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current],
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current]:hover {
@@ -759,19 +764,19 @@ export function ensureHtmlTreeStyles(doc) {
        shows the level it lands on now that the row itself spans them all. */
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="before"]::before,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="after"]::after {
-      left: calc(var(--sve-ht-inset) + 0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+      left: calc(var(--sve-ht-inset) + 0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
-      left: calc(var(--sve-ht-inset) + 0.25rem + var(--sve-ht-base, 0) * 0.875rem);
+      left: calc(var(--sve-ht-inset) + 0.25rem + var(--sve-ht-base, 0) * var(--sve-ht-step));
     }
     /* The empty slots keep their place: a block's one level under it, and
        main's where the frame body's margin used to put it. */
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-slot][data-sve-ht-id] {
-      margin-left: calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+      margin-left: calc((var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * var(--sve-ht-step));
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-slot] {
-      margin-left: calc(var(--sve-ht-base, 0) * 0.875rem + 0.75rem);
+      margin-left: calc(var(--sve-ht-base, 0) * var(--sve-ht-step) + 0.75rem);
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.75rem; height: 0.75rem; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg { width: 0.625rem; height: 0.625rem; }
