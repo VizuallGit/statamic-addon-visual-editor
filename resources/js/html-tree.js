@@ -175,13 +175,12 @@ export function htmlTreePanel(doc) {
 
 export function ensureHtmlTreeStyles(doc) {
   injectStyle(doc, HTML_TREE_STYLE_ID, `
-    /* Where a row's content starts, in from the row's own edge: 0.625rem, the
-       inset the search field above gives its icon, so the twist lines up with
-       the rest of the panel instead of hugging the gutter. The open section's
-       box takes its own border and padding back out of it (below), so a row
-       inside the box starts where the same row outside it does — the inset is
-       said once, not once per box it sits in. */
-    [data-sve-ht-look] { --sve-ht-inset: 0.625rem; }
+    /* Where a row's content starts, in from the row's own edge: a small
+       0.375rem, so the twist sits near the edge rather than behind a gutter.
+       The open section's box takes its own border and padding back out of it
+       (below), so a row inside the box starts where the same row outside it
+       does — the inset is said once, not once per box it sits in. */
+    [data-sve-ht-look] { --sve-ht-inset: 0.375rem; }
     [data-sve-ht-row] {
       all: unset;
       box-sizing: border-box;
@@ -227,13 +226,14 @@ export function ensureHtmlTreeStyles(doc) {
       padding: 0.3125rem;
       margin-bottom: 0.3125rem;
       /* The panel's inset less this box's padding and border. */
-      --sve-ht-inset: calc(0.625rem - 0.3125rem - 1px);
+      --sve-ht-inset: calc(0.375rem - 0.3125rem - 1px);
     }
     [data-sve-ht-branch] > [data-sve-ht-row]:last-child { margin-bottom: 0; }
     /* The page's frame: header, main and footer around the sections. The
-       sections step in one level under main, as rows step in under a parent. */
-    [data-sve-ht-frame-body] { margin-left: 12px; }
-    [data-sve-ht-look="tags"] [data-sve-ht-frame-body] {
+       sections step in one level under main, as rows step in under a parent —
+       only when a main row stands above them (HtmlTreeList: underMain). */
+    [data-sve-ht-frame-body][data-sve-ht-under-main] { margin-left: 12px; }
+    [data-sve-ht-look="tags"] [data-sve-ht-frame-body][data-sve-ht-under-main] {
       margin: 2px 0 2px 7px;
       padding-left: 7px;
       box-shadow: inset 1px 0 0 color-mix(in srgb, var(--sve-fam-main) 22%, transparent);
@@ -515,7 +515,7 @@ export function ensureHtmlTreeStyles(doc) {
       padding: 0.25rem;
       margin: 0 0 6px;
       background: color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 4%, transparent);
-      --sve-ht-inset: calc(0.625rem - 0.25rem - 1px);
+      --sve-ht-inset: calc(0.375rem - 0.25rem - 1px);
     }
     /* A hair of air between the rows under a section, so the eye can tell
        them apart; a shut section already keeps its own distance (above). The
@@ -619,13 +619,16 @@ export function ensureHtmlTreeStyles(doc) {
       margin: 0;
       background: none;
       /* No box, so nothing to take back out of the inset. */
-      --sve-ht-inset: 0.625rem;
+      --sve-ht-inset: 0.375rem;
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-body] {
-      --sve-ht-base: 1;
       margin: 0;
       padding: 0;
       box-shadow: none;
+    }
+    /* The level under main — only with a main row above to be under. */
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-body][data-sve-ht-under-main] {
+      --sve-ht-base: 1;
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-indent] { display: none; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] {

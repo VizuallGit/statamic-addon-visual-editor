@@ -52,6 +52,15 @@ function frameDim(part) {
 const frameFound = computed(
   () => !!ui.frame && ['header', 'main', 'footer'].some((part) => frameShown(ui.frame[part]))
 );
+
+/**
+ * Is there a <main> row above the sections? Only then do they step in a level
+ * under it. On a page's own tree nothing stands above them, and the step was
+ * an empty gutter in front of every section.
+ */
+const underMain = computed(
+  () => !!ui.frame && (ui.frame.kind === 'main' || frameShown(ui.frame.main))
+);
 const nothingFound = computed(
   () => !!query.value && !shownSections.value.length && !shownRows.value.length && !frameFound.value
 );
@@ -126,13 +135,13 @@ function wrapBind(sec) {
         </template>
         <HtmlTreeRow v-else-if="ui.frame && frameShown(ui.frame.main)" :row="ui.frame.main" :dim="frameDim('main')" />
         <!-- A collection's template: its rows inside main, where the page's sections would be. -->
-        <div v-if="ui.frame?.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body>
+        <div v-if="ui.frame?.kind === 'template'" v-show="!ui.mainShut" data-sve-ht-frame-body :data-sve-ht-under-main="underMain ? '' : null">
           <div data-sve-ht-branch data-sve-ht-cat="main">
             <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
             <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
           </div>
         </div>
-      <div v-if="ui.sections.length || ui.frame" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body>
+      <div v-if="ui.sections.length || ui.frame" v-show="!ui.frame || !ui.mainShut" data-sve-ht-frame-body :data-sve-ht-under-main="underMain ? '' : null">
         <!-- Standing elsewhere on a template's entry: the template, the way back. -->
         <HtmlTreeRow v-if="ui.frame?.template && frameShown(ui.frame.template)" :row="ui.frame.template" :dim="frameDim('template')" />
         <!--
