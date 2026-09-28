@@ -227,11 +227,11 @@ function deepestHost(nodes, from, to) {
  * the wrong element.
  *
  * A loop over a sections field (`options.sectionLoops`) is not a loop to
- * edit: it is where every page drawn with the template gets its sections, as
- * `{{ template_content }}` is where a page lands in the layout. It becomes the
- * same kind of row — a slot, one row, nothing under it, no way to move,
- * rename, wrap or delete it — with room above and below it for the template's
- * own markup. `options.sectionsLabel` names it.
+ * edit inside: it is where every page drawn with the template gets its
+ * sections. It becomes one row of its own kind, `sections` — nothing under
+ * it, nothing dropped into it, no class to write — that can still be moved
+ * and deleted as a whole, the way a partial call can.
+ * `options.sectionsLabel` names it.
  */
 function addAntlersBlocks(roots, source, options = {}) {
   const sectionLoops = options.sectionLoops || [];
@@ -264,11 +264,10 @@ function addAntlersBlocks(roots, source, options = {}) {
 
     if (block.kind === 'loop' && sectionLoops.includes(block.name)) {
       const slot = {
-        id: `slot-${block.from}`,
+        id: `sections-${block.from}`,
         // The chip is the field — the word in the file — the name says what it is.
         tag: block.name,
-        kind: 'slot',
-        sectionsSlot: true,
+        kind: 'sections',
         klass: options.sectionsLabel || block.name,
         path: `${host ? `${host.path}/` : ''}a${block.from}:${block.name}`,
         label: options.sectionsLabel || block.name,
@@ -447,10 +446,10 @@ export function parseTemplateTree(html, options = {}) {
   );
 }
 
-/** A sections slot is one row: whatever the loop draws is the pages' business. */
+/** A sections row is one row: whatever the loop draws is the pages' business. */
 function emptySectionSlots(nodes) {
   for (const node of nodes) {
-    if (node.sectionsSlot) {
+    if (node.kind === 'sections') {
       node.children = [];
     } else {
       emptySectionSlots(node.children);
@@ -481,7 +480,6 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       klass: node.klass || '',
       path: node.path,
       label: node.label,
-      sectionsSlot: !!node.sectionsSlot,
       from: node.from,
       to: node.to,
       openTo: node.openTo,
@@ -514,12 +512,13 @@ export function isVoidTag(tag) {
 
 /**
  * A row that stands for no tag in this file: a `{{ partial }}` call, whose
- * markup lives in another file, and a slot, which is a hole the renderer
- * fills. Neither has an opening tag to write a class into or an inside to drop
- * anything into, so every path that edits the file has to step over them.
+ * markup lives in another file, a slot, which is a hole the renderer fills,
+ * and a template's sections loop. None has an opening tag to write a class
+ * into or an inside to drop anything into, so every path that edits the file
+ * has to step over them.
  */
 export function isTaglessRow(row) {
   const kind = row?.kind;
 
-  return kind === 'component' || kind === 'slot';
+  return kind === 'component' || kind === 'slot' || kind === 'sections';
 }

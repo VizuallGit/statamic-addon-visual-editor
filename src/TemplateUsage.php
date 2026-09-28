@@ -27,7 +27,7 @@ final class TemplateUsage
     public const NAMED_PAGES = 3;
 
     /**
-     * @return array{view: string, name: string, everything: bool, used_by: list<string>, open: ?array{handle: string, slot: string}}
+     * @return array{view: string, name: string, everything: bool, used_by: list<string>, sections_fields: list<string>, open: ?array{handle: string, slot: string}}
      */
     public static function of(string $view): array
     {
@@ -40,6 +40,7 @@ final class TemplateUsage
             // The layout frames every page there is; listing them says less.
             'everything' => $layout,
             'used_by' => $layout ? [] : static::usedBy($view),
+            'sections_fields' => $layout ? [] : static::sectionsFields($view),
             'open' => static::slotFor($view),
         ];
     }
@@ -97,6 +98,34 @@ final class TemplateUsage
         }
 
         return $names;
+    }
+
+    /**
+     * The sections fields of the pages drawn with the view — what a loop in it
+     * would go over (`{{ page_sections }}`, `{{ lawyer_info }}`). Empty when
+     * none of them is built from sections: a loop there would draw nothing
+     * until a blueprint gets a sections field ({@see SectionField}).
+     *
+     * @return list<string>
+     */
+    public static function sectionsFields(string $view): array
+    {
+        $stores = Stores::all();
+        $fields = [];
+
+        foreach (Collection::all() as $collection) {
+            if (in_array($collection->handle(), $stores, true) || $collection->template() !== $view) {
+                continue;
+            }
+
+            foreach ($collection->entryBlueprints() as $blueprint) {
+                if (SectionField::in($blueprint)) {
+                    $fields[] = SectionField::of($blueprint);
+                }
+            }
+        }
+
+        return array_values(array_unique($fields));
     }
 
     /**

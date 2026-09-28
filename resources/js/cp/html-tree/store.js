@@ -92,6 +92,10 @@ export const htmlTreeUi = reactive({
   // A template open on its own entry: who is drawn with it —
   // `{ label, items, empty, hint }` for the box above the search, or null.
   usedBy: null,
+  // The sections fields of the pages a template open on its own entry draws
+  // (TemplateUsage `sections_fields`) — what the plus offers a loop over.
+  // Empty: none of them is built from sections.
+  templateSections: [],
   // An element the plus just wrote into a template: where it starts in the
   // file, and how many more paints may look for it. The tree stands on it the
   // first time it is drawn (html-tree.js), then forgets.

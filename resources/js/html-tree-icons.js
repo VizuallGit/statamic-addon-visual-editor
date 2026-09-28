@@ -89,7 +89,9 @@ export function htmlTreeIcon(tag, kind, antlers) {
     return { svg: HTML_ICONS.component };
   }
 
-  if (kind === 'slot') {
+  // A template's sections loop is where the pages' sections arrive: the
+  // same arrival mark as the layout's hole for the page.
+  if (kind === 'slot' || kind === 'sections') {
     return { svg: HTML_ICONS.slot };
   }
 

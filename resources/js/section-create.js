@@ -374,7 +374,7 @@ export function chooseSectionKind(win) {
  * the dock is the way in, and the toast says so. Answers where the element
  * starts in the file, so the tree can stand on it, or null.
  */
-export function insertTemplateElement(win, tag, after = null) {
+export function insertTemplateElement(win, tag, after = null, name = `<${tag}>`) {
   if (ask('dock:is-locked') === true) {
     win.Statamic?.$toast?.error(t(win, 'code_dock_locked'));
 
@@ -390,7 +390,7 @@ export function insertTemplateElement(win, tag, after = null) {
   }
 
   ask('dock:save-now');
-  win.Statamic?.$toast?.success(t(win, 'html_tree_element_added', { tag }));
+  win.Statamic?.$toast?.success(t(win, 'html_tree_element_added', { name }));
 
   return at;
 }

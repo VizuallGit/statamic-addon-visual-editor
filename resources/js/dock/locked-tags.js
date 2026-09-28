@@ -11,17 +11,10 @@
  * the file stays editable, and the guard is on the text itself, so it holds
  * however a person's edit arrives — typing, paste, Emmet, an autocomplete.
  *
- * A template's loop over the page's sections is locked the same way, whole
- * (`sectionLoopFields` — every field a blueprint keeps its sections in).
- *
- * May import: code-dock.js re-exports, lib/.
+ * May import: code-dock.js re-exports only.
  */
 import { Decoration, EditorState, EditorView, RangeSetBuilder, StateField } from '../code-dock.js';
 import { editedByHand, lockedRanges } from '../lib/locked-tags.js';
-import { sectionLoopFields } from '../lib/config.js';
-
-/** The sections loops to lock, as the server named them. */
-const loops = () => sectionLoopFields(typeof window === 'undefined' ? null : window);
 
 /**
  * Built inside the call, never at import time.
@@ -33,7 +26,7 @@ const loops = () => sectionLoopFields(typeof window === 'undefined' ? null : win
  */
 function build(state, mark) {
   const builder = new RangeSetBuilder();
-  const ranges = lockedRanges(state.doc.toString(), loops());
+  const ranges = lockedRanges(state.doc.toString());
 
   for (let i = 0; i < ranges.length; i += 2) {
     builder.add(ranges[i], ranges[i + 1], mark);
@@ -84,7 +77,7 @@ export function lockedUi() {
       style,
       EditorState.changeFilter.of((tr) =>
         editedByHand((event) => tr.isUserEvent(event))
-          ? lockedRanges(tr.startState.doc.toString(), loops())
+          ? lockedRanges(tr.startState.doc.toString())
           : true
       ),
     ],

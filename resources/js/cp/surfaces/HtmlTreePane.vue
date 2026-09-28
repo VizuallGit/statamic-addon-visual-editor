@@ -5,6 +5,7 @@ import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui, readHtmlTreeLayers, setHtmlTreeLayers } from '../html-tree/store.js';
 import { canCreateSections, chooseSectionKind, insertTemplateElement, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
 import { TEMPLATE_TAGS } from '../../template-elements.js';
+import { defaultSectionField } from '../../lib/config.js';
 import { openCpOverlay } from '../open-overlay.js';
 import HtmlTreeMenu from './HtmlTreeMenu.vue';
 import { ask } from '../bus.js';
@@ -36,6 +37,26 @@ function toggleLayers() {
 const canCreate = canCreateSections(window);
 const newSectionLabel = t(window, 'section_new');
 const addElementLabel = t(window, 'html_tree_add_element');
+const sectionsLabel = t(window, 'html_tree_sections_slot');
+const sectionsNoFieldNote = t(window, 'html_tree_sections_no_field');
+
+/**
+ * The sections loops the menu offers: one per sections field of the pages
+ * the template draws, the default when none is built from sections yet —
+ * and never one the file already has.
+ */
+function sectionsItems() {
+  const fields = ui.templateSections.length ? ui.templateSections : [defaultSectionField(window)];
+  const has = new Set(ui.rows.filter((row) => row.kind === 'sections').map((row) => row.tag));
+
+  return fields
+    .filter((field) => !has.has(field))
+    .map((field) => ({
+      tag: `sections:${field}`,
+      label: fields.length > 1 ? `${sectionsLabel} · ${field}` : sectionsLabel,
+      noField: !ui.templateSections.length,
+    }));
+}
 const creating = ref(false);
 
 const PLUS =
@@ -96,21 +117,31 @@ function openElementMenu(anchor) {
   const after = pickedRow();
   let menu = null;
 
+  const add = (tag, name, note = '') => () => {
+    menu?.dismiss();
+    menu = null;
+    release();
+
+    const at = insertTemplateElement(window, tag, after, name);
+
+    if (at !== null) {
+      ui.selectFrom = { at, left: 4 };
+
+      // A loop over a field the pages do not have draws nothing yet.
+      if (note) {
+        window.Statamic?.$toast?.info?.(note);
+      }
+    }
+  };
+
   menu = openCpOverlay(document, HtmlTreeMenu, {
-    items: TEMPLATE_TAGS.map((tag) => ({
-      label: tag,
-      onPick: () => {
-        menu?.dismiss();
-        menu = null;
-        release();
-
-        const at = insertTemplateElement(window, tag, after);
-
-        if (at !== null) {
-          ui.selectFrom = { at, left: 4 };
-        }
-      },
-    })),
+    items: [
+      ...TEMPLATE_TAGS.map((tag) => ({ label: tag, onPick: add(tag, `<${tag}>`) })),
+      ...sectionsItems().map((item) => ({
+        label: item.label,
+        onPick: add(item.tag, item.label, item.noField ? sectionsNoFieldNote : ''),
+      })),
+    ],
     x: Math.round(rect.left),
     y: Math.round(rect.bottom + 4),
     onClose: () => {

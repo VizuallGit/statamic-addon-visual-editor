@@ -65,7 +65,6 @@ import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
 import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields } from './lib/config.js';
-import { sectionLoopRanges } from './lib/locked-tags.js';
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
 import { openTemplateSlot, templateUsage } from './lp-templates.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
@@ -116,25 +115,6 @@ function treeOptions(win) {
   return { sectionLoops: sectionLoopFields(win), sectionsLabel: t(win, 'html_tree_sections_slot') };
 }
 
-/**
- * Rows wrapped round a sections loop stay put like the loop itself (`fixed`):
- * no eye, no copy, no bin. Hiding, doubling or deleting a wrapper would do
- * to every page's sections what the loop's own row refuses to.
- */
-function holdsSectionsLoop(row, loopRanges) {
-  if (row.kind === 'slot') {
-    return false;
-  }
-
-  for (let i = 0; i < loopRanges.length; i += 2) {
-    if (row.from <= loopRanges[i] && row.to >= loopRanges[i + 1]) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 /** What the tree says in place of a shared template's rows (`htmlTreeUi.pageTemplate`). */
 function pageTemplateUi(win, entry) {
   const ui = {
@@ -174,6 +154,7 @@ function paintUsedBy(win, collectionView) {
 
   if (!view || ask('dock:current-type') !== collectionView) {
     htmlTreeUi.usedBy = null;
+    htmlTreeUi.templateSections = [];
 
     return;
   }
@@ -193,6 +174,7 @@ function paintUsedBy(win, collectionView) {
     // frames every page, so it gets the one chip that says so.
     const items = usage.everything ? [t(win, 'html_tree_used_by_everything')] : usage.used_by;
 
+    htmlTreeUi.templateSections = Array.isArray(usage.sections_fields) ? usage.sections_fields : [];
     htmlTreeUi.usedBy = {
       view,
       label: t(win, 'html_tree_used_by'),
@@ -1489,7 +1471,6 @@ export function renderHtmlTree(win) {
 
   const html = htmlTreeAhead || dock;
   const roots = parseTemplateTree(html, treeOptions(win));
-  const loopRanges = sectionLoopRanges(html, sectionLoopFields(win));
   htmlTreeRoots = roots;
   // A new tree has no <body> to be cut to until the layout below says so, and
   // the files around an open component are folded before it does.
@@ -1959,7 +1940,7 @@ export function renderHtmlTree(win) {
   // An element the plus just wrote (HtmlTreePane): stand on it once it is
   // drawn. A few paints at most — the file may land a moment after the write.
   if (htmlTreeUi.selectFrom) {
-    const made = rows.find((row) => row.from === htmlTreeUi.selectFrom.at && !row.kind);
+    const made = rows.find((row) => row.from === htmlTreeUi.selectFrom.at && (!row.kind || row.kind === 'sections'));
 
     if (made) {
       htmlTreeActiveId = made.id;
@@ -2007,8 +1988,7 @@ export function renderHtmlTree(win) {
        * <body>, which is the page itself. A second of any of them is not a
        * copy anyone means.
        */
-      fixed: !!frameCall || body || holdsSectionsLoop(row, loopRanges),
-      holdsSections: holdsSectionsLoop(row, loopRanges),
+      fixed: !!frameCall || body,
       base,
       // The open page section's root already carries the section's own name
       // (its label); the file's alias must not override it here.
@@ -2790,6 +2770,22 @@ function deleteHtmlTreeRow(win, id) {
     return;
   }
 
+  // The template's sections loop: every page drawn with it stops showing its
+  // sections. Asked first; the pages' content stays where it is.
+  if (htmlTreeUi.rows.find((item) => item.id === id)?.kind === 'sections') {
+    confirmCloseDiscard(
+      win,
+      {
+        titleKey: 'html_tree_sections_remove_title',
+        bodyKey: 'html_tree_sections_remove_body',
+        confirmKey: 'html_tree_sections_remove_confirm',
+      },
+      () => applyHtmlEdit(win, id, deleteHtml)
+    );
+
+    return;
+  }
+
   applyHtmlEdit(win, id, deleteHtml);
 }
 
@@ -2971,9 +2967,9 @@ function openHtmlTreeMenu(win, event, id) {
   }
 
   // A slot is a hole, not a tag: nothing in the menu applies to it. Nor to a
-  // row around the sections loop: made a component, it would carry every
-  // page's sections off into another file.
-  if (row.kind === 'slot' || row.holdsSections) {
+  // sections loop: made a component, it would carry every page's sections
+  // off into another file.
+  if (row.kind === 'slot' || row.kind === 'sections') {
     return;
   }
 

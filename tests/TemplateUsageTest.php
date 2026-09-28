@@ -60,6 +60,23 @@ class TemplateUsageTest extends TestCase
         $this->assertSame('Services · '.__('sve::messages.template_board_slot_show'), $usage['name']);
     }
 
+    public function test_the_sections_fields_are_those_of_the_pages_drawn_with_it(): void
+    {
+        \Statamic\Facades\Blueprint::make('usage_page')->setNamespace('collections.usage_pages')->setContents([
+            'tabs' => ['main' => ['sections' => [['fields' => [
+                ['handle' => 'page_sections', 'field' => ['type' => 'replicator', 'sets' => []]],
+            ]]]]],
+        ])->save();
+
+        try {
+            $this->assertContains('page_sections', TemplateUsage::of('default')['sections_fields']);
+            // Services are not built from sections: nothing for a loop to go over.
+            $this->assertSame([], TemplateUsage::of('usage_services/show')['sections_fields']);
+        } finally {
+            \Statamic\Facades\Blueprint::find('collections.usage_pages.usage_page')?->delete();
+        }
+    }
+
     public function test_the_layout_frames_everything(): void
     {
         $usage = TemplateUsage::of('layout');

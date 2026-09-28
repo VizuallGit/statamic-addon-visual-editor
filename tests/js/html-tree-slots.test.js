@@ -57,8 +57,8 @@ test('other single Antlers tags stay out of the tree', () => {
 
 /**
  * A template's loop over the page's sections — `{{ page_sections }}` or any
- * field a blueprint keeps them in — is one slot row: nothing under it, room
- * above and below.
+ * field a blueprint keeps them in — is one row of its own kind: nothing under
+ * it, nothing dropped into it, moved and deleted whole.
  */
 const TEMPLATE = [
   '<main class="wrapper">',
@@ -74,12 +74,11 @@ const TEMPLATE = [
 const sectionsRows = (html, loops) =>
   flattenHtmlTree(parseTemplateTree(html, { sectionLoops: loops, sectionsLabel: 'Sidens sektioner' }), new Set());
 
-test('a sections loop is one slot row with nothing under it', () => {
+test('a sections loop is one row of its own, with nothing under it', () => {
   const list = sectionsRows(TEMPLATE, ['page_sections']);
-  const slot = list.find((row) => row.sectionsSlot);
+  const slot = list.find((row) => row.kind === 'sections');
 
-  assert.ok(slot, 'no sections slot');
-  assert.equal(slot.kind, 'slot');
+  assert.ok(slot, 'no sections row');
   assert.equal(slot.tag, 'page_sections', 'the chip is the field');
   assert.equal(slot.klass, 'Sidens sektioner');
   assert.equal(slot.hasChildren, false);
@@ -94,17 +93,17 @@ test('a sections loop is one slot row with nothing under it', () => {
 });
 
 test('the slot spans the whole loop, open tag to close tag', () => {
-  const slot = sectionsRows(TEMPLATE, ['page_sections']).find((row) => row.sectionsSlot);
+  const slot = sectionsRows(TEMPLATE, ['page_sections']).find((row) => row.kind === 'sections');
 
   assert.ok(TEMPLATE.slice(slot.from, slot.to).startsWith('{{ page_sections }}'));
   assert.ok(TEMPLATE.slice(slot.from, slot.to).endsWith('{{ /page_sections }}'));
 });
 
-test('only the named fields become slots; any other loop stays a loop', () => {
+test('only the named fields become sections rows; any other loop stays a loop', () => {
   const lawyer = TEMPLATE.replaceAll('page_sections }}', 'lawyer_info }}').replace('{{ page_sections', '{{ lawyer_info');
 
-  assert.equal(sectionsRows(lawyer, ['lawyer_info']).some((row) => row.sectionsSlot), true);
-  assert.equal(sectionsRows(TEMPLATE, ['lawyer_info']).some((row) => row.sectionsSlot), false);
+  assert.equal(sectionsRows(lawyer, ['lawyer_info']).some((row) => row.kind === 'sections'), true);
+  assert.equal(sectionsRows(TEMPLATE, ['lawyer_info']).some((row) => row.kind === 'sections'), false);
   // Without the option nothing changes: the loop and the call inside it.
   assert.equal(rows(TEMPLATE).some((row) => row.kind === 'antlers' && row.tag === 'page_sections'), true);
 });

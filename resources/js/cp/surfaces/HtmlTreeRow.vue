@@ -205,8 +205,16 @@ function isFixed(row) {
   return !!row.fixed;
 }
 
+/**
+ * A template's loop over the page's sections: moved and deleted as a whole,
+ * never copied — a second loop draws every section twice — and not hidden.
+ */
+function isSections(row) {
+  return row.kind === 'sections';
+}
+
 function canHide(row) {
-  return !isFixed(row) && (!row.hidden || row.wrapFrom != null);
+  return !isFixed(row) && !isSections(row) && (!row.hidden || row.wrapFrom != null);
 }
 
 /**
@@ -380,7 +388,7 @@ function canAct(row) {
         a copy anyone means, and without either every page loses it.
       -->
       <button
-        v-if="!isFixed(row)"
+        v-if="!isFixed(row) && !isSections(row)"
         type="button"
         data-sve-ht-dup
         :disabled="!canAct(row)"

@@ -10,59 +10,15 @@
  * They are worth seeing, because a layout without them reads as incomplete.
  * They are not worth editing by hand.
  *
- * So is a template's loop over the page's sections — `{{ page_sections }} …
- * {{ /page_sections }}`, or whichever field a blueprint keeps them in
- * (`sveSectionFields`). Every page drawn with the template gets its sections
- * from it; typed into, cut or doubled, they all lose them or get them twice.
- * The markup above and below it is the template's to change.
- *
  * May import: nothing.
  */
 const LOCKED = /\{\{\s*(?:vite\b[^}]*|yield_[a-z_]+|theme_tokens)\s*\}\}/g;
 
-const escape = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/**
- * Where each loop over a sections field sits, from its opening tag to the end
- * of its closing one, flat: from, to, from, to. `loops` are field handles.
- * A loop that never closes is left alone — there is no block to guard.
- */
-export function sectionLoopRanges(text, loops = []) {
-  const source = String(text || '');
-  const out = [];
-
-  for (const name of loops || []) {
-    if (!name) {
-      continue;
-    }
-
-    const open = new RegExp(`\\{\\{\\s*${escape(name)}(?=[\\s}|])[^}]*\\}\\}`, 'g');
-    const close = new RegExp(`\\{\\{\\s*\\/\\s*${escape(name)}\\s*\\}\\}`, 'g');
-    let match;
-
-    while ((match = open.exec(source))) {
-      close.lastIndex = match.index + match[0].length;
-
-      const end = close.exec(source);
-
-      if (!end) {
-        break;
-      }
-
-      out.push(match.index, end.index + end[0].length);
-      open.lastIndex = end.index + end[0].length;
-    }
-  }
-
-  return out;
-}
-
 /**
  * Every locked range in this text, flat, as CodeMirror's `changeFilter`
- * wants them: from, to, from, to. `loops` are the sections fields whose
- * loops are locked whole ({@link sectionLoopRanges}).
+ * wants them: from, to, from, to.
  */
-export function lockedRanges(text, loops = []) {
+export function lockedRanges(text) {
   const out = [];
 
   LOCKED.lastIndex = 0;
@@ -73,23 +29,7 @@ export function lockedRanges(text, loops = []) {
     out.push(match.index, match.index + match[0].length);
   }
 
-  const loopRanges = sectionLoopRanges(text, loops);
-
-  if (!loopRanges.length) {
-    return out;
-  }
-
-  // In document order: CodeMirror's RangeSetBuilder and changeFilter both
-  // take them sorted.
-  const pairs = [];
-
-  for (const list of [out, loopRanges]) {
-    for (let i = 0; i < list.length; i += 2) {
-      pairs.push([list[i], list[i + 1]]);
-    }
-  }
-
-  return pairs.sort((a, b) => a[0] - b[0]).flat();
+  return out;
 }
 
 /**

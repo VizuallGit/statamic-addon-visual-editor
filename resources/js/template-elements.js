@@ -20,10 +20,38 @@
 export const TEMPLATE_TAGS = ['section', 'div', 'article', 'aside', 'nav', 'header', 'footer'];
 
 /**
+ * The page's sections, for a template that has none yet: the loop the pages
+ * collection's own template draws them with, over one field
+ * (`sections:page_sections`). The same four lines as `default.antlers.html`.
+ */
+export function sectionsLoop(field) {
+  return [
+    `{{ ${field} }}`,
+    "    {{ _class = type | replace('/', '-') | replace('_', '-') }}",
+    '    {{ partial src="partials/page_sections/{ type }" id="{{ id }}" :class="_class" :_class="_class" }}',
+    `{{ /${field} }}`,
+  ].join('\n');
+}
+
+/** `sections:<field>` → the field, else ''. */
+export function sectionsFieldOf(tag) {
+  const match = /^sections:([A-Za-z_][A-Za-z0-9_]*)$/.exec(String(tag || ''));
+
+  return match ? match[1] : '';
+}
+
+/**
  * What one of them starts as: an empty element with a line to write in. A
- * section keeps the spacing it has always started with.
+ * section keeps the spacing it has always started with. `sections:<field>`
+ * is the page's sections loop ({@link sectionsLoop}).
  */
 export function templateElement(tag) {
+  const field = sectionsFieldOf(tag);
+
+  if (field) {
+    return sectionsLoop(field);
+  }
+
   const name = TEMPLATE_TAGS.includes(tag) ? tag : 'div';
   const classes = name === 'section' ? '[ ] py-800' : '[ ]';
 
