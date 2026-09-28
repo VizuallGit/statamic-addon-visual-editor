@@ -604,22 +604,22 @@ function toggleDir(path) {
 }
 
 /**
- * Fill what is left of the page — across as well as down.
+ * Fill what is left of the window, downwards.
  *
- * The page is Inertia-rendered inside Statamic's own layout, so neither how far
- * down this frame starts nor how wide its wrapper lets it be is something CSS
- * here can know. Both are measured.
+ * The page is Inertia-rendered inside Statamic's own layout, so how far down
+ * this element starts is not something CSS here can know — it depends on the
+ * header, the breadcrumb, and whatever the layout does at this width. Measured
+ * instead, and written back as a custom property.
  *
- * Width matters more than it looks: the wrapper caps and centres, so on a narrow
- * window the frame fills and on a wide one it sits in the middle with a gap on
- * either side — the same page, two different layouts, depending on the monitor.
- * The frame is pulled out to the content column with margins of its own rather
- * than by editing the wrapper, which belongs to Statamic.
+ * Width is left to Statamic. Its layout button (Expand / Constrain Layout)
+ * decides how wide the page is, and the frame follows it like every other CP
+ * page does. Pulling the frame out past that cap made it wider than the window
+ * once the layout was expanded.
  *
  * In rem, because a viewport measurement is the one number that has to be taken
  * in pixels and nothing downstream of it should have to be.
  */
-function fitFrame(win, el) {
+function fitHeight(win, el) {
   const frame = el.isConnected ? el.querySelector('[data-sve-files-frame]') : null;
 
   if (!frame) {
@@ -627,70 +627,15 @@ function fitFrame(win, el) {
   }
 
   const rootSize = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
-  const inset = rootSize;
-
-  // Measured with its own margins out of the way, so the numbers describe where
-  // the wrapper puts it rather than where the last measurement left it.
-  frame.style.marginLeft = '0px';
-  frame.style.marginRight = '0px';
-
-  const rect = frame.getBoundingClientRect();
-  const band = bandFor(win, frame);
-
-  if (band) {
-    frame.style.marginLeft = `${(band.left + inset - rect.left) / rootSize}rem`;
-    frame.style.marginRight = `${(rect.right - (band.right - inset)) / rootSize}rem`;
-  } else {
-    frame.style.marginLeft = '';
-    frame.style.marginRight = '';
-  }
-
-  const available = win.innerHeight - frame.getBoundingClientRect().top - inset;
+  // Below the frame, matching the inset at its sides.
+  const trailing = rootSize;
+  const available = win.innerHeight - frame.getBoundingClientRect().top - trailing;
 
   frame.style.setProperty('--sve-files-height', `${Math.max(20, available / rootSize)}rem`);
 }
 
-/**
- * The column the page actually has, inside its padding.
- *
- * Not `main`: on a wide window that element is itself the capped, centred
- * container, so measuring it hands back the very width we are trying to escape.
- * What we want is the box the cap sits inside — the column beside the sidebar.
- *
- * So: the widest ancestor that starts clear of the window's left edge. Clear of
- * the edge is what says "beside the sidebar rather than behind it", and widest
- * is what steps over the cap to the column holding it. Ancestors that clip are
- * skipped, since reaching past one of those only hides the frame.
- */
-function bandFor(win, frame) {
-  let best = null;
-
-  for (let el = frame.parentElement; el && el !== win.document.body; el = el.parentElement) {
-    const style = win.getComputedStyle(el);
-
-    if (style.overflowX !== 'visible' || style.position === 'fixed') {
-      break;
-    }
-
-    const rect = el.getBoundingClientRect();
-
-    if (rect.left <= 0 || rect.width <= 0) {
-      continue;
-    }
-
-    const left = rect.left + (parseFloat(style.paddingLeft) || 0);
-    const right = rect.right - (parseFloat(style.paddingRight) || 0);
-
-    if (right - left > 0 && (!best || right - left > best.right - best.left)) {
-      best = { left, right };
-    }
-  }
-
-  return best;
-}
-
 function bindFit(win, el) {
-  const run = () => fitFrame(win, el);
+  const run = () => fitHeight(win, el);
 
   run();
   // Twice: once now, and once after the layout has settled — a webfont or a
