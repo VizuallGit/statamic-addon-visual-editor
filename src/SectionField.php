@@ -45,6 +45,30 @@ final class SectionField
         return static::locate($blueprint)['handle'] ?? static::fallback();
     }
 
+    /**
+     * Every field a blueprint keeps its sections in, the default first — the
+     * loops a template draws a page's sections with (`{{ page_sections }}`,
+     * `{{ lawyer_info }}`). The HTML tree shows such a loop as one fixed row
+     * and the dock locks it: take it out and every page drawn with the
+     * template loses its sections.
+     *
+     * @return list<string>
+     */
+    public static function all(): array
+    {
+        $handles = [static::fallback()];
+
+        foreach (Collection::all() as $collection) {
+            foreach ($collection->entryBlueprints() as $blueprint) {
+                if ($found = static::locate($blueprint)) {
+                    $handles[] = $found['handle'];
+                }
+            }
+        }
+
+        return array_values(array_unique($handles));
+    }
+
     /** Whether the blueprint has a sections field at all. */
     public static function in($blueprint): bool
     {

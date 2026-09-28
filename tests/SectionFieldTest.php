@@ -148,6 +148,22 @@ class SectionFieldTest extends TestCase
         $this->assertFalse(SectionField::in(null));
     }
 
+    public function test_every_sections_field_on_the_site_is_listed_default_first(): void
+    {
+        $this->inlineLawyerBlueprint()->save();
+        \Statamic\Facades\Collection::make('lawyers')->save();
+
+        try {
+            $all = SectionField::all();
+
+            $this->assertSame('page_sections', $all[0]);
+            $this->assertContains('lawyer_info', $all);
+            $this->assertSame(count($all), count(array_unique($all)));
+        } finally {
+            \Statamic\Facades\Collection::findByHandle('lawyers')?->delete();
+        }
+    }
+
     public function test_the_list_reads_both_fieldset_shapes(): void
     {
         $flat = SectionList::fieldset('page_sections');

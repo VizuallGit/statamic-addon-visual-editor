@@ -166,6 +166,7 @@ return [
     'html_tree_page_template_note' => 'Skabelonen deles med andre sider, så den redigeres fra skabelonen selv.',
     'html_tree_open_template' => 'Åbn skabelonen',
     'html_tree_open_template_failed' => 'Skabelonen kunne ikke åbnes.',
+    'html_tree_sections_slot' => 'Sidens sektioner',
     'html_tree_need_dock' => 'Åbn HTML-docken for at se filens tags.',
     'html_tree_rename' => 'Dobbeltklik for at omdøbe i træet (ændrer ikke HTML)',
     'html_tree_hide' => 'Kommentér ud — skjult i live preview',

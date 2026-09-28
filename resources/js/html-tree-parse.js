@@ -225,8 +225,17 @@ function deepestHost(nodes, from, to) {
  * The tags keep the `path` the tag parse gave them. Preview alignment walks
  * that path, and re-numbering siblings here would point every one of them at
  * the wrong element.
+ *
+ * A loop over a sections field (`options.sectionLoops`) is not a loop to
+ * edit: it is where every page drawn with the template gets its sections, as
+ * `{{ template_content }}` is where a page lands in the layout. It becomes the
+ * same kind of row — a slot, one row, nothing under it, no way to move,
+ * rename, wrap or delete it — with room above and below it for the template's
+ * own markup. `options.sectionsLabel` names it.
  */
-function addAntlersBlocks(roots, source) {
+function addAntlersBlocks(roots, source, options = {}) {
+  const sectionLoops = options.sectionLoops || [];
+
   for (const block of findAntlersBlocks(source)) {
     const host = deepestHost(roots, block.from, block.to);
     const siblings = host ? host.children : roots;
@@ -250,6 +259,34 @@ function addAntlersBlocks(roots, source) {
     }
 
     if (crosses) {
+      continue;
+    }
+
+    if (block.kind === 'loop' && sectionLoops.includes(block.name)) {
+      const slot = {
+        id: `slot-${block.from}`,
+        // The chip is the field — the word in the file — the name says what it is.
+        tag: block.name,
+        kind: 'slot',
+        sectionsSlot: true,
+        klass: options.sectionsLabel || block.name,
+        path: `${host ? `${host.path}/` : ''}a${block.from}:${block.name}`,
+        label: options.sectionsLabel || block.name,
+        from: block.from,
+        to: block.to,
+        // Its body is the loop's, so a partial call inside it finds this row
+        // as its host (addComponents) rather than landing beside it — and
+        // emptySectionSlots then takes it away with everything else inside.
+        openTo: block.openTo,
+        hidden: !!host?.hidden,
+        children: [],
+      };
+      const at = inside.length
+        ? siblings.indexOf(inside[0])
+        : siblings.findIndex((item) => item.from > block.from);
+
+      siblings.splice(at === -1 ? siblings.length : at, inside.length, slot);
+
       continue;
     }
 
@@ -398,11 +435,29 @@ export function parseHtmlTree(html) {
   return parseRange(source, masked, 0, masked.length);
 }
 
-/** Tags, conditions, loops, components and slots — what the HTML tree shows. */
-export function parseTemplateTree(html) {
+/**
+ * Tags, conditions, loops, components and slots — what the HTML tree shows.
+ * `options.sectionLoops` / `options.sectionsLabel`: see addAntlersBlocks.
+ */
+export function parseTemplateTree(html, options = {}) {
   const source = String(html || '');
 
-  return addSlots(addComponents(addAntlersBlocks(parseHtmlTree(source), source), source), source);
+  return emptySectionSlots(
+    addSlots(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source)
+  );
+}
+
+/** A sections slot is one row: whatever the loop draws is the pages' business. */
+function emptySectionSlots(nodes) {
+  for (const node of nodes) {
+    if (node.sectionsSlot) {
+      node.children = [];
+    } else {
+      emptySectionSlots(node.children);
+    }
+  }
+
+  return nodes;
 }
 
 export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
@@ -426,6 +481,7 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       klass: node.klass || '',
       path: node.path,
       label: node.label,
+      sectionsSlot: !!node.sectionsSlot,
       from: node.from,
       to: node.to,
       openTo: node.openTo,

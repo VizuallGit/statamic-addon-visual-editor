@@ -12,6 +12,7 @@ use MarioHamann\StatamicVisualEditor\Stores;
 use Illuminate\Support\Facades\View;
 use MarioHamann\StatamicVisualEditor\Breakpoints;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\SectionField;
 use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\ToolbarPresets;
@@ -53,6 +54,9 @@ final class ControlPanelScript
                 // paths, the global-section row, the CP link to a source entry)
                 // comes from config, so the addon works on any site as installed.
                 'sveSectionField' => config('statamic-visual-editor.previews.field', 'page_sections'),
+                // Every field a blueprint keeps its sections in: a template's loop
+                // over one is a fixed row in the HTML tree and locked in the dock.
+                'sveSectionFields' => SectionField::all(),
                 'sveSavedSectionsCollection' => config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
                 'sveGlobalSectionSet' => config('statamic-visual-editor.saved_sections.set', 'global_section'),
                 // Id → { title, section_type } for global rows in the block tree,

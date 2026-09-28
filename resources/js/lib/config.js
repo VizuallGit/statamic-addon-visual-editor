@@ -30,6 +30,18 @@ export function defaultSectionField(win) {
   return win.Statamic?.$config?.get?.('sveSectionField') || 'page_sections';
 }
 
+/**
+ * Every field a blueprint keeps its sections in (`sveSectionFields`,
+ * `SectionField::all`), the default first. A template's loop over one of them
+ * is where every page drawn with it gets its sections: a fixed row in the HTML
+ * tree, locked in the dock.
+ */
+export function sectionLoopFields(win) {
+  const list = win?.Statamic?.$config?.get?.('sveSectionFields');
+
+  return Array.isArray(list) && list.length ? list : [defaultSectionField(win)];
+}
+
 /** The replicator field the page builder of the page on screen lives in. */
 export function sectionField(win) {
   return pageBuilderForm(win)?.field || defaultSectionField(win);

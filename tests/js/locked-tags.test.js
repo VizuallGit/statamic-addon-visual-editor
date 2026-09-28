@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EditorState } from '@codemirror/state';
-import { editedByHand, lockedRanges } from '../../resources/js/lib/locked-tags.js';
+import { editedByHand, lockedRanges, sectionLoopRanges } from '../../resources/js/lib/locked-tags.js';
 
 const locked = (html) => {
   const r = lockedRanges(html);
@@ -108,6 +108,68 @@ test('a person deleting the whole pane keeps the plumbing and loses the rest', (
 
   assert.ok(text.includes('{{ theme_tokens }}'));
   assert.ok(!text.includes('<head>'));
+});
+
+/**
+ * A template's loop over the page's sections, locked whole — whatever field a
+ * blueprint keeps its sections in.
+ */
+const TEMPLATE = [
+  '<nav class="crumbs"></nav>',
+  '{{ page_sections }}',
+  '    {{ partial src="partials/page_sections/{ type }" id="{{ id }}" }}',
+  '{{ /page_sections }}',
+  '<section>Kontakt</section>',
+].join('\n');
+
+const loopFilter = (loops) => EditorState.changeFilter.of((tr) =>
+  editedByHand((event) => tr.isUserEvent(event))
+    ? lockedRanges(tr.startState.doc.toString(), loops)
+    : true
+);
+
+test('the sections loop is one locked range, open tag to close tag', () => {
+  const r = sectionLoopRanges(TEMPLATE, ['page_sections']);
+
+  assert.equal(r.length, 2);
+  assert.ok(TEMPLATE.slice(r[0], r[1]).startsWith('{{ page_sections }}'));
+  assert.ok(TEMPLATE.slice(r[0], r[1]).endsWith('{{ /page_sections }}'));
+});
+
+test('another field name is found only when named, and a lookalike never', () => {
+  const lawyer = '{{ lawyer_info }}<p></p>{{ /lawyer_info }}{{ page_sections_old }}x{{ /page_sections_old }}';
+
+  assert.deepEqual(sectionLoopRanges(lawyer, ['page_sections']), []);
+  assert.deepEqual(sectionLoopRanges(lawyer, ['lawyer_info']), [0, lawyer.indexOf('{{ page_sections_old }}')]);
+  assert.deepEqual(sectionLoopRanges('{{ page_sections }} never closed', ['page_sections']), []);
+});
+
+test('loop and plumbing ranges come back in document order', () => {
+  const html = `{{ theme_tokens }}\n${TEMPLATE}\n{{ yield_scripts }}`;
+  const r = lockedRanges(html, ['page_sections']);
+
+  assert.equal(r.length, 6);
+
+  for (let i = 1; i < r.length; i += 1) {
+    assert.ok(r[i - 1] <= r[i]);
+  }
+});
+
+test('a person cannot type into the loop, but can write above and below it', () => {
+  const state = EditorState.create({ doc: TEMPLATE, extensions: [loopFilter(['page_sections'])] });
+  const inside = TEMPLATE.indexOf('{{ partial');
+  const typedInside = state.update({ changes: { from: inside, insert: '<div>' }, userEvent: 'input.type' }).state;
+  const below = TEMPLATE.length;
+  const typedBelow = state.update({ changes: { from: below, insert: '\n<footer></footer>' }, userEvent: 'input.type' }).state;
+
+  assert.equal(typedInside.doc.toString(), TEMPLATE);
+  assert.ok(typedBelow.doc.toString().endsWith('<footer></footer>'));
+});
+
+test('the dock may still swap the pane with a loop in it', () => {
+  const after = swap(EditorState.create({ doc: TEMPLATE, extensions: [loopFilter(['page_sections'])] }), BODY);
+
+  assert.equal(after.doc.toString(), BODY);
 });
 
 test('but everything else a person writes lands untouched', () => {

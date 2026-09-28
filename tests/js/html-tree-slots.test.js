@@ -54,3 +54,57 @@ test('other single Antlers tags stay out of the tree', () => {
 
   assert.deepEqual(list.map((row) => row.tag), ['head']);
 });
+
+/**
+ * A template's loop over the page's sections — `{{ page_sections }}` or any
+ * field a blueprint keeps them in — is one slot row: nothing under it, room
+ * above and below.
+ */
+const TEMPLATE = [
+  '<main class="wrapper">',
+  '  <nav class="crumbs"></nav>',
+  '  {{ page_sections }}',
+  '      {{ _class = type | replace(\'/\', \'-\') }}',
+  '      {{ partial src="partials/page_sections/{ type }" id="{{ id }}" }}',
+  '  {{ /page_sections }}',
+  '  <section class="cta"></section>',
+  '</main>',
+].join('\n');
+
+const sectionsRows = (html, loops) =>
+  flattenHtmlTree(parseTemplateTree(html, { sectionLoops: loops, sectionsLabel: 'Sidens sektioner' }), new Set());
+
+test('a sections loop is one slot row with nothing under it', () => {
+  const list = sectionsRows(TEMPLATE, ['page_sections']);
+  const slot = list.find((row) => row.sectionsSlot);
+
+  assert.ok(slot, 'no sections slot');
+  assert.equal(slot.kind, 'slot');
+  assert.equal(slot.tag, 'page_sections', 'the chip is the field');
+  assert.equal(slot.klass, 'Sidens sektioner');
+  assert.equal(slot.hasChildren, false);
+  assert.equal(isTaglessRow(slot), true);
+  // The partial call inside the loop is not drawn anywhere.
+  assert.equal(list.some((row) => row.kind === 'component'), false);
+  // Its neighbours are the template's own markup, above and below it, under <main>.
+  assert.deepEqual(
+    list.filter((row) => row.depth === 1).map((row) => row.tag),
+    ['nav', 'page_sections', 'section']
+  );
+});
+
+test('the slot spans the whole loop, open tag to close tag', () => {
+  const slot = sectionsRows(TEMPLATE, ['page_sections']).find((row) => row.sectionsSlot);
+
+  assert.ok(TEMPLATE.slice(slot.from, slot.to).startsWith('{{ page_sections }}'));
+  assert.ok(TEMPLATE.slice(slot.from, slot.to).endsWith('{{ /page_sections }}'));
+});
+
+test('only the named fields become slots; any other loop stays a loop', () => {
+  const lawyer = TEMPLATE.replaceAll('page_sections }}', 'lawyer_info }}').replace('{{ page_sections', '{{ lawyer_info');
+
+  assert.equal(sectionsRows(lawyer, ['lawyer_info']).some((row) => row.sectionsSlot), true);
+  assert.equal(sectionsRows(TEMPLATE, ['lawyer_info']).some((row) => row.sectionsSlot), false);
+  // Without the option nothing changes: the loop and the call inside it.
+  assert.equal(rows(TEMPLATE).some((row) => row.kind === 'antlers' && row.tag === 'page_sections'), true);
+});
