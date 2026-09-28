@@ -27,6 +27,13 @@ const STYLE_ID = '__sve-template-board-style';
 const MENU_ID = '__sve-template-board-menu';
 
 /**
+ * Where a host sends the template it opens, when that is not this window.
+ * The Live Preview drawer (lp-templates.js) opens the next template in Live
+ * Preview itself; the Utilities page has no entry here and just goes there.
+ */
+const openers = new WeakMap();
+
+/**
  * The columns, in reading order: the site's own first, then one per collection
  * and one per taxonomy.
  *
@@ -124,9 +131,10 @@ const CSS = `
 }
 #${BOARD_HOST} [data-sve-tb-busy] { opacity: .45; pointer-events: none; }
 
-/* The add menu is appended to <body>: a panel's stacking context traps it. */
+/* The add menu is appended to <body>: a panel's stacking context traps it.
+   Above the Live Preview drawer the board can also be opened in (2147483600). */
 #${MENU_ID} {
-  position: fixed; z-index: 99999; min-width: 12rem; max-height: 20rem; overflow-y: auto; padding: .3125rem;
+  position: fixed; z-index: 2147483601; min-width: 12rem; max-height: 20rem; overflow-y: auto; padding: .3125rem;
   border: 1px solid var(--c-border, rgba(127,127,127,.3)); border-radius: .5rem;
   background: var(--c-bg, #262626); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.4);
 }
@@ -263,6 +271,22 @@ function cardNode(win, row, card) {
 }
 
 /**
+ * To the template's edit screen. The card and the + that asked are both inside
+ * the board's host, so the host says where that is.
+ */
+function go(win, anchor, url) {
+  const opener = openers.get(anchor?.closest?.(`#${BOARD_HOST}`));
+
+  if (opener) {
+    opener(url);
+
+    return;
+  }
+
+  win.location.href = url;
+}
+
+/**
  * Open a template — making its CP row first if it has none.
  *
  * A view file is not an entry, and Live Preview can only open an entry. The
@@ -271,7 +295,7 @@ function cardNode(win, row, card) {
  */
 async function open(win, row, card, anchor) {
   if (card.edit) {
-    win.location.href = card.edit;
+    go(win, anchor, card.edit);
 
     return;
   }
@@ -298,7 +322,7 @@ async function open(win, row, card, anchor) {
       return;
     }
 
-    win.location.href = body.edit;
+    go(win, anchor, body.edit);
   } catch (err) {
     anchor?.removeAttribute('data-sve-tb-busy');
     console.error('[sve] open template', err);
@@ -425,4 +449,29 @@ export function syncTemplateBoard(win = window) {
   ensureStyle(win);
 
   void paint(win, host);
+}
+
+/**
+ * The board in a host of the caller's own — the Live Preview drawer.
+ *
+ * The host takes the board's id, so the stylesheet is the page's and the
+ * page watch above finds it painted already. `onOpen` gets the template's edit
+ * URL in place of this window going there.
+ */
+export function mountTemplateBoard(win, host, { onOpen } = {}) {
+  host.id = BOARD_HOST;
+  host.dataset.svePainted = '1';
+
+  if (onOpen) {
+    openers.set(host, onOpen);
+  }
+
+  ensureStyle(win);
+
+  return paint(win, host);
+}
+
+/** The drawer closed: the add menu lives on <body> and would outlive it. */
+export function unmountTemplateBoard(win) {
+  closeMenu(win);
 }

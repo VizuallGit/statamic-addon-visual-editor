@@ -1239,6 +1239,8 @@ return [
 
     // Skabelon-tavlen.
     'template_board_title' => 'Skabeloner',
+    'lp_templates_title' => 'Sitets skabeloner',
+    'template_board_open_failed' => 'Skabelonerne kunne ikke åbnes.',
     'template_board_intro' => 'Alle de skabeloner sitet kan tegne, med en række pr. collection og taksonomi. Et kort er fyldt, fordi view-filen findes — scaffolder du en fra en collection, dukker den op her af sig selv.',
     'template_board_site' => 'Sitet',
     'template_board_empty' => 'Ingen skabelon endnu',

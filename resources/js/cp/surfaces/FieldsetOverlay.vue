@@ -8,7 +8,11 @@ const MIN_WIDTH = 380;
 const props = defineProps({
   heading: { type: String, required: true },
   subtitle: { type: String, default: '' },
-  src: { type: String, required: true },
+  // A Control Panel screen to show in a frame. Or, instead, `mount`: drawn
+  // straight into the panel by the caller — `mount(host)`, a promise while it
+  // loads — for a screen whose links must move this window, not a frame.
+  src: { type: String, default: '' },
+  mount: { type: Function, default: null },
   closeLabel: { type: String, required: true },
   onClose: { type: Function, required: true },
   onSaved: { type: Function, default: null },
@@ -19,6 +23,7 @@ const props = defineProps({
 
 const loading = ref(true);
 const frame = ref(null);
+const host = ref(null);
 // Off-screen for the first frame only, so the panel has somewhere to come from.
 const shown = ref(false);
 
@@ -190,6 +195,12 @@ onMounted(() => {
   requestAnimationFrame(() => {
     shown.value = true;
   });
+
+  if (props.mount) {
+    void Promise.resolve(props.mount(host.value)).finally(() => {
+      loading.value = false;
+    });
+  }
 });
 onUnmounted(() => document.removeEventListener('keydown', onKey));
 
@@ -226,7 +237,8 @@ function onOverlay(event) {
 
       <div class="sve-fs__body">
         <div v-if="loading" class="sve-fs__loading">…</div>
-        <iframe ref="frame" :src="src" :title="heading" @load="onFrameLoad"></iframe>
+        <div v-if="mount" ref="host" class="sve-fs__host"></div>
+        <iframe v-else ref="frame" :src="src" :title="heading" @load="onFrameLoad"></iframe>
       </div>
     </div>
   </div>
@@ -371,5 +383,11 @@ iframe {
   height: 100%;
   border: 0;
   display: block;
+}
+/* Drawn in by the caller: its own scroll, both ways — a board wider than the
+   panel scrolls sideways rather than squeezing its columns. */
+.sve-fs__host {
+  height: 100%;
+  overflow: auto;
 }
 </style>

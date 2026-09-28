@@ -1246,6 +1246,8 @@ return [
 
     // Templates board — the grid of every template the site can have.
     'template_board_title' => 'Templates',
+    'lp_templates_title' => 'The site\'s templates',
+    'template_board_open_failed' => 'The templates could not be opened.',
     'template_board_intro' => 'Every template this site can render, one row per collection and taxonomy. A card is filled because the view file exists — scaffold one from a collection and it appears here on its own.',
     'template_board_site' => 'Site',
     'template_board_empty' => 'No template yet',

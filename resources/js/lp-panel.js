@@ -5,6 +5,7 @@
  */
 import { ensureLpReloadButton } from './lp-reload.js';
 import { ensureLpBlueprintButton } from './lp-blueprint.js';
+import { ensureLpTemplatesButton } from './lp-templates.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
@@ -13,7 +14,7 @@ import { persistVisibleRightPanes, visiblePaneKeys } from './right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
 import { lpHeader } from './lib/live-preview.js';
-import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_BLUEPRINT_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
+import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_BLUEPRINT_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_TEMPLATES_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
 import { clearSolo, ensureLpPanelToggle } from './focus-panel.js';
 import { hideGlobalsPanel, isGlobalsOverlayOpen } from './section-library.js';
 
@@ -182,6 +183,7 @@ export function syncLpRightBarGaps(win) {
   // noget der allerede står rigtigt.
   ensureLpReloadButton(win);
   ensureLpBlueprintButton(win);
+  ensureLpTemplatesButton(win);
 
   const parent = save.parentElement || header;
   const gap = `${LP_TOOLBAR_GAP}px`;
@@ -217,20 +219,35 @@ export function syncLpRightBarGaps(win) {
 
   const actionTail = findLpRightActionTail(header) || save;
 
-  // The page's fields, before Close: about the page, like Save and Publish
-  // beside it — not about the editor, like the buttons after Close.
+  // The site's templates, then the page's fields, before Close: about the
+  // site and the page, like Save and Publish beside them — not about the
+  // editor, like the buttons after Close. Templates first so the blueprint
+  // keeps standing right before Close, where its own ensure puts it: two
+  // ensures wanting the same spot would move each other on every pass.
+  const templates = doc.getElementById(LP_TEMPLATES_ID);
+
+  if (templates) {
+    if (templates.parentElement !== parent || templates.previousElementSibling !== actionTail) {
+      actionTail.after(templates);
+    }
+
+    templates.style.marginLeft = '0';
+    templates.style.marginRight = '0';
+  }
+
   const blueprint = doc.getElementById(LP_BLUEPRINT_ID);
+  const blueprintAnchor = templates || actionTail;
 
   if (blueprint) {
-    if (blueprint.parentElement !== parent || blueprint.previousElementSibling !== actionTail) {
-      actionTail.after(blueprint);
+    if (blueprint.parentElement !== parent || blueprint.previousElementSibling !== blueprintAnchor) {
+      blueprintAnchor.after(blueprint);
     }
 
     blueprint.style.marginLeft = '0';
     blueprint.style.marginRight = '0';
   }
 
-  const backAnchor = blueprint || actionTail;
+  const backAnchor = blueprint || templates || actionTail;
 
   if (back) {
     if (back.parentElement !== parent || back.previousElementSibling !== backAnchor) {
