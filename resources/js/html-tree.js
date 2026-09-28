@@ -2201,10 +2201,11 @@ function bindFrame(win, frameKind) {
  *
  * On a section's file the three stand around the page's list. On the
  * header's, the footer's or the layout's own file that part's root row wears
- * the frame (stamped in the rows above) and the other two stand shut and
- * dimmed around it, with the sections dimmed under main — every one of them a
- * way back out. Anywhere else — a collection's template, a component — there
- * is no frame, and the list is what it was.
+ * the frame (stamped in the rows above). A half draws nothing else: the list
+ * is that half alone (HtmlTreeList `halfOnly`) — the parts are still built
+ * here, and the view decides which of them the reader is shown. Anywhere
+ * else — a collection's template, a component — there is no frame, and the
+ * list is what it was.
  */
 function frameAroundPage(win, sections, inSections, inComponent, kind, emptyPage = false, bodyShown = false) {
   /*

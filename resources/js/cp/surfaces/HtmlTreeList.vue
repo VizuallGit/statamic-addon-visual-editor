@@ -38,16 +38,27 @@ function frameShown(row) {
 }
 
 /**
- * Standing in the header or the footer, the rest fades — the way the page
- * fades around it in the preview. Standing on the layout's <main> fades
- * nothing: the page is what it is about. Inside a component everything but
- * it fades.
+ * Inside a component, everything but it fades. A half no longer fades the
+ * rest — the rest is not drawn at all (`halfOnly`) — so the half's own arm
+ * is all this still answers for.
  */
 function frameDim(part) {
   const kind = ui.frame?.kind;
 
   return ui.inComponent || ((kind === 'header' || kind === 'footer') && kind !== part);
 }
+
+/**
+ * Standing in the header or the footer, the tree is that half and nothing
+ * else.
+ *
+ * The other two used to stand around it, dimmed, with the page's sections
+ * under main — three ways back out. But clicking the header then gave the
+ * header's rows *and* the whole page around them, and the reader could not
+ * tell which tree they were reading. The way back out is the bar under the
+ * preview and the dock's back arrow; the tree keeps one subject.
+ */
+const halfOnly = computed(() => ui.frame?.kind === 'header' || ui.frame?.kind === 'footer');
 
 const frameFound = computed(
   () => !!ui.frame && ['header', 'main', 'footer'].some((part) => frameShown(ui.frame[part]))
@@ -124,9 +135,9 @@ function wrapBind(sec) {
     <!--
       The page's frame around the sections: header, then main with the
       sections in it, then footer. On the header's or footer's own file that
-      half's rows stand in its place, in a box, and the other two stand shut.
-      Without a frame (a collection's template, a component) the list is the
-      file's rows, as it always was.
+      half's rows stand alone, in a box (`halfOnly` — the other two and the
+      page under them are not drawn). Without a frame (a collection's
+      template, a component) the list is the file's rows, as it always was.
     -->
     <template v-if="ui.frame || ui.sections.length">
       <template v-if="ui.frame">
@@ -134,7 +145,7 @@ function wrapBind(sec) {
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
-        <HtmlTreeRow v-else-if="frameShown(ui.frame.header)" :row="ui.frame.header" :dim="frameDim('header')" />
+        <HtmlTreeRow v-else-if="!halfOnly && frameShown(ui.frame.header)" :row="ui.frame.header" :dim="frameDim('header')" />
       </template>
       <!--
         Main and what it holds. With the layout open, main's own rows and the
@@ -142,7 +153,7 @@ function wrapBind(sec) {
         way a block's rows are its. Otherwise main is a shut row with the
         sections (or the slot where they go) stepping in under it.
       -->
-      <div v-bind="ui.frame?.kind === 'main' ? { 'data-sve-ht-branch': '', 'data-sve-ht-cat': 'main' } : {}">
+      <div v-if="!halfOnly" v-bind="ui.frame?.kind === 'main' ? { 'data-sve-ht-branch': '', 'data-sve-ht-cat': 'main' } : {}">
         <template v-if="ui.frame?.kind === 'main'">
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
@@ -188,7 +199,7 @@ function wrapBind(sec) {
           <HtmlTreeRow v-for="row in shownRows" :key="row.id" :row="row" :dim="isDim(row)" />
           <div v-if="!ui.rows.length" class="sve-ht-empty">{{ ui.emptyText }}</div>
         </div>
-        <HtmlTreeRow v-else-if="frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="frameDim('footer')" />
+        <HtmlTreeRow v-else-if="!halfOnly && frameShown(ui.frame.footer)" :row="ui.frame.footer" :dim="frameDim('footer')" />
       </template>
     </template>
     <template v-else-if="ui.rows.length">
