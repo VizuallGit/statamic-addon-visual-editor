@@ -162,6 +162,7 @@ return [
     'html_tree_used_by' => 'Bruges af',
     'html_tree_used_by_everything' => 'Alle sider',
     'html_tree_used_by_nobody' => 'Ingen lige nu',
+    'html_tree_used_by_hint' => 'Ændringer i skabelonen rammer alle sider i: :list',
     'html_tree_page_template' => 'Siden bygges af skabelonen :name.',
     'html_tree_page_template_note' => 'Skabelonen deles med andre sider, så den redigeres fra skabelonen selv.',
     'html_tree_open_template' => 'Åbn skabelonen',

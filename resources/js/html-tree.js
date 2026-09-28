@@ -189,13 +189,17 @@ function paintUsedBy(win, collectionView) {
       return;
     }
 
-    const text = usage.everything
-      ? t(win, 'html_tree_used_by_everything')
-      : usage.used_by.length
-        ? usage.used_by.join(', ')
-        : t(win, 'html_tree_used_by_nobody');
+    // One chip per collection, taxonomy or page drawn with it; the layout
+    // frames every page, so it gets the one chip that says so.
+    const items = usage.everything ? [t(win, 'html_tree_used_by_everything')] : usage.used_by;
 
-    htmlTreeUi.usedBy = { view, label: t(win, 'html_tree_used_by'), text };
+    htmlTreeUi.usedBy = {
+      view,
+      label: t(win, 'html_tree_used_by'),
+      items,
+      empty: items.length ? '' : t(win, 'html_tree_used_by_nobody'),
+      hint: items.length ? t(win, 'html_tree_used_by_hint', { list: items.join(', ') }) : '',
+    };
   });
 }
 
@@ -1297,6 +1301,13 @@ function htmlTreeRootName(win, sections, openUid) {
   }
 
   const type = ask('dock:current-type') || '';
+
+  // A template — a collection's view, the layout — is many elements side by
+  // side, not one that stands for the file. Its first tag is a tag like the
+  // rest: unnamed until someone names it, not "View:default".
+  if (String(type).startsWith('view:')) {
+    return '';
+  }
 
   return setMeta(win, type)?.display || humanizeHandle(type) || '';
 }

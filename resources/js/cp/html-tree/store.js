@@ -90,7 +90,7 @@ export const htmlTreeUi = reactive({
   // file — `{ text, note, openLabel, canOpen, onOpen(anchor) }`, or null.
   pageTemplate: null,
   // A template open on its own entry: who is drawn with it —
-  // `{ label, text }` for the line above the tree, or null.
+  // `{ label, items, empty, hint }` for the box above the search, or null.
   usedBy: null,
   // An element the plus just wrote into a template: where it starts in the
   // file, and how many more paints may look for it. The tree stands on it the

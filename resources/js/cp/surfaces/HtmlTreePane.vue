@@ -168,6 +168,10 @@ function onNewSection(event) {
 const SEARCH =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
 
+// Several pages drawn from one file (Lucide's "files").
+const USED_BY =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-3a2 2 0 0 1-2-2V2"/><path d="M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z"/><path d="M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8"/></svg>';
+
 const CLEAR =
   '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
@@ -227,6 +231,22 @@ function setQuery(value) {
       place for it. A page builder keeps it whatever file the dock holds:
       there it adds a section to the page, not markup to the file.
     -->
+    <!--
+      A template open on its own entry: who is drawn with it. Editing it is a
+      change to every one of them, and this is where that is said — above the
+      search, in a box of its own, so it reads as a fact about the file and
+      not as the first row of the tree.
+    -->
+    <div v-if="ui.usedBy" class="sve-ht-used-by" :title="ui.usedBy.hint || null">
+      <span class="sve-ht-used-by__label">
+        <span class="sve-ht-used-by__icon" aria-hidden="true" v-html="USED_BY"></span>
+        {{ ui.usedBy.label }}
+      </span>
+      <span class="sve-ht-used-by__chips">
+        <span v-for="item in ui.usedBy.items" :key="item" class="sve-ht-used-by__chip">{{ item }}</span>
+        <span v-if="ui.usedBy.empty" class="sve-ht-used-by__empty">{{ ui.usedBy.empty }}</span>
+      </span>
+    </div>
     <div class="sve-ht-tools">
     <label class="sve-ht-search" :title="searchLabel">
       <span class="sve-ht-search__icon" aria-hidden="true" v-html="SEARCH"></span>
@@ -261,14 +281,6 @@ function setQuery(value) {
       v-html="PLUS"
       @click="onNewSection"
     ></button>
-    </div>
-    <!--
-      A template open on its own entry: who is drawn with it. Editing it is a
-      change to every one of them, and this is where that is said.
-    -->
-    <div v-if="ui.usedBy" class="sve-ht-used-by" :title="`${ui.usedBy.label}: ${ui.usedBy.text}`">
-      <span class="sve-ht-used-by__label">{{ ui.usedBy.label }}:</span>
-      <span class="sve-ht-used-by__text">{{ ui.usedBy.text }}</span>
     </div>
     <!--
       Only when there is no Live Preview column to draw them in. Inside a
@@ -423,27 +435,47 @@ function setQuery(value) {
   outline: 2px solid #3858e9;
   outline-offset: 2px;
 }
-/* One line under the search: who else a change to this template reaches. */
+/* Above the search: who else a change to this template reaches. A quiet box
+   of its own — the tree's rows start below it, flush with the search. */
 .sve-ht-used-by {
   flex: 0 0 auto;
   display: flex;
-  gap: 0.35em;
-  margin: 0 0 0.375rem;
-  font-size: 0.6875rem;
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0.625rem 0 0;
+  padding: 0.5rem 0.625rem 0.5625rem;
+  border-radius: 0.5rem;
+  background: rgba(128, 128, 128, 0.1);
+  font: 500 0.6875rem/1.3 ui-sans-serif, system-ui, sans-serif;
 }
 .sve-ht-used-by__label {
-  flex: none;
-  opacity: 0.55;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  opacity: 0.6;
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-.sve-ht-used-by__text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.sve-ht-used-by__icon {
+  display: inline-flex;
+  line-height: 1;
+}
+.sve-ht-used-by__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.sve-ht-used-by__chip {
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.2);
   font-weight: 600;
+  white-space: nowrap;
+}
+.sve-ht-used-by__empty {
+  opacity: 0.55;
+  font-style: italic;
 }
 .sve-tree-exit {
   flex: 0 0 auto;

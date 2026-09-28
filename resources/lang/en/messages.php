@@ -165,6 +165,7 @@ return [
     'html_tree_used_by' => 'Used by',
     'html_tree_used_by_everything' => 'Every page',
     'html_tree_used_by_nobody' => 'Nothing right now',
+    'html_tree_used_by_hint' => 'Changes to this template reach every page in: :list',
     'html_tree_page_template' => 'This page is drawn by the template :name.',
     'html_tree_page_template_note' => 'The template is shared with other pages, so it is edited from the template itself.',
     'html_tree_open_template' => 'Open the template',
