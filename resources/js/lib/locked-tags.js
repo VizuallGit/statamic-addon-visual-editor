@@ -10,15 +10,19 @@
  * They are worth seeing, because a layout without them reads as incomplete.
  * They are not worth editing by hand.
  *
+ * `extra` are more ranges to hold the same way — the elements someone locked
+ * with the HTML tree's padlock (`lockedElementRanges` in html-tree-parse.js).
+ *
  * May import: nothing.
  */
 const LOCKED = /\{\{\s*(?:vite\b[^}]*|yield_[a-z_]+|theme_tokens)\s*\}\}/g;
 
 /**
  * Every locked range in this text, flat, as CodeMirror's `changeFilter`
- * wants them: from, to, from, to.
+ * wants them: from, to, from, to — in document order, which both the
+ * decorations and the filter need.
  */
-export function lockedRanges(text) {
+export function lockedRanges(text, extra = []) {
   const out = [];
 
   LOCKED.lastIndex = 0;
@@ -29,7 +33,19 @@ export function lockedRanges(text) {
     out.push(match.index, match.index + match[0].length);
   }
 
-  return out;
+  if (!extra || !extra.length) {
+    return out;
+  }
+
+  const pairs = [];
+
+  for (const list of [out, extra]) {
+    for (let i = 0; i + 1 < list.length; i += 2) {
+      pairs.push([list[i], list[i + 1]]);
+    }
+  }
+
+  return pairs.sort((a, b) => a[0] - b[0] || a[1] - b[1]).flat();
 }
 
 /**

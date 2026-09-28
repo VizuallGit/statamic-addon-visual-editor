@@ -104,7 +104,17 @@ async function openNewlyMade(uid) {
  * faded row of a file around a component, nor a drawn part of the frame.
  */
 function pickedRow() {
-  return ui.rows.find((row) => row.current && !row.context && !row.synthetic) || null;
+  const row = ui.rows.find((item) => item.current && !item.context && !item.synthetic) || null;
+
+  // Inside a locked element nothing new goes in: it goes after the whole
+  // locked element instead — the outermost lock around the picked row.
+  if (row?.lockedIn) {
+    return ui.rows
+      .filter((item) => item.locked && item.from <= row.from && item.to >= row.to)
+      .sort((a, b) => a.from - b.from)[0] || null;
+  }
+
+  return row;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { isVoidTag } from './html-tree-parse.js';
+import { LOCK_MARKER, isVoidTag } from './html-tree-parse.js';
 
 export function findNode(nodes, id) {
   for (const node of nodes || []) {
@@ -21,7 +21,9 @@ export function containsId(node, id) {
 }
 
 export function blockRange(html, node) {
-  let from = node.wrapFrom ?? node.from;
+  // A locked element starts at its lock: moved or taken out, the marker goes
+  // with it, and nothing dropped "before" it lands between the two.
+  let from = node.lockFrom ?? node.wrapFrom ?? node.from;
   let to = node.wrapTo ?? node.to;
 
   if (from > 0 && html[from - 1] === '\n') {
@@ -192,4 +194,47 @@ export function deleteHtml(html, node) {
   const { from, to } = blockRange(html, node);
 
   return html.slice(0, from) + html.slice(to);
+}
+
+/**
+ * Lock an element: the marker on its own line in front of it, indented like
+ * it — or in front of it on the same line when the element shares its line.
+ * An element that is already locked, or has nothing to lock, is left alone.
+ */
+export function lockHtml(html, node) {
+  if (!html || !node || node.locked || !Number.isInteger(node.from)) {
+    return html;
+  }
+
+  const from = node.wrapFrom ?? node.from;
+  const lineStart = html.lastIndexOf('\n', from - 1) + 1;
+  const lead = html.slice(lineStart, from);
+
+  if (/^[ \t]*$/.test(lead)) {
+    return `${html.slice(0, lineStart)}${lead}${LOCK_MARKER}\n${html.slice(lineStart)}`;
+  }
+
+  return `${html.slice(0, from)}${LOCK_MARKER} ${html.slice(from)}`;
+}
+
+/**
+ * Unlock it again: the marker goes, and the line it stood on with it when it
+ * had one to itself. The element stays exactly where and as it was.
+ */
+export function unlockHtml(html, node) {
+  if (!html || !node || !node.locked || !Number.isInteger(node.lockFrom)) {
+    return html;
+  }
+
+  const from = node.wrapFrom ?? node.from;
+  const markerLine = html.lastIndexOf('\n', node.lockFrom - 1) + 1;
+  const ownLine = /^[ \t]*$/.test(html.slice(markerLine, node.lockFrom)) && html.slice(node.lockFrom, from).includes('\n');
+
+  if (ownLine) {
+    const elementLine = html.lastIndexOf('\n', from - 1) + 1;
+
+    return html.slice(0, markerLine) + html.slice(elementLine);
+  }
+
+  return html.slice(0, node.lockFrom) + html.slice(from);
 }

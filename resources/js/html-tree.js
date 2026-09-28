@@ -43,8 +43,10 @@ import {
   dropPlace,
   duplicateHtml,
   deleteHtml,
+  lockHtml,
   moveHtml,
   toggleHiddenHtml,
+  unlockHtml,
 } from './html-tree-edit.js';
 import { htmlTreeDisplayName, readHtmlTreeLabels, writeHtmlTreeLabel } from './html-tree-labels.js';
 import { HTML_ICONS, htmlTreeIcon } from './html-tree-icons.js';
@@ -412,9 +414,11 @@ export function ensureHtmlTreeStyles(doc) {
     }
     [data-sve-ht-row]:hover [data-sve-ht-actions],
     [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-actions],
-    [data-sve-ht-row][data-sve-ht-hidden] [data-sve-ht-actions] {
+    [data-sve-ht-row][data-sve-ht-hidden] [data-sve-ht-actions],
+    [data-sve-ht-row][data-sve-ht-locked] [data-sve-ht-actions] {
       display: inline-flex;
     }
+    [data-sve-ht-lock],
     [data-sve-ht-video],
     [data-sve-ht-eye],
     [data-sve-ht-fields],
@@ -434,6 +438,10 @@ export function ensureHtmlTreeStyles(doc) {
     }
     /* Held: lit like a hovered icon, in the row's own text colour — not an accent. */
     [data-sve-ht-video][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
+    /* Locked: the padlock shut and lit, on the row that holds the lock. */
+    [data-sve-ht-lock][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
+    [data-sve-ht-lock][disabled] { cursor: default; }
+    [data-sve-ht-lock]:not([disabled]):hover,
     [data-sve-ht-video]:hover,
     [data-sve-ht-eye]:hover,
     [data-sve-ht-fields]:hover,
@@ -786,7 +794,7 @@ function dockIsOpen(doc) {
   return !!ask('dock:is-open', doc);
 }
 
-function writeDockHtml(html, { save = false } = {}) {
+function writeDockHtml(html, { save = false, unlock = false } = {}) {
   // Every edit the tree makes comes through here, and every one of them is
   // built from offsets into the rows on screen. While those rows come from the
   // cache, the dock holds a different file at those offsets — so this is the
@@ -795,7 +803,7 @@ function writeDockHtml(html, { save = false } = {}) {
     return false;
   }
 
-  if (ask('dock:set-html', html) !== true) {
+  if (ask('dock:set-html', unlock ? { html, unlock: true } : html) !== true) {
     return false;
   }
 
@@ -1804,7 +1812,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onTagChange = (event, id) => {
     const row = htmlTreeUi.rows.find((item) => item.id === id);
 
-    if (row && !htmlTreeAheadOfDock()) {
+    if (row && !htmlTreeAheadOfDock() && !refuseLocked(win, row)) {
       twOpenTagMenuAt(win, event.currentTarget, row);
     }
   };
@@ -1812,6 +1820,11 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onRenameCommit = () => finishHtmlTreeRename(win, true);
   htmlTreeUi.onRenameCancel = () => finishHtmlTreeRename(win, false);
   htmlTreeUi.onHide = (id) => hideHtmlTreeRow(win, id);
+  htmlTreeUi.onLock = (id) => toggleHtmlTreeLock(win, id);
+  htmlTreeUi.canUnlock = mayUnlock(win);
+  htmlTreeUi.lockTitle = t(win, 'html_tree_lock');
+  htmlTreeUi.unlockTitle = t(win, 'html_tree_unlock');
+  htmlTreeUi.lockedByTitle = t(win, 'html_tree_locked_by_developer');
   htmlTreeUi.onVideoHold = (id) => toggleVideoHold(win, id);
   htmlTreeUi.onDuplicate = (id) => duplicateHtmlTreeRow(win, id);
   htmlTreeUi.onDelete = (id) => deleteHtmlTreeRow(win, id);
@@ -2504,6 +2517,10 @@ function beginHtmlTreeRename(win, id) {
 
   const row = htmlTreeUi.rows.find((item) => item.id === id);
 
+  if (refuseLocked(win, row)) {
+    return;
+  }
+
   // The label renames a class. A condition, loop or component row has no class
   // behind it — its name is what the template says, and is edited as such.
   if (!row || row.kind) {
@@ -2629,6 +2646,60 @@ function toggleVideoHold(win, id) {
   rememberVideoHolds(win, type, held);
   sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], nth: row.videoNth, on }, win);
   renderHtmlTree(win);
+}
+
+/**
+ * A row the padlock holds: locked itself, or inside something locked. Nothing
+ * in the tree changes it — not delete, copy, hide, move, rename or a drop — and
+ * the dock refuses it too (dock:set-html). Says so once, and answers true.
+ */
+function refuseLocked(win, row) {
+  if (!row || !(row.locked || row.lockedIn)) {
+    return false;
+  }
+
+  win.Statamic?.$toast?.error(t(win, 'html_tree_locked_element'));
+
+  return true;
+}
+
+/** Whether this user may take a lock off: the developers, who configure fields. */
+function mayUnlock(win) {
+  return win.Statamic?.$permissions?.has?.('configure fields') === true;
+}
+
+/**
+ * The padlock on a row. Anyone who may edit the file locks; only a developer
+ * unlocks, and is asked first — unlocking is meant to be the extra step.
+ */
+function toggleHtmlTreeLock(win, id) {
+  const row = htmlTreeUi.rows.find((item) => item.id === id);
+
+  if (!row || row.lockedIn || ask('dock:is-locked')) {
+    return;
+  }
+
+  if (!row.locked) {
+    applyHtmlEdit(win, id, lockHtml, { lockAction: true });
+
+    return;
+  }
+
+  if (!mayUnlock(win)) {
+    win.Statamic?.$toast?.error(t(win, 'html_tree_unlock_denied'));
+
+    return;
+  }
+
+  confirmCloseDiscard(
+    win,
+    {
+      titleKey: 'html_tree_unlock_title',
+      bodyKey: 'html_tree_unlock_body',
+      confirmKey: 'html_tree_unlock_confirm',
+    },
+    () => applyHtmlEdit(win, id, unlockHtml, { lockAction: true, unlock: true })
+  );
 }
 
 /**
@@ -2789,7 +2860,7 @@ function deleteHtmlTreeRow(win, id) {
   applyHtmlEdit(win, id, deleteHtml);
 }
 
-function applyHtmlEdit(win, id, fn) {
+function applyHtmlEdit(win, id, fn, { lockAction = false, unlock = false } = {}) {
   if (ask('dock:is-locked')) {
     return;
   }
@@ -2797,14 +2868,14 @@ function applyHtmlEdit(win, id, fn) {
   const html = dockHtml();
   const node = htmlTreeUi.rows.find((item) => item.id === id);
 
-  if (!node) {
+  if (!node || (!lockAction && refuseLocked(win, node))) {
     return;
   }
 
   const next = fn(html, node);
 
   if (next !== html) {
-    writeDockHtml(next);
+    writeDockHtml(next, { unlock });
   }
 }
 
@@ -2969,7 +3040,7 @@ function openHtmlTreeMenu(win, event, id) {
   // A slot is a hole, not a tag: nothing in the menu applies to it. Nor to a
   // sections loop: made a component, it would carry every page's sections
   // off into another file.
-  if (row.kind === 'slot' || row.kind === 'sections') {
+  if (row.kind === 'slot' || row.kind === 'sections' || row.locked || row.lockedIn) {
     return;
   }
 
@@ -3044,6 +3115,13 @@ function openComponentRow(win, row, show) {
 
 function beginHtmlTreePointer(win, event, id) {
   if (event.button !== 0 || ask('dock:is-locked') || htmlTreeUi.editingId) {
+    return;
+  }
+
+  // A locked element does not move; nor does anything inside one.
+  const held = htmlTreeUi.rows.find((item) => item.id === id);
+
+  if (held && (held.locked || held.lockedIn)) {
     return;
   }
 
@@ -3127,8 +3205,9 @@ function trackHtmlTreePointer(win, event) {
   const source = htmlTreeUi.rows.find((item) => item.id === htmlTreeDragId);
 
   // Not onto a row of the file around the open component: its offsets are
-  // another file's, and a drop there would splice into the wrong one.
-  if (!row || row.context || (source && row.path.startsWith(`${source.path}/`))) {
+  // another file's, and a drop there would splice into the wrong one. Nor
+  // anywhere inside a locked element.
+  if (!row || row.context || row.lockedIn || (source && row.path.startsWith(`${source.path}/`))) {
     htmlTreeUi.dropId = null;
     htmlTreeUi.dropPlace = null;
 
@@ -3140,7 +3219,8 @@ function trackHtmlTreePointer(win, event) {
   htmlTreeUi.dropPlace = dropPlace(
     event.clientY - rect.top,
     rect.height,
-    !isVoidTag(row.tag) && !isTaglessRow(row)
+    // Beside a locked element is fine — before its lock, after its end — into it is not.
+    !isVoidTag(row.tag) && !isTaglessRow(row) && !row.locked
   );
 }
 

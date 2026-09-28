@@ -193,14 +193,24 @@ export function finishHtmlEdit() {
   }
 }
 
-export function dispatchHtmlChanges(view, changes, selection) {
+/**
+ * `userEvent`: the toolbar's element buttons pass `input.toolbar`, so what
+ * they write counts as a person's edit and the lock (dock/locked-tags.js)
+ * keeps it out of a locked element. A whole-pane swap (tidy) passes nothing:
+ * the lock must never cut one of those in half.
+ */
+export function dispatchHtmlChanges(view, changes, selection, userEvent = undefined) {
   const sorted = [...changes].sort((a, b) => b.from - a.from || b.to - a.to);
 
   view.dispatch({
     changes: sorted,
     selection,
+    ...(userEvent ? { userEvent } : {}),
   });
 }
+
+/** What the toolbar's element buttons write counts as typing (see above). */
+const TOOLBAR_EVENT = 'input.toolbar';
 
 export function insertHtmlSnippet(snippet, cursorFromStart, selectLength) {
   const view = editors.html;
@@ -227,6 +237,7 @@ export function insertHtmlSnippet(snippet, cursorFromStart, selectLength) {
     view.dispatch({
       changes: { from: line.from, to: line.to, insert },
       selection: caretRange(line.from + extra + cursorFromStart, selectLength),
+      userEvent: TOOLBAR_EVENT,
     });
 
     return;
@@ -235,6 +246,7 @@ export function insertHtmlSnippet(snippet, cursorFromStart, selectLength) {
   view.dispatch({
     changes: { from: pos, to: view.state.selection.main.to, insert },
     selection: caretRange(pos + extra + cursorFromStart, selectLength),
+    userEvent: TOOLBAR_EVENT,
   });
 }
 
@@ -368,7 +380,7 @@ export function applyHtmlTag(tag) {
       dispatchHtmlChanges(view, [{ from: sel.from, to: sel.to, insert: wrapped[2] }], {
         anchor: sel.from,
         head: sel.from + wrapped[2].length,
-      });
+      }, TOOLBAR_EVENT);
       finishHtmlEdit();
 
       return;
@@ -386,7 +398,7 @@ export function applyHtmlTag(tag) {
     dispatchHtmlChanges(view, [{ from: sel.from, to: sel.to, insert }], {
       anchor: innerFrom,
       head: innerFrom + selected.length,
-    });
+    }, TOOLBAR_EVENT);
     finishHtmlEdit();
 
     return;
@@ -402,7 +414,8 @@ export function applyHtmlTag(tag) {
           { from: el.close.from, to: el.close.to, insert: '' },
           { from: el.open.from, to: el.open.to, insert: '' },
         ],
-        { anchor: el.open.from }
+        { anchor: el.open.from },
+        TOOLBAR_EVENT
       );
       finishHtmlEdit();
 
@@ -418,7 +431,8 @@ export function applyHtmlTag(tag) {
           { from: el.close.from, to: el.close.to, insert: `</${tag}>` },
           { from: el.open.from, to: el.open.to, insert: openRaw },
         ],
-        { anchor: el.open.from + tag.length + 1 }
+        { anchor: el.open.from + tag.length + 1 },
+        TOOLBAR_EVENT
       );
       finishHtmlEdit();
 

@@ -135,6 +135,13 @@ export const htmlTreeUi = reactive({
   onRenameCommit: null,
   onRenameCancel: null,
   onHide: null,
+  // The padlock (html-tree.js toggleHtmlTreeLock): lock, and — for a
+  // developer, who may configure fields — unlock.
+  onLock: null,
+  canUnlock: false,
+  lockTitle: '',
+  unlockTitle: '',
+  lockedByTitle: '',
   // The video icon on a <video> row: held paused in the preview, or let play.
   videoHoldTitle: '',
   videoPlayTitle: '',

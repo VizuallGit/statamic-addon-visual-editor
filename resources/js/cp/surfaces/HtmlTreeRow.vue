@@ -61,6 +61,12 @@ const VIDEO =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.8 5.9v4.2L10.2 8Z" fill="currentColor" stroke="none"/></svg>';
 const VIDEO_OFF =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.3 5.8v4.4M9.7 5.8v4.4" stroke-linecap="round"/></svg>';
+// Lucide's lock and lock-open.
+const LOCK_ON =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+const LOCK_OFF =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>';
+
 const DEL =
   '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
 
@@ -155,6 +161,10 @@ function onRowClick(row) {
 function rowBind(row, dim) {
   const bind = { 'data-sve-ht-id': row.id };
 
+  if (row.locked) {
+    bind['data-sve-ht-locked'] = '';
+  }
+
   if (row.current) {
     bind['data-sve-ht-current'] = '';
   }
@@ -213,8 +223,22 @@ function isSections(row) {
   return row.kind === 'sections';
 }
 
+/** Held by the padlock: locked itself, or inside something locked. */
+function isHeld(row) {
+  return !!(row.locked || row.lockedIn);
+}
+
+/**
+ * The padlock is offered on any row of the file that can stand on its own —
+ * not inside something already locked (the lock above holds it), not on a
+ * fixed row of the frame.
+ */
+function canLock(row) {
+  return !row.lockedIn && !isFixed(row);
+}
+
 function canHide(row) {
-  return !isFixed(row) && !isSections(row) && (!row.hidden || row.wrapFrom != null);
+  return !isFixed(row) && !isSections(row) && !isHeld(row) && (!row.hidden || row.wrapFrom != null);
 }
 
 /**
@@ -227,7 +251,7 @@ function pageLevel(row) {
 }
 
 function canAct(row) {
-  return ui.canEdit || pageLevel(row);
+  return (ui.canEdit && !isHeld(row)) || pageLevel(row);
 }
 </script>
 
@@ -346,6 +370,24 @@ function canAct(row) {
         :title="row.videoHeld ? ui.videoPlayTitle : ui.videoHoldTitle"
         v-html="row.videoHeld ? VIDEO_OFF : VIDEO"
         @click.stop.prevent="ui.onVideoHold?.(row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
+      <!--
+        The padlock. Open: anyone who may edit the file locks the element and
+        everything inside it. Shut and lit: locked — only a developer (configure
+        fields) unlocks, and is asked first.
+      -->
+      <button
+        v-if="canLock(row)"
+        type="button"
+        data-sve-ht-lock
+        :data-on="row.locked ? '' : null"
+        :disabled="!ui.canEdit || (row.locked && !ui.canUnlock)"
+        :title="row.locked ? (ui.canUnlock ? ui.unlockTitle : ui.lockedByTitle) : ui.lockTitle"
+        :aria-pressed="row.locked ? 'true' : 'false'"
+        v-html="row.locked ? LOCK_ON : LOCK_OFF"
+        @click.stop.prevent="ui.onLock?.(row.id)"
         @pointerdown.stop
         @dblclick.stop
       ></button>

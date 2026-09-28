@@ -441,9 +441,121 @@ export function parseHtmlTree(html) {
 export function parseTemplateTree(html, options = {}) {
   const source = String(html || '');
 
-  return emptySectionSlots(
-    addSlots(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source)
+  return markLocks(
+    emptySectionSlots(
+      addSlots(addComponents(addAntlersBlocks(parseHtmlTree(source), source, options), source), source)
+    ),
+    source
   );
+}
+
+/**
+ * The comment that locks the element right after it — written by the HTML
+ * tree's padlock, on its own line in front of the element. An Antlers
+ * comment: it renders nothing, and it travels with the file to git and to the
+ * server, so the lock holds for everyone who opens the file.
+ */
+export const LOCK_MARKER = '{{# sve-lock #}}';
+
+const LOCK = /\{\{#\s*sve-lock\s*#\}\}/g;
+
+/**
+ * Locked elements (`locked`, and `lockFrom` — where the marker starts, so a
+ * move or a delete takes the marker with the element) and everything inside
+ * one (`lockedIn`). An element is locked when a marker stands in front of it
+ * with nothing but whitespace between.
+ */
+function markLocks(roots, source) {
+  LOCK.lastIndex = 0;
+
+  let match;
+
+  while ((match = LOCK.exec(source))) {
+    let at = match.index + match[0].length;
+
+    while (at < source.length && /\s/.test(source[at])) {
+      at += 1;
+    }
+
+    const node = nodeAt(roots, at);
+
+    if (node) {
+      node.locked = true;
+      node.lockFrom = match.index;
+    }
+  }
+
+  const inherit = (nodes, inside) => {
+    for (const node of nodes) {
+      node.lockedIn = inside;
+      inherit(node.children, inside || !!node.locked);
+    }
+  };
+
+  inherit(roots, false);
+
+  return roots;
+}
+
+/** The outermost node starting exactly at this offset. */
+function nodeAt(nodes, at) {
+  for (const node of nodes || []) {
+    if (node.from === at) {
+      return node;
+    }
+
+    if (at > node.from && at < node.to) {
+      return nodeAt(node.children, at);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Whether an edit leaves every locked element as it was: each one's text —
+ * marker, element, everything inside — still somewhere in the new markup.
+ * Moved whole is kept; changed, cut or unlocked is not.
+ */
+export function locksKept(before, after) {
+  const source = String(before || '');
+
+  if (!source.includes('sve-lock')) {
+    return true;
+  }
+
+  const ranges = lockedElementRanges(source);
+  const next = String(after || '');
+
+  for (let i = 0; i + 1 < ranges.length; i += 2) {
+    if (!next.includes(source.slice(ranges[i], ranges[i + 1]))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Where the locked elements sit, marker to end, flat: from, to, from, to —
+ * the dock's lock takes them as they are (lib/locked-tags.js). An element
+ * inside a locked one is inside its range already.
+ */
+export function lockedElementRanges(html) {
+  const out = [];
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      if (node.locked) {
+        out.push(node.lockFrom, node.to);
+      } else {
+        walk(node.children);
+      }
+    }
+  };
+
+  walk(parseTemplateTree(html));
+
+  return out;
 }
 
 /** A sections row is one row: whatever the loop draws is the pages' business. */
@@ -480,6 +592,10 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       klass: node.klass || '',
       path: node.path,
       label: node.label,
+      // The padlock (markLocks): locked itself, or inside something locked.
+      locked: !!node.locked,
+      lockedIn: !!node.lockedIn,
+      lockFrom: node.lockFrom,
       from: node.from,
       to: node.to,
       openTo: node.openTo,

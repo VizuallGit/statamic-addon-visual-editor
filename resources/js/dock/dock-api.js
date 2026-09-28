@@ -27,6 +27,7 @@ import { forgetComponentProps } from '../component-props.js';
 import { syncComponentProps } from '../component-props-host.js';
 import { paintFamilyColors, readFamilyOverrides } from '../family-colors.js';
 import { t } from '../lib/i18n.js';
+import { locksKept } from '../html-tree-parse.js';
 import { attachDock } from '../lib/dock-host.js';
 import { HTML_TREE_PANEL_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
@@ -1156,9 +1157,29 @@ register('dock:open-template', (type) => {
 
   return true;
 });
-register('dock:set-html', (html) => {
+register('dock:set-html', (payload) => {
+  // The markup, or `{ html, unlock: true }` from the padlock's unlock — the
+  // bus hands on one argument.
+  const options = payload && typeof payload === 'object' ? payload : {};
+  const html = payload && typeof payload === 'object' ? payload.html : payload;
+
   if (typeof html !== 'string' || isCodeDockLocked()) {
     return false;
+  }
+
+  // The HTML tree's padlock: whatever writes here — the tree, the class
+  // strip, a component made from a row — leaves a locked element as it was.
+  // Unlocking is the one edit that changes one, and only someone who may
+  // configure fields may make it.
+  if (html !== '' && !locksKept(currentFullHtml(), html)) {
+    const win = dockState.lastWin;
+    const mayUnlock = options?.unlock === true && win?.Statamic?.$permissions?.has?.('configure fields') === true;
+
+    if (!mayUnlock) {
+      win?.Statamic?.$toast?.error(t(win, 'html_tree_locked_element'));
+
+      return false;
+    }
   }
 
   const view = editors.html;

@@ -11,10 +11,28 @@
  * the file stays editable, and the guard is on the text itself, so it holds
  * however a person's edit arrives — typing, paste, Emmet, an autocomplete.
  *
- * May import: code-dock.js re-exports only.
+ * So is an element someone locked with the HTML tree's padlock
+ * (`{{# sve-lock #}}` in front of it): the element and everything inside it,
+ * marker included, so the lock cannot be typed away.
+ *
+ * May import: code-dock.js re-exports, lib/, html-tree-parse.js.
  */
 import { Decoration, EditorState, EditorView, RangeSetBuilder, StateField } from '../code-dock.js';
 import { editedByHand, lockedRanges } from '../lib/locked-tags.js';
+import { lockedElementRanges } from '../html-tree-parse.js';
+
+// The last text asked about, and its ranges: the decorations and the filter
+// ask for the same document on every keystroke.
+let memo = { text: null, ranges: [] };
+
+/** The build plumbing and the locked elements, in document order. */
+function allLocked(text) {
+  if (memo.text !== text) {
+    memo = { text, ranges: lockedRanges(text, text.includes('sve-lock') ? lockedElementRanges(text) : []) };
+  }
+
+  return memo.ranges;
+}
 
 /**
  * Built inside the call, never at import time.
@@ -26,7 +44,7 @@ import { editedByHand, lockedRanges } from '../lib/locked-tags.js';
  */
 function build(state, mark) {
   const builder = new RangeSetBuilder();
-  const ranges = lockedRanges(state.doc.toString());
+  const ranges = allLocked(state.doc.toString());
 
   for (let i = 0; i < ranges.length; i += 2) {
     builder.add(ranges[i], ranges[i + 1], mark);
@@ -77,7 +95,7 @@ export function lockedUi() {
       style,
       EditorState.changeFilter.of((tr) =>
         editedByHand((event) => tr.isUserEvent(event))
-          ? lockedRanges(tr.startState.doc.toString())
+          ? allLocked(tr.startState.doc.toString())
           : true
       ),
     ],
