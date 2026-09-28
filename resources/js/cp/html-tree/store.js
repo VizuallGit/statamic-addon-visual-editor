@@ -92,6 +92,10 @@ export const htmlTreeUi = reactive({
   // A template open on its own entry: who is drawn with it —
   // `{ label, text }` for the line above the tree, or null.
   usedBy: null,
+  // An element the plus just wrote into a template: where it starts in the
+  // file, and how many more paints may look for it. The tree stands on it the
+  // first time it is drawn (html-tree.js), then forgets.
+  selectFrom: null,
   onSection: null,
   // Read the page again now, rather than waiting for the dock to announce a new
   // file. A section added from inside the panel changes the form's values and

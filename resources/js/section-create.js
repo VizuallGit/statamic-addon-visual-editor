@@ -34,6 +34,7 @@ import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter,
 import { addLiteSetConfig } from './side/lite-sections.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { pageBuilderParams, pageBuilderQuery } from './lib/config.js';
+import { withTemplateElement } from './template-elements.js';
 
 const API = '/!/sve/section-types';
 
@@ -358,40 +359,40 @@ export function chooseSectionKind(win) {
   });
 }
 
-/** The markup a section in a template starts as: one root, room inside. */
-const TEMPLATE_SECTION = '<section class="[ ] py-800">\n    \n</section>\n';
-
 /**
- * A section written into the open template file.
+ * An element written into the open template file (template-elements.js): after
+ * the row the reader stands on, at its level, or at the end with nothing
+ * picked.
  *
- * Static markup is not a set: it has no fields, no card in the library and no
- * row on the page. It lives in the file that renders the page, at the end,
- * and is on every page that file renders. Saved at once, autosave or not: it
- * is a thing done, not text half-typed.
+ * Markup in a template is not a set: it has no fields, no card in the library
+ * and no row on any page. It lives in the file that renders the pages, and is
+ * on every page that file renders — which the tree says above it ("Bruges
+ * af"). Saved at once, autosave or not: it is a thing done, not text
+ * half-typed.
  *
  * A locked file refuses the write, as it refuses every other — the padlock in
- * the dock is the way in, and the toast says so.
+ * the dock is the way in, and the toast says so. Answers where the element
+ * starts in the file, so the tree can stand on it, or null.
  */
-export function insertTemplateSection(win) {
+export function insertTemplateElement(win, tag, after = null) {
   if (ask('dock:is-locked') === true) {
     win.Statamic?.$toast?.error(t(win, 'code_dock_locked'));
 
-    return false;
+    return null;
   }
 
-  const html = String(ask('dock:html') || '');
-  const next = `${html.replace(/\s+$/, '')}\n\n${TEMPLATE_SECTION}`;
+  const { html, at } = withTemplateElement(String(ask('dock:html') || ''), tag, after);
 
-  if (ask('dock:set-html', next) !== true) {
+  if (ask('dock:set-html', html) !== true) {
     win.Statamic?.$toast?.error(t(win, 'section_new_failed'));
 
-    return false;
+    return null;
   }
 
   ask('dock:save-now');
-  win.Statamic?.$toast?.success(t(win, 'section_new_template_done'));
+  win.Statamic?.$toast?.success(t(win, 'html_tree_element_added', { tag }));
 
-  return true;
+  return at;
 }
 
 /**

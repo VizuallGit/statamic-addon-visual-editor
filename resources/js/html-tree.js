@@ -1945,6 +1945,19 @@ export function renderHtmlTree(win) {
     htmlTreeActiveId = frameRaw.id;
   }
 
+  // An element the plus just wrote (HtmlTreePane): stand on it once it is
+  // drawn. A few paints at most — the file may land a moment after the write.
+  if (htmlTreeUi.selectFrom) {
+    const made = rows.find((row) => row.from === htmlTreeUi.selectFrom.at && !row.kind);
+
+    if (made) {
+      htmlTreeActiveId = made.id;
+      htmlTreeUi.selectFrom = null;
+    } else if (--htmlTreeUi.selectFrom.left <= 0) {
+      htmlTreeUi.selectFrom = null;
+    }
+  }
+
   // On the layout: which partial call draws the header and which the footer.
   const frameCalls = htmlTreeUi.layoutFile ? frameCallKinds(win) : null;
 

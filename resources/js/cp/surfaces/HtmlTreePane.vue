@@ -3,7 +3,10 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui, readHtmlTreeLayers, setHtmlTreeLayers } from '../html-tree/store.js';
-import { canCreateSections, chooseSectionKind, insertTemplateSection, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
+import { canCreateSections, chooseSectionKind, insertTemplateElement, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
+import { TEMPLATE_TAGS } from '../../template-elements.js';
+import { openCpOverlay } from '../open-overlay.js';
+import HtmlTreeMenu from './HtmlTreeMenu.vue';
 import { ask } from '../bus.js';
 import { t } from '../../lib/i18n.js';
 import { nextTick, ref } from 'vue';
@@ -32,6 +35,7 @@ function toggleLayers() {
 // sees the button at all.
 const canCreate = canCreateSections(window);
 const newSectionLabel = t(window, 'section_new');
+const addElementLabel = t(window, 'html_tree_add_element');
 const creating = ref(false);
 
 const PLUS =
@@ -74,24 +78,65 @@ async function openNewlyMade(uid) {
   }
 }
 
-function onNewSection() {
+/**
+ * The row the reader stands on, if it is one of the open file's own — not a
+ * faded row of a file around a component, nor a drawn part of the frame.
+ */
+function pickedRow() {
+  return ui.rows.find((row) => row.current && !row.context && !row.synthetic) || null;
+}
+
+/**
+ * A template is built from markup: which element, then it goes after the
+ * picked row, at its level (template-elements.js). The tree stands on it once
+ * it is drawn.
+ */
+function openElementMenu(anchor) {
+  const rect = anchor.getBoundingClientRect();
+  const after = pickedRow();
+  let menu = null;
+
+  menu = openCpOverlay(document, HtmlTreeMenu, {
+    items: TEMPLATE_TAGS.map((tag) => ({
+      label: tag,
+      onPick: () => {
+        menu?.dismiss();
+        menu = null;
+        release();
+
+        const at = insertTemplateElement(window, tag, after);
+
+        if (at !== null) {
+          ui.selectFrom = { at, left: 4 };
+        }
+      },
+    })),
+    x: Math.round(rect.left),
+    y: Math.round(rect.bottom + 4),
+    onClose: () => {
+      menu = null;
+      release();
+    },
+  });
+}
+
+function onNewSection(event) {
   if (creating.value) {
     return;
   }
 
   creating.value = true;
 
+  // A template (a service, a product) is not built from sections: the plus
+  // adds an element to the file. Its fields, if any, are the page's
+  // blueprint — the top bar's.
+  if (!(ui.sections.length || ui.pageBuilder)) {
+    openElementMenu(event.currentTarget);
+
+    return;
+  }
+
   void (async () => {
-    // A template (a service, a product) is not built from sections, so there
-    // is nothing to ask: the section is static markup written into the open
-    // file. Its fields, if any, are the page's blueprint — the top bar's.
-    if (!(ui.sections.length || ui.pageBuilder)) {
-      insertTemplateSection(window);
-      release();
-
-      return;
-    }
-
     // A page built from sections: static markup, or a section with fields.
     const kind = await chooseSectionKind(window);
 
@@ -177,9 +222,10 @@ function setQuery(value) {
       here, so the dock's shortcuts do not fire while typing a name.
 
       Off on the site layout's own file: without a page builder the plus
-      writes a section into the open file, and the layout is the frame every
-      page renders inside — not a place sections go. A page builder keeps it
-      whatever file the dock holds: there it adds to the page, not the file.
+      asks which element and writes it into the open file after the picked
+      row, and the layout is the frame every page renders inside — not a
+      place for it. A page builder keeps it whatever file the dock holds:
+      there it adds a section to the page, not markup to the file.
     -->
     <div class="sve-ht-tools">
     <label class="sve-ht-search" :title="searchLabel">
@@ -210,8 +256,8 @@ function setQuery(value) {
       v-if="canCreate && (ui.sections.length || ui.pageBuilder || (ui.rows.length && !ui.layoutFile))"
       type="button"
       class="sve-ht-new"
-      :title="newSectionLabel"
-      :aria-label="newSectionLabel"
+      :title="ui.sections.length || ui.pageBuilder ? newSectionLabel : addElementLabel"
+      :aria-label="ui.sections.length || ui.pageBuilder ? newSectionLabel : addElementLabel"
       v-html="PLUS"
       @click="onNewSection"
     ></button>

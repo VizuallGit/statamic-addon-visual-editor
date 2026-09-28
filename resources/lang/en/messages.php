@@ -170,6 +170,8 @@ return [
     'html_tree_open_template' => 'Open the template',
     'html_tree_open_template_failed' => 'The template could not be opened.',
     'html_tree_sections_slot' => 'The page\'s sections',
+    'html_tree_add_element' => 'Add element',
+    'html_tree_element_added' => '<:tag> added to the template',
     'html_tree_need_dock' => 'Open the HTML dock to see this file’s tags.',
     'html_tree_rename' => 'Double-click to rename in the tree (does not change the HTML)',
     'html_tree_hide' => 'Comment out — hidden in live preview',
