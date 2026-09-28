@@ -175,16 +175,20 @@ export function htmlTreePanel(doc) {
 
 export function ensureHtmlTreeStyles(doc) {
   injectStyle(doc, HTML_TREE_STYLE_ID, `
-    /* The row's content starts 0.625rem in from its own edge — the inset the
-       search field above gives its icon — so the twist lines up with the rest
-       of the panel instead of hugging the gutter. */
+    /* Where a row's content starts, in from the row's own edge: 0.625rem, the
+       inset the search field above gives its icon, so the twist lines up with
+       the rest of the panel instead of hugging the gutter. The open section's
+       box takes its own border and padding back out of it (below), so a row
+       inside the box starts where the same row outside it does — the inset is
+       said once, not once per box it sits in. */
+    [data-sve-ht-look] { --sve-ht-inset: 0.625rem; }
     [data-sve-ht-row] {
       all: unset;
       box-sizing: border-box;
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 0.375rem 0.5rem 0.375rem 0.625rem;
+      padding: 0.375rem 0.5rem 0.375rem var(--sve-ht-inset);
       min-height: 1.875rem;
       margin-bottom: 3px;
       background: rgba(128,128,128,.16);
@@ -222,6 +226,8 @@ export function ensureHtmlTreeStyles(doc) {
       border-radius: 0.5625rem;
       padding: 0.3125rem;
       margin-bottom: 0.3125rem;
+      /* The panel's inset less this box's padding and border. */
+      --sve-ht-inset: calc(0.625rem - 0.3125rem - 1px);
     }
     [data-sve-ht-branch] > [data-sve-ht-row]:last-child { margin-bottom: 0; }
     /* The page's frame: header, main and footer around the sections. The
@@ -284,6 +290,10 @@ export function ensureHtmlTreeStyles(doc) {
       cursor: pointer;
       opacity: .7;
     }
+    /* The arrow, centred in its box. The box keeps its width, so a bigger
+       arrow moves neither the row's content nor its centre — the guides
+       stay where they stand against it. */
+    [data-sve-ht-twist] svg { width: 0.75rem; height: 0.75rem; }
     [data-sve-ht-twist][data-sve-ht-shut] { transform: rotate(-90deg); }
     [data-sve-ht-actions] {
       margin-left: auto;
@@ -458,11 +468,11 @@ export function ensureHtmlTreeStyles(doc) {
        its pick, its bar — begins where its level begins, and the guides are
        drawn in the margin to its left. A picked row that ran the full width
        over the guides read as belonging to every level at once. The content
-       starts at the panel's inset (0.625rem, as the search field's icon);
-       the box keeps a hair of air above and below it. */
+       starts at the panel's inset (--sve-ht-inset, above); the box keeps a
+       hair of air above and below it. */
     [data-sve-ht-look="tags"] [data-sve-ht-row] {
       margin: 0 0 0 calc(var(--sve-ht-depth, 0) * 14px);
-      padding: 0.0625rem 0.375rem 0.0625rem 0.625rem;
+      padding: 0.0625rem 0.375rem 0.0625rem var(--sve-ht-inset);
       min-height: 1.75rem;
       gap: 5px;
       background: none;
@@ -496,13 +506,16 @@ export function ensureHtmlTreeStyles(doc) {
        carries the section row's family (HtmlTreeList.vue) so the box can
        read it; layout if it somehow does not. Enough padding that a picked
        row's wash — the section's own, or a child's — stops short of the
-       border instead of sitting on it. */
+       border instead of sitting on it. The rows inside take that padding and
+       border back out of their inset, so the open section's twists stand
+       under the shut sections' twists, and its children one level in. */
     [data-sve-ht-look="tags"] [data-sve-ht-branch] {
       border: 1px solid color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 45%, transparent);
       border-radius: 7px;
-      padding: 4px;
+      padding: 0.25rem;
       margin: 0 0 6px;
       background: color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 4%, transparent);
+      --sve-ht-inset: calc(0.625rem - 0.25rem - 1px);
     }
     /* A hair of air between the rows under a section, so the eye can tell
        them apart; a shut section already keeps its own distance (above). The
@@ -514,14 +527,15 @@ export function ensureHtmlTreeStyles(doc) {
        with the line 7px in, so each sits under the twist of the row it
        descends from — in that row's family colour, well held back. Out of
        the flow, so the row's box and everything in it start at the level.
-       Moved in by the 0.375rem the twist moved when the row's inset went
-       from 0.25rem to 0.625rem, so a line stands where it stood against it. */
+       Moved in with the row's inset (past the 0.25rem it was drawn for), so
+       a line stands where it always stood against the twist, in a box or out
+       of one. */
     [data-sve-ht-look="tags"] [data-sve-ht-indent] {
       display: flex;
       position: absolute;
       top: -2px;
       bottom: 0;
-      left: calc(0.375rem - var(--sve-ht-depth, 0) * 14px);
+      left: calc(var(--sve-ht-inset) - 0.25rem - var(--sve-ht-depth, 0) * 14px);
       width: calc(var(--sve-ht-depth, 0) * 14px);
       pointer-events: none;
     }
@@ -604,6 +618,8 @@ export function ensureHtmlTreeStyles(doc) {
       padding: 0;
       margin: 0;
       background: none;
+      /* No box, so nothing to take back out of the inset. */
+      --sve-ht-inset: 0.625rem;
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-frame-body] {
       --sve-ht-base: 1;
@@ -614,7 +630,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-indent] { display: none; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row] {
       margin-left: 0;
-      padding-left: calc(0.625rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+      padding-left: calc(var(--sve-ht-inset) + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current],
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-current]:hover {
@@ -625,11 +641,11 @@ export function ensureHtmlTreeStyles(doc) {
        shows the level it lands on now that the row itself spans them all. */
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="before"]::before,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-row][data-sve-ht-drop="after"]::after {
-      left: calc(0.875rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
+      left: calc(var(--sve-ht-inset) + 0.25rem + (var(--sve-ht-depth, 0) + var(--sve-ht-base, 0)) * 0.875rem);
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="before"]::before,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-sec-uid][data-sve-ht-drop="after"]::after {
-      left: calc(0.875rem + var(--sve-ht-base, 0) * 0.875rem);
+      left: calc(var(--sve-ht-inset) + 0.25rem + var(--sve-ht-base, 0) * 0.875rem);
     }
     /* The empty slots keep their place: a block's one level under it, and
        main's where the frame body's margin used to put it. */
@@ -640,7 +656,7 @@ export function ensureHtmlTreeStyles(doc) {
       margin-left: calc(var(--sve-ht-base, 0) * 0.875rem + 0.75rem);
     }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-icon] svg { width: 0.75rem; height: 0.75rem; }
-    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg { width: 0.5625rem; height: 0.5625rem; }
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-twist] svg { width: 0.625rem; height: 0.625rem; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-eye] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-fields] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-dup] svg,
