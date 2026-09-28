@@ -12,17 +12,7 @@
  */
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
-import { lpHeader } from './lib/live-preview.js';
-import { HEADER_SURFACE, LP_BACK_ID, LP_BLUEPRINT_ID, LP_CHROME_H, LP_ICON_BTN_STYLE, LP_TEMPLATES_ID } from './lib/ids.js';
 import { navigateFromLp } from './pages.js';
-
-const ICON =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
-  'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<rect x="3" y="3" width="18" height="18" rx="2"></rect>' +
-  '<path d="M3 9h18"></path>' +
-  '<path d="M9 21V9"></path>' +
-  '</svg>';
 
 let opening = false;
 
@@ -31,7 +21,7 @@ let opening = false;
  * for this user (`sveFeatures` is already per user), and the utility is theirs
  * to open — Statamic's permission for every registered utility.
  */
-function allowed(win) {
+export function templateBoardAllowed(win) {
   return (
     win.Statamic?.$config?.get?.('sveFeatures')?.collection_templates === true &&
     win.Statamic?.$permissions?.has?.('access template-board utility') === true
@@ -151,53 +141,5 @@ export async function openTemplateSlot(win, anchor, slot) {
   } catch (err) {
     console.error('[sve] open template', err);
     win.Statamic?.$toast?.error(t(win, 'html_tree_open_template_failed'));
-  }
-}
-
-/**
- * The button. Made here and put in the bar once; where it stands after that is
- * syncLpRightBarGaps' (lp-panel.js) — templates, blueprint, Close — so the two
- * never take turns moving each other.
- */
-export function ensureLpTemplatesButton(win) {
-  const doc = win.document;
-  const header = lpHeader(doc);
-  const back = doc.getElementById(LP_BACK_ID);
-
-  if (!header || !back || !allowed(win)) {
-    return;
-  }
-
-  let pill = doc.getElementById(LP_TEMPLATES_ID);
-
-  if (!pill) {
-    pill = doc.createElement('button');
-    pill.id = LP_TEMPLATES_ID;
-    pill.type = 'button';
-    pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
-    pill.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openTemplateBoard(win, pill);
-    });
-  }
-
-  if (pill.innerHTML !== ICON) {
-    pill.innerHTML = ICON;
-  }
-
-  pill.title = t(win, 'lp_templates_title');
-  pill.setAttribute('aria-label', pill.title);
-  pill.style.opacity = '1';
-  pill.style.background = HEADER_SURFACE;
-  pill.style.padding = '0';
-  pill.style.width = `${LP_CHROME_H - 4}px`;
-  pill.style.height = `${LP_CHROME_H}px`;
-  pill.style.borderRadius = '.5rem';
-  pill.style.marginLeft = '0';
-  pill.style.marginRight = '0';
-
-  if (!pill.isConnected) {
-    (doc.getElementById(LP_BLUEPRINT_ID) || back).before(pill);
   }
 }

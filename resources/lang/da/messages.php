@@ -1265,9 +1265,7 @@ return [
 
     // Skabelon-tavlen.
     'template_board_title' => 'Skabeloner',
-    'lp_templates_title' => 'Sitets skabeloner',
     'template_board_open_failed' => 'Skabelonerne kunne ikke åbnes.',
-    'lp_collections_title' => 'Sitets samlinger',
     'lp_collections_heading' => 'Samlinger',
     'lp_collections_open_failed' => 'Samlingerne kunne ikke åbnes.',
     'html_tree_used_by_open' => 'Åbn :name',

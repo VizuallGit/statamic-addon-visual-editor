@@ -31,6 +31,9 @@ import { closeOutlinePanel, toggleOutlinePanel } from '../lazy/outline.js';
 import { closePerformancePanel, togglePerformancePanel } from '../lazy/performance.js';
 import { pageEditsOpen, togglePageEdits } from '../lazy/page-activity.js';
 import { closeSchema, isSchemaOpen, schemaAllowed, toggleSchema } from '../lazy/schema.js';
+import { openCollections } from '../lp-collections.js';
+import { openTemplateBoard, templateBoardAllowed } from '../lp-templates.js';
+import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
 import { sendToPreview } from './add-section.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
@@ -513,6 +516,21 @@ export const TOOLBAR_ICONS = {
     '<path d="M16 4c3 1 4 3 4 6v1c0 1.2 1 2 2 2-1 0-2 .8-2 2v1c0 3-1 5-4 6"/></svg>',
   // The site's theme (colors, sizes, type, button): a palette.
   theme: THEME_PANEL_ICON,
+  // The site's collections: books on a shelf, a collection rather than a page.
+  collections:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="m16 6 4 14"/><path d="M12 6v14"/><path d="M8 8v12"/><path d="M4 4v16"/></svg>',
+  // The site's templates: a page layout — header band, sidebar, body.
+  templates:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>',
+  // The page's blueprint: two stacked field rows.
+  blueprint:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>',
 };
 
 /** Keep toolbar glyphs in sync after icon redesigns (toolbar mounts once). */
@@ -559,6 +577,7 @@ export function ensureHeaderToolbar(win) {
     ensureAiToolbarButton(win);
     ensureAiTextToolbarButton(win);
     ensureSchemaToolbarButton(win);
+    ensureDrawerToolbarButtons(win);
     ensureCommentsToolbarButton(win);
     ensurePageEditsToolbarButton(win);
     ensureOutlineToolbarButton(win);
@@ -1202,6 +1221,79 @@ export function ensureSchemaToolbarButton(win) {
 }
 
 /**
+ * The three that open a drawer over the page: the site's collections, its
+ * templates, the page's blueprint.
+ *
+ * Icons like every other here — shown, hidden, ordered and listed in presets
+ * the same way, all of which reads `button[data-tab]` off this row. What they
+ * open is a drawer, not a panel, so none of them is ever lit: the drawer covers
+ * the bar while it is open.
+ *
+ * Put in once, after Globals (or Pages), in this order; where they stand after
+ * that is the user's order, which is CSS and never moves the buttons.
+ */
+const DRAWER_TOOLS = [
+  {
+    key: 'collections',
+    title: (win) => t(win, 'lp_collections_heading'),
+    allowed: () => true,
+    open: (win, btn) => openCollections(win, { anchor: btn }),
+  },
+  {
+    key: 'templates',
+    title: (win) => t(win, 'template_board_title'),
+    allowed: templateBoardAllowed,
+    open: (win, btn) => openTemplateBoard(win, btn),
+  },
+  {
+    key: 'blueprint',
+    title: (win) => t(win, 'blueprint'),
+    allowed: blueprintAllowed,
+    open: (win) => openEntryBlueprint(win),
+  },
+];
+
+export function ensureDrawerToolbarButtons(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  let anchor = doc.getElementById(frameId('globals')) || doc.getElementById(frameId('pages'));
+
+  DRAWER_TOOLS.forEach((tool) => {
+    let btn = bar.querySelector(`button[data-tab="${tool.key}"]`);
+
+    if (!tool.allowed(win)) {
+      btn?.remove();
+
+      return;
+    }
+
+    if (!btn) {
+      btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.dataset.tab = tool.key;
+      btn.dataset.iconVer = 'stairs-toc-20260821';
+      btn.title = tool.title(win);
+      btn.innerHTML = TOOLBAR_ICONS[tool.key];
+      btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+      btn.addEventListener('click', () => tool.open(win, btn));
+
+      if (anchor?.parentElement === bar) {
+        anchor.after(btn);
+      } else {
+        bar.appendChild(btn);
+      }
+    }
+
+    anchor = btn;
+  });
+}
+
+/**
  * AI text: the switch that puts a mark on every editable text on the page.
  *
  * A toggle rather than a panel — there is nothing to dock. What it opens is in
@@ -1731,6 +1823,7 @@ export function applyHeaderTab(win) {
   ensureAiToolbarButton(win);
   ensureAiTextToolbarButton(win);
   ensureSchemaToolbarButton(win);
+  ensureDrawerToolbarButtons(win);
   ensureOutlineToolbarButton(win);
   ensureHtmlTreeToolbarButton(win);
 

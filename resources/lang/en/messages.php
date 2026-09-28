@@ -1272,9 +1272,7 @@ return [
 
     // Templates board — the grid of every template the site can have.
     'template_board_title' => 'Templates',
-    'lp_templates_title' => 'The site\'s templates',
     'template_board_open_failed' => 'The templates could not be opened.',
-    'lp_collections_title' => 'The site\'s collections',
     'lp_collections_heading' => 'Collections',
     'lp_collections_open_failed' => 'The collections could not be opened.',
     'html_tree_used_by_open' => 'Open :name',

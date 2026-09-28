@@ -12,18 +12,10 @@
  * loaded again — the picker's own move, aimed at where we already are.
  */
 import { t } from './lib/i18n.js';
-import { lpHeader, currentEntryId } from './lib/live-preview.js';
-import { HEADER_SURFACE, LP_BACK_ID, LP_BLUEPRINT_ID, LP_CHROME_H, LP_ICON_BTN_STYLE } from './lib/ids.js';
+import { currentEntryId } from './lib/live-preview.js';
 import { reloadEverything } from './lp-reload.js';
 
 const API = '/!/sve/entry-blueprint';
-
-const ICON =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
-  'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<rect x="3" y="4" width="18" height="6" rx="1.5"></rect>' +
-  '<rect x="3" y="14" width="18" height="6" rx="1.5"></rect>' +
-  '</svg>';
 
 let opening = false;
 
@@ -106,53 +98,10 @@ export function openEntryBlueprint(win, { onClose } = {}) {
   })();
 }
 
-export function ensureLpBlueprintButton(win) {
-  const doc = win.document;
-  const header = lpHeader(doc);
-  const back = doc.getElementById(LP_BACK_ID);
-
-  if (!header || !back) {
-    return;
-  }
-
-  // Writing a blueprint is the developer's permission, like the Fieldsets
-  // screen — an editor never sees the button.
-  if (win.Statamic?.$permissions?.has?.('configure fields') !== true) {
-    return;
-  }
-
-  let pill = doc.getElementById(LP_BLUEPRINT_ID);
-
-  if (!pill) {
-    pill = doc.createElement('button');
-    pill.id = LP_BLUEPRINT_ID;
-    pill.type = 'button';
-    pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
-    pill.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openEntryBlueprint(win);
-    });
-  }
-
-  if (pill.innerHTML !== ICON) {
-    pill.innerHTML = ICON;
-  }
-
-  pill.title = t(win, 'blueprint_title');
-  pill.setAttribute('aria-label', pill.title);
-  pill.style.opacity = '1';
-  pill.style.background = HEADER_SURFACE;
-  pill.style.padding = '0';
-  pill.style.width = `${LP_CHROME_H - 4}px`;
-  pill.style.height = `${LP_CHROME_H}px`;
-  pill.style.borderRadius = '.5rem';
-  pill.style.marginLeft = '0';
-  pill.style.marginRight = '0';
-
-  // Left of Close. Never moved when it is already there: a Node.before on
-  // every observer pass freezes Live Preview.
-  if (pill.parentElement !== back.parentElement || pill.nextElementSibling !== back) {
-    back.before(pill);
-  }
+/**
+ * Writing a blueprint is the developer's permission, like the Fieldsets
+ * screen — an editor never gets the icon.
+ */
+export function blueprintAllowed(win) {
+  return win.Statamic?.$permissions?.has?.('configure fields') === true;
 }
