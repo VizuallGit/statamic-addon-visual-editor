@@ -8,7 +8,6 @@ import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import {
   LP_SCALE_DEVICE_TO_PANE,
-  MERGED_TABS,
   applyHeaderTab,
   applyLpDevice,
   applyLpZoom,
@@ -51,7 +50,7 @@ import {
   showInRightShell,
 } from './right-dock.js';
 import { csrfToken } from './lib/csrf.js';
-import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, FOCUS_LOCKED_TABS, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_ICON_IDLE_OPACITY, LP_ICON_LOCKED_OPACITY, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
@@ -1736,54 +1735,30 @@ export function isSectionLibraryLocked(win) {
 }
 
 /**
- * The top-bar tools that belong to the page rather than to what is being edited
- * inside it.
- *
- * Stepping into a header, a footer or a global section locks the page around it:
- * the other sections fade, and a click out there does nothing. These three reach
- * straight past that lock — another page, another global set, the section
- * library — so while you are inside, they have nothing to act on.
- *
- * The block tree used to be a fourth: it only ever knew how to read the page's
- * own builder field, so inside chrome it had nothing to show either. It now
- * reads whichever container is open (see listViewTree), including chrome's own
- * — the reason to lock it out is gone.
- *
- * The panel tool is deliberately not among them either. The left-sidebar icon is
- * how you get at the fields you stepped in for, and taking it away would lock
- * the way in along with the way out.
+ * Stepping into a header, a footer or a global section locks the page around
+ * it: the other sections fade, and a click out there does nothing. The top bar
+ * is not part of that lock. Its icons stay live wherever you are: a page-level
+ * tool (another page, another global set, the section library) leaves what owns
+ * the editor first, the way a section click does, instead of going grey and
+ * dead until you find the way out on the bar at the bottom.
  */
 
 /**
- * Dim and disable those tools while chrome or a global section owns the editor.
- *
- * Painted from applyHeaderTab, which runs on the header loop — so the state
- * survives Vue rebuilding the bar underneath it, the same way the icons' own
- * colours do.
+ * Leave whatever owns the editor — chrome, a global section, or both — so a
+ * page-level tool has the page to act on. Nothing owns it: nothing happens.
  */
-export function paintFocusLockedTabs(win, btn, tab, on) {
-  const off = isSectionLibraryLocked(win) && FOCUS_LOCKED_TABS.includes(tab);
-
-  btn.disabled = off;
-  btn.style.pointerEvents = off ? 'none' : '';
-  btn.style.cursor = off ? 'default' : 'pointer';
-  // A merged tool wears its surface on the frame around the glyph, and it is the
-  // frame that goes out — see applyHeaderTab. Fading the glyph here as well would
-  // fade it twice over, leaving it far darker than the standalone icons it stands
-  // in a row with.
-  btn.style.opacity = off
-    ? (MERGED_TABS.includes(tab) ? '1' : LP_ICON_LOCKED_OPACITY)
-    : on
-      ? '1'
-      : LP_ICON_IDLE_OPACITY;
-
-  if (off) {
-    btn.setAttribute('aria-disabled', 'true');
-  } else {
-    btn.removeAttribute('aria-disabled');
+export function leaveFocusLock(win) {
+  if (!isSectionLibraryLocked(win)) {
+    return false;
   }
 
-  return off;
+  dismissChromeForPageEdit(win);
+  closeGlobalSectionPanel(win);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_GLOBAL }, win);
+  syncSectionLibraryAvailability(win);
+
+  return true;
 }
 
 /**
@@ -1819,12 +1794,6 @@ export function syncSectionLibraryAvailability(win) {
       btn.style.display = 'none';
       btn.setAttribute('aria-disabled', 'true');
       btn.disabled = true;
-    }
-
-    // An unfolded Pages or Globals control is the same tool, one state further
-    // out — folded away with the rest so the bar reads as one locked row.
-    if (FOCUS_LOCKED_TABS.includes(sveState.headerTab)) {
-      setHeaderTab(win, null);
     }
 
     applyHeaderTab(win);

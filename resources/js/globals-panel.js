@@ -31,7 +31,7 @@ import { featureOn, sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { focusFieldOwner, focusPanelOn, setMeta, soloSection } from './focus-panel.js';
-import { attachGlobalsOverlay, closeRightPanels, editorOverlayCss, hideGlobalsPanel, libraryMatchesQuery, libraryWentStale, mountInLivePreviewEditor, newRowId, openSectionPicker, parkGlobalsOverlay, pinGlobalsPanelLeft, releaseLeftEdgeIfFree, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
+import { attachGlobalsOverlay, closeRightPanels, editorOverlayCss, hideGlobalsPanel, isSectionLibraryLocked, leaveFocusLock, libraryMatchesQuery, libraryWentStale, mountInLivePreviewEditor, newRowId, openSectionPicker, parkGlobalsOverlay, pinGlobalsPanelLeft, releaseLeftEdgeIfFree, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
 import { hasUnsavedGlobalSection, sectionPanelContainer } from './global-section.js';
 import { chromeContainer, chromeHost, closeChromeInline, openChromeInline, pressChromeSave, soloChromeTab, warmChromeInlinePages, watchChromeSolo } from './chrome.js';
 import { hasUnsavedChanges } from './open-in-preview.js';
@@ -117,6 +117,9 @@ export function toggleSoleGlobalSet(win) {
   if (showing) {
     confirmLeaveGlobalsOverlay(win, () => closeGlobalsPanel(win));
   } else {
+    // Inside a header, a footer or a global section the set is still a click
+    // away: that owner is left first, so the set opens over the page.
+    leaveFocusLock(win);
     openGlobalsPanel(win, set);
   }
 
@@ -1200,6 +1203,7 @@ export function ensureGlobalsPicker(win) {
     const set = sets.find((candidate) => candidate.handle === select.value);
 
     if (set) {
+      leaveFocusLock(win);
       openGlobalsPanel(win, set);
     } else {
       confirmLeaveGlobalsOverlay(
@@ -1217,7 +1221,11 @@ export function ensureGlobalsPicker(win) {
   select.addEventListener('click', () => {
     const set = sets.find((candidate) => candidate.handle === select.value);
 
-    if (!set) {
+    // Inside chrome the picker already reads the header's or footer's own set,
+    // and its form is the inline editor — opening the parked panel on the click
+    // that merely unfolds the menu would put a second copy of it on screen.
+    // Choosing a set is `change`, and that is where the owner is left.
+    if (!set || isSectionLibraryLocked(win)) {
       return;
     }
 

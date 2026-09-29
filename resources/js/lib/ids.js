@@ -62,8 +62,6 @@ export const GLOBALS_PICKER_ID = '__sve-globals-picker';
 export const LIBRARY_BUTTON_ID = '__sve-library-btn';
 export const COLLECTION_PICKER_ID = '__sve-collection-picker';
 export const NEW_ENTRY_ID = '__sve-new-entry';
-/** Tabs the focus panel keeps in place while a section is focused. */
-export const FOCUS_LOCKED_TABS = ['pages', 'globals', 'sections'];
 /** An entry's edit URL in the CP — never the create screen. */
 export const ENTRY_EDIT_PATH = /\/collections\/([^/]+)\/entries\/(?!create(?:\/|$))[^/?#]+/;
 

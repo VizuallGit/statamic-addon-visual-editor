@@ -16,15 +16,14 @@ import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
 import { syncToolbarLayout } from '../toolbar-visibility.js';
-import { COLLECTION_PICKER_ID, FOCUS_LOCKED_TABS, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_LOCKED_OPACITY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from '../lib/ids.js';
+import { COLLECTION_PICKER_ID, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { featureOn, sectionField } from '../lib/config.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, persistDockedPanel, setLpMode } from '../lp-panel.js';
 import { focusFromPreview, focusPanelOn, leaveSolo, placeLpWidthPicker } from '../focus-panel.js';
-import { closeRightPanels, closeSectionPicker, dismissChromeForPageEdit, formHasSectionField, isGlobalsOverlayOpen, isSectionLibraryLocked, openSectionPicker, paintFocusLockedTabs, rowLocation, syncPreviewInset, syncSectionLibraryAvailability } from '../section-library.js';
-import { closeGlobalSectionPanel } from '../global-section.js';
+import { closeRightPanels, closeSectionPicker, formHasSectionField, isGlobalsOverlayOpen, leaveFocusLock, openSectionPicker, rowLocation, syncPreviewInset } from '../section-library.js';
 import { blockRowUid, closeListViewPanel, commentsPanel, listViewPanel, toggleCommentsPanel, toggleListViewPanel } from '../lazy/listview.js';
 import { armHtmlTreePrefetch, closeHtmlTreePanel, toggleHtmlTreePanel } from '../lazy/html-tree.js';
 import { closeOutlinePanel, toggleOutlinePanel } from '../lazy/outline.js';
@@ -36,8 +35,6 @@ import { soleGlobalSet, toggleSoleGlobalSet } from '../globals-panel.js';
 import { openTemplateBoard, templateBoardAllowed } from '../lp-templates.js';
 import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
-import { sendToPreview } from './add-section.js';
-import { MSG, SOURCE } from '../lib/protocol.js';
 
 // ===== header-toolbar =====
 // --- Header toolbar: one control at a time -------------------------------------
@@ -1527,14 +1524,7 @@ export function toggleHeaderTab(win, key) {
         endRightShellSwap();
       }
 
-      if (isSectionLibraryLocked(win)) {
-        dismissChromeForPageEdit(win);
-        closeGlobalSectionPanel(win);
-        sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_CHROME }, win);
-        sendToPreview({ source: SOURCE, type: MSG.SVE_FORCE_EXIT_GLOBAL }, win);
-        syncSectionLibraryAvailability(win);
-      }
-
+      leaveFocusLock(win);
       openSectionPicker(win); // toggles
       persistDockedPanel(win);
       applyHeaderTab(win);
@@ -1890,16 +1880,6 @@ export function applyHeaderTab(win) {
         frame.style.padding = '0';
         frame.style.gap = '6px';
       }
-
-      // Låsen sidder på feltet, ikke på glyffen inde i det. Sider og Globals bærer
-      // deres flade på rammen, så da kun glyffen blev dæmpet, stod de to tilbage
-      // som oplyste piller ved siden af et sektionsikon der var gået helt ud:
-      // halvdelen af rækken så ud til stadig at kunne klikkes. Værktøjet er feltet,
-      // så det er feltet der går ud.
-      const locked = isSectionLibraryLocked(win) && FOCUS_LOCKED_TABS?.includes(key);
-
-      frame.style.opacity = locked ? LP_ICON_LOCKED_OPACITY : '';
-      frame.style.pointerEvents = locked ? 'none' : '';
     }
 
     if (seam) {
@@ -2025,7 +2005,6 @@ export function applyHeaderTab(win) {
     }
 
     paintLpActiveControl(btn, on);
-    paintFocusLockedTabs(win, btn, tab, on);
   });
 
   syncToolbarIconSeps(bar);
