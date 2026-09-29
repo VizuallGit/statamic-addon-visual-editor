@@ -16,7 +16,7 @@ import { lpHeader } from '../lib/live-preview.js';
 import { remToPx } from '../lib/dom.js';
 import { csrfToken } from '../lib/csrf.js';
 import { previewFrame } from '../lib/preview-frame.js';
-import { findLpSaveButton, syncLpRightBarGaps } from '../lp-panel.js';
+import { findLpRightActionTail, findLpSaveButton, syncLpRightBarGaps } from '../lp-panel.js';
 import { ensureLpPanelToggle, persistLpWidth } from '../focus-panel.js';
 import { closeRightPanels, syncPreviewInset } from '../section-library.js';
 import { discardGlobalsChanges, hasUnsavedGlobals, hasUnsavedWork, saveGlobalsPanel } from '../globals-panel.js';
@@ -803,11 +803,15 @@ export function positionLpBackButton(win) {
 
   hideStatamicLpClose(header);
 
-  const save = findLpSaveButton(header);
+  // Same anchor as syncLpRightBarGaps (Publish when revisions split the save
+  // button). Anchoring on Save while the gap-sync anchors on Publish moved the
+  // pill twice per layout pass — a visible blink, and a click whose mousedown
+  // landed before the move never fired.
+  const tail = findLpRightActionTail(header);
 
-  if (save && pill.previousElementSibling !== save) {
-    save.after(pill);
-  } else if (!save && pill.parentElement !== header) {
+  if (tail && pill.previousElementSibling !== tail) {
+    tail.after(pill);
+  } else if (!tail && pill.parentElement !== header) {
     header.appendChild(pill);
   }
 
