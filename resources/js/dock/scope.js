@@ -500,9 +500,16 @@ export function pickHtmlTagAtCursor(win) {
     return;
   }
 
+  // "Same" means the CSS pane already shows this element: an existing pick on
+  // the same path, or the HTML pane's own range when it is scoped to it. With
+  // the pane showing the whole file, no element is "same" — the first click
+  // is the one that starts following. v1.1.413 had this branch as `!scoped`,
+  // which read as "whole file = nothing to do": the first click in the whole-
+  // file view did nothing at all, and the feature only woke up after the tree
+  // had scoped the pane once.
   const same = dockState.cssFocus
     ? dockState.cssFocus.path === row.path
-    : !scoped || (dockState.htmlFocus.from === row.from && dockState.htmlFocus.to === row.to);
+    : scoped && dockState.htmlFocus.from === row.from && dockState.htmlFocus.to === row.to;
 
   if (same) {
     return;
