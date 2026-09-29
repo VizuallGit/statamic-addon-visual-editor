@@ -1249,17 +1249,12 @@ register('dock:set-html', (payload) => {
     // that pane then syncs the truncation back into the file, so the range is
     // moved with the edit rather than left behind.
     dockState.htmlFocus = shiftFocus(dockState.htmlFocus, before, html);
-    dockState.cssFocus = shiftFocus(dockState.cssFocus, before, html);
     writeHtmlEditor(htmlEditorText());
     onEditorInput(dockState.lastWin);
     emit('dock:html-changed');
 
     return true;
   }
-
-  // Unscoped, the pane shows the whole file — but the CSS pane's own pick is
-  // still a pair of offsets into it, and an edit above the tag moves them.
-  dockState.cssFocus = shiftFocus(dockState.cssFocus, before, html);
 
   const current = view.state.doc.toString();
 

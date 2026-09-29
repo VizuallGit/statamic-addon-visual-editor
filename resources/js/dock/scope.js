@@ -410,19 +410,43 @@ function htmlSnippet() {
 }
 
 /**
- * What the CSS pane is built from: its own pick, or the HTML pane's range.
+ * The element the CSS pane's own pick points at, in the file as it stands NOW.
  *
- * Read out of `htmlFull` rather than out of the editor, because the CSS pane
- * may be showing an element the HTML pane is not scoped to at all.
+ * The pick is a tree path, never a pair of offsets. `syncScopedHtml` rebuilds
+ * `htmlFull` from the editor on every keystroke, so a stored offset is stale
+ * the moment anyone types — and a stale slice is not caught by a bounds check.
+ * v1.1.412 stored offsets, and one HTML edit later the CSS pane was reading a
+ * garbage slice: the flush merged nowhere, deletions never reached the file,
+ * and the preview kept styles the pane no longer showed. Same lesson, same
+ * cure as `resyncNode` in tw-classes.js: find the tag again by its path after
+ * every write, and let go the moment it cannot be found.
+ *
+ * @returns {string|null} the element's slice, or null when there is no pick.
  */
-function cssSnippet() {
-  const focus = dockState.cssFocus;
+function cssFocusSnippet() {
+  const path = dockState.cssFocus?.path;
 
-  if (focus && htmlFocusOk(focus.from, focus.to, dockState.htmlFull.length)) {
-    return dockState.htmlFull.slice(focus.from, focus.to);
+  if (!path) {
+    return null;
   }
 
-  return htmlSnippet();
+  const html = currentFullHtml();
+  const row = flattenHtmlTree(parseHtmlTree(html), new Set()).find((item) => item.path === path);
+
+  if (!row) {
+    // The element is gone, or the file was rebuilt around it. Following the
+    // HTML pane again is the safe answer; showing a wrong element is not.
+    dockState.cssFocus = null;
+
+    return null;
+  }
+
+  return html.slice(row.from, row.to);
+}
+
+/** What the CSS pane is built from: its own pick, or the HTML pane's range. */
+function cssSnippet() {
+  return cssFocusSnippet() ?? htmlSnippet();
 }
 
 /** Let go of the CSS pane's own pick; it follows the HTML pane again. */
@@ -477,14 +501,14 @@ export function pickHtmlTagAtCursor(win) {
   }
 
   const same = dockState.cssFocus
-    ? dockState.cssFocus.from === row.from && dockState.cssFocus.to === row.to
+    ? dockState.cssFocus.path === row.path
     : !scoped || (dockState.htmlFocus.from === row.from && dockState.htmlFocus.to === row.to);
 
   if (same) {
     return;
   }
 
-  dockState.cssFocus = { from: row.from, to: row.to };
+  dockState.cssFocus = { path: row.path };
   applyCssScope();
 }
 
@@ -524,11 +548,15 @@ export function applyCssScope() {
   // The ID is the file's own instance layer, not the tag you have picked, and
   // the tree scope rebuilds the pane from the picked tag's classes — a view
   // the `#id-` rule is not in. So showing the ID shows the file.
-  if (dockState.cssValues || (!dockState.cssFocus && (!dockState.htmlScopePref || !dockState.htmlScopeActive))) {
+  // Resolved first: a pick that no longer finds its element clears itself in
+  // here, and the gate below then reads the state as it truly is.
+  const picked = cssFocusSnippet();
+
+  if (dockState.cssValues || (picked == null && (!dockState.htmlScopePref || !dockState.htmlScopeActive))) {
     dockState.cssPane = 'full';
     text = dockState.cssFull;
   } else {
-    tree = tokenTreeFromHtml(cssSnippet());
+    tree = tokenTreeFromHtml(picked ?? htmlSnippet());
 
     if (!tree.length) {
       dockState.cssPane = 'empty';
