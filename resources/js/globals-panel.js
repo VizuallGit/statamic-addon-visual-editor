@@ -2363,6 +2363,30 @@ export function chromeStyles(win, kind) {
   return Array.isArray(list) ? list : [];
 }
 
+/**
+ * Which half the sidebar is on, resolved the same way everywhere: the module's
+ * own note first, then whichever panel still carries the attribute.
+ */
+function chromeKindInPlay(win, panel = null) {
+  const kind =
+    activeChromeKind ||
+    panel?.getAttribute('data-sve-chrome-kind') ||
+    win.document.getElementById(GLOBALS_PANEL_ID)?.getAttribute('data-sve-chrome-kind') ||
+    win.document.getElementById(CHROME_DESIGNS_ID)?.getAttribute('data-sve-chrome-kind') ||
+    'header';
+
+  return kind === 'footer' ? 'footer' : 'header';
+}
+
+/**
+ * Whether this half has layout cards to offer. A site that configures none has
+ * nothing to choose between, so the Design | Edit content toggle would be two
+ * names for the one thing the sidebar can show. Then it stays away.
+ */
+export function chromeHasDesigns(win, panel = null) {
+  return chromeStyles(win, chromeKindInPlay(win, panel)).length > 0;
+}
+
 export function closeChromeDesignsPanel(win) {
   win.document.getElementById(CHROME_DESIGNS_ID)?.remove();
   releaseLeftEdgeIfFree(win);
@@ -2457,6 +2481,15 @@ export function ensureChromeModeToggle(win, panel, mode) {
     return;
   }
 
+  // No layout cards configured: the sidebar only ever shows the fields, so the
+  // toggle is a choice with one outcome. Drop it, and any copy left from a half
+  // that does have cards.
+  if (!chromeHasDesigns(win, panel)) {
+    panel.querySelector(`[${CHROME_MODE_TOGGLE_ATTR}]`)?.remove();
+
+    return;
+  }
+
   let row = panel.querySelector(`[${CHROME_MODE_TOGGLE_ATTR}]`);
 
   if (!row) {
@@ -2482,7 +2515,9 @@ export function setChromeSidebarMode(win, mode) {
     'header';
   const chromeKind = kind === 'footer' ? 'footer' : 'header';
 
-  if (mode === 'design') {
+  // `design` is only reachable where cards exist; without them the request
+  // falls through to the fields, which is all there is to show.
+  if (mode === 'design' && chromeStyles(win, chromeKind).length) {
     openChromeDesignsPanel(win, chromeKind);
     paintAllChromeModeToggles(win, 'design');
 
