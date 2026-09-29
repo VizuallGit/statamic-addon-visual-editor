@@ -417,6 +417,12 @@ export function ensureStyle(doc) {
   pointer-events: none;
   opacity: .28;
 }
+/* Plain CSS with no name in [ ]: the property tools have no rule to write to.
+   Add class stays live — it is the way to give them one. */
+#${DOCK_ID}[data-sve-css-unnamed] [data-sve-css-tools] {
+  pointer-events: none;
+  opacity: .28;
+}
 #${DOCK_ID}[data-sve-code-locked] [data-sve-code-pane] .cm-editor,
 #${DOCK_ID}[data-sve-code-locked] [data-sve-tw-host] {
   opacity: .62;
