@@ -29,3 +29,4 @@ import './library-drop-focus.js';
 import './collection-template-picker.js';
 import './collection-preset-scaffold.js';
 import './field-prop.js';
+import './warm-set-previews.js';

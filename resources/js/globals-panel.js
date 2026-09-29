@@ -59,6 +59,10 @@ import { MSG, SOURCE } from './lib/protocol.js';
 
 export const GLOBALS_DEBOUNCE = 200;
 
+// How many 250ms poll ticks a parked panel keeps comparing after a message,
+// so an asynchronous setFieldValue is never missed (~5 s).
+const PARKED_SYNC_TICKS = 20;
+
 export let globalsSaveTimer = null;
 
 export function globalSets(win) {
@@ -920,7 +924,14 @@ export function scheduleChromeGlobalsPrefetch(win) {
     return;
   }
 
-  win.setTimeout(() => prefetchChromeGlobals(win), 0);
+  // After idle, not at timeout 0: the warm-up must not compete with the page's
+  // own mount — a publish form with many sections needs the main thread first.
+  // The timeout still guarantees it runs well before a Live Preview click.
+  if (typeof win.requestIdleCallback === 'function') {
+    win.requestIdleCallback(() => prefetchChromeGlobals(win), { timeout: 4000 });
+  } else {
+    win.setTimeout(() => prefetchChromeGlobals(win), 1500);
+  }
 }
 
 /**
@@ -1734,6 +1745,10 @@ export function initGlobalsPanelFrame(win) {
       return;
     }
 
+    // Wake the parked value poll: any of these messages may change `values`,
+    // and the change lands asynchronously — see pendingTicks by the interval.
+    pendingTicks = PARKED_SYNC_TICKS;
+
     // An inline edit in the page, on content this form owns: apply it to the real
     // container here. The value poll below streams it straight back out, so the
     // page re-renders with it — the edit never has to know it crossed a window.
@@ -1836,10 +1851,39 @@ export function initGlobalsPanelFrame(win) {
   let previous = null;
   let seeded = false;
 
+  // The panel is parked off-screen after close (so reopening is instant), and
+  // this frame lives on. While parked nobody types in the form — values only
+  // change through the message handler above (inline edit, add block, style
+  // pick). So the poll rests while parked, except for a few ticks after each
+  // message: setFieldValue lands in `values` asynchronously, and a single
+  // immediate compare would miss it and never stream the edit out.
+  let pendingTicks = PARKED_SYNC_TICKS;
+
+  const parkedPanel = () => {
+    try {
+      const panel = win.frameElement?.closest?.(`#${GLOBALS_PANEL_ID}`);
+
+      return (
+        !!panel &&
+        (panel.hidden || panel.hasAttribute('data-sve-chrome-hidden') || panel.style.visibility === 'hidden')
+      );
+    } catch {
+      return false;
+    }
+  };
+
   // Polled rather than watched: the container's `values` is a Vue ref, and a
   // 200ms compare is both cheaper and far more robust than reaching into Vue's
   // reactivity from outside its bundle.
   win.setInterval(() => {
+    if (parkedPanel()) {
+      if (pendingTicks <= 0) {
+        return;
+      }
+
+      pendingTicks--;
+    }
+
     for (const container of activeContainers(doc)) {
       const values = unwrapRef(container.values);
 

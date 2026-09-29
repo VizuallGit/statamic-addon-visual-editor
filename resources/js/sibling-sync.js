@@ -734,9 +734,22 @@ function watchValues(container) {
     if (!watch || container._sveSyncWatchValues) return;
 
     container._sveSyncWatchValues = true;
+
+    // The deep watch fires on every keystroke anywhere in the form, and
+    // flushSources walks the whole values tree each time. Coalesce a typing
+    // burst into one walk — the sync still happens, just a beat later.
+    let flushTimer = null;
+
     watch(
         () => unwrapRef(container.values),
-        () => flushSources(container),
+        () => {
+            if (flushTimer) return;
+
+            flushTimer = setTimeout(() => {
+                flushTimer = null;
+                flushSources(container);
+            }, 150);
+        },
         { deep: true },
     );
 }
