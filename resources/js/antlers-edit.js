@@ -6,6 +6,8 @@
  * template, and the tree would be the thing that broke it.
  */
 
+import { NAV_PAGES } from './antlers-blocks.js';
+
 /** The open tag with a new expression, or null when nothing would change. */
 export function writeAntlersExpression(html, node, value) {
   const text = String(html || '');
@@ -61,17 +63,23 @@ export function writeLoopTag(html, node, changes = {}) {
     return text;
   }
 
-  const current = node.loopKind === 'collection' ? 'collection' : 'field';
+  const current =
+    node.loopKind === 'collection' ? 'collection' : node.loopKind === 'nav' ? 'nav' : 'field';
   const kind = changes.kind ?? current;
   const name = String(changes.name ?? node.expr ?? '').trim();
 
-  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name)) {
+  // A nav may also name the pages tree, which is not a plain handle.
+  const named = kind === 'nav' && name === NAV_PAGES;
+
+  if (!named && !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name)) {
     return text;
   }
 
   const dir = changes.sortDir ?? node.sortDir ?? '';
   const field = String(changes.sortField ?? node.sortField ?? '').trim();
   const limit = String(changes.limit ?? node.limit ?? '').trim();
+  const depth = String(changes.navDepth ?? node.navDepth ?? '').trim();
+  const includeHome = changes.includeHome ?? node.includeHome ?? false;
   const range = closingRange(text, node);
 
   if (!range) {
@@ -87,8 +95,13 @@ export function writeLoopTag(html, node, changes = {}) {
   const open =
     kind === 'collection'
       ? collectionTag(name, field, dir, limit, params)
-      : fieldTag(name, field, dir, limit, params);
-  const close = kind === 'collection' ? 'collection' : name;
+      : kind === 'nav'
+        ? navTag(name, depth, includeHome, params)
+        : fieldTag(name, field, dir, limit, params);
+  // `nav` closes plainly for the same reason `collection` does: the source is
+  // written as a parameter, so `{{ /nav }}` is the right end of the pair
+  // whichever structure it reads.
+  const close = kind === 'collection' ? 'collection' : kind === 'nav' ? 'nav' : name;
 
   return (
     text.slice(0, node.from) +
@@ -123,6 +136,44 @@ function collectionTag(handle, field, dir, limit, params) {
 
   if (limit) {
     parts.push(`limit="${limit}"`);
+  }
+
+  if (kept) {
+    parts.push(kept);
+  }
+
+  return `{{ ${parts.join(' ')} }}`;
+}
+
+/**
+ * A loop over a navigation, or over the pages collection's own tree.
+ *
+ * Written with `handle="…"` rather than `{{ nav:handle }}` for the reason
+ * collectionTag gives: the pair then closes with a plain `{{ /nav }}`, whatever
+ * it reads.
+ *
+ * There is no sort and no limit here because Statamic's nav tag has neither. A
+ * navigation renders in the order it was dragged into, and `max_depth` is the
+ * control that shortens it — one level for a flat top-level menu.
+ */
+function navTag(handle, depth, includeHome, params) {
+  const kept = String(params || '')
+    .replace(/\bhandle\s*=\s*["'][A-Za-z0-9_:-]+["']/g, '')
+    .replace(/\bmax_depth\s*=\s*["']?\d+["']?/g, '')
+    .replace(/\binclude_home\s*=\s*["']?(?:true|false)["']?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const parts = [`nav handle="${handle}"`];
+
+  // Only meaningful on the pages tree: a navigation holds whatever was put in
+  // it, front page included or not, and the parameter has nothing to add.
+  if (includeHome && handle === NAV_PAGES) {
+    parts.push('include_home="true"');
+  }
+
+  if (depth) {
+    parts.push(`max_depth="${depth}"`);
   }
 
   if (kept) {

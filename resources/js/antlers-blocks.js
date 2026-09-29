@@ -49,6 +49,58 @@ export const NOT_A_LOOP = new Set([
 const TAG = /\{\{\s*(\/?)\s*([A-Za-z_][A-Za-z0-9_.-]*)((?::[^\s}]*)?[\s\S]*?)\}\}/g;
 
 /**
+ * The pages collection's own tree, as `{{ nav }}` names it.
+ *
+ * Statamic reads a bare `{{ nav }}` as this, and the double colon is what the
+ * `handle` parameter wants — the single-colon `{{ nav:collection:pages }}` form
+ * is the wildcard's spelling of the same thing.
+ */
+export const NAV_PAGES = 'collection::pages';
+
+/**
+ * Which structure a nav loop reads: a navigation's handle, or the pages tree.
+ *
+ * Three spellings reach the same place — `{{ nav }}`, `{{ nav:collection:pages }}`
+ * and `handle="collection::pages"` — so they are read into the one sentinel and
+ * the panel never has to know which was typed.
+ */
+export function navSource(rest) {
+  const raw = String(rest || '');
+  const param = raw.match(/\bhandle\s*=\s*["']([A-Za-z0-9_:-]+)["']/);
+  const colon = raw.match(/^:((?:collection::?)?[A-Za-z0-9_-]+)/);
+  const found = (param?.[1] || colon?.[1] || '').trim();
+
+  if (!found || /^collection::?pages$/.test(found)) {
+    return NAV_PAGES;
+  }
+
+  return found;
+}
+
+/**
+ * How deep a nav loop goes, and whether the front page is in it.
+ *
+ * These are the two of Statamic's nav parameters the panel offers. The tag has
+ * no `sort` and no `limit` at all — a navigation's order is the order it was
+ * dragged into — so the loop panel shows neither for this kind.
+ *
+ * `navDepth` and not `depth`, because a tree row's `depth` is already how far
+ * it is indented — a different number that would quietly win the merge.
+ *
+ * @returns {{navDepth: string, includeHome: boolean}}
+ */
+export function navOptions(rest) {
+  const raw = String(rest || '');
+  const depth = raw.match(/\bmax_depth\s*=\s*["']?(\d+)["']?/);
+  const home = raw.match(/\binclude_home\s*=\s*["']?(true|false)["']?/i);
+
+  return {
+    navDepth: depth ? depth[1] : '',
+    includeHome: home ? home[1].toLowerCase() === 'true' : false,
+  };
+}
+
+/**
  * How a loop is sorted and how much of it renders.
  *
  * The two kinds of loop say this in different languages, measured rather than
@@ -220,19 +272,34 @@ export function findAntlersBlocks(html) {
     const rest = match[3] || '';
     const colon = rest.match(/^:([A-Za-z0-9_-]+)/);
     const from_ = rest.match(/\bfrom\s*=\s*["']([A-Za-z0-9_-]+)["']/);
-    const handle = colon?.[1] || from_?.[1] || '';
     const collection = name === 'collection';
+    // `{{ nav }}` is a loop over a structure, not over a field on the page, and
+    // it takes neither of the field loop's languages — see navOptions.
+    const nav = name === 'nav';
+    const handle = nav ? navSource(rest) : colon?.[1] || from_?.[1] || '';
 
     stack.push({
       kind: 'loop',
-      loopKind: collection ? 'collection' : 'field',
+      loopKind: collection ? 'collection' : nav ? 'nav' : 'field',
       name,
       handle,
       // Kept so a rewrite does not drop what the site put there: tag
-      // parameters for a collection, the modifier chain for a field loop.
-      params: collection ? rest.replace(/^:[A-Za-z0-9_-]+/, '').trim() : rest.trim(),
-      expr: collection ? handle : name,
+      // parameters for a collection or a nav, the modifier chain for a field
+      // loop. A nav's own three are stripped, because the panel writes them.
+      params: collection
+        ? rest.replace(/^:[A-Za-z0-9_-]+/, '').trim()
+        : nav
+          ? rest
+              .replace(/^:(?:collection::?)?[A-Za-z0-9_-]+/, '')
+              .replace(/\bhandle\s*=\s*["'][A-Za-z0-9_:-]+["']/, '')
+              .replace(/\bmax_depth\s*=\s*["']?\d+["']?/, '')
+              .replace(/\binclude_home\s*=\s*["']?(?:true|false)["']?/i, '')
+              .replace(/\s+/g, ' ')
+              .trim()
+          : rest.trim(),
+      expr: collection || nav ? handle : name,
       ...loopOptions(rest, collection),
+      ...(nav ? navOptions(rest) : { navDepth: '', includeHome: false }),
       from,
       openTo,
       branchOf: null,

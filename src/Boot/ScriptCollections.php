@@ -7,6 +7,7 @@ use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\Collection;
 use Statamic\Facades\Entry;
 use Statamic\Facades\GlobalSet;
+use Statamic\Facades\Nav;
 use Statamic\Facades\Site;
 use Statamic\Facades\User;
 use Statamic\Statamic;
@@ -50,6 +51,32 @@ final class ScriptCollections
                 'title' => $collection->title(),
                 'previewable' => (bool) $collection->route($site),
                 'createUrl' => $collection->createEntryUrl($site),
+            ])
+            ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The site's navigations, for the tree's Nav loop.
+     *
+     * Only the ones built in Navigation — the pages collection's own tree is
+     * offered beside them by the panel, because `{{ nav }}` reaches it through
+     * `handle="collection::pages"` rather than through a navigation at all.
+     *
+     * Empty is a real answer: a site with no navigations still loops its pages,
+     * and the panel says so instead of showing a picker with nothing in it.
+     */
+    public static function navigations(): array
+    {
+        if (! User::current()) {
+            return [];
+        }
+
+        return Nav::all()
+            ->map(fn ($nav) => [
+                'handle' => $nav->handle(),
+                'title' => $nav->title(),
             ])
             ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()

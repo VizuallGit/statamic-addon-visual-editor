@@ -292,9 +292,11 @@ function addAntlersBlocks(roots, source, options = {}) {
     const label =
       block.loopKind === 'collection'
         ? `collection: ${block.handle || '?'}`
-        : block.kind === 'loop'
-          ? block.name
-          : block.expr;
+        : block.loopKind === 'nav'
+          ? `nav: ${block.handle === 'collection::pages' ? 'pages' : block.handle || '?'}`
+          : block.kind === 'loop'
+            ? block.name
+            : block.expr;
     const node = {
       id: `antlers-${block.from}`,
       tag: block.name,
@@ -306,6 +308,8 @@ function addAntlersBlocks(roots, source, options = {}) {
       sortField: block.sortField || '',
       sortDir: block.sortDir || '',
       limit: block.limit || '',
+      navDepth: block.navDepth || '',
+      includeHome: !!block.includeHome,
       expr: block.expr,
       klass: label,
       path: `${host ? `${host.path}/` : ''}a${block.from}:${block.name}`,
@@ -587,6 +591,8 @@ export function flattenHtmlTree(nodes, collapsed, depth = 0, out = []) {
       sortField: node.sortField || '',
       sortDir: node.sortDir || '',
       limit: node.limit || '',
+      navDepth: node.navDepth || '',
+      includeHome: !!node.includeHome,
       expr: node.expr || '',
       src: node.src || '',
       klass: node.klass || '',

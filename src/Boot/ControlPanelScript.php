@@ -87,6 +87,8 @@ final class ControlPanelScript
                 // Every on-screen string, in the CP user's own language.
                 'sveStrings' => static::strings(),
                 'sveCollections' => ScriptCollections::pickerCollections(),
+                // The Navigation structures, for the HTML tree's Nav loop.
+                'sveNavigations' => ScriptCollections::navigations(),
                 'sveSectionTag' => (string) config('statamic-visual-editor.templates.section_tag', ''),
                 // The collections whose entries open in the preview rather than
                 // the publish form (Addons > Statamic Visual Editor).

@@ -170,6 +170,18 @@ function pickSortField(event) {
         </option>
       </select>
 
+      <select
+        v-else-if="ui.inspect.mode === 'loop' && ui.inspect.loopKind === 'nav'"
+        :key="ui.inspect.key + ':nav:' + ui.inspect.value"
+        :value="ui.inspect.value"
+        :disabled="!ui.canEdit"
+        @change="commit"
+      >
+        <option v-for="item in ui.inspect.navs" :key="item.handle" :value="item.handle">
+          {{ item.title }}
+        </option>
+      </select>
+
       <div v-else class="sve-ht-inspect__box">
         <input
           ref="field"
@@ -193,6 +205,30 @@ function pickSortField(event) {
           @click.stop.prevent="pickData"
         ></button>
       </div>
+
+      <template v-if="ui.inspect.nav">
+        <div class="sve-ht-inspect__head sve-ht-inspect__head--sub">{{ ui.inspect.nav.depthTitle }}</div>
+        <select
+          :key="ui.inspect.key + ':depth:' + ui.inspect.nav.depth"
+          :value="ui.inspect.nav.depth"
+          :disabled="!ui.canEdit"
+          @change="ui.onLoopDepth?.($event.target.value)"
+        >
+          <option v-for="item in ui.inspect.nav.depths" :key="item.id" :value="item.id">
+            {{ item.label }}
+          </option>
+        </select>
+
+        <label v-if="ui.inspect.nav.homeAsked" class="sve-ht-inspect__tick">
+          <input
+            type="checkbox"
+            :checked="ui.inspect.nav.includeHome"
+            :disabled="!ui.canEdit"
+            @change="ui.onLoopIncludeHome?.($event.target.checked)"
+          >
+          <span>{{ ui.inspect.nav.homeLabel }}</span>
+        </label>
+      </template>
 
       <template v-if="ui.inspect.sort">
         <div class="sve-ht-inspect__head sve-ht-inspect__head--sub">{{ ui.inspect.sort.title }}</div>
@@ -324,6 +360,25 @@ select:disabled {
 }
 .sve-ht-inspect__box--gap {
   margin-top: 0.35em;
+}
+/* A tick sits beside its words, and the shared full-width input rule above
+   would otherwise stretch the box across the panel. */
+.sve-ht-inspect__tick {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.6em;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.sve-ht-inspect__tick input {
+  width: auto;
+  margin: 0;
+  flex: 0 0 auto;
+  accent-color: #3858e9;
+}
+.sve-ht-inspect__tick input:disabled + span {
+  opacity: 0.55;
 }
 .sve-ht-inspect__box:has([data-sve-ht-data]) input {
   padding-right: 2em;

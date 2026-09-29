@@ -63,6 +63,7 @@ import {
   writeLoopSource,
   writeLoopTag,
 } from './antlers-edit.js';
+import { NAV_PAGES } from './antlers-blocks.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
@@ -1908,6 +1909,12 @@ export function renderHtmlTree(win) {
       })
     );
   };
+  htmlTreeUi.onLoopDepth = (value) =>
+    applyAntlersEdit(win, (html, row) =>
+      writeLoopTag(html, row, { navDepth: String(value || '').replace(/\D/g, '') })
+    );
+  htmlTreeUi.onLoopIncludeHome = (value) =>
+    applyAntlersEdit(win, (html, row) => writeLoopTag(html, row, { includeHome: !!value }));
   htmlTreeUi.onLoopLimit = (value) =>
     applyAntlersEdit(win, (html, row) =>
       writeLoopTag(html, row, { limit: String(value || '').replace(/\D/g, '') })
@@ -3513,6 +3520,27 @@ function siteCollections(win) {
   return Array.isArray(list) ? list : [];
 }
 
+/**
+ * The site's Navigation structures, for the Nav loop.
+ *
+ * The pages collection's own tree is not one of them and is added by the panel,
+ * because `{{ nav }}` reaches it by handle rather than through a navigation. A
+ * site with none configured therefore still has something to loop.
+ */
+function siteNavigations(win) {
+  const list = win.Statamic?.$config?.get?.('sveNavigations');
+
+  return Array.isArray(list) ? list : [];
+}
+
+/** Every source the Nav loop offers: the pages tree first, then the navigations. */
+function navSources(win) {
+  return [
+    { handle: NAV_PAGES, title: t(win, 'antlers_nav_pages') },
+    ...siteNavigations(win).map((nav) => ({ handle: nav.handle, title: nav.title })),
+  ];
+}
+
 function paintHtmlTreeInspector(win, row) {
   if (row?.kind === 'component') {
     paintComponentValues(win, row);
@@ -3553,18 +3581,56 @@ function paintHtmlTreeInspector(win, row) {
 
   if (row.antlers === 'loop') {
     const collection = row.loopKind === 'collection';
+    const nav = row.loopKind === 'nav';
     const draft = htmlTreeSortDraft?.id === row.id ? htmlTreeSortDraft.dir : '';
     const dir = row.sortDir || draft;
+    const kinds = [
+      { id: 'field', label: t(win, 'antlers_loop_field') },
+      { id: 'collection', label: t(win, 'antlers_loop_collection') },
+      { id: 'nav', label: t(win, 'antlers_loop_nav') },
+    ];
+
+    // A navigation has no sorting and no limit to offer, because the tag has
+    // neither: its order is the order it was dragged into. Depth is what
+    // shortens it, and the front page is a question only the pages tree has.
+    if (nav) {
+      const source = row.expr || NAV_PAGES;
+
+      htmlTreeUi.inspect = {
+        key,
+        title: t(win, 'antlers_loop'),
+        mode: 'loop',
+        loopKind: 'nav',
+        kinds,
+        navs: navSources(win),
+        value: source,
+        placeholder: t(win, 'antlers_pick_nav'),
+        nav: {
+          depthTitle: t(win, 'antlers_nav_depth'),
+          depth: row.navDepth || '',
+          depths: [
+            { id: '', label: t(win, 'antlers_nav_depth_all') },
+            { id: '1', label: t(win, 'antlers_nav_depth_1') },
+            { id: '2', label: t(win, 'antlers_nav_depth_2') },
+            { id: '3', label: t(win, 'antlers_nav_depth_3') },
+          ],
+          // Only the pages tree has a front page to leave in or out.
+          homeAsked: source === NAV_PAGES,
+          homeLabel: t(win, 'antlers_nav_include_home'),
+          includeHome: !!row.includeHome,
+        },
+        branches: [],
+      };
+
+      return;
+    }
 
     htmlTreeUi.inspect = {
       key,
       title: t(win, 'antlers_loop'),
       mode: 'loop',
       loopKind: collection ? 'collection' : 'field',
-      kinds: [
-        { id: 'field', label: t(win, 'antlers_loop_field') },
-        { id: 'collection', label: t(win, 'antlers_loop_collection') },
-      ],
+      kinds,
       collections: siteCollections(win),
       value: row.expr || '',
       placeholder: t(win, collection ? 'antlers_pick_collection' : 'antlers_loop_placeholder'),
@@ -3897,9 +3963,18 @@ function setHtmlTreeLoopKind(win, kind) {
     return;
   }
 
-  const current = row.loopKind === 'collection' ? 'collection' : 'field';
+  const current =
+    row.loopKind === 'collection' ? 'collection' : row.loopKind === 'nav' ? 'nav' : 'field';
 
   if (kind === current) {
+    return;
+  }
+
+  // The pages tree needs nothing configured, so the Nav kind always has a
+  // source to start on — unlike a collection, which needs one to exist.
+  if (kind === 'nav') {
+    applyAntlersEdit(win, (html, node) => writeLoopSource(html, node, 'nav', NAV_PAGES));
+
     return;
   }
 
