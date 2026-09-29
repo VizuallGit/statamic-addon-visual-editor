@@ -326,6 +326,20 @@ select {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.6875rem;
 }
+/*
+  The native arrow is drawn in the corner of the box with nothing around it.
+  Ours is a background image instead, so it can sit in from the edge — and the
+  text gets the room back on the right so the two never meet.
+*/
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23999' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7em center;
+  background-size: 0.65em;
+  padding-right: 2.1em;
+}
 input:focus,
 select:focus {
   outline: 2px solid #3858e9;
@@ -367,15 +381,51 @@ select:disabled {
   display: flex;
   align-items: center;
   gap: 0.5em;
-  margin-top: 0.6em;
+  /* Its own thought, not a line under the one above: the gap says so. */
+  margin-top: 0.75rem;
   font-size: 0.6875rem;
   cursor: pointer;
 }
+/*
+  Drawn rather than native, because the browser's own box is white and this
+  panel is dark. Unticked it wears the segmented control's resting grey with a
+  blue edge; ticked it fills with the same blue those buttons go.
+*/
 .sve-ht-inspect__tick input {
-  width: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 1.2em;
+  height: 1.2em;
   margin: 0;
+  padding: 0;
   flex: 0 0 auto;
-  accent-color: #3858e9;
+  border: 1px solid rgba(56, 88, 233, 0.55);
+  border-radius: 0.25rem;
+  background: rgba(128, 128, 128, 0.16);
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+}
+.sve-ht-inspect__tick input::after {
+  content: '';
+  width: 0.3em;
+  height: 0.58em;
+  margin-top: -0.1em;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  opacity: 0;
+}
+.sve-ht-inspect__tick input:checked {
+  background: #3858e9;
+  border-color: #3858e9;
+}
+.sve-ht-inspect__tick input:checked::after {
+  opacity: 1;
+}
+.sve-ht-inspect__tick input:disabled {
+  cursor: default;
 }
 .sve-ht-inspect__tick input:disabled + span {
   opacity: 0.55;
@@ -399,6 +449,9 @@ select:disabled {
   width: auto;
   min-width: 0;
   padding-right: 0.6em;
+}
+.sve-ht-inspect__box--pick select {
+  padding-right: 2.1em;
 }
 .sve-ht-inspect__box--pick [data-sve-ht-data] {
   position: static;
