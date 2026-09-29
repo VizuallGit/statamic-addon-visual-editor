@@ -7,15 +7,17 @@ import { deleteLibraryUi as ui } from '../library/delete-store.js';
     <div class="sve-dialog" @click.stop>
       <div class="sve-dialog__title">{{ ui.title }}</div>
       <div class="sve-dialog__body">
-        <template v-if="ui.usages.length">
+        <template v-if="ui.leads.length || ui.usages.length">
           <div v-for="(lead, i) in ui.leads" :key="i" class="sve-dialog__lead">{{ lead }}</div>
-          <div class="sve-dialog__usage-head">{{ ui.usageHeading }}</div>
-          <ul>
-            <li v-for="(usage, i) in ui.usages" :key="i">
-              <span class="sve-dialog__name">{{ usage.title }}</span>
-              <span class="sve-dialog__where">{{ usage.where }}</span>
-            </li>
-          </ul>
+          <template v-if="ui.usages.length">
+            <div class="sve-dialog__usage-head">{{ ui.usageHeading }}</div>
+            <ul>
+              <li v-for="(usage, i) in ui.usages" :key="i">
+                <span class="sve-dialog__name">{{ usage.title }}</span>
+                <span class="sve-dialog__where">{{ usage.where }}</span>
+              </li>
+            </ul>
+          </template>
         </template>
         <template v-else>{{ ui.body }}</template>
       </div>

@@ -64,6 +64,8 @@ defineProps({
   gap: 3px;
   padding: 2px 0 0;
   flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 [data-sve-search-wrap] {
   padding: var(--sve-right-body-pad-block, 8px) 0 0;

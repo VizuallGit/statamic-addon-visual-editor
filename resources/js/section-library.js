@@ -3123,17 +3123,27 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
       : usage.collection_title;
 
   const setButtons = (confirmKey, removeUsages) => {
+    // A section type offers two ends: out of the page builder, or off the
+    // disk with it — its partial and its imported fieldset. The other kinds
+    // keep their single Delete.
+    const confirms = !confirmKey
+      ? []
+      : isType
+        ? [
+            { id: 'confirm', label: t(win, 'delete_confirm_remove_only'), variant: 'danger' },
+            { id: 'confirm_files', label: t(win, 'delete_confirm_with_files'), variant: 'danger' },
+          ]
+        : [{ id: 'confirm', label: t(win, confirmKey), variant: 'danger' }];
+
     deleteLibraryUi.buttons = [
       { id: 'cancel', label: t(win, 'cancel'), variant: '' },
-      ...(confirmKey
-        ? [{ id: 'confirm', label: t(win, confirmKey), variant: 'danger' }]
-        : []),
+      ...confirms,
     ];
     deleteLibraryUi.onPick = (id) => {
       close();
 
-      if (id === 'confirm') {
-        deleteLibraryItem(win, kind, item, removeUsages, onDeleted);
+      if (id === 'confirm' || id === 'confirm_files') {
+        deleteLibraryItem(win, kind, item, removeUsages, onDeleted, id === 'confirm_files');
       }
     };
   };
@@ -3164,21 +3174,26 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
       const usages = data.usages || [];
 
       if (!usages.length) {
-        deleteLibraryUi.body = t(
-          win,
-          isType
-            ? 'delete_section_type_body'
-            : item.synced
-              ? 'delete_global_section_unused_body'
-              : 'delete_saved_section_body'
-        );
+        if (isType) {
+          // Leads, not body: the note about the two buttons is its own line.
+          deleteLibraryUi.body = '';
+          deleteLibraryUi.leads = [
+            t(win, 'delete_section_type_body'),
+            t(win, 'delete_section_type_files_note'),
+          ];
+        } else {
+          deleteLibraryUi.body = t(
+            win,
+            item.synced ? 'delete_global_section_unused_body' : 'delete_saved_section_body'
+          );
+        }
         setButtons('delete_confirm', false);
 
         return;
       }
 
       const leadKeys = isType
-        ? ['delete_section_type_body', 'delete_section_type_used']
+        ? ['delete_section_type_body', 'delete_section_type_used', 'delete_section_type_files_note']
         : ['delete_global_section_body'];
 
       deleteLibraryUi.body = '';
@@ -3199,7 +3214,7 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
 }
 
 /** Sends the delete, then tells the picker to reload the list it came from. */
-export function deleteLibraryItem(win, kind, item, removeUsages, onDeleted) {
+export function deleteLibraryItem(win, kind, item, removeUsages, onDeleted, deleteFiles = false) {
   const name = item.display || item.title;
   const suffix = removeUsages ? 'remove_usages=1' : '';
 
@@ -3207,7 +3222,7 @@ export function deleteLibraryItem(win, kind, item, removeUsages, onDeleted) {
     kind === 'template'
       ? `/!/sve/templates/${encodeURIComponent(item.id)}`
       : kind === 'page'
-        ? `/!/sve/section-types?handle=${encodeURIComponent(item.handle)}&${blueprintQuery(win)}${suffix ? `&${suffix}` : ''}`
+        ? `/!/sve/section-types?handle=${encodeURIComponent(item.handle)}&${blueprintQuery(win)}${suffix ? `&${suffix}` : ''}${deleteFiles ? '&delete_files=1' : ''}`
         : `/!/sve/saved-sections/${encodeURIComponent(item.id)}${suffix ? `?${suffix}` : ''}`;
 
   win

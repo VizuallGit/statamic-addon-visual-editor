@@ -1561,29 +1561,28 @@ export function renderHtmlTree(win) {
 
   // Page with every section removed while the dock still holds the last
   // section's file: showing those tags as if they belonged here is the hang
-  // after delete. The frame stays — header, main and footer are the layout's,
-  // not the sections' — and the dock's usual answer on such a page is the
-  // layout's <main>, which the normal path draws inside its frame.
+  // after delete. The tree says the page is empty and points at the plus —
+  // no header, main or footer rows. Those are the layout's, and the layout
+  // has its own screen; on a page with nothing in it they were three rows
+  // that looked like content. A header, footer or layout file opened on
+  // purpose still takes the normal path and its frame.
   const openPart = String(ask('dock:chrome-kind') || '');
 
-  // The tag colours from the settings, on every drawing — the empty page's
-  // frame too, or its header and footer wear the defaults until a file opens.
+  // The tag colours from the settings, on every drawing.
   applyFamilyColors(win);
 
   if (pageBuilder && !sections.length && !openPart) {
     htmlTreeRoots = [];
     htmlTreeUi.rows = [];
     htmlTreeUi.sections = [];
-    htmlTreeUi.frame = frameAroundPage(win, [], false, false, '', true);
-    htmlTreeUi.frameEmptyText = t(win, 'html_tree_frame_no_sections');
+    htmlTreeUi.frame = null;
     htmlTreeUi.pageBuilder = true;
     htmlTreeUi.layoutFile = false;
-    htmlTreeUi.emptyText = t(win, 'html_tree_empty');
+    htmlTreeUi.emptyText = t(win, 'html_tree_page_empty');
     htmlTreeUi.canEdit = !ask('dock:is-locked');
     htmlTreeUi.look = readHtmlTreeLook(win);
     htmlTreeUi.onRefresh = () => renderHtmlTree(win);
     htmlTreeUi.onSection = null;
-    bindFrame(win, '');
     paintComponentExit(win);
     mountPane(list, HtmlTreeList);
     publishHtmlPick(win, []);
