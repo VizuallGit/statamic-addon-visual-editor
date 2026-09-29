@@ -129,28 +129,64 @@ final class Manifest
         return is_file($path) ? $path : null;
     }
 
+    /** Memo for the request: addonImports() is asked for by serving, recovery and the lock. */
+    private static ?array $addonImports = null;
+
     /**
-     * File names the live `addon.js` imports (`from "./name.js"` or `import("./name.js")`).
+     * File names the live `addon.js` reaches through chunk imports
+     * (`from "./name.js"` or `import("./name.js")`), all the way down.
+     *
+     * One hop stopped being enough when addon.js deferred the Live Preview
+     * cluster behind a single `import('./lp-cluster.js')`: overlay-host and
+     * every panel chunk now sit behind that hop, and serving, recovery and the
+     * lock all read this list.
+     *
+     * A chunk missing from assets/ is read from locked/ so the walk still sees
+     * its imports — that is exactly the file Recovery is about to put back.
      *
      * @return list<string>
      */
     public static function addonImports(): array
     {
+        if (static::$addonImports !== null) {
+            return static::$addonImports;
+        }
+
         $path = static::liveAddonPath();
 
         if (! $path) {
-            return [];
+            return static::$addonImports = [];
         }
 
-        $source = (string) file_get_contents($path);
+        $seen = [basename($path) => true];
+        $queue = [$path];
         $names = [];
 
-        if (preg_match_all('#(?:from\s*["\']\\./|import\(["\']\\./)([^"\']+\.js)#', $source, $matches)) {
+        while ($queue) {
+            $source = (string) file_get_contents(array_shift($queue));
+
+            if (! preg_match_all('#(?:from\s*["\']\\./|import\(["\']\\./)([^"\']+\.js)#', $source, $matches)) {
+                continue;
+            }
+
             foreach ($matches[1] as $name) {
+                if (isset($seen[$name])) {
+                    continue;
+                }
+
+                $seen[$name] = true;
                 $names[] = $name;
+
+                foreach ([static::assetsDir().'/'.$name, static::lockedRoot().'/'.$name] as $file) {
+                    if (is_file($file)) {
+                        $queue[] = $file;
+
+                        break;
+                    }
+                }
             }
         }
 
-        return array_values(array_unique($names));
+        return static::$addonImports = $names;
     }
 }

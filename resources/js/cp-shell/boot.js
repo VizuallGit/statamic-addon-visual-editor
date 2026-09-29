@@ -13,6 +13,7 @@ import { ensurePanel, markLivePreviewReady, refreshRightDockHooks } from '../laz
 import { watchPreviewRenders } from '../lp-replay.js';
 import { injectStyle } from '../lib/style.js';
 import { registerContainerEvents } from '../lib/publish-containers.js';
+import { registerPanelConditions } from '../lib/live-preview.js';
 import { persistDockedPanel } from '../lp-panel.js';
 import { ensureLpPanelToggle, markStepIntoAll } from '../focus-panel.js';
 import { openSectionPicker, syncPreviewInset } from '../section-library.js';
@@ -123,38 +124,10 @@ export function guardAssetLimit(win) {
   }, true);
 }
 
-/**
- * The two conditions the "where is this edited?" setting turns into.
- *
- * Registered by the editor rather than left to each site: the setting is offered
- * on every field's settings screen, and a field naming a condition nobody
- * registered is hidden everywhere instead of somewhere — the one failure worse
- * than the setting not working at all. A site that already registers these of its
- * own accord simply registers them twice, to the same effect.
- *
- * A ref, not a DOM lookup per call: conditions are evaluated inside a Vue
- * computed, so a ref is what makes them reactive. Without it a field would only
- * change places the next time some other value happened to change.
- */
-export function registerPanelConditions(win) {
-  const conditions = win.Statamic?.$conditions;
-  const ref = win.Vue?.ref;
-
-  if (!conditions || !ref || !win.document.body) {
-    return;
-  }
-
-  const inLivePreview = ref(false);
-  const sync = () => {
-    inLivePreview.value = !!win.document.querySelector('.live-preview-editor');
-  };
-
-  sync();
-  new win.MutationObserver(sync).observe(win.document.body, { childList: true, subtree: true });
-
-  conditions.add('notInLivePreview', () => !inLivePreview.value);
-  conditions.add('onlyInLivePreview', () => inLivePreview.value);
-}
+// The "where is this edited?" conditions live in lib/live-preview.js: addon.js
+// registers them at boot, before this shell has loaded (and on sites with the
+// editor switched off, where it never does). Re-exported for the cp.js barrel.
+export { registerPanelConditions };
 
 /**
  * Statamic's leave confirm (`dirty_navigation_warning`) lives on this window —

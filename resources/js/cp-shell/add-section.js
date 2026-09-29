@@ -11,7 +11,7 @@ import { closeCodeDockPopups } from '../code-dock-lazy.js';
 import { ensurePanel, markLivePreviewReady } from '../lazy-panels.js';
 import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, GLOBAL_SECTION_PANEL_ID, HEADER_ICON_HOVER, LP_BACK_ID, LP_COVER_ID } from '../lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
-import { livePreviewEditorEl } from '../lib/live-preview.js';
+import { livePreviewButton, livePreviewEditorEl } from '../lib/live-preview.js';
 import { previewCopies, previewFrame } from '../lib/preview-frame.js';
 import { syncStoredVideoHolds } from '../video-holds.js';
 import { activeContainers } from '../lib/publish-containers.js';
@@ -2843,17 +2843,21 @@ export function previewPainted(doc) {
   }
 }
 
-/**
- * Statamic's own "open Live Preview" button, found in whatever language the CP is
- * speaking — matching the English label alone left every other locale waiting on
- * the failsafe, staring at a blank cover.
- */
-export function livePreviewButton(doc) {
-  return [...doc.querySelectorAll('button, a')].find((el) => {
-    const text = `${el.textContent || ''} ${el.getAttribute('title') || ''}`;
+// Statamic's own "open Live Preview" button. Lives in lib/live-preview.js so
+// addon.js can spot a click on it before this shell has loaded.
+export { livePreviewButton };
 
-    return /live.?preview|forhåndsvis|vorschau|voorbeeld|aperçu|vista previa/i.test(text);
-  });
+/**
+ * Open the editor overlay where Statamic would have opened Live Preview in-place.
+ * Shared by the interceptor below and addon.js, which takes the first click
+ * itself while this shell is still loading.
+ */
+export function openLivePreviewOverlay(win, button) {
+  const url = new URL(win.location.href);
+
+  url.searchParams.set('live-preview', '1');
+  openOverlay(win, url.toString());
+  markLivePreviewOpening(win, button);
 }
 
 /**
@@ -2884,11 +2888,7 @@ export function interceptLivePreviewOpen(win) {
       event.stopPropagation();
       event.stopImmediatePropagation();
 
-      const url = new URL(win.location.href);
-
-      url.searchParams.set('live-preview', '1');
-      openOverlay(win, url.toString());
-      markLivePreviewOpening(win, button);
+      openLivePreviewOverlay(win, button);
     },
     true
   );

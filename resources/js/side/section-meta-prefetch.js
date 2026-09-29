@@ -17,7 +17,7 @@
  * calls the library early. One cache, no patch.
  *
  * May import: section-library.js (set meta and the global-section set), lib/.
- * Imported by addon.js right after section-library.js, not through
+ * Imported by lp-cluster.js right after section-library.js, not through
  * side/index.js: pulling the library into the first import would change the
  * order the CP's module graph evaluates in.
  */

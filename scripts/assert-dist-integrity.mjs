@@ -9,11 +9,15 @@
  *
  * What is checked:
  *   1. every file the manifest names exists;
- *   2. every chunk the live addon.js imports (static or dynamic) exists;
+ *   2. every chunk the live addon.js imports (static or dynamic) exists, and
+ *      every chunk those import, all the way down — addon.js loads the Live
+ *      Preview cluster (lp-cluster) with import(), and the cluster is what
+ *      imports overlay-host and the lazy panels;
  *   3. the same for the recovery copies in resources/dist/locked/, which
  *      BuiltAssets::recover() restores from when a chunk goes missing;
- *   4. the overlay-host the live addon.js imports is the one the manifest
- *      names — a split build means one entry was rebuilt alone.
+ *   4. the overlay-host the live addon.js reaches (directly or through the
+ *      cluster) is the one the manifest names — a split build means one entry
+ *      was rebuilt alone.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -44,6 +48,42 @@ function chunkImports(source) {
   return [...names];
 }
 
+/**
+ * Every chunk reachable from `start` (a basename), looked up in `dirs` in order.
+ * Returns the names found and the names missing from all of them, each with the
+ * chunk that asked for it.
+ */
+function chunkClosure(start, dirs) {
+  const seen = new Set([start]);
+  const queue = [start];
+  const missing = [];
+
+  while (queue.length) {
+    const name = queue.shift();
+    const file = dirs.map((dir) => join(dir, name)).find((path) => existsSync(path));
+
+    if (!file) {
+      continue;
+    }
+
+    for (const child of chunkImports(readFileSync(file, 'utf8'))) {
+      if (seen.has(child)) {
+        continue;
+      }
+
+      seen.add(child);
+
+      if (dirs.some((dir) => existsSync(join(dir, child)))) {
+        queue.push(child);
+      } else {
+        missing.push({ name: child, from: name });
+      }
+    }
+  }
+
+  return { names: [...seen], missing };
+}
+
 if (!existsSync(MANIFEST)) {
   fail(`Visual Editor build is missing: ${MANIFEST}`);
 }
@@ -72,36 +112,35 @@ if (!existsSync(liveAddonPath)) {
   fail(`Visual Editor manifest names ${liveAddonRel}, but that file is gone.`);
 }
 
-// 2. Chunks the live addon.js imports.
-const liveSource = readFileSync(liveAddonPath, 'utf8');
+// 2. Chunks the live addon.js reaches, directly or through the chunks it imports.
+const liveAddonName = liveAddonRel.replace(/^assets\//, '');
+const live = chunkClosure(liveAddonName, [ASSETS]);
 
-for (const name of chunkImports(liveSource)) {
-  if (!existsSync(join(ASSETS, name))) {
-    missing.push(`${name} (imported by live ${liveAddonRel})`);
-  }
+for (const { name, from } of live.missing) {
+  missing.push(`${name} (imported by live ${from === liveAddonName ? liveAddonRel : from})`);
 }
 
-// 3. Recovery copies: each locked addon-*.js must be able to resolve its imports
-//    from locked/ or assets/, or BuiltAssets::recover() has nothing to restore.
+// 3. Recovery copies: each locked addon-*.js must be able to resolve its imports,
+//    all the way down, from locked/ or assets/, or BuiltAssets::recover() has
+//    nothing to restore.
 if (existsSync(LOCKED)) {
   const lockedAddons = readdirSync(LOCKED).filter((name) => /^addon-[A-Za-z0-9_-]+\.js$/.test(name));
 
   for (const addon of lockedAddons) {
-    for (const name of chunkImports(readFileSync(join(LOCKED, addon), 'utf8'))) {
-      if (!existsSync(join(LOCKED, name)) && !existsSync(join(ASSETS, name))) {
-        missing.push(`${name} (imported by locked ${addon}, found neither in locked/ nor assets/)`);
-      }
+    for (const { name, from } of chunkClosure(addon, [LOCKED, ASSETS]).missing) {
+      missing.push(`${name} (imported by ${from} under locked ${addon}, found neither in locked/ nor assets/)`);
     }
   }
 }
 
 // 4. One build, not a split one.
-const overlayFromLive = chunkImports(liveSource).find((name) => name.startsWith('overlay-host-'));
+const overlaysFromLive = live.names.filter((name) => name.startsWith('overlay-host-'));
 const overlayFromManifest = manifest['resources/js/overlay-host.js']?.file?.replace(/^assets\//, '');
+const strayOverlay = overlaysFromLive.find((name) => name !== overlayFromManifest);
 
-if (overlayFromLive && overlayFromManifest && overlayFromLive !== overlayFromManifest) {
+if (strayOverlay && overlayFromManifest) {
   fail(
-    `Visual Editor build is split: live addon.js imports ${overlayFromLive} but the manifest names ${overlayFromManifest}. ` +
+    `Visual Editor build is split: live addon.js reaches ${strayOverlay} but the manifest names ${overlayFromManifest}. ` +
       'Never rebuild overlay-host, preview or bridge alone. Always `npm run cp:build` as one build.'
   );
 }

@@ -19,7 +19,7 @@
  *
  *   node tests/browser/live-preview-smoke.mjs
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { serveWorktreeBuild } from './serve-worktree.mjs';
@@ -159,8 +159,13 @@ function seedLayoutPrefs(prefs) {
   writeFileSync(USER_FILE, yaml);
 }
 const PREFS = process.env.SVE_PREFS ? JSON.parse(process.env.SVE_PREFS) : null;
-seedLayoutPrefs(PREFS);
-info('layout prefs', PREFS ? `starting from ${JSON.stringify(PREFS)}` : 'reset — default layout');
+// A remote site's user has no local yaml — their server-side layout stands.
+if (existsSync(USER_FILE)) {
+  seedLayoutPrefs(PREFS);
+  info('layout prefs', PREFS ? `starting from ${JSON.stringify(PREFS)}` : 'reset — default layout');
+} else {
+  info('layout prefs', `no local user file for ${USER} — not seeded`);
+}
 
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
@@ -429,7 +434,9 @@ try {
 } finally {
   await browser.close();
   await sleep(1500); // a debounced layout POST may still be landing on the server
-  seedLayoutPrefs(null); // leave the test account as it was found: no saved layout
+  if (existsSync(USER_FILE)) {
+    seedLayoutPrefs(null); // leave the test account as it was found: no saved layout
+  }
 }
 
 if (report.worktree) step('working-tree build was what the CP loaded', /^[1-9]/.test(report.worktree()), report.worktree());

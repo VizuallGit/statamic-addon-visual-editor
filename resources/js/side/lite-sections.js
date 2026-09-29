@@ -13,7 +13,7 @@
  *   - html-tree.js and section-fields.js import `openLiteSection` /
  *     `refreshLiteSetFields` from here.
  *
- * May import: focus-panel.js, cp/bus.js, lib/. Imported by addon.js right
+ * May import: focus-panel.js, cp/bus.js, lib/. Imported by lp-cluster.js right
  * after focus-panel.js (not via side/index.js: the first import must not pull
  * the focus panel's graph ahead of everything else).
  *
@@ -1175,20 +1175,16 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         });
     }
 
-    function registerLiteFieldtype() {
+    function liteFieldtypeOptions() {
         var Vue = window.Vue;
         var FieldtypeMixin = window.__STATAMIC__ && window.__STATAMIC__.core && window.__STATAMIC__.core.FieldtypeMixin;
         var SetComp = lookup('replicator-fieldtype-set');
 
         if (!window.Statamic || !Statamic.$components || !Vue || typeof Vue.h !== 'function' || !FieldtypeMixin) {
-            return false;
+            return null;
         }
 
-        if (liteRegistered) {
-            return true;
-        }
-
-        Statamic.$components.register('sve_lite_sections-fieldtype', {
+        return {
             mixins: [FieldtypeMixin],
 
             provide: function () {
@@ -1572,8 +1568,63 @@ import { MSG, SOURCE } from '../lib/protocol.js';
                     style: { position: 'relative' },
                 }, panes);
             },
-        });
+        };
+    }
 
+    /**
+     * The real component behind the async wrapper addon.js registers at boot.
+     * Statamic checks a fieldtype's existence once, at render — the deferred
+     * cluster cannot win that race, so the name is registered eagerly and the
+     * wrapper waits here for the prerequisites (FieldtypeMixin, Vue) to land.
+     */
+    function liteFieldtypeOptionsAsync() {
+        return new Promise(function (resolve, reject) {
+            var tries = 0;
+            var tick = function () {
+                var options = liteFieldtypeOptions();
+
+                if (options) {
+                    resolve(options);
+
+                    return;
+                }
+
+                tries += 1;
+
+                if (tries > 100) {
+                    reject(new Error('sve_lite_sections prerequisites missing'));
+
+                    return;
+                }
+
+                window.setTimeout(tick, 50);
+            };
+
+            tick();
+        });
+    }
+
+    function registerLiteFieldtype() {
+        if (liteRegistered) {
+            return true;
+        }
+
+        // addon.js registered the name at boot as an async wrapper resolving to
+        // these options — registering again would swap the component's identity
+        // and remount every lite field on its next render.
+        if (window.__sveLiteFieldtypeAsync) {
+            liteRegistered = true;
+
+            return true;
+        }
+
+        var options = liteFieldtypeOptions();
+
+        if (!options) {
+            return false;
+        }
+
+        Statamic.$components.register('sve_lite_sections-fieldtype', options);
         liteRegistered = true;
 
         return true;
@@ -2824,7 +2875,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         stampHeaderLoadBtn(ev.doc || (ev.win && ev.win.document) || document);
     });
 
-    export { refreshSetFields as refreshLiteSetFields, addSetConfig as addLiteSetConfig, openLiteSection };
+    export { refreshSetFields as refreshLiteSetFields, addSetConfig as addLiteSetConfig, openLiteSection, liteFieldtypeOptionsAsync };
 
     if (window.Statamic && typeof Statamic.booting === 'function') {
         Statamic.booting(bootUntilReady);
@@ -2835,3 +2886,9 @@ import { MSG, SOURCE } from '../lib/protocol.js';
     }
 
     document.addEventListener('DOMContentLoaded', bootUntilReady);
+
+    // Loaded late (addon.js defers the Live Preview cluster): booting,
+    // configuring and DOMContentLoaded may all be past, and none of them fire again.
+    if (document.readyState !== 'loading') {
+        bootUntilReady();
+    }

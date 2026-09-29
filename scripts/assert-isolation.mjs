@@ -37,8 +37,11 @@ const KERNEL = ['preview.js', 'overlay-host.js', 'bridge.js', 'mirror.js'];
 const KERNEL_SIDE = ['html-pick-align.js', 'ai-text-bridge.js', 'ai-text-icon.js'];
 /** Directories whose files are kernel code too (bridge.js's regions after WP5c). */
 const KERNEL_DIRS = ['bridge/'];
-/** The CP shell: boot, the Live Preview lifecycle and the section-scope wrapper it uses. */
-const SHELL = ['addon.js', 'cp.js', 'lp-replay.js', 'preview-section-scope.js'];
+/**
+ * The CP shell: boot (addon.js and its deferred half, lp-cluster.js), the Live
+ * Preview lifecycle and the section-scope wrapper it uses.
+ */
+const SHELL = ['addon.js', 'lp-cluster.js', 'cp.js', 'lp-replay.js', 'preview-section-scope.js'];
 /** Directories whose files are shell code too (cp.js's regions after WP5). */
 const SHELL_DIRS = ['cp-shell/'];
 
