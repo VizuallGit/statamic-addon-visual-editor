@@ -13,7 +13,7 @@ import { buildScopedCss, matchBraces, tokenTreeFromHtml } from '../css-scope.js'
 import { closeClassTokenUi } from '../dock-class-tokens.js';
 import { dockState } from '../dock/state.js';
 import { flushCssScope, htmlEditorText, htmlFocusOk, htmlScopeEnabled, paintHtmlScope, rememberBracketNames, rememberCssSelectors, syncScopedHtml } from './scope.js';
-import { CSS_GRAYS, CSS_MENU_ID, CSS_SPACING, CSS_TOOLS, CSS_TOOL_ICONS, DOCK_ID, EditorState, EditorView, HANDLES, SCOPE_CLASS, TW_TOOL_ICONS, closeCompletion, editableOf, editors, readOnlyOf } from '../code-dock.js';
+import { CSS_GRAYS, CSS_MENU_ID, CSS_SPACING, CSS_TOOLS, CSS_TOOL_ICONS, EditorState, EditorView, HANDLES, SCOPE_CLASS, TW_TOOL_ICONS, closeCompletion, editableOf, editors, readOnlyOf } from '../code-dock.js';
 import { cssSizeRows, cssStateSuffix, paintCssHead } from './css-sizes.js';
 import { paintHtmlToolState } from './html-tools.js';
 import { syncTwTarget } from './style-modes.js';
@@ -877,14 +877,6 @@ export function paintCssToolState(win) {
     // The head row answers the same three questions the tools do, off the same
     // cursor, so it is repainted on the same beat rather than on a timer.
     paintCssHead(win);
-    // No name in the brackets, nothing for a property to be written to: the
-    // row goes out until Add class gives it a rule — the same look as the
-    // locked dock, on the same beat as the head's "Nothing named" note.
-    // Tailwind writes the class itself, so its row stays live.
-    win?.document.getElementById(DOCK_ID)?.toggleAttribute(
-      'data-sve-css-unnamed',
-      dockState.styleMode !== 'tw' && dockState.cssPane === 'empty'
-    );
   } catch {
     /* invalid Antlers-in-CSS must not take down Live Preview */
   }

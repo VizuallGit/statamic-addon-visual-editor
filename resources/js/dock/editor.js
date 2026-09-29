@@ -15,7 +15,7 @@ import { bracketClassCompletions, loadClassDefs, takenClassMarks } from './class
 import { vscTheme } from '../lib/codemirror.js';
 import { dockState } from '../dock/state.js';
 import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, StateField, autocompletion, closeBrackets, closeBracketsKeymap, cm, codeFolding, completionKeymap, defaultKeymap, editableOf, editors, highlightActiveLine, highlightActiveLineGutter, history, historyKeymap, hoverTooltip, htmlLanguage, indentWithTab, keymap, lineNumbers, readOnlyOf, tags } from '../code-dock.js';
-import { applyCssFolds, cssSizeRows } from './css-sizes.js';
+import { applyCssFolds, cssSizeRows, paintCssHead } from './css-sizes.js';
 import { flushSave, onEditorInput } from './save.js';
 import { languageOf } from './layout.js';
 import { flushBracketSync, flushCssToHtml, pickHtmlTagAtCursor } from './scope.js';
@@ -273,6 +273,10 @@ export function mountEditor(win, handle, parent) {
           if (handle === 'html' && (update.docChanged || update.selectionSet)) {
             paintHtmlToolState(win);
             paintAlpine(win);
+            // The CSS head reads the tag under this caret — and whether its
+            // brackets hold a name — so it moves with the caret here, the way
+            // the Tailwind row does through syncTwTarget below.
+            paintCssHead(win);
 
             if (!dockState.applying) {
               syncTwTarget(win);

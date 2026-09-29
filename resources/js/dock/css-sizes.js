@@ -364,6 +364,13 @@ export function paintCssHead(win) {
 
   cssUi.tag = target?.tag || '';
   cssUi.scope = bracketToken(target ? currentFullHtml().slice(target.from, target.openTo) : '') || '';
+  // The property tools write to the rule of the name in [ ]. No name there —
+  // no class at all, or only utilities outside the brackets — and they have
+  // nothing to write to, so the row goes out (the locked dock's look) until
+  // Add class gives it one. Decided here, off the same target as the head,
+  // so it follows the cursor and every edit of the class attribute. Tailwind
+  // writes the class itself, so its row stays live.
+  dock.toggleAttribute('data-sve-css-unnamed', dockState.styleMode !== 'tw' && !cssUi.scope);
   // Is that name already styled elsewhere on the site? The head says where,
   // and a click brings those rules into this file. Asked of a catalogue kept
   // for a while; the head paints again when a fresh one lands.
