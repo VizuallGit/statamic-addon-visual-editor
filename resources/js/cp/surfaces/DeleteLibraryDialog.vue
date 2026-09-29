@@ -48,11 +48,10 @@ import { deleteLibraryUi as ui } from '../library/delete-store.js';
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 .sve-dialog {
-  /* Wide enough that three buttons stand on one line; the body text is
-     what sets the minimum. */
-  width: fit-content;
-  min-width: 420px;
-  max-width: min(640px, 92vw);
+  /* Fixed, so the box is the same width whatever it has to say — and wide
+     enough that three buttons stand on one line. */
+  width: 560px;
+  max-width: 92vw;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
   border-radius: 12px;

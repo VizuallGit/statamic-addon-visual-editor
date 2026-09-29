@@ -3040,6 +3040,9 @@ export function mountSectionPicker(win, options = {}) {
 
 export const LIBRARY_DELETE_ID = '__sve-library-delete';
 
+/** Which delete question is the current one; see {@link confirmDeleteLibraryItem}. */
+let deleteDialogToken = 0;
+
 export const TRASH_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" ' +
   'stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' +
@@ -3100,15 +3103,39 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
 
   doc.getElementById(LIBRARY_DELETE_ID)?.remove();
 
-  const host = doc.createElement('div');
+  // Two cards clicked in a row: only the last one asked for may open, or the
+  // slower answer would put a second dialog up behind the first.
+  const token = ++deleteDialogToken;
 
-  host.id = LIBRARY_DELETE_ID;
-  doc.body.appendChild(host);
+  let app = null;
+  let host = null;
 
-  const app = mountSurface(DeleteLibraryDialog, host);
   const close = () => {
-    app.unmount();
-    host.remove();
+    app?.unmount();
+    host?.remove();
+    app = null;
+    host = null;
+  };
+
+  /*
+   * The dialog goes up once, with its words and all its buttons already
+   * settled.
+   *
+   * It used to mount on the way to the usage answer: a first paint saying
+   * "Checking…" under a lone Cancel, and a second that swapped the text,
+   * added two buttons and changed the width — under a pointer already on
+   * its way to click. Nothing is shown until there is a whole question to
+   * ask.
+   */
+  const show = () => {
+    if (app || token !== deleteDialogToken) {
+      return;
+    }
+
+    host = doc.createElement('div');
+    host.id = LIBRARY_DELETE_ID;
+    doc.body.appendChild(host);
+    app = mountSurface(DeleteLibraryDialog, host);
   };
 
   const titleKey = isTemplate
@@ -3130,9 +3157,7 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
       ? []
       : isType
         ? [
-            // The gentle end wears the site's usual blue; only the one that
-            // takes files with it is red.
-            { id: 'confirm', label: t(win, 'delete_confirm_remove_only'), variant: 'primary' },
+            { id: 'confirm', label: t(win, 'delete_confirm_remove_only'), variant: 'danger' },
             { id: 'confirm_files', label: t(win, 'delete_confirm_with_files'), variant: 'danger' },
           ]
         : [{ id: 'confirm', label: t(win, confirmKey), variant: 'danger' }];
@@ -3151,14 +3176,17 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
   };
 
   deleteLibraryUi.title = t(win, titleKey, { name });
-  deleteLibraryUi.body = t(win, isTemplate ? 'delete_template_body' : 'delete_checking');
+  deleteLibraryUi.body = isTemplate ? t(win, 'delete_template_body') : '';
   deleteLibraryUi.leads = [];
   deleteLibraryUi.usages = [];
   deleteLibraryUi.usageHeading = '';
   deleteLibraryUi.onClose = close;
-  setButtons(isTemplate ? 'delete_confirm' : null, false);
 
+  // A template has nothing to look up: its question is whole already.
   if (isTemplate) {
+    setButtons('delete_confirm', false);
+    show();
+
     return;
   }
 
@@ -3190,6 +3218,7 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
           );
         }
         setButtons('delete_confirm', false);
+        show();
 
         return;
       }
@@ -3209,9 +3238,15 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
         where: usageWhere(usage),
       }));
       setButtons('delete_confirm_everywhere', true);
+      show();
     })
     .catch(() => {
+      // Nothing can be confirmed on an answer that never came: the dialog
+      // says so, with Cancel alone.
       deleteLibraryUi.body = t(win, 'delete_usage_failed');
+      deleteLibraryUi.leads = [];
+      setButtons(null, false);
+      show();
     });
 }
 
