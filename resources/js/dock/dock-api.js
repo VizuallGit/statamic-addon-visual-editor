@@ -896,6 +896,9 @@ register('dock:reveal-html', ({ from, to, caret } = {}) => {
   const end = Math.max(start, Math.min(to ?? from, length));
 
   dockState.htmlFocus = end > start ? { from: start, to: end } : null;
+  // The tree has spoken, so the CSS pane follows the HTML pane again rather
+  // than whatever tag was last clicked in the code.
+  dockState.cssFocus = null;
 
   // `caret` says "put me inside this", which the tree asks for so the next
   // thing written lands in the row that was picked. Without one the whole
@@ -1246,12 +1249,17 @@ register('dock:set-html', (payload) => {
     // that pane then syncs the truncation back into the file, so the range is
     // moved with the edit rather than left behind.
     dockState.htmlFocus = shiftFocus(dockState.htmlFocus, before, html);
+    dockState.cssFocus = shiftFocus(dockState.cssFocus, before, html);
     writeHtmlEditor(htmlEditorText());
     onEditorInput(dockState.lastWin);
     emit('dock:html-changed');
 
     return true;
   }
+
+  // Unscoped, the pane shows the whole file — but the CSS pane's own pick is
+  // still a pair of offsets into it, and an edit above the tag moves them.
+  dockState.cssFocus = shiftFocus(dockState.cssFocus, before, html);
 
   const current = view.state.doc.toString();
 

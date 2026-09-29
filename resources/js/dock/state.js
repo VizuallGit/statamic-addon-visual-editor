@@ -36,6 +36,11 @@ export const dockState = {
   twBusy: false,
   twDirty: false,
   htmlFocus: null,
+  // Which element the CSS pane is showing, when that is not the same as the
+  // HTML pane's range. `htmlFocus` cannot answer this: it is the slice the
+  // HTML pane renders AND the interval its text is spliced back into, so
+  // moving it moves the code under the reader and writes to the wrong place.
+  cssFocus: null,
   htmlFull: '',
   cssFull: '',
   cssPane: 'full',

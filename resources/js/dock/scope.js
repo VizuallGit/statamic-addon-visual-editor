@@ -410,20 +410,41 @@ function htmlSnippet() {
 }
 
 /**
- * A click on a tag in the HTML pane picks that element — the tree's own move.
+ * What the CSS pane is built from: its own pick, or the HTML pane's range.
  *
- * Until now `htmlFocus` had exactly one author: the `dock:reveal-html` the
- * tree sends. So the CSS pane followed the tree and never the text, while the
- * Tailwind chips followed the caret, and the same click meant two things
- * depending on which half you were looking at.
+ * Read out of `htmlFull` rather than out of the editor, because the CSS pane
+ * may be showing an element the HTML pane is not scoped to at all.
+ */
+function cssSnippet() {
+  const focus = dockState.cssFocus;
+
+  if (focus && htmlFocusOk(focus.from, focus.to, dockState.htmlFull.length)) {
+    return dockState.htmlFull.slice(focus.from, focus.to);
+  }
+
+  return htmlSnippet();
+}
+
+/** Let go of the CSS pane's own pick; it follows the HTML pane again. */
+export function clearCssFocus() {
+  dockState.cssFocus = null;
+}
+
+/**
+ * A click on a tag in the HTML pane points the CSS pane at that element.
  *
- * On the opening tag only, and never on the text inside it. With the scope on,
- * picking re-renders the pane around what was picked, and doing that because
- * someone put the caret in a sentence would move the file under their hands
- * while they were typing in it. A tag is a deliberate thing to click.
+ * The HTML pane is left exactly as it is. Narrowing the code to the tag under
+ * the caret is the tree's move, and only the tree's: the pane is where the
+ * reader is typing, and rebuilding it around whatever they last clicked takes
+ * the file away from them mid-edit. So this writes `cssFocus`, never
+ * `htmlFocus` — the latter is also the interval the pane's text is spliced
+ * back into, and moving it would write the edit to the wrong part of the file.
+ *
+ * On the opening tag only. A click in the text between tags is aimed at the
+ * words, not at the element.
  */
 export function pickHtmlTagAtCursor(win) {
-  if (!win || dockState.applying || !dockState.htmlScopePref) {
+  if (!win || dockState.applying || dockState.cssValues) {
     return;
   }
 
@@ -433,18 +454,19 @@ export function pickHtmlTagAtCursor(win) {
     return;
   }
 
-  // The same walk `htmlTargetFromCursor` does, written out rather than
-  // imported: style-modes.js already imports this file, and the dock has had
-  // a chunk fail to load over a ring like that before.
+  // The pane's own edits have to be in `htmlFull` before it is read for tags,
+  // and in `cssFull` before the pane is rebuilt around a different element.
+  syncScopedHtml();
+  flushCssScope();
+
   const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
   const offset = scoped ? dockState.htmlFocus.from : 0;
   const pos = offset + view.state.selection.main.from;
-  const source = scoped ? dockState.htmlFull : view.state.doc.toString();
   let row = null;
 
   // Pre-order, and a child sits inside its parent, so the last row that still
   // holds the caret is the innermost tag.
-  for (const item of flattenHtmlTree(parseHtmlTree(source), new Set())) {
+  for (const item of flattenHtmlTree(parseHtmlTree(dockState.htmlFull), new Set())) {
     if (item.from <= pos && pos < item.to) {
       row = item;
     }
@@ -454,14 +476,16 @@ export function pickHtmlTagAtCursor(win) {
     return;
   }
 
-  if (dockState.htmlFocus && dockState.htmlFocus.from === row.from && dockState.htmlFocus.to === row.to) {
+  const same = dockState.cssFocus
+    ? dockState.cssFocus.from === row.from && dockState.cssFocus.to === row.to
+    : !scoped || (dockState.htmlFocus.from === row.from && dockState.htmlFocus.to === row.to);
+
+  if (same) {
     return;
   }
 
-  // After the pane is rebuilt around the new range the caret has to be put
-  // back where it was clicked, which is what `caret` is for. Deferred: the
-  // rebuild is a dispatch, and this is still inside the click that caused it.
-  win.setTimeout(() => ask('dock:reveal-html', { from: row.from, to: row.to, caret: pos }), 0);
+  dockState.cssFocus = { from: row.from, to: row.to };
+  applyCssScope();
 }
 
 export function flushCssScope() {
@@ -473,7 +497,7 @@ export function flushCssScope() {
     }
 
     const root =
-      tokenTreeFromHtml(htmlSnippet())[0]?.className || firstClassName(current);
+      tokenTreeFromHtml(cssSnippet())[0]?.className || firstClassName(current);
 
     dockState.cssFull = mergeScopedCss(dockState.cssFull, current, root);
     dockState.cssScopeSnapshot = current;
@@ -500,11 +524,11 @@ export function applyCssScope() {
   // The ID is the file's own instance layer, not the tag you have picked, and
   // the tree scope rebuilds the pane from the picked tag's classes — a view
   // the `#id-` rule is not in. So showing the ID shows the file.
-  if (dockState.cssValues || !dockState.htmlScopePref || !dockState.htmlScopeActive) {
+  if (dockState.cssValues || (!dockState.cssFocus && (!dockState.htmlScopePref || !dockState.htmlScopeActive))) {
     dockState.cssPane = 'full';
     text = dockState.cssFull;
   } else {
-    tree = tokenTreeFromHtml(htmlSnippet());
+    tree = tokenTreeFromHtml(cssSnippet());
 
     if (!tree.length) {
       dockState.cssPane = 'empty';
@@ -513,7 +537,11 @@ export function applyCssScope() {
       dockState.cssPane = 'tree';
       text = buildScopedCss(dockState.cssFull, tree);
 
-      if (tokenTreeNeedsCss(dockState.cssFull, tree)) {
+      // Empty rules are written for the names that have none — but only when
+      // the tree asked for this element. Looking at a tag in the code is not
+      // a decision to style it, and a click that writes to the file and saves
+      // it would make reading the markup an edit.
+      if (!dockState.cssFocus && tokenTreeNeedsCss(dockState.cssFull, tree)) {
         dockState.cssFull = mergeScopedCss(dockState.cssFull, text, tree[0].className);
         created = true;
       }
@@ -604,6 +632,7 @@ export function showHtmlFull(selectFocus = true, caret = null) {
 
 export function clearHtmlScopeRange() {
   dockState.htmlFocus = null;
+  dockState.cssFocus = null;
   dockState.htmlScopeActive = false;
   dockState.htmlFull = '';
   dockState.cssFull = '';
