@@ -3130,7 +3130,9 @@ export function confirmDeleteLibraryItem(win, kind, item, onDeleted) {
       ? []
       : isType
         ? [
-            { id: 'confirm', label: t(win, 'delete_confirm_remove_only'), variant: 'danger' },
+            // The gentle end wears the site's usual blue; only the one that
+            // takes files with it is red.
+            { id: 'confirm', label: t(win, 'delete_confirm_remove_only'), variant: 'primary' },
             { id: 'confirm_files', label: t(win, 'delete_confirm_with_files'), variant: 'danger' },
           ]
         : [{ id: 'confirm', label: t(win, confirmKey), variant: 'danger' }];

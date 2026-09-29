@@ -48,8 +48,11 @@ import { deleteLibraryUi as ui } from '../library/delete-store.js';
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 .sve-dialog {
-  width: 420px;
-  max-width: 92vw;
+  /* Wide enough that three buttons stand on one line; the body text is
+     what sets the minimum. */
+  width: fit-content;
+  min-width: 420px;
+  max-width: min(640px, 92vw);
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
   border-radius: 12px;
@@ -104,7 +107,7 @@ li {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 button {
   all: unset;
@@ -113,6 +116,8 @@ button {
   border-radius: 8px;
   font-size: 13px;
   opacity: 0.75;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 button.primary {
   opacity: 1;

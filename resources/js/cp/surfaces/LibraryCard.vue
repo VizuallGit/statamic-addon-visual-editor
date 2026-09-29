@@ -22,7 +22,10 @@ defineProps({
         class="sve-lib-card__del"
         @pointerdown.stop
         @click.stop="onDelete?.()"
-      >×</button>
+      >
+        <!-- The same trash the HTML tree's rows carry. -->
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      </button>
     </div>
   </div>
 </template>
@@ -83,7 +86,19 @@ img {
 .sve-lib-card__del {
   all: unset;
   cursor: pointer;
-  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   opacity: 0.55;
+  transition: opacity 0.12s, color 0.12s;
+}
+.sve-lib-card__del:hover {
+  opacity: 1;
+  color: #dc2626;
+}
+.sve-lib-card__del svg {
+  display: block;
+  pointer-events: none;
 }
 </style>
