@@ -385,6 +385,7 @@ return [
     'class_defined_in' => 'Findes allerede i :file',
     'class_defined_import' => 'klik for at hente reglerne ind i denne fil',
     'css_state_none' => 'Ingen tilstand',
+    'css_pane_empty' => 'Intet navn i [ ] her — giv det et navn for at give det regler',
     'css_size_all_title' => 'Alle størrelser · kun ID-reglen er foldet væk',
     'css_size_base_title' => 'Basis · skrives uden media query',
     'css_size_new' => 'opretter media query',

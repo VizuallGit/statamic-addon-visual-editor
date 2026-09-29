@@ -5,7 +5,7 @@
 import { emit } from '../cp/bus.js';
 import { cssToolsUi } from '../cp/css/tools.js';
 import CodeDockMenu from '../cp/surfaces/CodeDockMenu.vue';
-import { twActiveClass, twHasNode, twValueOptions, twWantFamilies } from '../tw-classes.js';
+import { twActiveClass, twGroupActive, twHasNode, twValueOptions, twWantFamilies } from '../tw-classes.js';
 import { moveClassesIntoScope } from '../css-scope-move.js';
 import { stripEmptySizeBlocks } from '../css-sizes.js';
 import { mountSurface } from '../cp/mount.js';
@@ -902,7 +902,15 @@ function paintCssToolStateInner(win) {
   /** Is this property set on the rule under the cursor / the picked tag? */
   const isSet = (item) => {
     if (tw) {
-      return twHasNode() && !!item.tw && !!twActiveClass(item.tw);
+      if (!twHasNode()) {
+        return false;
+      }
+
+      // A named group is lit from the group, not from a property: a border
+      // width sets two of them and so has no family to ask about.
+      return item.twGroup
+        ? !!twGroupActive(item.twGroup)
+        : !!item.tw && !!twActiveClass(item.tw);
     }
 
     return !!item.css && item.css in decls;
@@ -945,6 +953,27 @@ function paintCssToolStateInner(win) {
   });
 }
 
+
+/**
+ * A value was picked: close the menu, and fold the door it came from.
+ *
+ * Only here — never inside `closeCssMenu`. That one also runs on Escape, on a
+ * click outside, and whenever the next opener clears the last menu away; fold
+ * there and the row would vanish from under someone on their way to a second
+ * side. A pick is the one moment the choice is actually finished.
+ *
+ * The toggles never reach this: a child carrying its own `value` writes it and
+ * returns long before a menu is opened, which is what keeps Flex's row of
+ * buttons clickable one after the other.
+ */
+export function closeCssMenuPicked(doc) {
+  closeCssMenu(doc);
+  dockState.cssOpenTool = '';
+
+  if (dockState.lastWin) {
+    paintCssToolState(dockState.lastWin);
+  }
+}
 
 export function closeCssMenu(doc) {
   const menu = doc?.getElementById(CSS_MENU_ID);
@@ -1082,11 +1111,11 @@ export function openCssColorMenu(win, anchor, property) {
       swatches,
       onClear: () => {
         applyRuleDecls([{ property, value: null }]);
-        closeCssMenu(doc);
+        closeCssMenuPicked(doc);
       },
       onPick: (name) => {
         applyRuleDecls([{ property, value: `var(${name})` }]);
-        closeCssMenu(doc);
+        closeCssMenuPicked(doc);
       },
     });
     markCssMenuActive(menu, property);
@@ -1136,7 +1165,7 @@ export function openCssChoiceMenu(win, anchor, property, choices) {
       const same = normalizeFlexValue(value) === normalizeFlexValue(currentFlexDecls()[property] || '');
 
       applyRuleDecls([{ property, value: same ? null : value }]);
-      closeCssMenu(doc);
+      closeCssMenuPicked(doc);
     },
   });
 }
@@ -1173,7 +1202,7 @@ export function openCssValueMenu(win, anchor, property, extra = []) {
       })),
       onPick: (value) => {
         applyRuleDecls([{ property, value: value || null }]);
-        closeCssMenu(doc);
+        closeCssMenuPicked(doc);
       },
     });
   };
@@ -1205,7 +1234,7 @@ export function openCssSpacingMenu(win, anchor, property) {
     choices: CSS_SPACING.map((token) => ({ value: token, token, label: token })),
     onPick: (token) => {
       applyRuleDecls([{ property, value: `var(${token})` }]);
-      closeCssMenu(doc);
+      closeCssMenuPicked(doc);
     },
   });
   markCssMenuActive(menu, property);

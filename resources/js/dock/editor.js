@@ -18,7 +18,7 @@ import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, Stat
 import { applyCssFolds, cssSizeRows } from './css-sizes.js';
 import { flushSave, onEditorInput } from './save.js';
 import { languageOf } from './layout.js';
-import { flushBracketSync, flushCssToHtml } from './scope.js';
+import { flushBracketSync, flushCssToHtml, pickHtmlTagAtCursor } from './scope.js';
 import { paintCssToolState } from './css-tools.js';
 import { paintHtmlToolState } from './html-tools.js';
 import { paintAlpine } from './alpine.js';
@@ -278,6 +278,18 @@ export function mountEditor(win, handle, parent) {
               syncTwTarget(win);
             }
           }
+        }),
+        // A click on a tag picks that element, the way its row in the tree
+        // does. On `click`, not on the selection: the caret also moves while
+        // typing, and the pane must not be rebuilt under someone mid-word.
+        EditorView.domEventHandlers({
+          click: (event, view) => {
+            if (handle === 'html' && view === editors.html) {
+              pickHtmlTagAtCursor(win);
+            }
+
+            return false;
+          },
         }),
         ...vscTheme(cm, {
           height: 'auto',

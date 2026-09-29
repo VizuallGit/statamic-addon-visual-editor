@@ -2,6 +2,7 @@
  * code-dock.js — region "scope", split out in WP5. Same statements, same order;
  * only the imports are new. See the barrel code-dock.js for what the shell exports.
  */
+import { ask } from '../cp/bus.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel } from '../lazy-panels.js';
 import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
@@ -22,6 +23,7 @@ import { paintBack } from './layout.js';
 import { CSS_MENU_ID, DOCK_ID, LOCK_CLOSED_ICON, LOCK_OPEN_ICON, SCOPE_ICON, SCOPE_KEY, css, editors, html } from '../code-dock.js';
 import { closeCssMenu, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssFolds } from './css-sizes.js';
+import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
 import { minimalChange } from '../lib/minimal-change.js';
 
 // ===== scope =====
@@ -405,6 +407,61 @@ function htmlSnippet() {
   }
 
   return '';
+}
+
+/**
+ * A click on a tag in the HTML pane picks that element — the tree's own move.
+ *
+ * Until now `htmlFocus` had exactly one author: the `dock:reveal-html` the
+ * tree sends. So the CSS pane followed the tree and never the text, while the
+ * Tailwind chips followed the caret, and the same click meant two things
+ * depending on which half you were looking at.
+ *
+ * On the opening tag only, and never on the text inside it. With the scope on,
+ * picking re-renders the pane around what was picked, and doing that because
+ * someone put the caret in a sentence would move the file under their hands
+ * while they were typing in it. A tag is a deliberate thing to click.
+ */
+export function pickHtmlTagAtCursor(win) {
+  if (!win || dockState.applying || !dockState.htmlScopePref) {
+    return;
+  }
+
+  const view = editors.html;
+
+  if (!view) {
+    return;
+  }
+
+  // The same walk `htmlTargetFromCursor` does, written out rather than
+  // imported: style-modes.js already imports this file, and the dock has had
+  // a chunk fail to load over a ring like that before.
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+  const offset = scoped ? dockState.htmlFocus.from : 0;
+  const pos = offset + view.state.selection.main.from;
+  const source = scoped ? dockState.htmlFull : view.state.doc.toString();
+  let row = null;
+
+  // Pre-order, and a child sits inside its parent, so the last row that still
+  // holds the caret is the innermost tag.
+  for (const item of flattenHtmlTree(parseHtmlTree(source), new Set())) {
+    if (item.from <= pos && pos < item.to) {
+      row = item;
+    }
+  }
+
+  if (!row || pos < row.from || pos >= row.openTo) {
+    return;
+  }
+
+  if (dockState.htmlFocus && dockState.htmlFocus.from === row.from && dockState.htmlFocus.to === row.to) {
+    return;
+  }
+
+  // After the pane is rebuilt around the new range the caret has to be put
+  // back where it was clicked, which is what `caret` is for. Deferred: the
+  // rebuild is a dispatch, and this is still inside the click that caused it.
+  win.setTimeout(() => ask('dock:reveal-html', { from: row.from, to: row.to, caret: pos }), 0);
 }
 
 export function flushCssScope() {

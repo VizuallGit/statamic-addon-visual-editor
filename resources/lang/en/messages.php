@@ -388,6 +388,7 @@ return [
     'class_defined_in' => 'Already styled in :file',
     'class_defined_import' => 'click to bring its rules into this file',
     'css_state_none' => 'No state',
+    'css_pane_empty' => 'Nothing named in [ ] here — name it to give it rules',
     'css_size_all_title' => 'Every size · only the ID rule folded away',
     'css_size_base_title' => 'The base · written with no media query',
     'css_size_new' => 'creates the media query',

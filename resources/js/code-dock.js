@@ -269,6 +269,12 @@ export const TW_TOOL_ICONS = {
     '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">'
     + '<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.6"/>'
     + '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" stroke-width="1" opacity=".45"/></svg>',
+  // The same frame as Border, read as a pair: there the ring is the subject,
+  // here it is filled in, because the subject is what colour it is.
+  'tw-border-color':
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2">'
+    + '<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="1.6" stroke-dasharray="3.1 2.2"/>'
+    + '<rect x="5.6" y="5.6" width="4.8" height="4.8" rx=".6" fill="currentColor" stroke="none" opacity=".55"/></svg>',
 };
 
 export const STRIP_ICON =
@@ -369,6 +375,40 @@ const GAP_KIDS = [
   { id: 'gap-col', icon: 'gap-col', title: 'Between columns', css: 'column-gap', tw: 'column-gap', menu: 'spacing' },
 ];
 
+/**
+ * Border widths, side by side with the colours.
+ *
+ * A list rather than a scale, and that is not a shortcut. `border-2` compiles
+ * to two declarations — `border-style` and `border-width` — and the family
+ * index only keeps utilities that set a single property, so Tailwind's border
+ * widths are invisible to the menu that fills itself. They are named here, in
+ * both languages: `choices` for CSS, `twGroup` for the class row.
+ *
+ * px on purpose. It is the one place this theme spends them.
+ */
+const BORDER_WIDTHS = ['1px', '2px', '3px', '4px', '8px'];
+
+const borderWidthKid = (id, icon, title, css, tw, sep) => ({
+  id,
+  icon,
+  title,
+  css,
+  menu: 'choices',
+  choices: BORDER_WIDTHS,
+  twGroup: [tw, `${tw}-2`, `${tw}-4`, `${tw}-8`],
+  ...(sep ? { sep: true } : {}),
+});
+
+const BORDER_WIDTH_KIDS = [
+  borderWidthKid('bw-all', 'bd-all', 'All sides', 'border-width', 'border'),
+  borderWidthKid('bw-block', 'bd-block', 'Top and bottom', 'border-block-width', 'border-y', true),
+  borderWidthKid('bw-top', 'bd-top', 'Top', 'border-block-start-width', 'border-t'),
+  borderWidthKid('bw-bottom', 'bd-bottom', 'Bottom', 'border-block-end-width', 'border-b'),
+  borderWidthKid('bw-inline', 'bd-inline', 'Left and right', 'border-inline-width', 'border-x', true),
+  borderWidthKid('bw-left', 'bd-left', 'Left', 'border-inline-start-width', 'border-l'),
+  borderWidthKid('bw-right', 'bd-right', 'Right', 'border-inline-end-width', 'border-r'),
+];
+
 const BORDER_KIDS = [
   { id: 'bd-all', icon: 'bd-all', title: 'All sides', css: 'border-color', tw: 'border-color', menu: 'colors' },
   { id: 'bd-block', icon: 'bd-block', title: 'Top and bottom', css: 'border-block-color', tw: 'border-color', menu: 'colors', sep: true },
@@ -399,7 +439,12 @@ export const CSS_TOOLS = [
   { id: 'tw-leading', title: 'Line height', css: 'line-height', tw: 'line-height', menu: 'values' },
   { id: 'tw-font', title: 'Font family', css: 'font-family', tw: 'font-family', menu: 'values' },
   { id: 'tw-align', title: 'Text align', css: 'text-align', tw: 'text-align', menu: 'choices', choices: ['left', 'center', 'right', 'justify'] },
-  { id: 'tw-border', title: 'Border color', css: 'border-color', tw: 'border-color', kids: BORDER_KIDS },
+  // Width first, colour second. A width alone draws a border — preflight
+  // leaves the style at `solid` and the colour at `currentColor`. A colour
+  // alone draws nothing at all, because the width is still 0, which is why
+  // this door used to be one you could click to no effect.
+  { id: 'tw-border', title: 'Border', css: 'border-width', tw: 'border-width', kids: BORDER_WIDTH_KIDS },
+  { id: 'tw-border-color', title: 'Border color', css: 'border-color', tw: 'border-color', kids: BORDER_KIDS },
   { id: 'tw-radius', title: 'Radius', css: 'border-radius', tw: 'border-radius', kids: RADIUS_KIDS },
   { id: 'tw-gap', title: 'Gap', css: 'gap', tw: 'gap', kids: GAP_KIDS },
   { id: 'tw-w', title: 'Width', css: 'width', tw: 'width', menu: 'sizes' },

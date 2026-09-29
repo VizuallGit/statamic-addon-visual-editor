@@ -8,7 +8,7 @@ import CodeDockHtmlTools from '../cp/surfaces/CodeDockHtmlTools.vue';
 import CodeDockCssTools from '../cp/surfaces/CodeDockCssTools.vue';
 import { cssToolsUi } from '../cp/css/tools.js';
 import { HTML_ICONS, TEXT_TAGS } from '../html-tree-icons.js';
-import { closeTwMenu, twOpenToolMenu, twSetClass } from '../tw-classes.js';
+import { closeTwMenu, twOpenGroupMenu, twOpenToolMenu, twSetClass } from '../tw-classes.js';
 import { breakpoints } from '../breakpoints.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
@@ -102,12 +102,18 @@ export function bindCssTools(win, dock) {
     // the menu is up: every opener closes whatever was there first, and that
     // is what forgets which icon it belonged to.
     const opensMenu = dockState.styleMode === 'tw'
-      ? !item.twClass && !!item.tw
+      ? !item.twClass && (!!item.tw || !!item.twGroup)
       : !item.kind && !item.value && !(item.css in currentFlexDecls()) && !!item.menu;
     const remember = () => {
       if (opensMenu) {
         dockState.cssOpenMenu = item.id;
       }
+    };
+    // Something was picked, so the door has done its job: fold the children
+    // away again. The CSS menus do the same through `closeCssMenuPicked`.
+    const picked = () => {
+      dockState.cssOpenTool = '';
+      paintCssToolState(win);
     };
 
     if (dockState.styleMode === 'tw') {
@@ -115,11 +121,17 @@ export function bindCssTools(win, dock) {
 
       // A fixed class is set outright; a scale opens its menu. Same two cases
       // as in CSS, where one is a value and the other is a list to pick from.
+      // A named group is the third: a list Tailwind does not publish as a
+      // scale, because each of its classes sets more than one property.
       if (item.twClass) {
         twSetClass(win, item.twClass);
         paintCssToolState(win);
+      } else if (item.twGroup) {
+        twOpenGroupMenu(win, btn, item.title, item.twGroup, picked);
+        remember();
+        paintCssToolState(win);
       } else if (item.tw) {
-        twOpenToolMenu(win, btn, item.tw, () => paintCssToolState(win));
+        twOpenToolMenu(win, btn, item.tw, picked);
         remember();
         paintCssToolState(win);
       }

@@ -1235,6 +1235,102 @@ export function twOpenToolMenu(win, anchor, property, after) {
   });
 }
 
+/** Which of a named group the picked tag has right now — `''` for none. */
+export function twGroupActive(names) {
+  const current = names?.length ? currentValue() : null;
+
+  if (!current) {
+    return '';
+  }
+
+  const have = new Set(variantChips(current.value).map((chip) => chip.name));
+
+  return names.find((name) => have.has(name)) || '';
+}
+
+/**
+ * The class value with one of a group set, and the group's other members off.
+ *
+ * `setClassValueWith` works out what a class replaces from the property it
+ * sets, and a border width sets two of them — `border-style` as well as
+ * `border-width`. A utility that sets two has no family at all, so left to
+ * itself it would let `border-2` join `border-4` rather than take its place.
+ * The group is named by the caller instead, and cleared here first.
+ */
+function groupValueWith(value, names, name) {
+  let next = value;
+
+  for (const other of names) {
+    if (other !== name && variantChips(next).some((chip) => chip.name === other)) {
+      next = setClassValueWith(next, other);
+    }
+  }
+
+  // Picking the one already there takes it off, the same as every other
+  // toggle in the row: `setClassValueWith` removes a name that is its own.
+  return name ? setClassValueWith(next, name) : next;
+}
+
+/** Set one of a named group on the picked tag; `''` takes the group off. */
+export function twSetGroup(win, names, name) {
+  if (locked() || !names?.length) {
+    return;
+  }
+
+  const current = currentValue();
+
+  if (!current) {
+    return;
+  }
+
+  commit(win, current.html, groupValueWith(current.value, names, name));
+}
+
+/**
+ * A menu of named classes, where only one of the group may stand.
+ *
+ * For a scale Tailwind does not expose as one — see {@link groupValueWith}.
+ * No search field: a group named by hand is four rows, not four hundred.
+ */
+export function twOpenGroupMenu(win, anchor, title, names, after) {
+  if (!names?.length || !currentValue()) {
+    return;
+  }
+
+  const active = twGroupActive(names);
+
+  openMenu(win, anchor, TwClassMenu, {
+    title,
+    removeLabel: t(win, 'tw_classes_remove'),
+    options: names.map((name) => ({ label: name, css: '', color: '', active: name === active })),
+    onPreview: (label) => {
+      const now = label && !locked() ? currentValue() : null;
+
+      if (!now) {
+        sendPreview(win, null);
+
+        return;
+      }
+
+      const value = groupValueWith(now.value, names, label);
+
+      sendPreview(win, value === now.value ? null : { path: node.path, value });
+    },
+    onPick: (label) => {
+      keepPreview(win);
+      twSetGroup(win, names, label);
+      closeTwMenu(win);
+      after?.(label);
+    },
+    onRemove: () => {
+      keepPreview(win);
+      twSetGroup(win, names, '');
+      closeTwMenu(win);
+      after?.('');
+    },
+  });
+}
+
 /**
  * The same scale, as CSS values rather than as class names.
  *

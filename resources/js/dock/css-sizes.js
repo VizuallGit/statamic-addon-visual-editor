@@ -383,6 +383,10 @@ export function paintCssHead(win) {
   if (scope && !classDefsFresh()) {
     void loadClassDefs(win).then(() => paintCssHead(win));
   }
+  // An empty pane has three quite different causes — the element has no name
+  // in its brackets, the section has none, or the file is simply blank — and
+  // all three used to look like a tool that had stopped working. Say which.
+  cssUi.note = dockState.cssPane === 'empty' ? t(win, 'css_pane_empty') : '';
   cssUi.canEdit = !dockState.lastLocked;
   cssUi.onTag = (event) => twOpenTagMenuAt(win, event.currentTarget, target);
   cssUi.state = dockState.cssState;
