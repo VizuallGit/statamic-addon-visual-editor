@@ -1130,6 +1130,7 @@ return [
     'collection_preset_empty' => 'Ingen presets endnu. Læg en mappe i resources/visual-editor/collection-presets (preset.yaml + valgfri blueprint og views).',
     'collection_preset_apply' => 'Brug preset',
     'collection_preset_failed' => 'Kunne ikke anvende preset.',
+    'collection_preset_invalid' => 'Presettet “:preset” blev ikke anvendt: :file er ikke gyldig YAML (:error). Intet blev kopieret.',
 
     'template_prop_collection' => 'Collection',
     'template_prop_media' => 'Billede / media',

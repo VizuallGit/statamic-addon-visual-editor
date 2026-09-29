@@ -2,7 +2,9 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\Exceptions\InvalidPresetException;
 use Statamic\Contracts\Entries\Collection as CollectionContract;
+use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -92,7 +94,17 @@ class CollectionPresets
             'show' => null,
         ];
 
-        if ($blueprint = static::read($dir, 'blueprint.yaml')) {
+        $blueprint = static::read($dir, 'blueprint.yaml');
+
+        // Parsed before anything is copied. Statamic reads every blueprint on
+        // every control-panel request, so a file it cannot parse — a key
+        // written twice, a bad indent — is not one broken collection but a
+        // 500 on the whole panel. The pack is refused whole, with the line.
+        if ($blueprint !== null && ($reason = static::yamlError(static::substitute($blueprint, $handle))) !== null) {
+            throw new InvalidPresetException($preset, 'blueprint.yaml', $reason);
+        }
+
+        if ($blueprint) {
             $destDir = resource_path('blueprints/collections/'.$handle);
             static::write($destDir.DIRECTORY_SEPARATOR.$handle.'.yaml', $blueprint, $handle);
             $copied['blueprint'] = true;
@@ -129,6 +141,18 @@ class CollectionPresets
     public static function substitute(string $contents, string $handle): string
     {
         return str_replace(static::PLACEHOLDER, $handle, $contents);
+    }
+
+    /** Why the YAML will not parse, in the parser's own words — or null when it does. */
+    public static function yamlError(string $yaml): ?string
+    {
+        try {
+            $parsed = Yaml::parse($yaml);
+        } catch (ParseException $e) {
+            return $e->getMessage();
+        }
+
+        return is_array($parsed) ? null : 'The file does not hold a YAML map.';
     }
 
     public static function validHandle(string $handle): bool

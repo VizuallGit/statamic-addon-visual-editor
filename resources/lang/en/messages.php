@@ -1137,6 +1137,7 @@ return [
     'collection_preset_empty' => 'No presets yet. Add a folder in resources/visual-editor/collection-presets (preset.yaml + optional blueprint and views).',
     'collection_preset_apply' => 'Apply preset',
     'collection_preset_failed' => 'Could not apply the preset.',
+    'collection_preset_invalid' => 'The preset “:preset” was not applied: :file is not valid YAML (:error). Nothing was copied.',
 
     'template_prop_collection' => 'Collection',
     'template_prop_media' => 'Image / media',

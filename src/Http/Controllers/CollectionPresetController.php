@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use MarioHamann\StatamicVisualEditor\CollectionPresets;
+use MarioHamann\StatamicVisualEditor\Exceptions\InvalidPresetException;
 use MarioHamann\StatamicVisualEditor\Features;
 use Statamic\Contracts\Entries\Collection as CollectionContract;
 use Statamic\Facades\Collection;
@@ -30,7 +31,20 @@ class CollectionPresetController extends Controller
 
         abort_unless($collection, 404);
 
-        $copied = CollectionPresets::apply($collection, $preset);
+        try {
+            $copied = CollectionPresets::apply($collection, $preset);
+        } catch (InvalidPresetException $e) {
+            // A pack with a broken file is refused, and the panel says which
+            // file and why. Nothing was copied.
+            return response()->json([
+                'error' => 'invalid_preset',
+                'message' => __('sve::messages.collection_preset_invalid', [
+                    'preset' => $e->preset,
+                    'file' => $e->presetFile,
+                    'error' => $e->reason,
+                ]),
+            ], 422);
+        }
 
         abort_unless(is_array($copied), 404);
 

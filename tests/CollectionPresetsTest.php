@@ -3,6 +3,9 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use MarioHamann\StatamicVisualEditor\CollectionPresets;
+use MarioHamann\StatamicVisualEditor\Exceptions\InvalidPresetException;
+use MarioHamann\StatamicVisualEditor\Features;
+use Statamic\Facades\Collection;
 
 class CollectionPresetsTest extends TestCase
 {
@@ -67,6 +70,48 @@ class CollectionPresetsTest extends TestCase
 
         @unlink($this->dir.'/orphan/show.antlers.html');
         @rmdir($this->dir.'/orphan');
+    }
+
+    public function test_a_blueprint_that_will_not_parse_refuses_the_whole_pack(): void
+    {
+        // The services pack shipped with `sections:` twice under one tab: the
+        // pages it made took the whole control panel down with a 500.
+        mkdir($this->dir.'/broken', 0775, true);
+        file_put_contents($this->dir.'/broken/preset.yaml', "title: Broken\n");
+        file_put_contents(
+            $this->dir.'/broken/blueprint.yaml',
+            "tabs:\n  sidebar:\n    sections:\n      - fields: []\n    sections:\n      - fields: []\n"
+        );
+        file_put_contents($this->dir.'/broken/index.antlers.html', "{{ collection:__COLLECTION__ }}\n");
+        config(['statamic-visual-editor.features.collection_templates' => true]);
+        Features::flush();
+
+        $collection = Collection::make('kompetencer')->title('Kompetencer');
+        $collection->save();
+
+        try {
+            $thrown = null;
+
+            try {
+                CollectionPresets::apply($collection, 'broken');
+            } catch (InvalidPresetException $e) {
+                $thrown = $e;
+            }
+
+            $this->assertNotNull($thrown, 'a blueprint with a duplicate key must be refused');
+            $this->assertSame('broken', $thrown->preset);
+            $this->assertSame('blueprint.yaml', $thrown->presetFile);
+            $this->assertStringContainsString('Duplicate key', $thrown->reason);
+            // Refused whole: neither the blueprint nor the view reached the site.
+            $this->assertFileDoesNotExist(resource_path('blueprints/collections/kompetencer/kompetencer.yaml'));
+            $this->assertFileDoesNotExist(resource_path('views/kompetencer/index.antlers.html'));
+        } finally {
+            $collection->delete();
+            @unlink($this->dir.'/broken/index.antlers.html');
+            @unlink($this->dir.'/broken/blueprint.yaml');
+            @unlink($this->dir.'/broken/preset.yaml');
+            @rmdir($this->dir.'/broken');
+        }
     }
 
     public function test_apply_route_is_registered(): void
