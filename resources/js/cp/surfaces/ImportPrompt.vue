@@ -293,15 +293,17 @@ textarea {
   gap: 0.5em;
   margin-bottom: 1.1em;
 }
+/* Same grey as Annullér below: they are the dialog's two quiet buttons, and
+   one of them sitting a shade lighter read as the lesser of the two. */
 button.is-add-pane {
   padding: 0.42em 0.85em;
   border-radius: 0.5em;
   font-size: 0.86em;
-  background: rgba(128, 128, 128, 0.18);
+  background: rgba(160, 160, 160, 0.32);
   opacity: 1;
 }
 button.is-add-pane:hover {
-  background: rgba(128, 128, 128, 0.3);
+  background: rgba(160, 160, 160, 0.45);
 }
 .sve-dialog__note {
   margin: -0.2em 0 1.1em;

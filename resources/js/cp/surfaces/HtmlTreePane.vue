@@ -429,7 +429,7 @@ function setQuery(value) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   color: currentColor;
   opacity: 0.55;
   line-height: 1;
@@ -479,7 +479,7 @@ function setQuery(value) {
   box-sizing: border-box;
   height: 2rem;
   padding: 0 0.5rem 0 0.625rem;
-  border-radius: 4px;
+  border-radius: 0.5rem;
   background: rgba(128, 128, 128, 0.14);
   color: inherit;
   cursor: text;
@@ -522,50 +522,38 @@ function setQuery(value) {
   background: rgba(128, 128, 128, 0.25);
 }
 /* The search field's own grey at rest, and the blue the tree marks the
-   picked row with under the pointer: quiet until it is the thing to press. */
-.sve-ht-new {
-  all: unset;
-  box-sizing: border-box;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 4px;
-  background: rgba(128, 128, 128, 0.14);
-  color: inherit;
-  cursor: pointer;
-}
-.sve-ht-new:hover {
-  background: #3858e9;
-  color: #fff;
-}
-.sve-ht-new:focus-visible {
-  outline: 2px solid #3858e9;
-  outline-offset: 2px;
-}
-/* Beside the plus and shaped like it, but without its filled box: the plus is
-   the panel's action, and two equal buttons side by side would read as a
-   choice to make before adding anything. This one waits to be looked for. */
+   picked row with under the pointer: quiet until it is the thing to press.
+   Importér markup sits beside the plus and is the same button in every
+   respect — the two are one pair of actions, and giving one of them a
+   quieter box made it read as the lesser of the two.
+
+   `place-items` rather than `align-items`/`justify-content`, and a block-level
+   svg: an inline svg sits on the text baseline, and the descender space under
+   it pushes the icon a pixel or two off centre in a box this small. */
+.sve-ht-new,
 .sve-ht-import {
   all: unset;
   box-sizing: border-box;
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 4px;
+  border-radius: 0.5rem;
+  background: rgba(128, 128, 128, 0.14);
   color: inherit;
-  opacity: 0.5;
   cursor: pointer;
 }
-.sve-ht-import:hover {
-  background: rgba(128, 128, 128, 0.14);
-  opacity: 1;
+.sve-ht-new > svg,
+.sve-ht-import > svg {
+  display: block;
 }
+.sve-ht-new:hover,
+.sve-ht-import:hover {
+  background: #3858e9;
+  color: #fff;
+}
+.sve-ht-new:focus-visible,
 .sve-ht-import:focus-visible {
   outline: 2px solid #3858e9;
   outline-offset: 2px;
@@ -645,9 +633,9 @@ function setQuery(value) {
   all: unset;
   cursor: pointer;
   flex: 0 0 auto;
-  padding: 7px 13px;
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 0.4375rem 0.8125rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
   font-weight: 600;
   background: var(--theme-color-primary, #4f46e5);
   color: #fff;
