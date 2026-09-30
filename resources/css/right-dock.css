@@ -227,7 +227,7 @@ html.dark #__sve-right-dock,
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   flex: 0 0 auto;
   flex-shrink: 0;
   color: currentColor;
@@ -262,7 +262,7 @@ html.dark #__sve-right-dock,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   flex: 0 0 auto;
   color: currentColor;
   background-color: var(--theme-color-gray-300, #d4d4d8);
@@ -285,7 +285,7 @@ html.dark #__sve-right-dock,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   flex: 0 0 auto;
   color: currentColor;
   opacity: .55;

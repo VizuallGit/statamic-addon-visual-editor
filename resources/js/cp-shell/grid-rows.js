@@ -1239,7 +1239,7 @@ export function openLpBackMenu(win, pill) {
   menu.style.cssText =
     `position:fixed;z-index:2147483001;top:${Math.round(rect.bottom + 8)}px;` +
     `right:${Math.round(win.innerWidth - rect.right)}px;width:max-content;` +
-    'display:flex;flex-direction:column;padding:5px;border-radius:10px;' +
+    'display:flex;flex-direction:column;padding:5px;border-radius: 0.25rem;' +
     'background:#343439;box-shadow:0 12px 40px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.12);' +
     'font:500 13px/1.2 ui-sans-serif,system-ui,sans-serif;';
 
@@ -1252,7 +1252,7 @@ export function openLpBackMenu(win, pill) {
     btn.title = title;
     btn.style.cssText =
       'all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;' +
-      'padding:9px 12px;border-radius:7px;white-space:nowrap;color:rgba(255,255,255,.88);';
+      'padding:9px 12px;border-radius: 0.25rem;white-space:nowrap;color:rgba(255,255,255,.88);';
     icon.setAttribute('aria-hidden', 'true');
     icon.style.cssText = 'display:inline-flex;flex-shrink:0;opacity:.85;';
     icon.innerHTML = iconSvg;

@@ -75,7 +75,7 @@ defineProps({
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   border: 1px solid rgba(128, 128, 128, 0.3);
   background: rgba(128, 128, 128, 0.06);
   color: currentColor;

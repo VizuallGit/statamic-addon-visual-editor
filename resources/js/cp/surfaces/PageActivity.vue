@@ -213,7 +213,7 @@ function onKey(event) {
   max-height: min(72vh, 640px);
   background: var(--theme-color-content-bg, #fff);
   color: inherit;
-  border-radius: 12px;
+  border-radius: 0.25rem;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
   overflow: hidden;
 }
@@ -236,7 +236,7 @@ function onKey(event) {
   height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   opacity: 0.7;
 }
 .sve-page-edits__close:hover {
@@ -320,7 +320,7 @@ function onKey(event) {
   all: unset;
   cursor: pointer;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 .sve-page-edits__pager-btns button:disabled {

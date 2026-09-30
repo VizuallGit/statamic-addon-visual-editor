@@ -60,7 +60,7 @@ function ensureStyles(doc) {
          there should change, not the shape of the two beside it. */
       min-height: 2.2rem;
       padding: 0.2rem 0.3rem;
-      border-radius: 0.45rem;
+      border-radius: 0.25rem;
       border: 1px solid rgba(255,255,255,.12);
       background: #252526;
       color: #d4d4d4;
@@ -89,7 +89,7 @@ function ensureStyles(doc) {
       right: 1px;
       bottom: 1px;
       width: 1.6rem;
-      border-radius: 0 0.45rem 0.45rem 0;
+      border-radius: 0.25rem;
       pointer-events: none;
       opacity: 0;
       transition: opacity .12s linear;
@@ -111,7 +111,7 @@ function ensureStyles(doc) {
       align-items: center;
       gap: 0.35em;
       padding: 0.22em 0.5em;
-      border-radius: 0.35em;
+      border-radius: 0.25rem;
       background: rgba(255,255,255,.1);
       cursor: pointer;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -166,7 +166,7 @@ function ensureStyles(doc) {
       min-width: 2rem;
       align-self: stretch;
       background: transparent;
-      border-radius: 0.45rem;
+      border-radius: 0.25rem;
       padding: 0 0.5em;
       font-family: ui-sans-serif, system-ui, sans-serif;
       font-size: 1.05rem;
@@ -184,7 +184,7 @@ function ensureStyles(doc) {
     #${STRIP_ID} [data-dot] {
       width: 0.8em;
       height: 0.8em;
-      border-radius: 0.18em;
+      border-radius: 0.25rem;
       border: 1px solid rgba(128,128,128,.5);
     }
     /* The ghost lives on the body, outside the strip, so none of the rules
@@ -198,7 +198,7 @@ function ensureStyles(doc) {
       align-items: center;
       gap: 0.35em;
       padding: 0.22em 0.5em;
-      border-radius: 0.35em;
+      border-radius: 0.25rem;
       background: #3a3a3e;
       color: #d4d4d4;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -212,7 +212,7 @@ function ensureStyles(doc) {
     #${STRIP_ID}-ghost [data-dot] {
       width: 0.8em;
       height: 0.8em;
-      border-radius: 0.18em;
+      border-radius: 0.25rem;
       border: 1px solid rgba(128,128,128,.5);
     }
   `);

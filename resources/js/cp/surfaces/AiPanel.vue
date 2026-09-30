@@ -421,7 +421,7 @@ watch(mode, refreshType);
   font-size: 13px;
   line-height: 1.45;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 0.25rem;
   word-break: break-word;
 }
 .sve-ai__row.is-user {
@@ -441,7 +441,7 @@ watch(mode, refreshType);
 }
 .sve-ai__code {
   border: 1px solid rgba(128, 128, 128, 0.22);
-  border-radius: 8px;
+  border-radius: 0.25rem;
   overflow: hidden;
 }
 .sve-ai__code-bar {
@@ -459,7 +459,7 @@ watch(mode, refreshType);
   all: unset;
   cursor: pointer;
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   font-size: 11px;
   font-weight: 600;
   background: rgba(128, 128, 128, 0.18);
@@ -492,7 +492,7 @@ watch(mode, refreshType);
   min-height: 88px;
   max-height: 200px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   border: 1px solid rgba(128, 128, 128, 0.28);
   background: transparent;
   color: inherit;
@@ -506,7 +506,7 @@ watch(mode, refreshType);
   width: 100%;
   text-align: center;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   border: 1px solid rgba(128, 128, 128, 0.4);
   background: transparent;
   color: inherit;
@@ -523,7 +523,7 @@ watch(mode, refreshType);
   width: 100%;
   text-align: center;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   background: var(--theme-color-primary, #4f46e5);
   color: #fff;
   font-size: 13px;
@@ -574,7 +574,7 @@ watch(mode, refreshType);
   display: flex;
   gap: 0.125rem;
   padding: 0.125rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   background: rgba(128, 128, 128, 0.16);
   flex: 0 0 auto;
 }
@@ -582,7 +582,7 @@ watch(mode, refreshType);
   all: unset;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   font-size: 0.6875rem;
   font-weight: 600;
   opacity: 0.7;
@@ -609,7 +609,7 @@ watch(mode, refreshType);
   justify-content: center;
   width: 1.5rem;
   height: 1.5rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   opacity: 0.6;
 }
 .sve-ai--standalone [data-sve-close]:hover {

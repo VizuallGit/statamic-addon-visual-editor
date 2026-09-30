@@ -248,7 +248,7 @@ function buildDragGhost(win, el) {
   ghost.appendChild(clone);
   ghost.style.cssText =
     'position:fixed;left:0;top:0;z-index:2147483647;pointer-events:none;box-sizing:border-box;' +
-    `width:${Math.ceil(rect.width)}px;padding:10px 14px;border-radius:10px;overflow:hidden;` +
+    `width:${Math.ceil(rect.width)}px;padding:10px 14px;border-radius: 0.25rem;overflow:hidden;` +
     `background:${solidBackgroundFor(win, el)};color:${live.color};` +
     'box-shadow:0 12px 32px rgba(0,0,0,.28),0 0 0 1px rgba(0,0,0,.06);' +
     'opacity:.8;transform-origin:top left;will-change:transform;';
@@ -622,7 +622,7 @@ export function showMoveControl(win, moveEl) {
   const BTN = 26;
   const btnCss =
     `all:unset;cursor:pointer;width:${BTN}px;height:${BTN}px;display:inline-flex;align-items:center;` +
-    `justify-content:center;border-radius:6px;box-sizing:border-box;color:${theme.fg};line-height:1;`;
+    `justify-content:center;border-radius: 0.25rem;box-sizing:border-box;color:${theme.fg};line-height:1;`;
   const paintHover = (btn) => {
     btn.addEventListener('mouseenter', () => {
       if (!btn.dataset.sveDisabled) {
@@ -638,7 +638,7 @@ export function showMoveControl(win, moveEl) {
   // Same tokens as the headline/richtext edit toolbar — just a smaller pill.
   ctrl.style.cssText =
     `position:fixed;z-index:2147483646;display:flex;flex-direction:${horizontal ? 'row' : 'column'};gap:1px;` +
-    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius:9px;padding:3px;` +
+    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius: 0.25rem;padding:3px;` +
     `box-shadow:${theme.shadow};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;user-select:none;`;
 
   const addArrow = (glyph, title, direction) => {

@@ -693,7 +693,7 @@ export function openGlobalSectionPanelFrame(win, id) {
     save.textContent = t(win, 'save');
     save.title = t(win, 'save_global_section');
     save.style.cssText =
-      'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
+      'all:unset;cursor:pointer;padding:5px 12px;border-radius: 0.25rem;background:var(--theme-color-primary,#4f46e5);' +
       'color:#fff;font-size:12px;font-weight:600;line-height:1;';
     save.addEventListener('click', () => {
       doc

@@ -560,7 +560,7 @@ export function ensureListViewStyles(doc) {
       min-height: 32px;
       margin-bottom: 5px;
       background: rgba(128,128,128,.16);
-      border-radius: 6px;
+      border-radius: 0.25rem;
       font-size: 11px;
       line-height: 1.3;
       /* An open hand: the row can be picked up and moved. The controls inside it
@@ -614,7 +614,7 @@ export function ensureListViewStyles(doc) {
        stop the last row's margin collapsing out through it. */
     [data-sve-lv-branch] {
       border: 1px solid rgba(255,255,255,.15);
-      border-radius: 9px;
+      border-radius: 0.25rem;
       box-sizing: border-box;
       width: 100%;
       /* Same inset on every side — the selected row must not sit flush to the box. */
@@ -661,7 +661,7 @@ export function ensureListViewStyles(doc) {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      border-radius: 4px;
+      border-radius: 0.25rem;
       cursor: pointer;
       opacity: .7;
     }
@@ -675,7 +675,7 @@ export function ensureListViewStyles(doc) {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      border-radius: 3px;
+      border-radius: 0.25rem;
       cursor: pointer;
       opacity: .65;
       transition: transform .12s ease;
@@ -707,7 +707,7 @@ export function ensureListViewStyles(doc) {
       line-height: 1.3;
       padding: 1px 4px;
       margin: -1px -4px;
-      border-radius: 3px;
+      border-radius: 0.25rem;
       background: rgba(255,255,255,.16);
       outline: 2px solid currentColor;
     }

@@ -21,7 +21,7 @@ defineProps({
   text-align: center;
   padding: 10px;
   margin: 0 0 12px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   font-size: 12px;
   font-weight: 600;
   background: var(--theme-color-primary, #4f46e5);

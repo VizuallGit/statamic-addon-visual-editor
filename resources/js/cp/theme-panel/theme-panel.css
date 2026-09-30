@@ -33,7 +33,7 @@
   width: 2rem;
   height: 2rem;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   background: transparent;
   cursor: pointer;
   flex: none;
@@ -51,7 +51,7 @@
 .sve-theme__tabs-wrap {
   position: relative;
   margin: 0.75rem 0 0.625rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: #2a2a2d;
   overflow: hidden;
   flex: none;
@@ -195,7 +195,7 @@
   flex-direction: column;
   gap: 0.625rem;
   padding: 0.75rem;
-  border-radius: 1rem;
+  border-radius: 0.25rem;
   background: #26262a;
 }
 .sve-theme__section-title {
@@ -302,7 +302,7 @@
   height: 1.75rem;
   padding: 0 0.625rem;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   background: transparent;
   color: #f2a2a2 !important;
   font-weight: 600;
@@ -391,7 +391,7 @@
   display: flex;
   gap: 0.125rem;
   padding: 0.1875rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: #161618;
   border: 1px solid #3c3c3c;
 }
@@ -414,7 +414,7 @@
 /* Colors */
 .sve-theme__card {
   border: 1px solid transparent;
-  border-radius: 0.875rem;
+  border-radius: 0.25rem;
   background: #26262a;
 }
 .sve-theme__card.is-open {
@@ -428,7 +428,7 @@
   width: 100%;
   padding: 0.5rem;
   border: 0;
-  border-radius: 0.875rem;
+  border-radius: 0.25rem;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -439,7 +439,7 @@
 .sve-theme__chip {
   width: 1.875rem;
   height: 1.875rem;
-  border-radius: 0.625rem;
+  border-radius: 0.25rem;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   flex: none;
 }
@@ -501,7 +501,7 @@
   display: block;
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 .sve-theme__swatch.is-editable .sve-theme__swatch-color:hover {
@@ -580,7 +580,7 @@
   min-width: 0;
   padding: 0;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   background: transparent;
   cursor: pointer;
 }
@@ -666,7 +666,7 @@
   width: 1.75rem;
   height: 1.75rem;
   border: 0;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   background: transparent;
   opacity: 0.5;
   cursor: pointer;
@@ -708,7 +708,7 @@
 }
 .sve-theme__aa-uses span {
   padding: 0.0625rem 0.3125rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: rgba(13, 148, 136, 0.22);
   color: #5eead4;
   font-size: 0.625rem;
@@ -800,7 +800,7 @@
   align-items: center;
   justify-content: center;
   padding: 1.25rem 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: 0.25rem;
   background: #f4f4f5;
 }
 .sve-theme__button-sample span {
@@ -840,7 +840,7 @@
   flex-direction: column;
   gap: 0.3125rem;
   padding: 0.625rem 0.75rem;
-  border-radius: 0.75rem;
+  border-radius: 0.25rem;
   background: #1c1c1f;
 }
 .sve-theme__font-top {
@@ -902,7 +902,7 @@
   width: min(46rem, 100%);
   height: min(44rem, 100%);
   border: 1px solid #3c3c3c;
-  border-radius: 1.125rem;
+  border-radius: 0.25rem;
   overflow: hidden;
   box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.5);
 }
@@ -979,7 +979,7 @@
   gap: 0.25rem 0.75rem;
   padding: 0.75rem 0.875rem;
   border: 0;
-  border-radius: 0.875rem;
+  border-radius: 0.25rem;
   background: #26262a;
   text-align: left;
   cursor: pointer;
@@ -1023,7 +1023,7 @@
   flex-direction: column;
   gap: 0.75rem;
   padding: 1.25rem 1.5rem 1.5rem;
-  border-radius: 1rem;
+  border-radius: 0.25rem;
   background: #2a2a2d;
 }
 .sve-fontdlg__sample-top {
@@ -1107,7 +1107,7 @@
   width: 1.125rem;
   height: 1.125rem;
   border: 1px solid #5a5a60;
-  border-radius: 0.3125rem;
+  border-radius: 0.25rem;
   flex: none;
 }
 .sve-fontdlg__check svg {
@@ -1191,7 +1191,7 @@
   gap: 0.375rem;
   padding: 1.75rem 1rem;
   border: 1px dashed #4a4a50;
-  border-radius: 1rem;
+  border-radius: 0.25rem;
   background: #1c1c1f;
   text-align: center;
   cursor: pointer;
@@ -1222,7 +1222,7 @@
 }
 .sve-fontdlg__convert {
   padding: 0.5rem 0.75rem;
-  border-radius: 0.875rem;
+  border-radius: 0.25rem;
   background: #26262a;
 }
 .sve-fontdlg__convert-text {
@@ -1239,7 +1239,7 @@
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.75rem;
-  border-radius: 0.875rem;
+  border-radius: 0.25rem;
   background: #26262a;
 }
 .sve-fontdlg__upload-top {
@@ -1274,7 +1274,7 @@
   justify-content: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 0.625rem;
+  border-radius: 0.25rem;
   background: rgba(13, 148, 136, 0.18);
   color: #5eead4;
   font: 700 1.25rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1355,7 +1355,7 @@
   height: 2rem;
   padding: 0 0.625rem;
   border: 0;
-  border-radius: 0.3125rem;
+  border-radius: 0.25rem;
   background: rgba(0, 0, 0, 0.28);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }

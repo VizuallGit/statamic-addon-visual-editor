@@ -101,7 +101,7 @@ function emptyText() {
   cursor: pointer;
   display: block;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   border: 1px solid rgba(128, 128, 128, 0.18);
   background: rgba(128, 128, 128, 0.08);
 }

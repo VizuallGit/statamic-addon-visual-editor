@@ -357,7 +357,7 @@ function rowBadge(doc, ctx) {
   badge.textContent = ctx.label.trim().charAt(0).toUpperCase();
   badge.style.cssText =
     'flex:0 0 auto;display:flex;align-items:center;justify-content:center;' +
-    'width:1.45em;height:1.45em;border-radius:0.35em;font-size:0.85em;font-weight:700;' +
+    'width:1.45em;height:1.45em;border-radius: 0.25rem;font-size:0.85em;font-weight:700;' +
     'background:rgba(128,128,128,.28);';
 
   return badge;
@@ -509,7 +509,7 @@ export function showHoverBelt(win, rowEl) {
   const SQUARE = 32;
   const pill =
     `display:flex;align-items:center;gap:1px;background:${theme.bg};color:${theme.fg};` +
-    `border:1px solid ${theme.border};border-radius:9px;padding:4px;box-shadow:${theme.shadow};` +
+    `border:1px solid ${theme.border};border-radius: 0.25rem;padding:4px;box-shadow:${theme.shadow};` +
     'box-sizing:content-box;margin:0;';
 
   const bar = doc.createElement('div');
@@ -539,7 +539,7 @@ export function showHoverBelt(win, rowEl) {
     btn.title = title;
     btn.style.cssText =
       `all:unset;cursor:pointer;min-width:${SQUARE}px;height:${SQUARE}px;display:inline-flex;` +
-      'align-items:center;justify-content:center;border-radius:8px;padding:0 6px;' +
+      'align-items:center;justify-content:center;border-radius: 0.25rem;padding:0 6px;' +
       `box-sizing:border-box;text-align:center;color:${theme.fg};`;
     btn.addEventListener('mouseenter', () => {
       btn.style.background = theme.hover;
@@ -715,7 +715,7 @@ export function createEditToolbar(win, session) {
   // padding and border from the inside, and come out short of the controls.
   const pill =
     `display:flex;align-items:center;gap:1px;background:${theme.bg};color:${theme.fg};` +
-    `border:1px solid ${theme.border};border-radius:9px;padding:4px;box-shadow:${theme.shadow};` +
+    `border:1px solid ${theme.border};border-radius: 0.25rem;padding:4px;box-shadow:${theme.shadow};` +
     'box-sizing:content-box;margin:0;';
 
   bar.id = '__sve-edit-toolbar';
@@ -757,7 +757,7 @@ export function createEditToolbar(win, session) {
 
     btn.style.cssText =
       `all:unset;cursor:pointer;min-width:${SQUARE}px;height:${SQUARE}px;display:inline-flex;` +
-      'align-items:center;justify-content:center;border-radius:8px;padding:0 6px;' +
+      'align-items:center;justify-content:center;border-radius: 0.25rem;padding:0 6px;' +
       `box-sizing:border-box;text-align:center;color:${theme.fg};` +
       (opts.style || '');
 
@@ -1062,7 +1062,7 @@ export function createEditToolbar(win, session) {
           menu.dataset.for = name;
           menu.style.cssText =
             'position:fixed;z-index:2147483647;min-width:160px;padding:4px;' +
-            'background:#1a1f2e;border:1px solid rgba(255,255,255,.12);border-radius:8px;' +
+            'background:#1a1f2e;border:1px solid rgba(255,255,255,.12);border-radius: 0.25rem;' +
             'box-shadow:0 8px 24px rgba(0,0,0,.5);';
 
           style.items.forEach((item) => {
@@ -1071,7 +1071,7 @@ export function createEditToolbar(win, session) {
             row.type = 'button';
             row.style.cssText =
               'display:flex;align-items:center;gap:8px;width:100%;padding:5px 10px;border:none;' +
-              'cursor:pointer;text-align:left;background:transparent;border-radius:4px;color:#e2e8f0;';
+              'cursor:pointer;text-align:left;background:transparent;border-radius: 0.25rem;color:#e2e8f0;';
             row.innerHTML =
               `<span style="min-width:22px;font-size:11px;opacity:.8">${item.ident && !String(item.ident).startsWith('<') ? item.ident : '·'}</span>` +
               `<span style="font-size:12px;flex:1">${item.name || item.handle || ''}</span>`;

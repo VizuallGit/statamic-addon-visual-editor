@@ -247,7 +247,7 @@ function ensureStyles(doc) {
       max-height: 60vh;
       overflow-y: auto;
       padding: 0.5rem;
-      border-radius: 0.6rem;
+      border-radius: 0.25rem;
       border: 1px solid rgba(255,255,255,.12);
       background: #252526;
       color: #d4d4d4;
@@ -293,7 +293,7 @@ function ensureStyles(doc) {
       gap: 0.55em;
       width: 100%;
       padding: 0.4em 0.5em;
-      border-radius: 0.4em;
+      border-radius: 0.25rem;
       cursor: pointer;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       line-height: 1.5;
@@ -324,7 +324,7 @@ function ensureStyles(doc) {
       flex: 0 0 auto;
       width: 0.9em;
       height: 0.9em;
-      border-radius: 0.18em;
+      border-radius: 0.25rem;
       border: 1px solid rgba(128,128,128,.5);
     }
     #${MENU_ID} [data-sve-tw-label] {
@@ -336,7 +336,7 @@ function ensureStyles(doc) {
     #${MENU_ID} [data-sve-tw-remove] {
       margin-top: 0.3rem;
       border-top: 1px solid rgba(255,255,255,.14);
-      border-radius: 0 0 0.4em 0.4em;
+      border-radius: 0.25rem;
       padding-top: 0.6em;
       font-family: ui-sans-serif, system-ui, sans-serif;
     }
@@ -348,7 +348,7 @@ function ensureStyles(doc) {
       height: 2.2rem;
       padding: 0 0.6em;
       margin-bottom: 0.45rem;
-      border-radius: 0.45em;
+      border-radius: 0.25rem;
       border: 1px solid rgba(255,255,255,.18);
       background: rgba(0,0,0,.28);
     }
@@ -373,7 +373,7 @@ function ensureStyles(doc) {
       gap: 0.2rem;
       margin-bottom: 0.45rem;
       padding: 0.15rem;
-      border-radius: 0.45em;
+      border-radius: 0.25rem;
       background: rgba(0,0,0,.28);
     }
     #${MENU_ID} [data-sve-tw-tab] {
@@ -381,7 +381,7 @@ function ensureStyles(doc) {
       flex: 1 1 0;
       box-sizing: border-box;
       padding: 0.35em 0;
-      border-radius: 0.35em;
+      border-radius: 0.25rem;
       cursor: pointer;
       text-align: center;
       font-family: ui-sans-serif, system-ui, sans-serif;

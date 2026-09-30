@@ -1887,7 +1887,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
             '[' + LITE_LOAD_ATTR + ']{' +
             'all:unset;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;' +
             'justify-content:center;margin-left:auto;width:2.1rem;height:2.1rem;' +
-            'border-radius:.5rem;color:inherit;opacity:.55;}' +
+            'border-radius: 0.25rem;color:inherit;opacity:.55;}' +
             '[' + LITE_LOAD_ATTR + ']:hover{opacity:1;background:rgba(128,128,128,.16);}' +
             '[' + LITE_LOAD_ATTR + '] svg{display:block;}';
 

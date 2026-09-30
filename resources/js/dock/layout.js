@@ -170,7 +170,7 @@ export function ensureStyle(doc) {
   all: unset;
   cursor: pointer;
   padding: 4px 10px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .02em;
@@ -200,7 +200,7 @@ export function ensureStyle(doc) {
   width: 26px;
   height: 26px;
   margin-left: 8px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   color: #d4d4d4;
   opacity: .7;
 }
@@ -227,7 +227,7 @@ export function ensureStyle(doc) {
   width: 26px;
   height: 26px;
   margin-left: 4px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   color: #d4d4d4;
   opacity: .8;
   background: rgba(255,255,255,.1);
@@ -254,7 +254,7 @@ export function ensureStyle(doc) {
   width: 26px;
   height: 26px;
   margin-left: 4px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   color: #d4d4d4;
   opacity: .8;
   background: rgba(255,255,255,.1);
@@ -279,7 +279,7 @@ export function ensureStyle(doc) {
   width: 26px;
   height: 26px;
   margin-left: 4px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   color: #d4d4d4;
   opacity: .8;
   background: rgba(255,255,255,.1);
@@ -310,7 +310,7 @@ export function ensureStyle(doc) {
   height: 26px;
   padding: 0 8px;
   margin-left: 4px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   color: #d4d4d4;
   opacity: .8;
   background: rgba(255,255,255,.1);
@@ -376,7 +376,7 @@ export function ensureStyle(doc) {
   width: 26px;
   height: 26px;
   margin-left: 4px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   color: #d4d4d4;
   opacity: .8;
   background: rgba(255,255,255,.1);
@@ -452,7 +452,7 @@ export function ensureStyle(doc) {
 #${UNLOCK_ID} [data-sve-unlock-card] {
   width: min(420px, calc(100vw - 32px));
   padding: 20px;
-  border-radius: 12px;
+  border-radius: 0.25rem;
   background: #252526;
   color: #d4d4d4;
   border: 1px solid rgba(255,255,255,.12);
@@ -479,7 +479,7 @@ export function ensureStyle(doc) {
   all: unset;
   cursor: pointer;
   padding: 7px 12px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   font-size: 13px;
   font-weight: 600;
 }
@@ -553,7 +553,7 @@ export function ensureStyle(doc) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   background: rgba(255,255,255,.1);
   color: #d4d4d4;
   cursor: pointer;
@@ -624,7 +624,7 @@ export function ensureStyle(doc) {
   align-items: center;
   /* Same radius as the button's own highlight, so the shape around the icon
      is identical open and closed. */
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 /* Only to the right: nothing may move the icon when the group opens. */
 #${DOCK_ID} [data-sve-css-item][data-sve-css-open] {
@@ -720,7 +720,7 @@ export function ensureStyle(doc) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   color: #d4d4d4;
   opacity: .7;
 }
@@ -791,7 +791,7 @@ export function ensureStyle(doc) {
   max-height: 22rem;
   overflow: auto;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   background: #252526;
   color: #d4d4d4;
   border: 1px solid rgba(255,255,255,.12);
@@ -812,7 +812,7 @@ export function ensureStyle(doc) {
   /* The search and the tabs stay put; only the rows under them scroll. */
   overflow: hidden;
   padding: 0.5rem;
-  border-radius: 0.5em;
+  border-radius: 0.25rem;
   background: #252526;
   color: #d4d4d4;
   border: 1px solid rgba(255,255,255,.12);
@@ -828,7 +828,7 @@ export function ensureStyle(doc) {
   height: 2.2rem;
   padding: 0 0.6em;
   margin-bottom: 0.45rem;
-  border-radius: 0.45em;
+  border-radius: 0.25rem;
   border: 1px solid rgba(255,255,255,.18);
   background: rgba(0,0,0,.28);
 }
@@ -862,7 +862,7 @@ export function ensureStyle(doc) {
   gap: 0.2rem;
   margin-bottom: 0.45rem;
   padding: 0.15rem;
-  border-radius: 0.45em;
+  border-radius: 0.25rem;
   background: rgba(0,0,0,.28);
 }
 [data-sve-data-menu] [data-sve-data-tab] {
@@ -870,7 +870,7 @@ export function ensureStyle(doc) {
   flex: 1 1 0;
   box-sizing: border-box;
   padding: 0.35em 0;
-  border-radius: 0.35em;
+  border-radius: 0.25rem;
   cursor: pointer;
   text-align: center;
   font-size: 0.6875rem;
@@ -897,7 +897,7 @@ export function ensureStyle(doc) {
   gap: 0.5em;
   width: 100%;
   padding: 0.35em 0.5em;
-  border-radius: 0.35em;
+  border-radius: 0.25rem;
   cursor: pointer;
 }
 [data-sve-data-menu] [data-sve-data-option]:hover,
@@ -936,7 +936,7 @@ export function ensureStyle(doc) {
   flex: 0 0 auto;
   margin-left: auto;
   padding: 0.1em 0.45em;
-  border-radius: 0.3em;
+  border-radius: 0.25rem;
   background: rgba(255,255,255,.1);
   font-size: 0.5625rem;
   letter-spacing: .04em;
@@ -962,7 +962,7 @@ export function ensureStyle(doc) {
   margin-right: 0.35em;
   padding: 0;
   border: 0;
-  border-radius: 0.3em;
+  border-radius: 0.25rem;
   background: transparent;
   color: #d4d4d4;
   opacity: .62;
@@ -1001,7 +1001,7 @@ export function ensureStyle(doc) {
   cursor: pointer;
   width: 16px;
   height: 16px;
-  border-radius: 3px;
+  border-radius: 0.25rem;
   box-sizing: border-box;
   border: 1px solid rgba(255,255,255,.2);
 }
@@ -1015,7 +1015,7 @@ export function ensureStyle(doc) {
   cursor: pointer;
   width: 16px;
   height: 16px;
-  border-radius: 3px;
+  border-radius: 0.25rem;
   box-sizing: border-box;
   border: 1px solid rgba(255,255,255,.35);
   display: inline-flex;
@@ -1033,7 +1033,7 @@ export function ensureStyle(doc) {
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -1091,7 +1091,7 @@ export function ensureStyle(doc) {
   height: 28px;
   padding: 0 8px;
   border: 1px solid rgba(255,255,255,.16);
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: #1E1E21;
   color: #d4d4d4;
   font-size: 12px;
@@ -1127,7 +1127,7 @@ export function ensureStyle(doc) {
   justify-content: space-between;
   gap: 8px;
   padding: 4px 6px;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   cursor: pointer;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -1153,7 +1153,7 @@ export function ensureStyle(doc) {
   width: 100%;
   margin-top: 8px;
   padding: 6px 8px;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   text-align: center;
   font-size: 11px;
   font-weight: 600;
@@ -1200,7 +1200,7 @@ export function ensureStyle(doc) {
 }
 #${DOCK_ID} [data-sve-code-host]::-webkit-scrollbar-thumb {
   background: rgba(255,255,255,.28);
-  border-radius: 6px;
+  border-radius: 0.25rem;
 }
 /* A bracket name the site already defines elsewhere: red, the file in the title. */
 #${DOCK_ID} .sve-cm-class-taken {
@@ -1211,7 +1211,7 @@ export function ensureStyle(doc) {
 }
 #${DOCK_ID} .sve-cm-css-token {
   background: rgba(215,186,125,.22);
-  border-radius: 2px;
+  border-radius: 0.25rem;
 }
 #${CLASS_RENAME_CHIP_ID} {
   all: unset;
@@ -1223,7 +1223,7 @@ export function ensureStyle(doc) {
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: #3c3c3c;
   color: #d7ba7d;
   border: 1px solid rgba(255,255,255,.16);
@@ -1293,7 +1293,7 @@ export function ensureStyle(doc) {
   all: unset;
   cursor: pointer;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   color: inherit;
   font: inherit;
   white-space: nowrap;
@@ -1333,7 +1333,7 @@ export function ensureStyle(doc) {
   max-height: 240px;
   overflow: auto;
   padding: 6px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   background: #252526;
   color: #d4d4d4;
   border: 1px solid rgba(255,255,255,.12);
@@ -1347,7 +1347,7 @@ export function ensureStyle(doc) {
   width: 100%;
   box-sizing: border-box;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   font-size: 13px;
   /* A sentence now — "Open image" — not a file name, and the same face the
      HTML tree's row menu uses. */
@@ -1376,7 +1376,7 @@ export function ensureStyle(doc) {
   display: inline-block;
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 0.25rem;
   border: 1px solid rgba(255,255,255,.25);
   margin: 0 6px 4px 0;
   vertical-align: middle;
@@ -1385,7 +1385,7 @@ export function ensureStyle(doc) {
   background: #1E1E21 !important;
   color: #d4d4d4;
   border: 1px solid #454545 !important;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   box-shadow: 0 4px 16px rgba(0,0,0,.45);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   font-size: 12px !important;

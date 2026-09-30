@@ -25,7 +25,7 @@ function tipElement(doc) {
   el.id = TIP_ID;
   el.hidden = true;
   el.style.cssText =
-    'position:fixed;z-index:100001;pointer-events:none;padding:3px 7px;border-radius:4px;'
+    'position:fixed;z-index:100001;pointer-events:none;padding:3px 7px;border-radius: 0.25rem;'
     + 'background:#1f1f1f;color:#d4d4d4;border:1px solid rgba(255,255,255,.14);'
     + 'box-shadow:0 4px 12px rgba(0,0,0,.35);font-family:ui-sans-serif,system-ui,sans-serif;'
     + 'font-size:11px;line-height:1.3;white-space:nowrap;';

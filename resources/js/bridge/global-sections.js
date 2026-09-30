@@ -175,7 +175,7 @@ export function svePrimaryBtn(theme, { compact = false } = {}) {
   const size = compact ? '12px' : '13px';
 
   return (
-    `all:unset;cursor:pointer;padding:${pad};border-radius:8px;font-size:${size};font-weight:600;` +
+    `all:unset;cursor:pointer;padding:${pad};border-radius: 0.25rem;font-size:${size};font-weight:600;` +
     `background:${theme.primary};color:#fff;`
   );
 }
@@ -187,7 +187,7 @@ export function sveSecondaryBtn(theme, { compact = false } = {}) {
   const wash = theme.dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)';
 
   return (
-    `all:unset;cursor:pointer;padding:${pad};border-radius:8px;font-size:${size};font-weight:600;` +
+    `all:unset;cursor:pointer;padding:${pad};border-radius: 0.25rem;font-size:${size};font-weight:600;` +
     `color:${theme.color};background:${wash};`
   );
 }
@@ -198,7 +198,7 @@ function sveDangerBtn(theme, { compact = false } = {}) {
   const size = compact ? '12px' : '13px';
 
   return (
-    `all:unset;cursor:pointer;padding:${pad};border-radius:8px;font-size:${size};font-weight:600;` +
+    `all:unset;cursor:pointer;padding:${pad};border-radius: 0.25rem;font-size:${size};font-weight:600;` +
     'background:#dc2626;color:#fff;'
   );
 }
@@ -208,7 +208,7 @@ export function sveFocusBarStyle(theme) {
   return (
     'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483646;' +
     `display:flex;align-items:center;gap:10px;background:${theme.bg};color:${theme.color};` +
-    'padding:8px 10px 8px 16px;border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.35);' +
+    'padding:8px 10px 8px 16px;border-radius: 0.25rem;box-shadow:0 8px 28px rgba(0,0,0,.35);' +
     'font:500 13px/1.3 ui-sans-serif,system-ui,sans-serif;user-select:none;'
   );
 }
@@ -234,7 +234,7 @@ export function showPreviewConfirm(win, { title, body, confirmLabel, cancelLabel
 
   card.style.cssText =
     `width:400px;max-width:92vw;background:${theme.bg};color:${theme.color};` +
-    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
+    'border-radius: 0.25rem;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
   card.innerHTML =
     `<div style="font-size:15px;font-weight:600;margin-bottom:6px;">${title}</div>` +
     `<div style="font-size:13px;color:${theme.muted};line-height:1.45;margin-bottom:18px;">${body}</div>` +

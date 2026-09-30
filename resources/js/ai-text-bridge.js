@@ -43,7 +43,7 @@ const RADIUS = '4px';
 /** Keywords and the add button wear the same quiet chip as the controls below. */
 const CHIP_STYLE =
   'all:unset;box-sizing:border-box;display:inline-flex;align-items:center;' +
-  'padding:0.1875rem 0.5rem;border-radius:4px;font-size:0.6875rem;line-height:1.5;' +
+  'padding:0.1875rem 0.5rem;border-radius: 0.25rem;font-size:0.6875rem;line-height:1.5;' +
   'border:1px solid var(--sve-ai-border);background:var(--sve-ai-chip);color:var(--sve-ai-fg);';
 
 /** A long suggestion scrolls inside its own row instead of stretching the panel. */
@@ -219,13 +219,13 @@ function styles(win) {
     [data-sve-ai-target] {
       outline: 2px solid var(--sve-ai-primary);
       outline-offset: 3px;
-      border-radius: 2px;
+      border-radius: 0.25rem;
     }
     /* A suggestion being pointed at, shown in the page's own typography. */
     [data-sve-ai-preview] {
       outline: 2px dashed var(--sve-ai-primary);
       outline-offset: 3px;
-      border-radius: 2px;
+      border-radius: 0.25rem;
     }
   `;
   win.document.head.appendChild(style);
@@ -449,7 +449,7 @@ function openPopover(target, mark) {
     'position:fixed;z-index:2147483400;width:min(22rem,calc(100vw - 1.5rem));' +
     'max-height:min(28rem,calc(100vh - 2rem));display:flex;flex-direction:column;' +
     'background:var(--sve-ai-bg);color:var(--sve-ai-fg);' +
-    'border:1px solid var(--sve-ai-border);border-radius:4px;' +
+    'border:1px solid var(--sve-ai-border);border-radius: 0.25rem;' +
     'box-shadow:var(--sve-ai-shadow);overflow:hidden;' +
     'font:400 0.8125rem/1.45 ui-sans-serif,system-ui,-apple-system,sans-serif;';
 
@@ -540,7 +540,7 @@ function lengthRow(doc) {
   input.value = String(session.words);
   input.disabled = session.busy;
   input.style.cssText =
-    'box-sizing:border-box;width:4rem;padding:0.1875rem 0.375rem;border-radius:0.375rem;' +
+    'box-sizing:border-box;width:4rem;padding:0.1875rem 0.375rem;border-radius: 0.25rem;' +
     'border:1px solid var(--sve-ai-border);background:var(--sve-ai-field);' +
     'color:var(--sve-ai-fg);font:inherit;font-size:0.6875rem;';
   input.addEventListener('input', () => {
@@ -670,7 +670,7 @@ function render() {
   // light disc with a dark glyph on a dark one.
   close.style.cssText =
     'all:unset;cursor:pointer;width:1.25rem;height:1.25rem;display:flex;align-items:center;' +
-    'justify-content:center;border-radius:4px;background:var(--sve-ai-fg);color:var(--sve-ai-bg);';
+    'justify-content:center;border-radius: 0.25rem;background:var(--sve-ai-fg);color:var(--sve-ai-bg);';
   close.querySelector('svg').style.cssText = 'width:0.75rem;height:0.75rem;display:block;';
   close.addEventListener('click', closePopover);
 
@@ -702,7 +702,7 @@ function render() {
     session.instruction ?? (session.current.length <= PREFILL_MAX ? session.current : '');
   input.style.cssText =
     'box-sizing:border-box;width:100%;padding:0.4375rem 0.5rem;border:1px solid var(--sve-ai-border);' +
-    'border-radius:4px;font:inherit;color:var(--sve-ai-fg);background:var(--sve-ai-field);';
+    'border-radius: 0.25rem;font:inherit;color:var(--sve-ai-fg);background:var(--sve-ai-field);';
   input.addEventListener('input', () => {
     session.instruction = input.value;
   });
@@ -718,7 +718,7 @@ function render() {
 
     error.textContent = session.error;
     error.style.cssText =
-      'padding:0.4375rem 0.5rem;border-radius:4px;background:var(--sve-ai-error-bg);color:var(--sve-ai-error);';
+      'padding:0.4375rem 0.5rem;border-radius: 0.25rem;background:var(--sve-ai-error-bg);color:var(--sve-ai-error);';
     body.appendChild(error);
   }
 
@@ -791,7 +791,7 @@ function keywordRow(doc) {
   add.setAttribute('aria-label', t('ai_text_add_keywords'));
   add.style.cssText =
     'all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;' +
-    'padding:0.1875rem 0.5rem;border-radius:4px;font-size:0.6875rem;line-height:1.5;' +
+    'padding:0.1875rem 0.5rem;border-radius: 0.25rem;font-size:0.6875rem;line-height:1.5;' +
     'cursor:pointer;font-weight:700;background:var(--sve-ai-primary);color:#fff;';
   add.addEventListener('click', () => {
     session.addingKeyword = true;
@@ -808,7 +808,7 @@ function keywordRow(doc) {
     entry.placeholder = t('ai_text_keyword_placeholder');
     entry.style.cssText =
       'box-sizing:border-box;width:100%;margin-top:0.125rem;padding:0.25rem 0.4375rem;' +
-      'border-radius:4px;border:1px solid var(--sve-ai-border);' +
+      'border-radius: 0.25rem;border:1px solid var(--sve-ai-border);' +
       'background:var(--sve-ai-field);color:var(--sve-ai-fg);font:inherit;font-size:0.6875rem;';
 
     const commit = (keepOpen) => {
@@ -878,7 +878,7 @@ function submitRow(doc) {
   submit.textContent = session.busy ? t('ai_text_working') : t('ai_text_generate');
   submit.disabled = session.busy;
   submit.style.cssText =
-    'all:unset;cursor:pointer;padding:0.375rem 0.75rem;border-radius:4px;font-weight:600;' +
+    'all:unset;cursor:pointer;padding:0.375rem 0.75rem;border-radius: 0.25rem;font-weight:600;' +
     'font-size:0.75rem;background:var(--sve-ai-primary);color:#fff;text-align:center;' +
     (session.busy ? 'opacity:0.6;cursor:default;' : '');
 
@@ -920,7 +920,7 @@ function suggestionList(doc) {
     row.type = 'button';
     row.style.cssText =
       'all:unset;cursor:pointer;box-sizing:border-box;display:flex;gap:0.5rem;width:100%;' +
-      'padding:0.5rem;border-radius:4px;border:1px solid var(--sve-ai-row-border);' +
+      'padding:0.5rem;border-radius: 0.25rem;border:1px solid var(--sve-ai-row-border);' +
       'background:var(--sve-ai-row);color:var(--sve-ai-fg);text-align:left;';
 
     const number = doc.createElement('span');
@@ -928,7 +928,7 @@ function suggestionList(doc) {
     number.textContent = String(i + 1);
     number.style.cssText =
       'flex:0 0 auto;width:1.125rem;height:1.125rem;display:flex;align-items:center;' +
-      'justify-content:center;border-radius:4px;' +
+      'justify-content:center;border-radius: 0.25rem;' +
       'background:var(--sve-ai-primary);color:#fff;font-size:0.6875rem;font-weight:600;';
 
     const body = doc.createElement('span');
@@ -957,7 +957,7 @@ function suggestionList(doc) {
   more.textContent = session.busy ? t('ai_text_working') : t('ai_text_more');
   more.disabled = session.busy;
   more.style.cssText =
-    'all:unset;cursor:pointer;padding:0.375rem 0.5rem;border-radius:4px;font-size:0.75rem;' +
+    'all:unset;cursor:pointer;padding:0.375rem 0.5rem;border-radius: 0.25rem;font-size:0.75rem;' +
     'border:1px dashed var(--sve-ai-border);color:var(--sve-ai-muted);text-align:center;' +
     (session.busy ? 'opacity:0.5;cursor:default;' : '');
   more.addEventListener('click', () => {

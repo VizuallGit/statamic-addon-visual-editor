@@ -449,7 +449,7 @@ export function updateBardSetInserter(win, session) {
     btn.textContent = '+';
     btn.title = t('add_set') !== 'add_set' ? t('add_set') : 'Tilføj set';
     btn.style.cssText =
-      'pointer-events:auto;position:absolute;width:26px;height:26px;border:none;border-radius:7px;' +
+      'pointer-events:auto;position:absolute;width:26px;height:26px;border:none;border-radius: 0.25rem;' +
       'cursor:pointer;background:#18181b;color:#fff;font-size:17px;line-height:1;display:flex;' +
       'align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);';
     btn.addEventListener('mouseenter', () => {
@@ -785,7 +785,7 @@ export function openToolbarMenu(win, anchor, key, rows) {
   menu.dataset.for = key;
   menu.style.cssText =
     'position:fixed;z-index:2147483647;min-width:11em;padding:0.3em;' +
-    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius:0.6em;` +
+    `background:${theme.bg};color:${theme.fg};border:1px solid ${theme.border};border-radius: 0.25rem;` +
     `box-shadow:${theme.shadow};font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;` +
     'font-size:13px;line-height:1;';
   // Same reason as the toolbar itself: never blur the editable.
@@ -835,7 +835,7 @@ export function openToolbarMenu(win, anchor, key, rows) {
     row.disabled = !!item.disabled;
     row.style.cssText =
       'all:unset;display:flex;align-items:center;box-sizing:border-box;width:100%;' +
-      'padding:0.55em 0.7em;border-radius:0.35em;' +
+      'padding:0.55em 0.7em;border-radius: 0.25rem;' +
       `cursor:${item.disabled ? 'not-allowed' : 'pointer'};` +
       `opacity:${item.disabled ? '0.4' : '1'};` +
       `color:${item.danger && !item.disabled ? '#dc2626' : theme.fg};` +
@@ -1075,7 +1075,7 @@ export function openHighlightColorMenu(win, anchor, control, session, onPick) {
   menu.dataset.for = control.handle;
   menu.style.cssText =
     'position:fixed;z-index:2147483647;max-width:min(320px,92vw);padding:8px;' +
-    'background:#1a1f2e;border:1px solid rgba(255,255,255,.12);border-radius:10px;' +
+    'background:#1a1f2e;border:1px solid rgba(255,255,255,.12);border-radius: 0.25rem;' +
     'box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;flex-wrap:wrap;gap:4px;';
 
   const loading = doc.createElement('div');
@@ -1139,7 +1139,7 @@ export function openHighlightColorMenu(win, anchor, control, session, onPick) {
     clearBtn.title = 'Fjern farve';
     clearBtn.textContent = '×';
     clearBtn.style.cssText =
-      'width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,.2);' +
+      'width:22px;height:22px;border-radius: 0.25rem;border:1px solid rgba(255,255,255,.2);' +
       'background:transparent;color:#a1a1aa;cursor:pointer;font-size:14px;line-height:1;';
     clearBtn.addEventListener('mousedown', (e) => e.preventDefault());
     clearBtn.addEventListener('click', (e) => {
@@ -1169,7 +1169,7 @@ export function openHighlightColorMenu(win, anchor, control, session, onPick) {
       btn.type = 'button';
       btn.title = stored;
       btn.style.cssText =
-        `width:22px;height:22px;border-radius:6px;border:2px solid ${stored === current ? '#fff' : 'transparent'};` +
+        `width:22px;height:22px;border-radius: 0.25rem;border:2px solid ${stored === current ? '#fff' : 'transparent'};` +
         `background:${swatch.hex || stored};cursor:pointer;padding:0;`;
       btn.addEventListener('mousedown', (e) => e.preventDefault());
       btn.addEventListener('click', (e) => {

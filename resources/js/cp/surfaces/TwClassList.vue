@@ -122,7 +122,7 @@ function chipBind(chip) {
   box-sizing: border-box;
   padding: 0.2em 0.45em;
   margin-right: 0.35rem;
-  border-radius: 0.36em;
+  border-radius: 0.25rem;
   cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
@@ -144,7 +144,7 @@ function chipBind(chip) {
   box-sizing: border-box;
   cursor: pointer;
   padding: 0.2em 0.5em;
-  border-radius: 0.36em;
+  border-radius: 0.25rem;
   border: 1px solid rgba(128, 128, 128, .35);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.625rem;
@@ -158,7 +158,7 @@ function chipBind(chip) {
   align-items: center;
   cursor: pointer;
   padding: 0.25em 0.4em;
-  border-radius: 0.36em;
+  border-radius: 0.25rem;
   opacity: .6;
 }
 [data-sve-tw-sort]:hover { opacity: 1; background: rgba(128, 128, 128, .18); }
@@ -191,7 +191,7 @@ function chipBind(chip) {
 .sve-tw-variant {
   align-self: flex-start;
   padding: 0.18em 0.55em;
-  border-radius: 0.36em;
+  border-radius: 0.25rem;
   background: rgba(56, 88, 233, .28);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.625rem;
@@ -224,7 +224,7 @@ function chipBind(chip) {
   gap: 0.45em;
   max-width: 100%;
   padding: 0.27em 0.64em;
-  border-radius: 0.45em;
+  border-radius: 0.25rem;
   background: rgba(128, 128, 128, .16);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   line-height: 1.4;
@@ -273,7 +273,7 @@ function chipBind(chip) {
   flex: none;
   width: 0.82em;
   height: 0.82em;
-  border-radius: 0.18em;
+  border-radius: 0.25rem;
   border: 1px solid rgba(128, 128, 128, .5);
 }
 </style>

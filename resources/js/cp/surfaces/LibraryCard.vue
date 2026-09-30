@@ -38,7 +38,7 @@ defineProps({
   break-inside: avoid;
   margin: 0 0 12px;
   border: 1px solid rgba(128, 128, 128, 0.25);
-  border-radius: 10px;
+  border-radius: 0.25rem;
   overflow: hidden;
   background: rgba(128, 128, 128, 0.05);
   user-select: none;

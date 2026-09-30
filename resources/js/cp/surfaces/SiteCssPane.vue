@@ -127,7 +127,7 @@ const rows = computed(() => flatten(ui.tree));
   display: flex;
   gap: 2px;
   padding: 3px;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   background: rgba(255, 255, 255, 0.06);
 }
 .sve-site-css__tab {
@@ -137,7 +137,7 @@ const rows = computed(() => flatten(ui.tree));
   cursor: pointer;
   height: 26px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   font: inherit;
   font-weight: 600;
   opacity: 0.7;
@@ -171,7 +171,7 @@ const rows = computed(() => flatten(ui.tree));
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   background:
     linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.06) 75%),
     linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25%, transparent 75%, rgba(255, 255, 255, 0.06) 75%);
@@ -208,7 +208,7 @@ const rows = computed(() => flatten(ui.tree));
 .sve-site-css__icon {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
 }
 .sve-site-css__icon:hover:not(:disabled),
 .sve-site-css__plain:hover:not(:disabled),
@@ -227,7 +227,7 @@ const rows = computed(() => flatten(ui.tree));
 .sve-site-css__danger {
   height: 28px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   font-weight: 600;
 }
 .sve-site-css__danger {
@@ -236,7 +236,7 @@ const rows = computed(() => flatten(ui.tree));
 .sve-site-css__save {
   height: 28px;
   padding: 0 10px;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   background: #0d9488;
   color: #fff;
   font-weight: 600;
@@ -299,7 +299,7 @@ const rows = computed(() => flatten(ui.tree));
   margin: 10px 12px 12px;
   height: 36px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
   color: #fff;
   font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
@@ -328,7 +328,7 @@ const rows = computed(() => flatten(ui.tree));
 .sve-site-css__hint button {
   margin-left: auto;
   border: 0;
-  border-radius: 6px;
+  border-radius: 0.25rem;
   background: #0d9488;
   color: #fff;
   height: 26px;

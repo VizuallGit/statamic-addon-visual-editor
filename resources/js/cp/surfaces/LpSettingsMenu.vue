@@ -86,7 +86,7 @@ function pick(id) {
   display: flex;
   flex-direction: column;
   padding: 0.5rem;
-  border-radius: 0.625rem;
+  border-radius: 0.25rem;
   background: #343439;
   color: rgba(255, 255, 255, 0.92);
   box-shadow: 0 0.75rem 2.5rem rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
@@ -103,7 +103,7 @@ function pick(id) {
   gap: 0.125rem;
   padding: 0.1875rem;
   margin-bottom: 0.5rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: #2a2a2d;
   flex: none;
 }
@@ -148,7 +148,7 @@ function pick(id) {
   flex-direction: column;
   gap: 0.375rem;
   padding: 0.5rem;
-  border-radius: 0.5rem;
+  border-radius: 0.25rem;
   background: #2c2c31;
   margin-bottom: 0.375rem;
 }
@@ -181,7 +181,7 @@ function pick(id) {
   display: inline-flex;
   gap: 0.125rem;
   padding: 0.125rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: rgba(255, 255, 255, 0.06);
 }
 .sve-lp-settings__modes button {
@@ -264,7 +264,7 @@ function pick(id) {
 }
 /* The row being dragged lifts a little; the others make room as it passes. */
 .sve-lp-settings__tool.is-dragging {
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.35);
 }
@@ -347,7 +347,7 @@ button.sve-lp-settings__pill {
   height: 1.625rem;
   padding: 0 0.5rem;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   background: rgba(0, 0, 0, 0.25);
   color: inherit;
   font: inherit;
@@ -417,7 +417,7 @@ button.sve-lp-settings__pill {
   align-self: flex-start;
   white-space: nowrap;
   padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
+  border-radius: 0.25rem;
   font-size: 0.6875rem;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.1);
@@ -442,7 +442,7 @@ button.sve-lp-settings__pill {
   box-sizing: border-box;
   width: 100%;
   padding: 0.4375rem 0.5rem;
-  border-radius: 0.4375rem;
+  border-radius: 0.25rem;
   text-align: center;
   font-size: 0.75rem;
   font-weight: 600;

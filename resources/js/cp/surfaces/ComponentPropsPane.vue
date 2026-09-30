@@ -284,7 +284,7 @@ function usage(handle) {
   justify-content: center;
   width: 1.6em;
   height: 1.6em;
-  border-radius: .3rem;
+  border-radius: 0.25rem;
   line-height: 1;
   opacity: .65;
 }
@@ -317,7 +317,7 @@ function usage(handle) {
   padding: .625em;
   margin-bottom: .5em;
   border: 1px dashed rgba(255, 255, 255, .28);
-  border-radius: .5rem;
+  border-radius: 0.25rem;
   font-size: .8125rem;
 }
 .sve-cprops__first:hover {
@@ -338,7 +338,7 @@ function usage(handle) {
 /* One field, one card. */
 .sve-cprops__card {
   border: 1px solid transparent;
-  border-radius: .55rem;
+  border-radius: 0.25rem;
   background: rgba(255, 255, 255, .05);
   margin-bottom: .375rem;
 }
@@ -384,7 +384,7 @@ function usage(handle) {
   flex: 0 0 auto;
   width: 2.125em;
   height: 2.125em;
-  border-radius: .45rem;
+  border-radius: 0.25rem;
   background: rgba(56, 88, 233, .28);
   color: var(--sve-cprops-accent-soft);
 }
@@ -431,7 +431,7 @@ function usage(handle) {
   width: 3.25em;
   height: 2.125em;
   object-fit: cover;
-  border-radius: .3rem;
+  border-radius: 0.25rem;
   background: rgba(255, 255, 255, .08);
 }
 /* Synlige uden at pege på rækken. De stod på opacity 0 indtil hover, og en
@@ -471,7 +471,7 @@ function usage(handle) {
   color: inherit;
   background: rgba(0, 0, 0, .25);
   border: 1px solid rgba(255, 255, 255, .14);
-  border-radius: .3rem;
+  border-radius: 0.25rem;
   padding: .3rem .4rem;
   box-sizing: border-box;
   width: 100%;

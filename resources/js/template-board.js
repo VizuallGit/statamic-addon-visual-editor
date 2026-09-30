@@ -98,7 +98,7 @@ const CSS = `
 #${BOARD_HOST} [data-sve-tb-add] {
   display: inline-flex; align-items: center; justify-content: center;
   width: 1.375em; height: 1.375em; line-height: 1;
-  font-size: 1em; border: 0; border-radius: .25rem;
+  font-size: 1em; border: 0; border-radius: 0.25rem;
   background: none; color: inherit; opacity: .6; cursor: pointer;
 }
 #${BOARD_HOST} [data-sve-tb-add]:hover { opacity: 1; background: rgba(127,127,127,.2); }
@@ -112,7 +112,7 @@ const CSS = `
   font: inherit; text-align: left; cursor: pointer;
 }
 #${BOARD_HOST} [data-sve-tb-shot] {
-  display: block; height: 12.5rem; border-radius: .25rem;
+  display: block; height: 12.5rem; border-radius: 0.25rem;
   background-color: rgba(127,127,127,.08);
   background-image: repeating-linear-gradient(-45deg, rgba(127,127,127,.1) 0 .625rem, transparent .625rem 1.25rem);
 }
@@ -126,7 +126,7 @@ const CSS = `
 #${BOARD_HOST} [data-sve-tb-none] {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .875rem;
   width: var(--sve-tb-card); height: 12.5rem; padding: 1rem;
-  border: var(--sve-tb-line); border-radius: .25rem;
+  border: var(--sve-tb-line); border-radius: 0.25rem;
   text-align: center; font-size: .8125rem; line-height: 1.45; opacity: .7;
 }
 #${BOARD_HOST} [data-sve-tb-busy] { opacity: .45; pointer-events: none; }
@@ -135,7 +135,7 @@ const CSS = `
    Above the Live Preview drawer the board can also be opened in (2147483600). */
 #${MENU_ID} {
   position: fixed; z-index: 2147483601; min-width: 12rem; max-height: 20rem; overflow-y: auto; padding: .3125rem;
-  border: 1px solid var(--c-border, rgba(127,127,127,.3)); border-radius: .5rem;
+  border: 1px solid var(--c-border, rgba(127,127,127,.3)); border-radius: 0.25rem;
   background: var(--c-bg, #262626); box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.4);
 }
 #${MENU_ID} button {
@@ -143,7 +143,7 @@ const CSS = `
      it is thrown away. That is why this menu rendered at 16px with .75rem. */
   font: inherit; font-size: .875rem; line-height: 1.3;
   display: block; width: 100%; padding: .4375rem .625rem;
-  border: 0; border-radius: .3125rem; background: none;
+  border: 0; border-radius: 0.25rem; background: none;
   color: var(--c-text, inherit); text-align: left; cursor: pointer;
 }
 #${MENU_ID} button:hover { background: rgba(127,127,127,.22); }

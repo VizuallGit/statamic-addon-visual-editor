@@ -1168,9 +1168,7 @@ export function initComments() {
       'font-size:10px;font-weight:650;opacity:.55;letter-spacing:.02em;text-transform:uppercase;';
     select.id = label.htmlFor;
     select.style.cssText =
-      'box-sizing:border-box;display:block;width:100%;font:inherit;font-size:12px;padding:6px 8px;border-radius:' +
-      CHROME_RADIUS +
-      ';border:1px solid ' +
+      'box-sizing:border-box;display:block;width:100%;font:inherit;font-size:12px;padding:6px 8px;border-radius: 0.25rem;border:1px solid ' +
       theme.inputBorder +
       ';background:' +
       theme.input +

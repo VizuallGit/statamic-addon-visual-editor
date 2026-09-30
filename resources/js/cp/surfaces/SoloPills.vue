@@ -37,7 +37,7 @@ defineProps({
   height: 28px;
   padding: 0 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: 0.25rem;
   background: rgba(128, 128, 128, 0.16);
   color: currentColor;
   cursor: pointer;

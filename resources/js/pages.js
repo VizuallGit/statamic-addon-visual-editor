@@ -175,7 +175,7 @@ export function createPreviewCenteredOverlay(doc, id) {
 export function dialogCardStyle(win) {
   return (
     'width:400px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);'
+    'border-radius: 0.25rem;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);'
   );
 }
 
@@ -184,7 +184,7 @@ export function dialogCancelButtonStyle(win) {
   const dark = win.document.documentElement.classList.contains('dark');
 
   return (
-    `all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;` +
+    `all:unset;cursor:pointer;padding:8px 14px;border-radius: 0.25rem;font-size:13px;font-weight:600;` +
     `color:currentColor;background:${dark ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.1)'};`
   );
 }
@@ -192,7 +192,7 @@ export function dialogCancelButtonStyle(win) {
 /** Statamic primary — same as CP “Save & Publish”. */
 export function dialogPrimaryButtonStyle() {
   return (
-    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;' +
+    'all:unset;cursor:pointer;padding:8px 14px;border-radius: 0.25rem;font-size:13px;font-weight:600;' +
     'background:var(--theme-color-primary,#4f46e5);color:#fff;'
   );
 }
@@ -200,7 +200,7 @@ export function dialogPrimaryButtonStyle() {
 /** Destructive discard. */
 export function dialogDangerButtonStyle() {
   return (
-    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;' +
+    'all:unset;cursor:pointer;padding:8px 14px;border-radius: 0.25rem;font-size:13px;font-weight:600;' +
     'background:#dc2626;color:#fff;'
   );
 }
@@ -242,7 +242,7 @@ export function confirmUnsaved(win, onSave, onDiscard, onCancel = () => {}) {
   button(t(win, 'cancel'), dialogCancelButtonStyle(win), onCancel);
   button(
     t(win, 'unsaved_discard'),
-    'all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;color:currentColor;background:rgba(128,128,128,.16);',
+    'all:unset;cursor:pointer;padding:8px 14px;border-radius: 0.25rem;font-size:13px;font-weight:600;color:currentColor;background:rgba(128,128,128,.16);',
     onDiscard
   );
   button(t(win, 'unsaved_save'), dialogPrimaryButtonStyle(), onSave);
@@ -673,12 +673,12 @@ export function newEntryDialog(win, collection, onCreated) {
 
   const card = doc.createElement('div');
   const input =
-    'width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius:8px;' +
+    'width:100%;box-sizing:border-box;height:36px;padding:0 10px;border-radius: 0.25rem;' +
     'border:1px solid rgba(128,128,128,.4);background:transparent;color:currentColor;font-size:14px;';
 
   card.style.cssText =
     'width:420px;max-width:92vw;background:var(--theme-color-content-bg,#fff);color:currentColor;' +
-    'border-radius:12px;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
+    'border-radius: 0.25rem;padding:22px;box-shadow:0 24px 64px rgba(0,0,0,.35);';
   card.innerHTML = `
     <div style="font-size:15px;font-weight:600;margin-bottom:16px;">${t(win, 'new_in', { collection: collection.title })}</div>
     <label style="display:block;font-size:12px;font-weight:500;margin-bottom:5px;">${t(win, 'title')}</label>
@@ -687,8 +687,8 @@ export function newEntryDialog(win, collection, onCreated) {
     <input type="text" data-sve-slug style="${input}">
     <div data-sve-error style="display:none;font-size:12px;color:#dc2626;margin-top:8px;"></div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
-      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:8px 14px;border-radius:8px;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
-      <button type="button" data-sve-create style="all:unset;cursor:pointer;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'create')}</button>
+      <button type="button" data-sve-cancel style="all:unset;cursor:pointer;padding:8px 14px;border-radius: 0.25rem;font-size:13px;color:currentColor;opacity:.75;">${t(win, 'cancel')}</button>
+      <button type="button" data-sve-create style="all:unset;cursor:pointer;padding:8px 16px;border-radius: 0.25rem;font-size:13px;font-weight:600;background:var(--theme-color-primary,#4f46e5);color:#fff;">${t(win, 'create')}</button>
     </div>
   `;
 

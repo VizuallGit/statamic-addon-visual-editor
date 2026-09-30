@@ -324,7 +324,7 @@ export function ensureHtmlTreeStyles(doc) {
       min-height: 1.875rem;
       margin-bottom: 3px;
       background: rgba(128,128,128,.16);
-      border-radius: 6px;
+      border-radius: 0.25rem;
       font-size: 11px;
       line-height: 1.3;
       cursor: pointer;
@@ -355,7 +355,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-branch] {
       box-sizing: border-box;
       border: 1px solid rgba(56,88,233,.6);
-      border-radius: 0.5625rem;
+      border-radius: 0.25rem;
       padding: 0.3125rem;
       margin-bottom: 0.3125rem;
       /* The panel's inset less this box's padding and border. */
@@ -457,7 +457,7 @@ export function ensureHtmlTreeStyles(doc) {
       justify-content: center;
       cursor: pointer;
       opacity: .7;
-      border-radius: 4px;
+      border-radius: 0.25rem;
     }
     /* Held: lit like a hovered icon, in the row's own text colour — not an accent. */
     [data-sve-ht-video][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
@@ -516,7 +516,7 @@ export function ensureHtmlTreeStyles(doc) {
       box-sizing: border-box;
       flex: none;
       padding: 1px 5px;
-      border-radius: 4px;
+      border-radius: 0.25rem;
       background: rgba(255,255,255,.08);
       font-size: 10px;
       opacity: .75;
@@ -559,7 +559,7 @@ export function ensureHtmlTreeStyles(doc) {
       min-width: 48px;
       max-width: 100%;
       padding: 0 4px;
-      border-radius: 3px;
+      border-radius: 0.25rem;
       background: rgba(0,0,0,.22);
       font: inherit;
       color: inherit;
@@ -620,7 +620,7 @@ export function ensureHtmlTreeStyles(doc) {
       min-height: 1.75rem;
       gap: 5px;
       background: none;
-      border-radius: 5px;
+      border-radius: 0.25rem;
     }
     [data-sve-ht-look="tags"] [data-sve-ht-row]:hover { background: rgba(128,128,128,.14); }
     /* The picked row: its own family colour as a wash and a bar at the
@@ -655,7 +655,7 @@ export function ensureHtmlTreeStyles(doc) {
        under the shut sections' twists, and its children one level in. */
     [data-sve-ht-look="tags"] [data-sve-ht-branch] {
       border: 1px solid color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 45%, transparent);
-      border-radius: 7px;
+      border-radius: 0.25rem;
       padding: 0.25rem;
       margin: 0 0 6px;
       background: color-mix(in srgb, var(--sve-ht-c, var(--sve-fam-layout)) 4%, transparent);

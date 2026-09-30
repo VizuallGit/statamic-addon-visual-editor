@@ -120,7 +120,7 @@
         el.textContent = [
             '.sve-save-error{position:fixed;z-index:99999;left:50%;bottom:1.5rem;transform:translateX(-50%);',
             'width:min(32rem,calc(100vw - 2rem));background:#fff;color:#1f2430;border:1px solid rgba(0,0,0,.08);',
-            'border-radius:.75rem;box-shadow:0 1.25rem 3rem rgba(15,20,35,.22);padding:1.125rem 1.25rem;',
+            'border-radius: 0.25rem;box-shadow:0 1.25rem 3rem rgba(15,20,35,.22);padding:1.125rem 1.25rem;',
             'font:normal 0.875rem/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}',
             '.sve-save-error__head{display:flex;align-items:center;gap:.5em;font-weight:600;font-size:1em;margin:0 0 .5em}',
             '.sve-save-error__dot{width:.6em;height:.6em;border-radius:50%;background:#e5484d;flex:0 0 auto}',
@@ -131,7 +131,7 @@
             '.sve-save-error__where{display:block;color:#8a90a2;font-size:.85em;margin-top:.15em}',
             '.sve-save-error__note{margin:0 0 .75em;color:#5b6172;font-size:.9em}',
             '.sve-save-error__buttons{display:flex;gap:.5em;justify-content:flex-end}',
-            '.sve-save-error__btn{font:inherit;font-size:.9em;padding:.4em .9em;border-radius:.4em;cursor:pointer;',
+            '.sve-save-error__btn{font:inherit;font-size:.9em;padding:.4em .9em;border-radius: 0.25rem;cursor:pointer;',
             'border:1px solid rgba(0,0,0,.12);background:#fff;color:#1f2430}',
             '.sve-save-error__btn--primary{background:#1f2430;border-color:#1f2430;color:#fff}',
             '@media (prefers-color-scheme:dark){',
