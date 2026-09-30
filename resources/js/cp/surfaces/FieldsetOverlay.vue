@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue';
 import { DRAG_DOTS_V } from '../../right-dock-tabs.js';
+import { FIELDSET_SAVE_URL, watchFieldsetSaves } from './fieldset-save.js';
 
 const WIDTH_KEY = 'sve-fieldset-drawer-width';
 const MIN_WIDTH = 380;
@@ -15,6 +16,10 @@ const props = defineProps({
   mount: { type: Function, default: null },
   closeLabel: { type: String, required: true },
   onClose: { type: Function, required: true },
+  // A save has left the screen: called with a promise that settles when its
+  // answer is back, good or bad. Close waits on it before it refreshes.
+  onSaving: { type: Function, default: null },
+  // A save has landed (2xx): the YAML is on disk.
   onSaved: { type: Function, default: null },
   // The URL a save in this screen goes to. The Fieldsets screen by default;
   // a blueprint saves elsewhere, and the caller says where.
@@ -130,45 +135,36 @@ function trimChrome() {
 }
 
 /**
- * The Fieldsets screen saves with Statamic's own `$axios.patch` to the
- * fieldset update URL (204). That response is the moment the YAML is on
- * disk — not the click, not closing this panel.
+ * The Fieldsets screen saves with its own `$axios.patch` to the fieldset
+ * update URL (204). That response is the moment the YAML is on disk — not the
+ * click, not closing this panel. fieldset-save.js knows where this Statamic
+ * keeps that client and what a save looks like; this only hands it the
+ * callers' callbacks.
  *
- * Hooked on the iframe's axios, not the editor's: this document is a
- * whole Control Panel page, and wrapping the parent's client would see
- * every other save too.
+ * Hooked on the iframe's axios, not the editor's: this document is a whole
+ * Control Panel page, and wrapping the parent's client would see every other
+ * save too.
+ *
+ * The client is there once the frame's Vue has booted, which is some ticks
+ * after the frame's load event — so this is asked again, a few times, until
+ * it is. (Reading it at load alone attached nothing on Statamic 6, without a
+ * word: Save refreshed nothing and only Close did.)
  */
-function isFieldsetSave(response) {
-  const method = String(response?.config?.method || '').toUpperCase();
-  const url = String(response?.config?.url || '');
-  const status = Number(response?.status || 0);
+const HOOK_EVERY_MS = 100;
+const HOOK_TRIES = 30;
 
-  return (
-    (method === 'PATCH' || method === 'PUT') &&
-    status >= 200 &&
-    status < 300 &&
-    (props.saveMatch || /\/fields\/fieldsets\//).test(url) &&
-    !/\/edit(?:\?|$)/.test(url)
-  );
-}
-
-function watchSave(win) {
-  const axios = win?.Statamic?.$axios || win?.axios;
-
-  if (!axios?.interceptors?.response || win.__sveFsSaveWatch) {
-    return !!win?.__sveFsSaveWatch;
-  }
-
-  win.__sveFsSaveWatch = true;
-  axios.interceptors.response.use((response) => {
-    if (isFieldsetSave(response)) {
-      props.onSaved?.();
-    }
-
-    return response;
+function watchSave(win, tries = 0) {
+  const hooked = watchFieldsetSaves(win, {
+    saveMatch: props.saveMatch || FIELDSET_SAVE_URL,
+    onSaving: (done) => props.onSaving?.(done),
+    onSaved: () => props.onSaved?.(),
   });
 
-  return true;
+  if (hooked || tries >= HOOK_TRIES || win !== frame.value?.contentWindow) {
+    return;
+  }
+
+  win.setTimeout(() => watchSave(win, tries + 1), HOOK_EVERY_MS);
 }
 
 /**
@@ -204,13 +200,9 @@ function onFrameLoad() {
 
   const win = frame.value?.contentWindow;
 
-  if (watchSave(win)) {
-    return;
+  if (win) {
+    watchSave(win);
   }
-
-  // Axios is on the Statamic object once the page's Vue has booted —
-  // which can be a tick after the iframe's load event.
-  win?.setTimeout?.(() => watchSave(win), 0);
 }
 
 function onKey(event) {

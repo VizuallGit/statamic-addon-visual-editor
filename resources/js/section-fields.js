@@ -276,6 +276,12 @@ export function openFieldsetOverlay(win, handle, { onClose } = {}) {
       return;
     }
 
+    // Three things Close waits on, in order: a Save that has left and not
+    // answered yet, the refresh that Save's answer started, and — when no Save
+    // answered at all — a refresh of its own. A Close a beat after Save used to
+    // skip the first: the fields were asked for while the file was still being
+    // written, and the panel drew the old list until the page was loaded again.
+    let saving = Promise.resolve();
     let pending = Promise.resolve();
     let fresh = false;
 
@@ -284,6 +290,11 @@ export function openFieldsetOverlay(win, handle, { onClose } = {}) {
       subtitle: found.display,
       src: `${cpRoot(win)}/fields/fieldsets/${encodeURIComponent(found.fieldset)}/edit`,
       closeLabel: t(win, 'close'),
+      onSaving: (done) => {
+        saving = done;
+        // Whatever was refreshed before this Save is a version behind it.
+        fresh = false;
+      },
       onSaved: () => {
         // This set only: the sidebar field list, seeded defaults, and the
         // Antlers data picker. The preview is left alone — adding a field
@@ -297,6 +308,7 @@ export function openFieldsetOverlay(win, handle, { onClose } = {}) {
       },
       onClose: () => {
         void (async () => {
+          await saving;
           await pending;
 
           if (!fresh) {
