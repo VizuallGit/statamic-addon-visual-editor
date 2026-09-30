@@ -5,10 +5,23 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Route;
+use Illuminate\Support\Facades\Route as RouteFacade;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsList;
 
 class HideStoresFromCollectionsListTest extends TestCase
 {
+    /**
+     * The name is the whole hook: get it wrong and the middleware runs on
+     * nothing, quietly. This binds it to the route Statamic actually registers.
+     */
+    public function test_the_route_the_middleware_hooks_is_one_statamic_registers(): void
+    {
+        $this->assertNotNull(
+            RouteFacade::getRoutes()->getByName('statamic.cp.relationship.index'),
+            'Statamic renamed the relationship route — the middleware hooks nothing.'
+        );
+    }
+
     public function test_the_editors_stores_are_not_offered_in_a_collections_field(): void
     {
         $response = $this->pick($this->relationshipRequest('collections'));
@@ -59,7 +72,7 @@ class HideStoresFromCollectionsListTest extends TestCase
         $request = Request::create('/cp/fieldtypes/relationship', 'GET', ['config' => $config]);
 
         $route = (new Route(['GET'], 'cp/fieldtypes/relationship', []))
-            ->name('statamic.cp.fieldtypes.relationship.index');
+            ->name('statamic.cp.relationship.index');
 
         $request->setRouteResolver(fn () => $route);
 

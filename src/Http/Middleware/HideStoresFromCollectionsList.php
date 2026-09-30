@@ -49,7 +49,7 @@ class HideStoresFromCollectionsList
             return $this->filterInertiaPage($response, $stores);
         }
 
-        if ($request->routeIs('statamic.cp.fieldtypes.relationship.index') && $this->isCollectionsField($request)) {
+        if ($request->routeIs('statamic.cp.relationship.index') && $this->isCollectionsField($request)) {
             return $this->filterRelationshipOptions($response, Stores::all());
         }
 
