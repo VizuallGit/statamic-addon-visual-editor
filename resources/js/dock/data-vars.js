@@ -128,11 +128,6 @@ function dataVarsModel(win, raw) {
 }
 
 /**
- * Straight in at the cursor, unlike the Antlers snippets, which open a block and
- * earn their own line. `{{ headline }}` belongs inside the tag you are already
- * standing in, so breaking the line would be wrong.
- */
-/**
  * Whether the caret stands inside the value of a dynamic attribute — a
  * component's `:image="|"`, an `x-bind:` — where Antlers is already the
  * language and `{{ }}` would only wrap a name in the wrong thing.
@@ -145,6 +140,24 @@ export function inDynamicAttribute(view) {
   return /(?:^|\s)(?::|x-bind:)[\w.:-]+\s*=\s*(["'])(?:(?!\1).)*$/.test(before);
 }
 
+/**
+ * Whether the caret stands inside any quoted attribute value — `src="|"`,
+ * `alt="|"`. The quote is still open at the caret, so whatever is written here
+ * has to close before it does: one tag, never a pair.
+ */
+export function inAttributeValue(view) {
+  const range = view.state.selection.main;
+  const line = view.state.doc.lineAt(range.from);
+  const before = line.text.slice(0, range.from - line.from);
+
+  return /(?:^|\s)[\w.:@-]+\s*=\s*(["'])(?:(?!\1).)*$/.test(before);
+}
+
+/**
+ * Straight in at the cursor, unlike the Antlers snippets, which open a block and
+ * earn their own line. `{{ headline }}` belongs inside the tag you are already
+ * standing in, so breaking the line would be wrong.
+ */
 function insertDataVar(row, group) {
   const view = editors.html;
 
@@ -166,7 +179,7 @@ function insertDataVar(row, group) {
     return;
   }
 
-  const spec = dataVarSnippet(row, group);
+  const spec = dataVarSnippet(row, group, { inline: inAttributeValue(view) });
 
   if (!spec) {
     return;

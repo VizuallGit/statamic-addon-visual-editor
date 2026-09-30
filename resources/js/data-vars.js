@@ -187,13 +187,21 @@ export function groupsWithValues(groups, values) {
  * A field you loop over gets its pair with the cursor between them, because
  * `{{ image }}` alone renders nothing useful. Everything else is one tag. Rows
  * that live inside a loop print as the bare handle — which is right, since that
- * is where you are when you write them.
+ * is where you are when you write them. Standing in an attribute value there is
+ * only room for one tag, whatever the row is.
  */
-export function dataVarSnippet(row, group) {
+export function dataVarSnippet(row, group, { inline = false } = {}) {
   const name = String(row?.var || '').trim();
 
   if (!name) {
     return null;
+  }
+
+  // Inside an attribute value the tag *is* the value — `src="{{ media }}"`.
+  // A pair would wrap the closing quote in a loop, and a loop cannot open
+  // inside an opening tag anyway.
+  if (inline) {
+    return { text: `{{ ${name} }}`, cursor: `{{ ${name} }}`.length };
   }
 
   if (row.loop) {
