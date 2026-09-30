@@ -1093,7 +1093,7 @@ export function openGlobalsPanel(win, set, options = {}) {
   save.textContent = t(win, 'save');
   save.title = t(win, 'save_globals');
   save.style.cssText =
-    'all:unset;cursor:pointer;padding:5px 12px;border-radius: 0.25rem;background:var(--theme-color-primary,#4f46e5);' +
+    'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
     'color:#fff;font-size:12px;font-weight:600;line-height:1;';
   save.style.display = '';
   save.style.opacity = hasUnsavedGlobals(win) ? '1' : LP_ICON_IDLE_OPACITY;
@@ -1114,7 +1114,7 @@ export function openGlobalsPanel(win, set, options = {}) {
   close.title = t(win, 'close');
   close.style.cssText =
     'all:unset;cursor:pointer;width:26px;height:26px;display:inline-flex;align-items:center;' +
-    'justify-content:center;border-radius: 0.25rem;color:currentColor;opacity:.7;';
+    'justify-content:center;border-radius:6px;color:currentColor;opacity:.7;';
   close.addEventListener('mouseenter', () => (close.style.background = 'rgba(128,128,128,.18)'));
   close.addEventListener('mouseleave', () => (close.style.background = 'transparent'));
   close.addEventListener('click', () => {
@@ -1267,7 +1267,7 @@ export function ensureSectionLibraryButton(win) {
     '<rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>' +
     '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
   btn.style.cssText =
-    'height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius: 0.25rem;cursor:pointer;' +
+    'height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:8px;cursor:pointer;' +
     'color:currentColor;background:rgba(128,128,128,.16);border:none;font-size:12px;font-weight:500;font-family:inherit;';
   btn.append(t(win, 'sections'));
   btn.addEventListener('click', () => {
@@ -2022,13 +2022,13 @@ export function injectPanelFocusStyles(doc) {
     [data-sve-focus-id] { display: flex; align-items: center; gap: 0.7rem; }
     [data-sve-focus-tile] {
       flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-      width: 2.1rem; height: 2.1rem; border-radius: 0.25rem;
+      width: 2.1rem; height: 2.1rem; border-radius: 0.6rem;
       background: rgba(128,128,128,.16); font-size: 0.9rem; font-weight: 600; line-height: 1;
     }
     [data-sve-focus-title] { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.25; }
     [data-sve-focus-back] {
       all: unset; cursor: pointer; flex: 0 0 auto; display: inline-flex; align-items: center;
-      gap: 0.55em; margin-left: auto; padding: 0.55em 0.95em; border-radius: 0.25rem;
+      gap: 0.55em; margin-left: auto; padding: 0.55em 0.95em; border-radius: 0.55rem;
       background: rgba(128,128,128,.16); font-size: 0.75rem; font-weight: 500; line-height: 1;
       white-space: nowrap;
     }
@@ -2044,7 +2044,7 @@ export function injectPanelFocusStyles(doc) {
     [data-sve-focus-step] {
       all: unset; cursor: pointer; flex: 0 0 auto; display: inline-flex; align-items: center;
       justify-content: center; width: 1.6rem; height: 1.6rem; margin-left: 0.25rem;
-      border-radius: 0.25rem; opacity: .45;
+      border-radius: 0.4rem; opacity: .45;
     }
     header:hover > [data-sve-focus-step] { opacity: .9; }
     [data-sve-focus] [data-sve-focus-flat] {
@@ -2454,7 +2454,7 @@ export function buildChromeModeToggle(win, mode) {
   const track = doc.createElement('div');
 
   track.style.cssText =
-    'display:flex;flex:1 1 auto;gap:2px;padding:3px;border-radius: 0.25rem;' +
+    'display:flex;flex:1 1 auto;gap:2px;padding:3px;border-radius:10px;' +
     'background:rgba(128,128,128,.12);';
 
   const makeBtn = (key, label) => {
@@ -2465,7 +2465,7 @@ export function buildChromeModeToggle(win, mode) {
     btn.setAttribute('data-sve-chrome-mode', key);
     btn.style.cssText =
       'all:unset;cursor:pointer;flex:1 1 0;text-align:center;padding:7px 10px;' +
-      'border-radius: 0.25rem;font-size:12px;line-height:1.2;color:currentColor;';
+      'border-radius:8px;font-size:12px;line-height:1.2;color:currentColor;';
     btn.addEventListener('click', (event) => {
       event.stopPropagation();
       setChromeSidebarMode(win, key);
@@ -2598,7 +2598,7 @@ export function openChromeDesignsPanel(win, kind) {
     <div data-sve-hint style="padding:6px 14px;font-size:11px;opacity:.6;flex:0 0 auto;"></div>
     <div data-sve-search-wrap style="padding:8px 12px 0;flex:0 0 auto;">
       <input data-sve-search type="text" autocomplete="sve-off"
-        style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius: 0.25rem;border:1px solid rgba(128,128,128,.3);
+        style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid rgba(128,128,128,.3);
         background:rgba(128,128,128,.06);color:currentColor;font:inherit;font-size:12px;outline:none;">
     </div>
     <div data-sve-scroll style="flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;">
@@ -2690,7 +2690,7 @@ export function openChromeDesignsPanel(win, kind) {
       el.setAttribute('data-sve-chrome-style', item.handle);
       el.style.cssText =
         'cursor:pointer;display:inline-block;width:100%;break-inside:avoid;margin:0 0 12px;border:1px solid rgba(128,128,128,.25);' +
-        'border-radius: 0.25rem;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
+        'border-radius:10px;overflow:hidden;background:rgba(128,128,128,.05);transition:border-color .12s;' +
         'user-select:none;vertical-align:top;';
       el.addEventListener('mouseenter', () => (el.style.borderColor = 'var(--theme-color-primary,#4f46e5)'));
       el.addEventListener('mouseleave', () => {

@@ -31,7 +31,7 @@ defineProps({
   margin: -6px 0 0 -6px;
   border: 0;
   padding: 0;
-  border-radius: 0.25rem;
+  border-radius: 50% 50% 50% 4px;
   transform: rotate(-45deg);
   background: #4530d8;
   color: #fff;

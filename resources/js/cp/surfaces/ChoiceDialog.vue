@@ -44,7 +44,7 @@ defineProps({
   max-width: 92vw;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
-  border-radius: 0.25rem;
+  border-radius: 12px;
   padding: 22px;
 }
 .sve-dialog__title {
@@ -68,7 +68,7 @@ button {
   all: unset;
   cursor: pointer;
   padding: 8px 14px;
-  border-radius: 0.25rem;
+  border-radius: 8px;
   font-size: 13px;
 }
 button.ghost {

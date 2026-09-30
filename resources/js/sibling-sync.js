@@ -1074,7 +1074,7 @@ function ensureStyles(doc) {
             font-weight: 600;
             line-height: 1;
             padding: 2px 7px;
-            border-radius: 0.25rem;
+            border-radius: 4px;
             color: color-mix(in oklab, currentColor 70%, transparent);
             background: color-mix(in oklab, currentColor 14%, transparent);
             box-shadow: none;

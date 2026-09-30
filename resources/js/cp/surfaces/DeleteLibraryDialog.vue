@@ -54,7 +54,7 @@ import { deleteLibraryUi as ui } from '../library/delete-store.js';
   max-width: 92vw;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
-  border-radius: 0.25rem;
+  border-radius: 12px;
   padding: 20px;
 }
 .sve-dialog__title {
@@ -112,7 +112,7 @@ button {
   all: unset;
   cursor: pointer;
   padding: 7px 14px;
-  border-radius: 0.25rem;
+  border-radius: 8px;
   font-size: 13px;
   opacity: 0.75;
   white-space: nowrap;

@@ -338,7 +338,7 @@ function buildInserter(win, opts) {
   btn.type = 'button';
   btn.textContent = '+';
   btn.style.cssText =
-    'pointer-events:auto;position:absolute;width:26px;height:26px;border:none;border-radius: 0.25rem;cursor:pointer;' +
+    'pointer-events:auto;position:absolute;width:26px;height:26px;border:none;border-radius:7px;cursor:pointer;' +
     'background:#18181b;color:#fff;font-size:17px;line-height:1;display:flex;align-items:center;justify-content:center;' +
     'box-shadow:0 2px 8px rgba(0,0,0,.3);';
   btn.addEventListener('mouseenter', () => (btn.style.background = 'var(--theme-color-primary,#4f46e5)'));

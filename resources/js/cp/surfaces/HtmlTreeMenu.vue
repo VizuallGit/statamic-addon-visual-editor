@@ -80,7 +80,7 @@ onUnmounted(() => {
   max-height: min(60vh, 20rem);
   overflow-y: auto;
   padding: 0.25rem;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   background: #262626;
   color: #e5e5e5;
   box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.45);
@@ -94,7 +94,7 @@ button {
   box-sizing: border-box;
   width: 100%;
   padding: 0.4em 0.6em;
-  border-radius: 0.25rem;
+  border-radius: 0.3rem;
   cursor: pointer;
   font-size: 0.8125rem;
   line-height: 1.3;

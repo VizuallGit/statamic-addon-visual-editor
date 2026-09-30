@@ -135,7 +135,7 @@ function bound(handle) {
   width: 1.3em;
   height: .775em;
   padding: .0625em;
-  border-radius: 0.25rem;
+  border-radius: 1em;
   background: rgba(128, 128, 128, .4);
   transition: background .12s ease;
 }
@@ -166,7 +166,7 @@ function bound(handle) {
   box-sizing: border-box;
   width: 100%;
   padding: .45em 2.2em .45em .6em;
-  border-radius: 0.25rem;
+  border-radius: .35rem;
   border: 1px solid rgba(128, 128, 128, .35);
   background: rgba(0, 0, 0, .22);
   color: inherit;
@@ -188,7 +188,7 @@ function bound(handle) {
   justify-content: center;
   width: 1.5em;
   height: 1.5em;
-  border-radius: 0.25rem;
+  border-radius: .25rem;
   cursor: pointer;
   opacity: .55;
 }

@@ -78,7 +78,7 @@ function onKey(event) {
   max-width: 92vw;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
-  border-radius: 0.25rem;
+  border-radius: 12px;
   padding: 20px;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
@@ -98,7 +98,7 @@ input[type='text'] {
   box-sizing: border-box;
   height: 36px;
   padding: 0 10px;
-  border-radius: 0.25rem;
+  border-radius: 8px;
   border: 1px solid rgba(128, 128, 128, 0.4);
   background: transparent;
   color: currentColor;
@@ -114,7 +114,7 @@ button {
   all: unset;
   cursor: pointer;
   padding: 7px 14px;
-  border-radius: 0.25rem;
+  border-radius: 8px;
   font-size: 13px;
   opacity: 0.75;
 }

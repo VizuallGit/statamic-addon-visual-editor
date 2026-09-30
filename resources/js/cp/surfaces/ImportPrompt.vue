@@ -223,7 +223,7 @@ function onNameKey(event) {
   overflow-y: auto;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
-  border-radius: 0.25rem;
+  border-radius: 0.75em;
   padding: 1.25em;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
@@ -244,7 +244,7 @@ textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 0.6em 0.7em;
-  border-radius: 0.25rem;
+  border-radius: 0.5em;
   border: 1px solid rgba(128, 128, 128, 0.4);
   background: transparent;
   color: currentColor;
@@ -271,14 +271,14 @@ textarea {
   gap: 0.25em;
   padding: 0.25em;
   margin-bottom: 0.7em;
-  border-radius: 0.25rem;
+  border-radius: 0.6em;
   background: rgba(128, 128, 128, 0.16);
 }
 .sve-import__modes button {
   flex: 1 1 0;
   text-align: center;
   padding: 0.5em 0.8em;
-  border-radius: 0.25rem;
+  border-radius: 0.45em;
   font-size: 0.9em;
   opacity: 0.65;
 }
@@ -297,7 +297,7 @@ textarea {
    one of them sitting a shade lighter read as the lesser of the two. */
 button.is-add-pane {
   padding: 0.42em 0.85em;
-  border-radius: 0.25rem;
+  border-radius: 0.5em;
   font-size: 0.86em;
   background: rgba(160, 160, 160, 0.32);
   opacity: 1;
@@ -320,7 +320,7 @@ button {
   all: unset;
   cursor: pointer;
   padding: 0.5em 1em;
-  border-radius: 0.25rem;
+  border-radius: 0.5em;
   font-size: 0.93em;
   opacity: 0.75;
 }

@@ -73,7 +73,7 @@ import { alpineUi as ui } from '../alpine/store.js';
 .sve-al-tag {
   flex: none;
   padding: 0.2em 0.45em;
-  border-radius: 0.25rem;
+  border-radius: 0.36em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
   opacity: .8;
@@ -82,7 +82,7 @@ import { alpineUi as ui } from '../alpine/store.js';
    they sit at the top where you can read them before you pick one. */
 .sve-al-state {
   padding: 0.18em 0.5em;
-  border-radius: 0.25rem;
+  border-radius: 0.36em;
   background: rgba(56, 88, 233, .28);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.625rem;
@@ -96,7 +96,7 @@ import { alpineUi as ui } from '../alpine/store.js';
   justify-content: center;
   width: 1.6em;
   height: 1.6em;
-  border-radius: 0.25rem;
+  border-radius: 0.36em;
   border: 1px solid rgba(128, 128, 128, .35);
   cursor: pointer;
   font-size: 0.875rem;
@@ -122,7 +122,7 @@ import { alpineUi as ui } from '../alpine/store.js';
   flex: 1 1 auto;
   min-width: 0;
   padding: 0.3em 0.6em;
-  border-radius: 0.25rem;
+  border-radius: 0.45em;
   background: rgba(128, 128, 128, .16);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   line-height: 1.45;

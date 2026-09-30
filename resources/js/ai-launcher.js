@@ -78,7 +78,7 @@ const CSS = `
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 0.25rem;
+  border-radius: 0.875rem;
   border: 1px solid var(--theme-color-content-border, rgba(128, 128, 128, 0.28));
   background: var(--theme-color-content-bg, #fff);
   box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.28);

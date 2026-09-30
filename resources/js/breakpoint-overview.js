@@ -754,8 +754,8 @@ ${L} .sve-bpo-frame { transition: opacity .15s; }
 ${L} .sve-bpo-canvas[data-dim] .sve-bpo-item:not([data-active]) .sve-bpo-frame { opacity: ${DIM_OPACITY}; }
 ${L} .sve-bpo-frame { display: block; border: 0; background: #fff; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(${RING_PX}px / var(--z)) solid ${SIZE_BLUE}; outline-offset: calc(${RING_PX}px / var(--z)); }
-${L} .sve-bpo-zoom { position: absolute; right: .75rem; bottom: .75rem; pointer-events: auto; display: inline-flex; align-items: center; gap: .125rem; padding: .25rem; border-radius: 0.25rem; background: rgba(24, 24, 27, .9); color: #fafafa; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .3); font-size: .75rem; line-height: 1; }
-${L} .sve-bpo-zoom button { box-sizing: border-box; min-width: 1.75rem; height: 1.75rem; padding: 0 .5rem; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 0.25rem; background: transparent; color: inherit; font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; }
+${L} .sve-bpo-zoom { position: absolute; right: .75rem; bottom: .75rem; pointer-events: auto; display: inline-flex; align-items: center; gap: .125rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .9); color: #fafafa; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .3); font-size: .75rem; line-height: 1; }
+${L} .sve-bpo-zoom button { box-sizing: border-box; min-width: 1.75rem; height: 1.75rem; padding: 0 .5rem; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; }
 ${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
 ${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
@@ -768,9 +768,9 @@ function menuCss() {
   const M = `#${MENU_ID}`;
 
   return `
-${M} { position: fixed; z-index: 2147483001; box-sizing: border-box; min-width: 14rem; padding: .375rem; border-radius: 0.25rem; background: #343439; color: rgba(255, 255, 255, .92); box-shadow: 0 .75rem 2.5rem rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .12); font: 500 .8125rem/1.3 ui-sans-serif, system-ui, sans-serif; }
+${M} { position: fixed; z-index: 2147483001; box-sizing: border-box; min-width: 14rem; padding: .375rem; border-radius: .625rem; background: #343439; color: rgba(255, 255, 255, .92); box-shadow: 0 .75rem 2.5rem rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .12); font: 500 .8125rem/1.3 ui-sans-serif, system-ui, sans-serif; }
 ${M} .sve-bpo-menu-title { padding: .25rem .375rem .375rem; font-size: .75rem; font-weight: 600; opacity: .6; }
-${M} label { display: flex; align-items: center; gap: .5rem; padding: .375rem; border-radius: 0.25rem; cursor: pointer; }
+${M} label { display: flex; align-items: center; gap: .5rem; padding: .375rem; border-radius: .375rem; cursor: pointer; }
 ${M} label:hover { background: rgba(255, 255, 255, .08); }
 ${M} label[data-locked] { cursor: default; }
 ${M} label[data-locked]:hover { background: none; }

@@ -622,7 +622,7 @@ export function maybeShowColumnChrome(win, event) {
     const el = doc.createElement('div');
 
     el.style.cssText =
-      'position:fixed;z-index:2147483646;width:10px;height:48px;border-radius: 0.25rem;' +
+      'position:fixed;z-index:2147483646;width:10px;height:48px;border-radius:6px;' +
       'background:#1f2937;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.18);' +
       'cursor:col-resize;touch-action:none;';
     el.title = t('drag_columns');
@@ -634,7 +634,7 @@ export function maybeShowColumnChrome(win, event) {
       const bar = doc.createElement('div');
 
       bar.style.cssText =
-        'width:10px;height:48px;border-radius: 0.25rem;pointer-events:none;' +
+        'width:10px;height:48px;border-radius:6px;pointer-events:none;' +
         'background:#1f2937;box-shadow:0 2px 10px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.18);';
       el.style.cssText =
         'position:fixed;z-index:2147483646;width:28px;height:64px;background:transparent;' +
@@ -763,7 +763,7 @@ function beginWidthDrag(win, pair, grid, mode = 'columns', startX = 0, side = 'r
 
     ghost = win.document.createElement('div');
     ghost.style.cssText =
-      'position:fixed;z-index:2147483645;pointer-events:none;border-radius: 0.25rem;' +
+      'position:fixed;z-index:2147483645;pointer-events:none;border-radius:4px;' +
       `background:${dashedRing(tone.outline)};`;
     win.document.documentElement.appendChild(ghost);
   }
@@ -771,7 +771,7 @@ function beginWidthDrag(win, pair, grid, mode = 'columns', startX = 0, side = 'r
   const badge = win.document.createElement('div');
 
   badge.style.cssText =
-    'position:fixed;z-index:2147483647;pointer-events:none;padding:5px 10px;border-radius: 0.25rem;' +
+    'position:fixed;z-index:2147483647;pointer-events:none;padding:5px 10px;border-radius:6px;' +
     'background:#1f2937;color:#fff;font:600 12px/1 ui-sans-serif,system-ui,sans-serif;' +
     'box-shadow:0 4px 16px rgba(0,0,0,.35);white-space:nowrap;';
   win.document.documentElement.appendChild(badge);

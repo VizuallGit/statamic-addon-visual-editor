@@ -121,7 +121,7 @@ const target = computed(() => ui.path || ui.dir);
   height: var(--sve-files-height, 60vh);
   min-height: 20rem;
   border: 1px solid #3c3c3c;
-  border-radius: 0.25rem;
+  border-radius: 0.625rem;
   overflow: hidden;
   background: #242424;
   color: #d4d4d4;
@@ -171,7 +171,7 @@ const target = computed(() => ui.path || ui.dir);
 .sve-files__icon {
   width: 1.75rem;
   height: 1.75rem;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
 }
 .sve-files__icon:hover:not(:disabled),
 .sve-files__plain:hover:not(:disabled),
@@ -189,20 +189,20 @@ const target = computed(() => ui.path || ui.dir);
 .sve-files__plain {
   height: 1.75rem;
   padding: 0 0.625rem;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   font-weight: 600;
 }
 .sve-files__danger {
   height: 1.75rem;
   padding: 0 0.625rem;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   color: #f2a2a2;
   font-weight: 600;
 }
 .sve-files__save {
   height: 1.75rem;
   padding: 0 0.625rem;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   background: #0d9488;
   color: #fff;
   font-weight: 600;
@@ -290,7 +290,7 @@ const target = computed(() => ui.path || ui.dir);
   flex: 1;
   height: 2.25rem;
   border: 0;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   background: color-mix(in oklab, var(--theme-color-primary, #4f46e5) 90%, transparent);
   color: #fff;
   font: 600 0.75rem/1 ui-sans-serif, system-ui, sans-serif;

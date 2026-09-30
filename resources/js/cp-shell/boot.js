@@ -598,7 +598,7 @@ export function initCp(win = window) {
 
     inner.className = 'sve-thumb-inner';
     inner.style.cssText =
-      'max-width:300px;padding:6px;border-radius: 0.25rem;box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
+      'max-width:300px;padding:6px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.28);' +
       (isDark
         ? 'background:var(--theme-color-gray-800,#1f2937);border:1px solid rgba(255,255,255,0.10);'
         : 'background:var(--theme-color-gray-200,#e5e7eb);border:1px solid rgba(0,0,0,0.08);');
@@ -606,7 +606,7 @@ export function initCp(win = window) {
     const img = win.document.createElement('img');
 
     img.src = url;
-    img.style.cssText = 'display:block;width:100%;height:auto;border-radius: 0.25rem;';
+    img.style.cssText = 'display:block;width:100%;height:auto;border-radius:6px;';
     // Reposition once the image has real dimensions (affects the above/below flip).
     img.addEventListener('load', positionThumb);
 

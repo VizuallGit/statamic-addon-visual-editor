@@ -121,12 +121,12 @@ export function injectStyles(doc) {
             box-sizing: border-box;
         }
         [data-sve-drop-slot="line"] {
-            border-radius: 0.25rem;
+            border-radius: 2px;
             background: var(--sve-drop-color, var(--sve-focus-color, #3b82f6));
             box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.4);
         }
         [data-sve-drop-slot="box"] {
-            border-radius: 0.25rem;
+            border-radius: 6px;
             border: 1px solid color-mix(in srgb, var(--sve-drop-color, #fff) 70%, transparent);
             background: color-mix(in srgb, var(--sve-drop-color, #fff) 12%, transparent);
         }
@@ -197,7 +197,7 @@ export function injectStyles(doc) {
             content: '';
             position: absolute;
             inset: -6px;
-            border-radius: 0.25rem;
+            border-radius: 4px;
             pointer-events: none;
             z-index: 9998;
             box-sizing: border-box;
@@ -267,7 +267,7 @@ export function injectStyles(doc) {
             font-size: 10px;
             font-family: sans-serif;
             padding: 2px 8px !important;
-            border-radius: 0.25rem;
+            border-radius: 4px;
             pointer-events: none;
             z-index: 9999;
             white-space: nowrap;
@@ -293,7 +293,7 @@ export function injectStyles(doc) {
             color: #fff;
             font: 500 10px/1 sans-serif;
             padding: 4px 8px;
-            border-radius: 0.25rem;
+            border-radius: 0 0 4px 0;
             z-index: 9999;
             pointer-events: none;
             opacity: 0;
@@ -378,7 +378,7 @@ export function injectStyles(doc) {
             color: #fff;
             font: 500 10px/1 sans-serif;
             padding: 4px 8px;
-            border-radius: 0.25rem;
+            border-radius: 0 0 4px 0;
             z-index: 9998;
             pointer-events: none;
             opacity: 0;

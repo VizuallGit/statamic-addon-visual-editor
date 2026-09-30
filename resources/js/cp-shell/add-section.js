@@ -1494,7 +1494,7 @@ export function openBardSetPickerFallback(doc, win, data) {
   panel.setAttribute('data-set-picker-popover', '');
   panel.style.cssText =
     'position:fixed;z-index:999999;width:260px;max-height:320px;overflow:auto;' +
-    'background:#fff;color:#18181b;border:1px solid #e4e4e7;border-radius: 0.25rem;' +
+    'background:#fff;color:#18181b;border:1px solid #e4e4e7;border-radius:8px;' +
     'box-shadow:0 10px 40px rgba(0,0,0,.18);padding:8px;font-size:13px;';
 
   if (doc.documentElement.classList.contains('dark')) {
@@ -1515,7 +1515,7 @@ export function openBardSetPickerFallback(doc, win, data) {
   search.placeholder = 'Search Sets...';
   search.style.cssText =
     'width:100%;box-sizing:border-box;margin-bottom:6px;padding:6px 8px;' +
-    'border:1px solid #d4d4d8;border-radius: 0.25rem;background:transparent;color:inherit;';
+    'border:1px solid #d4d4d8;border-radius:6px;background:transparent;color:inherit;';
 
   const list = doc.createElement('div');
 
@@ -1536,7 +1536,7 @@ export function openBardSetPickerFallback(doc, win, data) {
         btn.textContent = s.display || s.handle;
         btn.style.cssText =
           'display:block;width:100%;text-align:left;padding:8px 10px;border:none;' +
-          'border-radius: 0.25rem;background:transparent;color:inherit;cursor:pointer;';
+          'border-radius:6px;background:transparent;color:inherit;cursor:pointer;';
         btn.addEventListener('mouseenter', () => {
           btn.style.background = doc.documentElement.classList.contains('dark')
             ? 'rgba(255,255,255,.08)'
@@ -2339,7 +2339,7 @@ export const CP_STYLES = `
   justify-content: center;
   width: 2.1rem;
   height: 2.1rem;
-  border-radius: 0.25rem;
+  border-radius: 0.6rem;
   background: rgba(128, 128, 128, .16);
   font-size: 0.9rem;
   font-weight: 600;
@@ -2367,7 +2367,7 @@ export const CP_STYLES = `
   gap: 0.55em;
   margin-left: auto;
   padding: 0.55em 0.95em;
-  border-radius: 0.25rem;
+  border-radius: 0.55rem;
   background: rgba(128, 128, 128, .16);
   font-size: 0.75rem;
   font-weight: 500;
@@ -2419,7 +2419,7 @@ export const CP_STYLES = `
   width: 1.6rem;
   height: 1.6rem;
   margin-left: 0.25rem;
-  border-radius: 0.25rem;
+  border-radius: 0.4rem;
   opacity: .45;
   transition: opacity .12s, background-color .12s;
 }
@@ -2465,7 +2465,7 @@ header:hover > [data-sve-focus-step] {
   display: flex;
   align-items: flex-start;
   width: 100%;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   font-size: 0.8125rem;
   line-height: 1.45;
 }
@@ -2533,7 +2533,7 @@ header:hover > [data-sve-focus-step] {
   margin: 0.5rem 0.75rem 0;
   padding: 0.6rem 0.7rem;
   border: 1px solid rgba(217, 119, 6, .35);
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   background: rgba(217, 119, 6, .1);
   color: #b45309;
   font-size: 0.75rem;
@@ -3016,7 +3016,7 @@ export function buildLpCover(doc, background, { blocking = false, still = null, 
 
   card.style.cssText = still
     ? 'position:relative;display:flex;align-items:center;gap:.5em;padding:.6875em 1em;' +
-      'border-radius: 0.25rem;background:rgba(24,24,27,.92);color:#fff;' +
+      'border-radius:.625em;background:rgba(24,24,27,.92);color:#fff;' +
       'font:500 .8125rem/1 ui-sans-serif,system-ui,sans-serif;' +
       'box-shadow:0 .75em 2em rgba(0,0,0,.35);'
     : 'position:relative;display:flex;align-items:center;justify-content:center;line-height:1;';

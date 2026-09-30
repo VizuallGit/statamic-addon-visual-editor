@@ -379,7 +379,7 @@ html.dark .sve-fs__grip,
   justify-content: center;
   width: 1.9em;
   height: 1.9em;
-  border-radius: 0.25rem;
+  border-radius: 0.4em;
   line-height: 1;
   opacity: 0.62;
 }

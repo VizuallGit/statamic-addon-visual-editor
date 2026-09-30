@@ -3034,7 +3034,7 @@ export function libraryDeleteButton(win, kind, item, onDeleted) {
   btn.innerHTML = TRASH_ICON;
   btn.style.cssText =
     'all:unset;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;' +
-    'width:24px;height:24px;border-radius: 0.25rem;color:currentColor;opacity:.45;transition:opacity .12s,color .12s;';
+    'width:24px;height:24px;border-radius:6px;color:currentColor;opacity:.45;transition:opacity .12s,color .12s;';
   btn.addEventListener('mouseenter', () => {
     btn.style.opacity = '1';
     btn.style.color = '#dc2626';

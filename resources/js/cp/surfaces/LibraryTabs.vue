@@ -87,7 +87,7 @@ button {
   all: unset;
   cursor: pointer;
   padding: 6px 12px;
-  border-radius: 0.25rem;
+  border-radius: 8px;
   font-size: 12px;
   color: currentColor;
   opacity: 0.7;

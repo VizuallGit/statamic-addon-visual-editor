@@ -96,7 +96,7 @@ function extDragStart(win) {
   const indicator = win.document.createElement('div');
 
   indicator.style.cssText =
-    'position:fixed;z-index:2147483646;pointer-events:none;height:4px;border-radius: 0.25rem;' +
+    'position:fixed;z-index:2147483646;pointer-events:none;height:4px;border-radius:2px;' +
     'background:var(--sve-focus-color,#3b82f6);box-shadow:0 0 0 1px rgba(255,255,255,.5);';
   win.document.documentElement.appendChild(indicator);
 

@@ -63,7 +63,7 @@ function settingsBoxCss() {
 
   return [
     `${bar}{background:transparent!important;position:relative;isolation:isolate}`,
-    `${bar}::before{content:"";position:absolute;top:0;bottom:0;right:0;left:${LP_CHROME_H + LP_TOOLBAR_GAP}px;border-radius: 0.25rem;background:${HEADER_SURFACE};z-index:-1}`,
+    `${bar}::before{content:"";position:absolute;top:0;bottom:0;right:0;left:${LP_CHROME_H + LP_TOOLBAR_GAP}px;border-radius:.5rem;background:${HEADER_SURFACE};z-index:-1}`,
     // Out over the row's padding on the left; the rest starts inside its own.
     `${btn}{flex-shrink:0;width:${LP_CHROME_H}px!important;height:${LP_CHROME_H}px!important;margin:0 ${LP_TOOLBAR_GAP + LP_CONTROL_PAD - ROW_GAP}px 0 -${LP_CONTROL_PAD}px;border-radius:.5rem!important;opacity:1!important}`,
     `${idle}{background:${HEADER_SURFACE}!important}`,

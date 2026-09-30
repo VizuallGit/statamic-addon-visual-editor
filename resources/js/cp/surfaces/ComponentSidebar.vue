@@ -66,7 +66,7 @@ const MARK =
   flex: 0 0 auto;
   width: 1.65em;
   height: 1.65em;
-  border-radius: 0.25rem;
+  border-radius: .4rem;
   background: rgba(56, 88, 233, .28);
   color: #93a6f7;
 }
@@ -87,7 +87,7 @@ const MARK =
   cursor: pointer;
   flex: 0 0 auto;
   padding: .3em .7em;
-  border-radius: 0.25rem;
+  border-radius: .3rem;
   border: 1px solid rgba(128, 128, 128, .35);
   font-size: .75rem;
   font-family: ui-sans-serif, system-ui, sans-serif;

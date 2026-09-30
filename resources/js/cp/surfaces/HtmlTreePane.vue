@@ -429,7 +429,7 @@ function setQuery(value) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   color: currentColor;
   opacity: 0.55;
   line-height: 1;
@@ -479,7 +479,7 @@ function setQuery(value) {
   box-sizing: border-box;
   height: 2rem;
   padding: 0 0.5rem 0 0.625rem;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   background: rgba(128, 128, 128, 0.14);
   color: inherit;
   cursor: text;
@@ -529,10 +529,7 @@ function setQuery(value) {
 
    `place-items` rather than `align-items`/`justify-content`, and a block-level
    svg: an inline svg sits on the text baseline, and the descender space under
-   it pushes the icon a pixel or two off centre in a box this small.
-
-   Radius everywhere here is 0.25rem — the house corner, the one the tree and
-   the search field already had. */
+   it pushes the icon a pixel or two off centre in a box this small. */
 .sve-ht-new,
 .sve-ht-import {
   all: unset;
@@ -542,7 +539,7 @@ function setQuery(value) {
   place-items: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   background: rgba(128, 128, 128, 0.14);
   color: inherit;
   cursor: pointer;
@@ -570,7 +567,7 @@ function setQuery(value) {
   gap: 0.375rem;
   margin: 0.625rem 0 0;
   padding: 0.5rem 0.625rem 0.5625rem;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   background: rgba(128, 128, 128, 0.1);
   font: 500 0.6875rem/1.3 ui-sans-serif, system-ui, sans-serif;
 }
@@ -637,7 +634,7 @@ function setQuery(value) {
   cursor: pointer;
   flex: 0 0 auto;
   padding: 0.4375rem 0.8125rem;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
   background: var(--theme-color-primary, #4f46e5);

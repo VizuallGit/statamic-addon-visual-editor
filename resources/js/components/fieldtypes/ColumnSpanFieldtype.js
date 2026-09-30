@@ -268,7 +268,7 @@
                             v-if="placement !== null && !readOnly"
                             type="button"
                             title="Auto"
-                            style="display:flex;align-items:center;justify-content:center;width:1.25em;height:1.25em;line-height:1;border-radius: 0.25rem;opacity:.5;cursor:pointer;"
+                            style="display:flex;align-items:center;justify-content:center;width:1.25em;height:1.25em;line-height:1;border-radius:0.25em;opacity:.5;cursor:pointer;"
                             @click="clear"
                         >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:0.75em;height:0.75em;">

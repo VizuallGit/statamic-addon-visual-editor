@@ -27,7 +27,7 @@ defineProps({
   width: 180px;
   z-index: 99999;
   padding: 4px;
-  border-radius: 0.25rem;
+  border-radius: 8px;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
   border: 1px solid rgba(128, 128, 128, 0.3);
@@ -40,7 +40,7 @@ button {
   box-sizing: border-box;
   width: 100%;
   padding: 7px 10px;
-  border-radius: 0.25rem;
+  border-radius: 5px;
   cursor: pointer;
 }
 button:hover {

@@ -98,7 +98,7 @@ function ensureCompleteStyles(doc) {
   background: #1E1E21 !important;
   color: #d4d4d4;
   border: 1px solid #454545 !important;
-  border-radius: 0.25rem;
+  border-radius: 4px;
   box-shadow: 0 4px 16px rgba(0,0,0,.45);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   font-size: 12px !important;

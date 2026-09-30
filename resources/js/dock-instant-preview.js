@@ -191,7 +191,7 @@
             '#' + DOCK_ID + ' [data-sve-instant-mode]{' +
                 'display:inline-flex;flex:0 0 auto;align-items:stretch;box-sizing:border-box;' +
                 'position:relative;height:26px;margin-left:4px;border:1px solid rgba(255,255,255,.12);' +
-                'border-radius: 0.25rem;' +
+                'border-radius:6px;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-mode] button{' +
                 'all:unset;cursor:pointer;display:inline-flex;align-items:center;height:100%;' +
@@ -203,19 +203,19 @@
                 'opacity:1;background:rgba(255,255,255,.16);' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant="morph"]{' +
-                'border-radius: 0.25rem;' +
+                'border-radius:5px 0 0 5px;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant="astro"]{' +
                 'border-radius:0;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-active="morph"] [data-sve-instant="astro"]{' +
-                'border-radius: 0.25rem;' +
+                'border-radius:0 5px 5px 0;' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-mode] button[aria-pressed="true"]{' +
                 'opacity:1;color:#93c5fd;background:rgba(56,88,233,.22);' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-hover]{' +
-                'padding:0 7px;border-radius: 0.25rem;border-left:1px solid rgba(255,255,255,.12);' +
+                'padding:0 7px;border-radius:0 5px 5px 0;border-left:1px solid rgba(255,255,255,.12);' +
             '}' +
             '#' + DOCK_ID + ' [data-sve-instant-hover] svg{' +
                 'width:13px;height:13px;display:block;' +
@@ -225,7 +225,7 @@
             '}' +
             '#' + DOCK_ID + ' [data-sve-tw-docs]{' +
                 'all:unset;cursor:pointer;flex:0 0 auto;display:inline-flex;align-items:center;' +
-                'height:26px;padding:0 7px;margin-left:2px;border-radius: 0.25rem;' +
+                'height:26px;padding:0 7px;margin-left:2px;border-radius:6px;' +
                 'font:600 10px/1 ui-sans-serif,system-ui,sans-serif;letter-spacing:.02em;' +
                 'color:#7dd3fc;opacity:.7;' +
             '}' +

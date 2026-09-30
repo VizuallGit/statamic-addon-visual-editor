@@ -456,7 +456,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
 
         btn.style.cssText =
             'pointer-events:auto;position:relative;top:auto;bottom:auto;left:auto;right:auto;flex:0 0 22px;' +
-            'width:22px;height:22px;margin:0;padding:0;border:none;border-radius: 0.25rem;cursor:pointer;' +
+            'width:22px;height:22px;margin:0;padding:0;border:none;border-radius:2px;cursor:pointer;' +
             'display:flex;align-items:center;justify-content:center;box-shadow:none !important;' +
             'background:' +
             btnBg +

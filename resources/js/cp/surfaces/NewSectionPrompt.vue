@@ -204,7 +204,7 @@ function onKey(event) {
   max-width: 92vw;
   background: var(--theme-color-content-bg, #fff);
   color: currentColor;
-  border-radius: 0.25rem;
+  border-radius: 0.75em;
   padding: 1.25em;
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
@@ -225,7 +225,7 @@ input[type='text'] {
   box-sizing: border-box;
   height: 2.6em;
   padding: 0 0.7em;
-  border-radius: 0.25rem;
+  border-radius: 0.5em;
   border: 1px solid rgba(128, 128, 128, 0.4);
   background: transparent;
   color: currentColor;
@@ -318,7 +318,7 @@ button {
   all: unset;
   cursor: pointer;
   padding: 0.5em 1em;
-  border-radius: 0.25rem;
+  border-radius: 0.5em;
   font-size: 0.93em;
   opacity: 0.75;
 }

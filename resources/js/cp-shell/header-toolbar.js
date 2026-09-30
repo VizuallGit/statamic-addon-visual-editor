@@ -94,7 +94,7 @@ export const SELECT_CHEVRON =
 /** Selve gruppen om et sæt kontroller: fladen, hjørnerne og luften ud til dem. */
 export const HEADER_GROUP_STYLE =
   `display:inline-flex;align-items:center;box-sizing:border-box;height:${LP_CHROME_H}px;` +
-  `padding:${LP_CONTROL_PAD}px;border-radius: 0.25rem;` +
+  `padding:${LP_CONTROL_PAD}px;border-radius:.5rem;` +
   `background:${HEADER_SURFACE};font-family:inherit;`;
 
 /**
@@ -102,7 +102,7 @@ export const HEADER_GROUP_STYLE =
  * flade ikke går helt ud til kanten — den skal ligge i gruppen, ikke fylde den.
  */
 export const FRAMED_CONTROL_STYLE =
-  `box-sizing:border-box;height:${LP_CONTROL_H}px;border:none;border-radius: 0.25rem;` +
+  `box-sizing:border-box;height:${LP_CONTROL_H}px;border:none;border-radius:.375rem;` +
   'background:transparent;cursor:pointer;color:currentColor;' +
   'font-size:12px;font-weight:500;font-family:inherit;line-height:1;';
 

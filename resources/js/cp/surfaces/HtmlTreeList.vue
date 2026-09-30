@@ -217,7 +217,7 @@ function wrapBind(sec) {
   margin-bottom: 0.2em;
   padding: 0.45em 0.6em;
   border: 1px dashed rgba(128, 128, 128, 0.45);
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   font-size: 0.6875rem;
   line-height: 1.3;
   opacity: 0.5;
@@ -258,7 +258,7 @@ function wrapBind(sec) {
   cursor: pointer;
   margin-top: 0.25rem;
   padding: 0.45rem 0.8rem;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
   background: var(--theme-color-primary, #4f46e5);

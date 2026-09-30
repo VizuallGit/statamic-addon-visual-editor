@@ -318,7 +318,7 @@ select {
   box-sizing: border-box;
   width: 100%;
   padding: 0.45em 0.6em;
-  border-radius: 0.25rem;
+  border-radius: 0.35rem;
   border: 1px solid rgba(128, 128, 128, 0.35);
   background: rgba(0, 0, 0, 0.22);
   color: inherit;
@@ -491,7 +491,7 @@ select:disabled {
   flex: 1 1 0;
   box-sizing: border-box;
   padding: 0.35em 0.5em;
-  border-radius: 0.25rem;
+  border-radius: 0.3rem;
   background: rgba(128, 128, 128, 0.16);
   cursor: pointer;
   text-align: center;
@@ -510,7 +510,7 @@ select:disabled {
   all: unset;
   box-sizing: border-box;
   padding: 0.35em 0.6em;
-  border-radius: 0.25rem;
+  border-radius: 0.3rem;
   border: 1px dashed rgba(128, 128, 128, 0.45);
   cursor: pointer;
   font-size: 0.6875rem;

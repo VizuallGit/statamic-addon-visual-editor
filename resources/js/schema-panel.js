@@ -132,7 +132,7 @@ function build(win) {
   card = doc.createElement('div');
   card.style.cssText =
     'position:relative;z-index:1;display:flex;flex-direction:column;' +
-    'width:min(720px,100%);max-height:min(72vh,640px);overflow:hidden;border-radius: 0.25rem;' +
+    'width:min(720px,100%);max-height:min(72vh,640px);overflow:hidden;border-radius:4px;' +
     'border:1px solid var(--theme-color-content-border,rgba(128,128,128,0.3));' +
     'background:var(--theme-color-content-bg,#fff);color:var(--theme-color-content-text,inherit);' +
     'box-shadow:0 1.5rem 3rem rgba(0,0,0,0.35);';
@@ -192,7 +192,7 @@ function render(win) {
     tab.type = 'button';
     tab.textContent = t(win, key);
     tab.style.cssText =
-      'all:unset;cursor:pointer;padding:0.1875rem 0.5rem;border-radius: 0.25rem;font-size:0.75rem;' +
+      'all:unset;cursor:pointer;padding:0.1875rem 0.5rem;border-radius:4px;font-size:0.75rem;' +
       (on
         ? 'background:var(--theme-color-primary,#4530D8);color:#fff;font-weight:600;'
         : 'border:1px solid rgba(128,128,128,0.3);');
@@ -212,7 +212,7 @@ function render(win) {
   close.title = t(win, 'schema_close');
   close.style.cssText =
     'all:unset;cursor:pointer;width:1.25rem;height:1.25rem;display:flex;align-items:center;' +
-    'justify-content:center;border-radius: 0.25rem;opacity:0.7;';
+    'justify-content:center;border-radius:4px;opacity:0.7;';
   close.addEventListener('click', () => closeSchema(win));
 
   head.append(title, tabs, close);
@@ -234,7 +234,7 @@ function render(win) {
   area.spellcheck = false;
   area.rows = 14;
   area.style.cssText =
-    'box-sizing:border-box;width:100%;min-height:16rem;resize:vertical;padding:0.5rem;border-radius: 0.25rem;' +
+    'box-sizing:border-box;width:100%;min-height:16rem;resize:vertical;padding:0.5rem;border-radius:4px;' +
     'border:1px solid rgba(128,128,128,0.35);background:var(--theme-color-content-bg,#fff);color:inherit;' +
     'font:400 12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;';
   area.addEventListener('input', () => {
@@ -258,7 +258,7 @@ function render(win) {
   save.type = 'button';
   save.textContent = t(win, 'schema_save');
   save.style.cssText =
-    'all:unset;cursor:pointer;padding:0.375rem 0.75rem;border-radius: 0.25rem;font-weight:600;font-size:0.75rem;' +
+    'all:unset;cursor:pointer;padding:0.375rem 0.75rem;border-radius:4px;font-weight:600;font-size:0.75rem;' +
     'background:var(--theme-color-primary,#4530D8);color:#fff;';
   save.addEventListener('click', () => persist(win, area.value));
 

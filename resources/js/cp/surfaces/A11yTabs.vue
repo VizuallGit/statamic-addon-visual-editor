@@ -54,7 +54,7 @@ button {
   align-items: center;
   gap: 5px;
   padding: 5px 10px;
-  border-radius: 0.25rem;
+  border-radius: 8px;
   font-size: 12px;
   color: currentColor;
   opacity: 0.7;
