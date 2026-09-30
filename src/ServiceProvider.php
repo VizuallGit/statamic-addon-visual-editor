@@ -226,6 +226,7 @@ class ServiceProvider extends AddonServiceProvider
     protected $scripts = [
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
         __DIR__.'/../resources/js/dock-instant-preview.js',
+        __DIR__.'/../resources/js/save-errors.js',
     ];
 
     protected $commands = [
