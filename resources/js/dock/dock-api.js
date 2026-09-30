@@ -958,18 +958,12 @@ register('dock:set-css', (css) => {
 
   return true;
 });
-/**
- * Open the field picker anchored on someone else's button. `onPick` gets the
- * row, so the caller decides what a pick writes and where. `at` says where in
- * the template the caller is standing, so the loop around it can be read; left
- * out, the HTML pane's cursor answers that instead.
- */
 /*
  * The JS pane, read and written — the CSS pair above, mirrored. No scope to
  * flush: scoping is a CSS idea, and the JS pane holds the file's whole
  * `script_push` either way.
  */
-register('dock:js', () => dockState.lastParts?.js ?? '');
+register('dock:js', () => editors.js?.state.doc.toString() ?? '');
 register('dock:set-js', (js) => {
   if (typeof js !== 'string' || isCodeDockLocked()) {
     return false;
@@ -984,6 +978,12 @@ register('dock:set-js', (js) => {
 
   return true;
 });
+/**
+ * Open the field picker anchored on someone else's button. `onPick` gets the
+ * row, so the caller decides what a pick writes and where. `at` says where in
+ * the template the caller is standing, so the loop around it can be read; left
+ * out, the HTML pane's cursor answers that instead.
+ */
 register('dock:data-menu', ({ anchor, onPick, at } = {}) => {
   if (!anchor || !dockState.lastWin) {
     return false;
