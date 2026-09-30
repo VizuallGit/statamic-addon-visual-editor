@@ -27,6 +27,7 @@ import { sendToPreview } from './cp.js';
 import { ask } from './cp/bus.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import NewSectionPrompt from './cp/surfaces/NewSectionPrompt.vue';
+import ImportPrompt from './cp/surfaces/ImportPrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { csrfToken } from './lib/csrf.js';
 import { previewDocument } from './lib/preview-frame.js';
@@ -34,7 +35,8 @@ import { buildSectionRow, fetchSetMeta, hydrateExistingMeta, insertSectionAfter,
 import { addLiteSetConfig } from './side/lite-sections.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { pageBuilderParams, pageBuilderQuery } from './lib/config.js';
-import { withTemplateElement } from './template-elements.js';
+import { withTemplateElement, withTemplateMarkup } from './template-elements.js';
+import { importedTemplate } from './section-import.js';
 
 const API = '/!/sve/section-types';
 
@@ -396,6 +398,35 @@ export function insertTemplateElement(win, tag, after = null, name = `<${tag}>`)
 }
 
 /**
+ * The new section's three panes written to its file.
+ *
+ * The same endpoint and the same body the dock saves with, so an imported
+ * section is on disk in exactly the shape the dock would have left it in —
+ * `style_push` around the CSS, `script_push` around the JS, the wrappers the
+ * file already had. There is no second way to write a section template, and
+ * this must not become one.
+ *
+ * Throws on a refusal, so the caller reports it the way it reports a section
+ * that could not be made: a half-written section is worse than none.
+ */
+async function writeTemplate(win, handle, { html, css, js }) {
+  const res = await win.fetch('/!/sve/section-template', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-TOKEN': csrfToken(win),
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify({ type: handle, html, css, js }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`section-template ${res.status}`);
+  }
+}
+
+/**
  * Makes the section and puts it on the page — the part the two dialogs share.
  *
  * The section lands at the end of the list the plus sits under, then the
@@ -403,9 +434,16 @@ export function insertTemplateElement(win, tag, after = null, name = `<${tag}>`)
  * row it wrote. Nowhere to put it (no page-builder field in reach) — then the
  * template is still the thing worth opening, as it always was.
  */
-async function makeSection(win, overlay, payload, { afterUid, onDone, onError }) {
+async function makeSection(win, overlay, payload, { afterUid, onDone, onError, template = null }) {
   try {
     const data = await createSection(win, payload);
+
+    // Before the row goes on the page, not after: the preview renders from the
+    // file the moment the row is written, and a row placed first draws the
+    // empty scaffold once and the real markup a morph later.
+    if (template && data.section?.handle) {
+      await writeTemplate(win, data.section.handle, template);
+    }
 
     overlay.dismiss();
 
@@ -536,4 +574,111 @@ export function openNewSectionDialog(win, { afterUid = null, onDone, onError, on
       },
     });
   })();
+}
+
+/**
+ * A paste written into the open template file, after the picked row.
+ *
+ * The plus's own path ({@link insertTemplateElement}) with markup in place of
+ * an element, plus the two panes an element never brings: the CSS and JS go
+ * on the end of what the file already has, rather than replacing it.
+ *
+ * Returns where the markup starts, or null when the dock would not take it.
+ */
+function insertTemplateMarkup(win, template, after = null) {
+  if (ask('dock:is-locked') === true) {
+    win.Statamic?.$toast?.error(t(win, 'code_dock_locked'));
+
+    return null;
+  }
+
+  const { html, at } = withTemplateMarkup(String(ask('dock:html') || ''), template.html, after);
+
+  if (ask('dock:set-html', html) !== true) {
+    win.Statamic?.$toast?.error(t(win, 'section_new_failed'));
+
+    return null;
+  }
+
+  // Appended, never replaced: the file's own rules were there first, and a
+  // paste is an addition to them.
+  const append = (readKey, writeKey, addition) => {
+    if (!addition) {
+      return;
+    }
+
+    const existing = String(ask(readKey) || '').trim();
+
+    ask(writeKey, existing ? `${existing}\n\n${addition}` : addition);
+  };
+
+  append('dock:css', 'dock:set-css', template.css);
+  append('dock:js', 'dock:set-js', template.js);
+
+  ask('dock:save-now');
+  win.Statamic?.$toast?.success(t(win, 'section_import_added'));
+
+  return at;
+}
+
+/**
+ * Markup from somewhere else, brought in as a section.
+ *
+ * The same static section the plus makes, with the paste already in its file
+ * instead of an empty scaffold — so it is a row on the page, in the tree, in
+ * the library, and can be given fields later like any other. What the paste
+ * has to be turned into on the way lives in `section-import.js`; this is the
+ * dialog, the write, and the step into it.
+ *
+ * On a template — a file with no page builder to put a row on — there is no
+ * section to make: the markup goes into the open file after the picked row,
+ * which is what the plus does there too.
+ */
+export function openImportDialog(win, { afterUid = null, intoTemplate = false, after = null, onDone, onError, onClose } = {}) {
+  const overlay = openCpOverlay(win.document, ImportPrompt, {
+    heading: t(win, 'section_import'),
+    nameLabel: t(win, 'section_new_name'),
+    namePlaceholder: t(win, 'section_new_placeholder'),
+    htmlLabel: t(win, 'section_import_html'),
+    htmlPlaceholder: t(win, 'section_import_html_placeholder'),
+    modeLabel: t(win, 'section_import_mode'),
+    tailwindLabel: t(win, 'section_import_tailwind'),
+    cssModeLabel: t(win, 'section_import_plain_css'),
+    modeNote: t(win, 'section_import_tailwind_note'),
+    cssNote: t(win, 'section_import_plain_css_note'),
+    addCssLabel: t(win, 'section_import_add_css'),
+    addJsLabel: t(win, 'section_import_add_js'),
+    cssLabel: t(win, 'section_import_css'),
+    jsLabel: t(win, 'section_import_js'),
+    cancelLabel: t(win, 'cancel'),
+    saveLabel: t(win, 'section_import_create'),
+    onClose,
+    onOk: ({ display, html, css, js, mode }) => {
+      const template = importedTemplate(html, { mode, css, js, root: !intoTemplate });
+
+      // What a browser would have dropped without a word. Said once, after the
+      // section exists — it is a note about the paste, not a reason to stop.
+      for (const note of template.notes) {
+        win.Statamic?.$toast?.info?.(t(win, `section_import_note_${note}`));
+      }
+
+      if (intoTemplate) {
+        overlay.dismiss();
+
+        const at = insertTemplateMarkup(win, template, after);
+
+        if (at === null) {
+          onError?.(new Error('template write failed'));
+
+          return;
+        }
+
+        onDone?.({ at });
+
+        return;
+      }
+
+      void makeSection(win, overlay, { display, static: true }, { afterUid, onDone, onError, template });
+    },
+  });
 }

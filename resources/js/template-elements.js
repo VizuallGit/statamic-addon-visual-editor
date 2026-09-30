@@ -68,8 +68,20 @@ export function templateElement(tag) {
  * the markup does not hold, it goes at the end, after a blank line.
  */
 export function withTemplateElement(html, tag, after = null) {
+  return withTemplateMarkup(html, templateElement(tag), after);
+}
+
+/**
+ * The same placement, for markup that was not built from a tag — a paste
+ * brought in through the import dialog.
+ *
+ * One way of putting a block into a template: the plus and the import both
+ * come through here, so an element and a paste land in the same place, at the
+ * same indent, and a fix to either is a fix to both.
+ */
+export function withTemplateMarkup(html, markup, after = null) {
   const source = String(html || '');
-  const element = templateElement(tag);
+  const element = String(markup || '');
   const from = after ? after.wrapFrom ?? after.from : NaN;
   const to = after ? after.wrapTo ?? after.to : NaN;
 

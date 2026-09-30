@@ -964,6 +964,26 @@ register('dock:set-css', (css) => {
  * the template the caller is standing, so the loop around it can be read; left
  * out, the HTML pane's cursor answers that instead.
  */
+/*
+ * The JS pane, read and written — the CSS pair above, mirrored. No scope to
+ * flush: scoping is a CSS idea, and the JS pane holds the file's whole
+ * `script_push` either way.
+ */
+register('dock:js', () => dockState.lastParts?.js ?? '');
+register('dock:set-js', (js) => {
+  if (typeof js !== 'string' || isCodeDockLocked()) {
+    return false;
+  }
+
+  if (!editors.js || !dockState.lastWin) {
+    return false;
+  }
+
+  writeHandleEditor('js', js);
+  onEditorInput(dockState.lastWin);
+
+  return true;
+});
 register('dock:data-menu', ({ anchor, onPick, at } = {}) => {
   if (!anchor || !dockState.lastWin) {
     return false;

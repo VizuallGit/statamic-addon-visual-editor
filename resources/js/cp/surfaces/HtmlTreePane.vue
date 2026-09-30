@@ -3,7 +3,7 @@ import ComponentPropsPane from './ComponentPropsPane.vue';
 import { componentPropsUi } from '../component-props/store.js';
 import HtmlTreeInspector from './HtmlTreeInspector.vue';
 import { htmlTreeUi as ui, readHtmlTreeLayers, setHtmlTreeLayers } from '../html-tree/store.js';
-import { canCreateSections, chooseSectionKind, insertTemplateElement, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
+import { canCreateSections, chooseSectionKind, insertTemplateElement, openImportDialog, openNewSectionDialog, openStaticSectionDialog, revealWhenRendered } from '../../section-create.js';
 import { TEMPLATE_TAGS } from '../../template-elements.js';
 import { defaultSectionField } from '../../lib/config.js';
 import { openCpOverlay } from '../open-overlay.js';
@@ -61,6 +61,13 @@ const creating = ref(false);
 
 const PLUS =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>';
+
+// An arrow going into a tray: markup from outside, brought in. Drawn lighter
+// than the plus beside it — the plus is the panel's own action, this one is
+// the occasional errand.
+const IMPORT =
+  '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>';
+const importLabel = t(window, 'section_import');
 
 function release() {
   creating.value = false;
@@ -206,6 +213,44 @@ function onNewSection(event) {
   })();
 }
 
+/**
+ * Markup from somewhere else, brought in where the plus would have made
+ * something empty — a section on a page built from sections, markup in the
+ * file on a template. The same two places the plus writes to, so the button
+ * beside it answers to the same page.
+ */
+function onImport() {
+  if (creating.value) {
+    return;
+  }
+
+  creating.value = true;
+
+  const onPage = !!(ui.sections.length || ui.pageBuilder);
+
+  openImportDialog(window, {
+    intoTemplate: !onPage,
+    after: onPage ? null : pickedRow(),
+    afterUid: onPage && ui.sections.length ? ui.sections[ui.sections.length - 1].uid : null,
+    onDone: (data) => {
+      release();
+
+      if (onPage) {
+        void openNewlyMade(data?.uid);
+
+        return;
+      }
+
+      // The tree stands on what was just written, as it does after the plus.
+      if (Number.isInteger(data?.at)) {
+        ui.selectFrom = { at: data.at, left: 4 };
+      }
+    },
+    onError: release,
+    onClose: release,
+  });
+}
+
 const SEARCH =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
 
@@ -330,6 +375,21 @@ function setQuery(value) {
       :aria-label="ui.sections.length || ui.pageBuilder ? newSectionLabel : addElementLabel"
       v-html="PLUS"
       @click="onNewSection"
+    ></button>
+    <!--
+      Beside the plus, on the same terms: markup written somewhere else — a
+      Tailwind UI block, a snippet from a pen — pasted in and made into a
+      section of ours rather than retyped. The plus makes an empty one; this
+      one arrives with the markup already in it.
+    -->
+    <button
+      v-if="canCreate && (ui.sections.length || ui.pageBuilder || (ui.rows.length && !ui.layoutFile))"
+      type="button"
+      class="sve-ht-import"
+      :title="importLabel"
+      :aria-label="importLabel"
+      v-html="IMPORT"
+      @click="onImport"
     ></button>
     </div>
     <!--
@@ -482,6 +542,31 @@ function setQuery(value) {
   color: #fff;
 }
 .sve-ht-new:focus-visible {
+  outline: 2px solid #3858e9;
+  outline-offset: 2px;
+}
+/* Beside the plus and shaped like it, but without its filled box: the plus is
+   the panel's action, and two equal buttons side by side would read as a
+   choice to make before adding anything. This one waits to be looked for. */
+.sve-ht-import {
+  all: unset;
+  box-sizing: border-box;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 4px;
+  color: inherit;
+  opacity: 0.5;
+  cursor: pointer;
+}
+.sve-ht-import:hover {
+  background: rgba(128, 128, 128, 0.14);
+  opacity: 1;
+}
+.sve-ht-import:focus-visible {
   outline: 2px solid #3858e9;
   outline-offset: 2px;
 }
