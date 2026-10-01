@@ -20,7 +20,8 @@
     "test:fonts": "node tests/browser/theme-fonts.mjs",
     "test:toolbar": "node tests/browser/toolbar-visibility.mjs",
     "test:perf": "node tests/browser/perf-server-tab.mjs",
-    "test:fieldset": "node tests/browser/fieldset-refresh.mjs"
+    "test:fieldset": "node tests/browser/fieldset-refresh.mjs",
+    "test:static-publish": "node tests/browser/static-publish-button.mjs"
   },
   "dependencies": {
     "@alpinejs/morph": "^3.15.11",

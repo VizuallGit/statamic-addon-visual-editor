@@ -105,6 +105,8 @@ export const COMMENTS_BADGE_ACTIVE_BG =
 export const LP_TOOLBAR_GAP = 8;
 export const LP_BACK_ID = '__sve-lp-back';
 export const LP_RELOAD_ID = '__sve-lp-reload';
+/** Publish the site as static files to Cloudflare — only drawn when that addon says so. */
+export const LP_PUBLISH_ID = '__sve-lp-static-publish';
 /** The icon row at the far left of the topbar (drawn by cp-shell/header-toolbar.js). */
 export const HEADER_TOOLBAR_ID = '__sve-toolbar';
 /** Id prefix of the frame around an icon that folds a control out beside it (pages, globals). */

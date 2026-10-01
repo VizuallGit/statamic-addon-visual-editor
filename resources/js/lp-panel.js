@@ -4,6 +4,7 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { ensureLpReloadButton } from './lp-reload.js';
+import { ensureLpStaticPublishButton } from './lp-static-publish.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
@@ -12,7 +13,7 @@ import { persistVisibleRightPanes, visiblePaneKeys } from './right-dock.js';
 import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
 import { lpHeader } from './lib/live-preview.js';
-import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
+import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_PUBLISH_ID, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
 import { clearSolo, ensureLpPanelToggle } from './focus-panel.js';
 import { hideGlobalsPanel, isGlobalsOverlayOpen } from './section-library.js';
 
@@ -180,6 +181,7 @@ export function syncLpRightBarGaps(win) {
   // rammer hver tilstand editoren kan åbne i. Idempotent — den flytter ikke
   // noget der allerede står rigtigt.
   ensureLpReloadButton(win);
+  ensureLpStaticPublishButton(win);
 
   const parent = save.parentElement || header;
   const gap = `${LP_TOOLBAR_GAP}px`;
@@ -199,7 +201,7 @@ export function syncLpRightBarGaps(win) {
     parent.style.marginLeft = 'auto';
   }
 
-  // Rækkefølge: chrome → save → [publish] → back → reload → more.
+  // Rækkefølge: chrome → save → [Publicér] → back → reload → udgiv statisk → more.
   if (chrome) {
     if (chrome.parentElement !== parent || chrome.nextElementSibling !== save) {
       parent.insertBefore(chrome, save);
@@ -239,8 +241,22 @@ export function syncLpRightBarGaps(win) {
     reload.style.marginRight = '0';
   }
 
+  // Right of reload, left of More — same reason reload is placed from here
+  // rather than only from its own ensure function: this is what owns the
+  // order and re-states it on every pass.
+  const publish = doc.getElementById(LP_PUBLISH_ID);
+
+  if (publish && reload) {
+    if (publish.parentElement !== parent || publish.previousElementSibling !== reload) {
+      reload.after(publish);
+    }
+
+    publish.style.marginLeft = '0';
+    publish.style.marginRight = '0';
+  }
+
   const more = doc.getElementById(LP_MORE_ID);
-  const moreAnchor = reload || back;
+  const moreAnchor = publish || reload || back;
 
   if (more && moreAnchor) {
     if (more.parentElement !== parent || more.previousElementSibling !== moreAnchor) {
