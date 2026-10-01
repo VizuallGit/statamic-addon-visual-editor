@@ -269,6 +269,7 @@ tabs:
                 pages: 'Pages'
                 globals: 'Globals'
                 collections: 'Collections'
+                forms: 'Forms'
                 templates: 'Templates'
                 blueprint: 'Blueprint'
                 sections: 'Patterns'
@@ -285,6 +286,7 @@ tabs:
                 comments: 'Comments'
               default:
                 - collections
+                - forms
                 - templates
                 - blueprint
                 - sections
@@ -303,6 +305,7 @@ tabs:
                 pages: 'Pages'
                 globals: 'Globals'
                 collections: 'Collections'
+                forms: 'Forms'
                 templates: 'Templates'
                 blueprint: 'Blueprint'
                 sections: 'Patterns'
@@ -321,6 +324,7 @@ tabs:
                 - pages
                 - globals
                 - collections
+                - forms
                 - listview
                 - outline
                 - ai

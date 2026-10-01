@@ -31,6 +31,7 @@ import { closePerformancePanel, togglePerformancePanel } from '../lazy/performan
 import { pageEditsOpen, togglePageEdits } from '../lazy/page-activity.js';
 import { closeSchema, isSchemaOpen, schemaAllowed, toggleSchema } from '../lazy/schema.js';
 import { openCollections } from '../lp-collections.js';
+import { formsAllowed, openForms } from '../lp-forms.js';
 import { soleGlobalSet, toggleSoleGlobalSet } from '../globals-panel.js';
 import { openTemplateBoard, templateBoardAllowed } from '../lp-templates.js';
 import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
@@ -527,6 +528,13 @@ export const TOOLBAR_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>',
+  // The site's forms: a clipboard with filled-in lines.
+  forms:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1z"/>' +
+    '<path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>' +
+    '<path d="M8 11h8"/><path d="M8 15h5"/></svg>',
   // The page's blueprint: two stacked field rows.
   blueprint:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -1222,8 +1230,8 @@ export function ensureSchemaToolbarButton(win) {
 }
 
 /**
- * The three that open a drawer over the page: the site's collections, its
- * templates, the page's blueprint.
+ * The four that open a drawer over the page: the site's collections, its
+ * forms, its templates, the page's blueprint.
  *
  * Icons like every other here — shown, hidden, ordered and listed in presets
  * the same way, all of which reads `button[data-tab]` off this row. What they
@@ -1239,6 +1247,12 @@ const DRAWER_TOOLS = [
     title: (win) => t(win, 'lp_collections_heading'),
     allowed: () => true,
     open: (win, btn) => openCollections(win, { anchor: btn }),
+  },
+  {
+    key: 'forms',
+    title: (win) => t(win, 'lp_forms_heading'),
+    allowed: formsAllowed,
+    open: (win) => openForms(win),
   },
   {
     key: 'templates',

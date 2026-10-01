@@ -27,6 +27,7 @@ class ToolbarPresets
         'pages',
         'globals',
         'collections',
+        'forms',
         'templates',
         'blueprint',
         'sections',
@@ -46,11 +47,11 @@ class ToolbarPresets
     /** @var array<string, array{tools: list<string>, dock: bool}> */
     public const DEFAULTS = [
         'developer' => [
-            'tools' => ['collections', 'templates', 'blueprint', 'sections', 'code', 'site_css', 'theme'],
+            'tools' => ['collections', 'forms', 'templates', 'blueprint', 'sections', 'code', 'site_css', 'theme'],
             'dock' => true,
         ],
         'editor' => [
-            'tools' => ['pages', 'globals', 'collections', 'listview', 'outline', 'ai', 'aitext', 'edits', 'comments'],
+            'tools' => ['pages', 'globals', 'collections', 'forms', 'listview', 'outline', 'ai', 'aitext', 'edits', 'comments'],
             'dock' => false,
         ],
     ];

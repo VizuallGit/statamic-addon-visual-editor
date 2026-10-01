@@ -1309,6 +1309,8 @@ return [
     'template_board_open_failed' => 'The templates could not be opened.',
     'lp_collections_heading' => 'Collections',
     'lp_collections_open_failed' => 'The collections could not be opened.',
+    'lp_forms_heading' => 'Forms',
+    'lp_forms_open_failed' => 'The forms could not be opened.',
     'html_tree_used_by_open' => 'Open :name',
     'template_board_intro' => 'Every template this site can render, one row per collection and taxonomy. A card is filled because the view file exists — scaffold one from a collection and it appears here on its own.',
     'template_board_site' => 'Site',
