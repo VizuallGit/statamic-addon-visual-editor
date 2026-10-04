@@ -13,7 +13,7 @@ import { breakpoints } from '../breakpoints.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { CSS_LENGTHS, CSS_MENU_ID, CSS_TOOL_INDEX, HTML_HEADINGS, HTML_TOOLS, STYLE_MODE_KEY, VALUES_MODE_KEY } from '../code-dock.js';
-import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintValuesMode, setValuesMode } from './style-modes.js';
+import { CSS_SIZE_KEY, CSS_STATES, CSS_STATE_KEY, applyStyleMode, paintCssAll, paintValuesMode, setCssAll, setValuesMode } from './style-modes.js';
 import { applyDisplay, applyFlexDirection, applyRuleDecls, closeCssMenu, currentFlexDecls, normalizeFlexValue, openCssChoiceMenu, openCssColorMenu, openCssSpacingMenu, openCssValueMenu, paintCssToolState } from './css-tools.js';
 import { applyHtmlTag, finishHtmlEdit, insertHtmlElement, openHtmlComponentMenu, openHtmlTagMenu, tidyHtmlPane } from './html-tools.js';
 import { watchScrollEdges, watchScrollEdgesIn } from './scroll-edges.js';
@@ -55,8 +55,15 @@ export function bindStyleMode(win, dock) {
     setValuesMode(win, !dockState.cssValues);
   });
 
+  dock.querySelector('[data-sve-css-all]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setCssAll(win, !dockState.cssAll);
+  });
+
   applyStyleMode(win);
   paintValuesMode(win);
+  paintCssAll(win);
 }
 
 /**

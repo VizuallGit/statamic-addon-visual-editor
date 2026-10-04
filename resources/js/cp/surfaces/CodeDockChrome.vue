@@ -26,6 +26,7 @@ defineProps({
       <button type="button" data-sve-code-history></button>
       <button type="button" data-sve-style-mode></button>
       <button type="button" data-sve-values-mode></button>
+      <button type="button" data-sve-css-all></button>
       <button type="button" data-sve-code-autosave aria-pressed="true"></button>
       <button type="button" data-sve-code-save hidden></button>
       <!-- The tree's switch stands next to the lock, at the row's end: the two

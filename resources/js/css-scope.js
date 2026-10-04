@@ -758,6 +758,14 @@ export function syncCssWithBrackets(css, prevNames, nextNames) {
   return out;
 }
 
+/**
+ * A `[ name ]` taken off its tag leaves the name's CSS where it is. Only the
+ * blank rule the bracket sync itself wrote (`.name {\n}`) goes with it: that
+ * was a door held open, not something written. Rules with declarations stay
+ * in the file, out of the pane's view, until the name is used again or the
+ * whole-file view deletes them for good. (Until v1.1.440 the whole rule went
+ * the moment the token did — removing a class from markup destroyed its CSS.)
+ */
 export function pruneBracketCss(css, nextNames, prevNames) {
   const nextSet = new Set(Array.isArray(nextNames) ? nextNames : []);
   const prevSet = new Set(Array.isArray(prevNames) ? prevNames : []);
@@ -768,8 +776,50 @@ export function pruneBracketCss(css, nextNames, prevNames) {
       continue;
     }
 
-    out = removeCssClassRule(out, name);
+    out = removeBlankCssClassRule(out, name);
   }
 
   return out;
+}
+
+/** Remove `.name { }` only where its body is blank; a rule with content is left alone. */
+export function removeBlankCssClassRule(css, name) {
+  let next = String(css || '');
+  let searchFrom = 0;
+
+  for (;;) {
+    const rule = findClassRule(next.slice(searchFrom), name);
+
+    if (!rule) {
+      break;
+    }
+
+    const from = searchFrom + rule.from;
+    const brace = searchFrom + rule.brace;
+    const close = searchFrom + rule.close;
+
+    if (next.slice(brace + 1, close).trim() !== '') {
+      searchFrom = close + 1;
+
+      continue;
+    }
+
+    let start = from;
+    const lineStart = next.lastIndexOf('\n', start - 1) + 1;
+
+    if (/^\s*$/.test(next.slice(lineStart, start))) {
+      start = lineStart;
+    }
+
+    let to = close + 1;
+
+    if (next[to] === '\n') {
+      to += 1;
+    }
+
+    next = next.slice(0, start) + next.slice(to);
+    searchFrom = start;
+  }
+
+  return next;
 }

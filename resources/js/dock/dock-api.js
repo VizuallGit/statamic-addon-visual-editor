@@ -897,8 +897,10 @@ register('dock:reveal-html', ({ from, to, caret } = {}) => {
 
   dockState.htmlFocus = end > start ? { from: start, to: end } : null;
   // The tree has spoken, so the CSS pane follows the HTML pane again rather
-  // than whatever tag was last clicked in the code.
+  // than whatever tag was last clicked in the code — and shows that element,
+  // not the whole block the All button may have put up.
   dockState.cssFocus = null;
+  dockState.cssAll = false;
 
   // `caret` says "put me inside this", which the tree asks for so the next
   // thing written lands in the row that was picked. Without one the whole

@@ -48,14 +48,17 @@ export function readParts() {
 }
 
 export function cssEditorText() {
-  if (dockState.cssValues || !(dockState.htmlScopePref && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length))) {
+  if (dockState.cssValues || dockState.cssAll || !dockState.htmlScopePref) {
     dockState.cssPane = 'full';
     dockState.cssScopeSnapshot = dockState.cssFull;
 
     return dockState.cssFull;
   }
 
-  const tree = tokenTreeFromHtml(dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to));
+  // A focus narrows the tree to that element; without one it is the file's own
+  // `[ ]` tree — the view a click on the section row gives, from the first open.
+  const focused = htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length);
+  const tree = tokenTreeFromHtml(focused ? dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to) : dockState.htmlFull);
 
   if (!tree.length) {
     dockState.cssPane = 'empty';
@@ -83,6 +86,8 @@ export function writeParts(parts, disabled) {
 
     dockState.htmlFull = parts.html ?? '';
     dockState.cssFull = parts.css ?? '';
+    // A file just loaded opens on its own tree; All is a look, not a setting.
+    dockState.cssAll = false;
 
     for (const handle of HANDLES) {
       const view = editors[handle];

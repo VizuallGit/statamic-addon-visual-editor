@@ -558,12 +558,17 @@ export function applyCssScope() {
   // Resolved first: a pick that no longer finds its element clears itself in
   // here, and the gate below then reads the state as it truly is.
   const picked = cssFocusSnippet();
+  // With the tree on and nothing picked yet — the file just opened — the pane
+  // shows the file's own `[ ]` tree, not the whole block: the same view a click
+  // on the section row gives. The whole block is the All button's (`cssAll`),
+  // the ID's, or the tree's when it is switched off.
+  const fromFile = picked == null && !dockState.htmlScopeActive;
 
-  if (dockState.cssValues || (picked == null && (!dockState.htmlScopePref || !dockState.htmlScopeActive))) {
+  if (dockState.cssValues || dockState.cssAll || !dockState.htmlScopePref) {
     dockState.cssPane = 'full';
     text = dockState.cssFull;
   } else {
-    tree = tokenTreeFromHtml(picked ?? htmlSnippet());
+    tree = tokenTreeFromHtml(picked ?? (fromFile ? currentFullHtml() : htmlSnippet()));
 
     if (!tree.length) {
       dockState.cssPane = 'empty';
@@ -575,8 +580,9 @@ export function applyCssScope() {
       // Empty rules are written for the names that have none — but only when
       // the tree asked for this element. Looking at a tag in the code is not
       // a decision to style it, and a click that writes to the file and saves
-      // it would make reading the markup an edit.
-      if (!dockState.cssFocus && tokenTreeNeedsCss(dockState.cssFull, tree)) {
+      // it would make reading the markup an edit. Opening the file is not one
+      // either (`fromFile`).
+      if (!dockState.cssFocus && !fromFile && tokenTreeNeedsCss(dockState.cssFull, tree)) {
         dockState.cssFull = mergeScopedCss(dockState.cssFull, text, tree[0].className);
         created = true;
       }

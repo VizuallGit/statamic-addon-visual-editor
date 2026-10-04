@@ -207,6 +207,49 @@ export function setValuesMode(win, on) {
   paintCssToolState(win);
 }
 
+const ALL_ICON = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h7"/></svg>';
+
+/**
+ * The All button: the whole style block in the CSS pane, where a rule whose
+ * `[ name ]` is on no tag any more can still be seen and deleted for good.
+ * Only in the CSS language (Tailwind has no block to show — layout.js hides
+ * it there) and only a look: a pick in the tree, or a new file, puts the pane
+ * back on the element's own rules.
+ */
+export function paintCssAll(win) {
+  const dock = win?.document.getElementById(DOCK_ID);
+  const btn = dock?.querySelector('[data-sve-css-all]');
+
+  if (!dock || !btn) {
+    return;
+  }
+
+  dock.setAttribute('data-sve-css-all-on', dockState.cssAll ? 'on' : 'off');
+
+  const text = win.document.createElement('span');
+
+  text.textContent = t(win, 'code_dock_css_all');
+  btn.innerHTML = ALL_ICON;
+  btn.appendChild(text);
+  btn.title = t(win, dockState.cssAll ? 'code_dock_css_all_off' : 'code_dock_css_all_on');
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', dockState.cssAll ? 'true' : 'false');
+}
+
+export function setCssAll(win, on) {
+  dockState.cssAll = !!on;
+  closeCssMenu(win.document);
+  dockState.cssOpenTool = '';
+  paintCssAll(win);
+  // What the pane shows changes, not only what is folded: the element's rules
+  // go back into the file first, then the file (or the element) comes up.
+  flushCssScope();
+  applyCssScope();
+  applyCssFolds(win, true);
+  paintCssHead(win);
+  paintCssToolState(win);
+}
+
 export function paintStyleMode(win) {
   const dock = win?.document.getElementById(DOCK_ID);
 
@@ -265,6 +308,7 @@ export function applyStyleMode(win) {
 
   paintStyleMode(win);
   paintValuesMode(win);
+  paintCssAll(win);
   paintStrip(win);
   dockState.cssToolRow?.();
 

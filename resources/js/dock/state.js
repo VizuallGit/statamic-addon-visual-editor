@@ -31,6 +31,9 @@ export const dockState = {
   cssOpenTool: '',
   cssOpenMenu: '',
   cssValues: false,
+  // The CSS pane shows the whole style block, not the picked element's rules.
+  // Not remembered: a pick in the tree, or a new file, hands the pane back.
+  cssAll: false,
   twCss: null,
   twKey: '',
   twBusy: false,
