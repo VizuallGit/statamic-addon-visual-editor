@@ -47,6 +47,22 @@ class SiteBuildTest extends TestCase
         }
     }
 
+    public function test_saving_an_imported_stylesheet_builds_and_says_how_it_went(): void
+    {
+        // The testbench app has no node_modules/vite, so the build is attempted and answers why it did not run.
+        $this->assertSame(
+            ['build' => ['ok' => false, 'reason' => 'no-vite']],
+            SiteBuild::afterSave(['kind' => 'css', 'path' => 'base.css', 'ok' => true, 'imported' => true])
+        );
+    }
+
+    public function test_saving_a_script_an_icon_or_an_unimported_sheet_builds_nothing(): void
+    {
+        $this->assertSame([], SiteBuild::afterSave(['kind' => 'js', 'path' => 'site.js', 'ok' => true, 'imported' => true]));
+        $this->assertSame([], SiteBuild::afterSave(['kind' => 'svg', 'path' => 'icons/arrow.svg', 'ok' => true, 'imported' => true]));
+        $this->assertSame([], SiteBuild::afterSave(['kind' => 'css', 'path' => 'custom.css', 'ok' => true, 'imported' => false]));
+    }
+
     public function test_a_server_without_vite_answers_no_vite_instead_of_running(): void
     {
         // The testbench app has no node_modules/vite.

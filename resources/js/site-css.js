@@ -15,7 +15,8 @@ import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { siteCssUi as ui } from './cp/site-css/store.js';
 import { csrfToken } from './lib/csrf.js';
-import { previewDocument } from './lib/preview-frame.js';
+import { previewCopies, previewDocument } from './lib/preview-frame.js';
+import { swapSiteCss } from './cp/theme-panel/utility-paint.js';
 import { injectStyle } from './lib/style.js';
 import { loadCodeMirror, vscTheme } from './lib/codemirror.js';
 
@@ -196,6 +197,38 @@ function bumpPreview(win) {
   if (ui.kind === 'css') {
     bumpPreviewCss(win);
   }
+}
+
+/**
+ * What the save built. An imported stylesheet comes back with `build`
+ * (SiteBuild.php ran Vite): the new file goes into every page document, so
+ * the preview shows what visitors get. Without `build` (a script, an icon, a
+ * sheet site.css never imports) the stylesheet link is only bumped. A build
+ * that did not run says why; the file is saved either way.
+ */
+function showBuild(win, build) {
+  if (!build) {
+    bumpPreview(win);
+
+    return;
+  }
+
+  if (build.ok && build.css) {
+    ui.status = t(win, 'site_css_saved_built');
+    pageDocuments(win).forEach((doc) => swapSiteCss(doc, build.css));
+
+    return;
+  }
+
+  bumpPreview(win);
+  ui.status = t(win, 'site_css_saved_not_built', {
+    reason: t(win, `theme_utilities_reason_${build.reason || 'error'}`),
+  });
+}
+
+/** The documents that show the page: the preview, and the breakpoint overview's frames. */
+function pageDocuments(win) {
+  return [previewDocument(win), ...previewCopies(win).map((w) => w.document)].filter(Boolean);
 }
 
 function paintLabels(win) {
@@ -398,17 +431,19 @@ async function saveFile(win) {
     ui.dirty = false;
     ui.imported = data.imported !== false;
     ui.status = t(win, 'site_css_saved');
-    bumpPreview(win);
+    showBuild(win, data.build);
 
     if (ui.kind === 'css') {
       // The dock's Tailwind forgets the theme it kept (tw-compile and friends).
       win.dispatchEvent(new CustomEvent('sve:site-css-saved', { detail: { path: ui.path } }));
     }
+    const shown = ui.status;
+
     win.setTimeout(() => {
-      if (ui.status === t(win, 'site_css_saved')) {
+      if (ui.status === shown) {
         ui.status = '';
       }
-    }, 1200);
+    }, data.build ? 4000 : 1200);
 
     return true;
   } catch {

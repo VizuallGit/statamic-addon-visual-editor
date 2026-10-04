@@ -857,6 +857,8 @@ return [
     'site_css_loading' => 'Loading…',
     'site_css_saving' => 'Saving…',
     'site_css_saved' => 'Saved',
+    'site_css_saved_built' => 'Saved and built',
+    'site_css_saved_not_built' => 'Saved, but the server could not build the site\'s CSS (:reason). The public site gets the change at the next deploy.',
     'site_css_error' => 'Could not save',
     'site_css_unsaved' => 'Unsaved',
     'site_css_empty' => 'Select a file',

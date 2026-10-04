@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Support\Facades\Log;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController\Persist;
 use Symfony\Component\Process\Process;
 
 /**
@@ -75,6 +76,31 @@ class SiteBuild
         $css = static::entryCss();
 
         return $css ? ['ok' => true, 'css' => $css, 'ms' => $ms] : ['ok' => false, 'reason' => 'no-manifest'];
+    }
+
+    /**
+     * What a save from the Stylesheets panel builds. A sheet site.css imports
+     * is only on the public page once Vite has built it into public/build, so
+     * it builds here, as the Utilities tab does, and the answer carries the
+     * result under `build`. A script, an icon or a sheet site.css never
+     * imports has nothing to build: no `build` key, the panel says only "saved".
+     *
+     * @param  array{kind: string, imported: bool}  $file  what Files::write() answered
+     * @return array{build?: array{ok: bool, css?: string, ms?: int, reason?: string}}
+     */
+    public static function afterSave(array $file): array
+    {
+        if (($file['kind'] ?? '') !== 'css' || empty($file['imported'])) {
+            return [];
+        }
+
+        $result = static::run();
+
+        if ($result['ok']) {
+            Persist::flushStaticCache();
+        }
+
+        return ['build' => $result];
     }
 
     /**

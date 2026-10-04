@@ -851,6 +851,8 @@ return [
     'site_css_loading' => 'Indlæser…',
     'site_css_saving' => 'Gemmer…',
     'site_css_saved' => 'Gemt',
+    'site_css_saved_built' => 'Gemt og bygget',
+    'site_css_saved_not_built' => 'Gemt, men serveren kunne ikke bygge sitets CSS (:reason). Den offentlige side får ændringen ved næste deploy.',
     'site_css_error' => 'Kunne ikke gemme',
     'site_css_unsaved' => 'Ikke gemt',
     'site_css_empty' => 'Vælg en fil',

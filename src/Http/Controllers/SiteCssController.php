@@ -83,24 +83,7 @@ class SiteCssController
 
         abort_unless($file, 404);
 
-        return response()->json($file);
-    }
-
-    /**
-     * Build the site's CSS again, as a deploy would: the Theme panel's
-     * Utilities tab calls this after it saved `@utility` blocks. See SiteBuild.
-     */
-    public function build(Request $request)
-    {
-        $this->authorize($request, 'css');
-
-        $result = SiteBuild::run();
-
-        if ($result['ok']) {
-            Persist::flushStaticCache();
-        }
-
-        return response()->json($result);
+        return response()->json($file + SiteBuild::afterSave($file));
     }
 
     public function store(Request $request)
