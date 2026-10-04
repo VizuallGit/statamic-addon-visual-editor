@@ -15,10 +15,12 @@
  * is not a thing to offer.
  *
  * The run outlives the click: the command is spawned with nohup and keeps
- * going whether or not this window stays open. So the icon spins while a run
+ * going whether or not this window stays open. So the icon pulses while a run
  * is in flight, and a run already in flight when Live Preview opens — started
  * from the utility page, or by the nightly schedule — is picked up and shown
- * the same way.
+ * the same way. The notice sits over the preview: the step row while it
+ * runs, then "live" and the address on one line. Clicking the address opens
+ * it and closes the notice.
  *
  * May import: lib/*, pages.js (the dialog), globals-panel.js (dirty check).
  * Must not import: preview.js, overlay-host.js, bridge.js.
@@ -28,8 +30,9 @@ import { cpRoot } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { injectStyle } from './lib/style.js';
 import { lpHeader } from './lib/live-preview.js';
+import { previewFrame } from './lib/preview-frame.js';
 import { HEADER_SURFACE, LP_CHROME_H, LP_ICON_BTN_STYLE, LP_PUBLISH_ID, LP_RELOAD_ID } from './lib/ids.js';
-import { confirmCloseDiscard, dialogCardStyle } from './pages.js';
+import { confirmCloseDiscard } from './pages.js';
 import { hasUnsavedWork } from './globals-panel.js';
 
 /**
@@ -53,6 +56,18 @@ const ICON_SVG =
 
 const STYLE_ID = '__sve-lp-static-publish-style';
 const CARD_ID = '__sve-static-publish-card';
+const PROGRESS_ID = '__sve-static-publish-progress';
+
+/** The utility page's four steps, in that order, with the short labels. */
+const STEPS = [
+  ['generating', 'static_publish_pill_generating'],
+  ['verifying', 'static_publish_pill_verifying'],
+  ['deploying', 'static_publish_pill_deploying'],
+  ['done', 'static_publish_pill_done'],
+];
+
+/** How far below the top of the Live Preview the notice sits. 1.875rem is 30px at a 16px root. */
+const NOTICE_OFFSET_REM = 1.875;
 
 /** How long the green check stays before the cloud icon comes back. */
 const DONE_MS = 4000;
@@ -88,12 +103,25 @@ const state = {
 
 function ensureStyle(doc) {
   injectStyle(doc, STYLE_ID,
-    `@keyframes sve-lp-publish-spin{to{transform:rotate(360deg)}}`
-    + `#${LP_PUBLISH_ID}[data-busy] svg[data-icon="publish"]{animation:sve-lp-publish-spin 1.2s linear infinite;transform-origin:50% 50%}`
+    `@keyframes sve-lp-publish-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.86)}}`
+    + `#${LP_PUBLISH_ID}[data-busy] svg[data-icon="publish"]{animation:sve-lp-publish-pulse 1.1s ease-in-out infinite;transform-origin:50% 50%}`
     + `#${LP_PUBLISH_ID}[data-busy]{cursor:progress}`
     + `#${LP_PUBLISH_ID} svg[data-icon="done"]{display:none}`
     + `#${LP_PUBLISH_ID}[data-done] svg[data-icon="done"]{display:block}`
-    + `#${LP_PUBLISH_ID}[data-done] svg[data-icon="publish"]{display:none}`);
+    + `#${LP_PUBLISH_ID}[data-done] svg[data-icon="publish"]{display:none}`
+    + `#${PROGRESS_ID},#${CARD_ID}{position:fixed;z-index:2147483645;transform:translateX(-50%);box-sizing:border-box;width:max-content;max-width:min(52rem,calc(100vw - 2rem));background:var(--theme-color-content-bg,#1c1c1c);color:currentColor;border:1px solid color-mix(in srgb,currentColor 12%,transparent);border-radius:.65rem;padding:.4rem .7rem;box-shadow:0 1rem 2.5rem rgba(0,0,0,.35);font-family:ui-sans-serif,system-ui,sans-serif}`
+    + `#${PROGRESS_ID} .sve-sp-steps{display:flex;gap:.4rem;flex-wrap:nowrap;align-items:center}`
+    + `.sve-sp-step{display:inline-flex;align-items:center;gap:.35em;font-size:.75rem;padding:.2em .65em;border-radius:999px;border:1px solid color-mix(in srgb,currentColor 12%,transparent);opacity:.55;white-space:nowrap}`
+    + `.sve-sp-step.is-on{opacity:1;border-color:var(--theme-color-primary,#4f46e5);background:color-mix(in srgb,var(--theme-color-primary,#4f46e5) 14%,transparent)}`
+    + `.sve-sp-step.is-done{opacity:1}`
+    + `.sve-sp-dot{width:.45em;height:.45em;border-radius:50%;background:currentColor;opacity:.4}`
+    + `.sve-sp-step.is-on .sve-sp-dot{opacity:1;background:var(--theme-color-primary,#4f46e5);animation:sve-lp-publish-pulse 1.1s ease-in-out infinite}`
+    + `.sve-sp-time{font-size:.75rem;line-height:1;margin-left:.15rem;white-space:nowrap}`
+    + `#${CARD_ID}{display:flex;align-items:center;gap:.75rem}`
+    + `#${CARD_ID} .sve-sp-title{flex:0 0 auto;font-size:.875rem;font-weight:600;white-space:nowrap}`
+    + `#${CARD_ID} .sve-sp-body{font-size:.8125rem;line-height:1.3;opacity:.7}`
+    + `#${CARD_ID} a{font-size:.8125rem;line-height:1.2;white-space:nowrap;color:#fff;text-decoration:underline;text-underline-offset:.15em}`
+    + `#${CARD_ID} .sve-sp-x{all:unset;cursor:pointer;font-size:1rem;line-height:1;opacity:.5;padding:.1rem .25rem;flex-shrink:0}`);
 }
 
 /**
@@ -170,6 +198,7 @@ function paintBusy(win) {
   }
 
   paintTitle(win, pill);
+  paintProgress(win);
 }
 
 function showDone(win) {
@@ -189,52 +218,129 @@ function showDone(win) {
   }, DONE_MS);
 }
 
+/** Centred on the Live Preview, a short way below its top edge. */
+function placeOverPreview(win, card) {
+  const frame = previewFrame(win);
+  const rect = frame?.getBoundingClientRect();
+  const root = parseFloat(win.getComputedStyle(win.document.documentElement).fontSize) || 16;
+  const offset = NOTICE_OFFSET_REM * root;
+
+  if (!rect || rect.width < 1) {
+    card.style.top = `${offset}px`;
+    card.style.left = '50%';
+
+    return;
+  }
+
+  card.style.top = `${rect.top + offset}px`;
+  card.style.left = `${rect.left + rect.width / 2}px`;
+}
+
+function formatElapsed(seconds) {
+  const n = Math.max(0, Math.round(Number(seconds) || 0));
+
+  if (n < 60) {
+    return `${n} s`;
+  }
+
+  return `${Math.floor(n / 60)} min ${n % 60} s`;
+}
+
+function elapsedSeconds(run) {
+  const start = Date.parse(run?.started_at || '');
+
+  if (Number.isNaN(start)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round((Date.now() - start) / 1000));
+}
+
 /**
- * The finished run, as a card in the corner — not a toast.
- *
- * A toast says a sentence and goes. What the author wants at the end of a
- * publish is the address, to click, and the run took long enough that they
- * are probably looking at something else by then. So it stays until it is
- * closed, and the address is a real link.
+ * The step row, over the preview, for as long as a run is in flight.
+ * Replaced by the result card when the run ends.
  */
-function showCard(win, { tone, title, body, url }) {
+function paintProgress(win) {
   const doc = win.document;
 
+  if (!(state.running || state.pending)) {
+    doc.getElementById(PROGRESS_ID)?.remove();
+
+    return;
+  }
+
+  ensureStyle(doc);
+
+  let card = doc.getElementById(PROGRESS_ID);
+
+  if (!card) {
+    card = doc.createElement('div');
+    card.id = PROGRESS_ID;
+    card.setAttribute('role', 'status');
+    doc.body.appendChild(card);
+  }
+
+  card.replaceChildren();
+
+  const steps = doc.createElement('div');
+
+  steps.className = 'sve-sp-steps';
+
+  const current = STEPS.findIndex(([key]) => key === state.running?.step);
+
+  STEPS.forEach(([, labelKey], index) => {
+    const pill = doc.createElement('span');
+
+    pill.className = 'sve-sp-step';
+
+    if (current >= 0 && index < current) {
+      pill.classList.add('is-done');
+    }
+
+    if (index === current) {
+      pill.classList.add('is-on');
+    }
+
+    const dot = doc.createElement('span');
+
+    dot.className = 'sve-sp-dot';
+    pill.append(dot, doc.createTextNode(t(win, labelKey)));
+    steps.appendChild(pill);
+  });
+
+  const time = doc.createElement('span');
+
+  time.className = 'sve-sp-time';
+  time.textContent = formatElapsed(elapsedSeconds(state.running));
+  steps.appendChild(time);
+
+  card.appendChild(steps);
+  placeOverPreview(win, card);
+}
+
+/**
+ * The finished run, on one line in the same place as the step row.
+ *
+ * The address opens in a new tab and the notice closes with that click.
+ * × dismisses it without leaving.
+ */
+function showCard(win, { title, body, url }) {
+  const doc = win.document;
+
+  doc.getElementById(PROGRESS_ID)?.remove();
   doc.getElementById(CARD_ID)?.remove();
+  ensureStyle(doc);
 
   const card = doc.createElement('div');
 
   card.id = CARD_ID;
-  card.style.cssText =
-    `${dialogCardStyle(win).replace('width:400px', 'width:340px')}` +
-    'position:fixed;right:18px;bottom:18px;z-index:2147483645;padding:16px 18px;' +
-    'font-family:ui-sans-serif,system-ui,sans-serif;' +
-    `border-left:3px solid ${tone === 'error' ? '#dc2626' : '#16a34a'};`;
-
-  const head = doc.createElement('div');
-
-  head.style.cssText = 'display:flex;align-items:flex-start;gap:10px;';
+  card.setAttribute('role', 'status');
 
   const text = doc.createElement('div');
 
-  text.style.cssText = 'flex:1;min-width:0;';
-  text.innerHTML =
-    `<div style="font-size:13px;font-weight:600;margin-bottom:2px;"></div>` +
-    `<div style="font-size:12px;opacity:.7;line-height:1.45;"></div>`;
-  text.children[0].textContent = title;
-  text.children[1].textContent = body || '';
-
-  const close = doc.createElement('button');
-
-  close.type = 'button';
-  close.textContent = '×';
-  close.title = t(win, 'static_publish_close');
-  close.style.cssText =
-    'all:unset;cursor:pointer;font-size:16px;line-height:1;opacity:.5;padding:2px 4px;flex-shrink:0;';
-  close.addEventListener('click', () => card.remove());
-
-  head.append(text, close);
-  card.appendChild(head);
+  text.className = 'sve-sp-title';
+  text.textContent = title;
+  card.appendChild(text);
 
   if (url) {
     const link = doc.createElement('a');
@@ -243,13 +349,30 @@ function showCard(win, { tone, title, body, url }) {
     link.target = '_blank';
     link.rel = 'noopener';
     link.textContent = url;
-    link.style.cssText =
-      'display:block;margin-top:10px;font-size:12px;word-break:break-all;' +
-      'color:var(--theme-color-primary,#4f46e5);text-decoration:underline;';
+    link.addEventListener('click', () => {
+      win.setTimeout(() => card.remove(), 0);
+    });
     card.appendChild(link);
+  } else if (body) {
+    const note = doc.createElement('div');
+
+    note.className = 'sve-sp-body';
+    note.textContent = body;
+    card.appendChild(note);
   }
 
+  const close = doc.createElement('button');
+
+  close.type = 'button';
+  close.className = 'sve-sp-x';
+  close.textContent = '×';
+  close.title = t(win, 'static_publish_close');
+  close.setAttribute('aria-label', close.title);
+  close.addEventListener('click', () => card.remove());
+  card.appendChild(close);
+
   doc.body.appendChild(card);
+  placeOverPreview(win, card);
 }
 
 /** A run that has just come to an end: say how it went. */
@@ -259,18 +382,8 @@ function reportFinished(win, run) {
   }
 
   if (run.status === 'live') {
-    const report = run.report;
-
     showCard(win, {
-      tone: 'ok',
       title: t(win, 'static_publish_live_title'),
-      body: report
-        ? t(win, 'static_publish_live_body', {
-          pages: report.pages,
-          files: report.files,
-          seconds: Math.round(run.duration || 0),
-        })
-        : '',
       url: run.url,
     });
     showDone(win);
@@ -279,14 +392,13 @@ function reportFinished(win, run) {
   }
 
   if (run.status === 'verified') {
-    showCard(win, { tone: 'ok', title: t(win, 'static_publish_verified'), body: '' });
+    showCard(win, { title: t(win, 'static_publish_verified'), body: '' });
     showDone(win);
 
     return;
   }
 
   showCard(win, {
-    tone: 'error',
     title: t(win, 'static_publish_failed'),
     body: run.error || '',
   });
@@ -323,7 +435,7 @@ function startPolling(win) {
  * for a second or two `state` answers with nothing running and the run we
  * knew of before still newest. Clearing `pending` only once a run is in
  * flight — or once a run newer than the one we knew appears — is what keeps
- * the icon spinning across that gap instead of flickering.
+ * the icon pulsing across that gap instead of flickering.
  */
 async function poll(win) {
   let answer;
@@ -388,13 +500,14 @@ async function startPublish(win) {
     paintBusy(win);
 
     // Whatever the other addon said — the site is on Server, credentials are
-    // missing, a run is already going. Its wording, not a second copy here.
-    win.Statamic?.$toast?.error(error.message || t(win, 'static_publish_failed'));
+    // missing, a run is already going. Its wording, in the same notice.
+    showCard(win, {
+      title: t(win, 'static_publish_failed'),
+      body: error.message && error.message !== 'absent' ? error.message : '',
+    });
 
     return;
   }
-
-  win.Statamic?.$toast?.success(t(win, 'static_publish_started'));
 
   if (pill) {
     paintTitle(win, pill);
@@ -493,6 +606,7 @@ export function ensureLpStaticPublishButton(win) {
 
   if (!state.show) {
     doc.getElementById(LP_PUBLISH_ID)?.remove();
+    doc.getElementById(PROGRESS_ID)?.remove();
 
     return;
   }
@@ -527,5 +641,13 @@ export function ensureLpStaticPublishButton(win) {
   // every observer pass freezes Live Preview.
   if (pill.parentElement !== anchor.parentElement || pill.previousElementSibling !== anchor) {
     anchor.after(pill);
+  }
+
+  for (const id of [PROGRESS_ID, CARD_ID]) {
+    const notice = doc.getElementById(id);
+
+    if (notice) {
+      placeOverPreview(win, notice);
+    }
   }
 }

@@ -15,7 +15,7 @@
  *      trap this top bar has sprung before: an unknown button is hidden by
  *      isOurLpChromeButton and measures as “present”);
  *   2. it sits right of the reload icon;
- *   3. a real click starts it: the icon spins and the step shows in its title;
+ *   3. a real click starts it: the icon pulses and the step shows in its title;
  *   4. when the run ends, the card carries the live address as a real link;
  *   5. a site set to Server draws no icon at all.
  *
@@ -234,7 +234,13 @@ try {
   await click(page, cp, PUBLISH);
 
   step('POST publish was caught here, not sent', publishPosts === 1, `${publishPosts} caught`);
-  step('icon spins while it runs', await waitFor(cp, (sel) => document.querySelector(sel)?.hasAttribute('data-busy'), PUBLISH));
+  step('icon pulses while it runs', await waitFor(cp, (sel) => {
+    const button = document.querySelector(sel);
+    const icon = button?.querySelector('svg[data-icon="publish"]');
+    const name = icon ? getComputedStyle(icon).animationName : '';
+
+    return !!button?.hasAttribute('data-busy') && name.includes('sve-lp-publish-pulse') && !name.includes('spin');
+  }, PUBLISH));
 
   // The step shows in the title, in the CP user's language.
   fake.running.step = 'deploying';
@@ -253,7 +259,7 @@ try {
 
     return !!link && link.href.startsWith(url) && link.target === '_blank';
   }, CARD, LIVE_URL));
-  step('the icon stops spinning', !(await cp.evaluate((sel) => document.querySelector(sel)?.hasAttribute('data-busy'), PUBLISH)));
+  step('the icon stops pulsing', !(await cp.evaluate((sel) => document.querySelector(sel)?.hasAttribute('data-busy'), PUBLISH)));
   await shot('done');
 
   // Polling must stop once the run is over — a timer left running would keep
