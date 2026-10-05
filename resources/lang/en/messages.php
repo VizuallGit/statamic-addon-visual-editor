@@ -538,8 +538,8 @@ return [
     'ai_text_about' => 'About',
     'ai_text_words' => 'words',
     'reload_lp_failed' => 'Could not fetch everything again',
-    'reload_lp_full_hint' => 'Shift+click reloads the whole page',
-    'reload_lp_done' => 'Everything is up to date',
+    'reload_lp_full_hint' => 'Shift+click: fields and preview only, without reloading the page',
+    'reload_lp_done' => 'Fields and preview are up to date',
     // Publish the static site (the top-bar button; the work itself belongs to
     // the static-publish addon, which also writes the error messages).
     'static_publish_title' => 'Publish the static site',

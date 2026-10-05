@@ -390,10 +390,10 @@ try {
     step('code dock button available', false, 'no button[data-tab="code"] — template_dock off for this user?');
   }
 
-  // 6. The reload button (between Close and More) refreshes in place: caches
-  // dropped, fields and meta fetched again, preview morphed — and the CP
-  // document and the preview frame are the same ones as before. A navigation
-  // (the old behaviour, now Shift+click) would replace both. The green check
+  // 6. Shift+click on the reload button refreshes in place: caches dropped,
+  // fields and meta fetched again, preview morphed — and the CP document and
+  // the preview frame are the same ones as before. A plain click is a real
+  // load (since 5 October 2026) and would replace both. The green check
   // (`data-done`) is the button saying it finished.
   if (await cp.$('#__sve-lp-reload')) {
     const settled = await settledPreview(cp);
@@ -408,7 +408,9 @@ try {
     const metaAgain = [];
     const spyMeta = (req) => { if (/\/!\/sve\/section-meta\?/.test(req.url())) metaAgain.push(req.url().replace(SITE_URL, '').slice(0, 90)); };
     page.on('request', spyMeta);
+    await page.keyboard.down('Shift');
     const hit = await realClick(page, cp, '#__sve-lp-reload');
+    await page.keyboard.up('Shift');
     const t0 = Date.now();
     let done = false;
     while (!done && Date.now() - t0 < 30000) {
@@ -420,7 +422,7 @@ try {
     page.off('framenavigated', onNav);
     page.off('request', spyMeta);
     const cpStayed = await cp.evaluate(() => window.__sveSmokeStay === 1).catch(() => false);
-    step('reload refreshes in place (green check, fields fetched again, same CP document, preview not navigated)',
+    step('Shift+click on reload refreshes in place (green check, fields fetched again, same CP document, preview not navigated)',
       done && metaAgain.length > 0 && cpStayed && !previewNavigated && page.url() === urlBefore,
       `done=${done} after ${took} ms; section-meta requests=${metaAgain.length}${metaAgain[0] ? ' (' + metaAgain[0] + ')' : ''}; cp document kept=${cpStayed}; preview navigated=${previewNavigated}; url same=${page.url() === urlBefore}; clicked at ${hit.x},${hit.y} on ${hit.under}`);
   } else {

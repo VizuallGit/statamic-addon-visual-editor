@@ -264,9 +264,13 @@ try {
   const target = preview ? await preview.evaluate(() => { const els = [...document.querySelectorAll('section[id^="id-"]')].filter((el) => el.getBoundingClientRect().width > 0); const el = els[els.length - 1]; if (!el) return null; el.scrollIntoView({ block: 'center', behavior: 'instant' }); const r = el.getBoundingClientRect(); return { x: r.left + Math.min(r.width / 2, 200), y: r.top + Math.min(r.height / 2, 30) }; }) : null;
   if (target && lpBox) { await page.mouse.click(ovBox.x + lpBox.x + target.x, ovBox.y + lpBox.y + target.y); await sleep(3000); }
   step('after a click on the section in the preview: still shown', !!target && shows(await paneFacts(cp)));
-  step('clicked the reload button', await clickIn(cp, '#__sve-lp-reload'));
+  // Shift: the in-place refresh. A plain click is a real load and replaces the
+  // document this test is reading.
+  await page.keyboard.down('Shift');
+  step('shift-clicked the reload button', await clickIn(cp, '#__sve-lp-reload'));
+  await page.keyboard.up('Shift');
   await sleep(6000);
-  step('after the reload button: still shown', shows(await paneFacts(cp)));
+  step('after the in-place refresh: still shown', shows(await paneFacts(cp)));
 
   if (errors.length) { console.log('--- errors ---'); for (const e of errors) console.log(' ', e); }
 } catch (e) {

@@ -535,8 +535,8 @@ return [
     'ai_text_about' => 'Cirka',
     'ai_text_words' => 'ord',
     'reload_lp_failed' => 'Kunne ikke hente alt igen',
-    'reload_lp_full_hint' => 'Shift+klik genindlæser hele siden',
-    'reload_lp_done' => 'Alt er opdateret',
+    'reload_lp_full_hint' => 'Shift+klik: kun felter og preview, uden at genindlæse siden',
+    'reload_lp_done' => 'Felter og preview er opdateret',
     // Udgiv statisk site (knappen i topbaren; selve arbejdet hører til
     // static-publish-addonet, som også skriver fejlteksterne).
     'static_publish_title' => 'Udgiv det statiske site',

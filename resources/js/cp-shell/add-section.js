@@ -3250,6 +3250,9 @@ export function autoOpenLivePreview(win) {
  * entry picker swaps pages without a reload, so there's no boot to hook into,
  * but the same "hide the CP, open the preview, fade in" is exactly what's wanted.
  */
+/** How long a reload's way back (lp-resume.js) may hold the editor before it is shown regardless. */
+const RESUME_HOLD_MS = 3000;
+
 export function openLivePreviewCovered(win, { closePanels = false } = {}) {
   const doc = win.document;
   const embedded = isEmbeddedInSite(win);
@@ -3342,8 +3345,21 @@ export function openLivePreviewCovered(win, { closePanels = false } = {}) {
   const open = () => {
     if (previewPainted(doc)) {
       clearTimeout(failsafe);
+
+      // A load the reload button started goes back to where it was started
+      // from — scroll, open section, its segment — before it is shown
+      // (lp-resume.js). Never held longer than RESUME_HOLD_MS.
+      const resumed = ask('lp:resume');
+      const held = resumed ? Promise.race([resumed, new Promise((done) => setTimeout(done, RESUME_HOLD_MS))]) : null;
+
       // One paint tick, so the preview is on screen before anyone fades to it.
-      setTimeout(reveal, 150);
+      const showSoon = () => setTimeout(reveal, 150);
+
+      if (held) {
+        held.then(showSoon, showSoon);
+      } else {
+        showSoon();
+      }
 
       return;
     }

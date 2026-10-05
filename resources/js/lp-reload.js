@@ -1,28 +1,27 @@
 /**
- * Fetch everything again, without leaving Live Preview.
+ * Fetch everything again.
  *
- * Most of what the editor shows was fetched once and kept: the section library's
- * lists, each set's meta and field definitions, the header and footer screens,
- * every section template the HTML tree pulled in, the data picker's lists. That
- * is the right default — they rarely change while you work — but when they do
- * change under you (a field added to a fieldset, a template edited on disk),
- * the editor keeps showing what it had.
+ * Most of what the editor shows was fetched once and kept: the page's
+ * blueprint, the section library's lists, each set's meta and field
+ * definitions, the header and footer screens, every section template the HTML
+ * tree pulled in, the data picker's lists, Statamic's own set picker. That is
+ * the right default — they rarely change while you work — but when they do
+ * change under you (a fieldset edited, a template changed on disk), the editor
+ * keeps showing what it had.
  *
- * So: one button that drops every kept answer, asks for the ones the page needs
- * now, and has the preview render itself again — in place. No navigation, no
- * still of the preview, no editor booting again. When it is done the icon turns
- * into a green check for a moment: everything is up to date.
+ * A click is a real load of the page we are on — the page picker's own move:
+ * a still of the preview, the unsaved-work question, the page swapped in
+ * behind. Only a load is sure to bring *everything* back new. From 19
+ * September to 5 October 2026 a click refreshed in place instead, and it was
+ * never all of it: a tab's icon, a tab's name, a field's config — whatever a
+ * fieldtype read once when it mounted — stayed as it was until the author
+ * closed Live Preview, reloaded and went in again. Which is the job this
+ * button exists to do.
  *
- * What it deliberately does NOT touch is the publish form's values. They are the
- * author's unsaved work, they are what the preview renders from, and nothing
- * here is worth losing them for. The preview is replayed from those same values,
- * so a page half-edited comes back half-edited.
- *
- * What it cannot do is change the page's own blueprint: Statamic builds the
- * publish form from it at page load, so a tab or a field added to the *page*
- * (not to a section's fieldset) is only there after a real load. Shift+click
- * is that load — the page picker's own move, aimed at the page we are on —
- * and it is exactly what a plain click did before 19 September 2026.
+ * Shift+click is the in-place refresh, kept for when the unsaved values are
+ * worth more than the last corner of freshness: caches dropped, each section's
+ * fields and meta fetched again, the preview replayed from the values as they
+ * stand. The publish form's values are not touched.
  */
 import { t } from './lib/i18n.js';
 import { ask } from './cp/bus.js';
@@ -34,6 +33,7 @@ import { sectionField } from './lib/config.js';
 import { dataGet, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { navigateFromLp } from './pages.js';
+import { forgetWhereWeAre, rememberWhereWeAre } from './lp-resume.js';
 import { resetChromeInlinePages } from './chrome.js';
 import { libraryWentStale, refreshSectionTypes, sectionMetaCache } from './section-library.js';
 import { clearHtmlTreeTemplates, renderHtmlTree } from './lazy/html-tree.js';
@@ -178,14 +178,25 @@ export async function refreshInPlace(win) {
  *
  * `?live-preview=1` so the editor opens again on the other side; without it
  * the move lands on the plain entry screen.
+ *
+ * Where the author was — the preview's scroll, the section open in the
+ * sidebar — is written down first, and the new editor goes back there before
+ * it is shown (lp-resume.js).
+ *
+ * `onCancel` runs when the unsaved-work question is answered with Cancel (or
+ * its Save fails) — the page stays, and whoever started the load has to say so.
  */
-export function reloadEverything(win) {
+export function reloadEverything(win, onCancel = () => {}) {
   const url = new win.URL(win.location.href);
 
   url.searchParams.set('live-preview', '1');
+  rememberWhereWeAre(win);
 
   if (typeof navigateFromLp === 'function') {
-    navigateFromLp(win, null, url.toString());
+    navigateFromLp(win, null, url.toString(), () => {
+      forgetWhereWeAre(win);
+      onCancel();
+    });
 
     return;
   }
@@ -225,14 +236,19 @@ function onReloadClick(win, pill, event) {
   pill.removeAttribute('data-done');
   pill.setAttribute('data-busy', '');
 
-  // Shift: the whole page, as before. Spins until the page goes — nothing
-  // clears it, the document it is drawn in is the one being replaced.
-  if (event.shiftKey) {
+  const idle = () => {
+    running = false;
+    pill.removeAttribute('data-busy');
+  };
+
+  // The whole page. Spins until the page goes — nothing clears it, the
+  // document it is drawn in is the one being replaced. Only a Cancel on the
+  // unsaved-work question leaves it standing.
+  if (!event.shiftKey) {
     try {
-      reloadEverything(win);
+      reloadEverything(win, idle);
     } catch {
-      running = false;
-      pill.removeAttribute('data-busy');
+      idle();
       win.Statamic?.$toast?.error(t(win, 'reload_lp_failed'));
     }
 
@@ -242,10 +258,7 @@ function onReloadClick(win, pill, event) {
   void refreshInPlace(win)
     .then(() => showDone(win, pill))
     .catch(() => win.Statamic?.$toast?.error(t(win, 'reload_lp_failed')))
-    .finally(() => {
-      running = false;
-      pill.removeAttribute('data-busy');
-    });
+    .finally(idle);
 }
 
 export function ensureLpReloadButton(win) {
