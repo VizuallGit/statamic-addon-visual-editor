@@ -888,20 +888,25 @@ try {
   const stillOpen = !!(await cp.$(LAYER));
   step('Escape inside the active frame is the bridge’s and leaves the overview open', stillOpen);
   if (!stillOpen) { await realClick(page, cp, BUTTON); await waitIn(cp, LAYER, 10000); await copiesLoaded(expected.length); }
-  // The page section under a window's top edge, as the overview reads it: the
-  // outermost [data-sid], or the header or footer — drawn, and not fixed or
-  // sticky (those stand still while the page scrolls under them).
+  // The page section under a window's sliding line, as the overview compares
+  // it: the line is scrollY / max of the way down the viewport (the top edge
+  // at the top of the page, the bottom edge at its end). The outermost
+  // [data-sid], or the header or footer — drawn, and not fixed or sticky
+  // (those stand still while the page scrolls under them).
   const anchorUnderTop = (frame) => frame.evaluate(() => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    // At the very end the line is the bottom edge, where the footer ends: a pixel up, so it still counts.
+    const y = max > 0 ? Math.min(innerHeight - 1, (scrollY / max) * innerHeight) : 0;
     for (const el of document.querySelectorAll('[data-sid]:not([data-sid] *), [data-sve-chrome]')) {
       const r = el.getBoundingClientRect();
       const position = getComputedStyle(el).position;
-      if (r.height > 0 && position !== 'fixed' && position !== 'sticky' && r.top <= 2 && r.bottom > 2) return el.hasAttribute('data-sve-chrome') ? `chrome:${el.getAttribute('data-sve-chrome')}` : el.getAttribute('data-sid');
+      if (r.height > 0 && position !== 'fixed' && position !== 'sticky' && r.top <= y + 2 && r.bottom > y) return el.hasAttribute('data-sve-chrome') ? `chrome:${el.getAttribute('data-sve-chrome')}` : el.getAttribute('data-sid');
     }
     return '';
   }).catch(() => '?');
   // The preview and every loaded copy, the one under the preview included.
   const syncFrames = async () => [await previewNow(), ...(await Promise.all((await copyHandles()).map((h) => h.contentFrame()))).filter(Boolean)];
-  // Within `ms`, every other member shows the section `members[lead]` shows under its top edge.
+  // Within `ms`, every other member shows the section `members[lead]` shows under its sliding line.
   const inStep = async (lead, members, ms = 500) => {
     const t0 = Date.now();
     const others = members.filter((_, i) => i !== lead);
@@ -932,10 +937,16 @@ try {
   if (goal) {
     await members1[0].evaluate((sid) => { const el = document.querySelector(`[data-sid="${sid}"]`); window.scrollTo({ top: el.getBoundingClientRect().top + scrollY, behavior: 'instant' }); }, goal);
     const toGoal = await inStep(0, members1);
-    step('the preview scrolled to the top of the last section every size can reach: the same data-sid stands under every copy’s top edge', toGoal.ok && toGoal.want === goal, `${goal}: ${toGoal.detail}`);
+    step('the preview scrolled to the top of the last section every size can reach: the same data-sid stands under every copy’s sliding line', toGoal.ok, `${goal}: ${toGoal.detail}`);
   } else {
-    skip('the same data-sid under every top edge', 'no section every size can bring to its top edge');
+    skip('the same data-sid under every sliding line', 'no section every size can bring to its top edge');
   }
+  // The ends meet: the preview scrolled to its very end, every copy is at its own end — the owner's case
+  // (5 Oct 2026: with the top edges matched, mobile stopped far above its footer).
+  await members1[0].evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+  const atEnd = await until(async () => { const r = await Promise.all(members1.map((f) => f.evaluate(() => [Math.round(scrollY), document.documentElement.scrollHeight - innerHeight]).catch(() => [0, 1]))); return r.every(([y, m]) => y >= m - 1) ? r : null; }, 1500, 25);
+  const ends = atEnd || (await Promise.all(members1.map((f) => f.evaluate(() => [Math.round(scrollY), document.documentElement.scrollHeight - innerHeight]).catch(() => [0, 1]))));
+  step('the preview scrolled to its end: every copy is at its own end (the footers meet)', !!atEnd, ends.map(([y, m]) => `${y}/${m}`).join(', '));
   // A wheel over a copy scrolls that copy's own page, and the preview and the other copies follow it.
   await (await previewNow()).evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await sleep(300);

@@ -36,8 +36,10 @@
  * moment the preview moves to another size — scroll together: the one that
  * scrolls (a wheel, the bridge's own scrollIntoView, the page's script) leads,
  * and every other one stands as far into the same page section as the leader
- * does (syncedScrollTop), or at the same share of the page when that section
- * is not there. A scroll the overview wrote itself is known by where it was
+ * does, measured on a line that slides from the top edge of the viewport at
+ * the top of the page to the bottom edge at its end (syncedScrollTop) — so
+ * the sizes meet at both ends — or at the same share of the page when that
+ * section is not there. A scroll the overview wrote itself is known by where it was
  * sent (`expectTop`) and is not passed on again.
  *
  * A wheel, over the layer or over the preview, scrolls the one frame under
@@ -348,26 +350,42 @@ export function isDrag(from, to, slop = 4) {
 /**
  * Where a frame scrolls to follow another: Polypane's synced scroll, by
  * element. `anchors` are a document's page sections, header and footer as
- * `{ id, top, height }` in its own pixels, in document order (anchorsOf). The
- * section under the source's top edge is found in the target by its id, and
- * the target stands as far into it as the source does — 40 % into the hero
- * there, 40 % into the hero here, however tall each size draws it. A page is
- * a different height at each size, so the same pixel offset would show
- * another section. With no section under the edge (none at all, or the edge
- * above the first) or none of that id in the target: the same share of the
- * page that can be scrolled. Whole pixels, within what the target can scroll.
+ * `{ id, top, height }` in its own pixels, in document order (anchorsOf).
+ *
+ * The place compared is a line through the viewport that slides with the
+ * scroll: at the top of the page it is the top edge, at the end of the page
+ * the bottom edge, and in between it is as far down the viewport as the page
+ * is scrolled — `scrollTop / max` of the way. In the page's own pixels that
+ * line stands at `scrollTop × scrollHeight / max`. The section under the
+ * source's line is found in the target by its id, and the target is scrolled
+ * so that its own line stands as far into that section as the source's does:
+ * 40 % into the hero there, 40 % into the hero here, however tall each size
+ * draws it. For a page position `y` of the target, its line stands there when
+ * `scrollTop = y × max / scrollHeight`.
+ *
+ * Why a sliding line and not the top edge (which it was until 5 Oct 2026):
+ * with the top edges matched, a page scrolled to its end on desktop left
+ * mobile — where every section is drawn far taller — with most of its last
+ * sections and the footer still below the fold, so the sizes never met at
+ * the bottom. With the bottom edges matched there they do, and the tops still
+ * meet at the top of the page. With no section under the line (none at all,
+ * or the line above the first) or none of that id in the target: the same
+ * share of the page that can be scrolled. Whole pixels, within what the
+ * target can scroll.
  */
 export function syncedScrollTop(source, target) {
   const max = Math.max(0, target.scrollHeight - target.viewport);
+  const sourceMax = Math.max(0, source.scrollHeight - source.viewport);
   const top = source.scrollTop;
-  const from = (source.anchors || []).find((anchor) => anchor.top + anchor.height > top);
-  const to = from && top >= from.top ? (target.anchors || []).find((anchor) => anchor.id === from.id) : null;
-  let want = (max * top) / Math.max(1, source.scrollHeight - source.viewport);
+  const line = sourceMax > 0 ? (top * source.scrollHeight) / sourceMax : top;
+  const from = (source.anchors || []).find((anchor) => anchor.top + anchor.height > line);
+  const to = from && line >= from.top ? (target.anchors || []).find((anchor) => anchor.id === from.id) : null;
+  let want = (max * top) / Math.max(1, sourceMax);
 
-  if (to) {
-    const share = Math.min(1, Math.max(0, (top - from.top) / from.height));
+  if (to && target.scrollHeight > 0) {
+    const share = Math.min(1, Math.max(0, (line - from.top) / from.height));
 
-    want = to.top + share * to.height;
+    want = ((to.top + share * to.height) * max) / target.scrollHeight;
   }
 
   return Math.round(Math.min(max, Math.max(0, want)));

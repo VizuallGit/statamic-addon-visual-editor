@@ -230,49 +230,60 @@ const MOBILE = {
   ],
 };
 
-test('synced scroll: the same section stands under the top edge, as far into it as in the source', () => {
-  // 40 % into b on desktop (700 + 0.4 × 500) is 40 % into b on mobile (1480 + 0.4 × 1200).
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, MOBILE), 1960);
-  // And back again.
-  assert.equal(syncedScrollTop({ ...MOBILE, scrollTop: 1960 }, DESKTOP), 900);
-  // The edge exactly on a section's top: that section's top.
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 1200 }, MOBILE), 2680);
-  // Header and footer are anchors too: halfway into the header.
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 50 }, MOBILE), 40);
+// The line a size is compared on, in its page's pixels: scrollTop × scrollHeight / max.
+const lineOf = (page, scrollTop) => (scrollTop * page.scrollHeight) / (page.scrollHeight - page.viewport);
+// Which anchor stands under that line, and how far into it.
+const under = (page, y) => { const a = page.anchors.find((anchor) => anchor.top + anchor.height > y); return a ? { id: a.id, share: (y - a.top) / a.height } : null; };
+
+test('synced scroll: the same section stands under the sliding line, as far into it as in the source', () => {
+  // Desktop 900 px down: the line is half way down the page (and the viewport); the target's line meets the same section at the same share.
+  const want = syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, MOBILE);
+  const src = under(DESKTOP, lineOf(DESKTOP, 900));
+  const got = under(MOBILE, lineOf(MOBILE, want));
+
+  assert.equal(got.id, src.id);
+  assert.ok(Math.abs(got.share - src.share) < 0.002, `${got.share} vs ${src.share}`);
+  // And back again, to the pixel.
+  assert.equal(syncedScrollTop({ ...MOBILE, scrollTop: want }, DESKTOP), 900);
+  // The ends meet: the top of the page is the top, the end of the page is the end.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 0 }, MOBILE), 0);
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 1800 }, MOBILE), 4600);
+  assert.equal(syncedScrollTop({ ...MOBILE, scrollTop: 4600 }, DESKTOP), 1800);
+  // Scrolling down never scrolls the follower up.
+  let last = -1;
+
+  for (let top = 0; top <= 1800; top += 25) {
+    const next = syncedScrollTop({ ...DESKTOP, scrollTop: top }, MOBILE);
+
+    assert.ok(next >= last, `${top}: ${next} after ${last}`);
+    last = next;
+  }
 });
 
 test('synced scroll: a section the target does not have falls back to the same share of the page', () => {
-  const noB = { ...MOBILE, anchors: MOBILE.anchors.filter((anchor) => anchor.id !== 'b') };
+  const noC = { ...MOBILE, anchors: MOBILE.anchors.filter((anchor) => anchor.id !== 'c') };
 
-  // 900 of desktop's 1800 scrollable pixels: half of mobile's 4600.
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, noB), 2300);
+  // 900 of desktop's 1800 scrollable pixels (the line is in c): half of mobile's 4600.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, noC), 2300);
 });
 
-test('synced scroll: an edge above the first anchor, or no anchors at all, goes by share too', () => {
-  const late = { ...DESKTOP, anchors: [{ id: 'a', top: 400, height: 600 }] };
+test('synced scroll: a line above the first anchor, or no anchors at all, goes by share too', () => {
+  const late = { ...DESKTOP, anchors: [{ id: 'c', top: 1200, height: 1300 }] };
 
-  // The edge at 200 is above a's top (400): a fraction of 1800, not of a.
+  // The line at 300 (200 of 1800 → 300 of 2700) is above c: a share of 1800, not of c.
   assert.equal(syncedScrollTop({ ...late, scrollTop: 200 }, MOBILE), Math.round((4600 * 200) / 1800));
   assert.equal(syncedScrollTop({ ...DESKTOP, anchors: [], scrollTop: 450 }, { ...MOBILE, anchors: [] }), 1150);
-  // Past the last anchor: by share as well.
-  assert.equal(syncedScrollTop({ scrollTop: 300, scrollHeight: 1000, viewport: 400, anchors: [{ id: 'a', top: 0, height: 200 }] }, { scrollHeight: 2200, viewport: 400, anchors: [{ id: 'a', top: 0, height: 900 }] }), 900);
   // A source that cannot scroll is at share 0, not a division by nothing.
   assert.equal(syncedScrollTop({ scrollTop: 0, scrollHeight: 500, viewport: 900, anchors: [] }, MOBILE), 0);
 });
 
 test('synced scroll: never past what the target can scroll, never above its top, whole pixels', () => {
-  // The source deep in its footer; the target's footer starts past its own end of scroll.
-  const short = { scrollHeight: 1000, viewport: 800, anchors: [{ id: 'chrome:footer', top: 900, height: 100 }] };
-
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 1800 }, short), 200);
-  // A target too short to scroll at all.
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, { scrollHeight: 600, viewport: 900, anchors: MOBILE.anchors }), 0);
+  // The source at its very end; a target too short to scroll at all.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 1800 }, { scrollHeight: 600, viewport: 900, anchors: MOBILE.anchors }), 0);
   // A target section that starts above the page (a negative top): no lower than 0.
-  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 100 }, { scrollHeight: 3000, viewport: 800, anchors: [{ id: 'a', top: -50, height: 10 }] }), 0);
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 10 }, { scrollHeight: 3000, viewport: 800, anchors: [{ id: 'chrome:header', top: -50, height: 10 }] }), 0);
   // Fractions round to a whole pixel.
-  const third = syncedScrollTop({ scrollTop: 100, scrollHeight: 1200, viewport: 900, anchors: [] }, { scrollHeight: 1900, viewport: 900, anchors: [] });
-
-  assert.equal(third, 333);
+  assert.equal(syncedScrollTop({ scrollTop: 100, scrollHeight: 1200, viewport: 900, anchors: [] }, { scrollHeight: 1900, viewport: 900, anchors: [] }), 333);
   assert.ok(Number.isInteger(syncedScrollTop({ ...DESKTOP, scrollTop: 777 }, MOBILE)));
 });
 
