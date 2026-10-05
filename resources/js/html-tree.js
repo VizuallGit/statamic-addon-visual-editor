@@ -1919,6 +1919,10 @@ export function renderHtmlTree(win) {
     applyAntlersEdit(win, (html, row) =>
       writeLoopTag(html, row, { limit: String(value || '').replace(/\D/g, '') })
     );
+  htmlTreeUi.onLoopOffset = (value) =>
+    applyAntlersEdit(win, (html, row) =>
+      writeLoopTag(html, row, { offset: String(value || '').replace(/\D/g, '') })
+    );
   // The publish form is the Control Panel's own components, so it gets an app
   // that can see them. The inspector says when its placeholder is there.
   htmlTreeUi.onPropHost = (el) => (el ? callValues.mount(el) : callValues.unmount());
@@ -3652,10 +3656,17 @@ function paintHtmlTreeInspector(win, row) {
           { id: 'random', label: t(win, 'antlers_sort_random') },
         ],
       },
+      // Paginated, the limit is how many go on each page — the same parameter,
+      // a different promise, so it says which.
       limit: {
-        title: t(win, 'antlers_limit'),
+        title: t(win, row.paginate ? 'antlers_limit_per_page' : 'antlers_limit'),
         value: row.limit || '',
         placeholder: t(win, 'antlers_limit_placeholder'),
+      },
+      offset: {
+        title: t(win, 'antlers_offset'),
+        value: row.offset || '',
+        placeholder: t(win, 'antlers_offset_placeholder'),
       },
       branches: [],
     };

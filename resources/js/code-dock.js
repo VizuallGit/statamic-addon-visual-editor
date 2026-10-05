@@ -198,6 +198,9 @@ export const HTML_TOOLS = [
   // the preview would break between clicking the button and typing. The caret
   // sits on that placeholder, selected, so typing still replaces it.
   { id: 'loop', title: 'loop', snippet: '{{ items }}\n\n{{ /items }}\n', caret: 3, select: 5 },
+  // Not a new element: pages for the collection loop the caret is in, on or
+  // off. Greyed out anywhere else (see paintHtmlToolState).
+  { id: 'pagination', title: 'pagination', action: 'pagination' },
   { id: 'if', title: 'if', snippet: '{{ if true }}\n\n{{ /if }}\n', caret: 6, select: 4 },
 ];
 export const CSS_SPACING = [

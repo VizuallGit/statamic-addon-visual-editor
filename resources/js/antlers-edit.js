@@ -49,9 +49,10 @@ export function writeLoopSource(html, node, kind, value) {
  * broken template.
  *
  * The two kinds say the same things differently — measured, not assumed. A
- * collection takes tag parameters (`sort="title:desc" limit="3"`); a field loop
- * ignores those and needs modifiers (`| sort:title | reverse | limit:3`). Only
- * this function knows that; everywhere else there is one shape.
+ * collection takes tag parameters (`sort="title:desc" limit="3" offset="2"`); a
+ * field loop ignores those and needs modifiers
+ * (`| sort:title | reverse | offset:2 | limit:3`). Only this function knows
+ * that; everywhere else there is one shape.
  *
  * Options left out keep what the tag already had, so changing the sort does not
  * quietly drop the limit.
@@ -78,6 +79,7 @@ export function writeLoopTag(html, node, changes = {}) {
   const dir = changes.sortDir ?? node.sortDir ?? '';
   const field = String(changes.sortField ?? node.sortField ?? '').trim();
   const limit = String(changes.limit ?? node.limit ?? '').trim();
+  const offset = String(changes.offset ?? node.offset ?? '').trim();
   const depth = String(changes.navDepth ?? node.navDepth ?? '').trim();
   const includeHome = changes.includeHome ?? node.includeHome ?? false;
   const range = closingRange(text, node);
@@ -94,10 +96,10 @@ export function writeLoopTag(html, node, changes = {}) {
   const params = kind === current ? node.params : '';
   const open =
     kind === 'collection'
-      ? collectionTag(name, field, dir, limit, params)
+      ? collectionTag(name, field, dir, limit, offset, params)
       : kind === 'nav'
         ? navTag(name, depth, includeHome, params)
-        : fieldTag(name, field, dir, limit, params);
+        : fieldTag(name, field, dir, limit, offset, params);
   // `nav` closes plainly for the same reason `collection` does: the source is
   // written as a parameter, so `{{ /nav }}` is the right end of the pair
   // whichever structure it reads.
@@ -112,11 +114,13 @@ export function writeLoopTag(html, node, changes = {}) {
   );
 }
 
-function collectionTag(handle, field, dir, limit, params) {
-  // Anything the site put on the tag that is not ours to manage stays.
+function collectionTag(handle, field, dir, limit, offset, params) {
+  // Anything the site put on the tag that is not ours to manage stays —
+  // `paginate` and `as` included: writeLoopPagination owns those.
   const kept = stripFrom(params)
     .replace(/\bsort\s*=\s*["'][^"']*["']/g, '')
     .replace(/\blimit\s*=\s*["']?\d+["']?/g, '')
+    .replace(/\boffset\s*=\s*["']?\d+["']?/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -136,6 +140,12 @@ function collectionTag(handle, field, dir, limit, params) {
 
   if (limit) {
     parts.push(`limit="${limit}"`);
+  }
+
+  // A tag parameter, so its place among the others means nothing: Statamic
+  // skips first and counts after, whichever is written first.
+  if (offset) {
+    parts.push(`offset="${offset}"`);
   }
 
   if (kept) {
@@ -183,7 +193,7 @@ function navTag(handle, depth, includeHome, params) {
   return `{{ ${parts.join(' ')} }}`;
 }
 
-function fieldTag(name, field, dir, limit, params) {
+function fieldTag(name, field, dir, limit, offset, params) {
   const kept = String(params || '')
     .split('|')
     .map((part) => part.trim())
@@ -196,7 +206,8 @@ function fieldTag(name, field, dir, limit, params) {
         !/^sort\s*:/.test(part) &&
         !/^reverse$/.test(part) &&
         !/^shuffle$/.test(part) &&
-        !/^limit\s*:/.test(part)
+        !/^limit\s*:/.test(part) &&
+        !/^offset\s*:/.test(part)
     );
 
   const parts = [name, ...kept];
@@ -209,6 +220,14 @@ function fieldTag(name, field, dir, limit, params) {
     if (dir === 'desc') {
       parts.push('reverse');
     }
+  }
+
+  // Before the limit, not after it. Modifiers run in the order they are
+  // written, so `| limit:3 | offset:2` takes three and then drops two — one
+  // item, where the panel promised three after the first two. The collection
+  // tag means the latter, and both kinds have to mean the same thing.
+  if (offset) {
+    parts.push(`offset:${offset}`);
   }
 
   if (limit) {
@@ -239,6 +258,149 @@ function closingRange(text, node) {
 
 function renameLoop(text, node, next) {
   return writeLoopTag(text, node, { name: next });
+}
+
+/** What a paginated body ends with: the pager, drawn by the site's component. */
+const PAGER = '{{ paginate }}{{ partial:components/pagination }}{{ /paginate }}';
+
+/** Entries to a page when the loop had no limit of its own. */
+const PAGE_SIZE = 12;
+
+/**
+ * Turn a collection loop's pages on or off.
+ *
+ * Pagination is three edits that only work together, which is why it is one
+ * function and not a parameter on writeLoopTag. A paginated collection does
+ * not loop its body: it hands the body one list under the `as` name
+ * (`entries` when there is none) and a `paginate` array beside it. So the tag
+ * gets `paginate="true" as="entries"`, the body is wrapped in `{{ entries }}`,
+ * and the pager goes in a `{{ paginate }}` pair where its links are. The
+ * parameter without the wrapper draws the body once, with no entry in it.
+ *
+ * Only the open tag is rewritten, in place, never rebuilt: the pair keeps the
+ * spelling the site gave it — `{{ collection:blog }}` still closes with
+ * `{{ /collection:blog }}` — and every other parameter stays where it was.
+ * `limit` is the page size from here on; the two must never both be numbers.
+ *
+ * On twice is on, and off undoes on line for line. Anything but a collection
+ * comes back unchanged — a field loop has nothing to page.
+ */
+export function writeLoopPagination(html, node, on) {
+  const text = String(html || '');
+
+  if (!node || node.loopKind !== 'collection' || (!on && !node.paginate)) {
+    return text;
+  }
+
+  const range = closingRange(text, node);
+
+  if (!range) {
+    return text;
+  }
+
+  const alias = /^[A-Za-z_][A-Za-z0-9_]*$/.test(node.alias || '') ? node.alias : 'entries';
+  const tag = text
+    .slice(node.from, node.openTo)
+    .replace(/\s+paginate\s*=\s*["'][^"']*["']/g, '')
+    .replace(/\s+as\s*=\s*["'][^"']*["']/g, '');
+  const body = text.slice(node.openTo, range.from);
+  // `paginate="true"` without a `limit` is no pagination at all in Statamic:
+  // every entry on one page, and the pager draws nothing. So a loop that had
+  // no limit gets a page size, and keeps it when pages go off again — the
+  // limit is the panel's to show and change, not this toggle's to own.
+  const sized = on && !/\blimit\s*=/.test(tag) ? ` limit="${PAGE_SIZE}"` : '';
+  const open = on ? tag.replace(/\s*\}\}$/, `${sized} paginate="true" as="${alias}" }}`) : tag;
+  const inner = on
+    ? pagedBody(body, alias, lineIndent(text, node.from))
+    : unpagedBody(body, alias);
+
+  return text.slice(0, node.from) + open + inner + text.slice(range.from);
+}
+
+/**
+ * The body with its entries wrapped and the pager after them — each only when
+ * it is not already there, so a loop that had `as="…"` keeps the wrapper it
+ * was written with.
+ */
+function pagedBody(body, alias, base) {
+  const indent = bodyIndent(body, base);
+  let inner = body.trim();
+
+  if (!pairIn(body, alias)) {
+    inner = `{{ ${alias} }}${inner ? `\n${indent}${inner}` : ''}\n${indent}{{ /${alias} }}`;
+  }
+
+  if (!/\{\{\s*paginate\s*\}\}/.test(body)) {
+    inner = `${inner}\n${indent}${PAGER}`;
+  }
+
+  return `\n${indent}${inner}\n${base}`;
+}
+
+/** The body with the pager gone and the entries wrapper taken off. */
+function unpagedBody(body, alias) {
+  let out = body;
+  const pager = out.match(/\{\{\s*paginate\s*\}\}[\s\S]*?\{\{\s*\/\s*paginate\s*\}\}/);
+
+  if (pager) {
+    out = cut(out, pager.index, pager.index + pager[0].length);
+  }
+
+  const pair = pairIn(out, alias);
+
+  // The closing end first, so the opening end's offsets still hold.
+  if (pair) {
+    out = cut(out, pair.close.from, pair.close.to);
+    out = cut(out, pair.open.from, pair.open.to);
+  }
+
+  return out;
+}
+
+/** The first `{{ name }} … {{ /name }}` pair in `text`, nesting counted. */
+function pairIn(text, name) {
+  const tag = new RegExp(`\\{\\{\\s*(\\/?)\\s*${name}\\s*\\}\\}`, 'g');
+  let open = null;
+  let depth = 0;
+  let match;
+
+  while ((match = tag.exec(text))) {
+    const span = { from: match.index, to: match.index + match[0].length };
+
+    if (!match[1]) {
+      open = open || span;
+      depth += 1;
+    } else if (open && (depth -= 1) === 0) {
+      return { open, close: span };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * A span taken out — with its line, when nothing else is on it, so turning
+ * pages off leaves no blank line where the wrapper stood. The body's first and
+ * last lines are never alone: the loop's own tags sit on them.
+ */
+function cut(text, from, to) {
+  const start = text.lastIndexOf('\n', from - 1) + 1;
+  const end = text.indexOf('\n', to);
+  const alone = start > 0 && end !== -1 && !text.slice(start, from).trim() && !text.slice(to, end).trim();
+
+  return alone ? text.slice(0, start - 1) + text.slice(end) : text.slice(0, from) + text.slice(to);
+}
+
+/** The indentation of the line `at` sits on. */
+function lineIndent(text, at) {
+  return (text.slice(0, at).split('\n').pop() || '').match(/^[ \t]*/)[0];
+}
+
+/** How far in the body's first written line sits, or one step in from the tag. */
+function bodyIndent(body, base) {
+  const line = body.split('\n').slice(1).find((item) => item.trim());
+
+  return line ? line.match(/^[ \t]*/)[0] : `${base}  `;
 }
 
 /**

@@ -160,6 +160,7 @@ export const htmlTreeUi = reactive({
   onLoopSortField: null,
   onLoopSortDir: null,
   onLoopLimit: null,
+  onLoopOffset: null,
   inspect: null,
   onInspectCommit: null,
   onLoopKind: null,

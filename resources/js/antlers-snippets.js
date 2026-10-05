@@ -31,6 +31,9 @@ export const ANTLERS_SNIPPETS = [
   { id: 'loop', group: 'loops', label: 'loop', snippet: '{{ |items }}\n  {{ title }}\n{{ /items }}' },
   { id: 'collection', group: 'loops', label: 'collection', snippet: '{{ collection from="|handle" }}\n  {{ title }}\n{{ /collection }}' },
   { id: 'collection_as', group: 'loops', label: 'collection as', snippet: '{{ collection from="|handle" as="entries" }}\n  {{ if no_results }}\n    \n  {{ /if }}\n  {{ entries }}\n    {{ title }}\n  {{ /entries }}\n{{ /collection }}' },
+  // Pages: `limit` is how many to a page, and the pager is the site's own
+  // components/pagination, inside the `{{ paginate }}` pair it reads from.
+  { id: 'collection_paginate', group: 'loops', label: 'collection paginate', snippet: '{{ collection from="|handle" paginate="true" limit="12" as="entries" }}\n  {{ entries }}\n    {{ title }}\n  {{ /entries }}\n  {{ paginate }}{{ partial:components/pagination }}{{ /paginate }}\n{{ /collection }}' },
   { id: 'foreach', group: 'loops', label: 'foreach', snippet: '{{ foreach:|items }}\n  {{ key }}: {{ value }}\n{{ /foreach:items }}' },
   // Navigation: the tree by handle, the page being viewed marked; with the
   // home page in front of it; one level down; the way here.

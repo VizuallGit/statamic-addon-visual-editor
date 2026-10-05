@@ -280,6 +280,19 @@ function pickSortField(event) {
           @keydown.enter.prevent="ui.onLoopLimit?.($event.target.value)"
           @blur="ui.onLoopLimit?.($event.target.value)"
         >
+
+        <div class="sve-ht-inspect__head sve-ht-inspect__head--sub">{{ ui.inspect.offset.title }}</div>
+        <input
+          :key="ui.inspect.key + ':offset'"
+          type="number"
+          min="0"
+          :value="ui.inspect.offset.value"
+          :placeholder="ui.inspect.offset.placeholder"
+          :disabled="!ui.canEdit"
+          @keydown.stop
+          @keydown.enter.prevent="ui.onLoopOffset?.($event.target.value)"
+          @blur="ui.onLoopOffset?.($event.target.value)"
+        >
       </template>
 
       <div v-if="ui.inspect.branches?.length" class="sve-ht-inspect__add">

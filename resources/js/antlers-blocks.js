@@ -44,6 +44,9 @@ export const NOT_A_LOOP = new Set([
   'script_push',
   'visual_edit',
   'responsive_css',
+  // Not a loop of its own: the pager a paginated collection hands its body.
+  // Given a row, it would read as a second loop inside the first.
+  'paginate',
 ]);
 
 const TAG = /\{\{\s*(\/?)\s*([A-Za-z_][A-Za-z0-9_.-]*)((?::[^\s}]*)?[\s\S]*?)\}\}/g;
@@ -104,21 +107,28 @@ export function navOptions(rest) {
  * How a loop is sorted and how much of it renders.
  *
  * The two kinds of loop say this in different languages, measured rather than
- * assumed: a collection takes `sort="title:desc" limit="3"` as tag parameters,
- * while a field loop ignores those and needs modifiers — `| sort:title`,
- * `| reverse`, `| shuffle`, `| limit:3`. Both are read here into one shape so
- * the panel only has to know one.
+ * assumed: a collection takes `sort="title:desc" limit="3" offset="2"` as tag
+ * parameters, while a field loop ignores those and needs modifiers —
+ * `| sort:title`, `| reverse`, `| shuffle`, `| limit:3`, `| offset:2`. Both are
+ * read here into one shape so the panel only has to know one.
  *
- * @returns {{sortField: string, sortDir: string, limit: string}}
+ * Only a collection pages. `paginate` is on for `paginate="true"` and for the
+ * older `paginate="12"`, which Statamic still reads as twelve to a page; the
+ * alias is what `as="…"` names, because a paginated body loops over that.
+ *
+ * @returns {{sortField: string, sortDir: string, limit: string, offset: string, paginate: boolean, alias: string}}
  *   `sortDir` is 'asc', 'desc', 'random', or '' for unsorted.
  */
 export function loopOptions(rest, collection) {
   const raw = String(rest || '');
-  const out = { sortField: '', sortDir: '', limit: '' };
+  const out = { sortField: '', sortDir: '', limit: '', offset: '', paginate: false, alias: '' };
 
   if (collection) {
     const sort = raw.match(/\bsort\s*=\s*["']([^"']*)["']/);
     const limit = raw.match(/\blimit\s*=\s*["']?(\d+)["']?/);
+    const offset = raw.match(/\boffset\s*=\s*["']?(\d+)["']?/);
+    const paginate = raw.match(/(?:^|\s)paginate\s*=\s*["']([^"']*)["']/);
+    const alias = raw.match(/(?:^|\s)as\s*=\s*["']([^"']*)["']/);
 
     if (sort) {
       const value = sort[1].trim();
@@ -139,11 +149,19 @@ export function loopOptions(rest, collection) {
       out.limit = limit[1];
     }
 
+    if (offset) {
+      out.offset = offset[1];
+    }
+
+    out.paginate = !!paginate && /^(?:true|[1-9]\d*)$/i.test(paginate[1].trim());
+    out.alias = alias ? alias[1].trim() : '';
+
     return out;
   }
 
   const sort = raw.match(/\|\s*sort\s*:\s*([A-Za-z_][A-Za-z0-9_.-]*)/);
   const limit = raw.match(/\|\s*limit\s*:\s*(\d+)/);
+  const offset = raw.match(/\|\s*offset\s*:\s*(\d+)/);
 
   if (/\|\s*shuffle\b/.test(raw)) {
     out.sortDir = 'random';
@@ -154,6 +172,10 @@ export function loopOptions(rest, collection) {
 
   if (limit) {
     out.limit = limit[1];
+  }
+
+  if (offset) {
+    out.offset = offset[1];
   }
 
   return out;

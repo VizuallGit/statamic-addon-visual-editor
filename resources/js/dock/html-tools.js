@@ -18,6 +18,10 @@ import { CSS_ADD_ICON, CSS_MENU_ID, DOCK_ID, HTML_HEADINGS, HTML_TOOLS, editors,
 import { onEditorInput } from './save.js';
 import { closeCssMenu, indentFromPrevious, lineIndentOf, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssScope, flushCssScope, rememberBracketNames, rememberCssSelectors } from './scope.js';
+import { findAntlersBlocks } from '../antlers-blocks.js';
+import { writeLoopPagination } from '../antlers-edit.js';
+import { locksKept } from '../html-tree-parse.js';
+import { minimalChange } from '../lib/minimal-change.js';
 
 // ===== html-tools =====
 function cssChrome(dock) {
@@ -396,6 +400,79 @@ export function applyHtmlTag(tag) {
   finishHtmlEdit();
 }
 
+/**
+ * The innermost collection loop around `pos`, or null.
+ *
+ * Read from the pane's own text, not the whole file. A scoped pane holds one
+ * element, and a loop that opens outside it cannot be rewritten from here: the
+ * edit would land in text the pane does not hold, and the scope's range would
+ * not survive an edit made on both sides of it (dock-api's shiftFocus follows
+ * one). Outside the pane is outside the button's reach — it greys out.
+ */
+function collectionLoopAt(text, pos) {
+  let found = null;
+
+  // Outermost first, so the last one that still holds the caret is innermost.
+  for (const block of findAntlersBlocks(text)) {
+    if (block.kind === 'loop' && block.loopKind === 'collection' && block.from <= pos && pos < block.to) {
+      found = block;
+    }
+  }
+
+  return found;
+}
+
+function collectionLoopAtCaret() {
+  const view = editors.html;
+
+  return view ? collectionLoopAt(view.state.doc.toString(), view.state.selection.main.head) : null;
+}
+
+/**
+ * Pages on or off for the collection loop the caret is in (antlers-edit's
+ * writeLoopPagination does the writing).
+ *
+ * All or nothing. The edit spans the loop from its tag to its end, so the
+ * padlock's filter — which drops the part of a change that touches a locked
+ * element — would keep the tag and lose the wrapper, or the other way round.
+ * So it is dispatched as the dock's own edit, and refused whole when a locked
+ * element would not survive it, the way dock:set-html refuses.
+ *
+ * Only the span that differs is replaced (lib/minimal-change): a caret outside
+ * the loop stays where it was, one inside lands on the loop's own tag.
+ */
+export function toggleHtmlPagination() {
+  const view = editors.html;
+
+  if (!view || view.state.readOnly) {
+    return;
+  }
+
+  const text = view.state.doc.toString();
+  const loop = collectionLoopAt(text, view.state.selection.main.head);
+
+  if (!loop) {
+    return;
+  }
+
+  const next = writeLoopPagination(text, loop, !loop.paginate);
+
+  if (next === text) {
+    return;
+  }
+
+  if (!locksKept(text, next)) {
+    dockState.lastWin?.Statamic?.$toast?.error(t(dockState.lastWin, 'html_tree_locked_element'));
+
+    return;
+  }
+
+  const [from, to, insert] = minimalChange(text, next);
+
+  dispatchHtmlChanges(view, [{ from, to, insert }]);
+  finishHtmlEdit();
+}
+
 export function paintHtmlToolState(win) {
   try {
     paintHtmlToolStateInner(win);
@@ -413,6 +490,10 @@ function paintHtmlToolStateInner(win) {
     return;
   }
 
+  // Pagination answers to the loop around the caret, not to the tag under it:
+  // lit when that loop already pages, greyed out outside a collection loop.
+  const loop = collectionLoopAtCaret();
+
   for (const tool of HTML_TOOLS) {
     const btn = dock.querySelector(`[data-sve-html-tool="${tool.id}"]`);
 
@@ -420,7 +501,12 @@ function paintHtmlToolStateInner(win) {
       continue;
     }
 
-    const on = tool.id === 'heading' ? isHeadingTag(tag) : tag === tool.tag;
+    const paging = tool.action === 'pagination';
+    const on = paging ? !!loop?.paginate : tool.id === 'heading' ? isHeadingTag(tag) : tag === tool.tag;
+
+    if (paging) {
+      btn.disabled = !loop;
+    }
 
     if (on) {
       btn.setAttribute('data-active', '');

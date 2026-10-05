@@ -296,13 +296,10 @@ export function ensureStyle(doc) {
   background: rgba(56,189,248,.16);
 }
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-values-mode],
-#${DOCK_ID}[data-sve-style="tw"] [data-sve-css-all],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-css-all] {
+#${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode] {
   display: none;
 }
 #${DOCK_ID} [data-sve-values-mode],
-#${DOCK_ID} [data-sve-css-all],
 #${DOCK_ID} [data-sve-style-mode] {
   all: unset;
   cursor: pointer;
@@ -321,13 +318,11 @@ export function ensureStyle(doc) {
   white-space: nowrap;
 }
 #${DOCK_ID} [data-sve-values-mode]:hover,
-#${DOCK_ID} [data-sve-css-all]:hover,
 #${DOCK_ID} [data-sve-style-mode]:hover {
   opacity: 1;
   background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-values-mode][aria-pressed="true"],
-#${DOCK_ID} [data-sve-css-all][aria-pressed="true"],
 #${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
   opacity: 1;
   color: #7dd3fc;
@@ -778,6 +773,23 @@ export function ensureStyle(doc) {
 #${DOCK_ID} [data-sve-html-tool="loop"]:hover,
 #${DOCK_ID} [data-sve-html-tool="loop"][data-open] {
   background: color-mix(in srgb, var(--sve-fam-loop) 28%, transparent);
+}
+/* Pages belong to a loop, so they wear its colour. Lit while the loop the
+   caret is in already pages; greyed out outside a collection loop, where the
+   button has nothing to act on. */
+#${DOCK_ID} [data-sve-html-tool="pagination"] {
+  color: var(--sve-fam-loop);
+  background: color-mix(in srgb, var(--sve-fam-loop) 15%, transparent);
+  opacity: 1;
+}
+#${DOCK_ID} [data-sve-html-tool="pagination"]:hover,
+#${DOCK_ID} [data-sve-html-tool="pagination"][data-active] {
+  background: color-mix(in srgb, var(--sve-fam-loop) 28%, transparent);
+}
+#${DOCK_ID} [data-sve-html-tool="pagination"][disabled] {
+  background: transparent;
+  opacity: .35;
+  cursor: default;
 }
 #${DOCK_ID} [data-sve-html-tool="if"] {
   color: var(--sve-fam-if);
