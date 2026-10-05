@@ -51,6 +51,17 @@
  * too: it zooms the page down inside the preview, as in one preview. For
  * either, the row only brings the active frame into view, sideways.
  *
+ * The row's zoom has no control on the layer. While the overview is open the
+ * top bar's zoom group — minus, the percent, plus, and a "Fit all" that only
+ * the overview shows (cp-shell/block-order.js) — drives it through
+ * `overviewZoom` and reads it through `overviewZoomLevel`, and every change,
+ * whatever made it (a button, ctrl/wheel, a pinch, "Fit all", a resize), is
+ * told to the CP window as `sve:overview-zoom` with the percent to show — and
+ * null on close, when the group is the preview's own zoom again. Until 5 Oct
+ * 2026 the row had a floating zoom bar of its own at the bottom right, and the
+ * top bar's zoom did nothing while it was open (the preview's scale is the
+ * slot's then): two zoom controls side by side, one of them dead.
+ *
  * Closed, it costs nothing. Everything `openBreakpointOverview` binds —
  * listeners, the ResizeObserver, the sync's animation frame — is a function
  * in `overviewState.cleanups`, and `closeBreakpointOverview` runs them, blanks
@@ -113,10 +124,13 @@
  * `load` on the pane (capture), `sve:breakpoint` and `keydown` on the CP
  * window, `wheel` and `input` (capture) on the preview's document, `message`,
  * `scroll` and `sve:inline-edit-end` on its window — and `__sveMirror` on the
- * preview's window.
+ * preview's window. It dispatches `sve:overview-zoom` on the CP window and
+ * listens for none: the top bar's listener is block-order.js's own.
  *
- * The whole feature, to remove it without a trace: this file; the button in
- * cp-shell/block-order.js; `breakpoint_overview` in Features::KEYS and in
+ * The whole feature, to remove it without a trace: this file; the button and
+ * the overview branch of the zoom group in cp-shell/block-order.js (the "Fit
+ * all" button, `lpOverviewZoom` and its `sve:overview-zoom` listener);
+ * `breakpoint_overview` in Features::KEYS and in
  * resources/blueprints/settings.yaml; `sve_view` in InjectBridgeScript;
  * mirror.js and scripts/vite-mirror-graph.js; the `__sveMirror` line in
  * preview.js; `SVE_MIRROR` and `MIRRORED` in lib/protocol.js; `previewCopies`
@@ -164,6 +178,7 @@ const LABEL_REM = 2;
 /** What applyLpDevice gives the base size when the config names no width for it. */
 const BASE_WIDTH = 1440;
 
+/** The row's zoom bounds; the top bar's zoom group reads them too, to switch its minus and plus off at the ends. */
 export const ZOOM_MIN = 0.05;
 export const ZOOM_MAX = 2;
 const ZOOM_STEPS = [0.1, 0.15, 0.2, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.5, 2];
@@ -175,11 +190,6 @@ const SIZE_BLUE = 'rgb(96, 165, 250)';
 /** The sizes menu (a right-click on the overview button): its portal and its `<style>`, both only while it is open. */
 const MENU_ID = '__sve-bp-sizes-menu';
 const MENU_STYLE_ID = '__sve-bp-sizes-menu-style';
-
-const MINUS_ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>';
-const PLUS_ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>';
 
 // --- Pure helpers (tests/js/breakpoint-overview.test.js) ----------------------
 
@@ -532,7 +542,7 @@ function emptyState() {
     scroller: null,
     sizer: null,
     canvas: null,
-    level: null,
+    zoomTold: null, // the percent the top bar was last told (tellZoom); null until the first
     main: null, // the preview iframe whose renders the frames mirror
     unbindMain: null,
     render: null, // the last render the preview handed over (see mirror)
@@ -658,9 +668,36 @@ export function closeBreakpointOverview(win) {
   }
 }
 
+/**
+ * The top bar's zoom group, while the overview is open (cp-shell/block-order.js):
+ * `action` is 'in' or 'out' (a step on the ladder), 'fit' (every frame in
+ * view) or 'actual' (100 %). Closed, nothing happens.
+ */
+export function overviewZoom(_win, action) {
+  if (overviewState.layer) {
+    zoomAction(action);
+  }
+}
+
+/** The row's zoom as the top bar shows it — a whole percent — or null while the overview is closed. */
+export function overviewZoomLevel(_win) {
+  return overviewState.layer ? Math.round(overviewState.zoom * 100) : null;
+}
+
+/**
+ * The top bar shows the row's zoom while the overview is open: it hears the
+ * percent on the CP window, and null when the overview has closed. Dispatched
+ * only, nothing bound — the listener is the top bar's.
+ */
+function tellZoom(win, percent) {
+  win?.dispatchEvent(new CustomEvent('sve:overview-zoom', { detail: { percent } }));
+}
+
 /** Undo everything open did, last bound first, and forget it. */
 function teardown(win) {
   const state = overviewState;
+  const owner = state.win || win;
+  const told = state.zoomTold;
 
   stopGlide();
 
@@ -679,8 +716,15 @@ function teardown(win) {
 
   state.layer?.remove();
   state.styles.forEach((style) => style.remove());
-  paintButton(state.win || win, false);
+  paintButton(owner, false);
   Object.assign(overviewState, emptyState());
+
+  // Last, with the state empty: the top bar paints the preview's own zoom back
+  // and, should it ask, finds the overview closed. Not told anything, it was
+  // never showing the row's zoom.
+  if (told !== null) {
+    tellZoom(owner, null);
+  }
 }
 
 // --- Building ----------------------------------------------------------------------
@@ -726,40 +770,14 @@ function build(win, host, specs) {
 
   sizer.appendChild(canvas);
   scroller.appendChild(sizer);
-  layer.append(scroller, zoomBar(win, doc));
+  layer.appendChild(scroller);
   Object.assign(overviewState, { layer, scroller, sizer, canvas });
 
-  // In the DOM before any frame gets a src; sized before the first paint.
+  // In the DOM before any frame gets a src; sized before the first paint. The
+  // first zoom is the first the top bar hears of the row (applyZoom).
   host.appendChild(layer);
   place();
   applyZoom(fitZoom(scroller.clientWidth, widths()));
-}
-
-function zoomBar(win, doc) {
-  const bar = make(doc, 'div', 'sve-bpo-zoom');
-  const button = (action, title, fill) => {
-    const btn = doc.createElement('button');
-
-    btn.type = 'button';
-    btn.dataset.bpo = action;
-    btn.title = title;
-    fill(btn);
-    listen(btn, 'click', () => zoomAction(action));
-
-    return btn;
-  };
-
-  const level = button('actual', t(win, 'bp_overview_actual'), () => {});
-
-  overviewState.level = level;
-  bar.append(
-    button('out', t(win, 'zoom_out'), (btn) => { btn.innerHTML = MINUS_ICON; }),
-    level,
-    button('in', t(win, 'zoom_in'), (btn) => { btn.innerHTML = PLUS_ICON; }),
-    button('fit', t(win, 'bp_overview_fit'), (btn) => { btn.textContent = t(win, 'bp_overview_fit'); })
-  );
-
-  return bar;
 }
 
 /** Statamic's gutter colour as it is drawn: the pane's own, or the first ancestor that has one. */
@@ -792,10 +810,6 @@ ${L} .sve-bpo-frame { transition: opacity .15s; }
 ${L} .sve-bpo-canvas[data-dim] .sve-bpo-item:not([data-active]) .sve-bpo-frame { opacity: ${DIM_OPACITY}; }
 ${L} .sve-bpo-frame { display: block; border: 0; background: #fff; }
 ${L} .sve-bpo-item[data-active] .sve-bpo-frame { outline: calc(${RING_PX}px / var(--z)) solid ${SIZE_BLUE}; outline-offset: calc(${RING_PX}px / var(--z)); }
-${L} .sve-bpo-zoom { position: absolute; right: .75rem; bottom: .75rem; pointer-events: auto; display: inline-flex; align-items: center; gap: .125rem; padding: .25rem; border-radius: .5rem; background: rgba(24, 24, 27, .9); color: #fafafa; box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .3); font-size: .75rem; line-height: 1; }
-${L} .sve-bpo-zoom button { box-sizing: border-box; min-width: 1.75rem; height: 1.75rem; padding: 0 .5rem; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: .375rem; background: transparent; color: inherit; font: inherit; font-weight: 500; white-space: nowrap; cursor: pointer; }
-${L} .sve-bpo-zoom button:hover { background: rgba(255, 255, 255, .12); }
-${L} .sve-bpo-zoom svg { width: 1.25em; height: 1.25em; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} { background: ${LP_PRIMARY_FLAT} !important; color: #fff !important; opacity: 1 !important; }
 #${LP_PREVIEW_CHROME_ID} [data-overview].${ON_CLASS} svg { opacity: 1; }
 `;
@@ -854,12 +868,14 @@ function floorHeight() {
  * measured by. Every frame shown is as high as the view at this zoom — a
  * viewport its page scrolls in — so the row is exactly as high as the view
  * and pans sideways only. Floored: a pixel more would give it a vertical
- * scroll of its own.
+ * scroll of its own. Every zoom passes through here, whatever made it, so
+ * this is where the top bar is told the percent it shows — only when that
+ * changes: a resize at the same zoom tells it nothing.
  */
 function applyZoom(z) {
-  const { canvas, sizer, level, labelSpace } = overviewState;
+  const { canvas, sizer, labelSpace } = overviewState;
   const top = framesTop(z, labelSpace);
-  const percent = `${Math.round(z * 100)}%`;
+  const percent = Math.round(z * 100);
 
   overviewState.zoom = z;
 
@@ -875,12 +891,12 @@ function applyZoom(z) {
   setStyle(canvas, 'padding-top', `${top / z}px`);
   setStyle(sizer, 'width', `${Math.ceil(rowWidth(widths()) * z)}px`);
   setStyle(sizer, 'height', `${Math.floor(top + (height + PAD) * z)}px`);
-
-  if (level.textContent !== percent) {
-    level.textContent = percent;
-  }
-
   placePreview();
+
+  if (overviewState.zoomTold !== percent) {
+    overviewState.zoomTold = percent;
+    tellZoom(overviewState.win, percent);
+  }
 }
 
 /** Zoom to `next`, keeping the point at `anchor` (scroller pixels; default the middle) still — sideways, the row's only way to move. */
@@ -946,7 +962,9 @@ function placePreview() {
   const view = scroller.getBoundingClientRect();
 
   ask('lp:preview-slot', { win, slot: { left: rect.left, top: rect.top, width: entry.spec.width, height: entry.height, scale: zoom } });
-  // Cut in the scroller, not the layer: the zoom bar beside it stays whole and on top of the preview.
+  // Cut in the scroller, not the layer: the layer takes no pointer events of
+  // its own, the scroller paints the gutter and takes the clicks — the hole
+  // has to be in it for the preview beneath to show and be hit.
   setStyle(scroller, 'clip-path', holePolygon(view.width, view.height, { left: rect.left - view.left, top: rect.top - view.top, width: rect.width, height: rect.height }));
 }
 

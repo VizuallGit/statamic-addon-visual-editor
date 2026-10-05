@@ -22,6 +22,8 @@ import {
   labelColor,
   nearestSize,
   overviewFrames,
+  overviewZoom,
+  overviewZoomLevel,
   revealScroll,
   rowWidth,
   sizeLock,
@@ -388,6 +390,46 @@ test('it hangs nothing on its own window and registers nothing on the bus', () =
   // proof sees it gone after a close.
   assert.ok(!/window\.\w+\s*=/.test(code), 'assigns onto window');
   assert.ok(!/\bregister\(/.test(code), 'registers a bus handler');
+});
+
+// --- One zoom control: the top bar's zoom group drives the row -----------------
+
+test('closed, the top bar finds no row zoom to show or drive', () => {
+  const told = [];
+  const win = { dispatchEvent: (event) => told.push(event), location: { href: 'http://site.test/cp' } };
+
+  assert.equal(typeof overviewZoom, 'function');
+  assert.equal(typeof overviewZoomLevel, 'function');
+  assert.equal(overviewZoomLevel(win), null);
+
+  for (const action of ['in', 'out', 'fit', 'actual']) {
+    assert.doesNotThrow(() => overviewZoom(win, action));
+  }
+
+  assert.equal(overviewZoomLevel(win), null);
+  assert.deepEqual(told, [], 'told the top bar a zoom while closed');
+});
+
+test('the row has no zoom bar of its own any more: the top bar hears its zoom', () => {
+  for (const gone of ['sve-bpo-zoom', 'zoomBar', 'data-bpo', 'dataset.bpo', 'MINUS_ICON', 'PLUS_ICON']) {
+    assert.ok(!source.includes(gone), `breakpoint-overview.js still has ${gone}`);
+  }
+
+  // Dispatched only — the listener is the shell's, not one more of the overview's to clean up.
+  assert.ok(code.includes("'sve:overview-zoom'"), 'dispatches sve:overview-zoom');
+  assert.ok(!/(?:addEventListener|listen)\([^)]*'sve:overview-zoom'/.test(code), 'listens for its own zoom event');
+});
+
+test('the top bar\'s zoom group is the overview\'s while it is open, with a hidden "Fit all" until then', () => {
+  const shell = readFileSync(join(JS, 'cp-shell/block-order.js'), 'utf8');
+
+  assert.ok(shell.includes("win.addEventListener('sve:overview-zoom'"), 'block-order.js hears the overview\'s zoom');
+  assert.ok(shell.includes("zoomFit.dataset.zoom = 'fit'") && shell.includes("t(win, 'bp_overview_fit')"), 'a "Fit all" button in the zoom group');
+  assert.ok(shell.includes("fit.style.display = 'none'"), '"Fit all" is built hidden');
+
+  for (const action of ['in', 'out', 'fit', 'actual']) {
+    assert.ok(shell.includes(`overviewModule?.().then((m) => m.overviewZoom(win, '${action}'))`), `the zoom group drives the row's ${action} through the one loader`);
+  }
 });
 
 test('the layer id is the shared one: the paint script spells it, lib/preview-frame.js reads it', () => {

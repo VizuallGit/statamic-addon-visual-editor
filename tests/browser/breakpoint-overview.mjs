@@ -6,7 +6,10 @@
  * there and visible; closed, the overview costs nothing (no chunk fetched, no
  * extra iframe); open, there is one live view frame per breakpoint at its real
  * width, without the bridge, following what is typed on the left; zoom and pan
- * work; picking a size at 100 % scrolls the row so its frame is whole in view
+ * work, the zoom through the top bar's own zoom group (the row has no zoom bar
+ * of its own since 5 Oct 2026: open, the group's percent is the row's, minus
+ * and plus step it and a "Fit all" stands beside them; closed, it is the
+ * preview's zoom again); picking a size at 100 % scrolls the row so its frame is whole in view
  * (wider than the pane: left edge at the pane's left edge); and closing leaves
  * the editor exactly as it was — the preview frame's src, transform and
  * window, the iframe count and the event listeners.
@@ -71,6 +74,12 @@ const skip = (name, why) => console.log(`skip ${name} — ${why}`);
 
 const LAYER = '#__sve-bp-overview';
 const BUTTON = '#__sve-preview-chrome [data-overview]';
+// The top bar's zoom group: the row's zoom while the overview is open. Open, a
+// click on the percent is 100 %, and "Fit all" is there; closed, it is hidden.
+const ZOOM_IN = '#__sve-preview-chrome [data-zoom="in"]';
+const ZOOM_OUT = '#__sve-preview-chrome [data-zoom="out"]';
+const ZOOM_FIT = '#__sve-preview-chrome [data-zoom="fit"]';
+const ZOOM_LABEL = '#__sve-preview-chrome [data-zoom="label"]';
 
 // What the installed PHP knows. The flag and the strings ship with this feature; mirror.js came later.
 const INSTALLED_MIDDLEWARE = `${SITE_DIR}/vendor/statamic-addon/visual-editor/src/Http/Middleware/InjectBridgeScript.php`;
@@ -167,6 +176,26 @@ async function visible(frame, selector) {
     const hit = !!top && (top === el || el.contains(top));
     return { ok: r.width > 0 && r.height > 0 && cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0 && hit, why: `${Math.round(r.width)}x${Math.round(r.height)} at ${Math.round(r.x)},${Math.round(r.y)} display=${cs.display} visibility=${cs.visibility} opacity=${cs.opacity} hit=${hit ? 'itself' : top ? top.tagName.toLowerCase() + '.' + top.className : 'nothing'}` };
   }, selector);
+}
+
+/**
+ * The top bar's zoom group as it reads: the percent on the label, and whether
+ * "Fit all" is on screen — a box, displayed, and what a click at its centre
+ * hits — or not there to see at all.
+ */
+async function topZoom(frame) {
+  return frame.evaluate((labelSel, fitSel) => {
+    const fit = document.querySelector(fitSel);
+    const r = fit?.getBoundingClientRect();
+    const top = r && r.width > 0 && r.height > 0 ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
+    return {
+      label: document.querySelector(labelSel)?.textContent || '',
+      fit: !!top && (top === fit || fit.contains(top)),
+      fitBox: r ? `${Math.round(r.width)}x${Math.round(r.height)}` : 'none',
+      fitText: fit?.textContent || '',
+      ownBar: !!document.querySelector('.sve-bpo-zoom'),
+    };
+  }, ZOOM_LABEL, ZOOM_FIT);
 }
 
 function seedLayoutPrefs(prefs) {
@@ -359,6 +388,8 @@ try {
   step('closed costs nothing: no breakpoint-overview chunk fetched', chunkLoaded().length === 0, `${loadedAssets.size} build files so far`);
   const iframesBefore = await cp.evaluate(() => document.querySelectorAll('iframe').length);
   step('closed costs nothing: no layer, no extra iframe', !(await cp.$(LAYER)), `${iframesBefore} iframe(s) in the CP document`);
+  const zoomClosed = await topZoom(cp);
+  step('closed, the top bar’s zoom group has no "Fit all" to see, and there is no zoom bar of the overview’s', !zoomClosed.fit && !zoomClosed.ownBar, `fit ${zoomClosed.fitBox}, label "${zoomClosed.label}"`);
 
   // The preview frame as it is now; compared after closing. The marker lives on
   // its window, so a reload or a new window loses it.
@@ -425,12 +456,15 @@ try {
     const f = document.getElementById('live-preview-iframe');
     const r = f.getBoundingClientRect();
     const hit = document.elementFromPoint(slot.x + slot.width / 2, slot.y + Math.min(slot.height / 2, 200));
-    const zoomBtn = layer.querySelector('[data-bpo="in"]').getBoundingClientRect();
-    const zoomHit = document.elementFromPoint(zoomBtn.x + zoomBtn.width / 2, zoomBtn.y + zoomBtn.height / 2);
-    return { same: ['x', 'y', 'width', 'height'].every((k) => Math.abs(slot[k] - r[k]) <= 1), slot: `${Math.round(slot.x)},${Math.round(slot.y)} ${Math.round(slot.width)}x${Math.round(slot.height)}`, frame: `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`, hit: hit ? `${hit.tagName.toLowerCase()}#${hit.id}` : 'nothing', clip: (layer.querySelector('.sve-bpo-scroll').style.clipPath || '').startsWith('polygon(evenodd'), fixed: getComputedStyle(f).position, zoomBar: !!zoomHit && !!zoomHit.closest('.sve-bpo-zoom') };
+    return { same: ['x', 'y', 'width', 'height'].every((k) => Math.abs(slot[k] - r[k]) <= 1), slot: `${Math.round(slot.x)},${Math.round(slot.y)} ${Math.round(slot.width)}x${Math.round(slot.height)}`, frame: `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`, hit: hit ? `${hit.tagName.toLowerCase()}#${hit.id}` : 'nothing', clip: (layer.querySelector('.sve-bpo-scroll').style.clipPath || '').startsWith('polygon(evenodd'), fixed: getComputedStyle(f).position };
   }, LAYER, activeHandle);
   step('the active size is the preview itself: the iframe stands in the slot, and a point in the slot hits it, through the layer’s hole', inSlot.same && inSlot.hit === 'iframe#live-preview-iframe' && inSlot.clip && inSlot.fixed === 'fixed', `slot ${inSlot.slot}, preview ${inSlot.frame}, hit ${inSlot.hit}`);
-  step('the zoom bar stays on top of the preview, whole and clickable', inSlot.zoomBar);
+  // One zoom control: the top bar's zoom group is the row's while it is open.
+  const rowPercent = () => cp.evaluate((sel) => Math.round(new DOMMatrix(getComputedStyle(document.querySelector(`${sel} .sve-bpo-canvas`)).transform).a * 100), LAYER);
+  const zoomOpen = await topZoom(cp);
+  const openPercent = await rowPercent();
+  step('open, the top bar’s zoom label shows the row’s zoom', zoomOpen.label === `${openPercent}%`, `label "${zoomOpen.label}" (closed it read "${zoomClosed.label}"), row at ${openPercent}%`);
+  step('open, "Fit all" stands in the top bar’s zoom group, on screen and clickable, and the row has no zoom bar of its own', zoomOpen.fit && !zoomOpen.ownBar, `fit "${zoomOpen.fitText}" ${zoomOpen.fitBox}, own bar ${zoomOpen.ownBar}`);
   step('frames take no clicks (view only)', shape.frames.every((f) => f.pe === 'none'), shape.frames.map((f) => f.pe).join(' '));
   const baseHandle = config.bps.find((b) => b.base)?.handle;
   const pressedNow = await cp.evaluate(() => [...document.querySelectorAll('#__sve-preview-chrome [data-device][aria-pressed="true"]')].map((b) => b.dataset.device).join());
@@ -574,16 +608,17 @@ try {
   }
 
   // 7. Zoom and pan: a transform on the canvas; the row pans sideways, each frame scrolls its own page.
-  const zoomState = () => cp.evaluate((sel) => {
+  //    The zoom is driven from the top bar's zoom group, and its label is the row's percent.
+  const zoomState = () => cp.evaluate((sel, labelSel) => {
     const layer = document.querySelector(sel);
     const s = layer.querySelector('.sve-bpo-scroll');
-    return { scale: new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a, left: s.scrollLeft, top: s.scrollTop, sw: s.scrollWidth, cw: s.clientWidth, sh: s.scrollHeight, ch: s.clientHeight, level: layer.querySelector('[data-bpo="actual"]').textContent };
-  }, LAYER);
+    return { scale: new DOMMatrix(getComputedStyle(layer.querySelector('.sve-bpo-canvas')).transform).a, left: s.scrollLeft, top: s.scrollTop, sw: s.scrollWidth, cw: s.clientWidth, sh: s.scrollHeight, ch: s.clientHeight, level: document.querySelector(labelSel)?.textContent || '' };
+  }, LAYER, ZOOM_LABEL);
   const z0 = await zoomState();
-  await realClick(page, cp, `${LAYER} [data-bpo="in"]`);
+  await realClick(page, cp, ZOOM_IN);
   await sleep(250);
   const zIn = await zoomState();
-  step('zoom in with the button: the canvas scales up, the level follows', zIn.scale > z0.scale && zIn.level === `${Math.round(zIn.scale * 100)}%`, `${z0.scale.toFixed(3)} → ${zIn.scale.toFixed(3)} (${zIn.level})`);
+  step('"+" in the top bar zooms the row: the canvas scales up, the top bar’s label follows', zIn.scale > z0.scale && zIn.level === `${Math.round(zIn.scale * 100)}%`, `${z0.scale.toFixed(3)} → ${zIn.scale.toFixed(3)} (label "${z0.level}" → "${zIn.level}")`);
   step('zoomed in, the layer scrolls sideways only (the frames scroll their own pages)', zIn.sw > zIn.cw && zIn.sh <= zIn.ch, `scroll area ${zIn.sw}x${zIn.sh} in ${zIn.cw}x${zIn.ch}`);
   const layerBox = await absoluteRect(cp, LAYER);
   const cx = layerBox.x + layerBox.w / 2;
@@ -619,7 +654,7 @@ try {
       for (let x = lr.x + 10; x < lr.right - 10; x += 40) {
         if (slot && x >= slot.left - 4 && x <= slot.right + 4 && y >= slot.top - 4 && y <= slot.bottom + 4) continue;
         const top = document.elementFromPoint(x, y);
-        if (top && s.contains(top) && !top.closest('.sve-bpo-zoom')) return { x, y };
+        if (top && s.contains(top)) return { x, y };
       }
     }
     return null;
@@ -640,15 +675,17 @@ try {
   const zCtrl = await zoomState();
   const pageZoom = await page.evaluate(() => window.visualViewport?.scale ?? 1);
   step('ctrl + wheel zooms the canvas, not the browser', zCtrl.scale < zDrag.scale && pageZoom === 1, `${zDrag.scale.toFixed(3)} → ${zCtrl.scale.toFixed(3)}, page zoom ${pageZoom}`);
-  await realClick(page, cp, `${LAYER} [data-bpo="out"]`);
+  // Not the button: the overview tells the top bar every zoom, whatever made it.
+  step('ctrl + wheel over the row: the top bar’s label follows', zCtrl.level === `${Math.round(zCtrl.scale * 100)}%` && zCtrl.level !== zDrag.level, `label "${zDrag.level}" → "${zCtrl.level}" at ${zCtrl.scale.toFixed(3)}`);
+  await realClick(page, cp, ZOOM_OUT);
   await sleep(250);
   const zOut = await zoomState();
-  step('zoom out with the button', zOut.scale < zCtrl.scale, `${zCtrl.scale.toFixed(3)} → ${zOut.scale.toFixed(3)}`);
-  await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+  step('"−" in the top bar zooms the row out, and the label follows', zOut.scale < zCtrl.scale && zOut.level === `${Math.round(zOut.scale * 100)}%`, `${zCtrl.scale.toFixed(3)} → ${zOut.scale.toFixed(3)} (label "${zOut.level}")`);
+  await realClick(page, cp, ZOOM_FIT);
   await sleep(250);
   const zFit = await zoomState();
   const fits = await cp.evaluate((sel) => { const layer = document.querySelector(sel); const lr = layer.getBoundingClientRect(); return [...layer.querySelectorAll('iframe')].every((f) => { const r = f.getBoundingClientRect(); return r.left >= lr.left - 1 && r.right <= lr.right + 1; }); }, LAYER);
-  step('fit all: every frame is in view again', Math.abs(zFit.scale - z0.scale) < 0.002 && fits, `scale ${zFit.scale.toFixed(3)} (opened at ${z0.scale.toFixed(3)})`);
+  step('"Fit all" in the top bar: every frame is in view again, and the label says so', Math.abs(zFit.scale - z0.scale) < 0.002 && fits && zFit.level === `${Math.round(zFit.scale * 100)}%`, `scale ${zFit.scale.toFixed(3)} (opened at ${z0.scale.toFixed(3)}), label "${zFit.level}"`);
 
   // 7b. A right-click on the overview button opens the sizes menu: a checkbox
   //     per size. Unticking takes that size out of the row (frame blanked) and
@@ -741,6 +778,8 @@ try {
     };
   });
   step('Escape closes: layer and its style gone, button off', !!layerGone && !after.style && after.pressed === 'false');
+  const zoomEscaped = await topZoom(cp);
+  step('closed, "Fit all" is gone from the top bar again and no zoom bar is left anywhere', !zoomEscaped.fit && !zoomEscaped.ownBar, `fit ${zoomEscaped.fitBox}, label "${zoomEscaped.label}"`);
   step('closed, the size group is as it was', after.groupPosition === groupPositionBefore, `group position "${after.groupPosition}" (was "${groupPositionBefore}")`);
   step('Escape did not close Live Preview', opened && !!(await page.$('iframe.sve-edit-overlay[data-open]')) && after.src != null);
   step('iframes in the CP document back to before', after.iframes === iframesBefore, `${after.iframes} (before ${iframesBefore})`);
@@ -750,16 +789,24 @@ try {
 
   // 9. A second round, measured by DevTools: every listener it bound is gone
   //    again, and the same button closes it.
+  // The top bar's zoom as it reads with the overview closed: the preview's own,
+  // and what it must read again after this round's close.
+  const zoomBefore = await topZoom(cp);
   const listenersBefore = await listenerSnapshot(cp);
   await realClick(page, cp, BUTTON);
   step('the button opens it again', await waitIn(cp, LAYER, 10000));
   await copiesLoaded(expected.length);
   const listenersOpen = await listenerSnapshot(cp);
   const hookOpen = await cp.evaluate(() => typeof document.getElementById('live-preview-iframe').contentWindow.__sveMirror);
+  const zoomReopened = await topZoom(cp);
   await realClick(page, cp, BUTTON);
   // The button's click runs through import(): the close lands a task later.
   const closedByButton = await until(() => cp.evaluate((sel) => !document.querySelector(sel), LAYER), 3000);
   step('the same button closes it', !!closedByButton);
+  const zoomAfter = (await until(async () => { const z = await topZoom(cp); return z.label === zoomBefore.label && !z.fit ? z : null; }, 2000)) || (await topZoom(cp));
+  step('closed, the top bar’s zoom label is the preview’s own zoom again — what it read before opening — and "Fit all" is hidden',
+    zoomAfter.label === zoomBefore.label && !zoomAfter.fit && !zoomAfter.ownBar,
+    `label "${zoomBefore.label}" → open "${zoomReopened.label}" (fit ${zoomReopened.fit ? 'shown' : 'hidden'}) → closed "${zoomAfter.label}" (fit ${zoomAfter.fitBox})`);
   const listenersAfter = await listenerSnapshot(cp);
   const hookAfter = await cp.evaluate(() => { const w = document.getElementById('live-preview-iframe').contentWindow; return { mirror: '__sveMirror' in w, fixed: getComputedStyle(document.getElementById('live-preview-iframe')).position }; });
   step('open, the preview window carries the mirror hook; closed, the hook is gone and the iframe is no longer fixed', hookOpen === 'function' && !hookAfter.mirror && hookAfter.fixed !== 'fixed', `open: ${hookOpen}, after close: mirror ${hookAfter.mirror}, position ${hookAfter.fixed}`);
@@ -811,10 +858,10 @@ try {
   //      real click on each button, in an order where every click has to undo
   //      the scroll the one before it left. Desktop is as wide as the pane and
   //      so can never be whole: its left edge stands at the pane's left edge.
-  await realClick(page, cp, `${LAYER} [data-bpo="actual"]`);
+  await realClick(page, cp, ZOOM_LABEL);
   await sleep(250);
   const atActual = await zoomState();
-  step('at 100 % the row is wider than the pane, so there is something to scroll to', Math.abs(atActual.scale - 1) < 0.001 && atActual.sw > atActual.cw, `scale ${atActual.scale.toFixed(3)}, row ${atActual.sw} px in a ${atActual.cw} px pane`);
+  step('a click on the top bar’s percent puts the row at 100 %, wider than the pane, so there is something to scroll to', Math.abs(atActual.scale - 1) < 0.001 && atActual.level === '100%' && atActual.sw > atActual.cw, `scale ${atActual.scale.toFixed(3)} (label "${atActual.level}"), row ${atActual.sw} px in a ${atActual.cw} px pane`);
   const placeOf = (handle) => cp.evaluate((sel, bp) => {
     const s = document.querySelector(`${sel} .sve-bpo-scroll`);
     const f = document.querySelector(`${sel} [data-bp="${bp}"] iframe`);
@@ -849,7 +896,7 @@ try {
   }
   // The row moved between the picks: the narrowest and the widest cannot both be in view at 100 %.
   step('the row scrolled to get there (it was not already in view)', allWhole && new Set(scrolls).size > 1, `scroll positions ${scrolls.join(' → ')}`);
-  await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+  await realClick(page, cp, ZOOM_FIT);
   await sleep(250);
 
   // 10c. The active size is the preview, with the whole editor: a click in it
@@ -1034,7 +1081,7 @@ try {
   } else {
     skip('a confirm card in the active frame', 'the page has no header to ask about');
   }
-  await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+  await realClick(page, cp, ZOOM_FIT);
 
   // 10d. The label above a frame (its name and width) is a way in too, and the way back.
   const labelPoint = (bp) => cp.evaluate((sel, handle) => { const r = document.querySelector(`${sel} [data-bp="${handle}"] .sve-bpo-label`).getBoundingClientRect(); return { x: r.x + Math.min(r.width / 2, 40), y: r.y + r.height / 2 }; }, LAYER, bp);
@@ -1073,7 +1120,7 @@ try {
   await realClick(page, cp, '#__sve-toolbar button[data-tab="sections"]');
   const libraryCard = await until(() => cp.evaluate(() => { const el = document.querySelector('[data-sve-lib-kind]'); if (!el) return null; const r = el.getBoundingClientRect(); return r.width > 20 && r.height > 20 ? { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 60) } : null; }), 10000, 250);
   if (libraryCard) {
-    await realClick(page, cp, `${LAYER} [data-bpo="actual"]`);
+    await realClick(page, cp, ZOOM_LABEL);
     await sleep(500);
     const gBefore = await rowGeo();
     // The scale the bridge gives the preview's page (zoomOutForDrag scales its body).
@@ -1106,7 +1153,7 @@ try {
     step('the page zooms back gliding too', zoomsBack.length >= 3, `${zoomsBack.length} scale values on the way back`);
     const bpLog = await cp.evaluate(() => { const log = window.__bpLog || []; if (window.__bpOrigDispatch) { window.dispatchEvent = window.__bpOrigDispatch; delete window.__bpOrigDispatch; } return log; });
     step('released outside the preview: the page is back at full size, the row at the zoom it had', !!gAfter, (gAfter ? `row zoom ${gAfter.z.toFixed(3)}, scroll ${gAfter.scroll.join(',')}` : `not within 3 s: page scale ${(await pageScale()).toFixed(3)}, ${JSON.stringify(await rowGeo())}`) + (bpLog.length ? ` — sve:breakpoint fired ${bpLog.length}× during the drag: ${bpLog.map((e) => `${e.bp}/${e.device} via ${e.stack}`).join(' || ')}` : ' — no sve:breakpoint during the drag'));
-    await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+    await realClick(page, cp, ZOOM_FIT);
   } else {
     skip('a library drag zooms the page in the preview', 'no library card on screen');
   }
@@ -1115,7 +1162,7 @@ try {
 
   // 10f2. Deleting a section from the row asks first — with the card in the part of the frame
   //       on screen, the overlay no lower than the pane, and Escape closing the card alone.
-  await realClick(page, cp, `${LAYER} [data-bpo="actual"]`);
+  await realClick(page, cp, ZOOM_LABEL);
   await sleep(500);
   const askUid = await (await previewNow()).evaluate(() => document.querySelector('[data-sid-section-orderable]')?.getAttribute('data-sid') || '');
   if (askUid) {
@@ -1133,7 +1180,7 @@ try {
   } else {
     skip('the delete question in the row', 'no orderable section in the preview');
   }
-  await realClick(page, cp, `${LAYER} [data-bpo="fit"]`);
+  await realClick(page, cp, ZOOM_FIT);
 
   // 10f3. A section deleted while an inline edit is under way in another one leaves
   //       the preview and every copy at once — not when the edit happens to end.

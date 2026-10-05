@@ -935,6 +935,34 @@ export function hideStatamicLpChrome(header) {
   });
 }
 
+/**
+ * The breakpoint overview's loader: the overview button's one `import()`,
+ * set where the button is built, null while the feature is off. The zoom
+ * group goes through it too, to drive the overview's row while it is open.
+ */
+let overviewModule = null;
+
+/**
+ * The overview's module once the loader has brought it in. Painting cannot
+ * wait for a promise, and the zoom group reads the row's bounds (ZOOM_MIN,
+ * ZOOM_MAX) off it — by the time the overview has told its zoom, the loader
+ * has filled this in.
+ */
+let overviewLoaded = null;
+
+/**
+ * The overview's zoom as a whole percent while it is open, null while it is
+ * closed — what the overview itself tells the CP window (`sve:overview-zoom`).
+ * A number, the zoom group is the overview's: the label shows the row's zoom,
+ * minus and plus step it, "Fit all" stands beside them. Null, the group is
+ * the preview's own zoom, as it always was. (The preview's own zoom does
+ * nothing while the overview is open: applyLpZoom gives way to the slot.)
+ */
+let lpOverviewZoom = null;
+
+/** CP windows whose `sve:overview-zoom` listener is bound: once each, however often the top bar is rebuilt. */
+const lpOverviewZoomBound = new WeakSet();
+
 export function ensureLpPreviewChrome(win) {
   const doc = win.document;
   const header = lpHeader(doc);
@@ -975,10 +1003,32 @@ export function ensureLpPreviewChrome(win) {
     // blueprint. At rest the icon — not the button's surface — has the zoom
     // icons' idle opacity; the module lifts it while the overview is open.
     // One button and one import(), on click or right-click (the menu of which
-    // sizes stand in the row). Nothing else exists until then.
-    if (featureOn(win, 'breakpoint_overview')) {
+    // sizes stand in the row). Nothing of the overview exists until then; the
+    // shell only listens for its zoom and keeps "Fit all" hidden.
+    const overviewOn = featureOn(win, 'breakpoint_overview');
+
+    if (overviewOn) {
       const overview = doc.createElement('button');
-      const overviewModule = () => import('../breakpoint-overview.js');
+
+      overviewModule = () =>
+        import('../breakpoint-overview.js').then((m) => {
+          overviewLoaded = m;
+
+          return m;
+        });
+
+      // The overview tells this window its zoom while it is open, and null
+      // when it closes; the zoom group follows (paintLpPreviewChrome). Bound
+      // once per window: this block runs again whenever Vue wipes the header.
+      if (!lpOverviewZoomBound.has(win)) {
+        lpOverviewZoomBound.add(win);
+        win.addEventListener('sve:overview-zoom', (event) => {
+          const percent = event.detail?.percent;
+
+          lpOverviewZoom = Number.isFinite(percent) ? percent : null;
+          paintLpPreviewChrome(win);
+        });
+      }
 
       overview.type = 'button';
       overview.dataset.overview = '';
@@ -1015,6 +1065,13 @@ export function ensureLpPreviewChrome(win) {
     zoomOut.style.cssText =
       `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
     zoomOut.addEventListener('click', () => {
+      // While the overview is open the group is its row's zoom, a step on its ladder.
+      if (lpOverviewZoom !== null) {
+        overviewModule?.().then((m) => m.overviewZoom(win, 'out'));
+
+        return;
+      }
+
       const cur = lpStoredZoom(win);
       const next = [...LP_ZOOM_STEPS].reverse().find((step) => step < cur) ?? Math.max(25, cur - 10);
 
@@ -1027,6 +1084,13 @@ export function ensureLpPreviewChrome(win) {
     zoomLabel.dataset.zoom = 'label';
     zoomLabel.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 4px;min-width:2.75rem;white-space:nowrap;`;
     zoomLabel.addEventListener('click', () => {
+      // The overview's row to 100 %, as the percent on its own bar did.
+      if (lpOverviewZoom !== null) {
+        overviewModule?.().then((m) => m.overviewZoom(win, 'actual'));
+
+        return;
+      }
+
       const max = lpMaxStoredZoom(win);
       const allowed = LP_ZOOM_STEPS.filter((step) => step <= max);
       const cur = lpStoredZoom(win);
@@ -1046,6 +1110,12 @@ export function ensureLpPreviewChrome(win) {
     zoomIn.style.cssText =
       `${FRAMED_CONTROL_STYLE}width:${LP_CONTROL_H}px;padding:0;display:inline-flex;align-items:center;justify-content:center;`;
     zoomIn.addEventListener('click', () => {
+      if (lpOverviewZoom !== null) {
+        overviewModule?.().then((m) => m.overviewZoom(win, 'in'));
+
+        return;
+      }
+
       const next = lpNextZoomIn(win);
 
       if (next > lpStoredZoom(win)) {
@@ -1058,6 +1128,29 @@ export function ensureLpPreviewChrome(win) {
     zoom.appendChild(zoomLabel);
     zoom.appendChild(lpModeSeparator(doc));
     zoom.appendChild(zoomIn);
+
+    // "Fit all", the overview's alone: every frame of its row in view. It and
+    // the stroke before it are one wrapper that paintLpPreviewChrome shows
+    // only while the overview is open (`display: contents`, so both stand in
+    // the group as its own items) and hides otherwise. A text button, as the
+    // percent is.
+    if (overviewOn) {
+      const fit = doc.createElement('span');
+      const zoomFit = doc.createElement('button');
+
+      fit.dataset.zoomFit = '';
+      fit.style.display = 'none';
+      zoomFit.type = 'button';
+      zoomFit.dataset.zoom = 'fit';
+      zoomFit.title = t(win, 'bp_overview_fit');
+      zoomFit.textContent = t(win, 'bp_overview_fit');
+      zoomFit.style.cssText = `${FRAMED_CONTROL_STYLE}padding:0 4px;white-space:nowrap;`;
+      zoomFit.addEventListener('click', () => {
+        overviewModule?.().then((m) => m.overviewZoom(win, 'fit'));
+      });
+      fit.append(lpModeSeparator(doc), zoomFit);
+      zoom.appendChild(fit);
+    }
 
     chrome.appendChild(zoom);
   }
@@ -1152,12 +1245,18 @@ export function paintLpPreviewChrome(win) {
     paintLpActiveControl(btn, btn.dataset.device === device);
   });
 
-  // Zoom controls: same idle opacity as other chrome icons (label stays readable).
+  // Zoom controls: same idle opacity as other chrome icons (label and "Fit all" stay readable).
   chrome.querySelectorAll('[data-zoom]').forEach((btn) => {
-    if (btn.dataset.zoom === 'label') {
+    if (btn.dataset.zoom === 'label' || btn.dataset.zoom === 'fit') {
       if (btn.style.opacity !== '1') {
         btn.style.opacity = '1';
       }
+
+      return;
+    }
+
+    if (lpOverviewZoom !== null) {
+      paintLpOverviewZoomStep(win, btn);
 
       return;
     }
@@ -1177,6 +1276,15 @@ export function paintLpPreviewChrome(win) {
       return;
     }
 
+    // Minus: the overview's floor may have switched it off; the preview's own zoom never does.
+    if (btn.disabled) {
+      btn.disabled = false;
+    }
+
+    if (btn.hasAttribute('aria-disabled')) {
+      btn.removeAttribute('aria-disabled');
+    }
+
     if (btn.style.opacity !== LP_ICON_IDLE_OPACITY) {
       btn.style.opacity = LP_ICON_IDLE_OPACITY;
     }
@@ -1191,11 +1299,22 @@ export function paintLpPreviewChrome(win) {
     zoomBox.style.gap = '6px';
   }
 
+  // "Fit all" and its stroke: in the group while the overview is open, gone otherwise.
+  const fit = chrome.querySelector('[data-zoom-fit]');
+  const fitDisplay = lpOverviewZoom === null ? 'none' : 'contents';
+
+  if (fit && fit.style.display !== fitDisplay) {
+    fit.style.display = fitDisplay;
+  }
+
   const label = chrome.querySelector('[data-zoom="label"]');
 
   if (label) {
-    const auto = lpZoomIsAuto(win);
-    const text = auto ? t(win, 'zoom_auto', { percent: zoom }) : `${zoom}%`;
+    // While the overview is open: the row's zoom as a plain percent. "Auto" is
+    // the preview's own fit to the pane, which the row does not have.
+    const percent = lpOverviewZoom ?? zoom;
+    const auto = lpOverviewZoom === null && lpZoomIsAuto(win);
+    const text = auto ? t(win, 'zoom_auto', { percent }) : `${percent}%`;
 
     if (label.textContent !== text) {
       label.textContent = text;
@@ -1215,12 +1334,43 @@ export function paintLpPreviewChrome(win) {
     }
 
     const title = auto
-      ? t(win, 'zoom_auto', { percent: zoom })
-      : t(win, 'zoom_level', { percent: zoom });
+      ? t(win, 'zoom_auto', { percent })
+      : t(win, 'zoom_level', { percent });
 
     if (label.title !== title) {
       label.title = title;
     }
+  }
+}
+
+/**
+ * Minus or plus while the overview is open: a step of its row's zoom, off
+ * only at the row's ends — the overview's own ZOOM_MIN and ZOOM_MAX, read off
+ * its module, which the loader has filled in by the time the overview tells
+ * its zoom. Every write compared first, like every write in this file.
+ */
+function paintLpOverviewZoomStep(win, btn) {
+  const up = btn.dataset.zoom === 'in';
+  const end = Math.round((up ? overviewLoaded?.ZOOM_MAX : overviewLoaded?.ZOOM_MIN) * 100);
+  const allowed = !(up ? lpOverviewZoom >= end : lpOverviewZoom <= end);
+  const disabled = allowed ? 'false' : 'true';
+  const title = t(win, up ? 'zoom_in' : 'zoom_out');
+  const opacity = allowed ? LP_ICON_IDLE_OPACITY : LP_ICON_LOCKED_OPACITY;
+
+  if (btn.disabled !== !allowed) {
+    btn.disabled = !allowed;
+  }
+
+  if (btn.getAttribute('aria-disabled') !== disabled) {
+    btn.setAttribute('aria-disabled', disabled);
+  }
+
+  if (btn.title !== title) {
+    btn.title = title;
+  }
+
+  if (btn.style.opacity !== opacity) {
+    btn.style.opacity = opacity;
   }
 }
 
