@@ -94,11 +94,42 @@
             @click="h.onToggle(f.key, kind, !f[kind])"
           ><span></span></button>
         </div>
+        <!-- A step is clicked to nudge it a little lighter or darker; the dot says it is. -->
         <div v-if="f.generated && f[kind]" class="sve-theme__swatches">
-          <span v-for="s in stepsOf(f, kind)" :key="s.name" class="sve-theme__swatch" :title="`--${f.name}-${s.name}  ${s.value}`">
+          <button
+            v-for="s in stepsOf(f, kind)"
+            :key="s.name"
+            type="button"
+            class="sve-theme__swatch is-nudgeable"
+            :class="{ 'is-picked': isPicked(f, s.name), 'is-nudged': Boolean(f.nudges?.[s.name]) }"
+            :title="`--${f.name}-${s.name}  ${s.value} · ${ui.labels.colors_nudge_hint}`"
+            :aria-pressed="isPicked(f, s.name)"
+            :data-sve-color-step="s.name"
+            @click="pick(f, s.name)"
+          >
             <span class="sve-theme__swatch-color" :style="{ background: s.value }"></span>
             <span class="sve-theme__swatch-name">{{ s.name }}</span>
-          </span>
+          </button>
+        </div>
+        <div v-for="r in nudgeRows(f, kind)" :key="r.name" class="sve-theme__nudge" data-sve-color-nudge>
+          <div class="sve-theme__nudge-head">
+            <span class="sve-theme__label">{{ ui.labels.colors_nudge }} · {{ r.name }}</span>
+            <span class="sve-theme__nudge-value">{{ nudgeLabel(r.d) }}</span>
+            <button type="button" class="sve-theme__nudge-reset" :disabled="!r.d" @click="h.onNudge(f.key, r.name, 0)">{{ ui.labels.colors_nudge_reset }}</button>
+          </div>
+          <input
+            type="range"
+            :min="r.min"
+            :max="r.max"
+            step="0.001"
+            :value="r.d"
+            :aria-label="`${ui.labels.colors_nudge} --${f.name}-${r.name}`"
+            @input="h.onNudge(f.key, r.name, Number($event.target.value))"
+          >
+          <div class="sve-theme__nudge-ends">
+            <span>{{ ui.labels.colors_nudge_darker }}</span>
+            <span>{{ ui.labels.colors_nudge_lighter }}</span>
+          </div>
         </div>
       </template>
 
@@ -142,9 +173,43 @@
 
 <script setup>
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { MAX_VARIANTS, hexToOklch, isCoreColor as isCore, namedByLightness } from '../theme-panel/palette.js';
+import { reactive } from 'vue';
+import { MAX_VARIANTS, hexToOklch, isCoreColor as isCore, namedByLightness, nudgeRange } from '../theme-panel/palette.js';
 
 defineProps({ h: { type: Object, required: true } });
+
+/** The step being nudged: one at a time, in the open color. */
+const picked = reactive({ key: '', name: '' });
+
+function isPicked(f, name) {
+  return picked.key === f.key && picked.name === name;
+}
+
+/** A second click on the same step puts the slider away. */
+function pick(f, name) {
+  const again = isPicked(f, name);
+
+  picked.key = again ? '' : f.key;
+  picked.name = again ? '' : name;
+}
+
+/** The slider for the picked step, under its own row — none when it is in the other row or gone. */
+function nudgeRows(f, kind) {
+  if (picked.key !== f.key || !stepsOf(f, kind).some((s) => s.name === picked.name)) {
+    return [];
+  }
+
+  const range = nudgeRange(f.value, { tints: f.tints, shades: f.shades }, f.steps, picked.name);
+
+  return range ? [{ name: picked.name, ...range, d: f.nudges?.[picked.name] || 0 }] : [];
+}
+
+/** Lightness points, signed: +2.5 is a little lighter. */
+function nudgeLabel(d) {
+  const points = Math.round(d * 1000) / 10;
+
+  return points > 0 ? `+${points}` : String(points);
+}
 
 /** Tints and shades, or the full 50–950 scale. */
 const MODES = ['tones', 'scale'];

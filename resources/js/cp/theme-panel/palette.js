@@ -216,11 +216,8 @@ function clampCount(n) {
   return Math.max(0, Math.min(MAX_VARIANTS, Math.round(Number(n) || 0)));
 }
 
-/**
- * The colors of `base`'s tints and shades, nearest the base first:
- * `{ tints: ['#…', …], shades: ['#…', …] }`.
- */
-export function stepValues(base, { tints = 0, shades = 0 } = {}) {
+/** `base`'s tints and shades in OKLCH, nearest the base first — before they are rounded to hex, so a nudge can move them first. */
+function stepColors(base, { tints = 0, shades = 0 } = {}) {
   const color = hexToOklch(base);
   const out = { tints: [], shades: [] };
 
@@ -236,16 +233,114 @@ export function stepValues(base, { tints = 0, shades = 0 } = {}) {
   for (let i = 1; i <= nTints; i++) {
     const t = i / (nTints + 1);
 
-    out.tints.push(oklchToHex({ l: color.l + (lightest - color.l) * t, c: color.c * (1 - 0.6 * t), h: color.h }));
+    out.tints.push({ l: color.l + (lightest - color.l) * t, c: color.c * (1 - 0.6 * t), h: color.h });
   }
 
   for (let i = 1; i <= nShades; i++) {
     const t = i / (nShades + 1);
 
-    out.shades.push(oklchToHex({ l: color.l + (darkest - color.l) * t, c: color.c * (1 - 0.3 * t), h: color.h }));
+    out.shades.push({ l: color.l + (darkest - color.l) * t, c: color.c * (1 - 0.3 * t), h: color.h });
   }
 
   return out;
+}
+
+/**
+ * The colors of `base`'s tints and shades, nearest the base first:
+ * `{ tints: ['#…', …], shades: ['#…', …] }`.
+ */
+export function stepValues(base, counts = {}) {
+  const colors = stepColors(base, counts);
+
+  return { tints: colors.tints.map((c) => oklchToHex(c)), shades: colors.shades.map((c) => oklchToHex(c)) };
+}
+
+/*
+ * Nudges: a tint or shade made a little lighter or darker than the counts
+ * make it. Only lightness moves — hue and chroma stay the base's — and only
+ * halfway to the step (or the base) on either side, so a nudged step stays
+ * the same step: it never passes a neighbour, and a tint never becomes a
+ * shade. A nudge is stored nowhere but in the color itself: it is the
+ * distance between the step in site.css and the step the counts make, and
+ * familyMode() reads it back from there.
+ */
+
+/** How far off a read-back nudge may land, for the rounding to hex. */
+const NUDGE_SLACK = 0.01;
+
+/**
+ * Each of `steps` beside the color `counts` make for it, nearest the base
+ * first: `[{ step, made, min, max }]`, `min`/`max` how far its lightness may
+ * move. Null when the steps are not that many tints and shades of `base`.
+ */
+function pairSteps(base, counts, steps) {
+  const color = hexToOklch(base);
+
+  if (!color) {
+    return null;
+  }
+
+  const made = stepColors(base, counts);
+  const lit = steps.map((step) => ({ step, l: hexToOklch(step.value)?.l }));
+
+  if (lit.some((s) => s.l === undefined)) {
+    return null;
+  }
+
+  const tints = lit.filter((s) => s.l > color.l).sort((a, b) => a.l - b.l);
+  const shades = lit.filter((s) => s.l <= color.l).sort((a, b) => b.l - a.l);
+
+  if (tints.length !== made.tints.length || shades.length !== made.shades.length) {
+    return null;
+  }
+
+  const side = (have, want) => have.map(({ step }, k) => {
+    const l = want[k].l;
+    const inner = k === 0 ? color.l : want[k - 1].l;
+    const outer = Math.min(1, Math.max(0, k + 1 < want.length ? want[k + 1].l : l + (l - inner)));
+    const toInner = (inner - l) / 2;
+    const toOuter = (outer - l) / 2;
+
+    return { step, made: want[k], min: Math.min(toInner, toOuter), max: Math.max(toInner, toOuter) };
+  });
+
+  return [...side(tints, made.tints), ...side(shades, made.shades)];
+}
+
+/** How far step `name` may be nudged, in OKLCH lightness: `{ min, max }` (min darker, below 0), or null. */
+export function nudgeRange(base, counts, steps, name) {
+  const pair = pairSteps(base, counts, steps)?.find((p) => String(p.step.name) === String(name));
+
+  return pair ? { min: pair.min, max: pair.max } : null;
+}
+
+/**
+ * `steps` — as generateSteps()/remakeSteps() return them for `counts` — each
+ * moved by its nudge in `nudges` (`{ '200': 0.02 }`), kept inside its range.
+ */
+export function nudgeSteps(base, counts, steps, nudges = {}) {
+  const pairs = pairSteps(base, counts, steps);
+
+  if (!pairs) {
+    return steps;
+  }
+
+  const byStep = new Map(pairs.map((p) => [p.step, p]));
+
+  return steps.map((step) => {
+    const p = byStep.get(step);
+    const d = Math.min(p.max, Math.max(p.min, Number(nudges[step.name]) || 0));
+
+    return { ...step, value: oklchToHex({ ...p.made, l: p.made.l + d }) };
+  });
+}
+
+/** Two hex colors at most one off in each channel — what rounding a nudge to hex can do. */
+function nearHex(a, b) {
+  const x = parseHex(a);
+  const y = parseHex(b);
+
+  return Boolean(x && y) && x.every((v, i) => Math.abs(v - y[i]) <= 1);
 }
 
 /**
@@ -418,22 +513,23 @@ export function namedByLightness(family, counts) {
 }
 
 /**
- * How a family's steps were made: `{ tints, shades, generated, scale }`.
+ * How a family's steps were made: `{ tints, shades, generated, scale, nudges }`.
  *
  * Generated means the steps are the colors stepValues() gives for those
- * counts — whatever they are called, since names stay put when the base
- * changes (remakeSteps) — or exactly the scale of the base (scaleSteps,
- * `scale: true`). Then the panel remakes the steps with the base. Anything
- * else (the theme's own 50–950, hand-picked steps) is kept as it is until
- * someone asks for tints, shades or the scale.
+ * counts, each perhaps nudged (`nudges`, by step name) — whatever they are
+ * called, since names stay put when the base changes (remakeSteps) — or
+ * exactly the scale of the base (scaleSteps, `scale: true`). Then the panel
+ * remakes the steps with the base. Anything else (the theme's own 50–950,
+ * hand-picked steps) is kept as it is until someone asks for tints, shades or
+ * the scale.
  */
 export function familyMode(family) {
   const steps = family.steps || [];
   const base = hexToOklch(family.value);
-  const handPicked = { tints: 0, shades: 0, generated: false, scale: false };
+  const handPicked = { tints: 0, shades: 0, generated: false, scale: false, nudges: {} };
 
   if (!steps.length) {
-    return { tints: 0, shades: 0, generated: true, scale: false };
+    return { tints: 0, shades: 0, generated: true, scale: false, nudges: {} };
   }
 
   if (!base) {
@@ -441,7 +537,7 @@ export function familyMode(family) {
   }
 
   if (isScale(family)) {
-    return { tints: 0, shades: 0, generated: true, scale: true };
+    return { tints: 0, shades: 0, generated: true, scale: true, nudges: {} };
   }
 
   let tints = 0;
@@ -461,12 +557,31 @@ export function familyMode(family) {
     return handPicked;
   }
 
-  const made = stepValues(family.value, { tints, shades });
-  const want = [...made.tints, ...made.shades].sort();
-  const have = steps.map((s) => String(s.value).trim().toLowerCase()).sort();
-  const same = want.length === have.length && want.every((value, i) => value === have[i]);
+  const pairs = pairSteps(family.value, { tints, shades }, steps);
+  const nudges = {};
 
-  return same ? { tints, shades, generated: true, scale: false } : handPicked;
+  if (!pairs) {
+    return handPicked;
+  }
+
+  for (const { step, made, min, max } of pairs) {
+    const have = String(step.value).trim().toLowerCase();
+
+    if (oklchToHex(made) === have) {
+      continue;
+    }
+
+    // Lighter or darker than made, and nothing else — or it is not this step any more.
+    const d = hexToOklch(have).l - made.l;
+
+    if (d < min - NUDGE_SLACK || d > max + NUDGE_SLACK || !nearHex(oklchToHex({ ...made, l: made.l + d }), have)) {
+      return handPicked;
+    }
+
+    nudges[step.name] = Math.round(d * 1e4) / 1e4;
+  }
+
+  return { tints, shades, generated: true, scale: false, nudges };
 }
 
 export function isHex(value) {

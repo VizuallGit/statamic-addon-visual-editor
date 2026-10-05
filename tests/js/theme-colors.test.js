@@ -5,6 +5,8 @@ import {
   familyMode,
   generateSteps,
   namedByLightness,
+  nudgeRange,
+  nudgeSteps,
   remakeSteps,
   scaleSteps,
   stepValues,
@@ -194,9 +196,9 @@ test('a new color name must be a plain, free CSS name', () => {
 test('generated steps are recognised with their counts; the theme’s own steps are not', () => {
   const steps = generateSteps('#55613f', { tints: 2, shades: 3 }).map(({ name, value }) => ({ name, value }));
 
-  assert.deepEqual(familyMode({ value: '#55613f', steps }), { tints: 2, shades: 3, generated: true, scale: false });
-  assert.deepEqual(familyMode({ value: '#55613F', steps }), { tints: 2, shades: 3, generated: true, scale: false });
-  assert.deepEqual(familyMode({ value: '#55613f', steps: [] }), { tints: 0, shades: 0, generated: true, scale: false });
+  assert.deepEqual(familyMode({ value: '#55613f', steps }), { tints: 2, shades: 3, generated: true, scale: false, nudges: {} });
+  assert.deepEqual(familyMode({ value: '#55613F', steps }), { tints: 2, shades: 3, generated: true, scale: false, nudges: {} });
+  assert.deepEqual(familyMode({ value: '#55613f', steps: [] }), { tints: 0, shades: 0, generated: true, scale: false, nudges: {} });
 
   const primary = readColors(SITE_CSS)[2];
 
@@ -276,7 +278,7 @@ test('a family whose names stayed put is still recognised as made, and can be re
   const first = plainSteps(generateSteps(GRAY, { tints: 3, shades: 3 }));
   const again = plainSteps(remakeSteps(NAVY, { tints: 3, shades: 3 }, first, GRAY));
 
-  assert.deepEqual(familyMode({ value: NAVY, steps: again }), { tints: 3, shades: 3, generated: true, scale: false });
+  assert.deepEqual(familyMode({ value: NAVY, steps: again }), { tints: 3, shades: 3, generated: true, scale: false, nudges: {} });
   assert.equal(namedByLightness({ value: NAVY, steps: again }, { tints: 3, shades: 3 }), false);
   assert.equal(namedByLightness({ value: GRAY, steps: first }, { tints: 3, shades: 3 }), true);
 });
@@ -319,13 +321,13 @@ test('a saturated base keeps its hue at the dark end instead of turning red', ()
 test('a scale is recognised as made; one edited step or a missing one makes it hand-picked', () => {
   const steps = plainSteps(scaleSteps('#38001e'));
 
-  assert.deepEqual(familyMode({ value: '#38001E', steps }), { tints: 0, shades: 0, generated: true, scale: true });
+  assert.deepEqual(familyMode({ value: '#38001E', steps }), { tints: 0, shades: 0, generated: true, scale: true, nudges: {} });
   assert.deepEqual(familyMode({ value: '#38001e', steps: [...steps].reverse() }).scale, true);
   assert.equal(familyMode({ value: '#38001e', steps: steps.slice(1) }).generated, false);
 
   const edited = steps.map((s) => (s.name === '500' ? { ...s, value: '#ff0000' } : s));
 
-  assert.deepEqual(familyMode({ value: '#38001e', steps: edited }), { tints: 0, shades: 0, generated: false, scale: false });
+  assert.deepEqual(familyMode({ value: '#38001e', steps: edited }), { tints: 0, shades: 0, generated: false, scale: false, nudges: {} });
 });
 
 test('a written scale reads back as a scale', () => {
@@ -347,7 +349,7 @@ test('nine tints and nine shades get eighteen unique names in lightness order, a
     assert.equal(new Set(nums).size, 18, base);
     assert.ok(nums.every((n, i) => i === 0 || n > nums[i - 1]), base);
     assert.ok(steps.every((s, i) => i === 0 || hexToOklch(s.value).l < hexToOklch(steps[i - 1].value).l), base);
-    assert.deepEqual(familyMode({ value: base, steps }), { tints: 9, shades: 9, generated: true, scale: false }, base);
+    assert.deepEqual(familyMode({ value: base, steps }), { tints: 9, shades: 9, generated: true, scale: false, nudges: {} }, base);
   }
 });
 
@@ -357,4 +359,86 @@ test('going from five to nine keeps the five names and adds four further out', (
 
   assert.equal(nine.length, 18);
   assert.ok(names(five).every((name) => names(nine).includes(name)));
+});
+
+const BLUE = '#0d43bf';
+const BLUE_COUNTS = { tints: 5, shades: 3 };
+const blueSteps = () => plainSteps(generateSteps(BLUE, BLUE_COUNTS));
+const stepNamed = (steps, name) => steps.find((s) => s.name === name);
+
+test('a nudge moves only the lightness of that one step, and only a little', () => {
+  const steps = blueSteps();
+  const name = steps[1].name;
+  const nudged = nudgeSteps(BLUE, BLUE_COUNTS, steps, { [name]: 0.02 });
+  const before = hexToOklch(stepNamed(steps, name).value);
+  const after = hexToOklch(stepNamed(nudged, name).value);
+
+  assert.ok(Math.abs(after.l - before.l - 0.02) < 0.004, `${before.l} → ${after.l}`);
+  assert.ok(Math.abs(after.h - before.h) < 2);
+  assert.deepEqual(names(nudged), names(steps));
+  nudged.forEach((s) => s.name !== name && assert.equal(s.value, stepNamed(steps, s.name).value));
+});
+
+test('a nudge stops halfway to the next step, so a step never passes its neighbour or the base', () => {
+  const steps = blueSteps();
+  const base = hexToOklch(BLUE).l;
+
+  for (const step of steps) {
+    const range = nudgeRange(BLUE, BLUE_COUNTS, steps, step.name);
+
+    assert.ok(range.min < 0 && range.max > 0, step.name);
+
+    for (const d of [-1, 1]) {
+      const pushed = nudgeSteps(BLUE, BLUE_COUNTS, steps, { [step.name]: d });
+      const ls = pushed.map((s) => hexToOklch(s.value).l);
+
+      assert.ok(ls.every((l, i) => i === 0 || l < ls[i - 1]), `${step.name} ${d}: order kept`);
+      assert.equal(hexToOklch(stepNamed(pushed, step.name).value).l > base, hexToOklch(step.value).l > base, `${step.name} ${d}: same side of the base`);
+    }
+  }
+});
+
+test('a nudged step reads back from site.css as made, with its nudge', () => {
+  const steps = blueSteps();
+  const [light, , , , , dark] = steps;
+  const nudged = nudgeSteps(BLUE, BLUE_COUNTS, steps, { [light.name]: 0.015, [dark.name]: -0.02 });
+  const mode = familyMode({ value: BLUE, steps: nudged });
+
+  assert.equal(mode.generated, true);
+  assert.deepEqual([mode.tints, mode.shades], [5, 3]);
+  assert.deepEqual(Object.keys(mode.nudges).sort(), [light.name, dark.name].sort());
+  assert.ok(Math.abs(mode.nudges[light.name] - 0.015) < 0.004);
+  assert.ok(Math.abs(mode.nudges[dark.name] + 0.02) < 0.004);
+
+  // Read back and applied again gives the same colors: nothing drifts.
+  assert.deepEqual(nudgeSteps(BLUE, BLUE_COUNTS, steps, mode.nudges).map((s) => s.value), nudged.map((s) => s.value));
+});
+
+test('a nudge survives a new base: the step is made from the new base and moved the same', () => {
+  const steps = blueSteps();
+  const name = steps[0].name;
+  const nudged = nudgeSteps(BLUE, BLUE_COUNTS, steps, { [name]: 0.01 });
+  const navy = '#1a2a6c';
+  const again = nudgeSteps(navy, BLUE_COUNTS, plainSteps(remakeSteps(navy, BLUE_COUNTS, nudged, BLUE)), { [name]: 0.01 });
+  const mode = familyMode({ value: navy, steps: again });
+
+  assert.deepEqual(names(again), names(steps));
+  assert.equal(mode.generated, true);
+  assert.ok(Math.abs(mode.nudges[name] - 0.01) < 0.004);
+});
+
+test('a step changed in hue is not a nudge: the family is hand-picked', () => {
+  const steps = blueSteps();
+  const greener = steps.map((s, i) => (i === 1 ? { ...s, value: oklchToHex({ ...hexToOklch(s.value), h: hexToOklch(s.value).h - 40 }) } : s));
+
+  assert.equal(familyMode({ value: BLUE, steps: greener }).generated, false);
+});
+
+test('a nudged family made again from the same base keeps every name, so one step can be nudged on its own', () => {
+  const steps = blueSteps();
+  const nudged = nudgeSteps(BLUE, BLUE_COUNTS, steps, { [steps[0].name]: 0.02, [steps[6].name]: -0.015 });
+  const again = plainSteps(remakeSteps(BLUE, BLUE_COUNTS, nudged, BLUE));
+
+  assert.deepEqual(names(again), names(steps));
+  assert.deepEqual(again.map((s) => s.value), steps.map((s) => s.value));
 });

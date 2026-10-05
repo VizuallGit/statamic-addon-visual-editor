@@ -21,7 +21,7 @@ import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import FontDialog from './cp/surfaces/FontDialog.vue';
 import { themePanelUi as ui } from './cp/theme-panel/store.js';
-import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
+import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, nudgeSteps, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
 import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
@@ -477,24 +477,38 @@ const findColor = (key) => ui.families.find((f) => f.key === key) || null;
 const findSize = (key) => ui.sizes.find((s) => s.key === key) || null;
 
 /**
- * Steps follow the counts; with both at zero a generated family has none.
- * A saved color's step names stay (remakeSteps) — templates may use them —
+ * A family's tints and shades as its counts make them, not nudged. A saved
+ * color's step names stay (remakeSteps) — templates may use them —
  * `previousBase` being the base the current steps were made from. A color not
  * saved yet is used nowhere, so its names simply follow lightness.
- * A scale is always 50–950, so its names never move either.
+ */
+function madeSteps(f, previousBase = f.value) {
+  const counts = { tints: f.tints, shades: f.shades };
+
+  return (f.fresh ? generateSteps(f.value, counts) : remakeSteps(f.value, counts, f.steps, previousBase))
+    .map(({ name, value }) => ({ name, value }));
+}
+
+/**
+ * Steps follow the counts; with both at zero a generated family has none.
+ * Each step keeps its nudge, by name; a name that went keeps none.
+ * A scale is always 50–950, so its names never move.
  */
 function remake(f, previousBase = f.value) {
   if (f.scale) {
     f.steps = scaleSteps(f.value).map(({ name, value }) => ({ name, value }));
+    f.nudges = {};
     f.generated = true;
   } else if (f.tints || f.shades) {
-    const counts = { tints: f.tints, shades: f.shades };
+    const made = madeSteps(f, previousBase);
+    const names = new Set(made.map((step) => step.name));
 
-    f.steps = (f.fresh ? generateSteps(f.value, counts) : remakeSteps(f.value, counts, f.steps, previousBase))
-      .map(({ name, value }) => ({ name, value }));
+    f.nudges = Object.fromEntries(Object.entries(f.nudges || {}).filter(([name]) => names.has(name)));
+    f.steps = nudgeSteps(f.value, { tints: f.tints, shades: f.shades }, made, f.nudges);
     f.generated = true;
   } else if (f.generated) {
     f.steps = [];
+    f.nudges = {};
   }
 }
 
@@ -688,9 +702,39 @@ const handlers = (win) => ({
     const f = findColor(key);
 
     if (f?.generated && !isCoreColor(f.name) && (f.tints || f.shades)) {
-      f.steps = generateSteps(f.value, { tints: f.tints, shades: f.shades }).map(({ name, value }) => ({ name, value }));
+      const counts = { tints: f.tints, shades: f.shades };
+      const renamed = generateSteps(f.value, counts).map(({ name, value }) => ({ name, value }));
+      // Same steps in the same order, new names: each nudge moves to its step's new name.
+      const old = [...f.steps].sort((a, b) => Number(a.name) - Number(b.name));
+
+      f.nudges = Object.fromEntries(renamed.map((step, i) => [step.name, f.nudges?.[old[i]?.name] || 0]).filter(([, d]) => d));
+      f.steps = nudgeSteps(f.value, counts, renamed, f.nudges);
       changed(win);
     }
+  },
+  // A tint or shade a little lighter or darker. Only that step is made again,
+  // so the others keep the very colors they have.
+  onNudge: (key, name, d) => {
+    const f = findColor(key);
+
+    if (!f || isCoreColor(f.name) || f.scale || !f.generated || !(f.tints || f.shades)) {
+      return;
+    }
+
+    const nudges = { ...f.nudges, [name]: Number(d) || 0 };
+    const step = nudgeSteps(f.value, { tints: f.tints, shades: f.shades }, madeSteps(f), nudges).find((s) => s.name === name);
+
+    if (!step) {
+      return;
+    }
+
+    if (!nudges[name]) {
+      delete nudges[name];
+    }
+
+    f.nudges = nudges;
+    f.steps = f.steps.map((s) => (s.name === name ? { name, value: step.value } : s));
+    changed(win);
   },
   // Tints and shades, or the full 50–950 scale. Back from the scale gives three of each.
   onMode: (key, mode) => {
@@ -704,6 +748,7 @@ const handlers = (win) => ({
     f.scale = scale;
     f.tints = scale ? 0 : 3;
     f.shades = scale ? 0 : 3;
+    f.nudges = {};
     remake(f);
     changed(win);
   },
