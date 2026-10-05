@@ -780,21 +780,20 @@ export function ensureStyle(doc) {
   background: color-mix(in srgb, var(--sve-fam-loop) 28%, transparent);
 }
 /* Pages belong to a loop, so they wear its colour. Lit while the loop the
-   caret is in already pages; greyed out outside a collection loop, where the
-   button has nothing to act on. */
+   caret is in already pages. Only there at all while the caret is in a
+   collection loop (data-in-loop, set by paintHtmlToolState) - hidden until
+   then, so a dock that has not painted yet shows no button it cannot use. */
 #${DOCK_ID} [data-sve-html-tool="pagination"] {
   color: var(--sve-fam-loop);
   background: color-mix(in srgb, var(--sve-fam-loop) 15%, transparent);
   opacity: 1;
 }
+#${DOCK_ID} [data-sve-html-tool="pagination"]:not([data-in-loop]) {
+  display: none;
+}
 #${DOCK_ID} [data-sve-html-tool="pagination"]:hover,
 #${DOCK_ID} [data-sve-html-tool="pagination"][data-active] {
   background: color-mix(in srgb, var(--sve-fam-loop) 28%, transparent);
-}
-#${DOCK_ID} [data-sve-html-tool="pagination"][disabled] {
-  background: transparent;
-  opacity: .35;
-  cursor: default;
 }
 #${DOCK_ID} [data-sve-html-tool="if"] {
   color: var(--sve-fam-if);

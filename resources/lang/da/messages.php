@@ -331,7 +331,7 @@ return [
     'antlers_limit' => 'Antal',
     'antlers_limit_placeholder' => 'alle',
     'antlers_limit_per_page' => 'Pr. side',
-    'antlers_offset' => 'Spring over',
+    'antlers_offset' => 'Offset',
     'antlers_offset_placeholder' => 'ingen',
     'code_dock_history' => 'Tidligere versioner',
     'code_dock_history_empty' => 'Ingen gemte versioner endnu.',

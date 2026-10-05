@@ -334,7 +334,7 @@ return [
     'antlers_limit' => 'Limit',
     'antlers_limit_placeholder' => 'all',
     'antlers_limit_per_page' => 'Per page',
-    'antlers_offset' => 'Skip first',
+    'antlers_offset' => 'Offset',
     'antlers_offset_placeholder' => 'none',
     'code_dock_history' => 'Earlier versions',
     'code_dock_history_empty' => 'No saved versions yet.',

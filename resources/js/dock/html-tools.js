@@ -407,7 +407,7 @@ export function applyHtmlTag(tag) {
  * element, and a loop that opens outside it cannot be rewritten from here: the
  * edit would land in text the pane does not hold, and the scope's range would
  * not survive an edit made on both sides of it (dock-api's shiftFocus follows
- * one). Outside the pane is outside the button's reach — it greys out.
+ * one). Outside the pane is outside the button's reach — it is hidden.
  */
 function collectionLoopAt(text, pos) {
   let found = null;
@@ -491,7 +491,7 @@ function paintHtmlToolStateInner(win) {
   }
 
   // Pagination answers to the loop around the caret, not to the tag under it:
-  // lit when that loop already pages, greyed out outside a collection loop.
+  // lit when that loop already pages, hidden outside a collection loop.
   const loop = collectionLoopAtCaret();
 
   for (const tool of HTML_TOOLS) {
@@ -505,7 +505,7 @@ function paintHtmlToolStateInner(win) {
     const on = paging ? !!loop?.paginate : tool.id === 'heading' ? isHeadingTag(tag) : tag === tool.tag;
 
     if (paging) {
-      btn.disabled = !loop;
+      btn.toggleAttribute('data-in-loop', !!loop);
     }
 
     if (on) {
