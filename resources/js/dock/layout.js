@@ -296,10 +296,13 @@ export function ensureStyle(doc) {
   background: rgba(56,189,248,.16);
 }
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-values-mode],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode] {
+#${DOCK_ID}[data-sve-style="tw"] [data-sve-css-all],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode],
+#${DOCK_ID}[data-sve-code-locked] [data-sve-css-all] {
   display: none;
 }
 #${DOCK_ID} [data-sve-values-mode],
+#${DOCK_ID} [data-sve-css-all],
 #${DOCK_ID} [data-sve-style-mode] {
   all: unset;
   cursor: pointer;
@@ -318,11 +321,13 @@ export function ensureStyle(doc) {
   white-space: nowrap;
 }
 #${DOCK_ID} [data-sve-values-mode]:hover,
+#${DOCK_ID} [data-sve-css-all]:hover,
 #${DOCK_ID} [data-sve-style-mode]:hover {
   opacity: 1;
   background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-values-mode][aria-pressed="true"],
+#${DOCK_ID} [data-sve-css-all][aria-pressed="true"],
 #${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
   opacity: 1;
   color: #7dd3fc;
