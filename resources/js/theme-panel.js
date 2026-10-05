@@ -21,7 +21,7 @@ import ThemePanelPane from './cp/surfaces/ThemePanelPane.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import FontDialog from './cp/surfaces/FontDialog.vue';
 import { themePanelUi as ui } from './cp/theme-panel/store.js';
-import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, remakeSteps, writeColors } from './cp/theme-panel/palette.js';
+import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
 import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
@@ -481,9 +481,13 @@ const findSize = (key) => ui.sizes.find((s) => s.key === key) || null;
  * A saved color's step names stay (remakeSteps) — templates may use them —
  * `previousBase` being the base the current steps were made from. A color not
  * saved yet is used nowhere, so its names simply follow lightness.
+ * A scale is always 50–950, so its names never move either.
  */
 function remake(f, previousBase = f.value) {
-  if (f.tints || f.shades) {
+  if (f.scale) {
+    f.steps = scaleSteps(f.value).map(({ name, value }) => ({ name, value }));
+    f.generated = true;
+  } else if (f.tints || f.shades) {
     const counts = { tints: f.tints, shades: f.shades };
 
     f.steps = (f.fresh ? generateSteps(f.value, counts) : remakeSteps(f.value, counts, f.steps, previousBase))
@@ -687,6 +691,21 @@ const handlers = (win) => ({
       f.steps = generateSteps(f.value, { tints: f.tints, shades: f.shades }).map(({ name, value }) => ({ name, value }));
       changed(win);
     }
+  },
+  // Tints and shades, or the full 50–950 scale. Back from the scale gives three of each.
+  onMode: (key, mode) => {
+    const f = findColor(key);
+    const scale = mode === 'scale';
+
+    if (!f || isCoreColor(f.name) || !f.value || f.scale === scale) {
+      return;
+    }
+
+    f.scale = scale;
+    f.tints = scale ? 0 : 3;
+    f.shades = scale ? 0 : 3;
+    remake(f);
+    changed(win);
   },
   onToggle: (key, kind, on) => {
     const f = findColor(key);

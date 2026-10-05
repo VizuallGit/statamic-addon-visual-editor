@@ -47,15 +47,42 @@
         </span>
       </label>
 
-      <!-- Tints and shades are made from the base. A locked color (gray) only shows its steps. -->
-      <template v-for="kind in (f.value && !locked(f) ? ['tints', 'shades'] : [])" :key="kind">
+      <!-- Two ways to make steps: tints and shades around the base, or the full
+           50–950 scale on a fixed ladder. A locked color (gray) only shows its steps. -->
+      <template v-if="f.value && !locked(f)">
+        <div class="sve-theme__rule"></div>
+        <div class="sve-theme__segments" role="radiogroup" :aria-label="ui.labels.colors_mode">
+          <button
+            v-for="mode in MODES"
+            :key="mode"
+            type="button"
+            role="radio"
+            :class="{ 'is-on': modeOf(f) === mode }"
+            :aria-checked="modeOf(f) === mode"
+            :data-sve-color-mode="mode"
+            @click="h.onMode(f.key, mode)"
+          >{{ ui.labels[`colors_mode_${mode}`] }}</button>
+        </div>
+      </template>
+
+      <template v-if="f.scale">
+        <div class="sve-theme__swatches">
+          <span v-for="s in f.steps" :key="s.name" class="sve-theme__swatch" :title="`--${f.name}-${s.name}  ${s.value}`">
+            <span class="sve-theme__swatch-color" :style="{ background: s.value }"></span>
+            <span class="sve-theme__swatch-name">{{ s.name }}</span>
+          </span>
+        </div>
+        <p class="sve-theme__hint">{{ ui.labels.colors_scale_hint }}</p>
+      </template>
+
+      <template v-for="kind in (f.value && !locked(f) && !f.scale ? ['tints', 'shades'] : [])" :key="kind">
         <div class="sve-theme__rule"></div>
         <div class="sve-theme__switch-row">
           <span class="sve-theme__label">{{ ui.labels[`colors_${kind}`] }}</span>
           <span v-if="f[kind]" class="sve-theme__stepper">
             <button type="button" :disabled="f[kind] <= 1" @click="h.onCount(f.key, kind, f[kind] - 1)">−</button>
             <span>{{ f[kind] }}</span>
-            <button type="button" :disabled="f[kind] >= 5" @click="h.onCount(f.key, kind, f[kind] + 1)">+</button>
+            <button type="button" :disabled="f[kind] >= MAX_VARIANTS" @click="h.onCount(f.key, kind, f[kind] + 1)">+</button>
           </span>
           <button
             type="button"
@@ -115,9 +142,16 @@
 
 <script setup>
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { hexToOklch, isCoreColor as isCore, namedByLightness } from '../theme-panel/palette.js';
+import { MAX_VARIANTS, hexToOklch, isCoreColor as isCore, namedByLightness } from '../theme-panel/palette.js';
 
 defineProps({ h: { type: Object, required: true } });
+
+/** Tints and shades, or the full 50–950 scale. */
+const MODES = ['tones', 'scale'];
+
+function modeOf(f) {
+  return f.scale ? 'scale' : 'tones';
+}
 
 /** Gray is part of every site. It can be opened and read, never edited. */
 function locked(f) {

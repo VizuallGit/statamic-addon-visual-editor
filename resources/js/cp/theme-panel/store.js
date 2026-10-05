@@ -3,7 +3,7 @@ import { reactive } from 'vue';
 /**
  * The theme panel's state — one save writes every tab into site.css.
  *
- * `families` (Colors): `{ key, name, value, steps, tints, shades, generated,
+ * `families` (Colors): `{ key, name, value, steps, tints, shades, generated, scale,
  * fresh, problem }` — `fresh` for a color not saved yet (only its name can
  * change), `problem` a nameProblem() key while the name is not usable.
  * `savedSteps` are each color's step names as saved, by color name.

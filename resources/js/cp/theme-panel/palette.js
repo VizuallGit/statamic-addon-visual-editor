@@ -56,7 +56,7 @@ const ANCHORS = [
 const LIGHTEST = 0.985;
 const DARKEST = 0.1;
 
-export const MAX_VARIANTS = 5;
+export const MAX_VARIANTS = 9;
 
 export function isLiteral(value) {
   return LITERAL.test(String(value).trim());
@@ -249,6 +249,57 @@ export function stepValues(base, { tints = 0, shades = 0 } = {}) {
 }
 
 /**
+ * OKLCH lightness of each scale step, 50 to 950 — color-scheme's own ladder
+ * (ThemeColorPicker::scale), which made the theme's palettes before tints and
+ * shades. Every step is this light whatever the base; only the base's hue and
+ * chroma carry over.
+ */
+const SCALE_LIGHTNESS = [0.971, 0.941, 0.874, 0.785, 0.681, 0.572, 0.462, 0.374, 0.274, 0.184, 0.122];
+
+/** The top of the ladder is capped here, as color-scheme caps it. */
+const SCALE_CEILING = 0.97;
+
+/**
+ * The full 50–950 scale of `base`, lightest first:
+ * `[{ name: '50', value: '#…' }, …]`. The names never move — `bg-moss-700`
+ * stays `bg-moss-700` whatever the base becomes.
+ *
+ * Chroma fades towards both ends, so 50 and 950 sit near white and black.
+ * Unlike color-scheme, a step outside sRGB loses chroma instead of having its
+ * channels clipped: clipping turned a saturated orange's 600–950 into red.
+ */
+export function scaleSteps(base) {
+  const color = hexToOklch(base);
+
+  if (!color) {
+    return [];
+  }
+
+  const bottom = SCALE_LIGHTNESS[SCALE_LIGHTNESS.length - 1];
+  const top = Math.min(SCALE_CEILING, SCALE_LIGHTNESS[0]);
+  const span = SCALE_LIGHTNESS[0] - bottom;
+
+  return SCALE_LIGHTNESS.map((stepL, i) => {
+    const l = bottom + ((stepL - bottom) / span) * (top - bottom);
+
+    return {
+      name: String(STEPS[i]),
+      value: oklchToHex({ l, c: color.c * Math.min(1, l * 2, (1 - l) * 2), h: color.h }),
+    };
+  });
+}
+
+/** Whether a family's steps are exactly the scale of its base — names and colors. */
+function isScale(family) {
+  const want = scaleSteps(family.value);
+  const have = [...(family.steps || [])].sort((a, b) => Number(a.name) - Number(b.name));
+
+  return want.length > 0
+    && have.length === want.length
+    && want.every((s, i) => String(have[i].name) === s.name && String(have[i].value).trim().toLowerCase() === s.value);
+}
+
+/**
  * Tints and shades of `base`, named by lightness, lightest first.
  * Returns `[{ name: '300', value: '#…', kind: 'tint' | 'shade' }]`.
  *
@@ -367,24 +418,30 @@ export function namedByLightness(family, counts) {
 }
 
 /**
- * How a family's steps were made: `{ tints, shades, generated }`.
+ * How a family's steps were made: `{ tints, shades, generated, scale }`.
  *
  * Generated means the steps are the colors stepValues() gives for those
  * counts — whatever they are called, since names stay put when the base
- * changes (remakeSteps). Then the panel shows the counts and remakes the
- * steps with the base. Anything else (the theme's own 50–950, hand-picked
- * steps) is kept as it is until someone asks for tints or shades.
+ * changes (remakeSteps) — or exactly the scale of the base (scaleSteps,
+ * `scale: true`). Then the panel remakes the steps with the base. Anything
+ * else (the theme's own 50–950, hand-picked steps) is kept as it is until
+ * someone asks for tints, shades or the scale.
  */
 export function familyMode(family) {
   const steps = family.steps || [];
   const base = hexToOklch(family.value);
+  const handPicked = { tints: 0, shades: 0, generated: false, scale: false };
 
   if (!steps.length) {
-    return { tints: 0, shades: 0, generated: true };
+    return { tints: 0, shades: 0, generated: true, scale: false };
   }
 
   if (!base) {
-    return { tints: 0, shades: 0, generated: false };
+    return handPicked;
+  }
+
+  if (isScale(family)) {
+    return { tints: 0, shades: 0, generated: true, scale: true };
   }
 
   let tints = 0;
@@ -394,14 +451,14 @@ export function familyMode(family) {
     const color = hexToOklch(step.value);
 
     if (!color) {
-      return { tints: 0, shades: 0, generated: false };
+      return handPicked;
     }
 
     color.l > base.l ? tints++ : shades++;
   }
 
   if (tints > MAX_VARIANTS || shades > MAX_VARIANTS) {
-    return { tints: 0, shades: 0, generated: false };
+    return handPicked;
   }
 
   const made = stepValues(family.value, { tints, shades });
@@ -409,7 +466,7 @@ export function familyMode(family) {
   const have = steps.map((s) => String(s.value).trim().toLowerCase()).sort();
   const same = want.length === have.length && want.every((value, i) => value === have[i]);
 
-  return same ? { tints, shades, generated: true } : { tints: 0, shades: 0, generated: false };
+  return same ? { tints, shades, generated: true, scale: false } : handPicked;
 }
 
 export function isHex(value) {

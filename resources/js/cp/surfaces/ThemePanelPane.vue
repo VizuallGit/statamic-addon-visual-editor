@@ -169,6 +169,7 @@ const props = defineProps({
   onOpen: { type: Function, required: true },
   onName: { type: Function, required: true },
   onColor: { type: Function, required: true },
+  onMode: { type: Function, required: true },
   onToggle: { type: Function, required: true },
   onCount: { type: Function, required: true },
   onStep: { type: Function, required: true },

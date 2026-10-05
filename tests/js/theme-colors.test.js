@@ -6,6 +6,7 @@ import {
   generateSteps,
   namedByLightness,
   remakeSteps,
+  scaleSteps,
   stepValues,
   hexToOklch,
   lightnessNumber,
@@ -172,8 +173,8 @@ test('a dark base never has a step called 100 unless it is really that light', (
   }
 });
 
-test('counts are clamped to 0–5', () => {
-  assert.equal(generateSteps('#55613f', { tints: 9, shades: -2 }).length, 5);
+test('counts are clamped to 0–9', () => {
+  assert.equal(generateSteps('#55613f', { tints: 12, shades: -2 }).length, 9);
   assert.deepEqual(generateSteps('nope', { tints: 3 }), []);
 });
 
@@ -193,9 +194,9 @@ test('a new color name must be a plain, free CSS name', () => {
 test('generated steps are recognised with their counts; the theme’s own steps are not', () => {
   const steps = generateSteps('#55613f', { tints: 2, shades: 3 }).map(({ name, value }) => ({ name, value }));
 
-  assert.deepEqual(familyMode({ value: '#55613f', steps }), { tints: 2, shades: 3, generated: true });
-  assert.deepEqual(familyMode({ value: '#55613F', steps }), { tints: 2, shades: 3, generated: true });
-  assert.deepEqual(familyMode({ value: '#55613f', steps: [] }), { tints: 0, shades: 0, generated: true });
+  assert.deepEqual(familyMode({ value: '#55613f', steps }), { tints: 2, shades: 3, generated: true, scale: false });
+  assert.deepEqual(familyMode({ value: '#55613F', steps }), { tints: 2, shades: 3, generated: true, scale: false });
+  assert.deepEqual(familyMode({ value: '#55613f', steps: [] }), { tints: 0, shades: 0, generated: true, scale: false });
 
   const primary = readColors(SITE_CSS)[2];
 
@@ -275,7 +276,85 @@ test('a family whose names stayed put is still recognised as made, and can be re
   const first = plainSteps(generateSteps(GRAY, { tints: 3, shades: 3 }));
   const again = plainSteps(remakeSteps(NAVY, { tints: 3, shades: 3 }, first, GRAY));
 
-  assert.deepEqual(familyMode({ value: NAVY, steps: again }), { tints: 3, shades: 3, generated: true });
+  assert.deepEqual(familyMode({ value: NAVY, steps: again }), { tints: 3, shades: 3, generated: true, scale: false });
   assert.equal(namedByLightness({ value: NAVY, steps: again }, { tints: 3, shades: 3 }), false);
   assert.equal(namedByLightness({ value: GRAY, steps: first }, { tints: 3, shades: 3 }), true);
+});
+
+// color-scheme's ThemeColorPicker::scale() for the same bases — the ladder the theme's palettes came from.
+const OLD_SCALE = {
+  '#38001e': ['#f8f4f5', '#f2e8ec', '#e3cfd6', '#ceafba', '#b68a9b', '#9d647b', '#7d435c', '#5d3043', '#3a1c29', '#1e0c13', '#0c0306'],
+  '#11122C': ['#f4f5f7', '#eaebef', '#d3d4de', '#b5b8c7', '#9497ad', '#727692', '#525673', '#3c3f55', '#242635', '#11121b', '#05060a'],
+  '#55613f': ['#f4f5f3', '#eaece7', '#d3d7cd', '#b5bcab', '#949c85', '#727d5f', '#525d3e', '#3c452d', '#242a1a', '#11140a', '#050703'],
+};
+
+test('the scale is 50–950 on the old step ladder: same colors as color-scheme made', () => {
+  for (const [base, values] of Object.entries(OLD_SCALE)) {
+    const scale = scaleSteps(base);
+
+    assert.deepEqual(names(scale), STEPS.map(String));
+    assert.deepEqual(scale.map((s) => s.value), values, base);
+  }
+});
+
+test('every step is as light as its number says, whatever the base', () => {
+  const light = scaleSteps('#fde68a');
+  const dark = scaleSteps('#0b0b41');
+
+  for (let i = 0; i < STEPS.length; i++) {
+    assert.ok(Math.abs(hexToOklch(light[i].value).l - hexToOklch(dark[i].value).l) < 0.02, `step ${STEPS[i]}`);
+  }
+
+  assert.deepEqual(scaleSteps('not a color'), []);
+});
+
+test('a saturated base keeps its hue at the dark end instead of turning red', () => {
+  const hue = hexToOklch('#ff5500').h;
+
+  for (const step of scaleSteps('#ff5500').slice(5)) {
+    assert.ok(Math.abs(hexToOklch(step.value).h - hue) < 6, `${step.name} ${step.value}`);
+  }
+});
+
+test('a scale is recognised as made; one edited step or a missing one makes it hand-picked', () => {
+  const steps = plainSteps(scaleSteps('#38001e'));
+
+  assert.deepEqual(familyMode({ value: '#38001E', steps }), { tints: 0, shades: 0, generated: true, scale: true });
+  assert.deepEqual(familyMode({ value: '#38001e', steps: [...steps].reverse() }).scale, true);
+  assert.equal(familyMode({ value: '#38001e', steps: steps.slice(1) }).generated, false);
+
+  const edited = steps.map((s) => (s.name === '500' ? { ...s, value: '#ff0000' } : s));
+
+  assert.deepEqual(familyMode({ value: '#38001e', steps: edited }), { tints: 0, shades: 0, generated: false, scale: false });
+});
+
+test('a written scale reads back as a scale', () => {
+  const families = readColors(SITE_CSS);
+
+  families[3] = { ...families[3], steps: plainSteps(scaleSteps(families[3].value)) };
+
+  const back = readColors(writeColors(SITE_CSS, families))[3];
+
+  assert.equal(familyMode(back).scale, true);
+});
+
+test('nine tints and nine shades get eighteen unique names in lightness order, and are recognised as made', () => {
+  for (const base of ['#0d43bf', '#38001e', '#fde68a', '#55613f']) {
+    const steps = plainSteps(generateSteps(base, { tints: 9, shades: 9 }));
+    const nums = steps.map((s) => Number(s.name));
+
+    assert.equal(steps.length, 18, base);
+    assert.equal(new Set(nums).size, 18, base);
+    assert.ok(nums.every((n, i) => i === 0 || n > nums[i - 1]), base);
+    assert.ok(steps.every((s, i) => i === 0 || hexToOklch(s.value).l < hexToOklch(steps[i - 1].value).l), base);
+    assert.deepEqual(familyMode({ value: base, steps }), { tints: 9, shades: 9, generated: true, scale: false }, base);
+  }
+});
+
+test('going from five to nine keeps the five names and adds four further out', () => {
+  const five = plainSteps(generateSteps('#0d43bf', { tints: 5, shades: 5 }));
+  const nine = plainSteps(remakeSteps('#0d43bf', { tints: 9, shades: 9 }, five));
+
+  assert.equal(nine.length, 18);
+  assert.ok(names(five).every((name) => names(nine).includes(name)));
 });
