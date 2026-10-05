@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor;
 
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker\Names;
 use Statamic\Facades\Fieldset;
+use Statamic\Fields\FieldtypeRepository;
 
 /**
  * Making a section *type* — the mirror image of deleting one.
@@ -54,12 +55,32 @@ class SectionTypeMaker
      * without them looks broken in the editor for reasons that are nowhere in
      * the file.
      */
-    public static function scaffold(): string
+    public static function scaffold(bool $styled = false): string
     {
-        return <<<'ANTLERS'
+        $section = <<<'ANTLERS'
         <section id="id-{{ id }}" class="{{ _class }}" {{ visual_edit outline_inside="true" section_orderable="true" }}>
 
         </section>
+
+        ANTLERS;
+
+        if (! $styled) {
+            return $section;
+        }
+
+        // The fieldset came with the site's Style tab, so the markup reads
+        // it from the first render: the colour lands on the section, and
+        // `responsive_css` writes the padding for every screen size. Without
+        // this block the fields would sit in the panel and change nothing.
+        return $section.<<<'ANTLERS'
+
+        {{ style_push }}
+        <style>
+        {{ responsive_css }}
+            background-color: {{ bg_color }};
+        {{ /responsive_css }}
+        </style>
+        {{ /style_push }}
 
         ANTLERS;
     }
@@ -139,13 +160,18 @@ class SectionTypeMaker
         $handle = $viewFolder.'/'.$name;
         $imported = $fieldsetFolder.'.'.$name;
 
+        $styled = false;
+
         if (! $static) {
-            // The fields the set imports. Empty to start with: the fieldset
-            // screen — or the panel — is where fields get added, and a set
-            // importing a fieldset that does not exist yet is a broken set.
+            // The fields the set imports — the site's standard tabs when it
+            // has them, otherwise empty. The fieldset screen, or the panel, is
+            // where the content fields get added; a set importing a fieldset
+            // that does not exist yet is a broken set.
             if (! static::writeFieldset($imported, $fieldsetFolder, $name, $display)) {
                 return null;
             }
+
+            $styled = static::startingFields() !== [];
         }
 
         $view = Names::viewPath($viewFolder, $name);
@@ -155,7 +181,7 @@ class SectionTypeMaker
             return null;
         }
 
-        if (file_put_contents($view, $static ? static::staticScaffold() : static::scaffold()) === false) {
+        if (file_put_contents($view, $static ? static::staticScaffold() : static::scaffold($styled)) === false) {
             return null;
         }
 
@@ -310,15 +336,82 @@ class SectionTypeMaker
         }, 'section type fields '.$handle);
     }
 
-    /** Writes an empty fieldset and checks it landed. */
+    /** Writes the fieldset — the site's starting tabs, or empty — and checks it landed. */
     protected static function writeFieldset(string $imported, string $folder, string $name, string $display): bool
     {
         Fieldset::make($imported)->setContents([
             'title' => $display,
-            'fields' => [],
+            'fields' => static::startingFields(),
         ])->save();
 
         return is_file(Names::fieldsetPath($folder, $name));
+    }
+
+    /**
+     * The fields a new section starts with: the site's own Content | Style
+     * tabs, so a section made in the editor opens in the panel like every
+     * section the kit ships with — Content first, then Style with Colors and
+     * Spacing as accordions. Each one is an import from the site's `common`
+     * fieldset, the same reference the kit's own sections use, so a change
+     * to the shared tab reaches new sections too.
+     *
+     * Read from what the site has, never assumed: a site whose `common`
+     * fieldset lacks the two tabs gets an empty fieldset as before, and
+     * Colors is only offered where the theme colour picker is installed.
+     *
+     * @param  array<int, array<string, mixed>>|null  $common  the `common` fieldset's fields; read from the site when null
+     * @return array<int, array<string, mixed>>
+     */
+    public static function startingFields(?array $common = null, ?bool $colorPicker = null): array
+    {
+        $common ??= Fieldset::find('common')?->contents()['fields'] ?? [];
+        $colorPicker ??= static::hasFieldtype('theme_color_picker');
+
+        $has = [];
+
+        foreach ($common as $field) {
+            if (is_array($field) && isset($field['handle'])) {
+                $has[(string) $field['handle']] = true;
+            }
+        }
+
+        if (! isset($has['content_tab'], $has['style_tab'])) {
+            return [];
+        }
+
+        $fields = [
+            ['handle' => 'content_tab', 'field' => 'common.content_tab', 'config' => ['display' => 'Content']],
+            ['handle' => 'style_tab', 'field' => 'common.style_tab', 'config' => ['display' => 'Style']],
+        ];
+
+        if (isset($has['colors_tab']) && $colorPicker) {
+            $fields[] = ['handle' => 'colors_tab', 'field' => 'common.colors_tab', 'config' => ['display' => 'Colors']];
+            $fields[] = ['handle' => 'bg_color', 'field' => [
+                'type' => 'theme_color_picker',
+                'display' => 'Bg color',
+                'default' => 'var(--gray-600)',
+            ]];
+        }
+
+        if (isset($has['spacing_tab'], $has['section_spacing'])) {
+            $fields[] = ['handle' => 'spacing_tab', 'field' => 'common.spacing_tab', 'config' => ['display' => 'Spacing']];
+            $fields[] = ['handle' => 'padding', 'field' => 'common.section_spacing', 'config' => [
+                'display' => 'Padding',
+                'sve_responsive' => true,
+            ]];
+        }
+
+        return $fields;
+    }
+
+    /** Whether a fieldtype is registered on this site — an addon's, so never assumed. */
+    protected static function hasFieldtype(string $handle): bool
+    {
+        try {
+            return app(FieldtypeRepository::class)->find($handle) !== null;
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**
