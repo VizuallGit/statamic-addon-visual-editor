@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import { BP_OVERVIEW_ID } from '../../resources/js/lib/ids.js';
 import {
   GAP,
-  HEIGHT_CAP,
   PAD,
   VIEW_FLAG,
   ZOOM_MAX,
@@ -15,7 +14,6 @@ import {
   clampZoom,
   contentBox,
   fitZoom,
-  frameHeight,
   framesTop,
   glideEase,
   holePolygon,
@@ -29,8 +27,8 @@ import {
   sizeLock,
   stashFlags,
   stepZoom,
+  syncedScrollTop,
   viewUrl,
-  visibleBand,
 } from '../../resources/js/breakpoint-overview.js';
 
 const JS = join(dirname(fileURLToPath(import.meta.url)), '../../resources/js');
@@ -199,31 +197,83 @@ test('the hole: the layer’s outline and then the slot’s, under the even-odd 
   );
 });
 
-test('the visible band: the part of the slot inside the view, in the page’s own pixels', () => {
-  const view = { left: 0, top: 52, width: 1440, height: 848 };
-
-  // The slot starts below the view's top and runs past its bottom.
-  assert.deepEqual(visibleBand({ left: 688, top: 84, width: 728, height: 1226 }, view, 0.5), { left: 0, top: 0, width: 1456, height: 1632 });
-  // Panned down: the slot's top is above the view.
-  assert.deepEqual(visibleBand({ left: 688, top: -216, width: 728, height: 1226 }, view, 0.5), { left: 0, top: 536, width: 1456, height: 1696 });
-  // Panned past it: nothing of it on screen.
-  assert.deepEqual(visibleBand({ left: 688, top: -2000, width: 728, height: 1226 }, view, 0.5).height, 0);
-  // A frame wider than the view: only what is inside counts.
-  assert.deepEqual(visibleBand({ left: -100, top: 84, width: 1600, height: 400 }, view, 1), { left: 100, top: 0, width: 1440, height: 400 });
-});
-
 test('a pointer that barely moved between down and up is a click, not a pan', () => {
   assert.equal(isDrag({ x: 10, y: 10 }, { x: 12, y: 13 }), false);
   assert.equal(isDrag({ x: 10, y: 10 }, { x: 15, y: 10 }), true);
   assert.equal(isDrag({ x: 10, y: 10 }, { x: 10, y: 4 }), true);
 });
 
-test('a frame is its document tall, filling the view at least and cut at the cap', () => {
-  assert.equal(frameHeight(3200.2, 1500), 3201);
-  assert.equal(frameHeight(900, 1567.4), 1568);
-  assert.equal(frameHeight(24000, 1500), HEIGHT_CAP);
-  assert.equal(frameHeight(0, 0), 0);
-  assert.equal(frameHeight(undefined, 400), 400);
+// --- Synced scroll: the same section under every frame's top edge -----------
+
+// Desktop: a header, three sections and a footer, 900 px of viewport.
+const DESKTOP = {
+  scrollHeight: 2700,
+  viewport: 900,
+  anchors: [
+    { id: 'chrome:header', top: 0, height: 100 },
+    { id: 'a', top: 100, height: 600 },
+    { id: 'b', top: 700, height: 500 },
+    { id: 'c', top: 1200, height: 1300 },
+    { id: 'chrome:footer', top: 2500, height: 200 },
+  ],
+};
+// Mobile: the same page, every section drawn taller.
+const MOBILE = {
+  scrollHeight: 5400,
+  viewport: 800,
+  anchors: [
+    { id: 'chrome:header', top: 0, height: 80 },
+    { id: 'a', top: 80, height: 1400 },
+    { id: 'b', top: 1480, height: 1200 },
+    { id: 'c', top: 2680, height: 2400 },
+    { id: 'chrome:footer', top: 5080, height: 320 },
+  ],
+};
+
+test('synced scroll: the same section stands under the top edge, as far into it as in the source', () => {
+  // 40 % into b on desktop (700 + 0.4 × 500) is 40 % into b on mobile (1480 + 0.4 × 1200).
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, MOBILE), 1960);
+  // And back again.
+  assert.equal(syncedScrollTop({ ...MOBILE, scrollTop: 1960 }, DESKTOP), 900);
+  // The edge exactly on a section's top: that section's top.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 1200 }, MOBILE), 2680);
+  // Header and footer are anchors too: halfway into the header.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 50 }, MOBILE), 40);
+});
+
+test('synced scroll: a section the target does not have falls back to the same share of the page', () => {
+  const noB = { ...MOBILE, anchors: MOBILE.anchors.filter((anchor) => anchor.id !== 'b') };
+
+  // 900 of desktop's 1800 scrollable pixels: half of mobile's 4600.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, noB), 2300);
+});
+
+test('synced scroll: an edge above the first anchor, or no anchors at all, goes by share too', () => {
+  const late = { ...DESKTOP, anchors: [{ id: 'a', top: 400, height: 600 }] };
+
+  // The edge at 200 is above a's top (400): a fraction of 1800, not of a.
+  assert.equal(syncedScrollTop({ ...late, scrollTop: 200 }, MOBILE), Math.round((4600 * 200) / 1800));
+  assert.equal(syncedScrollTop({ ...DESKTOP, anchors: [], scrollTop: 450 }, { ...MOBILE, anchors: [] }), 1150);
+  // Past the last anchor: by share as well.
+  assert.equal(syncedScrollTop({ scrollTop: 300, scrollHeight: 1000, viewport: 400, anchors: [{ id: 'a', top: 0, height: 200 }] }, { scrollHeight: 2200, viewport: 400, anchors: [{ id: 'a', top: 0, height: 900 }] }), 900);
+  // A source that cannot scroll is at share 0, not a division by nothing.
+  assert.equal(syncedScrollTop({ scrollTop: 0, scrollHeight: 500, viewport: 900, anchors: [] }, MOBILE), 0);
+});
+
+test('synced scroll: never past what the target can scroll, never above its top, whole pixels', () => {
+  // The source deep in its footer; the target's footer starts past its own end of scroll.
+  const short = { scrollHeight: 1000, viewport: 800, anchors: [{ id: 'chrome:footer', top: 900, height: 100 }] };
+
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 1800 }, short), 200);
+  // A target too short to scroll at all.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 900 }, { scrollHeight: 600, viewport: 900, anchors: MOBILE.anchors }), 0);
+  // A target section that starts above the page (a negative top): no lower than 0.
+  assert.equal(syncedScrollTop({ ...DESKTOP, scrollTop: 100 }, { scrollHeight: 3000, viewport: 800, anchors: [{ id: 'a', top: -50, height: 10 }] }), 0);
+  // Fractions round to a whole pixel.
+  const third = syncedScrollTop({ scrollTop: 100, scrollHeight: 1200, viewport: 900, anchors: [] }, { scrollHeight: 1900, viewport: 900, anchors: [] });
+
+  assert.equal(third, 333);
+  assert.ok(Number.isInteger(syncedScrollTop({ ...DESKTOP, scrollTop: 777 }, MOBILE)));
 });
 
 test('the layer covers the pane without the padding the docks sit on', () => {

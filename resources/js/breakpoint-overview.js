@@ -12,7 +12,7 @@
  * where that size stands (a clip-path, so clicks fall through), and the preview iframe,
  * which never leaves `.live-preview-contents` (Statamic finds it there as
  * firstChild and would make a new one), is laid under the hole at the slot's
- * exact screen position, the breakpoint's width, the page's height and the
+ * exact screen position, the breakpoint's width, the frames' height and the
  * row's scale. Only cp-shell/block-order.js writes those styles: the overview
  * hands it the slot on the bus (`lp:preview-slot`) on every pan, zoom and
  * resize, and null on close. The frame at that size is loaded like the
@@ -22,18 +22,39 @@
  * then the page again). A click in another size's frame makes that size the
  * active one, as the top-bar button does, and the preview moves there.
  *
- * The row pans by script, never by native scroll: a wheel over the layer, or
- * over the preview (its document is page-high and has nothing to scroll),
- * moves the row and places the preview in the same turn, so the two never
- * drift a frame apart. FOCUS from the fields on the left, which the bridge
- * answers with a scroll the page-high preview cannot make, pans the row to the
- * element the bridge pulsed instead.
+ * Every frame is a viewport, not a page — as high as the pane shows at the
+ * zoom (floorHeight) — and its document scrolls inside it, as in a browser.
+ * Until 5 Oct 2026 every frame was page-high and the row panned up and down
+ * by script, and two things went wrong. Scroll-driven CSS (`animation-timeline:
+ * view()`, `timeline-trigger`) and reveals run by an IntersectionObserver never
+ * ran, because a page-high document has nothing to scroll: icons animated in
+ * on scroll stayed invisible in the copies. And the sizes drifted apart: a
+ * page is a different height at each size, so the same pan showed another
+ * section on mobile than on desktop. Now, as in Polypane, the row pans
+ * sideways only and the frames scroll in step. The preview and every loaded
+ * copy — the one under the preview too, so that it shows the right place the
+ * moment the preview moves to another size — scroll together: the one that
+ * scrolls (a wheel, the bridge's own scrollIntoView, the page's script) leads,
+ * and every other one stands as far into the same page section as the leader
+ * does (syncedScrollTop), or at the same share of the page when that section
+ * is not there. A scroll the overview wrote itself is known by where it was
+ * sent (`expectTop`) and is not passed on again.
+ *
+ * A wheel, over the layer or over the preview, scrolls the one frame under
+ * the pointer (over a gutter, the preview) when it goes up or down, and pans
+ * the row when it goes sideways — the row moved and the preview placed in the
+ * same turn, so the two never drift a frame apart. FOCUS from the fields on
+ * the left is the bridge's own: it scrolls the preview to the element, and
+ * the copies follow. A section dragged in from the library is the bridge's
+ * too: it zooms the page down inside the preview, as in one preview. For
+ * either, the row only brings the active frame into view, sideways.
  *
  * Closed, it costs nothing. Everything `openBreakpointOverview` binds —
- * listeners, the ResizeObserver — is a function in `overviewState.cleanups`,
- * and `closeBreakpointOverview` runs them, blanks and removes the frames, the
- * layer and its `<style>`, and empties the state. Nothing here binds any other
- * way, and nothing here uses a timer or a MutationObserver.
+ * listeners, the ResizeObserver, the sync's animation frame — is a function
+ * in `overviewState.cleanups`, and `closeBreakpointOverview` runs them, blanks
+ * and removes the frames, the layer and its `<style>`, and empties the state.
+ * Nothing here binds any other way, and nothing here uses a timer or a
+ * MutationObserver.
  *
  * The preview frame's src and window are never touched, and its styles only
  * through block-order.js, which owns them and writes them again on every
@@ -86,11 +107,11 @@
  *
  * Bus: asks `lp:lastPreviewUrl`, `lp:preview-slot` and `lp:set-device`;
  * emits `video-holds:sync` for a frame that has loaded. DOM events, only while
- * open: `statamic:preview-updated` on the view frames' windows, `load` on the
- * pane (capture), `sve:breakpoint` and `keydown` on the CP window, `wheel`
- * and `message` on the preview's document and window — and
- * `__sveMirror` and `__sveBand` (the visible part of the page, for the
- * bridge's viewport-anchored UI) on the preview's window.
+ * open: `statamic:preview-updated` and `scroll` on the view frames' windows,
+ * `load` on the pane (capture), `sve:breakpoint` and `keydown` on the CP
+ * window, `wheel` and `input` (capture) on the preview's document, `message`,
+ * `scroll` and `sve:inline-edit-end` on its window — and `__sveMirror` on the
+ * preview's window.
  *
  * The whole feature, to remove it without a trace: this file; the button in
  * cp-shell/block-order.js; `breakpoint_overview` in Features::KEYS and in
@@ -101,6 +122,9 @@
  * video-holds.js; `previewDocuments` in dock-instant-preview.js; the
  * `bp_overview*` strings; the narrow-window rule at the end of
  * resources/css/addon.css; tests/js and tests/browser breakpoint-overview.
+ * bridge/viewport.js may stay as it is: it lays the bridge's UI out by a
+ * `__sveBand` that nothing has written since 5 Oct 2026, and without one by
+ * the real viewport, as in one preview — idle.
  */
 import { ask, emit } from './cp/bus.js';
 import { bpForDevice, bpFromWidth, breakpoints } from './breakpoints.js';
@@ -118,6 +142,13 @@ const LAYER_ID = BP_OVERVIEW_ID;
 const STYLE_ID = '__sve-bp-overview-style';
 const ON_CLASS = 'sve-bpo-on';
 
+/**
+ * Header and footer in the preview's documents: no sets, so no `data-sid`,
+ * yet places the synced scroll can stand in (anchorsOf). The bridge spells it
+ * in bridge/global-sections.js, which this file may not import.
+ */
+const CHROME_ATTR = 'data-sve-chrome';
+
 /** The query flag InjectBridgeScript reads: preview.js, no bridge. */
 export const VIEW_FLAG = 'sve_view';
 
@@ -127,9 +158,6 @@ export const PAD = 48;
 
 /** Room above the frames for their labels, on screen. Labels keep their size at every zoom. */
 const LABEL_REM = 2;
-
-/** A view frame is never taller than this. A longer page is cut, not rendered. */
-export const HEIGHT_CAP = 8000;
 
 /** What applyLpDevice gives the base size when the config names no width for it. */
 const BASE_WIDTH = 1440;
@@ -305,25 +333,6 @@ export function holePolygon(width, height, hole) {
   return `polygon(evenodd, 0 0, ${px(width)} 0, ${px(width)} ${px(height)}, 0 ${px(height)}, 0 0, ${x1} ${y1}, ${x1} ${y2}, ${x2} ${y2}, ${x2} ${y1}, ${x1} ${y1})`;
 }
 
-/**
- * The part of the slot that is on screen, in the preview's own pixels — what
- * the bridge treats as the viewport for UI it anchors to the viewport. `slot`
- * and `view` are screen rects; `scale` is the row's zoom.
- */
-export function visibleBand(slot, view, scale) {
-  const left = Math.max(slot.left, view.left);
-  const top = Math.max(slot.top, view.top);
-  const right = Math.min(slot.left + slot.width, view.left + view.width);
-  const bottom = Math.min(slot.top + slot.height, view.top + view.height);
-
-  return {
-    left: Math.max(0, (left - slot.left) / scale),
-    top: Math.max(0, (top - slot.top) / scale),
-    width: Math.max(0, (right - left) / scale),
-    height: Math.max(0, (bottom - top) / scale),
-  };
-}
-
 /** How far along a glide is at time `t` of 1: fast off the mark, gentle at the end. */
 export function glideEase(t) {
   const x = Math.min(1, Math.max(0, t));
@@ -336,11 +345,32 @@ export function isDrag(from, to, slop = 4) {
   return Math.abs(to.x - from.x) > slop || Math.abs(to.y - from.y) > slop;
 }
 
-/** A view frame's height: its document's, no lower than the view, no higher than the cap. */
-export function frameHeight(docHeight, floor, cap = HEIGHT_CAP) {
-  const height = Math.ceil(Number(docHeight) || 0);
+/**
+ * Where a frame scrolls to follow another: Polypane's synced scroll, by
+ * element. `anchors` are a document's page sections, header and footer as
+ * `{ id, top, height }` in its own pixels, in document order (anchorsOf). The
+ * section under the source's top edge is found in the target by its id, and
+ * the target stands as far into it as the source does — 40 % into the hero
+ * there, 40 % into the hero here, however tall each size draws it. A page is
+ * a different height at each size, so the same pixel offset would show
+ * another section. With no section under the edge (none at all, or the edge
+ * above the first) or none of that id in the target: the same share of the
+ * page that can be scrolled. Whole pixels, within what the target can scroll.
+ */
+export function syncedScrollTop(source, target) {
+  const max = Math.max(0, target.scrollHeight - target.viewport);
+  const top = source.scrollTop;
+  const from = (source.anchors || []).find((anchor) => anchor.top + anchor.height > top);
+  const to = from && top >= from.top ? (target.anchors || []).find((anchor) => anchor.id === from.id) : null;
+  let want = (max * top) / Math.max(1, source.scrollHeight - source.viewport);
 
-  return Math.round(Math.min(cap, Math.max(Math.ceil(Number(floor) || 0), height)));
+  if (to) {
+    const share = Math.min(1, Math.max(0, (top - from.top) / from.height));
+
+    want = to.top + share * to.height;
+  }
+
+  return Math.round(Math.min(max, Math.max(0, want)));
 }
 
 /**
@@ -477,7 +507,7 @@ function emptyState() {
   return {
     win: null, // the Control Panel window the button lives in
     layer: null,
-    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind, hidden, active }
+    frames: [], // { spec, item, label, el, src, ready, stale, height, unbind, hidden, active, expectTop }
     cleanups: [], // everything open bound; close runs them all
     styles: [],
     contents: null, // Statamic's `.live-preview-contents`
@@ -493,7 +523,8 @@ function emptyState() {
     preview: '', // the preview URL the frames were last sent (each adds its own view flag)
     active: '', // breakpoint handle that has the ring — the preview's own slot
     dim: false, // a size is picked in the top bar: the other frames step back
-    drop: null, // zoom and scroll from before a library drag, put back on its end
+    mainScroll: { expectTop: null }, // the scroll the overview last wrote to the preview (see onMemberScroll)
+    sync: null, // { frame, source }: the animation frame that brings every other frame in line with `source`
     pan: null,
     glide: null, // the animation frame of a reveal under way
     editing: null, // the field wrapper an inline edit in the preview is typing into
@@ -589,7 +620,6 @@ export function openBreakpointOverview(win) {
     // geometry back when told the slot is gone — the last thing close does.
     overviewState.cleanups.push(() => ask('lp:preview-slot', { win, slot: null }));
     placePreview();
-    measureActive();
 
     for (const entry of overviewState.frames) {
       if (!entry.hidden) {
@@ -673,7 +703,7 @@ function build(win, host, specs) {
     item.append(label, el);
     canvas.appendChild(item);
 
-    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, active: false };
+    return { spec, item, label, el, src: '', ready: false, stale: false, height: 0, unbind: null, hidden, active: false, expectTop: null };
   });
 
   sizer.appendChild(canvas);
@@ -684,17 +714,7 @@ function build(win, host, specs) {
   // In the DOM before any frame gets a src; sized before the first paint.
   host.appendChild(layer);
   place();
-
-  const zoom = fitZoom(scroller.clientWidth, widths());
-
-  overviewState.zoom = zoom;
-
-  for (const entry of overviewState.frames) {
-    entry.height = frameHeight(0, floorHeight());
-    entry.el.style.height = `${entry.height}px`;
-  }
-
-  applyZoom(zoom);
+  applyZoom(fitZoom(scroller.clientWidth, widths()));
 }
 
 function zoomBar(win, doc) {
@@ -804,26 +824,39 @@ function place() {
   setStyle(layer, 'height', `${box.height}px`);
 }
 
-/** The canvas height that fills the view at the current zoom. */
+/** The canvas height that fills the view at the current zoom: every frame's height. */
 function floorHeight() {
   const { scroller, zoom, labelSpace } = overviewState;
 
   return Math.max(0, (scroller.clientHeight - framesTop(zoom, labelSpace) - PAD * zoom) / zoom);
 }
 
-/** Zoom is one transform on the canvas plus the sizer the scroll area is measured by. */
+/**
+ * Zoom is one transform on the canvas plus the sizer the scroll area is
+ * measured by. Every frame shown is as high as the view at this zoom — a
+ * viewport its page scrolls in — so the row is exactly as high as the view
+ * and pans sideways only. Floored: a pixel more would give it a vertical
+ * scroll of its own.
+ */
 function applyZoom(z) {
   const { canvas, sizer, level, labelSpace } = overviewState;
   const top = framesTop(z, labelSpace);
-  const tallest = Math.max(0, ...shown().map((entry) => entry.height));
   const percent = `${Math.round(z * 100)}%`;
 
   overviewState.zoom = z;
+
+  const height = floorHeight();
+
+  for (const entry of shown()) {
+    entry.height = height;
+    setStyle(entry.el, 'height', `${height}px`);
+  }
+
   setStyle(canvas, 'transform', `scale(${z})`);
   setStyle(canvas, '--z', String(z));
   setStyle(canvas, 'padding-top', `${top / z}px`);
   setStyle(sizer, 'width', `${Math.ceil(rowWidth(widths()) * z)}px`);
-  setStyle(sizer, 'height', `${Math.ceil(top + (tallest + PAD) * z)}px`);
+  setStyle(sizer, 'height', `${Math.floor(top + (height + PAD) * z)}px`);
 
   if (level.textContent !== percent) {
     level.textContent = percent;
@@ -832,9 +865,9 @@ function applyZoom(z) {
   placePreview();
 }
 
-/** Zoom to `next`, keeping the point at `anchor` (scroller pixels; default the middle) still. */
+/** Zoom to `next`, keeping the point at `anchor` (scroller pixels; default the middle) still — sideways, the row's only way to move. */
 function setZoom(next, anchor = null) {
-  const { scroller, labelSpace } = overviewState;
+  const { scroller } = overviewState;
   const z0 = overviewState.zoom;
   const z1 = clampZoom(next);
 
@@ -845,15 +878,12 @@ function setZoom(next, anchor = null) {
   stopGlide();
 
   const x = anchor ? anchor.x : scroller.clientWidth / 2;
-  const y = anchor ? anchor.y : scroller.clientHeight / 2;
   const left = scroller.scrollLeft;
-  const top = scroller.scrollTop;
   const centring = (z) => Math.max(0, (scroller.clientWidth - rowWidth(widths()) * z) / 2);
   const x0 = centring(z0);
 
   applyZoom(z1);
   scroller.scrollLeft = anchoredScroll(left, x, x0, centring(z1), z0, z1);
-  scroller.scrollTop = anchoredScroll(top, y, framesTop(z0, labelSpace), framesTop(z1, labelSpace), z0, z1);
   placePreview();
 }
 
@@ -874,55 +904,10 @@ function zoomAction(action) {
 // --- Frames ----------------------------------------------------------------------------
 
 /**
- * The height of what the document holds. Not `documentElement.scrollHeight`:
- * that is never less than the frame's own height, so a page that got shorter
- * would keep the frame it had.
- */
-function documentHeight(doc) {
-  const root = doc?.documentElement;
-
-  return root ? Math.max(root.offsetHeight || 0, doc.body?.scrollHeight || 0) : 0;
-}
-
-function measure(entry) {
-  let height = 0;
-
-  if (entry.hidden) {
-    return;
-  }
-
-  try {
-    height = documentHeight(entry.active ? overviewState.main.contentDocument : entry.el.contentDocument);
-  } catch {
-    return;
-  }
-
-  const next = frameHeight(height, floorHeight());
-
-  if (next === entry.height) {
-    return;
-  }
-
-  entry.height = next;
-  entry.el.style.height = `${next}px`;
-  applyZoom(overviewState.zoom);
-}
-
-/** The preview's page height, after a render, a load or a change of size: its slot follows. */
-function measureActive() {
-  const entry = activeEntry();
-
-  if (entry) {
-    measure(entry);
-  }
-}
-
-/**
  * The preview into its slot: block-order.js is told where the active frame
- * stands on screen and writes the iframe there; the layer gets its hole cut
- * at the same rect; and the bridge is told which part of the page is on
- * screen. On every pan, zoom, resize and swap — in the same turn as the row
- * moves, so the preview never trails it.
+ * stands on screen and writes the iframe there, and the layer gets its hole
+ * cut at the same rect. On every pan, zoom, resize and swap — in the same
+ * turn as the row moves, so the preview never trails it.
  */
 function placePreview() {
   const { win, layer, scroller, main, zoom } = overviewState;
@@ -932,15 +917,9 @@ function placePreview() {
     return;
   }
 
-  const mainWin = main.contentWindow;
-
   if (!entry) {
     ask('lp:preview-slot', { win, slot: null });
     setStyle(scroller, 'clip-path', '');
-
-    if (mainWin) {
-      delete mainWin.__sveBand;
-    }
 
     return;
   }
@@ -951,10 +930,6 @@ function placePreview() {
   ask('lp:preview-slot', { win, slot: { left: rect.left, top: rect.top, width: entry.spec.width, height: entry.height, scale: zoom } });
   // Cut in the scroller, not the layer: the zoom bar beside it stays whole and on top of the preview.
   setStyle(scroller, 'clip-path', holePolygon(view.width, view.height, { left: rect.left - view.left, top: rect.top - view.top, width: rect.width, height: rect.height }));
-
-  if (mainWin) {
-    mainWin.__sveBand = visibleBand(rect, { left: view.left, top: view.top, width: scroller.clientWidth, height: scroller.clientHeight }, zoom);
-  }
 }
 
 /**
@@ -1020,7 +995,6 @@ function toggleSize(entry) {
   }
 
   applyZoom(overviewState.zoom);
-  measureActive();
 }
 
 /** The open row's sizes, as sizeLock and the sizes menu read them. */
@@ -1062,14 +1036,21 @@ function frameLoaded(entry) {
   }
 
   entry.ready = true;
+  entry.expectTop = null;
   entry.unbind?.();
 
-  // A new document is a new window: its own morphs say when to measure again.
-  const onUpdated = () => measure(entry);
+  // A new document is a new window. Its morphs may change the sections'
+  // heights under the top edge: back in line with the preview after each. Its
+  // scroll is passed on to the others unless the overview wrote it.
+  const onUpdated = () => syncFromPreview();
+  const onScroll = () => onMemberScroll(frameWin, entry);
 
   frameWin.addEventListener('statamic:preview-updated', onUpdated);
-  entry.unbind = () => frameWin.removeEventListener('statamic:preview-updated', onUpdated);
-  measure(entry);
+  frameWin.addEventListener('scroll', onScroll);
+  entry.unbind = () => {
+    frameWin.removeEventListener('statamic:preview-updated', onUpdated);
+    frameWin.removeEventListener('scroll', onScroll);
+  };
 
   // Fresh from the server, the copy knows no video holds; the panel remembers
   // them and answers to this window (video-holds.js).
@@ -1079,6 +1060,9 @@ function frameLoaded(entry) {
     entry.stale = false;
     post(entry, overviewState.render);
   }
+
+  // Fresh from the server at the top of the page: to where the preview is.
+  syncFromPreview();
 }
 
 /** The URL the preview iframe is showing, not a remembered one. */
@@ -1107,7 +1091,7 @@ function mirror(render) {
 
   overviewState.render = render;
   overviewState.frames.forEach((entry) => post(entry, render));
-  measureActive();
+  syncFromPreview();
 }
 
 function bindMain(main) {
@@ -1125,27 +1109,29 @@ function bindMain(main) {
   // there): on the preview's window for the while, gone with the overview.
   mainWin.__sveMirror = mirror;
 
-  // The preview is page-high in the row: a wheel over it pans the row, and
-  // FOCUS — which the bridge answers with a scroll the page cannot make — pans
-  // the row to the element it pulsed. Keys in the preview stay the bridge's:
-  // Escape there ends an edit or a menu, never the overview.
+  // The preview is a viewport in the row, as the copies are: a wheel over it
+  // scrolls it (or pans the row sideways), and its scroll leads the copies.
+  // FOCUS and a library drag are the bridge's — it scrolls the page to the
+  // element, or zooms the page down inside the preview — and the copies
+  // follow through the sync; the row only brings the active frame into view.
+  // Keys in the preview stay the bridge's: Escape there ends an edit or a
+  // menu, never the overview.
   const doc = mainWin.document;
   const onMessage = (event) => {
     if (event.data?.source !== SOURCE) {
       return;
     }
 
-    if (event.data.type === MSG.FOCUS) {
-      revealPulsed();
-    } else if (event.data.type === MSG.EXT_DRAG_START) {
-      fitForDrop();
-    } else if (event.data.type === MSG.EXT_DRAG_END) {
-      leaveDrop();
+    if (event.data.type === MSG.FOCUS || event.data.type === MSG.EXT_DRAG_START) {
+      revealActive();
     }
   };
+  const onScroll = () => onMemberScroll(mainWin, overviewState.mainScroll);
 
+  overviewState.mainScroll.expectTop = null;
   doc.addEventListener('wheel', onPreviewWheel, { passive: false });
   mainWin.addEventListener('message', onMessage);
+  mainWin.addEventListener('scroll', onScroll);
   // An inline edit types into the preview alone; the frames take each keystroke (mirrorField).
   doc.addEventListener('input', onPreviewInput, true);
   mainWin.addEventListener('sve:inline-edit-end', onInlineEditEnd);
@@ -1154,11 +1140,11 @@ function bindMain(main) {
     try {
       doc.removeEventListener('wheel', onPreviewWheel, { passive: false });
       mainWin.removeEventListener('message', onMessage);
+      mainWin.removeEventListener('scroll', onScroll);
       doc.removeEventListener('input', onPreviewInput, true);
       mainWin.removeEventListener('sve:inline-edit-end', onInlineEditEnd);
       overviewState.editing = null;
       delete mainWin.__sveMirror;
-      delete mainWin.__sveBand;
     } catch {
       /* the window is gone */
     }
@@ -1232,10 +1218,184 @@ function onKey(event) {
   }
 }
 
+// --- Synced scroll ---------------------------------------------------------------------
+
+/**
+ * A document's anchors for syncedScrollTop: its page sections — the outermost
+ * `[data-sid]`, not the sets inside them — and its header and footer, which
+ * are no sets and are found by their own attribute. In the document's pixels
+ * and order. One not drawn (no height) is no place to stand in, and neither
+ * is one fixed or sticky: it stays put on screen while the page scrolls under
+ * it, so a sticky header would be the anchor under the top edge at every
+ * scroll, and every frame would be held where it already was.
+ */
+function anchorsOf(win) {
+  const anchors = [];
+
+  for (const el of win.document.querySelectorAll(`[${SID_ATTR}]:not([${SID_ATTR}] *), [${CHROME_ATTR}]`)) {
+    const rect = el.getBoundingClientRect();
+    const position = rect.height > 0 ? win.getComputedStyle(el).position : '';
+    const chrome = el.getAttribute(CHROME_ATTR);
+
+    if (position && position !== 'fixed' && position !== 'sticky') {
+      anchors.push({ id: chrome === null ? el.getAttribute(SID_ATTR) : `chrome:${chrome}`, top: rect.top + win.scrollY, height: rect.height });
+    }
+  }
+
+  return anchors;
+}
+
+/** Where a window is scrolled to and what it holds, as syncedScrollTop reads a source or a target. */
+function scrollOf(win) {
+  return {
+    scrollTop: win.scrollY,
+    scrollHeight: win.document.documentElement.scrollHeight,
+    viewport: win.innerHeight,
+    anchors: anchorsOf(win),
+  };
+}
+
+/**
+ * The windows that scroll together, each with the holder of the scroll the
+ * overview last wrote to it: the preview, and every copy that has loaded —
+ * the one under the preview too, so that it stands at the right place the
+ * moment the preview moves to another size.
+ */
+function members() {
+  const out = [];
+  const mainWin = overviewState.main?.contentWindow;
+
+  if (mainWin) {
+    out.push({ win: mainWin, holder: overviewState.mainScroll });
+  }
+
+  for (const entry of shown()) {
+    if (entry.ready && entry.el.contentWindow) {
+      out.push({ win: entry.el.contentWindow, holder: entry });
+    }
+  }
+
+  return out;
+}
+
+/**
+ * A member scrolled. A scroll the overview wrote itself is known by where it
+ * was sent and goes no further — or every frame would answer every other, for
+ * ever. Any other — a wheel, the bridge's scrollIntoView, the page's own
+ * script — makes this member the one the rest follow.
+ */
+function onMemberScroll(win, holder) {
+  const ours = holder.expectTop !== null && Math.abs(win.scrollY - holder.expectTop) <= 1;
+
+  holder.expectTop = null;
+
+  if (!ours) {
+    scheduleSync(win);
+  }
+}
+
+/**
+ * The rest brought in line with `source` in the next animation frame: once
+ * per frame however many scroll events it fires, and from the latest member
+ * to move when two do. Not a timer — cancelled on close (stopSync).
+ */
+function scheduleSync(source) {
+  const { scroller, sync } = overviewState;
+
+  if (!scroller || sync?.source === source) {
+    return;
+  }
+
+  const view = scroller.ownerDocument.defaultView;
+
+  stopSync();
+  overviewState.sync = {
+    source,
+    frame: view.requestAnimationFrame(() => {
+      overviewState.sync = null;
+      syncFrom(source);
+    }),
+  };
+}
+
+/**
+ * The copies to where the preview is: after a copy loads or morphs, a render,
+ * a change of size. A sync already on its way brings every frame in line as
+ * well, and is left to do so — it may be a copy the wheel is moving.
+ */
+function syncFromPreview() {
+  const mainWin = overviewState.main?.contentWindow;
+
+  if (mainWin && !overviewState.sync) {
+    scheduleSync(mainWin);
+  }
+}
+
+function stopSync() {
+  const { scroller, sync } = overviewState;
+
+  if (sync && scroller) {
+    scroller.ownerDocument.defaultView.cancelAnimationFrame(sync.frame);
+  }
+
+  overviewState.sync = null;
+}
+
+/**
+ * Every member but `source` scrolled to stand where `source` stands
+ * (syncedScrollTop). Written only when it moves a member by more than a
+ * pixel, and marked first, so that member's scroll event is known as ours.
+ * Instantly, whatever the page's `scroll-behavior` says: a smooth scroll
+ * would pass through places the mark does not know and be taken for a
+ * scroll of the user's.
+ */
+function syncFrom(source) {
+  const all = members();
+  let from = null;
+
+  if (!overviewState.layer || !all.some((member) => member.win === source)) {
+    return;
+  }
+
+  try {
+    from = scrollOf(source);
+  } catch {
+    return;
+  }
+
+  for (const { win, holder } of all) {
+    if (win === source) {
+      continue;
+    }
+
+    try {
+      const want = syncedScrollTop(from, scrollOf(win));
+      const before = win.scrollY;
+
+      if (Math.abs(want - before) <= 1) {
+        continue;
+      }
+
+      holder.expectTop = want;
+      win.scrollTo({ top: want, behavior: 'instant' });
+      // Where it landed: a page may scroll less far than measured (a
+      // scrollbar across its foot), and a scroll that went nowhere fires no
+      // event to clear the mark.
+      holder.expectTop = win.scrollY === before ? null : win.scrollY;
+    } catch {
+      /* the frame is on its way out */
+    }
+  }
+}
+
 // --- Binding ---------------------------------------------------------------------------
 
 function bind(win, view) {
   const { contents, scroller, frames } = overviewState;
+
+  // Cancelled on close after the listeners below are gone, so none can ask
+  // for another: no sync lands on a frame already blanked.
+  overviewState.cleanups.push(stopSync);
 
   for (const entry of frames) {
     listen(entry.el, 'load', () => frameLoaded(entry));
@@ -1260,7 +1420,8 @@ function bind(win, view) {
 
       bindMain(main);
       placePreview();
-      measureActive();
+      // The new document's own scroll: the copies follow it there.
+      syncFromPreview();
 
       const preview = documentHref(main) || ask('lp:lastPreviewUrl');
 
@@ -1292,7 +1453,8 @@ function bind(win, view) {
     }
 
     place();
-    placePreview();
+    // The frames' height follows the pane, and the preview its slot.
+    applyZoom(overviewState.zoom);
     paintButton(win, true);
   });
 
@@ -1304,13 +1466,13 @@ function bind(win, view) {
   // The size the fields on the left are editing: the ring follows it, and the
   // row scrolls to it — on every pick, so a size picked again comes back into
   // view after a pan away from it. Not when the top bar merely says the size
-  // again (a rebuild, a pane resize): during a library drag that pulled the
-  // row away from where the drop had just put it. Nor while a drop is on.
+  // again (a rebuild, a pane resize): during a library drag that once pulled
+  // the row away from where it had just been put.
   listen(win, 'sve:breakpoint', (event) => {
     paintActive(event.detail?.bp);
     paintDim(sizePicked(event.detail?.device));
 
-    if (event.detail?.reason === 'pick' && !overviewState.drop) {
+    if (event.detail?.reason === 'pick') {
       revealActive();
     }
   });
@@ -1322,14 +1484,14 @@ function bind(win, view) {
   listen(scroller, 'pointercancel', onPanEnd);
 }
 
-/** Ctrl/Cmd + wheel and trackpad pinch zoom around the pointer; a plain wheel pans. */
+/** A wheel over the layer: the frame under the pointer scrolls, the row pans or zooms (see wheel). */
 function onWheel(event) {
   const rect = overviewState.scroller.getBoundingClientRect();
 
-  wheel(event, { x: event.clientX - rect.left, y: event.clientY - rect.top });
+  wheel(event, { x: event.clientX - rect.left, y: event.clientY - rect.top }, windowAt(event.clientX, event.clientY));
 }
 
-/** The same wheel over the preview: its pointer position, in its own pixels, put into the row's. */
+/** The same wheel over the preview: its pointer position, in its own pixels, put into the row's; the preview is what scrolls. */
 function onPreviewWheel(event) {
   const entry = activeEntry();
 
@@ -1341,11 +1503,34 @@ function onPreviewWheel(event) {
   const rect = overviewState.scroller.getBoundingClientRect();
   const z = overviewState.zoom;
 
-  wheel(event, { x: slot.left - rect.left + event.clientX * z, y: slot.top - rect.top + event.clientY * z });
+  wheel(event, { x: slot.left - rect.left + event.clientX * z, y: slot.top - rect.top + event.clientY * z }, overviewState.main?.contentWindow);
 }
 
-/** Pan or zoom the row by script, and place the preview in the same turn. */
-function wheel(event, anchor) {
+/**
+ * The window a wheel over the layer scrolls: the copy whose frame — or label —
+ * is under the pointer, and the preview over a gutter or its own label (the
+ * copy under it is out of sight). A copy still loading takes none.
+ */
+function windowAt(x, y) {
+  const inside = (r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  const hit = shown().find((entry) => inside(entry.el.getBoundingClientRect()) || inside(entry.label.getBoundingClientRect()));
+
+  if (!hit || hit.active) {
+    return overviewState.main?.contentWindow || null;
+  }
+
+  return hit.ready ? hit.el.contentWindow : null;
+}
+
+/**
+ * One wheel, three gestures, never the browser's own (it would scroll the
+ * Control Panel behind the row, or zoom the whole page). Ctrl/Cmd, and a
+ * trackpad pinch, zoom the row round the pointer. Mostly sideways, the row
+ * pans, and the preview is placed in the same turn. Mostly up or down, one
+ * window scrolls — `target`, the frame under the pointer — and the others
+ * follow it through its scroll event (onMemberScroll).
+ */
+function wheel(event, anchor, target) {
   event.preventDefault();
   stopGlide();
 
@@ -1358,9 +1543,21 @@ function wheel(event, anchor) {
     return;
   }
 
-  scroller.scrollLeft += event.deltaX * unit;
-  scroller.scrollTop += event.deltaY * unit;
-  placePreview();
+  if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) {
+    scroller.scrollLeft += event.deltaX * unit;
+    placePreview();
+
+    return;
+  }
+
+  // Instantly, as the row moved before: a page's `scroll-behavior: smooth`
+  // would start a fresh glide from wherever the last one had got to at every
+  // event of a trackpad's stream, and fall behind the fingers.
+  try {
+    target?.scrollBy({ top: event.deltaY * unit, behavior: 'instant' });
+  } catch {
+    /* the frame is on its way out */
+  }
 }
 
 function onPanStart(event) {
@@ -1374,7 +1571,7 @@ function onPanStart(event) {
 
   event.preventDefault();
   stopGlide();
-  overviewState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY } };
+  overviewState.pan = { id: event.pointerId, x: event.clientX, from: { x: event.clientX, y: event.clientY } };
   scroller.setPointerCapture(event.pointerId);
   scroller.dataset.panning = '';
 }
@@ -1386,10 +1583,9 @@ function onPanMove(event) {
     return;
   }
 
+  // Sideways only: up and down, each frame scrolls its own page.
   scroller.scrollLeft -= event.clientX - pan.x;
-  scroller.scrollTop -= event.clientY - pan.y;
   pan.x = event.clientX;
-  pan.y = event.clientY;
   placePreview();
 }
 
@@ -1618,7 +1814,9 @@ function paintActive(handle) {
 
   if (overviewState.layer) {
     placePreview();
-    measureActive();
+    // The preview is another width now, its page laid out anew: the copies
+    // follow it to the place it shows.
+    syncFromPreview();
   }
 }
 
@@ -1635,121 +1833,6 @@ function paintDim(on) {
   }
 }
 
-/**
- * FOCUS from the fields on the left: the bridge marked and pulsed the element
- * and asked the page to scroll, which a page-high frame cannot. The row pans
- * so that element stands in view, top first — as the bridge's scroll would.
- */
-function revealPulsed() {
-  const { scroller, zoom } = overviewState;
-  const entry = activeEntry();
-  const el = overviewState.main.contentDocument?.querySelector('.sve-cp-pulse');
-
-  if (!entry || !el) {
-    return;
-  }
-
-  const slot = entry.el.getBoundingClientRect();
-  const view = scroller.getBoundingClientRect();
-  const rect = el.getBoundingClientRect();
-  const top = slot.top - view.top + scroller.scrollTop + rect.top * zoom;
-  const left = slot.left - view.left + scroller.scrollLeft + rect.left * zoom;
-  // Top first, as the bridge's `block: 'start'` would; sideways only as far as needed.
-  const next = {
-    top: Math.max(0, Math.round(top - PAD * zoom)),
-    left: revealScroll(scroller.scrollLeft, scroller.clientWidth, left, left + rect.width * zoom),
-  };
-
-  if (next.top !== scroller.scrollTop || next.left !== scroller.scrollLeft) {
-    glideTo(next.left, next.top);
-  }
-}
-
-/**
- * A section dragged in from the library: the row zooms so the active frame's
- * whole page is in view — anywhere on it the drop can land — and pans to it;
- * the release puts zoom and scroll back. In one preview the bridge scales the
- * page down inside the frame for this; a page-high frame has nothing to
- * scale, and the drop landed where the page happened to be scrolled to.
- */
-function fitForDrop() {
-  const { scroller, zoom, labelSpace } = overviewState;
-  const entry = activeEntry();
-
-  if (!entry || overviewState.drop) {
-    return;
-  }
-
-  overviewState.drop = { zoom, left: scroller.scrollLeft, top: scroller.scrollTop };
-
-  const fit = clampZoom(
-    Math.min(
-      (scroller.clientWidth - PAD * 2) / entry.spec.width,
-      (scroller.clientHeight - labelSpace - PAD * 2) / Math.max(1, entry.height)
-    )
-  );
-
-  // Zoomed out over the same time and curve as the bridge zooms the page in
-  // one preview, the active frame's top-left corner held in place — no jump.
-  zoomGlide(fit, () => {
-    const view = scroller.getBoundingClientRect();
-    const rect = entry.el.getBoundingClientRect();
-
-    scroller.scrollLeft = Math.max(0, scroller.scrollLeft + rect.left - view.left - PAD);
-    scroller.scrollTop = Math.max(0, scroller.scrollTop + rect.top - view.top - labelSpace - PAD);
-  });
-}
-
-function leaveDrop() {
-  const drop = overviewState.drop;
-  const { scroller } = overviewState;
-
-  if (!drop) {
-    return;
-  }
-
-  overviewState.drop = null;
-
-  const from = { left: scroller.scrollLeft, top: scroller.scrollTop };
-
-  // Back the same way: zoom and scroll together, to where the drag began.
-  zoomGlide(drop.zoom, (t) => {
-    scroller.scrollLeft = from.left + (drop.left - from.left) * t;
-    scroller.scrollTop = from.top + (drop.top - from.top) * t;
-  });
-}
-
-const DROP_ZOOM_MS = 350;
-
-/**
- * The row zoomed to `target` one animation frame at a time — the same 350 ms
- * ease the bridge gives the page in one preview — `place(eased)` setting the
- * scroll for each step and the preview placed in each. A wheel, a drag, a
- * zoom or a close cuts it short, as with a scroll glide.
- */
-function zoomGlide(target, place) {
-  const { scroller } = overviewState;
-  const view = scroller.ownerDocument.defaultView;
-  const from = overviewState.zoom;
-  const delta = target - from;
-
-  stopGlide();
-
-  const started = view.performance.now();
-  const step = (now) => {
-    const t = Math.min(1, (now - started) / DROP_ZOOM_MS);
-    const eased = glideEase(t);
-
-    applyZoom(from + delta * eased);
-    place(eased);
-    placePreview();
-
-    overviewState.glide = t < 1 ? view.requestAnimationFrame(step) : null;
-  };
-
-  overviewState.glide = view.requestAnimationFrame(step);
-}
-
 const GLIDE_MS = 320;
 /**
  * The frames that are not the picked size, while one is picked in the top
@@ -1759,33 +1842,31 @@ const GLIDE_MS = 320;
 const DIM_OPACITY = 0.7;
 
 /**
- * The row scrolled to `left`/`top` with an animation rather than a jump — a
- * size picked in the top bar, a section focused on the left. By script, one
- * animation frame at a time, and the preview placed in each: native smooth
- * scrolling runs on the compositor, and the preview would trail it a frame.
- * A wheel, a drag, a zoom or a close cuts the glide short. It glides whatever
- * the system's motion setting says: the owner asked for the movement, twice
- * (25 Sep 2026) — a jump here read as a fault, not as calm.
+ * The row scrolled sideways to `left` with an animation rather than a jump —
+ * a size picked in the top bar, a section focused on the left, a library
+ * drag. By script, one animation frame at a time, and the preview placed in
+ * each: native smooth scrolling runs on the compositor, and the preview would
+ * trail it a frame. A wheel, a drag, a zoom or a close cuts the glide short.
+ * It glides whatever the system's motion setting says: the owner asked for
+ * the movement, twice (25 Sep 2026) — a jump here read as a fault, not as calm.
  */
-function glideTo(left, top = overviewState.scroller.scrollTop) {
+function glideTo(left) {
   const { scroller } = overviewState;
   const view = scroller.ownerDocument.defaultView;
-  const from = { left: scroller.scrollLeft, top: scroller.scrollTop };
-  const delta = { left: left - from.left, top: top - from.top };
+  const from = scroller.scrollLeft;
+  const delta = left - from;
 
   stopGlide();
 
-  if (!delta.left && !delta.top) {
+  if (!delta) {
     return;
   }
 
   const started = view.performance.now();
   const step = (now) => {
     const t = (now - started) / GLIDE_MS;
-    const eased = glideEase(t);
 
-    scroller.scrollLeft = from.left + delta.left * eased;
-    scroller.scrollTop = from.top + delta.top * eased;
+    scroller.scrollLeft = from + delta * glideEase(t);
     placePreview();
     overviewState.glide = t < 1 ? view.requestAnimationFrame(step) : null;
   };
