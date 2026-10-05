@@ -36,6 +36,7 @@ import LibrarySaveButton from './cp/surfaces/LibrarySaveButton.vue';
 import { mountPane } from './cp/mount-pane.js';
 import { mountSurface } from './cp/mount.js';
 import { deleteLibraryUi } from './cp/library/delete-store.js';
+import { beginCardDrag } from './cp/library/card-drag.js';
 import {
   RIGHT_DOCK_ID,
   RIGHT_DOCK_PIN_STACK,
@@ -199,6 +200,26 @@ export function libraryWentStale(win) {
 const PREVIEW_TICK_MS = 5000;
 
 /**
+ * Section types the generator cannot photograph, with the reason the server
+ * gave (`no_source`, `failed`, `renders_nothing`, `excluded`), from the last
+ * tick. A card without a picture says why instead of only "No preview".
+ */
+let previewBlocked = {};
+
+/** The card text for each reason; the plain 'no_preview' covers anything else. */
+const PREVIEW_REASON_KEYS = {
+  no_source: 'preview_no_source',
+  failed: 'preview_failed',
+  renders_nothing: 'preview_renders_nothing',
+  excluded: 'preview_excluded',
+};
+
+/** Why a section type has no preview, or null when nothing stands in its way. */
+export function previewReasonFor(handle) {
+  return previewBlocked[handle] || null;
+}
+
+/**
  * Asks the server whether any preview is out of date, and lets it start the
  * generator if so.
  *
@@ -210,7 +231,7 @@ const PREVIEW_TICK_MS = 5000;
  * pictures. Nothing is redrawn while work is still outstanding: a half-finished
  * run would swap thumbnails in one at a time.
  */
-export function previewTick(win, state, onSettled) {
+export function previewTick(win, state, onSettled, opts = {}) {
   return win
     .fetch('/!/sve/previews/tick', {
       method: 'POST',
@@ -219,12 +240,25 @@ export function previewTick(win, state, onSettled) {
         'X-Requested-With': 'XMLHttpRequest',
         'X-CSRF-TOKEN': csrfToken(win),
         Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
+      // `retry` clears the failed/drew-nothing memos and starts a run now;
+      // `probe` only asks, so opening the panel never starts a browser.
+      body: JSON.stringify({ retry: !!opts.retry, probe: !!opts.probe }),
     })
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
       if (!data) {
         return null;
+      }
+
+      const blocked = data.blocked || {};
+
+      if (JSON.stringify(blocked) !== JSON.stringify(previewBlocked)) {
+        previewBlocked = blocked;
+        win.document
+          .getElementById(SECTION_PICKER_ID)
+          ?.dispatchEvent(new win.CustomEvent('sve-library-preview-reasons'));
       }
 
       const busy = data.stale > 0 || data.running;
@@ -2503,6 +2537,14 @@ export function mountSectionPicker(win, options = {}) {
   let typesAskedFor = '';
 
 
+  // A section type the generator cannot photograph says why. Saved sections
+  // and templates have no generator status, so they keep the plain text.
+  const noPreviewText = (handle) => {
+    const reason = handle ? previewReasonFor(handle) : null;
+
+    return t(win, PREVIEW_REASON_KEYS[reason] || 'no_preview');
+  };
+
   // Natural-height preview cards in a CSS-columns masonry grid. The image sets
   // the card height (no fixed crop); break-inside keeps a card in one column.
     const card = (title, imageUrl, kind, item) => {
@@ -2517,7 +2559,7 @@ export function mountSectionPicker(win, options = {}) {
       mountPane(el, LibraryCard, {
         title,
         imageUrl: imageUrl || '',
-        noPreview: t(win, 'no_preview'),
+        noPreview: noPreviewText(kind === 'page' ? item?.handle : null),
         canDelete: !!item?.can_delete,
         onDelete: () => {
           confirmDeleteLibraryItem(win, kind, item, () => {
@@ -2527,7 +2569,7 @@ export function mountSectionPicker(win, options = {}) {
           });
         },
       });
-      beginCardDrag(win, el, kind, item);
+      beginCardDrag(win, el, kind, item, () => prefetchCardMeta(win, kind, item));
 
       return el;
     };
@@ -2636,6 +2678,13 @@ export function mountSectionPicker(win, options = {}) {
             }
           } else {
             el.replaceWith(card(row.title, row.imageUrl, row.kind, row.item));
+          }
+        } else {
+          const emptyEl = el.querySelector('[data-sve-card-empty]');
+          const text = noPreviewText(row.kind === 'page' ? row.item?.handle : null);
+
+          if (emptyEl && emptyEl.textContent !== text) {
+            emptyEl.textContent = text;
           }
         }
       });
@@ -2989,10 +3038,12 @@ export function mountSectionPicker(win, options = {}) {
 
     refreshBtn.setAttribute('data-sve-busy', '');
 
-    const poll = () =>
-      previewTick(win, state, previewsSettled).then((data) => {
+    // The press itself retries what failed or drew nothing last time; the
+    // polls after it only ask.
+    const poll = (opts = {}) =>
+      previewTick(win, state, previewsSettled, opts).then((data) => {
         if (data && (data.stale > 0 || data.running)) {
-          win.setTimeout(poll, PREVIEW_TICK_MS);
+          win.setTimeout(() => poll(), PREVIEW_TICK_MS);
 
           return;
         }
@@ -3000,10 +3051,20 @@ export function mountSectionPicker(win, options = {}) {
         refreshBtn.removeAttribute('data-sve-busy');
       });
 
-    poll();
+    poll({ retry: true });
+  });
+
+  // The reasons arrive after the cards: redraw them in place.
+  panel.addEventListener('sve-library-preview-reasons', () => {
+    if (active === 'page') {
+      renderPage();
+    }
   });
 
   renderActive();
+  // Ask once, without starting anything, so a card says why it has no
+  // picture before anybody presses Update previews.
+  previewTick(win, { busy: false }, null, { probe: true });
   searchEl.focus();
 }
 
@@ -3320,187 +3381,24 @@ export function stripSectionsFromForm(win, matches) {
   }
 }
 
-/**
- * True when the pointer is over the live-preview iframe and not over a CP
- * overlay that sits on top of it (code dock, right sidebar, left editor, Theme Settings).
- * The iframe has pointer-events:none for the drag, so the box is the source
- * of truth; elementFromPoint only vetoes overlays.
- */
-export function pointerOverLivePreview(win, frame, event) {
-  if (!frame) {
-    return false;
-  }
-
-  const r = frame.getBoundingClientRect();
-
-  if (
-    event.clientX < r.left ||
-    event.clientX > r.right ||
-    event.clientY < r.top ||
-    event.clientY > r.bottom
-  ) {
-    return false;
-  }
-
-  const hit = win.document.elementFromPoint(event.clientX, event.clientY);
-
-  if (!hit || hit === frame || frame.contains(hit)) {
-    return true;
-  }
-
-  // During a library drag the iframe has pointer-events:none, so the hit is
-  // the preview shell underneath — that still counts. Only a panel covering
-  // the iframe (dock, toolbar) cancels. `.live-preview-editor` is the canvas.
-  return !hit.closest(
-    '#__sve-right-dock, #__sve-code-dock, #__sve-globals-panel, .live-preview-header, #__sve-toolbar'
-  );
-}
+// The card drag itself is Vue-free so node can test it; re-exported here for
+// anything that reaches it through the library.
+export { beginCardDrag, pointerOverLivePreview } from './cp/library/card-drag.js';
 
 /**
- * Pointer drag on a library card. A release over the live preview inserts.
- * Letting go halfway (library, editor, chrome) cancels; nothing is added.
- * A click without a drag does not insert.
+ * What an insert from this card will need, fetched on press so it is there by
+ * the time the card is dropped.
  */
-export function beginCardDrag(win, cardEl, kind, item) {
-  cardEl.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0 || sveState.libraryDrag) {
-      return;
-    }
-
-    if (kind === 'template') {
-      (item.sections || []).forEach((section) => {
-        if (section?.type) {
-          fetchSetMeta(win, section.type);
-        }
-      });
-    } else {
-      fetchSetMeta(win, setHandleFor(win, kind, item));
-    }
-
-    const doc = win.document;
-    const frame = previewFrame(doc);
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let active = false;
-    let ghost = null;
-    let moved = false;
-
-    // In the page's own pixels: the frame may be drawn scaled — a device
-    // preset, or the overview's row — and the bridge measures its sections
-    // unscaled. The ratio of the drawn box to the layout box is the scale.
-    const toPreview = (e) => {
-      const r = frame.getBoundingClientRect();
-      const sx = frame.offsetWidth ? r.width / frame.offsetWidth : 1;
-      const sy = frame.offsetHeight ? r.height / frame.offsetHeight : 1;
-
-      return { x: (e.clientX - r.left) / (sx || 1), y: (e.clientY - r.top) / (sy || 1) };
-    };
-
-    const stopListen = () => {
-      win.removeEventListener('pointermove', onMove);
-      win.removeEventListener('pointerup', onUp);
-      win.removeEventListener('pointercancel', onUp);
-    };
-
-    const start = () => {
-      if (!frame) {
-        return;
+function prefetchCardMeta(win, kind, item) {
+  if (kind === 'template') {
+    (item.sections || []).forEach((section) => {
+      if (section?.type) {
+        fetchSetMeta(win, section.type);
       }
-
-      active = true;
-      cardEl.setPointerCapture(event.pointerId);
-      // The iframe would swallow the pointer once we're over it — let this window
-      // keep the events, and map the coordinates ourselves.
-      frame.style.pointerEvents = 'none';
-      frame.contentWindow.postMessage({ source: SOURCE, type: MSG.EXT_DRAG_START }, win.location.origin);
-
-      ghost = cardEl.cloneNode(true);
-      ghost.style.cssText +=
-        ';position:fixed;z-index:2147483647;pointer-events:none;width:220px;opacity:.9;transform:rotate(1.5deg);box-shadow:0 12px 32px rgba(0,0,0,.3);';
-      doc.body.appendChild(ghost);
-    };
-
-    const onMove = (e) => {
-      if (!active) {
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        if (Math.hypot(dx, dy) < 6) {
-          return;
-        }
-
-        moved = true;
-
-        // Vertical move inside the list is a scroll — don't start, but don't
-        // abort either: a later move toward the preview should still drop.
-        const scrollEl = cardEl.closest('[data-sve-scroll]');
-        const overList = scrollEl?.contains(doc.elementFromPoint(e.clientX, e.clientY));
-
-        if (overList && Math.abs(dy) >= Math.abs(dx)) {
-          return;
-        }
-
-        start();
-      }
-
-      if (!active || !frame) {
-        return;
-      }
-
-      const p = toPreview(e);
-
-      frame.contentWindow.postMessage(
-        { source: SOURCE, type: MSG.EXT_DRAG_MOVE, x: p.x, y: p.y },
-        win.location.origin
-      );
-
-      if (ghost) {
-        ghost.style.left = `${e.clientX - 110}px`;
-        ghost.style.top = `${e.clientY - 16}px`;
-      }
-    };
-
-    const onUp = (e) => {
-      stopListen();
-      ghost?.remove();
-
-      try {
-        cardEl.releasePointerCapture(e.pointerId);
-      } catch {
-        /* already released */
-      }
-
-      if (!active) {
-        return;
-      }
-
-      const overPreview =
-        e.type !== 'pointercancel' && pointerOverLivePreview(win, frame, e);
-
-      if (overPreview) {
-        // The bridge replies with ext-drop → the message listener inserts.
-        sveState.libraryDrag = { kind, item };
-      } else {
-        sveState.libraryDrag = null;
-      }
-
-      if (frame) {
-        frame.style.pointerEvents = '';
-        frame.contentWindow?.postMessage(
-          {
-            source: SOURCE,
-            type: MSG.EXT_DRAG_END,
-            cancelled: !overPreview,
-          },
-          win.location.origin
-        );
-      }
-    };
-
-    win.addEventListener('pointermove', onMove);
-    win.addEventListener('pointerup', onUp);
-    win.addEventListener('pointercancel', onUp);
-  });
+    });
+  } else {
+    fetchSetMeta(win, setHandleFor(win, kind, item));
+  }
 }
 
 /** The uid of the last top-level page section in the preview (for click-append). */

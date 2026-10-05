@@ -12,7 +12,7 @@ defineProps({
   <div class="sve-lib-card">
     <div class="sve-lib-card__preview">
       <img v-if="imageUrl" :src="imageUrl" alt="">
-      <div v-else class="sve-lib-card__empty">{{ noPreview }}</div>
+      <div v-else class="sve-lib-card__empty" data-sve-card-empty>{{ noPreview }}</div>
     </div>
     <div class="sve-lib-card__bar">
       <div data-sve-card-title>{{ title }}</div>

@@ -435,7 +435,7 @@ return [
 
     // Section library
     'sections' => 'Patterns',
-    'library_hint' => 'Drag a section onto the page — or click to add it at the end.',
+    'library_hint' => 'Drag a section onto the page.',
     'previews_refresh' => 'Update previews',
     'library_search_placeholder' => 'Search sections…',
     'library_no_matches' => 'No sections match.',
@@ -477,6 +477,11 @@ return [
     'remove_section_body' => 'The section and everything in it is taken off the page. Nothing is saved until you press Save.',
     'remove_section_confirm' => 'Delete section',
     'no_preview' => 'No preview',
+    // Why a section type has no picture, from the preview generator's status.
+    'preview_no_source' => 'Nothing to photograph: not on any page and no default values',
+    'preview_failed' => 'Screenshot failed. Update previews tries again',
+    'preview_renders_nothing' => 'Draws nothing without content',
+    'preview_excluded' => 'Excluded from previews',
     'no_section_types' => 'No section types.',
     'loading' => 'Loading…',
     'no_saved_sections' => 'No saved sections yet. Save one to see it here.',
