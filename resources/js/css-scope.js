@@ -283,29 +283,26 @@ function openTagOf(html, node) {
   return gt === -1 ? '' : html.slice(node.from, gt + 1);
 }
 
-function walkTokens(html, nodes) {
+/**
+ * The `[ ]` names on the given elements themselves — nothing from inside them.
+ *
+ * Until v1.1.460 a tag without a name borrowed its children's, and every name
+ * found deeper down was nested under the one above it: the pane showed
+ * `.icon-group { .icon {…} }` for a `<ul>` whose `.icon` rule was written on
+ * its own, and wrote that nesting back into the file. Where a rule is nested
+ * is the author's call. A click on an element shows the rules for its own
+ * names, with whatever is written inside them, as they stand in the file.
+ */
+export function tokenTreeFromHtml(html) {
   const out = [];
 
-  for (const node of nodes) {
-    const tokens = bracketTokens(openTagOf(html, node));
-    const children = walkTokens(html, node.children || []);
-
-    if (tokens.length) {
-      out.push({ className: tokens[0], children });
-
-      for (const extra of tokens.slice(1)) {
-        out.push({ className: extra, children: [] });
-      }
-    } else {
-      out.push(...children);
+  for (const node of parseHtmlTree(html)) {
+    for (const name of bracketTokens(openTagOf(html, node))) {
+      out.push({ className: name });
     }
   }
 
   return out;
-}
-
-export function tokenTreeFromHtml(html) {
-  return walkTokens(html, parseHtmlTree(html));
 }
 
 function escapeRe(value) {
@@ -345,9 +342,15 @@ export function matchBraces(css, openIdx) {
   return -1;
 }
 
+/**
+ * The rule for `.name`: the top-level one when the file has it, otherwise the
+ * first one nested inside another (`.card { .name {…} }`). The pane shows the
+ * rule where it is written, and the write-back lands in that same place.
+ */
 export function findClassRule(css, name) {
   const source = String(css || '');
   const re = new RegExp(`(^|[^\\w-])\\.${escapeRe(name)}\\s*\\{`, 'g');
+  let nested = null;
   let m;
 
   while ((m = re.exec(source))) {
@@ -364,76 +367,16 @@ export function findClassRule(css, name) {
       continue;
     }
 
-    return { from: dot, brace, close, to: close + 1, name };
+    const rule = { from: dot, brace, close, to: close + 1, name };
+
+    if (isTopLevelRule(source, rule)) {
+      return rule;
+    }
+
+    nested = nested || rule;
   }
 
-  return null;
-}
-
-function parseBody(body) {
-  const source = String(body || '');
-  const decls = [];
-  const classes = {};
-  const other = [];
-  let i = 0;
-  let buf = '';
-
-  const flushDecls = () => {
-    const text = buf.trim();
-
-    if (text) {
-      decls.push(text);
-    }
-
-    buf = '';
-  };
-
-  while (i < source.length) {
-    if (source.startsWith('/*', i)) {
-      const next = skipComment(source, i);
-      buf += source.slice(i, next);
-      i = next;
-      continue;
-    }
-
-    if (source[i] === '{') {
-      const selector = buf.trim();
-      const close = matchBraces(source, i);
-
-      if (close === -1) {
-        break;
-      }
-
-      const inner = source.slice(i + 1, close);
-      buf = '';
-
-      if (CLASS_RE.test(selector)) {
-        classes[selector.slice(1)] = inner;
-      } else if (selector) {
-        other.push(`${selector} {${inner}}`);
-      }
-
-      i = close + 1;
-      continue;
-    }
-
-    buf += source[i];
-    i += 1;
-  }
-
-  flushDecls();
-
-  return { decls: decls.join('\n'), classes, other };
-}
-
-function indentBlock(text, depth) {
-  const pad = '    '.repeat(depth);
-
-  return String(text || '')
-    .split('\n')
-    .map((line) => (line.trim() ? pad + line.trim() : ''))
-    .filter((line, i, all) => line || (i > 0 && i < all.length - 1))
-    .join('\n');
+  return nested;
 }
 
 function ruleInner(css, name) {
@@ -442,62 +385,41 @@ function ruleInner(css, name) {
   return rule ? String(css).slice(rule.brace + 1, rule.close) : '';
 }
 
-function formatNode(node, css, depth) {
-  const parsed = parseBody(ruleInner(css, node.className));
-  const pad = '    '.repeat(depth);
-  const lines = [];
+/**
+ * A rule body as written, moved to one step of indent. Nothing is reordered
+ * or dropped: a rule nested inside it (`& .icon {…}`) keeps its place and its
+ * own indent below the step.
+ */
+function reindent(inner, pad) {
+  const lines = String(inner || '')
+    .replace(/^\s*\n/, '')
+    .replace(/\s+$/, '')
+    .split('\n');
+  const indents = lines.filter((line) => line.trim()).map((line) => line.match(/^[ \t]*/)[0].length);
+  const base = indents.length ? Math.min(...indents) : 0;
 
-  if (parsed.decls) {
-    lines.push(indentBlock(parsed.decls.replace(/;+\s*$/, ';'), depth + 1));
-  }
-
-  for (const chunk of parsed.other) {
-    lines.push(indentBlock(chunk, depth + 1));
-  }
-
-  for (const child of node.children) {
-    lines.push(formatNode(child, css, depth + 1));
-  }
-
-  const inner = lines.filter(Boolean).join('\n');
-
-  if (!inner) {
-    return `${pad}.${node.className} {\n${pad}}`;
-  }
-
-  return `${pad}.${node.className} {\n${inner}\n${pad}}`;
+  return lines.map((line) => (line.trim() ? pad + line.slice(base) : '')).join('\n');
 }
 
+function formatRule(css, name) {
+  const body = reindent(ruleInner(css, name), '    ');
+
+  return body.trim() ? `.${name} {\n${body}\n}` : `.${name} {\n}`;
+}
+
+/** One top-level rule per name, each as the file has it. */
 export function buildScopedCss(css, tree) {
   if (!tree?.length) {
     return '';
   }
 
-  return tree.map((node) => formatNode(node, css, 0)).join('\n\n') + '\n';
+  return tree.map((node) => formatRule(css, node.className)).join('\n\n') + '\n';
 }
 
 export function firstClassName(css) {
   const match = String(css || '').match(/^\s*\.([a-zA-Z_][\w-]*)\s*\{/);
 
   return match ? match[1] : '';
-}
-
-function nestedClassNames(css) {
-  const names = [];
-  const re = /\.([a-zA-Z_][\w-]*)\s*\{/g;
-  let m;
-  let first = true;
-
-  while ((m = re.exec(String(css || '')))) {
-    if (first) {
-      first = false;
-      continue;
-    }
-
-    names.push(m[1]);
-  }
-
-  return names;
 }
 
 function leadingIndent(css, from) {
@@ -537,6 +459,60 @@ function isTopLevelRule(css, rule) {
   return depth === 0;
 }
 
+/**
+ * The pane's text split at its top-level braces: each rule on its own, with
+ * any loose text in front of it (a comment) travelling with it.
+ */
+function topLevelBlocks(text) {
+  const out = [];
+  let i = 0;
+  let start = 0;
+
+  while (i < text.length) {
+    if (text.startsWith('/*', i)) {
+      i = skipComment(text, i);
+      continue;
+    }
+
+    if (text[i] === '{') {
+      const close = matchBraces(text, i);
+
+      if (close === -1) {
+        break;
+      }
+
+      out.push(text.slice(start, close + 1).trim());
+      i = close + 1;
+      start = i;
+      continue;
+    }
+
+    i += 1;
+  }
+
+  const rest = text.slice(start).trim();
+
+  if (rest) {
+    out.push(rest);
+  }
+
+  return out;
+}
+
+/**
+ * Write the pane's text back into the file.
+ *
+ * The pane holds one top-level rule per `[ ]` name on the picked element, as
+ * written. Each goes back over the file's rule of that name — where that rule
+ * stands, nested or not — or to the end of the file when it has none. Rules
+ * written inside one (`& .icon {…}`) travel with it; a rule of the same name
+ * elsewhere in the file is not the pane's and is left alone. (Until v1.1.460
+ * this unnested by markup: every name found inside the block had its own
+ * top-level rule deleted.)
+ *
+ * Text that does not open with `.root {` — declarations typed loose — is the
+ * root's body.
+ */
 export function mergeScopedCss(cssFull, scopedText, rootName) {
   const root = firstClassName(scopedText) || rootName;
 
@@ -544,71 +520,25 @@ export function mergeScopedCss(cssFull, scopedText, rootName) {
     return String(cssFull || '');
   }
 
-  let block = String(scopedText || '').trim();
+  let text = String(scopedText || '').trim();
 
-  if (!block) {
-    block = `.${root} {\n}`;
-  } else if (!new RegExp(`^\\.${escapeRe(root)}\\s*\\{`).test(block)) {
-    block = `.${root} {\n${block}\n}`;
+  if (!text) {
+    text = `.${root} {\n}`;
+  } else if (!new RegExp(`^\\.${escapeRe(root)}\\s*\\{`).test(text)) {
+    text = `.${root} {\n${text}\n}`;
   }
 
   let next = String(cssFull || '');
-  const existing = findClassRule(next, root);
-  const nested = nestedClassNames(block);
 
-  if (existing) {
-    const indent = leadingIndent(next, existing.from);
-    next = next.slice(0, existing.from) + indentRootBlock(block, indent) + next.slice(existing.to);
-  } else {
-    next = `${next.trimEnd()}${next.trim() ? '\n' : ''}${block}\n`;
-  }
+  for (const block of topLevelBlocks(text)) {
+    const name = firstClassName(block.replace(/\/\*[\s\S]*?\*\//g, ''));
+    const existing = name ? findClassRule(next, name) : null;
 
-  const kept = findClassRule(next, root);
-
-  if (!kept) {
-    return next;
-  }
-
-  for (const name of [...new Set(nested)].reverse()) {
-    const re = new RegExp(`(^|[^\\w-])\\.${escapeRe(name)}\\s*\\{`, 'g');
-    const hits = [];
-    let m;
-
-    while ((m = re.exec(next))) {
-      const dot = m.index + m[1].length;
-      const brace = next.indexOf('{', dot);
-      const close = matchBraces(next, brace);
-
-      if (close === -1) {
-        continue;
-      }
-
-      hits.push({ from: dot, to: close + 1 });
-    }
-
-    for (const hit of hits.reverse()) {
-      if (hit.from >= kept.from && hit.to <= kept.to) {
-        continue;
-      }
-
-      if (!isTopLevelRule(next, hit)) {
-        continue;
-      }
-
-      let from = hit.from;
-      const lineStart = next.lastIndexOf('\n', from - 1) + 1;
-
-      if (/^\s*$/.test(next.slice(lineStart, from))) {
-        from = lineStart;
-      }
-
-      let to = hit.to;
-
-      if (next[to] === '\n') {
-        to += 1;
-      }
-
-      next = next.slice(0, from) + next.slice(to);
+    if (existing) {
+      const indent = leadingIndent(next, existing.from);
+      next = next.slice(0, existing.from) + indentRootBlock(block, indent) + next.slice(existing.to);
+    } else {
+      next = `${next.trimEnd()}${next.trim() ? '\n' : ''}${block}\n`;
     }
   }
 
@@ -658,8 +588,8 @@ export function fillClassRule(css, name, body) {
   // One step in from the rule's own line, unless the rule already shows its step.
   const indent = (inner.match(/\n([ \t]+)\S/) || [])[1] || `${closeIndent}  `;
   // First in the rule: what the site says comes first, and what this file
-  // says after it wins — and the dock nests the children's rules in here,
-  // which declarations belong in front of.
+  // says after it wins — and a rule nested in here belongs after the
+  // declarations.
   const kept = inner.replace(/^\s*\n/, '').replace(/\s+$/, '');
   const rest = kept ? `\n${kept}` : '';
 

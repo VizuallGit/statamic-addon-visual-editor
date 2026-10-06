@@ -55,8 +55,9 @@ export function cssEditorText() {
     return dockState.cssFull;
   }
 
-  // A focus narrows the tree to that element; without one it is the file's own
-  // `[ ]` tree — the view a click on the section row gives, from the first open.
+  // A focus narrows the pane to that element's own `[ ]` names; without one
+  // it is the root element's — the view a click on the section row gives,
+  // from the first open.
   const focused = htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length);
   const tree = tokenTreeFromHtml(focused ? dockState.htmlFull.slice(dockState.htmlFocus.from, dockState.htmlFocus.to) : dockState.htmlFull);
 

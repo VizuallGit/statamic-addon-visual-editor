@@ -199,20 +199,13 @@ function namesEqual(a, b) {
   return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((name, i) => name === b[i]);
 }
 
-function harvestHtmlTreeCss() {
-  const html = dockState.htmlScopeActive ? htmlSnippet() : currentFullHtml();
-  const tree = tokenTreeFromHtml(html);
-
-  if (!tree.length) {
-    return;
-  }
-
-  dockState.cssFull = mergeScopedCss(dockState.cssFull, buildScopedCss(dockState.cssFull, tree), tree[0].className);
-}
-
+/**
+ * Names added or renamed in `[ ]` get their rules; nothing else moves. (Until
+ * v1.1.460 every bracket edit also rebuilt the file's rules nested the way
+ * the markup nests — a `.icon {}` of its own was pulled into `.icon-group {}`.)
+ */
 function applyBracketCssSync(prevNames, nextNames) {
   dockState.cssFull = syncCssWithBrackets(dockState.cssFull, prevNames, nextNames);
-  harvestHtmlTreeCss();
   dockState.cssFull = pruneBracketCss(dockState.cssFull, nextNames, prevNames);
 }
 
@@ -538,13 +531,7 @@ export function flushCssScope() {
 }
 
 function tokenTreeNeedsCss(css, nodes) {
-  for (const node of nodes || []) {
-    if (!findClassRule(css, node.className) || tokenTreeNeedsCss(css, node.children)) {
-      return true;
-    }
-  }
-
-  return false;
+  return (nodes || []).some((node) => !findClassRule(css, node.className));
 }
 
 export function applyCssScope() {
@@ -559,9 +546,10 @@ export function applyCssScope() {
   // here, and the gate below then reads the state as it truly is.
   const picked = cssFocusSnippet();
   // With the tree on and nothing picked yet — the file just opened — the pane
-  // shows the file's own `[ ]` tree, not the whole block: the same view a click
-  // on the section row gives. The whole block is the All button's (`cssAll`),
-  // the ID's, or the tree's when it is switched off.
+  // shows the rules for the root element's own `[ ]` names, not the whole
+  // block: the same view a click on the section row gives. Names on the
+  // elements inside are theirs, shown on a click on them. The whole block is
+  // the All button's (`cssAll`), the ID's, or the tree's when it is switched off.
   const fromFile = picked == null && !dockState.htmlScopeActive;
 
   if (dockState.cssValues || dockState.cssAll || !dockState.htmlScopePref) {
