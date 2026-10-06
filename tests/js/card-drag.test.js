@@ -42,6 +42,7 @@ function setup() {
   const messages = [];
   const listeners = {};
   const captured = new Set();
+  const captures = [];
 
   const shell = new El(['.live-preview-editor']);
   const frame = new El(['#live-preview-iframe'], shell);
@@ -84,15 +85,16 @@ function setup() {
   const win = {
     document: doc,
     location: { origin: 'https://site.test' },
-    addEventListener: (type, fn) => {
+    addEventListener: (type, fn, options) => {
       (listeners[type] ||= new Set()).add(fn);
+      captures.push(!!options?.capture);
     },
     removeEventListener: (type, fn) => listeners[type]?.delete(fn),
   };
 
-  const fire = (type, x, y) => {
+  const fire = (type, x, y, extra = {}) => {
     for (const fn of [...(listeners[type] || [])]) {
-      fn({ type, clientX: x, clientY: y, pointerId: 1, button: 0 });
+      fn({ type, clientX: x, clientY: y, pointerId: 1, button: 0, ...extra });
     }
   };
 
@@ -110,7 +112,8 @@ function setup() {
     presses,
     listening: () => Object.values(listeners).reduce((n, set) => n + set.size, 0),
     down: (x, y) => card.onpointerdown({ type: 'pointerdown', clientX: x, clientY: y, pointerId: 1, button: 0 }),
-    move: (x, y) => fire('pointermove', x, y),
+    move: (x, y, extra) => fire('pointermove', x, y, extra),
+    captures,
     up: (x, y) => fire('pointerup', x, y),
     cancel: (x, y) => fire('pointercancel', x, y),
     types: () => messages.map((m) => m.type),
@@ -256,4 +259,44 @@ test('a cancelled pointer over the preview never drops', () => {
   assert.equal(page.messages.at(-1).type, MSG.EXT_DRAG_END);
   assert.equal(page.messages.at(-1).cancelled, true);
   assert.equal(sveState.libraryDrag, null);
+});
+
+test('the window listeners are capture-phase, so a stopped pointerup elsewhere cannot starve them', () => {
+  const page = setup();
+
+  page.down(900, 100);
+
+  assert.equal(page.captures.length, 3);
+  assert.ok(page.captures.every(Boolean), 'pointermove, pointerup and pointercancel all in capture');
+
+  page.up(900, 100);
+});
+
+test('a move with no button held after a swallowed release ends the press: nothing starts', () => {
+  const page = setup();
+
+  page.down(900, 100);
+  // The pointerup never reached us (another capture listener stopped it).
+  page.move(700, 100, { buttons: 0 });
+
+  assert.equal(page.ghosts.length, 0);
+  assert.deepEqual(page.messages, []);
+  assert.equal(page.listening(), 0, 'the press is over; every listener is gone');
+  assert.equal(page.frame.style.pointerEvents, '');
+});
+
+test('a move with no button held mid-drag cancels like a release outside the preview', () => {
+  const page = setup();
+
+  page.down(900, 100);
+  page.move(700, 100, { buttons: 1 });
+  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_MOVE]);
+
+  page.move(650, 100, { buttons: 0 });
+
+  assert.equal(page.types().at(-1), MSG.EXT_DRAG_END);
+  assert.equal(page.messages.at(-1).cancelled, true);
+  assert.equal(sveState.libraryDrag, null);
+  assert.equal(page.ghosts[0].removed, true);
+  assert.equal(page.listening(), 0);
 });

@@ -9,6 +9,7 @@
     "test": "node --test \"tests/js/**/*.test.js\"",
     "check": "npm run isolate && npm test",
     "test:browser": "node tests/browser/live-preview-smoke.mjs",
+    "test:patterns": "node tests/browser/patterns-card-click.mjs",
     "test:instant": "node tests/browser/instant-paint.mjs",
     "test:section-row": "node tests/browser/instant-section-row.mjs",
     "test:chrome": "node tests/browser/instant-chrome.mjs",

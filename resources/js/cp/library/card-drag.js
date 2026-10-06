@@ -30,6 +30,11 @@ import { SECTION_PICKER_ID } from '../../lib/ids.js';
 /** How far the pointer has to travel before a press becomes a drag. */
 const DRAG_THRESHOLD = 6;
 
+// Capture phase, so the release always reaches us: a listener elsewhere that
+// stops a pointerup (the meta-prefetch side script once did) must not leave
+// this drag's listeners hanging on the window.
+const LISTEN = { capture: true };
+
 /**
  * True when the pointer is over the live-preview iframe and not over a CP
  * overlay that sits on top of it (code dock, right sidebar, left editor, Theme Settings).
@@ -136,9 +141,9 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
     };
 
     const stopListen = () => {
-      win.removeEventListener('pointermove', onMove);
-      win.removeEventListener('pointerup', onUp);
-      win.removeEventListener('pointercancel', onUp);
+      win.removeEventListener('pointermove', onMove, LISTEN);
+      win.removeEventListener('pointerup', onUp, LISTEN);
+      win.removeEventListener('pointercancel', onUp, LISTEN);
     };
 
     const start = () => {
@@ -147,7 +152,15 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
       }
 
       active = true;
-      cardEl.setPointerCapture(event.pointerId);
+
+      // Capture keeps the pointer's events coming when it leaves the card; the
+      // window listeners below are what actually track it, so a pointer that
+      // can't be captured (already up, synthetic) is no reason to stop.
+      try {
+        cardEl.setPointerCapture(event.pointerId);
+      } catch {
+        /* not an active pointer */
+      }
 
       ghost = cardEl.cloneNode(true);
       ghost.style.cssText +=
@@ -156,6 +169,16 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
     };
 
     const onMove = (e) => {
+      // No button held: the press ended without a pointerup reaching us (one
+      // fired outside the window, or another listener stopped it). Treat it
+      // as the release it was — otherwise the next move starts a drag nobody
+      // asked for, with no way to let go.
+      if (e.buttons === 0) {
+        release(e, false);
+
+        return;
+      }
+
       if (!active) {
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
@@ -198,7 +221,7 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
       post({ type: MSG.EXT_DRAG_MOVE, x: p.x, y: p.y });
     };
 
-    const onUp = (e) => {
+    const release = (e, mayDrop) => {
       stopListen();
       ghost?.remove();
 
@@ -212,7 +235,7 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
         return;
       }
 
-      const drop = e.type !== 'pointercancel' && pointerOverLivePreview(win, frame, e);
+      const drop = mayDrop && pointerOverLivePreview(win, frame, e);
 
       // The bridge replies to an END that is not cancelled with EXT_DROP →
       // add-section.js inserts what is pending here.
@@ -220,8 +243,10 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
       untell(!drop);
     };
 
-    win.addEventListener('pointermove', onMove);
-    win.addEventListener('pointerup', onUp);
-    win.addEventListener('pointercancel', onUp);
+    const onUp = (e) => release(e, e.type !== 'pointercancel');
+
+    win.addEventListener('pointermove', onMove, LISTEN);
+    win.addEventListener('pointerup', onUp, LISTEN);
+    win.addEventListener('pointercancel', onUp, LISTEN);
   });
 }
