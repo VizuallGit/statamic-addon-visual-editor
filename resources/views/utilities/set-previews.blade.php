@@ -16,7 +16,6 @@
 
     $sources = [
         'defaults' => __('sve::messages.previews_source_defaults'),
-        'instance' => __('sve::messages.previews_source_instance'),
         'override' => __('sve::messages.previews_source_override'),
         'global' => __('sve::messages.previews_source_global'),
     ];

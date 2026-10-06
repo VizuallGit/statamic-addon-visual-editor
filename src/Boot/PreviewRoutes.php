@@ -7,7 +7,6 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionViewPreviewContr
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatePreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionDefaultsPreviewController;
-use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionPreviewController;
 use Statamic\Statamic;
 
 /**
@@ -19,13 +18,10 @@ final class PreviewRoutes
 {
     public static function register(): void
     {
-        // Signed, short-lived route that renders a page with only one section in
-        // it — the preview generator screenshots that. Registered explicitly:
-        // Statamic only auto-loads an addon's routes/ files for the root app.
+        // Signed, short-lived routes the preview generator screenshots.
+        // Registered explicitly: Statamic only auto-loads an addon's routes/
+        // files for the root app.
         Route::middleware(['web', 'signed'])->group(function () {
-            Route::get('/!/sve/section-preview/{entry}/{section}', [SectionPreviewController::class, 'show'])
-                ->name('sve.section-preview');
-
             // A section type on its own, drawn with its default values — what the
             // picker inserts, and so what its preview image should be a picture
             // of. The handle rides in `?type=`, since set handles hold slashes.

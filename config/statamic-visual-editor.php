@@ -434,7 +434,6 @@ return [
         'field' => 'page_sections',
         'theme_global' => 'theme_settings',
         'collection' => 'pages',
-        'scan' => null,
         'template' => null,
         'auto' => env('SVE_PREVIEWS_AUTO', true),
         'exclude' => ['columns', 'reusable_sections'],

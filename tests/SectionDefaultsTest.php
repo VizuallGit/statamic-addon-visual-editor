@@ -147,15 +147,6 @@ class SectionDefaultsTest extends TestCase
         $this->assertNotSame($first['benefits'][0]['id'], $first['benefits'][1]['id']);
     }
 
-    public function test_it_knows_when_a_set_has_nothing_to_show()
-    {
-        // A set that would photograph as a blank strip. The generator falls back to
-        // a real instance for these, and only for these.
-        $this->assertTrue(SectionDefaults::hasContent(SectionDefaults::for('hero/style_1')));
-        $this->assertFalse(SectionDefaults::hasContent(SectionDefaults::for('blank')));
-        $this->assertFalse(SectionDefaults::hasContent(null));
-    }
-
     public function test_an_unknown_handle_has_no_defaults()
     {
         $this->assertNull(SectionDefaults::for('nope/style_9'));

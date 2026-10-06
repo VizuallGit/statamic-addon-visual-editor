@@ -112,14 +112,11 @@ class SetPreviewGenerator
     }
 
     /**
-     * Photographs the first of a target's subjects that actually draws something.
+     * Photographs a target's subject, if it draws something.
      *
-     * A section type is drawn from its defaults where it can be, and that is the
-     * subject tried first. But a template guarded on content it has no default for
-     * ({{ if columns }}) renders nothing at all, and a picture of nothing is worse
-     * than a picture of somebody's real column section — so a real instance on the
-     * site is the next subject, and only when neither draws anything does the type
-     * go without.
+     * A section type is drawn from its defaults. A template guarded on content it
+     * has no default for ({{ if columns }}) renders nothing at all, and then the
+     * type goes without a picture — that is what dragging it in gives you.
      */
     protected function shoot(string $handle, array $target, $filesystem, string $folder, bool &$changed): string
     {

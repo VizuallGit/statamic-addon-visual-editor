@@ -71,7 +71,7 @@ class DisableStaticCacheInLivePreviewTest extends TestCase
         $inside = null;
 
         (new DisableStaticCacheInLivePreview)->handle(
-            Request::create('/!/sve/section-preview/entry/section', 'GET'),
+            Request::create('/!/sve/section-defaults-preview?type=hero/style_1', 'GET'),
             function () use (&$inside) {
                 $inside = app(Cacher::class);
 

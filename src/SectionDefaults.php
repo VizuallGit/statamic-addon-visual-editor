@@ -46,45 +46,6 @@ class SectionDefaults
     }
 
     /**
-     * Whether this section has anything to show. A set whose every field is empty
-     * by default screenshots as a blank strip — for those, and only those, the
-     * generator falls back to a real instance on the site.
-     */
-    public static function hasContent(?array $section): bool
-    {
-        if (! $section) {
-            return false;
-        }
-
-        foreach ($section as $key => $value) {
-            if (in_array($key, ['id', 'type', 'enabled'], true)) {
-                continue;
-            }
-
-            if (! static::isEmpty($value)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    protected static function isEmpty(mixed $value): bool
-    {
-        if (is_array($value)) {
-            foreach ($value as $item) {
-                if (! static::isEmpty($item)) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        return $value === null || $value === '' || $value === false;
-    }
-
-    /**
      * The set definition for a handle, from the page-builder fieldset.
      *
      * @see Sets::setConfig()

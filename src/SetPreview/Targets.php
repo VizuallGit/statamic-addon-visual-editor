@@ -6,16 +6,12 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
 use MarioHamann\StatamicVisualEditor\PreviewFingerprint;
 use MarioHamann\StatamicVisualEditor\SectionDefaults;
-use MarioHamann\StatamicVisualEditor\Stores;
 use Statamic\Facades\AssetContainer;
-use Statamic\Facades\Collection;
-use Statamic\Facades\Entry;
-use Statamic\Facades\Site;
 use Statamic\Fieldtypes\Sets;
 
 /**
- * What each section type needs, without touching a browser: its subjects
- * (defaults, a real instance, or a configured override), the fingerprinted
+ * What each section type needs, without touching a browser: its subject
+ * (its defaults, or a configured override), the fingerprinted
  * filename, and whether the picture on disk is still current.
  * Moved verbatim out of SetPreviewGenerator in WP7d.
  */
@@ -126,15 +122,16 @@ final class Targets
     }
 
     /**
-     * The subjects a handle could be photographed as, best first.
+     * The subjects a handle could be photographed as.
      *
-     * A real instance leads: the section as it stands on a page — the editor's
-     * working copy included, since that is what Live Preview shows — is the
-     * picture of what the section looks like. The fieldset's defaults follow
-     * as the understudy, for a type no page uses yet, and for one whose
-     * instance draws nothing — see shoot(). An explicit config override
-     * replaces both, since somebody has said in so many words what to
-     * photograph.
+     * The fieldset's defaults, and only those: that is the section the picker
+     * inserts, so the picture is what you get when you drag it in. A section
+     * as it stands on some page shows that page's content — somebody's text,
+     * somebody's video — which is exactly what you do NOT get. A template that
+     * draws nothing without content gets no picture; the cure is a default or
+     * an {{ else }} in the template, not a picture of somebody else's section.
+     * An explicit config override replaces the defaults, since somebody has
+     * said in so many words what to photograph.
      *
      * @return array<int, array{url: string, selector: string, data: array, source: string}>
      */
@@ -151,138 +148,18 @@ final class Targets
             ]];
         }
 
-        $candidates = [];
-
-        if ($instance = static::findInstance($handle)) {
-            [$entryId, $sectionId, $data] = $instance;
-
-            $candidates[] = [
-                'url' => URL::temporarySignedRoute('sve.section-preview', now()->addMinutes(30), [
-                    'entry' => $entryId,
-                    'section' => $sectionId,
-                ]),
-                'selector' => $selector,
-                'data' => $data,
-                'source' => 'instance',
-            ];
+        if (! $defaults = SectionDefaults::for($handle)) {
+            return [];
         }
 
-        $defaults = SectionDefaults::for($handle);
-
-        if (SectionDefaults::hasContent($defaults)) {
-            $candidates[] = [
-                'url' => URL::temporarySignedRoute('sve.section-defaults-preview', now()->addMinutes(30), [
-                    'type' => $handle,
-                ]),
-                'selector' => $selector,
-                'data' => $defaults,
-                'source' => 'defaults',
-            ];
-        }
-
-        return $candidates;
-    }
-
-    /**
-     * Finds a real, enabled instance of the given section type on an entry of
-     * the default site — read through the entry's working copy when it has
-     * one, so an edit saved but not yet published is what gets photographed,
-     * exactly as Live Preview shows it. Published entries are searched first.
-     *
-     * Every collection is searched, not only the one previews render inside: a site
-     * may well keep its examples somewhere other than its pages (a "Sections"
-     * collection of demos, a Blog), and a section type that exists on the site
-     * ought to be findable wherever it lives. `previews.scan` narrows this to a
-     * list of collection handles where that matters.
-     *
-     * @return array{0: string, 1: string, 2: array}|null  [entry id, section id, section data]
-     */
-    protected static function findInstance(string $handle): ?array
-    {
-        $field = config('statamic-visual-editor.previews.field', 'page_sections');
-
-        foreach (static::scannedCollections() as $collection) {
-            $entries = Entry::query()
-                ->where('collection', $collection)
-                ->where('site', Site::default()->handle())
-                ->get()
-                ->sortByDesc(fn ($entry) => $entry->published() ? 1 : 0);
-
-            foreach ($entries as $entry) {
-                $sections = static::editorsView($entry)->value($field);
-
-                if (! is_array($sections)) {
-                    continue;
-                }
-
-                foreach ($sections as $section) {
-                    // Disabled sections don't render at all — keep looking.
-                    if (($section['enabled'] ?? true) === false) {
-                        continue;
-                    }
-
-                    if (($section['type'] ?? null) === $handle) {
-                        $id = $section['id'] ?? ($section['_id'] ?? null);
-
-                        if ($id) {
-                            return [$entry->id(), $id, $section];
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * The entry as the editor sees it: its working copy when it has one, else
-     * the entry itself. Statamic's PreviewHost renders the same way, so the
-     * picture and Live Preview agree.
-     */
-    public static function editorsView($entry)
-    {
-        try {
-            return method_exists($entry, 'hasWorkingCopy') && $entry->hasWorkingCopy()
-                ? $entry->fromWorkingCopy()
-                : $entry;
-        } catch (\Throwable) {
-            return $entry;
-        }
-    }
-
-    /**
-     * Which collections to look for instances in: the configured list, or all of
-     * them with the previews collection first — it is the likeliest home, and
-     * searching it first keeps the choice stable as content is added elsewhere.
-     *
-     * The editor's own stores are left out: a saved section is a copy of a section
-     * type, so photographing one as though it were the type would show somebody's
-     * edited copy in the picker.
-     *
-     * @return array<int, string>
-     */
-    protected static function scannedCollections(): array
-    {
-        $primary = config('statamic-visual-editor.previews.collection', 'pages');
-
-        if ($scan = config('statamic-visual-editor.previews.scan')) {
-            return (array) $scan;
-        }
-
-        $stores = [
-            config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
-            Stores::compositions(),
-        ];
-
-        $rest = Collection::all()
-            ->map->handle()
-            ->reject(fn ($handle) => $handle === $primary || in_array($handle, $stores, true))
-            ->sort()
-            ->values()
-            ->all();
-
-        return array_merge([$primary], $rest);
+        return [[
+            'url' => URL::temporarySignedRoute('sve.section-defaults-preview', now()->addMinutes(30), [
+                'type' => $handle,
+            ]),
+            'selector' => $selector,
+            'data' => $defaults,
+            'source' => 'defaults',
+        ]];
     }
 
     /** A clean file base derived from a set handle, e.g. "hero/style_1" → "hero-style-1". */
