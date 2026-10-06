@@ -171,16 +171,12 @@ try {
     await sleep(400);
     const z1 = (await pageScale()) < 0.999;
     step(`${mode}: over the preview: still zoomed out`, z1, `scale ${(await pageScale()).toFixed(3)}`);
-    await moveTo(c, 8); // back over the cards, button still down
-    const b1 = await scaleBack();
-    step(`${mode}: back over Patterns while still holding: the page zooms in again`, !!b1 && !(await frameLocked()), `scale ${(await pageScale()).toFixed(3)}`);
-    await moveTo(pv, 8);
-    const z2 = await scaleDown();
-    step(`${mode}: out again: zooms out again`, !!z2, `scale ${(await pageScale()).toFixed(3)}`);
-    await moveTo(c, 8);
-    await scaleBack();
+    await moveTo(c, 8); // back over the cards, button still down: the page stays zoomed out (as always)
+    await sleep(400);
+    step(`${mode}: back over Patterns while still holding: still zoomed out, nothing decided yet`, (await pageScale()) < 0.999, `scale ${(await pageScale()).toFixed(3)}`);
     await up(c);
-    await sleep(800);
+    await scaleBack();
+    await sleep(600);
     const afterAbort = { ghost: await ghostOn(), scale: await pageScale(), locked: await frameLocked(), sections: await sectionCount() };
     step(`${mode}: released over Patterns: nothing inserted, page at full size`, !afterAbort.ghost && afterAbort.scale > 0.999 && !afterAbort.locked && afterAbort.sections === sections0, JSON.stringify(afterAbort));
     // The mouse wanders again with no button: still nothing.

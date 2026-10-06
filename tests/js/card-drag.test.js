@@ -133,7 +133,7 @@ test('a click without a move sends nothing and inserts nothing', () => {
   assert.equal(page.presses.length, 1, 'the press still prefetches');
 });
 
-test('a 6px move inside the panel picks the card up and zooms the preview out at once', () => {
+test('a 6px move picks the card up and zooms the preview out at once; let go in the panel: cancelled', () => {
   const page = setup();
 
   page.down(900, 100);
@@ -141,13 +141,13 @@ test('a 6px move inside the panel picks the card up and zooms the preview out at
   page.move(950, 110);
 
   assert.equal(page.ghosts.length, 1, 'the ghost follows the pointer');
-  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START], 'told once at pick-up; moves inside the panel are not forwarded');
+  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_MOVE, MSG.EXT_DRAG_MOVE]);
   assert.equal(page.frame.style.pointerEvents, 'none');
 
   page.up(950, 110);
 
-  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_END]);
-  assert.equal(page.messages.at(-1).cancelled, true, 'let go without leaving the panel: cancelled');
+  assert.equal(page.types().at(-1), MSG.EXT_DRAG_END);
+  assert.equal(page.messages.at(-1).cancelled, true, 'let go without reaching the preview: cancelled');
   assert.equal(page.frame.style.pointerEvents, '');
   assert.equal(page.ghosts[0].removed, true);
   assert.equal(page.captured.size, 0);
@@ -181,24 +181,21 @@ test('picked up then out over the preview: START once, then only moves', () => {
   page.cancel(650, 120);
 });
 
-test('coming back over the panel cancels; leaving again starts over', () => {
+test('out, back over the panel and out again: one START, moves all the way, no END in between', () => {
   const page = setup();
 
   page.down(900, 100);
   page.move(700, 100);
   page.move(900, 100);
-  page.move(950, 100);
-
-  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_MOVE, MSG.EXT_DRAG_END]);
-  assert.equal(page.messages[2].cancelled, true);
-  assert.equal(page.frame.style.pointerEvents, '', 'the iframe takes the pointer back');
-
   page.move(600, 100);
 
-  assert.deepEqual(page.types().slice(3), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_MOVE]);
-  assert.equal(page.frame.style.pointerEvents, 'none');
+  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_MOVE, MSG.EXT_DRAG_MOVE, MSG.EXT_DRAG_MOVE]);
+  assert.equal(page.frame.style.pointerEvents, 'none', 'the page stays zoomed out for the whole drag');
 
   page.cancel(600, 100);
+
+  assert.equal(page.types().at(-1), MSG.EXT_DRAG_END);
+  assert.equal(page.messages.at(-1).cancelled, true);
 });
 
 test('a release over the preview sends END and leaves the drop pending', () => {
@@ -238,7 +235,7 @@ test('a release inside the panel after zooming cancels and drops nothing', () =>
   assert.equal(page.listening(), 0);
 });
 
-test('back over the panel then released there: one END, nothing more', () => {
+test('back over the panel then released there: END cancelled, nothing pending', () => {
   const page = setup();
 
   page.down(900, 100);
@@ -246,7 +243,7 @@ test('back over the panel then released there: one END, nothing more', () => {
   page.move(900, 100);
   page.up(900, 100);
 
-  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_MOVE, MSG.EXT_DRAG_END]);
+  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_MOVE, MSG.EXT_DRAG_MOVE, MSG.EXT_DRAG_END]);
   assert.equal(page.messages.at(-1).cancelled, true);
   assert.equal(sveState.libraryDrag, null);
 });
