@@ -149,6 +149,14 @@ class PreviewBrowserTest extends TestCase
         );
     }
 
+    public function test_an_empty_or_sizeless_section_drew_nothing(): void
+    {
+        $this->assertTrue(PreviewBrowser::drewNothing('Error: Waiting for selector `main > *` failed: … did not match any elements'));
+        $this->assertTrue(PreviewBrowser::drewNothing("Error Output:\nError: 'height' in 'clip' must be positive."));
+        $this->assertTrue(PreviewBrowser::drewNothing("Error: 'width' in 'clip' must be positive."));
+        $this->assertFalse(PreviewBrowser::drewNothing('Error: Could not find chrome-headless-shell (ver. 140.0.7339.82).'));
+    }
+
     public function test_a_missing_browser_or_library_earns_a_second_try(): void
     {
         $noBrowser = new \RuntimeException('explained', 0, new \RuntimeException('Error: Could not find chrome-headless-shell (ver. 140.0.7339.82). This can occur if…'));

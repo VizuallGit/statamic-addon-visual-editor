@@ -638,16 +638,25 @@ class PreviewBrowser
                 ->select($selector)
                 ->save($path);
         } catch (\Throwable $e) {
-            // Nothing matched the selector: the section rendered no markup at all.
-            // Its own kind of outcome, not a failure of the browser — a section
-            // whose template is wrapped in `{{ if columns }}` draws nothing until
-            // it has columns, and the caller can go looking for a better subject.
-            if (str_contains($e->getMessage(), 'did not match any elements')) {
+            if (static::drewNothing($e->getMessage())) {
                 throw new EmptyRenderException($url);
             }
 
             throw new \RuntimeException(static::explain($e->getMessage()), 0, $e);
         }
+    }
+
+    /**
+     * Whether a failed shot means the section drew nothing — its own kind of
+     * outcome, not a failure of the browser. Either nothing matched the
+     * selector (a template wrapped in `{{ if columns }}` renders no markup until
+     * it has columns), or the element is there with no size: an empty
+     * `<section></section>`, which puppeteer refuses to clip.
+     */
+    public static function drewNothing(string $message): bool
+    {
+        return str_contains($message, 'did not match any elements')
+            || (bool) preg_match("/'(height|width)' in 'clip' must be positive/", $message);
     }
 
     /**
