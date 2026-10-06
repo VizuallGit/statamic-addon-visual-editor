@@ -432,7 +432,7 @@ return [
 
     // Sektionsbibliotek
     'sections' => 'Patterns',
-    'library_hint' => 'Træk en sektion ind i siden.',
+    'library_hint' => 'Træk en sektion ind i siden — eller klik for at lægge den nederst.',
     'previews_refresh' => 'Opdatér previews',
     'library_search_placeholder' => 'Søg sektioner…',
     'library_no_matches' => 'Ingen sektioner matcher.',
@@ -474,11 +474,6 @@ return [
     'remove_section_body' => 'Sektionen og alt i den tages af siden. Intet gemmes, før du trykker Gem.',
     'remove_section_confirm' => 'Slet sektion',
     'no_preview' => 'Ingen preview',
-    // Hvorfor en sektionstype ikke har et billede, ud fra preview-generatorens status.
-    'preview_no_source' => 'Intet at fotografere: ikke på nogen side og ingen default-værdier',
-    'preview_failed' => 'Screenshot fejlede. Opdatér previews prøver igen',
-    'preview_renders_nothing' => 'Tegner intet uden indhold',
-    'preview_excluded' => 'Undtaget fra previews',
     'no_section_types' => 'Ingen sektionstyper.',
     'loading' => 'Henter…',
     'no_saved_sections' => 'Ingen gemte sektioner endnu. Gem en sektion for at se den her.',

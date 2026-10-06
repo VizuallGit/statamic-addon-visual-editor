@@ -4,7 +4,7 @@
  *
  * - Library cards: hover / pointerdown (page, custom, global, template).
  *   A click on a card does not insert — only drag-and-drop into the preview
- *   does; that is the drag's own rule, nothing is swallowed here.
+ *   does — so a pointerup that did not move is swallowed here.
  * - Search Sets over the preview: hover on a set row, after the bridge's
  *   add-block-native / add-bard-set-native message said which field it is for.
  * - "+" with exactly one set (a Hero list with `item`): hover on the list or
@@ -282,12 +282,12 @@ function bindPreviewFrames() {
   }
 }
 
-// ---- library cards: warm on hover / press ----
-//
-// Nothing here stops an event. A still click never inserts because the card's
-// drag (cp/library/card-drag.js) only acts after a real move — swallowing the
-// pointerup on top of that starved the drag's own release listener and left a
-// drag hanging on the window after every plain click.
+// ---- library cards: warm on hover / press; a still click never inserts ----
+
+let libCardDown = false;
+let libDragMoved = false;
+let libDragX = 0;
+let libDragY = 0;
 
 document.addEventListener(
   'pointerdown',
@@ -295,10 +295,48 @@ document.addEventListener(
     const card = event.target?.closest?.('[data-sve-lib-handle]');
 
     if (!card || event.button !== 0 || event.target.closest('button, .sve-lib-card__del, a')) {
+      libCardDown = false;
+
       return;
     }
 
+    libCardDown = true;
+    libDragMoved = false;
+    libDragX = event.clientX;
+    libDragY = event.clientY;
     prefetchLibraryCard(card);
+  },
+  true
+);
+
+document.addEventListener(
+  'pointermove',
+  (event) => {
+    if (!libCardDown || event.buttons !== 1) {
+      return;
+    }
+
+    if (Math.hypot(event.clientX - libDragX, event.clientY - libDragY) >= 6) {
+      libDragMoved = true;
+    }
+  },
+  true
+);
+
+window.addEventListener(
+  'pointerup',
+  (event) => {
+    if (!libCardDown) {
+      return;
+    }
+
+    libCardDown = false;
+
+    if (libDragMoved) {
+      return;
+    }
+
+    event.stopPropagation();
   },
   true
 );
