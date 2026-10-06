@@ -54,7 +54,7 @@ page.on('response', (r) => { if (r.status() >= 500) report.errors.push(`HTTP ${r
 
 let served = null;
 if (WORKTREE) {
-  served = await serveWorktreeBuild(page, { buildDir: `${ADDON_DIR}/resources/dist/build`, installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
+  served = await serveWorktreeBuild(page, { buildDir: env('SVE_BUILD_DIR', `${ADDON_DIR}/resources/dist/build`), installedManifest: `${SITE_DIR}/public/vendor/visual-editor/build/manifest.json`, scriptsDir: `${ADDON_DIR}/resources/js` });
 }
 
 try {
@@ -165,12 +165,12 @@ try {
     await moveTo(c);
     await down(c);
     await moveTo({ x: c.x + 24, y: c.y + 12 }, 4); // sideways inside the panel
-    await sleep(150);
-    const inPanel = { ghost: await ghostOn(), scale: await pageScale() };
-    step(`${mode}: 24 px inside the panel: card picked up, preview not yet zoomed`, inPanel.ghost && inPanel.scale > 0.999, JSON.stringify(inPanel));
+    const z0 = await scaleDown();
+    step(`${mode}: 24 px inside the panel: card picked up and the page already zooms out`, (await ghostOn()) && !!z0, `scale ${(await pageScale()).toFixed(3)}`);
     await moveTo(pv, 8);
-    const z1 = await scaleDown();
-    step(`${mode}: over the preview: the page zooms out`, !!z1, `scale ${(await pageScale()).toFixed(3)}`);
+    await sleep(400);
+    const z1 = (await pageScale()) < 0.999;
+    step(`${mode}: over the preview: still zoomed out`, z1, `scale ${(await pageScale()).toFixed(3)}`);
     await moveTo(c, 8); // back over the cards, button still down
     const b1 = await scaleBack();
     step(`${mode}: back over Patterns while still holding: the page zooms in again`, !!b1 && !(await frameLocked()), `scale ${(await pageScale()).toFixed(3)}`);
@@ -196,10 +196,24 @@ try {
     await moveTo({ x: c.x + 24, y: c.y + 12 }, 4);
     await moveTo(pv, 8);
     await scaleDown();
+    const sidsBefore = await cp.evaluate(() => [...document.getElementById('live-preview-iframe').contentDocument.querySelectorAll('[data-sid-section-orderable]')].map((el) => el.getAttribute('data-sid')));
+    // A timeline from the release: page scale, section count and scrollY every ~30 ms for 3.5 s, sampled inside the CP.
+    await cp.evaluate((n0) => { window.__tl = []; const t0 = performance.now(); const f = document.getElementById('live-preview-iframe'); const tick = () => { const d = f.contentDocument; const body = d?.body; const tr = body ? d.defaultView.getComputedStyle(body).transform : 'none'; window.__tl.push({ t: Math.round(performance.now() - t0), s: +(tr && tr !== 'none' ? new DOMMatrix(tr).a : 1).toFixed(3), n: d ? d.querySelectorAll('[data-sid-section-orderable]').length : -1, y: d ? Math.round(d.defaultView.scrollY) : -1 }); if (performance.now() - t0 < 3500) setTimeout(tick, 30); }; tick(); }, sections0);
+    const t0 = Date.now();
     await up(pv);
-    const inserted = await until(async () => ((await sectionCount()) === sections0 + 1 ? true : null), 8000, 200);
-    await scaleBack();
-    step(`${mode}: released over the preview: one section inserted, page back at full size`, !!inserted && (await pageScale()) > 0.999, `${sections0} → ${await sectionCount()}`);
+    const inserted = await until(async () => ((await sectionCount()) === sections0 + 1 ? true : null), 8000, 50);
+    const tInserted = Date.now() - t0;
+    const back = await scaleBack();
+    const tBack = Date.now() - t0;
+    // The new section scrolled into the preview's viewport (its top on screen).
+    const inView = await until(() => cp.evaluate((before) => { const doc = document.getElementById('live-preview-iframe').contentDocument; const win = doc.defaultView; const el = [...doc.querySelectorAll('[data-sid-section-orderable]')].find((e) => !before.includes(e.getAttribute('data-sid'))); if (!el) return null; const r = el.getBoundingClientRect(); return r.top >= -1 && r.top < win.innerHeight * 0.8 ? { top: Math.round(r.top), scrollY: Math.round(win.scrollY) } : null; }, sidsBefore), 8000, 50);
+    const tInView = Date.now() - t0;
+    step(`${mode}: released over the preview: one section inserted, page back at full size`, !!inserted && !!back, `${sections0} → ${await sectionCount()}; inserted after ${tInserted} ms, full size after ${tBack} ms`);
+    step(`${mode}: the new section is brought into view`, !!inView, inView ? `after ${tInView} ms, top ${inView.top}, scrollY ${inView.scrollY}` : `not within 8 s`);
+    await sleep(Math.max(0, 3600 - (Date.now() - t0)));
+    const tl = await cp.evaluate(() => window.__tl || []);
+    const changes = tl.filter((e, i) => i === 0 || e.s !== tl[i - 1].s || e.n !== tl[i - 1].n || Math.abs(e.y - tl[i - 1].y) > 2).map((e) => `${e.t}ms s=${e.s} n=${e.n} y=${e.y}`);
+    info(`${mode}: timeline after release`, changes.slice(0, 40).join(' | '));
   };
 
   await scenario('one preview');

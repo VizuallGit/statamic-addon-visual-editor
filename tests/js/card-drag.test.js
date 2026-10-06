@@ -133,7 +133,7 @@ test('a click without a move sends nothing and inserts nothing', () => {
   assert.equal(page.presses.length, 1, 'the press still prefetches');
 });
 
-test('a 6px horizontal move inside the panel picks the card up but tells the preview nothing', () => {
+test('a 6px move inside the panel picks the card up and zooms the preview out at once', () => {
   const page = setup();
 
   page.down(900, 100);
@@ -141,12 +141,14 @@ test('a 6px horizontal move inside the panel picks the card up but tells the pre
   page.move(950, 110);
 
   assert.equal(page.ghosts.length, 1, 'the ghost follows the pointer');
-  assert.deepEqual(page.messages, [], 'no zoom while still over the cards');
-  assert.equal(page.frame.style.pointerEvents, '');
+  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START], 'told once at pick-up; moves inside the panel are not forwarded');
+  assert.equal(page.frame.style.pointerEvents, 'none');
 
   page.up(950, 110);
 
-  assert.deepEqual(page.messages, []);
+  assert.deepEqual(page.types(), [MSG.EXT_DRAG_START, MSG.EXT_DRAG_END]);
+  assert.equal(page.messages.at(-1).cancelled, true, 'let go without leaving the panel: cancelled');
+  assert.equal(page.frame.style.pointerEvents, '');
   assert.equal(page.ghosts[0].removed, true);
   assert.equal(page.captured.size, 0);
   assert.equal(page.listening(), 0);
@@ -164,7 +166,7 @@ test('a vertical move over the list is a scroll, not a drag', () => {
   page.up(901, 140);
 });
 
-test('leaving the panel sends START once, then only moves', () => {
+test('picked up then out over the preview: START once, then only moves', () => {
   const page = setup();
 
   page.down(900, 100);

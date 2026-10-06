@@ -1,22 +1,28 @@
 /**
  * Dragging a Patterns card onto the live preview.
  *
- * The preview is told about a drag only once the pointer has left the panel:
- * EXT_DRAG_START zooms the page out, so it must not fire on a wobble while the
- * pointer is still over the cards. Coming back over the panel calls the drag
- * off (EXT_DRAG_END, cancelled), and the page zooms back; leaving again starts
- * it over. The preview never hears two STARTs or two ENDs in a row.
+ * A press is nothing; only a move picks the card up. The moment it is picked up
+ * the preview is told (EXT_DRAG_START zooms the page out, so the whole page is
+ * there to aim at). Coming back over the panel after having left it calls the
+ * drag off (EXT_DRAG_END, cancelled) and the page zooms back; leaving again
+ * starts it over. The preview never hears two STARTs or two ENDs in a row.
  *
  *   press           nothing happens; a click without a move adds nothing
- *   6px move        the ghost follows the pointer (a vertical move over the
- *                   list is a scroll, not a drag)
- *   leave panel     EXT_DRAG_START, iframe pointer-events off
- *   back over it    EXT_DRAG_END cancelled, iframe pointer-events back
+ *   6px move        the ghost follows the pointer and EXT_DRAG_START goes out
+ *                   (a vertical move over the list is a scroll, not a drag)
+ *   back over panel EXT_DRAG_END cancelled, iframe pointer-events back —
+ *                   only once the pointer has been outside the panel
+ *   out again       EXT_DRAG_START again
  *   release         over the preview while told: `sveState.libraryDrag` is
  *                   the pending drop and EXT_DRAG_END (not cancelled) asks the
- *                   bridge for EXT_DROP, which add-section.js inserts;
- *                   otherwise EXT_DRAG_END cancelled, or nothing if the
- *                   preview was never told
+ *                   bridge for EXT_DROP, which add-section.js inserts; the
+ *                   bridge keeps the page zoomed out until that render lands,
+ *                   then zooms in on the new section. Otherwise EXT_DRAG_END
+ *                   cancelled, or nothing if the preview was never told.
+ *   no button held  a move with buttons === 0 ends the press like a release:
+ *                   a pointerup somebody else swallowed must not leave a drag
+ *                   hanging on the window (the listeners are capture-phase for
+ *                   the same reason).
  *
  * No Vue here, so node can test it with a stub DOM (tests/js/card-drag.test.js).
  *
@@ -98,6 +104,7 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
     const startY = event.clientY;
     let active = false;
     let told = false;
+    let left = false;
     let ghost = null;
 
     // In the page's own pixels: the frame may be drawn scaled — a device
@@ -152,6 +159,9 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
       }
 
       active = true;
+      // The page zooms out the moment the card is picked up, so the whole
+      // page is there to aim at by the time the pointer arrives.
+      tell();
 
       // Capture keeps the pointer's events coming when it leaves the card; the
       // window listeners below are what actually track it, so a pointer that
@@ -208,12 +218,18 @@ export function beginCardDrag(win, cardEl, kind, item, onPress) {
         ghost.style.top = `${e.clientY - 16}px`;
       }
 
+      // Back over Patterns after having left it: never mind — the page zooms
+      // in again and nothing is pending. Out again, and it zooms out again.
+      // The first moves, still inside the panel, keep the zoom from pick-up.
       if (overPanel(e)) {
-        untell(true);
+        if (left) {
+          untell(true);
+        }
 
         return;
       }
 
+      left = true;
       tell();
 
       const p = toPreview(e);
