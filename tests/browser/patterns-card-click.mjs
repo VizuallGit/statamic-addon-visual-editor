@@ -100,7 +100,8 @@ try {
   const frameLocked = () => cp.evaluate(() => document.getElementById('live-preview-iframe')?.style.pointerEvents === 'none');
   const sectionCount = () => cp.evaluate(() => document.getElementById('live-preview-iframe')?.contentDocument?.querySelectorAll('[data-sid-section-orderable]').length ?? -1);
   const cardPoint = () => cp.evaluate(() => { const el = document.querySelector('[data-sve-lib-kind="page"]') || document.querySelector('[data-sve-lib-kind]'); if (!el) return null; const r = el.getBoundingClientRect(); return r.width > 20 && r.height > 20 ? { x: r.x + r.width / 2, y: r.y + Math.min(r.height / 2, 60) } : null; });
-  const previewPoint = () => cp.evaluate(() => { const r = document.getElementById('live-preview-iframe').getBoundingClientRect(); return { x: r.x + Math.min(160, r.width / 2), y: r.y + Math.min(160, r.height / 2) }; });
+  const DROP_Y = parseFloat(env('SVE_DROP_Y', '0'));
+  const previewPoint = () => cp.evaluate((fy) => { const r = document.getElementById('live-preview-iframe').getBoundingClientRect(); return { x: r.x + Math.min(160, r.width / 2), y: fy > 0 ? r.y + r.height * fy : r.y + Math.min(160, r.height / 2) }; }, DROP_Y);
 
   // Pointer driver: real mouse when it lands in the CP, else PointerEvents dispatched in the CP document.
   let synthetic = false;
@@ -125,6 +126,17 @@ try {
     return !!(await until(cardPoint, 10000, 250));
   };
   step('Patterns panel open', await openPatterns());
+
+  // SVE_DOCK=1: the template dock and the HTML tree open too, as the owner works.
+  if (env('SVE_DOCK', '') === '1') {
+    await cp.evaluate(() => document.querySelector('#__sve-toolbar button[data-tab="code"]')?.click());
+    const dock = await waitIn(cp, '#__sve-code-dock', 10000);
+    if (!dock) { await cp.evaluate(() => document.querySelector('#__sve-toolbar button[data-tab="code"]')?.click()); }
+    await sleep(2500);
+    const facts = await cp.evaluate(() => ({ dock: !!document.getElementById('__sve-code-dock'), tree: !!document.getElementById('__sve-html-tree-panel'), patterns: !!document.querySelector('[data-sve-lib-kind]') }));
+    info('dock + HTML tree open', JSON.stringify(facts));
+    if (!facts.patterns) await openPatterns();
+  }
 
   // Does the real mouse reach the CP? One move + click on empty toolbar space.
   {
@@ -194,10 +206,14 @@ try {
     await scaleDown();
     const sidsBefore = await cp.evaluate(() => [...document.getElementById('live-preview-iframe').contentDocument.querySelectorAll('[data-sid-section-orderable]')].map((el) => el.getAttribute('data-sid')));
     // A timeline from the release: page scale, section count and scrollY every ~30 ms for 3.5 s, sampled inside the CP.
-    await cp.evaluate((n0) => { window.__tl = []; const t0 = performance.now(); const f = document.getElementById('live-preview-iframe'); const tick = () => { const d = f.contentDocument; const body = d?.body; const tr = body ? d.defaultView.getComputedStyle(body).transform : 'none'; window.__tl.push({ t: Math.round(performance.now() - t0), s: +(tr && tr !== 'none' ? new DOMMatrix(tr).a : 1).toFixed(3), n: d ? d.querySelectorAll('[data-sid-section-orderable]').length : -1, y: d ? Math.round(d.defaultView.scrollY) : -1 }); if (performance.now() - t0 < 3500) setTimeout(tick, 30); }; tick(); }, sections0);
+    await cp.evaluate((n0) => { window.__tl = []; const t0 = performance.now(); const f = document.getElementById('live-preview-iframe'); const tick = () => { const d = f.contentDocument; const body = d?.body; const tr = body ? d.defaultView.getComputedStyle(body).transform : 'none'; window.__tl.push({ t: Math.round(performance.now() - t0), s: +(tr && tr !== 'none' ? new DOMMatrix(tr).a : 1).toFixed(3), n: d ? d.querySelectorAll('[data-sid-section-orderable]').length : -1, y: d ? Math.round(d.defaultView.scrollY) : -1, e: d ? (d.defaultView.__sveInlineEdit?.active ? 1 : 0) + (d.querySelector('[data-sve-editing]') ? 2 : 0) : -1 }); if (performance.now() - t0 < 16000) setTimeout(tick, 30); }; tick(); }, sections0);
+    await cp.evaluate(() => { const w = document.getElementById('live-preview-iframe').contentWindow; w.__msgLog = []; const t0 = performance.now(); w.addEventListener('message', (ev) => { const d = ev.data || {}; if (d.name || d.source) w.__msgLog.push(`${Math.round(performance.now() - t0)}ms ${d.name || d.type}${d.sectionUids ? ' uids=' + JSON.stringify(d.sectionUids) : ''}${d.cancelled !== undefined ? ' cancelled=' + d.cancelled : ''}`); }, true); w.addEventListener('statamic:preview-updated', () => w.__msgLog.push(`${Math.round(performance.now() - t0)}ms [morphed]`)); const orig = w.postMessage.bind(w); w.postMessage = function (msg, ...rest) { if (msg && /sve-activate|edit-start|sve-html-pick$/.test(msg.type || '')) { const st = String(new Error().stack).split('\n').slice(2, 9).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\/[^ ]*\/assets\//, '').replace(/\?[^:)]*/, '')).join(' < '); w.__msgLog.push(`SEND ${msg.type}${msg.ids ? ' ids=' + JSON.stringify(msg.ids) : ''}${msg.uid ? ' uid=' + msg.uid : ''} :: ${st}`); } return orig(msg, ...rest); }; });
+    const reqs = [];
+    const onReq = (r) => { const u = r.url(); if (/\/cp\/|\/!\/sve|live-preview|preview/.test(u)) reqs.push({ t: Date.now(), m: r.request().method(), u: u.replace(/^https?:\/\/[^/]+/, '').slice(0, 90), s: r.status() }); };
+    page.on('response', onReq);
     const t0 = Date.now();
     await up(pv);
-    const inserted = await until(async () => ((await sectionCount()) === sections0 + 1 ? true : null), 8000, 50);
+    const inserted = await until(async () => ((await sectionCount()) === sections0 + 1 ? true : null), 16000, 50);
     const tInserted = Date.now() - t0;
     const back = await scaleBack();
     const tBack = Date.now() - t0;
@@ -206,10 +222,13 @@ try {
     const tInView = Date.now() - t0;
     step(`${mode}: released over the preview: one section inserted, page back at full size`, !!inserted && !!back, `${sections0} → ${await sectionCount()}; inserted after ${tInserted} ms, full size after ${tBack} ms`);
     step(`${mode}: the new section is brought into view`, !!inView, inView ? `after ${tInView} ms, top ${inView.top}, scrollY ${inView.scrollY}` : `not within 8 s`);
-    await sleep(Math.max(0, 3600 - (Date.now() - t0)));
+    await sleep(Math.max(0, 16100 - (Date.now() - t0)));
     const tl = await cp.evaluate(() => window.__tl || []);
-    const changes = tl.filter((e, i) => i === 0 || e.s !== tl[i - 1].s || e.n !== tl[i - 1].n || Math.abs(e.y - tl[i - 1].y) > 2).map((e) => `${e.t}ms s=${e.s} n=${e.n} y=${e.y}`);
+    const changes = tl.filter((e, i) => i === 0 || e.s !== tl[i - 1].s || e.n !== tl[i - 1].n || e.e !== tl[i - 1].e || Math.abs(e.y - tl[i - 1].y) > 2).map((e) => `${e.t}ms s=${e.s} n=${e.n} y=${e.y} edit=${e.e}`);
     info(`${mode}: timeline after release`, changes.slice(0, 40).join(' | '));
+    page.off('response', onReq);
+    info(`${mode}: preview messages`, (await cp.evaluate(() => document.getElementById('live-preview-iframe').contentWindow.__msgLog || ['(window replaced)'])).filter((m) => !/ext-drag-move/.test(m)).slice(0, 30).join(' | '));
+    info(`${mode}: requests after release`, reqs.map((q) => `${q.t - t0}ms ${q.m} ${q.s} ${q.u}`).join(' | '));
   };
 
   await scenario('one preview');

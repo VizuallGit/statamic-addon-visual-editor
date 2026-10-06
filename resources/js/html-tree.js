@@ -4177,10 +4177,16 @@ export function watchHtmlTreeDock(win) {
     // The dock holds no file only because nothing was chosen — on an empty
     // page, nothing could be. Now it has a section, and that one is what the
     // reader wants open.
+    //
+    // Only when it is the page's one section. "Nothing chosen" is also true on
+    // a page full of sections nobody has clicked yet, and there a section
+    // dropped from Patterns opened the FIRST section instead: the bridge
+    // stepped into its text for editing, and the preview held the new
+    // section back until that edit ended — seconds later, with a jump.
     if (ask('dock:on-empty-page') === true) {
       const sections = htmlTreeSections(win, win.document);
 
-      if (sections[0]) {
+      if (sections.length === 1) {
         openHtmlTreeSection(win, win.document, sections, sections[0].uid, '');
       }
     }
