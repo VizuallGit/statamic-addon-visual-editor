@@ -44,7 +44,7 @@ CSS;
         $css ??= static::css();
         $faces = [];
 
-        preg_match_all(self::FACE, $css, $blocks, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
+        preg_match_all(self::FACE, static::uncommented($css), $blocks, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 
         foreach ($blocks as $block) {
             $body = $block[1][0];
@@ -74,7 +74,7 @@ CSS;
     /** @return list<string> the `@import` URLs, in file order */
     public static function imports(?string $css = null): array
     {
-        preg_match_all(self::IMPORT, $css ?? static::css(), $matches);
+        preg_match_all(self::IMPORT, static::uncommented($css ?? static::css()), $matches);
 
         return array_values(array_unique($matches[1]));
     }
@@ -130,11 +130,15 @@ CSS;
 
         $line = '@import url("'.$url.'");';
 
-        if (preg_match_all(self::IMPORT, $css, $imports, PREG_OFFSET_CAPTURE) && $imports[0]) {
+        // Only rules count: the header says "One @font-face per file", and an
+        // import put there sits inside the comment, where no browser reads it.
+        $rules = static::uncommented($css);
+
+        if (preg_match_all(self::IMPORT, $rules, $imports, PREG_OFFSET_CAPTURE) && $imports[0]) {
             $last = end($imports[0]);
             $at = $last[1] + strlen($last[0]);
             $css = substr($css, 0, $at)."\n".$line.substr($css, $at);
-        } elseif (preg_match('/@font-face\b/i', $css, $first, PREG_OFFSET_CAPTURE)) {
+        } elseif (preg_match('/@font-face\b/i', $rules, $first, PREG_OFFSET_CAPTURE)) {
             // Before the first rule — and before its `/* Family */` line, when it has one.
             $at = $first[0][1];
 
@@ -191,6 +195,12 @@ CSS;
         if (file_put_contents($path, $css, LOCK_EX) === false) {
             throw new \RuntimeException('fonts.css could not be written');
         }
+    }
+
+    /** The CSS with its comments blanked to spaces: the same length, so an offset in it is one in the CSS. */
+    private static function uncommented(string $css): string
+    {
+        return (string) preg_replace_callback('#/\*.*?(?:\*/|$)#s', fn ($m) => str_repeat(' ', strlen($m[0])), $css);
     }
 
     private static function descriptor(string $body, string $name): ?string

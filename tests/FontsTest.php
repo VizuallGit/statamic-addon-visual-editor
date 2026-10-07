@@ -158,6 +158,48 @@ CSS;
         $this->assertLessThan(strpos($css, 'def5678'), strpos($css, 'abc1234'));
     }
 
+    public function test_a_kit_never_lands_inside_the_files_own_comment(): void
+    {
+        // The header says "One @font-face per file". The kit used to go in
+        // front of that text — inside the comment, where no browser reads it
+        // (cuben.vizdev.dk: noka in the dropdowns, Helvetica on the page).
+        Stylesheet::addFaces('Lato', [['file' => 'lato/lato-400-latin.woff2', 'format' => 'woff2', 'weight' => '400', 'style' => 'normal']]);
+        Stylesheet::addImport('https://use.typekit.net/abc1234.css');
+
+        $css = $this->css();
+        $headerEnd = strpos($css, '*/') + 2;
+        $import = strpos($css, '@import url("https://use.typekit.net/abc1234.css");');
+
+        $this->assertNotFalse($import);
+        $this->assertGreaterThan($headerEnd, $import);
+        $this->assertLessThan(strpos($css, '@font-face {'), $import);
+        $this->assertStringContainsString('One @font-face per file', $css);
+    }
+
+    public function test_rules_inside_comments_do_not_count(): void
+    {
+        file_put_contents($this->dir.'/fonts.css', <<<'CSS'
+/*
+ * One @import url("https://use.typekit.net/abc1234.css");
+ * @font-face { font-family: "Ghost"; src: url("ghost.woff2"); }
+ */
+
+/* Inter */
+@font-face {
+  font-family: "Inter";
+  src: url("Inter.woff2") format("woff2");
+}
+CSS);
+
+        $this->assertSame([], Stylesheet::imports());
+        $this->assertSame(['Inter'], array_column(Stylesheet::faces(), 'family'));
+
+        // So the kit is really added, after the comment and before the first rule.
+        $this->assertTrue(Stylesheet::addImport('https://use.typekit.net/abc1234.css'));
+        $this->assertSame(['https://use.typekit.net/abc1234.css'], Stylesheet::imports());
+        $this->assertLessThan(strpos($this->css(), '/* Inter */'), strrpos($this->css(), '@import'));
+    }
+
     public function test_a_first_font_creates_the_file_with_its_header(): void
     {
         Stylesheet::addFaces('Lato', [['file' => 'lato/lato-400-latin.woff2', 'format' => 'woff2', 'weight' => '400', 'style' => 'normal']]);
