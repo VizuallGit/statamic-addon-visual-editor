@@ -327,6 +327,22 @@ function syncHeadStyles(updated, { additive = false } = {}) {
         s.remove();
       }
     });
+  } else {
+    // A section rendered on its own brings its pushed CSS as <style> tags of
+    // its own, each with the id of the section that pushed it (style-push
+    // writes them so in Live Preview). The tag an earlier render left for the
+    // same section goes before the new one comes in. Left standing, it kept
+    // applying: a declaration removed in the dock's CSS pane stayed on the
+    // page until a full render — Save in the top bar — dropped the old tag.
+    const ids = new Set(next.map((s) => s.getAttribute('data-sve-section')).filter(Boolean));
+
+    liveStyles().forEach((s) => {
+      const id = s.getAttribute('data-sve-section');
+
+      if (id && ids.has(id) && !nextTexts.includes(s.textContent)) {
+        s.remove();
+      }
+    });
   }
 
   const live = liveStyles();
