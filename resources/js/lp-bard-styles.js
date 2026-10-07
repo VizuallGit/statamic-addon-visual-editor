@@ -1,5 +1,5 @@
 /**
- * Bard styles, from the Live Preview top bar.
+ * Bard styles, from the Live Preview top bar (feature `bard_styles`).
  *
  * The text styles Bard's toolbar offers — Title, the size dropdown, flow
  * spacing, a two-column wrapper — and the groups that gather styles into one
@@ -24,12 +24,14 @@ import { reloadEverything } from './lp-reload.js';
 let opening = false;
 
 /**
- * The addon is there and new enough (it says where its list comes from), and
- * this user may change what a Bard field offers — `configure fields`, the
- * permission the server asks for on save.
+ * Switched on (and this user let in) on the settings screen, the addon is there
+ * and new enough (it says where its list comes from), and this user may change
+ * what a Bard field offers — `configure fields`, the permission the server asks
+ * for on save.
  */
 export function bardStylesAllowed(win) {
-  return win.Statamic?.$config?.get?.('bard-styles-source') !== undefined
+  return win.Statamic?.$config?.get?.('sveFeatures')?.bard_styles === true
+    && win.Statamic?.$config?.get?.('bard-styles-source') !== undefined
     && win.Statamic?.$permissions?.has?.('configure fields') === true;
 }
 

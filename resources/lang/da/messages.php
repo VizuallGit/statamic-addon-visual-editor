@@ -1370,12 +1370,12 @@ return [
     'template_board_slot_show' => 'Show',
     'template_usage_more_pages' => '{1} :count side mere|[2,*] :count sider mere',
 
-    // Text styles popup (lp-bard-styles.js)
-    'bard_styles_title' => 'Tekststile',
+    // Bard styles popup (lp-bard-styles.js)
+    'bard_styles_title' => 'Bard styles',
     'bard_styles_tab_styles' => 'Stile',
     'bard_styles_tab_groups' => 'Grupper',
     'bard_styles_loading' => 'Henter stilene …',
-    'bard_styles_load_failed' => 'Tekststilene kunne ikke hentes.',
+    'bard_styles_load_failed' => 'Bard styles kunne ikke hentes.',
     'bard_styles_add_style' => 'Ny stil',
     'bard_styles_add_group' => 'Ny gruppe',
     'bard_styles_source_config' => 'Listen læses fra config/statamic/bard_styles.php. Første gem flytter den til resources/addons/bard-style.yaml.',
@@ -1427,9 +1427,9 @@ return [
     'bard_styles_saved' => 'Gemt. Genindlæs for at få de nye knapper i Bard og i felternes Buttons-liste.',
     'bard_styles_reload' => 'Genindlæs nu',
     'bard_styles_save_failed' => 'Stilene kunne ikke gemmes.',
-    'bard_styles_forbidden' => 'Du må ikke ændre tekststilene.',
+    'bard_styles_forbidden' => 'Du må ikke ændre Bard styles.',
     'bard_styles_fix_first' => 'Ret de markerede felter først.',
-    'bard_styles_unsaved_title' => 'Gem tekststilene?',
+    'bard_styles_unsaved_title' => 'Gem Bard styles?',
     'bard_styles_unsaved_body' => 'Du har ændringer, der ikke er gemt.',
     'bard_styles_discard' => 'Kassér',
     'bard_styles_err_required' => 'Giv den et navn.',

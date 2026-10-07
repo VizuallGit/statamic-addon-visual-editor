@@ -238,6 +238,25 @@ tabs:
                 enabled: 'equals true'
                 schema: 'equals true'
           -
+            handle: bard_styles
+            field:
+              type: toggle
+              display: 'Bard styles'
+              instructions: 'An icon in the Live Preview top bar that makes and changes the styles and style groups Bard''s toolbar offers (Title, the size dropdown, flow spacing …). Needs the bard-style addon, v1.1 or newer; without it there is no icon. Off, the icon is gone.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: bard_styles_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: bard_styles
+              if:
+                enabled: 'equals true'
+                bard_styles: 'equals true'
+          -
             handle: comments
             field:
               type: toggle
@@ -272,7 +291,7 @@ tabs:
                 forms: 'Forms'
                 templates: 'Templates'
                 blueprint: 'Blueprint'
-                bard_styles: 'Text styles'
+                bard_styles: 'Bard styles'
                 sections: 'Patterns'
                 listview: 'Block tree'
                 outline: 'Accessibility'
@@ -310,7 +329,7 @@ tabs:
                 forms: 'Forms'
                 templates: 'Templates'
                 blueprint: 'Blueprint'
-                bard_styles: 'Text styles'
+                bard_styles: 'Bard styles'
                 sections: 'Patterns'
                 listview: 'Block tree'
                 outline: 'Accessibility'

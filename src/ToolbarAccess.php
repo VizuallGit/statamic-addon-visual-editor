@@ -37,6 +37,7 @@ class ToolbarAccess
         'ai_panel',
         'ai_text',
         'schema',
+        'bard_styles',
         'comments',
         'page_activity',
     ];
@@ -62,6 +63,7 @@ class ToolbarAccess
         'ai_panel' => self::AUDIENCE_EVERYONE,
         'ai_text' => self::AUDIENCE_EVERYONE,
         'schema' => self::AUDIENCE_SUPER,
+        'bard_styles' => self::AUDIENCE_SUPER,
         'comments' => self::AUDIENCE_EVERYONE,
         'page_activity' => self::AUDIENCE_EVERYONE,
     ];

@@ -78,6 +78,8 @@ class Features
         'ai_panel',
         'ai_text',
         'schema',
+        // The Bard styles popup in the top bar; it needs the bard-style addon v1.1+.
+        'bard_styles',
         'comments',
         'library_page',
         'library_custom',

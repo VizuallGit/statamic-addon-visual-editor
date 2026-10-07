@@ -201,7 +201,7 @@
   background: rgba(255, 255, 255, 0.07);
 }
 
-/* The preview: a piece of page, light like the site, with the style on it.
+/* The preview: a piece of page with the style on it, in the editor's own grey.
    Siblings get the flow space the site's .flow gives them, so a --flow-space
    style shows its gap. */
 .sve-bs__preview-wrap {
@@ -213,8 +213,9 @@
 .sve-bs__preview {
   padding: 1rem 1.125rem;
   border-radius: 0.75rem;
-  background: #fff;
-  color: #1f2937;
+  border: 1px solid #3c3c3c;
+  background: #2a2a2d;
+  color: #e5e5e5;
   font: 400 1rem/1.5 ui-sans-serif, system-ui, sans-serif;
   overflow-wrap: anywhere;
 }

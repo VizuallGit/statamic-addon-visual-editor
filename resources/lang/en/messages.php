@@ -1377,12 +1377,12 @@ return [
     'template_board_slot_show' => 'Show',
     'template_usage_more_pages' => '{1} :count more page|[2,*] :count more pages',
 
-    // Text styles popup (lp-bard-styles.js)
-    'bard_styles_title' => 'Text styles',
+    // Bard styles popup (lp-bard-styles.js)
+    'bard_styles_title' => 'Bard styles',
     'bard_styles_tab_styles' => 'Styles',
     'bard_styles_tab_groups' => 'Groups',
     'bard_styles_loading' => 'Loading the styles…',
-    'bard_styles_load_failed' => 'The text styles could not be loaded.',
+    'bard_styles_load_failed' => 'The Bard styles could not be loaded.',
     'bard_styles_add_style' => 'New style',
     'bard_styles_add_group' => 'New group',
     'bard_styles_source_config' => 'This list is read from config/statamic/bard_styles.php. The first save moves it to resources/addons/bard-style.yaml.',
@@ -1434,9 +1434,9 @@ return [
     'bard_styles_saved' => 'Saved. Reload to get the new buttons in Bard and in the fields\' Buttons list.',
     'bard_styles_reload' => 'Reload now',
     'bard_styles_save_failed' => 'The styles could not be saved.',
-    'bard_styles_forbidden' => 'You may not change the text styles.',
+    'bard_styles_forbidden' => 'You may not change the Bard styles.',
     'bard_styles_fix_first' => 'Fix the marked fields first.',
-    'bard_styles_unsaved_title' => 'Save the text styles?',
+    'bard_styles_unsaved_title' => 'Save the Bard styles?',
     'bard_styles_unsaved_body' => 'You have changes that are not saved.',
     'bard_styles_discard' => 'Discard',
     'bard_styles_err_required' => 'Give it a name.',
