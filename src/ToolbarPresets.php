@@ -30,6 +30,7 @@ class ToolbarPresets
         'forms',
         'templates',
         'blueprint',
+        'bard_styles',
         'sections',
         'listview',
         'outline',
@@ -47,7 +48,7 @@ class ToolbarPresets
     /** @var array<string, array{tools: list<string>, dock: bool}> */
     public const DEFAULTS = [
         'developer' => [
-            'tools' => ['collections', 'forms', 'templates', 'blueprint', 'sections', 'code', 'site_css', 'theme'],
+            'tools' => ['collections', 'forms', 'templates', 'blueprint', 'bard_styles', 'sections', 'code', 'site_css', 'theme'],
             'dock' => true,
         ],
         'editor' => [

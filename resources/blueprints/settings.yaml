@@ -272,6 +272,7 @@ tabs:
                 forms: 'Forms'
                 templates: 'Templates'
                 blueprint: 'Blueprint'
+                bard_styles: 'Text styles'
                 sections: 'Patterns'
                 listview: 'Block tree'
                 outline: 'Accessibility'
@@ -289,6 +290,7 @@ tabs:
                 - forms
                 - templates
                 - blueprint
+                - bard_styles
                 - sections
                 - code
                 - site_css
@@ -308,6 +310,7 @@ tabs:
                 forms: 'Forms'
                 templates: 'Templates'
                 blueprint: 'Blueprint'
+                bard_styles: 'Text styles'
                 sections: 'Patterns'
                 listview: 'Block tree'
                 outline: 'Accessibility'

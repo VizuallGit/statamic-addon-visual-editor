@@ -35,6 +35,7 @@ import { formsAllowed, openForms } from '../lp-forms.js';
 import { soleGlobalSet, toggleSoleGlobalSet } from '../globals-panel.js';
 import { openTemplateBoard, templateBoardAllowed } from '../lp-templates.js';
 import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
+import { bardStylesAllowed, openBardStyles } from '../lp-bard-styles.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
 
 // ===== header-toolbar =====
@@ -540,6 +541,11 @@ export const TOOLBAR_ICONS = {
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
     '<rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>',
+  // Bard's text styles: a letter with a brush stroke under it.
+  bard_styles:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M5 16 10 4l5 12"/><path d="M6.8 12h6.4"/><path d="M4 20h16"/><path d="M17 4h3M18.5 4v6"/></svg>',
 };
 
 /** Keep toolbar glyphs in sync after icon redesigns (toolbar mounts once). */
@@ -1230,13 +1236,13 @@ export function ensureSchemaToolbarButton(win) {
 }
 
 /**
- * The four that open a drawer over the page: the site's collections, its
- * forms, its templates, the page's blueprint.
+ * The ones that open a drawer or popup over the page: the site's collections,
+ * its forms, its templates, the page's blueprint, Bard's text styles.
  *
  * Icons like every other here — shown, hidden, ordered and listed in presets
  * the same way, all of which reads `button[data-tab]` off this row. What they
- * open is a drawer, not a panel, so none of them is ever lit: the drawer covers
- * the bar while it is open.
+ * open is a drawer or a popup, not a panel, so none of them is ever lit: it
+ * covers the bar while it is open.
  *
  * Put in once, after Globals (or Pages), in this order; where they stand after
  * that is the user's order, which is CSS and never moves the buttons.
@@ -1265,6 +1271,12 @@ const DRAWER_TOOLS = [
     title: (win) => t(win, 'blueprint'),
     allowed: blueprintAllowed,
     open: (win) => openEntryBlueprint(win),
+  },
+  {
+    key: 'bard_styles',
+    title: (win) => t(win, 'bard_styles_title'),
+    allowed: bardStylesAllowed,
+    open: (win) => openBardStyles(win),
   },
 ];
 
