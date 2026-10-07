@@ -277,7 +277,83 @@ async function showBlank(win, doc) {
   placeDock(win, dock);
 }
 
+/** Whether the dock stands in the header or the footer — or in a component opened from one. */
+function inPart(win) {
+  return isChromeTemplateType(win, dockState.lastType) || isChromeTemplateType(win, dockState.typeStack[0]);
+}
+
+/**
+ * Remember where the dock stands as the header or the footer opens in it, so
+ * leaving the half goes back there (`returnFromPart`). Stepping across to the
+ * other half keeps the first place; any other file opened as the file is a
+ * new place of its own, and the way back is gone.
+ */
+function notePart(win, type, mode) {
+  if (mode !== 'replace') {
+    return;
+  }
+
+  if (!isChromeTemplateType(win, type)) {
+    dockState.beforePart = null;
+
+    return;
+  }
+
+  if (!inPart(win)) {
+    dockState.beforePart = {
+      type: dockState.lastType || '',
+      uid: dockState.lastUid || '',
+      stack: [...dockState.typeStack],
+      onEmptyPage: !!dockState.onEmptyPage,
+    };
+  }
+}
+
+/**
+ * Leave the header or the footer for where the dock stood before it opened:
+ * the section that was open, the layout or the template opened by name — or
+ * nothing, when nothing was chosen. Never the layout for want of a place: it
+ * frames every page, and landing in it looked like the page had become it.
+ *
+ * A section is only gone back to while the page still has it; deleted
+ * meanwhile, the dock stands empty. False when the dock is not in a half.
+ */
+function returnFromPart(win, doc) {
+  if (!inPart(win)) {
+    return false;
+  }
+
+  const back = dockState.beforePart;
+  const type = back?.type || '';
+  const root = back?.stack[0] || type;
+  const section = !!(type && back.uid && pageSectionType(win, doc, back.uid) === root);
+  const named = !!(type && type.startsWith('view:') && root.startsWith('view:'));
+
+  dockState.beforePart = null;
+  dockState.lastWin = win;
+  flushSave(doc);
+
+  if (!section && !named) {
+    dockState.lastUid = null;
+    dockState.onEmptyPage = true;
+    void showBlank(win, doc);
+
+    return true;
+  }
+
+  dockState.lastUid = back.uid || null;
+  dockState.onEmptyPage = back.onEmptyPage;
+  void loadTemplate(win, type, 'replace');
+  // A component opened from a section goes back to the component, with the
+  // section beneath it again.
+  dockState.typeStack = [...back.stack];
+
+  return true;
+}
+
 export async function loadTemplate(win, type, mode = 'replace') {
+  notePart(win, type, mode);
+
   if (mode === 'replace') {
     dockState.typeStack = [];
   } else if (mode === 'push' && dockState.lastType && dockState.lastType !== type) {
@@ -512,6 +588,7 @@ export function closeCodeDock(doc) {
   dockState.lastUid = null;
   dockState.lastType = null;
   dockState.typeStack = [];
+  dockState.beforePart = null;
   dockState.lastParts = { html: '', css: '', js: '' };
   dockState.lastLocked = false;
   dockState.lockReady = false;
@@ -813,6 +890,11 @@ export function syncCodeDock(win, doc, uid) {
     !globalSectionHost(doc) &&
     !pageHasType(win, dockState.lastType);
 
+  // The header or the footer closed: back to where the dock stood before it.
+  if (leftBehind && returnFromPart(win, doc)) {
+    return;
+  }
+
   if (leftBehind) {
     dockState.lastUid = null;
   }
@@ -1083,10 +1165,10 @@ register('dock:current-type', () => currentTemplateType());
 // built from sections, on the layout on any other.
 register('dock:on-empty-page', () => !!dockState.onEmptyPage);
 register('dock:current-uid', () => dockState.lastUid);
-// A part of the frame was closed on purpose (the bar's Close, Escape): the
-// page's content is the place to stand again — said outright, not inferred
-// from whether the part's editor is still in the DOM, which on a server (the
-// docked editor) it is for a moment longer.
+// A part of the frame was closed on purpose (the bar's Close, Escape): back to
+// where the dock stood before it opened — said outright, not inferred from
+// whether the part's editor is still in the DOM, which on a server (the docked
+// editor) it is for a moment longer. A dock not in a half has nothing to leave.
 register('dock:leave-part', () => {
   const win = dockState.lastWin;
 
@@ -1094,9 +1176,7 @@ register('dock:leave-part', () => {
     return false;
   }
 
-  dockState.lastUid = null;
-  flushSave(win.document);
-  void loadTemplate(win, LAYOUT_TEMPLATE_TYPE, 'replace');
+  returnFromPart(win, win.document);
 
   return true;
 });

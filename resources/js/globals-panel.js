@@ -2852,6 +2852,16 @@ export function lockChromeGlobalsTab(win, kind, attempts = 0) {
   const inner = frame?.contentDocument;
   const title = panel?.querySelector('[data-sve-globals-title]');
 
+  // A retry is for the lock it was started for. Released since (Close, Escape)
+  // or moved to the other half, it stops: carried on, it named the half open
+  // again for up to six seconds after leaving it, and the dock went back to it.
+  if (
+    attempts > 0 &&
+    (panel?.getAttribute('data-sve-chrome-locked') !== '1' || panel.getAttribute('data-sve-chrome-kind') !== chromeKind)
+  ) {
+    return;
+  }
+
   if (panel) {
     panel.setAttribute('data-sve-chrome-kind', chromeKind);
     panel.setAttribute('data-sve-chrome-locked', '1');

@@ -9,6 +9,9 @@ export const dockState = {
   lastUid: null,
   lastType: null,
   typeStack: [],
+  // Where the dock stood before the header or the footer opened in it — the
+  // file, the section it was for, the templates beneath it. Null otherwise.
+  beforePart: null,
   lastParts: { html: '', css: '', js: '' },
   lastProps: [],
   propsDirty: false,
