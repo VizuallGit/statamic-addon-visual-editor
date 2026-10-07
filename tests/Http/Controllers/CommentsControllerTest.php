@@ -21,12 +21,16 @@ class CommentsControllerTest extends TestCase
     {
         parent::setUp();
 
-        Collection::make('pages')->save();
-        $entry = Entry::make()->collection('pages')->slug('home')->data(['title' => 'Home']);
+        // Its own collection: the fixtures' `pages` is shared with every other
+        // test, and deleting it here took pages.yaml and its entry with it.
+        Collection::make('comments_pages')->save();
+        $entry = Entry::make()->collection('comments_pages')->slug('home')->data(['title' => 'Home']);
         $entry->save();
         $this->entryId = $entry->id();
 
-        $user = User::make()->email('editor@example.com')->makeSuper();
+        // Its own user, deleted again: saving editor@example.com wrote a new id
+        // into the committed fixture on every run.
+        $user = User::make()->email('comments-editor@example.com')->makeSuper();
         $user->save();
         $this->actingAs($user);
     }
@@ -35,7 +39,8 @@ class CommentsControllerTest extends TestCase
     {
         File::deleteDirectory(storage_path('statamic-visual-editor/comments'));
         Entry::find($this->entryId)?->delete();
-        Collection::find('pages')?->delete();
+        Collection::find('comments_pages')?->delete();
+        User::findByEmail('comments-editor@example.com')?->delete();
 
         parent::tearDown();
     }

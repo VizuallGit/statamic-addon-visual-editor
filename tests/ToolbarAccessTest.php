@@ -125,7 +125,7 @@ class ToolbarAccessTest extends TestCase
     /** @param  list<string>  $groups */
     protected function user(bool $super, string $id = 'u1', array $groups = []): User
     {
-        $user = $this->createMock(User::class);
+        $user = $this->createStub(User::class);
         $user->method('isSuper')->willReturn($super);
         $user->method('getAuthIdentifier')->willReturn($id);
         $user->method('isInGroup')->willReturnCallback(
