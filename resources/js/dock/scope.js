@@ -7,7 +7,7 @@ import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel } from '../lazy-panels.js';
 import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
 import { mountSurface } from '../cp/mount.js';
-import { addBracketClassToTag, bracketClassTokens, buildScopedCss, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, hasTopLevelClassRule, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from '../css-scope.js';
+import { addBracketClassToTag, bracketClassTokens, buildScopedCss, cssBalanced, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, hasTopLevelClassRule, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from '../css-scope.js';
 import { closePartialMenu } from '../dock-partials.js';
 import { closeClassTokenUi } from '../dock-class-tokens.js';
 import { t } from '../lib/i18n.js';
@@ -246,6 +246,14 @@ export function flushCssToHtml() {
 
   const view = editors.html;
   const cssText = editors.css?.state.doc.toString() ?? '';
+
+  // Read once its braces close, like the write-back into `cssFull`: a `.foo {`
+  // whose `}` is not there yet has no rule to put on the tag, and noting its
+  // name here would make the `.foo {}` a keystroke later look like nothing new.
+  if (!cssBalanced(cssText)) {
+    return;
+  }
+
   const nextSelectors = cssClassSelectors(cssText);
 
   if (!view || namesEqual(dockState.lastCssSelectorNames, nextSelectors)) {
@@ -601,10 +609,32 @@ export function pickHtmlTagAtCursor(win) {
 }
 
 /**
+ * The file's HTML as the panes hold it now, read without syncing anything into
+ * `htmlFull`: `mergedCssFull` is also what the Instant paint reads.
+ */
+function fullHtmlNow() {
+  const text = editors.html?.state.doc.toString();
+  const focus = dockState.htmlFocus;
+
+  if (text != null && dockState.htmlScopeActive && focus && focus.from >= 0 && focus.from <= dockState.htmlFull.length && focus.to >= focus.from) {
+    return dockState.htmlFull.slice(0, focus.from) + text + dockState.htmlFull.slice(focus.to);
+  }
+
+  return text ?? dockState.lastParts.html ?? '';
+}
+
+/**
  * The whole sheet with the CSS pane's current text in it: the pane's rules in
  * place of their older copies when the pane shows a slice, the pane itself
  * when it shows the whole file. What `flushCssScope` writes to `cssFull`,
  * without writing it.
+ *
+ * A slice is merged against what it was last time (`cssScopeSnapshot`), so a
+ * rule taken out of the pane — or renamed, or typed a letter at a time — is
+ * taken out of the file too; but never a rule whose name is still in `[ ]` on
+ * some element. By the time this runs, `flushCssToHtml` has taken the pane's
+ * removed and renamed names off the picked tag, so what is left in `[ ]` is
+ * another element's.
  */
 export function mergedCssFull() {
   const current = editors.css?.state.doc.toString();
@@ -621,7 +651,10 @@ export function mergedCssFull() {
     const root =
       tokenTreeFromHtml(cssSnippet())[0]?.className || firstClassName(current);
 
-    return mergeScopedCss(dockState.cssFull, current, root);
+    return mergeScopedCss(dockState.cssFull, current, root, {
+      previous: dockState.cssScopeSnapshot,
+      keep: bracketClassTokens(fullHtmlNow()).map((token) => token.name),
+    });
   }
 
   if (dockState.cssPane === 'full') {
@@ -635,7 +668,10 @@ export function flushCssScope() {
   const current = editors.css?.state.doc.toString() ?? '';
 
   if (dockState.cssPane === 'tree') {
-    if (current === dockState.cssScopeSnapshot) {
+    // A pane that does not close its braces is not written (see
+    // `cssBalanced`), and it is not the text the next merge compares with:
+    // the snapshot stays the last text that was written.
+    if (current === dockState.cssScopeSnapshot || !cssBalanced(current)) {
       return;
     }
 

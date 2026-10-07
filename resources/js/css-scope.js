@@ -416,14 +416,19 @@ export function findClassRule(css, name) {
 }
 
 /**
- * Is there a `.name {` rule at the top of the sheet — not one nested inside
- * another rule, which styles something inside that rule's element?
+ * The `.name {` rule at the top of the sheet — not one nested inside another
+ * rule, which styles something inside that rule's element.
  */
-export function hasTopLevelClassRule(css, name) {
+function topLevelClassRule(css, name) {
   const source = String(css || '');
   const rule = findClassRule(source, name);
 
-  return !!rule && isTopLevelRule(source, rule);
+  return rule && isTopLevelRule(source, rule) ? rule : null;
+}
+
+/** Is there a `.name {` rule at the top of the sheet? */
+export function hasTopLevelClassRule(css, name) {
+  return !!topLevelClassRule(css, name);
 }
 
 function ruleInner(css, name) {
@@ -506,9 +511,55 @@ function isTopLevelRule(css, rule) {
   return depth === 0;
 }
 
+function withoutComments(text) {
+  return String(text || '').replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
 /**
- * The pane's text split at its top-level braces: each rule on its own, with
- * any loose text in front of it (a comment) travelling with it.
+ * Does the text close every `{` and comment it opens, with no `}` left over?
+ *
+ * Until it does, the CSS pane is mid-keystroke: a `{` typed where the editor
+ * did not pair it, or a `}` deleted, and an unclosed block runs on over every
+ * rule written after it. Nothing of that text is written to the file — the
+ * file keeps the pane's last text that did close, and the next one that does
+ * goes in. (Until now the unclosed block was merged as it stood: `.foo {`
+ * typed at the end left the sheet open, and a `}` deleted in the first rule
+ * pulled the rest of the file inside it.)
+ */
+export function cssBalanced(text) {
+  const source = String(text || '');
+  let depth = 0;
+
+  for (let i = 0; i < source.length; i += 1) {
+    if (source.startsWith('/*', i)) {
+      const end = source.indexOf('*/', i + 2);
+
+      if (end === -1) {
+        return false;
+      }
+
+      i = end + 1;
+      continue;
+    }
+
+    if (source[i] === '{') {
+      depth += 1;
+    } else if (source[i] === '}') {
+      depth -= 1;
+
+      if (depth < 0) {
+        return false;
+      }
+    }
+  }
+
+  return depth === 0;
+}
+
+/**
+ * The text's closed top-level blocks, each on its own, with any loose text in
+ * front of it (a comment) travelling with it. Text after the last one that
+ * opens no `{` — a selector still being typed — is not a block.
  */
 function topLevelBlocks(text) {
   const out = [];
@@ -537,13 +588,86 @@ function topLevelBlocks(text) {
     i += 1;
   }
 
-  const rest = text.slice(start).trim();
+  return out;
+}
 
-  if (rest) {
-    out.push(rest);
+/**
+ * The pane's text as the rules it writes: `{ text, name, lead }` per closed
+ * top-level block, where `name` is the class when the selector is that one
+ * class alone (`.name {`), and `lead` the comments written in front of it.
+ * Text that does not open with `.root {` — declarations typed loose — is the
+ * root's body. `classes`: every `.x {` the text has, at any depth.
+ */
+function paneRules(text, rootName) {
+  let source = String(text || '').trim();
+  const bare = withoutComments(source).trim();
+  const root = firstClassName(bare) || rootName;
+
+  if (root && bare && !new RegExp(`^\\.${escapeRe(root)}\\s*\\{`).test(bare)) {
+    source = `.${root} {\n${source}\n}`;
   }
 
-  return out;
+  const rules = topLevelBlocks(source).map((block) => {
+    const name = firstClassName(withoutComments(block));
+    let at = 0;
+
+    for (;;) {
+      while (at < block.length && /\s/.test(block[at])) {
+        at += 1;
+      }
+
+      if (!block.startsWith('/*', at)) {
+        break;
+      }
+
+      at = skipComment(block, at);
+    }
+
+    return { text: block, name, lead: name ? block.slice(0, at).trim() : '' };
+  });
+
+  return { rules, classes: new Set(cssClassSelectors(withoutComments(source))) };
+}
+
+/**
+ * Cut `[from, to)` out of the sheet, with the indent in front of it and the
+ * line break after it. `at` is where the cut was made.
+ */
+function cutRange(css, from, to) {
+  const lineStart = css.lastIndexOf('\n', from - 1) + 1;
+  const start = /^\s*$/.test(css.slice(lineStart, from)) ? lineStart : from;
+  const end = css[to] === '\n' ? to + 1 : to;
+
+  return { css: css.slice(0, start) + css.slice(end), at: start };
+}
+
+/** `cutRange`, taking one of the blank lines the rule stood between with it. */
+function cutRule(css, from, to) {
+  const { css: out, at } = cutRange(css, from, to);
+
+  return out[at] === '\n' && (at === 0 || out.slice(0, at).endsWith('\n\n')) ? out.slice(0, at) + out.slice(at + 1) : out;
+}
+
+/** The file's rule, with the comment the pane wrote in front of it when it is still there. */
+function ruleRegion(css, rule, lead) {
+  const head = css.slice(0, rule.from).trimEnd();
+
+  return { from: lead && head.endsWith(lead) ? head.length - lead.length : rule.from, to: rule.to };
+}
+
+function replaceRule(css, rule, text, lead) {
+  const { from, to } = ruleRegion(css, rule, lead);
+
+  return css.slice(0, from) + indentRootBlock(text, leadingIndent(css, from)) + css.slice(to);
+}
+
+/** At the end of the sheet. The blank line it ends with, if any, stays in front. */
+function appendRule(css, text) {
+  if (!css.trim()) {
+    return `${text}\n`;
+  }
+
+  return `${css.endsWith('\n') ? css : `${css.trimEnd()}\n`}${text}\n`;
 }
 
 /**
@@ -557,35 +681,126 @@ function topLevelBlocks(text) {
  * this unnested by markup: every name found inside the block had its own
  * top-level rule deleted.)
  *
- * Text that does not open with `.root {` — declarations typed loose — is the
- * root's body.
+ * With `previous` — the pane's text as it was last written back — the pane is
+ * the truth for the rules it showed, not only for the ones it still shows.
+ * Until now the merge only ever replaced or added: every letter of a new
+ * selector stayed in the file (`.`, `.f`, `.fo` as bare selectors, which also
+ * broke the rule after them; `.f {}`, `.fo {}` once its `{` was typed), and a
+ * rule renamed in the pane was in the file under both names.
+ *
+ * - A rule the pane showed is taken out of the file when the pane no longer
+ *   writes `.name {` anywhere — blank or not — unless `keep` has the name:
+ *   it is still in `[ ]` on some element, whose rule it is.
+ * - A rule renamed in place (`.foo` → `.food`) is written where the old one
+ *   stood, under the new name.
+ * - A name new to the pane takes over the file's top-level rule of that name,
+ *   never one nested in another rule, which the pane did not show.
+ * - A block that is not one class's rule (`.card:hover {…}`, `h2 {…}`) is
+ *   known by its text: the copy the last write put in the file is taken out
+ *   unless the pane still has it word for word, and the new one goes in.
+ *
+ * Nothing else in the file is touched: rules the pane never showed — other
+ * elements', `#id-…`, `@scope` — are never named by it. Text that does not
+ * close (see `cssBalanced`) is not written at all, and loose text after the
+ * last rule — a selector with no `{` yet, a comment — is not a rule.
+ *
+ * @param {{ previous?: string|null, keep?: Iterable<string> }} [options]
  */
-export function mergeScopedCss(cssFull, scopedText, rootName) {
-  const root = firstClassName(scopedText) || rootName;
-
-  if (!root) {
-    return String(cssFull || '');
-  }
-
-  let text = String(scopedText || '').trim();
-
-  if (!text) {
-    text = `.${root} {\n}`;
-  } else if (!new RegExp(`^\\.${escapeRe(root)}\\s*\\{`).test(text)) {
-    text = `.${root} {\n${text}\n}`;
-  }
-
+export function mergeScopedCss(cssFull, scopedText, rootName, { previous = null, keep = [] } = {}) {
   let next = String(cssFull || '');
 
-  for (const block of topLevelBlocks(text)) {
-    const name = firstClassName(block.replace(/\/\*[\s\S]*?\*\//g, ''));
-    const existing = name ? findClassRule(next, name) : null;
+  if (!cssBalanced(scopedText)) {
+    return next;
+  }
 
-    if (existing) {
-      const indent = leadingIndent(next, existing.from);
-      next = next.slice(0, existing.from) + indentRootBlock(block, indent) + next.slice(existing.to);
+  const tracked = previous != null;
+  const now = paneRules(scopedText, rootName);
+  const before = tracked ? paneRules(previous, rootName) : { rules: [], classes: new Set() };
+  const firstByName = (rules) => {
+    const out = new Map();
+
+    for (const rule of rules) {
+      if (rule.name && !out.has(rule.name)) {
+        out.set(rule.name, rule);
+      }
+    }
+
+    return out;
+  };
+  const shown = firstByName(before.rules);
+  const inUse = new Set(keep);
+  const gone = [...shown.keys()].filter((name) => !now.classes.has(name) && !inUse.has(name));
+
+  // The other blocks by their text: one written before and still in the
+  // pane word for word stays where it is; the rest of last time's go.
+  const had = new Map();
+  const fresh = new Set();
+
+  for (const rule of before.rules) {
+    if (!rule.name) {
+      had.set(rule.text, (had.get(rule.text) || 0) + 1);
+    }
+  }
+
+  for (const rule of now.rules) {
+    if (rule.name) {
+      continue;
+    }
+
+    if (had.get(rule.text) > 0) {
+      had.set(rule.text, had.get(rule.text) - 1);
     } else {
-      next = `${next.trimEnd()}${next.trim() ? '\n' : ''}${block}\n`;
+      fresh.add(rule);
+    }
+  }
+
+  for (const [text, count] of had) {
+    for (let i = 0; i < count; i += 1) {
+      const at = next.lastIndexOf(text);
+
+      if (at !== -1) {
+        next = cutRule(next, at, at + text.length);
+      }
+    }
+  }
+
+  const renamedFrom = new Map();
+
+  for (const pair of diffBracketNames([...shown.keys()], [...firstByName(now.rules).keys()]).renamed) {
+    if (gone.includes(pair.from) && findClassRule(next, pair.from) && !topLevelClassRule(next, pair.to)) {
+      renamedFrom.set(pair.to, pair.from);
+    }
+  }
+
+  for (const rule of now.rules) {
+    if (!rule.name) {
+      if (fresh.has(rule)) {
+        next = appendRule(next, rule.text);
+      }
+
+      continue;
+    }
+
+    const from = renamedFrom.get(rule.name);
+    const owner = from || rule.name;
+    const existing = from
+      ? findClassRule(next, from)
+      : !tracked || shown.has(rule.name)
+        ? findClassRule(next, rule.name)
+        : topLevelClassRule(next, rule.name);
+
+    next = existing ? replaceRule(next, existing, rule.text, shown.get(owner)?.lead) : appendRule(next, rule.text);
+  }
+
+  const renamed = new Set(renamedFrom.values());
+
+  for (const name of gone) {
+    const rule = renamed.has(name) ? null : findClassRule(next, name);
+
+    if (rule) {
+      const { from, to } = ruleRegion(next, rule, shown.get(name).lead);
+
+      next = cutRule(next, from, to);
     }
   }
 
@@ -670,20 +885,7 @@ export function removeCssClassRule(css, name) {
       break;
     }
 
-    let from = rule.from;
-    const lineStart = next.lastIndexOf('\n', from - 1) + 1;
-
-    if (/^\s*$/.test(next.slice(lineStart, from))) {
-      from = lineStart;
-    }
-
-    let to = rule.to;
-
-    if (next[to] === '\n') {
-      to += 1;
-    }
-
-    next = next.slice(0, from) + next.slice(to);
+    next = cutRange(next, rule.from, rule.to).css;
   }
 
   return next;
@@ -781,21 +983,7 @@ export function removeBlankCssClassRule(css, name) {
       continue;
     }
 
-    let start = from;
-    const lineStart = next.lastIndexOf('\n', start - 1) + 1;
-
-    if (/^\s*$/.test(next.slice(lineStart, start))) {
-      start = lineStart;
-    }
-
-    let to = close + 1;
-
-    if (next[to] === '\n') {
-      to += 1;
-    }
-
-    next = next.slice(0, start) + next.slice(to);
-    searchFrom = start;
+    ({ css: next, at: searchFrom } = cutRange(next, from, close + 1));
   }
 
   return next;
