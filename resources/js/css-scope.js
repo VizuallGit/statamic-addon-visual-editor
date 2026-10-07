@@ -277,6 +277,42 @@ export function applyBracketClass(openHtml, name) {
   return source.replace(/(\s*)>$/, ` class="[ ${className} ]"$1>`);
 }
 
+/**
+ * `[ name ]` on the one opening tag at `[from, to)` of `html` — the element the
+ * CSS pane is scoped to, when a rule for a new name is written in that pane.
+ *
+ * The same write as the class-token button's (`applyBracketClass`), confined
+ * to that tag. Nothing changes when the tag already carries the name, or when
+ * its class attribute holds a quote this cannot read past (an Antlers
+ * expression such as `{{ x ? 'a' : 'b' }}`): `applyBracketClass` would then
+ * write a second `class` attribute, which the browser ignores and the dock
+ * would still read as the name being there.
+ *
+ * @returns {{ html: string, to: number }} the markup, and where the tag ends now.
+ */
+export function addBracketClassToTag(html, from, to, name) {
+  const source = String(html || '');
+  const className = sanitizeCssClassName(name);
+  const open = source.slice(from, to);
+  const same = { html: source, to };
+
+  if (!className || from < 0 || to > source.length || !/^<[a-zA-Z]/.test(open) || !open.endsWith('>')) {
+    return same;
+  }
+
+  if (bracketTokens(open).includes(className)) {
+    return same;
+  }
+
+  if (/\sclass\s*=/i.test(open) && !/\sclass\s*=\s*(["'])([^"']*)\1/i.test(open)) {
+    return same;
+  }
+
+  const next = applyBracketClass(open, className);
+
+  return { html: source.slice(0, from) + next + source.slice(to), to: from + next.length };
+}
+
 function openTagOf(html, node) {
   const gt = String(html).indexOf('>', node.from);
 
@@ -377,6 +413,17 @@ export function findClassRule(css, name) {
   }
 
   return nested;
+}
+
+/**
+ * Is there a `.name {` rule at the top of the sheet — not one nested inside
+ * another rule, which styles something inside that rule's element?
+ */
+export function hasTopLevelClassRule(css, name) {
+  const source = String(css || '');
+  const rule = findClassRule(source, name);
+
+  return !!rule && isTopLevelRule(source, rule);
 }
 
 function ruleInner(css, name) {

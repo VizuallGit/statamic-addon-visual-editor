@@ -1,0 +1,247 @@
+/**
+ * The CSS pane → HTML direction of the dock's `[ ]` names, run through the real
+ * `dock/scope.js` with its CodeMirror/Vue imports stubbed (support/stub-imports).
+ *
+ * The two fake editors stand in for CodeMirror views; `update` is the part of
+ * the update listener in dock/editor.js that matters here, in its order:
+ * an HTML change not made by the dock → `flushBracketSync`, a CSS change not
+ * made by the dock → `flushCssToHtml`, then `onEditorInput` → `readParts`,
+ * which syncs the HTML slice and flushes the CSS pane into `cssFull`. The dock
+ * writes its own changes with `dockState.applying` set, so a write from inside
+ * a flush skips both flushes, exactly as in the browser.
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { register } from 'node:module';
+import { flattenHtmlTree, parseHtmlTree } from '../../resources/js/html-tree-parse.js';
+import { bracketClassTokens } from '../../resources/js/css-scope.js';
+
+const scopeUrl = new URL('../../resources/js/dock/scope.js', import.meta.url).href;
+
+register('./support/stub-imports.mjs', import.meta.url, {
+  data: {
+    target: scopeUrl,
+    keep: ['/css-scope.js', '/html-tree-parse.js', '/lib/minimal-change.js', '/dock/state.js'],
+  },
+});
+
+function fakeView(handle) {
+  let text = '';
+
+  return {
+    get state() {
+      return { doc: { toString: () => text }, readOnly: false, selection: { main: { from: 0 } } };
+    },
+    dispatch({ changes }) {
+      if (changes) {
+        text = text.slice(0, changes.from) + changes.insert + text.slice(changes.to);
+        update(handle);
+      }
+    },
+    /** What the dock writes when it opens a file: no listener. */
+    load(next) {
+      text = next;
+    },
+    /** A keystroke, a paste or ⌘Z: the whole new text, through the listener. */
+    type(next) {
+      text = next;
+      update(handle);
+    },
+    focus() {},
+  };
+}
+
+const editors = { html: fakeView('html'), css: fakeView('css') };
+
+globalThis.__sveStub = (from, name) => {
+  if (name === 'editors') {
+    return editors;
+  }
+
+  if (from === './save.js' && name === 'onEditorInput') {
+    return () => readParts();
+  }
+
+  return () => {};
+};
+
+const scope = await import(scopeUrl);
+const { dockState } = await import(new URL('../../resources/js/dock/state.js', import.meta.url).href);
+
+function readParts() {
+  if (dockState.applying) {
+    return;
+  }
+
+  scope.syncScopedHtml();
+  scope.flushCssScope();
+}
+
+function update(handle) {
+  if (handle === 'html' && !dockState.applying) {
+    scope.flushBracketSync(null);
+  }
+
+  if (handle === 'css' && !dockState.applying) {
+    scope.flushCssToHtml();
+  }
+
+  readParts();
+}
+
+const HTML = [
+  '<section class="[ wrap ]">',
+  '  <ul class="grid">',
+  '    <li class="[ yyttrr ] flex">Hej</li>',
+  '  </ul>',
+  '</section>',
+].join('\n');
+
+const CSS = '.wrap {\n    padding: 1rem;\n}\n\n.yyttrr {\n    color: red;\n}\n';
+
+function liRow(html) {
+  return flattenHtmlTree(parseHtmlTree(html), new Set()).find((row) => row.tag === 'li');
+}
+
+function count(css, name) {
+  return (css.match(new RegExp(`(^|[^\\w-])\\.${name}\\s*\\{`, 'g')) || []).length;
+}
+
+/** Open the file with the CSS pane on the `<li>`: its own pick, or the HTML pane scoped to it. */
+function openOnLi({ by, html = HTML, css = CSS, cssAll = false }) {
+  Object.assign(dockState, {
+    applying: false,
+    lastLocked: false,
+    lastWin: null,
+    htmlScopePref: true,
+    cssValues: false,
+    cssAll,
+    cssFocus: null,
+    htmlFocus: null,
+    htmlScopeActive: false,
+    htmlFull: html,
+    cssFull: css,
+  });
+
+  const row = liRow(html);
+
+  if (by === 'scope') {
+    dockState.htmlFocus = { from: row.from, to: row.to };
+    editors.html.load(scope.htmlEditorText());
+  } else {
+    editors.html.load(html);
+
+    if (by === 'pick') {
+      dockState.cssFocus = { path: row.path };
+    }
+  }
+
+  scope.applyCssScope();
+  scope.rememberBracketNames();
+}
+
+const fullHtml = () => scope.currentFullHtml();
+const names = () => bracketClassTokens(fullHtml()).map((token) => token.name);
+
+for (const by of ['pick', 'scope']) {
+  test(`${by}: a rule deleted in the CSS pane and brought back with ⌘Z puts [ yyttrr ] back on the <li>`, () => {
+    openOnLi({ by });
+
+    const pane = editors.css.state.doc.toString();
+
+    assert.equal(dockState.cssPane, 'tree');
+    assert.equal(pane, '.yyttrr {\n    color: red;\n}\n');
+
+    editors.css.type('');
+    assert.match(fullHtml(), /<li class="\[ \] flex">/);
+    assert.deepEqual(names(), ['wrap']);
+
+    editors.css.type(pane);
+    assert.equal(fullHtml(), HTML);
+    assert.deepEqual(dockState.lastBracketNames, ['wrap', 'yyttrr']);
+    assert.equal(dockState.cssFull, CSS);
+
+    // The next edit in the HTML pane finds nothing to sync: no second rule.
+    const text = editors.html.state.doc.toString();
+
+    editors.html.type(text.replace('Hej', 'Hej!'));
+    assert.equal(count(dockState.cssFull, 'yyttrr'), 1);
+    assert.equal(dockState.cssFull, CSS);
+  });
+
+  test(`${by}: a rule typed a letter at a time for the <li> ends as one [ foo ] and one .foo rule`, () => {
+    openOnLi({ by });
+
+    const pane = editors.css.state.doc.toString();
+
+    for (const tail of ['\n.', '\n.f', '\n.f {}', '\n.fo {}', '\n.foo {}', '\n.foo {\n    color: blue;\n}\n']) {
+      editors.css.type(pane + tail);
+    }
+
+    assert.match(fullHtml(), /<li class="\[ yyttrr foo \] flex">Hej<\/li>/);
+    assert.deepEqual(names(), ['wrap', 'yyttrr', 'foo']);
+    assert.equal(count(dockState.cssFull, 'foo'), 1);
+    assert.match(dockState.cssFull, /\.foo \{\n    color: blue;\n\}/);
+
+    const text = editors.html.state.doc.toString();
+
+    editors.html.type(text.replace('Hej', 'Hej!'));
+    assert.equal(count(dockState.cssFull, 'foo'), 1);
+  });
+}
+
+test('pick inside a scoped HTML pane: the <li> is found in the <ul> slice and written in its offsets', () => {
+  openOnLi({ by: 'pick' });
+
+  // The tree has scoped the HTML pane to the <ul>; the click in the code then
+  // pointed the CSS pane at the <li> inside it.
+  const ul = flattenHtmlTree(parseHtmlTree(HTML), new Set()).find((row) => row.tag === 'ul');
+
+  dockState.htmlFocus = { from: ul.from, to: ul.to };
+  editors.html.load(scope.htmlEditorText());
+  dockState.cssFocus = { path: liRow(HTML).path };
+  scope.applyCssScope();
+  scope.rememberBracketNames();
+
+  assert.equal(dockState.htmlScopeActive, true);
+
+  const pane = editors.css.state.doc.toString();
+
+  editors.css.type(`${pane}\n.foo {}\n`);
+  assert.equal(editors.html.state.doc.toString(), '<ul class="grid">\n    <li class="[ yyttrr foo ] flex">Hej</li>\n  </ul>');
+  assert.equal(fullHtml(), HTML.replace('[ yyttrr ]', '[ yyttrr foo ]'));
+});
+
+test('a rule nested inside the picked rule styles something inside it: no [ ] on the <li>', () => {
+  openOnLi({ by: 'pick' });
+  editors.css.type('.yyttrr {\n    color: red;\n    & .bar {}\n}\n');
+  assert.equal(fullHtml(), HTML);
+});
+
+test('a name already in [ ] elsewhere in the file is that element\'s rule, not the <li>\'s', () => {
+  openOnLi({ by: 'scope' });
+
+  const pane = editors.css.state.doc.toString();
+
+  editors.css.type(`${pane}\n.wrap {}\n`);
+  assert.equal(fullHtml(), HTML);
+});
+
+test('nothing is added when the pane shows the whole file, nothing is picked, or the dock is locked', () => {
+  openOnLi({ by: 'pick', cssAll: true });
+  assert.equal(dockState.cssPane, 'full');
+  editors.css.type(`${CSS}\n.foo {}\n`);
+  assert.equal(fullHtml(), HTML);
+
+  // The file just opened: the pane shows the root's names, and no element was picked.
+  openOnLi({ by: 'none' });
+  assert.equal(dockState.cssPane, 'tree');
+  editors.css.type(`${editors.css.state.doc.toString()}\n.foo {}\n`);
+  assert.equal(fullHtml(), HTML);
+
+  openOnLi({ by: 'pick' });
+  dockState.lastLocked = true;
+  editors.css.type(`${editors.css.state.doc.toString()}\n.foo {}\n`);
+  dockState.lastLocked = false;
+  assert.equal(fullHtml(), HTML);
+});

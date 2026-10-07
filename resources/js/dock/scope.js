@@ -7,7 +7,7 @@ import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel } from '../lazy-panels.js';
 import CodeDockAddClass from '../cp/surfaces/CodeDockAddClass.vue';
 import { mountSurface } from '../cp/mount.js';
-import { bracketClassTokens, buildScopedCss, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from '../css-scope.js';
+import { addBracketClassToTag, bracketClassTokens, buildScopedCss, cssClassSelectors, diffBracketNames, findClassRule, firstClassName, hasTopLevelClassRule, mergeScopedCss, pruneBracketCss, rewriteBracketClassTokens, sanitizeCssClassName, syncCssWithBrackets, tokenTreeFromHtml } from '../css-scope.js';
 import { closePartialMenu } from '../dock-partials.js';
 import { closeClassTokenUi } from '../dock-class-tokens.js';
 import { t } from '../lib/i18n.js';
@@ -245,14 +245,15 @@ export function flushCssToHtml() {
   }
 
   const view = editors.html;
-  const nextSelectors = cssClassSelectors(editors.css?.state.doc.toString() ?? '');
+  const cssText = editors.css?.state.doc.toString() ?? '';
+  const nextSelectors = cssClassSelectors(cssText);
 
   if (!view || namesEqual(dockState.lastCssSelectorNames, nextSelectors)) {
     return;
   }
 
   const owned = new Set(dockState.lastBracketNames);
-  const { renamed, removed } = diffBracketNames(dockState.lastCssSelectorNames, nextSelectors);
+  const { renamed, added, removed } = diffBracketNames(dockState.lastCssSelectorNames, nextSelectors);
   let html = view.state.doc.toString();
   const prevHtml = html;
 
@@ -274,6 +275,10 @@ export function flushCssToHtml() {
     html = rewriteBracketClassTokens(html, (token) => (token === name ? '' : token));
   }
 
+  // After the renames and removals, so a name one of them just wrote is
+  // already in the file and is not written a second time.
+  html = addPickedBracketNames(html, added, owned, cssText);
+
   if (html !== prevHtml) {
     dockState.applying = true;
 
@@ -286,6 +291,76 @@ export function flushCssToHtml() {
 
   rememberBracketNames();
   dockState.lastCssSelectorNames = nextSelectors;
+}
+
+/**
+ * A rule for a new name, written in the CSS pane while it shows one picked
+ * element, puts that name in the element's `[ ]`. Until now only a rename or a
+ * removal reached the markup; an added rule had no tag to belong to. So a rule
+ * deleted in the pane — which takes its `[ name ]` off the tag — came back on
+ * ⌘Z without it, and `.foo {}` typed for the picked `<li>` styled nothing.
+ *
+ * The element is the pane's own pick (`cssFocus`, a tree path) or, without
+ * one, the element the HTML pane is scoped to. It is found once, in the file
+ * as it stands after this flush's renames and removals, and written in the
+ * HTML pane's offsets (the pane may hold a slice that starts at
+ * `htmlFocus.from`). Left alone: a name already in `[ ]` anywhere in the file
+ * (that element's rule, not a new one), and a rule nested inside another (it
+ * styles something inside, not the picked element). Nothing happens when the
+ * pane shows the whole file, or the file's root view that nobody picked.
+ *
+ * Typing a name a letter at a time adds it once, when its `{` is typed; every
+ * letter after that is a rename of a name now in `[ ]`, which the loop above
+ * already carries into the markup.
+ *
+ * @param {string} html the HTML pane's text, this flush's renames and removals applied
+ * @returns {string} that text with the new names on the picked tag
+ */
+function addPickedBracketNames(html, added, owned, cssText) {
+  if (!added.length || dockState.cssPane !== 'tree') {
+    return html;
+  }
+
+  // Bring `htmlFull` up to the pane as it stood before this flush, so the
+  // text around the pane's slice is the file's. A range that no longer fits
+  // lets the scope go in here, and the checks below read the state as it is.
+  syncScopedHtml();
+
+  const path = dockState.cssFocus?.path;
+  const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
+
+  if (!path && !scoped) {
+    return html;
+  }
+
+  const base = scoped ? dockState.htmlFocus.from : 0;
+  const full = scoped
+    ? dockState.htmlFull.slice(0, base) + html + dockState.htmlFull.slice(dockState.htmlFocus.to)
+    : html;
+  const rows = flattenHtmlTree(parseHtmlTree(full), new Set());
+  const row = path ? rows.find((item) => item.path === path) : rows.find((item) => item.from === base);
+
+  if (!row || row.from < base || row.openTo - base > html.length) {
+    return html;
+  }
+
+  const taken = new Set(bracketClassTokens(full).map((token) => token.name));
+  const from = row.from - base;
+  let to = row.openTo - base;
+  let next = html;
+
+  for (const raw of added) {
+    const name = sanitizeCssClassName(raw);
+
+    if (!name || owned.has(name) || taken.has(name) || !hasTopLevelClassRule(cssText, name)) {
+      continue;
+    }
+
+    ({ html: next, to } = addBracketClassToTag(next, from, to, name));
+    taken.add(name);
+  }
+
+  return next;
 }
 
 function renameBracketClassAt(token, raw) {
