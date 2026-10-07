@@ -2114,6 +2114,47 @@
     }
 
     /**
+     * The live CSS sheet last in <head>, before the Tailwind sheets. A morph
+     * moves the render's own <style> tags to the end of <head>, and a rule
+     * there is the file as it was last saved: same selector, same specificity,
+     * later in order — the pane's value lost to it until the next save had
+     * morphed. The sheet being typed goes after it again on every paint, so
+     * the morph's arrival never puts an older value back.
+     */
+    function placeLiveCss(doc) {
+        var style = doc && doc.head ? doc.getElementById(STYLE_CSS_ID) : null;
+        var tw;
+        var hold;
+        var last;
+
+        if (!style) {
+            return;
+        }
+
+        tw = doc.getElementById(STYLE_TW_ID);
+        hold = doc.getElementById(STYLE_TW_HOLD_ID);
+        last = doc.head.lastElementChild;
+
+        while (last && (last === tw || last === hold)) {
+            last = last.previousElementSibling;
+        }
+
+        if (last === style) {
+            return;
+        }
+
+        doc.head.appendChild(style);
+
+        if (tw) {
+            doc.head.appendChild(tw);
+        }
+
+        if (hold) {
+            doc.head.appendChild(hold);
+        }
+    }
+
+    /**
      * The live Tailwind sheet: the file's whole class list, built by the same
      * compiler the save uses, in one unlayered <style> that stays last in
      * <head> — exactly the shape `{{ sve_tw }}` pushes after the save.
@@ -2337,6 +2378,10 @@
             iframe.addEventListener('load', function () {
                 lastHtml = null;
                 lastSid = '';
+                // A new document has no live sheet: forgotten, or the paint
+                // would skip the CSS as "already there" until the next
+                // keystroke in the pane.
+                lastCss = '';
                 schedulePaint();
             });
         }
@@ -2753,15 +2798,19 @@
     /**
      * The CSS to hold live. The whole pane when the pane is the whole sheet.
      * When the pane is a slice — the HTML pane is scoped, so the CSS pane
-     * shows the picked tag's rules — the sheet the dock exposes comes first
-     * and the slice after it: an edited rule wins over its older copy and the
-     * rest of the sheet stays. Used to keep the last whole sheet while
-     * scoped, so a CSS keystroke there waited for the morph. An older dock
-     * exposes nothing, and then the last whole sheet still stays.
+     * shows the picked tag's rules — it is the sheet the dock exposes, which
+     * has the slice merged into it as it is read. The slice used to be put
+     * after the sheet instead, with the sheet a copy taken on HTML changes
+     * only: the copy's rule sat inside `@scope`, the slice's did not, and a
+     * scoped rule wins over an unscoped one of the same selector whatever the
+     * order (Chrome 154) — a value changed or removed in the pane stayed in
+     * the preview until a reload. An older dock exposes nothing, and then the
+     * last whole sheet still stays.
      */
     function liveCss() {
         var dock;
         var scope;
+        var css;
 
         if (!htmlScoped()) {
             return paneText('css');
@@ -2769,12 +2818,13 @@
 
         dock = document.getElementById(DOCK_ID);
         scope = dock && dock.__sveHtmlScope;
+        css = scope ? scope.css : null;
 
-        if (!scope || typeof scope.css !== 'string') {
+        if (typeof css !== 'string') {
             return lastCss;
         }
 
-        return scope.css + '\n' + paneText('css');
+        return css;
     }
 
     /** The section the dock is on, as the page loop hands its partial the row — for the CSS pane's `{{ id }}` and friends. */
@@ -2865,6 +2915,8 @@
                 putStyle(doc, STYLE_CSS_ID, cssForLive(css, cssContext(doc)));
             });
         }
+
+        docs.forEach(placeLiveCss);
 
         if (!html || html === lastHtml) {
             return;

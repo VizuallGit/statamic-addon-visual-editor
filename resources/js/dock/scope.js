@@ -146,10 +146,23 @@ function exposeHtmlScope() {
     return;
   }
 
-  // `css` is the whole sheet as of now: the CSS pane shows a slice while the
-  // HTML pane is scoped, and the paint holds the sheet plus the slice.
+  // `css` is the whole sheet as it stands when it is read: the CSS pane shows
+  // a slice while the HTML pane is scoped, and the paint holds the sheet with
+  // the slice merged in — the same merge the save does. Until v1.1.468 it was
+  // a copy of `cssFull` taken here, on HTML changes only, and the paint put
+  // the pane after it: the copy's rule sat inside `@scope`, the pane's did
+  // not, and a scoped rule wins over an unscoped one of the same selector
+  // whatever the order — a value changed or removed in the pane stayed in
+  // the preview until a reload.
   dock.__sveHtmlScope = dockState.htmlScopeActive && dockState.htmlFocus
-    ? { full: dockState.htmlFull, from: dockState.htmlFocus.from, to: dockState.htmlFocus.to, css: dockState.cssFull }
+    ? {
+        full: dockState.htmlFull,
+        from: dockState.htmlFocus.from,
+        to: dockState.htmlFocus.to,
+        get css() {
+          return mergedCssFull();
+        },
+      }
     : null;
 }
 
@@ -512,6 +525,37 @@ export function pickHtmlTagAtCursor(win) {
   applyCssScope();
 }
 
+/**
+ * The whole sheet with the CSS pane's current text in it: the pane's rules in
+ * place of their older copies when the pane shows a slice, the pane itself
+ * when it shows the whole file. What `flushCssScope` writes to `cssFull`,
+ * without writing it.
+ */
+export function mergedCssFull() {
+  const current = editors.css?.state.doc.toString();
+
+  if (current == null) {
+    return dockState.cssFull;
+  }
+
+  if (dockState.cssPane === 'tree') {
+    if (current === dockState.cssScopeSnapshot) {
+      return dockState.cssFull;
+    }
+
+    const root =
+      tokenTreeFromHtml(cssSnippet())[0]?.className || firstClassName(current);
+
+    return mergeScopedCss(dockState.cssFull, current, root);
+  }
+
+  if (dockState.cssPane === 'full') {
+    return current;
+  }
+
+  return dockState.cssFull;
+}
+
 export function flushCssScope() {
   const current = editors.css?.state.doc.toString() ?? '';
 
@@ -520,10 +564,7 @@ export function flushCssScope() {
       return;
     }
 
-    const root =
-      tokenTreeFromHtml(cssSnippet())[0]?.className || firstClassName(current);
-
-    dockState.cssFull = mergeScopedCss(dockState.cssFull, current, root);
+    dockState.cssFull = mergedCssFull();
     dockState.cssScopeSnapshot = current;
   } else if (dockState.cssPane === 'full') {
     dockState.cssFull = current;
