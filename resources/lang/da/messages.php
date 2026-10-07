@@ -1443,4 +1443,15 @@ return [
     'bard_styles_err_css_format' => 'Kun deklarationer, fx text-transform: uppercase — ingen { } < >.',
     'bard_styles_err_group_missing' => 'Den gruppe findes ikke.',
     'bard_styles_err_group_div' => 'En indpakning kan ikke ligge i en gruppe.',
+
+    // AI panel tabs and images (AiPanel.vue)
+    'ai_panel_tab_new' => 'Ny chat',
+    'ai_panel_tab_add' => 'Ny chat',
+    'ai_panel_tab_close' => 'Luk chatten — den slettes',
+    'ai_panel_tabs_failed' => 'Chattene kunne ikke hentes.',
+    'ai_panel_attach' => 'Tilføj et billede (eller indsæt et med ⌘V)',
+    'ai_panel_image_remove' => 'Fjern billedet',
+    'ai_panel_image_failed' => 'Billedet kunne ikke tilføjes.',
+    'ai_panel_image_uploading' => 'Billedet uploades stadig …',
+    'ai_panel_lost' => 'Svaret kom aldrig — AI’en stoppede, før den var færdig. Spørg igen.',
 ];

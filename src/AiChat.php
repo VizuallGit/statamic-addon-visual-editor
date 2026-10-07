@@ -39,9 +39,10 @@ class AiChat
 
     /**
      * @param  list<array{role: string, content: string}>  $messages
+     * @param  list<array{data: string, mimeType: string}>  $images  shown to the agent with the question
      * @return array{reply: string, applied: bool, path: ?string, mode: string}
      */
-    public static function talk(string $handle, array $messages, string $mode = 'write'): array
+    public static function talk(string $handle, array $messages, string $mode = 'write', array $images = []): array
     {
         abort_unless(static::apiKey() !== '', 422, 'Missing Cursor API key. Get one at cursor.com/dashboard/api — same Cursor account, not Claude.');
 
@@ -60,7 +61,7 @@ class AiChat
             $allowed = AiWriteGuard::snapshotAllowed();
         }
 
-        $out = CursorAgent::run(Prompt::prompt($handle, $messages, $mode));
+        $out = CursorAgent::run(Prompt::prompt($handle, $messages, $mode), $images);
 
         AiWriteGuard::restore($forbidden);
 

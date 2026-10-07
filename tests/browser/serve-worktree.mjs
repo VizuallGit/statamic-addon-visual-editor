@@ -32,7 +32,9 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 
-const stemOf = (name) => name.replace(/-[\w-]+(\.\w+)$/, '$1');
+// Vite's hash is the last 8 characters before the extension; a name has hyphens
+// of its own (ai-panel, ai-text, ai-panel-lazy), which must not be cut at.
+const stemOf = (name) => name.replace(/-[\w-]{8}(\.\w+)$/, '$1');
 // Entries, and the named chunks PHP hands the CP by URL (`BuiltAssets::url('resources/js/tw-compile.js')`):
 // both are asked for under the installed hash and must answer from the working tree.
 // Vite's own `_name-HASH.js` chunks are imported by the working-tree files themselves, so they are found by name.

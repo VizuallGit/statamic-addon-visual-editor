@@ -143,9 +143,10 @@ class CursorAgent
     }
 
     /**
+     * @param  list<array{data: string, mimeType: string}>  $images  base64, sent with the prompt as one message
      * @return array{status: string, reply: string}
      */
-    public static function run(string $prompt): array
+    public static function run(string $prompt, array $images = []): array
     {
         $script = static::script();
 
@@ -173,6 +174,10 @@ class CursorAgent
 
         if ($servers = static::mcpServers()) {
             $payload['mcpServers'] = $servers;
+        }
+
+        if ($images !== []) {
+            $payload['images'] = array_values($images);
         }
 
         $payload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

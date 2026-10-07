@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Boot;
 use Illuminate\Support\Facades\Route;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiChatController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\AiCopyController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\AiTabsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\BuiltAssetController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\ChromePrefsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\CollectionEntriesController;
@@ -192,6 +193,25 @@ final class EditorRoutes
 
             Route::post('/!/sve/ai-chat', [AiChatController::class, 'store'])
                 ->name('sve.ai-chat');
+
+            // The AI panel's tabs: each a chat kept on the server for its user,
+            // so a reload loses nothing; closing a tab throws it away.
+            Route::get('/!/sve/ai-tabs', [AiTabsController::class, 'index'])
+                ->name('sve.ai-tabs.index');
+            Route::post('/!/sve/ai-tabs', [AiTabsController::class, 'store'])
+                ->name('sve.ai-tabs.store');
+            Route::get('/!/sve/ai-tabs/{tab}', [AiTabsController::class, 'show'])
+                ->name('sve.ai-tabs.show');
+            Route::post('/!/sve/ai-tabs/{tab}', [AiTabsController::class, 'update'])
+                ->name('sve.ai-tabs.update');
+            Route::delete('/!/sve/ai-tabs/{tab}', [AiTabsController::class, 'destroy'])
+                ->name('sve.ai-tabs.destroy');
+            Route::post('/!/sve/ai-tabs/{tab}/stop', [AiTabsController::class, 'stop'])
+                ->name('sve.ai-tabs.stop');
+            Route::post('/!/sve/ai-tabs/{tab}/images', [AiTabsController::class, 'upload'])
+                ->name('sve.ai-tabs.upload');
+            Route::get('/!/sve/ai-tabs/{tab}/images/{image}', [AiTabsController::class, 'image'])
+                ->name('sve.ai-tabs.image');
 
             // Copy suggestions for one text field, written against the page's
             // keywords. Separate from ai-chat: this one never writes anything,

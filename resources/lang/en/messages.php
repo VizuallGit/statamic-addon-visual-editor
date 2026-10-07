@@ -1450,4 +1450,15 @@ return [
     'bard_styles_err_css_format' => 'Declarations only, e.g. text-transform: uppercase — no { } < >.',
     'bard_styles_err_group_missing' => 'That group does not exist.',
     'bard_styles_err_group_div' => 'A wrapper cannot be in a group.',
+
+    // AI panel tabs and images (AiPanel.vue)
+    'ai_panel_tab_new' => 'New chat',
+    'ai_panel_tab_add' => 'New chat',
+    'ai_panel_tab_close' => 'Close this chat — it is deleted',
+    'ai_panel_tabs_failed' => 'The chats could not be loaded.',
+    'ai_panel_attach' => 'Add an image (or paste one with ⌘V)',
+    'ai_panel_image_remove' => 'Remove the image',
+    'ai_panel_image_failed' => 'The image could not be added.',
+    'ai_panel_image_uploading' => 'The image is still uploading …',
+    'ai_panel_lost' => 'The answer never came — the AI stopped before it was done. Ask again.',
 ];

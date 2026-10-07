@@ -58,8 +58,24 @@ const stdoutWrite = stdout.write.bind(stdout);
 
 stdout.write = (chunk, encoding, callback) => stderr.write(chunk, encoding, callback);
 
+// Images pasted into the chat go with the prompt as one message — the SDK's
+// SDKUserMessage. Without images the message is the prompt string, as it was.
+// This is what Agent.prompt() does inside (create, send, wait, dispose); it
+// takes only a string, so the steps are spelled out here.
+const images = Array.isArray(input.images)
+  ? input.images.filter((image) => image?.data && image?.mimeType).map(({ data, mimeType }) => ({ data, mimeType }))
+  : [];
+const message = images.length ? { text: input.prompt, images } : input.prompt;
+
 try {
-  const result = await Agent.prompt(input.prompt, options);
+  const agent = await Agent.create(options);
+  let result;
+
+  try {
+    result = await (await agent.send(message)).wait();
+  } finally {
+    await agent[Symbol.asyncDispose]();
+  }
 
   stdout.write = stdoutWrite;
 
