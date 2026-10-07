@@ -288,6 +288,13 @@ function createHost(win) {
   ensureStyles(win);
   guardHostReload(win, () => open);
 
+  /**
+   * The box the page-change spinner covers. With every size side by side the
+   * next page loads into all of them, so it covers the overview's layer — the
+   * whole canvas — not the preview iframe, which there is only the active
+   * frame's box (7 Oct 2026). `__sve-bp-overview` is BP_OVERVIEW_ID in
+   * lib/ids.js, written out so the kernel's chunk graph stays as it is.
+   */
   function previewBox() {
     const fallback = () => {
       const r = frame?.getBoundingClientRect();
@@ -302,6 +309,7 @@ function createHost(win) {
     try {
       const inner = frame?.contentDocument;
       const el =
+        inner?.getElementById('__sve-bp-overview') ||
         inner?.getElementById('live-preview-iframe') ||
         inner?.querySelector('.live-preview-contents');
 
