@@ -168,7 +168,7 @@
         schedulePaint();
     }
 
-    /** Both live sheets out of the preview: what is left is what the server rendered. */
+    /** Both live sheets out of the preview, the saved block back in: what is left is what the server rendered. */
     function clearLive(doc) {
         if (!doc) {
             return;
@@ -176,6 +176,7 @@
 
         putStyle(doc, STYLE_CSS_ID, '');
         setLiveTw(doc, '');
+        restoreSavedCss(doc);
     }
 
     function ensureModeStyle() {
@@ -2154,6 +2155,102 @@
         }
     }
 
+    /** The file's CSS as it is on disk, from the dock; '' for an older dock. */
+    function savedCss() {
+        var dock = document.getElementById(DOCK_ID);
+        var css = dock ? dock.__sveSavedCss : '';
+
+        return typeof css === 'string' ? css : '';
+    }
+
+    /**
+     * The pushed CSS the way style-push's InjectAssets writes it into <head>:
+     * one <style>, comments out, whitespace to one space and gone around
+     * `; { } , > ~` and after a colon. Same rules, same order, so the saved
+     * block can be found in the rendered sheet by its text.
+     */
+    function minifyLikeServer(css) {
+        return String(css || '')
+            .replace(/<style[^>]*>|<\/style>/gi, '')
+            .replace(/\/\*[^*]*\*+([^/][^*]*\*+)*\//g, '')
+            .replace(/\s+/g, ' ')
+            .replace(/\s*([;{},>~])\s*/g, '$1')
+            .replace(/:\s+/g, ':')
+            .trim();
+    }
+
+    /**
+     * The saved block out of the render's <style> while the live sheet holds
+     * the pane. A later sheet can only add: a declaration removed in the pane
+     * stayed in the preview as long as the saved copy of the rule stood in
+     * <head> — until a save and its morph, and with autosave off, until a
+     * Save in the top bar. The block is found by its text, rendered with the
+     * row's fields and minified as the server does; a block the paint cannot
+     * render alike (a `{{ responsive_css }}` in it) is not found and stays.
+     * The whole text is kept on the element, so `restoreSavedCss` can put it
+     * back when the live sheet goes.
+     */
+    function cutSavedCss(doc, ctx) {
+        var saved = savedCss();
+        var needle = saved ? minifyLikeServer(cssForLive(saved, ctx)) : '';
+        var styles;
+        var i;
+        var style;
+        var text;
+        var at;
+
+        if (!doc || !doc.head) {
+            return;
+        }
+
+        if (!needle) {
+            restoreSavedCss(doc);
+
+            return;
+        }
+
+        styles = doc.head.querySelectorAll('style');
+
+        for (i = 0; i < styles.length; i++) {
+            style = styles[i];
+
+            if ((style.id || '').indexOf('__sve-') === 0) {
+                continue;
+            }
+
+            text = typeof style.__sveWhole === 'string' ? style.__sveWhole : style.textContent;
+            at = text.indexOf(needle);
+
+            if (at === -1) {
+                if (typeof style.__sveWhole === 'string') {
+                    style.textContent = style.__sveWhole;
+                    delete style.__sveWhole;
+                }
+
+                continue;
+            }
+
+            style.__sveWhole = text;
+            text = text.slice(0, at) + text.slice(at + needle.length);
+
+            if (style.textContent !== text) {
+                style.textContent = text;
+            }
+        }
+    }
+
+    function restoreSavedCss(doc) {
+        var styles = doc && doc.head ? doc.head.querySelectorAll('style') : [];
+        var i;
+
+        for (i = 0; i < styles.length; i++) {
+            if (typeof styles[i].__sveWhole === 'string') {
+                styles[i].textContent = styles[i].__sveWhole;
+                delete styles[i].__sveWhole;
+            }
+        }
+    }
+
     /**
      * The live Tailwind sheet: the file's whole class list, built by the same
      * compiler the save uses, in one unlayered <style> that stays last in
@@ -2917,6 +3014,13 @@
         }
 
         docs.forEach(placeLiveCss);
+        docs.forEach(function (doc) {
+            if (css) {
+                cutSavedCss(doc, cssContext(doc));
+            } else {
+                restoreSavedCss(doc);
+            }
+        });
 
         if (!html || html === lastHtml) {
             return;
@@ -3518,6 +3622,8 @@
             lastCss = '';
             lastFullHtml = '';
             lastSnippet = '';
+            // No dock, no live sheets: the render stands on its own again.
+            previewDocuments().forEach(clearLive);
             return;
         }
 

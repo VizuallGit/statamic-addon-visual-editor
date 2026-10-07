@@ -95,6 +95,13 @@ async function ensureDockAsync(win) {
     dock = doc.createElement('div');
     dock.id = DOCK_ID;
     dock.setAttribute('data-sve-code-chrome', 'scope-9');
+    // The file's CSS as it is on disk, for the Instant paint script: it takes
+    // that block out of the render's <style> while its own sheet holds the
+    // pane, so a declaration removed in the pane is gone from the preview
+    // before any save. A getter — `lastParts` is replaced on load and on save.
+    Object.defineProperty(dock, '__sveSavedCss', {
+      get: () => dockState.lastParts?.css ?? '',
+    });
     // The user's own family colours, on the root every mark and button reads.
     paintFamilyColors(dock, readFamilyOverrides(win));
     mountPane(dock, CodeDockChrome, {
