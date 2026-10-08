@@ -336,11 +336,41 @@ export function ensureStyle(doc) {
   color: #7dd3fc;
   background: rgba(56,189,248,.16);
 }
-/* The HTML pane's All sits in its tool row: no extra gap in front of it, and
-   gone with the tree, when the pane shows the whole file anyway. */
+/* The HTML pane's All: small, on the code's top right corner. Solid behind
+   so code under it does not read through; gone with the tree, when the pane
+   shows the whole file anyway. */
+#${DOCK_ID} [data-sve-html-all-slot] {
+  position: relative;
+  height: 0;
+  z-index: 5;
+}
 #${DOCK_ID} [data-sve-html-all] {
-  pointer-events: auto;
+  position: absolute;
+  top: 6px;
+  right: 16px;
+  height: 20px;
+  padding: 0 6px;
   margin-left: 0;
+  gap: 4px;
+  border-radius: 5px;
+  font-size: 10px;
+  opacity: 1;
+  color: #a3a3a3;
+  background: #2b2b2e;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08);
+}
+#${DOCK_ID} [data-sve-html-all] svg {
+  width: 10px;
+  height: 10px;
+}
+#${DOCK_ID} [data-sve-html-all]:hover {
+  color: #e5e5e5;
+  background: #36363a;
+}
+#${DOCK_ID} [data-sve-html-all][aria-pressed="true"] {
+  color: #7dd3fc;
+  background: #12303f;
+  box-shadow: 0 0 0 1px rgba(56,189,248,.35);
 }
 #${DOCK_ID} [data-sve-html-all][hidden] {
   display: none;

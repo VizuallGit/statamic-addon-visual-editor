@@ -43,11 +43,6 @@ defineProps({
           <span>{{ htmlLabel }}</span>
           <div data-sve-html-tools></div>
           <!--
-            All is a way to look at the pane, so it opens the group of things
-            done to what is written — the CSS pane's All, in the HTML pane.
-          -->
-          <button type="button" data-sve-html-all hidden></button>
-          <!--
             Tidy is not a thing to write, it is a thing to do to what is
             written — so it stands with the other tools that act on the file,
             not in the strip of tags you build with.
@@ -64,6 +59,15 @@ defineProps({
           template-lint.js finds it). Hidden while there is nothing to say.
         -->
         <div data-sve-html-problems hidden></div>
+        <!--
+          All floats in the code's top right corner: it is a way to look at
+          the document, so it sits on it. The slot has no height, so the pane's
+          height sum (layout.js) leaves the editor its full height, and it is
+          outside the scroller, so it stays put while the code scrolls.
+        -->
+        <div data-sve-html-all-slot>
+          <button type="button" data-sve-html-all hidden></button>
+        </div>
         <div data-sve-code-host></div>
       </div>
       <div data-sve-code-split data-sve-code-split-after="html"></div>
