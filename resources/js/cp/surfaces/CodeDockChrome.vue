@@ -43,6 +43,11 @@ defineProps({
           <span>{{ htmlLabel }}</span>
           <div data-sve-html-tools></div>
           <!--
+            All is a way to look at the pane, so it opens the group of things
+            done to what is written — the CSS pane's All, in the HTML pane.
+          -->
+          <button type="button" data-sve-html-all hidden></button>
+          <!--
             Tidy is not a thing to write, it is a thing to do to what is
             written — so it stands with the other tools that act on the file,
             not in the strip of tags you build with.

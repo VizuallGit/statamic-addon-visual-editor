@@ -37,6 +37,10 @@ export const dockState = {
   // The CSS pane shows the whole style block, not the picked element's rules.
   // Not remembered: a pick in the tree, or a new file, hands the pane back.
   cssAll: false,
+  // The HTML pane shows the whole file — the Antlers around the section too —
+  // while the pick stays where it was. Not remembered either: a pick in the
+  // tree, or a new file, puts the pane back on the picked element.
+  htmlAll: false,
   twCss: null,
   twKey: '',
   twBusy: false,

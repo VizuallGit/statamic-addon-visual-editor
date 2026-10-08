@@ -303,6 +303,7 @@ export function ensureStyle(doc) {
 }
 #${DOCK_ID} [data-sve-values-mode],
 #${DOCK_ID} [data-sve-css-all],
+#${DOCK_ID} [data-sve-html-all],
 #${DOCK_ID} [data-sve-style-mode] {
   all: unset;
   cursor: pointer;
@@ -322,16 +323,27 @@ export function ensureStyle(doc) {
 }
 #${DOCK_ID} [data-sve-values-mode]:hover,
 #${DOCK_ID} [data-sve-css-all]:hover,
+#${DOCK_ID} [data-sve-html-all]:hover,
 #${DOCK_ID} [data-sve-style-mode]:hover {
   opacity: 1;
   background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-values-mode][aria-pressed="true"],
 #${DOCK_ID} [data-sve-css-all][aria-pressed="true"],
+#${DOCK_ID} [data-sve-html-all][aria-pressed="true"],
 #${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
   opacity: 1;
   color: #7dd3fc;
   background: rgba(56,189,248,.16);
+}
+/* The HTML pane's All sits in its tool row: no extra gap in front of it, and
+   gone with the tree, when the pane shows the whole file anyway. */
+#${DOCK_ID} [data-sve-html-all] {
+  pointer-events: auto;
+  margin-left: 0;
+}
+#${DOCK_ID} [data-sve-html-all][hidden] {
+  display: none;
 }
 /* The CSS pane holds two things and shows one: the editor, or the chips. */
 #${DOCK_ID} [data-sve-tw-host] {

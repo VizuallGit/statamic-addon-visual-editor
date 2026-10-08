@@ -14,7 +14,7 @@ import { tailwindClassCompletions, tailwindHoverExtension } from '../tailwind-co
 import { bracketClassCompletions, loadClassDefs, takenClassMarks } from './class-defs.js';
 import { vscTheme } from '../lib/codemirror.js';
 import { dockState } from '../dock/state.js';
-import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, StateField, autocompletion, closeBrackets, closeBracketsKeymap, cm, codeFolding, completionKeymap, defaultKeymap, editableOf, editors, highlightActiveLine, highlightActiveLineGutter, history, historyKeymap, hoverTooltip, htmlLanguage, indentWithTab, keymap, lineNumbers, readOnlyOf, tags } from '../code-dock.js';
+import { Decoration, EditorState, EditorView, RangeSetBuilder, StateEffect, StateField, autocompletion, closeBrackets, closeBracketsKeymap, cm, codeFolding, completionKeymap, defaultKeymap, editableOf, editors, highlightActiveLine, highlightActiveLineGutter, historyKeymap, hoverTooltip, htmlLanguage, indentWithTab, keymap, lineNumbers, readOnlyOf, tags } from '../code-dock.js';
 import { applyCssFolds, cssSizeRows, paintCssHead } from './css-sizes.js';
 import { flushSave, onEditorInput } from './save.js';
 import { languageOf } from './layout.js';
@@ -25,6 +25,8 @@ import { paintAlpine } from './alpine.js';
 import { syncTwTarget } from './style-modes.js';
 import { problemsUi } from './problems.js';
 import { lockedUi } from './locked-tags.js';
+import { mapFocus } from '../lib/focus-map.js';
+import { undoHistory } from './undo.js';
 
 // ===== editor =====
 /**
@@ -203,7 +205,7 @@ export function mountEditor(win, handle, parent) {
         lineNumbers(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
-        history(),
+        undoHistory(handle),
         languageOf(handle),
         closeBrackets(),
         autocompletion({ tooltipClass: () => 'sve-tw-complete' }),
@@ -247,6 +249,13 @@ export function mountEditor(win, handle, parent) {
         readOnlyOf[handle].of(EditorState.readOnly.of(!!dockState.lastLocked)),
         editableOf[handle].of(EditorView.editable.of(!dockState.lastLocked)),
         EditorView.updateListener.of((update) => {
+          // All: the pane is the whole file and the pick is a range in it, so
+          // each change moves the pick with it. Switching back then shows the
+          // same element, wherever the edits have pushed it.
+          if (handle === 'html' && update.docChanged && dockState.htmlAll && !dockState.htmlScopeActive) {
+            dockState.htmlFocus = mapFocus(dockState.htmlFocus, update.changes);
+          }
+
           if (SUNDAY_AUG30 && handle === 'html' && update.docChanged && !dockState.applying) {
             flushBracketSync(win);
             emit('dock:html-changed');

@@ -2905,23 +2905,17 @@
      * last whole sheet still stays.
      */
     function liveCss() {
-        var dock;
-        var scope;
-        var css;
+        var dock = document.getElementById(DOCK_ID);
+        var scope = dock && dock.__sveHtmlScope;
+        var css = scope ? scope.css : null;
 
-        if (!htmlScoped()) {
-            return paneText('css');
+        // The whole sheet, whenever the dock has one to give: a scoped HTML
+        // pane, or All in it while the CSS pane still shows the pick's rules.
+        if (typeof css === 'string') {
+            return css;
         }
 
-        dock = document.getElementById(DOCK_ID);
-        scope = dock && dock.__sveHtmlScope;
-        css = scope ? scope.css : null;
-
-        if (typeof css !== 'string') {
-            return lastCss;
-        }
-
-        return css;
+        return htmlScoped() ? lastCss : paneText('css');
     }
 
     /** The section the dock is on, as the page loop hands its partial the row — for the CSS pane's `{{ id }}` and friends. */

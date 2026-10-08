@@ -16,6 +16,7 @@ import { applyCssScope, flushCssScope, syncHtmlTree } from './scope.js';
 import { paintCssIdMark } from './editor.js';
 import { paintStrip } from './history-strip.js';
 import { paintAlpine } from './alpine.js';
+import { ALL_ICON } from './all-icon.js';
 
 // ===== style-modes =====
 /**
@@ -207,7 +208,6 @@ export function setValuesMode(win, on) {
   paintCssToolState(win);
 }
 
-const ALL_ICON = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h7"/></svg>';
 
 /**
  * The All button: the whole style block in the CSS pane, where a rule whose

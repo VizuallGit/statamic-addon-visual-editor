@@ -25,6 +25,8 @@ import { closeCssMenu, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssFolds } from './css-sizes.js';
 import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
 import { minimalChange } from '../lib/minimal-change.js';
+import { ALL_ICON } from './all-icon.js';
+import { freshUndo } from './undo.js';
 
 // ===== scope =====
 export function currentSectionValues(win) {
@@ -154,6 +156,9 @@ function exposeHtmlScope() {
   // not, and a scoped rule wins over an unscoped one of the same selector
   // whatever the order — a value changed or removed in the pane stayed in
   // the preview until a reload.
+  // All: the HTML pane is the whole file (no range to splice into), but the
+  // CSS pane still shows the picked element's rules — the paint needs the
+  // whole sheet with them merged in, not the pane's slice.
   dock.__sveHtmlScope = dockState.htmlScopeActive && dockState.htmlFocus
     ? {
         full: dockState.htmlFull,
@@ -163,7 +168,13 @@ function exposeHtmlScope() {
           return mergedCssFull();
         },
       }
-    : null;
+    : dockState.htmlAll && dockState.cssPane === 'tree'
+      ? {
+          get css() {
+            return mergedCssFull();
+          },
+        }
+      : null;
 }
 
 export function syncScopedHtml() {
@@ -437,7 +448,7 @@ export function openRenameClassMenu(win, token) {
 }
 
 export function htmlEditorText() {
-  if (dockState.htmlScopePref && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
+  if (dockState.htmlScopePref && !dockState.htmlAll && htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
     dockState.htmlScopeActive = true;
     exposeHtmlScope();
 
@@ -489,6 +500,16 @@ export function writeHtmlEditor(text, selection) {
 function htmlSnippet() {
   if (dockState.htmlScopeActive) {
     return editors.html?.state.doc.toString() ?? '';
+  }
+
+  // All: the editor is the whole file and the pick moves with every edit in
+  // it, so the element is read from there — `htmlFull` may not be synced yet.
+  if (dockState.htmlAll) {
+    const text = editors.html?.state.doc.toString() ?? '';
+
+    return htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, text.length)
+      ? text.slice(dockState.htmlFocus.from, dockState.htmlFocus.to)
+      : '';
   }
 
   if (htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, dockState.htmlFull.length)) {
@@ -702,7 +723,9 @@ export function applyCssScope() {
   // block: the same view a click on the section row gives. Names on the
   // elements inside are theirs, shown on a click on them. The whole block is
   // the All button's (`cssAll`), the ID's, or the tree's when it is switched off.
-  const fromFile = picked == null && !dockState.htmlScopeActive;
+  // All in the HTML pane is a look at the file around the pick, not a new
+  // pick: the CSS pane keeps showing the picked element's rules.
+  const fromFile = picked == null && !dockState.htmlScopeActive && !(dockState.htmlAll && dockState.htmlFocus);
 
   if (dockState.cssValues || dockState.cssAll || !dockState.htmlScopePref) {
     dockState.cssPane = 'full';
@@ -758,6 +781,10 @@ export function showHtmlScope(caret) {
     return;
   }
 
+  // Showing the pick is the end of All, whoever asks for it — the button, a
+  // row in the tree, the tree switched back on.
+  dockState.htmlAll = false;
+
   if (!dockState.htmlScopeActive) {
     dockState.htmlFull = view.state.doc.toString();
   }
@@ -791,6 +818,9 @@ export function showHtmlFull(selectFocus = true, caret = null) {
   flushCssScope();
   syncScopedHtml();
   dockState.htmlScopeActive = false;
+  // The tree's own whole-file view, with the CSS pane on the whole block too;
+  // All is the narrower look and has nothing left to switch here.
+  dockState.htmlAll = false;
   exposeHtmlScope();
 
   const full = dockState.htmlFull || view.state.doc.toString();
@@ -811,8 +841,82 @@ export function showHtmlFull(selectFocus = true, caret = null) {
   rememberCssSelectors();
 }
 
+/**
+ * The HTML pane's All button: the whole file in the pane — the Antlers and the
+ * markup around the picked element, `{{ switch }}`, `{{ _bg = … }}` and all —
+ * with the CSS and JS still in their own panes. The pick is kept, and moved
+ * with every edit (editor.js, lib/focus-map.js), so pressing it again shows
+ * the same element. Only while the tree is on: with it off the pane shows the
+ * whole file already.
+ */
+export function paintHtmlAll(win) {
+  const btn = win?.document.getElementById(DOCK_ID)?.querySelector('[data-sve-html-all]');
+
+  if (!btn) {
+    return;
+  }
+
+  btn.hidden = !dockState.htmlScopePref;
+
+  const text = win.document.createElement('span');
+
+  text.textContent = t(win, 'code_dock_html_all');
+  btn.innerHTML = ALL_ICON;
+  btn.appendChild(text);
+  btn.title = t(win, dockState.htmlAll ? 'code_dock_html_all_off' : 'code_dock_html_all_on');
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', dockState.htmlAll ? 'true' : 'false');
+}
+
+export function setHtmlAll(win, on) {
+  const view = editors.html;
+
+  if (!view || !!on === dockState.htmlAll) {
+    paintHtmlAll(win);
+
+    return;
+  }
+
+  if (on) {
+    // What the pane holds goes into the file first; then the file comes up
+    // with the caret in front of the picked element, so you see where it sits.
+    syncScopedHtml();
+
+    const full = dockState.htmlFull || view.state.doc.toString();
+    const focus = htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, full.length) ? dockState.htmlFocus : null;
+
+    dockState.htmlScopeActive = false;
+    dockState.htmlFull = full;
+    exposeHtmlScope();
+    writeHtmlEditor(full, focus ? { anchor: focus.from } : null);
+    freshUndo('html');
+    // Set only now: the write above swaps the slice for the file, and a pick
+    // carried through that swap would land nowhere.
+    dockState.htmlAll = true;
+  } else {
+    const length = view.state.doc.length;
+
+    if (htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, length)) {
+      flushCssScope();
+      showHtmlScope(null);
+      freshUndo('html');
+    } else {
+      // The element was deleted while the file was shown: there is nothing to
+      // narrow to, so the pane stays on the file — and the CSS pane, which
+      // still showed that element's rules, goes back to the file's.
+      dockState.htmlAll = false;
+      dockState.htmlFocus = null;
+      flushCssScope();
+      applyCssScope();
+    }
+  }
+
+  paintHtmlScope(win);
+}
+
 export function clearHtmlScopeRange() {
   dockState.htmlFocus = null;
+  dockState.htmlAll = false;
   dockState.cssFocus = null;
   dockState.htmlScopeActive = false;
   dockState.htmlFull = '';
@@ -899,6 +1003,7 @@ export function paintHtmlScope(win) {
   btn.innerHTML = SCOPE_ICON;
   win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', dockState.htmlScopeActive);
   exposeHtmlScope();
+  paintHtmlAll(win);
 }
 
 export function bindHtmlScope(win, dock) {
@@ -913,6 +1018,12 @@ export function bindHtmlScope(win, dock) {
   // The dock has just opened: put the tree where the remembered setting says.
   // On a fresh install that is on.
   syncHtmlTree(win, dockState.htmlScopePref);
+
+  dock.querySelector('[data-sve-html-all]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setHtmlAll(win, !dockState.htmlAll);
+  });
 
   dock.querySelector('[data-sve-html-scope]')?.addEventListener('click', (event) => {
     event.preventDefault();
@@ -930,7 +1041,7 @@ export function bindHtmlScope(win, dock) {
         flushCssScope();
         showHtmlScope();
       }
-    } else if (dockState.htmlScopeActive) {
+    } else if (dockState.htmlScopeActive || dockState.htmlAll) {
       showHtmlFull();
     }
 
@@ -977,7 +1088,7 @@ function bindHtmlTreeWatch(win, dock) {
         flushCssScope();
         showHtmlScope();
       }
-    } else if (dockState.htmlScopeActive) {
+    } else if (dockState.htmlScopeActive || dockState.htmlAll) {
       showHtmlFull();
     }
 

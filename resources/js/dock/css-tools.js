@@ -89,6 +89,7 @@ export function writeParts(parts, disabled) {
     dockState.cssFull = parts.css ?? '';
     // A file just loaded opens on its own tree; All is a look, not a setting.
     dockState.cssAll = false;
+    dockState.htmlAll = false;
 
     for (const handle of HANDLES) {
       const view = editors[handle];
