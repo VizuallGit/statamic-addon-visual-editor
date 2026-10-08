@@ -143,10 +143,11 @@ class SectionTypeMakerTest extends TestCase
         $this->assertStringStartsWith('{{# sve-unlocked #}}', $html);
 
         // Without these the section renders but cannot be selected, scoped
-        // or dragged — and nothing in the file says why. `_class` sits in the
-        // bracket run, the CSS pane's scope name, not among the class chips.
+        // or dragged — and nothing in the file says why. The class attribute
+        // starts empty; its classes are the author's to write.
         $this->assertStringContainsString('id="id-{{ id }}"', $html);
-        $this->assertStringContainsString('[ {{ _class }} ]', $html);
+        $this->assertStringContainsString('class=""', $html);
+        $this->assertStringNotContainsString('_class', $html);
         $this->assertStringContainsString('visual_edit', $html);
         $this->assertStringContainsString('section_orderable="true"', $html);
 
@@ -164,7 +165,7 @@ class SectionTypeMakerTest extends TestCase
         // will ever hold, and the dock is where it is written.
         $this->assertStringStartsWith('{{# sve-unlocked #}}', $html);
         $this->assertStringContainsString('id="id-{{ id }}"', $html);
-        $this->assertStringContainsString('{{ _class }}', $html);
+        $this->assertStringContainsString('class=""', $html);
         $this->assertStringContainsString('visual_edit', $html);
         $this->assertStringContainsString('section_orderable="true"', $html);
     }

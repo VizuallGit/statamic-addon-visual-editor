@@ -46,23 +46,20 @@ class SectionTypeMaker
     /**
      * The markup a new section starts as: empty — the author writes it in the
      * HTML panel — but with the root Live Preview needs. `id-{{ id }}` is what
-     * the CSS panel scopes to, `_class` carries the classes set per place, and
-     * `visual_edit` puts the section on the outline and lets it be dragged.
+     * the CSS panel scopes to, and `visual_edit` puts the section on the outline and lets it be dragged.
      *
      * Unlocked from the first line. `SectionTemplate\Locks` treats every group
      * except those in `templates.unlocked` as locked by default; the marker is
      * what makes a file made a moment ago writable in the dock. The author can
      * lock it later.
      *
-     * `[ {{ _class }} ]` is the bracket run the CSS pane reads as the section's
-     * scope name, so `_class` is not shown as a Tailwind class chip, while
-     * `@scope(.{{ _class }})` still matches the class it renders.
+     * The class attribute starts empty: the classes are the author's to write.
      */
     public static function scaffold(): string
     {
         return <<<'ANTLERS'
         {{# sve-unlocked #}}
-        <section id="id-{{ id }}" class="[ {{ _class }} ]" {{ visual_edit outline_inside="true" section_orderable="true" }}>
+        <section id="id-{{ id }}" class="" {{ visual_edit outline_inside="true" section_orderable="true" }}>
 
         </section>
 
@@ -78,7 +75,7 @@ class SectionTypeMaker
     {
         return <<<'ANTLERS'
         {{# sve-unlocked #}}
-        <section id="id-{{ id }}" class="[ {{ _class }} ]" data-auto-contrast {{ visual_edit outline_inside="true" section_orderable="true" }}>
+        <section id="id-{{ id }}" class="" data-auto-contrast {{ visual_edit outline_inside="true" section_orderable="true" }}>
 
         </section>
 
