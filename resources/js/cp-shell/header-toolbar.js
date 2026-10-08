@@ -23,7 +23,7 @@ import { lpHeader } from '../lib/live-preview.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, persistDockedPanel, setLpMode } from '../lp-panel.js';
 import { focusFromPreview, focusPanelOn, leaveSolo, placeLpWidthPicker } from '../focus-panel.js';
-import { closeRightPanels, closeSectionPicker, formHasSectionField, isGlobalsOverlayOpen, leaveFocusLock, openSectionPicker, rowLocation, syncPreviewInset } from '../section-library.js';
+import { closeRightPanels, closeSectionPicker, isGlobalsOverlayOpen, leaveFocusLock, openSectionPicker, rowLocation, syncPreviewInset } from '../section-library.js';
 import { blockRowUid, closeListViewPanel, commentsPanel, listViewPanel, toggleCommentsPanel, toggleListViewPanel } from '../lazy/listview.js';
 import { armHtmlTreePrefetch, closeHtmlTreePanel, toggleHtmlTreePanel } from '../lazy/html-tree.js';
 import { closeOutlinePanel, toggleOutlinePanel } from '../lazy/outline.js';
@@ -164,38 +164,14 @@ export const HEADER_TAB_FEATURE = {
   performance: 'performance',
 };
 
-function formHasPageBuilder(win) {
-  if (typeof formHasSectionField === 'function') {
-    return formHasSectionField(win);
-  }
-
-  const field = sectionField(win) || 'page_sections';
-  const doc = win.document;
-
-  if (doc.querySelector(`.publish-field-${field}, [data-field="${field}"], #field_${field}`)) {
-    return true;
-  }
-
-  const containers = typeof activeContainers === 'function' ? activeContainers(doc) : [];
-
-  for (const container of containers) {
-    const values = unwrapRef(container.values) || container.values;
-
-    if (values && Array.isArray(values[field])) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
+/**
+ * Only the tool's switch decides. Patterns shows on a page with no page builder
+ * too: the panel opens and says why nothing can be placed there, rather than
+ * the icon vanishing from one page to the next.
+ */
 export function headerTabAvailable(win, tab) {
   if (!tab) {
     return true;
-  }
-
-  if (tab === 'sections' && !formHasPageBuilder(win)) {
-    return false;
   }
 
   return featureOn(win, HEADER_TAB_FEATURE[tab] ?? tab);

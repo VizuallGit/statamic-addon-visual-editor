@@ -436,6 +436,7 @@ return [
     // Section library
     'sections' => 'Patterns',
     'library_hint' => 'Drag a section onto the page — or click to add it at the end.',
+    'library_no_builder' => "This page's blueprint has no page builder, so patterns can't be placed here. Switch the entry to a blueprint that has one, such as Page.",
     'previews_refresh' => 'Update previews',
     'library_search_placeholder' => 'Search sections…',
     'library_no_matches' => 'No sections match.',

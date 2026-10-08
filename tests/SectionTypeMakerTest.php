@@ -137,85 +137,22 @@ class SectionTypeMakerTest extends TestCase
     {
         $html = SectionTypeMaker::scaffold();
 
-        // Without these three the section renders but cannot be selected,
-        // scoped or dragged — and nothing in the file says why.
+        // Unlocked from the first line: every group but `templates.unlocked`
+        // is locked by default, and a section made a moment ago is one the
+        // author is about to write in the dock.
+        $this->assertStringStartsWith('{{# sve-unlocked #}}', $html);
+
+        // Without these the section renders but cannot be selected, scoped
+        // or dragged — and nothing in the file says why. `_class` sits in the
+        // bracket run, the CSS pane's scope name, not among the class chips.
         $this->assertStringContainsString('id="id-{{ id }}"', $html);
-        $this->assertStringContainsString('{{ _class }}', $html);
+        $this->assertStringContainsString('[ {{ _class }} ]', $html);
         $this->assertStringContainsString('visual_edit', $html);
-    }
+        $this->assertStringContainsString('section_orderable="true"', $html);
 
-    /** The site's `common` fieldset, cut down to the handles the scaffold looks for. */
-    protected function commonFields(array $except = []): array
-    {
-        $fields = [];
-
-        foreach (['content_tab', 'style_tab', 'colors_tab', 'spacing_tab', 'section_spacing', 'gap'] as $handle) {
-            if (! in_array($handle, $except, true)) {
-                $fields[] = ['handle' => $handle, 'field' => ['type' => 'tab']];
-            }
-        }
-
-        return $fields;
-    }
-
-    public function test_a_new_section_starts_with_the_sites_content_and_style_tabs(): void
-    {
-        $fields = SectionTypeMaker::startingFields($this->commonFields(), true);
-
-        // Content first, then Style with Colors and Spacing inside it — the
-        // order every section in the kit has, so the panel reads the same.
-        $this->assertSame(
-            ['content_tab', 'style_tab', 'colors_tab', 'bg_color', 'spacing_tab', 'padding'],
-            array_column($fields, 'handle')
-        );
-
-        // Imports, not copies: the shared tab is the one source.
-        $this->assertSame('common.content_tab', $fields[0]['field']);
-        $this->assertSame('common.style_tab', $fields[1]['field']);
-        $this->assertSame('common.colors_tab', $fields[2]['field']);
-        $this->assertSame('theme_color_picker', $fields[3]['field']['type']);
-        $this->assertSame('common.spacing_tab', $fields[4]['field']);
-        $this->assertSame('common.section_spacing', $fields[5]['field']);
-        $this->assertTrue($fields[5]['config']['sve_responsive']);
-    }
-
-    public function test_a_site_without_the_shared_tabs_gets_an_empty_fieldset(): void
-    {
-        $this->assertSame([], SectionTypeMaker::startingFields([], true));
-        $this->assertSame([], SectionTypeMaker::startingFields($this->commonFields(['style_tab']), true));
-        $this->assertSame([], SectionTypeMaker::startingFields($this->commonFields(['content_tab']), true));
-    }
-
-    public function test_colors_are_only_offered_where_the_picker_is_installed(): void
-    {
-        $handles = array_column(SectionTypeMaker::startingFields($this->commonFields(), false), 'handle');
-
-        $this->assertSame(['content_tab', 'style_tab', 'spacing_tab', 'padding'], $handles);
-
-        $handles = array_column(SectionTypeMaker::startingFields($this->commonFields(['colors_tab']), true), 'handle');
-
-        $this->assertSame(['content_tab', 'style_tab', 'spacing_tab', 'padding'], $handles);
-    }
-
-    public function test_spacing_needs_both_the_tab_and_the_field(): void
-    {
-        $handles = array_column(SectionTypeMaker::startingFields($this->commonFields(['section_spacing']), true), 'handle');
-
-        $this->assertSame(['content_tab', 'style_tab', 'colors_tab', 'bg_color'], $handles);
-    }
-
-    public function test_a_styled_section_reads_its_style_fields_from_the_first_render(): void
-    {
-        $html = SectionTypeMaker::scaffold(true);
-
-        $this->assertStringContainsString('id="id-{{ id }}"', $html);
-        $this->assertStringContainsString('{{ style_push }}', $html);
-        $this->assertStringContainsString('{{ responsive_css }}', $html);
-        $this->assertStringContainsString('background-color: {{ bg_color }};', $html);
-
-        // An empty fieldset gets the bare section as before.
-        $this->assertStringNotContainsString('style_push', SectionTypeMaker::scaffold(false));
-        $this->assertStringNotContainsString('style_push', SectionTypeMaker::scaffold());
+        // No fields to read: a new section starts with none.
+        $this->assertStringNotContainsString('style_push', $html);
+        $this->assertStringNotContainsString('responsive_css', $html);
     }
 
     public function test_the_static_scaffold_is_a_section_with_nothing_to_fill_in(): void

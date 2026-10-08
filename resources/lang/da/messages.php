@@ -433,6 +433,7 @@ return [
     // Sektionsbibliotek
     'sections' => 'Patterns',
     'library_hint' => 'Træk en sektion ind i siden — eller klik for at lægge den nederst.',
+    'library_no_builder' => 'Sidens blueprint har ingen sidebygger, så mønstre kan ikke sættes ind her. Skift siden til et blueprint med en sidebygger, fx Page.',
     'previews_refresh' => 'Opdatér previews',
     'library_search_placeholder' => 'Søg sektioner…',
     'library_no_matches' => 'Ingen sektioner matcher.',

@@ -1570,6 +1570,13 @@ export function alignCustomSetIds(win, row) {
  * preview.
  */
 export async function insertSection(win, doc, afterUid, kind, item) {
+  // No page builder on this form: no rows to land in, and the uid the preview
+  // sends could name a row in some other replicator. Nothing written, nothing
+  // asked (a template would otherwise put its replace-or-add question first).
+  if (!formHasSectionField(win)) {
+    return;
+  }
+
   if (kind === 'template') {
     return insertTemplate(win, doc, afterUid, item);
   }
@@ -1654,6 +1661,14 @@ export function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace)
       continue;
     }
 
+    // Where they go is settled before any meta is written: meta for rows that
+    // never land in this form would be left behind in it.
+    const found = replace || afterUid == null ? null : rowLocation(values, afterUid);
+
+    if (!replace && afterUid != null && !found) {
+      continue;
+    }
+
     rows.forEach((row, index) => writeSetMeta(container, field, row, rowMetas[index]));
 
     if (replace) {
@@ -1668,12 +1683,6 @@ export function insertSectionsAfter(win, doc, afterUid, rows, rowMetas, replace)
       announcePageStructure();
 
       return true;
-    }
-
-    const found = rowLocation(values, afterUid);
-
-    if (!found) {
-      continue;
     }
 
     const next = JSON.parse(JSON.stringify(found.rows));
@@ -1769,22 +1778,7 @@ export function leaveFocusLock(win) {
 export function syncSectionLibraryAvailability(win) {
   const doc = win.document;
   const locked = isSectionLibraryLocked(win);
-  const noBuilder = !formHasSectionField(win);
   const btn = doc.getElementById(LIBRARY_BUTTON_ID);
-
-  if (noBuilder) {
-    closeSectionPicker(win);
-
-    if (btn) {
-      btn.style.display = 'none';
-      btn.setAttribute('aria-disabled', 'true');
-      btn.disabled = true;
-    }
-
-    applyHeaderTab(win);
-
-    return;
-  }
 
   if (locked) {
     closeSectionPicker(win);
@@ -2355,14 +2349,6 @@ export function openSectionPicker(win, options = {}) {
     return;
   }
 
-  // No page-builder field on this blueprint — drops have nowhere to land.
-  if (!formHasSectionField(win)) {
-    closeSectionPicker(win);
-    syncSectionLibraryAvailability(win);
-
-    return;
-  }
-
   // Header/footer chrome and global-section edit own the page — no section drops.
   if (isSectionLibraryLocked(win)) {
     closeSectionPicker(win);
@@ -2812,8 +2798,13 @@ export function mountSectionPicker(win, options = {}) {
 
     const hintEl = panel.querySelector('[data-sve-hint]');
 
+    // No page builder on this blueprint: the panel still opens, and its top
+    // line says why nothing dropped here lands, instead of telling you to drag.
     if (hintEl) {
-      hintEl.textContent = t(win, 'library_hint');
+      const noBuilder = !formHasSectionField(win);
+
+      hintEl.textContent = t(win, noBuilder ? 'library_no_builder' : 'library_hint');
+      hintEl.toggleAttribute('data-sve-no-builder', noBuilder);
     }
 
     if (searchEl) {
