@@ -589,7 +589,8 @@ export function ensureHeaderToolbar(win) {
     ensureOutlineToolbarButton(win);
     ensurePerformanceToolbarButton(win);
     ensureHtmlTreeToolbarButton(win);
-    ensurePreviewSwitchButtons(win);
+    ensureXrayToolbarButton(win);
+    ensureDesignToolbarButton(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
@@ -1381,23 +1382,26 @@ export function ensureAiTextToolbarButton(win) {
  * neither. Every call into them is fenced: whatever goes wrong in one stays in
  * it, and this pass carries on painting the rest of the bar.
  */
-const PREVIEW_SWITCHES = [
-  { key: 'xray', title: 'xray_tip', allowed: xrayAllowed, isOn: isXrayOn, toggle: toggleXray, sync: syncXrayToPreview },
-  {
-    key: 'design_overlay',
+const PREVIEW_SWITCHES = {
+  xray: {
+    title: 'xray_tip',
+    allowed: xrayAllowed,
+    isOn: isXrayOn,
+    toggle: toggleXray,
+    sync: syncXrayToPreview,
+    after: ['theme', 'site_css', 'code'],
+  },
+  design_overlay: {
     title: 'design_overlay_tip',
     allowed: designAllowed,
     isOn: isDesignOn,
     toggle: toggleDesign,
     sync: syncDesignToPreview,
+    after: ['xray', 'theme', 'site_css', 'code'],
   },
-];
+};
 
-const PREVIEW_SWITCH_KEYS = PREVIEW_SWITCHES.map((tool) => tool.key);
-
-const previewSwitch = (key) => PREVIEW_SWITCHES.find((tool) => tool.key === key);
-
-function fenced(win, run) {
+function fenced(run) {
   try {
     Promise.resolve(run()).catch((err) => console.error('[sve] preview switch', err));
   } catch (err) {
@@ -1405,7 +1409,21 @@ function fenced(win, run) {
   }
 }
 
-export function ensurePreviewSwitchButtons(win) {
+export function ensureXrayToolbarButton(win) {
+  ensurePreviewSwitchButton(win, 'xray');
+}
+
+export function ensureDesignToolbarButton(win) {
+  ensurePreviewSwitchButton(win, 'design_overlay');
+}
+
+/**
+ * One switch's icon, put in once after the first of `after` that is there;
+ * from then on the user's order is CSS. Each pass also lets the tool follow
+ * the preview (a new document, another page) — fenced, like the click.
+ */
+function ensurePreviewSwitchButton(win, key) {
+  const tool = PREVIEW_SWITCHES[key];
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
@@ -1413,52 +1431,42 @@ export function ensurePreviewSwitchButtons(win) {
     return;
   }
 
-  // Put in once, after the site tools (Theme, else Stylesheets, else the
-  // dock), in table order; after that the user's order is CSS.
-  let anchor =
-    bar.querySelector('button[data-tab="theme"]') ||
-    bar.querySelector('button[data-tab="site_css"]') ||
-    bar.querySelector('button[data-tab="code"]');
+  const existing = bar.querySelector(`button[data-tab="${key}"]`);
 
-  for (const tool of PREVIEW_SWITCHES) {
-    let btn = bar.querySelector(`button[data-tab="${tool.key}"]`);
+  if (!tool.allowed(win)) {
+    existing?.remove();
 
-    if (!tool.allowed(win)) {
-      btn?.remove();
-
-      continue;
-    }
-
-    if (!btn) {
-      btn = doc.createElement('button');
-      btn.type = 'button';
-      btn.dataset.tab = tool.key;
-      btn.dataset.iconVer = 'stairs-toc-20260821';
-      btn.title = t(win, tool.title);
-      btn.innerHTML = TOOLBAR_ICONS[tool.key];
-      btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
-
-      const own = btn;
-
-      own.addEventListener('click', () => {
-        Promise.resolve()
-          .then(() => tool.toggle(win))
-          .catch((err) => console.error('[sve] preview switch', err))
-          .finally(() => paintLpActiveControl(own, !!tool.isOn(win)));
-      });
-
-      if (anchor?.parentElement === bar) {
-        anchor.after(btn);
-      } else {
-        bar.appendChild(btn);
-      }
-
-      paintLpActiveControl(btn, !!tool.isOn(win));
-    }
-
-    anchor = btn;
-    fenced(win, () => tool.sync(win));
+    return;
   }
+
+  if (!existing) {
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.dataset.tab = key;
+    btn.dataset.iconVer = 'stairs-toc-20260821';
+    btn.title = t(win, tool.title);
+    btn.innerHTML = TOOLBAR_ICONS[key];
+    btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+    btn.addEventListener('click', () => {
+      Promise.resolve()
+        .then(() => tool.toggle(win))
+        .catch((err) => console.error('[sve] preview switch', err))
+        .finally(() => paintLpActiveControl(btn, !!tool.isOn(win)));
+    });
+
+    const anchor = tool.after.map((tab) => bar.querySelector(`button[data-tab="${tab}"]`)).find(Boolean);
+
+    if (anchor) {
+      anchor.after(btn);
+    } else {
+      bar.appendChild(btn);
+    }
+
+    paintLpActiveControl(btn, !!tool.isOn(win));
+  }
+
+  fenced(() => tool.sync(win));
 }
 
 /**
@@ -1937,7 +1945,8 @@ export function applyHeaderTab(win) {
   ensureDrawerToolbarButtons(win);
   ensureOutlineToolbarButton(win);
   ensureHtmlTreeToolbarButton(win);
-  ensurePreviewSwitchButtons(win);
+  ensureXrayToolbarButton(win);
+  ensureDesignToolbarButton(win);
 
   // The standalone panel glyph and the old Hide/Auto/Show group are gone.
   const glyph = doc.getElementById(LP_TOGGLE_ID);
@@ -2098,8 +2107,10 @@ export function applyHeaderTab(win) {
             ? !!pageEditsOpen()
           : tab === 'aitext'
             ? !!isAiTextOn(win)
-          : PREVIEW_SWITCH_KEYS.includes(tab)
-            ? !!previewSwitch(tab).isOn(win)
+          : tab === 'xray'
+            ? !!isXrayOn(win)
+          : tab === 'design_overlay'
+            ? !!isDesignOn(win)
           : tab === 'schema'
             ? !!isSchemaOpen(win.document)
           : tab === 'globals'
