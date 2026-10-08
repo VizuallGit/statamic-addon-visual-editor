@@ -344,9 +344,11 @@ export function ensureStyle(doc) {
   height: 0;
   z-index: 5;
 }
+/* Level with the first line of code: the editor's content starts 12px down
+   (lib/codemirror.js) and a line is 13px × 1.55 ≈ 20px tall. */
 #${DOCK_ID} [data-sve-html-all] {
   position: absolute;
-  top: 6px;
+  top: 12px;
   right: 16px;
   height: 20px;
   padding: 0 6px;
