@@ -2905,9 +2905,13 @@
      * last whole sheet still stays.
      */
     function liveCss() {
-        var dock = document.getElementById(DOCK_ID);
-        var scope = dock && dock.__sveHtmlScope;
-        var css = scope ? scope.css : null;
+        var dock;
+        var scope;
+        var css;
+
+        dock = document.getElementById(DOCK_ID);
+        scope = dock && dock.__sveHtmlScope;
+        css = scope ? scope.css : null;
 
         // The whole sheet, whenever the dock has one to give: a scoped HTML
         // pane, or All in it while the CSS pane still shows the pick's rules.
