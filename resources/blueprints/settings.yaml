@@ -200,6 +200,16 @@ tabs:
                 performance: 'equals true'
                 psi: 'equals true'
           -
+            handle: xray
+            field:
+              type: toggle
+              display: 'X-ray'
+              instructions: 'A switch in the Live Preview top bar that draws the layout over the page the way browser DevTools do: grid tracks with numbered lines, hatched gaps and empty cells, subgrids, flex rows and — on request — every box. Only drawn in Live Preview, never on the site.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
             handle: html_tree
             field:
               type: toggle
@@ -299,6 +309,7 @@ tabs:
                 code: 'HTML dock'
                 site_css: 'Stylesheets'
                 theme: 'Theme'
+                xray: 'X-ray'
                 ai: 'AI'
                 aitext: 'AI text'
                 schema: 'Structured data'
@@ -314,6 +325,7 @@ tabs:
                 - code
                 - site_css
                 - theme
+                - xray
               width: 50
               if:
                 enabled: 'equals true'
@@ -337,6 +349,7 @@ tabs:
                 code: 'HTML dock'
                 site_css: 'Stylesheets'
                 theme: 'Theme'
+                xray: 'X-ray'
                 ai: 'AI'
                 aitext: 'AI text'
                 schema: 'Structured data'

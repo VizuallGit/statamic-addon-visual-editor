@@ -37,6 +37,7 @@ import { openTemplateBoard, templateBoardAllowed } from '../lp-templates.js';
 import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
 import { bardStylesAllowed, openBardStyles } from '../lp-bard-styles.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
+import { isXrayOn, syncXrayToPreview, toggleXray, xrayAllowed } from '../lazy/xray.js';
 
 // ===== header-toolbar =====
 // --- Header toolbar: one control at a time -------------------------------------
@@ -512,6 +513,13 @@ export const TOOLBAR_ICONS = {
     '<path d="M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1-1z"/>' +
     '<path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>' +
     '<path d="M8 11h8"/><path d="M8 15h5"/></svg>',
+  // X-ray: a scan frame with grid lines in it — "show me the grid".
+  xray:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>' +
+    '<path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>' +
+    '<path d="M10 7.5v9"/><path d="M14 7.5v9"/><path d="M7.5 12h9"/></svg>',
   // The page's blueprint: two stacked field rows.
   blueprint:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -574,6 +582,7 @@ export function ensureHeaderToolbar(win) {
     ensureOutlineToolbarButton(win);
     ensurePerformanceToolbarButton(win);
     ensureHtmlTreeToolbarButton(win);
+    ensureXrayToolbarButton(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
@@ -1356,6 +1365,74 @@ export function ensureAiTextToolbarButton(win) {
 }
 
 /**
+ * X-ray: the switch that draws grid tracks, flex rows and boxes over the preview.
+ *
+ * A toggle like AI text — nothing docks; what it shows is in the preview, over
+ * the section being written. The drawing lives in its own lazy chunk (xray.js)
+ * and every call into it is fenced: whatever goes wrong in X-ray stays in
+ * X-ray, and this pass carries on painting the rest of the bar.
+ */
+export function ensureXrayToolbarButton(win) {
+  const doc = win.document;
+  const bar = doc.getElementById(HEADER_TOOLBAR_ID);
+
+  if (!bar) {
+    return;
+  }
+
+  const existing = bar.querySelector('button[data-tab="xray"]');
+
+  if (!xrayAllowed(win)) {
+    existing?.remove();
+
+    return;
+  }
+
+  const sync = () => {
+    try {
+      Promise.resolve(syncXrayToPreview(win)).catch((err) => console.error('[sve] x-ray', err));
+    } catch (err) {
+      console.error('[sve] x-ray', err);
+    }
+  };
+
+  if (existing) {
+    sync();
+
+    return;
+  }
+
+  const btn = doc.createElement('button');
+
+  btn.type = 'button';
+  btn.dataset.tab = 'xray';
+  btn.dataset.iconVer = 'stairs-toc-20260821';
+  btn.title = t(win, 'xray_tip');
+  btn.innerHTML = TOOLBAR_ICONS.xray;
+  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+  btn.addEventListener('click', () => {
+    Promise.resolve()
+      .then(() => toggleXray(win))
+      .catch((err) => console.error('[sve] x-ray', err))
+      .finally(() => paintLpActiveControl(btn, !!isXrayOn(win)));
+  });
+
+  const anchor =
+    bar.querySelector('button[data-tab="theme"]') ||
+    bar.querySelector('button[data-tab="site_css"]') ||
+    bar.querySelector('button[data-tab="code"]');
+
+  if (anchor) {
+    anchor.after(btn);
+  } else {
+    bar.appendChild(btn);
+  }
+
+  paintLpActiveControl(btn, !!isXrayOn(win));
+  sync();
+}
+
+/**
  * Open or close a docked tool once its code has arrived.
  *
  * The click decides; the module turns up later. Before the panels were split
@@ -1831,6 +1908,7 @@ export function applyHeaderTab(win) {
   ensureDrawerToolbarButtons(win);
   ensureOutlineToolbarButton(win);
   ensureHtmlTreeToolbarButton(win);
+  ensureXrayToolbarButton(win);
 
   // The standalone panel glyph and the old Hide/Auto/Show group are gone.
   const glyph = doc.getElementById(LP_TOGGLE_ID);
@@ -1991,6 +2069,8 @@ export function applyHeaderTab(win) {
             ? !!pageEditsOpen()
           : tab === 'aitext'
             ? !!isAiTextOn(win)
+          : tab === 'xray'
+            ? !!isXrayOn(win)
           : tab === 'schema'
             ? !!isSchemaOpen(win.document)
           : tab === 'globals'

@@ -64,6 +64,9 @@ class Features
         'outline',
         'performance',
         'psi',
+        // The top bar's X-ray switch: grid, flex and box outlines over the preview.
+        // On unless the settings or config say false; off, the icon is gone.
+        'xray',
         'html_tree',
         'inline_edit',
         'focus_panel',

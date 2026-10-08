@@ -40,6 +40,7 @@ const loaders = {
   comments: () => Promise.all([import('./block-tree.js'), loadComments()]),
   schema: () => import('./schema-panel.js'),
   ai_text: () => import('./ai-text.js'),
+  xray: () => import('./xray.js'),
 };
 
 /**
