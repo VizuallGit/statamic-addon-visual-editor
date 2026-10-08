@@ -336,9 +336,9 @@ export function ensureStyle(doc) {
   color: #7dd3fc;
   background: rgba(56,189,248,.16);
 }
-/* The HTML pane's All: small, on the code's top right corner. Solid behind
-   so code under it does not read through; gone with the tree, when the pane
-   shows the whole file anyway. */
+/* The HTML pane's All: small, on the code's top right corner, with the dock's
+   own translucent white — and code that runs under it is blurred, not read
+   through. Gone with the tree, when the pane shows the whole file anyway. */
 #${DOCK_ID} [data-sve-html-all-slot] {
   position: relative;
   height: 0;
@@ -355,22 +355,22 @@ export function ensureStyle(doc) {
   border-radius: 5px;
   font-size: 10px;
   opacity: 1;
-  color: #a3a3a3;
-  background: #2b2b2e;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.08);
+  color: rgba(212,212,212,.8);
+  background: rgba(255,255,255,.08);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
 #${DOCK_ID} [data-sve-html-all] svg {
   width: 10px;
   height: 10px;
 }
 #${DOCK_ID} [data-sve-html-all]:hover {
-  color: #e5e5e5;
-  background: #36363a;
+  color: #d4d4d4;
+  background: rgba(255,255,255,.14);
 }
 #${DOCK_ID} [data-sve-html-all][aria-pressed="true"] {
   color: #7dd3fc;
-  background: #12303f;
-  box-shadow: 0 0 0 1px rgba(56,189,248,.35);
+  background: rgba(56,189,248,.16);
 }
 #${DOCK_ID} [data-sve-html-all][hidden] {
   display: none;
