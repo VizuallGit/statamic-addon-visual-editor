@@ -271,3 +271,66 @@ export function flexArrow(direction) {
       return '→';
   }
 }
+
+/**
+ * The theme token a measured size is, if any.
+ *
+ * `tokens` is what the preview resolved just now — `[{ name: '500', px: 34 }, …]`
+ * — so a `clamp()` token is compared at the width the preview has, which is the
+ * only width at which "is this 34px the 500?" has an answer. The scale's own
+ * numbers (`500`) win over named sizes (`sm`) when both resolve to the same px.
+ */
+export function tokenFor(tokens, size, tolerance = 0.6) {
+  if (!Array.isArray(tokens) || !Number.isFinite(size) || size <= 0) {
+    return '';
+  }
+
+  let best = null;
+
+  for (const token of tokens) {
+    const off = Math.abs(token.px - size);
+
+    if (off > tolerance) {
+      continue;
+    }
+
+    const numeric = /^\d+$/.test(token.name);
+
+    if (!best || (numeric && !best.numeric) || (numeric === best.numeric && off < best.off)) {
+      best = { name: token.name, numeric, off };
+    }
+  }
+
+  return best ? best.name : '';
+}
+
+/**
+ * What a size reads as on a label: `gap-500 · 34` when it is a token, `34px`
+ * when it is not. `prefix` is the utility it would be written as (`gap`, `pt`,
+ * `text`); without one the token stands alone (`500 · 34`).
+ */
+export function sizeLabel(size, token, prefix = '') {
+  if (!token) {
+    return `${px(size)}px`;
+  }
+
+  return `${prefix ? `${prefix}-` : ''}${token} · ${px(size)}`;
+}
+
+/** Custom property names that are a token scale: `--spacing-500` → `500`; line heights and the like are not. */
+export function tokenName(property, prefix) {
+  if (!property.startsWith(prefix)) {
+    return '';
+  }
+
+  const name = property.slice(prefix.length);
+
+  return /^[a-z0-9]+$/i.test(name) ? name : '';
+}
+
+/** The first family in a computed `font-family`, without quotes: `"Inter Tight", sans-serif` → `Inter Tight`. */
+export function firstFamily(fontFamily) {
+  const first = String(fontFamily || '').split(',')[0] || '';
+
+  return first.trim().replace(/^["']|["']$/g, '');
+}

@@ -5,13 +5,17 @@ import {
   declaredSpan,
   elementLabel,
   emptyCells,
+  firstFamily,
   flexArrow,
   isSubgridValue,
   parseGap,
   parseTracks,
   placementLabel,
   px,
+  sizeLabel,
   spanOf,
+  tokenFor,
+  tokenName,
   trackOffsets,
 } from '../../resources/js/cp/xray/measure.js';
 import { XRAY_DEFAULTS, readXrayPrefs, writeXrayPrefs, xrayAllowed } from '../../resources/js/cp/xray/prefs.js';
@@ -162,4 +166,66 @@ test('the settings toggle switches the tool off; unknown means on', () => {
   assert.equal(xrayAllowed(fakeWindow({})), true);
   assert.equal(xrayAllowed(fakeWindow({ xray: true })), true);
   assert.equal(xrayAllowed(fakeWindow({ xray: false })), false);
+});
+
+test('a measured size is matched to the token the preview resolved at its width', () => {
+  // What the preview resolved for clamp() tokens at one width.
+  const tokens = [
+    { name: 'sm', px: 15 },
+    { name: '100', px: 15 },
+    { name: '400', px: 24.5 },
+    { name: '500', px: 34 },
+  ];
+
+  assert.equal(tokenFor(tokens, 34), '500');
+  assert.equal(tokenFor(tokens, 34.4), '500');
+  assert.equal(tokenFor(tokens, 33), '');
+  // The scale's numbers win over named sizes at the same px.
+  assert.equal(tokenFor(tokens, 15), '100');
+  assert.equal(tokenFor([], 15), '');
+  assert.equal(tokenFor(tokens, 0), '');
+});
+
+test('size labels name the utility when there is a token', () => {
+  assert.equal(sizeLabel(34, '500', 'gap'), 'gap-500 · 34');
+  assert.equal(sizeLabel(34, '500'), '500 · 34');
+  assert.equal(sizeLabel(33.2, ''), '33px');
+});
+
+test('token names come from scale properties only', () => {
+  assert.equal(tokenName('--spacing-500', '--spacing-'), '500');
+  assert.equal(tokenName('--text-700', '--text-'), '700');
+  assert.equal(tokenName('--text-700--line-height', '--text-'), '');
+  assert.equal(tokenName('--color-primary', '--spacing-'), '');
+});
+
+test('the first font family, unquoted', () => {
+  assert.equal(firstFamily('"Inter Tight", sans-serif'), 'Inter Tight');
+  assert.equal(firstFamily('system-ui'), 'system-ui');
+  assert.equal(firstFamily(''), '');
+});
+
+import { DESIGN_DEFAULTS, designAllowed, fitWidth, readDesignPrefs, writeDesignPrefs } from '../../resources/js/cp/design/prefs.js';
+
+test('design prefs: defaults, clamped opacity, unknown values ignored', () => {
+  const win = fakeWindow();
+
+  assert.deepEqual(readDesignPrefs(win), DESIGN_DEFAULTS);
+
+  writeDesignPrefs(win, { on: true, opacity: 140, diff: true });
+  assert.deepEqual(readDesignPrefs(win), { on: true, opacity: 100, diff: true });
+
+  win.store.set('sve-design-overlay', JSON.stringify({ on: 'yes', opacity: 'half' }));
+  assert.deepEqual(readDesignPrefs(win), DESIGN_DEFAULTS);
+});
+
+test('design overlay follows its settings toggle', () => {
+  assert.equal(designAllowed(fakeWindow({})), true);
+  assert.equal(designAllowed(fakeWindow({ design_overlay: false })), false);
+});
+
+test('an upload wider than 3000 px is scaled to 3000, keeping its proportions', () => {
+  assert.deepEqual(fitWidth(2880, 9000), { width: 2880, height: 9000, scaled: false });
+  assert.deepEqual(fitWidth(5760, 18000), { width: 3000, height: 9375, scaled: true });
+  assert.deepEqual(fitWidth(0, 10), { width: 0, height: 10, scaled: false });
 });

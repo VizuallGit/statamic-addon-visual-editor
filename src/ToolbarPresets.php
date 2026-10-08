@@ -39,6 +39,7 @@ class ToolbarPresets
         'site_css',
         'theme',
         'xray',
+        'design_overlay',
         'ai',
         'aitext',
         'schema',
@@ -49,7 +50,7 @@ class ToolbarPresets
     /** @var array<string, array{tools: list<string>, dock: bool}> */
     public const DEFAULTS = [
         'developer' => [
-            'tools' => ['collections', 'forms', 'templates', 'blueprint', 'bard_styles', 'sections', 'code', 'site_css', 'theme', 'xray'],
+            'tools' => ['collections', 'forms', 'templates', 'blueprint', 'bard_styles', 'sections', 'code', 'site_css', 'theme', 'xray', 'design_overlay'],
             'dock' => true,
         ],
         'editor' => [

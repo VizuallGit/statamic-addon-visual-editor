@@ -22,15 +22,48 @@ import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { HEADER_TOOLBAR_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
 import { paintLpActiveControl } from './lp-panel.js';
-import { XRAY_LAYERS, readXrayPrefs, writeXrayPrefs, xrayAllowed } from './cp/xray/prefs.js';
-import { isEditorNode, measureBoxModel, measureFlex, measureGrid, outermostSid, scanScope } from './cp/xray/scan.js';
+import { XRAY_LAYERS, XRAY_VIEWS, readXrayPrefs, writeXrayPrefs, xrayAllowed } from './cp/xray/prefs.js';
+import {
+  isEditorNode,
+  measureBoxModel,
+  measureFlex,
+  measureGrid,
+  measureOverflow,
+  measureSpacing,
+  measureText,
+  outermostSid,
+  scanScope,
+} from './cp/xray/scan.js';
 import { drawXray, resetPatterns } from './cp/xray/draw.js';
+import { PROBE_ID, ensureProbe, readTokens } from './cp/xray/tokens.js';
 
 export { xrayAllowed };
 
 const CANVAS_ID = '__sve-xray-canvas';
+const FILTER_ID = '__sve-xray-filter';
 const BAR_ID = '__sve-xray-bar';
 const STYLE_ID = '__sve-xray-style';
+
+/**
+ * The nodes X-ray puts in the preview — and the design overlay's image, which
+ * sits on <html> beside them. Their own changes are not the page changing.
+ */
+const OWN_IDS = new Set([CANVAS_ID, FILTER_ID, PROBE_ID, '__sve-design-overlay']);
+const isOwn = (node) => !!node && OWN_IDS.has(node.id);
+
+function isOwnRecord(record) {
+  if (isOwn(record.target)) {
+    return true;
+  }
+
+  if (record.type !== 'childList') {
+    return false;
+  }
+
+  const nodes = [...record.addedNodes, ...record.removedNodes];
+
+  return nodes.length > 0 && nodes.every(isOwn);
+}
 
 /**
  * A burst of mutations (a morph, Alpine starting up, a slider) is one rescan:
@@ -54,7 +87,9 @@ const live = {
   rescanTimer: 0,
   lastScan: 0,
   scanDue: true,
-  found: { grids: [], flexes: [], boxes: [] },
+  found: { grids: [], flexes: [], boxes: [], texts: [], overflow: [] },
+  /** The theme's tokens as the preview resolved them at the last rescan. */
+  tokens: { spacing: [], text: [] },
   /** The element under the mouse in the preview, and the section it is in. */
   hoverEl: null,
   hoverSection: null,
@@ -161,10 +196,13 @@ function detachPreview() {
   live.raf = 0;
   live.rescanTimer = 0;
   live.canvas?.remove();
+  live.doc?.getElementById(FILTER_ID)?.remove();
+  live.doc?.getElementById(PROBE_ID)?.remove();
   live.canvas = live.ctx = null;
   live.doc = live.pwin = live.frame = null;
   live.hoverEl = live.hoverSection = null;
-  live.found = { grids: [], flexes: [], boxes: [] };
+  live.found = { grids: [], flexes: [], boxes: [], texts: [], overflow: [] };
+  live.tokens = { spacing: [], text: [] };
 }
 
 function teardown() {
@@ -191,7 +229,7 @@ function attach(win, frame, doc) {
   // the dock, the CSS pane's live <style> — is a mutation somewhere under
   // <html>. The canvas's own size attributes are the one change to ignore.
   live.observer = new pwin.MutationObserver((records) => {
-    const page = records.filter((record) => record.target !== live.canvas);
+    const page = records.filter((record) => !isOwnRecord(record));
 
     if (!page.length) {
       return;
@@ -221,7 +259,8 @@ function attach(win, frame, doc) {
   });
   live.frameResize.observe(frame);
 
-  listen(pwin, 'resize', () => schedule(false));
+  // A new width is a new breakpoint: other tokens, other overflow. Rescan.
+  listen(pwin, 'resize', () => schedule(true));
   listen(doc, 'scroll', () => schedule(false), { capture: true, passive: true });
   listen(doc, 'mousemove', onMove, { capture: true, passive: true });
   listen(doc.documentElement, 'mouseleave', () => {
@@ -257,6 +296,7 @@ function ensureCanvas() {
 
   live.canvas = canvas;
   live.ctx = canvas.getContext('2d');
+  ensureProbe(doc);
 }
 
 function onMove(e) {
@@ -343,10 +383,49 @@ function tick() {
       live.scanDue = false;
       live.lastScan = performance.now();
       live.found = scanScope(live.pwin, scopeRoots(prefs), prefs);
+      live.tokens = readTokens(live.pwin, live.doc);
     }
   }
 
+  paintFilter(prefs);
   draw(prefs);
+}
+
+/**
+ * Grayscale and blur, as a filter over the page rather than on it.
+ *
+ * `backdrop-filter` on one fixed sheet changes what is seen behind it and
+ * nothing else: the page's own elements keep their styles (a `filter` on
+ * them would make every one a containing block and move fixed headers), and
+ * the canvas above the sheet keeps its colours, so the lines stay readable
+ * on a grey page.
+ */
+function paintFilter(prefs) {
+  const doc = live.doc;
+  const parts = [prefs.gray ? 'grayscale(1)' : '', prefs.blur ? 'blur(3px)' : ''].filter(Boolean).join(' ');
+  let sheet = doc.getElementById(FILTER_ID);
+
+  if (!parts) {
+    sheet?.remove();
+
+    return;
+  }
+
+  if (!sheet) {
+    sheet = doc.createElement('div');
+    sheet.id = FILTER_ID;
+    sheet.setAttribute('aria-hidden', 'true');
+    sheet.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147482999;background:transparent;';
+  }
+
+  if (sheet.parentNode !== doc.body) {
+    doc.body.appendChild(sheet);
+  }
+
+  if (sheet.style.backdropFilter !== parts) {
+    sheet.style.backdropFilter = parts;
+    sheet.style.webkitBackdropFilter = parts;
+  }
 }
 
 function draw(prefs) {
@@ -381,7 +460,10 @@ function draw(prefs) {
     : [];
   const flexes = prefs.flex ? live.found.flexes.filter(onScreen).map((el) => measureFlex(pwin, el)).filter(Boolean) : [];
   const hover = hoverTarget(grids);
-  const hoverEl = live.hoverEl?.isConnected && !isEditorNode(live.hoverEl) ? live.hoverEl : null;
+  const hoverEl =
+    live.hoverEl?.isConnected && !isEditorNode(live.hoverEl) && live.hoverEl !== doc.body && live.hoverEl !== doc.documentElement
+      ? live.hoverEl
+      : null;
 
   drawXray(
     ctx,
@@ -391,6 +473,10 @@ function draw(prefs) {
       flexes,
       boxes: prefs.boxes ? live.found.boxes : [],
       boxModel: prefs.boxes && hoverEl ? measureBoxModel(pwin, hoverEl) : null,
+      spacing: prefs.spacing && hoverEl ? measureSpacing(pwin, hoverEl) : null,
+      texts: prefs.type ? live.found.texts.filter(onScreen).map((el) => measureText(pwin, el)).filter(Boolean) : [],
+      overflow: prefs.overflow ? live.found.overflow.filter((el) => el.isConnected).map((el) => measureOverflow(el, w)) : [],
+      tokens: live.tokens,
     },
     { layers: prefs, hover, words: words(live.win) },
   );
@@ -449,10 +535,16 @@ const BAR_CSS = `
   position: fixed;
   z-index: 2147483000;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: .25rem;
+  /* Its own width, not what is left right of its left edge: centred by the
+     transform, it would otherwise wrap at half the window. */
+  width: max-content;
+  max-width: calc(100vw - 2rem);
   padding: .25rem;
-  border-radius: 999rem;
+  border-radius: 1.25rem;
   background: rgba(24, 24, 27, .92);
   backdrop-filter: blur(.375rem);
   box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .25);
@@ -509,14 +601,24 @@ function ensureBar(win) {
     title.textContent = t(win, 'xray');
     bar.appendChild(title);
 
+    const separator = () => {
+      const sep = doc.createElement('span');
+
+      sep.dataset.sveXraySep = '';
+      bar.appendChild(sep);
+    };
+
     for (const layer of XRAY_LAYERS) {
       bar.appendChild(barButton(win, `layer:${layer}`, t(win, `xray_${layer}`)));
     }
 
-    const sep = doc.createElement('span');
+    separator();
 
-    sep.dataset.sveXraySep = '';
-    bar.appendChild(sep);
+    for (const view of XRAY_VIEWS) {
+      bar.appendChild(barButton(win, `layer:${view}`, t(win, `xray_${view}`)));
+    }
+
+    separator();
     bar.appendChild(barButton(win, 'scope:section', t(win, 'xray_scope_section')));
     bar.appendChild(barButton(win, 'scope:page', t(win, 'xray_scope_page')));
     // Appended to <body>, never inside Live Preview's own markup: Statamic

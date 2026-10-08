@@ -38,6 +38,7 @@ import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
 import { bardStylesAllowed, openBardStyles } from '../lp-bard-styles.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
 import { isXrayOn, syncXrayToPreview, toggleXray, xrayAllowed } from '../lazy/xray.js';
+import { designAllowed, isDesignOn, syncDesignToPreview, toggleDesign } from '../lazy/design-overlay.js';
 
 // ===== header-toolbar =====
 // --- Header toolbar: one control at a time -------------------------------------
@@ -520,6 +521,12 @@ export const TOOLBAR_ICONS = {
     '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>' +
     '<path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>' +
     '<path d="M10 7.5v9"/><path d="M14 7.5v9"/><path d="M7.5 12h9"/></svg>',
+  // Design overlay: a picture laid over another frame — the design on the page.
+  design_overlay:
+    '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round" style="display:block">' +
+    '<path d="M3 15V5a2 2 0 0 1 2-2h10"/><rect x="7" y="7" width="14" height="14" rx="2"/>' +
+    '<circle cx="11.5" cy="11.5" r="1.25"/><path d="m21 17-3.5-3.5L10 21"/></svg>',
   // The page's blueprint: two stacked field rows.
   blueprint:
     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -582,7 +589,7 @@ export function ensureHeaderToolbar(win) {
     ensureOutlineToolbarButton(win);
     ensurePerformanceToolbarButton(win);
     ensureHtmlTreeToolbarButton(win);
-    ensureXrayToolbarButton(win);
+    ensurePreviewSwitchButtons(win);
     syncToolbarIconSeps(doc.getElementById(HEADER_TOOLBAR_ID));
 
     return;
@@ -1365,14 +1372,40 @@ export function ensureAiTextToolbarButton(win) {
 }
 
 /**
- * X-ray: the switch that draws grid tracks, flex rows and boxes over the preview.
+ * The switches that draw over the preview: X-ray (grid, flex, boxes …) and the
+ * design overlay (a screenshot of the design laid over the page).
  *
- * A toggle like AI text — nothing docks; what it shows is in the preview, over
- * the section being written. The drawing lives in its own lazy chunk (xray.js)
- * and every call into it is fenced: whatever goes wrong in X-ray stays in
- * X-ray, and this pass carries on painting the rest of the bar.
+ * Toggles like AI text — nothing docks; what they show is in the preview, over
+ * the section being written. Each lives in its own lazy chunk and is reached
+ * through its facade in lazy/, so a Live Preview where neither is on loads
+ * neither. Every call into them is fenced: whatever goes wrong in one stays in
+ * it, and this pass carries on painting the rest of the bar.
  */
-export function ensureXrayToolbarButton(win) {
+const PREVIEW_SWITCHES = [
+  { key: 'xray', title: 'xray_tip', allowed: xrayAllowed, isOn: isXrayOn, toggle: toggleXray, sync: syncXrayToPreview },
+  {
+    key: 'design_overlay',
+    title: 'design_overlay_tip',
+    allowed: designAllowed,
+    isOn: isDesignOn,
+    toggle: toggleDesign,
+    sync: syncDesignToPreview,
+  },
+];
+
+const PREVIEW_SWITCH_KEYS = PREVIEW_SWITCHES.map((tool) => tool.key);
+
+const previewSwitch = (key) => PREVIEW_SWITCHES.find((tool) => tool.key === key);
+
+function fenced(win, run) {
+  try {
+    Promise.resolve(run()).catch((err) => console.error('[sve] preview switch', err));
+  } catch (err) {
+    console.error('[sve] preview switch', err);
+  }
+}
+
+export function ensurePreviewSwitchButtons(win) {
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
 
@@ -1380,56 +1413,52 @@ export function ensureXrayToolbarButton(win) {
     return;
   }
 
-  const existing = bar.querySelector('button[data-tab="xray"]');
-
-  if (!xrayAllowed(win)) {
-    existing?.remove();
-
-    return;
-  }
-
-  const sync = () => {
-    try {
-      Promise.resolve(syncXrayToPreview(win)).catch((err) => console.error('[sve] x-ray', err));
-    } catch (err) {
-      console.error('[sve] x-ray', err);
-    }
-  };
-
-  if (existing) {
-    sync();
-
-    return;
-  }
-
-  const btn = doc.createElement('button');
-
-  btn.type = 'button';
-  btn.dataset.tab = 'xray';
-  btn.dataset.iconVer = 'stairs-toc-20260821';
-  btn.title = t(win, 'xray_tip');
-  btn.innerHTML = TOOLBAR_ICONS.xray;
-  btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
-  btn.addEventListener('click', () => {
-    Promise.resolve()
-      .then(() => toggleXray(win))
-      .catch((err) => console.error('[sve] x-ray', err))
-      .finally(() => paintLpActiveControl(btn, !!isXrayOn(win)));
-  });
-
-  const anchor =
+  // Put in once, after the site tools (Theme, else Stylesheets, else the
+  // dock), in table order; after that the user's order is CSS.
+  let anchor =
     bar.querySelector('button[data-tab="theme"]') ||
     bar.querySelector('button[data-tab="site_css"]') ||
     bar.querySelector('button[data-tab="code"]');
 
-  if (anchor) {
-    anchor.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  for (const tool of PREVIEW_SWITCHES) {
+    let btn = bar.querySelector(`button[data-tab="${tool.key}"]`);
 
-  paintLpActiveControl(btn, !!isXrayOn(win));
-  sync();
+    if (!tool.allowed(win)) {
+      btn?.remove();
+
+      continue;
+    }
+
+    if (!btn) {
+      btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.dataset.tab = tool.key;
+      btn.dataset.iconVer = 'stairs-toc-20260821';
+      btn.title = t(win, tool.title);
+      btn.innerHTML = TOOLBAR_ICONS[tool.key];
+      btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+
+      const own = btn;
+
+      own.addEventListener('click', () => {
+        Promise.resolve()
+          .then(() => tool.toggle(win))
+          .catch((err) => console.error('[sve] preview switch', err))
+          .finally(() => paintLpActiveControl(own, !!tool.isOn(win)));
+      });
+
+      if (anchor?.parentElement === bar) {
+        anchor.after(btn);
+      } else {
+        bar.appendChild(btn);
+      }
+
+      paintLpActiveControl(btn, !!tool.isOn(win));
+    }
+
+    anchor = btn;
+    fenced(win, () => tool.sync(win));
+  }
 }
 
 /**
@@ -1908,7 +1937,7 @@ export function applyHeaderTab(win) {
   ensureDrawerToolbarButtons(win);
   ensureOutlineToolbarButton(win);
   ensureHtmlTreeToolbarButton(win);
-  ensureXrayToolbarButton(win);
+  ensurePreviewSwitchButtons(win);
 
   // The standalone panel glyph and the old Hide/Auto/Show group are gone.
   const glyph = doc.getElementById(LP_TOGGLE_ID);
@@ -2069,8 +2098,8 @@ export function applyHeaderTab(win) {
             ? !!pageEditsOpen()
           : tab === 'aitext'
             ? !!isAiTextOn(win)
-          : tab === 'xray'
-            ? !!isXrayOn(win)
+          : PREVIEW_SWITCH_KEYS.includes(tab)
+            ? !!previewSwitch(tab).isOn(win)
           : tab === 'schema'
             ? !!isSchemaOpen(win.document)
           : tab === 'globals'

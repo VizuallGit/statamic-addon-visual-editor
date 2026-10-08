@@ -12,11 +12,14 @@
  *
  * May import: cp/xray/measure.js.
  */
-import { placementLabel, px } from './measure.js';
+import { placementLabel, px, sizeLabel, tokenFor } from './measure.js';
 
 /** One colour per grid, cycled — nested grids must be told apart. */
 export const GRID_COLORS = ['#d6336c', '#7048e8', '#1c7ed6', '#e8590c', '#0ca678'];
 export const FLEX_COLOR = '#9c36b5';
+const SPACING_COLOR = '#f03e3e';
+const TYPE_COLOR = '#0c8599';
+const OVERFLOW_COLOR = '#e03131';
 const BOX_COLOR = 'rgba(28, 126, 214, .32)';
 
 /** DevTools' box-model colours: margin, border, padding, content. */
@@ -162,7 +165,26 @@ function linePositions(tracks) {
   return out;
 }
 
-function drawGrid(ctx, grid, color, { layers, hover, labels, words }) {
+/**
+ * Small text that must not land on another: a nested grid's first track starts
+ * where its parent's does, and both write their size there. Moved down a line
+ * until it is clear.
+ */
+function placeText(ctx, text, x, y, spots, align = 'center') {
+  const w = ctx.measureText(text).width;
+  const h = 11;
+  const left = align === 'center' ? x - w / 2 : x;
+  let top = y;
+
+  for (let i = 0; i < 4 && spots.some((s) => overlaps(s, { x: left, y: top, w, h })); i++) {
+    top += h;
+  }
+
+  spots.push({ x: left, y: top, w, h });
+  ctx.fillText(text, x, top);
+}
+
+function drawGrid(ctx, grid, color, { layers, hover, labels, words, tokens, spots }) {
   const { cols, rows, box } = grid;
   const top = rows[0].start;
   const bottom = rows[rows.length - 1].end;
@@ -264,18 +286,17 @@ function drawGrid(ctx, grid, color, { layers, hover, labels, words }) {
       const w = col.end - col.start;
 
       if (w >= 34) {
-        ctx.fillText(`${px(w)}px`, (col.start + col.end) / 2, top + 4);
+        placeText(ctx, `${px(w)}px`, (col.start + col.end) / 2, top + 4, spots);
       }
     }
 
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
 
     for (const row of grid.subRows ? [] : rows) {
       const h = row.end - row.start;
 
       if (h >= 18 && right - left >= 60) {
-        ctx.fillText(`${px(h)}px`, left + 4, (row.start + row.end) / 2);
+        placeText(ctx, `${px(h)}px`, left + 4, (row.start + row.end) / 2 - 5, spots, 'left');
       }
     }
 
@@ -287,6 +308,29 @@ function drawGrid(ctx, grid, color, { layers, hover, labels, words }) {
       grid.rect.top - PILL_H - 14,
       color,
     );
+
+    // The gap, as the token it is: `gap-500 · 34`. One label when both
+    // directions are the same, `gap-x` / `gap-y` when they differ.
+    const same = Math.abs(grid.colGap - grid.rowGap) < 0.5;
+
+    if (!grid.subCols && grid.colGap > 0.5 && cols.length > 1) {
+      labels.add(
+        sizeLabel(grid.colGap, tokenFor(tokens.spacing, grid.colGap), same ? 'gap' : 'gap-x'),
+        (cols[0].end + cols[1].start) / 2,
+        rows[0].start + 22,
+        color,
+        { align: 'center' },
+      );
+    }
+
+    if (!grid.subRows && grid.rowGap > 0.5 && rows.length > 1 && !(same && cols.length > 1)) {
+      labels.add(
+        sizeLabel(grid.rowGap, tokenFor(tokens.spacing, grid.rowGap), same ? 'gap' : 'gap-y'),
+        left + 40,
+        (rows[0].end + rows[1].start) / 2 - PILL_H / 2,
+        color,
+      );
+    }
   }
 
   // The item you point at: its whole area, and where it sits in words.
@@ -326,7 +370,7 @@ function drawFlex(ctx, flex, { layers, labels }) {
   }
 }
 
-function drawBoxModel(ctx, model, labels) {
+function drawBoxModel(ctx, model, labels, tokens) {
   const { rect: r, margin: m, border: b, padding: p } = model;
   const band = (outer, inner, color) => {
     ctx.fillStyle = color;
@@ -346,6 +390,104 @@ function drawBoxModel(ctx, model, labels) {
   ctx.fillStyle = BOX_MODEL.content;
   ctx.fillRect(contentBox.x, contentBox.y, Math.max(0, contentBox.w), Math.max(0, contentBox.h));
   labels.add(`${model.label} · ${px(r.width)} × ${px(r.height)}`, r.left, r.bottom + 4, '#1c7ed6');
+
+  // Each side's padding and margin written in its band, as the token it is.
+  ctx.font = NUMBER_FONT;
+  ctx.fillStyle = '#212529';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const side = (size, prefix, x, y, room) => {
+    if (size < 0.5 || room < 11) {
+      return;
+    }
+
+    ctx.fillText(sizeLabel(size, tokenFor(tokens.spacing, size), prefix), x, y);
+  };
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+
+  side(p.t, 'pt', cx, paddingBox.y + p.t / 2, p.t);
+  side(p.b, 'pb', cx, paddingBox.y + paddingBox.h - p.b / 2, p.b);
+  side(p.l, 'pl', paddingBox.x + p.l / 2, cy, Math.min(p.l * 3, 60));
+  side(p.r, 'pr', paddingBox.x + paddingBox.w - p.r / 2, cy, Math.min(p.r * 3, 60));
+  side(m.t, 'mt', cx, r.top - m.t / 2, m.t);
+  side(m.b, 'mb', cx, r.bottom + m.b / 2, m.b);
+}
+
+/** Figma's red lines: the space from the element to what faces it on each side. */
+function drawSpacing(ctx, spacing, labels, tokens) {
+  const r = spacing.rect;
+
+  ctx.strokeStyle = SPACING_COLOR;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([]);
+  ctx.strokeRect(r.left + 0.5, r.top + 0.5, Math.max(0, r.width - 1), Math.max(0, r.height - 1));
+
+  for (const gap of spacing.lines) {
+    const label = sizeLabel(gap.size, tokenFor(tokens.spacing, gap.size));
+
+    ctx.beginPath();
+
+    if (gap.axis === 'y') {
+      const x = Math.round(gap.at) + 0.5;
+
+      ctx.moveTo(x, gap.from);
+      ctx.lineTo(x, gap.to);
+      ctx.moveTo(x - 4, gap.from + 0.5);
+      ctx.lineTo(x + 4, gap.from + 0.5);
+      ctx.moveTo(x - 4, gap.to - 0.5);
+      ctx.lineTo(x + 4, gap.to - 0.5);
+      ctx.stroke();
+      labels.add(label, x + 6, (gap.from + gap.to) / 2 - PILL_H / 2, SPACING_COLOR);
+    } else {
+      const y = Math.round(gap.at) + 0.5;
+
+      ctx.moveTo(gap.from, y);
+      ctx.lineTo(gap.to, y);
+      ctx.moveTo(gap.from + 0.5, y - 4);
+      ctx.lineTo(gap.from + 0.5, y + 4);
+      ctx.moveTo(gap.to - 0.5, y - 4);
+      ctx.lineTo(gap.to - 0.5, y + 4);
+      ctx.stroke();
+      labels.add(label, (gap.from + gap.to) / 2, y - PILL_H - 4, SPACING_COLOR, { align: 'center' });
+    }
+  }
+}
+
+/** `h2 · text-700 · 56/62 · Inter 700` on every text that sets its own type. */
+function drawType(ctx, text, labels, tokens) {
+  const token = tokenFor(tokens.text, text.size);
+  const leading = text.leading ? px(text.leading) : '–';
+  const weight = text.weight !== 400 ? ` ${text.weight}` : '';
+
+  labels.add(
+    `${text.tag} · ${token ? `text-${token} · ` : ''}${px(text.size)}/${leading} · ${text.family}${weight}`,
+    text.rect.left,
+    text.rect.top - PILL_H - 1,
+    TYPE_COLOR,
+  );
+}
+
+/** What reaches past the page's edge: outlined, the part outside hatched, the overshoot written. */
+function drawOverflow(ctx, item, view, labels) {
+  const r = item.rect;
+
+  ctx.strokeStyle = OVERFLOW_COLOR;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([]);
+  ctx.strokeRect(r.left + 1, r.top + 1, Math.max(0, r.width - 2), Math.max(0, r.height - 2));
+  ctx.fillStyle = hatch(ctx, OVERFLOW_COLOR, 0.7);
+
+  if (item.right > 0) {
+    ctx.fillRect(view.w - Math.min(item.right, 40), r.top, Math.min(item.right, 40), r.height);
+    labels.add(`${item.label} → +${px(item.right)}px`, view.w, r.top + 4, OVERFLOW_COLOR);
+  }
+
+  if (item.left > 0) {
+    ctx.fillRect(0, r.top, Math.min(item.left, 40), r.height);
+    labels.add(`← +${px(item.left)}px ${item.label}`, 0, r.top + 4, OVERFLOW_COLOR);
+  }
 }
 
 /**
@@ -353,10 +495,14 @@ function drawBoxModel(ctx, model, labels) {
  *
  * @param {CanvasRenderingContext2D} ctx
  * @param {{ w: number, h: number, dpr: number }} view
- * @param {{ grids: object[], flexes: object[], boxes: Element[], boxModel: object|null }} scene
+ * @param {{ grids: object[], flexes: object[], boxes: Element[], boxModel: object|null,
+ *   spacing: object|null, texts: object[], overflow: object[], tokens: object }} scene
  * @param {{ layers: object, hover: object|null, words: object }} opts
  */
 export function drawXray(ctx, view, scene, { layers, hover, words }) {
+  const tokens = scene.tokens || { spacing: [], text: [] };
+  const spots = [];
+
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
   ctx.clearRect(0, 0, view.w, view.h);
 
@@ -383,12 +529,26 @@ export function drawXray(ctx, view, scene, { layers, hover, words }) {
 
   scene.grids.forEach((grid, i) => {
     if (visible(grid.rect, view)) {
-      drawGrid(ctx, grid, GRID_COLORS[i % GRID_COLORS.length], { layers, hover, labels, words });
+      drawGrid(ctx, grid, GRID_COLORS[i % GRID_COLORS.length], { layers, hover, labels, words, tokens, spots });
     }
   });
 
+  for (const item of scene.overflow || []) {
+    drawOverflow(ctx, item, view, labels);
+  }
+
+  for (const text of scene.texts || []) {
+    if (visible(text.rect, view)) {
+      drawType(ctx, text, labels, tokens);
+    }
+  }
+
   if (layers.boxes && scene.boxModel) {
-    drawBoxModel(ctx, scene.boxModel, labels);
+    drawBoxModel(ctx, scene.boxModel, labels, tokens);
+  }
+
+  if (scene.spacing) {
+    drawSpacing(ctx, scene.spacing, labels, tokens);
   }
 
   labels.paint(ctx);

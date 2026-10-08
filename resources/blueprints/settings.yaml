@@ -204,7 +204,17 @@ tabs:
             field:
               type: toggle
               display: 'X-ray'
-              instructions: 'A switch in the Live Preview top bar that draws the layout over the page the way browser DevTools do: grid tracks with numbered lines, hatched gaps and empty cells, subgrids, flex rows and — on request — every box. Only drawn in Live Preview, never on the site.'
+              instructions: 'A switch in the Live Preview top bar that draws the layout over the page the way browser DevTools do: grid tracks with numbered lines, hatched gaps and empty cells, subgrids, flex rows, spacing, type and overflow — sizes named by the theme tokens they are — plus grayscale and blur views. Only drawn in Live Preview, never on the site.'
+              default: true
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: design_overlay
+            field:
+              type: toggle
+              display: 'Design overlay'
+              instructions: 'A switch in the Live Preview top bar that lays a design screenshot (JPG, PNG or WebP) over the page, with its own opacity and a difference view. One image per page and screen size; a size without one shows nothing. Kept in storage/statamic-visual-editor/design-overlays and shown only to signed-in Control Panel users.'
               default: true
               width: 50
               if:
@@ -310,6 +320,7 @@ tabs:
                 site_css: 'Stylesheets'
                 theme: 'Theme'
                 xray: 'X-ray'
+                design_overlay: 'Design overlay'
                 ai: 'AI'
                 aitext: 'AI text'
                 schema: 'Structured data'
@@ -326,6 +337,7 @@ tabs:
                 - site_css
                 - theme
                 - xray
+                - design_overlay
               width: 50
               if:
                 enabled: 'equals true'
@@ -350,6 +362,7 @@ tabs:
                 site_css: 'Stylesheets'
                 theme: 'Theme'
                 xray: 'X-ray'
+                design_overlay: 'Design overlay'
                 ai: 'AI'
                 aitext: 'AI text'
                 schema: 'Structured data'

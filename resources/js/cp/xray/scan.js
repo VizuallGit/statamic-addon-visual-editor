@@ -16,6 +16,7 @@ import {
   declaredSpan,
   elementLabel,
   emptyCells,
+  firstFamily,
   flexArrow,
   isSubgridValue,
   parseGap,
@@ -26,6 +27,9 @@ import {
 
 /** Past this, the boxes layer stops adding outlines: a wall of lines says nothing. */
 const MAX_BOXES = 3000;
+
+/** Past this, the type layer stops adding labels. */
+const MAX_TEXTS = 400;
 
 /**
  * The editor's own nodes in the preview: toolbars and belts (`__sve-*` ids),
@@ -58,16 +62,53 @@ export function outermostSid(from) {
 
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'TEMPLATE', 'NOSCRIPT', 'BR', 'WBR']);
 
+/** Does the element hold words of its own (not only through children)? */
+function ownsText(el) {
+  for (const node of el.childNodes) {
+    if (node.nodeType === 3 && node.textContent.trim()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Does something above clip this element sideways? Then it cannot push the
+ * page wider, whatever its box says — a slider's track is meant to run on.
+ */
+function clippedSideways(pwin, el) {
+  for (let up = el.parentElement; up && up !== el.ownerDocument.documentElement; up = up.parentElement) {
+    const x = pwin.getComputedStyle(up).overflowX;
+
+    if (x !== 'visible') {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * Walk the roots once and sort what is there.
  *
- * @returns {{ grids: Element[], flexes: Element[], boxes: Element[] }}
+ * `texts` are the elements a type label goes on: they hold words of their own,
+ * and are blocks — or inline runs set in a different size than their parent
+ * (a `<b>` inside a `<p>` is the paragraph's type, a `<small>` is not).
+ * `overflow` are the ones that reach past the page's edge and are not clipped
+ * by anything above them: the ones that make a phone scroll sideways.
+ *
+ * @returns {{ grids: Element[], flexes: Element[], boxes: Element[], texts: Element[], overflow: Element[] }}
  */
 export function scanScope(pwin, roots, layers) {
   const grids = [];
   const flexes = [];
   const boxes = [];
+  const texts = [];
+  const overflow = [];
   const seen = new Set();
+  const doc = roots[0]?.ownerDocument;
+  const pageWidth = doc ? doc.documentElement.clientWidth : 0;
 
   for (const root of roots) {
     if (!root) {
@@ -90,7 +131,8 @@ export function scanScope(pwin, roots, layers) {
         continue;
       }
 
-      const display = pwin.getComputedStyle(el).display;
+      const cs = pwin.getComputedStyle(el);
+      const display = cs.display;
 
       if (display === 'none' || display === 'contents') {
         continue;
@@ -105,10 +147,30 @@ export function scanScope(pwin, roots, layers) {
       if (layers.boxes && boxes.length < MAX_BOXES) {
         boxes.push(el);
       }
+
+      if (layers.type && texts.length < MAX_TEXTS && ownsText(el)) {
+        const inline = display.startsWith('inline') && !display.includes('block') && !display.includes('flex') && !display.includes('grid');
+        const parent = el.parentElement;
+
+        if (!inline || !parent || pwin.getComputedStyle(parent).fontSize !== cs.fontSize) {
+          texts.push(el);
+        }
+      }
+
+      if (layers.overflow && cs.position !== 'fixed' && pageWidth) {
+        const r = el.getBoundingClientRect();
+
+        if (r.width > 0 && (r.right > pageWidth + 0.5 || r.left < -0.5) && !clippedSideways(pwin, el)) {
+          overflow.push(el);
+        }
+      }
     }
   }
 
-  return { grids, flexes, boxes };
+  // Only the outermost offender: its children overflow because it does.
+  const outermost = overflow.filter((el) => !overflow.some((other) => other !== el && other.contains(el)));
+
+  return { grids, flexes, boxes, texts, overflow: outermost };
 }
 
 /** The content box inside border and padding, in the preview's viewport. */
@@ -329,4 +391,86 @@ export function measureBoxModel(pwin, el) {
     padding: p,
     label: elementLabel(el.tagName, el.getAttribute('class')),
   };
+}
+
+/** The type an element is set in, for its label. */
+export function measureText(pwin, el) {
+  const rect = el.getBoundingClientRect();
+
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+
+  const cs = pwin.getComputedStyle(el);
+  const size = parseFloat(cs.fontSize) || 0;
+  const leading = cs.lineHeight === 'normal' ? 0 : parseFloat(cs.lineHeight) || 0;
+
+  return {
+    el,
+    rect,
+    tag: el.tagName.toLowerCase(),
+    size,
+    leading,
+    family: firstFamily(cs.fontFamily),
+    weight: Number(cs.fontWeight) || 400,
+  };
+}
+
+/** How far past the page's edge an element reaches, on each side. */
+export function measureOverflow(el, pageWidth) {
+  const rect = el.getBoundingClientRect();
+
+  return {
+    el,
+    rect,
+    right: Math.max(0, rect.right - pageWidth),
+    left: Math.max(0, -rect.left),
+    label: elementLabel(el.tagName, el.getAttribute('class')),
+  };
+}
+
+/**
+ * The space around one element, the way Figma's red lines show it: up to the
+ * nearest neighbour on each side that faces it, or to the inside of the parent
+ * when there is none.
+ *
+ * @returns {{ rect: DOMRect, lines: { axis: 'x'|'y', from: number, to: number, at: number, size: number }[] }}
+ */
+export function measureSpacing(pwin, el) {
+  const rect = el.getBoundingClientRect();
+  const parent = el.parentElement;
+
+  if (!parent || rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+
+  const pr = parent.getBoundingClientRect();
+  const pcs = pwin.getComputedStyle(parent);
+  const inner = {
+    top: pr.top + (parseFloat(pcs.borderTopWidth) || 0),
+    bottom: pr.bottom - (parseFloat(pcs.borderBottomWidth) || 0),
+    left: pr.left + (parseFloat(pcs.borderLeftWidth) || 0),
+    right: pr.right - (parseFloat(pcs.borderRightWidth) || 0),
+  };
+  const peers = laidOutChildren(pwin, parent).filter((peer) => peer.el !== el).map((peer) => peer.rect);
+  const acrossX = (r) => r.left < rect.right && r.right > rect.left;
+  const acrossY = (r) => r.top < rect.bottom && r.bottom > rect.top;
+  const midX = (rect.left + rect.right) / 2;
+  const midY = (rect.top + rect.bottom) / 2;
+
+  const above = Math.max(inner.top, ...peers.filter((r) => acrossX(r) && r.bottom <= rect.top + 0.5).map((r) => r.bottom));
+  const below = Math.min(inner.bottom, ...peers.filter((r) => acrossX(r) && r.top >= rect.bottom - 0.5).map((r) => r.top));
+  const before = Math.max(inner.left, ...peers.filter((r) => acrossY(r) && r.right <= rect.left + 0.5).map((r) => r.right));
+  const after = Math.min(inner.right, ...peers.filter((r) => acrossY(r) && r.left >= rect.right - 0.5).map((r) => r.left));
+
+  const lines = [
+    { axis: 'y', from: above, to: rect.top, at: midX },
+    { axis: 'y', from: rect.bottom, to: below, at: midX },
+    { axis: 'x', from: before, to: rect.left, at: midY },
+    { axis: 'x', from: rect.right, to: after, at: midY },
+  ]
+    .map((line) => ({ ...line, size: line.to - line.from }))
+    .filter((line) => line.size > 0.5);
+
+  return { el, rect, lines };
 }

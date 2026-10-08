@@ -27,6 +27,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\PropFieldsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedSectionsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SavedTemplatesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SchemaController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\DesignOverlayController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionMetaController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
@@ -247,6 +248,16 @@ final class EditorRoutes
                 ->name('sve.comments.update');
             Route::delete('/!/sve/comments/{entry}/{comment}', [CommentsController::class, 'destroy'])
                 ->name('sve.comments.destroy');
+
+            // The design overlay: a designer's screenshot per page and screen size.
+            Route::get('/!/sve/design-overlay/{entry}', [DesignOverlayController::class, 'index'])
+                ->name('sve.design-overlay.index');
+            Route::post('/!/sve/design-overlay/{entry}/{breakpoint}', [DesignOverlayController::class, 'store'])
+                ->name('sve.design-overlay.store');
+            Route::delete('/!/sve/design-overlay/{entry}/{breakpoint}', [DesignOverlayController::class, 'destroy'])
+                ->name('sve.design-overlay.destroy');
+            Route::get('/!/sve/design-overlay/{entry}/{breakpoint}/image', [DesignOverlayController::class, 'show'])
+                ->name('sve.design-overlay.show');
 
             // The snapshot behind a narrowed library: what the site was using when
             // the scan was last run, and the button on the settings screen that

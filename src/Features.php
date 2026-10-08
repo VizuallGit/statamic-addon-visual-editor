@@ -67,6 +67,8 @@ class Features
         // The top bar's X-ray switch: grid, flex and box outlines over the preview.
         // On unless the settings or config say false; off, the icon is gone.
         'xray',
+        // The top bar's design overlay: a screenshot per page and size over the preview.
+        'design_overlay',
         'html_tree',
         'inline_edit',
         'focus_panel',
