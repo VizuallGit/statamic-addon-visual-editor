@@ -804,6 +804,10 @@ export function showHtmlScope(caret) {
   const at = caret == null ? 0 : Math.max(0, Math.min(caret - from, to - from));
 
   writeHtmlEditor(dockState.htmlFull.slice(from, to), { anchor: at, head: at });
+  // A new view, a new undo history: an undo right after a pick would bring
+  // back the text the pane showed before (the file, or another element) and
+  // the next sync would write it into this element's range (dock/undo.js).
+  freshUndo('html');
   applyCssScope();
   view.focus();
 }
@@ -835,6 +839,7 @@ export function showHtmlFull(selectFocus = true, caret = null) {
 
   dockState.htmlFull = full;
   writeHtmlEditor(full, selection);
+  freshUndo('html');
   dockState.cssPane = 'full';
   dockState.cssScopeSnapshot = dockState.cssFull;
   writeHandleEditor('css', dockState.cssFull);
@@ -899,7 +904,6 @@ export function setHtmlAll(win, on) {
     if (htmlFocusOk(dockState.htmlFocus?.from, dockState.htmlFocus?.to, length)) {
       flushCssScope();
       showHtmlScope(null);
-      freshUndo('html');
     } else {
       // The element was deleted while the file was shown: there is nothing to
       // narrow to, so the pane stays on the file — and the CSS pane, which
