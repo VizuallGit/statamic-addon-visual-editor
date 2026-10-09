@@ -1,9 +1,9 @@
 /**
  * The design overlay's API for code that runs before the tool has loaded.
  *
- * design-overlay.js is a lazy chunk, loaded the first time its top-bar switch
- * is turned on (or when it was left on). Until then Live Preview carries only
- * this file and cp/design/prefs.js — the few lines that say whether it is on.
+ * design-overlay.js is a lazy chunk, loaded the first time its top-bar icon
+ * is clicked (or when the design was left on). Until then Live Preview carries
+ * only this file and cp/design/prefs.js — the few lines that say whether it is on.
  *
  * May import: lazy-panels.js, cp/design/prefs.js.
  */
@@ -25,16 +25,16 @@ export function isDesignOn(win) {
 /** A click while the chunk is still on its way: the same promise, not a second toggle. */
 let pendingToggle = null;
 
-/** loads */
-export function toggleDesign(win) {
+/** loads — the icon opens (or closes) the dropdown. */
+export function toggleDesignMenu(win) {
   const mod = loadedPanel(KEY);
 
   if (mod) {
-    return mod.toggleDesign(win);
+    return mod.toggleDesignMenu(win);
   }
 
   pendingToggle ??= ensurePanel(KEY)
-    .then((loaded) => loaded.toggleDesign(win))
+    .then((loaded) => loaded.toggleDesignMenu(win))
     .finally(() => {
       pendingToggle = null;
     });

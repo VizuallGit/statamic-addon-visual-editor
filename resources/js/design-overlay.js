@@ -2,39 +2,42 @@
  * Settings toggle: `design_overlay`
  * Design overlay: a designer's screenshot laid over Live Preview.
  *
- * A switch in the top bar. On, the page's design for the screen size the
- * preview is showing — Desktop, Tablet or Mobile, one image each, uploaded per
- * page — lies over the page at the preview's width, with its own opacity and a
- * difference view (what matches goes black, what differs lights up). A size
- * with no image shows nothing: a phone design is not the desktop one shrunk.
- * A small bar over the top of the preview picks, uploads and removes them;
- * an image dropped on the bar goes to the size on screen.
+ * Its top-bar icon opens a dropdown, the way the breakpoint overview's sizes
+ * do: a switch that shows the design over the page, one row per screen size —
+ * Mobile, Tablet, Desktop, narrowest first — to upload, replace or remove that
+ * size's image, the opacity and a difference view (what matches goes black,
+ * what differs lights up). On, the design for the size the preview is showing
+ * lies over the page at the preview's width; a size with no image shows
+ * nothing — a phone design is not the desktop one shrunk. An image dropped on
+ * a row goes to that size. The icon is lit while the design is shown.
  *
- * Loaded only when the switch is first turned on (lazy-panels.js, key
- * `design_overlay`), reached by eager code through lazy/design-overlay.js. The
+ * Loaded only when the icon is first clicked (or the design was left on) —
+ * lazy-panels.js, key `design_overlay`, through lazy/design-overlay.js. The
  * image is one `<img>` it owns in the preview document, outside <body> so a
  * morph never meets it; nothing on the page is changed, no kernel file knows
- * about it, and turned off every node and listener it added is gone again.
- * Files live on the server (DesignOverlayController, /!/sve/design-overlay).
+ * about it, and turned off every node and listener it added in the preview is
+ * gone again. Files live on the server (DesignOverlayController, /!/sve/design-overlay).
  *
- * May import: lib/*, cp/design/*, breakpoints.js, lp-panel.js (the toolbar's painter).
+ * May import: lib/*, cp/design/*, breakpoints.js, lp-panel.js (the toolbar's
+ * painter), lp-menu-dismiss.js (how every menu in the top bar closes).
  */
 import { t } from './lib/i18n.js';
 import { csrfToken } from './lib/csrf.js';
+import { remToPx } from './lib/dom.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { currentEntryId } from './lib/live-preview.js';
-import { HEADER_TOOLBAR_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
+import { HEADER_TOOLBAR_ID } from './lib/ids.js';
 import { paintLpActiveControl } from './lp-panel.js';
+import { bindMenuDismiss } from './lp-menu-dismiss.js';
 import { bpFromWidth, breakpoints } from './breakpoints.js';
 import { designAllowed, fitWidth, readDesignPrefs, writeDesignPrefs } from './cp/design/prefs.js';
-import { followFrame, mountBar, placeBar as placeBarOver } from './cp/preview-bar.js';
 
 export { designAllowed };
 
 const IMG_ID = '__sve-design-overlay';
-const BAR_ID = '__sve-design-bar';
-const STYLE_ID = '__sve-design-style';
+const MENU_ID = '__sve-design-menu';
+const MENU_STYLE_ID = '__sve-design-menu-style';
 
 /**
  * The addon takes 20 MB, but PHP's own default is 2 MB and not every server
@@ -57,8 +60,8 @@ const live = {
   listing: null,
   /** The size the file picker is choosing for. */
   target: null,
-  /** The bar, beside the frame inside Live Preview (cp/preview-bar.js). */
-  bar: null,
+  /** The open dropdown: `{ el, style, unbind }`, or null. */
+  menu: null,
   busy: false,
   status: '',
 };
@@ -69,27 +72,59 @@ export function isDesignOn(win) {
   return readDesignPrefs(win).on;
 }
 
-export function toggleDesign(win) {
-  setDesign(win, !isDesignOn(win));
-}
-
+/** Show the design over the page, or stop. The images stay on the server either way. */
 export function setDesign(win, on) {
   writeDesignPrefs(win, { ...readDesignPrefs(win), on: !!on });
 
   if (on) {
     syncDesignToPreview(win);
   } else {
-    teardown();
+    detachPreview();
   }
 
   paintToolbarButton(win);
+  paintMenu();
+}
+
+/** The top-bar icon: open the dropdown under it, or close it. */
+export function toggleDesignMenu(win) {
+  if (live.menu) {
+    closeMenu();
+
+    return;
+  }
+
+  openMenu(win);
 }
 
 function paintToolbarButton(win) {
-  const btn = win.document.querySelector(`#${HEADER_TOOLBAR_ID} button[data-tab="design_overlay"]`);
+  const btn = toolbarButton(win);
 
   if (btn) {
     paintLpActiveControl(btn, isDesignOn(win));
+  }
+}
+
+function toolbarButton(win) {
+  return win.document.querySelector(`#${HEADER_TOOLBAR_ID} button[data-tab="design_overlay"]`);
+}
+
+/** The page being edited and its images: asked for once per page. */
+function followEntry(win) {
+  live.win = win;
+
+  const entry = currentEntryId(win);
+
+  if (entry === live.entry) {
+    return;
+  }
+
+  live.entry = entry;
+  live.listing = null;
+  live.status = '';
+
+  if (entry) {
+    void load(win, entry);
   }
 }
 
@@ -98,13 +133,21 @@ function paintToolbarButton(win) {
  * edited. Called by the top bar's pass on every Control Panel re-render.
  */
 export function syncDesignToPreview(win) {
-  if (!designAllowed(win) || !isDesignOn(win)) {
-    teardown();
+  if (!designAllowed(win)) {
+    detachPreview();
+    closeMenu();
 
     return;
   }
 
-  live.win = win;
+  followEntry(win);
+
+  if (!isDesignOn(win)) {
+    detachPreview();
+    paintMenu();
+
+    return;
+  }
 
   const frame = previewFrame(win);
   let doc = null;
@@ -116,7 +159,7 @@ export function syncDesignToPreview(win) {
   }
 
   if (!frame || !doc?.documentElement) {
-    teardown();
+    detachPreview();
 
     return;
   }
@@ -125,21 +168,7 @@ export function syncDesignToPreview(win) {
     attach(win, frame, doc);
   }
 
-  const entry = currentEntryId(win);
-
-  if (entry !== live.entry) {
-    live.entry = entry;
-    live.listing = null;
-    live.status = '';
-
-    if (entry) {
-      void load(win, entry);
-    }
-  }
-
-  ensureBar(win);
   paint();
-  placeBar();
 }
 
 // --- Into the preview and out again ----------------------------------------
@@ -163,16 +192,6 @@ function detachPreview() {
   live.doc = live.pwin = live.frame = null;
 }
 
-function teardown() {
-  detachPreview();
-  live.bar?.remove();
-  live.bar?.ownerDocument.getElementById(STYLE_ID)?.remove();
-  live.bar = null;
-  live.entry = null;
-  live.listing = null;
-  live.status = '';
-}
-
 function attach(win, frame, doc) {
   detachPreview();
 
@@ -185,31 +204,38 @@ function attach(win, frame, doc) {
 
   live.frameResize = new win.ResizeObserver(() => {
     if (!live.frame?.isConnected) {
-      teardown();
+      detachPreview();
 
       return;
     }
 
-    placeBar();
     paint();
   });
   live.frameResize.observe(frame);
 
   listen(frame, 'load', () => syncDesignToPreview(win));
-  listen(win, 'resize', placeBar);
-  followFrame(win, frame, placeBar, listen);
 }
 
 /** The size the preview is showing, by its width — the same rule the rest of the editor uses. */
 function currentSize() {
-  return live.doc ? bpFromWidth(live.doc.documentElement.clientWidth, live.win) : null;
+  let doc = live.doc;
+
+  if (!doc && live.win) {
+    try {
+      doc = previewFrame(live.win)?.contentDocument || null;
+    } catch {
+      doc = null;
+    }
+  }
+
+  return doc ? bpFromWidth(doc.documentElement.clientWidth, live.win) : null;
 }
 
 // --- The image -------------------------------------------------------------
 
 function paint() {
   paintImage();
-  paintBar();
+  paintMenu();
 }
 
 function paintImage() {
@@ -383,6 +409,11 @@ async function upload(win, size, file) {
       live.listing = data.overlays || {};
       live.status = '';
     }
+
+    // An image just uploaded is an image you want to see.
+    if (!isDesignOn(win)) {
+      setDesign(win, true);
+    }
   } catch (err) {
     live.status = err.message || t(win, 'design_failed');
   } finally {
@@ -417,130 +448,131 @@ async function remove(win, size) {
   }
 }
 
-// --- The bar ---------------------------------------------------------------
+// --- The dropdown ----------------------------------------------------------
 
 function sizeLabel(win, handle) {
   return breakpoints(win).find((row) => row.handle === handle)?.label || handle;
 }
 
-const BAR_CSS = `
-#${BAR_ID} {
-  /* Inside Live Preview at the breakpoint overview's level — see cp/preview-bar.js. */
-  position: absolute;
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: .25rem;
-  width: max-content;
-  padding: .25rem;
-  border-radius: 1.25rem;
-  background: rgba(24, 24, 27, .92);
-  backdrop-filter: blur(.375rem);
-  box-shadow: 0 .25rem 1rem rgba(0, 0, 0, .25);
-  color: #fff;
-  font: 600 .75rem/1 system-ui, -apple-system, "Segoe UI", sans-serif;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  user-select: none;
-}
-#${BAR_ID}[hidden] { display: none; }
-#${BAR_ID}[data-drop] { box-shadow: 0 0 0 .125rem ${LP_PRIMARY_FLAT}, 0 .25rem 1rem rgba(0, 0, 0, .25); }
-#${BAR_ID} [data-sve-design-title] { padding: 0 .5rem 0 .625rem; opacity: .7; letter-spacing: .02em; }
-#${BAR_ID} button {
-  appearance: none;
-  border: 0;
-  margin: 0;
-  padding: .375rem .625rem;
-  border-radius: 999rem;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  opacity: .65;
-}
-#${BAR_ID} button:hover:not(:disabled) { opacity: 1; background: rgba(255, 255, 255, .08); }
-#${BAR_ID} button:disabled { cursor: default; opacity: .3; }
-#${BAR_ID} button[aria-pressed="true"] { opacity: 1; background: ${LP_PRIMARY_FLAT}; }
-#${BAR_ID} button[data-sve-design-size][aria-current="true"] { opacity: 1; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .55); }
-#${BAR_ID} button[data-sve-design-size] [data-mark] { margin-left: .3rem; opacity: .7; }
-#${BAR_ID} [data-sve-design-opacity] { display: inline-flex; align-items: center; gap: .375rem; padding: 0 .5rem; }
-#${BAR_ID} input[type="range"] { width: 6rem; accent-color: ${LP_PRIMARY_FLAT}; margin: 0; }
-#${BAR_ID} output { min-width: 2.25rem; text-align: right; opacity: .8; font-variant-numeric: tabular-nums; }
-#${BAR_ID} [data-sve-design-sep] { width: 1px; align-self: stretch; margin: .25rem .125rem; background: rgba(255, 255, 255, .18); }
-#${BAR_ID} [data-sve-design-status] { padding: 0 .625rem; font-weight: 500; opacity: .8; }
-#${BAR_ID} [data-sve-design-status]:empty { display: none; }
+function menuCss() {
+  const M = `#${MENU_ID}`;
+
+  // The breakpoint overview's sizes menu, row for row: one look for the top bar's dropdowns.
+  return `
+${M} { position: fixed; z-index: 2147483001; box-sizing: border-box; width: 19rem; padding: .375rem; border-radius: .625rem; background: #343439; color: rgba(255, 255, 255, .92); box-shadow: 0 .75rem 2.5rem rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .12); font: 500 .8125rem/1.3 ui-sans-serif, system-ui, sans-serif; }
+${M} [data-title] { padding: .25rem .375rem .375rem; font-size: .75rem; font-weight: 600; opacity: .6; }
+${M} [data-row] { display: flex; align-items: center; gap: .5rem; min-height: 1.75rem; padding: .25rem .375rem; border-radius: .375rem; }
+${M} label[data-row] { cursor: pointer; }
+${M} label[data-row]:hover, ${M} [data-size]:hover, ${M} [data-size][data-drop] { background: rgba(255, 255, 255, .08); }
+${M} input[type="checkbox"] { flex: none; margin: 0; accent-color: var(--theme-color-primary, #4f46e5); cursor: inherit; }
+${M} [data-name] { flex: 1; white-space: nowrap; }
+${M} [data-size][aria-current="true"] [data-name]::after { content: ""; display: inline-block; width: .375rem; height: .375rem; margin-left: .4rem; border-radius: 50%; background: var(--theme-color-primary, #4f46e5); vertical-align: middle; }
+${M} [data-meta] { opacity: .5; font-variant-numeric: tabular-nums; white-space: nowrap; }
+${M} button { appearance: none; border: 0; margin: 0; padding: .25rem .5rem; border-radius: .375rem; background: rgba(255, 255, 255, .08); color: inherit; font: inherit; font-size: .75rem; cursor: pointer; }
+${M} button:hover:not(:disabled) { background: rgba(255, 255, 255, .16); }
+${M} button:disabled { opacity: .35; cursor: default; }
+${M} button[data-act="remove"] { padding: .25rem .4rem; }
+${M} [data-sep] { height: 1px; margin: .375rem .25rem; background: rgba(255, 255, 255, .1); }
+${M} input[type="range"] { flex: 1; min-width: 0; margin: 0; accent-color: var(--theme-color-primary, #4f46e5); }
+${M} output { min-width: 2.5rem; text-align: right; opacity: .6; font-variant-numeric: tabular-nums; }
+${M} [data-status] { padding: .375rem .375rem .125rem; font-size: .75rem; opacity: .7; }
+${M} [data-status]:empty { display: none; }
 `;
+}
 
-function ensureBar(win) {
-  // The frame's document is the Control Panel's own, except when the Control
-  // Panel itself sits in the overlay's frame — the bar goes where the frame is.
-  const doc = live.frame.ownerDocument;
+function openMenu(win) {
+  closeMenu();
+  followEntry(win);
 
-  injectStyle(doc, STYLE_ID, BAR_CSS);
+  const doc = win.document;
+  const anchor = toolbarButton(win);
+  const style = injectStyle(doc, MENU_STYLE_ID, menuCss());
+  const el = doc.createElement('div');
+  const add = (parent, tag, attrs = {}, text = '') => {
+    const node = doc.createElement(tag);
 
-  if (live.bar) {
-    mountBar(live.bar, live.frame);
+    Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
 
-    return;
-  }
+    if (text) {
+      node.textContent = text;
+    }
 
-  const bar = doc.createElement('div');
-  bar.id = BAR_ID;
-  bar.setAttribute('role', 'toolbar');
-  bar.setAttribute('aria-label', t(win, 'design_overlay'));
+    parent.appendChild(node);
 
-  const add = (tag, attrs = {}, text = '') => {
-    const el = doc.createElement(tag);
-
-    Object.entries(attrs).forEach(([name, value]) => el.setAttribute(name, value));
-    el.textContent = text;
-    bar.appendChild(el);
-
-    return el;
+    return node;
   };
-  const sep = () => add('span', { 'data-sve-design-sep': '' });
 
-  add('span', { 'data-sve-design-title': '' }, t(win, 'design_overlay'));
+  el.id = MENU_ID;
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', t(win, 'design_overlay'));
+  add(el, 'div', { 'data-title': '' }, t(win, 'design_overlay'));
 
-  for (const row of breakpoints(win)) {
-    const btn = add('button', { type: 'button', 'data-sve-design-size': row.handle });
+  // Show over the page.
+  const show = add(el, 'label', { 'data-row': '', 'data-show': '' });
+  const showBox = add(show, 'input', { type: 'checkbox' });
 
-    btn.addEventListener('click', () => {
+  add(show, 'span', { 'data-name': '' }, t(win, 'design_show'));
+  showBox.addEventListener('change', () => setDesign(win, showBox.checked));
+  add(el, 'div', { 'data-sep': '' });
+
+  // One row per size, narrowest first, as the overview lists them.
+  for (const row of [...breakpoints(win)].reverse()) {
+    const line = add(el, 'div', { 'data-row': '', 'data-size': row.handle });
+
+    add(line, 'span', { 'data-name': '' }, row.label);
+    add(line, 'span', { 'data-meta': '' });
+    add(line, 'button', { type: 'button', 'data-act': 'upload' }).addEventListener('click', () => {
       live.target = row.handle;
       file.click();
     });
+    add(line, 'button', { type: 'button', 'data-act': 'remove' }, '✕').addEventListener('click', () => {
+      void remove(win, row.handle);
+    });
+
+    // An image dropped on a row goes to that size.
+    line.addEventListener('dragover', (e) => {
+      if ([...(e.dataTransfer?.types || [])].includes('Files')) {
+        e.preventDefault();
+        line.dataset.drop = '';
+      }
+    });
+    line.addEventListener('dragleave', () => delete line.dataset.drop);
+    line.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      delete line.dataset.drop;
+      void upload(win, row.handle, e.dataTransfer?.files?.[0]);
+    });
   }
 
-  sep();
+  add(el, 'div', { 'data-sep': '' });
 
-  const range = doc.createElement('label');
+  // Opacity.
+  const opacity = add(el, 'label', { 'data-row': '', 'data-opacity': '' });
 
-  range.setAttribute('data-sve-design-opacity', '');
-  range.title = t(win, 'design_opacity');
-  range.innerHTML = '<input type="range" min="0" max="100" step="5"><output></output>';
-  bar.appendChild(range);
-  range.querySelector('input').addEventListener('input', (e) => {
-    writeDesignPrefs(win, { ...readDesignPrefs(win), opacity: Number(e.target.value) });
+  add(opacity, 'span', {}, t(win, 'design_opacity'));
+
+  const range = add(opacity, 'input', { type: 'range', min: '0', max: '100', step: '5' });
+
+  add(opacity, 'output');
+  range.addEventListener('input', () => {
+    writeDesignPrefs(win, { ...readDesignPrefs(win), opacity: Number(range.value) });
     paint();
   });
 
-  add('button', { type: 'button', 'data-sve-design': 'diff', title: t(win, 'design_diff_tip') }, t(win, 'design_diff')).addEventListener(
-    'click',
-    () => {
-      const prefs = readDesignPrefs(win);
+  // Difference.
+  const diff = add(el, 'label', { 'data-row': '', 'data-diff': '', title: t(win, 'design_diff_tip') });
+  const diffBox = add(diff, 'input', { type: 'checkbox' });
 
-      writeDesignPrefs(win, { ...prefs, diff: !prefs.diff });
-      paint();
-    },
-  );
-  add('button', { type: 'button', 'data-sve-design': 'remove' }, t(win, 'design_remove')).addEventListener('click', () => {
-    void remove(win, currentSize());
+  add(diff, 'span', { 'data-name': '' }, t(win, 'design_diff'));
+  diffBox.addEventListener('change', () => {
+    writeDesignPrefs(win, { ...readDesignPrefs(win), diff: diffBox.checked });
+    paint();
   });
-  add('span', { 'data-sve-design-status': '', role: 'status' });
 
-  const file = add('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', hidden: '' });
+  add(el, 'div', { 'data-status': '', role: 'status' });
+
+  const file = add(el, 'input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', hidden: '' });
 
   file.addEventListener('change', () => {
     const picked = file.files?.[0];
@@ -549,29 +581,55 @@ function ensureBar(win) {
     void upload(win, live.target || currentSize(), picked);
   });
 
-  // An image dragged onto the bar goes to the size on screen.
-  bar.addEventListener('dragover', (e) => {
-    if ([...(e.dataTransfer?.types || [])].includes('Files')) {
-      e.preventDefault();
-      bar.dataset.drop = '';
-    }
-  });
-  bar.addEventListener('dragleave', () => delete bar.dataset.drop);
-  bar.addEventListener('drop', (e) => {
+  // An image dropped anywhere else in the dropdown goes to the size on screen.
+  el.addEventListener('dragover', (e) => e.preventDefault());
+  el.addEventListener('drop', (e) => {
     e.preventDefault();
-    delete bar.dataset.drop;
     void upload(win, currentSize(), e.dataTransfer?.files?.[0]);
   });
 
-  live.bar = bar;
-  mountBar(bar, live.frame);
+  // A portal on the Control Panel's body, like every dropdown in the top bar:
+  // Live Preview's stacking contexts would trap it anywhere else.
+  doc.body.appendChild(el);
+
+  // Under the icon, its left edge on the icon's, kept inside the window.
+  if (anchor) {
+    const at = anchor.getBoundingClientRect();
+    const gap = remToPx(win, 0.375);
+    const room = win.innerWidth - el.offsetWidth - gap;
+
+    el.style.left = `${Math.round(Math.max(gap, Math.min(at.left, room)))}px`;
+    el.style.top = `${Math.round(at.bottom + gap)}px`;
+  }
+
+  live.menu = {
+    el,
+    style,
+    // The icon counts as inside: its own click toggles the dropdown shut.
+    unbind: bindMenuDismiss(win, (target) => el.contains(target) || !!anchor?.contains(target), closeMenu),
+  };
+
+  paintMenu();
 }
 
-function paintBar() {
-  const win = live.win;
-  const bar = live.bar;
+function closeMenu() {
+  if (!live.menu) {
+    return;
+  }
 
-  if (!bar) {
+  const { el, style, unbind } = live.menu;
+
+  live.menu = null;
+  unbind();
+  el.remove();
+  style.remove();
+}
+
+function paintMenu() {
+  const el = live.menu?.el;
+  const win = live.win;
+
+  if (!el || !win) {
     return;
   }
 
@@ -579,53 +637,55 @@ function paintBar() {
   const size = currentSize();
   const noEntry = !live.entry;
 
-  bar.querySelectorAll('button[data-sve-design-size]').forEach((btn) => {
-    const handle = btn.dataset.sveDesignSize;
-    const has = !!live.listing?.[handle];
-    const label = sizeLabel(win, handle);
-    const text = `${label}<span data-mark>${has ? '✓' : '+'}</span>`;
+  el.querySelector('[data-show] input').checked = prefs.on;
 
-    if (btn.innerHTML !== text) {
-      btn.innerHTML = text;
+  el.querySelectorAll('[data-size]').forEach((line) => {
+    const handle = line.dataset.size;
+    const slot = live.listing?.[handle] || null;
+    const label = sizeLabel(win, handle);
+    const meta = slot ? `${slot.width} × ${slot.height}` : '—';
+    const upload = line.querySelector('[data-act="upload"]');
+    const removeBtn = line.querySelector('[data-act="remove"]');
+    const action = t(win, slot ? 'design_replace' : 'design_upload');
+
+    line.setAttribute('aria-current', handle === size ? 'true' : 'false');
+    line.title = handle === size ? t(win, 'design_on_screen') : '';
+
+    if (line.querySelector('[data-meta]').textContent !== meta) {
+      line.querySelector('[data-meta]').textContent = meta;
     }
 
-    btn.setAttribute('aria-current', handle === size ? 'true' : 'false');
-    btn.title = t(win, has ? 'design_replace_for' : 'design_upload_for', { size: label });
-    btn.disabled = noEntry || live.busy;
+    if (upload.textContent !== action) {
+      upload.textContent = action;
+    }
+
+    upload.title = t(win, slot ? 'design_replace_for' : 'design_upload_for', { size: label });
+    upload.disabled = noEntry || live.busy;
+    removeBtn.title = t(win, 'design_remove_for', { size: label });
+    removeBtn.setAttribute('aria-label', removeBtn.title);
+    removeBtn.disabled = noEntry || live.busy || !slot;
   });
 
-  const range = bar.querySelector('[data-sve-design-opacity] input');
+  const range = el.querySelector('[data-opacity] input');
 
-  if (range && bar.ownerDocument.activeElement !== range) {
+  if (el.ownerDocument.activeElement !== range) {
     range.value = String(prefs.opacity);
   }
 
-  bar.querySelector('[data-sve-design-opacity] output').textContent = `${prefs.opacity}%`;
-  bar.querySelector('[data-sve-design="diff"]').setAttribute('aria-pressed', prefs.diff ? 'true' : 'false');
-
-  const removeBtn = bar.querySelector('[data-sve-design="remove"]');
-
-  removeBtn.disabled = noEntry || live.busy || !live.listing?.[size];
-  removeBtn.title = t(win, 'design_remove_for', { size: sizeLabel(win, size) });
+  el.querySelector('[data-opacity] output').textContent = `${prefs.opacity}%`;
+  el.querySelector('[data-diff] input').checked = prefs.diff;
 
   let status = live.status;
 
   if (!status && noEntry) {
     status = t(win, 'design_no_entry');
-  } else if (!status && live.listing && !live.listing[size]) {
+  } else if (!status && prefs.on && live.listing && size && !live.listing[size]) {
     status = t(win, 'design_none_for', { size: sizeLabel(win, size) });
   }
 
-  const line = bar.querySelector('[data-sve-design-status]');
+  const line = el.querySelector('[data-status]');
 
   if (line.textContent !== status) {
     line.textContent = status;
-  }
-}
-
-/** Top centre of the visible part of the preview frame. */
-function placeBar() {
-  if (live.bar && live.frame) {
-    placeBarOver(live.bar, live.frame, 'top');
   }
 }

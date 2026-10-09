@@ -204,7 +204,7 @@ tabs:
             field:
               type: toggle
               display: 'X-ray'
-              instructions: 'A switch in the Live Preview top bar that draws the layout over the page the way browser DevTools do: grid tracks with numbered lines, hatched gaps and empty cells, subgrids, flex rows, spacing, type and overflow — sizes named by the theme tokens they are. Only drawn in Live Preview, never on the site.'
+              instructions: 'A switch in the Live Preview top bar that draws the layout over the page the way browser DevTools do: grid tracks with numbered lines, hatched gaps and empty cells, subgrids, flex rows, spacing, font style and overflow — sizes named by the theme tokens they are. Only drawn in Live Preview, never on the site.'
               default: true
               width: 50
               if:

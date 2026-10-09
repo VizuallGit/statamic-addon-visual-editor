@@ -389,30 +389,34 @@ function drawBoxModel(ctx, model, labels, tokens) {
   band(paddingBox, contentBox, BOX_MODEL.padding);
   ctx.fillStyle = BOX_MODEL.content;
   ctx.fillRect(contentBox.x, contentBox.y, Math.max(0, contentBox.w), Math.max(0, contentBox.h));
-  labels.add(`${model.label} · ${px(r.width)} × ${px(r.height)}`, r.left, r.bottom + 4, '#1c7ed6');
+  labels.add(`${model.label} · ${px(r.width)} × ${px(r.height)}px`, r.left, r.bottom + 4, '#1c7ed6');
 
   // Each side's padding and margin written in its band, as the token it is.
   ctx.font = NUMBER_FONT;
   ctx.fillStyle = '#212529';
-  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  const side = (size, prefix, x, y, room) => {
+  // Beside the centre lines, not on them: the spacing layer draws its red line
+  // down the middle with its label to the right, and across the middle with
+  // its label above. Top and bottom bands write to the left of the line, the
+  // side bands just under it.
+  const side = (size, prefix, x, y, room, align) => {
     if (size < 0.5 || room < 11) {
       return;
     }
 
+    ctx.textAlign = align;
     ctx.fillText(sizeLabel(size, tokenFor(tokens.spacing, size), prefix), x, y);
   };
   const cx = r.left + r.width / 2;
   const cy = r.top + r.height / 2;
 
-  side(p.t, 'pt', cx, paddingBox.y + p.t / 2, p.t);
-  side(p.b, 'pb', cx, paddingBox.y + paddingBox.h - p.b / 2, p.b);
-  side(p.l, 'pl', paddingBox.x + p.l / 2, cy, Math.min(p.l * 3, 60));
-  side(p.r, 'pr', paddingBox.x + paddingBox.w - p.r / 2, cy, Math.min(p.r * 3, 60));
-  side(m.t, 'mt', cx, r.top - m.t / 2, m.t);
-  side(m.b, 'mb', cx, r.bottom + m.b / 2, m.b);
+  side(p.t, 'pt', cx - 8, paddingBox.y + p.t / 2, p.t, 'right');
+  side(p.b, 'pb', cx - 8, paddingBox.y + paddingBox.h - p.b / 2, p.b, 'right');
+  side(p.l, 'pl', paddingBox.x + p.l / 2, cy + 10, Math.min(p.l * 3, 60), 'center');
+  side(p.r, 'pr', paddingBox.x + paddingBox.w - p.r / 2, cy + 10, Math.min(p.r * 3, 60), 'center');
+  side(m.t, 'mt', cx - 8, r.top - m.t / 2, m.t, 'right');
+  side(m.b, 'mb', cx - 8, r.bottom + m.b / 2, m.b, 'right');
 }
 
 /** Figma's red lines: the space from the element to what faces it on each side. */
@@ -455,14 +459,16 @@ function drawSpacing(ctx, spacing, labels, tokens) {
   }
 }
 
-/** `h2 · text-700 · 56/62 · Inter 700` on every text that sets its own type. */
+/** `h2 · text-700 · 56/62px · Inter 700` on every text that sets its own font style. */
 function drawType(ctx, text, labels, tokens) {
   const token = tokenFor(tokens.text, text.size);
-  const leading = text.leading ? px(text.leading) : '–';
+  // Size over line height, as type is written: `44/48px`; `44px` when the
+  // line height is the browser's own (`normal`).
+  const size = text.leading ? `${px(text.size)}/${px(text.leading)}px` : `${px(text.size)}px`;
   const weight = text.weight !== 400 ? ` ${text.weight}` : '';
 
   labels.add(
-    `${text.tag} · ${token ? `text-${token} · ` : ''}${px(text.size)}/${leading} · ${text.family}${weight}`,
+    `${text.tag} · ${token ? `text-${token} · ` : ''}${size} · ${text.family}${weight}`,
     text.rect.left,
     text.rect.top - PILL_H - 1,
     TYPE_COLOR,

@@ -38,7 +38,7 @@ import { blueprintAllowed, openEntryBlueprint } from '../lp-blueprint.js';
 import { bardStylesAllowed, openBardStyles } from '../lp-bard-styles.js';
 import { aiTextAllowed, isAiTextOn, syncAiTextToPreview, toggleAiText } from '../lazy/ai-text.js';
 import { isXrayOn, syncXrayToPreview, toggleXray, xrayAllowed } from '../lazy/xray.js';
-import { designAllowed, isDesignOn, syncDesignToPreview, toggleDesign } from '../lazy/design-overlay.js';
+import { designAllowed, isDesignOn, syncDesignToPreview, toggleDesignMenu } from '../lazy/design-overlay.js';
 
 // ===== header-toolbar =====
 // --- Header toolbar: one control at a time -------------------------------------
@@ -1395,7 +1395,8 @@ const PREVIEW_SWITCHES = {
     title: 'design_overlay_tip',
     allowed: designAllowed,
     isOn: isDesignOn,
-    toggle: toggleDesign,
+    // A dropdown under the icon, not a switch: sizes, images, opacity live in it.
+    toggle: toggleDesignMenu,
     sync: syncDesignToPreview,
     after: ['xray', 'theme', 'site_css', 'code'],
   },

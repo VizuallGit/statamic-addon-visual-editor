@@ -305,16 +305,17 @@ export function tokenFor(tokens, size, tolerance = 0.6) {
 }
 
 /**
- * What a size reads as on a label: `gap-500 · 34` when it is a token, `34px`
- * when it is not. `prefix` is the utility it would be written as (`gap`, `pt`,
- * `text`); without one the token stands alone (`500 · 34`).
+ * What a size reads as on a label: `gap-500 · 34px` when it is a token, `34px`
+ * when it is not — every number carries its unit, so a label never leaves you
+ * guessing what `86` was. `prefix` is the utility it would be written as
+ * (`gap`, `pt`, `text`); without one the token stands alone (`500 · 34px`).
  */
 export function sizeLabel(size, token, prefix = '') {
   if (!token) {
     return `${px(size)}px`;
   }
 
-  return `${prefix ? `${prefix}-` : ''}${token} · ${px(size)}`;
+  return `${prefix ? `${prefix}-` : ''}${token} · ${px(size)}px`;
 }
 
 /** Custom property names that are a token scale: `--spacing-500` → `500`; line heights and the like are not. */

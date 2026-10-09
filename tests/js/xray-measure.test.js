@@ -186,9 +186,9 @@ test('a measured size is matched to the token the preview resolved at its width'
   assert.equal(tokenFor(tokens, 0), '');
 });
 
-test('size labels name the utility when there is a token', () => {
-  assert.equal(sizeLabel(34, '500', 'gap'), 'gap-500 · 34');
-  assert.equal(sizeLabel(34, '500'), '500 · 34');
+test('size labels name the utility when there is a token, and every number has its unit', () => {
+  assert.equal(sizeLabel(34, '500', 'gap'), 'gap-500 · 34px');
+  assert.equal(sizeLabel(86, '900'), '900 · 86px');
   assert.equal(sizeLabel(33.2, ''), '33px');
 });
 

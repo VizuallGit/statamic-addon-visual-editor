@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * X-ray's and the design overlay's bars stay inside Live Preview, under every
- * popup the editor opens.
+ * X-ray's bar stays inside Live Preview, under every popup the editor opens;
+ * the design overlay is a dropdown under its icon.
  *
  * 9 Oct 2026: the bars were fixed on the Control Panel's <body> at the top of
  * the z-order and lay over the Stylesheets panel and the Edits dialog. They now
@@ -42,7 +42,8 @@ const step = (name, ok, detail = '') => {
 };
 
 const BAR = '#__sve-toolbar';
-const BARS = { xray: '#__sve-xray-bar', design: '#__sve-design-bar' };
+const BARS = { xray: '#__sve-xray-bar' };
+const DESIGN_MENU = '#__sve-design-menu';
 const SWITCHES = ['xray', 'design_overlay'];
 /**
  * The two a bar used to lie on top of (9 Oct 2026): opened, they must be over
@@ -182,7 +183,7 @@ await page.evaluateOnNewDocument((path) => {
 
   // Both tools on, from the first document on: their switches are this browser's only.
   try {
-    localStorage.setItem('sve-xray', JSON.stringify({ on: true }));
+    localStorage.setItem('sve-xray', JSON.stringify({ on: true, boxes: true, spacing: true, type: true }));
     localStorage.setItem('sve-design-overlay', JSON.stringify({ on: true }));
   } catch {
     /* about:blank */
@@ -238,9 +239,60 @@ try {
   }
 
   await cp.waitForSelector(BARS.xray, { timeout: 10000 }).catch(() => {});
-  await cp.waitForSelector(BARS.design, { timeout: 10000 }).catch(() => {});
   await sleep(800);
   await shot('00-both-on');
+
+  // The design overlay's dropdown: under its icon, the sizes narrowest first, Escape closes it.
+  await click(page, cp, `${BAR} button[data-tab="design_overlay"]`);
+  await cp.waitForSelector(DESIGN_MENU, { timeout: 15000 }).catch(() => {});
+  await sleep(500);
+
+  const menu = await cp.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    const icon = document.querySelector('#__sve-toolbar button[data-tab="design_overlay"]');
+
+    if (!el || !icon) {
+      return null;
+    }
+
+    return {
+      portal: el.parentElement === document.body,
+      under: el.getBoundingClientRect().top >= icon.getBoundingClientRect().bottom,
+      sizes: [...el.querySelectorAll('[data-size] [data-name]')].map((n) => n.textContent.trim()),
+      show: el.querySelector('[data-show] input')?.checked,
+    };
+  }, DESIGN_MENU);
+
+  step('design icon opens its dropdown under the icon', !!menu && menu.portal && menu.under, JSON.stringify(menu));
+  step('design dropdown lists Mobile, Tablet, Desktop in that order', menu?.sizes?.join(',') === 'Mobile,Tablet,Desktop', menu?.sizes?.join(', '));
+  await shot('01-design-menu');
+  await page.keyboard.press('Escape');
+  await sleep(500);
+  step('Escape closes the design dropdown', await cp.evaluate((sel) => !document.querySelector(sel), DESIGN_MENU));
+
+  // Hover a heading with boxes, spacing and font style on: the labels to look at.
+  const preview = await (async () => {
+    for (const f of cp.childFrames()) {
+      if ((await (await f.frameElement()).evaluate((el) => el.id)) === 'live-preview-iframe') {
+        return f;
+      }
+    }
+
+    return null;
+  })();
+
+  if (preview && (await preview.evaluate(() => !!document.querySelector('h1, h2')))) {
+    await preview.evaluate(() => document.querySelector('h2, h1').scrollIntoView({ block: 'center' }));
+    await sleep(500);
+
+    const at = await pointIn(preview, 'h2, h1');
+
+    if (at) {
+      await page.mouse.move(at.x - 80, at.y);
+      await sleep(900);
+      await shot('02-hover-labels');
+    }
+  }
 
   const start = await barsCovering(cp);
 
@@ -334,15 +386,23 @@ try {
     step(`${bar.key} bar back and clear after every tool`, bar.shown && !bar.over.length, JSON.stringify(bar));
   }
 
-  // Off again: nothing of either left in the Control Panel.
-  for (const key of SWITCHES) {
-    await click(page, cp, `${BAR} button[data-tab="${key}"]`);
-    await sleep(600);
-  }
+  // Off again: X-ray by its icon, the design by its dropdown's switch.
+  await click(page, cp, `${BAR} button[data-tab="xray"]`);
+  await sleep(600);
+  await click(page, cp, `${BAR} button[data-tab="design_overlay"]`);
+  await cp.waitForSelector(DESIGN_MENU, { timeout: 10000 }).catch(() => {});
+  await click(page, cp, `${DESIGN_MENU} [data-show] input`);
+  await sleep(400);
+  await page.keyboard.press('Escape');
+  await sleep(500);
 
   step(
-    'both off: bars and styles gone',
-    await cp.evaluate(() => !document.querySelector('#__sve-xray-bar, #__sve-design-bar, #__sve-xray-style, #__sve-design-style')),
+    'both off: bar, dropdown and styles gone, icons not lit',
+    await cp.evaluate(
+      () =>
+        !document.querySelector('#__sve-xray-bar, #__sve-xray-style, #__sve-design-menu') &&
+        ['xray', 'design_overlay'].every((k) => document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') !== 'true'),
+    ),
   );
   step('no page errors', !errors.length, errors.slice(0, 5).join(' | '));
 } catch (err) {
