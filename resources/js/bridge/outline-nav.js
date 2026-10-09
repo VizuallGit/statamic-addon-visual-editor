@@ -5,7 +5,7 @@
 import { HT_PATH_ATTR, unstampHtmlPick } from '../html-pick-align.js';
 import { handleAiTextMessage, initAiText } from '../ai-text-bridge.js';
 import { bridgeState } from '../bridge/state.js';
-import { ACTIVE_ATTR, HOVER_ATTR, PULSE_DURATION, SECTION_ORDERABLE_ATTR, SID_ATTR, SID_FIELD_ATTR, STYLES_ID, t } from '../bridge.js';
+import { ACTIVE_ATTR, HOVER_ATTR, PULSE_DURATION, SECTION_ORDERABLE_ATTR, SID_ATTR, SID_FIELD_ATTR, t } from '../bridge.js';
 import { applyOutlineTone, createDragPointerDown, createDragPointerMove, createDragPointerUp, endDrag, parseCssColor, restoreZoom, solidBackgroundFor, zoomOutForDrag } from './drag.js';
 import { COMPONENT_NAME, COMPONENT_SRC, applyComponentFocus, applyComponentMap, applyHtmlPick, pointAnchor } from './component-pick.js';
 import { applyRowCaps, hideMoveControl } from './row-caps-move.js';
@@ -694,11 +694,10 @@ export function initBridge(win = window) {
 
   // The site's live-preview hot-reload script replaces every <style> in <head>
   // on each content update, which strips our injected styles and kills the
-  // dashed outlines until a full refresh. Watch <head> and re-inject.
+  // dashed outlines until a full refresh. Watch <head> and re-inject (each of
+  // our style tags is put back only when it is missing).
   new win.MutationObserver(() => {
-    if (!win.document.getElementById(STYLES_ID)) {
-      injectStyles(win.document);
-    }
+    injectStyles(win.document);
   }).observe(win.document.head, { childList: true });
   blockNavigation(win);
   win.document.addEventListener('click', createClickHandler(win), true);

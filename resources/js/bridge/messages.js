@@ -35,7 +35,40 @@ export function injectCpVariables(doc, win) {
   doc.documentElement.style.setProperty('--sve-hover-color', outlineColor);
 }
 
+// The `__sve-` prefix keeps preview.js's head-style sync from removing it.
+const BASE_STYLES_ID = '__sve-bridge-base';
+
+/**
+ * Rules the site must always be able to override. They sit in a cascade layer
+ * declared first in <head>, so every later layer (Tailwind's utilities) and all
+ * unlayered site CSS beat them, whatever their specificity. Unlayered, our
+ * `position: relative` beat a header's own `absolute` class and dropped the
+ * header into the flow of the page.
+ */
+function injectBaseStyles(doc) {
+  if (doc.getElementById(BASE_STYLES_ID)) {
+    return;
+  }
+
+  const style = doc.createElement('style');
+
+  style.id = BASE_STYLES_ID;
+  style.textContent = `
+        @layer sve-base {
+            /* Anchors the Header/Footer label (::before). A half the site
+               positions itself — absolute, fixed, sticky — anchors it too. */
+            [data-sve-chrome] {
+                position: relative;
+            }
+        }
+    `;
+
+  doc.head.prepend(style);
+}
+
 export function injectStyles(doc) {
+  injectBaseStyles(doc);
+
   if (doc.getElementById(STYLES_ID)) {
     return;
   }
@@ -365,10 +398,8 @@ export function injectStyles(doc) {
         }
         /* Site chrome (header / footer): focus class on <html>. Fade is a FIXED
            scrim on html::after — NOT opacity on main. Morphing body/main used to
-           paint new nodes at full opacity for a frame (= open/close flicker). */
-        [data-sve-chrome] {
-            position: relative;
-        }
+           paint new nodes at full opacity for a frame (= open/close flicker).
+           Its position: relative lives in injectBaseStyles, below the site. */
         [data-sve-chrome]::before {
             content: attr(data-sve-chrome-label);
             position: absolute;
