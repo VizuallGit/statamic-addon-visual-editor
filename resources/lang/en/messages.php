@@ -1147,8 +1147,6 @@ return [
     'xray_spacing' => 'Spacing',
     'xray_type' => 'Type',
     'xray_overflow' => 'Overflow',
-    'xray_gray' => 'Grayscale',
-    'xray_blur' => 'Blur',
     // Design overlay: a design screenshot laid over Live Preview, per page and screen size.
     'design_overlay' => 'Design',
     'design_overlay_tip' => 'Design overlay — lay a screenshot of the design over the page',

@@ -28,6 +28,7 @@ import { HEADER_TOOLBAR_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
 import { paintLpActiveControl } from './lp-panel.js';
 import { bpFromWidth, breakpoints } from './breakpoints.js';
 import { designAllowed, fitWidth, readDesignPrefs, writeDesignPrefs } from './cp/design/prefs.js';
+import { followFrame, mountBar, placeBar as placeBarOver } from './cp/preview-bar.js';
 
 export { designAllowed };
 
@@ -56,6 +57,8 @@ const live = {
   listing: null,
   /** The size the file picker is choosing for. */
   target: null,
+  /** The bar, beside the frame inside Live Preview (cp/preview-bar.js). */
+  bar: null,
   busy: false,
   status: '',
 };
@@ -162,11 +165,9 @@ function detachPreview() {
 
 function teardown() {
   detachPreview();
-
-  const doc = live.win?.document;
-
-  doc?.getElementById(BAR_ID)?.remove();
-  doc?.getElementById(STYLE_ID)?.remove();
+  live.bar?.remove();
+  live.bar?.ownerDocument.getElementById(STYLE_ID)?.remove();
+  live.bar = null;
   live.entry = null;
   live.listing = null;
   live.status = '';
@@ -196,6 +197,7 @@ function attach(win, frame, doc) {
 
   listen(frame, 'load', () => syncDesignToPreview(win));
   listen(win, 'resize', placeBar);
+  followFrame(win, frame, placeBar, listen);
 }
 
 /** The size the preview is showing, by its width — the same rule the rest of the editor uses. */
@@ -423,15 +425,15 @@ function sizeLabel(win, handle) {
 
 const BAR_CSS = `
 #${BAR_ID} {
-  position: fixed;
-  z-index: 2147483000;
+  /* Inside Live Preview at the breakpoint overview's level — see cp/preview-bar.js. */
+  position: absolute;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: .25rem;
   width: max-content;
-  max-width: calc(100vw - 2rem);
   padding: .25rem;
   border-radius: 1.25rem;
   background: rgba(24, 24, 27, .92);
@@ -472,17 +474,19 @@ const BAR_CSS = `
 `;
 
 function ensureBar(win) {
-  const doc = win.document;
+  // The frame's document is the Control Panel's own, except when the Control
+  // Panel itself sits in the overlay's frame — the bar goes where the frame is.
+  const doc = live.frame.ownerDocument;
 
   injectStyle(doc, STYLE_ID, BAR_CSS);
 
-  let bar = doc.getElementById(BAR_ID);
+  if (live.bar) {
+    mountBar(live.bar, live.frame);
 
-  if (bar) {
     return;
   }
 
-  bar = doc.createElement('div');
+  const bar = doc.createElement('div');
   bar.id = BAR_ID;
   bar.setAttribute('role', 'toolbar');
   bar.setAttribute('aria-label', t(win, 'design_overlay'));
@@ -559,14 +563,13 @@ function ensureBar(win) {
     void upload(win, currentSize(), e.dataTransfer?.files?.[0]);
   });
 
-  // Appended to <body>, never inside Live Preview's own markup: Statamic
-  // re-renders that, and its stacking contexts would trap a fixed element.
-  doc.body.appendChild(bar);
+  live.bar = bar;
+  mountBar(bar, live.frame);
 }
 
 function paintBar() {
   const win = live.win;
-  const bar = win?.document.getElementById(BAR_ID);
+  const bar = live.bar;
 
   if (!bar) {
     return;
@@ -593,7 +596,7 @@ function paintBar() {
 
   const range = bar.querySelector('[data-sve-design-opacity] input');
 
-  if (range && win.document.activeElement !== range) {
+  if (range && bar.ownerDocument.activeElement !== range) {
     range.value = String(prefs.opacity);
   }
 
@@ -620,45 +623,9 @@ function paintBar() {
   }
 }
 
-/** Top centre of the preview frame, in the Control Panel window's coordinates. */
+/** Top centre of the visible part of the preview frame. */
 function placeBar() {
-  const win = live.win;
-  const bar = win?.document.getElementById(BAR_ID);
-  const frame = live.frame;
-
-  if (!bar) {
-    return;
+  if (live.bar && live.frame) {
+    placeBarOver(live.bar, live.frame, 'top');
   }
-
-  if (!frame?.isConnected) {
-    bar.hidden = true;
-
-    return;
-  }
-
-  const rect = frame.getBoundingClientRect();
-  let dx = 0;
-  let dy = 0;
-  const host = frame.ownerDocument.defaultView;
-
-  if (host && host !== win) {
-    try {
-      const outer = host.frameElement?.getBoundingClientRect();
-
-      dx = outer?.left || 0;
-      dy = outer?.top || 0;
-    } catch {
-      /* cross-origin — never the case for Live Preview */
-    }
-  }
-
-  if (rect.width < 1 || rect.height < 1) {
-    bar.hidden = true;
-
-    return;
-  }
-
-  bar.hidden = false;
-  bar.style.left = `${Math.round(dx + rect.left + rect.width / 2)}px`;
-  bar.style.top = `${Math.round(dy + rect.top + 12)}px`;
 }

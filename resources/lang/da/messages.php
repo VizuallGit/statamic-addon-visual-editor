@@ -1142,8 +1142,6 @@ return [
     'xray_spacing' => 'Afstande',
     'xray_type' => 'Typografi',
     'xray_overflow' => 'Overflow',
-    'xray_gray' => 'Gråtoner',
-    'xray_blur' => 'Sløret',
     // Design-overlay: et screenshot af designet lagt over Live Preview, pr. side og skærmstørrelse.
     'design_overlay' => 'Design',
     'design_overlay_tip' => 'Design-overlay — læg et screenshot af designet over siden',

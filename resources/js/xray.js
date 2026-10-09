@@ -22,7 +22,8 @@ import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { HEADER_TOOLBAR_ID, LP_PRIMARY_FLAT } from './lib/ids.js';
 import { paintLpActiveControl } from './lp-panel.js';
-import { XRAY_LAYERS, XRAY_VIEWS, readXrayPrefs, writeXrayPrefs, xrayAllowed } from './cp/xray/prefs.js';
+import { XRAY_LAYERS, readXrayPrefs, writeXrayPrefs, xrayAllowed } from './cp/xray/prefs.js';
+import { followFrame, mountBar, placeBar as placeBarOver } from './cp/preview-bar.js';
 import {
   isEditorNode,
   measureBoxModel,
@@ -40,7 +41,6 @@ import { PROBE_ID, ensureProbe, readTokens } from './cp/xray/tokens.js';
 export { xrayAllowed };
 
 const CANVAS_ID = '__sve-xray-canvas';
-const FILTER_ID = '__sve-xray-filter';
 const BAR_ID = '__sve-xray-bar';
 const STYLE_ID = '__sve-xray-style';
 
@@ -48,7 +48,7 @@ const STYLE_ID = '__sve-xray-style';
  * The nodes X-ray puts in the preview — and the design overlay's image, which
  * sits on <html> beside them. Their own changes are not the page changing.
  */
-const OWN_IDS = new Set([CANVAS_ID, FILTER_ID, PROBE_ID, '__sve-design-overlay']);
+const OWN_IDS = new Set([CANVAS_ID, PROBE_ID, '__sve-design-overlay']);
 const isOwn = (node) => !!node && OWN_IDS.has(node.id);
 
 function isOwnRecord(record) {
@@ -90,6 +90,8 @@ const live = {
   found: { grids: [], flexes: [], boxes: [], texts: [], overflow: [] },
   /** The theme's tokens as the preview resolved them at the last rescan. */
   tokens: { spacing: [], text: [] },
+  /** The layer bar, beside the frame inside Live Preview (cp/preview-bar.js). */
+  bar: null,
   /** The element under the mouse in the preview, and the section it is in. */
   hoverEl: null,
   hoverSection: null,
@@ -196,7 +198,6 @@ function detachPreview() {
   live.raf = 0;
   live.rescanTimer = 0;
   live.canvas?.remove();
-  live.doc?.getElementById(FILTER_ID)?.remove();
   live.doc?.getElementById(PROBE_ID)?.remove();
   live.canvas = live.ctx = null;
   live.doc = live.pwin = live.frame = null;
@@ -207,11 +208,9 @@ function detachPreview() {
 
 function teardown() {
   detachPreview();
-
-  const doc = live.win?.document;
-
-  doc?.getElementById(BAR_ID)?.remove();
-  doc?.getElementById(STYLE_ID)?.remove();
+  live.bar?.remove();
+  live.bar?.ownerDocument.getElementById(STYLE_ID)?.remove();
+  live.bar = null;
 }
 
 function attach(win, frame, doc) {
@@ -270,6 +269,7 @@ function attach(win, frame, doc) {
   // A navigation in the frame is a new document: follow it.
   listen(frame, 'load', () => syncXrayToPreview(win));
   listen(win, 'resize', placeBar);
+  followFrame(win, frame, placeBar, listen);
 
   schedule(true);
 }
@@ -387,45 +387,7 @@ function tick() {
     }
   }
 
-  paintFilter(prefs);
   draw(prefs);
-}
-
-/**
- * Grayscale and blur, as a filter over the page rather than on it.
- *
- * `backdrop-filter` on one fixed sheet changes what is seen behind it and
- * nothing else: the page's own elements keep their styles (a `filter` on
- * them would make every one a containing block and move fixed headers), and
- * the canvas above the sheet keeps its colours, so the lines stay readable
- * on a grey page.
- */
-function paintFilter(prefs) {
-  const doc = live.doc;
-  const parts = [prefs.gray ? 'grayscale(1)' : '', prefs.blur ? 'blur(3px)' : ''].filter(Boolean).join(' ');
-  let sheet = doc.getElementById(FILTER_ID);
-
-  if (!parts) {
-    sheet?.remove();
-
-    return;
-  }
-
-  if (!sheet) {
-    sheet = doc.createElement('div');
-    sheet.id = FILTER_ID;
-    sheet.setAttribute('aria-hidden', 'true');
-    sheet.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147482999;background:transparent;';
-  }
-
-  if (sheet.parentNode !== doc.body) {
-    doc.body.appendChild(sheet);
-  }
-
-  if (sheet.style.backdropFilter !== parts) {
-    sheet.style.backdropFilter = parts;
-    sheet.style.webkitBackdropFilter = parts;
-  }
 }
 
 function draw(prefs) {
@@ -532,8 +494,9 @@ function words(win) {
 
 const BAR_CSS = `
 #${BAR_ID} {
-  position: fixed;
-  z-index: 2147483000;
+  /* Inside Live Preview at the breakpoint overview's level — see cp/preview-bar.js. */
+  position: absolute;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -542,7 +505,6 @@ const BAR_CSS = `
   /* Its own width, not what is left right of its left edge: centred by the
      transform, it would otherwise wrap at half the window. */
   width: max-content;
-  max-width: calc(100vw - 2rem);
   padding: .25rem;
   border-radius: 1.25rem;
   background: rgba(24, 24, 27, .92);
@@ -583,14 +545,15 @@ const BAR_CSS = `
 `;
 
 function ensureBar(win) {
-  const doc = win.document;
+  // The frame's document is the Control Panel's own, except when the Control
+  // Panel itself sits in the overlay's frame — the bar goes where the frame is.
+  const doc = live.frame.ownerDocument;
 
   injectStyle(doc, STYLE_ID, BAR_CSS);
 
-  let bar = doc.getElementById(BAR_ID);
+  if (!live.bar) {
+    const bar = doc.createElement('div');
 
-  if (!bar) {
-    bar = doc.createElement('div');
     bar.id = BAR_ID;
     bar.setAttribute('role', 'toolbar');
     bar.setAttribute('aria-label', t(win, 'xray'));
@@ -601,36 +564,25 @@ function ensureBar(win) {
     title.textContent = t(win, 'xray');
     bar.appendChild(title);
 
-    const separator = () => {
-      const sep = doc.createElement('span');
-
-      sep.dataset.sveXraySep = '';
-      bar.appendChild(sep);
-    };
-
     for (const layer of XRAY_LAYERS) {
-      bar.appendChild(barButton(win, `layer:${layer}`, t(win, `xray_${layer}`)));
+      bar.appendChild(barButton(win, doc, `layer:${layer}`, t(win, `xray_${layer}`)));
     }
 
-    separator();
+    const sep = doc.createElement('span');
 
-    for (const view of XRAY_VIEWS) {
-      bar.appendChild(barButton(win, `layer:${view}`, t(win, `xray_${view}`)));
-    }
-
-    separator();
-    bar.appendChild(barButton(win, 'scope:section', t(win, 'xray_scope_section')));
-    bar.appendChild(barButton(win, 'scope:page', t(win, 'xray_scope_page')));
-    // Appended to <body>, never inside Live Preview's own markup: Statamic
-    // re-renders that, and its stacking contexts would trap a fixed element.
-    doc.body.appendChild(bar);
+    sep.dataset.sveXraySep = '';
+    bar.appendChild(sep);
+    bar.appendChild(barButton(win, doc, 'scope:section', t(win, 'xray_scope_section')));
+    bar.appendChild(barButton(win, doc, 'scope:page', t(win, 'xray_scope_page')));
+    live.bar = bar;
   }
 
+  mountBar(live.bar, live.frame);
   paintBar(win);
 }
 
-function barButton(win, action, label) {
-  const btn = win.document.createElement('button');
+function barButton(win, doc, action, label) {
+  const btn = doc.createElement('button');
 
   btn.type = 'button';
   btn.dataset.sveXray = action;
@@ -656,7 +608,7 @@ function barButton(win, action, label) {
 function paintBar(win) {
   const prefs = readXrayPrefs(win);
 
-  win.document.querySelectorAll(`#${BAR_ID} button[data-sve-xray]`).forEach((btn) => {
+  live.bar?.querySelectorAll('button[data-sve-xray]').forEach((btn) => {
     const [kind, value] = btn.dataset.sveXray.split(':');
     const on = kind === 'layer' ? !!prefs[value] : prefs.scope === value;
 
@@ -664,49 +616,9 @@ function paintBar(win) {
   });
 }
 
-/** Bottom centre of the preview frame, in the Control Panel window's coordinates. */
+/** Bottom centre of the visible part of the preview frame. */
 function placeBar() {
-  const win = live.win;
-  const bar = win?.document.getElementById(BAR_ID);
-  const frame = live.frame;
-
-  if (!bar) {
-    return;
+  if (live.bar && live.frame) {
+    placeBarOver(live.bar, live.frame, 'bottom');
   }
-
-  if (!frame?.isConnected) {
-    bar.hidden = true;
-
-    return;
-  }
-
-  const rect = frame.getBoundingClientRect();
-  let dx = 0;
-  let dy = 0;
-
-  // The preview can sit one frame further in (the Control Panel inside the
-  // overlay): add the offset of the frame that holds it.
-  const host = frame.ownerDocument.defaultView;
-
-  if (host && host !== win) {
-    try {
-      const outer = host.frameElement?.getBoundingClientRect();
-
-      dx = outer?.left || 0;
-      dy = outer?.top || 0;
-    } catch {
-      /* cross-origin — never the case for Live Preview */
-    }
-  }
-
-  if (rect.width < 1 || rect.height < 1) {
-    bar.hidden = true;
-
-    return;
-  }
-
-  // Shown before it is measured: a hidden bar is 0 high and would sit too low.
-  bar.hidden = false;
-  bar.style.left = `${Math.round(dx + rect.left + rect.width / 2)}px`;
-  bar.style.top = `${Math.round(dy + rect.bottom - bar.offsetHeight - 12)}px`;
 }

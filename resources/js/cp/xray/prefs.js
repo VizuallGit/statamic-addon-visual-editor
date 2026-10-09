@@ -19,9 +19,6 @@ const KEY = 'sve-xray';
 /** Every layer the bar can switch, in the order it shows them. */
 export const XRAY_LAYERS = ['grid', 'flex', 'boxes', 'spacing', 'type', 'overflow', 'names'];
 
-/** Ways of looking at the page itself, not drawn on it: no colour, out of focus. */
-export const XRAY_VIEWS = ['gray', 'blur'];
-
 export const XRAY_DEFAULTS = Object.freeze({
   on: false,
   grid: true,
@@ -33,8 +30,6 @@ export const XRAY_DEFAULTS = Object.freeze({
   // Draws nothing unless something is wrong.
   overflow: true,
   names: true,
-  gray: false,
-  blur: false,
   // The section being edited, not the whole page: on a long page the whole
   // page is a wall of lines, and the section is what the dock is writing.
   scope: 'section',
@@ -57,7 +52,7 @@ export function readXrayPrefs(win = window) {
     if (stored && typeof stored === 'object') {
       const out = { ...XRAY_DEFAULTS };
 
-      for (const key of [...XRAY_LAYERS, ...XRAY_VIEWS, 'on']) {
+      for (const key of [...XRAY_LAYERS, 'on']) {
         if (typeof stored[key] === 'boolean') {
           out[key] = stored[key];
         }
