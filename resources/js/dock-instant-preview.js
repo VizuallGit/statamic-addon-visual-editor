@@ -685,6 +685,15 @@
         return cls.indexOf(' ' + classFromType(type) + ' ') !== -1;
     }
 
+    /**
+     * Whether the dock's file is a component: a partial that is neither a
+     * page section nor a half of the site frame. Its places in the preview
+     * are the ones the bridge marks (`componentInstances`), never a guess.
+     */
+    function isComponentFile(root) {
+        return /\/views\/partials\//.test(dockPath()) && !dockSectionType() && !chromeKindOfFile(root);
+    }
+
     /** The file the dock shows, as its element names it. */
     function dockPath() {
         var el = document.querySelector('#' + DOCK_ID + ' [data-sve-code-path]');
@@ -2843,6 +2852,17 @@
                     syncClasses(focused[i], root);
                 }
             }
+
+            return;
+        }
+
+        // A component's places are the ones the preview marks. None on the
+        // page — a dialog shut, so its body is not drawn — leaves nothing of
+        // this file to paint. Read further, the section rules below guessed
+        // an element by tag and morphed the component into it: a shut
+        // dialog's body stood in the section, outside the dialog, unstyled.
+        if (isComponentFile(root)) {
+            trace('paintLive: no instance of the component on the page; left to the morph');
 
             return;
         }
