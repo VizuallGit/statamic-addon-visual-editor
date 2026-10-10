@@ -9,14 +9,17 @@
  * a dialog left open before lunch is still open after it. Only what differs
  * from the file is kept; set back to the file's own value, the entry goes.
  * The preview asks for the states when its bridge boots, and gets one
- * message per state of every section on the page whose file has one — not
- * only the file the dock has open, because after a reload nothing is open yet.
+ * message per state of every section on the page whose file has one, and of
+ * the header's, the footer's and the layout's files — not only the file the
+ * dock has open, because after a reload nothing is open yet. The mobile menu
+ * in the header (`x-data="{ menuOpen: false }"`) is the commonest of them.
  *
  * A copy of the preview — one of the breakpoint overview's frames — knows no
  * states either, and it never asks: the overview asks for it over the bus
  * (`alpine-states:sync`, with the copy's window) once the copy has loaded.
  */
-import { on } from './cp/bus.js';
+import { ask, on } from './cp/bus.js';
+import { LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { pageSectionRows } from './lib/publish-containers.js';
@@ -56,6 +59,36 @@ function statesOf(file) {
   return out;
 }
 
+/**
+ * The part of the page's frame a dock file draws — what the preview counts
+ * its components in — from the dock's own word for it (`dock:chrome-kind`):
+ * 'header', 'footer', or 'layout' for its 'main'. '' for a section, a
+ * template or a component, which the preview finds by the section's uid.
+ */
+export function frameScope(kind) {
+  return kind === 'header' || kind === 'footer' ? kind : kind === 'main' ? 'layout' : '';
+}
+
+/**
+ * The file each part of the frame is drawn from, by the name the dock gives
+ * it — the name its states are remembered under. The layout is one file. A
+ * half is the partial the server found `data-sve-chrome` on
+ * (`sveChromeTemplates`) or, while the dock holds that half, the dock's file:
+ * the half's form may have picked another layout than the saved one, and the
+ * preview draws the form.
+ */
+function frameFiles(win) {
+  const templates = win.Statamic?.$config?.get?.('sveChromeTemplates') || {};
+  const files = { header: templates.header?.type || '', footer: templates.footer?.type || '', layout: LAYOUT_TEMPLATE_TYPE };
+  const open = frameScope(String(ask('dock:chrome-kind') || ''));
+
+  if (open) {
+    files[open] = String(ask('dock:current-type') || '');
+  }
+
+  return files;
+}
+
 /** The set states of one file, by its `x-data` tags' order in it. */
 export function alpineStates(win, type) {
   return statesOf(type ? readStates(win)[type] : null);
@@ -83,8 +116,10 @@ export function rememberAlpineStates(win, type, states) {
 
 /**
  * Every remembered state, told to the preview: one message per state of every
- * section on the page whose file has one. Setting a value a component already
- * has changes nothing, so this is safe to send on every boot and every draw.
+ * section on the page whose file has one — named by the section's ids — and
+ * of the header's, the footer's and the layout's files, named by the part of
+ * the frame (`chrome`). Setting a value a component already has changes
+ * nothing, so this is safe to send on every boot and every draw.
  */
 export function syncStoredAlpineStates(win, doc = win.document, target = previewFrame(doc)?.contentWindow) {
   const states = readStates(win);
@@ -93,15 +128,20 @@ export function syncStoredAlpineStates(win, doc = win.document, target = preview
     return;
   }
 
-  for (const row of pageSectionRows(win, doc)) {
-    for (const [nth, keys] of Object.entries(statesOf(states[row.type]))) {
+  const send = (scope, file) => {
+    for (const [nth, keys] of Object.entries(statesOf(file))) {
       for (const [key, value] of Object.entries(keys)) {
-        target.postMessage(
-          { source: SOURCE, type: MSG.SVE_ALPINE_STATE, uid: row.ids[0], uids: row.ids, nth: Number(nth), key, value, on: true },
-          win.location.origin
-        );
+        target.postMessage({ source: SOURCE, type: MSG.SVE_ALPINE_STATE, ...scope, nth: Number(nth), key, value, on: true }, win.location.origin);
       }
     }
+  };
+
+  for (const row of pageSectionRows(win, doc)) {
+    send({ uid: row.ids[0], uids: row.ids }, states[row.type]);
+  }
+
+  for (const [chrome, type] of Object.entries(frameFiles(win))) {
+    send({ chrome }, states[type]);
   }
 }
 

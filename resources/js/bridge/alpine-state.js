@@ -5,9 +5,10 @@
  * them cannot be built while they are shut, and the only way to see it used
  * to be writing `true` into the file and putting `false` back before going
  * live. The tree's Alpine icon sets the boolean on the component's own data
- * instead. The state lives in the bridge, keyed by section, by which of its
- * `[x-data]` elements and by key, so a morph — which redraws the section — is
- * followed by the state put back.
+ * instead. The state lives in the bridge, keyed by section — or by the part
+ * of the page's frame the file draws: the header, the footer, the layout —
+ * by which of its `[x-data]` elements and by key, so a morph — which redraws
+ * the section — is followed by the state put back.
  *
  * Nothing here reaches the file; the site keeps its own defaults.
  */
@@ -16,6 +17,15 @@ import { SID_ATTR } from '../lib/ids.js';
 import { sidElement } from '../html-pick-align.js';
 
 const COMPONENT = '[x-data]';
+/**
+ * The attribute a half of the site frame carries in the preview (`CHROME_ATTR`
+ * in global-sections.js). Spelled here, not imported: mirror.js bundles its
+ * own copy of everything this module imports, and global-sections.js would
+ * bring half the bridge into every breakpoint frame.
+ */
+const CHROME_ATTR = 'data-sve-chrome';
+/** The parts of the page's frame a state may name in place of a section. */
+const FRAME_PARTS = ['header', 'footer', 'layout'];
 
 /**
  * The Alpine components a state speaks of: those of the section `uid` names,
@@ -40,9 +50,43 @@ function componentsOf(doc, uid, uids = []) {
   return scope.matches(COMPONENT) ? [scope, ...inside] : inside;
 }
 
+/**
+ * The Alpine components of a part of the page's frame, in document order —
+ * the order the tree counts that part's file in.
+ *
+ * A half is the element carrying `data-sve-chrome="header"` (or `footer`).
+ * The file the dock opens for it is the partial that writes that element
+ * (ScriptChrome::templates), and the tree counts that file from the element
+ * too, so it comes first when it is a component itself. (A site whose marked
+ * wrapper picks a styled partial through `{half}_style` opens the styled
+ * partial: the wrapper's own components come first here and not in the file.)
+ * A half the site does not draw has no components.
+ *
+ * The layout owns what is neither a page section nor a half: `<html>` and
+ * `<body>` when they are components, and every component in the body that
+ * stands outside both.
+ */
+function frameComponentsOf(doc, part) {
+  if (part === 'layout') {
+    return [doc.documentElement, doc.body, ...doc.body.querySelectorAll(COMPONENT)].filter(
+      (el) => el.matches(COMPONENT) && !el.closest(`[${CHROME_ATTR}]`) && !el.closest(`[${SID_ATTR}]`)
+    );
+  }
+
+  const scope = doc.querySelector(`[${CHROME_ATTR}="${part}"]`);
+
+  if (!scope) {
+    return [];
+  }
+
+  const inside = [...scope.querySelectorAll(COMPONENT)];
+
+  return scope.matches(COMPONENT) ? [scope, ...inside] : inside;
+}
+
 /** The components one state speaks of. */
 function targetsOf(doc, item) {
-  const components = componentsOf(doc, item.uid, item.uids);
+  const components = item.chrome ? frameComponentsOf(doc, item.chrome) : componentsOf(doc, item.uid, item.uids);
 
   // A loop draws more components than the file has tags: the nth past the
   // end means every one of them.
@@ -62,9 +106,15 @@ function dataOf(win, el, key) {
   return data && key in data ? data : null;
 }
 
+/**
+ * `chrome` names a part of the page's frame — the dock's file is the header,
+ * the footer or the layout, none of which is a section with a uid — and is
+ * then the state's scope; otherwise `uid`/`uids` name the section.
+ */
 export function setAlpineState(win, data) {
-  const uid = typeof data.uid === 'string' ? data.uid : '';
-  const uids = Array.isArray(data.uids) ? data.uids.filter((id) => typeof id === 'string') : [];
+  const chrome = FRAME_PARTS.includes(data.chrome) ? data.chrome : '';
+  const uid = !chrome && typeof data.uid === 'string' ? data.uid : '';
+  const uids = !chrome && Array.isArray(data.uids) ? data.uids.filter((id) => typeof id === 'string') : [];
   const nth = Number.isInteger(data.nth) ? data.nth : null;
   const key = typeof data.key === 'string' ? data.key : '';
 
@@ -72,7 +122,7 @@ export function setAlpineState(win, data) {
     return;
   }
 
-  const item = { uid, uids, nth, key, value: data.value };
+  const item = { uid, uids, chrome, nth, key, value: data.value };
   const targets = targetsOf(win.document, item);
   const reached = new Set(targets);
 
@@ -88,7 +138,8 @@ export function setAlpineState(win, data) {
   });
 
   if (data.on) {
-    bridgeState.alpineStates.set(`${uid}:${nth === null ? '*' : nth}:${key}`, item);
+    // A part of the frame under its own prefix: no section's uid can be it.
+    bridgeState.alpineStates.set(`${chrome ? `chrome:${chrome}` : uid}:${nth === null ? '*' : nth}:${key}`, item);
   }
 
   // `on: false` carries the file's own value: the component goes back to it.

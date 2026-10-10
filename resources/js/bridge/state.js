@@ -12,7 +12,8 @@ export const bridgeState = {
   // Videos the tree holds paused in the preview, by `uid:nth` — kept across
   // morphs, which redraw the section around a video that would start again.
   videoHolds: new Map(),
-  // Alpine booleans the tree has set in the preview, by `uid:nth:key` — put
+  // Alpine booleans the tree has set in the preview, by `uid:nth:key` — or
+  // `chrome:header:nth:key` for the header, footer and layout files — put
   // back after morphs, which redraw what an effect built from them.
   alpineStates: new Map(),
   pickAwait: null,

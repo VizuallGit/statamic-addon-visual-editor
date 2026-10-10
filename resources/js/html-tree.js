@@ -10,7 +10,7 @@ import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
 import { heldVideos, rememberVideoHolds, syncStoredVideoHolds } from './video-holds.js';
-import { alpineStates, rememberAlpineStates, syncStoredAlpineStates } from './alpine-states.js';
+import { alpineStates, frameScope, rememberAlpineStates, syncStoredAlpineStates } from './alpine-states.js';
 import { alpineBooleans, xDataOf } from './lib/alpine-booleans.js';
 import { ask, on, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
@@ -1757,10 +1757,10 @@ export function renderHtmlTree(win) {
   // that the first <header>/<footer>. Not simply the file's first tag — a
   // scope like {{ site_foot }}, a style block or a comment may stand around
   // it, and the tree stands on the element, as it stands on <main>.
-  const chromeNode = frameKind === 'header' || frameKind === 'footer'
+  const chromeMarker = frameKind === 'header' || frameKind === 'footer'
     ? findNodeWhere(roots, (node) => html.slice(node.from, node.openTo).includes(`data-sve-chrome="${frameKind}"`))
-      || findNodeByTag(roots, frameKind)
     : null;
+  const chromeNode = chromeMarker || (frameKind === 'header' || frameKind === 'footer' ? findNodeByTag(roots, frameKind) : null);
 
   if (chromeNode) {
     expandHtmlTreePath(chromeNode.path);
@@ -1967,7 +1967,10 @@ export function renderHtmlTree(win) {
 
   const held = heldVideos(win, String(ask('dock:current-type') || ''));
   let videoIndex = 0;
-  const alpine = alpineComponents(roots, html);
+  // The preview counts a half's components inside the element carrying
+  // data-sve-chrome (bridge/alpine-state.js); on the file that writes it, so
+  // does the tree. A tag written beside it is drawn outside the half.
+  const alpine = alpineComponents(chromeMarker ? [chromeMarker] : roots, html);
   const alpineSaved = alpineStates(win, String(type));
   // On the header's or footer's own file the root row IS that half's row in
   // the frame: named as the half, with no move, no copy, no bin — a header is
@@ -2720,7 +2723,8 @@ function toggleVideoHold(win, id) {
 /**
  * The file's Alpine components, by node id: which of its `x-data` tags each
  * one is, in document order — the order the preview counts `[x-data]` in a
- * section — and the booleans it starts with. Counted over the whole file, not
+ * section, a half of the frame or the layout — and the booleans it starts
+ * with. Counted over the whole file (a half's file: its marked element), not
  * the rows on screen: folding a branch must not change which component a
  * number names. A commented-out tag is not in the preview and is not counted.
  */
@@ -2792,6 +2796,9 @@ function openAlpineState(win, event, id) {
  * keeps its own default; only what the editor shows does. Set back to the
  * file's value, the remembered state goes and the preview is told to put the
  * file's value back.
+ *
+ * The header, the footer and the layout are no section and have no uid: the
+ * preview is told which part of the frame the file draws (`chrome`) instead.
  */
 function flipAlpineState(win, row, item) {
   const type = String(ask('dock:current-type') || '');
@@ -2812,10 +2819,11 @@ function flipAlpineState(win, row, item) {
     delete states[row.alpineNth];
   }
 
-  const uid = String(ask('dock:current-uid') || '');
+  const chrome = frameScope(String(ask('dock:chrome-kind') || ''));
+  const uid = chrome ? '' : String(ask('dock:current-uid') || '');
 
   rememberAlpineStates(win, type, states);
-  sendToPreview({ source: SOURCE, type: MSG.SVE_ALPINE_STATE, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], nth: row.alpineNth, key: item.key, value, on }, win);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_ALPINE_STATE, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], chrome, nth: row.alpineNth, key: item.key, value, on }, win);
   renderHtmlTree(win);
 }
 

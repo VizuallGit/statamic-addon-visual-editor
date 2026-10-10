@@ -187,3 +187,127 @@ test('the last word on a component’s key wins, whatever section name it came u
   assert.equal(bridgeState.alpineStates.size, 0, 'the state under the old name is gone too');
   assert.equal(first.proxy.open, false);
 });
+
+/**
+ * A whole document: a header with a menu, a page section with a component of
+ * its own, a footer only when asked for, and components of the layout around
+ * them — on `<html>`, `<body>`, a wrapper around the sections and one after
+ * the footer.
+ */
+function framePage({ footer = false } = {}) {
+  const made = {};
+  const component = (name, initial, attrs = {}, children = []) => {
+    made[name] = data(initial);
+
+    return new El({ 'x-data': '', ...attrs }, children, made[name].proxy);
+  };
+
+  const header = component('header', { menuOpen: false }, { 'data-sve-chrome': 'header' }, [
+    new El({}, [component('search', { open: false })]),
+    // A block of the header's global: marked like a section, still the header's.
+    new El({ 'data-sid': 'head-block' }, [component('headerBlock', { open: false })]),
+  ]);
+  const section = new El({ 'data-sid': 'sec-1' }, [component('sectionDialog', { open: false })]);
+  const wrapper = component('wrapper', { open: false }, {}, [section]);
+  const footerEl = footer
+    ? new El({ 'data-sve-chrome': 'footer' }, [component('footerMenu', { open: false })])
+    : new El({}, []);
+  const after = component('after', { open: false });
+  const body = component('body', { open: false }, {}, [header, wrapper, footerEl, after]);
+  const html = component('html', { open: false }, {}, [new El({}, []), body]);
+  const doc = new El({}, [html]);
+
+  doc.documentElement = html;
+  doc.body = body;
+
+  const win = { document: doc, Alpine: { $data: (el) => el.data || {} }, queueMicrotask };
+
+  return { win, made };
+}
+
+const written = (made) => Object.fromEntries(Object.entries(made).filter(([, item]) => item.writes.length).map(([name, item]) => [name, item.writes]));
+
+test('chrome: header — the marked element is the first component, then what is inside it', () => {
+  const reached = [[0, 'menuOpen'], [1, 'open'], [2, 'open']].map(([nth, key]) => {
+    const { win, made } = framePage();
+
+    bridgeState.alpineStates.clear();
+    setAlpineState(win, { uid: '', chrome: 'header', nth, key, value: true, on: true });
+
+    return { written: written(made), names: [...bridgeState.alpineStates.keys()] };
+  });
+
+  assert.deepEqual(reached, [
+    { written: { header: ['menuOpen=true'] }, names: ['chrome:header:0:menuOpen'] },
+    { written: { search: ['open=true'] }, names: ['chrome:header:1:open'] },
+    // A block of the header's global is marked like a section and still the header's.
+    { written: { headerBlock: ['open=true'] }, names: ['chrome:header:2:open'] },
+  ]);
+});
+
+test('chrome: layout — <html>, <body> and what is outside the sections and the halves, in document order', () => {
+  // Nothing in a section, the header or the footer is the layout's.
+  const reached = [0, 1, 2, 3].map((nth) => {
+    const { win, made } = framePage({ footer: true });
+
+    bridgeState.alpineStates.clear();
+    setAlpineState(win, { chrome: 'layout', nth, key: 'open', value: true, on: true });
+
+    return written(made);
+  });
+
+  assert.deepEqual(reached, [
+    { html: ['open=true'] },
+    { body: ['open=true'] },
+    { wrapper: ['open=true'] },
+    { after: ['open=true'] },
+  ]);
+});
+
+test('chrome: layout — nth past the end reaches only the layout’s own components', () => {
+  const { win, made } = framePage({ footer: true });
+
+  setAlpineState(win, { chrome: 'layout', nth: 9, key: 'open', value: true, on: true });
+
+  assert.deepEqual(Object.keys(written(made)).sort(), ['after', 'body', 'html', 'wrapper']);
+});
+
+test('chrome: a half the page does not draw — nothing is set, the state waits for it', () => {
+  const { win, made } = framePage();
+
+  setAlpineState(win, { chrome: 'footer', nth: 0, key: 'open', value: true, on: true });
+  applyAlpineStates(win);
+
+  assert.deepEqual(written(made), {});
+  assert.deepEqual([...bridgeState.alpineStates.keys()], ['chrome:footer:0:open']);
+});
+
+test('chrome: a state of the header and one of a section never share a name', () => {
+  const { win } = framePage();
+
+  setAlpineState(win, { uid: 'sec-1', uids: ['sec-1'], nth: 0, key: 'open', value: true, on: true });
+  setAlpineState(win, { chrome: 'header', nth: 1, key: 'open', value: true, on: true });
+
+  assert.deepEqual([...bridgeState.alpineStates.keys()].sort(), ['chrome:header:1:open', 'sec-1:0:open']);
+});
+
+test('chrome: an unknown part is no part — and a uid sent with one is not read', () => {
+  const { win, made } = framePage();
+
+  setAlpineState(win, { chrome: 'main', nth: 0, key: 'open', value: true, on: true });
+  setAlpineState(win, { chrome: 'header', uid: 'sec-1', nth: 0, key: 'open', value: true, on: true });
+
+  assert.deepEqual(written(made), {}, 'the header’s first component has no `open`; the section is not reached');
+});
+
+test('chrome: after a morph the header’s state is flipped and set back like a section’s', async () => {
+  const { win, made } = framePage();
+
+  setAlpineState(win, { chrome: 'header', nth: 0, key: 'menuOpen', value: true, on: true });
+  made.header.writes.length = 0;
+
+  applyAlpineStates(win);
+  await Promise.resolve();
+
+  assert.deepEqual(made.header.writes, ['menuOpen=false', 'menuOpen=true']);
+});

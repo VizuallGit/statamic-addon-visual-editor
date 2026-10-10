@@ -88,7 +88,8 @@ export const MSG = Object.freeze({
   SVE_ACTIVATE: 'sve-activate',
   SVE_ACTIVATE_TAB: 'sve-activate-tab',
   // CP → preview: a boolean in an Alpine component's x-data set in the preview
-  // — `uid` names the section, `nth` which of its [x-data] elements, `key`
+  // — `uid` names the section, or `chrome` ('header' | 'footer' | 'layout')
+  // the part of the page's frame, `nth` which of its [x-data] elements, `key`
   // the boolean; `on: false` puts back the file's own `value`.
   SVE_ALPINE_STATE: 'sve-alpine-state',
   // Preview → CP, at boot: send me the remembered Alpine states.
