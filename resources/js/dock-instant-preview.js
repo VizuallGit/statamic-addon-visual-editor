@@ -1748,6 +1748,19 @@
         var counts = {};
         var consumed = [];
         var dynamicParent = hasMarker(directText(tpl));
+
+        // An element the file leaves empty renders empty from the server. What
+        // is in it on the page, the page's own script put there — Alpine
+        // copying a dialog's body in from a <template>, an x-html — and it is
+        // not the template's to move or remove. It used to be read as live
+        // children the template no longer has: lifted up through every parent
+        // that names their tag and unwrapped at the top, so the body of a shut
+        // dialog stood in the section, outside the dialog. A child deleted in
+        // the dock from such an element goes with the morph a second later.
+        if (!tplKids.length && directText(tpl).trim() === '' && elementKids(live).length) {
+            return;
+        }
+
         // In a static parent every child is one node for one: paired in order,
         // by how alike they are. In a dynamic one a loop may have rendered many
         // from one template child, and the pairing is by tag.
