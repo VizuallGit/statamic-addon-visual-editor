@@ -4,7 +4,8 @@
  * Rollup puts a module that two entries share into a chunk of its own, which
  * both entries then load. resources/js/mirror.js — the breakpoint overview's
  * copies of the preview — reuses the preview's morph (preview.js) and the
- * bridge's video hold (bridge/video-hold.js). Left to Rollup, those modules
+ * bridge's video hold and Alpine state (bridge/video-hold.js,
+ * bridge/alpine-state.js). Left to Rollup, those modules
  * would become chunks that preview.js and bridge.js import too, and every
  * Live Preview would load one file more to serve an overview that is closed.
  *

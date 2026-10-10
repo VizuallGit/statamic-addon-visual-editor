@@ -61,6 +61,9 @@ const VIDEO =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.8 5.9v4.2L10.2 8Z" fill="currentColor" stroke="none"/></svg>';
 const VIDEO_OFF =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.3 5.8v4.4M9.7 5.8v4.4" stroke-linecap="round"/></svg>';
+// A switch, in the eye's box and stroke: a state of the component, not of the file.
+const ALPINE =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="2"/></svg>';
 // A lock and an open lock, drawn in the same band as the bin and the copy
 // (4–20 of 24) so the four icons read as one size.
 const LOCK_ON =
@@ -371,6 +374,24 @@ function canAct(row) {
         :title="row.videoHeld ? ui.videoPlayTitle : ui.videoHoldTitle"
         v-html="row.videoHeld ? VIDEO_OFF : VIDEO"
         @click.stop.prevent="ui.onVideoHold?.(row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
+      <!--
+        An Alpine component whose x-data has booleans — a dialog's `open`, a
+        menu's `menuOpen`: set one in the preview, so what is behind it can be
+        built. One boolean, one press; several, a menu of them. Not behind the
+        lock, like the video: the file is not touched. Lit while the preview
+        shows something the file does not.
+      -->
+      <button
+        v-if="row.alpineNth >= 0"
+        type="button"
+        data-sve-ht-alpine
+        :data-on="row.alpineSet ? '' : null"
+        :title="ui.alpineTitle"
+        v-html="ALPINE"
+        @click.stop.prevent="ui.onAlpineState?.($event, row.id)"
         @pointerdown.stop
         @dblclick.stop
       ></button>

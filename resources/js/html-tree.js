@@ -10,6 +10,8 @@ import { chromeGlobalHandle } from './globals-panel.js';
 import { sveState } from './cp-state.js';
 import { applyHeaderTab, sendToPreview, setHeaderTab, topLevelSectionIds } from './cp.js';
 import { heldVideos, rememberVideoHolds, syncStoredVideoHolds } from './video-holds.js';
+import { alpineStates, rememberAlpineStates, syncStoredAlpineStates } from './alpine-states.js';
+import { alpineBooleans, xDataOf } from './lib/alpine-booleans.js';
 import { ask, on, register } from './cp/bus.js';
 import { mountPane } from './cp/mount-pane.js';
 import { RIGHT_PANEL_FILL, releaseRightShellIfEmpty, showInRightShell } from './right-dock.js';
@@ -443,6 +445,7 @@ export function ensureHtmlTreeStyles(doc) {
     }
     [data-sve-ht-lock],
     [data-sve-ht-video],
+    [data-sve-ht-alpine],
     [data-sve-ht-eye],
     [data-sve-ht-fields],
     [data-sve-ht-dup],
@@ -459,13 +462,16 @@ export function ensureHtmlTreeStyles(doc) {
       opacity: .7;
       border-radius: 4px;
     }
-    /* Held: lit like a hovered icon, in the row's own text colour — not an accent. */
-    [data-sve-ht-video][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
+    /* Held: lit like a hovered icon, in the row's own text colour — not an accent.
+       An Alpine state set away from the file is lit the same way. */
+    [data-sve-ht-video][data-on],
+    [data-sve-ht-alpine][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
     /* Locked: the padlock shut and lit, on the row that holds the lock. */
     [data-sve-ht-lock][data-on] { opacity: 1; background: rgba(255,255,255,.14); }
     [data-sve-ht-lock][disabled] { cursor: default; }
     [data-sve-ht-lock]:not([disabled]):hover,
     [data-sve-ht-video]:hover,
+    [data-sve-ht-alpine]:hover,
     [data-sve-ht-eye]:hover,
     [data-sve-ht-fields]:hover,
     [data-sve-ht-dup]:hover,
@@ -735,6 +741,7 @@ export function ensureHtmlTreeStyles(doc) {
     }
     [data-sve-ht-look="tags"] [data-sve-ht-row][data-sve-ht-current] [data-sve-ht-name] { opacity: 1; }
     [data-sve-ht-look="tags"] [data-sve-ht-video]:hover,
+    [data-sve-ht-look="tags"] [data-sve-ht-alpine]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-eye]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-fields]:hover,
     [data-sve-ht-look="tags"] [data-sve-ht-dup]:hover,
@@ -807,6 +814,7 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-fields] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-dup] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-lock] svg,
+    [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-alpine] svg,
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-del] svg { width: 0.625rem; height: 0.625rem; }
     [data-sve-ht-look="tags"][data-sve-ht-layers] [data-sve-ht-video] svg { width: 0.75rem; height: 0.75rem; }
   `);
@@ -1788,6 +1796,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.deleteTitle = t(win, 'html_tree_delete');
   htmlTreeUi.videoHoldTitle = t(win, 'html_tree_video_hold');
   htmlTreeUi.videoPlayTitle = t(win, 'html_tree_video_play');
+  htmlTreeUi.alpineTitle = t(win, 'html_tree_alpine_state');
   htmlTreeUi.lockedTitle = t(win, 'html_tree_locked');
   htmlTreeUi.searchEmpty = t(win, 'html_tree_search_empty');
   htmlTreeUi.canEdit = !ask('dock:is-locked');
@@ -1853,6 +1862,7 @@ export function renderHtmlTree(win) {
   htmlTreeUi.unlockTitle = t(win, 'html_tree_unlock');
   htmlTreeUi.lockedByTitle = t(win, 'html_tree_locked_by_developer');
   htmlTreeUi.onVideoHold = (id) => toggleVideoHold(win, id);
+  htmlTreeUi.onAlpineState = (event, id) => openAlpineState(win, event, id);
   htmlTreeUi.onDuplicate = (id) => duplicateHtmlTreeRow(win, id);
   htmlTreeUi.onDelete = (id) => deleteHtmlTreeRow(win, id);
   htmlTreeUi.onPointerDown = (event, id) => beginHtmlTreePointer(win, event, id);
@@ -1957,6 +1967,8 @@ export function renderHtmlTree(win) {
 
   const held = heldVideos(win, String(ask('dock:current-type') || ''));
   let videoIndex = 0;
+  const alpine = alpineComponents(roots, html);
+  const alpineSaved = alpineStates(win, String(type));
   // On the header's or footer's own file the root row IS that half's row in
   // the frame: named as the half, with no move, no copy, no bin — a header is
   // a header. On the layout it is the <main> row; the rest of that file
@@ -2020,6 +2032,13 @@ export function renderHtmlTree(win) {
     // Which of the file's videos this row is, in document order — what the
     // preview is told to hold; -1 for anything that is not a <video>.
     const videoNth = row.tag === 'video' && !row.kind ? videoIndex++ : -1;
+    // An Alpine component with booleans in its x-data: each with the file's
+    // value and the one the preview shows — the file's, until the tree sets it.
+    const xData = alpine.get(row.id);
+    const setHere = xData ? alpineSaved[xData.nth] || {} : {};
+    const alpineKeys = xData
+      ? xData.booleans.map(({ key, value }) => ({ key, file: value, value: setHere[key] ?? value }))
+      : [];
     // What the row is called before a rename. Renaming back to it drops the
     // alias again, so the default must be what the alias is measured against.
     const aroundRoot = !!around && row.id === around.rootId;
@@ -2083,10 +2102,15 @@ export function renderHtmlTree(win) {
       fieldsIcon: !!(isRoot && openSection && !openSection.static),
       videoNth,
       videoHeld: videoNth >= 0 && held.has(videoNth),
+      alpineNth: alpineKeys.length ? xData.nth : -1,
+      alpineKeys,
+      // Lit while the preview shows something the file does not.
+      alpineSet: alpineKeys.some((item) => item.value !== item.file),
     };
   });
 
   syncStoredVideoHolds(win);
+  syncStoredAlpineStates(win);
 
   // The families above each row, one per level, for the guides the tags look
   // draws: the guide under a loop is the loop's colour. Rows come in document
@@ -2690,6 +2714,108 @@ function toggleVideoHold(win, id) {
 
   rememberVideoHolds(win, type, held);
   sendToPreview({ source: SOURCE, type: MSG.SVE_VIDEO_HOLD, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], nth: row.videoNth, on }, win);
+  renderHtmlTree(win);
+}
+
+/**
+ * The file's Alpine components, by node id: which of its `x-data` tags each
+ * one is, in document order — the order the preview counts `[x-data]` in a
+ * section — and the booleans it starts with. Counted over the whole file, not
+ * the rows on screen: folding a branch must not change which component a
+ * number names. A commented-out tag is not in the preview and is not counted.
+ */
+function alpineComponents(roots, html) {
+  const out = new Map();
+  let nth = 0;
+
+  const walk = (nodes) => {
+    for (const node of nodes) {
+      if (node.hidden) {
+        continue;
+      }
+
+      const source = node.kind ? null : xDataOf(html.slice(node.from, node.openTo));
+
+      if (source !== null) {
+        out.set(node.id, { nth: nth++, booleans: alpineBooleans(source) });
+      }
+
+      walk(node.children || []);
+    }
+  };
+
+  walk(roots);
+
+  return out;
+}
+
+/**
+ * The Alpine icon on a row whose x-data has booleans. One boolean: the press
+ * sets it. Several: the row menu lists them, each with a check for what the
+ * preview shows, and a line sets that one.
+ */
+function openAlpineState(win, event, id) {
+  const row = htmlTreeUi.rows.find((item) => item.id === id);
+
+  if (!row || !(row.alpineNth >= 0)) {
+    return;
+  }
+
+  if (row.alpineKeys.length === 1) {
+    flipAlpineState(win, row, row.alpineKeys[0]);
+
+    return;
+  }
+
+  const rect = event.currentTarget.getBoundingClientRect();
+
+  closeHtmlTreeMenu();
+  htmlTreeMenu = openCpOverlay(win.document, HtmlTreeMenu, {
+    items: row.alpineKeys.map((item) => ({
+      label: item.key,
+      icon: item.value ? TOGGLE_ON : TOGGLE_OFF,
+      onPick: () => {
+        closeHtmlTreeMenu();
+        flipAlpineState(win, row, item);
+      },
+    })),
+    x: Math.round(rect.left),
+    y: Math.round(rect.bottom + 4),
+    onClose: () => {
+      htmlTreeMenu = null;
+    },
+  });
+}
+
+/**
+ * Flip one boolean in the preview. Nothing in the file changes — the site
+ * keeps its own default; only what the editor shows does. Set back to the
+ * file's value, the remembered state goes and the preview is told to put the
+ * file's value back.
+ */
+function flipAlpineState(win, row, item) {
+  const type = String(ask('dock:current-type') || '');
+  const states = alpineStates(win, type);
+  const value = !item.value;
+  const on = value !== item.file;
+  const keys = { ...(states[row.alpineNth] || {}) };
+
+  if (on) {
+    keys[item.key] = value;
+  } else {
+    delete keys[item.key];
+  }
+
+  if (Object.keys(keys).length) {
+    states[row.alpineNth] = keys;
+  } else {
+    delete states[row.alpineNth];
+  }
+
+  const uid = String(ask('dock:current-uid') || '');
+
+  rememberAlpineStates(win, type, states);
+  sendToPreview({ source: SOURCE, type: MSG.SVE_ALPINE_STATE, uid, uids: uid ? topLevelSectionIds(uid, win.document) : [], nth: row.alpineNth, key: item.key, value, on }, win);
   renderHtmlTree(win);
 }
 

@@ -8,8 +8,9 @@ import { MIRRORED, MSG } from '../../resources/js/lib/protocol.js';
 /**
  * mirror.js — the breakpoint overview's copies of the preview.
  *
- * What holds it together: a copy runs the preview's morph and the bridge's
- * video hold and nothing else of the bridge; the preview hands its renders on
+ * What holds it together: a copy runs the preview's morph, the bridge's
+ * video hold and its Alpine state, and nothing else of the bridge; the
+ * preview hands its renders on
  * through one hook that exists only while the overview is open; and the built
  * mirror.js is one file, with bridge.js and preview.js as single as before.
  */
@@ -45,26 +46,28 @@ function graph(rel, seen = new Set()) {
   return seen;
 }
 
-const ALLOWED = ['mirror.js', 'preview.js', 'bridge/video-hold.js', 'bridge/state.js', 'html-pick-align.js'];
+const ALLOWED = ['mirror.js', 'preview.js', 'bridge/video-hold.js', 'bridge/alpine-state.js', 'bridge/state.js', 'html-pick-align.js'];
 
-test('a copy takes in the preview’s morph and the bridge’s video hold, and nothing else of the bridge', () => {
+test('a copy takes in the preview’s morph, the bridge’s video hold and Alpine state, and nothing else of the bridge', () => {
   const modules = [...graph('mirror.js')];
 
   assert.ok(modules.includes('preview.js'));
   assert.ok(modules.includes('bridge/video-hold.js'));
+  assert.ok(modules.includes('bridge/alpine-state.js'));
 
   const beyond = modules.filter((m) => !m.startsWith('lib/') && !ALLOWED.includes(m));
 
   assert.deepEqual(beyond, [], `mirror.js reaches ${beyond.join(', ')}`);
 });
 
-test('bridge/video-hold.js does not import the bridge barrel — a copy would run the whole bridge', () => {
+test('bridge/video-hold.js and bridge/alpine-state.js do not import the bridge barrel — a copy would run the whole bridge', () => {
   assert.ok(!imports('bridge/video-hold.js').includes('bridge.js'));
+  assert.ok(!imports('bridge/alpine-state.js').includes('bridge.js'));
 });
 
-test('the protocol names the mirrored render, and a video hold is what every frame shows', () => {
+test('the protocol names the mirrored render, and a video hold and an Alpine state are what every frame shows', () => {
   assert.equal(MSG.SVE_MIRROR, 'sve-mirror');
-  assert.deepEqual([...MIRRORED], [MSG.SVE_VIDEO_HOLD]);
+  assert.deepEqual([...MIRRORED], [MSG.SVE_VIDEO_HOLD, MSG.SVE_ALPINE_STATE]);
 });
 
 test('preview.js hands a render on through the one hook the overview sets, after its own morph', () => {
@@ -89,7 +92,7 @@ const built = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, '
 const chunkImports = (source) => [...source.matchAll(/(?:from\s*|import\()\s*["']\.\/([^"']+\.js)["']/g)].map((m) => m[1]);
 
 /** What mirror.js duplicates: a chunk by one of these names would be a module the plugin failed to keep apart. */
-const DUPLICATED = /^(mirror|preview|video-hold|state|morph|module)-/;
+const DUPLICATED = /^(mirror|preview|video-hold|alpine-state|state|morph|module)-/;
 
 test('built: mirror.js is one self-contained file, and nothing it reuses became a chunk bridge.js or preview.js loads', { skip: built ? false : 'no build in resources/dist/build' }, () => {
   const mirrorFile = built['resources/js/mirror.js']?.file;

@@ -146,6 +146,9 @@ export const htmlTreeUi = reactive({
   videoHoldTitle: '',
   videoPlayTitle: '',
   onVideoHold: null,
+  // The Alpine icon on a row whose x-data has booleans: set one in the preview.
+  alpineTitle: '',
+  onAlpineState: null,
   onDuplicate: null,
   onDelete: null,
   onPointerDown: null,

@@ -16,6 +16,11 @@
  *                   stops the video in every frame. The remembered holds are
  *                   sent by the overview once this frame has loaded
  *                   (video-holds.js, over the bus).
+ *   SVE_ALPINE_STATE
+ *                   fanned out the same way — an Alpine boolean the tree set
+ *                   in the preview, from the bridge's own module, put back
+ *                   after every draw here as there. The remembered states
+ *                   are sent with the holds (alpine-states.js).
  *
  * preview.js is imported for its morph and its guards. Its own listener for
  * Statamic's `statamic.preview.updated` stays idle here: Statamic posts that
@@ -27,6 +32,7 @@
  */
 import { applyThemeScaleCss, morphRender, normalizeChromeKind } from './preview.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './bridge/video-hold.js';
+import { applyAlpineStates, setAlpineState, watchAlpineStart } from './bridge/alpine-state.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 /** The preview morphed to this render: do the same, from the same HTML. */
@@ -71,10 +77,21 @@ window.addEventListener('message', (event) => {
 
   if (data.type === MSG.SVE_VIDEO_HOLD) {
     setVideoHold(window, data);
+
+    return;
+  }
+
+  if (data.type === MSG.SVE_ALPINE_STATE) {
+    setAlpineState(window, data);
   }
 });
 
 // The rule the bridge keeps, kept here too: an autoplay video that is not
-// held plays, and every hold is put back after every draw.
+// held plays, and every hold is put back after every draw — and every Alpine
+// state with it.
 watchVideoPauses(window);
-window.addEventListener('statamic:preview-updated', () => applyVideoHolds(window));
+watchAlpineStart(window);
+window.addEventListener('statamic:preview-updated', () => {
+  applyVideoHolds(window);
+  applyAlpineStates(window);
+});

@@ -15,11 +15,9 @@
  * (`video-holds:sync`, with the copy's window) once the copy has loaded.
  */
 import { on } from './cp/bus.js';
-import { sectionField } from './lib/config.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { MSG, SOURCE } from './lib/protocol.js';
-import { activeContainers } from './lib/publish-containers.js';
-import { unwrapRef } from './lib/values.js';
+import { pageSectionRows } from './lib/publish-containers.js';
 
 const VIDEO_HOLDS_KEY = 'sveVideoHolds';
 
@@ -60,35 +58,6 @@ export function rememberVideoHolds(win, type, held) {
   }
 }
 
-/** The page's section rows, each with every id it answers to. */
-function sectionRows(win, doc) {
-  const field = sectionField(win) || 'page_sections';
-  const rows = [];
-
-  for (const container of activeContainers(doc) || []) {
-    const values = unwrapRef(container.values);
-    const list = values && typeof values === 'object' ? values[field] : null;
-
-    if (!Array.isArray(list)) {
-      continue;
-    }
-
-    for (const row of list) {
-      if (!row || typeof row !== 'object' || typeof row.type !== 'string') {
-        continue;
-      }
-
-      const ids = [row._visual_id, row.id, row._id].filter((id) => typeof id === 'string' && id !== '');
-
-      if (ids.length) {
-        rows.push({ type: row.type, ids });
-      }
-    }
-  }
-
-  return rows;
-}
-
 /**
  * Every remembered hold, told to the preview: one message per section on the
  * page whose file has one. An extra hold on a video already held costs
@@ -101,7 +70,7 @@ export function syncStoredVideoHolds(win, doc = win.document, target = previewFr
     return;
   }
 
-  for (const row of sectionRows(win, doc)) {
+  for (const row of pageSectionRows(win, doc)) {
     const list = holds[row.type];
 
     if (!Array.isArray(list)) {
