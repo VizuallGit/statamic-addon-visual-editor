@@ -61,9 +61,15 @@ const VIDEO =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.8 5.9v4.2L10.2 8Z" fill="currentColor" stroke="none"/></svg>';
 const VIDEO_OFF =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.2"/><path d="M6.3 5.8v4.4M9.7 5.8v4.4" stroke-linecap="round"/></svg>';
-// A switch, in the eye's box and stroke: a state of the component, not of the file.
-const ALPINE =
-  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="2"/></svg>';
+// A switch, in the eye's box and stroke: a state of the component, not of the
+// file. Off, a hollow knob sits left; on, a solid knob sits right — the
+// drawing says it, not only the lit background, as the video icon says play
+// or pause with two drawings. Nothing filled behind the knob: the icon must
+// read on every row background without knowing it.
+const ALPINE_OFF =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="8" cy="12" r="2"/></svg>';
+const ALPINE_ON =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="5"/><circle cx="16" cy="12" r="3" fill="currentColor" stroke="none"/></svg>';
 // A lock and an open lock, drawn in the same band as the bin and the copy
 // (4–20 of 24) so the four icons read as one size.
 const LOCK_ON =
@@ -390,7 +396,7 @@ function canAct(row) {
         data-sve-ht-alpine
         :data-on="row.alpineSet ? '' : null"
         :title="ui.alpineTitle"
-        v-html="ALPINE"
+        v-html="row.alpineSet ? ALPINE_ON : ALPINE_OFF"
         @click.stop.prevent="ui.onAlpineState?.($event, row.id)"
         @pointerdown.stop
         @dblclick.stop
