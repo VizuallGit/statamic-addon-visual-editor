@@ -90,10 +90,11 @@
  * (SVE_MIRROR), which morphs to it without a fetch of its own: one server
  * render per change however many sizes are open, and the copies a task behind
  * the preview rather than a round trip. A frame still loading gets the latest
- * render once it has loaded, and the remembered video holds with it
- * (`video-holds:sync` on the bus). The dock's Instant paint and the tree's
- * video hold reach every frame as well, through lib/preview-frame.js's list of
- * copies and the paint script's own.
+ * render once it has loaded, and the remembered video holds and Alpine states
+ * with it (`video-holds:sync`, `alpine-states:sync` on the bus). The dock's
+ * Instant paint and the tree's video hold and Alpine state reach every frame
+ * as well, through lib/preview-frame.js's list of copies and the paint
+ * script's own.
  *
  * Which sizes stand in the row is a menu on the overview button's right-click
  * (openSizesMenu), open or closed: a checkbox per size. Unticked, the size is
@@ -119,7 +120,8 @@
  * the stored device.
  *
  * Bus: asks `lp:lastPreviewUrl`, `lp:preview-slot` and `lp:set-device`;
- * emits `video-holds:sync` for a frame that has loaded. DOM events, only while
+ * emits `video-holds:sync` and `alpine-states:sync` for a frame that has
+ * loaded. DOM events, only while
  * open: `statamic:preview-updated` and `scroll` on the view frames' windows,
  * `load` on the pane (capture), `sve:breakpoint` and `keydown` on the CP
  * window, `wheel` and `input` (capture) on the preview's document, `message`,
@@ -135,7 +137,8 @@
  * mirror.js and scripts/vite-mirror-graph.js; the `__sveMirror` line in
  * preview.js; `SVE_MIRROR` and `MIRRORED` in lib/protocol.js; `previewCopies`
  * in lib/preview-frame.js and its use in sendToPreview; `video-holds:sync` in
- * video-holds.js; `previewDocuments` in dock-instant-preview.js; the
+ * video-holds.js and `alpine-states:sync` in alpine-states.js;
+ * `previewDocuments` in dock-instant-preview.js; the
  * `bp_overview*` strings; the narrow-window rule at the end of
  * resources/css/addon.css; tests/js and tests/browser breakpoint-overview.
  * bridge/viewport.js may stay as it is: it lays the bridge's UI out by a
@@ -1088,9 +1091,11 @@ function frameLoaded(entry) {
     frameWin.removeEventListener('scroll', onScroll);
   };
 
-  // Fresh from the server, the copy knows no video holds; the panel remembers
-  // them and answers to this window (video-holds.js).
+  // Fresh from the server, the copy knows no video holds and no Alpine states;
+  // the panel remembers them and answers to this window (video-holds.js,
+  // alpine-states.js).
   emit('video-holds:sync', { win: overviewState.win, target: frameWin });
+  emit('alpine-states:sync', { win: overviewState.win, target: frameWin });
 
   if (entry.stale) {
     entry.stale = false;

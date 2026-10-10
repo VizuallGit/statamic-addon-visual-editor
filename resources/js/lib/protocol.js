@@ -87,6 +87,12 @@ export const MSG = Object.freeze({
   SECTION_SETTINGS: 'section-settings',
   SVE_ACTIVATE: 'sve-activate',
   SVE_ACTIVATE_TAB: 'sve-activate-tab',
+  // CP → preview: a boolean in an Alpine component's x-data set in the preview
+  // — `uid` names the section, `nth` which of its [x-data] elements, `key`
+  // the boolean; `on: false` puts back the file's own `value`.
+  SVE_ALPINE_STATE: 'sve-alpine-state',
+  // Preview → CP, at boot: send me the remembered Alpine states.
+  SVE_ALPINE_STATES_REQUEST: 'sve-alpine-states-request',
   SVE_CHROME_DIRTY: 'sve-chrome-dirty',
   SVE_CHROME_DIRTY_QUERY: 'sve-chrome-dirty-query',
   SVE_CHROME_SET_STYLE: 'sve-chrome-set-style',
@@ -133,7 +139,7 @@ export const MSG = Object.freeze({
  * posts these to the copies too; everything else is the bridge's — editing,
  * hover, focus — and reaches only the preview.
  */
-export const MIRRORED = Object.freeze([MSG.SVE_VIDEO_HOLD]);
+export const MIRRORED = Object.freeze([MSG.SVE_VIDEO_HOLD, MSG.SVE_ALPINE_STATE]);
 
 export const CHANNEL = Object.freeze({
   GLOBALS: 'sve.globals',

@@ -15,6 +15,7 @@
  *   activeContainers(doc)          newest first, DOM fallback, then the extra sources
  *   containerFromDom(doc)          the container behind the publish form on screen
  *   pageHasSectionField(win, doc)  whether the page on screen is built from sections
+ *   pageSectionRows(win, doc)      the page's section rows, each with every id it answers to
  *
  * May import: lib/, cp-selectors.js (constants only).
  */
@@ -156,4 +157,37 @@ export function pageHasSectionField(win, doc) {
 
     return !!values && typeof values === 'object' && Array.isArray(values[field]);
   });
+}
+
+/**
+ * The page's section rows, each with every id it answers to: what the tree's
+ * video holds and Alpine states are remembered by (`type`, the file) and sent
+ * to the preview for (the ids, the section on the page).
+ */
+export function pageSectionRows(win, doc) {
+  const field = sectionField(win) || 'page_sections';
+  const rows = [];
+
+  for (const container of activeContainers(doc) || []) {
+    const values = unwrapRef(container.values);
+    const list = values && typeof values === 'object' ? values[field] : null;
+
+    if (!Array.isArray(list)) {
+      continue;
+    }
+
+    for (const row of list) {
+      if (!row || typeof row !== 'object' || typeof row.type !== 'string') {
+        continue;
+      }
+
+      const ids = [row._visual_id, row.id, row._id].filter((id) => typeof id === 'string' && id !== '');
+
+      if (ids.length) {
+        rows.push({ type: row.type, ids });
+      }
+    }
+  }
+
+  return rows;
 }

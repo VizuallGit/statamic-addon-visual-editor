@@ -34,3 +34,9 @@ Sig “husk det her” eller “sådan gør vi” i panelet, så bliver en ny re
 19. Tre filer: fieldset YAML, Antlers-partial, registrering i `page_sections.yaml` (læs først, skriv den fulde YAML).
 20. Efterlign en eksisterende type på sitet, før du opfinder en ny form.
 21. Svar kort, på brugerens sprog.
+
+## Komponenter og Alpine
+
+22. En `<template>` må aldrig indeholde markup, der ikke også findes som komponent-partial. Live Preview viser kun det, serveren renderer.
+23. En komponent har ét rod-element med en fast klasse, uden for `{{ if }}` og løkker. Det er sådan editoren finder den i previewet.
+24. En dialog/modal styres af en boolean i `x-data` (`open: false`) med `x-effect`, der kalder `showModal()`/`close()`, og `@close="open = false"` på dialogen — ikke af en Antlers-variabel.

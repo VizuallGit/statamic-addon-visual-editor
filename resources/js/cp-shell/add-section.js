@@ -14,6 +14,7 @@ import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { livePreviewButton, livePreviewEditorEl } from '../lib/live-preview.js';
 import { previewCopies, previewFrame } from '../lib/preview-frame.js';
 import { syncStoredVideoHolds } from '../video-holds.js';
+import { syncStoredAlpineStates } from '../alpine-states.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn, soloSection } from '../focus-panel.js';
@@ -1842,6 +1843,12 @@ export function createMessageListener(doc = document, win = window) {
       return;
     }
 
+    if (data.type === MSG.SVE_ALPINE_STATES_REQUEST) {
+      syncStoredAlpineStates(win, doc);
+
+      return;
+    }
+
     if (data.type === MSG.CLICK) {
       if (data.htmlPath) {
         ask('html-tree:from-preview', { path: data.htmlPath, src: data.componentSrc || '' });
@@ -2664,10 +2671,10 @@ export function sendToPreview(message, win) {
     // the cross-origin exposure is acceptable.
     iframe.contentWindow.postMessage(message, '*');
 
-    // What every frame shows — a video held or let go — reaches the preview's
-    // copies too: the breakpoint overview's frames, while it is open. Closed,
-    // there are none (lib/preview-frame.js). The bridge's own messages —
-    // editing, hover, focus — stay with the preview.
+    // What every frame shows — a video held or let go, an Alpine state set —
+    // reaches the preview's copies too: the breakpoint overview's frames,
+    // while it is open. Closed, there are none (lib/preview-frame.js). The
+    // bridge's own messages — editing, hover, focus — stay with the preview.
     if (MIRRORED.includes(message?.type)) {
       for (const copy of previewCopies(win.document)) {
         copy.postMessage(message, '*');

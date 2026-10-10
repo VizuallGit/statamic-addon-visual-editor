@@ -195,6 +195,7 @@ return [
     'html_tree_delete' => 'Delete',
     'html_tree_video_hold' => 'Pause the video in live preview',
     'html_tree_video_play' => 'Let the video play in live preview',
+    'html_tree_alpine_state' => 'Alpine state in live preview',
     'html_tree_frame_header' => 'Header',
     'html_tree_frame_footer' => 'Footer',
     'html_tree_frame_main' => 'Page content',

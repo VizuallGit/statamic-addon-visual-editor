@@ -192,6 +192,7 @@ return [
     'html_tree_delete' => 'Slet',
     'html_tree_video_hold' => 'Sæt videoen på pause i live preview',
     'html_tree_video_play' => 'Lad videoen spille i live preview',
+    'html_tree_alpine_state' => 'Alpine-tilstand i live preview',
     'html_tree_frame_header' => 'Header',
     'html_tree_frame_footer' => 'Footer',
     'html_tree_frame_main' => 'Sidens indhold',

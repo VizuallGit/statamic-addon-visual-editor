@@ -20,6 +20,7 @@ import { finishWidthDrag, hideColumnChrome, hideGridLines, widthDrag } from './g
 import { repositionInserters, setupInserters } from './inserters.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './video-hold.js';
+import { applyAlpineStates, setAlpineState, watchAlpineStart } from './alpine-state.js';
 
 // ===== outline-nav =====
 /**
@@ -343,6 +344,12 @@ export function createMessageReceiver(win) {
 
     if (data.type === MSG.SVE_VIDEO_HOLD) {
       setVideoHold(win, data);
+
+      return;
+    }
+
+    if (data.type === MSG.SVE_ALPINE_STATE) {
+      setAlpineState(win, data);
 
       return;
     }
@@ -786,11 +793,16 @@ export function initBridge(win = window) {
   watchVideoPauses(win);
   // A fresh document knows no holds; the panel remembers them.
   win.parent.postMessage({ source: SOURCE, type: MSG.SVE_VIDEO_HOLDS_REQUEST }, win.location.origin);
+  watchAlpineStart(win);
+  // Nor the Alpine states the tree has set; the panel remembers those too.
+  win.parent.postMessage({ source: SOURCE, type: MSG.SVE_ALPINE_STATES_REQUEST }, win.location.origin);
 
   win.addEventListener('statamic:preview-updated', () => {
     // Holds put back, and autoplay put right, on every draw — not only while
     // something is held: the morph itself can leave a video standing still.
     applyVideoHolds(win);
+    // And the Alpine states, so what an effect built from them is built again.
+    applyAlpineStates(win);
 
     if (bridgeState.htmlPick) {
       applyHtmlPick(win);
