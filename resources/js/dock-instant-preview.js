@@ -1160,29 +1160,6 @@
     }
 
     /**
-     * Inside a block — after an opener among the siblings before it that no
-     * closer has answered yet. Openers and closers are text; counted from
-     * the parent's first child, a block closed before this element does not
-     * count.
-     */
-    function inBlock(el) {
-        var depth = 0;
-        var node = el.previousSibling;
-        var text;
-
-        while (node) {
-            if (node.nodeType === 3) {
-                text = node.data;
-                depth += text.split(ANT_OPEN).length - text.split(ANT_CLOSE).length;
-            }
-
-            node = node.previousSibling;
-        }
-
-        return depth > 0;
-    }
-
-    /**
      * The template parsed into a <template>'s content: an inert document,
      * where `src="{{ media }}"` — a placeholder after stripAntlers — loads
      * nothing. Parsed into a div of this document, every such <img> and
@@ -1234,9 +1211,23 @@
             .join(' ');
     }
 
-    function applyClass(el, value) {
+    /**
+     * The template's class list onto the node, minus nothing the page's own
+     * script put there. `loaded`, which blurred-img.js adds once a picture is
+     * in, or an Alpine `:class`, is on the node and in no template: a token
+     * the template has not now and had not at this spot the last time
+     * (`prior`, from the template as it was last painted) stays. Used to write
+     * the template's list as is, and every keystroke in the image component
+     * put every picture on the page back to `opacity: 0` until the morph
+     * (11 Oct 2026). No earlier template (the file's first paint, a spot
+     * that moved this keystroke) takes nothing away either: the morph does.
+     */
+    function applyClass(el, value, prior) {
         var next;
         var prev;
+        var tplTokens;
+        var priorTokens;
+        var kept;
 
         if (!el || hasMarker(value)) {
             return;
@@ -1244,6 +1235,15 @@
 
         next = classValue(value);
         prev = classValue(el.getAttribute('class') || '');
+        tplTokens = next.split(' ');
+        priorTokens = typeof prior === 'string' ? prior.split(' ') : null;
+        kept = prev.split(' ').filter(function (name) {
+            return name && tplTokens.indexOf(name) === -1 && (!priorTokens || priorTokens.indexOf(name) === -1);
+        });
+
+        if (kept.length) {
+            next = (next ? next + ' ' : '') + kept.join(' ');
+        }
 
         if (prev === next) {
             return;
@@ -1257,8 +1257,126 @@
         el.setAttribute('class', next);
     }
 
+    /**
+     * The template as it was the last time a root was painted, by root: the
+     * section's sid and the template's tag (a snippet painted on its own
+     * apart from the file). What it said at a spot is read by index path,
+     * so it holds across a morph that replaced the live nodes — nothing is
+     * remembered on them. Forgotten with the file.
+     */
+    var prevTplRoots = {};
+    var nextTplRoots = {};
+    var curTplRoot = null;
+    var curTplKey = '';
+
+    function rememberTpl(live, tpl, scoped) {
+        curTplKey = ((outermostSid(live) || live).getAttribute('data-sid') || '') + '|' + tpl.tagName + (scoped ? '|s' : '|f');
+        curTplRoot = tpl;
+    }
+
+    // Staged until the paint is through: a component's instances share one
+    // template, and the second instance must read what the template said
+    // before this paint, not what the first instance just stored.
+    function keepTpl() {
+        if (curTplKey && curTplRoot) {
+            nextTplRoots[curTplKey] = curTplRoot;
+        }
+
+        curTplKey = '';
+        curTplRoot = null;
+    }
+
+    function commitTpl() {
+        Object.keys(nextTplRoots).forEach(function (key) {
+            prevTplRoots[key] = nextTplRoots[key];
+        });
+        nextTplRoots = {};
+    }
+
+    /**
+     * The kids of a template element, and each kid's index, once per paint
+     * (`tplKidsOf`): both templates are inert while one is painted, and a path
+     * read through `elementKids` on every level for every element was the
+     * slowest thing in a paint of 400 paragraphs.
+     */
+    var tplKidsCache = null;
+    var tplIndexCache = null;
+
+    function tplKidsOf(el) {
+        var kids = tplKidsCache ? tplKidsCache.get(el) : undefined;
+        var i;
+
+        if (kids) {
+            return kids;
+        }
+
+        kids = elementKids(el);
+
+        if (tplKidsCache) {
+            tplKidsCache.set(el, kids);
+
+            for (i = 0; i < kids.length; i++) {
+                tplIndexCache.set(kids[i], i);
+            }
+        }
+
+        return kids;
+    }
+
+    /** Index path from the current template root to one of its elements, built on the parent's. */
+    function tplPath(tpl) {
+        var parent = tpl.parentElement;
+        var above;
+        var path;
+
+        if (tpl === curTplRoot) {
+            return [];
+        }
+
+        if (!parent) {
+            return null;
+        }
+
+        above = tplPath(parent);
+
+        if (!above) {
+            return null;
+        }
+
+        path = above.slice();
+        path.push(tplKidsCache ? (tplKidsOf(parent), tplIndexCache.get(tpl)) : elementKids(parent).indexOf(tpl));
+
+        return path;
+    }
+
+    /** The class the template had at this element's spot last time; null when there was no template, or no element of this tag there. */
+    function priorClass(tpl) {
+        var prev = curTplKey ? prevTplRoots[curTplKey] : null;
+        var path = prev && curTplRoot ? tplPath(tpl) : null;
+        var el = prev;
+        var i;
+
+        if (!path) {
+            return null;
+        }
+
+        for (i = 0; el && i < path.length; i++) {
+            el = tplKidsOf(el)[path[i]] || null;
+        }
+
+        return el && el.tagName === tpl.tagName ? classValue(el.getAttribute('class') || '') : null;
+    }
+
     function syncClasses(section, tplRoot) {
-        applyClass(section, tplRoot.getAttribute('class') || '');
+        var own = !curTplRoot;
+
+        if (own) {
+            rememberTpl(section, tplRoot, false);
+            tplKidsCache = new Map();
+            tplIndexCache = new Map();
+        }
+
+        applyClass(section, tplRoot.getAttribute('class') || '', priorClass(tplRoot));
 
         function walk(tplParent, liveParents) {
             var children = [];
@@ -1302,8 +1420,9 @@
 
                 if (tplEl.hasAttribute('class')) {
                     var cls = tplEl.getAttribute('class') || '';
+                    var prior = priorClass(tplEl);
                     targets.forEach(function (liveEl) {
-                        applyClass(liveEl, cls);
+                        applyClass(liveEl, cls, prior);
                     });
                 }
 
@@ -1314,6 +1433,12 @@
         }
 
         walk(tplRoot, [section]);
+
+        if (own) {
+            keepTpl();
+            tplKidsCache = null;
+            tplIndexCache = null;
+        }
     }
 
     // ---- Structure paint ---------------------------------------------------------
@@ -1354,21 +1479,40 @@
         return out;
     }
 
-    /** Text or an attribute still waiting on Antlers, anywhere in this subtree. */
+    /**
+     * Text or an attribute still waiting on Antlers, anywhere in this subtree.
+     * Remembered per paint (`dynCache`): the template does not change while it
+     * is painted, and every level asked again for every kid.
+     */
+    var dynCache = null;
+
     function isDynamic(tplEl) {
         var i;
+        var known = dynCache ? dynCache.get(tplEl) : undefined;
+        var out = false;
 
-        if (hasMarker(tplEl.textContent)) {
-            return true;
+        if (known !== undefined) {
+            return known;
         }
 
-        for (i = 0; i < tplEl.attributes.length; i++) {
-            if (hasMarker(tplEl.attributes[i].value)) {
-                return true;
+        if (hasMarker(tplEl.textContent)) {
+            out = true;
+        } else {
+            for (i = 0; i < tplEl.attributes.length; i++) {
+                if (hasMarker(tplEl.attributes[i].value)) {
+                    out = true;
+                    break;
+                }
             }
         }
 
-        return elementKids(tplEl).some(isDynamic);
+        out = out || elementKids(tplEl).some(isDynamic);
+
+        if (dynCache) {
+            dynCache.set(tplEl, out);
+        }
+
+        return out;
     }
 
     /** Attributes the server owns: never written, never removed by the paint. */
@@ -1387,7 +1531,7 @@
         var cls = tpl.getAttribute('class');
 
         if (cls !== null && !hasMarker(cls)) {
-            applyClass(live, cls);
+            applyClass(live, cls, priorClass(tpl));
         }
     }
 
@@ -1463,10 +1607,40 @@
         return out;
     }
 
+    /**
+     * What the pairing reads of an element — class, kids by tag, leaf or
+     * not, text — once per pairing (`featCache`, one per parent being
+     * paired; the kids are read before any is written). A parent with 400
+     * paragraphs took 230 ms a keystroke on `classValue` splits, `kidTags`
+     * and `textContent` reads repeated for every live × template pair.
+     */
+    var featCache = null;
+
+    function feat(el) {
+        var f = featCache ? featCache.get(el) : undefined;
+
+        if (f) {
+            return f;
+        }
+
+        f = {
+            cls: classValue(el.getAttribute('class') || ''),
+            tags: kidTags(el),
+            leaf: !elementKids(el).length,
+            text: el.textContent.trim(),
+        };
+
+        if (featCache) {
+            featCache.set(el, f);
+        }
+
+        return f;
+    }
+
     /** Same kids by tag on both sides: a leaf for a leaf, a wrapper for a wrapper. */
     function sameShape(live, tpl) {
-        var a = kidTags(live);
-        var b = kidTags(tpl);
+        var a = feat(live).tags;
+        var b = feat(tpl).tags;
         var key;
 
         for (key in a) {
@@ -1556,6 +1730,12 @@
      * like it — class, kids, text, and text as it is being typed — first of
      * equals. As a one-element list, or empty.
      */
+    function ownScore(liveEl, tplEl) {
+        var score = pairScore(liveEl, tplEl);
+
+        return score ? score + (sameTextBeingTyped(feat(liveEl).text, feat(tplEl).text) ? 0.5 : 0) : 0;
+    }
+
     function bestOwn(candidates, tplEl) {
         var best = null;
         var bestScore = -1;
@@ -1563,7 +1743,7 @@
         var score;
 
         for (i = 0; i < candidates.length; i++) {
-            score = pairScore(candidates[i], tplEl) + (sameTextBeingTyped(candidates[i].textContent.trim(), tplEl.textContent.trim()) ? 0.5 : 0);
+            score = ownScore(candidates[i], tplEl);
 
             if (score > bestScore) {
                 best = candidates[i];
@@ -1575,6 +1755,9 @@
     }
 
     function ownsLive(liveEl, tplEl) {
+        var fl;
+        var ft;
+
         if (liveEl.tagName !== tplEl.tagName) {
             return false;
         }
@@ -1583,15 +1766,14 @@
             return true;
         }
 
-        if (!elementKids(tplEl).length && !elementKids(liveEl).length) {
-            return sameTextBeingTyped(liveEl.textContent.trim(), tplEl.textContent.trim());
+        fl = feat(liveEl);
+        ft = feat(tplEl);
+
+        if (ft.leaf && fl.leaf) {
+            return sameTextBeingTyped(fl.text, ft.text);
         }
 
-        return (
-            sameShape(liveEl, tplEl) &&
-            classValue(liveEl.getAttribute('class') || '') === classValue(tplEl.getAttribute('class') || '') &&
-            sameTextBeingTyped(liveEl.textContent.trim(), tplEl.textContent.trim())
-        );
+        return sameShape(liveEl, tplEl) && fl.cls === ft.cls && sameTextBeingTyped(fl.text, ft.text);
     }
 
     /** The wrapper goes; its children take its place. */
@@ -1624,14 +1806,18 @@
      */
     function pairScore(liveEl, tplEl) {
         var score;
+        var fl;
+        var ft;
 
         if (liveEl.tagName !== tplEl.tagName) {
             return 0;
         }
 
+        fl = feat(liveEl);
+        ft = feat(tplEl);
         score = 1;
 
-        if (classValue(liveEl.getAttribute('class') || '') === classValue(tplEl.getAttribute('class') || '')) {
+        if (fl.cls === ft.cls) {
             score += 1;
         }
 
@@ -1639,16 +1825,24 @@
             score += 1;
         }
 
-        if (
-            !elementKids(tplEl).length &&
-            !elementKids(liveEl).length &&
-            !hasMarker(tplEl.textContent) &&
-            liveEl.textContent.trim() === tplEl.textContent.trim()
-        ) {
+        if (ft.leaf && fl.leaf && !hasMarker(ft.text) && fl.text === ft.text) {
             score += 1;
         }
 
         return score;
+    }
+
+    /** As alike as two kids get: tag, class, kids by tag, and the finished text of a leaf. */
+    function exactPair(liveEl, tplEl) {
+        var ft;
+
+        if (liveEl.tagName !== tplEl.tagName) {
+            return false;
+        }
+
+        ft = feat(tplEl);
+
+        return pairScore(liveEl, tplEl) === (ft.leaf && !hasMarker(ft.text) ? 4 : 3);
     }
 
     /**
@@ -1665,14 +1859,38 @@
      *
      * @returns {Map<Element, Element>} template kid → live kid
      */
-    function alignKids(liveKids, tplKids) {
+    function alignKids(liveKids, tplKids, score) {
+        var pairs = new Map();
+        var head = 0;
+        var tail = 0;
         var n = tplKids.length;
         var m = liveKids.length;
         var dp = [];
-        var pairs = new Map();
         var i;
         var j;
         var s;
+
+        score = score || pairScore;
+
+        // A keystroke changes one spot: the kids before and after it still
+        // match exactly, in order, and only what is between goes through the
+        // table. 400 paragraphs cost 160 000 scores a keystroke otherwise.
+        while (head < n && head < m && exactPair(liveKids[head], tplKids[head])) {
+            pairs.set(tplKids[head], liveKids[head]);
+            head++;
+        }
+
+        while (tail < n - head && tail < m - head && exactPair(liveKids[m - 1 - tail], tplKids[n - 1 - tail])) {
+            pairs.set(tplKids[n - 1 - tail], liveKids[m - 1 - tail]);
+            tail++;
+        }
+
+        if (head || tail) {
+            liveKids = liveKids.slice(head, m - tail);
+            tplKids = tplKids.slice(head, n - tail);
+            n = tplKids.length;
+            m = liveKids.length;
+        }
 
         for (i = 0; i <= n; i++) {
             dp[i] = [];
@@ -1684,7 +1902,7 @@
 
         for (i = 1; i <= n; i++) {
             for (j = 1; j <= m; j++) {
-                s = pairScore(liveKids[j - 1], tplKids[i - 1]);
+                s = score(liveKids[j - 1], tplKids[i - 1]);
                 dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1], s ? dp[i - 1][j - 1] + s : 0);
             }
         }
@@ -1693,7 +1911,7 @@
         j = m;
 
         while (i > 0 && j > 0) {
-            s = pairScore(liveKids[j - 1], tplKids[i - 1]);
+            s = score(liveKids[j - 1], tplKids[i - 1]);
 
             if (s && dp[i][j] === dp[i - 1][j - 1] + s) {
                 pairs.set(tplKids[i - 1], liveKids[j - 1]);
@@ -1745,12 +1963,53 @@
     }
 
     function morphChildren(live, tpl, parentTags) {
+        var outerFeat = featCache;
+
+        featCache = new Map();
+
+        try {
+            morphKids(live, tpl, parentTags);
+        } finally {
+            featCache = outerFeat;
+        }
+    }
+
+    /**
+     * Which template kids stand inside a block — after an opener among the
+     * siblings before it that no closer has answered yet. Openers and closers
+     * are text; counted from the parent's first child, a block closed before
+     * a kid does not count. One pass over the parent's child nodes, instead of
+     * every kid re-reading the text before it.
+     */
+    function blockedKids(tpl) {
+        var out = new Map();
+        var depth = 0;
+        var i;
+        var node;
+        var text;
+
+        for (i = 0; i < tpl.childNodes.length; i++) {
+            node = tpl.childNodes[i];
+
+            if (node.nodeType === 3) {
+                text = node.data;
+                depth += text.split(ANT_OPEN).length - text.split(ANT_CLOSE).length;
+            } else if (node.nodeType === 1) {
+                out.set(node, depth > 0);
+            }
+        }
+
+        return out;
+    }
+
+    function morphKids(live, tpl, parentTags) {
         var doc = live.ownerDocument;
         var tplKids = elementKids(tpl);
         var tplTags = {};
         var counts = {};
-        var consumed = [];
+        var consumed = new Set();
         var dynamicParent = hasMarker(directText(tpl));
+        var blocked = blockedKids(tpl);
 
         // An element the file leaves empty renders empty from the server. What
         // is in it on the page, the page's own script put there — Alpine
@@ -1769,6 +2028,7 @@
         // from one template child, and the pairing is by tag.
         var pairs = dynamicParent ? null : alignKids(elementKids(live), tplKids);
         var paired = new Set(pairs ? pairs.values() : []);
+        var ownPairs = null;
         var lifted;
         var i;
 
@@ -1779,7 +2039,7 @@
 
         // Spoken for: painted already, or waiting for its own template child.
         function taken(kid) {
-            return consumed.indexOf(kid) !== -1 || paired.has(kid);
+            return consumed.has(kid) || paired.has(kid);
         }
 
         // Always read fresh: a child's paint may have lifted nodes up to here, a
@@ -1795,6 +2055,34 @@
             return elementKids(live).filter(function (kid) {
                 return !taken(kid) && !tplTags[kid.tagName];
             });
+        }
+
+        // In a dynamic parent the static template kids and the live kids that
+        // are theirs (painted, or look-alikes: ownsLive) are aligned in order,
+        // like a static parent's. Each used to pick the live kid most like it
+        // on its own: with `bg-primary-` typed on the second of two divs and a
+        // fourth already `bg-primary`, the second's template took the fourth
+        // and the fourth's took the second — unseen while the class was simply
+        // overwritten, a stale `bg-primary-` once the page's own classes were
+        // kept (11 Oct 2026). Read on the first static kid, so what a dynamic
+        // kid before it took is out of the running.
+        function ownPair(tplEl) {
+            var statics;
+            var candidates;
+
+            if (!ownPairs) {
+                statics = tplKids.filter(function (kid) {
+                    return !blocked.get(kid) && !isDynamic(kid);
+                });
+                candidates = elementKids(live).filter(function (kid) {
+                    return !taken(kid) && (painted.has(kid) || statics.some(function (tpl) {
+                        return ownsLive(kid, tpl);
+                    }));
+                });
+                ownPairs = alignKids(candidates, statics, ownScore);
+            }
+
+            return ownPairs.get(tplEl) || null;
         }
 
         // The live node the NEXT template sibling maps to — where an insert goes.
@@ -1829,10 +2117,12 @@
                 var fresh;
                 var anchor;
 
-                // A loop's one template child, or one the server fills in, speaks
-                // for the live children of its tag; a static child beside a field
-                // speaks only for what is its own (ownsLive).
-                var byTag = inBlock(tplEl) || isDynamic(tplEl);
+                // A loop's one template child speaks for every live child of its
+                // tag; one the server fills in, outside a block, for the one most
+                // like it; a static child beside a field only for what is its own
+                // (ownsLive).
+                var inLoop = !!blocked.get(tplEl);
+                var byTag = inLoop || isDynamic(tplEl);
 
                 if (pairs) {
                     candidate = pairs.get(tplEl) || null;
@@ -1854,18 +2144,25 @@
                     }
 
                     same = candidate ? [candidate] : [];
-                } else if (byTag) {
+                } else if (inLoop) {
                     same = liveOfTag(tag);
+                } else if (byTag) {
+                    // In a parent a partial draws into, the live children of this
+                    // tag are not all this child's: a component's root <div>
+                    // rendered before a dynamic <div> sibling is not that sibling.
+                    // It used to speak for all of them, and the sibling's classes
+                    // were written onto the component's root until the morph
+                    // (11 Oct 2026). One node for one — the one most like it.
+                    same = bestOwn(liveOfTag(tag), tplEl);
                 } else {
-                    // Its own: what the paint made, or a look-alike (ownsLive) —
-                    // and of those the one most like it. It used to be the first
-                    // painted one of the tag, whatever it held: with two divs of
-                    // one tag beside each other, both the paint's, a class typed
-                    // on the second was painted onto the first, and the first's
-                    // classes onto the second (25 Sep 2026).
-                    same = bestOwn(liveOfTag(tag).filter(function (kid) {
-                        return painted.has(kid) || ownsLive(kid, tplEl);
-                    }), tplEl);
+                    // Its own: what the paint made, or a look-alike (ownsLive),
+                    // aligned in order with its static siblings (ownPair). It
+                    // used to be the first painted one of the tag, whatever it
+                    // held: with two divs of one tag beside each other, both the
+                    // paint's, a class typed on the second was painted onto the
+                    // first, and the first's classes onto the second (25 Sep 2026).
+                    candidate = ownPair(tplEl);
+                    same = candidate && !taken(candidate) ? [candidate] : [];
                 }
 
                 if (same.length) {
@@ -1873,13 +2170,13 @@
                     // live child of that tag where a loop can have rendered many from
                     // one — a loop always leaves its marker in the parent's text.
                     // Otherwise one speaks for one, and a deleted sibling goes below.
-                    targets = !pairs && byTag && counts[tag] === 1 ? same : [same[0]];
+                    targets = !pairs && inLoop && counts[tag] === 1 ? same : [same[0]];
                     targets.forEach(function (target) {
                         if (!pairs && !byTag) {
                             adopt(target, tplEl);
                         }
 
-                        consumed.push(target);
+                        consumed.add(target);
                         morphElement(target, tplEl, tplTags);
                     });
 
@@ -1890,7 +2187,7 @@
                 // not what the page shows: the branch may be the other one, the loop
                 // may draw many or none. A same-tag child was painted above; anything
                 // structural — a wrapper, a rename, new markup — waits for the morph.
-                if (inBlock(tplEl)) {
+                if (inLoop) {
                     return;
                 }
 
@@ -1938,7 +2235,7 @@
                             wrapper.appendChild(node);
                         });
                         painted.add(wrapper);
-                        consumed.push(wrapper);
+                        consumed.add(wrapper);
                         morphElement(wrapper, tplEl, tplTags);
 
                         return;
@@ -1961,7 +2258,7 @@
 
                 if (candidate && Math.abs(idx - index) <= 1) {
                     candidate = renameTag(candidate, tag);
-                    consumed.push(candidate);
+                    consumed.add(candidate);
                     morphElement(candidate, tplEl, tplTags);
 
                     return;
@@ -1983,7 +2280,7 @@
                 }
 
                 painted.add(fresh);
-                consumed.push(fresh);
+                consumed.add(fresh);
             })(tplKids[i], i);
         }
 
@@ -2072,6 +2369,11 @@
             return false;
         }
 
+        rememberTpl(live, tpl, !!scopedRoot);
+        dynCache = new Map();
+        tplKidsCache = new Map();
+        tplIndexCache = new Map();
+
         try {
             morphElement(live, tpl);
             trace('structure: painted ' + live.tagName.toLowerCase() + '#' + live.id + (ctx ? ' with values' : ' without values') + ' in ' + Math.round(((window.performance ? performance.now() : Date.now()) - started) * 10) / 10 + ' ms');
@@ -2082,6 +2384,11 @@
             }
 
             syncClasses(live, tpl);
+        } finally {
+            keepTpl();
+            dynCache = null;
+            tplKidsCache = null;
+            tplIndexCache = null;
         }
 
         return true;
@@ -2935,6 +3242,8 @@
         waitingCalls = {};
         // A component may have been edited in between.
         componentFiles = {};
+        prevTplRoots = {};
+        nextTplRoots = {};
     }
 
     /**
@@ -3108,6 +3417,7 @@
             trace('paint: threw ' + (e && e.message));
         } finally {
             painting = false;
+            commitTpl();
         }
     }
 
@@ -3285,28 +3595,24 @@
 
     /**
      * The snippet a scoped pane shows, when the file it sits in is not known:
-     * the active section if it is that tag, else the first such tag in it.
-     * The one place left where a tag name has to do — a snippet on its own has
-     * no file to be found in.
+     * the active section, when the snippet is that tag — the section's own
+     * row, the pane and the file one and the same. Anything inside it waits
+     * for the morph: it used to be "the first such tag in the section", and
+     * a card's `<div class="flex items-center">` scoped on its own painted
+     * its classes onto the section heading's <div> (11 Oct 2026).
      */
     function snippetRootLive(doc, tplRoot) {
         var tag = tplRoot.tagName;
         var active = doc.querySelector('[data-sid-active]');
-        var section = pageSection(doc);
-        var host = active || section;
-        var inner;
+        var host = active || pageSection(doc);
 
-        if (!host) {
+        if (!host || host.tagName !== tag) {
+            trace('snippet: <' + tag.toLowerCase() + '> with no file around it; left to the morph');
+
             return [];
         }
 
-        if (host.tagName === tag) {
-            return [host];
-        }
-
-        inner = host.querySelector(tag.toLowerCase());
-
-        return inner ? [inner] : [];
+        return [host];
     }
 
     /**
