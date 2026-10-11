@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { callClassParam, readCallParams, writeCallParam } from '../../resources/js/component-props.js';
 import { findPartials, hitPartial } from '../../resources/js/dock-partials.js';
+import { twCandidates } from '../../resources/js/tw-candidates.js';
 import { flattenHtmlTree, parseHtmlTree, parseTemplateTree } from '../../resources/js/html-tree-parse.js';
 
 const html = '<section>\n  {{ partial:components/section_heading }}\n</section>';
@@ -60,4 +61,10 @@ test('the cursor between tags is no call', () => {
   const source = '<section>\n  {{ partial:components/section_heading }}\n  <ul></ul>\n</section>';
 
   assert.equal(hitPartial(source, source.indexOf('<ul')), null);
+});
+
+test('a call’s _class and props_class reach the compiler, like its class', () => {
+  const html = '{{ partial:components/a class="mt-400" }}{{ partial:components/b _class="p-200" }}{{ partial:components/c props_class="gap-300" }}<div data_class="nope"></div>';
+
+  assert.deepEqual(twCandidates(html).sort(), ['gap-300', 'mt-400', 'p-200']);
 });

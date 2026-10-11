@@ -998,11 +998,13 @@ function keepPreview(win) {
 }
 
 function sendPreview(win, detail) {
-  // A call's classes land on whatever its component renders, and the paint
-  // finds its element by the HTML caret — which stands in the tag around the
-  // call. Held there, the classes would show on the wrong element, so a
-  // component waits for the morph instead.
-  const next = node?.component && typeof detail?.value === 'string' ? null : detail;
+  // A call's classes land on whatever its component renders, which the HTML
+  // caret — in the tag around the call — does not point at. The paint script
+  // finds those elements from the call itself (dock-instant-preview.js
+  // `holdCallTw`), so it is told the component and the value being replaced.
+  const next = node?.component && typeof detail?.value === 'string'
+    ? { component: node.src, param: node.param || '', old: currentValue()?.value ?? '', value: detail.value }
+    : detail;
 
   win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail: next }));
 }

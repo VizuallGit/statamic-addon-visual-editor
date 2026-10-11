@@ -153,6 +153,9 @@
         }
 
         lastHtml = null;
+        // What the iframe shows now is the morph's: the next paint records the calls, it does not diff them.
+        lastCalls = null;
+        waitingCalls = {};
 
         // "1 s" means the iframe is the morph's alone: no class held for a
         // list, no live sheet from the CSS pane, no live Tailwind sheet. The
@@ -2086,7 +2089,7 @@
 
     function classNames(html) {
         var out = [];
-        var re = /\bclass\s*=\s*("([^"]*)"|'([^']*)')/gi;
+        var re = /\b(?:props_|_)?class\s*=\s*("([^"]*)"|'([^']*)')/gi;
         var match;
 
         while ((match = re.exec(String(html || '')))) {
@@ -2480,6 +2483,9 @@
             }
 
             lastHtml = null;
+            // The morph's render is the truth now: record the calls, do not swap on it.
+            lastCalls = null;
+            waitingCalls = {};
 
             paint();
         });
@@ -2496,6 +2502,8 @@
             iframe.__sveInstantLoad = true;
             iframe.addEventListener('load', function () {
                 lastHtml = null;
+                lastCalls = null;
+                waitingCalls = {};
                 lastSid = '';
                 // A new document has no live sheet: forgotten, or the paint
                 // would skip the CSS as "already there" until the next
@@ -2923,6 +2931,10 @@
         lastSid = '';
         lastFullHtml = '';
         lastSnippet = '';
+        lastCalls = null;
+        waitingCalls = {};
+        // A component may have been edited in between.
+        componentFiles = {};
     }
 
     /**
@@ -3000,6 +3012,8 @@
     }
 
     function paint() {
+        var holdRequest;
+
         if (painting || !featureOn('template_dock') || !document.getElementById(DOCK_ID)) {
             return;
         }
@@ -3072,6 +3086,21 @@
             docs.forEach(function (doc) {
                 paintLive(doc, html, scoped && !file);
             });
+
+            // A snippet with no file has no calls to place, and a component's
+            // own calls render inside its instances, not in a section.
+            if (!(scoped && !file) && !isComponentFile(templateRoot(html))) {
+                // A list held on a call goes first: the element's own classes
+                // are what the change is painted on, and the hold goes back on top.
+                if (twHoldRequest && twHoldRequest.call) {
+                    holdRequest = twHoldRequest;
+                    restoreTwHold();
+                    twHoldRequest = holdRequest;
+                }
+
+                paintCalls(docs, html);
+            }
+
             reholdTw();
         } catch (e) {
             // Never leave `painting` stuck: that would silence every later paint
@@ -3302,7 +3331,7 @@
         tplEl = path ? elementAtPath(tplRoot, path) : null;
 
         if (!tplEl || !roots.length) {
-            return { targets: [], tag: tplEl ? tplEl.tagName : '' };
+            return { targets: [], tag: tplEl ? tplEl.tagName : '', tplEl: tplEl, tplRoot: tplRoot, roots: roots };
         }
 
         roots.forEach(function (root) {
@@ -3313,7 +3342,7 @@
 
         trace('tw: caret in <' + tplEl.tagName.toLowerCase() + '> at [' + path.join(',') + '] → ' + targets.length + ' live element(s)' + (targets.length ? ': ' + targets.map(function (el) { return '<' + el.tagName.toLowerCase() + (el.getAttribute('class') ? ' class="' + el.getAttribute('class') + '"' : '') + '>'; }).join(' ') : ''));
 
-        return { targets: targets, tag: tplEl.tagName };
+        return { targets: targets, tag: tplEl.tagName, tplEl: tplEl, tplRoot: tplRoot, roots: roots };
     }
 
     /**
@@ -3348,6 +3377,423 @@
         }
 
         return liveForOffset(doc, full, snippetAt + pos, false);
+    }
+
+    // ---- A component call's classes ----------------------------------------------
+    //
+    // `{{ partial:components/x class="…" }}` hands its classes to whatever the
+    // component renders, and the template has nothing of that to pair with —
+    // the call is a marker. So the element is found the way a reader would:
+    // the call's parent tag is paired with the live section as always, and
+    // what that live element holds beyond the template's own children is
+    // Antlers output. In it, the component's class-bearing tag — read from the
+    // component's own file — is the element. Only when that is unambiguous:
+    // one call of that component in the file, one such tag in each output.
+    // Anything else waits for the morph, which stays the truth.
+
+    /** `{{ partial:… }}` / `{{ partial src="…" }}` — the calls the dock finds (dock-partials.js). */
+    var CALL_RE = /\{\{\s*partial(?::([^\s}]+)|(?=[\s}]))([\s\S]*?)\}\}/gi;
+    /** The class a call hands on: `class`, `_class` or a `class` prop (component-props.js `CLASS_PARAMS`). */
+    var CALL_CLASS_RE = /(^|\s)(:?)(class|_class|props_class)\s*=\s*(["'])([\s\S]*?)\4/;
+    /** A component's own HTML by src: a string, null when there is none, a promise while it is asked for. */
+    var componentFiles = {};
+    /** The calls as the last paint saw them, to tell which one's class changed. */
+    var lastCalls = null;
+    /** A call's change that came before its component's file: painted when the file arrives, if the dock still says the same. */
+    var waitingCalls = {};
+
+    function componentCalls(html) {
+        var source = String(html || '').replace(/\{\{#[\s\S]*?#\}\}/g, function (m) {
+            return new Array(m.length + 1).join(' ');
+        });
+        var out = [];
+        var m;
+        var src;
+        var attr;
+        var cls;
+
+        CALL_RE.lastIndex = 0;
+
+        while ((m = CALL_RE.exec(source))) {
+            attr = m[2].match(/\bsrc\s*=\s*(["'])([^"']+)\1/i);
+            src = (m[1] || '').trim() || (attr ? attr[2].trim() : '');
+            cls = m[2].match(CALL_CLASS_RE);
+            out.push({
+                at: m.index,
+                src: src,
+                name: cls ? cls[3] : '',
+                bound: !!(cls && cls[2]),
+                value: cls ? cls[5] : '',
+            });
+        }
+
+        return out;
+    }
+
+    /** `blocks/{type}` is a folder, not one component (dock-partials.js `hasToken`). */
+    function oneComponent(src) {
+        return !!src && src.indexOf('..') === -1 && !/\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}/.test(src);
+    }
+
+    /** Ask for a component's file once, so it is here by the time a class is picked. */
+    function wantComponentFile(src) {
+        if (!oneComponent(src) || Object.prototype.hasOwnProperty.call(componentFiles, src)) {
+            return;
+        }
+
+        componentFiles[src] = window
+            .fetch('/!/sve/section-template?type=' + encodeURIComponent('view:partials/' + src), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+            .then(function (res) {
+                if (res.status === 404) {
+                    return {};
+                }
+
+                if (!res.ok) {
+                    throw new Error('HTTP ' + res.status);
+                }
+
+                return res.json();
+            })
+            .then(function (data) {
+                var waiting = waitingCalls[src];
+
+                componentFiles[src] = typeof data.html === 'string' ? data.html : null;
+                delete waitingCalls[src];
+
+                if (waiting && waiting.html === lastHtml) {
+                    paintCall(previewDocuments(), waiting.html, waiting.call, waiting.prev);
+                }
+            })
+            .catch(function () {
+                // Throttled, a server error, a session blip: asked again on the next paint.
+                delete componentFiles[src];
+                delete waitingCalls[src];
+            });
+    }
+
+    function splitClasses(value) {
+        return String(value || '').split(/\s+/).filter(function (name) {
+            return name !== '';
+        });
+    }
+
+    /**
+     * Where the component puts the class it is handed: the one tag whose
+     * class attribute reads `name` (`{{ class }}`, `{{ class ?? '' }}`, …),
+     * with the classes that tag always has. Null when no tag or more than one
+     * reads it, or the tag has no class of its own to be told apart by.
+     */
+    function classSpec(file, name) {
+        var source = String(file || '').replace(/\{\{#[\s\S]*?#\}\}/g, '');
+        var tagRe = /<([a-zA-Z][\w:-]*)((?:\{\{[\s\S]*?\}\}|[^>])*)>/g;
+        var reads = new RegExp('(^|[^\\w.:$-])' + name + '(?![\\w-])(?!\\s*=(?!=))');
+        var found = [];
+        var m;
+        var cls;
+        var value;
+
+        while ((m = tagRe.exec(source))) {
+            cls = /(?:^|\s)class\s*=\s*(?:"((?:\{\{[\s\S]*?\}\}|[^"])*)"|'((?:\{\{[\s\S]*?\}\}|[^'])*)')/.exec(m[2]);
+            value = cls ? (cls[1] ?? cls[2] ?? '') : '';
+
+            if ((value.match(/\{\{[\s\S]*?\}\}/g) || []).some(function (tag) {
+                return reads.test(tag.slice(2, -2));
+            })) {
+                found.push({
+                    tag: m[1].toUpperCase(),
+                    classes: splitClasses(value.replace(/\{\{[\s\S]*?\}\}/g, ' ')).filter(function (name) {
+                        return name !== '[' && name !== ']' && name.indexOf('{') === -1 && name.indexOf('}') === -1;
+                    }),
+                });
+            }
+        }
+
+        if (found.length !== 1 || !found[0].classes.length) {
+            return null;
+        }
+
+        // How a render of this component starts: its file's top-level tags with
+        // a class of their own — the blur wrapper around an image, say, which
+        // the preview's stamp does not always cover.
+        found[0].roots = elementKids(parseTemplate(stripAntlers(source, null))).map(function (el) {
+            return { tag: el.tagName, classes: fixedClasses(el) };
+        }).filter(function (root) {
+            return root.classes.length > 0;
+        });
+
+        return found[0];
+    }
+
+    /** The element starts a render of the component: its class-bearing tag, a root its file names, or the preview's stamp. */
+    function startsRender(el, spec, src) {
+        return fitsSpec(el, spec) || el.getAttribute('data-sve-component-src') === src || spec.roots.some(function (root) {
+            return root.tag === el.tagName && root.classes.every(function (name) {
+                return el.classList.contains(name);
+            });
+        });
+    }
+
+    /** A template element's classes that are not Antlers. */
+    function fixedClasses(tplEl) {
+        return splitClasses(tplEl.getAttribute('class')).filter(function (name) {
+            return name !== '[' && name !== ']' && !hasMarker(name);
+        });
+    }
+
+    function fitsSpec(el, spec) {
+        return el.tagName === spec.tag && spec.classes.every(function (name) {
+            return el.classList.contains(name);
+        });
+    }
+
+    /** Inside another component's output — one the call's component renders, or a stranger's. */
+    function inOtherComponent(el, top, src) {
+        var node = el;
+        var mark;
+
+        while (node) {
+            mark = node.getAttribute('data-sve-component-src');
+
+            if (mark && mark !== src) {
+                return true;
+            }
+
+            if (node === top) {
+                return false;
+            }
+
+            node = node.parentElement;
+        }
+
+        return false;
+    }
+
+    /**
+     * The live elements a call's class lands on, and the classes the
+     * component gives them itself (never taken away). Null when they cannot
+     * be told for certain — the morph shows the class then.
+     */
+    function callTargets(doc, html, call, name) {
+        var file;
+        var spec;
+        var where;
+        var own = [];
+        var targets = [];
+        var ambiguous = false;
+
+        if (!oneComponent(call.src) || call.bound || /[{}]/.test(call.value)) {
+            return null;
+        }
+
+        if (componentCalls(html).filter(function (other) {
+            return other.src === call.src;
+        }).length !== 1) {
+            trace('call: ' + call.src + ' is called more than once in the file; left to the morph');
+
+            return null;
+        }
+
+        file = componentFiles[call.src];
+
+        if (typeof file !== 'string') {
+            wantComponentFile(call.src);
+            trace('call: ' + call.src + (file === null ? ' has no file to read' : ' not read yet') + '; left to the morph');
+
+            return null;
+        }
+
+        spec = classSpec(file, name);
+
+        if (!spec) {
+            trace('call: no one tag in ' + call.src + ' reads {{ ' + name + ' }}; left to the morph');
+
+            return null;
+        }
+
+        where = liveForOffset(doc, html, call.at, false);
+
+        if (!where.targets.length || !where.tplEl || !where.roots.every(paintsOwnSection)) {
+            trace('call: no live parent for ' + call.src + '; left to the morph');
+
+            return null;
+        }
+
+        // The template's own children, told apart by tag and the classes they
+        // always have — never by order: a parent with a call in it holds a
+        // marker, and pairing by order there gives the call's output to a
+        // sibling of the same tag.
+        own = elementKids(where.tplEl).map(function (kid) {
+            return { tag: kid.tagName, classes: fixedClasses(kid) };
+        });
+
+        where.targets.forEach(function (parent) {
+            // What Antlers rendered beside the template's own children that
+            // starts like this component (`startsRender`). One per parent, or it cannot
+            // be told which render is the call's (a block or a field may
+            // render the same component right beside it).
+            var roots = elementKids(parent).filter(function (kid) {
+                return !own.some(function (item) {
+                    return item.tag === kid.tagName && item.classes.every(function (name) {
+                        return kid.classList.contains(name);
+                    });
+                }) && startsRender(kid, spec, call.src);
+            });
+            var hits;
+
+            if (roots.length > 1) {
+                ambiguous = true;
+
+                return;
+            }
+
+            if (!roots.length) {
+                return;
+            }
+
+            hits = [roots[0]].concat(Array.prototype.slice.call(roots[0].querySelectorAll(spec.tag))).filter(function (el) {
+                return fitsSpec(el, spec) && !inOtherComponent(el, roots[0], call.src);
+            });
+
+            if (hits.length > 1) {
+                ambiguous = true;
+            }
+
+            targets = targets.concat(hits);
+        });
+
+        if (ambiguous || !targets.length) {
+            trace('call: ' + (ambiguous ? 'more than one render could be ' : 'nothing rendered by ') + call.src + '; left to the morph');
+
+            return null;
+        }
+
+        return { targets: targets, keep: spec.classes };
+    }
+
+    /** The element's classes with the call's old ones out and the new ones in; the component's own stay. */
+    function swapClasses(current, old, next, keep) {
+        var add = splitClasses(next);
+        var gone = splitClasses(old).filter(function (name) {
+            return add.indexOf(name) === -1 && keep.indexOf(name) === -1;
+        });
+        var out = splitClasses(current).filter(function (name) {
+            return gone.indexOf(name) === -1;
+        });
+
+        add.forEach(function (name) {
+            if (out.indexOf(name) === -1) {
+                out.push(name);
+            }
+        });
+
+        return out.join(' ');
+    }
+
+    /**
+     * A class changed on a call since the last paint: put it where the
+     * component renders it, in every document. Calls are paired by order, and
+     * only while the list of calls is the same — a call added, removed or
+     * moved waits for the morph.
+     */
+    function paintCalls(docs, html) {
+        var calls = componentCalls(html);
+        var prev = lastCalls;
+        var i;
+
+        lastCalls = calls;
+        calls.forEach(function (call) {
+            wantComponentFile(call.src);
+        });
+
+        if (!prev || prev.length !== calls.length || prev.some(function (call, at) {
+            return call.src !== calls[at].src;
+        })) {
+            return;
+        }
+
+        for (i = 0; i < calls.length; i++) {
+            if (prev[i].value !== calls[i].value || prev[i].bound !== calls[i].bound) {
+                paintCall(docs, html, calls[i], prev[i]);
+            }
+        }
+    }
+
+    function paintCall(docs, html, call, prev) {
+        var name = call.name || prev.name || 'class';
+
+        if (prev.bound) {
+            return;
+        }
+
+        if (typeof componentFiles[call.src] !== 'string' && componentFiles[call.src] !== null && oneComponent(call.src)) {
+            waitingCalls[call.src] = { html: html, call: call, prev: (waitingCalls[call.src] || {}).prev || prev };
+            wantComponentFile(call.src);
+            trace('call: ' + call.src + ' changed before its file arrived; painted when it does');
+
+            return;
+        }
+
+        docs.forEach(function (doc) {
+            var found = callTargets(doc, html, call, name);
+
+            if (!found) {
+                return;
+            }
+
+            found.targets.forEach(function (el) {
+                el.setAttribute('class', swapClasses(el.getAttribute('class') || '', prev.value, call.value, found.keep));
+            });
+            trace('call: ' + call.src + ' ' + name + '="' + call.value + '" on ' + found.targets.length + ' element(s)');
+        });
+    }
+
+    /**
+     * A strip list held on a component call (tw-classes.js sends `component`
+     * instead of a tag): the class Enter would write, on the elements the
+     * paint would put it on.
+     */
+    function holdCallTw(docs, detail) {
+        var pane = paneText('html');
+        var scoped = htmlScoped();
+        var file = isFileRoot(pane) || scoped ? fullHtml() : '';
+        var html = file || pane;
+        var call;
+
+        // The paint's rules: a scoped slice with no file around it has no call
+        // to place, and a component's own calls render inside its instances.
+        if ((scoped && !file) || isComponentFile(templateRoot(html))) {
+            return;
+        }
+
+        call = componentCalls(html).filter(function (other) {
+            return other.src === detail.component;
+        })[0];
+        var name = detail.param || (call && call.name) || 'class';
+        var keep = [];
+
+        if (!call) {
+            return;
+        }
+
+        holdTw(docs, {
+            find: function (doc) {
+                var found = callTargets(doc, html, call, name);
+
+                keep = found ? found.keep : keep;
+
+                return found ? found.targets : [];
+            },
+            valueFor: function (el, original) {
+                return swapClasses(original, detail.old, detail.value, keep);
+            },
+            key: 'call:' + detail.component + ':' + detail.value,
+            candidate: detail.value,
+            // The paint never rewrites a component's element, so a hold is taken back before it is put on again.
+            call: true,
+        });
     }
 
     var twHold = null;
@@ -3474,8 +3920,13 @@
             return;
         }
 
-        twHold = null;
-        twHeldKey = '';
+        if (request.call) {
+            restoreTwHold();
+        } else {
+            twHold = null;
+            twHeldKey = '';
+        }
+
         holdTw(previewDocuments(), request);
     }
 
@@ -3502,6 +3953,12 @@
         }
 
         if (!docs.length || typeof detail.value !== 'string' || !hoverPreviewOn()) {
+            return;
+        }
+
+        if (detail.component) {
+            holdCallTw(docs, detail);
+
             return;
         }
 
@@ -3650,6 +4107,7 @@
 
         if (!dock) {
             lastHtml = null;
+            lastCalls = null;
             lastCss = '';
             lastFullHtml = '';
             lastSnippet = '';

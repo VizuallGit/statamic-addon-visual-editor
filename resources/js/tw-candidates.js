@@ -9,7 +9,8 @@
  */
 export function twCandidates(html) {
   const source = String(html || '');
-  const attr = /\bclass\s*=\s*("([^"]*)"|'([^']*)')/gi;
+  // `_class` and `props_class` are a component call's class (component-props.js `CLASS_PARAMS`).
+  const attr = /\b(?:props_|_)?class\s*=\s*("([^"]*)"|'([^']*)')/gi;
   const out = new Set();
   let match;
 
