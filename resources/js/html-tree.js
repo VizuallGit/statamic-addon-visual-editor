@@ -247,6 +247,8 @@ let htmlTreePendingUid = '';
 let htmlTreePendingTimer = 0;
 /** The markup on screen when it was clicked — the file it is waiting to leave. */
 let htmlTreePendingHtml = '';
+/** Counts section clicks, so only the last one may focus once its set mounts. */
+let htmlTreeOpenGen = 0;
 /**
  * Every section's markup, fetched before anyone asks for it.
  *
@@ -1402,7 +1404,18 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   // itself once the section has landed. Focusing straight after activating is
   // focusing something that is not there yet: the tree and the dock moved, and
   // the sidebar quietly went on showing the section before.
-  const focus = () => focusFromPreview(section.uid, doc, win, { clampToSection: true });
+  //
+  // The wait is per click, and a set that has to mount takes longer than one
+  // that is already there. Click a section, then another before the first has
+  // mounted, and the first one's focus lands last: the dock fetched the
+  // section clicked second, then went back to the first, and the tree jumped
+  // back with it. Only the latest click focuses.
+  const gen = ++htmlTreeOpenGen;
+  const focus = () => {
+    if (gen === htmlTreeOpenGen) {
+      focusFromPreview(section.uid, doc, win, { clampToSection: true });
+    }
+  };
 
   openLiteSection(section.uid, doc, win, focus);
   sendToPreview(
