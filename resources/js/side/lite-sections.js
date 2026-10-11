@@ -14,7 +14,8 @@
  *     `refreshLiteSetFields` from here.
  *
  * May import: focus-panel.js, cp/bus.js, lib/, cp-selectors.js (constants
- * only), chrome-prefs.js (per-user switches), code-dock-lazy.js (the dock's one door — a section switch moves the
+ * only), chrome-prefs.js (per-user switches), cp/tip.js (hover labels),
+ * code-dock-lazy.js (the dock's one door — a section switch moves the
  * dock first). Imported by lp-cluster.js right
  * after focus-panel.js (not via side/index.js: the first import must not pull
  * the focus panel's graph ahead of everything else).
@@ -44,6 +45,7 @@ import { mark } from '../lib/debug.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { SELECTORS } from '../cp-selectors.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
+import { bindTips } from '../cp/tip.js';
 import { syncCodeDock } from '../code-dock-lazy.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
@@ -1019,12 +1021,19 @@ import { syncCodeDock } from '../code-dock-lazy.js';
         return chromeGet(window, LOAD_ALL_KEY) === '1';
     }
 
+    // Said in the editor's own hover label, as the top bar's icons are: what
+    // a click does while it is off, what is on screen while it is on.
     function paintLoadSwitch(btn, on) {
+        var label;
+
         if (btn.getAttribute('aria-checked') === String(on)) {
             return;
         }
 
+        label = t(window, on ? 'lite_load_all_on' : 'lite_load_all_off');
         btn.setAttribute('aria-checked', String(on));
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('data-tip', label);
         btn.innerHTML = on ? LOAD_ALL_ON : LOAD_ALL_OFF;
     }
 
@@ -1042,6 +1051,9 @@ import { syncCodeDock } from '../code-dock-lazy.js';
         liteVm.loadAll = on;
         chromeSet(window, LOAD_ALL_KEY, on ? '1' : '0');
         paintLoadSwitch(event.currentTarget, on);
+        // The press took the label down; the pointer is still on the switch,
+        // so it comes straight back, saying the new state.
+        event.currentTarget.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     }
 
     function stampHeaderLoadBtn(doc) {
@@ -1049,7 +1061,6 @@ import { syncCodeDock } from '../code-dock-lazy.js';
         var line = header && header.querySelector('[data-sve-focus-id]');
         var title = line && line.querySelector('[data-sve-focus-title]');
         var btn = header && header.querySelector('[' + LITE_LOAD_ATTR + ']');
-        var label = t(window, 'lite_load_sidebar');
 
         if (!line || !title) {
             return;
@@ -1069,10 +1080,9 @@ import { syncCodeDock } from '../code-dock-lazy.js';
             btn.setAttribute(LITE_LOAD_ATTR, '');
             btn.setAttribute('role', 'switch');
             btn.addEventListener('click', onHeaderLoadClick);
+            bindTips(window, btn);
         }
 
-        btn.title = label;
-        btn.setAttribute('aria-label', label);
         paintLoadSwitch(btn, !!liteVm.loadAll);
 
         if (btn.previousElementSibling !== title) {
