@@ -22,11 +22,12 @@ defineProps({
       <button type="button" data-sve-code-back hidden></button>
       <span data-sve-code-path></span>
       <span data-sve-code-status></span>
+      <!-- All comes first: it is about what both panes show (dock/all.js). -->
+      <button type="button" data-sve-all></button>
       <button type="button" data-sve-code-strip></button>
       <button type="button" data-sve-code-history></button>
       <button type="button" data-sve-style-mode></button>
       <button type="button" data-sve-values-mode></button>
-      <button type="button" data-sve-css-all></button>
       <button type="button" data-sve-code-autosave aria-pressed="true"></button>
       <button type="button" data-sve-code-save hidden></button>
       <!-- The tree's switch stands next to the lock, at the row's end: the two
@@ -59,15 +60,6 @@ defineProps({
           template-lint.js finds it). Hidden while there is nothing to say.
         -->
         <div data-sve-html-problems hidden></div>
-        <!--
-          All floats in the code's top right corner: it is a way to look at
-          the document, so it sits on it. The slot has no height, so the pane's
-          height sum (layout.js) leaves the editor its full height, and it is
-          outside the scroller, so it stays put while the code scrolls.
-        -->
-        <div data-sve-html-all-slot>
-          <button type="button" data-sve-html-all hidden></button>
-        </div>
         <div data-sve-code-host></div>
       </div>
       <div data-sve-code-split data-sve-code-split-after="html"></div>

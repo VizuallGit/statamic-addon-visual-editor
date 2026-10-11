@@ -25,7 +25,7 @@ import { closeCssMenu, paintCssToolState, placeCssMenu } from './css-tools.js';
 import { applyCssFolds } from './css-sizes.js';
 import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
 import { minimalChange } from '../lib/minimal-change.js';
-import { ALL_ICON } from './all-icon.js';
+import { paintAll } from './all.js';
 import { freshUndo } from './undo.js';
 
 // ===== scope =====
@@ -102,6 +102,7 @@ export function paintLock(win) {
   const locked = dockState.lastLocked;
 
   dock.toggleAttribute('data-sve-code-locked', locked);
+  paintAll(win);
   if (locked) {
     closePartialMenu(win.document);
     closeClassTokenUi(win.document);
@@ -847,37 +848,18 @@ export function showHtmlFull(selectFocus = true, caret = null) {
 }
 
 /**
- * The HTML pane's All button: the whole file in the pane — the Antlers and the
- * markup around the picked element, `{{ switch }}`, `{{ _bg = … }}` and all —
- * with the CSS and JS still in their own panes. The pick is kept, and moved
- * with every edit (editor.js, lib/focus-map.js), so pressing it again shows
- * the same element. Only while the tree is on: with it off the pane shows the
- * whole file already.
+ * The HTML half of All (dock/all.js): the whole file in the pane — the Antlers
+ * and the markup around the picked element, `{{ switch }}`, `{{ _bg = … }}` and
+ * all — with the CSS and JS still in their own panes. The pick is kept, and
+ * moved with every edit (editor.js, lib/focus-map.js), so pressing it again
+ * shows the same element. Only while the tree is on: with it off the pane
+ * shows the whole file already.
  */
-export function paintHtmlAll(win) {
-  const btn = win?.document.getElementById(DOCK_ID)?.querySelector('[data-sve-html-all]');
-
-  if (!btn) {
-    return;
-  }
-
-  btn.hidden = !dockState.htmlScopePref;
-
-  const text = win.document.createElement('span');
-
-  text.textContent = t(win, 'code_dock_html_all');
-  btn.innerHTML = ALL_ICON;
-  btn.appendChild(text);
-  btn.title = t(win, dockState.htmlAll ? 'code_dock_html_all_off' : 'code_dock_html_all_on');
-  btn.setAttribute('aria-label', btn.title);
-  btn.setAttribute('aria-pressed', dockState.htmlAll ? 'true' : 'false');
-}
-
 export function setHtmlAll(win, on) {
   const view = editors.html;
 
   if (!view || !!on === dockState.htmlAll) {
-    paintHtmlAll(win);
+    paintAll(win);
 
     return;
   }
@@ -1007,7 +989,7 @@ export function paintHtmlScope(win) {
   btn.innerHTML = SCOPE_ICON;
   win.document.getElementById(DOCK_ID)?.toggleAttribute('data-sve-html-scoped', dockState.htmlScopeActive);
   exposeHtmlScope();
-  paintHtmlAll(win);
+  paintAll(win);
 }
 
 export function bindHtmlScope(win, dock) {
@@ -1022,12 +1004,6 @@ export function bindHtmlScope(win, dock) {
   // The dock has just opened: put the tree where the remembered setting says.
   // On a fresh install that is on.
   syncHtmlTree(win, dockState.htmlScopePref);
-
-  dock.querySelector('[data-sve-html-all]')?.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setHtmlAll(win, !dockState.htmlAll);
-  });
 
   dock.querySelector('[data-sve-html-scope]')?.addEventListener('click', (event) => {
     event.preventDefault();

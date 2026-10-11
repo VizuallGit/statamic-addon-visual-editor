@@ -296,14 +296,11 @@ export function ensureStyle(doc) {
   background: rgba(56,189,248,.16);
 }
 #${DOCK_ID}[data-sve-style="tw"] [data-sve-values-mode],
-#${DOCK_ID}[data-sve-style="tw"] [data-sve-css-all],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode],
-#${DOCK_ID}[data-sve-code-locked] [data-sve-css-all] {
+#${DOCK_ID}[data-sve-code-locked] [data-sve-values-mode] {
   display: none;
 }
 #${DOCK_ID} [data-sve-values-mode],
-#${DOCK_ID} [data-sve-css-all],
-#${DOCK_ID} [data-sve-html-all],
+#${DOCK_ID} [data-sve-all],
 #${DOCK_ID} [data-sve-style-mode] {
   all: unset;
   cursor: pointer;
@@ -322,60 +319,17 @@ export function ensureStyle(doc) {
   white-space: nowrap;
 }
 #${DOCK_ID} [data-sve-values-mode]:hover,
-#${DOCK_ID} [data-sve-css-all]:hover,
-#${DOCK_ID} [data-sve-html-all]:hover,
+#${DOCK_ID} [data-sve-all]:hover,
 #${DOCK_ID} [data-sve-style-mode]:hover {
   opacity: 1;
   background: rgba(255,255,255,.16);
 }
 #${DOCK_ID} [data-sve-values-mode][aria-pressed="true"],
-#${DOCK_ID} [data-sve-css-all][aria-pressed="true"],
-#${DOCK_ID} [data-sve-html-all][aria-pressed="true"],
+#${DOCK_ID} [data-sve-all][aria-pressed="true"],
 #${DOCK_ID} [data-sve-style-mode][aria-pressed="true"] {
   opacity: 1;
   color: #7dd3fc;
   background: rgba(56,189,248,.16);
-}
-/* The HTML pane's All: small, on the code's top right corner, with the dock's
-   own translucent white — and code that runs under it is blurred, not read
-   through. Gone with the tree, when the pane shows the whole file anyway. */
-#${DOCK_ID} [data-sve-html-all-slot] {
-  position: relative;
-  height: 0;
-  z-index: 5;
-}
-/* Level with the first line of code: the editor's content starts 12px down
-   (lib/codemirror.js) and a line is 13px × 1.55 ≈ 20px tall. */
-#${DOCK_ID} [data-sve-html-all] {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  height: 20px;
-  padding: 0 6px;
-  margin-left: 0;
-  gap: 4px;
-  border-radius: 5px;
-  font-size: 10px;
-  opacity: 1;
-  color: rgba(212,212,212,.8);
-  background: rgba(255,255,255,.08);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
-}
-#${DOCK_ID} [data-sve-html-all] svg {
-  width: 10px;
-  height: 10px;
-}
-#${DOCK_ID} [data-sve-html-all]:hover {
-  color: #d4d4d4;
-  background: rgba(255,255,255,.14);
-}
-#${DOCK_ID} [data-sve-html-all][aria-pressed="true"] {
-  color: #7dd3fc;
-  background: rgba(56,189,248,.16);
-}
-#${DOCK_ID} [data-sve-html-all][hidden] {
-  display: none;
 }
 /* The CSS pane holds two things and shows one: the editor, or the chips. */
 #${DOCK_ID} [data-sve-tw-host] {

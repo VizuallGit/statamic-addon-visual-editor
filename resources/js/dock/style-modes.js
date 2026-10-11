@@ -12,11 +12,11 @@ import { dockState } from '../dock/state.js';
 import { CSS_MODE_ICON, DOCK_ID, ID_MODE_ICON, SCOPE_KEY, TW_MODE_ICON, VALUES_MODE_KEY, editors, html } from '../code-dock.js';
 import { applyCssFolds, cssSizeRow, cssSizeRows, newSizeBlockSpot, newSizeQuery, paintCssHead } from './css-sizes.js';
 import { closeCssMenu, leadingCssIndent, paintCssToolState } from './css-tools.js';
-import { applyCssScope, flushCssScope, syncHtmlTree } from './scope.js';
+import { applyCssScope, flushCssScope, setHtmlAll, syncHtmlTree } from './scope.js';
 import { paintCssIdMark } from './editor.js';
 import { paintStrip } from './history-strip.js';
 import { paintAlpine } from './alpine.js';
-import { ALL_ICON } from './all-icon.js';
+import { allOn, allParts, paintAll } from './all.js';
 
 // ===== style-modes =====
 /**
@@ -210,37 +210,16 @@ export function setValuesMode(win, on) {
 
 
 /**
- * The All button: the whole style block in the CSS pane, where a rule whose
- * `[ name ]` is on no tag any more can still be seen and deleted for good.
- * Only in the CSS language (Tailwind has no block to show — layout.js hides
- * it there) and only a look: a pick in the tree, or a new file, puts the pane
- * back on the element's own rules.
+ * The CSS half of All (dock/all.js): the whole style block in the CSS pane,
+ * where a rule whose `[ name ]` is on no tag any more can still be seen and
+ * deleted for good. Only a look: a pick in the tree, or a new file, puts the
+ * pane back on the element's own rules.
  */
-export function paintCssAll(win) {
-  const dock = win?.document.getElementById(DOCK_ID);
-  const btn = dock?.querySelector('[data-sve-css-all]');
-
-  if (!dock || !btn) {
-    return;
-  }
-
-  dock.setAttribute('data-sve-css-all-on', dockState.cssAll ? 'on' : 'off');
-
-  const text = win.document.createElement('span');
-
-  text.textContent = t(win, 'code_dock_css_all');
-  btn.innerHTML = ALL_ICON;
-  btn.appendChild(text);
-  btn.title = t(win, dockState.cssAll ? 'code_dock_css_all_off' : 'code_dock_css_all_on');
-  btn.setAttribute('aria-label', btn.title);
-  btn.setAttribute('aria-pressed', dockState.cssAll ? 'true' : 'false');
-}
-
-export function setCssAll(win, on) {
+function setCssAll(win, on) {
   dockState.cssAll = !!on;
   closeCssMenu(win.document);
   dockState.cssOpenTool = '';
-  paintCssAll(win);
+  paintAll(win);
   // What the pane shows changes, not only what is folded: the element's rules
   // go back into the file first, then the file (or the element) comes up.
   flushCssScope();
@@ -248,6 +227,33 @@ export function setCssAll(win, on) {
   applyCssFolds(win, true);
   paintCssHead(win);
   paintCssToolState(win);
+}
+
+/** The bar's All button: both panes on the whole file, or both back on the pick. */
+export function setAll(win, on) {
+  const parts = allParts();
+
+  if (on) {
+    if (parts.html) {
+      setHtmlAll(win, true);
+    }
+
+    if (parts.css) {
+      setCssAll(win, true);
+    }
+  } else {
+    setHtmlAll(win, false);
+
+    if (dockState.cssAll) {
+      setCssAll(win, false);
+    }
+  }
+
+  paintAll(win);
+}
+
+export function toggleAll(win) {
+  setAll(win, !allOn());
 }
 
 export function paintStyleMode(win) {
@@ -308,7 +314,7 @@ export function applyStyleMode(win) {
 
   paintStyleMode(win);
   paintValuesMode(win);
-  paintCssAll(win);
+  paintAll(win);
   paintStrip(win);
   dockState.cssToolRow?.();
 
