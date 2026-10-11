@@ -45,6 +45,7 @@ export const CHROME_KEYS = [
   'sve-toolbar-order',
   'sve-toolbar-presets',
   'sve-toolbar-preset',
+  'sve-lite-load-all',
 ];
 
 const MIGRATED_KEY = 'sve-chrome-legacy-migrated';

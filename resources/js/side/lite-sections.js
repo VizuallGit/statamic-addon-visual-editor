@@ -14,7 +14,7 @@
  *     `refreshLiteSetFields` from here.
  *
  * May import: focus-panel.js, cp/bus.js, lib/, cp-selectors.js (constants
- * only), code-dock-lazy.js (the dock's one door — a section switch moves the
+ * only), chrome-prefs.js (per-user switches), code-dock-lazy.js (the dock's one door — a section switch moves the
  * dock first). Imported by lp-cluster.js right
  * after focus-panel.js (not via side/index.js: the first import must not pull
  * the focus panel's graph ahead of everything else).
@@ -27,7 +27,8 @@
  *
  * Inside a row, only what the sidebar is showing mounts: the open Content
  * tab, replicator labels, and media. Nested block fields wait for hover or
- * click. Style fields wait for the Style tab.
+ * click. Style fields wait for the Style tab. Unless "load everything" — the
+ * switch on the section headline — is on: then a row mounts whole.
  *
  * First-section and neighbour preload can be restored by flipping the flags
  * below. Loaded panes stay mounted (`KEEP_MOUNTED`) until the section list
@@ -42,6 +43,7 @@ import { featureOn } from '../lib/config.js';
 import { mark } from '../lib/debug.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { SELECTORS } from '../cp-selectors.js';
+import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { syncCodeDock } from '../code-dock-lazy.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
@@ -989,116 +991,57 @@ import { syncCodeDock } from '../code-dock-lazy.js';
     }
 
     /**
-     * One reload on the section headline. Nested set fields wait until asked;
-     * this is the ask — every uid under the open section, same `nests` map
-     * hover writes. Not a second mount path, and not a button per replicator.
+     * "Load everything": a switch on the section headline, remembered per user.
+     *
+     * Off, the sidebar mounts what it is showing — the open tab, the nested
+     * sets someone hovered — which keeps it light for whoever is editing text.
+     * On, every section opens whole: every tab, every nested replicator, grid
+     * and Bard set, rows added later included. For writing markup in the dock,
+     * where the fields have to be there before anyone points at them.
+     *
+     * Not a second mount path: the same panes, handed the set's full config
+     * instead of the filtered one (see `chunkedConfig`).
      */
     var LITE_LOAD_ATTR = 'data-sve-lite-load';
-    var LITE_LOAD_SVG =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" ' +
-        'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-        '<path d="M21 12a9 9 0 1 1-2.64-6.36"></path>' +
-        '<polyline points="21 3 21 9 15 9"></polyline>' +
-        '</svg>';
+    var LOAD_ALL_KEY = 'sve-lite-load-all';
+    // The HTML tree's Alpine switch, drawn the same way: off an empty track
+    // with the knob on the left, on a filled track with the knob cut out on
+    // the right — it reads from the drawing, not only from colour.
+    var LOAD_ALL_OFF =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6.5" width="20" height="11" rx="5.5"/>' +
+        '<circle cx="7.5" cy="12" r="3" fill="currentColor" stroke="none"/></svg>';
+    var LOAD_ALL_ON =
+        '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" ' +
+        'd="M7.5 5.5h9a6.5 6.5 0 0 1 0 13h-9a6.5 6.5 0 0 1 0-13ZM16.5 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6Z"/></svg>';
 
-    function collectNestedUids(node, out, depth) {
-        var keys;
-        var i;
-        var key;
-        var id;
-
-        if (!node || typeof node !== 'object' || depth > 24 || typeof node.nodeType === 'number') {
-            return;
-        }
-
-        if (Array.isArray(node)) {
-            for (i = 0; i < node.length; i++) {
-                collectNestedUids(node[i], out, depth + 1);
-            }
-
-            return;
-        }
-
-        if (
-            typeof node.type === 'string'
-            && node.type !== ''
-            && (node._visual_id || node.id || node._id || node.enabled !== undefined)
-        ) {
-            id = uidOf(node);
-
-            if (id) {
-                out.push(id);
-            }
-        }
-
-        keys = Object.keys(node);
-
-        for (i = 0; i < keys.length; i++) {
-            key = keys[i];
-
-            if (key.charAt(0) === '_' || key === 'type' || key === 'id') {
-                continue;
-            }
-
-            collectNestedUids(node[key], out, depth + 1);
-        }
+    function loadAllStored() {
+        return chromeGet(window, LOAD_ALL_KEY) === '1';
     }
 
-    function revealUids(uids) {
-        var section;
-        var cur;
-        var next;
-        var all;
-        var i;
-        var id;
-
-        if (!liteVm || !uids || !uids.length) {
+    function paintLoadSwitch(btn, on) {
+        if (btn.getAttribute('aria-checked') === String(on)) {
             return;
         }
 
-        section = sectionUidFor(uids[0]) || uidOf(liteVm.activeRow);
-
-        if (!section) {
-            return;
-        }
-
-        cur = openedFor(section);
-        next = {
-            tabs: Object.assign({}, cur.tabs),
-            panels: Object.assign({}, cur.panels),
-            nests: Object.assign({}, cur.nests),
-        };
-
-        for (i = 0; i < uids.length; i++) {
-            id = String(uids[i] || '');
-
-            if (id) {
-                next.nests[id] = true;
-            }
-        }
-
-        all = Object.assign({}, liteVm.chunks || {});
-        all[section] = next;
-        liteVm.chunks = all;
-        liteVm.focusUid = uids[0];
-    }
-
-    function loadOpenSectionFields() {
-        var uids = [];
-        var row = liteVm && liteVm.activeRow;
-
-        if (!row) {
-            return;
-        }
-
-        collectNestedUids(row, uids, 0);
-        revealUids(uids);
+        btn.setAttribute('aria-checked', String(on));
+        btn.innerHTML = on ? LOAD_ALL_ON : LOAD_ALL_OFF;
     }
 
     function onHeaderLoadClick(event) {
+        var on;
+
         event.preventDefault();
         event.stopPropagation();
-        loadOpenSectionFields();
+
+        if (!liteVm) {
+            return;
+        }
+
+        on = !liteVm.loadAll;
+        liteVm.loadAll = on;
+        chromeSet(window, LOAD_ALL_KEY, on ? '1' : '0');
+        paintLoadSwitch(event.currentTarget, on);
     }
 
     function stampHeaderLoadBtn(doc) {
@@ -1124,12 +1067,13 @@ import { syncCodeDock } from '../code-dock-lazy.js';
             btn = doc.createElement('button');
             btn.type = 'button';
             btn.setAttribute(LITE_LOAD_ATTR, '');
-            btn.innerHTML = LITE_LOAD_SVG;
+            btn.setAttribute('role', 'switch');
             btn.addEventListener('click', onHeaderLoadClick);
         }
 
         btn.title = label;
         btn.setAttribute('aria-label', label);
+        paintLoadSwitch(btn, !!liteVm.loadAll);
 
         if (btn.previousElementSibling !== title) {
             title.after(btn);
@@ -1211,7 +1155,7 @@ import { syncCodeDock } from '../code-dock-lazy.js';
             },
 
             data: function () {
-                return { activeUid: null, keptUids: [], pending: false, chunks: {}, focusUid: null, fieldsTick: 0 };
+                return { activeUid: null, keptUids: [], pending: false, chunks: {}, focusUid: null, fieldsTick: 0, loadAll: loadAllStored() };
             },
 
             created: function () {
@@ -1500,6 +1444,12 @@ import { syncCodeDock } from '../code-dock-lazy.js';
 
                 chunkedConfig: function (row) {
                     var full = setConfigFrom(this.config, row.type);
+
+                    // "Load everything" is on: nothing held back.
+                    if (this.loadAll) {
+                        return full;
+                    }
+
                     var uid = uidOf(row);
                     var opened = openedFor(uid);
                     var unlocked = unlockedTypes(row, opened);
@@ -1905,6 +1855,7 @@ import { syncCodeDock } from '../code-dock-lazy.js';
             'justify-content:center;margin-left:auto;width:2.1rem;height:2.1rem;' +
             'border-radius:.5rem;color:inherit;opacity:.55;}' +
             '[' + LITE_LOAD_ATTR + ']:hover{opacity:1;background:rgba(128,128,128,.16);}' +
+            '[' + LITE_LOAD_ATTR + '][aria-checked="true"]{opacity:1;}' +
             '[' + LITE_LOAD_ATTR + '] svg{display:block;}';
 
         injectStyle(doc, 'sve-lite-field-heights', css);

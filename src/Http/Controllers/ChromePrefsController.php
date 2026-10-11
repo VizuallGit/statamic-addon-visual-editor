@@ -37,6 +37,7 @@ class ChromePrefsController
         'sve-toolbar-order',
         'sve-toolbar-presets',
         'sve-toolbar-preset',
+        'sve-lite-load-all',
     ];
 
     public function update(Request $request)
