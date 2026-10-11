@@ -247,8 +247,6 @@ let htmlTreePendingUid = '';
 let htmlTreePendingTimer = 0;
 /** The markup on screen when it was clicked — the file it is waiting to leave. */
 let htmlTreePendingHtml = '';
-/** Counts section clicks, so only the last one may focus once its set mounts. */
-let htmlTreeOpenGen = 0;
 /**
  * Every section's markup, fetched before anyone asks for it.
  *
@@ -1405,17 +1403,10 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   // focusing something that is not there yet: the tree and the dock moved, and
   // the sidebar quietly went on showing the section before.
   //
-  // The wait is per click, and a set that has to mount takes longer than one
-  // that is already there. Click a section, then another before the first has
-  // mounted, and the first one's focus lands last: the dock fetched the
-  // section clicked second, then went back to the first, and the tree jumped
-  // back with it. Only the latest click focuses.
-  const gen = ++htmlTreeOpenGen;
-  const focus = () => {
-    if (gen === htmlTreeOpenGen) {
-      focusFromPreview(section.uid, doc, win, { clampToSection: true });
-    }
-  };
+  // The dock does not wait for the mount (the switch moves it at once), and
+  // a click overtaken by the next one never focuses — both in
+  // `switchMountedSection`, shared with a click on the page.
+  const focus = () => focusFromPreview(section.uid, doc, win, { clampToSection: true });
 
   openLiteSection(section.uid, doc, win, focus);
   sendToPreview(
@@ -1880,6 +1871,10 @@ export function renderHtmlTree(win) {
   htmlTreeUi.onDelete = (id) => deleteHtmlTreeRow(win, id);
   htmlTreeUi.onPointerDown = (event, id) => beginHtmlTreePointer(win, event, id);
   htmlTreeUi.onSectionPointerDown = (event, uid) => beginSectionPointer(win, event, uid);
+  // Resting on a section's row mounts its fields in the sidebar behind the
+  // scenes — what resting on it in the preview already does — so the click
+  // finds them there instead of waiting for them.
+  htmlTreeUi.onSectionHover = (uid) => win.dispatchEvent(new win.CustomEvent('sve-lite-hover', { detail: { uid } }));
   htmlTreeUi.onContext = (event, id) => openHtmlTreeMenu(win, event, id);
   htmlTreeUi.onInspectCommit = (value) => commitHtmlTreeInspector(win, value);
   htmlTreeUi.onPropValue = (handle, value, bound) => commitComponentValue(win, handle, value, bound);

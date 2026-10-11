@@ -277,6 +277,7 @@ function canAct(row) {
     @keydown.enter.prevent="onRowClick(row)"
     @keydown.space.prevent="onRowClick(row)"
     @pointerdown="onPointerDown($event, row)"
+    @pointerenter="isShutSection(row) ? ui.onSectionHover?.(row.section) : null"
     @contextmenu.prevent.stop="isFrame(row) || isSlot(row) || isShutSection(row) || isContext(row) ? null : ui.onContext?.($event, row.id)"
   >
     <!--

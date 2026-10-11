@@ -13,7 +13,9 @@
  *   - html-tree.js and section-fields.js import `openLiteSection` /
  *     `refreshLiteSetFields` from here.
  *
- * May import: focus-panel.js, cp/bus.js, lib/. Imported by lp-cluster.js right
+ * May import: focus-panel.js, cp/bus.js, lib/, cp-selectors.js (constants
+ * only), code-dock-lazy.js (the dock's one door — a section switch moves the
+ * dock first). Imported by lp-cluster.js right
  * after focus-panel.js (not via side/index.js: the first import must not pull
  * the focus panel's graph ahead of everything else).
  *
@@ -39,6 +41,8 @@ import { injectStyle } from '../lib/style.js';
 import { featureOn } from '../lib/config.js';
 import { mark } from '../lib/debug.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
+import { SELECTORS } from '../cp-selectors.js';
+import { syncCodeDock } from '../code-dock-lazy.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
     var PRELOAD_FIRST_SECTION = false;
@@ -140,6 +144,18 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         return null;
     }
 
+    // Anything inside a set that carries an id of its own: a nested set, a Bard
+    // set, a Grid row. Grid rows by their markup as well as by the stamp —
+    // `stampGridRows` runs off an observer with a quiet window, and the
+    // sidebar asks the moment a section mounts.
+    var OWN_ROW = SELECTORS.anySet + ', table.grid-table tbody tr, .grid-stacked > *';
+
+    /**
+     * The set's own id. A Grid's rows each have an id field too, and a row can
+     * sit before the set's own in the markup: read as the set's, the section
+     * was never found under its real id, and every switch to it waited out
+     * the full timeout — seconds, for any section holding a Grid.
+     */
     function uidOfSet(setEl) {
         var inputs = setEl.querySelectorAll('[data-visual-id]');
         var i;
@@ -147,7 +163,7 @@ import { MSG, SOURCE } from '../lib/protocol.js';
 
         for (i = 0; i < inputs.length; i++) {
             input = inputs[i];
-            if (input.closest('[data-replicator-set]') === setEl) {
+            if (input.closest(OWN_ROW) === setEl) {
                 return input.value || null;
             }
         }
@@ -2031,18 +2047,21 @@ import { MSG, SOURCE } from '../lib/protocol.js';
      * find in the DOM. The click on the page never had this problem because it
      * replays itself once the section has mounted; anything else calling in —
      * the HTML tree, for one — needs the same wait, which is what `done` is.
+     *
+     * It is the same switch a click on the page makes, so it answers the same
+     * way: the dock and the header move at once, and the old section's fields
+     * are not left out to type into while the new ones mount.
      */
     function openLiteSection(uid, doc, view, done) {
         var finish = typeof done === 'function' ? done : function () {};
-        var section = activateSection(uid);
 
-        if (!section) {
+        if (!liteVm || !sectionUidFor(uid)) {
             finish();
 
             return false;
         }
 
-        watchMountedSection(section, doc || document, view || window, true, finish);
+        switchMountedSection(uid, doc || document, view || window, finish);
 
         return true;
     }
@@ -2377,12 +2396,18 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         view.setTimeout(fn, 0);
     }
 
-    function watchMountedSection(uid, doc, view, reuse, done) {
+    function watchMountedSection(uid, doc, view, reuse, done, gen) {
         var Vue = window.Vue;
 
         function start() {
             waitForSet(uid, doc, view, function () {
                 var setEl;
+
+                // Overtaken by a later switch: that one owns the sidebar now,
+                // its spinner included.
+                if (gen !== switchGen) {
+                    return;
+                }
 
                 // The set is in the DOM — show it. Waiting for Bard's box
                 // height or the solo wrapper left Hero Test's fields invisible
@@ -2395,6 +2420,13 @@ import { MSG, SOURCE } from '../lib/protocol.js';
                 }
 
                 setEl = findSetByUid(uid, doc, 'active') || findSetByUid(uid, doc);
+
+                // Isolated now, not when `done` gets there. Until then the
+                // section being left is still the solo one: it hides the new
+                // set — so the field box below waited out its timeout on a set
+                // with no height — and repaints its own header over the new
+                // one, with its fields left out to type into.
+                isolateSoloSection(uid, doc, view);
 
                 afterExpand(setEl, view, function () {
                     waitForFieldBox(setEl, view, done);
@@ -2409,11 +2441,36 @@ import { MSG, SOURCE } from '../lib/protocol.js';
         }
     }
 
+    /** Counts switches, so only the last one may finish once its set mounts. */
+    var switchGen = 0;
+
+    /**
+     * Open a section in the sidebar — from a click on the page, in the block
+     * tree or in the HTML tree — and call `done` once its set is mounted.
+     *
+     * The dock does not wait for that. It reads the section's file off the
+     * publish values, so it moves the moment the section is asked for; held
+     * behind the mount it sat on the old file for as long as the new fields
+     * took — seconds, for a set with a Bard or a long list — with the old
+     * code still there to type into.
+     *
+     * Only the latest switch finishes. A set that has to mount takes longer
+     * than one that is already there, so a click overtaken by the next one
+     * would otherwise land last and take the dock and the sidebar back with it.
+     */
     function switchMountedSection(uid, doc, win, done) {
         var reuse = isMounted(uid);
         var section;
         var view = win || window;
+        var gen = ++switchGen;
 
+        function finish() {
+            if (gen === switchGen) {
+                done();
+            }
+        }
+
+        syncCodeDock(view, doc, uid);
         instantFocusHeader(uid, doc, view);
         cancelNeighbors();
 
@@ -2428,26 +2485,30 @@ import { MSG, SOURCE } from '../lib/protocol.js';
             section = activateSection(uid);
 
             if (!section) {
-                done();
+                finish();
                 return;
             }
 
-            watchMountedSection(section, doc, view, true, done);
+            watchMountedSection(section, doc, view, true, finish, gen);
             return;
         }
 
         beginLitePending(doc, view, true);
 
         afterPaint(view, function () {
+            if (gen !== switchGen) {
+                return;
+            }
+
             section = activateSection(uid);
 
             if (!section) {
                 endLitePending(doc, view);
-                done();
+                finish();
                 return;
             }
 
-            watchMountedSection(section, doc, view, false, done);
+            watchMountedSection(section, doc, view, false, finish, gen);
         });
     }
 
