@@ -38,6 +38,8 @@ import {
   writeClassValue,
 } from './tw-parse.js';
 import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
+import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
+import { findPartials } from './dock-partials.js';
 import { twUi } from './cp/tailwind/store.js';
 import { hideTwOverlay, paintTwOverlay, twPreviewBox } from './tw-overlay.js';
 import TwClassList from './cp/surfaces/TwClassList.vue';
@@ -224,7 +226,15 @@ function groupInSize(key) {
   return !BREAKPOINTS(window).some((item) => item.key === bp);
 }
 
-/** The picked tag: `from`/`openTo` locate its open tag in the dock's HTML. */
+/**
+ * The picked tag: `from`/`openTo` locate its open tag in the dock's HTML.
+ *
+ * A `{{ partial }}` call has no tag of its own to write into. When its
+ * component reads a class parameter (`{{ class }}`, `{{ _class }}`, a `class`
+ * prop) the classes go into that parameter on the call instead: `component`
+ * marks such a node, `param` is the parameter — `undefined` while the server
+ * is asked, `null` when the component takes no classes.
+ */
 let node = null;
 let chips = new Map();
 let model = null;
@@ -613,7 +623,60 @@ function optionRows(win, options, active) {
  * ------------------------------------------------------------------ */
 
 function locked() {
-  return !node || ask('dock:is-locked') === true;
+  return !node || (node.component && !node.param) || ask('dock:is-locked') === true;
+}
+
+function nodeFor(row) {
+  if (row.kind !== 'component') {
+    return { from: row.from, openTo: row.openTo, path: row.path, tag: row.tag };
+  }
+
+  return {
+    from: row.from,
+    openTo: row.to,
+    path: row.path,
+    tag: row.label || 'component',
+    component: true,
+    src: row.src,
+    param: undefined,
+  };
+}
+
+/** The call as the file has it now — found again by where it starts, so a stale pick reads nothing. */
+function componentCall(html) {
+  return findPartials(html).find((call) => call.from === node.from && call.src === node.src) || null;
+}
+
+/**
+ * Which parameter the picked call takes its classes in. The call's own wins —
+ * it is what the page already says — and otherwise the component file is
+ * asked what it reads.
+ */
+function resolveComponentParam(win) {
+  const html = ask('dock:html');
+  const call = typeof html === 'string' ? componentCall(html) : null;
+  const own = call ? callClassParam(html.slice(call.from, call.to)) : '';
+
+  if (own) {
+    node.param = own;
+
+    return;
+  }
+
+  if (node.param !== undefined) {
+    return;
+  }
+
+  const { from, src } = node;
+
+  // Asked again on every cursor move, so the answer is matched to the call,
+  // not to the node object that was current when the fetch went out.
+  void fetchComponentClassParam(win, src).then((name) => {
+    if (node?.component && node.from === from && node.src === src && node.param === undefined) {
+      node.param = name || null;
+      render(win);
+    }
+  });
 }
 
 /** The class attribute as it stands right now — `''` when the tag has none. */
@@ -622,6 +685,14 @@ function currentValue() {
 
   if (!node || typeof html !== 'string') {
     return null;
+  }
+
+  if (node.component) {
+    const call = node.param ? componentCall(html) : null;
+    const param = call ? readCallParams(html.slice(call.from, call.to)).get(node.param) : null;
+
+    // `:class="…"` is an Antlers expression, not a list of classes.
+    return !call || param?.bound ? null : { html, value: param ? param.value : '' };
   }
 
   // The dock can swap to another file between the tree's render and this
@@ -642,7 +713,9 @@ function currentValue() {
  * into the wrong place whenever the first one changed the length of the tag.
  */
 function resyncNode(html) {
-  if (!node?.path) {
+  // A call is found again by where it starts (componentCall), and a write
+  // inside it never moves that.
+  if (!node?.path || node.component) {
     return;
   }
 
@@ -650,12 +723,15 @@ function resyncNode(html) {
   const row = rows.find((item) => item.path === node.path);
 
   if (row) {
-    node = { from: row.from, openTo: row.openTo, path: row.path, tag: row.tag };
+    node = nodeFor(row);
   }
 }
 
 function commit(win, html, nextValue) {
-  const next = writeClassValue(html, node, nextValue);
+  const call = node.component ? componentCall(html) : null;
+  const next = node.component
+    ? call ? writeCallParam(html, call, node.param, nextValue) : html
+    : writeClassValue(html, node, nextValue);
 
   if (next === html) {
     return;
@@ -922,7 +998,13 @@ function keepPreview(win) {
 }
 
 function sendPreview(win, detail) {
-  win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail }));
+  // A call's classes land on whatever its component renders, and the paint
+  // finds its element by the HTML caret — which stands in the tag around the
+  // call. Held there, the classes would show on the wrong element, so a
+  // component waits for the morph instead.
+  const next = node?.component && typeof detail?.value === 'string' ? null : detail;
+
+  win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail: next }));
 }
 
 /** What `applyChip` would write for this chip, or null when the file moved under it. */
@@ -1110,7 +1192,7 @@ export function twRepaintOverlay(win) {
 }
 
 export function twHasNode() {
-  return !!node;
+  return !!node && !(node.component && !node.param);
 }
 
 export function twVariant() {
@@ -1552,7 +1634,16 @@ export function renderTwClasses(win, row) {
     return;
   }
 
-  node = { from: row.from, openTo: row.openTo, path: row.path, tag: row.tag };
+  const same = node?.component && row.kind === 'component' && node.from === row.from && node.src === row.src;
+
+  node = same ? { ...node, openTo: row.to, path: row.path } : nodeFor(row);
+
+  // Every time, not only on a new pick: a parameter typed into the call by
+  // hand is what the call says now.
+  if (node.component) {
+    resolveComponentParam(win);
+  }
+
   render(win);
 }
 
@@ -1591,7 +1682,8 @@ function render(win) {
   twUi.stateLabel = variantState || t(win, 'tw_state');
   twUi.canEdit = !locked();
   twUi.onChip = (event, id) => onChip(win, event, id);
-  twUi.onTag = (event) => twOpenTagMenu(win, event.currentTarget);
+  // A component's name is not a tag to change.
+  twUi.onTag = node?.component ? null : (event) => twOpenTagMenu(win, event.currentTarget);
   twUi.sortTitle = t(win, 'tw_sort');
   twUi.onSort = () => twSortClasses(win);
   twUi.onDrop = (id) => {
@@ -1610,7 +1702,13 @@ function render(win) {
   twUi.scope = /^\[\s*\]$/.test(scope) ? '' : scope;
   twUi.emptyText = t(
     win,
-    !node ? 'tw_classes_pick' : parsed.groups.length ? 'tw_classes_none_size' : 'tw_classes_none'
+    !node
+      ? 'tw_classes_pick'
+      : node.component && node.param === null
+        ? 'tw_classes_component_none'
+        : node.component && node.param && !current
+          ? 'tw_classes_component_bound'
+          : parsed.groups.length ? 'tw_classes_none_size' : 'tw_classes_none'
   );
   twUi.groups = parsed.groups.filter((group) => groupInSize(group.key)).map((group) => ({
     key: group.key,

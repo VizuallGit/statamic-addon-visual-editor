@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\ComponentProps\ClassParam;
 use MarioHamann\StatamicVisualEditor\ComponentProps\Declaration;
 use MarioHamann\StatamicVisualEditor\ComponentProps\Schema;
 
@@ -55,6 +56,18 @@ class ComponentProps
         $path = static::viewPath($view);
 
         return $path === null ? [] : Declaration::peel((string) file_get_contents($path))['props'];
+    }
+
+    /**
+     * The parameter a component takes classes in, read from its view name.
+     *
+     * @see ClassParam::in()
+     */
+    public static function classParam(string $view): ?string
+    {
+        $path = static::viewPath($view);
+
+        return $path === null ? null : ClassParam::in((string) file_get_contents($path));
     }
 
     protected static function viewPath(string $view): ?string

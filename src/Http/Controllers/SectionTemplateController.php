@@ -71,10 +71,12 @@ class SectionTemplateController
     {
         $this->authorize();
 
+        $view = 'partials/'.ltrim((string) $request->query('src', ''), '/');
+
         return response()->json([
-            'props' => Features::enabled('component_props')
-                ? ComponentProps::forView('partials/'.ltrim((string) $request->query('src', ''), '/'))
-                : [],
+            'props' => Features::enabled('component_props') ? ComponentProps::forView($view) : [],
+            // Not a prop feature: the Tailwind pane asks where a call's classes go.
+            'class_param' => ComponentProps::classParam($view),
         ]);
     }
 

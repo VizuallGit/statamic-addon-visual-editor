@@ -351,6 +351,8 @@ return [
     'tw_state_none' => 'Ingen tilstand',
     'tw_classes_pick' => 'Sæt markøren i et tag i HTML-ruden — eller klik tagget i previewet.',
     'tw_classes_none' => 'Dette tag har ingen klasser.',
+    'tw_classes_component_none' => 'Komponenten tager ikke klasser — dens fil har ingen {{ class }} eller {{ _class }}. Åbn komponenten for at style den.',
+    'tw_classes_component_bound' => 'Klasserne på komponenten kommer fra Antlers (:class="…") — ret dem i HTML-ruden.',
     'tw_size_base' => 'Basis',
     'tw_strip_on' => 'Klasser i previewet: til',
     'tw_strip_off' => 'Klasser i previewet: fra',

@@ -20,14 +20,16 @@ export function componentPropsOn(win) {
 }
 
 /**
- * What a component declares. One fetch per component per session — the answer
- * only changes when the component itself is saved, and that reloads the dock.
+ * What the server knows about a component: the props it declares, and the
+ * parameter it takes classes in. One fetch per component per session — the
+ * answer only changes when the component itself is saved, and that reloads
+ * the dock.
  */
-export function fetchComponentProps(win, src) {
+function fetchComponent(win, src) {
   const key = String(src || '');
 
   if (!key) {
-    return Promise.resolve([]);
+    return Promise.resolve({ props: [], classParam: '' });
   }
 
   if (!cache.has(key)) {
@@ -38,13 +40,26 @@ export function fetchComponentProps(win, src) {
           credentials: 'same-origin',
           headers: { 'X-Requested-With': 'XMLHttpRequest' },
         })
-        .then((res) => (res.ok ? res.json() : { props: [] }))
-        .then((data) => (Array.isArray(data.props) ? data.props : []))
-        .catch(() => [])
+        .then((res) => (res.ok ? res.json() : {}))
+        .then((data) => ({
+          props: Array.isArray(data.props) ? data.props : [],
+          classParam: typeof data.class_param === 'string' ? data.class_param : '',
+        }))
+        .catch(() => ({ props: [], classParam: '' }))
     );
   }
 
   return cache.get(key);
+}
+
+/** What a component declares. */
+export function fetchComponentProps(win, src) {
+  return fetchComponent(win, src).then((data) => data.props);
+}
+
+/** The parameter a component reads its classes from — `class`, `_class`, `props_class` — or ''. */
+export function fetchComponentClassParam(win, src) {
+  return fetchComponent(win, src).then((data) => data.classParam);
 }
 
 /** A component that was just saved has to be asked again. */
@@ -118,6 +133,16 @@ export function readCallParams(tag) {
   }
 
   return out;
+}
+
+/** The class parameters a call can carry, in the order they are looked for. */
+export const CLASS_PARAMS = ['class', '_class', 'props_class'];
+
+/** The class parameter this call already writes, or '' — what the call says beats what the file reads. */
+export function callClassParam(tag) {
+  const params = readCallParams(tag);
+
+  return CLASS_PARAMS.find((name) => params.has(name)) || '';
 }
 
 /**

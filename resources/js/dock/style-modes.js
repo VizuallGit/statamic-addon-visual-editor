@@ -4,7 +4,8 @@
  */
 import { chromeSet } from '../chrome-prefs.js';
 import { on } from '../cp/bus.js';
-import { flattenHtmlTree, parseHtmlTree } from '../html-tree-parse.js';
+import { flattenHtmlTree, parseHtmlTree, parseTemplateTree } from '../html-tree-parse.js';
+import { hitPartial } from '../dock-partials.js';
 import { closeTwMenu, renderTwClasses } from '../tw-classes.js';
 import { blocksForSize, idRulesForSize } from '../css-sizes.js';
 import { t } from '../lib/i18n.js';
@@ -28,16 +29,11 @@ import { allOn, allParts, paintAll } from './all.js';
  * same place instead of fighting each other.
  */
 function twTargetFromCursor(win) {
-  return dockState.styleMode === 'tw' ? htmlTargetFromCursor(win) : null;
+  return dockState.styleMode === 'tw' ? componentAtCursor() || htmlTargetFromCursor(win) : null;
 }
 
-/**
- * The tag the HTML cursor is inside, whichever language the style pane is in.
- *
- * Both rows point at the same thing and should say the same thing, so they ask
- * the same function — the mode only decides who is listening.
- */
-export function htmlTargetFromCursor(win) {
+/** The whole file and the cursor in it, whether the pane shows the file or one element of it. */
+function cursorInFile() {
   const view = editors.html;
 
   if (!view) {
@@ -47,7 +43,43 @@ export function htmlTargetFromCursor(win) {
   const scoped = dockState.htmlScopeActive && !!dockState.htmlFocus;
   const html = scoped ? dockState.htmlFull : view.state.doc.toString();
   const offset = scoped ? dockState.htmlFocus.from : 0;
-  const pos = offset + view.state.selection.main.from;
+
+  return { html, pos: offset + view.state.selection.main.from };
+}
+
+/**
+ * The `{{ partial }}` call the cursor is in, as the HTML tree's row for it.
+ *
+ * Only the Tailwind pane asks: a call is not a tag, so every other reader of
+ * the cursor steps over it — but a component that reads `{{ class }}` takes
+ * its classes on the call (tw-classes.js).
+ */
+function componentAtCursor() {
+  const at = cursorInFile();
+
+  if (!at || !hitPartial(at.html, at.pos)) {
+    return null;
+  }
+
+  return flattenHtmlTree(parseTemplateTree(at.html), new Set()).find(
+    (row) => row.kind === 'component' && row.from <= at.pos && at.pos < row.to
+  ) || null;
+}
+
+/**
+ * The tag the HTML cursor is inside, whichever language the style pane is in.
+ *
+ * Both rows point at the same thing and should say the same thing, so they ask
+ * the same function — the mode only decides who is listening.
+ */
+export function htmlTargetFromCursor(win) {
+  const at = cursorInFile();
+
+  if (!at) {
+    return null;
+  }
+
+  const { html, pos } = at;
   const rows = flattenHtmlTree(parseHtmlTree(html), new Set());
   let found = null;
 
