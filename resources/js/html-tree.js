@@ -258,6 +258,10 @@ let htmlTreePendingHtml = '';
  */
 const htmlTreeTemplates = new Map();
 const htmlTreeFetching = new Set();
+/** Each cached template's first tag, parsed once per markup: type → { html, tag }. */
+const htmlTreeRootTags = new Map();
+/** The tag a shut row was drawn with before its file arrived: type → tag. */
+const htmlTreeGuessedTags = new Map();
 /**
  * Markup the tree is drawing ahead of the dock, from that cache.
  *
@@ -703,11 +707,16 @@ export function ensureHtmlTreeStyles(doc) {
     [data-sve-ht-look="tags"] [data-sve-ht-row]:has(> [data-sve-ht-twist]:not([data-sve-ht-shut])) + [data-sve-ht-row] [data-sve-ht-indent] i:last-child {
       margin-top: 5px;
     }
-    /* No arrow, no room kept for one: a row with nothing to fold draws its
-       mark where the arrow would stand. (The owner's call, 28 Sep 2026 — the
-       empty gap read as an extra indent above all in a template, where the
-       sections loop and a lone child have nothing to fold.) The base rule
-       keeps [data-sve-ht-twist-gap] hidden. */
+    /* No arrow, the arrow's room all the same: a row with nothing to fold
+       keeps its mark and tag in the column its siblings' stand in. (The
+       owner's call, 12 Oct 2026, reversing 28 Sep — an open section with no
+       children stood a step left of the shut sections around it.) */
+    [data-sve-ht-look="tags"] [data-sve-ht-twist-gap] {
+      display: inline-block;
+      flex: none;
+      width: 14px;
+      height: 14px;
+    }
     [data-sve-ht-look="tags"] [data-sve-ht-twist] { opacity: .55; }
     [data-sve-ht-look="tags"] [data-sve-ht-twist]:hover { opacity: 1; }
     [data-sve-ht-look="tags"] [data-sve-ht-slot][data-sve-ht-id] {
@@ -995,8 +1004,15 @@ function runSectionTemplatePrefetch(win) {
         if (typeof data?.html === 'string') {
           htmlTreeTemplates.set(type, data.html);
 
+          // A shut row drawn before its file came, with a tag the file does not
+          // have — a root without `visual_edit` leaves the preview nothing to
+          // read, and the row said `section`.
+          const guessed = htmlTreeGuessedTags.get(type);
+          htmlTreeGuessedTags.delete(type);
+          const wrongTag = !!guessed && guessed !== templateRootTag(type);
+
           // Asked for by the context around an open component: draw it now.
-          if (htmlTreeRepaintOnFetch) {
+          if (htmlTreeRepaintOnFetch || wrongTag) {
             htmlTreeRepaintOnFetch = false;
             renderHtmlTree(win);
           }
@@ -1018,13 +1034,35 @@ function htmlTreeAheadOfDock() {
 }
 
 /**
- * The outermost tag of every section, read off the page itself.
+ * The first tag of a section's file, from the markup fetched ahead — the row
+ * the section unfolds into when it opens. '' while the file is not in hand.
+ */
+function templateRootTag(type) {
+  const html = htmlTreeTemplates.get(type);
+
+  if (!html) {
+    return '';
+  }
+
+  const cached = htmlTreeRootTags.get(type);
+
+  if (cached && cached.html === html) {
+    return cached.tag;
+  }
+
+  const tag = firstTagNode(parseTemplateTree(html))?.tag || '';
+  htmlTreeRootTags.set(type, { html, tag });
+
+  return tag;
+}
+
+/**
+ * The outermost tag of every section, read off the page itself — the stand-in
+ * while a shut section's file is still on its way.
  *
- * A shut section has no file loaded, so the tree cannot read its first tag from
- * markup it does not have — but the preview has already drawn it, and the
- * element carrying the section's uid *is* that tag. So the row says the same
- * thing shut as it does open, and says it about the tag the section really has:
- * a `div` reads `div`, not a guess.
+ * The element carrying the section's uid is that tag, when the template put
+ * `visual_edit` on its root. A root without it (a static divider) leaves
+ * nothing to read here; its file answers once it lands.
  *
  * No preview, or a section whose template threw and drew nothing: `section`,
  * which is what a page section is unless someone wrote otherwise.
@@ -1087,7 +1125,15 @@ function htmlTreeSections(win, doc) {
 
       const type = globalSectionType(win, row) || row.type;
       const custom = typeof row._sve_label === 'string' ? row._sve_label.trim() : '';
-      const tag = ids.map((id) => tags.get(id)).find(Boolean) || 'section';
+      // The file's first tag: what the row says open, so it says it shut too.
+      // Changed to a `div` in the dock, it reads `div` — not the `section` a
+      // root without `visual_edit` used to fall back to.
+      const fileTag = templateRootTag(row.type);
+      const tag = fileTag || ids.map((id) => tags.get(id)).find(Boolean) || 'section';
+
+      if (!fileTag) {
+        htmlTreeGuessedTags.set(row.type, tag);
+      }
 
       // The name a rename gave it, read whether or not its file is open. Shut,
       // the alias used to be invisible and the row said the set's name instead
@@ -1436,19 +1482,24 @@ function hasNodeId(nodes, id) {
 
 /** The first real tag, depth first: the row that stands for the whole file. */
 function firstTagId(nodes) {
+  return firstTagNode(nodes)?.id || '';
+}
+
+/** The first real tag in document order, looking inside conditions and loops. */
+function firstTagNode(nodes) {
   for (const node of nodes || []) {
     if (!node.kind) {
-      return node.id;
+      return node;
     }
 
-    const inner = firstTagId(node.children);
+    const inner = firstTagNode(node.children);
 
     if (inner) {
       return inner;
     }
   }
 
-  return '';
+  return null;
 }
 
 /**
@@ -1529,13 +1580,14 @@ export function renderHtmlTree(win) {
   const component = ask('dock:component-exit-state') || {};
   const inComponent = !!component.open;
 
-  const sections = htmlTreeSections(win, doc);
-
   // What the dock holds is newer than anything fetched earlier — a save half a
-  // minute ago is in it and not in the cache.
+  // minute ago is in it and not in the cache. Before the sections are read, so
+  // a root tag just changed in the dock is the one their shut rows say.
   if (type && dock && !htmlTreeAhead) {
     htmlTreeTemplates.set(type, dock);
   }
+
+  const sections = htmlTreeSections(win, doc);
 
   prefetchSectionTemplates(win, sections);
   // The section the dock is actually holding, and the one the reader just
@@ -4533,5 +4585,7 @@ register('html-tree:arm-pick', (on) => {
 export function clearHtmlTreeTemplates() {
   htmlTreeTemplates.clear();
   htmlTreeFetching.clear();
+  htmlTreeRootTags.clear();
+  htmlTreeGuessedTags.clear();
   htmlTreePrefetch.length = 0;
 }
