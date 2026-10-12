@@ -675,13 +675,13 @@ export async function fetchNestedSetMeta(win, field, setHandle, sectionType = ''
 }
 
 /**
- * Registers a new row's meta in a NESTED replicator/grid field, so the row
- * renders in the Control Panel form (the sidebar), not only the preview.
+ * Registers a new row's meta in a replicator/grid field, so the row renders in
+ * the Control Panel form (the sidebar), not only the preview.
  *
- * The meta for a top-level field is set with `setFieldMeta(field, …)`, but a
- * nested field's meta lives deep inside the top field's — so we clone the top
+ * A nested field's meta lives deep inside the top field's — so we clone the top
  * field's meta, walk into the nested field within the clone, add the row there,
- * and write the whole top field back. `parentPath` is like `page_sections.2.blocks`.
+ * and write the whole top field back. `parentPath` is like `page_sections.2.blocks`,
+ * or `page_sections` for a section.
  */
 export function writeNestedRowMeta(container, values, parentPath, rowId, rowMeta) {
   if (!rowMeta || !rowId || typeof container.setFieldMeta !== 'function') {
@@ -697,9 +697,14 @@ export function writeNestedRowMeta(container, values, parentPath, rowId, rowMeta
   }
 
   const clone = JSON.parse(JSON.stringify(fullMeta[topField]));
+  const below = segments.slice(1).join('.');
   // metaForPath walks meta keyed by row _id — pass the top field's own meta and
-  // values, and the path below it (e.g. "2.blocks").
-  const nested = metaForPath(clone, dataGet(values, topField), segments.slice(1).join('.'));
+  // values, and the path below it (e.g. "2.blocks"). A section sits in the top
+  // field itself (`page_sections`), so its meta IS the clone: handed an empty
+  // path, metaForPath looks up `meta['']`, and a duplicated section landed in
+  // values with no meta — the sidebar showed its name and no fields until the
+  // page was saved and Live Preview reloaded.
+  const nested = below ? metaForPath(clone, dataGet(values, topField), below) : clone;
 
   if (!nested || typeof nested !== 'object') {
     return;
