@@ -50,6 +50,26 @@ class CursorAgent
     }
 
     /**
+     * The layers for a run that may write. The project layer also brings the
+     * MCP servers in `.cursor/mcp.json`, and an MCP server (a filesystem or
+     * shell server) writes where it likes — the gate cannot see it. A run
+     * that may write leaves that layer out when the site has such a file;
+     * one that cannot write keeps it, since it is offered no MCP at all.
+     *
+     * @return list<string>
+     */
+    public static function settingSourcesFor(bool $writes): array
+    {
+        $sources = static::settingSources();
+
+        if ($writes && in_array('project', $sources, true) && is_file(base_path('.cursor/mcp.json'))) {
+            return array_values(array_diff($sources, ['project']));
+        }
+
+        return $sources;
+    }
+
+    /**
      * MCP servers to attach to the run, by name.
      *
      * Config only — a server is a command this server executes, or a URL it
@@ -193,7 +213,7 @@ class CursorAgent
 
         // Added only when there is something to add, so the runner sees the
         // same object it always saw unless the site asked for more.
-        if ($sources = static::settingSources()) {
+        if ($sources = static::settingSourcesFor($write !== null)) {
             $payload['settingSources'] = $sources;
         }
 
@@ -208,6 +228,9 @@ class CursorAgent
         if ($write !== null) {
             $payload['write'] = $write;
         }
+
+        // The runner ends itself just after this, should PHP be gone by then.
+        $payload['deadline'] = 185;
 
         $process = static::process($payload, 180);
         $process->start();

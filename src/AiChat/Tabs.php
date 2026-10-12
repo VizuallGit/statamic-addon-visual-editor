@@ -24,6 +24,7 @@ use Illuminate\Support\Str;
  *
  * A chat: {id, title, created_at, updated_at, draft, draft_images: [ids],
  * model: null|string, pending: null|{run, since, mode, model}, queue: [item],
+ * paused: bool,
  * messages: [row]}. A row: {role, content, at, images?: [{id, mime}],
  * kind?: reply|error|stopped|lost, mode?, applied?}. Only user rows and
  * `reply` rows go back to the agent.
@@ -32,8 +33,8 @@ use Illuminate\Support\Str;
  * Code's: each item {id, text, images: [ids], mode, model, type, at} becomes
  * the next question when the answer before it is in. The request that ran the
  * answer starts the next one itself (AiChatController), so the queue moves on
- * after a reload or with the panel closed. Stop does not move it on: what was
- * queued waits for "send now".
+ * after a reload or with the panel closed. Stop pauses it: what is queued
+ * waits for "send now", which moves it on again (`paused`).
  */
 final class Tabs
 {
@@ -46,8 +47,12 @@ final class Tabs
 
     public const IMAGE_TYPES = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
 
-    /** A run that has not finished by now died with its PHP process (the agent stops at 180 s). */
-    public const PENDING_TIMEOUT = 300;
+    /**
+     * A run that has not finished by now died with its PHP process: the agent
+     * stops at 185 s, and a Build run may then build the site's CSS (up to
+     * 150 s) and commit.
+     */
+    public const PENDING_TIMEOUT = 420;
 
     /** Questions waiting behind the one being answered. */
     public const MAX_QUEUE = 10;
@@ -283,7 +288,7 @@ final class Tabs
         $out = null;
 
         $chat = $this->change($id, function (array $chat) use (&$out) {
-            if ($chat['pending'] !== null || $chat['queue'] === []) {
+            if ($chat['pending'] !== null || $chat['queue'] === [] || $chat['paused']) {
                 return null;
             }
 
@@ -319,6 +324,8 @@ final class Tabs
                 $chat = $this->stopped($chat);
             }
 
+            $chat['paused'] = false;
+
             $out = ['item' => $item, 'run' => $this->begin($chat, $item)];
 
             return $chat;
@@ -333,6 +340,7 @@ final class Tabs
         return $this->change($id, function (array $chat) use ($itemId) {
             $before = count($chat['queue']);
             $chat['queue'] = array_values(array_filter($chat['queue'], fn ($item) => $item['id'] !== $itemId));
+            $chat['paused'] = $chat['paused'] && $chat['queue'] !== [];
 
             return count($chat['queue']) === $before ? null : $chat;
         }, false);
@@ -368,11 +376,21 @@ final class Tabs
 
     /**
      * Stop: the tab stops waiting and says so. The run that was waited for
-     * sees it and ends its agent (AiChatController). What is queued stays.
+     * sees it and ends its agent (AiChatController). What is queued stays and
+     * waits — also when Stop lands just as an answer did, before the next
+     * queued question was asked.
      */
     public function stop(string $id): ?array
     {
-        return $this->change($id, fn (array $chat) => $chat['pending'] === null ? null : $this->stopped($chat));
+        return $this->change($id, function (array $chat) {
+            if ($chat['pending'] === null && $chat['queue'] === []) {
+                return null;
+            }
+
+            $chat['paused'] = $chat['queue'] !== [];
+
+            return $chat['pending'] === null ? $chat : $this->stopped($chat);
+        });
     }
 
     private function stopped(array $chat): array
@@ -523,6 +541,7 @@ final class Tabs
             'model' => $index['model'] ?? null,
             'pending' => null,
             'queue' => [],
+            'paused' => false,
             'messages' => [],
         ]);
 
@@ -570,7 +589,7 @@ final class Tabs
             return null;
         }
 
-        $chat += ['title' => '', 'draft' => '', 'draft_images' => [], 'model' => null, 'pending' => null, 'queue' => [], 'messages' => [], 'updated_at' => 0];
+        $chat += ['title' => '', 'draft' => '', 'draft_images' => [], 'model' => null, 'pending' => null, 'queue' => [], 'paused' => false, 'messages' => [], 'updated_at' => 0];
         $chat['id'] = $id;
 
         if ($settle && $chat['pending'] !== null && (int) ($chat['pending']['since'] ?? 0) < time() - static::PENDING_TIMEOUT) {

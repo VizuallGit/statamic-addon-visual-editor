@@ -1507,6 +1507,7 @@ return [
     'ai_panel_lost' => 'The answer never came — the AI stopped before it was done. Ask again.',
     'ai_panel_queue' => 'Queue',
     'ai_panel_queue_title' => 'Up next',
+    'ai_panel_queue_full' => 'The queue is full — wait for an answer, or remove something from it.',
     'ai_panel_queue_waiting' => 'Waiting — press Send now on the one to ask.',
     'ai_panel_send_now' => 'Send now',
     'ai_panel_queue_edit' => 'Edit — back into the box',

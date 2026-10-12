@@ -140,15 +140,29 @@ final class WriteScope
         $ext = implode('|', static::EXTENSIONS);
 
         // A full stop after the name ends the sentence, not the name.
-        preg_match_all('~(?<![\w./-])([\w./-]+\.(?:'.$ext.'))(?![\w-]|\.\w)~i', $text, $matches);
+        preg_match_all('~(?<![\w./-])([\w./-]+\.(?:'.$ext.'))(?![\w-]|\.\w)~i', $text, $matches, PREG_OFFSET_CAPTURE);
 
         $names = [];
 
-        foreach ($matches[1] as $match) {
-            $names[strtolower(ltrim($match, './'))] = true;
+        foreach ($matches[1] as [$match, $at]) {
+            if (! static::negated(substr($text, 0, $at))) {
+                $names[strtolower(ltrim($match, './'))] = true;
+            }
         }
 
         return $names;
+    }
+
+    /**
+     * "Do it without touching site.css", "rør ikke links.yaml": a name that
+     * follows a no in its own sentence is a file to leave alone, not one to
+     * open.
+     */
+    protected static function negated(string $before): bool
+    {
+        $sentence = (string) preg_replace('~^.*[.!?\n]\s~s', '', $before);
+
+        return (bool) preg_match("~(?<![\\p{L}'])(ikke|aldrig|uden|undgå|not|never|without|don't|dont|avoid|no)(?![\\p{L}'])~iu", $sentence);
     }
 
     /**

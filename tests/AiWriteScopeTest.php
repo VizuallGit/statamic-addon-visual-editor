@@ -186,4 +186,14 @@ class AiWriteScopeTest extends TestCase
         $this->assertNotContains('hero/style_1', array_column(HouseStyle::newest('hero/style_1'), 'handle'));
         $this->assertStringContainsString("<section>hero</section>", HouseStyle::prompt());
     }
+
+    public function test_a_file_named_after_a_no_is_left_closed(): void
+    {
+        $this->assertSame([], WriteScope::named('Gør det uden at røre site.css'));
+        $this->assertSame([], WriteScope::named('Do not change site.css, please.'));
+        $this->assertSame([], WriteScope::named('Undgå links.yaml'));
+        $this->assertSame([], WriteScope::named("Don't touch site.css"));
+        $this->assertSame(['resources/css/site.css'], WriteScope::named('Rør ikke links.yaml. Men du må ændre site.css.'));
+        $this->assertSame(['resources/css/site.css'], WriteScope::named('Du må gerne ændre site.css'));
+    }
 }

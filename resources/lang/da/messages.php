@@ -1500,6 +1500,7 @@ return [
     'ai_panel_lost' => 'Svaret kom aldrig — AI’en stoppede, før den var færdig. Spørg igen.',
     'ai_panel_queue' => 'Sæt i kø',
     'ai_panel_queue_title' => 'Næste',
+    'ai_panel_queue_full' => 'Køen er fuld — vent på et svar, eller fjern noget fra den.',
     'ai_panel_queue_waiting' => 'Venter — tryk Send nu på den, der skal sendes.',
     'ai_panel_send_now' => 'Send nu',
     'ai_panel_queue_edit' => 'Rediger — tilbage i feltet',

@@ -145,4 +145,26 @@ class CursorAgentOptionsTest extends TestCase
         $this->assertSame(['default', 'composer-2.5', 'claude-opus-5-5', 'claude-sonnet-5-5', 'grok-4.7', 'kimi-k3'], array_column($grouped, 'id'));
         $this->assertSame(['Auto', 'Cursor', 'Claude', 'Claude', 'Grok', 'Other'], array_column($grouped, 'group'));
     }
+
+    public function test_a_run_that_writes_leaves_out_the_project_layer_when_it_brings_mcp_servers(): void
+    {
+        config(['statamic-visual-editor.features.ai_project_rules' => true]);
+
+        $mcp = base_path('.cursor/mcp.json');
+        @mkdir(dirname($mcp), 0775, true);
+
+        $this->assertSame(['project'], CursorAgent::settingSourcesFor(true));
+
+        file_put_contents($mcp, '{"mcpServers": {}}');
+
+        try {
+            // Its MCP servers would write where the gate cannot see.
+            $this->assertSame([], CursorAgent::settingSourcesFor(true));
+            // A run that cannot write is offered no MCP, so it keeps the rules.
+            $this->assertSame(['project'], CursorAgent::settingSourcesFor(false));
+        } finally {
+            @unlink($mcp);
+            @rmdir(dirname($mcp));
+        }
+    }
 }

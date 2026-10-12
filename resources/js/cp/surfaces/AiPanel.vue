@@ -15,6 +15,8 @@ const IMAGE_MAX_SIDE = 2000;
 /** Above this a screenshot goes as JPEG; below, as it came. */
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 const POLL_MS = 2500;
+/** As AiChat\Tabs::MAX_QUEUE — checked before the box is emptied, so a full queue keeps what was typed. */
+const MAX_QUEUE = 10;
 const DRAFT_SAVE_MS = 400;
 
 const props = defineProps({
@@ -602,6 +604,12 @@ function send() {
   if (!ready.value) {
     notice.value = strings('ai_panel_need_key');
     scrollLog();
+
+    return;
+  }
+
+  if (open.pending && (open.queue || []).length >= MAX_QUEUE) {
+    notice.value = strings('ai_panel_queue_full');
 
     return;
   }

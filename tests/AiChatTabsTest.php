@@ -208,6 +208,56 @@ class AiChatTabsTest extends TestCase
 
         $this->assertFalse($tabs->waitingFor($id, $run));
         $this->assertCount(1, $tabs->get($id)['queue']);
+        $this->assertTrue($tabs->get($id)['paused']);
+        $this->assertNull($tabs->startNext($id));
+    }
+
+    public function test_stop_just_as_an_answer_lands_still_keeps_the_queue_waiting(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+        ['run' => $run] = $tabs->ask($id, 'one', [], ['mode' => 'write']);
+
+        $tabs->ask($id, 'two', [], ['mode' => 'write']);
+        $tabs->finishRun($id, $run, ['role' => 'assistant', 'kind' => 'reply', 'content' => 'Done.']);
+
+        // Between the answer and the next question: Stop.
+        $tabs->stop($id);
+
+        $this->assertNull($tabs->startNext($id));
+        $this->assertSame('reply', end($tabs->get($id)['messages'])['kind']);
+    }
+
+    public function test_after_a_stop_a_new_question_runs_and_the_old_queue_still_waits(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+
+        $tabs->ask($id, 'one', [], ['mode' => 'write']);
+        $two = $tabs->ask($id, 'two', [], ['mode' => 'write'])['queued'];
+        $tabs->stop($id);
+
+        ['run' => $run] = $tabs->ask($id, 'new', [], ['mode' => 'write']);
+        $tabs->finishRun($id, $run, ['role' => 'assistant', 'kind' => 'reply', 'content' => 'ok']);
+
+        $this->assertNull($tabs->startNext($id));
+
+        // "Send now" moves it on again.
+        $tabs->sendNow($id, $two['id']);
+
+        $this->assertFalse($tabs->get($id)['paused']);
+    }
+
+    public function test_emptying_a_paused_queue_unpauses_it(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+
+        $tabs->ask($id, 'one', [], ['mode' => 'write']);
+        $two = $tabs->ask($id, 'two', [], ['mode' => 'write'])['queued'];
+        $tabs->stop($id);
+
+        $this->assertFalse($tabs->unqueue($id, $two['id'])['paused']);
     }
 
     public function test_send_now_stops_the_answer_and_asks_that_question_in_its_place(): void

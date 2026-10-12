@@ -30,6 +30,26 @@ final class Registration
             return [];
         }
 
+        // Two chats finishing at once must not each write the list they read.
+        $lock = fopen(storage_path('framework/sve-ai-register.lock'), 'c');
+
+        if ($lock === false || ! flock($lock, LOCK_EX)) {
+            return [];
+        }
+
+        try {
+            return static::add($requests);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function add(array $requests): array
+    {
         $list = SectionTypes::list();
         $contents = $list->read();
         $groups = $contents === null ? null : $list->sets($contents);

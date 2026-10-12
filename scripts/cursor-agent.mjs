@@ -115,13 +115,32 @@ const written = () => (gate ? { written: gate.written, register: gate.register }
 // cancelled so nothing more is asked of the model, and the answer says what
 // had been written before the stop — a write is one rename, never half a file.
 let run = null;
+let ending = false;
 
-process.on('SIGTERM', async () => {
+async function end(status) {
+  if (ending) {
+    return;
+  }
+
+  ending = true;
+
   const cancelled = run ? run.cancel().catch(() => {}) : Promise.resolve();
 
   await Promise.race([cancelled, new Promise((resolve) => setTimeout(resolve, 1500))]);
-  answer({ status: 'stopped', reply: '', error: null, ...written() }, 130);
-});
+  answer({ status, reply: '', error: null, ...written() }, 130);
+}
+
+process.on('SIGTERM', () => end('stopped'));
+
+// Never outlive the PHP request that started this. A PHP worker killed by the
+// server (a timeout, a reload) runs no shutdown and cannot stop its child; an
+// agent left running would write into files the editor has since saved. So:
+// the parent gone, or past PHP's own limit for the run, and this ends itself.
+const parent = process.ppid;
+const deadline = Number(input.deadline) > 0 ? Number(input.deadline) * 1000 : 185000;
+
+setInterval(() => process.ppid !== parent && end('stopped'), 1000).unref();
+setTimeout(() => end('timeout'), deadline).unref();
 
 try {
   const agent = await Agent.create(options);
