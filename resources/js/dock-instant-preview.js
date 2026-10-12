@@ -1067,6 +1067,11 @@
         return null;
     }
 
+    // Tag pairs whose body sees the same variables as the markup around
+    // them. Every other pair — a loop, a collection, a nav, a glide — hands
+    // its body its own, and a field in there is not the section's.
+    var SAME_SCOPE = /^(if|unless|once|cache|nocache|no_cache|style_push|script_push|push|stack|section|markdown|noparse|raw)$/;
+
     // Antlers heads that are never a field: tags, control flow, closers, and
     // anything with a colon, a space, a pipe or a parenthesis.
     var NOT_A_FIELD = /^(if|unless|else|elseif|endif|endunless|partial|collection|nav|svg|assets|asset|once|yield|section|glide|iconify|visual_edit|style_push|script_push|responsive_css|sve_tw|sve_props|sve_defaults|theme_color_scale|loop|foreach|switch|cache|no_cache|form|user|taxonomy|structure|link|route|dump|redirect|increment|locales|mix|vite|markdown|parent|path|query|search|session|set|slot|trans|translate|users|entries|children|rss|now|is_|has_)$/;
@@ -1126,6 +1131,86 @@
     }
 
     /**
+     * Every Antlers tag in `text` replaced by `fn(tag, closed)`, whole: a tag
+     * ends at the `}}` that answers its own `{{`, so a parameter holding a tag
+     * — `{{ svg src="{{ logo }}" class="…" }}` — is one tag, not one ending at
+     * the inner `}}` with ` class="…" }}` left over as text (the owner's svg
+     * on Cuben, 12 Oct 2026). A comment ends at `#}}`. A tag still being
+     * typed, with no `}}` to come, runs to the end: `closed` is false.
+     */
+    function eachAntlers(text, fn) {
+        var out = '';
+        var i = 0;
+        var start;
+        var end;
+        var depth;
+        var j;
+
+        text = String(text);
+
+        while ((start = text.indexOf('{{', i)) !== -1) {
+            out += text.slice(i, start);
+
+            if (text.charAt(start + 2) === '#') {
+                end = text.indexOf('#}}', start + 3);
+                j = end === -1 ? text.length : end + 3;
+                out += fn(text.slice(start, j), end !== -1);
+                i = j;
+                continue;
+            }
+
+            depth = 0;
+            j = start;
+
+            while (j < text.length) {
+                if (text.charAt(j) === '{' && text.charAt(j + 1) === '{') {
+                    depth++;
+                    j += 2;
+                } else if (text.charAt(j) === '}' && text.charAt(j + 1) === '}') {
+                    depth--;
+                    j += 2;
+
+                    if (!depth) {
+                        break;
+                    }
+                } else {
+                    j++;
+                }
+            }
+
+            out += fn(text.slice(start, j), !depth);
+            i = j;
+        }
+
+        return out + text.slice(i);
+    }
+
+    /** Antlers blanked to spaces, so offsets hold and no `<`, `>` or quote inside a tag counts as markup. */
+    function maskAntlers(text) {
+        return eachAntlers(text, function (tag) {
+            return new Array(tag.length + 1).join(' ');
+        });
+    }
+
+    /**
+     * Whether `at` in `html` is inside an Antlers tag: after a `{{` that no
+     * `}}` has answered. What stands there is a tag's parameter — `{{ svg
+     * class="…" }}` — and the server renders it; the element around it on
+     * the page is not what the caret is on.
+     */
+    function inAntlers(html, at) {
+        var inside = false;
+
+        eachAntlers(String(html).slice(0, at), function (tag, closed) {
+            inside = inside || !closed;
+
+            return '';
+        });
+
+        return inside;
+    }
+
+    /**
      * Antlers out, DOM in. Comments vanish, plain fields become their value,
      * everything else becomes the marker character the rest of this file
      * treats as "not ours to paint".
@@ -1133,6 +1218,7 @@
     function stripAntlers(html, ctx) {
         var source = String(html).replace(/\{\{#[\s\S]*?#\}\}/g, '');
         var closers = {};
+        var scope = 0;
         var m;
         var re = /\{\{\s*\/([a-zA-Z0-9_:.-]+)/g;
 
@@ -1140,17 +1226,33 @@
             closers[m[1]] = true;
         }
 
-        return source.replace(/\{\{[\s\S]*?\}\}/g, function (tag) {
-            var body = tag.slice(2, -2).trim();
+        return eachAntlers(source, function (tag, closed) {
+            var body = (closed ? tag.slice(2, -2) : tag.slice(2)).trim();
             var name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
             var value;
 
             if (body.charAt(0) === '/') {
+                if (closers[name] && !SAME_SCOPE.test(name)) {
+                    scope = Math.max(0, scope - 1);
+                }
+
                 return ANT_CLOSE;
             }
 
             if (name === 'if' || name === 'unless' || closers[name]) {
+                if (closers[name] && !SAME_SCOPE.test(name)) {
+                    scope++;
+                }
+
                 return ANT_OPEN;
+            }
+
+            // Inside `{{ blocks }} … {{ /blocks }}` a field is the block's,
+            // not the section's: `class="[ {{ type }} ]"` on a block's
+            // wrapper was painted with the section's type (skabelon's form
+            // section, 12 Oct 2026). Only the server knows the block.
+            if (scope > 0) {
+                return ANT;
             }
 
             value = resolveField(body, ctx);
@@ -1349,7 +1451,39 @@
         return path;
     }
 
-    /** The class the template had at this element's spot last time; null when there was no template, or no element of this tag there. */
+    /**
+     * The same spot in two templates: the same tag, with the same kids by
+     * tag and class, in order. A wrapper typed around an element stands at
+     * that element's spot and holds it as its one kid; the element held its
+     * own kids. Kids by tag alone did not tell those apart when both held
+     * one <div> (media_textbox's `blocks` under a new wrapper).
+     */
+    function sameSpot(a, b) {
+        var ka = tplKidsOf(a);
+        var kb = tplKidsOf(b);
+        var i;
+
+        if (a.tagName !== b.tagName || ka.length !== kb.length) {
+            return false;
+        }
+
+        for (i = 0; i < ka.length; i++) {
+            if (ka[i].tagName !== kb[i].tagName || classValue(ka[i].getAttribute('class') || '') !== classValue(kb[i].getAttribute('class') || '')) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The class the template had at this element's spot last time; null when
+     * there was no template, or no element of this tag and shape there. The
+     * shape matters: a wrapper typed around the first child stands at that
+     * child's spot, and the child's old class is not the wrapper's — read as
+     * its prior, the wrapper claimed the child, took its classes off and
+     * lifted its content out (skabelon's hero and content sections, 12 Oct 2026).
+     */
     function priorClass(tpl) {
         var prev = curTplKey ? prevTplRoots[curTplKey] : null;
         var path = prev && curTplRoot ? tplPath(tpl) : null;
@@ -1364,7 +1498,7 @@
             el = tplKidsOf(el)[path[i]] || null;
         }
 
-        return el && el.tagName === tpl.tagName ? classValue(el.getAttribute('class') || '') : null;
+        return el && sameSpot(el, tpl) ? classValue(el.getAttribute('class') || '') : null;
     }
 
     function syncClasses(section, tplRoot) {
@@ -1618,15 +1752,18 @@
 
     function feat(el) {
         var f = featCache ? featCache.get(el) : undefined;
+        var kids;
 
         if (f) {
             return f;
         }
 
+        kids = elementKids(el);
         f = {
             cls: classValue(el.getAttribute('class') || ''),
             tags: kidTags(el),
-            leaf: !elementKids(el).length,
+            leaf: !kids.length,
+            one: kids.length === 1 ? kids[0] : null,
             text: el.textContent.trim(),
         };
 
@@ -1754,6 +1891,38 @@
         return best ? [best] : [];
     }
 
+    /** Every class in `wanted` is on the element; the page's own extras (`loaded`, Alpine's) do not count against it. */
+    function hasClasses(liveEl, wanted) {
+        var have = ' ' + feat(liveEl).cls + ' ';
+        var names = wanted ? wanted.split(' ') : [];
+        var i;
+
+        for (i = 0; i < names.length; i++) {
+            if (names[i] && have.indexOf(' ' + names[i] + ' ') === -1) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Where the server fills in — a loop's body, an {{ if }} branch, a
+     * parent a partial draws into — a live child of the template child's
+     * tag is that child only when it shows the child's classes: the ones
+     * the template has now, or had at this spot last paint (the one being
+     * typed). Used to be every live child of the tag: in a loop whose body
+     * branches on the block's type, the heading branch's `flex gap-300`
+     * went onto the links branch's div, and a `{{ partial }}`'s root div
+     * took the else-branch's classes (skabelon, 12 Oct 2026). That a node
+     * was adopted as the paint's own says nothing here: in a block the
+     * template child may be a wrapper typed around another element, and the
+     * adopted sibling of that element is not it.
+     */
+    function ownsInBlock(liveEl, tplEl, prior) {
+        return hasClasses(liveEl, feat(tplEl).cls) || (typeof prior === 'string' && hasClasses(liveEl, prior));
+    }
+
     function ownsLive(liveEl, tplEl) {
         var fl;
         var ft;
@@ -1815,6 +1984,21 @@
 
         fl = feat(liveEl);
         ft = feat(tplEl);
+
+        // A template element whose one child is this live element, as it
+        // stands, is a wrapper typed around it — not the element under a new
+        // class. Same tag and same kids by tag, the two paired: the wrapper's
+        // class landed on the element, its children were paired with the
+        // wrapper's one child, and the rest were lifted out or removed
+        // (Cuben's heading row under a new <div>, 12 Oct 2026). The same the
+        // other way round: a live wrapper the template no longer has. "As it
+        // stands": alike in every way, or wearing the one child's classes and
+        // not the wrapper's — the page may have added a class of its own, and
+        // the child's children may be Antlers output the template cannot show.
+        if ((ft.one && wrapsIt(liveEl, ft.one, ft.cls)) || (fl.one && wrapsIt(fl.one, tplEl, fl.cls))) {
+            return 0;
+        }
+
         score = 1;
 
         if (fl.cls === ft.cls) {
@@ -1830,6 +2014,27 @@
         }
 
         return score;
+    }
+
+    /**
+     * `inner` (live) is what `one` (the only child of a wrapper whose own
+     * class is `outerCls`) stands for: an exact pair, or the live element
+     * wears all of the child's classes and not all of the wrapper's.
+     */
+    function wrapsIt(inner, one, outerCls) {
+        var oneCls;
+
+        if (inner.tagName !== one.tagName) {
+            return false;
+        }
+
+        if (exactPair(inner, one)) {
+            return true;
+        }
+
+        oneCls = feat(one).cls;
+
+        return oneCls !== '' && hasClasses(inner, oneCls) && !hasClasses(inner, outerCls);
     }
 
     /** As alike as two kids get: tag, class, kids by tag, and the finished text of a leaf. */
@@ -2123,6 +2328,7 @@
                 // (ownsLive).
                 var inLoop = !!blocked.get(tplEl);
                 var byTag = inLoop || isDynamic(tplEl);
+                var prior = byTag ? priorClass(tplEl) : null;
 
                 if (pairs) {
                     candidate = pairs.get(tplEl) || null;
@@ -2139,21 +2345,29 @@
                         }
 
                         // The next live child of this tag nobody is waiting for — one
-                        // freed just now, or one the alignment had to leave out.
-                        candidate = liveOfTag(tag)[0] || null;
+                        // freed just now, or one the alignment had to leave out. Never
+                        // one this child wraps (pairScore 0): that goes inside it below.
+                        candidate = liveOfTag(tag).filter(function (kid) {
+                            return pairScore(kid, tplEl) > 0;
+                        })[0] || null;
                     }
 
                     same = candidate ? [candidate] : [];
                 } else if (inLoop) {
-                    same = liveOfTag(tag);
+                    same = liveOfTag(tag).filter(function (kid) {
+                        return ownsInBlock(kid, tplEl, prior);
+                    });
                 } else if (byTag) {
                     // In a parent a partial draws into, the live children of this
                     // tag are not all this child's: a component's root <div>
                     // rendered before a dynamic <div> sibling is not that sibling.
                     // It used to speak for all of them, and the sibling's classes
                     // were written onto the component's root until the morph
-                    // (11 Oct 2026). One node for one — the one most like it.
-                    same = bestOwn(liveOfTag(tag), tplEl);
+                    // (11 Oct 2026). One node for one — the one most like it, of
+                    // those that show this child's classes.
+                    same = bestOwn(liveOfTag(tag).filter(function (kid) {
+                        return ownsInBlock(kid, tplEl, prior);
+                    }), tplEl);
                 } else {
                     // Its own: what the paint made, or a look-alike (ownsLive),
                     // aligned in order with its static siblings (ownPair). It
@@ -2400,7 +2614,9 @@
         var match;
 
         while ((match = re.exec(String(html || '')))) {
-            var value = (match[2] ?? match[3] ?? '').replace(/\{\{[\s\S]*?\}\}/g, ' ');
+            var value = eachAntlers(match[2] ?? match[3] ?? '', function () {
+                return ' ';
+            });
             value.split(/\s+/).forEach(function (token) {
                 var name = token.trim();
 
@@ -3083,9 +3299,7 @@
      * inside `{{ }}` does not end the tag early.
      */
     function intoRootTag(html) {
-        var masked = String(html).replace(/\{\{[\s\S]*?\}\}/g, function (m) {
-            return new Array(m.length + 1).join(' ');
-        });
+        var masked = maskAntlers(html);
         var name = /^\s*<[a-zA-Z][\w:-]*/.exec(masked);
         var gt = masked.indexOf('>');
 
@@ -3307,13 +3521,11 @@
      * bare tag would otherwise swallow the next rule as its prelude.
      */
     function cssForLive(css, ctx) {
-        var text = String(css || '')
-            .replace(/\{\{#[\s\S]*?#\}\}/g, '')
-            .replace(/\{\{[\s\S]*?\}\}/g, function (tag) {
-                var value = resolveField(tag.slice(2, -2), ctx);
+        var text = eachAntlers(String(css || '').replace(/\{\{#[\s\S]*?#\}\}/g, ''), function (tag, closed) {
+            var value = resolveField(closed ? tag.slice(2, -2) : tag.slice(2), ctx);
 
-                return value === null ? ANT : String(value);
-            });
+            return value === null ? ANT : String(value);
+        });
 
         return text
             .replace(/(^|[;{}\s])([\w-]+)\s*:\s*[^;{}]*\uE000[^;{}]*(;|(?=\}))/g, '$1')
@@ -3478,9 +3690,7 @@
      */
     function templatePathAt(html, pos, ctx) {
         var head = String(html).slice(0, pos);
-        var masked = head.replace(/\{\{[\s\S]*?\}\}/g, function (m) {
-            return new Array(m.length + 1).join(' ');
-        });
+        var masked = maskAntlers(head);
         var lt = masked.lastIndexOf('<');
         var gt = masked.lastIndexOf('>');
         var open = null;
@@ -3630,6 +3840,17 @@
 
         if (!tplRoot) {
             return { targets: [], tag: '' };
+        }
+
+        // Inside `{{ svg … class="max-h-5" }}` the caret is in a tag's
+        // parameter, not in the <li> around it: a class held or previewed
+        // there was put on every card, and the cards collapsed (Cuben,
+        // 12 Oct 2026). The tag's output is the server's; nothing is its
+        // live element until the morph.
+        if (inAntlers(html, at)) {
+            trace('tw: caret inside an Antlers tag; its output is the server\'s — no live element');
+
+            return { targets: [], tag: '', tplEl: null, tplRoot: tplRoot, roots: [] };
         }
 
         roots = snippetOnly ? snippetRootLive(doc, tplRoot) : [fileRootLive(doc, tplRoot)].filter(Boolean);
@@ -4328,6 +4549,19 @@
 
         document.__sveTwSuggestWatch = 5;
         document.addEventListener('sve:tw-preview', onTwPreview);
+
+        // The HTML pane's list closes without a word — the pane blurred, a
+        // character typed that nothing completes — and the hold stayed on
+        // the elements until the next paint or morph; with neither to come,
+        // for good, until the preview was reloaded (Cuben, 12 Oct 2026).
+        // Its tooltip leaving the page is the word. The strip's menu says so
+        // itself (`sve:tw-preview` with no detail), and a pick drops the hold
+        // first (`keep`), so this restores nothing a pick is about to write.
+        new MutationObserver(function () {
+            if (twHold && !twSuggestOpen()) {
+                restoreTwHold();
+            }
+        }).observe(document.body, { childList: true, subtree: true });
 
         // The HTML pane's completion list is CodeMirror's: hover and the
         // arrows are read off it, since it cannot say what it is on.

@@ -1,0 +1,80 @@
+{{# sve-unlocked #}}
+<section
+  id="id-{{ id }}"
+  class="wrapper py-1000 bg-gray-900 text-gray-50 space-y-gutter"
+  x-data="{ open: false, item: 0 }"
+  x-effect="
+    if (open) {
+      $refs.content.innerHTML = $root.querySelectorAll('template')[item].innerHTML;
+      if (!$refs.dialog.open) $refs.dialog.showModal();
+    } else if ($refs.dialog.open) {
+      $refs.dialog.close();
+    }
+  "
+  {{ visual_edit outline_inside="true" section_orderable="true" }}
+>
+  <div class="flex flex-wrap gap-x-900 gap-y-500 items-end">
+    <div class="basis-[35rem] grow flow-y flow-space-100">
+      {{ section_heading }}
+    </div>
+    <div class="basis-0 grow-[999] min-w-1/2 flow-y text-current/70 text-200 flex flex-col items-end">
+      {{ text }}
+    </div>
+  </div>
+
+  <ul class="grid grid-cols-3 gap-200">
+    {{ collection from="companies" }}
+      <li class="bg-gray-800 p-500 relative flow-y">
+        {{ if (logo | ends_with('.svg')) }}
+          {{ svg src="{{ logo }}" width="auto" height="auto" class="max-h-500 w-auto" aria-hidden="true" }}
+        {{ else }}
+          {{ glide :src="logo" width="600" }}
+            <img src="{{ url }}" width="{{ width }}" height="{{ height }}" alt="" decoding="async">
+          {{ /glide }}
+        {{ /if }}
+
+        <p class="flow-space-600 opacity-70">{{ teaser }}</p>
+
+        <button type="button" @click="item = {{ index }}; open = true" aria-haspopup="dialog" class="link-parent text-primary">
+          <span class="flex items-center gap-[.4em]">Se profil {{ svg src="arrow-right" class="h-[1em]" aria-hidden="true" }}</span>
+          <span class="sr-only"> om {{ name }}</span>
+        </button>
+
+        <template>
+          {{ partial:components/company_dialog }}
+        </template>
+      </li>
+    {{ /collection }}
+  </ul>
+
+  <dialog
+    x-ref="dialog"
+    aria-labelledby="company-dialog-title"
+    @close="open = false"
+    @click.self="$el.close()"
+    class="p-0 m-0 bg-black/70 backdrop-blur-sm text-gray-50
+      open:fixed open:inset-0 open:z-50 open:size-full open:max-w-none open:max-h-none
+      open:grid open:place-items-center"
+  >
+    <div class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto overscroll-contain bg-gray-800">
+      <form method="dialog" class="absolute top-200 right-200 z-10">
+        <button class="grid place-items-center size-10 bg-gray-900/80 hover:bg-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <span aria-hidden="true">✕</span>
+          <span class="sr-only">Luk</span>
+        </button>
+      </form>
+
+      <div x-ref="content"></div>
+    </div>
+  </dialog>
+</section>
+
+{{ sve_tw }}
+
+{{ style_push }}
+<style>
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+</style>
+{{ /style_push }}
