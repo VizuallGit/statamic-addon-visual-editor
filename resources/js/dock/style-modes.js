@@ -5,7 +5,7 @@
 import { chromeSet } from '../chrome-prefs.js';
 import { on } from '../cp/bus.js';
 import { flattenHtmlTree, parseHtmlTree, parseTemplateTree } from '../html-tree-parse.js';
-import { hitPartial } from '../dock-partials.js';
+import { hitAntlersTag, hitClassTag, hitPartial } from '../dock-partials.js';
 import { closeTwMenu, renderTwClasses } from '../tw-classes.js';
 import { blocksForSize, idRulesForSize } from '../css-sizes.js';
 import { t } from '../lib/i18n.js';
@@ -29,7 +29,44 @@ import { allOn, allParts, paintAll } from './all.js';
  * same place instead of fighting each other.
  */
 function twTargetFromCursor(win) {
-  return dockState.styleMode === 'tw' ? componentAtCursor() || htmlTargetFromCursor(win) : null;
+  if (dockState.styleMode !== 'tw') {
+    return null;
+  }
+
+  return componentAtCursor() || tagCallAtCursor() || (inAntlersTag() ? null : htmlTargetFromCursor(win));
+}
+
+/**
+ * The caret inside an Antlers tag that is not a partial: `{{ svg … class="…" }}`.
+ * The <li> around it is not what the caret is on — measured on Cuben, the
+ * strip showed `<li>` and wrote the class onto every card (12 Oct 2026). A
+ * tag with a literal `class` of its own is the row; any other tag is no tag
+ * at all, and the strip shows nothing until the caret leaves it.
+ */
+function tagCallAtCursor() {
+  const at = cursorInFile();
+  const call = at ? hitClassTag(at.html, at.pos) : null;
+
+  if (!call) {
+    return null;
+  }
+
+  return {
+    kind: 'component',
+    tagCall: true,
+    src: call.src,
+    label: call.src,
+    from: call.from,
+    to: call.to,
+    openTo: call.to,
+    path: `a${call.from}:${call.src}`,
+  };
+}
+
+function inAntlersTag() {
+  const at = cursorInFile();
+
+  return !!at && !!hitAntlersTag(at.html, at.pos);
 }
 
 /** The whole file and the cursor in it, whether the pane shows the file or one element of it. */

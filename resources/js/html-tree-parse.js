@@ -37,9 +37,11 @@ const VOID = new Set([
   'wbr',
 ]);
 
-export function maskAntlers(html) {
-  return String(html || '').replace(/\{\{[\s\S]*?\}\}/g, (chunk) => ' '.repeat(chunk.length));
-}
+// One scanner for the dock's readers of a template: a tag inside another's
+// parameter is part of the outer tag (lib/antlers-tags.js).
+import { maskAntlers } from './lib/antlers-tags.js';
+
+export { maskAntlers };
 
 function firstClass(openTag) {
   const match = openTag.match(/\sclass\s*=\s*(["'])([^"']*)\1/i);

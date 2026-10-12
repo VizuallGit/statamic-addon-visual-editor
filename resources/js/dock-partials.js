@@ -5,6 +5,8 @@
  * matching view files. Does not import overlay / preview / bridge.
  */
 
+import { antlersTagAt, antlersTags } from './lib/antlers-tags.js';
+
 export const PARTIAL_MENU_ID = '__sve-partial-menu';
 
 const COMMENT = /\{\{#([\s\S]*?)#\}\}/g;
@@ -52,6 +54,33 @@ export function findPartials(html) {
 
 export function hitPartial(html, pos) {
   return findPartials(html).find((item) => pos >= item.from && pos <= item.to) || null;
+}
+
+/**
+ * Tags that are not partials but carry a literal `class="…"` of their own —
+ * `{{ svg src="…" class="max-h-500" }}`, `{{ iconify … class="…" }}`: the
+ * server renders the element, and the class on the call is the one place
+ * to style it. Found the way partials are, by where each starts, so the
+ * Tailwind pane can read and write that parameter as it does a call's.
+ *
+ * @returns {Array<{ from: number, to: number, src: string, tagCall: true }>}
+ */
+export function findClassTags(html) {
+  const text = String(html || '');
+
+  return antlersTags(text)
+    .filter((tag) => tag.closed && !tag.comment && !tag.closer && tag.name && !/^(partial|if|elseif|else|unless|endif)$/.test(tag.name.split(':')[0]))
+    .filter((tag) => /(^|\s)class\s*=\s*(["'])[^"']*\2/.test(text.slice(tag.from, tag.to)))
+    .map((tag) => ({ from: tag.from, to: tag.to, src: tag.name, tagCall: true }));
+}
+
+export function hitClassTag(html, pos) {
+  return findClassTags(html).find((item) => pos >= item.from && pos <= item.to) || null;
+}
+
+/** Whether `pos` is inside any Antlers tag: what stands there is a parameter, not markup. */
+export function hitAntlersTag(html, pos) {
+  return antlersTagAt(html, pos);
 }
 
 const LOOP_SKIP = new Set([

@@ -39,7 +39,7 @@ import {
 } from './tw-parse.js';
 import { colorFor, cssFor, familyFor, loadFamilies, optionsForProperty } from './tw-families.js';
 import { callClassParam, fetchComponentClassParam, readCallParams, writeCallParam } from './component-props.js';
-import { findPartials } from './dock-partials.js';
+import { findClassTags, findPartials } from './dock-partials.js';
 import { twUi } from './cp/tailwind/store.js';
 import { hideTwOverlay, paintTwOverlay, twPreviewBox } from './tw-overlay.js';
 import TwClassList from './cp/surfaces/TwClassList.vue';
@@ -637,6 +637,9 @@ function nodeFor(row) {
     path: row.path,
     tag: row.label || 'component',
     component: true,
+    // A tag with a class of its own (`{{ svg class="…" }}`), not a component
+    // with a file: the class parameter is `class`, and nothing is fetched.
+    tagCall: !!row.tagCall,
     src: row.src,
     param: undefined,
   };
@@ -644,7 +647,7 @@ function nodeFor(row) {
 
 /** The call as the file has it now — found again by where it starts, so a stale pick reads nothing. */
 function componentCall(html) {
-  return findPartials(html).find((call) => call.from === node.from && call.src === node.src) || null;
+  return (node.tagCall ? findClassTags(html) : findPartials(html)).find((call) => call.from === node.from && call.src === node.src) || null;
 }
 
 /**
@@ -659,6 +662,13 @@ function resolveComponentParam(win) {
 
   if (own) {
     node.param = own;
+
+    return;
+  }
+
+  // A tag's own class has no file to ask: the parameter is `class`.
+  if (node.tagCall) {
+    node.param = 'class';
 
     return;
   }
@@ -1002,9 +1012,14 @@ function sendPreview(win, detail) {
   // caret — in the tag around the call — does not point at. The paint script
   // finds those elements from the call itself (dock-instant-preview.js
   // `holdCallTw`), so it is told the component and the value being replaced.
-  const next = node?.component && typeof detail?.value === 'string'
-    ? { component: node.src, param: node.param || '', old: currentValue()?.value ?? '', value: detail.value }
-    : detail;
+  // A tag's own class (`{{ svg class="…" }}`) is on an element the server
+  // renders: nothing on the page is known to be it, so nothing previews —
+  // the morph shows the pick a second later.
+  const next = node?.tagCall && typeof detail?.value === 'string'
+    ? null
+    : node?.component && typeof detail?.value === 'string'
+      ? { component: node.src, param: node.param || '', old: currentValue()?.value ?? '', value: detail.value }
+      : detail;
 
   win.document.dispatchEvent(new win.CustomEvent(EVENT.TW_PREVIEW, { detail: next }));
 }
