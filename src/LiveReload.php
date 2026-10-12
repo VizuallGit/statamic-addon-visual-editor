@@ -62,12 +62,15 @@ final class LiveReload
     protected const OWN = 'sve-live-reload:own';
 
     /**
-     * Seconds a poll that names its signatures is held open. Long enough that
-     * an idle tab asks rarely; short enough to stay far below PHP's execution
-     * limit, and for a build that should start to wait no longer than this.
-     * Read through hold(), which the config can override.
+     * Seconds a poll that names its signatures is held open. Every new poll
+     * starts with a framework boot (300 ms and more on a small server) during
+     * which nothing is watched, so the hold is long: one boot per 25 s per
+     * tab, and a change is seen within a tick nearly always. Far below PHP's
+     * execution limit and nginx's fastcgi_read_timeout (60 s by default); a
+     * build that should start waits no longer than this. Read through hold(),
+     * which the config can override.
      */
-    public const HOLD = 3.0;
+    public const HOLD = 25.0;
 
     /**
      * Milliseconds between two looks while a poll is held. One look is a stat

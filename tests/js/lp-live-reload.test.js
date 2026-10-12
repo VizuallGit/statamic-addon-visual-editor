@@ -29,7 +29,7 @@ globalThis.__sveStub = (spec, name) => {
   if (name === 'lpHeader') return () => (fake.header ? {} : null);
   if (name === 'featureSaidOn') return () => fake.feature;
   if (name === 'pageDocuments') return () => [pageDoc('preview'), pageDoc('copy')];
-  if (name === 'refreshInPlaceShown') {
+  if (name === 'refreshTemplatesShown') {
     return async () => {
       calls.refresh.push(Date.now());
 

@@ -37,6 +37,7 @@ import { forgetWhereWeAre, rememberWhereWeAre } from './lp-resume.js';
 import { resetChromeInlinePages } from './chrome.js';
 import { libraryWentStale, refreshSectionTypes, sectionMetaCache } from './section-library.js';
 import { clearHtmlTreeTemplates, renderHtmlTree } from './lazy/html-tree.js';
+import { previewFrame } from './lib/preview-frame.js';
 
 // No static import of section-fields: it is reached only from the HTML tree's
 // lazy chunk today, and importing it here — from a file the Control Panel
@@ -65,6 +66,9 @@ const SPIN_STYLE_ID = '__sve-lp-reload-style';
 
 /** How long the green check stays before the reload icon comes back. */
 const DONE_MS = 2500;
+
+/** The longest the button spins waiting for the preview to say it morphed. */
+const PREVIEW_WAIT_MS = 8000;
 
 let running = false;
 let doneTimer = 0;
@@ -254,6 +258,62 @@ export function refreshInPlaceShown(win) {
     })
     .catch(() => {
       win.Statamic?.$toast?.error(t(win, 'reload_lp_failed'));
+
+      return true;
+    })
+    .finally(() => {
+      running = false;
+      pill?.removeAttribute('data-busy');
+    });
+}
+
+/**
+ * A template changed on disk, outside the editor (lp-live-reload.js): what
+ * Shift+click does for templates, and nothing else. The fields, meta, library
+ * and header/footer screens come from fieldsets and globals, which did not
+ * change — asking for them again is six requests in a row before the page is
+ * rendered, each a framework boot on the server. Here: the tree's pulled-in
+ * templates are dropped and the tree redrawn, and the page is rendered once
+ * more from the values as they stand. The button spins until the preview
+ * says it morphed (`statamic:preview-updated`), at most PREVIEW_WAIT_MS.
+ *
+ * One at a time, like refreshInPlaceShown: false when one is running.
+ */
+export function refreshTemplatesShown(win) {
+  if (running) {
+    return Promise.resolve(false);
+  }
+
+  const pill = win.document.getElementById(LP_RELOAD_ID);
+
+  running = true;
+  win.clearTimeout(doneTimer);
+  pill?.removeAttribute('data-done');
+  pill?.setAttribute('data-busy', '');
+
+  const updated = new Promise((resolve) => {
+    const target = previewFrame(win)?.contentWindow;
+    const timer = win.setTimeout(resolve, PREVIEW_WAIT_MS);
+
+    target?.addEventListener('statamic:preview-updated', () => {
+      win.clearTimeout(timer);
+      resolve();
+    }, { once: true });
+  });
+
+  try {
+    clearHtmlTreeTemplates();
+    renderHtmlTree(win);
+    ask('lp:replay', { win });
+  } catch {
+    win.Statamic?.$toast?.error(t(win, 'reload_lp_failed'));
+  }
+
+  return updated
+    .then(() => {
+      if (pill) {
+        showDone(win, pill);
+      }
 
       return true;
     })

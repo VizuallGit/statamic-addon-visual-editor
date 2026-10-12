@@ -12,7 +12,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
  * `sve-live-reload`). Signed out, it asks again every 30 s.
  *
  * The poll sends the signatures the page was rendered with, and the server
- * holds the request until one differs or three seconds have passed
+ * holds the request until one differs or 25 seconds have passed
  * (LiveReload::await). An answer with nothing new is asked again at once,
  * never sooner than 100 ms after the last request began, so a server that
  * answers at once cannot turn it into a loop. The server looks every 100 ms:

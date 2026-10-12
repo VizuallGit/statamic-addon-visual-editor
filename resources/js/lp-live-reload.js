@@ -8,9 +8,11 @@
  * public page's live-reload button uses (`/!/sve/live-reload`, long-polled:
  * the server holds the request until something differs) is asked with the
  * signatures we hold. When the markup changed and the editor did not write
- * it, the page is rendered again from the values as they stand — the Shift+
- * click of the reload button, `refreshInPlaceShown`, never a reload of the
- * document, which would eject Live Preview. When the build changed, the
+ * it, the page is rendered again from the values as they stand — one render,
+ * `refreshTemplatesShown` (the reload button spins meanwhile), never a reload
+ * of the document, which would eject Live Preview, and not Shift+click's
+ * whole refresh, whose six requests before the render are for fieldsets and
+ * globals that did not change. When the build changed, the
  * built stylesheet is swapped into the page, as the Stylesheets panel does
  * after its own save; new JS waits for the next open.
  *
@@ -34,7 +36,7 @@ import { lpHeader } from './lib/live-preview.js';
 import { featureSaidOn } from './lib/config.js';
 import { pageDocuments } from './lib/preview-frame.js';
 import { nextStep, statusUrl } from './lib/live-reload.js';
-import { refreshInPlaceShown } from './lp-reload.js';
+import { refreshTemplatesShown } from './lp-reload.js';
 
 const ENDPOINT = '/!/sve/live-reload';
 
@@ -82,7 +84,7 @@ async function fetchStatus(win, have, signal) {
 
 /**
  * Render the page again, once for every change that arrived while a refresh
- * ran. `refreshInPlaceShown` refuses a second run while one is going — the
+ * ran. `refreshTemplatesShown` refuses a second run while one is going — the
  * change that came in the meantime would be lost — so it is asked again
  * after, as long as something came in.
  */
@@ -99,7 +101,7 @@ async function refresh(win, loop) {
     while (loop.wanted) {
       loop.wanted = false;
 
-      if (!(await refreshInPlaceShown(win))) {
+      if (!(await refreshTemplatesShown(win))) {
         // The button's own refresh is running. Wait for it, then run ours:
         // what it fetched may predate the change.
         await sleep(win, 500);
