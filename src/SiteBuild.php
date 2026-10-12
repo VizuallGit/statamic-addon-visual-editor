@@ -24,7 +24,7 @@ use Symfony\Component\Process\Process;
 class SiteBuild
 {
     /**
-     * @return array{ok: bool, css?: string, ms?: int, reason?: string}
+     * @return array{ok: bool, css?: string, ms?: int, reason?: string, output?: string}
      */
     public static function run(): array
     {
@@ -70,12 +70,41 @@ class SiteBuild
                 'output' => mb_substr(trim($process->getErrorOutput().' '.$process->getOutput()), -2000),
             ]);
 
-            return ['ok' => false, 'reason' => 'failed'];
+            return [
+                'ok' => false,
+                'reason' => 'failed',
+                'output' => static::failureText($process->getErrorOutput(), $process->getOutput()),
+            ];
         }
 
         $css = static::entryCss();
 
         return $css ? ['ok' => true, 'css' => $css, 'ms' => $ms] : ['ok' => false, 'reason' => 'no-manifest'];
+    }
+
+    /**
+     * What a failed build says, for a person: Vite's message without its
+     * framing and the stack under it ("CssSyntaxError: Missing closing } at
+     * .card"), with paths relative to the site. The log keeps the full output.
+     */
+    public static function failureText(string $stderr, string $stdout): string
+    {
+        $lines = [];
+
+        foreach (preg_split('/\R/', trim($stderr)) ?: [] as $line) {
+            if (preg_match('/^\s+at\s/', $line)) {
+                break;
+            }
+
+            // Vite's own framing says nothing the reason does not.
+            if (! preg_match('/^(\S+\s+)?Build failed (in|with)\b|^error during build:$/i', trim($line))) {
+                $lines[] = $line;
+            }
+        }
+
+        $text = trim(implode("\n", $lines)) ?: trim($stderr."\n".$stdout);
+
+        return mb_substr(str_replace(base_path().DIRECTORY_SEPARATOR, '', $text), 0, 1200);
     }
 
     /**

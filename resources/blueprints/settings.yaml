@@ -488,6 +488,24 @@ tabs:
                 enabled: 'equals true'
                 file_manager: 'equals true'
           -
+            handle: live_reload
+            field:
+              type: toggle
+              display: 'Live reload'
+              instructions: 'A button on the public site, under Rediger, that reloads the page when this site''s files change on the server — a template saved from VS Code over SSH, Site Files or the dock. CSS and JS are built on the server first (as the Stylesheets panel does), so new Tailwind classes show too. Click the button to switch it off in your browser. Not while `npm run dev` runs: Vite reloads the page itself then. Off by default. Super admins unless you name specific people.'
+              default: false
+              if:
+                enabled: 'equals true'
+          -
+            handle: live_reload_access
+            field:
+              type: toolbar_access
+              hide_display: true
+              tool: live_reload
+              if:
+                enabled: 'equals true'
+                live_reload: 'equals true'
+          -
             handle: collection_templates
             field:
               type: toggle

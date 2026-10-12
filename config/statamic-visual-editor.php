@@ -128,6 +128,11 @@ return [
     |                      writes on this server. `app/`, `routes/`, `config/`,
     |                      `.env` and `vendor/` are never reachable. Off by
     |                      default, super admins unless you name people.
+    | - live_reload:       a button on the public site that reloads the page
+    |                      when the site's files change on the server (views,
+    |                      lang/, css, js), building CSS/JS first. For editing
+    |                      over SSH. Off by default, super admins unless you
+    |                      name people. Folders: `live_reload` below.
     | - comments:          Figma-style pins in Live Preview. Threads live in
     |                      storage/statamic-visual-editor/comments. On by default.
     |                      Who sees the icon sits under the toggle.
@@ -162,6 +167,7 @@ return [
         'template_dock' => false,
         'site_css' => false,
         'file_manager' => false,
+        'live_reload' => false,
         'collection_templates' => false,
         'tailwind_dock' => false,
         'component_props' => false,
@@ -181,6 +187,7 @@ return [
         'template_dock_access' => null,
         'site_css_access' => null,
         'file_manager_access' => null,
+        'live_reload_access' => null,
         'ai_panel_access' => null,
         'ai_text_access' => null,
         'schema_access' => null,
@@ -278,6 +285,23 @@ return [
     'file_manager' => [
         'root' => resource_path(),
         'exclude' => ['dist', 'boost', 'stubs', 'node_modules', 'vendor', 'users'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Live reload
+    |--------------------------------------------------------------------------
+    |
+    | The folders the live-reload button watches (`features.live_reload`).
+    | A change under `markup` reloads the page; a change under `sources` builds
+    | the site's CSS/JS first (`npm run build`'s job — Tailwind scans the
+    | views). `content` is not watched: every save in the Control Panel writes
+    | there, and Live Preview already shows it.
+    |
+    */
+    'live_reload' => [
+        'markup' => [resource_path('views'), lang_path()],
+        'sources' => [resource_path('views'), resource_path('css'), resource_path('js')],
     ],
 
     /*

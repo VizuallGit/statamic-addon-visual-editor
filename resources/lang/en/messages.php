@@ -1526,4 +1526,11 @@ return [
     'ai_panel_css_built' => 'The site\'s CSS is built again, with any new classes and rules — reload Live Preview if they do not show yet.',
     'ai_panel_css_not_built' => 'Saved, but the site\'s CSS was not built: :reason. New classes and rules show after the next deploy.',
     'ai_panel_not_registered' => 'Could not add :handles to the page builder — the group or the fieldset was not found. Add it in page_sections.yaml.',
+    'live_reload_on' => 'Live reload is on — the page reloads when the site\'s files change. Click to switch off.',
+    'live_reload_off' => 'Live reload is off. Click to switch on.',
+    'live_reload_building' => 'Building the site\'s CSS and JS …',
+    'live_reload_reloading' => 'Reloading …',
+    'live_reload_error' => 'Live reload: :reason',
+    'live_reload_signedout' => 'Live reload: signed out — sign in again, then it picks up by itself.',
+    'live_reload_offline' => 'Live reload is not connected.',
 ];

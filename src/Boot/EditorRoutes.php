@@ -20,6 +20,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FontsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\LiveReloadController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\RenderProfileController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PreviewTickController;
@@ -158,6 +159,11 @@ final class EditorRoutes
                 ->name('sve.file-manager.show');
             Route::get('/!/sve/file-manager/folder', [FileManagerController::class, 'folder'])
                 ->name('sve.file-manager.folder');
+
+            // The public site's live-reload button asks this once a second.
+            // Signed in + live_reload allowed; it may start the site build.
+            Route::get('/!/sve/live-reload', LiveReloadController::class)
+                ->name('sve.live-reload');
 
             // What Google says about a page, and what its real visitors met.
             // Slow on purpose: Lighthouse loads the page several times.

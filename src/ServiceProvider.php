@@ -36,6 +36,7 @@ use MarioHamann\StatamicVisualEditor\Http\Middleware\HideStoresFromCollectionsLi
 use MarioHamann\StatamicVisualEditor\Http\Middleware\ExplainRenderErrorInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectBridgeScript;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectEditButton;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectSchema;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\OverrideGlobalSectionsInPreview;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\OverrideGlobalsInPreview;
@@ -186,6 +187,7 @@ class ServiceProvider extends AddonServiceProvider
             EagerImagesInPreview::class,
             InjectBridgeScript::class,
             InjectEditButton::class,
+            InjectLiveReload::class,
             InjectSchema::class,
             OverrideGlobalsInPreview::class,
             OverrideGlobalSectionsInPreview::class,

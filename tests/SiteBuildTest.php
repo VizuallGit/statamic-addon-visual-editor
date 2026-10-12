@@ -68,4 +68,29 @@ class SiteBuildTest extends TestCase
         // The testbench app has no node_modules/vite.
         $this->assertSame(['ok' => false, 'reason' => 'no-vite'], SiteBuild::run());
     }
+
+    public function test_a_failed_build_says_vites_message_without_the_stack(): void
+    {
+        $base = base_path();
+        $stderr = "\u{2717} Build failed in 25ms\nerror during build:\nBuild failed with 1 error:\n\n"
+            ."[plugin @tailwindcss/vite:generate:build] {$base}/resources/css/site.css\n"
+            ."CssSyntaxError: Missing closing } at .lr-broken\n"
+            ."    at Te (file:///x/node_modules/tailwindcss/dist/chunk.mjs:1:3861)\n"
+            ."    at async tr (file:///x/node_modules/tailwindcss/dist/chunk.mjs:21:2743)\n";
+
+        $text = SiteBuild::failureText($stderr, "vite v8 building client environment for production...");
+
+        $this->assertStringContainsString('CssSyntaxError: Missing closing } at .lr-broken', $text);
+        $this->assertStringContainsString('[plugin @tailwindcss/vite:generate:build] resources/css/site.css', $text);
+        $this->assertStringNotContainsString('    at ', $text);
+        $this->assertStringNotContainsString('error during build', $text);
+        $this->assertStringStartsWith('[plugin @tailwindcss/vite', $text);
+        $this->assertStringNotContainsString($base, $text);
+    }
+
+    public function test_a_failure_without_a_stack_says_what_stderr_said_or_else_stdout(): void
+    {
+        $this->assertSame('sh: node: not found', SiteBuild::failureText('sh: node: not found', 'building client environment...'));
+        $this->assertSame('only stdout', SiteBuild::failureText('', 'only stdout'));
+    }
 }

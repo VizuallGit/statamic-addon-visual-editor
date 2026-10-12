@@ -1519,4 +1519,11 @@ return [
     'ai_panel_css_built' => 'Sitets CSS er bygget igen med nye klasser og regler — genindlæs Live Preview, hvis de ikke ses endnu.',
     'ai_panel_css_not_built' => 'Gemt, men sitets CSS blev ikke bygget: :reason. Nye klasser og regler ses efter næste deploy.',
     'ai_panel_not_registered' => 'Kunne ikke føje :handles til sidebyggeren — gruppen eller fieldsettet blev ikke fundet. Tilføj den i page_sections.yaml.',
+    'live_reload_on' => 'Live reload er slået til — siden genindlæses, når sitets filer ændres. Klik for at slå fra.',
+    'live_reload_off' => 'Live reload er slået fra. Klik for at slå til.',
+    'live_reload_building' => 'Bygger sitets CSS og JS …',
+    'live_reload_reloading' => 'Genindlæser …',
+    'live_reload_error' => 'Live reload: :reason',
+    'live_reload_signedout' => 'Live reload: logget ud — log ind igen, så fortsætter det af sig selv.',
+    'live_reload_offline' => 'Live reload har ingen forbindelse.',
 ];

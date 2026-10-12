@@ -37,6 +37,7 @@ class Features
         'ai_text',
         'schema',
         'file_manager',
+        'live_reload',
         'open_first_section',
         'collection_templates',
         'previews_autowatch',
@@ -77,6 +78,9 @@ class Features
         'template_dock',
         'site_css',
         'file_manager',
+        // A button on the public site that reloads the page when the site's
+        // files change on the server. Off by default; super admins.
+        'live_reload',
         'collection_templates',
         'tailwind_dock',
         'component_props',
