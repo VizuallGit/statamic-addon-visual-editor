@@ -145,7 +145,9 @@ function handToDock(changed) {
   let rest = false;
 
   for (const file of changed || []) {
-    const taken = !!open && dockTypeOf(file?.path) === open && typeof file.content === 'string' && ask('dock:set-html', file.content) === true;
+    // An empty file is never handed over: to the dock an empty string means
+    // "detach", and an empty file is more likely a save caught halfway.
+    const taken = !!open && dockTypeOf(file?.path) === open && typeof file.content === 'string' && file.content !== '' && ask('dock:set-html', file.content) === true;
 
     if (!taken) {
       rest = true;

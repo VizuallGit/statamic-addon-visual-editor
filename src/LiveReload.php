@@ -171,12 +171,16 @@ final class LiveReload
      * differs, or a build should start (the controller starts it after this
      * answer, so it must not wait out the hold) — or when the hold is over.
      *
-     * A markup change is answered the tick it is seen — no second look. The
-     * answer names the files behind it (`changed`, see changed()), so Live
-     * Preview can paint a saved template before the page is rendered again:
-     * the whole point is the time from the save to the paint, and every
-     * extra look is on that path. The editor's own saves are told apart by
-     * the "writing" stamp set before the route runs (see own()).
+     * A markup change is answered once it has stood still for one tick: the
+     * same new signature seen twice in a row. An editor saves a file by
+     * truncating it and writing it again, and a look that lands in between
+     * sees an empty or half-written file — handed to the dock, that half
+     * would be painted and then autosaved over the author's whole file. One
+     * tick later the write is long done; a file still changing waits another
+     * tick. The answer names the files behind the change (`changed`, see
+     * changed()), so Live Preview can hand a saved template to the dock
+     * before the page is rendered again. The editor's own saves are told
+     * apart by the "writing" stamp set before the route runs (see own()).
      *
      * Holds no lock: Laravel's session drivers take none, and the controller
      * reads the session again after the hold (see LiveReloadController).
@@ -191,15 +195,24 @@ final class LiveReload
         $hold ??= static::hold();
         $tickMs ??= static::tick();
         $until = microtime(true) + $hold;
+        $pending = null;
 
         while (true) {
             $status = static::status($session);
             $markupChanged = $status['markup'] !== $have['markup'];
 
             if ($markupChanged) {
-                $status['changed'] = static::changed($have['markup'], $status['markup']);
+                if ($status['markup'] === $pending) {
+                    $status['changed'] = static::changed($have['markup'], $status['markup']);
 
-                return $status;
+                    return $status;
+                }
+
+                // Seen once: look again a tick later before answering.
+                $pending = $status['markup'];
+                usleep($tickMs * 1000);
+
+                continue;
             }
 
             if ($status['build'] !== $have['build']

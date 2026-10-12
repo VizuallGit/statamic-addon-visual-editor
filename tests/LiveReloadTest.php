@@ -514,7 +514,7 @@ class LiveReloadTest extends TestCase
 
         $this->assertNotSame($page['markup'], $status['markup']);
         $this->assertFalse($status['own']);
-        $this->assertLessThan(0.12, $lag, 'within a tick or so: no second look');
+        $this->assertLessThan(0.14, $lag, 'within two ticks: seen, then seen again unchanged');
         $this->assertSame(
             [['path' => 'views/hero.antlers.html', 'content' => '<h1>From Cursor</h1>']],
             array_map(fn ($f) => ['path' => basename(dirname($f['path'])).'/'.basename($f['path']), 'content' => $f['content']], $status['changed'])
@@ -534,7 +534,32 @@ class LiveReloadTest extends TestCase
 
         $this->assertNotSame($page['markup'], $status['markup']);
         $this->assertTrue($status['own']);
-        $this->assertLessThan(0.12, $lag, 'within a tick or so');
+        $this->assertLessThan(0.14, $lag, 'within two ticks');
+    }
+
+    /**
+     * The save as an editor makes it: the file truncated, then written a
+     * moment later (well under a tick). A look between the two sees an empty
+     * file; the answer must carry the whole file, never the empty one.
+     */
+    public function test_a_file_still_being_written_is_answered_once_it_stands_still(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        $this->built();
+        LiveReload::status('s1');
+        $page = LiveReload::page();
+        $mtime = time() - 30;
+        $this->writeLater(0.1, 'views/hero.antlers.html', '', $mtime, sprintf(
+            'usleep(8000); file_put_contents(%s, %s); touch(%s, %d);',
+            var_export($this->root.'/views/hero.antlers.html', true),
+            var_export('<h1>Whole file from Cursor</h1>', true),
+            var_export($this->root.'/views/hero.antlers.html', true),
+            $mtime
+        ));
+
+        $status = LiveReload::await($page, 's1', 2.0, 20);
+
+        $this->assertSame('<h1>Whole file from Cursor</h1>', $status['changed'][0]['content']);
     }
 
     public function test_changed_is_unknown_for_a_signature_nobody_remembers(): void

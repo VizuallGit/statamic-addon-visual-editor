@@ -301,6 +301,7 @@ test('a changed file the dock has open goes into the dock as typed; nothing else
     { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>' }] },
     { markup: 'm4', build: 'b1', own: false, changed: [{ path: hero, content: '<section>both</section>' }, { path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
     { markup: 'm5', build: 'b1', own: true, changed: [{ path: hero, content: '<section>own</section>' }] },
+    { markup: 'm6', build: 'b1', own: false, changed: [{ path: hero, content: '' }] },
   ]);
 
   ensureLpLiveReload(win);
@@ -309,9 +310,9 @@ test('a changed file the dock has open goes into the dock as typed; nothing else
   assert.deepEqual(
     calls.ask.filter(([what]) => what === 'dock:set-html').map(([, html]) => html),
     ['<section>new</section>', '<section>both</section>'],
-    "the dock's file, twice; another file never; an own change never"
+    "the dock's file, twice; another file never; an own change never; an empty file never"
   );
-  assert.equal(calls.refresh.length, 2, 'rendered for the other file and for the layout beside the hero, not for the hero alone');
+  assert.equal(calls.refresh.length, 3, 'rendered for the other file, for the layout beside the hero, and for the empty file — not for the hero alone');
 
   fake.header = false;
   ensureLpLiveReload(win);
