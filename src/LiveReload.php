@@ -547,13 +547,14 @@ final class LiveReload
      * What changed between two markup signatures: every file whose mtime or
      * size differs or that is new, with its contents when it is small enough
      * to send (MAX_FILE), and every file that is gone (`removed`, no
-     * contents). Paths are relative to the site root.
+     * contents). Paths are relative to the site root. A section's partial also
+     * carries `parts`, the dock's view of it (see parts()).
      *
      * Null when the files behind `$from` are not remembered — a signature
      * from before the cache was cleared, or older than an hour — and the
      * page has to render again without knowing what changed.
      *
-     * @return list<array{path: string, content: ?string, removed?: bool}>|null
+     * @return list<array{path: string, content: ?string, removed?: bool, parts?: array{html: string, css: string, js: string, tw: string, locked: bool}}>|null
      */
     public static function changed(string $from, string $to): ?array
     {
@@ -575,8 +576,14 @@ final class LiveReload
 
             $size = (int) explode(':', $stamp)[1];
             $content = $size <= self::MAX_FILE ? @file_get_contents($path) : false;
+            $file = ['path' => $relative($path), 'content' => $content === false ? null : $content];
+            $parts = $content === false ? null : static::parts($file['path'], $content);
 
-            $out[] = ['path' => $relative($path), 'content' => $content === false ? null : $content];
+            if ($parts !== null) {
+                $file['parts'] = $parts;
+            }
+
+            $out[] = $file;
         }
 
         foreach (array_diff_key($before, $after) as $path => $stamp) {
@@ -584,6 +591,37 @@ final class LiveReload
         }
 
         return $out;
+    }
+
+    /**
+     * A section's partial as the dock holds it: the server's own split into
+     * the HTML, CSS and JS panes plus the utilities baked for it — the same
+     * call `GET /!/sve/section-template` makes when the dock opens the file.
+     * Live Preview hands this to a dock that has the file open, so the panes
+     * take the file as loading it would, and never the raw file: that carries
+     * `{{ sve_tw }}` and the wrappers the join writes, and a dock given the
+     * raw text (v1.1.508) autosaved it with a second `{{ sve_tw }}` appended —
+     * one more on every save (eight in one partial on Cuben). Null for
+     * anything but a section partial.
+     *
+     * @return array{html: string, css: string, js: string, tw: string, locked: bool}|null
+     */
+    protected static function parts(string $relative, string $content): ?array
+    {
+        if (! preg_match('#(?:^|/)partials/page_sections/(.+)\.antlers\.html$#', $relative, $m)) {
+            return null;
+        }
+
+        $handle = $m[1];
+        $split = SectionTemplate::split($content, $handle);
+
+        return [
+            'html' => (string) ($split['html'] ?? ''),
+            'css' => (string) ($split['css'] ?? ''),
+            'js' => (string) ($split['js'] ?? ''),
+            'tw' => Features::enabled('tailwind_dock') ? TailwindStore::read($handle) : '',
+            'locked' => ! empty($split['locked']),
+        ];
     }
 
     /**

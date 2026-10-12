@@ -63,3 +63,42 @@ export function nextStep(have, answer) {
     changed: refresh && Array.isArray(answer.changed) ? answer.changed : null,
   };
 }
+
+/**
+ * The dock's handle for a template path:
+ * `…/partials/page_sections/hero/style_2.antlers.html` → `hero/style_2`.
+ * '' for any other file.
+ */
+export function dockTypeOf(path) {
+  const m = /(?:^|\/)partials\/page_sections\/(.+)\.antlers\.html$/.exec(String(path || ''));
+
+  return m ? m[1] : '';
+}
+
+/**
+ * The section types behind a change, when every changed file is a section's
+ * partial — what a render can be scoped to. Null when a file among them is
+ * anything else (the layout, a component, a language file) or when the
+ * server could not name the files: then the whole page is rendered.
+ */
+export function sectionTypesOf(changed) {
+  if (!Array.isArray(changed) || changed.length === 0) {
+    return null;
+  }
+
+  const types = [];
+
+  for (const file of changed) {
+    const type = dockTypeOf(file?.path);
+
+    if (!type) {
+      return null;
+    }
+
+    if (!types.includes(type)) {
+      types.push(type);
+    }
+  }
+
+  return types;
+}

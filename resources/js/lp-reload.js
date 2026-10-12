@@ -268,18 +268,59 @@ export function refreshInPlaceShown(win) {
 }
 
 /**
+ * The identities of the one top-level row of these section types on the
+ * page, when there is exactly one — what a replay can morph alone
+ * (`sectionUids`, the dock's own save path: the server renders that section
+ * and the preview morphs it in place). Several rows, or none: empty, and the
+ * whole page is rendered — the preview morphs one section per replay.
+ */
+function soleSectionUids(win, types) {
+  const field = sectionField(win);
+  const wanted = new Set(types);
+  const matches = [];
+
+  for (const container of activeContainers(win.document)) {
+    const rows = dataGet(unwrapRef(container.values), field);
+
+    if (!Array.isArray(rows)) {
+      continue;
+    }
+
+    for (const row of rows) {
+      if (row && wanted.has(row.type)) {
+        matches.push(row);
+      }
+    }
+
+    // The first container holding the page builder is the page (see typesOnPage).
+    break;
+  }
+
+  if (matches.length !== 1) {
+    return [];
+  }
+
+  return [matches[0].id, matches[0]._id, matches[0]._visual_id].filter(
+    (id, i, all) => typeof id === 'string' && id !== '' && all.indexOf(id) === i
+  );
+}
+
+/**
  * A template changed on disk, outside the editor (lp-live-reload.js): what
  * Shift+click does for templates, and nothing else. The fields, meta, library
  * and header/footer screens come from fieldsets and globals, which did not
  * change — asking for them again is six requests in a row before the page is
  * rendered, each a framework boot on the server. Here: the tree's pulled-in
  * templates are dropped and the tree redrawn, and the page is rendered once
- * more from the values as they stand. The button spins until the preview
- * says it morphed (`statamic:preview-updated`), at most PREVIEW_WAIT_MS.
+ * more from the values as they stand — one section alone when `types` names
+ * the section types the change is in and the page has exactly one row of
+ * them (soleSectionUids), the whole page otherwise. The button spins until
+ * the preview says it morphed (`statamic:preview-updated`), at most
+ * PREVIEW_WAIT_MS.
  *
  * One at a time, like refreshInPlaceShown: false when one is running.
  */
-export function refreshTemplatesShown(win) {
+export function refreshTemplatesShown(win, types = null) {
   if (running) {
     return Promise.resolve(false);
   }
@@ -304,7 +345,10 @@ export function refreshTemplatesShown(win) {
   try {
     clearHtmlTreeTemplates();
     renderHtmlTree(win);
-    ask('lp:replay', { win });
+
+    const sectionUids = Array.isArray(types) && types.length ? soleSectionUids(win, types) : [];
+
+    ask('lp:replay', { win, opts: sectionUids.length ? { sectionUids } : undefined });
   } catch {
     win.Statamic?.$toast?.error(t(win, 'reload_lp_failed'));
   }

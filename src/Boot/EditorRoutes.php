@@ -119,7 +119,13 @@ final class EditorRoutes
             // Patterns' own staleness check: cheap enough for a timer, and it
             // starts the generator itself when a file edit left the thumbnails
             // behind (no CP save event fires for that).
+            // Not an editor write, although it is a POST: left out of
+            // RecordEditorWrite, which would stamp this session's "own" every
+            // five seconds while the panel is open — and a file saved in
+            // Cursor within the next half second would read as the editor's
+            // and never reach Live Preview.
             Route::post('/!/sve/previews/tick', PreviewTickController::class)
+                ->withoutMiddleware(RecordEditorWrite::class)
                 ->name('sve.previews.tick');
 
             // Same query-parameter pattern as section-types: handles hold slashes.

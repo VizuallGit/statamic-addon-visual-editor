@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
 use MarioHamann\StatamicVisualEditor\LiveReload;
 use MarioHamann\StatamicVisualEditor\Tests\TestCase;
 use Statamic\Facades\User;
@@ -288,5 +289,13 @@ class LiveReloadControllerTest extends TestCase
 
         $this->assertSame(2, $handler->reads);
         $this->assertSame(2, $handler->written['written_elsewhere'] ?? null, 'the copy read after the hold went back');
+    }
+
+    public function test_the_patterns_tick_is_not_stamped_as_an_editor_write(): void
+    {
+        $route = $this->app['router']->getRoutes()->getByName('sve.previews.tick');
+
+        $this->assertNotNull($route);
+        $this->assertContains(RecordEditorWrite::class, $route->excludedMiddleware(), 'a POST every 5 s that writes nothing must not make the next outside save look like the editor\'s');
     }
 }

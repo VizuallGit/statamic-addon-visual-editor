@@ -4,7 +4,8 @@
  * whose timers fire at once but record the delay asked for. It proves what
  * the loop does with each answer — nothing on the first, a refresh on a
  * foreign markup change, none on the editor's own, a stylesheet swap on a new
- * build, a long wait when refused, and that it ends when the header goes.
+ * build, a long wait when refused, that it ends when the header goes, and
+ * that a file the dock has open is handed to the dock's panes (never typed in).
  */
 import { register } from 'node:module';
 import { test } from 'node:test';
@@ -23,7 +24,7 @@ const fake = {
   refreshResult: true,
   /** When set, a refresh holds until it resolves — a slow refresh. */
   gate: null,
-  /** The dock's open file handle, '' for none; whether it takes a set-html. */
+  /** The dock's open file handle, '' for none; whether it takes a file. */
   dockType: '',
   dockTakes: true,
 };
@@ -35,7 +36,7 @@ globalThis.__sveStub = (spec, name) => {
       calls.ask.push([what, arg]);
 
       if (what === 'dock:current-type') return fake.dockType;
-      if (what === 'dock:set-html') return fake.dockTakes;
+      if (what === 'dock:take-file') return fake.dockTakes;
 
       return undefined;
     };
@@ -43,8 +44,8 @@ globalThis.__sveStub = (spec, name) => {
   if (name === 'featureSaidOn') return () => fake.feature;
   if (name === 'pageDocuments') return () => [pageDoc('preview'), pageDoc('copy')];
   if (name === 'refreshTemplatesShown') {
-    return async () => {
-      calls.refresh.push(Date.now());
+    return async (win, types) => {
+      calls.refresh.push(types);
 
       if (fake.gate) {
         await fake.gate;
@@ -290,50 +291,57 @@ test("the button's own refresh running → ours waits and runs after", async () 
   await tick();
 });
 
-test('a changed file the dock has open goes into the dock as typed; nothing else is rendered for it', async () => {
+test("a changed file the dock has open goes into the dock's panes as the file on disk; the render follows for every change", async () => {
   reset();
   fake.dockType = 'hero/style_2';
 
   const hero = 'resources/views/partials/page_sections/hero/style_2.antlers.html';
+  const parts = (html) => ({ html, css: '', js: '', tw: '', locked: false });
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '<section>new</section>' }] },
-    { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>' }] },
-    { markup: 'm4', build: 'b1', own: false, changed: [{ path: hero, content: '<section>both</section>' }, { path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
-    { markup: 'm5', build: 'b1', own: true, changed: [{ path: hero, content: '<section>own</section>' }] },
-    { markup: 'm6', build: 'b1', own: false, changed: [{ path: hero, content: '' }] },
+    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '<section>new</section>', parts: parts('<section>new</section>') }] },
+    { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>', parts: parts('<section>x</section>') }] },
+    { markup: 'm4', build: 'b1', own: false, changed: [{ path: hero, content: '<section>both</section>', parts: parts('<section>both</section>') }, { path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
+    { markup: 'm5', build: 'b1', own: true, changed: [{ path: hero, content: '<section>own</section>', parts: parts('<section>own</section>') }] },
+    { markup: 'm6', build: 'b1', own: false, changed: [{ path: hero, content: '', parts: parts('') }] },
+    { markup: 'm7', build: 'b1', own: false, changed: [{ path: hero, content: '<section>raw</section>' }] },
   ]);
 
   ensureLpLiveReload(win);
   await tick();
 
   assert.deepEqual(
-    calls.ask.filter(([what]) => what === 'dock:set-html').map(([, html]) => html),
-    ['<section>new</section>', '<section>both</section>'],
-    "the dock's file, twice; another file never; an own change never; an empty file never"
+    calls.ask.filter(([what]) => what === 'dock:take-file').map(([, payload]) => [payload.type, payload.parts.html]),
+    [['hero/style_2', '<section>new</section>'], ['hero/style_2', '<section>both</section>']],
+    "the dock's file, twice; another file never; an own change never; an empty file never; a file without the server's split never"
   );
-  assert.equal(calls.refresh.length, 3, 'rendered for the other file, for the layout beside the hero, and for the empty file — not for the hero alone');
+  assert.equal(calls.ask.filter(([what]) => what === 'dock:set-html').length, 0, 'the dock is never written to as if typed');
+  assert.deepEqual(
+    calls.refresh,
+    [['hero/style_2'], ['other'], null, ['hero/style_2'], ['hero/style_2']],
+    'rendered for every foreign change: the hero alone, the other section alone, the whole page when the layout changed too, the hero for the empty file, the hero again'
+  );
 
   fake.header = false;
   ensureLpLiveReload(win);
   await tick();
 });
 
-test('a dock that refuses the file (locked, another file) leaves it to the render', async () => {
+test('a dock that refuses the file (locked, another file, typing of its own) leaves it to the render', async () => {
   reset();
   fake.dockType = 'hero/style_2';
   fake.dockTakes = false;
 
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    { markup: 'm2', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>' }] },
+    { markup: 'm2', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>', parts: { html: '<section>new</section>', css: '', js: '', tw: '' } }] },
     { markup: 'm3', build: 'b1', own: false, changed: null },
   ]);
 
   ensureLpLiveReload(win);
   await tick();
 
-  assert.equal(calls.refresh.length, 2, 'rendered both times: refused, and unknown files');
+  assert.deepEqual(calls.refresh, [['hero/style_2'], null], 'rendered both times: refused (the section alone), and unknown files (the whole page)');
 
   fake.header = false;
   ensureLpLiveReload(win);

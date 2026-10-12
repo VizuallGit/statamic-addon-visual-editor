@@ -8,14 +8,15 @@
  * public page's live-reload button uses (`/!/sve/live-reload`, long-polled:
  * the server holds the request until something differs) is asked with the
  * signatures we hold. When the markup changed and the editor did not write
- * it, a saved template the dock has open goes into the dock as if typed
- * there (`handToDock`: the dock's own Instant paint, autosave and render
- * follow); anything else has the page rendered again from the values as
- * they stand — one render,
- * `refreshTemplatesShown` (the reload button spins meanwhile), never a reload
- * of the document, which would eject Live Preview, and not Shift+click's
- * whole refresh, whose six requests before the render are for fieldsets and
- * globals that did not change. When the build changed, the
+ * it, a saved template the dock has open goes into the dock's panes as the
+ * file now on disk (`handToDock`: the dock paints the difference at once and
+ * saves nothing), and the page is rendered again from the values as they
+ * stand — one render, scoped to the section when the change is one
+ * section's partial, `refreshTemplatesShown` (the reload button spins
+ * meanwhile), never a reload of the document, which would eject Live
+ * Preview, and not Shift+click's whole refresh, whose six requests before
+ * the render are for fieldsets and globals that did not change. When the
+ * build changed, the
  * built stylesheet is swapped into the page, as the Stylesheets panel does
  * after its own save; new JS waits for the next open.
  *
@@ -40,7 +41,7 @@ import { ask } from './cp/bus.js';
 import { lpHeader } from './lib/live-preview.js';
 import { featureSaidOn } from './lib/config.js';
 import { pageDocuments } from './lib/preview-frame.js';
-import { nextStep, statusUrl } from './lib/live-reload.js';
+import { dockTypeOf, nextStep, sectionTypesOf, statusUrl } from './lib/live-reload.js';
 import { refreshTemplatesShown } from './lp-reload.js';
 
 const ENDPOINT = '/!/sve/live-reload';
@@ -88,13 +89,33 @@ async function fetchStatus(win, have, signal) {
 }
 
 /**
+ * The section types two changes together can be scoped to: both lists
+ * joined, or null (the whole page) as soon as either is.
+ */
+function joinTypes(a, b) {
+  if (a === undefined) {
+    return b;
+  }
+
+  if (a === null || b === null) {
+    return null;
+  }
+
+  return [...new Set([...a, ...b])];
+}
+
+/**
  * Render the page again, once for every change that arrived while a refresh
  * ran. `refreshTemplatesShown` refuses a second run while one is going — the
  * change that came in the meantime would be lost — so it is asked again
- * after, as long as something came in.
+ * after, as long as something came in. `types` (lib: `sectionTypesOf`) says
+ * which sections the change is in, when it is only in sections; changes
+ * that queue up are rendered together, scoped to all of them or to the
+ * whole page as soon as one of them needs it.
  */
-async function refresh(win, loop) {
+async function refresh(win, loop, types) {
   loop.wanted = true;
+  loop.types = joinTypes(loop.types, types);
 
   if (loop.refreshing) {
     return;
@@ -106,11 +127,16 @@ async function refresh(win, loop) {
     while (loop.wanted) {
       loop.wanted = false;
 
-      if (!(await refreshTemplatesShown(win))) {
+      const scope = loop.types;
+
+      loop.types = undefined;
+
+      if (!(await refreshTemplatesShown(win, scope))) {
         // The button's own refresh is running. Wait for it, then run ours:
         // what it fetched may predate the change.
         await sleep(win, 500);
         loop.wanted = true;
+        loop.types = joinTypes(loop.types, scope);
       }
     }
   } finally {
@@ -118,43 +144,49 @@ async function refresh(win, loop) {
   }
 }
 
-/** The dock's handle for a template path: `partials/page_sections/hero/style_2.antlers.html` → `hero/style_2`. */
-function dockTypeOf(path) {
-  const m = /^resources\/views\/partials\/page_sections\/(.+)\.antlers\.html$/.exec(String(path || ''));
-
-  return m ? m[1] : '';
-}
-
 /**
- * A changed file the dock has open goes into the dock's HTML pane as if it
- * had been typed there (`dock:set-html`). From there it is the dock's own
- * path, unchanged: the Instant paint of the difference against the text the
- * dock had, the autosave (the same bytes, stamped as the editor's own) and
- * the render after it. That is what makes a save in Cursor look like a
- * keystroke in the dock — and why nothing else paints: a whole file painted
- * without the dock's memory of the previous text put elements in the wrong
- * place until the render (v1.1.506–507, withdrawn).
+ * A changed file the dock has open goes into the dock's panes as the file
+ * now on disk (`dock:take-file`): the server's split of it into HTML, CSS,
+ * JS and baked utilities (`parts`), the way the dock loads a file. The dock
+ * paints the difference against the text it had, the same frame, and saves
+ * nothing — the file's one writer stays the editor that saved it. The
+ * render is the caller's and follows for every change, taken or not.
  *
- * True when every changed file was taken by the dock, so no render of ours
- * is needed; false when at least one was not (the dock shows another file,
- * is locked, or the file is not a section's partial) and the page has to be
- * rendered again.
+ * v1.1.508 handed the raw file to `dock:set-html`, as if typed. The autosave
+ * that followed made the dock a second writer of a file open in Cursor: it
+ * landed seconds later (after the Tailwind compile) over whatever Cursor had
+ * saved meanwhile, and with `{{ sve_tw }}` appended once more each time,
+ * because the raw file already carried the one the save writes. Measured on
+ * Cuben: eight `{{ sve_tw }}` in one partial, and the probe's restore
+ * overwritten three seconds after it.
+ *
+ * An empty file is never handed over: more likely a save caught halfway
+ * than a file meant to be empty, and the dock would show nothing for it.
+ *
+ * True when the dock took at least one file.
  */
 function handToDock(changed) {
   const open = String(ask('dock:current-type') || '');
-  let rest = false;
+
+  if (!open) {
+    return false;
+  }
+
+  let taken = false;
 
   for (const file of changed || []) {
-    // An empty file is never handed over: to the dock an empty string means
-    // "detach", and an empty file is more likely a save caught halfway.
-    const taken = !!open && dockTypeOf(file?.path) === open && typeof file.content === 'string' && file.content !== '' && ask('dock:set-html', file.content) === true;
+    const parts = file?.parts;
 
-    if (!taken) {
-      rest = true;
+    if (dockTypeOf(file?.path) !== open || !parts || typeof parts.html !== 'string' || file.content === '') {
+      continue;
+    }
+
+    if (ask('dock:take-file', { type: open, parts }) === true) {
+      taken = true;
     }
   }
 
-  return !rest && (changed || []).length > 0;
+  return taken;
 }
 
 async function run(win, loop) {
@@ -194,8 +226,9 @@ async function run(win, loop) {
       pageDocuments(win).forEach((doc) => swapSiteCss(doc, step.css));
     }
 
-    if (step.refresh && !handToDock(step.changed)) {
-      void refresh(win, loop);
+    if (step.refresh) {
+      handToDock(step.changed);
+      void refresh(win, loop, sectionTypesOf(step.changed));
     }
 
     await sleep(win, AGAIN_MS);

@@ -50,7 +50,7 @@ import { bindHtmlScope, clearHtmlScopeRange, currentFullHtml, currentSectionValu
 import { bindAutosave, bindLock, paintAutosave } from './lock-autosave.js';
 import { mountEditor, paintHostWait } from './editor.js';
 import { paintStyleMode, syncTwTarget } from './style-modes.js';
-import { closeCssMenu, cssEditorText, paintCssToolState, writeParts } from './css-tools.js';
+import { closeCssMenu, cssEditorText, paintCssToolState, readParts, sameParts, writeParts } from './css-tools.js';
 import { ensureTwCss, flushSave, isChromeTemplateType, onEditorInput, primeTailwindCompile, refreshPreview, resetTailwindCompile } from './save.js';
 import { closeDataMenu, openDataVarsMenu } from './data-vars.js';
 import { minimalChange } from '../lib/minimal-change.js';
@@ -1382,6 +1382,76 @@ register('dock:set-html', (payload) => {
 
   return true;
 });
+/**
+ * The file the dock has open was saved outside the editor (live reload,
+ * lp-live-reload.js): the panes take it as it now stands on disk — the
+ * server's split into HTML, CSS, JS and the utilities baked for it, exactly
+ * what loading the file gives — and nothing is saved. The file on disk *is*
+ * the text in the panes, so `lastParts` says so, the compile is primed for
+ * it, and the autosave has nothing to do; the Instant paint follows from the
+ * pane's change as for any edit, and the render is the caller's. The dock
+ * reads here and never writes: v1.1.508 put the raw file through
+ * `dock:set-html` as if typed, and the autosave that followed made the dock
+ * a second writer of a file open in Cursor — landing seconds later (after
+ * the Tailwind compile) over newer saves, with one more `{{ sve_tw }}` each
+ * time, because the raw file carries the one the save writes.
+ *
+ * False — and the caller renders instead — when the dock shows another
+ * file, has not finished loading, is locked, or has typing of its own on
+ * its way to disk (a save timer, a save in the air, a compile running or
+ * waiting to be saved, text in the panes the file does not have yet): the
+ * two writers must not be mixed, and the author's own keystrokes win. True
+ * when the panes hold the file, including when they already did (the
+ * editor's own bytes coming back).
+ */
+register('dock:take-file', (payload) => {
+  const type = payload?.type;
+  const parts = payload?.parts;
+  const win = dockState.lastWin;
+
+  if (typeof type !== 'string' || !type || !parts || typeof parts !== 'object' || !win) {
+    return false;
+  }
+
+  if (type !== dockState.lastType || !dockState.lockReady || dockState.lastLocked) {
+    return false;
+  }
+
+  if (dockState.saveTimer || dockState.saveInFlight || dockState.twBusy || dockState.twDirty) {
+    return false;
+  }
+
+  const text = (value) => (typeof value === 'string' ? value : '');
+  const next = { html: text(parts.html), css: text(parts.css), js: text(parts.js) };
+
+  // Typing in the panes that is not on disk yet is the author's, not the file's.
+  if (!sameParts(readParts(), dockState.lastParts)) {
+    return false;
+  }
+
+  if (sameParts(next, dockState.lastParts)) {
+    return true;
+  }
+
+  const before = dockState.htmlFull;
+
+  dockState.lastParts = next;
+  dockState.propsDirty = false;
+  primeTailwindCompile(next.html, text(parts.tw));
+
+  if (dockState.htmlScopeActive) {
+    // The scoped pane shows `htmlFull.slice(htmlFocus)`; the range moves with
+    // the file's change like it does for set-html, or the pane shows a cut tag.
+    dockState.htmlFocus = shiftFocus(dockState.htmlFocus, before, next.html);
+  }
+
+  writeParts(next, false);
+  setStatus(win.document, '');
+  paintAutosave(win);
+
+  return true;
+});
+
 /**
  * Empty the dock panes without saving. Used when the last page section is
  * removed — `dock:set-html ''` would autosave an empty Antlers file.

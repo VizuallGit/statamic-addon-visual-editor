@@ -598,6 +598,33 @@ class LiveReloadTest extends TestCase
         $this->assertStringEndsWith('views/new.antlers.html', $byName['new.antlers.html']['path']);
     }
 
+    public function test_a_changed_section_partial_comes_with_the_docks_panes(): void
+    {
+        File::ensureDirectoryExists($this->root.'/views/partials/page_sections/hero');
+        $this->write('views/partials/page_sections/hero/style_2.antlers.html', "<section>One</section>\n\n{{ sve_tw }}", 60);
+        $this->write('views/layout.antlers.html', '<html>a</html>', 60);
+        $this->built();
+        $from = LiveReload::status('s1')['markup'];
+
+        $this->write('views/partials/page_sections/hero/style_2.antlers.html', "<section>Two</section>\n\n{{ sve_tw }}\n{{ style_push }}<style>.a{color:red}</style>{{ /style_push }}", 30);
+        $this->write('views/layout.antlers.html', '<html>b</html>', 30);
+        $to = LiveReload::status('s1')['markup'];
+
+        $byName = [];
+
+        foreach (LiveReload::changed($from, $to) as $file) {
+            $byName[basename($file['path'])] = $file;
+        }
+
+        $parts = $byName['style_2.antlers.html']['parts'];
+
+        $this->assertSame('<section>Two</section>', $parts['html'], 'the HTML pane: without {{ sve_tw }} and the style_push pair');
+        $this->assertSame('.a{color:red}', $parts['css']);
+        $this->assertSame('', $parts['js']);
+        $this->assertTrue($parts['locked'], 'a partial without a lock marker opens locked, as the dock reads it');
+        $this->assertArrayNotHasKey('parts', $byName['layout.antlers.html'], 'only a section partial is split');
+    }
+
     public function test_a_held_poll_answers_at_once_for_a_new_build(): void
     {
         $this->write('public/build/manifest.json', '{"a":1}', 100);

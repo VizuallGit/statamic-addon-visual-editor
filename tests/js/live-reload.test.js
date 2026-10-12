@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextStep, statusUrl } from '../../resources/js/lib/live-reload.js';
+import { dockTypeOf, nextStep, sectionTypesOf, statusUrl } from '../../resources/js/lib/live-reload.js';
 
 test('the first poll asks without signatures; later polls carry what we hold', () => {
   assert.equal(statusUrl('/!/sve/live-reload', null), '/!/sve/live-reload');
@@ -93,4 +93,23 @@ test('the files behind a foreign change come along; an own change or a server th
   assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: true, changed: files }).changed, null);
   assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: false, changed: null }).changed, null);
   assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: false }).changed, null, 'an older server');
+});
+
+test("dockTypeOf: a section partial's handle, '' for any other file", () => {
+  assert.equal(dockTypeOf('resources/views/partials/page_sections/hero/style_2.antlers.html'), 'hero/style_2');
+  assert.equal(dockTypeOf('/srv/site/resources/views/partials/page_sections/media_textbox.antlers.html'), 'media_textbox');
+  assert.equal(dockTypeOf('resources/views/layout.antlers.html'), '');
+  assert.equal(dockTypeOf('resources/views/partials/components/card.antlers.html'), '');
+  assert.equal(dockTypeOf(''), '');
+  assert.equal(dockTypeOf(undefined), '');
+});
+
+test('sectionTypesOf: the types when every changed file is a section partial, null otherwise', () => {
+  const hero = { path: 'resources/views/partials/page_sections/hero/style_2.antlers.html' };
+  const stats = { path: 'resources/views/partials/page_sections/content/stats.antlers.html' };
+
+  assert.deepEqual(sectionTypesOf([hero, stats, hero]), ['hero/style_2', 'content/stats']);
+  assert.equal(sectionTypesOf([hero, { path: 'resources/views/layout.antlers.html' }]), null, 'the layout changed too: the whole page');
+  assert.equal(sectionTypesOf([]), null);
+  assert.equal(sectionTypesOf(null), null, 'the server could not say');
 });
