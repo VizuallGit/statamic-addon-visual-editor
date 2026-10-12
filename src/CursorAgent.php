@@ -143,26 +143,51 @@ class CursorAgent
     }
 
     /**
-     * @param  list<array{data: string, mimeType: string}>  $images  base64, sent with the prompt as one message
-     * @return array{status: string, reply: string}
+     * The model a run uses: the one picked in the panel when it is a model id
+     * at all, else the site's default from the settings screen, else config.
+     * `default` is Cursor's Auto.
      */
-    public static function run(string $prompt, array $images = []): array
+    public static function model(?string $picked = null): string
     {
-        $script = static::script();
+        foreach ([$picked, Features::setting('ai_model', ''), config('statamic-visual-editor.ai.model', 'composer-2.5')] as $id) {
+            $id = trim((string) $id);
 
-        abort_unless(is_file($script), 500, 'Cursor agent script is missing.');
-        abort_unless(
-            static::sdkPath(),
-            500,
-            'The AI needs the Cursor SDK. Run `npm install @cursor/sdk` in this site.',
-        );
+            if (static::validModel($id)) {
+                return $id;
+            }
+        }
 
-        $addonRoot = dirname($script, 2);
+        return 'composer-2.5';
+    }
 
+    public static function validModel(string $id): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/', $id);
+    }
+
+    /**
+     * One agent run.
+     *
+     * The agent can read the site and nothing more, unless `$write` opens
+     * something: then it writes through the gate in scripts/ai-write-gate.mjs,
+     * which refuses every path outside that scope (see AiChat\WriteScope).
+     * There is no shell — no git, no rm — in either case.
+     *
+     * `$stopped` is asked every moment while the agent works; when it says
+     * yes, the agent's process is ended (it cancels its run on the way out)
+     * and the result says `stopped`, with whatever had been written by then.
+     *
+     * @param  list<array{data: string, mimeType: string}>  $images  base64, sent with the prompt as one message
+     * @param  array{files: list<string>, create: list<string>, rules: string}|null  $write
+     * @param  (callable(): bool)|null  $stopped
+     * @return array{status: string, reply: string, written: list<string>, register: list<array>}
+     */
+    public static function run(string $prompt, array $images = [], ?array $write = null, ?string $model = null, ?callable $stopped = null): array
+    {
         $payload = [
             'apiKey' => AiChat::apiKey(),
             'cwd' => base_path(),
-            'model' => (string) config('statamic-visual-editor.ai.model', 'composer-2.5'),
+            'model' => static::model($model),
             'prompt' => $prompt,
         ];
 
@@ -180,24 +205,39 @@ class CursorAgent
             $payload['images'] = array_values($images);
         }
 
-        $payload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($write !== null) {
+            $payload['write'] = $write;
+        }
 
-        abort_unless(is_string($payload), 500);
+        $process = static::process($payload, 180);
+        $process->start();
 
-        $process = new Process(
-            [static::node(), $script],
-            $addonRoot,
-            [
-                'PATH' => '/opt/homebrew/bin:/usr/local/bin:'.(getenv('PATH') ?: '/usr/bin:/bin'),
-                'CURSOR_API_KEY' => AiChat::apiKey(),
-            ],
-            $payload,
-            180,
-        );
+        $wasStopped = false;
 
-        $process->run();
+        while ($process->isRunning()) {
+            if ($stopped !== null && $stopped()) {
+                $wasStopped = true;
+                // SIGTERM first — the runner cancels its run and answers —
+                // then SIGKILL if it has not gone within three seconds.
+                $process->stop(3);
+
+                break;
+            }
+
+            $process->checkTimeout();
+            usleep(300000);
+        }
 
         $out = static::decode($process->getOutput());
+
+        if ($wasStopped) {
+            return [
+                'status' => 'stopped',
+                'reply' => '',
+                'written' => static::strings($out['written'] ?? []),
+                'register' => [],
+            ];
+        }
 
         if (! is_array($out)) {
             $err = trim($process->getErrorOutput()) ?: 'The Cursor agent failed.';
@@ -212,6 +252,68 @@ class CursorAgent
         return [
             'status' => 'finished',
             'reply' => trim((string) ($out['reply'] ?? '')),
+            'written' => static::strings($out['written'] ?? []),
+            'register' => array_values(array_filter((array) ($out['register'] ?? []), 'is_array')),
         ];
+    }
+
+    /**
+     * The models this Cursor account can use, as the SDK lists them.
+     *
+     * @return list<array{id: string, name: string}>
+     */
+    public static function models(): array
+    {
+        $process = static::process(['action' => 'models', 'apiKey' => AiChat::apiKey()], 30);
+        $process->run();
+
+        $out = static::decode($process->getOutput());
+
+        abort_unless(is_array($out) && is_array($out['models'] ?? null), 502, trim($process->getErrorOutput()) ?: 'Could not list the Cursor models.');
+
+        $models = [];
+
+        foreach ($out['models'] as $row) {
+            $id = is_array($row) ? trim((string) ($row['id'] ?? '')) : '';
+
+            if (static::validModel($id)) {
+                $models[] = ['id' => $id, 'name' => trim((string) ($row['name'] ?? '')) ?: $id];
+            }
+        }
+
+        return $models;
+    }
+
+    protected static function process(array $payload, int $timeout): Process
+    {
+        $script = static::script();
+
+        abort_unless(is_file($script), 500, 'Cursor agent script is missing.');
+        abort_unless(
+            static::sdkPath(),
+            500,
+            'The AI needs the Cursor SDK. Run `npm install @cursor/sdk` in this site.',
+        );
+
+        $payload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        abort_unless(is_string($payload), 500);
+
+        return new Process(
+            [static::node(), $script],
+            dirname($script, 2),
+            [
+                'PATH' => '/opt/homebrew/bin:/usr/local/bin:'.(getenv('PATH') ?: '/usr/bin:/bin'),
+                'CURSOR_API_KEY' => AiChat::apiKey(),
+            ],
+            $payload,
+            $timeout,
+        );
+    }
+
+    /** @return list<string> */
+    protected static function strings(mixed $list): array
+    {
+        return array_values(array_filter((array) $list, fn ($item) => is_string($item) && $item !== ''));
     }
 }

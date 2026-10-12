@@ -113,7 +113,16 @@ class FeaturesTest extends TestCase
         file_put_contents(resource_path('views/partials/page_sections/hero/style_2.antlers.html'), "<section>hi</section>\n");
         file_put_contents(resource_path('fieldsets/hero/style_2.yaml'), "title: Hero\nfields: []\n");
 
-        $target = \MarioHamann\StatamicVisualEditor\AiChat::targetFiles('hero/style_2');
+        // The fieldset is the one the set imports in the page builder's list.
+        $list = resource_path('fieldsets/page_sections.yaml');
+        $before = is_file($list) ? file_get_contents($list) : null;
+        file_put_contents($list, "title: Page sections\nfields:\n  -\n    handle: page_sections\n    field:\n      type: replicator\n      sets:\n        hero:\n          sets:\n            hero/style_2:\n              fields:\n                - import: hero.style_2\n");
+
+        try {
+            $target = \MarioHamann\StatamicVisualEditor\AiChat::targetFiles('hero/style_2');
+        } finally {
+            $before === null ? @unlink($list) : file_put_contents($list, $before);
+        }
 
         $this->assertSame('hero/style_2', $target['handle']);
         $this->assertSame('resources/views/partials/page_sections/hero/style_2.antlers.html', str_replace('\\', '/', (string) $target['antlers']));

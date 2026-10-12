@@ -9,15 +9,15 @@ use MarioHamann\StatamicVisualEditor\AiCopy\Reply;
  * Copy suggestions for one field, written against the page's keywords.
  *
  * Same Cursor account as the AI chat, and a different job: the chat changes
- * files, this one changes nothing at all. It runs behind the same write guard
- * the chat's Write mode uses, so an agent that decides to be helpful and edit a
- * template on the way past is rolled back before the answer is returned.
+ * files, this one changes nothing at all. Like the chat's Write mode it runs
+ * with no write scope, so the agent has no tool that could edit a template on
+ * the way past.
  *
  * The request is small and the answer is a list of strings, which is why it does
  * not reuse AiChat's prompt: that one hands over the section's HTML, CSS, JS and
  * fieldset, and none of that helps write a headline.
  *
- * This class keeps the run (`suggest`) behind the write guard; the prompt is
+ * This class keeps the run (`suggest`); the prompt is
  * built by `AiCopy\Prompt` and the answer read by `AiCopy\Reply`. Split in
  * WP7d, code moved verbatim.
  */
@@ -52,19 +52,9 @@ class AiCopy
 
         set_time_limit(180);
 
-        // Nothing here is meant to touch the disk. The guard is the second lock:
-        // the prompt says output only, and this puts back anything the agent
-        // wrote anyway — outside the allowlist and inside it.
-        $forbidden = AiWriteGuard::snapshot();
-        $dirtyBefore = AiWriteGuard::changedRelativePaths();
-        $allowed = AiWriteGuard::snapshotAllowed();
-
-        try {
-            $out = CursorAgent::run(Prompt::prompt($request));
-        } finally {
-            AiWriteGuard::restore($forbidden);
-            AiWriteGuard::restoreAllowed($allowed, $dirtyBefore);
-        }
+        // Nothing here touches the disk: the run opens no write scope, so the
+        // agent has no tool that writes and no shell.
+        $out = CursorAgent::run(Prompt::prompt($request));
 
         return Reply::parse($out['reply'] ?? '', Prompt::count($request));
     }

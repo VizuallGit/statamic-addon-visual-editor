@@ -117,4 +117,32 @@ class CursorAgentOptionsTest extends TestCase
 
         $this->assertSame([], CursorAgent::mcpServers());
     }
+    public function test_the_model_is_the_one_picked_then_the_sites_then_config(): void
+    {
+        config(['statamic-visual-editor.ai.model' => 'composer-2.5']);
+
+        $this->assertSame('composer-2.5', CursorAgent::model());
+        $this->assertSame('grok-4.7', CursorAgent::model('grok-4.7'));
+        $this->assertSame('default', CursorAgent::model('default'));
+
+        config(['statamic-visual-editor.features.ai_model' => 'claude-opus-5-5']);
+
+        $this->assertSame('claude-opus-5-5', CursorAgent::model());
+        $this->assertSame('claude-opus-5-5', CursorAgent::model('not a model; rm -rf'));
+    }
+
+    public function test_the_picker_groups_models_by_maker_in_cursors_order(): void
+    {
+        $grouped = \MarioHamann\StatamicVisualEditor\AiChat\Models::grouped([
+            ['id' => 'grok-4.7', 'name' => 'Grok 4.7'],
+            ['id' => 'default', 'name' => 'Auto'],
+            ['id' => 'claude-opus-5-5', 'name' => 'Claude Opus 5.5'],
+            ['id' => 'kimi-k3', 'name' => 'Kimi K3'],
+            ['id' => 'composer-2.5', 'name' => 'Composer 2.5'],
+            ['id' => 'claude-sonnet-5-5', 'name' => 'Claude Sonnet 5.5'],
+        ]);
+
+        $this->assertSame(['default', 'composer-2.5', 'claude-opus-5-5', 'claude-sonnet-5-5', 'grok-4.7', 'kimi-k3'], array_column($grouped, 'id'));
+        $this->assertSame(['Auto', 'Cursor', 'Claude', 'Claude', 'Grok', 'Other'], array_column($grouped, 'group'));
+    }
 }

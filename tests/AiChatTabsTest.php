@@ -132,7 +132,7 @@ class AiChatTabsTest extends TestCase
 
         $tabs->saveDraft($id, 'Make it red', [$image['id']]);
 
-        ['run' => $run, 'chat' => $chat] = $tabs->startRun($id, 'Make it red', [$image['id']], 'write');
+        ['run' => $run, 'chat' => $chat] = $tabs->ask($id, 'Make it red', [$image['id']], ['mode' => 'write']);
 
         $this->assertSame('', $chat['draft']);
         $this->assertSame([], $chat['draft_images']);
@@ -148,23 +148,117 @@ class AiChatTabsTest extends TestCase
         $this->assertFileExists($tabs->imagePath($id, $image['id']));
     }
 
-    public function test_one_question_at_a_time_per_tab(): void
+    public function test_a_question_asked_while_it_answers_is_queued_and_asked_next(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+        $image = $tabs->storeImage($id, $this->png());
+
+        ['run' => $run] = $tabs->ask($id, 'one', [], ['mode' => 'build', 'type' => 'hero/style_1']);
+        $queued = $tabs->ask($id, 'two', [$image['id']], ['mode' => 'write', 'model' => 'grok-4.7', 'type' => 'hero/style_2']);
+
+        $this->assertArrayNotHasKey('run', $queued);
+        $this->assertSame('two', $queued['queued']['text']);
+        $this->assertSame('', $queued['chat']['draft']);
+        $this->assertCount(1, $queued['chat']['messages']);
+        $this->assertSame(1, $tabs->index()['tabs'][0]['queued']);
+
+        // Nothing starts while the first is still being answered.
+        $this->assertNull($tabs->startNext($id));
+
+        $tabs->finishRun($id, $run, ['role' => 'assistant', 'kind' => 'reply', 'content' => 'Done one.']);
+        $next = $tabs->startNext($id);
+
+        $this->assertSame('two', $next['item']['text']);
+        $this->assertSame('grok-4.7', $next['item']['model']);
+        $this->assertSame('hero/style_2', $next['item']['type']);
+        $this->assertSame($next['run'], $next['chat']['pending']['run']);
+        $this->assertSame([], $next['chat']['queue']);
+        $this->assertSame(['one', 'Done one.', 'two'], array_column($next['chat']['messages'], 'content'));
+        $this->assertSame([['id' => $image['id'], 'mime' => 'image/png']], $next['chat']['messages'][2]['images']);
+    }
+
+    public function test_the_queue_has_a_ceiling(): void
     {
         $tabs = new Tabs('user-a');
         $id = $tabs->index()['active'];
 
-        $tabs->startRun($id, 'one', [], 'write');
+        $tabs->ask($id, 'running', [], ['mode' => 'write']);
+
+        for ($i = 0; $i < Tabs::MAX_QUEUE; $i++) {
+            $tabs->ask($id, "q{$i}", [], ['mode' => 'write']);
+        }
 
         $this->expectException(HttpException::class);
 
-        $tabs->startRun($id, 'two', [], 'write');
+        $tabs->ask($id, 'one too many', [], ['mode' => 'write']);
+    }
+
+    public function test_stop_ends_the_answer_and_the_queue_waits(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+        ['run' => $run] = $tabs->ask($id, 'one', [], ['mode' => 'build']);
+
+        $tabs->ask($id, 'two', [], ['mode' => 'build']);
+
+        $this->assertTrue($tabs->waitingFor($id, $run));
+
+        $tabs->stop($id);
+
+        $this->assertFalse($tabs->waitingFor($id, $run));
+        $this->assertCount(1, $tabs->get($id)['queue']);
+    }
+
+    public function test_send_now_stops_the_answer_and_asks_that_question_in_its_place(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+        ['run' => $run] = $tabs->ask($id, 'one', [], ['mode' => 'build']);
+        $two = $tabs->ask($id, 'two', [], ['mode' => 'write'])['queued'];
+        $three = $tabs->ask($id, 'three', [], ['mode' => 'write'])['queued'];
+
+        $now = $tabs->sendNow($id, $three['id']);
+
+        $this->assertFalse($tabs->waitingFor($id, $run));
+        $this->assertTrue($tabs->waitingFor($id, $now['run']));
+        $this->assertSame(['one', '', 'three'], array_column($now['chat']['messages'], 'content'));
+        $this->assertSame('stopped', $now['chat']['messages'][1]['kind']);
+        $this->assertSame([$two['id']], array_column($now['chat']['queue'], 'id'));
+        $this->assertNull($tabs->sendNow($id, $three['id']));
+    }
+
+    public function test_a_queued_question_can_be_taken_out(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+
+        $tabs->ask($id, 'one', [], ['mode' => 'write']);
+        $two = $tabs->ask($id, 'two', [], ['mode' => 'write'])['queued'];
+
+        $this->assertSame([], $tabs->unqueue($id, $two['id'])['queue']);
+        $this->assertNull($tabs->unqueue($id, $two['id']));
+    }
+
+    public function test_the_model_is_kept_per_tab_and_a_new_tab_starts_with_the_last_one(): void
+    {
+        $tabs = new Tabs('user-a');
+        $id = $tabs->index()['active'];
+
+        $this->assertNull($tabs->get($id)['model']);
+
+        $tabs->setModel($id, 'grok-4.7');
+        $new = $tabs->create()['active'];
+
+        $this->assertSame('grok-4.7', $tabs->get($id)['model']);
+        $this->assertSame('grok-4.7', $tabs->get($new)['model']);
     }
 
     public function test_a_stopped_run_says_so_and_its_late_answer_is_dropped(): void
     {
         $tabs = new Tabs('user-a');
         $id = $tabs->index()['active'];
-        ['run' => $run] = $tabs->startRun($id, 'Build a hero', [], 'build');
+        ['run' => $run] = $tabs->ask($id, 'Build a hero', [], ['mode' => 'build']);
 
         $stopped = $tabs->stop($id);
 
@@ -179,7 +273,7 @@ class AiChatTabsTest extends TestCase
         $tabs = new Tabs('user-a');
         $id = $tabs->index()['active'];
 
-        $tabs->startRun($id, 'hello', [], 'write');
+        $tabs->ask($id, 'hello', [], ['mode' => 'write']);
 
         $path = collect(File::allFiles(Tabs::root()))->first(fn ($file) => $file->getFilename() === $id.'.json')->getPathname();
         $chat = json_decode(file_get_contents($path), true);
@@ -198,11 +292,11 @@ class AiChatTabsTest extends TestCase
         $id = $tabs->index()['active'];
         $image = $tabs->storeImage($id, $this->png());
 
-        ['run' => $run] = $tabs->startRun($id, 'first', [], 'write');
+        ['run' => $run] = $tabs->ask($id, 'first', [], ['mode' => 'write']);
         $tabs->finishRun($id, $run, ['role' => 'assistant', 'kind' => 'error', 'content' => 'boom']);
-        ['run' => $run] = $tabs->startRun($id, 'second', [], 'write');
+        ['run' => $run] = $tabs->ask($id, 'second', [], ['mode' => 'write']);
         $tabs->finishRun($id, $run, ['role' => 'assistant', 'kind' => 'reply', 'content' => 'ok']);
-        ['chat' => $chat] = $tabs->startRun($id, 'look', [$image['id']], 'write');
+        ['chat' => $chat] = $tabs->ask($id, 'look', [$image['id']], ['mode' => 'write']);
 
         $agent = $tabs->forAgent($chat);
 

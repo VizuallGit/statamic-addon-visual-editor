@@ -3,14 +3,16 @@
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\AiChat\Models;
 use MarioHamann\StatamicVisualEditor\AiChat\Tabs;
+use MarioHamann\StatamicVisualEditor\CursorAgent;
 use MarioHamann\StatamicVisualEditor\Features;
 use Statamic\Facades\User;
 
 /**
  * The AI panel's tabs: list, open, close, the draft as it is typed, the images
- * pasted into it, and Stop. Asking the AI is AiChatController — it writes the
- * question and the answer into the same tab.
+ * pasted into it, the model, the queue, and Stop. Asking the AI is
+ * AiChatController — it writes the question and the answer into the same tab.
  *
  * Each user sees only their own tabs; there is no tab id that reaches another
  * user's folder.
@@ -59,6 +61,12 @@ class AiTabsController
             $tabs->saveDraft($tab, (string) $request->input('draft', ''), is_array($images) ? $images : []);
         }
 
+        if ($request->has('model')) {
+            $model = trim((string) $request->input('model', ''));
+
+            $tabs->setModel($tab, CursorAgent::validModel($model) ? $model : null);
+        }
+
         if ($request->boolean('activate')) {
             $tabs->activate($tab);
         }
@@ -94,6 +102,7 @@ class AiTabsController
         return response()->file($path, ['Cache-Control' => 'private, max-age=31536000, immutable']);
     }
 
+    /** Stop: the run's agent is ended by the request that runs it; the queue waits. */
     public function stop(string $tab)
     {
         $tabs = static::tabs();
@@ -101,6 +110,26 @@ class AiTabsController
         $tabs->stop($tab);
 
         return response()->json(['chat' => $tabs->get($tab)]);
+    }
+
+    /** A queued question taken out: × on it, or back into the box to edit. */
+    public function unqueue(string $tab, string $item)
+    {
+        $tabs = static::tabs();
+
+        abort_if($tabs->get($tab) === null, 404);
+
+        $tabs->unqueue($tab, $item);
+
+        return response()->json(['chat' => $tabs->get($tab)]);
+    }
+
+    /** The models the site's Cursor account can use, and the one a tab gets by default. */
+    public function models()
+    {
+        static::tabs();
+
+        return response()->json(['models' => Models::all(), 'default' => CursorAgent::model()]);
     }
 
     /** The current user's tabs; the AI panel has to be on for them. */

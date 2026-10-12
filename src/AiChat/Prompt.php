@@ -5,12 +5,13 @@ namespace MarioHamann\StatamicVisualEditor\AiChat;
 use MarioHamann\StatamicVisualEditor\AiFiles;
 use MarioHamann\StatamicVisualEditor\AiRules;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
+use MarioHamann\StatamicVisualEditor\SectionTypes;
 use MarioHamann\StatamicVisualEditor\StatamicGuidelines;
 
 /**
- * What the Cursor agent is told: the mode's rules, the selected section's
- * files and panes, the site's rules and the conversation so far.
- * Moved verbatim out of AiChat in WP7d.
+ * What the Cursor agent is told: the mode's rules, what it may change (the
+ * write scope the gate enforces), the site's rules, how the newest sections
+ * are built, the selected section's files and panes, and the conversation.
  */
 final class Prompt
 {
@@ -47,7 +48,7 @@ TXT;
         }
 
         return <<<'TXT'
-BUILD MODE — edit the selected section's files on disk (or create a new section type only when they explicitly ask for one).
+BUILD MODE — edit the selected section's files on disk with write_file / edit_file (or create a new section type only when they explicitly ask for one).
 TXT;
     }
 
@@ -58,8 +59,12 @@ TXT;
     {
         $handle = str_replace('\\', '/', trim($handle));
         $antlers = $handle !== '' ? SectionTemplate::path($handle) : null;
-        $fieldsetRel = $handle !== ''
-            ? 'resources/fieldsets/'.str_replace('.', '/', $handle).'.yaml'
+        // The fieldset the set imports — not the handle with dots: the two are
+        // not the same word on every site (featured_section/… imports
+        // featured_sections.…).
+        $import = $antlers !== null ? SectionTypes::fieldsetOf($handle) : null;
+        $fieldsetRel = $import !== null
+            ? 'resources/fieldsets/'.str_replace('.', '/', $import).'.yaml'
             : '';
 
         return [
@@ -72,9 +77,45 @@ TXT;
     }
 
     /**
-     * @param  list<array{role: string, content: string}>  $messages
+     * What the agent may change, as it is told — the same scope the gate
+     * enforces, so the prompt and the tools never disagree.
+     *
+     * @param  array{files: list<string>, create: list<string>, rules: string}|null  $scope
      */
-    public static function prompt(string $handle, array $messages, string $mode = 'write'): string
+    public static function writeScope(?array $scope): string
+    {
+        if ($scope === null) {
+            return <<<'TXT'
+WHAT YOU CAN CHANGE — nothing. You have no tools that write and no shell. Put everything in the reply.
+TXT;
+        }
+
+        $files = $scope['files'] === [] ? "  (none — no section is selected)\n" : '';
+
+        foreach ($scope['files'] as $file) {
+            $files .= "  - {$file}\n";
+        }
+
+        $create = implode(' and ', $scope['create']);
+
+        return <<<TXT
+WHAT YOU CAN CHANGE — enforced by your tools, and it outranks every rule in this prompt, the site's own rules included.
+There is no shell: no git, no terminal, no commands. You write only with write_file, edit_file, register_section and add_rule, and they refuse anything not listed here as LOCKED:
+- these existing files:
+{$files}- new files (never an existing one) under {$create}, only when they ask for a new section
+- {$scope['rules']}, through add_rule only
+
+Everything else is closed: the site's CSS (site.css and everything in resources/css — colours, spacing, fonts, the base styles), the header and the footer, other sections, shared fieldsets (links, basic_blocks, common …) and page_sections.yaml. Content and globals (theme settings, site settings) are never written here — they are changed in the Control Panel and the Theme panel.
+Do not work around a lock: no copies of a closed file, no <style> that overrides the site's tokens, no "reset" or "restore" of anything. If the request needs a closed file, say which file (its path under resources/) and why in a sentence or two and stop. The user opens it by naming the file with its extension in their message, e.g. "du må ændre site.css".
+Never undo, reset or restore anything the user did not ask you to change.
+TXT;
+    }
+
+    /**
+     * @param  list<array{role: string, content: string}>  $messages
+     * @param  array{files: list<string>, create: list<string>, rules: string}|null  $write  what the gate lets this run write
+     */
+    public static function prompt(string $handle, array $messages, string $mode = 'write', ?array $write = null): string
     {
         $mode = static::modeOf($mode);
         $target = static::targetFiles($handle);
@@ -156,27 +197,23 @@ TXT;
 
         $folders = $mode === 'write'
             ? <<<TXT
-You may READ these folders for context. Do not write them:
+You may READ these folders for context:
 - resources/fieldsets/
 - resources/blueprints/
 - resources/views/partials/page_sections/
+- resources/css/
 - resources/visual-editor/ai-rules.md
 
-Never touch vendor, .env, PHP, config or content entries.
-In Write mode, skip appending to ai-rules.md — mention the rule in the reply instead.
+In Write mode, skip adding to ai-rules.md — mention the rule in the reply instead.
 TXT
             : <<<TXT
-You may read and write these folders only:
-- resources/fieldsets/          (YAML fieldsets)
-- resources/blueprints/         (YAML blueprints)
-- resources/views/partials/page_sections/  (Antlers section templates)
-- resources/visual-editor/ai-rules.md      (operating rules — append only)
+You may READ the whole site for context: resources/fieldsets/, resources/blueprints/, resources/views/, resources/css/, resources/visual-editor/ai-rules.md.
 
-Allowed extensions: .yaml .yml .antlers.html, and ai-rules.md
-Never touch vendor, .env, PHP, config or content entries.
-
-When the user or a designer says how they want things built ("we always wrap in .wrapper", "remember this", "make that a rule", "sådan gør vi"), APPEND a new numbered item to resources/visual-editor/ai-rules.md. Do not delete or rewrite existing rules. Then follow the new rule in the same turn.
+When the user or a designer says how they want things built ("we always wrap in .wrapper", "remember this", "make that a rule", "sådan gør vi"), call add_rule with the rule in their words. Existing rules are never changed. Then follow the new rule in the same turn.
 TXT;
+
+        $writeScope = static::writeScope($write);
+        $houseStyle = HouseStyle::prompt($handle);
 
         return <<<TXT
 You are helping a Statamic v6 super admin from Live Preview. You run as a local Cursor agent on their site.
@@ -185,6 +222,8 @@ Follow these rules. They outrank a vague request to "make a heading" or "improve
 
 {$modeBlock}
 
+{$writeScope}
+
 {$rules}
 
 {$scope}
@@ -192,11 +231,13 @@ Follow these rules. They outrank a vague request to "make a heading" or "improve
 {$folders}
 {$framework}
 
-When filling a new fieldset, first read resources/fieldsets/ai_demo/section.yaml as a guideline for tabs (Content, Style, Farver accordion, Spacing accordion) and fieldtypes (theme_color_picker, common.section_spacing, sve_responsive). Do not copy that file. Build the fields the user asked for — a hero with heading, image and buttons gets those fields, not only the demo's. Never register ai_demo in page_sections.yaml.
+{$houseStyle}
 
-When the new section is done, it is not done until it is added to resources/fieldsets/page_sections.yaml. Read that file first, append the new set, write the full YAML back so existing sets stay.
+When filling a new fieldset, first read the house-style sections' fieldsets above; resources/fieldsets/ai_demo/section.yaml is the fallback guideline for tabs (Content, Style, Farver accordion, Spacing accordion) and fieldtypes (theme_color_picker, common.section_spacing, sve_responsive). Do not copy either. Build the fields the user asked for — a hero with heading, image and buttons gets those fields. Never register ai_demo.
 
-When filling CSS: put every value that can differ per instance (color, padding, gap, width) as a custom property on #id-{{ id }} only. Put the real CSS inside @scope(.{{ _class }}) and consume those variables with var(--…). Never write {{ bg_color }} directly onto a CSS property in @scope.
+When the new section is done, it is not done until it is in the page builder: call register_section with an existing group from resources/fieldsets/page_sections.yaml (read the file for the group handles), the handle folder/name, the display name and the fieldset folder.name. Never edit page_sections.yaml yourself — register_section adds the set after you finish and leaves every other set as it is. If no group fits, pick the closest one and say so.
+
+When the section is styled with CSS (not Tailwind classes in the markup): put every value that can differ per instance (color, padding, gap, width) as a custom property on #id-{{ id }} only. Put the real CSS inside @scope(.{{ _class }}) and consume those variables with var(--…). Never write {{ bg_color }} directly onto a CSS property in @scope.
 
 A new page-section type (only when they ask for one) needs three things:
 1. Fieldset YAML, e.g. resources/fieldsets/foo/style_1.yaml
@@ -227,14 +268,7 @@ A new page-section type (only when they ask for one) needs three things:
 {{ /script_push }}
 
 Do not put `{{ _class = type | replace... }}` in the section file. `_class` is passed from the page_sections loop.
-3. Register it in resources/fieldsets/page_sections.yaml under an existing replicator tab (the `sets:` groups already in that file — do not guess names). Read the file first, pick the matching group, and write the full YAML back (no existing set may disappear). If no tab fits, add a new group with `display:` — Patterns chips follow these tabs automatically. Example:
-            hero:
-              display: Hero
-              sets:
-                foo/style_1:
-                  display: 'Foo style 1'
-                  fields:
-                    - import: foo.style_1
+3. Registered with register_section under an existing group (the `sets:` groups in resources/fieldsets/page_sections.yaml — do not guess names), e.g. group "hero", handle "foo/style_1", display "Foo style 1", fieldset "foo.style_1".
 
 After creating a new set, tell the user to refresh the Control Panel so the section library picks it up.
 Keep existing visual_edit tags and field handles unless asked to change them.

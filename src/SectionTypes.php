@@ -147,6 +147,35 @@ class SectionTypes
     }
 
     /**
+     * The fieldset one section type imports, by set handle, from the page
+     * builder's own list — null when the type is not there or declares its
+     * fields inline.
+     */
+    public static function fieldsetOf(string $setHandle, ?Blueprint $blueprint = null): ?string
+    {
+        $list = static::list($blueprint);
+        $contents = $list->read();
+
+        foreach (($contents === null ? null : $list->sets($contents)) ?? [] as $group) {
+            $set = is_array($group) ? ($group['sets'][$setHandle] ?? null) : null;
+
+            if (is_array($set)) {
+                return static::importOf($set);
+            }
+        }
+
+        return null;
+    }
+
+    /** The file the page builder's section types are written in. */
+    public static function list(?Blueprint $blueprint = null): SectionList
+    {
+        $blueprint ??= static::defaultBlueprint();
+
+        return $blueprint ? SectionField::listOf($blueprint) : SectionList::fallback();
+    }
+
+    /**
      * The fieldset a set imports its fields from, or null when it declares them
      * inline. First import wins: a set built from several is rare, and the one
      * an author means by "this section's fields" is the one it leads with.

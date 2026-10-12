@@ -8,6 +8,7 @@ import { currentSectionType } from '../preview-context.js';
 
 const MODE_KEY = 'sve-ai-panel-mode';
 const TABS_URL = '/!/sve/ai-tabs';
+const MODELS_URL = '/!/sve/ai-models';
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 /** Screenshots are scaled to this on the longest side before they are sent. */
 const IMAGE_MAX_SIDE = 2000;
@@ -42,8 +43,42 @@ const chat = computed(() => chats.value[activeId.value] || null);
 const messages = computed(() => chat.value?.messages || []);
 /** Waiting for an answer in this tab — asked from here, or from before a reload. */
 const sending = computed(() => !!chat.value?.pending);
-// The in-flight request per tab, so it can be let go of.
+/** Asked while it was answering: each becomes the next question, in order. */
+const queue = computed(() => chat.value?.queue || []);
+// The in-flight request per tab, so closing the tab can let go of it.
 const inflight = {};
+/** The models the site's Cursor account can use, grouped for the picker. */
+const models = ref([]);
+const defaultModel = ref('');
+const modelsFailed = ref(false);
+const modelGroups = computed(() => {
+  const groups = [];
+
+  for (const model of models.value) {
+    let group = groups.find((row) => row.name === model.group);
+
+    if (!group) {
+      group = { name: model.group, models: [] };
+      groups.push(group);
+    }
+
+    group.models.push(model);
+  }
+
+  return groups;
+});
+/** The tab's model; '' is the site's default. */
+const model = computed(() => chat.value?.model || '');
+// Through v-model, not :value — the list arrives after the chat, and only
+// v-model puts the tab's model back once its <option> exists.
+const modelChoice = computed({ get: () => model.value, set: (next) => pickModel(next) });
+const defaultLabel = computed(() => {
+  const name = models.value.find((row) => row.id === defaultModel.value)?.name || defaultModel.value;
+
+  return strings('ai_panel_model_default').replace(':model', name);
+});
+/** A model the tab was set to that Cursor no longer lists — still shown, so the picker does not lie. */
+const unlistedModel = computed(() => (model.value && models.value.length && !models.value.some((row) => row.id === model.value) ? model.value : ''));
 const draft = ref('');
 /** Images in the box: { id, url } once uploaded, { local } while uploading. */
 const draftImages = ref([]);
@@ -274,10 +309,20 @@ function applyIndex(data) {
   openTab(data.active);
 }
 
-/** A chat from the server: into the store, and its title and spinner into the tab row. */
+/**
+ * A chat from the server: into the store, and its title and spinner into the
+ * tab row. An answer that changed files — Build mode, here or from the queue
+ * while this panel only polled — refreshes the dock.
+ */
 function applyChat(next) {
   if (!next?.id) {
     return;
+  }
+
+  const seen = chats.value[next.id]?.messages?.length;
+
+  if (seen !== undefined && (next.messages || []).slice(seen).some((row) => row.role === 'assistant' && row.applied && row.mode === 'build')) {
+    ask('dock:refresh', win.value);
   }
 
   chats.value = { ...chats.value, [next.id]: next };
@@ -534,6 +579,11 @@ function openImage(url) {
 
 // ── Asking ────────────────────────────────────────────────────────────────
 
+/**
+ * The box, sent. While the AI is answering, the question goes into the queue
+ * instead — the server decides which, so two windows never start two runs —
+ * and is asked when the answer before it is in.
+ */
 function send() {
   const tabId = activeId.value;
   const open = chat.value;
@@ -541,7 +591,7 @@ function send() {
   const images = draftImages.value.filter((image) => image.id);
   const sendMode = mode.value;
 
-  if (!open || open.pending || uploading.value || (!text && !images.length)) {
+  if (!open || uploading.value || (!text && !images.length)) {
     if (uploading.value) {
       notice.value = strings('ai_panel_image_uploading');
     }
@@ -556,43 +606,74 @@ function send() {
     return;
   }
 
-  const controller = new AbortController();
+  const imageIds = images.map((image) => image.id);
 
-  inflight[tabId] = controller;
-
-  // As the server is about to write it: the question in, the box empty, waiting.
+  // As the server is about to write it: the box empty, and the question
+  // either in the queue or in the chat with the tab waiting.
   clearTimeout(draftTimer);
   draftDirty = false;
   notice.value = '';
-  applyChat({
-    ...open,
-    draft: '',
-    draft_images: [],
-    pending: { run: 'local', since: Math.floor(Date.now() / 1000), mode: sendMode },
-    messages: [...open.messages, { role: 'user', content: text, images: images.map((image) => ({ id: image.id })) }],
-  });
+  applyChat(open.pending
+    ? { ...open, draft: '', draft_images: [], queue: [...(open.queue || []), { id: `local-${Date.now()}`, text, images: imageIds, mode: sendMode, local: true }] }
+    : {
+      ...open,
+      draft: '',
+      draft_images: [],
+      pending: { run: 'local', since: Math.floor(Date.now() / 1000), mode: sendMode },
+      messages: [...open.messages, { role: 'user', content: text, images: imageIds.map((id) => ({ id })) }],
+    });
   draft.value = '';
   draftImages.value = [];
 
-  request('/!/sve/ai-chat', {
-    method: 'POST',
-    signal: controller.signal,
-    json: { tab: tabId, type: currentSectionType(win.value), mode: sendMode, text, images: images.map((image) => image.id) },
-  })
-    .then((data) => {
-      applyChat(data.chat);
+  post({ tab: tabId, type: currentSectionType(win.value), mode: sendMode, model: model.value, text, images: imageIds });
+}
 
-      if (data.applied && data.mode === 'build') {
-        ask('dock:refresh', win.value);
-      }
-    })
+/** "Send now": what is being answered stops, and this queued question is asked in its place. */
+function sendNow(item) {
+  const tabId = activeId.value;
+  const open = chat.value;
+
+  if (!open || item.local) {
+    return;
+  }
+
+  const messages = [...open.messages];
+
+  if (open.pending) {
+    messages.push({ role: 'assistant', kind: 'stopped', mode: open.pending.mode, content: '' });
+  }
+
+  messages.push({ role: 'user', content: item.text, images: (item.images || []).map((id) => ({ id })) });
+  applyChat({
+    ...open,
+    queue: open.queue.filter((row) => row.id !== item.id),
+    pending: { run: 'local', since: Math.floor(Date.now() / 1000), mode: item.mode },
+    messages,
+  });
+
+  post({ tab: tabId, queued: item.id });
+}
+
+/**
+ * One request to the chat endpoint. It returns when the question is queued,
+ * or when the answer — and whatever was queued behind it — is in; the panel
+ * polls meanwhile, so each answer shows as it lands.
+ */
+function post(json) {
+  const tabId = json.tab;
+  const controller = new AbortController();
+
+  inflight[tabId] = controller;
+  watchPending();
+
+  request('/!/sve/ai-chat', { method: 'POST', signal: controller.signal, json })
+    .then((data) => applyChat(data.chat))
     .catch((err) => {
-      // Stopped: stop() has the tab already. Anything else: the server wrote
-      // what happened into the tab — show that, or ask for it.
       if (err?.name === 'AbortError') {
         return;
       }
 
+      // The server wrote what happened into the tab — show that, or ask for it.
       if (err?.data?.chat) {
         applyChat(err.data.chat);
       } else {
@@ -606,18 +687,42 @@ function send() {
     });
 }
 
+/** A queued question taken out of the queue. */
+function removeQueued(item) {
+  const tabId = activeId.value;
+  const open = chat.value;
+
+  if (!open || item.local) {
+    return;
+  }
+
+  applyChat({ ...open, queue: open.queue.filter((row) => row.id !== item.id) });
+  request(`${TABS_URL}/${tabId}/queue/${item.id}`, { method: 'DELETE' })
+    .then((data) => applyChat(data.chat))
+    .catch(() => refreshChat(tabId));
+}
+
+/** A queued question back in the box, to be changed and sent again. */
+function editQueued(item) {
+  if (item.local) {
+    return;
+  }
+
+  removeQueued(item);
+  draft.value = draft.value.trim() ? `${draft.value.trim()}\n\n${item.text}` : item.text;
+  draftImages.value = [...draftImages.value, ...(item.images || []).map((id) => ({ id, url: imageUrl(activeId.value, id) }))];
+  saveDraftSoon();
+}
+
 /**
- * Let go of the answer.
- *
- * The tab stops waiting and says so; when the agent answers after all, the
- * answer is dropped. In Write mode that is the whole of it, since nothing was
- * going to be written. In Build mode the agent may already have edited a file,
- * and no button here can un-edit it — which is what the stopped message says.
+ * Stop: the server ends the agent of the run being answered — the request
+ * running it notices and stops it — and the tab stops waiting. In Build mode
+ * a file written before the stop stays, which is what the stopped note says.
+ * What is queued waits for "send now".
  */
 function stop() {
   const tabId = activeId.value;
 
-  inflight[tabId]?.abort();
   request(`${TABS_URL}/${tabId}/stop`, { method: 'POST' })
     .then((data) => applyChat(data.chat))
     .catch(() => refreshChat(tabId));
@@ -628,8 +733,9 @@ function refreshChat(tabId) {
 }
 
 /**
- * A tab that was asked before a reload is still waiting on the server. Look
- * again until the answer is in — nothing here is holding that request.
+ * While the open tab is waiting, look every few seconds — also while this
+ * panel's own request is open: that request may be answering a whole queue,
+ * and each answer should show as it lands, not all at the end.
  */
 function watchPending() {
   clearInterval(pollTimer);
@@ -637,19 +743,47 @@ function watchPending() {
 
   const tabId = activeId.value;
 
-  if (!chats.value[tabId]?.pending || inflight[tabId]) {
+  if (!chats.value[tabId]?.pending) {
     return;
   }
 
   pollTimer = setInterval(() => {
-    if (activeId.value !== tabId || inflight[tabId]) {
+    if (activeId.value !== tabId || !chats.value[tabId]?.pending) {
       clearInterval(pollTimer);
+      pollTimer = null;
 
       return;
     }
 
     refreshChat(tabId);
   }, POLL_MS);
+}
+
+// ── The model ─────────────────────────────────────────────────────────────
+
+async function loadModels() {
+  try {
+    const data = await request(MODELS_URL);
+
+    models.value = data.models || [];
+    defaultModel.value = data.default || '';
+    modelsFailed.value = false;
+  } catch {
+    modelsFailed.value = true;
+  }
+}
+
+/** The tab asks this model from its next question on; a new tab starts with it too. */
+function pickModel(next) {
+  const tabId = activeId.value;
+  const open = chat.value;
+
+  if (!open) {
+    return;
+  }
+
+  applyChat({ ...open, model: next || null });
+  request(`${TABS_URL}/${tabId}`, { method: 'POST', json: { model: next } }).catch(() => refreshChat(tabId));
 }
 
 function onKeydown(event) {
@@ -684,6 +818,11 @@ defineExpose({ refreshType });
 onMounted(() => {
   refreshType();
   loadTabs();
+
+  if (ready.value) {
+    loadModels();
+  }
+
   win.value.addEventListener('pagehide', beaconDraft);
   win.value.addEventListener('beforeunload', beaconDraft);
 });
@@ -801,6 +940,21 @@ watch(mode, refreshType);
       @dragleave="dragging = false"
       @drop="onDrop"
     >
+      <div v-if="queue.length" class="sve-ai__queue" data-sve-ai-queue>
+        <div class="sve-ai__queue-head">
+          {{ strings('ai_panel_queue_title') }}<template v-if="!sending"> — {{ strings('ai_panel_queue_waiting') }}</template>
+        </div>
+        <div v-for="item in queue" :key="item.id" class="sve-ai__queued" :class="{ 'is-local': item.local }" data-sve-ai-queued>
+          <button type="button" class="sve-ai__queued-text" :title="strings('ai_panel_queue_edit')" data-sve-ai-queued-edit @click="editQueued(item)">
+            <span>{{ item.text }}</span>
+            <span v-if="item.images?.length" class="sve-ai__queued-images">+{{ item.images.length }}</span>
+          </button>
+          <button type="button" class="sve-ai__queued-now" :disabled="item.local" data-sve-ai-send-now @click="sendNow(item)">{{ strings('ai_panel_send_now') }}</button>
+          <button type="button" class="sve-ai__queued-remove" :title="strings('ai_panel_queue_remove')" :aria-label="strings('ai_panel_queue_remove')" :disabled="item.local" data-sve-ai-queued-remove @click="removeQueued(item)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+      </div>
       <div v-if="draftImages.length" class="sve-ai__images" data-sve-ai-draft-images>
         <span v-for="(image, i) in draftImages" :key="image.id || image.local" class="sve-ai__image" :class="{ 'is-uploading': !image.id }">
           <img :src="image.url || image.local" alt="" />
@@ -817,13 +971,29 @@ watch(mode, refreshType);
         @keydown="onKeydown"
         @paste="onPaste"
       />
+      <div class="sve-ai__form-meta">
+        <select
+          v-model="modelChoice"
+          class="sve-ai__model"
+          :title="strings('ai_panel_model')"
+          :aria-label="strings('ai_panel_model')"
+          data-sve-ai-model
+        >
+          <option value="">{{ defaultLabel }}</option>
+          <option v-if="unlistedModel" :value="unlistedModel">{{ unlistedModel }}</option>
+          <optgroup v-for="group in modelGroups" :key="group.name" :label="group.name">
+            <option v-for="row in group.models" :key="row.id" :value="row.id">{{ row.name }}</option>
+          </optgroup>
+        </select>
+        <span v-if="modelsFailed" class="sve-ai__model-note">{{ strings('ai_panel_models_failed') }}</span>
+      </div>
       <div class="sve-ai__form-row">
         <button type="button" class="sve-ai__attach" :title="strings('ai_panel_attach')" :aria-label="strings('ai_panel_attach')" data-sve-ai-attach @click="fileInput?.click()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/></svg>
         </button>
         <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden data-sve-ai-file @change="onPick" />
-        <button v-if="!sending" type="submit" :disabled="uploading">{{ strings('ai_panel_send') }}</button>
-        <button v-else type="button" class="is-stop" @click="stop">{{ strings('ai_panel_stop') }}</button>
+        <button v-if="sending" type="button" class="is-stop" data-sve-ai-stop @click="stop">{{ strings('ai_panel_stop') }}</button>
+        <button type="submit" :disabled="uploading" data-sve-ai-send>{{ strings(sending ? 'ai_panel_queue' : 'ai_panel_send') }}</button>
       </div>
     </form>
   </div>
@@ -1163,6 +1333,111 @@ watch(mode, refreshType);
 .sve-ai__form-row button[type='submit']:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* The queue: asked while it was answering, each the next question in turn. */
+.sve-ai__queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.sve-ai__queue-head {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  opacity: 0.6;
+}
+.sve-ai__queued {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.25rem 0.25rem 0.5rem;
+  border: 1px dashed rgba(128, 128, 128, 0.4);
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+}
+.sve-ai__queued.is-local {
+  opacity: 0.6;
+}
+.sve-ai__queued-text {
+  all: unset;
+  cursor: pointer;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.sve-ai__queued-text span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sve-ai__queued-images {
+  flex: none;
+  padding: 0 0.3125rem;
+  border-radius: 0.25rem;
+  background: rgba(128, 128, 128, 0.18);
+  font-size: 0.6875rem;
+}
+.sve-ai__queued-now {
+  all: unset;
+  cursor: pointer;
+  flex: none;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--theme-color-primary, #4f46e5);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.sve-ai__queued-remove {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 0.25rem;
+  opacity: 0.6;
+}
+.sve-ai__queued-remove svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+.sve-ai__queued-remove:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.2);
+}
+.sve-ai__queued-now:disabled,
+.sve-ai__queued-remove:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The model: per chat, picked from what the site's Cursor account can use. */
+.sve-ai__form-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.sve-ai__model {
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid rgba(128, 128, 128, 0.32);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.sve-ai__model-note {
+  font-size: 0.6875rem;
+  opacity: 0.6;
 }
 
 /*

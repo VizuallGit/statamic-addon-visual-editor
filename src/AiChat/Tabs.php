@@ -23,9 +23,17 @@ use Illuminate\Support\Str;
  * is theirs, not the site's.
  *
  * A chat: {id, title, created_at, updated_at, draft, draft_images: [ids],
- * pending: null|{run, since, mode}, messages: [row]}. A row: {role, content,
- * at, images?: [{id, mime}], kind?: reply|error|stopped|lost, mode?, applied?}.
- * Only user rows and `reply` rows go back to the agent.
+ * model: null|string, pending: null|{run, since, mode, model}, queue: [item],
+ * messages: [row]}. A row: {role, content, at, images?: [{id, mime}],
+ * kind?: reply|error|stopped|lost, mode?, applied?}. Only user rows and
+ * `reply` rows go back to the agent.
+ *
+ * The queue is what was asked while the AI was still answering — like VS
+ * Code's: each item {id, text, images: [ids], mode, model, type, at} becomes
+ * the next question when the answer before it is in. The request that ran the
+ * answer starts the next one itself (AiChatController), so the queue moves on
+ * after a reload or with the panel closed. Stop does not move it on: what was
+ * queued waits for "send now".
  */
 final class Tabs
 {
@@ -40,6 +48,9 @@ final class Tabs
 
     /** A run that has not finished by now died with its PHP process (the agent stops at 180 s). */
     public const PENDING_TIMEOUT = 300;
+
+    /** Questions waiting behind the one being answered. */
+    public const MAX_QUEUE = 10;
 
     /** An image nothing points at is cleared away once it is this old. */
     public const ORPHAN_AGE = 600;
@@ -146,6 +157,29 @@ final class Tabs
         });
     }
 
+    /**
+     * The model this tab asks; null is the site's default. It is also what a
+     * new tab starts with, the way VS Code keeps the last model picked.
+     */
+    public function setModel(string $id, ?string $model): ?array
+    {
+        $chat = $this->change($id, function (array $chat) use ($model) {
+            $chat['model'] = $model;
+
+            return $chat;
+        }, false);
+
+        if ($chat !== null) {
+            $this->locked(function () use ($model) {
+                $index = $this->readIndex();
+                $index['model'] = $model;
+                $this->writeIndex($index);
+            });
+        }
+
+        return $chat;
+    }
+
     /** What is in the box: the text and the images pasted but not yet sent. */
     public function saveDraft(string $id, string $draft, array $imageIds): ?array
     {
@@ -194,40 +228,124 @@ final class Tabs
     }
 
     /**
-     * The question goes into the tab before the agent starts, and the tab says
-     * it is waiting. A reload in the meantime finds both.
+     * A question from the box: asked now when the tab is free, queued behind
+     * the answer when it is not. Decided under the lock, so two windows
+     * asking at once never start two runs.
      *
-     * @return array{run: string, chat: array}
+     * @param  array{mode: string, model?: ?string, type?: string}  $how
+     * @return array{run: string, chat: array, item: array}|array{queued: array, chat: array}
      */
-    public function startRun(string $id, string $text, array $imageIds, string $mode): array
+    public function ask(string $id, string $text, array $imageIds, array $how): array
     {
-        $run = strtolower(Str::random(16));
+        $out = null;
 
-        $chat = $this->change($id, function (array $chat) use ($id, $text, $imageIds, $mode, $run) {
-            abort_if($chat['pending'] !== null, 409, 'The AI is still answering in this chat.');
+        $chat = $this->change($id, function (array $chat) use ($id, $text, $imageIds, $how, &$out) {
+            $item = [
+                'id' => strtolower(Str::random(10)),
+                'text' => $text,
+                'images' => $this->existingImages($id, $imageIds),
+                'mode' => (string) $how['mode'],
+                'model' => $how['model'] ?? null,
+                'type' => (string) ($how['type'] ?? ''),
+                'at' => time(),
+            ];
 
-            $images = array_map(fn ($imageId) => ['id' => $imageId, 'mime' => $this->mimeOf($id, $imageId)], $this->existingImages($id, $imageIds));
-            $row = ['role' => 'user', 'content' => $text, 'at' => time()];
-
-            if ($images !== []) {
-                $row['images'] = $images;
-            }
-
-            $chat['messages'][] = $row;
             $chat['draft'] = '';
             $chat['draft_images'] = [];
-            $chat['pending'] = ['run' => $run, 'since' => time(), 'mode' => $mode];
 
-            if ($chat['title'] === '' && $text !== '') {
-                $chat['title'] = static::titleOf($text);
+            if ($chat['pending'] !== null) {
+                abort_if(count($chat['queue']) >= static::MAX_QUEUE, 422, 'The queue is full. Wait for an answer, or remove something from it.');
+
+                $chat['queue'][] = $item;
+                $out = ['queued' => $item];
+
+                return $chat;
             }
+
+            $out = ['item' => $item, 'run' => $this->begin($chat, $item)];
 
             return $chat;
         });
 
         abort_if($chat === null, 404);
 
-        return ['run' => $run, 'chat' => $chat];
+        return $out + ['chat' => $chat];
+    }
+
+    /**
+     * The first queued question, asked — when the tab is free. Null when it is
+     * not, or nothing is queued.
+     *
+     * @return array{run: string, chat: array, item: array}|null
+     */
+    public function startNext(string $id): ?array
+    {
+        $out = null;
+
+        $chat = $this->change($id, function (array $chat) use (&$out) {
+            if ($chat['pending'] !== null || $chat['queue'] === []) {
+                return null;
+            }
+
+            $item = array_shift($chat['queue']);
+            $out = ['item' => $item, 'run' => $this->begin($chat, $item)];
+
+            return $chat;
+        });
+
+        return $chat === null ? null : $out + ['chat' => $chat];
+    }
+
+    /**
+     * "Send now": the answer being written is stopped, and this queued
+     * question is asked in its place. Null when it is no longer queued.
+     *
+     * @return array{run: string, chat: array, item: array}|null
+     */
+    public function sendNow(string $id, string $itemId): ?array
+    {
+        $out = null;
+
+        $chat = $this->change($id, function (array $chat) use ($itemId, &$out) {
+            $at = array_search($itemId, array_column($chat['queue'], 'id'), true);
+
+            if ($at === false) {
+                return null;
+            }
+
+            [$item] = array_splice($chat['queue'], $at, 1);
+
+            if ($chat['pending'] !== null) {
+                $chat = $this->stopped($chat);
+            }
+
+            $out = ['item' => $item, 'run' => $this->begin($chat, $item)];
+
+            return $chat;
+        });
+
+        return $chat === null ? null : $out + ['chat' => $chat];
+    }
+
+    /** A queued question taken out — removed, or back in the box to be edited. */
+    public function unqueue(string $id, string $itemId): ?array
+    {
+        return $this->change($id, function (array $chat) use ($itemId) {
+            $before = count($chat['queue']);
+            $chat['queue'] = array_values(array_filter($chat['queue'], fn ($item) => $item['id'] !== $itemId));
+
+            return count($chat['queue']) === $before ? null : $chat;
+        }, false);
+    }
+
+    /** Is this run still the one the tab is waiting for? False once it is stopped, replaced or closed. */
+    public function waitingFor(string $id, string $run): bool
+    {
+        if (! $this->validId($id)) {
+            return false;
+        }
+
+        return $this->locked(fn () => ($this->readChat($id, false)['pending']['run'] ?? null) === $run);
     }
 
     /**
@@ -248,19 +366,46 @@ final class Tabs
         });
     }
 
-    /** Let go of the answer: the tab stops waiting, and says so. */
+    /**
+     * Stop: the tab stops waiting and says so. The run that was waited for
+     * sees it and ends its agent (AiChatController). What is queued stays.
+     */
     public function stop(string $id): ?array
     {
-        return $this->change($id, function (array $chat) {
-            if ($chat['pending'] === null) {
-                return null;
-            }
+        return $this->change($id, fn (array $chat) => $chat['pending'] === null ? null : $this->stopped($chat));
+    }
 
-            $chat['messages'][] = ['role' => 'assistant', 'kind' => 'stopped', 'mode' => $chat['pending']['mode'] ?? 'write', 'content' => '', 'at' => time()];
-            $chat['pending'] = null;
+    private function stopped(array $chat): array
+    {
+        $chat['messages'][] = ['role' => 'assistant', 'kind' => 'stopped', 'mode' => $chat['pending']['mode'] ?? 'write', 'content' => '', 'at' => time()];
+        $chat['pending'] = null;
 
-            return $chat;
-        });
+        return $chat;
+    }
+
+    /**
+     * The question into the chat and the tab waiting for its answer.
+     *
+     * @param  array{text: string, images: list<string>, mode: string, model?: ?string}  $item
+     */
+    private function begin(array &$chat, array $item): string
+    {
+        $run = strtolower(Str::random(16));
+        $images = array_map(fn ($imageId) => ['id' => $imageId, 'mime' => $this->mimeOf($chat['id'], $imageId)], $this->existingImages($chat['id'], $item['images']));
+        $row = ['role' => 'user', 'content' => $item['text'], 'at' => time()];
+
+        if ($images !== []) {
+            $row['images'] = $images;
+        }
+
+        $chat['messages'][] = $row;
+        $chat['pending'] = ['run' => $run, 'since' => time(), 'mode' => $item['mode'], 'model' => $item['model'] ?? null];
+
+        if ($chat['title'] === '' && $item['text'] !== '') {
+            $chat['title'] = static::titleOf($item['text']);
+        }
+
+        return $run;
     }
 
     /**
@@ -375,7 +520,9 @@ final class Tabs
             'updated_at' => $now,
             'draft' => '',
             'draft_images' => [],
+            'model' => $index['model'] ?? null,
             'pending' => null,
+            'queue' => [],
             'messages' => [],
         ]);
 
@@ -395,21 +542,23 @@ final class Tabs
             'title' => $chat['title'],
             'updated_at' => $chat['updated_at'],
             'pending' => $chat['pending'] !== null,
+            'queued' => count($chat['queue']),
         ];
     }
 
-    /** @return array{active: string, tabs: list<string>} */
+    /** @return array{active: string, tabs: list<string>, model: ?string} */
     private function readIndex(): array
     {
         $data = json_decode((string) @file_get_contents($this->dir.'/index.json'), true);
         $tabs = array_values(array_filter((array) ($data['tabs'] ?? []), fn ($id) => is_string($id) && $this->validId($id) && is_file($this->chatPath($id))));
+        $model = $data['model'] ?? null;
 
-        return ['active' => (string) ($data['active'] ?? ''), 'tabs' => $tabs];
+        return ['active' => (string) ($data['active'] ?? ''), 'tabs' => $tabs, 'model' => is_string($model) ? $model : null];
     }
 
     private function writeIndex(array $index): void
     {
-        $this->put($this->dir.'/index.json', ['active' => $index['active'], 'tabs' => array_values($index['tabs'])]);
+        $this->put($this->dir.'/index.json', ['active' => $index['active'], 'tabs' => array_values($index['tabs']), 'model' => $index['model'] ?? null]);
     }
 
     /** A run older than the agent can live is over: it is closed with a note, never left spinning. */
@@ -421,7 +570,7 @@ final class Tabs
             return null;
         }
 
-        $chat += ['title' => '', 'draft' => '', 'draft_images' => [], 'pending' => null, 'messages' => [], 'updated_at' => 0];
+        $chat += ['title' => '', 'draft' => '', 'draft_images' => [], 'model' => null, 'pending' => null, 'queue' => [], 'messages' => [], 'updated_at' => 0];
         $chat['id'] = $id;
 
         if ($settle && $chat['pending'] !== null && (int) ($chat['pending']['since'] ?? 0) < time() - static::PENDING_TIMEOUT) {
@@ -465,6 +614,12 @@ final class Tabs
         foreach ($chat['messages'] as $row) {
             foreach ($row['images'] ?? [] as $image) {
                 $keep[$image['id']] = true;
+            }
+        }
+
+        foreach ($chat['queue'] as $item) {
+            foreach ($item['images'] as $imageId) {
+                $keep[$imageId] = true;
             }
         }
 

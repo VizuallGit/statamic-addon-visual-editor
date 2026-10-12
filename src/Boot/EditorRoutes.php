@@ -209,6 +209,10 @@ final class EditorRoutes
                 ->name('sve.ai-tabs.destroy');
             Route::post('/!/sve/ai-tabs/{tab}/stop', [AiTabsController::class, 'stop'])
                 ->name('sve.ai-tabs.stop');
+            Route::delete('/!/sve/ai-tabs/{tab}/queue/{item}', [AiTabsController::class, 'unqueue'])
+                ->name('sve.ai-tabs.unqueue');
+            Route::get('/!/sve/ai-models', [AiTabsController::class, 'models'])
+                ->name('sve.ai-models');
             Route::post('/!/sve/ai-tabs/{tab}/images', [AiTabsController::class, 'upload'])
                 ->name('sve.ai-tabs.upload');
             Route::get('/!/sve/ai-tabs/{tab}/images/{image}', [AiTabsController::class, 'image'])

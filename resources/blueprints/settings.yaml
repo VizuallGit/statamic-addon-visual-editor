@@ -594,6 +594,16 @@ tabs:
               if_any:
                 ai_panel: 'equals true'
                 ai_text: 'equals true'
+          -
+            handle: ai_model
+            field:
+              type: text
+              display: 'Default AI model'
+              instructions: 'The model a new chat starts with, and the one AI text uses. Write the id as the picker in the AI panel shows it — `composer-2.5`, `grok-4.7`, `claude-opus-5-5`, or `default` for Cursor''s Auto. Each chat can pick another model in the panel; a new chat starts with the last one picked. Empty: `composer-2.5`.'
+              placeholder: composer-2.5
+              if_any:
+                ai_panel: 'equals true'
+                ai_text: 'equals true'
       -
         display: 'Opening an entry'
         instructions: 'Where a click in the Control Panel lands. Named collections skip the publish form and open in the preview instead; everything else opens the way Statamic ships.'

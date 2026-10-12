@@ -24,7 +24,8 @@
     "test:fieldset": "node tests/browser/fieldset-refresh.mjs",
     "test:static-publish": "node tests/browser/static-publish-button.mjs",
     "test:bard-styles": "node tests/browser/bard-styles.mjs",
-    "test:ai-tabs": "node tests/browser/ai-tabs.mjs"
+    "test:ai-tabs": "node tests/browser/ai-tabs.mjs",
+    "test:ai-queue": "node tests/browser/ai-queue.mjs"
   },
   "dependencies": {
     "@alpinejs/morph": "^3.15.11",
