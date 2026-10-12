@@ -396,6 +396,10 @@ class ServiceProvider extends AddonServiceProvider
 
         StoreCollections::register();
 
+        // `card` on every entry — the same shape whatever a collection's fields
+        // are called. See EntryCard.
+        EntryCard::registerComputed();
+
         Routes::register();
 
         Utilities::register();

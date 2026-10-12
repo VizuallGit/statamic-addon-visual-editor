@@ -737,6 +737,13 @@ return [
     'field_where_panel' => 'Only beside the preview',
     'field_where_form' => 'Not beside the preview',
 
+    'card_role' => 'Shown on cards as',
+    'card_role_instructions' => 'A card in a list reads `card:title`, `card:image`, `card:text`, `card:label` and `card:url`. Choose which field fills which. Title and link are the entry\'s own when no field is chosen. With no roles in the blueprint, the first image field is used.',
+    'card_role_title' => 'Title',
+    'card_role_image' => 'Image',
+    'card_role_text' => 'Text',
+    'card_role_label' => 'Label',
+    'card_role_url' => 'Link',
     'sync_siblings_setting' => 'Sync siblings',
     'sync_siblings_setting_instructions' => 'In live preview the value can be locked to the other rows in the list with the same field. One row is the source; the others follow until they are unlocked. Also works when the field is responsive — laptop, tablet and mobile stay one value.',
     'sync_siblings_label' => 'Sync',

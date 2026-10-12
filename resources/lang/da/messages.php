@@ -731,6 +731,13 @@ return [
     'field_where_panel' => 'Kun ved siden af preview\'et',
     'field_where_form' => 'Ikke ved siden af preview\'et',
 
+    'card_role' => 'Vises på kort som',
+    'card_role_instructions' => 'Kortet i en liste læser `card:title`, `card:image`, `card:text`, `card:label` og `card:url`. Her vælger du, hvilket felt der fylder hvad. Titel og link er entryens egne, hvis intet felt er valgt. Har blueprintet ingen roller, bruges det første billedfelt.',
+    'card_role_title' => 'Titel',
+    'card_role_image' => 'Billede',
+    'card_role_text' => 'Tekst',
+    'card_role_label' => 'Etiket',
+    'card_role_url' => 'Link',
     'sync_siblings_setting' => 'Synk søskende',
     'sync_siblings_setting_instructions' => 'I live preview kan værdien låses til de andre rækker i listen med samme felt. Én række er kilden; de andre følger med, indtil de låses op. Virker også når feltet er responsive — laptop, tablet og mobil synces som én værdi.',
     'sync_siblings_label' => 'Synk',
