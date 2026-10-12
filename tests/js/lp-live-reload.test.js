@@ -318,8 +318,8 @@ test("a changed file the dock has open goes into the dock's panes as the file on
   assert.equal(calls.ask.filter(([what]) => what === 'dock:set-html').length, 0, 'the dock is never written to as if typed');
   assert.deepEqual(
     calls.refresh,
-    [['hero/style_2'], ['other'], null, ['hero/style_2'], ['hero/style_2']],
-    'rendered for every foreign change: the hero alone, the other section alone, the whole page when the layout changed too, the hero for the empty file, the hero again'
+    [['hero/style_2'], null, null, null, null],
+    'rendered for every foreign change: the hero alone when the dock took it; the whole page for another file, for the layout beside the hero, for the empty file and for a file without parts (the dock took none of those)'
   );
 
   fake.header = false;
@@ -341,7 +341,7 @@ test('a dock that refuses the file (locked, another file, typing of its own) lea
   ensureLpLiveReload(win);
   await tick();
 
-  assert.deepEqual(calls.refresh, [['hero/style_2'], null], 'rendered both times: refused (the section alone), and unknown files (the whole page)');
+  assert.deepEqual(calls.refresh, [null, null], 'rendered both times, the whole page: the dock refused, and unknown files');
 
   fake.header = false;
   ensureLpLiveReload(win);

@@ -227,8 +227,14 @@ async function run(win, loop) {
     }
 
     if (step.refresh) {
-      handToDock(step.changed);
-      void refresh(win, loop, sectionTypesOf(step.changed));
+      // Scoped to the section only when the dock took the file: then that
+      // section is the focused one, and the preview morphs it. With another
+      // section focused (the dock on its file), a render scoped to a section
+      // elsewhere on the page did not land (measured on Cuben: no paint in
+      // 7 s); the whole page does, as it did before the scoping.
+      const taken = handToDock(step.changed);
+
+      void refresh(win, loop, taken ? sectionTypesOf(step.changed) : null);
     }
 
     await sleep(win, AGAIN_MS);
