@@ -117,6 +117,17 @@ function pageBuilderForm(win) {
   return named;
 }
 
+/**
+ * The first tag of a section type's file as the server read it when the
+ * Control Panel loaded (`sveSectionRootTags`, SectionRootTags) — '' for a type
+ * it has no file for.
+ */
+export function sectionRootTag(win, type) {
+  const tag = win.Statamic?.$config?.get?.('sveSectionRootTags')?.[type];
+
+  return typeof tag === 'string' ? tag : '';
+}
+
 /** The scaffold presets the site offers (`sveCollectionPresets`), always a list. */
 export function collectionPresets(win) {
   const list = win.Statamic?.$config?.get?.('sveCollectionPresets');

@@ -27,6 +27,7 @@ use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Boot\ControlPanelScript;
 use MarioHamann\StatamicVisualEditor\Boot\LivePreviewConfig;
 use MarioHamann\StatamicVisualEditor\Boot\Routes;
+use MarioHamann\StatamicVisualEditor\Boot\SectionRootTagsScript;
 use MarioHamann\StatamicVisualEditor\Boot\StoreCollections;
 use MarioHamann\StatamicVisualEditor\Boot\Utilities;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableStaticCacheInLivePreview;
@@ -388,6 +389,7 @@ class ServiceProvider extends AddonServiceProvider
         AfterSave::register();
 
         ControlPanelScript::register();
+        SectionRootTagsScript::register();
 
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'sve');
         $this->loadViewsFrom(__DIR__.'/../resources/views', 'sve');

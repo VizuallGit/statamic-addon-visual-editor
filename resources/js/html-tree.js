@@ -69,7 +69,7 @@ import { NAV_PAGES } from './antlers-blocks.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
-import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields } from './lib/config.js';
+import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields, sectionRootTag } from './lib/config.js';
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
 import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
 import { openCollections } from './lp-collections.js';
@@ -1004,12 +1004,11 @@ function runSectionTemplatePrefetch(win) {
         if (typeof data?.html === 'string') {
           htmlTreeTemplates.set(type, data.html);
 
-          // A shut row drawn before its file came, with a tag the file does not
-          // have — a root without `visual_edit` leaves the preview nothing to
-          // read, and the row said `section`.
+          // A shut row drawn before its file came, from the server's reading at
+          // load, and the file has been edited since: draw what it says now.
           const guessed = htmlTreeGuessedTags.get(type);
           htmlTreeGuessedTags.delete(type);
-          const wrongTag = !!guessed && guessed !== templateRootTag(type);
+          const wrongTag = !!guessed && guessed !== sectionRootTagOf(win, type);
 
           // Asked for by the context around an open component: draw it now.
           if (htmlTreeRepaintOnFetch || wrongTag) {
@@ -1034,9 +1033,19 @@ function htmlTreeAheadOfDock() {
 }
 
 /**
- * The first tag of a section's file, from the markup fetched ahead — the row
- * the section unfolds into when it opens. '' while the file is not in hand.
+ * The tag a shut section's row says: the first tag of its file — the row it
+ * unfolds into when it opens.
+ *
+ * The file in hand first (fetched ahead, or open in the dock with an edit not
+ * yet saved). Before it is, the same file as the server read it when the
+ * Control Panel loaded, so a `<div>` reads `div` from the first paint and not
+ * `section` until a fetch lands. `section` only for a type with no file.
  */
+function sectionRootTagOf(win, type) {
+  return templateRootTag(type) || sectionRootTag(win, type) || 'section';
+}
+
+/** The first tag of a section's file in hand; '' while it is not. */
 function templateRootTag(type) {
   const html = htmlTreeTemplates.get(type);
 
@@ -1057,36 +1066,6 @@ function templateRootTag(type) {
 }
 
 /**
- * The outermost tag of every section, read off the page itself — the stand-in
- * while a shut section's file is still on its way.
- *
- * The element carrying the section's uid is that tag, when the template put
- * `visual_edit` on its root. A root without it (a static divider) leaves
- * nothing to read here; its file answers once it lands.
- *
- * No preview, or a section whose template threw and drew nothing: `section`,
- * which is what a page section is unless someone wrote otherwise.
- */
-function sectionRootTags(win) {
-  const out = new Map();
-  const doc = previewDocument(win);
-
-  if (!doc) {
-    return out;
-  }
-
-  for (const el of doc.querySelectorAll('[data-sid]')) {
-    const uid = el.getAttribute('data-sid');
-
-    if (uid && !out.has(uid)) {
-      out.set(uid, el.tagName.toLowerCase());
-    }
-  }
-
-  return out;
-}
-
-/**
  * Every section on the page, read from the publish form's values.
  *
  * The values, not the preview. A template with a syntax error renders no page
@@ -1097,7 +1076,6 @@ function sectionRootTags(win) {
  */
 function htmlTreeSections(win, doc) {
   const field = sectionField(win) || 'page_sections';
-  const tags = sectionRootTags(win);
   const out = [];
 
   for (const container of activeContainers(doc) || []) {
@@ -1126,12 +1104,11 @@ function htmlTreeSections(win, doc) {
       const type = globalSectionType(win, row) || row.type;
       const custom = typeof row._sve_label === 'string' ? row._sve_label.trim() : '';
       // The file's first tag: what the row says open, so it says it shut too.
-      // Changed to a `div` in the dock, it reads `div` — not the `section` a
-      // root without `visual_edit` used to fall back to.
-      const fileTag = templateRootTag(row.type);
-      const tag = fileTag || ids.map((id) => tags.get(id)).find(Boolean) || 'section';
+      const tag = sectionRootTagOf(win, row.type);
 
-      if (!fileTag) {
+      // Read before this tab held the file: should the file say otherwise when
+      // it lands (edited elsewhere since), the row is drawn again.
+      if (!templateRootTag(row.type)) {
         htmlTreeGuessedTags.set(row.type, tag);
       }
 
