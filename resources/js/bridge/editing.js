@@ -607,6 +607,12 @@ export function createMouseMoveHandler(win) {
 
       syncHoverOverride(target);
 
+      // A block's width in its grid is a block action like moving it, not a
+      // tag to point at: the resize handles stay while the tree is open. The
+      // handle stops its own pointerdown, and the click a drag leaves behind is
+      // swallowed before the pick handler sees it.
+      maybeShowColumnChrome(win, event);
+
       if (clearTimer) {
         clearTimeout(clearTimer);
       }
@@ -617,6 +623,10 @@ export function createMouseMoveHandler(win) {
         win.document.querySelectorAll(`[${INNER_ATTR}]`).forEach((el) => {
           el.removeAttribute(INNER_ATTR);
         });
+
+        if (!widthDrag) {
+          hideColumnChrome(win);
+        }
       }, HOVER_CLEAR_DELAY);
 
       return;
