@@ -1449,6 +1449,14 @@ register('dock:take-file', (payload) => {
   setStatus(win.document, '');
   paintAutosave(win);
 
+  // The Instant paint script paints on input in the dock and on changes in
+  // the panes. A pane scoped to one element shows the same slice as before
+  // when the file changed outside it, so nothing fires — yet the whole file
+  // the script paints from (`__sveHtmlScope.full`, republished by writeParts)
+  // did change. One input event on the dock is the script's own trigger;
+  // the panes' editors listen on their own content nodes, not here.
+  win.document.getElementById(DOCK_ID)?.dispatchEvent(new win.Event('input', { bubbles: true }));
+
   return true;
 });
 
