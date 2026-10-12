@@ -51,13 +51,13 @@ class RecordEditorWriteTest extends TestCase
     }
 
     /** One request through the middleware, with a session; `$route` runs as the route would. */
-    private function through(string $method, int $status, ?\Closure $route = null): string
+    private function through(string $method, int $status, ?\Closure $route = null, string $path = '/!/sve/section-template'): string
     {
         $session = $this->app['session']->driver();
         $session->setId(Str::random(40));
         $session->start();
 
-        $request = Request::create('/!/sve/section-template', $method);
+        $request = Request::create($path, $method);
         $request->setLaravelSession($session);
 
         (new RecordEditorWrite)->handle($request, function () use ($route, $status) {
@@ -130,6 +130,35 @@ class RecordEditorWriteTest extends TestCase
         // A save from outside right after is not mistaken for the refused one.
         $this->saveTemplate();
         $this->assertFalse(LiveReload::own(LiveReload::page()['markup'], $session));
+    }
+
+    /**
+     * Patterns' tick (every 5 s while the panel is open), Live Preview's
+     * stashes and the comments' pruning come by timer and write no template. In the air while a file was saved from
+     * outside, they made that save the editor's own, and Live Preview showed
+     * nothing.
+     */
+    public function test_requests_that_never_write_a_template_are_not_stamped(): void
+    {
+        foreach (['/!/sve/previews/tick', '/!/sve/globals-preview', '/!/sve/globals-preview/clear', '/!/sve/global-section-stash', '/!/sve/comments/home/prune'] as $path) {
+            $this->forgetStamps();
+            $during = 'not run';
+
+            $session = $this->through('POST', 200, function () use (&$during) {
+                $during = Cache::get('sve-live-reload:writing');
+                // A save from Cursor lands while the request is in the air.
+                $this->saveTemplate();
+            }, $path);
+
+            $this->assertNull($during, "{$path}: no write under way");
+            $this->assertNull(Cache::get('sve-live-reload:own'), $path);
+            $this->assertFalse(LiveReload::own(LiveReload::page()['markup'], $session), "{$path}: the save from outside stays foreign");
+        }
+
+        // A template write next to them is still the editor's own.
+        $this->forgetStamps();
+        $session = $this->through('POST', 200, fn () => $this->saveTemplate(), '/!/sve/component');
+        $this->assertTrue(LiveReload::own(LiveReload::page()['markup'], $session));
     }
 
     public function test_both_route_groups_carry_it_and_the_dock_keeps_its_untrimmed_strings(): void

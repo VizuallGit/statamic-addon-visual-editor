@@ -63,3 +63,32 @@ export function nextStep(have, answer) {
     changed: refresh && Array.isArray(answer.changed) ? answer.changed : null,
   };
 }
+
+/**
+ * The panes a changed file gives the dock that has `open` (its type), or
+ * null when the file is not the dock's to take.
+ *
+ * The server names a file the dock opens as the dock names it (`type`) and
+ * splits it as the dock's own load does (`panes`: html, css, js, props,
+ * locked). The file whole is never what the HTML pane holds — its lock
+ * marker, CSS block and Tailwind tag went into the markup, and the dock's
+ * autosave wrote them back around it, one more per save (v1.1.508–509). So
+ * a file without panes — from a PHP older than this bundle — is not taken
+ * either; the page is rendered instead.
+ *
+ * An empty markup pane is not taken: to the dock '' means "detach", and an
+ * empty file is more likely a save caught halfway.
+ */
+export function panesFor(file, open) {
+  const panes = file?.panes;
+
+  if (!open || file?.type !== open || !panes || typeof panes !== 'object') {
+    return null;
+  }
+
+  if (typeof panes.html !== 'string' || typeof panes.css !== 'string' || typeof panes.js !== 'string' || panes.html === '') {
+    return null;
+  }
+
+  return panes;
+}

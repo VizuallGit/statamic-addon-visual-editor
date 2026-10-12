@@ -26,12 +26,33 @@ use Symfony\Component\HttpFoundation\Response;
  * "writing" stamp away again. A route that wrote no template is stamped all
  * the same: the markup it leaves is the markup it found, unless a save from
  * outside landed while it ran — the one case LiveReload::own() cannot tell.
+ *
+ * Except the editor's requests that never write a template (NEVER_MARKUP).
+ * Some come by themselves — Patterns asks every five seconds while it is
+ * open — and stamped, one in the air when a file was saved from outside made
+ * that save the editor's own: Live Preview then showed nothing at all, no
+ * paint and no render (measured on Cuben, 12 October 2026).
  */
 final class RecordEditorWrite
 {
+    /**
+     * Paths under `/!/sve/` whose requests write no template and are sent by
+     * a timer, not a click: Patterns' staleness tick, Live Preview's stashes
+     * of unsaved globals and global sections, the comments' pruning (with the
+     * rest of the comments routes). A route missing here is stamped as before
+     * — the safe side for the dock, whose own saves must never come back to
+     * it as someone else's.
+     */
+    private const NEVER_MARKUP = [
+        'previews/tick',
+        'globals-preview',
+        'global-section-stash',
+        'comments/',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->isMethodSafe()) {
+        if ($request->isMethodSafe() || $this->writesNoMarkup($request)) {
             return $next($request);
         }
 
@@ -48,5 +69,18 @@ final class RecordEditorWrite
         }
 
         return $response;
+    }
+
+    private function writesNoMarkup(Request $request): bool
+    {
+        $path = ltrim($request->path(), '/');
+
+        foreach (self::NEVER_MARKUP as $prefix) {
+            if (str_starts_with($path, '!/sve/'.$prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

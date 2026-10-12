@@ -598,6 +598,43 @@ class LiveReloadTest extends TestCase
         $this->assertStringEndsWith('views/new.antlers.html', $byName['new.antlers.html']['path']);
     }
 
+    /**
+     * A section's partial is named as the dock names it and split as the
+     * dock's load splits it, so Live Preview hands the dock the markup — not
+     * the whole file, whose lock marker, CSS block and Tailwind tag the
+     * dock's autosave would write back around it, one more per save.
+     */
+    public function test_a_changed_section_partial_comes_with_the_docks_type_and_panes(): void
+    {
+        config(['statamic-visual-editor.templates.partials' => $this->root.'/views/partials/page_sections']);
+        $file = 'views/partials/page_sections/section/intro.antlers.html';
+        File::ensureDirectoryExists(dirname($this->root.'/'.$file));
+        $this->write($file, "{{# sve-unlocked #}}\n<section>One</section>\n", 60);
+        $this->write('views/layout.antlers.html', '<html></html>', 60);
+        $this->built();
+        $from = LiveReload::status('s1')['markup'];
+
+        $this->write($file, "{{# sve-unlocked #}}\n<section>\n<p>From Cursor</p>\n</section>\n\n{{ sve_tw }}\n\n{{ style_push }}\n<style>\n.a { color: red; }\n</style>\n{{ /style_push }}\n", 30);
+        $this->write('views/layout.antlers.html', '<html><body></body></html>', 30);
+        $to = LiveReload::status('s1')['markup'];
+
+        $byName = [];
+
+        foreach (LiveReload::changed($from, $to) as $file) {
+            $byName[basename($file['path'])] = $file;
+        }
+
+        $section = $byName['intro.antlers.html'];
+        $this->assertSame('section/intro', $section['type']);
+        $this->assertSame("<section>\n<p>From Cursor</p>\n</section>", $section['panes']['html']);
+        $this->assertSame('.a { color: red; }', $section['panes']['css']);
+        $this->assertSame('', $section['panes']['js']);
+        $this->assertFalse($section['panes']['locked']);
+        $this->assertStringContainsString('{{# sve-unlocked #}}', $section['content'], 'the file itself still travels whole');
+        $this->assertArrayNotHasKey('type', $byName['layout.antlers.html'], 'the dock does not hold the layout this way');
+        $this->assertArrayNotHasKey('panes', $byName['layout.antlers.html']);
+    }
+
     public function test_a_held_poll_answers_at_once_for_a_new_build(): void
     {
         $this->write('public/build/manifest.json', '{"a":1}', 100);

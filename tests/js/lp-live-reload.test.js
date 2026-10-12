@@ -16,7 +16,7 @@ register('./support/stub-imports.mjs', import.meta.url, {
   data: { target, keep: ['/lib/live-reload.js', '/cp/theme-panel/utility-paint.js'] },
 });
 
-const calls = { refresh: [], swap: [], ask: [] };
+const calls = { refresh: [], swap: [], ask: [], panel: [] };
 const fake = {
   header: true,
   feature: true,
@@ -26,6 +26,14 @@ const fake = {
   /** The dock's open file handle, '' for none; whether it takes a set-html. */
   dockType: '',
   dockTakes: true,
+  /** The dock's other panes, as `dock:css` / `dock:js` / `dock:props` answer. */
+  dockCss: '',
+  dockJs: '',
+  dockProps: [],
+  dockLocked: false,
+  /** Whether the dock is on screen, and the page's section rows. */
+  dockOpen: true,
+  rows: [],
 };
 
 globalThis.__sveStub = (spec, name) => {
@@ -36,11 +44,22 @@ globalThis.__sveStub = (spec, name) => {
 
       if (what === 'dock:current-type') return fake.dockType;
       if (what === 'dock:set-html') return fake.dockTakes;
+      if (what === 'dock:css') return fake.dockCss;
+      if (what === 'dock:js') return fake.dockJs;
+      if (what === 'dock:props') return fake.dockProps;
+      if (what === 'dock:is-locked') return fake.dockLocked;
+      if (what === 'dock:set-css' || what === 'dock:set-js') return true;
+      if (what === 'dock:is-open') return fake.dockOpen;
+      if (what === 'html-tree:open-section') return { uid: arg };
 
       return undefined;
     };
   }
   if (name === 'featureSaidOn') return () => fake.feature;
+  if (name === 'ensurePanel') return async (key) => calls.panel.push(key);
+  if (name === 'sectionField') return () => 'page_sections';
+  if (name === 'activeContainers') return () => [{ values: { page_sections: fake.rows } }];
+  if (name === 'unwrapRef') return (v) => v;
   if (name === 'pageDocuments') return () => [pageDoc('preview'), pageDoc('copy')];
   if (name === 'refreshTemplatesShown') {
     return async () => {
@@ -145,8 +164,15 @@ function reset() {
   calls.refresh.length = 0;
   calls.swap.length = 0;
   calls.ask.length = 0;
+  calls.panel.length = 0;
+  fake.dockOpen = true;
+  fake.rows = [];
   fake.dockType = '';
   fake.dockTakes = true;
+  fake.dockCss = '';
+  fake.dockJs = '';
+  fake.dockProps = [];
+  fake.dockLocked = false;
   fake.header = true;
   fake.feature = true;
   fake.refreshResult = true;
@@ -290,33 +316,184 @@ test("the button's own refresh running → ours waits and runs after", async () 
   await tick();
 });
 
-test('a changed file the dock has open goes into the dock as typed; nothing else is rendered for it', async () => {
+/** A changed file as the server names it: the dock's type and panes beside the whole file. */
+function section(type, html, extra = {}) {
+  return {
+    path: `resources/views/partials/page_sections/${type}.antlers.html`,
+    content: `{{# sve-unlocked #}}\n${html}\n\n{{ sve_tw }}\n`,
+    type,
+    panes: { html, css: '', js: '', props: [], locked: false, ...extra },
+  };
+}
+
+const setCalls = (what) => calls.ask.filter(([w]) => w === what).map(([, v]) => v);
+
+test("a changed file the dock has open goes into the dock as typed — its panes, never the whole file; nothing else is rendered for it", async () => {
   reset();
   fake.dockType = 'hero/style_2';
 
-  const hero = 'resources/views/partials/page_sections/hero/style_2.antlers.html';
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '<section>new</section>' }] },
-    { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>' }] },
-    { markup: 'm4', build: 'b1', own: false, changed: [{ path: hero, content: '<section>both</section>' }, { path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
-    { markup: 'm5', build: 'b1', own: true, changed: [{ path: hero, content: '<section>own</section>' }] },
-    { markup: 'm6', build: 'b1', own: false, changed: [{ path: hero, content: '' }] },
+    { markup: 'm2', build: 'b1', own: false, changed: [section('hero/style_2', '<section>new</section>')] },
+    { markup: 'm3', build: 'b1', own: false, changed: [section('other', '<section>x</section>')] },
+    { markup: 'm4', build: 'b1', own: false, changed: [section('hero/style_2', '<section>both</section>'), { path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
+    { markup: 'm5', build: 'b1', own: true, changed: [section('hero/style_2', '<section>own</section>')] },
+    { markup: 'm6', build: 'b1', own: false, changed: [section('hero/style_2', '')] },
   ]);
 
   ensureLpLiveReload(win);
   await tick();
 
   assert.deepEqual(
-    calls.ask.filter(([what]) => what === 'dock:set-html').map(([, html]) => html),
+    setCalls('dock:set-html'),
     ['<section>new</section>', '<section>both</section>'],
-    "the dock's file, twice; another file never; an own change never; an empty file never"
+    "the dock's file, twice — the markup pane alone; another file never; an own change never; an empty pane never"
   );
+  assert.deepEqual(setCalls('dock:set-css'), [], 'the CSS did not change: the CSS pane is left alone');
   assert.equal(calls.refresh.length, 3, 'rendered for the other file, for the layout beside the hero, and for the empty file — not for the hero alone');
 
   fake.header = false;
   ensureLpLiveReload(win);
   await tick();
+});
+
+test('a file without panes (a PHP older than this bundle) is never put into the dock whole; the page is rendered', async () => {
+  reset();
+  fake.dockType = 'hero/style_2';
+
+  const hero = 'resources/views/partials/page_sections/hero/style_2.antlers.html';
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '{{# sve-unlocked #}}\n<section>new</section>\n\n{{ sve_tw }}\n' }] },
+  ]);
+
+  ensureLpLiveReload(win);
+  await tick();
+
+  assert.deepEqual(setCalls('dock:set-html'), [], 'the lock marker and the Tailwind tag would go into the markup pane, and the autosave around them');
+  assert.equal(calls.refresh.length, 1);
+
+  fake.header = false;
+  ensureLpLiveReload(win);
+  await tick();
+});
+
+test('changed CSS and JS go into their panes after the markup; a refused markup changes nothing in the dock', async () => {
+  reset();
+  fake.dockType = 'hero/style_2';
+  fake.dockCss = '.a { color: red; }';
+  fake.dockJs = 'one()';
+
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false, changed: [section('hero/style_2', '<section>new</section>', { css: '.a { color: blue; }', js: 'one()' })] },
+  ]);
+
+  ensureLpLiveReload(win);
+  await tick();
+
+  assert.deepEqual(calls.ask.filter(([w]) => w.startsWith('dock:set-')).map(([w]) => w), ['dock:set-html', 'dock:set-css'], 'markup first, then the CSS that changed; the JS did not');
+  assert.equal(calls.refresh.length, 0);
+
+  fake.header = false;
+  ensureLpLiveReload(win);
+  await tick();
+
+  reset();
+  fake.dockType = 'hero/style_2';
+  fake.dockTakes = false;
+
+  const refused = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false, changed: [section('hero/style_2', '<section>new</section>', { css: '.a { color: blue; }' })] },
+  ]);
+
+  ensureLpLiveReload(refused);
+  await tick();
+
+  assert.deepEqual(setCalls('dock:set-css'), [], 'never the new CSS beside the old markup');
+  assert.equal(calls.refresh.length, 1);
+
+  fake.header = false;
+  ensureLpLiveReload(refused);
+  await tick();
+});
+
+test('a lock or props that differ from the dock are not a keystroke: rendered, the dock untouched', async () => {
+  reset();
+  fake.dockType = 'hero/style_2';
+  fake.dockProps = [{ name: 'title' }];
+
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false, changed: [section('hero/style_2', '<section>a</section>', { props: [{ name: 'heading' }] })] },
+    { markup: 'm3', build: 'b1', own: false, changed: [section('hero/style_2', '<section>b</section>', { props: [{ name: 'title' }], locked: true })] },
+  ]);
+
+  ensureLpLiveReload(win);
+  await tick();
+
+  assert.deepEqual(setCalls('dock:set-html'), []);
+  assert.equal(calls.refresh.length, 2);
+
+  fake.header = false;
+  ensureLpLiveReload(win);
+  await tick();
+});
+
+test("the dock open on another section of the page follows a section saved from outside: opened as a click opens it, and rendered", async () => {
+  reset();
+  fake.dockType = 'hero/style_2';
+  fake.rows = [
+    { type: 'hero/style_2', _visual_id: 'v-hero' },
+    { type: 'section/intro', _visual_id: 'v-intro' },
+  ];
+
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false, changed: [section('section/intro', '<section>new</section>')] },
+    { markup: 'm3', build: 'b1', own: false, changed: [section('section/not_on_page', '<section>x</section>')] },
+    { markup: 'm4', build: 'b1', own: false, changed: [{ path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
+  ]);
+
+  ensureLpLiveReload(win);
+  await tick();
+
+  assert.deepEqual(setCalls('html-tree:open-section'), ['v-intro'], "the saved section's row, once; a type the page lacks and the layout never");
+  assert.deepEqual(calls.panel, ['html_tree']);
+  assert.deepEqual(setCalls('dock:set-html'), [], 'the dock held another file: this save shows with the render');
+  assert.equal(calls.refresh.length, 3);
+
+  fake.header = false;
+  ensureLpLiveReload(win);
+  await tick();
+});
+
+test('the dock stays where it is when it is shut, or on a file that is not a section of this page', async () => {
+  for (const [dockOpen, dockType] of [[false, 'hero/style_2'], [true, 'header/style_1'], [true, '']]) {
+    reset();
+    fake.dockOpen = dockOpen;
+    fake.dockType = dockType;
+    fake.rows = [
+      { type: 'hero/style_2', _visual_id: 'v-hero' },
+      { type: 'section/intro', _visual_id: 'v-intro' },
+    ];
+
+    const win = fakeWindow([
+      { markup: 'm1', build: 'b1' },
+      { markup: 'm2', build: 'b1', own: false, changed: [section('section/intro', '<section>new</section>')] },
+    ]);
+
+    ensureLpLiveReload(win);
+    await tick();
+
+    assert.deepEqual(setCalls('html-tree:open-section'), [], `dock open=${dockOpen} on "${dockType}"`);
+    assert.equal(calls.refresh.length, 1);
+
+    fake.header = false;
+    ensureLpLiveReload(win);
+    await tick();
+  }
 });
 
 test('a dock that refuses the file (locked, another file) leaves it to the render', async () => {
@@ -326,7 +503,7 @@ test('a dock that refuses the file (locked, another file) leaves it to the rende
 
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    { markup: 'm2', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>' }] },
+    { markup: 'm2', build: 'b1', own: false, changed: [section('hero/style_2', '<section>new</section>')] },
     { markup: 'm3', build: 'b1', own: false, changed: null },
   ]);
 

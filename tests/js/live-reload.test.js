@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nextStep, statusUrl } from '../../resources/js/lib/live-reload.js';
+import { nextStep, panesFor, statusUrl } from '../../resources/js/lib/live-reload.js';
 
 test('the first poll asks without signatures; later polls carry what we hold', () => {
   assert.equal(statusUrl('/!/sve/live-reload', null), '/!/sve/live-reload');
@@ -93,4 +93,17 @@ test('the files behind a foreign change come along; an own change or a server th
   assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: true, changed: files }).changed, null);
   assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: false, changed: null }).changed, null);
   assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: false }).changed, null, 'an older server');
+});
+
+test("a changed file gives the dock its panes only when it is the dock's file and the server split it", () => {
+  const panes = { html: '<section>x</section>', css: '', js: '', props: [], locked: false };
+  const file = { path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '{{# sve-unlocked #}}\n<section>x</section>\n', type: 'hero/style_2', panes };
+
+  assert.equal(panesFor(file, 'hero/style_2'), panes);
+  assert.equal(panesFor(file, 'other'), null, 'another file in the dock');
+  assert.equal(panesFor(file, ''), null, 'no file in the dock');
+  assert.equal(panesFor({ path: file.path, content: file.content }, 'hero/style_2'), null, 'no panes (an older PHP): the whole file is never the markup pane');
+  assert.equal(panesFor({ ...file, panes: { ...panes, html: '' } }, 'hero/style_2'), null, "an empty markup pane would detach the dock");
+  assert.equal(panesFor({ ...file, panes: { ...panes, css: null } }, 'hero/style_2'), null);
+  assert.equal(panesFor(null, 'hero/style_2'), null);
 });

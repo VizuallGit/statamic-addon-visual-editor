@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor;
 use FilesystemIterator;
 use Illuminate\Support\Facades\Cache;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController\Persist;
+use MarioHamann\StatamicVisualEditor\SectionTemplate\Paths;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
@@ -549,11 +550,15 @@ final class LiveReload
      * to send (MAX_FILE), and every file that is gone (`removed`, no
      * contents). Paths are relative to the site root.
      *
+     * A file the dock opens (a section's partial, the header's, the
+     * footer's) is also named as the dock names it and split as the dock's
+     * own load splits it: see dockPanes().
+     *
      * Null when the files behind `$from` are not remembered — a signature
      * from before the cache was cleared, or older than an hour — and the
      * page has to render again without knowing what changed.
      *
-     * @return list<array{path: string, content: ?string, removed?: bool}>|null
+     * @return list<array{path: string, content: ?string, removed?: bool, type?: string, panes?: array{html: string, css: string, js: string, props: array, locked: bool}}>|null
      */
     public static function changed(string $from, string $to): ?array
     {
@@ -576,7 +581,8 @@ final class LiveReload
             $size = (int) explode(':', $stamp)[1];
             $content = $size <= self::MAX_FILE ? @file_get_contents($path) : false;
 
-            $out[] = ['path' => $relative($path), 'content' => $content === false ? null : $content];
+            $out[] = ['path' => $relative($path), 'content' => $content === false ? null : $content]
+                + ($content === false ? [] : static::dockPanes($path, $content));
         }
 
         foreach (array_diff_key($before, $after) as $path => $stamp) {
@@ -584,6 +590,42 @@ final class LiveReload
         }
 
         return $out;
+    }
+
+    /**
+     * A saved file as the dock would hold it: its `type` (the dock's name
+     * for it, `section/intro`) and its `panes`, split by the same reader the
+     * dock's load uses (`SectionTemplate::split`). Live Preview hands a save
+     * from outside to the dock pane by pane, as if typed there. The whole
+     * file in the HTML pane put the lock marker, the CSS block and the
+     * Tailwind tag into the markup, and the dock's autosave wrote them back
+     * around it — one more marker and tag in the author's file per save.
+     *
+     * Empty for a file the dock does not open (the layout, a component, a
+     * language file): Live Preview renders those.
+     *
+     * @return array{type?: string, panes?: array{html: string, css: string, js: string, props: array, locked: bool}}
+     */
+    protected static function dockPanes(string $path, string $content): array
+    {
+        $type = Paths::handleFromAbsolute($path);
+
+        if ($type === null || $type === '') {
+            return [];
+        }
+
+        $parts = SectionTemplate::split($content, $type);
+
+        return [
+            'type' => $type,
+            'panes' => [
+                'html' => $parts['html'],
+                'css' => $parts['css'],
+                'js' => $parts['js'],
+                'props' => $parts['props'] ?? [],
+                'locked' => ! empty($parts['locked']),
+            ],
+        ];
     }
 
     /**
