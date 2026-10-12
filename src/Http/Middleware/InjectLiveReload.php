@@ -4,9 +4,11 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload\Widget;
 use MarioHamann\StatamicVisualEditor\LiveReload;
+use RuntimeException;
 use Statamic\Statamic;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -39,10 +41,23 @@ class InjectLiveReload
         }
 
         $response->setContent(
-            substr_replace($content, Widget::html(LiveReload::page()).'</body>', $pos, strlen('</body>'))
+            substr_replace($content, Widget::html(LiveReload::page(), $this->morphUrl()).'</body>', $pos, strlen('</body>'))
         );
 
         return $response;
+    }
+
+    /**
+     * Alpine's morph for the button, from the addon's build. A build without
+     * it (older than the button's morph) leaves the button reloading the page.
+     */
+    protected function morphUrl(): ?string
+    {
+        try {
+            return BuiltAssets::url('resources/js/live-reload-morph.js');
+        } catch (RuntimeException) {
+            return null;
+        }
     }
 
     protected function shouldInject(Request $request, Response $response): bool

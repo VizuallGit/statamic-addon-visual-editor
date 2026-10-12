@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests\Http\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\File;
+use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
 use MarioHamann\StatamicVisualEditor\LiveReload;
@@ -73,6 +74,18 @@ class InjectLiveReloadTest extends TestCase
         $this->assertStringContainsString('"markup":"'.$page['markup'].'"', $html);
         $this->assertStringContainsString('"url":"/!/sve/live-reload"', $html);
         $this->assertSame(1, substr_count($html, '</script>'), 'nothing in the config closes the script');
+    }
+
+    public function test_the_button_gets_the_built_morph_it_imports_for_new_markup(): void
+    {
+        $this->signIn();
+
+        $html = $this->inject();
+        $url = BuiltAssets::url('resources/js/live-reload-morph.js');
+
+        $this->assertMatchesRegularExpression('#^/!/sve/build/assets/live-reload-morph-[\w-]+\.js$#', $url);
+        $this->assertStringContainsString('"morph":"'.$url.'"', $html);
+        $this->assertTrue(BuiltAssets::isAllowed(substr($url, strlen('/!/sve/build/'))), 'the build route serves it');
     }
 
     public function test_not_for_guests(): void

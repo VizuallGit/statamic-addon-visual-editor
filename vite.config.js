@@ -34,6 +34,8 @@ export default defineConfig({
         'resources/js/overlay-host.js',
         // The breakpoint overview's copies of the preview; self-contained (see mirrorGraph).
         'resources/js/mirror.js',
+        // Alpine's morph for the public site's live-reload button; one file, imports nothing.
+        'resources/js/live-reload-morph.js',
       ],
       publicDirectory: 'resources/dist',
     }),

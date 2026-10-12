@@ -568,6 +568,12 @@
       "assets/html-tree-CEOU9KJE.css"
     ]
   },
+  "resources/js/live-reload-morph.js": {
+    "file": "assets/live-reload-morph-ZgQV7Bg3.js",
+    "name": "live-reload-morph",
+    "src": "resources/js/live-reload-morph.js",
+    "isEntry": true
+  },
   "resources/js/mirror.js": {
     "file": "assets/mirror-D3jtuv6O.js",
     "name": "mirror",

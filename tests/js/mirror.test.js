@@ -113,3 +113,15 @@ test('built: mirror.js is one self-contained file, and nothing it reuses became 
     assert.deepEqual(shared.filter((name) => DUPLICATED.test(name)), [], `${file} imports ${shared.join(', ')}`);
   }
 });
+
+test('built: live-reload-morph.js (the public site\'s live-reload button) is one file, and preview.js loads none of it', { skip: built ? false : 'no build in resources/dist/build' }, () => {
+  const morphFile = built['resources/js/live-reload-morph.js']?.file;
+
+  assert.ok(morphFile, 'resources/js/live-reload-morph.js is in the manifest');
+  assert.deepEqual(chunkImports(readFileSync(join(BUILD, morphFile), 'utf8')), [], `${morphFile} imports a chunk`);
+
+  const preview = built['resources/js/preview.js'].file;
+  const shared = chunkImports(readFileSync(join(BUILD, preview), 'utf8'));
+
+  assert.deepEqual(shared.filter((name) => /morph|module/.test(name)), [], `${preview} imports ${shared.join(', ')}`);
+});
