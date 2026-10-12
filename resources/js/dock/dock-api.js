@@ -1259,6 +1259,30 @@ register('dock:open-file', (type) => {
   return true;
 });
 
+/**
+ * The file the dock has open changed on disk, outside the editor (live reload:
+ * a save in Cursor over SSH). Read it again, so the dock's text is the file's
+ * — otherwise the next paint after a morph puts the old text back over the
+ * section, and the dock's next autosave writes it back over the file.
+ *
+ * Only when the dock has nothing of its own on the way: a save waiting or in
+ * flight means the author is typing here, and their text is the newer one.
+ * Resolves true once the file is in; false when nothing was done.
+ */
+register('dock:reload-file', (type) => {
+  const win = dockState.lastWin;
+
+  if (typeof type !== 'string' || !type || !win || type !== dockState.lastType) {
+    return Promise.resolve(false);
+  }
+
+  if (dockState.saveTimer || dockState.saveInFlight) {
+    return Promise.resolve(false);
+  }
+
+  return loadTemplate(win, type, 'replace').then(() => true, () => false);
+});
+
 /** Open another template — the same push the partial links in the panes do. */
 register('dock:open-template', (type) => {
   if (typeof type !== 'string' || !type || !dockState.lastWin) {

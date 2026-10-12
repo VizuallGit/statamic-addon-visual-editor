@@ -16,17 +16,29 @@ register('./support/stub-imports.mjs', import.meta.url, {
   data: { target, keep: ['/lib/live-reload.js', '/cp/theme-panel/utility-paint.js'] },
 });
 
-const calls = { refresh: [], swap: [] };
+const calls = { refresh: [], swap: [], ask: [] };
 const fake = {
   header: true,
   feature: true,
   refreshResult: true,
   /** When set, a refresh holds until it resolves — a slow refresh. */
   gate: null,
+  /** The dock's open file handle, '' for none. */
+  dockType: '',
 };
 
 globalThis.__sveStub = (spec, name) => {
   if (name === 'lpHeader') return () => (fake.header ? {} : null);
+  if (name === 'ask') {
+    return (what, arg) => {
+      calls.ask.push([what, arg]);
+
+      if (what === 'dock:current-type') return fake.dockType;
+      if (what === 'dock:reload-file') return Promise.resolve(true);
+
+      return undefined;
+    };
+  }
   if (name === 'featureSaidOn') return () => fake.feature;
   if (name === 'pageDocuments') return () => [pageDoc('preview'), pageDoc('copy')];
   if (name === 'refreshTemplatesShown') {
@@ -131,6 +143,8 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 20));
 function reset() {
   calls.refresh.length = 0;
   calls.swap.length = 0;
+  calls.ask.length = 0;
+  fake.dockType = '';
   fake.header = true;
   fake.feature = true;
   fake.refreshResult = true;
@@ -301,6 +315,31 @@ test('the files behind a foreign change go to the Instant script before the rend
     'one event per file with contents; an own change hands nothing over'
   );
   assert.equal(calls.refresh.length, 1, 'and the render still follows');
+
+  fake.header = false;
+  ensureLpLiveReload(win);
+  await tick();
+});
+
+test('a changed file the dock has open is read into the dock again before the render', async () => {
+  reset();
+  fake.dockType = 'hero/style_2';
+
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>' }] },
+    { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>' }] },
+  ]);
+
+  ensureLpLiveReload(win);
+  await tick();
+
+  assert.deepEqual(
+    calls.ask.filter(([what]) => what === 'dock:reload-file'),
+    [['dock:reload-file', 'hero/style_2']],
+    'asked once, for the file the dock has open, not for another'
+  );
+  assert.equal(calls.refresh.length, 2, 'both changes still render');
 
   fake.header = false;
   ensureLpLiveReload(win);

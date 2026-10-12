@@ -30,11 +30,13 @@
  * not send at all: then there is no endpoint to ask, and nothing runs). One loop per window; it ends when the Live
  * Preview header is gone.
  *
- * Feature module: imports lp-reload.js (the refresh) and lib/; the stylesheet
+ * Feature module: imports lp-reload.js (the refresh), lib/ and the bus (the
+ * dock is asked to read a changed file it has open); the stylesheet
  * swap (`swapSiteCss`, the Theme panel's) is loaded when a build first lands,
  * so Live Preview opens with the same chunks as before. No kernel, no bus
  * registration.
  */
+import { ask } from './cp/bus.js';
 import { lpHeader } from './lib/live-preview.js';
 import { featureSaidOn } from './lib/config.js';
 import { pageDocuments } from './lib/preview-frame.js';
@@ -51,6 +53,8 @@ const HIDDEN_MS = 1000;
 const OFFLINE_MS = 3000;
 /** After a 401/403: signed out, or the setting switched off for this user. */
 const REFUSED_MS = 30000;
+/** The longest the render waits for the dock to read a changed file again. */
+const DOCK_RELOAD_MS = 1500;
 
 /** One loop per window. */
 const loops = new WeakMap();
@@ -131,6 +135,41 @@ function handOverFiles(win, changed) {
   }
 }
 
+/** The dock's handle for a template path: `partials/page_sections/hero/style_2.antlers.html` → `hero/style_2`. */
+function dockTypeOf(path) {
+  const m = /^resources\/views\/partials\/page_sections\/(.+)\.antlers\.html$/.exec(String(path || ''));
+
+  return m ? m[1] : '';
+}
+
+/**
+ * A changed file the dock has open is read into the dock again before the
+ * page is rendered: after a morph the Instant script paints the dock's text
+ * over the section, and with the old text that would undo the save. Waits
+ * for the dock, at most DOCK_RELOAD_MS, so the render comes after.
+ */
+async function reloadDockFile(win, changed) {
+  const open = String(ask('dock:current-type') || '');
+
+  if (!open) {
+    return;
+  }
+
+  for (const file of changed || []) {
+    if (dockTypeOf(file?.path) !== open) {
+      continue;
+    }
+
+    const reloaded = ask('dock:reload-file', open);
+
+    if (reloaded && typeof reloaded.then === 'function') {
+      await Promise.race([reloaded, sleep(win, DOCK_RELOAD_MS)]);
+    }
+
+    return;
+  }
+}
+
 async function run(win, loop) {
   let have = null;
 
@@ -170,6 +209,7 @@ async function run(win, loop) {
 
     if (step.refresh) {
       handOverFiles(win, step.changed);
+      await reloadDockFile(win, step.changed);
       void refresh(win, loop);
     }
 
