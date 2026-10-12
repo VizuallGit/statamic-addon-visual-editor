@@ -15,10 +15,8 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
  * holds the request until one differs or 25 seconds have passed
  * (LiveReload::await). An answer with nothing new is asked again at once,
  * never sooner than 100 ms after the last request began, so a server that
- * answers at once cannot turn it into a loop. The server looks every 100 ms:
- * a template saved in this browser's editor is seen within about 100 ms,
- * one saved from outside it (Cursor over SSH) within about 150–250 ms,
- * since the server looks a second time before calling a change foreign.
+ * answers at once cannot turn it into a loop. The server looks every 50 ms,
+ * so a saved template is seen within about 50–100 ms.
  * The reload after that is the browser's own page load. A CSS change still
  * waits for the server's build: the sources rest two seconds, Vite builds,
  * and the new manifest reloads the page.

@@ -74,16 +74,23 @@ final class LiveReload
 
     /**
      * Milliseconds between two looks while a poll is held. One look is a stat
-     * of every markup and source file (about 2 ms for a site of 300 files).
-     * Read through tick(), which the config can override.
+     * of every markup and source file (about 2 ms for a site of 300 files),
+     * so 50 ms is a few percent of one worker per held tab — and half the
+     * wait before a saved template is seen, which is most of the time from
+     * the save to the Instant paint. Read through tick(), which the config
+     * can override.
      */
-    public const TICK = 100;
+    public const TICK = 50;
 
     /**
-     * Milliseconds a change that does not look like the editor's waits for a
-     * second look before it is answered as a save from outside. See await().
+     * The files behind a markup signature, kept an hour so a change can be
+     * named: `changed()` compares the files behind the page's signature with
+     * the files behind the new one. See rememberFiles().
      */
-    protected const GRACE = 150;
+    protected const ROWS = 'sve-live-reload:rows:';
+
+    /** Bytes: a changed file bigger than this is named without its contents. */
+    protected const MAX_FILE = 65536;
 
     /**
      * Seconds a write under way counts for its session. The dock's save
@@ -141,6 +148,7 @@ final class LiveReload
         $attempt = is_array($attempt) ? $attempt : null;
 
         static::flushWhenChanged($markup['sig']);
+        static::rememberFiles($markup);
 
         $building = static::building();
 
@@ -163,14 +171,12 @@ final class LiveReload
      * differs, or a build should start (the controller starts it after this
      * answer, so it must not wait out the hold) — or when the hold is over.
      *
-     * A markup change that is not the editor's own gets a second look a GRACE
-     * later before it is answered. The "writing" stamp is one slot for every
-     * session and any finished write ends it, so when two editor requests
-     * overlap — two editors, or the dock's save beside a panel's — a poll can
-     * see a file before the request that wrote it has stamped it as its own.
-     * The second look gives that request a moment to finish. It answers
-     * either way, with `own` as it stands then; nothing is adopted, so the
-     * page learns the new signature from this answer.
+     * A markup change is answered the tick it is seen — no second look. The
+     * answer names the files behind it (`changed`, see changed()), so Live
+     * Preview can paint a saved template before the page is rendered again:
+     * the whole point is the time from the save to the paint, and every
+     * extra look is on that path. The editor's own saves are told apart by
+     * the "writing" stamp set before the route runs (see own()).
      *
      * Holds no lock: Laravel's session drivers take none, and the controller
      * reads the session again after the hold (see LiveReloadController).
@@ -178,28 +184,25 @@ final class LiveReload
      * @param  array{markup: string, build: string}  $have  the signatures the page holds
      * @param  float|null  $hold  seconds; null reads hold()
      * @param  int|null  $tickMs  milliseconds between looks; null reads tick()
-     * @return array{markup: string, build: string, building: bool, error: array{reason: string, output: ?string}|null, own: bool, css: ?string, stale: bool, sources: string}
+     * @return array{markup: string, build: string, building: bool, error: array{reason: string, output: ?string}|null, own: bool, css: ?string, changed?: list<array{path: string, content: ?string, removed?: bool}>|null, stale: bool, sources: string}
      */
     public static function await(array $have, ?string $session, ?float $hold = null, ?int $tickMs = null): array
     {
         $hold ??= static::hold();
         $tickMs ??= static::tick();
         $until = microtime(true) + $hold;
-        $graced = false;
 
         while (true) {
             $status = static::status($session);
             $markupChanged = $status['markup'] !== $have['markup'];
 
-            if ($markupChanged && ! $status['own'] && ! $graced) {
-                $graced = true;
-                usleep(self::GRACE * 1000);
+            if ($markupChanged) {
+                $status['changed'] = static::changed($have['markup'], $status['markup']);
 
-                continue;
+                return $status;
             }
 
-            if ($markupChanged
-                || $status['build'] !== $have['build']
+            if ($status['build'] !== $have['build']
                 || ($status['stale'] && ! $status['building'])) {
                 return $status;
             }
@@ -481,11 +484,12 @@ final class LiveReload
      * mtime. Dotfiles (editor swap files, .DS_Store) are left out.
      *
      * @param  list<string>  $dirs
-     * @return array{sig: string, newest: int}
+     * @return array{sig: string, newest: int, files: array<string, string>}
      */
     protected static function scan(array $dirs): array
     {
         $rows = [];
+        $stamps = [];
         $newest = 0;
 
         foreach ($dirs as $dir) {
@@ -505,12 +509,68 @@ final class LiveReload
                 $mtime = (int) $file->getMTime();
                 $newest = max($newest, $mtime);
                 $rows[] = $file->getPathname().':'.$mtime.':'.$file->getSize();
+                $stamps[$file->getPathname()] = $mtime.':'.$file->getSize();
             }
         }
 
         sort($rows);
 
-        return ['sig' => md5(implode("\n", $rows)), 'newest' => $newest];
+        return ['sig' => md5(implode("\n", $rows)), 'newest' => $newest, 'files' => $stamps];
+    }
+
+    /**
+     * The files behind a markup signature, kept for changed(). Written once
+     * per signature: `add` leaves a key that is there alone, so a held poll
+     * costs one cache read per tick, not a write.
+     *
+     * @param  array{sig: string, files: array<string, string>}  $markup
+     */
+    protected static function rememberFiles(array $markup): void
+    {
+        Cache::add(self::ROWS.$markup['sig'], $markup['files'], 3600);
+    }
+
+    /**
+     * What changed between two markup signatures: every file whose mtime or
+     * size differs or that is new, with its contents when it is small enough
+     * to send (MAX_FILE), and every file that is gone (`removed`, no
+     * contents). Paths are relative to the site root.
+     *
+     * Null when the files behind `$from` are not remembered — a signature
+     * from before the cache was cleared, or older than an hour — and the
+     * page has to render again without knowing what changed.
+     *
+     * @return list<array{path: string, content: ?string, removed?: bool}>|null
+     */
+    public static function changed(string $from, string $to): ?array
+    {
+        $before = Cache::get(self::ROWS.$from);
+        $after = Cache::get(self::ROWS.$to);
+
+        if (! is_array($before) || ! is_array($after)) {
+            return null;
+        }
+
+        $base = rtrim(base_path(), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+        $relative = fn (string $path) => str_replace('\\', '/', str_starts_with($path, $base) ? substr($path, strlen($base)) : $path);
+        $out = [];
+
+        foreach ($after as $path => $stamp) {
+            if (($before[$path] ?? null) === $stamp) {
+                continue;
+            }
+
+            $size = (int) explode(':', $stamp)[1];
+            $content = $size <= self::MAX_FILE ? @file_get_contents($path) : false;
+
+            $out[] = ['path' => $relative($path), 'content' => $content === false ? null : $content];
+        }
+
+        foreach (array_diff_key($before, $after) as $path => $stamp) {
+            $out[] = ['path' => $relative($path), 'content' => null, 'removed' => true];
+        }
+
+        return $out;
     }
 
     /**

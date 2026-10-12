@@ -18,7 +18,7 @@ test('the first poll asks without signatures; later polls carry what we hold', (
 test('the first answer is adopted and nothing is done about it', () => {
   const step = nextStep(null, { markup: 'm1', build: 'b1', own: false, css: '/build/assets/site-a.css' });
 
-  assert.deepEqual(step, { have: { markup: 'm1', build: 'b1' }, refresh: false, css: null });
+  assert.deepEqual(step, { have: { markup: 'm1', build: 'b1' }, refresh: false, css: null, changed: null });
 });
 
 test('an unchanged answer asks for nothing', () => {
@@ -28,6 +28,7 @@ test('an unchanged answer asks for nothing', () => {
     have,
     refresh: false,
     css: null,
+    changed: null,
   });
 });
 
@@ -56,7 +57,7 @@ test('build changed → the built stylesheet is swapped, nothing re-rendered', (
     { markup: 'm1', build: 'b2', own: false, css: '/build/assets/site-b.css' }
   );
 
-  assert.deepEqual(step, { have: { markup: 'm1', build: 'b2' }, refresh: false, css: '/build/assets/site-b.css' });
+  assert.deepEqual(step, { have: { markup: 'm1', build: 'b2' }, refresh: false, css: '/build/assets/site-b.css', changed: null });
 });
 
 test('build changed but the server names no stylesheet → adopted, nothing swapped', () => {
@@ -82,4 +83,14 @@ test('a change is acted on once: the next unchanged answer is quiet', () => {
 
   assert.equal(first.refresh, true);
   assert.equal(second.refresh, false);
+});
+
+test('the files behind a foreign change come along; an own change or a server that cannot say gives none', () => {
+  const have = { markup: 'm1', build: 'b1' };
+  const files = [{ path: 'resources/views/a.antlers.html', content: '<p>a</p>' }];
+
+  assert.deepEqual(nextStep(have, { markup: 'm2', build: 'b1', own: false, changed: files }).changed, files);
+  assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: true, changed: files }).changed, null);
+  assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: false, changed: null }).changed, null);
+  assert.equal(nextStep(have, { markup: 'm2', build: 'b1', own: false }).changed, null, 'an older server');
 });

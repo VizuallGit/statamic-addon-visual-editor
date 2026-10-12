@@ -8,7 +8,10 @@
  * public page's live-reload button uses (`/!/sve/live-reload`, long-polled:
  * the server holds the request until something differs) is asked with the
  * signatures we hold. When the markup changed and the editor did not write
- * it, the page is rendered again from the values as they stand — one render,
+ * it, the saved templates the server names go to the Instant paint script
+ * first (`sve:file-saved`: a section's partial is painted into its sections
+ * in the same frame, as the dock's file is), and then the page is rendered
+ * again from the values as they stand — one render,
  * `refreshTemplatesShown` (the reload button spins meanwhile), never a reload
  * of the document, which would eject Live Preview, and not Shift+click's
  * whole refresh, whose six requests before the render are for fieldsets and
@@ -113,6 +116,21 @@ async function refresh(win, loop) {
   }
 }
 
+/**
+ * The saved templates, to the Instant paint script (dock-instant-preview.js)
+ * as `sve:file-saved` events on the Control Panel document — one per file
+ * the server sent with contents. A page section's partial is painted into
+ * its sections in the same frame; the render that follows is the truth.
+ * The script decides what it can paint; this only hands the files over.
+ */
+function handOverFiles(win, changed) {
+  for (const file of changed || []) {
+    if (file && typeof file.path === 'string' && typeof file.content === 'string') {
+      win.document.dispatchEvent(new win.CustomEvent('sve:file-saved', { detail: { path: file.path, html: file.content } }));
+    }
+  }
+}
+
 async function run(win, loop) {
   let have = null;
 
@@ -151,6 +169,7 @@ async function run(win, loop) {
     }
 
     if (step.refresh) {
+      handOverFiles(win, step.changed);
       void refresh(win, loop);
     }
 

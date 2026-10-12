@@ -501,24 +501,27 @@ class LiveReloadTest extends TestCase
         $this->assertSame($page['build'], $status['build']);
     }
 
-    public function test_a_save_from_outside_is_answered_a_grace_after_it_lands(): void
+    public function test_a_save_from_outside_is_answered_the_tick_it_lands_and_named(): void
     {
         $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
         $this->built();
+        LiveReload::status('s1'); // remembers the files behind the page's signature
         $page = LiveReload::page();
         $stamp = $this->writeLater(0.1, 'views/hero.antlers.html', '<h1>From Cursor</h1>', time() - 30);
 
         $status = LiveReload::await($page, 's1', 2.0, 20);
-        $answered = microtime(true);
-        $lag = $answered - $this->writtenAt($stamp);
+        $lag = microtime(true) - $this->writtenAt($stamp);
 
         $this->assertNotSame($page['markup'], $status['markup']);
         $this->assertFalse($status['own']);
-        $this->assertGreaterThanOrEqual(0.14, $lag, 'looked twice before calling it foreign');
-        $this->assertLessThan(0.5, $lag, 'well before the hold is over');
+        $this->assertLessThan(0.12, $lag, 'within a tick or so: no second look');
+        $this->assertSame(
+            [['path' => 'views/hero.antlers.html', 'content' => '<h1>From Cursor</h1>']],
+            array_map(fn ($f) => ['path' => basename(dirname($f['path'])).'/'.basename($f['path']), 'content' => $f['content']], $status['changed'])
+        );
     }
 
-    public function test_the_editors_own_save_is_answered_without_the_grace(): void
+    public function test_the_editors_own_save_is_answered_the_same_tick(): void
     {
         $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
         $this->built();
@@ -534,43 +537,40 @@ class LiveReloadTest extends TestCase
         $this->assertLessThan(0.12, $lag, 'within a tick or so');
     }
 
-    /**
-     * The race the grace is for: the file is on disk, the editor's request
-     * stamps it a moment later. Needs a cache both processes see — the file
-     * store, where the other process writes the stamp as RecordEditorWrite
-     * would at the end of its request.
-     */
-    public function test_a_change_stamped_as_the_editors_during_the_grace_is_answered_as_its_own(): void
+    public function test_changed_is_unknown_for_a_signature_nobody_remembers(): void
     {
-        foreach ([[0.04, true], [0.4, false]] as [$stampAfter, $own]) {
-            $this->forgetStamps();
-            $cache = $this->root.'/cache-'.uniqid();
-            config(['cache.default' => 'file', 'cache.stores.file.path' => $cache]);
-            Cache::forgetDriver('file');
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        $this->built();
+        LiveReload::status('s1');
 
-            $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
-            $this->built();
-            $page = LiveReload::page();
-            $contents = '<h1>Saved by the editor, stamped late '.uniqid().'</h1>';
-            $mtime = time() - 30;
-            $after = $this->markupWith('views/hero.antlers.html', $contents, $mtime);
-            $this->assertSame($page['markup'], LiveReload::page()['markup']);
+        $this->assertNull(LiveReload::changed('a signature from before the cache was cleared', LiveReload::page()['markup']));
+    }
 
-            $this->writeLater(0.1, 'views/hero.antlers.html', $contents, $mtime, sprintf(
-                'usleep(%d); (new Illuminate\Cache\FileStore(new Illuminate\Filesystem\Filesystem, %s))->forever("sve-live-reload:own", ["sig" => %s, "session" => "s1", "at" => microtime(true)]);',
-                (int) ($stampAfter * 1_000_000),
-                var_export($cache, true),
-                var_export($after, true)
-            ));
+    public function test_changed_names_new_and_removed_files_and_sends_no_big_contents(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        $this->write('views/gone.antlers.html', '<p>bye</p>', 60);
+        $this->built();
+        $from = LiveReload::status('s1')['markup'];
 
-            $status = LiveReload::await($page, 's1', 2.0, 20);
+        unlink($this->root.'/views/gone.antlers.html');
+        $this->write('views/new.antlers.html', '<p>new</p>', 30);
+        $this->write('views/big.antlers.html', str_repeat('x', 70000), 30);
+        $to = LiveReload::status('s1')['markup'];
 
-            $this->assertSame($after, $status['markup']);
-            $this->assertSame($own, $status['own'], $own ? 'stamped within the grace' : 'stamped after it: answered as foreign');
+        $changed = LiveReload::changed($from, $to);
+        $byName = [];
 
-            // Let the late stamp land before the next round or the teardown.
-            usleep(500_000);
+        foreach ($changed as $file) {
+            $byName[basename($file['path'])] = $file;
         }
+
+        $this->assertSame(['big.antlers.html', 'gone.antlers.html', 'new.antlers.html'], array_keys($byName) === [] ? [] : (function () use ($byName) { $k = array_keys($byName); sort($k); return $k; })());
+        $this->assertSame('<p>new</p>', $byName['new.antlers.html']['content']);
+        $this->assertNull($byName['big.antlers.html']['content'], 'too big to send');
+        $this->assertTrue($byName['gone.antlers.html']['removed']);
+        $this->assertNull($byName['gone.antlers.html']['content']);
+        $this->assertStringEndsWith('views/new.antlers.html', $byName['new.antlers.html']['path']);
     }
 
     public function test_a_held_poll_answers_at_once_for_a_new_build(): void

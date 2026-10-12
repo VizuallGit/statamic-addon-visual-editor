@@ -84,8 +84,11 @@ function fakeWindow(answers) {
   const delays = [];
   const urls = [];
   let pending = [...answers];
+  const events = [];
   const win = {
-    document: { hidden: false },
+    document: { hidden: false, dispatchEvent: (e) => events.push(e) },
+    events,
+    CustomEvent: globalThis.CustomEvent,
     AbortController: globalThis.AbortController,
     delays,
     urls,
@@ -266,6 +269,39 @@ test("the button's own refresh running → ours waits and runs after", async () 
 
   fake.refreshResult = true;
   await tick();
+  fake.header = false;
+  ensureLpLiveReload(win);
+  await tick();
+});
+
+test('the files behind a foreign change go to the Instant script before the render', async () => {
+  reset();
+
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    {
+      markup: 'm2',
+      build: 'b1',
+      own: false,
+      changed: [
+        { path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>' },
+        { path: 'resources/views/partials/page_sections/big.antlers.html', content: null },
+        { path: 'resources/views/gone.antlers.html', content: null, removed: true },
+      ],
+    },
+    { markup: 'm3', build: 'b1', own: true, changed: [{ path: 'resources/views/x.antlers.html', content: '<p>own</p>' }] },
+  ]);
+
+  ensureLpLiveReload(win);
+  await tick();
+
+  assert.deepEqual(
+    win.events.map((e) => [e.type, e.detail.path, e.detail.html]),
+    [['sve:file-saved', 'resources/views/partials/page_sections/hero/style_2.antlers.html', '<section>new</section>']],
+    'one event per file with contents; an own change hands nothing over'
+  );
+  assert.equal(calls.refresh.length, 1, 'and the render still follows');
+
   fake.header = false;
   ensureLpLiveReload(win);
   await tick();

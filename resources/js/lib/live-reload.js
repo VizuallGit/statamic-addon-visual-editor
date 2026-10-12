@@ -32,6 +32,10 @@ export function statusUrl(base, have) {
  *   the page again from the values as they stand.
  * - `css`: the build changed and the server names the built stylesheet —
  *   swap it into the page documents. Null otherwise.
+ * - `changed`: with `refresh`, the files the server names behind the change
+ *   (path relative to the site root, contents when small enough) — what can
+ *   be painted before the page is rendered again. Null when the server
+ *   could not say.
  *
  * Before the first answer there is nothing to compare against: the page was
  * rendered with whatever was on disk when Live Preview opened, and that is
@@ -43,16 +47,19 @@ export function nextStep(have, answer) {
   const next = { markup, build };
 
   if (!have) {
-    return { have: next, refresh: false, css: null };
+    return { have: next, refresh: false, css: null, changed: null };
   }
 
   const markupChanged = markup !== have.markup;
   const buildChanged = build !== have.build;
   const css = buildChanged && typeof answer.css === 'string' && answer.css ? answer.css : null;
 
+  const refresh = markupChanged && answer.own !== true;
+
   return {
     have: next,
-    refresh: markupChanged && answer.own !== true,
+    refresh,
     css,
+    changed: refresh && Array.isArray(answer.changed) ? answer.changed : null,
   };
 }

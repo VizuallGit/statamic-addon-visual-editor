@@ -173,8 +173,9 @@ class LiveReloadControllerTest extends TestCase
         $start = microtime(true);
         $response = $this->poll(['markup' => 'what the page was rendered with', 'build' => $page['build']])->assertOk();
 
-        // A foreign markup change gets its one grace (150 ms), not the hold.
+        // A foreign markup change is answered the tick it is seen, not held.
         $this->assertLessThan(1.0, microtime(true) - $start);
+        $this->assertArrayHasKey('changed', $response->json());
         $this->assertSame($page['markup'], $response->json('markup'));
         $this->assertSame($page['build'], $response->json('build'));
     }

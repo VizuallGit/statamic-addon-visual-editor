@@ -301,7 +301,7 @@ return [
     | The poll is held open until something changes. Two optional keys tune
     | it and are left out on purpose (LiveReload::HOLD / ::TICK are the
     | defaults): `hold` — seconds one request waits, 25.0; `tick_ms` — how
-    | often it looks while it waits, 100 (never under 10). Each held request
+    | often it looks while it waits, 50 (never under 10). Each held request
     | keeps one PHP worker busy for the hold.
     |
     */
