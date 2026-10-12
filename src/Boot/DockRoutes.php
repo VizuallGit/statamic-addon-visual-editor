@@ -11,12 +11,16 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalSectionStashControll
 use MarioHamann\StatamicVisualEditor\Http\Controllers\GlobalsPreviewController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTemplateController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
 use Statamic\Statamic;
 
 /**
  * Routes that carry a publish form's values or a template's text and must not
  * be trimmed on the way in — see the comment inside. Split out of Boot\Routes
  * in WP7c, verbatim.
+ *
+ * Every write here is stamped as the editor's own (RecordEditorWrite), so live
+ * reload in Live Preview reacts only to saves made outside the editor.
  */
 final class DockRoutes
 {
@@ -39,7 +43,7 @@ final class DockRoutes
         // Statamic\Http\Middleware\CP\TrimStrings). These routes are the Control
         // Panel by another name: nothing on them is user input to be tidied up,
         // it is a form's values on their way to being rendered.
-        Route::middleware('web')
+        Route::middleware(['web', RecordEditorWrite::class])
             ->withoutMiddleware([TrimStrings::class, ConvertEmptyStringsToNull::class])
             ->group(function () {
                 Route::post('/!/sve/globals-preview', [GlobalsPreviewController::class, 'store'])

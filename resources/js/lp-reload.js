@@ -223,6 +223,46 @@ function showDone(win, pill) {
   }, DONE_MS);
 }
 
+/**
+ * `refreshInPlace` with the button saying so: the icon spins while it runs
+ * and shows the green check after. Shift+click runs it, and so does live
+ * reload when a file changed outside the editor (lp-live-reload.js) — the
+ * author sees the same sign either way.
+ *
+ * One at a time. A second call while one runs does nothing and resolves
+ * false, so a caller that must not miss a change waits and calls again.
+ */
+export function refreshInPlaceShown(win) {
+  if (running) {
+    return Promise.resolve(false);
+  }
+
+  const pill = win.document.getElementById(LP_RELOAD_ID);
+
+  running = true;
+  win.clearTimeout(doneTimer);
+  pill?.removeAttribute('data-done');
+  pill?.setAttribute('data-busy', '');
+
+  return refreshInPlace(win)
+    .then(() => {
+      if (pill) {
+        showDone(win, pill);
+      }
+
+      return true;
+    })
+    .catch(() => {
+      win.Statamic?.$toast?.error(t(win, 'reload_lp_failed'));
+
+      return true;
+    })
+    .finally(() => {
+      running = false;
+      pill?.removeAttribute('data-busy');
+    });
+}
+
 function onReloadClick(win, pill, event) {
   event.preventDefault();
   event.stopPropagation();
@@ -231,20 +271,20 @@ function onReloadClick(win, pill, event) {
     return;
   }
 
-  running = true;
-  win.clearTimeout(doneTimer);
-  pill.removeAttribute('data-done');
-  pill.setAttribute('data-busy', '');
-
-  const idle = () => {
-    running = false;
-    pill.removeAttribute('data-busy');
-  };
-
   // The whole page. Spins until the page goes — nothing clears it, the
   // document it is drawn in is the one being replaced. Only a Cancel on the
   // unsaved-work question leaves it standing.
   if (!event.shiftKey) {
+    running = true;
+    win.clearTimeout(doneTimer);
+    pill.removeAttribute('data-done');
+    pill.setAttribute('data-busy', '');
+
+    const idle = () => {
+      running = false;
+      pill.removeAttribute('data-busy');
+    };
+
     try {
       reloadEverything(win, idle);
     } catch {
@@ -255,10 +295,7 @@ function onReloadClick(win, pill, event) {
     return;
   }
 
-  void refreshInPlace(win)
-    .then(() => showDone(win, pill))
-    .catch(() => win.Statamic?.$toast?.error(t(win, 'reload_lp_failed')))
-    .finally(idle);
+  void refreshInPlaceShown(win);
 }
 
 export function ensureLpReloadButton(win) {

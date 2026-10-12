@@ -9,9 +9,10 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
 /**
- * Live reload for the public site. A developer edits the site's files on the
- * server — VS Code over SSH, Site Files, the dock — and the page they have
- * open reloads itself, the way `npm run dev` does on a laptop.
+ * Live reload for the public site and for Live Preview. A developer edits the
+ * site's files on the server — VS Code or Cursor over SSH, Site Files, the
+ * dock — and the page they have open follows, the way `npm run dev` does on a
+ * laptop.
  *
  * Everything is read from the files; nothing has to tell this class about a
  * save, so every way of writing a file is covered by the same check.
@@ -23,6 +24,19 @@ use RecursiveIteratorIterator;
  *   only through the build, so it changes when the build wrote new files.
  * The page carries both from the moment it was rendered and reloads when
  * either differs.
+ *
+ * The poll is held open (`await`). The page sends the signatures it holds;
+ * the request looks again every TICK ms and answers the moment one differs,
+ * or after HOLD seconds with nothing to say. A save is seen within about a
+ * tick, not at the next poll a second later, and an idle tab costs one
+ * request per hold instead of one a second.
+ *
+ * One thing is told rather than read: which saves were the editor's own.
+ * Live Preview already shows what the dock or Site Files just wrote; what it
+ * has to react to is a save made outside the editor. `RecordEditorWrite`
+ * stamps every write through the editor's own routes (`writing`, `wrote`),
+ * and the answer says whether the markup as it stands is one of them (`own`).
+ * The public page's button does not ask: it reloads on any change.
  *
  * The build is the server's own (`SiteBuild::run`). It starts when the files
  * Vite reads — views (Tailwind scans them), css, js — changed since the last
@@ -37,6 +51,47 @@ final class LiveReload
 
     /** The markup signature the static cache was last flushed for. */
     protected const FLUSHED = 'sve-live-reload:flushed';
+
+    /**
+     * An editor write under way: whose session, and since when. Stamped by
+     * RecordEditorWrite before the route runs; one slot for everybody.
+     */
+    protected const WRITING = 'sve-live-reload:writing';
+
+    /** The editor's last finished write: whose session, when, and the markup it left. */
+    protected const OWN = 'sve-live-reload:own';
+
+    /**
+     * Seconds a poll that names its signatures is held open. Long enough that
+     * an idle tab asks rarely; short enough to stay far below PHP's execution
+     * limit, and for a build that should start to wait no longer than this.
+     * Read through hold(), which the config can override.
+     */
+    public const HOLD = 3.0;
+
+    /**
+     * Milliseconds between two looks while a poll is held. One look is a stat
+     * of every markup and source file (about 2 ms for a site of 300 files).
+     * Read through tick(), which the config can override.
+     */
+    public const TICK = 100;
+
+    /**
+     * Milliseconds a change that does not look like the editor's waits for a
+     * second look before it is answered as a save from outside. See await().
+     */
+    protected const GRACE = 150;
+
+    /**
+     * Seconds a write under way counts for its session. The dock's save
+     * compiles Tailwind after the template is on disk, which can take a
+     * second; a worker killed mid-request must not make every later save
+     * look like the editor's for good.
+     */
+    protected const WRITE_WINDOW = 15;
+
+    /** Seconds after a finished write in which any change still counts as it. */
+    protected const SETTLE = 0.5;
 
     /**
      * Seconds the sources must rest before a build. The dock saves on every
@@ -65,12 +120,15 @@ final class LiveReload
     }
 
     /**
-     * What the poll answers. `stale` and `sources` are for the controller,
-     * which starts the build after the response is sent.
+     * What the poll answers, at once. `stale` and `sources` are for the
+     * controller, which starts the build after the response is sent. `own`
+     * is for Live Preview (see own()); `css` is the built stylesheet's href,
+     * so Live Preview can swap it in when `build` changes instead of
+     * reloading a page it must not leave.
      *
-     * @return array{markup: string, build: string, building: bool, error: array{reason: string, output: ?string}|null, stale: bool, sources: string}
+     * @return array{markup: string, build: string, building: bool, error: array{reason: string, output: ?string}|null, own: bool, css: ?string, stale: bool, sources: string}
      */
-    public static function status(): array
+    public static function status(?string $session = null): array
     {
         clearstatcache();
 
@@ -89,9 +147,157 @@ final class LiveReload
             'building' => $building,
             // While a build runs, its attempt is recorded as unfinished.
             'error' => $building ? null : static::error($sources['sig'], $attempt),
+            'own' => static::own($markup['sig'], $session),
+            'css' => SiteBuild::entryCss(),
             'stale' => static::stale($sources, $attempt),
             'sources' => $sources['sig'],
         ];
+    }
+
+    /**
+     * The poll, held open: `status()`, answered as soon as there is something
+     * to say about the signatures the page holds — the markup or the build
+     * differs, or a build should start (the controller starts it after this
+     * answer, so it must not wait out the hold) — or when the hold is over.
+     *
+     * A markup change that is not the editor's own gets a second look a GRACE
+     * later before it is answered. The "writing" stamp is one slot for every
+     * session and any finished write ends it, so when two editor requests
+     * overlap — two editors, or the dock's save beside a panel's — a poll can
+     * see a file before the request that wrote it has stamped it as its own.
+     * The second look gives that request a moment to finish. It answers
+     * either way, with `own` as it stands then; nothing is adopted, so the
+     * page learns the new signature from this answer.
+     *
+     * Holds no lock: Laravel's session drivers take none, and the controller
+     * reads the session again after the hold (see LiveReloadController).
+     *
+     * @param  array{markup: string, build: string}  $have  the signatures the page holds
+     * @param  float|null  $hold  seconds; null reads hold()
+     * @param  int|null  $tickMs  milliseconds between looks; null reads tick()
+     * @return array{markup: string, build: string, building: bool, error: array{reason: string, output: ?string}|null, own: bool, css: ?string, stale: bool, sources: string}
+     */
+    public static function await(array $have, ?string $session, ?float $hold = null, ?int $tickMs = null): array
+    {
+        $hold ??= static::hold();
+        $tickMs ??= static::tick();
+        $until = microtime(true) + $hold;
+        $graced = false;
+
+        while (true) {
+            $status = static::status($session);
+            $markupChanged = $status['markup'] !== $have['markup'];
+
+            if ($markupChanged && ! $status['own'] && ! $graced) {
+                $graced = true;
+                usleep(self::GRACE * 1000);
+
+                continue;
+            }
+
+            if ($markupChanged
+                || $status['build'] !== $have['build']
+                || ($status['stale'] && ! $status['building'])) {
+                return $status;
+            }
+
+            $left = $until - microtime(true);
+
+            if ($left <= 0) {
+                return $status;
+            }
+
+            usleep((int) round(min($tickMs / 1000, $left) * 1_000_000));
+        }
+    }
+
+    /**
+     * An editor write is starting (RecordEditorWrite, before the route runs).
+     * Sixty seconds in the cache is only a ceiling; own() reads it for
+     * WRITE_WINDOW seconds at most.
+     */
+    public static function writing(?string $session): void
+    {
+        Cache::put(self::WRITING, ['session' => $session, 'at' => microtime(true)], 60);
+    }
+
+    /**
+     * An editor write has finished well (RecordEditorWrite, after a 2xx): the
+     * markup as it stands now is this session's own.
+     */
+    public static function wrote(?string $session): void
+    {
+        clearstatcache();
+
+        Cache::forever(self::OWN, [
+            'sig' => static::scan(static::dirs('markup'))['sig'],
+            'session' => $session,
+            'at' => microtime(true),
+        ]);
+    }
+
+    /**
+     * An editor write has ended without success (RecordEditorWrite, after
+     * anything but a 2xx). Nothing is recorded as the editor's, and the
+     * session's "writing" stamp goes: left standing, it would make every save
+     * from outside in the next WRITE_WINDOW seconds look like the editor's.
+     * A refused save that did change a file then reads as a change from
+     * outside, and Live Preview renders it — late is allowed, wrong is not.
+     */
+    public static function writeFailed(?string $session): void
+    {
+        $writing = Cache::get(self::WRITING);
+
+        if (is_array($writing) && ($writing['session'] ?? null) === $session) {
+            Cache::forget(self::WRITING);
+        }
+    }
+
+    /**
+     * Is the markup as it stands this session's own editor write? A request
+     * without a session is never matched to an editor. Any one of three:
+     *
+     * (a) The markup is exactly what this session's last finished write left
+     *     behind. The usual case: the dock's autosave wrote the template, the
+     *     request ended, the poll sees the file as the stamp recorded it.
+     * (b) A write of this session is under way: stamped at its start, not yet
+     *     at its end. The dock's save writes the template and then compiles
+     *     Tailwind in the same request, which can take a second; the poll sees
+     *     the new file in between. Bounded by WRITE_WINDOW, and ended by any
+     *     finished write stamped after it — from then on (a) answers.
+     * (c) This session's write finished a moment ago (SETTLE). Work the save
+     *     set off after its response — an `afterResponse` job, a terminating
+     *     callback — can touch a file once the stamp was taken.
+     *
+     * What this cannot tell apart: a save from outside that lands while the
+     * same session's editor request is running counts as the editor's. The
+     * window is that request's length.
+     */
+    public static function own(string $markup, ?string $session): bool
+    {
+        if ($session === null) {
+            return false;
+        }
+
+        $own = Cache::get(self::OWN);
+        $own = is_array($own) ? $own : null;
+        $writing = Cache::get(self::WRITING);
+        $writing = is_array($writing) ? $writing : null;
+        $now = microtime(true);
+        $mine = $own !== null && ($own['session'] ?? null) === $session;
+
+        if ($mine && ($own['sig'] ?? null) === $markup) {
+            return true;
+        }
+
+        if ($writing !== null
+            && ($writing['session'] ?? null) === $session
+            && $now - (float) ($writing['at'] ?? 0) < self::WRITE_WINDOW
+            && ($own === null || (float) ($own['at'] ?? 0) < (float) $writing['at'])) {
+            return true;
+        }
+
+        return $mine && $now - (float) ($own['at'] ?? 0) < self::SETTLE;
     }
 
     /**
@@ -323,6 +529,21 @@ final class LiveReload
             is_array($dirs) ? array_map('strval', $dirs) : $defaults[$kind],
             fn ($dir) => $dir !== ''
         ));
+    }
+
+    /**
+     * HOLD, unless `live_reload.hold` (seconds) says otherwise — the tests
+     * hold for a fraction of a second.
+     */
+    protected static function hold(): float
+    {
+        return max(0.0, (float) config('statamic-visual-editor.live_reload.hold', self::HOLD));
+    }
+
+    /** TICK, unless `live_reload.tick_ms` says otherwise; never under 10 ms. */
+    protected static function tick(): int
+    {
+        return max(10, (int) config('statamic-visual-editor.live_reload.tick_ms', self::TICK));
     }
 
     protected static function buildSignature(): string

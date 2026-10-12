@@ -15,7 +15,7 @@ import NamePrompt from './cp/surfaces/NamePrompt.vue';
 import ChoiceDialog from './cp/surfaces/ChoiceDialog.vue';
 import { siteCssUi as ui } from './cp/site-css/store.js';
 import { csrfToken } from './lib/csrf.js';
-import { previewCopies, previewDocument } from './lib/preview-frame.js';
+import { pageDocuments, previewDocument } from './lib/preview-frame.js';
 import { swapSiteCss } from './cp/theme-panel/utility-paint.js';
 import { injectStyle } from './lib/style.js';
 import { loadCodeMirror, vscTheme } from './lib/codemirror.js';
@@ -224,11 +224,6 @@ function showBuild(win, build) {
   ui.status = t(win, 'site_css_saved_not_built', {
     reason: t(win, `theme_utilities_reason_${build.reason || 'error'}`),
   });
-}
-
-/** The documents that show the page: the preview, and the breakpoint overview's frames. */
-function pageDocuments(win) {
-  return [previewDocument(win), ...previewCopies(win).map((w) => w.document)].filter(Boolean);
 }
 
 function paintLabels(win) {

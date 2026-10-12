@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\LiveReload;
+use MarioHamann\StatamicVisualEditor\SiteBuild;
 
 class LiveReloadTest extends TestCase
 {
@@ -26,17 +27,95 @@ class LiveReloadTest extends TestCase
             'statamic-visual-editor.live_reload.sources' => [$this->root.'/views', $this->root.'/css'],
         ]);
 
-        Cache::forget('sve-live-reload:attempt');
-        Cache::forget('sve-live-reload:flushed');
+        $this->forgetStamps();
     }
 
     protected function tearDown(): void
     {
         File::deleteDirectory($this->root);
-        Cache::forget('sve-live-reload:attempt');
-        Cache::forget('sve-live-reload:flushed');
+        $this->forgetStamps();
 
         parent::tearDown();
+    }
+
+    private function forgetStamps(): void
+    {
+        foreach (['attempt', 'flushed', 'writing', 'own'] as $key) {
+            Cache::forget('sve-live-reload:'.$key);
+        }
+    }
+
+    /** A build newer than every source: nothing is stale, a held poll is not answered for a build. */
+    private function built(): void
+    {
+        $this->write('public/build/manifest.json', '{}', 1);
+    }
+
+    /** As if the stamp under `$key` was taken `$ago` seconds ago. */
+    private function backdate(string $key, float $ago): void
+    {
+        $stamp = Cache::get('sve-live-reload:'.$key);
+        $stamp['at'] = microtime(true) - $ago;
+        Cache::forever('sve-live-reload:'.$key, $stamp);
+    }
+
+    /**
+     * Writes a file from another process after `$delay` seconds — the way a
+     * save from Cursor lands while a poll is held — by moving a finished file
+     * into place, so no half-written state is ever seen. Returns the path of
+     * a file that will hold the write's microtime.
+     *
+     * `$then` is PHP run in that process right after the move, with the
+     * addon's autoloader loaded.
+     */
+    private function writeLater(float $delay, string $relative, string $contents, int $mtime, string $then = ''): string
+    {
+        $tmp = $this->root.'/tmp-'.uniqid();
+        $stamp = $this->root.'/written-'.uniqid();
+        $code = sprintf(
+            'require %s; usleep(%d); file_put_contents(%s, %s); touch(%s, %d); rename(%s, %s); file_put_contents(%s, (string) microtime(true)); %s',
+            var_export(dirname(__DIR__).'/vendor/autoload.php', true),
+            (int) ($delay * 1_000_000),
+            var_export($tmp, true), var_export($contents, true),
+            var_export($tmp, true), $mtime,
+            var_export($tmp, true), var_export($this->root.'/'.$relative, true),
+            var_export($stamp, true),
+            $then
+        );
+
+        exec(sprintf('%s -r %s > /dev/null 2>&1 &', escapeshellarg(PHP_BINARY), escapeshellarg($code)));
+
+        return $stamp;
+    }
+
+    /** When the other process wrote, once it has. */
+    private function writtenAt(string $stamp): float
+    {
+        for ($i = 0; $i < 100 && ! is_file($stamp); $i++) {
+            usleep(10_000);
+        }
+
+        return (float) file_get_contents($stamp);
+    }
+
+    /** The markup signature the views will have once `$relative` holds `$contents` with `$mtime`. */
+    private function markupWith(string $relative, string $contents, int $mtime): string
+    {
+        $path = $this->root.'/'.$relative;
+        $before = is_file($path) ? [file_get_contents($path), filemtime($path)] : null;
+
+        file_put_contents($path, $contents);
+        touch($path, $mtime);
+        $sig = LiveReload::page()['markup'];
+
+        if ($before === null) {
+            unlink($path);
+        } else {
+            file_put_contents($path, $before[0]);
+            touch($path, $before[1]);
+        }
+
+        return $sig;
     }
 
     /** As if the last build ended a minute ago — past the gap between builds. */
@@ -291,5 +370,256 @@ class LiveReloadTest extends TestCase
 
         $this->assertNotSame($markup, $changed);
         $this->assertSame($changed, Cache::get('sve-live-reload:flushed'));
+    }
+
+    public function test_the_answer_says_own_and_names_the_built_stylesheet(): void
+    {
+        $this->app->setBasePath($this->root);
+        File::ensureDirectoryExists($this->root.'/resources/css');
+        file_put_contents($this->root.'/resources/css/site.css', '@import "tailwindcss";');
+        config(['statamic-visual-editor.tailwind.css' => $this->root.'/resources/css/site.css']);
+
+        $this->assertNull(LiveReload::status('s1')['css'], 'no build yet');
+        $this->assertFalse(LiveReload::status('s1')['own']);
+
+        $this->write('public/build/manifest.json', '{"resources/css/site.css":{"file":"assets/site-AbC123.css","src":"resources/css/site.css"}}');
+
+        $status = LiveReload::status('s1');
+        $this->assertSame('/build/assets/site-AbC123.css', $status['css']);
+        $this->assertSame(SiteBuild::entryCss(), $status['css']);
+    }
+
+    public function test_the_markup_a_finished_write_left_is_that_sessions_own(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+
+        LiveReload::writing('s1');
+        $this->write('views/hero.antlers.html', '<h1>Two!</h1>', 30);
+        LiveReload::wrote('s1');
+        // Past the moment right after the write: only the signature speaks.
+        $this->backdate('writing', 6);
+        $this->backdate('own', 5);
+
+        $markup = LiveReload::page()['markup'];
+
+        $this->assertSame($markup, Cache::get('sve-live-reload:own')['sig']);
+        $this->assertTrue(LiveReload::own($markup, 's1'));
+        $this->assertFalse(LiveReload::own($markup, 's2'), 'another session saw a save from outside');
+        $this->assertFalse(LiveReload::own($markup, null), 'no session is never an editor');
+        $this->assertTrue(LiveReload::status('s1')['own']);
+        $this->assertFalse(LiveReload::status()['own']);
+
+        $this->write('views/hero.antlers.html', '<h1>From Cursor</h1>', 10);
+
+        $this->assertFalse(LiveReload::own(LiveReload::page()['markup'], 's1'), 'a later save from outside is not');
+    }
+
+    public function test_a_write_under_way_is_its_sessions_own_until_it_ends(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+
+        // The dock wrote the template and is compiling Tailwind: no end stamp yet.
+        LiveReload::writing('s1');
+        $this->write('views/hero.antlers.html', '<h1>Two!</h1>', 30);
+        $markup = LiveReload::page()['markup'];
+
+        $this->assertTrue(LiveReload::own($markup, 's1'));
+        $this->assertFalse(LiveReload::own($markup, 's2'));
+        $this->assertFalse(LiveReload::own($markup, null));
+
+        // A worker killed mid-request does not make every later save the editor's.
+        $this->backdate('writing', 16);
+        $this->assertFalse(LiveReload::own($markup, 's1'));
+
+        // A write finished after it, by anyone, ends it as well.
+        LiveReload::writing('s1');
+        LiveReload::wrote('s2');
+        $this->write('views/hero.antlers.html', '<h1>From Cursor</h1>', 10);
+
+        $this->assertFalse(LiveReload::own(LiveReload::page()['markup'], 's1'));
+    }
+
+    public function test_a_change_right_after_the_write_still_counts_as_it(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        LiveReload::writing('s1');
+        LiveReload::wrote('s1');
+
+        // Something the save set off after its response touches a file.
+        $this->write('views/hero.antlers.html', '<h1>One, later</h1>', 30);
+        $markup = LiveReload::page()['markup'];
+
+        $this->assertTrue(LiveReload::own($markup, 's1'));
+        $this->assertFalse(LiveReload::own($markup, 's2'));
+
+        $this->backdate('writing', 2);
+        $this->backdate('own', 1);
+        $this->assertFalse(LiveReload::own($markup, 's1'), 'half a second, not for good');
+    }
+
+    public function test_a_failed_write_takes_its_writing_stamp_away(): void
+    {
+        LiveReload::writing('s1');
+        LiveReload::writeFailed('s2');
+        $this->assertSame('s1', Cache::get('sve-live-reload:writing')['session'], 'not another session\'s stamp');
+
+        LiveReload::writeFailed('s1');
+        $this->assertNull(Cache::get('sve-live-reload:writing'));
+        $this->assertNull(Cache::get('sve-live-reload:own'));
+
+        $this->write('views/hero.antlers.html', '<h1>From Cursor</h1>', 10);
+        $this->assertFalse(LiveReload::own(LiveReload::page()['markup'], 's1'));
+    }
+
+    public function test_a_held_poll_with_nothing_to_say_answers_when_the_hold_is_over(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        $this->built();
+        $page = LiveReload::page();
+
+        $start = microtime(true);
+        $status = LiveReload::await($page, 's1', 0.3, 20);
+        $elapsed = microtime(true) - $start;
+
+        $this->assertGreaterThanOrEqual(0.3, $elapsed);
+        $this->assertLessThan(0.6, $elapsed);
+        $this->assertSame($page['markup'], $status['markup']);
+        $this->assertSame($page['build'], $status['build']);
+        $this->assertSame(['markup', 'build', 'building', 'error', 'own', 'css', 'stale', 'sources'], array_keys($status));
+    }
+
+    public function test_a_held_poll_answers_at_once_when_the_page_is_already_behind(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        $this->built();
+        $page = LiveReload::page();
+
+        $start = microtime(true);
+        $status = LiveReload::await(['markup' => $page['markup'], 'build' => 'an older build'], 's1', 2.0, 20);
+
+        $this->assertLessThan(0.2, microtime(true) - $start);
+        $this->assertSame($page['build'], $status['build']);
+    }
+
+    public function test_a_save_from_outside_is_answered_a_grace_after_it_lands(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        $this->built();
+        $page = LiveReload::page();
+        $stamp = $this->writeLater(0.1, 'views/hero.antlers.html', '<h1>From Cursor</h1>', time() - 30);
+
+        $status = LiveReload::await($page, 's1', 2.0, 20);
+        $answered = microtime(true);
+        $lag = $answered - $this->writtenAt($stamp);
+
+        $this->assertNotSame($page['markup'], $status['markup']);
+        $this->assertFalse($status['own']);
+        $this->assertGreaterThanOrEqual(0.14, $lag, 'looked twice before calling it foreign');
+        $this->assertLessThan(0.5, $lag, 'well before the hold is over');
+    }
+
+    public function test_the_editors_own_save_is_answered_without_the_grace(): void
+    {
+        $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+        $this->built();
+        $page = LiveReload::page();
+        LiveReload::writing('s1');
+        $stamp = $this->writeLater(0.1, 'views/hero.antlers.html', '<h1>Typed in the dock</h1>', time() - 30);
+
+        $status = LiveReload::await($page, 's1', 2.0, 20);
+        $lag = microtime(true) - $this->writtenAt($stamp);
+
+        $this->assertNotSame($page['markup'], $status['markup']);
+        $this->assertTrue($status['own']);
+        $this->assertLessThan(0.12, $lag, 'within a tick or so');
+    }
+
+    /**
+     * The race the grace is for: the file is on disk, the editor's request
+     * stamps it a moment later. Needs a cache both processes see — the file
+     * store, where the other process writes the stamp as RecordEditorWrite
+     * would at the end of its request.
+     */
+    public function test_a_change_stamped_as_the_editors_during_the_grace_is_answered_as_its_own(): void
+    {
+        foreach ([[0.04, true], [0.4, false]] as [$stampAfter, $own]) {
+            $this->forgetStamps();
+            $cache = $this->root.'/cache-'.uniqid();
+            config(['cache.default' => 'file', 'cache.stores.file.path' => $cache]);
+            Cache::forgetDriver('file');
+
+            $this->write('views/hero.antlers.html', '<h1>One</h1>', 60);
+            $this->built();
+            $page = LiveReload::page();
+            $contents = '<h1>Saved by the editor, stamped late '.uniqid().'</h1>';
+            $mtime = time() - 30;
+            $after = $this->markupWith('views/hero.antlers.html', $contents, $mtime);
+            $this->assertSame($page['markup'], LiveReload::page()['markup']);
+
+            $this->writeLater(0.1, 'views/hero.antlers.html', $contents, $mtime, sprintf(
+                'usleep(%d); (new Illuminate\Cache\FileStore(new Illuminate\Filesystem\Filesystem, %s))->forever("sve-live-reload:own", ["sig" => %s, "session" => "s1", "at" => microtime(true)]);',
+                (int) ($stampAfter * 1_000_000),
+                var_export($cache, true),
+                var_export($after, true)
+            ));
+
+            $status = LiveReload::await($page, 's1', 2.0, 20);
+
+            $this->assertSame($after, $status['markup']);
+            $this->assertSame($own, $status['own'], $own ? 'stamped within the grace' : 'stamped after it: answered as foreign');
+
+            // Let the late stamp land before the next round or the teardown.
+            usleep(500_000);
+        }
+    }
+
+    public function test_a_held_poll_answers_at_once_for_a_new_build(): void
+    {
+        $this->write('public/build/manifest.json', '{"a":1}', 100);
+        $page = LiveReload::page();
+        $stamp = $this->writeLater(0.1, 'public/build/manifest.json', '{"a":2}', time() - 30);
+
+        $status = LiveReload::await($page, 's1', 2.0, 20);
+        $lag = microtime(true) - $this->writtenAt($stamp);
+
+        $this->assertNotSame($page['build'], $status['build']);
+        $this->assertSame($page['markup'], $status['markup']);
+        $this->assertLessThan(0.12, $lag, 'no grace for the build');
+    }
+
+    public function test_a_held_poll_answers_at_once_when_a_build_should_start(): void
+    {
+        $this->write('public/build/manifest.json', '{}', 100);
+        $this->write('css/site.css', 'body{}', 50);
+        $page = LiveReload::page();
+
+        $start = microtime(true);
+        $status = LiveReload::await($page, 's1', 2.0, 20);
+
+        $this->assertLessThan(0.2, microtime(true) - $start, 'the controller starts the build after this answer');
+        $this->assertTrue($status['stale']);
+        $this->assertFalse($status['building']);
+    }
+
+    public function test_a_held_poll_waits_while_the_build_that_should_start_already_runs(): void
+    {
+        $this->write('public/build/manifest.json', '{}', 100);
+        $this->write('css/site.css', 'body{}', 50);
+        $page = LiveReload::page();
+
+        $lock = fopen(storage_path('framework/sve-live-reload.lock'), 'c');
+        flock($lock, LOCK_EX);
+
+        try {
+            $start = microtime(true);
+            $status = LiveReload::await($page, 's1', 0.3, 20);
+            $elapsed = microtime(true) - $start;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+
+        $this->assertGreaterThanOrEqual(0.3, $elapsed);
+        $this->assertTrue($status['building']);
     }
 }

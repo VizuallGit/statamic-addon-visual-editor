@@ -4,6 +4,7 @@
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { ensureLpReloadButton } from './lp-reload.js';
+import { ensureLpLiveReload } from './lp-live-reload.js';
 import { ensureLpStaticPublishButton } from './lp-static-publish.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
@@ -181,6 +182,7 @@ export function syncLpRightBarGaps(win) {
   // rammer hver tilstand editoren kan åbne i. Idempotent — den flytter ikke
   // noget der allerede står rigtigt.
   ensureLpReloadButton(win);
+  ensureLpLiveReload(win);
   ensureLpStaticPublishButton(win);
 
   const parent = save.parentElement || header;

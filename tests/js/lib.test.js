@@ -9,6 +9,7 @@ import { csrfToken } from '../../resources/js/lib/csrf.js';
 import { previewCopies, previewFrame, previewDocument } from '../../resources/js/lib/preview-frame.js';
 import { injectStyle } from '../../resources/js/lib/style.js';
 import { t, statamicTranslate } from '../../resources/js/lib/i18n.js';
+import { featureOn, featureSaidOn } from '../../resources/js/lib/config.js';
 import { dockParent, attachDock } from '../../resources/js/lib/dock-host.js';
 import { vueRootElement, isSetPicker } from '../../resources/js/lib/vue-vm.js';
 
@@ -158,4 +159,16 @@ test('isSetPicker requires all three picker props', () => {
   assert.equal(isSetPicker({ $props: { variant: 1, showConnector: 1, loadingSet: 1 } }), true);
   assert.equal(isSetPicker({ $props: { variant: 1, showConnector: 1 } }), false);
   assert.equal(isSetPicker({}), false);
+});
+
+test('featureOn is on unless told false; featureSaidOn only when told true', () => {
+  const win = (features) => ({ Statamic: { $config: { get: (k) => (k === 'sveFeatures' ? features : undefined) } } });
+
+  assert.equal(featureOn(win({ x: false }), 'x'), false);
+  assert.equal(featureOn(win({ x: true }), 'x'), true);
+  assert.equal(featureOn(win({}), 'x'), true, 'a key the server never sent: on');
+  assert.equal(featureSaidOn(win({ x: true }), 'x'), true);
+  assert.equal(featureSaidOn(win({ x: false }), 'x'), false);
+  assert.equal(featureSaidOn(win({}), 'x'), false, 'a key the server never sent: off');
+  assert.equal(featureSaidOn({}, 'x'), false, 'no config at all: off');
 });

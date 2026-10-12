@@ -25,6 +25,15 @@ export function featureOn(win, key) {
   return win.Statamic?.$config?.get?.('sveFeatures')?.[key] !== false;
 }
 
+/**
+ * A feature is on only when the settings say `true`. For a feature whose
+ * endpoint a Control Panel on an older PHP does not have: a missing key
+ * means the server does not know it, and off is the only right answer.
+ */
+export function featureSaidOn(win, key) {
+  return win.Statamic?.$config?.get?.('sveFeatures')?.[key] === true;
+}
+
 /** Where the Control Panel lives (`/cp` unless the site moved it), no trailing slash. */
 export function cpRoot(win) {
   return String(win.Statamic?.$config?.get?.('cpRoot') || '/cp').replace(/\/+$/, '');

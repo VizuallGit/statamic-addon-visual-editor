@@ -5,16 +5,28 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
 /**
  * The live-reload button: markup, styles and the poll.
  *
- * It sits under the "Rediger" button. A dot says what it is doing — green
- * on, grey off, amber building, red when the build failed (the tooltip says
- * why and the console has the build's output). A click switches it off and
- * on for this browser (localStorage `sve-live-reload`). Signed out, it asks
- * again every 30 s.
+ * It sits at the top left, level with the "Rediger" button at the top right.
+ * A dot says what it is doing — green on, grey off, amber building, red when
+ * the build failed (the tooltip says why and the console has the build's
+ * output). A click switches it off and on for this browser (localStorage
+ * `sve-live-reload`). Signed out, it asks again every 30 s.
  *
- * The poll runs once a second while the tab is visible and the editor overlay
- * is closed (an open overlay is a Live Preview session; reloading would end it).
- * The page reloads when the markup or the build differs from what it was
- * rendered with.
+ * The poll sends the signatures the page was rendered with, and the server
+ * holds the request until one differs or three seconds have passed
+ * (LiveReload::await). An answer with nothing new is asked again at once,
+ * never sooner than 100 ms after the last request began, so a server that
+ * answers at once cannot turn it into a loop. The server looks every 100 ms:
+ * a template saved in this browser's editor is seen within about 100 ms,
+ * one saved from outside it (Cursor over SSH) within about 150–250 ms,
+ * since the server looks a second time before calling a change foreign.
+ * The reload after that is the browser's own page load. A CSS change still
+ * waits for the server's build: the sources rest two seconds, Vite builds,
+ * and the new manifest reloads the page.
+ *
+ * Nothing is asked while the tab is hidden or the editor overlay is open (an
+ * open overlay is a Live Preview session; reloading would end it); it looks
+ * again a second later. The answer's `own` is Live Preview's business: this
+ * page reloads on any change.
  */
 final class Widget
 {
@@ -58,7 +70,7 @@ final class Widget
         </button>
         <style>
             #sve-live-reload {
-                position: fixed; top: 3.5625rem; right: 1rem; z-index: 2147483000;
+                position: fixed; top: 1rem; left: 1rem; z-index: 2147483000;
                 display: inline-flex; align-items: center; justify-content: center;
                 width: 2.0625rem; height: 2.0625rem; margin: 0; padding: 0;
                 border: 0; border-radius: 999px; line-height: 1;
@@ -91,8 +103,13 @@ final class Widget
             if (!button) return;
 
             var KEY = 'sve-live-reload';
+            // The least time between the starts of two requests. The server
+            // holds each one until something changes; this only keeps a
+            // server that answers at once from being asked in a loop.
+            var FLOOR = 100;
             var timer = null;
             var busy = false;
+            var started = 0;
             var lastOutput = null;
 
             function enabled() {
@@ -138,13 +155,21 @@ final class Widget
                 paint('error', output ? reason + '\\n\\n' + output.slice(0, 400) : reason);
             }
 
+            // What the page holds, so the server waits until it differs. Asked
+            // as XHR: a plain GET would become the session's "previous URL",
+            // where a redirect back from the Control Panel then lands.
+            function pollUrl() {
+                return cfg.url + '?markup=' + encodeURIComponent(cfg.markup) + '&build=' + encodeURIComponent(cfg.build);
+            }
+
             function poll() {
                 timer = null;
                 if (!enabled()) { paint('off'); return; }
                 if (document.hidden || editing() || busy) { schedule(1000); return; }
 
                 busy = true;
-                fetch(cfg.url, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } })
+                started = Date.now();
+                fetch(pollUrl(), { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                     .then(function (response) {
                         if (response.status === 401 || response.status === 403) return { refused: true };
                         if (!response.ok) throw new Error(String(response.status));
@@ -162,7 +187,8 @@ final class Widget
                         }
                         if (status.error) showError(status.error);
                         else paint(status.building ? 'building' : 'on');
-                        schedule(1000);
+                        // Nothing new: ask again — the server holds the next one.
+                        schedule(Math.max(0, FLOOR - (Date.now() - started)));
                     })
                     .catch(function () {
                         busy = false;

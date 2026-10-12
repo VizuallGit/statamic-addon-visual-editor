@@ -13,6 +13,9 @@
  * Every function accepts a Window or a Document. Cross-origin frames are
  * skipped silently: Live Preview is same-origin, anything else is not ours.
  *
+ * `pageDocuments` is the preview's document and the copies' documents, the
+ * list a stylesheet swap runs over.
+ *
  * `previewCopies` is the one list of the preview's copies — the breakpoint
  * overview's frames, which show the page but are not the preview. It reads the
  * overview's layer, which is in the document only while the overview is open;
@@ -89,4 +92,13 @@ export function previewCopies(winOrDoc) {
   }
 
   return out;
+}
+
+/**
+ * Every document that shows the page: the preview's, and the breakpoint
+ * overview's copies while it is open. What a change to the site's stylesheet
+ * is swapped into.
+ */
+export function pageDocuments(winOrDoc) {
+  return [previewDocument(winOrDoc), ...previewCopies(winOrDoc).map((w) => w.document)].filter(Boolean);
 }

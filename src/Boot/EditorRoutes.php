@@ -35,18 +35,23 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\SectionTypesController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\SiteCssController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplateBoardController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\TemplatePropsController;
+use MarioHamann\StatamicVisualEditor\Http\Middleware\RecordEditorWrite;
 use Statamic\Facades\Site;
 
 /**
  * The editor's ordinary `/!/sve/…` endpoints: library, section types, meta,
  * dock reads, AI, comments, schema, prefs. Split out of Boot\Routes in WP7c,
  * verbatim.
+ *
+ * Every write here (anything but GET/HEAD/OPTIONS) is stamped as the editor's
+ * own (RecordEditorWrite), so live reload in Live Preview reacts only to saves
+ * made outside the editor. Reads pass through it untouched.
  */
 final class EditorRoutes
 {
     public static function register(): void
     {
-        Route::middleware('web')->group(function () {
+        Route::middleware(['web', RecordEditorWrite::class])->group(function () {
             Route::get('/!/sve/build/{path}', [BuiltAssetController::class, 'show'])
                 ->where('path', '.*')
                 ->name('sve.build');
@@ -160,8 +165,9 @@ final class EditorRoutes
             Route::get('/!/sve/file-manager/folder', [FileManagerController::class, 'folder'])
                 ->name('sve.file-manager.folder');
 
-            // The public site's live-reload button asks this once a second.
-            // Signed in + live_reload allowed; it may start the site build.
+            // The public site's live-reload button and Live Preview ask this,
+            // held open until something changes (LiveReload::await). Signed
+            // in + live_reload allowed; it may start the site build.
             Route::get('/!/sve/live-reload', LiveReloadController::class)
                 ->name('sve.live-reload');
 
