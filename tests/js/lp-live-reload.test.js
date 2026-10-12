@@ -23,8 +23,9 @@ const fake = {
   refreshResult: true,
   /** When set, a refresh holds until it resolves — a slow refresh. */
   gate: null,
-  /** The dock's open file handle, '' for none. */
+  /** The dock's open file handle, '' for none; whether it takes a set-html. */
   dockType: '',
+  dockTakes: true,
 };
 
 globalThis.__sveStub = (spec, name) => {
@@ -34,7 +35,7 @@ globalThis.__sveStub = (spec, name) => {
       calls.ask.push([what, arg]);
 
       if (what === 'dock:current-type') return fake.dockType;
-      if (what === 'dock:reload-file') return Promise.resolve(true);
+      if (what === 'dock:set-html') return fake.dockTakes;
 
       return undefined;
     };
@@ -145,6 +146,7 @@ function reset() {
   calls.swap.length = 0;
   calls.ask.length = 0;
   fake.dockType = '';
+  fake.dockTakes = true;
   fake.header = true;
   fake.feature = true;
   fake.refreshResult = true;
@@ -288,58 +290,49 @@ test("the button's own refresh running → ours waits and runs after", async () 
   await tick();
 });
 
-test('the files behind a foreign change go to the Instant script before the render', async () => {
+test('a changed file the dock has open goes into the dock as typed; nothing else is rendered for it', async () => {
   reset();
+  fake.dockType = 'hero/style_2';
 
+  const hero = 'resources/views/partials/page_sections/hero/style_2.antlers.html';
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
-    {
-      markup: 'm2',
-      build: 'b1',
-      own: false,
-      changed: [
-        { path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>' },
-        { path: 'resources/views/partials/page_sections/big.antlers.html', content: null },
-        { path: 'resources/views/gone.antlers.html', content: null, removed: true },
-      ],
-    },
-    { markup: 'm3', build: 'b1', own: true, changed: [{ path: 'resources/views/x.antlers.html', content: '<p>own</p>' }] },
+    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '<section>new</section>' }] },
+    { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>' }] },
+    { markup: 'm4', build: 'b1', own: false, changed: [{ path: hero, content: '<section>both</section>' }, { path: 'resources/views/layout.antlers.html', content: '<html></html>' }] },
+    { markup: 'm5', build: 'b1', own: true, changed: [{ path: hero, content: '<section>own</section>' }] },
   ]);
 
   ensureLpLiveReload(win);
   await tick();
 
   assert.deepEqual(
-    win.events.map((e) => [e.type, e.detail.path, e.detail.html]),
-    [['sve:file-saved', 'resources/views/partials/page_sections/hero/style_2.antlers.html', '<section>new</section>']],
-    'one event per file with contents; an own change hands nothing over'
+    calls.ask.filter(([what]) => what === 'dock:set-html').map(([, html]) => html),
+    ['<section>new</section>', '<section>both</section>'],
+    "the dock's file, twice; another file never; an own change never"
   );
-  assert.equal(calls.refresh.length, 1, 'and the render still follows');
+  assert.equal(calls.refresh.length, 2, 'rendered for the other file and for the layout beside the hero, not for the hero alone');
 
   fake.header = false;
   ensureLpLiveReload(win);
   await tick();
 });
 
-test('a changed file the dock has open is read into the dock again before the render', async () => {
+test('a dock that refuses the file (locked, another file) leaves it to the render', async () => {
   reset();
   fake.dockType = 'hero/style_2';
+  fake.dockTakes = false;
 
   const win = fakeWindow([
     { markup: 'm1', build: 'b1' },
     { markup: 'm2', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/hero/style_2.antlers.html', content: '<section>new</section>' }] },
-    { markup: 'm3', build: 'b1', own: false, changed: [{ path: 'resources/views/partials/page_sections/other.antlers.html', content: '<section>x</section>' }] },
+    { markup: 'm3', build: 'b1', own: false, changed: null },
   ]);
 
   ensureLpLiveReload(win);
   await tick();
 
-  assert.deepEqual(
-    calls.ask.filter(([what]) => what === 'dock:reload-file'),
-    [['dock:reload-file', 'hero/style_2']],
-    'asked once, for the file the dock has open, not for another'
-  );
-  assert.equal(calls.refresh.length, 2, 'both changes still render');
+  assert.equal(calls.refresh.length, 2, 'rendered both times: refused, and unknown files');
 
   fake.header = false;
   ensureLpLiveReload(win);

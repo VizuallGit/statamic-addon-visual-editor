@@ -8,10 +8,10 @@
  * public page's live-reload button uses (`/!/sve/live-reload`, long-polled:
  * the server holds the request until something differs) is asked with the
  * signatures we hold. When the markup changed and the editor did not write
- * it, the saved templates the server names go to the Instant paint script
- * first (`sve:file-saved`: a section's partial is painted into its sections
- * in the same frame, as the dock's file is), and then the page is rendered
- * again from the values as they stand — one render,
+ * it, a saved template the dock has open goes into the dock as if typed
+ * there (`handToDock`: the dock's own Instant paint, autosave and render
+ * follow); anything else has the page rendered again from the values as
+ * they stand — one render,
  * `refreshTemplatesShown` (the reload button spins meanwhile), never a reload
  * of the document, which would eject Live Preview, and not Shift+click's
  * whole refresh, whose six requests before the render are for fieldsets and
@@ -31,7 +31,7 @@
  * Preview header is gone.
  *
  * Feature module: imports lp-reload.js (the refresh), lib/ and the bus (the
- * dock is asked to read a changed file it has open); the stylesheet
+ * dock takes a changed file it has open); the stylesheet
  * swap (`swapSiteCss`, the Theme panel's) is loaded when a build first lands,
  * so Live Preview opens with the same chunks as before. No kernel, no bus
  * registration.
@@ -53,8 +53,6 @@ const HIDDEN_MS = 1000;
 const OFFLINE_MS = 3000;
 /** After a 401/403: signed out, or the setting switched off for this user. */
 const REFUSED_MS = 30000;
-/** The longest the render waits for the dock to read a changed file again. */
-const DOCK_RELOAD_MS = 1500;
 
 /** One loop per window. */
 const loops = new WeakMap();
@@ -120,21 +118,6 @@ async function refresh(win, loop) {
   }
 }
 
-/**
- * The saved templates, to the Instant paint script (dock-instant-preview.js)
- * as `sve:file-saved` events on the Control Panel document — one per file
- * the server sent with contents. A page section's partial is painted into
- * its sections in the same frame; the render that follows is the truth.
- * The script decides what it can paint; this only hands the files over.
- */
-function handOverFiles(win, changed) {
-  for (const file of changed || []) {
-    if (file && typeof file.path === 'string' && typeof file.content === 'string') {
-      win.document.dispatchEvent(new win.CustomEvent('sve:file-saved', { detail: { path: file.path, html: file.content } }));
-    }
-  }
-}
-
 /** The dock's handle for a template path: `partials/page_sections/hero/style_2.antlers.html` → `hero/style_2`. */
 function dockTypeOf(path) {
   const m = /^resources\/views\/partials\/page_sections\/(.+)\.antlers\.html$/.exec(String(path || ''));
@@ -143,31 +126,33 @@ function dockTypeOf(path) {
 }
 
 /**
- * A changed file the dock has open is read into the dock again before the
- * page is rendered: after a morph the Instant script paints the dock's text
- * over the section, and with the old text that would undo the save. Waits
- * for the dock, at most DOCK_RELOAD_MS, so the render comes after.
+ * A changed file the dock has open goes into the dock's HTML pane as if it
+ * had been typed there (`dock:set-html`). From there it is the dock's own
+ * path, unchanged: the Instant paint of the difference against the text the
+ * dock had, the autosave (the same bytes, stamped as the editor's own) and
+ * the render after it. That is what makes a save in Cursor look like a
+ * keystroke in the dock — and why nothing else paints: a whole file painted
+ * without the dock's memory of the previous text put elements in the wrong
+ * place until the render (v1.1.506–507, withdrawn).
+ *
+ * True when every changed file was taken by the dock, so no render of ours
+ * is needed; false when at least one was not (the dock shows another file,
+ * is locked, or the file is not a section's partial) and the page has to be
+ * rendered again.
  */
-async function reloadDockFile(win, changed) {
+function handToDock(changed) {
   const open = String(ask('dock:current-type') || '');
-
-  if (!open) {
-    return;
-  }
+  let rest = false;
 
   for (const file of changed || []) {
-    if (dockTypeOf(file?.path) !== open) {
-      continue;
+    const taken = !!open && dockTypeOf(file?.path) === open && typeof file.content === 'string' && ask('dock:set-html', file.content) === true;
+
+    if (!taken) {
+      rest = true;
     }
-
-    const reloaded = ask('dock:reload-file', open);
-
-    if (reloaded && typeof reloaded.then === 'function') {
-      await Promise.race([reloaded, sleep(win, DOCK_RELOAD_MS)]);
-    }
-
-    return;
   }
+
+  return !rest && (changed || []).length > 0;
 }
 
 async function run(win, loop) {
@@ -207,9 +192,7 @@ async function run(win, loop) {
       pageDocuments(win).forEach((doc) => swapSiteCss(doc, step.css));
     }
 
-    if (step.refresh) {
-      handOverFiles(win, step.changed);
-      await reloadDockFile(win, step.changed);
+    if (step.refresh && !handToDock(step.changed)) {
       void refresh(win, loop);
     }
 

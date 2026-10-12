@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 17) {
+    if (window.__sveDockInstantPreview === 16) {
         return;
     }
-    window.__sveDockInstantPreview = 17;
+    window.__sveDockInstantPreview = 16;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -4687,108 +4687,6 @@
         }).observe(shell, { childList: true });
     }
 
-    // ---- A file saved outside the editor ----------------------------------
-    //
-    // Live reload (lp-live-reload.js) hands over a template the server saw
-    // change — Cursor over SSH, a deploy — as a `sve:file-saved` event on the
-    // Control Panel document: `{ path, html }`, the path relative to the site
-    // root. A page section's partial is painted into every section of that
-    // type on the page, each with its own row's values, the way the dock's
-    // file is painted into the section it renders: structure, classes and
-    // text in the same frame, the morph a moment later as the truth.
-    //
-    // Beside the typing path, not on it: paint() and everything it reads are
-    // untouched, this never runs while a paint is under way, and it leaves
-    // the dock's own text alone. Left to the morph: a header/footer file, a
-    // component, anything that is not a page section's partial, and the
-    // file's CSS and Tailwind classes (the server bakes those).
-
-    /** Every outermost section on the page that the row's `type` or the shell's `_class` says is `type`. */
-    function sectionsOfType(doc, type) {
-        var cls = ' ' + classFromType(type) + ' ';
-        var nodes = doc.querySelectorAll('[data-sid]');
-        var out = [];
-        var i;
-        var el;
-        var ctx;
-
-        for (i = 0; i < nodes.length; i++) {
-            el = nodes[i];
-
-            if (outermostSid(el) !== el) {
-                continue;
-            }
-
-            ctx = sectionContext(el.getAttribute('data-sid') || '');
-
-            if (ctx && typeof ctx.type === 'string' && ctx.type !== '') {
-                if (ctx.type === type) {
-                    out.push(el);
-                }
-            } else if ((' ' + (el.getAttribute('class') || '') + ' ').indexOf(cls) !== -1) {
-                out.push(el);
-            }
-        }
-
-        return out;
-    }
-
-    function paintFile(path, html) {
-        var m = /^resources\/views\/partials\/page_sections\/(.+)\.antlers\.html$/.exec(String(path || ''));
-        var type;
-        var root;
-        var docs;
-        var painted = 0;
-
-        if (!m || typeof html !== 'string' || painting || instantMode() !== 'astro') {
-            return;
-        }
-
-        type = m[1];
-        root = templateRoot(html, null);
-
-        if (!root) {
-            trace('file: ' + type + ' has no root element; left to the morph');
-
-            return;
-        }
-
-        docs = previewDocuments();
-
-        try {
-            docs.forEach(function (doc) {
-                sectionsOfType(doc, type).forEach(function (live) {
-                    if (!paintStructure(live, html, null)) {
-                        syncClasses(live, root);
-                    }
-
-                    painted++;
-                });
-            });
-        } catch (e) {
-            trace('file: threw ' + (e && e.message));
-        } finally {
-            commitTpl();
-        }
-
-        trace('file: painted ' + painted + ' section(s) of ' + type);
-    }
-
-    function watchSavedFiles() {
-        if (watchSavedFiles.done) {
-            return;
-        }
-
-        watchSavedFiles.done = true;
-        document.addEventListener('sve:file-saved', function (event) {
-            var detail = event && event.detail;
-
-            if (detail) {
-                paintFile(detail.path, detail.html);
-            }
-        });
-    }
-
     function boot() {
         if (booted) {
             return;
@@ -4813,7 +4711,6 @@
         trackContainers();
         watchDock();
         bindIframe();
-        watchSavedFiles();
         observeShell();
         window.setInterval(function () {
             observeShell();
