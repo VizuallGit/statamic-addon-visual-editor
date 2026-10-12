@@ -1507,6 +1507,7 @@ return [
     'ai_panel_queue_remove' => 'Fjern fra køen',
     'ai_panel_model' => 'Model',
     'ai_panel_model_default' => 'Standard (:model)',
+    'ai_panel_model_auto' => 'Auto',
     'ai_panel_models_failed' => 'Listen over modeller kunne ikke hentes — standarden bruges.',
     'ai_panel_css_built' => 'Sitets CSS er bygget igen med nye klasser og regler — genindlæs Live Preview, hvis de ikke ses endnu.',
     'ai_panel_css_not_built' => 'Gemt, men sitets CSS blev ikke bygget: :reason. Nye klasser og regler ses efter næste deploy.',

@@ -1514,6 +1514,7 @@ return [
     'ai_panel_queue_remove' => 'Remove from the queue',
     'ai_panel_model' => 'Model',
     'ai_panel_model_default' => 'Default (:model)',
+    'ai_panel_model_auto' => 'Auto',
     'ai_panel_models_failed' => 'The list of models could not be loaded — the default is used.',
     'ai_panel_css_built' => 'The site\'s CSS is built again, with any new classes and rules — reload Live Preview if they do not show yet.',
     'ai_panel_css_not_built' => 'Saved, but the site\'s CSS was not built: :reason. New classes and rules show after the next deploy.',

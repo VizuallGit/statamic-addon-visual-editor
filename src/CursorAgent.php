@@ -164,12 +164,12 @@ class CursorAgent
 
     /**
      * The model a run uses: the one picked in the panel when it is a model id
-     * at all, else the site's default from the settings screen, else config.
-     * `default` is Cursor's Auto.
+     * at all, else the site's default from the settings screen, else config,
+     * else Auto (`default` — Cursor picks the model for each request).
      */
     public static function model(?string $picked = null): string
     {
-        foreach ([$picked, Features::setting('ai_model', ''), config('statamic-visual-editor.ai.model', 'composer-2.5')] as $id) {
+        foreach ([$picked, Features::setting('ai_model', ''), config('statamic-visual-editor.ai.model', 'default')] as $id) {
             $id = trim((string) $id);
 
             if (static::validModel($id)) {
@@ -177,7 +177,7 @@ class CursorAgent
             }
         }
 
-        return 'composer-2.5';
+        return 'default';
     }
 
     public static function validModel(string $id): bool

@@ -599,8 +599,8 @@ tabs:
             field:
               type: text
               display: 'Default AI model'
-              instructions: 'The model a new chat starts with, and the one AI text uses. Write the id as the picker in the AI panel shows it — `composer-2.5`, `grok-4.7`, `claude-opus-5-5`, or `default` for Cursor''s Auto. Each chat can pick another model in the panel; a new chat starts with the last one picked. Empty: `composer-2.5`.'
-              placeholder: composer-2.5
+              instructions: 'The model a new chat starts with, and the one AI text uses. Empty is Auto: Cursor picks the model for each request. Or write a model id — `composer-2.5`, `grok-4.7`, `claude-opus-5-5`. Each chat can pick another model in the panel; a new chat starts with the last one picked.'
+              placeholder: default
               if_any:
                 ai_panel: 'equals true'
                 ai_text: 'equals true'

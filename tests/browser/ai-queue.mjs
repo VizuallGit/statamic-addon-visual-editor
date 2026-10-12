@@ -185,9 +185,13 @@ try {
   step('a new chat', !!tab, tab);
 
   // ── The model ───────────────────────────────────────────────────────────
-  const options = await cp.evaluate((p) => [...document.querySelectorAll(`${p} [data-sve-ai-model] option`)].map((o) => o.value), PANEL);
+  await waitFor(cp, (p) => document.querySelectorAll(`${p} [data-sve-ai-model] option`).length > 1, PANEL);
 
-  step('the picker lists the account\'s models, with the default first', options[0] === '' && options.includes('composer-2.5') && options.some((id) => id.startsWith('grok-')), `${options.length} options, e.g. ${options.slice(1, 5).join(', ')}`);
+  const options = await cp.evaluate((p) => [...document.querySelectorAll(`${p} [data-sve-ai-model] option`)].map((o) => ({ id: o.value, text: o.textContent.trim() })), PANEL);
+  const ids = options.map((o) => o.id);
+
+  step('the picker starts on Auto', options[0]?.id === '' && options[0]?.text === 'Auto' && !ids.includes('default'), options[0]?.text);
+  step('and lists only the newest of each family', options.length <= 20 && ids.includes('composer-2.5') && ids.some((id) => id.startsWith('grok-')) && !ids.includes('composer-2'), `${options.length} options: ${options.slice(1).map((o) => o.text).join(', ')}`);
   await cp.select(`${PANEL} [data-sve-ai-model]`, MODEL);
   await sleep(800);
   cp = await openLivePreview(page);

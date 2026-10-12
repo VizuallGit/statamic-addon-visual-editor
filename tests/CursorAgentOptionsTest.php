@@ -119,6 +119,8 @@ class CursorAgentOptionsTest extends TestCase
     }
     public function test_the_model_is_the_one_picked_then_the_sites_then_config(): void
     {
+        $this->assertSame('default', CursorAgent::model());
+
         config(['statamic-visual-editor.ai.model' => 'composer-2.5']);
 
         $this->assertSame('composer-2.5', CursorAgent::model());
@@ -131,19 +133,40 @@ class CursorAgentOptionsTest extends TestCase
         $this->assertSame('claude-opus-5-5', CursorAgent::model('not a model; rm -rf'));
     }
 
-    public function test_the_picker_groups_models_by_maker_in_cursors_order(): void
+    public function test_the_picker_offers_auto_and_the_newest_of_each_family(): void
     {
-        $grouped = \MarioHamann\StatamicVisualEditor\AiChat\Models::grouped([
-            ['id' => 'grok-4.7', 'name' => 'Grok 4.7'],
-            ['id' => 'default', 'name' => 'Auto'],
-            ['id' => 'claude-opus-5-5', 'name' => 'Claude Opus 5.5'],
-            ['id' => 'kimi-k3', 'name' => 'Kimi K3'],
-            ['id' => 'composer-2.5', 'name' => 'Composer 2.5'],
-            ['id' => 'claude-sonnet-5-5', 'name' => 'Claude Sonnet 5.5'],
+        // Cursor's list on 12 Oct 2026, in Cursor's order.
+        $listed = array_map(fn ($id) => ['id' => $id, 'name' => $id], [
+            'default', 'grok-4.7', 'grok-4.6', 'composer-2.5', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8',
+            'gpt-5.6-sol', 'gpt-5.5', 'claude-fable-5-1', 'claude-fable-5', 'grok-4.5', 'gemini-3.8-flash',
+            'gemini-3.7-flash', 'muse-spark-1.3', 'gpt-5.6-terra', 'claude-sonnet-5-5', 'claude-sonnet-5',
+            'claude-sonnet-4-6', 'composer-2', 'gpt-5.3-codex', 'claude-opus-4-7', 'gpt-5.4', 'claude-opus-4-6',
+            'claude-opus-4-5', 'gpt-5.2', 'gpt-5.6-luna', 'gemini-3.6-flash', 'gemini-3.1-pro', 'gpt-5.4-mini',
+            'gpt-5.4-nano', 'claude-haiku-5-5', 'claude-haiku-4-5', 'claude-sonnet-4-5', 'gpt-5.1', 'gemini-3-flash',
+            'gemini-3.5-flash', 'claude-sonnet-4', 'gpt-5-mini', 'gemini-2.5-flash', 'kimi-k3', 'kimi-k2.7-code',
+            'glm-5.2', 'glm-5p3', 'glm-5p3-flash',
         ]);
 
-        $this->assertSame(['default', 'composer-2.5', 'claude-opus-5-5', 'claude-sonnet-5-5', 'grok-4.7', 'kimi-k3'], array_column($grouped, 'id'));
-        $this->assertSame(['Auto', 'Cursor', 'Claude', 'Claude', 'Grok', 'Other'], array_column($grouped, 'group'));
+        $picked = \MarioHamann\StatamicVisualEditor\AiChat\Models::modern($listed);
+
+        $this->assertSame([
+            'default',
+            'composer-2.5',
+            'claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5', 'claude-haiku-5-5',
+            'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.3-codex',
+            'grok-4.7',
+            'gemini-3.8-flash', 'gemini-3.1-pro',
+        ], array_column($picked, 'id'));
+        $this->assertSame(['Auto', 'Cursor', 'Claude', 'Claude', 'Claude', 'Claude', 'GPT', 'GPT', 'GPT', 'GPT', 'Grok', 'Gemini', 'Gemini'], array_column($picked, 'group'));
+    }
+
+    public function test_a_new_version_takes_its_familys_place_by_itself(): void
+    {
+        $picked = \MarioHamann\StatamicVisualEditor\AiChat\Models::modern(array_map(fn ($id) => ['id' => $id, 'name' => $id], [
+            'grok-4.7', 'grok-4.8', 'claude-opus-5-5', 'claude-opus-6', 'composer-2.5', 'composer-3', 'gpt-5.6-sol', 'gpt-5.7',
+        ]));
+
+        $this->assertSame(['composer-3', 'claude-opus-6', 'gpt-5.7', 'grok-4.8'], array_column($picked, 'id'));
     }
 
     public function test_a_run_that_writes_leaves_out_the_project_layer_when_it_brings_mcp_servers(): void

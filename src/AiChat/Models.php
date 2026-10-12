@@ -7,22 +7,35 @@ use MarioHamann\StatamicVisualEditor\AiChat;
 use MarioHamann\StatamicVisualEditor\CursorAgent;
 
 /**
- * The models in the AI panel's picker: whatever the site's Cursor account can
- * use, as Cursor lists it — so a new model appears without an update here.
- * Asked once an hour per key; grouped by maker for the picker.
+ * The models in the AI panel's picker: Auto, and the newest of each family
+ * the site's Cursor account can use — not every model Cursor has ever had.
+ *
+ * Read from Cursor's own list, so a new version takes its family's place by
+ * itself: when Grok 4.8 appears, Grok 4.7 leaves the picker. Older versions,
+ * Mini/Nano and makers outside the families are left out. Cursor is asked
+ * once an hour per key; the choosing happens after the cache, so a change
+ * here shows at once.
  */
 final class Models
 {
     public const CACHE_SECONDS = 3600;
 
-    /** Picker groups, in this order; a model whose id fits none is "Other". */
-    private const GROUPS = [
-        'auto' => ['Auto', '/^default$/'],
-        'cursor' => ['Cursor', '/^composer-/'],
-        'claude' => ['Claude', '/^claude-/'],
-        'gpt' => ['GPT', '/^(gpt-|o\d)/'],
-        'grok' => ['Grok', '/^grok-/'],
-        'gemini' => ['Gemini', '/^gemini-/'],
+    /** Cursor's own router — it picks the model for each request. */
+    public const AUTO = 'default';
+
+    /**
+     * [group, pattern] in picker order. `v` is the version; `line` splits a
+     * family whose lines each keep their newest (Claude's Opus, Fable, Sonnet
+     * and Haiku; Gemini's Pro and Flash). Every model of the newest version
+     * stays, so GPT-5.6 Sol, Terra and Luna are all there.
+     */
+    private const FAMILIES = [
+        ['Cursor', '/^composer-(?<v>\d+(?:\.\d+)*)$/'],
+        ['Claude', '/^claude-(?<line>opus|fable|sonnet|haiku)-(?<v>\d+(?:-\d+)*)$/'],
+        ['GPT', '/^gpt-(?<v>\d+(?:\.\d+)*)(?:-(?!mini$|nano$|codex$)[a-z]+)?$/'],
+        ['GPT', '/^gpt-(?<v>\d+(?:\.\d+)*)-codex$/'],
+        ['Grok', '/^grok-(?<v>\d+(?:\.\d+)*)$/'],
+        ['Gemini', '/^gemini-(?<v>\d+(?:\.\d+)*)-(?<line>pro|flash)$/'],
     ];
 
     /**
@@ -30,37 +43,54 @@ final class Models
      */
     public static function all(): array
     {
-        $key = 'sve-ai-models:'.sha1(AiChat::apiKey());
+        $key = 'sve-ai-models-listed:'.sha1(AiChat::apiKey());
 
-        return Cache::remember($key, static::CACHE_SECONDS, fn () => static::grouped(CursorAgent::models()));
+        return static::modern(Cache::remember($key, static::CACHE_SECONDS, fn () => CursorAgent::models()));
     }
 
     /**
+     * Auto first, then the newest of each family, in Cursor's own order
+     * within a family.
+     *
      * @param  list<array{id: string, name: string}>  $models
      * @return list<array{id: string, name: string, group: string}>
      */
-    public static function grouped(array $models): array
+    public static function modern(array $models): array
     {
-        $order = array_flip(array_merge(array_column(static::GROUPS, 0), ['Other']));
-        $out = [];
+        $rows = [];
+        $newest = [];
 
         foreach ($models as $at => $model) {
-            $group = 'Other';
-
-            foreach (static::GROUPS as [$name, $pattern]) {
-                if (preg_match($pattern, $model['id'])) {
-                    $group = $name;
-
-                    break;
+            foreach (static::FAMILIES as $family => [$group, $pattern]) {
+                if (! preg_match($pattern, $model['id'], $match)) {
+                    continue;
                 }
-            }
 
-            $out[] = ['id' => $model['id'], 'name' => $model['name'], 'group' => $group, 'at' => $at];
+                $line = $family.':'.($match['line'] ?? '');
+                $version = str_replace('-', '.', $match['v']);
+                $rows[] = ['id' => $model['id'], 'name' => $model['name'], 'group' => $group, 'line' => $line, 'version' => $version, 'order' => [$family, $at]];
+
+                if (! isset($newest[$line]) || version_compare($version, $newest[$line], '>')) {
+                    $newest[$line] = $version;
+                }
+
+                break;
+            }
         }
 
-        // By group, and within a group in Cursor's own order (newest first).
-        usort($out, fn ($a, $b) => [$order[$a['group']], $a['at']] <=> [$order[$b['group']], $b['at']]);
+        $rows = array_filter($rows, fn ($row) => $row['version'] === $newest[$row['line']]);
+        usort($rows, fn ($a, $b) => $a['order'] <=> $b['order']);
 
-        return array_map(fn ($row) => ['id' => $row['id'], 'name' => $row['name'], 'group' => $row['group']], $out);
+        $out = array_map(fn ($row) => ['id' => $row['id'], 'name' => $row['name'], 'group' => $row['group']], array_values($rows));
+
+        foreach ($models as $model) {
+            if ($model['id'] === static::AUTO) {
+                array_unshift($out, ['id' => static::AUTO, 'name' => $model['name'] ?: 'Auto', 'group' => 'Auto']);
+
+                break;
+            }
+        }
+
+        return $out;
     }
 }

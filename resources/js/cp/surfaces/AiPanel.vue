@@ -9,6 +9,8 @@ import { currentSectionType } from '../preview-context.js';
 const MODE_KEY = 'sve-ai-panel-mode';
 const TABS_URL = '/!/sve/ai-tabs';
 const MODELS_URL = '/!/sve/ai-models';
+/** Cursor's Auto (AiChat\Models::AUTO). */
+const AUTO_MODEL = 'default';
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 /** Screenshots are scaled to this on the longest side before they are sent. */
 const IMAGE_MAX_SIDE = 2000;
@@ -56,7 +58,8 @@ const modelsFailed = ref(false);
 const modelGroups = computed(() => {
   const groups = [];
 
-  for (const model of models.value) {
+  // The first option is the default; it is not listed a second time.
+  for (const model of models.value.filter((row) => row.id !== defaultModel.value)) {
     let group = groups.find((row) => row.name === model.group);
 
     if (!group) {
@@ -69,12 +72,20 @@ const modelGroups = computed(() => {
 
   return groups;
 });
-/** The tab's model; '' is the site's default. */
-const model = computed(() => chat.value?.model || '');
+/** The tab's model; '' is the site's default — also when the tab names the default itself. */
+const model = computed(() => {
+  const id = chat.value?.model || '';
+
+  return id === defaultModel.value ? '' : id;
+});
 // Through v-model, not :value — the list arrives after the chat, and only
 // v-model puts the tab's model back once its <option> exists.
 const modelChoice = computed({ get: () => model.value, set: (next) => pickModel(next) });
 const defaultLabel = computed(() => {
+  if (defaultModel.value === AUTO_MODEL) {
+    return strings('ai_panel_model_auto');
+  }
+
   const name = models.value.find((row) => row.id === defaultModel.value)?.name || defaultModel.value;
 
   return strings('ai_panel_model_default').replace(':model', name);

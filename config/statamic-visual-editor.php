@@ -306,7 +306,8 @@ return [
 
     'ai' => [
         'api_key' => env('CURSOR_API_KEY', env('STATAMIC_VISUAL_EDITOR_AI_KEY')),
-        'model' => env('STATAMIC_VISUAL_EDITOR_AI_MODEL', 'composer-2.5'),
+        // `default` is Cursor's Auto: it picks the model for each request.
+        'model' => env('STATAMIC_VISUAL_EDITOR_AI_MODEL', 'default'),
         'node' => env('STATAMIC_VISUAL_EDITOR_NODE'),
         'rules' => env('STATAMIC_VISUAL_EDITOR_AI_RULES'),
 
