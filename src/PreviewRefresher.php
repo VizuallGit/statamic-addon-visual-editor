@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Illuminate\Support\Facades\Cache;
+use Statamic\Facades\User;
 use Symfony\Component\Process\PhpExecutableFinder;
 
 /**
@@ -48,6 +49,25 @@ class PreviewRefresher
             return;
         }
 
+        static::start($only, false);
+    }
+
+    /**
+     * Retakes every picture, current or not — the Patterns panel's button.
+     *
+     * Somebody asked in so many words, so the automatic switch has no say, and
+     * the fingerprints and the "drew nothing" / "failed" memos are ignored: a
+     * picture that is current by its fingerprint can still be wrong (a section
+     * imported from another site with its picture, a fix to how pictures are
+     * taken), and the button is how you say so.
+     */
+    public static function regenerate(): void
+    {
+        static::start(null, true);
+    }
+
+    protected static function start(?string $only, bool $force): void
+    {
         // A test suite saves entries by the dozen. Each one starting a browser
         // process in the background would make the suite slow and its failures
         // mysterious, and no test wants a screenshot taken.
@@ -55,12 +75,16 @@ class PreviewRefresher
             return;
         }
 
-        if (! static::spawn($only)) {
+        if (! static::spawn($only, $force)) {
             // No way to detach here (exec disabled, or Windows). Run it after the
             // response instead: slower for this one request, but the previews
             // still come out right, which matters more than the milliseconds.
-            dispatch(function () use ($only) {
-                \Illuminate\Support\Facades\Artisan::call('sve:previews', array_filter(['--only' => $only]));
+            // In-process, the URLs come from this request already.
+            dispatch(function () use ($only, $force) {
+                \Illuminate\Support\Facades\Artisan::call('sve:previews', array_filter([
+                    '--only' => $only,
+                    '--force' => $force,
+                ]));
             })->afterResponse();
         }
     }
@@ -84,7 +108,7 @@ class PreviewRefresher
     }
 
     /** Starts the command detached. False when this platform can't. */
-    protected static function spawn(?string $only): bool
+    protected static function spawn(?string $only, bool $force): bool
     {
         if (! function_exists('exec') || in_array('exec', explode(',', (string) ini_get('disable_functions')), true)) {
             return false;
@@ -96,16 +120,47 @@ class PreviewRefresher
 
         $php = (new PhpExecutableFinder)->find(false) ?: 'php';
 
-        $command = implode(' ', array_filter([
+        @exec(static::command($php, $only, $force, static::siteUrl()));
+
+        return true;
+    }
+
+    /** The detached command line. */
+    public static function command(string $php, ?string $only, bool $force, ?string $url): string
+    {
+        return implode(' ', array_filter([
             escapeshellarg($php),
             escapeshellarg(base_path('artisan')),
             'sve:previews',
             $only ? '--only='.escapeshellarg($only) : null,
+            $force ? '--force' : null,
+            $url ? '--url='.escapeshellarg($url) : null,
             '> /dev/null 2>&1 &',
         ]));
+    }
 
-        @exec($command);
+    /**
+     * The address the browser opens the site at: the one the signed-in editor
+     * who asked is using right now, or null for APP_URL.
+     *
+     * The detached process has no request, so on its own it builds every URL
+     * from APP_URL — and a site whose APP_URL is not the address it is served
+     * at sends the browser to a host that does not answer. Cuben's was
+     * `https://cuben.vizdev` (no `.dk`): every shot failed, each failure was
+     * memoised for an hour, and the Patterns panel showed the old pictures with
+     * no word about why. The editor's own address is known to work — they are
+     * looking at it. Only a signed-in user's request counts: the Host header is
+     * the client's to write, and a visitor must not be able to send the
+     * browser somewhere else.
+     */
+    public static function siteUrl(): ?string
+    {
+        if (! app()->bound('request') || ! User::current()) {
+            return null;
+        }
 
-        return true;
+        $root = request()->getSchemeAndHttpHost();
+
+        return preg_match('#^https?://[^/\s]+$#', $root) ? $root : null;
     }
 }

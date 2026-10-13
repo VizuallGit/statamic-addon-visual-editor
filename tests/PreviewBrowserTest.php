@@ -149,6 +149,23 @@ class PreviewBrowserTest extends TestCase
         );
     }
 
+    public function test_the_isolation_script_finds_the_subject_by_the_selector_it_is_given(): void
+    {
+        $script = PreviewBrowser::isolationScript('main > *');
+
+        $this->assertStringContainsString('document.querySelector("main > *")', $script);
+        $this->assertStringContainsString('[data-sve-shot-path] > :not([data-sve-shot-path]):not([data-sve-shot-subject])', $script);
+
+        // A selector is data, never code: it reaches the page JSON-encoded.
+        $nasty = 'a"); alert(1); ("';
+
+        $this->assertStringContainsString(
+            'document.querySelector('.json_encode($nasty, JSON_UNESCAPED_SLASHES).')',
+            PreviewBrowser::isolationScript($nasty),
+        );
+        $this->assertStringNotContainsString('querySelector("a"); alert(1)', PreviewBrowser::isolationScript($nasty));
+    }
+
     public function test_an_empty_or_sizeless_section_drew_nothing(): void
     {
         $this->assertTrue(PreviewBrowser::drewNothing('Error: Waiting for selector `main > *` failed: … did not match any elements'));

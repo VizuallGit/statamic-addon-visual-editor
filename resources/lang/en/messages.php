@@ -443,6 +443,8 @@ return [
     'library_hint' => 'Drag a section onto the page — or click to add it at the end.',
     'library_no_builder' => "This page's blueprint has no page builder, so patterns can't be placed here. Switch the entry to a blueprint that has one, such as Page.",
     'previews_refresh' => 'Update previews',
+    'previews_refresh_failed' => 'The previews could not be updated: the server did not answer.',
+    'previews_refresh_errors' => ':count preview(s) could not be updated. :first',
     'library_search_placeholder' => 'Search sections…',
     'library_no_matches' => 'No sections match.',
     'library_group_all' => 'All',

@@ -634,6 +634,9 @@ class PreviewBrowser
                 // a page. Asking the document when its fonts are ready is both
                 // exact and quicker than the number it replaces.
                 ->waitForFunction('document.fonts ? document.fonts.status === "loaded" : true', null, 5000)
+                // Runs right after the page loads, before the delay: only the
+                // subject is left to paint, see isolationScript().
+                ->setOption('addScriptTag', json_encode(['content' => static::isolationScript($selector)]))
                 ->delay($delay) // let entrance animations finish before capturing
                 ->select($selector)
                 ->save($path);
@@ -644,6 +647,41 @@ class PreviewBrowser
 
             throw new \RuntimeException(static::explain($e->getMessage()), 0, $e);
         }
+    }
+
+    /**
+     * A script that leaves only the subject — and what is inside it — painted.
+     *
+     * The picture is a clip of the page at the subject's box, so anything else
+     * drawn over that box is in it too. A site header that is `absolute` or
+     * `fixed` lies on top of the first section — Cuben's is `absolute inset-0` —
+     * and every preview, of every section, came out with the site's logo and
+     * menu across its top. A cookie bar or a chat bubble would do the same.
+     *
+     * The subject and its ancestors are marked; every element beside one of
+     * them is made invisible by a stylesheet rule, so elements a script adds
+     * after this ran are caught as well. Nothing is removed and nothing moves:
+     * hidden elements keep their space, so the subject lays out exactly as it
+     * does on the page — a grid or flex parent would otherwise hand its place to
+     * the next child. Its own children are untouched.
+     */
+    public static function isolationScript(string $selector): string
+    {
+        $subject = json_encode($selector, JSON_UNESCAPED_SLASHES);
+
+        return <<<JS
+(() => {
+  const subject = document.querySelector({$subject});
+  if (!subject) return;
+  subject.setAttribute('data-sve-shot-subject', '');
+  for (let el = subject.parentElement; el && el !== document.documentElement; el = el.parentElement) {
+    el.setAttribute('data-sve-shot-path', '');
+  }
+  const style = document.createElement('style');
+  style.textContent = '[data-sve-shot-path] > :not([data-sve-shot-path]):not([data-sve-shot-subject]) { visibility: hidden !important; opacity: 0 !important; }';
+  document.head.appendChild(style);
+})();
+JS;
     }
 
     /**

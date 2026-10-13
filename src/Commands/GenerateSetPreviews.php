@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\URL;
 use MarioHamann\StatamicVisualEditor\PreviewBrowser;
 use MarioHamann\StatamicVisualEditor\PreviewFingerprint;
 use MarioHamann\StatamicVisualEditor\PreviewRefresher;
@@ -30,23 +31,50 @@ class GenerateSetPreviews extends Command
         {--force : Re-shoot everything, even what the fingerprints say is current}
         {--watch : Stay running and regenerate whenever a section template, CSS, the build or the theme changes}
         {--interval=2 : Seconds between checks while watching}
-        {--sync : Skip the lock — for running inside another process that holds it}';
+        {--sync : Skip the lock — for running inside another process that holds it}
+        {--url= : The address to open the site at instead of APP_URL — the refresher passes the one the editor is using}';
 
     protected $description = 'Regenerate the section, saved-section and composition preview images.';
 
     /** How long one run may hold the lock before it's assumed dead. */
     protected const LOCK_SECONDS = 1800;
 
+    /** What the last full run could not photograph, for the Patterns panel to say. */
+    public const ERRORS = 'sve-previews:errors';
+
+    /**
+     * Set by whoever starts a full run, until that run is under way (or has
+     * given up), so the Patterns panel does not read the second it takes this
+     * process to boot as "finished"; see PreviewTickController.
+     */
+    public const QUEUED = 'sve-previews:queued';
+
+    /** A run that found the lock taken asks the holder for another pass here. */
+    public const RERUN = 'sve-previews:rerun';
+
     public function handle(SetPreviewGenerator $generator): int
     {
         // A save this command makes must not ask for another run of it.
         PreviewRefresher::suppress();
+
+        if (($url = $this->option('url')) !== null && ! $this->useUrl($url)) {
+            $this->components->error('--url takes a scheme and host, like https://example.com');
+            $this->underWay();
+
+            return self::FAILURE;
+        }
 
         // The browser is fetched here when the site lacks it (a fresh site
         // from the kit, or a puppeteer upgrade), so the run that follows has
         // one — nobody has to log in and run puppeteer's installer by hand.
         // On Linux the system libraries it lacks come with it, into the site.
         if (! PreviewBrowser::browserInstalled()) {
+            // Minutes, the first time: a panel waiting for this run keeps
+            // waiting instead of reading the quiet as "done".
+            if (! $this->option('only') && Cache::has(static::QUEUED)) {
+                Cache::put(static::QUEUED, true, 900);
+            }
+
             $this->line('Fetching '.PreviewBrowser::BROWSER.' into storage/'.PreviewBrowser::DIR.'…');
             PreviewBrowser::install();
         }
@@ -54,15 +82,23 @@ class GenerateSetPreviews extends Command
         if ($problem = PreviewBrowser::problem()) {
             $this->components->error($problem);
 
+            if (! $this->option('only')) {
+                Cache::put(static::ERRORS, ['_' => $problem], now()->addDay());
+            }
+
+            $this->underWay();
+
             return self::FAILURE;
         }
+
+        $force = (bool) $this->option('force');
 
         if ($this->option('watch')) {
             return $this->watch($generator);
         }
 
         if ($this->option('sync')) {
-            return $this->pass($generator);
+            return $this->pass($generator, $force);
         }
 
         // One target, asked for by name — almost always a section somebody just
@@ -80,7 +116,7 @@ class GenerateSetPreviews extends Command
             }
 
             try {
-                return $this->pass($generator);
+                return $this->pass($generator, $force);
             } finally {
                 $lock->release();
             }
@@ -91,32 +127,117 @@ class GenerateSetPreviews extends Command
         if (! $lock->get()) {
             // Another run has the site. Leave a note rather than a second browser:
             // whatever changed since it started will be picked up by the rerun.
-            Cache::put('sve-previews:rerun', true, static::LOCK_SECONDS);
-            $this->line('Another run is in progress — it will pick this up.');
+            $this->leaveNote($force, $url);
 
-            return self::SUCCESS;
+            // Asked again after the note is down: a run that let go in between
+            // checked for notes before this one was written, so nobody else
+            // will act on it. QUEUED stays until a run starts the work.
+            if (! $lock->get()) {
+                $this->line('Another run is in progress — it will pick this up.');
+
+                return self::SUCCESS;
+            }
         }
 
+        do {
+            $status = $this->holding($generator, $lock, $force);
+            $force = false;
+
+            // The mirror image: a note written between this run's last look
+            // and the release. Take the lock back for it, unless the run that
+            // wrote it already did.
+        } while (Cache::has(static::RERUN) && $lock->get());
+
+        return $status;
+    }
+
+    /** One full run, holding the site lock; releases it. */
+    protected function holding(SetPreviewGenerator $generator, $lock, bool $force): int
+    {
         try {
             // So the utility page can say a run is under way rather than showing a
             // list of "stale" that is in the middle of being fixed.
             Cache::put('sve-previews:running', true, static::LOCK_SECONDS);
 
             $status = self::SUCCESS;
+            $errors = [];
+
+            // A note left before this run took the lock is work asked for —
+            // a forced one above all — not a duplicate to throw away.
+            $note = Cache::pull(static::RERUN);
 
             do {
-                Cache::forget('sve-previews:rerun');
+                if (is_array($note)) {
+                    $force = $force || ! empty($note['force']);
+
+                    // The address of the editor who asked: the run that holds
+                    // the lock may have been started without one (over SSH,
+                    // from a queue), and APP_URL can be wrong.
+                    if (! empty($note['url'])) {
+                        $this->useUrl($note['url']);
+                    }
+                }
+
+                $this->underWay();
 
                 // Files and settings have moved on since the last pass.
                 PreviewFingerprint::flush();
 
-                $status = max($status, $this->pass($generator));
-            } while (Cache::pull('sve-previews:rerun'));
+                $status = max($status, $this->pass($generator, $force, $errors));
+
+                $force = false;
+                $note = Cache::pull(static::RERUN);
+            } while ($note !== null);
+
+            // Kept until the next run, so a panel that asks after this one
+            // finished can still say what went wrong instead of nothing.
+            Cache::put(static::ERRORS, $errors, now()->addDay());
 
             return $status;
         } finally {
             Cache::forget('sve-previews:running');
             $lock->release();
+        }
+    }
+
+    /**
+     * Asks the run that holds the lock for another pass — forced, if this run
+     * was, and never downgraded by a later plain note; on the newest editor
+     * address given.
+     */
+    protected function leaveNote(bool $force, ?string $url): void
+    {
+        $note = Cache::get(static::RERUN);
+        $note = is_array($note) ? $note : [];
+
+        Cache::put(static::RERUN, [
+            'force' => $force || ! empty($note['force']),
+            'url' => $url ?? ($note['url'] ?? null),
+        ], static::LOCK_SECONDS);
+    }
+
+    /**
+     * Builds every URL the browser is sent to on this address, signed routes
+     * included; the signature is checked against the same host. False when it
+     * is not a bare scheme and host.
+     */
+    protected function useUrl(string $url): bool
+    {
+        if (! preg_match('#^(https?)://[^/\s]+$#', $url, $match)) {
+            return false;
+        }
+
+        URL::forceRootUrl($url);
+        URL::forceScheme($match[1]);
+
+        return true;
+    }
+
+    /** A full run has taken over from "queued": it is running, or gave up. */
+    protected function underWay(): void
+    {
+        if (! $this->option('only')) {
+            Cache::forget(static::QUEUED);
         }
     }
 
@@ -151,7 +272,7 @@ class GenerateSetPreviews extends Command
 
             if ($previous !== null && $current !== $previous) {
                 $this->line(' <comment>changed</comment> — regenerating…');
-                $this->pass($generator);
+                $this->pass($generator, (bool) $this->option('force'));
             }
 
             $previous = $current;
@@ -160,10 +281,10 @@ class GenerateSetPreviews extends Command
         }
     }
 
-    protected function pass(SetPreviewGenerator $generator): int
+    /** @param  array<string, string>  $errors  Collects name => message for every target that failed. */
+    protected function pass(SetPreviewGenerator $generator, bool $force, array &$errors = []): int
     {
         $only = $this->option('only');
-        $force = (bool) $this->option('force');
 
         $results = array_merge(
             $generator->generate($only, $force),
@@ -180,6 +301,14 @@ class GenerateSetPreviews extends Command
         }
 
         $failed = collect($results)->filter(fn ($status) => str_starts_with($status, 'error'));
+
+        foreach ($results as $name => $status) {
+            if (str_starts_with($status, 'error')) {
+                $errors[$name] = trim(substr($status, strlen('error:')));
+            } elseif ($status === 'ok') {
+                unset($errors[$name]);
+            }
+        }
 
         if ($failed->isNotEmpty()) {
             $this->components->error($failed->first());

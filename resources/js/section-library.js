@@ -209,10 +209,13 @@ const PREVIEW_TICK_MS = 5000;
  * `onSettled` runs when a round of work finishes, so the caller can refetch the
  * pictures. Nothing is redrawn while work is still outstanding: a half-finished
  * run would swap thumbnails in one at a time.
+ *
+ * `force` (the panel's button) starts a run that retakes every picture, current
+ * or not; the answer is `running` until that run is done.
  */
-export function previewTick(win, state, onSettled) {
+export function previewTick(win, state, onSettled, force = false) {
   return win
-    .fetch('/!/sve/previews/tick', {
+    .fetch(force ? '/!/sve/previews/tick?force=1' : '/!/sve/previews/tick', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
@@ -2977,26 +2980,47 @@ export function mountSectionPicker(win, options = {}) {
       return;
     }
 
-    // The button is the manual stand-in for the timer, so it waits for the work
-    // to finish rather than firing and forgetting: pressing it should visibly do
-    // something. `state` starts busy so the first idle answer counts as settled
-    // even when nothing was stale.
+    // The button retakes every picture — section types, saved sections and
+    // compositions — current or not, and waits for the run to finish rather
+    // than firing and forgetting: pressing it should visibly do something.
+    // `state` starts busy so the first idle answer counts as settled.
     const state = { busy: true };
 
     refreshBtn.setAttribute('data-sve-busy', '');
 
-    const poll = () =>
-      previewTick(win, state, previewsSettled).then((data) => {
+    const poll = (force) =>
+      previewTick(win, state, previewsSettled, force).then((data) => {
         if (data && (data.stale > 0 || data.running)) {
-          win.setTimeout(poll, PREVIEW_TICK_MS);
+          win.setTimeout(() => poll(false), PREVIEW_TICK_MS);
 
           return;
         }
 
         refreshBtn.removeAttribute('data-sve-busy');
+
+        if (!data) {
+          win.Statamic?.$toast?.error(t(win, 'previews_refresh_failed'));
+
+          return;
+        }
+
+        // A picture the browser could not take keeps the old one on the card,
+        // which looks exactly like a button that did nothing — so say why.
+        const errors = Object.entries(data.errors || {});
+
+        if (errors.length) {
+          const [name, message] = errors[0];
+
+          win.Statamic?.$toast?.error(
+            t(win, 'previews_refresh_errors', {
+              count: errors.length,
+              first: name === '_' ? message : `${name}: ${message}`,
+            })
+          );
+        }
       });
 
-    poll();
+    poll(true);
   });
 
   renderActive();

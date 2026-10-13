@@ -440,6 +440,8 @@ return [
     'library_hint' => 'Træk en sektion ind i siden — eller klik for at lægge den nederst.',
     'library_no_builder' => 'Sidens blueprint har ingen sidebygger, så mønstre kan ikke sættes ind her. Skift siden til et blueprint med en sidebygger, fx Page.',
     'previews_refresh' => 'Opdatér previews',
+    'previews_refresh_failed' => 'Previews kunne ikke opdateres: serveren svarede ikke.',
+    'previews_refresh_errors' => ':count preview(s) kunne ikke opdateres. :first',
     'library_search_placeholder' => 'Søg sektioner…',
     'library_no_matches' => 'Ingen sektioner matcher.',
     'library_group_all' => 'Alle',
