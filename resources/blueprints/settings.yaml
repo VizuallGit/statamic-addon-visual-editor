@@ -408,13 +408,15 @@ tabs:
             field:
               type: checkboxes
               display: 'Developer: open in the right sidebar'
-              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Each editor can change this for themselves.'
+              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Only those whose icon the preset shows. Each editor can change this for themselves.'
               options:
                 listview: 'Block tree'
                 outline: 'Accessibility'
                 comments: 'Comments'
                 sections: 'Patterns'
                 ai: 'AI'
+                performance: 'Performance'
+                theme: 'Theme'
               default: []
               width: 50
               if:
@@ -424,13 +426,15 @@ tabs:
             field:
               type: checkboxes
               display: 'Content editor: open in the right sidebar'
-              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Each editor can change this for themselves.'
+              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Only those whose icon the preset shows. Each editor can change this for themselves.'
               options:
                 listview: 'Block tree'
                 outline: 'Accessibility'
                 comments: 'Comments'
                 sections: 'Patterns'
                 ai: 'AI'
+                performance: 'Performance'
+                theme: 'Theme'
               default:
                 - listview
                 - sections

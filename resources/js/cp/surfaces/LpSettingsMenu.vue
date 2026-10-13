@@ -1,12 +1,15 @@
 <script setup>
 import { ref } from 'vue';
+import LpSettingsPresets from './LpSettingsPresets.vue';
 import LpSettingsSidebars from './LpSettingsSidebars.vue';
 import LpSettingsTree from './LpSettingsTree.vue';
 import LpSettingsToolbar from './LpSettingsToolbar.vue';
 
-// The ⋮ menu: three tabs, one job each. Sidebars = what is open and how wide;
+// The ⋮ menu: the presets on top — a click switches — then three tabs, one
+// job each. Sidebars = what is open and how wide, for the preset that is on;
 // HTML tree = the tree's face and the tag colours; Top bar = which icons show.
-// lp-more-menu.js builds the props and owns every write; the tabs only report.
+// A switch opens the tab again, so it shows the new preset. lp-more-menu.js
+// builds the props and owns every write; the tabs only report.
 const props = defineProps({
   top: { type: Number, required: true },
   right: { type: Number, required: true },
@@ -14,6 +17,7 @@ const props = defineProps({
   // [{ id, label }] — only the tabs that have something to show.
   tabs: { type: Array, required: true },
   tab: { type: String, required: true },
+  presets: { type: Object, required: true },
   sidebars: { type: Object, required: true },
   tree: { type: Object, required: true },
   toolbar: { type: Object, required: true },
@@ -31,6 +35,47 @@ function pick(id) {
   current.value = id;
   props.onTab(id);
 }
+
+// Which preset is on. Icons ticked by hand, or the dock switched, can make it
+// none (or another): read again after each. A switch is marked at once.
+const presetState = props.on.presetState();
+const presetList = ref(presetState.presets);
+const activeId = ref(presetState.activeId);
+const switched = ref(0);
+
+function refreshActive() {
+  activeId.value = props.on.activePreset();
+}
+
+function onSwitched(id) {
+  activeId.value = id;
+  switched.value += 1;
+}
+
+function onAdded(preset) {
+  presetList.value = [...presetList.value, preset];
+}
+
+function onDeleted(id) {
+  presetList.value = presetList.value.filter((preset) => preset.id !== id);
+  refreshActive();
+}
+
+const on = {
+  ...props.on,
+  toolbarShown: (key, shown) => {
+    props.on.toolbarShown(key, shown);
+    refreshActive();
+  },
+  toolbarShowAll: () => {
+    props.on.toolbarShowAll();
+    refreshActive();
+  },
+  codeDock: (value) => {
+    props.on.codeDock(value);
+    refreshActive();
+  },
+};
 </script>
 
 <template>
@@ -43,6 +88,16 @@ function pick(id) {
     @keydown.escape.stop.prevent="onClose"
   >
     <div class="sve-lp-settings__title">{{ title }}</div>
+
+    <LpSettingsPresets
+      v-bind="presets"
+      :presets="presetList"
+      :active-id="activeId"
+      :on="on"
+      @switched="onSwitched"
+      @added="onAdded"
+      @deleted="onDeleted"
+    />
 
     <nav v-if="tabs.length > 1" class="sve-lp-settings__tabs" role="tablist" :aria-label="title">
       <button
@@ -62,9 +117,9 @@ function pick(id) {
     </nav>
 
     <div class="sve-lp-settings__body" role="tabpanel">
-      <LpSettingsSidebars v-if="current === 'sidebars'" v-bind="sidebars" :on="on" />
-      <LpSettingsTree v-else-if="current === 'tree'" v-bind="tree" :on="on" />
-      <LpSettingsToolbar v-else-if="current === 'toolbar'" v-bind="toolbar" :on="on" />
+      <LpSettingsSidebars v-if="current === 'sidebars'" :key="`sidebars-${switched}`" v-bind="sidebars" :active-id="activeId" :on="on" />
+      <LpSettingsTree v-else-if="current === 'tree'" :key="`tree-${switched}`" v-bind="tree" :on="on" />
+      <LpSettingsToolbar v-else-if="current === 'toolbar'" :key="`toolbar-${switched}`" v-bind="toolbar" :on="on" />
     </div>
 
     <div class="sve-lp-settings__foot">
@@ -208,6 +263,10 @@ function pick(id) {
   min-width: 0;
   cursor: pointer;
   font-weight: 500;
+}
+.sve-lp-settings__row.is-fixed {
+  opacity: 0.6;
+  cursor: default;
 }
 .sve-lp-settings__row input {
   margin: 0;

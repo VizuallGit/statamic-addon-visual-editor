@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PRESET_NAME_MAX, activePreset, cleanPaneChoices, cleanPreset, inOrder, moveKey, newPresetId, presetHidden, presetMatches, presetPanes } from '../../resources/js/lib/toolbar-presets.js';
+import { PRESET_NAME_MAX, activePreset, cleanPaneChoices, cleanPreset, inOrder, moveKey, newPresetId, presetHidden, presetMatches, presetPanes, presetSidebar } from '../../resources/js/lib/toolbar-presets.js';
 
 const editor = { id: 'editor', tools: ['pages', 'globals', 'listview', 'edits'], dock: false };
 const available = ['pages', 'globals', 'sections', 'listview', 'code', 'edits'];
@@ -79,7 +79,7 @@ test('of two presets that are the same bar, the picked one is on', () => {
 
 test("a preset's panes: the user's own choice first, else the preset's, of those the user has", () => {
   const panes = ['listview', 'outline', 'sections', 'ai'];
-  const editor = { id: 'editor', tools: [], dock: false, panes: ['sections', 'listview', 'comments'] };
+  const editor = { id: 'editor', tools: ['listview', 'sections', 'ai', 'comments'], dock: false, panes: ['sections', 'listview', 'comments'] };
 
   // In the Sidebars tab's order; comments is switched off on this site.
   assert.deepEqual(presetPanes(editor, {}, panes), ['listview', 'sections']);
@@ -91,9 +91,18 @@ test("a preset's panes: the user's own choice first, else the preset's, of those
 test('All, and an own preset from before panes, leave the sidebar alone until the user chooses', () => {
   const panes = ['listview', 'ai'];
 
-  assert.equal(presetPanes({ id: 'all', panes: null }, {}, panes), null);
-  assert.equal(presetPanes({ id: 'u-old', panes: null }, {}, panes), null);
-  assert.deepEqual(presetPanes({ id: 'u-old', panes: null }, { 'u-old': ['ai'] }, panes), ['ai']);
+  assert.equal(presetPanes({ id: 'all', tools: panes, panes: null }, {}, panes), null);
+  assert.equal(presetPanes({ id: 'u-old', tools: panes, panes: null }, {}, panes), null);
+  assert.deepEqual(presetPanes({ id: 'u-old', tools: panes, panes: null }, { 'u-old': ['ai'] }, panes), ['ai']);
+});
+
+test("a preset's sidebar is its own icons that can sit there; a pane without its icon never opens", () => {
+  const available = ['listview', 'outline', 'sections', 'theme'];
+  const developer = { id: 'developer', tools: ['collections', 'sections', 'code', 'theme'], dock: true, panes: ['listview', 'theme'] };
+
+  assert.deepEqual(presetSidebar(developer, available), ['sections', 'theme']);
+  assert.deepEqual(presetPanes(developer, {}, available), ['theme'], 'Block tree is not one of its icons');
+  assert.deepEqual(presetPanes(developer, { developer: ['sections', 'outline'] }, available), ['sections']);
 });
 
 test('pane choices are cleaned: a known id shape, lists of keys only', () => {

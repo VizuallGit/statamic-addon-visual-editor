@@ -332,6 +332,16 @@ export async function ensureRightTool(win, key) {
     return;
   }
 
+  // A pinned Theme panel comes back after a reload, and a preset can open it.
+  if (key === 'theme') {
+    if (themePanelAllowed(win) && !isThemePanelOpen(win.document)) {
+      await toggleThemePanel(win);
+      applyHeaderTab(win);
+    }
+
+    return;
+  }
+
   if (!isRightPanelInDom(win, key) && key !== 'edits') {
     showPanelWait(win, key);
   }

@@ -9,8 +9,10 @@
  * user's own carry a `name` and an id that starts with `u-`. The order is not
  * part of a preset: it is the user's own, whichever preset is on.
  *
- * The panes are applied when a preset is picked, never matched: pinning a pane
- * by hand does not make a preset stop being the one that is on.
+ * The panes are the preset's own tools that can sit in the right sidebar
+ * (SIDEBAR_TOOLS, of its icons); a pane whose icon the preset does not show is
+ * never opened. They are applied when a preset is picked, never matched:
+ * pinning a pane by hand does not make a preset stop being the one that is on.
  *
  * May import: nothing.
  */
@@ -19,6 +21,9 @@ const TOOL_KEY = /^[a-z][a-z0-9_]*$/;
 const USER_ID = /^u-[a-z0-9]+$/;
 const PRESET_ID = /^[a-z0-9_-]+$/;
 export const PRESET_NAME_MAX = 40;
+
+/** The top-bar tools that open in the right sidebar, in the order the Sidebars tab lists them. */
+export const SIDEBAR_TOOLS = ['listview', 'outline', 'comments', 'sections', 'ai', 'performance', 'theme'];
 
 const keysOf = (list) => (Array.isArray(list) ? [...new Set(list.filter((key) => typeof key === 'string' && TOOL_KEY.test(key)))] : []);
 const panesOf = (list) => (Array.isArray(list) ? keysOf(list) : null);
@@ -55,15 +60,20 @@ export function cleanPaneChoices(raw) {
   );
 }
 
+/** A preset's own sidebar tools: those of `available` (sidebar tools this user has) it shows an icon for. */
+export function presetSidebar(preset, available) {
+  return available.filter((key) => preset.tools.includes(key));
+}
+
 /**
- * The panes a preset opens, of those this user has: the user's own choice for
- * it if there is one, else the preset's. null = leave the sidebar as it is.
+ * The panes a preset opens, of its own sidebar tools: the user's own choice
+ * for it if there is one, else the preset's. null = leave the sidebar as it is.
  */
 export function presetPanes(preset, choices, available) {
   const own = choices?.[preset.id];
   const panes = Array.isArray(own) ? own : preset.panes;
 
-  return Array.isArray(panes) ? available.filter((key) => panes.includes(key)) : null;
+  return Array.isArray(panes) ? presetSidebar(preset, available).filter((key) => panes.includes(key)) : null;
 }
 
 /** The icons a preset hides, of those this user has. */
