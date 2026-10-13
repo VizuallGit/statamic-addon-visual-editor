@@ -20,7 +20,7 @@ import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn, soloSection } from '../focus-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, openSectionPicker, overlaySidTemplate, watchNewRow } from '../section-library.js';
 import { handleOpenChrome, handleOpenGlobal, notifyChromeDirty, notifyGlobalSectionDirty, saveGlobalsPanel, setChromeSidebarMode } from '../globals-panel.js';
-import { editSession, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest } from '../inline-edit.js';
+import { applyStartingText, editSession, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest } from '../inline-edit.js';
 import { closeGlobalSectionPanel, forwardGlobalSectionFocus, globalSectionEditorOpen, saveGlobalSectionPanel } from '../global-section.js';
 import { claimOrigin, markLivePreviewOpening } from '../open-in-preview.js';
 import { confirmCloseDiscard, handleRequestCloseChrome, handleRequestCloseGlobal, hideNavSpinner } from '../pages.js';
@@ -1879,6 +1879,7 @@ export function createMessageListener(doc = document, win = window) {
       // them exactly once.
       listViewSyncTo(win, data.scope, data.uid);
       applyDeclaredDefaults(data, doc);
+      applyStartingText(data, doc);
 
       // Template dock follows the section in publish values. Opening the left
       // panel is a different question (`autoOpenPanel`); collapsing that pane

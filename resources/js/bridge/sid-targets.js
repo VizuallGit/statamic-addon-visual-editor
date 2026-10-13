@@ -6,7 +6,7 @@ import { HT_PATH_ATTR } from '../html-pick-align.js';
 import { bridgeState } from '../bridge/state.js';
 import { ACTIVE_ATTR, SID_ATTR, SID_FIELD_ATTR, featureOn, t } from '../bridge.js';
 import { normText } from './messages.js';
-import { controlsFrom, findPrecedingSetSibling, openToolbarMenu, requestInlineEdit } from './inline-edit.js';
+import { controlsFrom, drawnPlaceholder, findPrecedingSetSibling, openToolbarMenu, requestInlineEdit } from './inline-edit.js';
 import { widthDragJustEnded } from './grid.js';
 import { GLOBAL_ATTR, GLOBAL_BAR_ID, GLOBAL_FOCUS_ATTR, GLOBAL_ROW_ATTR, hideHoverBelt, hoverBeltEl, openRowToolbar, showHoverBelt } from './row-toolbar.js';
 import { INSERT_LAYER_ID } from './outline-nav.js';
@@ -138,6 +138,24 @@ function openIconFieldMenu(win, wrapper) {
   }
 
   openToolbarMenu(win, wrapper, 'icon-picker', items);
+}
+
+/**
+ * The template-drawn placeholder of a clicked field, with what the CP needs to
+ * store it in the field's own shape. Undefined when there is none.
+ */
+function startingTextOf(target) {
+  const text = drawnPlaceholder(target);
+
+  if (!text) {
+    return undefined;
+  }
+
+  return {
+    text,
+    fieldtype: target.getAttribute('data-sid-fieldtype') || '',
+    bardInline: target.hasAttribute('data-sid-bard-inline'),
+  };
 }
 
 export function createClickHandler(win) {
@@ -486,6 +504,10 @@ export function createClickHandler(win) {
           controlDefaults: controlsFrom(target)
             .filter((c) => c.default != null && c.default !== '')
             .map((c) => ({ handle: c.handle, default: c.default })),
+          // The copy the template drew in an empty field — same reasoning as
+          // controlDefaults: the CP makes it the field's value, so the side
+          // panel shows it and editing starts from it rather than from nothing.
+          startingText: startingTextOf(target),
           // Only route sidebar focus into the synced-section panel when the
           // click is inside a focused global section — not every click while
           // that panel happens to be open.

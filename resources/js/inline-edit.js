@@ -660,6 +660,110 @@ export function cleanEditedText(text) {
   return (text || '').replace(/\u00a0/g, ' ').replace(/\n+$/, '');
 }
 
+/** Fieldtypes whose template-drawn placeholder can become their value. */
+const STARTING_TEXT_TYPES = ['bard', 'text', 'textarea'];
+
+/**
+ * Where a preview field lives in one container's values: the scope's row plus
+ * the handle, or the deepest row under it that owns the handle (synced
+ * sections whose nested block ids were stripped). Null when the scope belongs
+ * to another container.
+ */
+function fieldPathIn(values, data) {
+  let basePath = '';
+
+  if (data.scope) {
+    basePath = findPathByUid(values, data.scope);
+
+    if (basePath === null) {
+      return null;
+    }
+  }
+
+  let path = [basePath, data.field].filter(Boolean).join('.');
+  let value = dataGet(values, path);
+
+  if (value === undefined && data.field && basePath !== '') {
+    const deepPath = deepestFieldPath(dataGet(values, basePath), data.field, basePath);
+
+    if (deepPath) {
+      path = deepPath;
+      value = dataGet(values, path);
+    }
+  }
+
+  return { basePath, path, value };
+}
+
+/**
+ * Makes the copy a template drew in an empty field that field's value, on click.
+ *
+ * Each place draws its own starting text (`placeholder=` plus the template's
+ * `{{ if empty }}` branch) instead of the fieldset holding one `default:`. The
+ * form never saw that text: the side panel stood empty, and an inline edit
+ * started on nothing. Same answer as applyDeclaredDefaults — make the value
+ * real. Only ever into an empty field, in the field's own shape; from then on
+ * it is ordinary text, in the panel, to be kept or deleted.
+ */
+export function applyStartingText(data, doc) {
+  const start = data.startingText;
+  const text = typeof start?.text === 'string' ? start.text : '';
+
+  if (!text || !data.field || !STARTING_TEXT_TYPES.includes(start.fieldtype)) {
+    return;
+  }
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+
+    if (!values || typeof values !== 'object') {
+      continue;
+    }
+
+    const at = fieldPathIn(values, data);
+
+    if (!at) {
+      continue;
+    }
+
+    // A new row often has no key yet (`headline` missing, not `headline: []`).
+    if (at.value === undefined) {
+      const row = at.basePath ? dataGet(values, at.basePath) : null;
+
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        continue;
+      }
+    }
+
+    const empty =
+      at.value == null ||
+      at.value === '' ||
+      (Array.isArray(at.value) &&
+        at.value.every(
+          (node) =>
+            node && EDITABLE_NODE_TYPES.includes(node.type) && normText(bardNodeText(node)) === ''
+        ));
+
+    if (!empty) {
+      return;
+    }
+
+    if (start.fieldtype !== 'bard') {
+      container.setFieldValue(at.path, text);
+
+      return;
+    }
+
+    const value = start.bardInline
+      ? normalizeInlineBardValue(text)
+      : [{ type: 'paragraph', content: [{ type: 'text', text }] }];
+
+    writeBardFieldValue(container, at.path, value, doc, { field: data.field, scope: data.scope });
+
+    return;
+  }
+}
+
 export function handleEditRequest(data, doc, win) {
   const reply = (message) =>
     sendToPreview({ source: SOURCE, requestId: data.requestId, ...message }, win);

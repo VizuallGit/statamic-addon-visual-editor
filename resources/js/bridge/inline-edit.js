@@ -375,6 +375,19 @@ export function syncSidPlaceholders(doc) {
   });
 }
 
+/**
+ * The placeholder as the template drew it: the wrapper shows exactly its
+ * `placeholder=` text as real markup (`{{ if empty }}{{ _placeholder }}…`).
+ * That is the place's starting copy, and the CP makes it the field's value on
+ * click. A ghost span has no text of its own, so a hint the template does not
+ * draw is never sent and stays a hint.
+ */
+export function drawnPlaceholder(el) {
+  const hint = normText(el?.getAttribute?.('data-sid-placeholder') || '');
+
+  return hint && normText(el.textContent) === hint ? hint : '';
+}
+
 function fieldIsEmptyForPlaceholder(el) {
   const clone = el.cloneNode(true);
 
