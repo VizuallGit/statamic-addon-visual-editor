@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Features;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\LiveReloadController\PageRender;
 use MarioHamann\StatamicVisualEditor\LiveReload;
 use Statamic\Facades\User;
 
@@ -19,6 +20,11 @@ use Statamic\Facades\User;
  * this response is sent (PHP-FPM finishes the request first), so the poll
  * answers at once and the page can reload for the markup while the CSS is
  * still being built. The next polls see `building` until it is done.
+ *
+ * The public page's button also names its page (`&page=`): its poll renders
+ * that page before the hold and again on a markup change, and answers with
+ * the HTML (`html`), so the button morphs without a request of its own
+ * (PageRender). Live Preview names no page.
  */
 class LiveReloadController
 {
@@ -33,8 +39,19 @@ class LiveReloadController
         if ($have === null) {
             $status = LiveReload::status($session);
         } else {
+            // The public page's button names its page: rendered here, warm,
+            // and sent with a markup change (see PageRender).
+            $page = PageRender::for($request);
+            $page?->warm();
             $status = LiveReload::await($have, $session);
+            // Before the render: it starts its session from this copy, and a
+            // copy from before the hold would put back what was taken out
+            // meanwhile (a logout in another tab, a flash already shown).
             $this->readSessionAgain($request);
+
+            if ($page !== null && $status['markup'] !== $have['markup'] && $status['build'] === $have['build']) {
+                $status['html'] = $page->html();
+            }
         }
 
         if ($status['stale'] && ! $status['building']) {

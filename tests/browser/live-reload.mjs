@@ -50,7 +50,11 @@ const server = {
   // The page: its head style's colour, a script a template pushed, a page
   // answered without </body> once, the morph asset missing.
   color: 'rgb(0, 0, 0)', style: '', script: '', truncate: false, morphStatus: 200,
+  // The held poll renders the page it names and answers a markup change with
+  // its HTML (LiveReloadController\PageRender); off, the button fetches it.
+  inline: true,
 };
+let fetches = 0; // the page asked for by the button itself, not by a navigation
 let polls = 0;
 let pages = 0;
 let morphAsked = 0;
@@ -82,13 +86,9 @@ function answerPoll(request, url) {
   const look = () => {
     const changed = server.markup !== have.markup || server.build !== have.build;
     if (!named || changed || Date.now() >= until) {
-      return respond({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          markup: server.markup, build: server.build, building: server.building, error: server.error, own: false, css: null,
-        }),
-      });
+      const answer = { markup: server.markup, build: server.build, building: server.building, error: server.error, own: false, css: null };
+      if (server.inline && url.searchParams.get('page') && server.markup !== have.markup && server.build === have.build) answer.html = pageHtml();
+      return respond({ status: 200, contentType: 'application/json', body: JSON.stringify(answer) });
     }
     setTimeout(look, 20);
   };
@@ -126,6 +126,7 @@ try {
         ? { status: 200, contentType: 'text/javascript', body: MORPH }
         : { status: server.morphStatus, body: '' });
     }
+    if (!request.isNavigationRequest()) fetches++;
     return request.respond({ status: 200, contentType: 'text/html', body: pageHtml() });
   });
 
@@ -163,7 +164,7 @@ try {
 
   await sleep(2300);
   const first = asked[0]?.url;
-  check('the poll names the signatures the page holds', first?.searchParams.get('markup') === 'm1' && first?.searchParams.get('build') === 'b1', first ? first.search : 'no poll');
+  check('the poll names the signatures the page holds, and the page', first?.searchParams.get('markup') === 'm1' && first?.searchParams.get('build') === 'b1' && first?.searchParams.get('page') === '/about', first ? first.search : 'no poll');
   const gaps = asked.slice(1).map((a, i) => a.at - asked[i].at);
   check('a held poll is asked again as soon as it is answered', polls >= 2 && polls <= 3 && gaps.every((g) => g >= HOLD_MS - 20 && g < HOLD_MS + 200), `${polls} polls in 2.3 s, gaps ${gaps.join(', ')} ms`);
   check('green when nothing changed', (await state()) === 'on');
@@ -211,11 +212,13 @@ try {
   const headerBefore = await page.evaluateHandle(() => document.querySelector('header'));
   check('the morph is fetched once the button is on, before any save', morphAsked === 1, `${morphAsked} requests`);
   const pagesBefore = pages;
+  const fetchesBefore = fetches;
   const scrollBefore = await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(window.scrollY)))));
   const morphMs = await changeAndWait('markup', 'm2', () => document.querySelector('main h1').textContent !== 'Page 1');
   check('new markup is morphed in within a moment, not at the next poll', morphMs !== null && morphMs < 500, `${morphMs} ms from the save to the new heading`);
   check('…in the standing page: no reload', await sameDocument());
   check('…with the new page\'s HTML', (await page.$eval('main h1', (h) => h.textContent)) === `Page ${pagesBefore + 1}`);
+  check('…from the poll\'s answer: the button fetched nothing itself', fetches === fetchesBefore, `${fetches - fetchesBefore} fetches`);
   const scrollAfter = await page.evaluate(() => window.scrollY);
   check('the scroll position stays', scrollBefore > 800 && scrollAfter === scrollBefore, `scrollY ${scrollBefore} → ${scrollAfter}`);
   check('the open Alpine menu stays open', await page.$eval('#nav', (n) => getComputedStyle(n).display !== 'none'));
@@ -243,6 +246,18 @@ try {
   check('a new <head> style tag reloads the page', styleMs !== null && !(await sameDocument()) && (await page.$eval('footer', (f) => getComputedStyle(f).color)) === 'rgb(0, 0, 255)', `${styleMs} ms`);
   await mark();
   await sleep(1200);
+
+  // A server whose answer carries no page (an older addon, no session cookie):
+  // the button fetches the page itself.
+  server.inline = false;
+  const fetchesNow = fetches;
+  const headingNow = await page.$eval('main h1', (h) => h.textContent);
+  server.markup = 'm3a';
+  await page.waitForFunction((h) => document.querySelector('main h1').textContent !== h, { timeout: 3000 }, headingNow).catch(() => {});
+  await sleep(300);
+  check('an answer without the page: the button fetches it and morphs', await sameDocument() && fetches === fetchesNow + 1, `${fetches - fetchesNow} fetches`);
+  server.inline = true;
+  await sleep(HOLD_MS + 300);
 
   // A template pushed a script: a morph runs none, so the page reloads.
   server.script = '<script>window.__pushed = true;</script>';

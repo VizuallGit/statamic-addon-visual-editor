@@ -18,8 +18,11 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
  * answers at once cannot turn it into a loop. The server looks every 50 ms,
  * so a saved template is seen within about 50–100 ms.
  *
- * New markup is not a page load. The button fetches the page's new HTML and
- * morphs it into the standing page with Alpine's morph (live-reload-morph.js,
+ * New markup is not a page load. The poll names the page, renders it itself
+ * when the markup changed and answers with its HTML (the held process is
+ * booted and warm: 140–260 ms from a save to the new HTML on Cuben, where the
+ * page's own fetch took 1.4 s); without it the button fetches the page. It
+ * morphs that HTML into the standing page with Alpine's morph (live-reload-morph.js,
  * imported once the button is on — `$morph` is its URL), so the scroll
  * position, an open menu and every Alpine state stay where they are. Only what
  * the server sent is touched: the <body>'s top-level elements as they stood
@@ -236,16 +239,22 @@ final class Widget
                 return morphReady;
             }
 
-            function fetchPage() {
+            function parsePage(html) {
+                if (html.indexOf('</body>') === -1) throw new Error('no </body>');
+                return new DOMParser().parseFromString(html, 'text/html');
+            }
+
+            // The page's new HTML: what the poll rendered, or the page's own
+            // fetch when the answer has none (an older server, a render that
+            // was not a page).
+            function newPage(status) {
+                if (typeof status.html === 'string') return Promise.resolve(status.html).then(parsePage);
                 return fetch(location.href, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'text/html' } })
                     .then(function (response) {
                         if (!response.ok || response.redirected) throw new Error(String(response.status));
                         return response.text();
                     })
-                    .then(function (html) {
-                        if (html.indexOf('</body>') === -1) throw new Error('no </body>');
-                        return new DOMParser().parseFromString(html, 'text/html');
-                    });
+                    .then(parsePage);
             }
 
             // The <style> tags in <head>, swapped as preview.js's syncHeadStyles
@@ -321,7 +330,7 @@ final class Widget
             // cannot be.
             function update(status) {
                 paint('reloading');
-                Promise.all([loadMorph(), fetchPage()])
+                Promise.all([loadMorph(), newPage(status)])
                     .then(function (done) {
                         // Opened the editor or switched off while it fetched:
                         // catch up later, as a poll would.
@@ -357,8 +366,11 @@ final class Widget
             // What the page holds, so the server waits until it differs. Asked
             // as XHR: a plain GET would become the session's "previous URL",
             // where a redirect back from the Control Panel then lands.
+            // `page`: the poll renders this page itself when the markup changes
+            // and answers with its HTML (LiveReloadController\PageRender).
             function pollUrl() {
-                return cfg.url + '?markup=' + encodeURIComponent(cfg.markup) + '&build=' + encodeURIComponent(cfg.build);
+                return cfg.url + '?markup=' + encodeURIComponent(cfg.markup) + '&build=' + encodeURIComponent(cfg.build)
+                    + '&page=' + encodeURIComponent(location.pathname + location.search);
             }
 
             function poll() {

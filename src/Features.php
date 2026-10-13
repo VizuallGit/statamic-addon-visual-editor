@@ -104,6 +104,14 @@ class Features
     protected static ?array $map = null;
 
     /**
+     * The saved settings, cached per request like the map. Statamic's addon
+     * settings take 45–50 ms per read on the server (measured on Cuben, a
+     * 3 KB file), and editorEnabled() is asked by five middlewares on every
+     * front-end request: 220 ms of every page, a visitor's too.
+     */
+    protected static ?array $saved = null;
+
+    /**
      * The full on/off map, ready to hand to the browser.
      *
      * @return array<string, bool>
@@ -268,6 +276,7 @@ class Features
     public static function flush(): void
     {
         static::$map = null;
+        static::$saved = null;
     }
 
     /**
@@ -279,8 +288,12 @@ class Features
      */
     protected static function saved(): array
     {
+        if (static::$saved !== null) {
+            return static::$saved;
+        }
+
         try {
-            return Addon::get(static::ADDON_ID)?->settings()->raw() ?? [];
+            return static::$saved = Addon::get(static::ADDON_ID)?->settings()->raw() ?? [];
         } catch (\Throwable) {
             return [];
         }

@@ -52,7 +52,7 @@ class SiteBuild
             @set_time_limit(180);
 
             $started = hrtime(true);
-            $process = new Process([$node, $vite, 'build'], $cwd, [
+            $process = new Process([...static::niced(), $node, $vite, 'build'], $cwd, [
                 'PATH' => dirname($node).':/usr/local/bin:/usr/bin:/bin',
                 'HOME' => getenv('HOME') ?: (string) ($_SERVER['HOME'] ?? $cwd),
                 'LANG' => 'en_US.UTF-8',
@@ -80,6 +80,25 @@ class SiteBuild
         $css = static::entryCss();
 
         return $css ? ['ok' => true, 'css' => $css, 'ms' => $ms] : ['ok' => false, 'reason' => 'no-manifest'];
+    }
+
+    /**
+     * The build at low priority where `nice` exists: it starts two seconds
+     * after a save, and on a two-CPU server it took the CPU from the next
+     * save's page render (1.4 s instead of 0.6 s on Cuben). A build with the
+     * CPU to itself is as fast as before.
+     *
+     * @return list<string>
+     */
+    public static function niced(): array
+    {
+        foreach (['/usr/bin/nice', '/bin/nice'] as $nice) {
+            if (is_executable($nice)) {
+                return [$nice, '-n', '10'];
+            }
+        }
+
+        return [];
     }
 
     /**
