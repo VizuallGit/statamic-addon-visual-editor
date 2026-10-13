@@ -375,20 +375,21 @@ function queueSwitch(job) {
 
 /**
  * Show what a preset shows, open its panes, then open or close the HTML dock
- * the way it says (All leaves both).
+ * the way it says (All leaves both). The icons and which preset is picked
+ * change at once; the panes and the dock wait their turn.
  */
 function applyPreset(win, id) {
+  const preset = allPresets(win).find((item) => item.id === id);
+
+  if (!preset) {
+    return switches;
+  }
+
+  writePickedPreset(win, preset.id);
+  setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
+
   return queueSwitch(async () => {
-    const preset = allPresets(win).find((item) => item.id === id);
-
-    if (!preset) {
-      return;
-    }
-
     const panes = presetPanes(preset, readPaneChoices(win), sidebarPanes(win).map(([key]) => key));
-
-    writePickedPreset(win, preset.id);
-    setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
 
     if (panes) {
       await openPanes(win, panes);
