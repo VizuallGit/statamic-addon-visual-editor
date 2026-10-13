@@ -157,9 +157,16 @@ function exposeHtmlScope() {
   // not, and a scoped rule wins over an unscoped one of the same selector
   // whatever the order — a value changed or removed in the pane stayed in
   // the preview until a reload.
-  // All: the HTML pane is the whole file (no range to splice into), but the
-  // CSS pane still shows the picked element's rules — the paint needs the
-  // whole sheet with them merged in, not the pane's slice.
+  // Unscoped, the sheet is exposed all the same. The CSS pane is a slice
+  // whenever the tree is on — All with a pick, and a file just opened, which
+  // shows the root element's rules — and the paint cuts the saved sheet out of
+  // the page to hold this one instead. Exposed only for All, the file just
+  // opened was painted from the pane: its slice stood for the whole sheet and
+  // every rule outside it left the page until a pick scoped the HTML pane — a
+  // closed <dialog> styled `flex`, hidden only by the sheet, showed for a few
+  // frames on the first click with the dock open. A getter, so a pane that
+  // changes between full, tree and empty after this ran is read as it is now;
+  // with the pane the whole sheet, the merge is the pane.
   dock.__sveHtmlScope = dockState.htmlScopeActive && dockState.htmlFocus
     ? {
         full: dockState.htmlFull,
@@ -169,13 +176,11 @@ function exposeHtmlScope() {
           return mergedCssFull();
         },
       }
-    : dockState.htmlAll && dockState.cssPane === 'tree'
-      ? {
-          get css() {
-            return mergedCssFull();
-          },
-        }
-      : null;
+    : {
+        get css() {
+          return mergedCssFull();
+        },
+      };
 }
 
 export function syncScopedHtml() {

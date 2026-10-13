@@ -352,9 +352,23 @@ function canAct(row) {
     -->
     <!--
       The frame's rows: one door, on the header and the footer — their fields,
-      which is stepping into that half. Main has nothing to open.
+      which is stepping into that half. Main has nothing to open. And, on the
+      half's own file, the Alpine toggle: there the root row is the frame's,
+      and a `<header x-data="{ mobilMenu: false }">` is a component like any
+      section's — its menu has to be opened to be built.
     -->
     <span v-if="isFrame(row)" data-sve-ht-actions>
+      <button
+        v-if="row.alpineNth >= 0"
+        type="button"
+        data-sve-ht-alpine
+        :data-on="row.alpineSet ? '' : null"
+        :title="ui.alpineTitle"
+        v-html="row.alpineSet ? ALPINE_ON : ALPINE_OFF"
+        @click.stop.prevent="ui.onAlpineState?.($event, row.id)"
+        @pointerdown.stop
+        @dblclick.stop
+      ></button>
       <button
         v-if="row.frame !== 'main' && canFields"
         type="button"
