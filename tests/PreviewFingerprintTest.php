@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\PreviewFingerprint;
+use MarioHamann\StatamicVisualEditor\PreviewFingerprint\BuiltCss;
 use Statamic\Facades\Fieldset;
 use Statamic\Fields\Fieldset as FieldsetModel;
 
@@ -37,6 +38,7 @@ class PreviewFingerprintTest extends TestCase
         File::deleteDirectory(resource_path('views/partials'));
         File::delete(resource_path('views/unreached.antlers.html'));
         File::delete(base_path($this->watched));
+        File::deleteDirectory(base_path('public-test'));
 
         parent::tearDown();
     }
@@ -206,5 +208,82 @@ class PreviewFingerprintTest extends TestCase
         PreviewFingerprint::flush();
 
         $this->assertNotSame($before, PreviewFingerprint::forSections([['type' => 'hero/style_2']]));
+    }
+
+    /**
+     * A site build the way Vite writes it: the manifest names the stylesheet
+     * and the script, each named after its content.
+     */
+    protected function withBuild(string $css, string $script = 'assets/site-1.js'): void
+    {
+        $this->app->usePublicPath(base_path('public-test'));
+        config(['statamic-visual-editor.previews.watch' => [$this->watched, 'public-test/build/manifest.json']]);
+
+        $file = 'assets/site-'.substr(md5($css), 0, 6).'.css';
+
+        File::ensureDirectoryExists(base_path('public-test/build/assets'));
+        File::put(base_path('public-test/build/'.$file), $css);
+        File::put(base_path('public-test/build/manifest.json'), json_encode([
+            'resources/css/site.css' => ['file' => $file, 'isEntry' => true],
+            'resources/js/site.js' => ['file' => $script, 'isEntry' => true],
+        ]));
+
+        PreviewFingerprint::flush();
+    }
+
+    public function test_a_build_that_adds_a_class_retakes_only_the_sections_that_use_it()
+    {
+        // Cuben's server builds after each template save: with the manifest in
+        // the shared design hash, eight builds in a day retook every picture
+        // eight times for classes one section had gained.
+        File::put(base_path($this->partials.'/hero/style_1.antlers.html'), '<section class="flex p-4">one</section>');
+        File::put(base_path($this->partials.'/hero/style_2.antlers.html'), '<section class="grid">two</section>');
+
+        $this->withBuild('.flex{display:flex}.grid{display:grid}');
+
+        $one = PreviewFingerprint::forSectionType('hero/style_1', []);
+        $two = PreviewFingerprint::forSectionType('hero/style_2', []);
+
+        $this->withBuild('.flex{display:flex}.grid{display:grid}.p-4{padding:1rem}');
+
+        $this->assertNotSame($one, PreviewFingerprint::forSectionType('hero/style_1', []), 'it uses p-4');
+        $this->assertSame($two, PreviewFingerprint::forSectionType('hero/style_2', []), 'it does not');
+    }
+
+    public function test_a_class_in_the_sections_own_values_counts_like_one_in_its_template()
+    {
+        // The site's CSS scans content/ as well: a class stored in a field
+        // gets its rule from the build, and the picture must follow it.
+        $this->withBuild('.grid{display:grid}');
+
+        $section = ['type' => 'hero/style_2', 'css_class' => 'bg-[#ff00aa]'];
+        $before = PreviewFingerprint::forSectionType('hero/style_2', $section);
+
+        $this->withBuild('.grid{display:grid}.bg-\\[\\#ff00aa\\]{background:#f0a}');
+
+        $this->assertNotSame($before, PreviewFingerprint::forSectionType('hero/style_2', $section));
+    }
+
+    public function test_a_build_with_new_scripts_retakes_every_picture()
+    {
+        $this->withBuild('.grid{display:grid}');
+
+        $before = PreviewFingerprint::forSectionType('hero/style_2', []);
+
+        $this->withBuild('.grid{display:grid}', 'assets/site-2.js');
+
+        $this->assertNotSame($before, PreviewFingerprint::forSectionType('hero/style_2', []));
+    }
+
+    public function test_class_names_are_read_out_of_the_built_css_unescaped()
+    {
+        $classes = BuiltCss::classesIn(
+            '.md\:flex{display:flex}.\32xl\:grid{display:grid}.bg-\[\#ff00aa\]{background:#f0a}'
+            .'.w-1\/2{width:50%}.hover\:underline:hover{text-decoration:underline}.p-0\.5{padding:.125rem}'
+        );
+
+        foreach (['md:flex', '2xl:grid', 'bg-[#ff00aa]', 'w-1/2', 'hover:underline', 'p-0.5'] as $class) {
+            $this->assertArrayHasKey($class, $classes, $class);
+        }
     }
 }

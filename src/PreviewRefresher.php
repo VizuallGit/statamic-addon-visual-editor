@@ -42,28 +42,27 @@ class PreviewRefresher
      * Refreshes what has gone stale.
      *
      * @param  string|null  $only  A single set handle or entry id, or everything.
+     * @return bool  Whether a run was started.
      */
-    public static function kick(?string $only = null): void
+    public static function kick(?string $only = null): bool
     {
         if (static::$suppressed || ! config('statamic-visual-editor.previews.auto', true)) {
-            return;
+            return false;
         }
 
         static::start($only, false);
+
+        return true;
     }
 
     /**
-     * Retakes every picture, current or not — the Patterns panel's button.
-     *
-     * Somebody asked in so many words, so the automatic switch has no say, and
-     * the fingerprints and the "drew nothing" / "failed" memos are ignored: a
-     * picture that is current by its fingerprint can still be wrong (a section
-     * imported from another site with its picture, a fix to how pictures are
-     * taken), and the button is how you say so.
+     * Brings what is out of date up to date now — the Patterns panel's save
+     * button. Somebody asked in so many words, so the automatic switch has no
+     * say; the fingerprints still decide what is shot.
      */
-    public static function regenerate(): void
+    public static function update(): void
     {
-        static::start(null, true);
+        static::start(null, false);
     }
 
     protected static function start(?string $only, bool $force): void
@@ -102,9 +101,7 @@ class PreviewRefresher
             return false;
         }
 
-        static::kick();
-
-        return true;
+        return static::kick();
     }
 
     /** Starts the command detached. False when this platform can't. */

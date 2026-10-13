@@ -50,6 +50,7 @@ import {
   showInRightShell,
 } from './right-dock.js';
 import { csrfToken } from './lib/csrf.js';
+import { checkPreviews, paintPreviewButtons, previewsAuto, setPreviewsAuto } from './previews-watch.js';
 import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
@@ -193,84 +194,6 @@ export function libraryWentStale(win) {
   win.document
     .getElementById(SECTION_PICKER_ID)
     ?.dispatchEvent(new win.CustomEvent('sve-library-stale'));
-}
-
-/** How often an open Patterns panel asks whether a preview has gone stale. */
-const PREVIEW_TICK_MS = 5000;
-
-/**
- * Asks the server whether any preview is out of date, and lets it start the
- * generator if so.
- *
- * The automatic refreshes hang on Control Panel save events, so editing an
- * Antlers partial or a fieldset in an editor leaves the thumbnails behind —
- * no event fires for a file on disk. This is how an open panel notices.
- *
- * `onSettled` runs when a round of work finishes, so the caller can refetch the
- * pictures. Nothing is redrawn while work is still outstanding: a half-finished
- * run would swap thumbnails in one at a time.
- *
- * `force` (the panel's button) starts a run that retakes every picture, current
- * or not; the answer is `running` until that run is done.
- */
-export function previewTick(win, state, onSettled, force = false) {
-  return win
-    .fetch(force ? '/!/sve/previews/tick?force=1' : '/!/sve/previews/tick', {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': csrfToken(win),
-        Accept: 'application/json',
-      },
-    })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((data) => {
-      if (!data) {
-        return null;
-      }
-
-      const busy = data.stale > 0 || data.running;
-
-      if (busy) {
-        state.busy = true;
-      } else if (state.busy) {
-        // Was working, now idle: the pictures on disk are new.
-        state.busy = false;
-        onSettled?.();
-      }
-
-      return data;
-    })
-    .catch(() => null);
-}
-
-/**
- * Keeps an open Patterns panel's thumbnails current, on a timer.
- *
- * Only while the panel is open, and only when the site has asked for it — a
- * fingerprint check is cheap but not free, and nobody wants a background timer
- * running on a page they are not looking at. The timer is stored on the panel so
- * closeSectionPicker() can stop it.
- */
-export function startPreviewWatch(win, panel, onSettled) {
-  if (!featureOn(win, 'previews_autowatch')) {
-    return;
-  }
-
-  const state = { busy: false };
-
-  panel._svePreviewTick = win.setInterval(() => {
-    // A panel torn out from under the timer: stop rather than keep asking.
-    if (!win.document.getElementById(SECTION_PICKER_ID)) {
-      win.clearInterval(panel._svePreviewTick);
-      panel._svePreviewTick = 0;
-
-      return;
-    }
-
-    previewTick(win, state, onSettled);
-  }, PREVIEW_TICK_MS);
 }
 
 /**
@@ -1736,11 +1659,6 @@ export function closeSectionPicker(win) {
 
   panel?._sveLibRo?.disconnect?.();
 
-  if (panel?._svePreviewTick) {
-    win.clearInterval(panel._svePreviewTick);
-    panel._svePreviewTick = 0;
-  }
-
   panel?.remove();
   releaseRightShellIfEmpty(win);
   syncPreviewInset(win);
@@ -2408,8 +2326,6 @@ export function mountSectionPicker(win, options = {}) {
     title: t(win, 'sections'),
     hint: t(win, 'library_hint'),
     searchPlaceholder: t(win, 'library_search_placeholder'),
-    // With the timer on there is nothing for a button to add.
-    showRefresh: !featureOn(win, 'previews_autowatch'),
     refreshLabel: t(win, 'previews_refresh'),
   });
 
@@ -2966,61 +2882,66 @@ export function mountSectionPicker(win, options = {}) {
     activeBtn?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   });
 
-  // Both routes to "the pictures on disk changed" end in the same refetch the
-  // save events already use, so a timer tick and the button behave alike.
-  const previewsSettled = () =>
-    panel.dispatchEvent(new win.CustomEvent('sve-library-preview-ready'));
-
-  startPreviewWatch(win, panel, previewsSettled);
-
+  // Automatic or manual, as the HTML dock saves; previews-watch.js does the
+  // work and paints both buttons. Opening the panel looks once: automatic
+  // starts what is stale now, manual only marks the save button.
+  const autoBtn = panel.querySelector('[data-sve-previews-auto]');
   const refreshBtn = panel.querySelector('[data-sve-previews-refresh]');
+
+  paintPreviewButtons(win);
+  void checkPreviews(win, previewsAuto(win) ? undefined : 'probe');
+
+  autoBtn?.addEventListener('click', () => {
+    const on = !previewsAuto(win);
+
+    setPreviewsAuto(win, on);
+    paintPreviewButtons(win);
+
+    if (on) {
+      void checkPreviews(win);
+    }
+  });
 
   refreshBtn?.addEventListener('click', () => {
     if (refreshBtn.hasAttribute('data-sve-busy')) {
       return;
     }
 
-    // The button retakes every picture — section types, saved sections and
-    // compositions — current or not, and waits for the run to finish rather
-    // than firing and forgetting: pressing it should visibly do something.
-    // `state` starts busy so the first idle answer counts as settled.
-    const state = { busy: true };
+    // Only what changed is retaken (and what failed last time); the button
+    // waits for the run and says what came of it — pressing it should
+    // visibly do something, even when that is "nothing to do".
+    checkPreviews(win, 'update').then((result) => {
+      if (!result) {
+        win.Statamic?.$toast?.error(t(win, 'previews_refresh_failed'));
 
-    refreshBtn.setAttribute('data-sve-busy', '');
+        return;
+      }
 
-    const poll = (force) =>
-      previewTick(win, state, previewsSettled, force).then((data) => {
-        if (data && (data.stale > 0 || data.running)) {
-          win.setTimeout(() => poll(false), PREVIEW_TICK_MS);
+      const { first, last } = result;
 
-          return;
-        }
+      // A picture the browser could not take keeps the old one on the card,
+      // which looks exactly like a button that did nothing — so say why.
+      const errors = Object.entries(last.errors || {});
 
-        refreshBtn.removeAttribute('data-sve-busy');
+      if (errors.length) {
+        const [name, message] = errors[0];
 
-        if (!data) {
-          win.Statamic?.$toast?.error(t(win, 'previews_refresh_failed'));
+        win.Statamic?.$toast?.error(
+          t(win, 'previews_refresh_errors', {
+            count: errors.length,
+            first: name === '_' ? message : `${name}: ${message}`,
+          })
+        );
 
-          return;
-        }
+        return;
+      }
 
-        // A picture the browser could not take keeps the old one on the card,
-        // which looks exactly like a button that did nothing — so say why.
-        const errors = Object.entries(data.errors || {});
-
-        if (errors.length) {
-          const [name, message] = errors[0];
-
-          win.Statamic?.$toast?.error(
-            t(win, 'previews_refresh_errors', {
-              count: errors.length,
-              first: name === '_' ? message : `${name}: ${message}`,
-            })
-          );
-        }
-      });
-
-    poll(true);
+      win.Statamic?.$toast?.success(
+        first.running
+          ? t(win, 'previews_refresh_done', { count: first.stale })
+          : t(win, 'previews_refresh_current')
+      );
+    });
   });
 
   renderActive();

@@ -3,9 +3,6 @@ defineProps({
   title: { type: String, required: true },
   hint: { type: String, required: true },
   searchPlaceholder: { type: String, required: true },
-  // Shown only when auto-update is off: with the timer running there is nothing
-  // for a button to add.
-  showRefresh: { type: Boolean, default: false },
   refreshLabel: { type: String, default: 'Update previews' },
 });
 </script>
@@ -15,8 +12,13 @@ defineProps({
     <div class="sve-pane-bar" data-sve-pane-bar>
       <div data-sve-right-title>{{ title }}</div>
       <div data-sve-right-actions>
+        <!-- Automatic / manual, as the HTML dock saves; previews-watch.js paints
+             both and hides the save button while automatic is on. -->
+        <button type="button" data-sve-previews-auto aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 16.3A8.5 8.5 0 1 1 18.3 6.3"/><path d="M21 3.2v5.4h-5.4"/></svg>
+          <span data-sve-previews-spinner aria-hidden="true"></span>
+        </button>
         <button
-          v-if="showRefresh"
           type="button"
           data-sve-previews-refresh
           :aria-label="refreshLabel"

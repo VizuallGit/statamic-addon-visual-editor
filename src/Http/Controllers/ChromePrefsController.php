@@ -38,6 +38,7 @@ class ChromePrefsController
         'sve-toolbar-presets',
         'sve-toolbar-preset',
         'sve-lite-load-all',
+        'sve-previews-auto',
     ];
 
     public function update(Request $request)

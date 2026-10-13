@@ -203,10 +203,11 @@ return [
         'library_global' => true,
         'library_templates' => true,
         'library_in_use_only' => false,
-        // Keeps the Patterns panel's thumbnails current while it is open: every
-        // 5s it asks whether any preview has gone stale and, if so, starts the
-        // same detached generator a CP save would. Off by default — with it off
-        // the panel shows a button instead, so nothing runs unasked.
+        // The default for the automatic / manual toggle in the Patterns bar
+        // (each editor's own choice wins). Automatic: once a minute while Live
+        // Preview is open, the previews that changed are retaken by the same
+        // detached generator a CP save starts. Off by default — manual, a save
+        // button, so nothing runs unasked.
         'previews_autowatch' => false,
         // Not toggles: who the limit above covers. 'everyone' means everyone,
         // super admins included — which is how you check what an editor sees
@@ -431,12 +432,17 @@ return [
     |               animations before capturing.
     |
     | - watch / watch_exclude: the files that decide whether EVERY preview is out
-    |               of date — the built assets and the shared templates. The
-    |               build manifest rather than the CSS sources on purpose: a
-    |               screenshot shows what has been built, so an unbuilt edit must
-    |               not count as a change. Section partials are excluded because
-    |               each one is fingerprinted against its own section, which is
-    |               what keeps a change to one section from re-shooting the site.
+    |               of date — the CSS sources and the shared templates. The
+    |               build manifest is listed but split, not hashed whole: its
+    |               scripts count for every preview, its CSS only for the
+    |               sections whose templates or values use a class it gained
+    |               (PreviewFingerprint\BuiltCss) — a build after one section's
+    |               edit no longer re-shoots the site. A rule that changes for a
+    |               class already there (a Tailwind upgrade) is not noticed:
+    |               "Regenerate everything" in the Section Previews utility.
+    |               Section partials are excluded because each one is
+    |               fingerprinted against its own section, which is what keeps
+    |               a change to one section from re-shooting the site.
     | - section_partials: where a set handle's own template lives, so
     |               `hero/style_1` is looked for at
     |               `<section_partials>/hero/style_1.antlers.html`.

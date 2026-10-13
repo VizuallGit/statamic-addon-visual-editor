@@ -686,7 +686,7 @@ tabs:
             field:
               type: toggle
               display: 'Auto-update previews'
-              instructions: 'While Patterns is open, check every 5 seconds and regenerate what has gone stale. Off: a button in the panel instead.'
+              instructions: 'The default for the toggle in the Patterns bar. Automatic: once a minute while Live Preview is open, retake the previews that changed. Manual: a save button does it. Each editor can switch for themselves.'
               default: false
               width: 50
               if:

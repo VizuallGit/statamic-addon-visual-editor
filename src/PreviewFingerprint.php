@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\PreviewFingerprint\BuiltCss;
 use Statamic\Facades\GlobalSet;
 use Statamic\Facades\Site;
 
@@ -16,13 +17,14 @@ use Statamic\Facades\Site;
  *
  * Two inputs, kept apart on purpose so a run does the least work possible:
  *
- * - design(): what every preview shares and no single section owns — CSS/JS
- *   (Vite sources and the build manifest), the layout, the page template, the
- *   theme settings. Change a colour and every preview is stale, correctly.
+ * - design(): what every preview shares and no single section owns — the CSS
+ *   sources, the built scripts, the layout, the page template, the theme
+ *   settings. Change a colour or a font and every preview is stale, correctly.
  * - the section itself: the templates it actually renders through — its own
  *   partial(s) and every partial those include, from PreviewPartials — plus its
  *   own data (for a section type, the resolved default values; for a saved
- *   section, what's stored on it).
+ *   section, what's stored on it), and the classes in those templates that the
+ *   built CSS has a rule for (BuiltCss).
  *
  * The split between the two is drawn by reachability, not by a folder: design()
  * hashes every watched file that no section reaches, and each section hashes the
@@ -31,10 +33,13 @@ use Statamic\Facades\Site;
  * still retakes everything — with no file falling between the two and quietly
  * ceasing to invalidate anything.
  *
- * CSS sources are watched as well as the build manifest: while `npm run dev`
- * runs, screenshots load from the Vite server, so a source edit that has not
- * been built yet is still what the picture will show. The manifest covers the
- * case where Vite is not running.
+ * The build manifest is the one watched file not hashed as a file. A build
+ * changes it whenever any template gains a class, and as part of the design
+ * it made every picture stale for one section's edit; BuiltCss splits it
+ * instead — its scripts into the design, its CSS into the sections that use
+ * it. The CSS sources are hashed as files: while `npm run dev` runs,
+ * screenshots load from the Vite server, so a source edit that has not been
+ * built yet is still what the picture will show.
  */
 class PreviewFingerprint
 {
@@ -45,9 +50,10 @@ class PreviewFingerprint
     {
         static::$design = null;
         PreviewPartials::flush();
+        BuiltCss::flush();
     }
 
-    /** The design every section is drawn in: built assets, layout, theme settings. */
+    /** The design every section is drawn in: CSS sources, built scripts, layout, theme settings. */
     public static function design(): string
     {
         if (static::$design !== null) {
@@ -58,8 +64,10 @@ class PreviewFingerprint
             'files' => static::hashPaths(
                 (array) config('statamic-visual-editor.previews.watch', []),
                 (array) config('statamic-visual-editor.previews.watch_exclude', []),
-                PreviewPartials::reachable(),
+                // The manifest is split by BuiltCss, not hashed whole.
+                PreviewPartials::reachable() + [BuiltCss::manifestPath() => true],
             ),
+            'scripts' => BuiltCss::scripts(),
             'theme' => static::themeSettings(),
         ]);
     }
@@ -70,11 +78,14 @@ class PreviewFingerprint
      */
     public static function forSectionType(string $handle, array $section): string
     {
+        $files = PreviewPartials::forSection($handle);
+
         return static::hash([
             'design' => static::design(),
             'handle' => $handle,
             'section' => $section,
-            'partials' => static::hashFiles(PreviewPartials::forSection($handle)),
+            'partials' => static::hashFiles($files),
+            'built' => BuiltCss::usedBy($files, $section),
         ]);
     }
 
@@ -92,10 +103,13 @@ class PreviewFingerprint
             }
         }
 
+        $paths = array_values(array_unique($paths));
+
         return static::hash([
             'design' => static::design(),
             'sections' => $sections,
-            'partials' => static::hashFiles(array_values(array_unique($paths))),
+            'partials' => static::hashFiles($paths),
+            'built' => BuiltCss::usedBy($paths, $sections),
         ]);
     }
 

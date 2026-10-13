@@ -5,6 +5,7 @@
  */
 import { ensureLpReloadButton } from './lp-reload.js';
 import { ensureLpLiveReload } from './lp-live-reload.js';
+import { ensureLpPreviewWatch } from './previews-watch.js';
 import { ensureLpStaticPublishButton } from './lp-static-publish.js';
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
@@ -183,6 +184,7 @@ export function syncLpRightBarGaps(win) {
   // noget der allerede står rigtigt.
   ensureLpReloadButton(win);
   ensureLpLiveReload(win);
+  ensureLpPreviewWatch(win);
   ensureLpStaticPublishButton(win);
 
   const parent = save.parentElement || header;

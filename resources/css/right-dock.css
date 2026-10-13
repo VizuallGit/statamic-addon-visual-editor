@@ -217,6 +217,7 @@ html.dark #__sve-right-dock,
 }
 #__sve-right-dock [data-sve-right-pin],
 #__sve-right-dock [data-sve-close],
+#__sve-right-dock [data-sve-previews-auto],
 #__sve-right-dock [data-sve-previews-refresh],
 #__sve-right-dock [data-sve-comments-place] {
   all: unset;
@@ -368,23 +369,40 @@ html.dark #__sve-right-dock,
   display: block;
   stroke-width: 2.4;
 }
-#__sve-right-dock [data-sve-previews-refresh] svg {
+#__sve-right-dock :is([data-sve-previews-auto], [data-sve-previews-refresh]) svg {
   width: 13px;
   height: 13px;
   display: block;
   stroke-width: 2.2;
 }
-/* Working: the disc gives way to the same spinner the HTML dock uses, and the
+/* The HTML dock's auto-save look: automatic on, and a save button with
+   something to save, are lit; the save button is gone while automatic is on. */
+#__sve-right-dock [data-sve-previews-auto][aria-pressed="true"],
+#__sve-right-dock [data-sve-previews-refresh][data-dirty] {
+  opacity: 1;
+  color: #3858e9;
+  background: rgba(56,88,233,.14);
+}
+html.dark #__sve-right-dock [data-sve-previews-auto][aria-pressed="true"],
+html.dark #__sve-right-dock [data-sve-previews-refresh][data-dirty] {
+  color: #93c5fd;
+  background: rgba(56,88,233,.22);
+}
+#__sve-right-dock [data-sve-previews-auto][hidden],
+#__sve-right-dock [data-sve-previews-refresh][hidden] {
+  display: none !important;
+}
+/* Working: the icon gives way to the same spinner the HTML dock uses, and the
    button comes up to full opacity — the one control on the bar that is doing
    something should not look like the two that are idle. */
-#__sve-right-dock [data-sve-previews-refresh][data-sve-busy] {
+#__sve-right-dock :is([data-sve-previews-auto], [data-sve-previews-refresh])[data-sve-busy] {
   opacity: 1;
   cursor: default;
 }
-#__sve-right-dock [data-sve-previews-refresh][data-sve-busy] svg {
+#__sve-right-dock :is([data-sve-previews-auto], [data-sve-previews-refresh])[data-sve-busy] svg {
   display: none;
 }
-#__sve-right-dock [data-sve-previews-refresh] [data-sve-previews-spinner] {
+#__sve-right-dock :is([data-sve-previews-auto], [data-sve-previews-refresh]) [data-sve-previews-spinner] {
   display: none;
   width: 13px;
   height: 13px;
@@ -393,7 +411,7 @@ html.dark #__sve-right-dock,
   border-radius: 50%;
   animation: sve-cm-wait .6s linear infinite;
 }
-#__sve-right-dock [data-sve-previews-refresh][data-sve-busy] [data-sve-previews-spinner] {
+#__sve-right-dock :is([data-sve-previews-auto], [data-sve-previews-refresh])[data-sve-busy] [data-sve-previews-spinner] {
   display: block;
 }
 @keyframes sve-cm-wait { to { transform: rotate(360deg); } }

@@ -57,39 +57,76 @@ class PreviewStatus
      */
     protected static function store(string $collection): array
     {
-        $config = Sets::previewImageConfig();
-        $filesystem = $config ? AssetContainer::find($config['container'])?->disk()->filesystem() : null;
-        $field = config('statamic-visual-editor.previews.field', 'page_sections');
+        $filesystem = static::filesystem();
 
-        return Entry::query()
-            ->where('collection', $collection)
-            ->where('site', Site::default()->handle())
-            ->get()
-            ->map(function ($entry) use ($field, $filesystem) {
-                $sections = $entry->value($field);
-                $current = $entry->value('preview_image');
-                $spec = SavedSectionPreview::specFor($entry) ?? [];
-                $folder = $spec['folder'] ?? 'saved-sections';
-
-                $expected = is_array($sections) && $sections !== []
-                    ? $folder.'/'.$entry->id().'-'.PreviewFingerprint::forSections($sections).'.png'
-                    : null;
-
-                return [
-                    'name' => $entry->value('title') ?: $entry->id(),
-                    'status' => match (true) {
-                        $expected === null => 'no_source',
-                        $current === $expected && $filesystem?->exists($current) => 'fresh',
-                        (bool) $current => 'stale',
-                        default => 'missing',
-                    },
-                    'source' => $entry->value('synced') ? 'global' : null,
-                    'url' => optional($entry->augmentedValue('preview_image')->value())->url(),
-                    'edit_url' => $entry->editUrl(),
-                ];
-            })
+        return static::entries($collection)
+            ->map(fn ($entry) => [
+                'name' => $entry->value('title') ?: $entry->id(),
+                'status' => static::entryStatus($entry, $filesystem),
+                'source' => $entry->value('synced') ? 'global' : null,
+                'url' => optional($entry->augmentedValue('preview_image')->value())->url(),
+                'edit_url' => $entry->editUrl(),
+            ])
             ->sortBy(fn ($row) => $row['name'], SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
+    }
+
+    /**
+     * The saved sections and compositions whose picture no longer matches —
+     * the Patterns panel's tick, which needs the answer and nothing else.
+     *
+     * @return list<string> entry titles (or ids)
+     */
+    public static function staleEntries(): array
+    {
+        $collections = array_filter([
+            config('statamic-visual-editor.saved_sections.collection', 'saved_sections'),
+            Stores::compositions(),
+        ]);
+
+        $filesystem = static::filesystem();
+
+        return collect($collections)
+            ->flatMap(fn ($collection) => static::entries($collection)->all())
+            ->filter(fn ($entry) => in_array(static::entryStatus($entry, $filesystem), ['stale', 'missing'], true))
+            ->map(fn ($entry) => (string) ($entry->value('title') ?: $entry->id()))
+            ->values()
+            ->all();
+    }
+
+    protected static function entries(string $collection)
+    {
+        return Entry::query()
+            ->where('collection', $collection)
+            ->where('site', Site::default()->handle())
+            ->get();
+    }
+
+    /** The disk the preview images are on, or null when none is configured. */
+    protected static function filesystem()
+    {
+        $config = Sets::previewImageConfig();
+
+        return $config ? AssetContainer::find($config['container'])?->disk()->filesystem() : null;
+    }
+
+    /** Whether an entry's screenshot still matches what is stored on it. */
+    protected static function entryStatus($entry, $filesystem): string
+    {
+        $sections = $entry->value(config('statamic-visual-editor.previews.field', 'page_sections'));
+        $current = $entry->value('preview_image');
+        $folder = (SavedSectionPreview::specFor($entry) ?? [])['folder'] ?? 'saved-sections';
+
+        $expected = is_array($sections) && $sections !== []
+            ? $folder.'/'.$entry->id().'-'.PreviewFingerprint::forSections($sections).'.png'
+            : null;
+
+        return match (true) {
+            $expected === null => 'no_source',
+            $current === $expected && $filesystem?->exists($current) => 'fresh',
+            (bool) $current => 'stale',
+            default => 'missing',
+        };
     }
 }
