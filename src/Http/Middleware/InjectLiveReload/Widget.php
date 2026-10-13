@@ -31,12 +31,18 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
  * and the texts of the <style> tags in <head>, replaced in place. What scripts
  * add at run time (the editor's overlay, a teleported dialog) and the two
  * buttons are left alone. A morph does not run scripts, so the page reloads as
- * before when it cannot be a morph: a new build, other <script> tags, <style>
- * tags in <head> or stylesheet links than the page was served with (a
- * `script_push` in a section is one), other <body> attributes or top-level
- * elements, no Alpine or no morph, a fetch that fails or a morph that throws.
- * A CSS change still waits for the server's build: the sources rest two
- * seconds, Vite builds, and the new manifest reloads the page.
+ * before when it cannot be a morph: other <script> tags, <style> tags in
+ * <head> or stylesheet links than the page was served with (a `script_push`
+ * in a section is one, a build that changed the site's JS another), other
+ * <body> attributes or top-level elements, no Alpine or no morph, a fetch that
+ * fails or a morph that throws.
+ *
+ * A class the site's build has never made has no CSS on the page until the
+ * server's build (the sources rest two seconds, Vite builds). The dock's own
+ * Tailwind compiler makes the CSS for those classes alone, in the browser, in
+ * the morph's frame (`$tailwind`, only for people with the dock); the new
+ * build is then morphed in like new markup — its CSS is in the page's <head>
+ * — and that CSS takes over.
  *
  * Nothing is asked while the tab is hidden or the editor overlay is open (an
  * open overlay is a Live Preview session; reloading would end it); it looks
@@ -48,8 +54,9 @@ final class Widget
     /**
      * @param  array{markup: string, build: string}  $page
      * @param  string|null  $morph  URL of the built live-reload-morph.js; without it new markup reloads the page
+     * @param  string|null  $tailwind  URL of the dock's built tw-compile.js; without it a class the build lacks waits for the build
      */
-    public static function html(array $page, ?string $morph = null): string
+    public static function html(array $page, ?string $morph = null, ?string $tailwind = null): string
     {
         $reasons = [];
 
@@ -62,6 +69,7 @@ final class Widget
             'markup' => $page['markup'],
             'build' => $page['build'],
             'morph' => $morph,
+            'tailwind' => $tailwind,
             'strings' => [
                 'on' => __('sve::messages.live_reload_on'),
                 'off' => __('sve::messages.live_reload_off'),
@@ -284,6 +292,18 @@ final class Widget
                 return tags.join(' ');
             }
 
+            // Class names on an element and everything in it.
+            function classesOf(el, into) {
+                [el].concat(Array.prototype.slice.call(el.querySelectorAll('[class]'))).forEach(function (node) {
+                    (node.getAttribute('class') || '').split(/\\s+/).forEach(function (name) { if (name) into.add(name); });
+                });
+                return into;
+            }
+
+            // Classes the last morph brought that the server's previous HTML
+            // did not have — the candidates for CSS the page may not have yet.
+            var fresh = new Set();
+
             // Brings `live` from what the server sent before (`old`) to what it
             // sends now (`next`), morphing only the smallest element that
             // changed: down through elements whose own attributes and children
@@ -295,6 +315,8 @@ final class Widget
             function patch(live, old, next) {
                 if (old.outerHTML === next.outerHTML || next.tagName === 'SCRIPT') return;
                 if (next.tagName === 'TEMPLATE' || attributesOf(old) !== attributesOf(next) || shapeOf(old) !== shapeOf(next) || tagsOf(live) !== tagsOf(old)) {
+                    var before = classesOf(old, new Set());
+                    classesOf(next, new Set()).forEach(function (name) { if (!before.has(name)) fresh.add(name); });
                     window.Alpine.morph(live, next.outerHTML);
                     return;
                 }
@@ -322,8 +344,115 @@ final class Widget
                 syncHeadStyles(next);
                 if (next.title !== served.title) document.title = served.title = next.title;
 
+                fresh = new Set();
                 nodes.forEach(function (node, i) { patch(served.nodes[i], old[i], node); });
                 served.old = nodes;
+
+                return Array.from(fresh);
+            }
+
+            // --- A class the page has no CSS for yet -------------------------
+
+            // The server renders the page with the CSS of every class the
+            // site's build has (PageCss inlines the ones the page uses), so a
+            // class from the build shows with the morph. One the build never
+            // made (`bg-[#ff00aa]`, a shade nothing used yet) waited for the
+            // server's build and a reload: seconds. The dock's own Tailwind
+            // compiler (tw-compile.js, with the site's @theme and @utility from
+            // /!/sve/tailwind-theme; only for people with the dock) makes the
+            // CSS for exactly those classes, here, in a millisecond: it is
+            // loaded and built (~200 ms) once per page while the page is idle,
+            // after the first poll. It goes into one constructed sheet
+            // after the page's own; the build's CSS takes over when it lands
+            // (settleClasses). Theme variables the page already defines stay
+            // the page's — they follow the theme settings.
+            var tw = { module: null, sheet: null, classes: [] };
+
+            function loadTailwind() {
+                if (!tw.module) {
+                    tw.module = import(cfg.tailwind);
+                    tw.module.catch(function () { tw.module = null; });
+                }
+                return tw.module;
+            }
+
+            // Every class some rule of the page's own stylesheets names.
+            function classesWithRules() {
+                var known = new Set();
+                function walk(rules) {
+                    for (var i = 0; i < rules.length; i++) {
+                        if (rules[i].selectorText) {
+                            rules[i].selectorText.replace(/\\.((?:\\\\.|[\\w-])+)/g, function (match, name) {
+                                known.add(name.replace(/\\\\(.)/g, '\$1'));
+                                return match;
+                            });
+                        }
+                        if (rules[i].cssRules) walk(rules[i].cssRules);
+                    }
+                }
+                Array.prototype.forEach.call(document.styleSheets, function (sheet) {
+                    try { walk(sheet.cssRules); } catch (e) {}
+                });
+                return known;
+            }
+
+            function paintClasses(names) {
+                if (!cfg.tailwind || !names.length || !('adoptedStyleSheets' in document)) return;
+                var known = classesWithRules();
+                var missing = names.filter(function (name) {
+                    return !known.has(name) && name.indexOf('"') === -1 && tw.classes.indexOf(name) === -1;
+                });
+                if (!missing.length) return;
+                tw.classes = tw.classes.concat(missing);
+                // The compiler keeps every class it was given: its answer is
+                // the CSS for all of them, and replaces the sheet.
+                var classes = tw.classes;
+                loadTailwind()
+                    .then(function (module) { return module.compileTailwind(window, '<i class="' + classes.join(' ') + '"></i>'); })
+                    .then(adoptCss)
+                    .catch(function (error) { console.info('[live reload] the build brings the CSS: ' + (error && error.message)); });
+            }
+
+            function dropSheet() {
+                if (!tw.sheet) return;
+                var sheet = tw.sheet;
+                tw.sheet = null;
+                document.adoptedStyleSheets = document.adoptedStyleSheets.filter(function (s) { return s !== sheet; });
+            }
+
+            function adoptCss(css) {
+                dropSheet();
+                if (!css) return;
+                var sheet = new CSSStyleSheet();
+                sheet.replaceSync(css);
+                var root = getComputedStyle(document.documentElement);
+                (function keepPageTheme(rules) {
+                    for (var i = 0; i < rules.length; i++) {
+                        var rule = rules[i];
+                        if (rule.style && rule.selectorText && rule.selectorText.indexOf(':root') !== -1) {
+                            for (var j = rule.style.length - 1; j >= 0; j--) {
+                                var name = rule.style[j];
+                                if (name.indexOf('--') === 0 && root.getPropertyValue(name) !== '') rule.style.removeProperty(name);
+                            }
+                        }
+                        if (rule.cssRules) keepPageTheme(rule.cssRules);
+                    }
+                })(sheet.cssRules);
+                tw.sheet = sheet;
+                document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
+            }
+
+            // The build landed and the page has its CSS: the compiled sheet
+            // goes, and only a class this build still lacks (saved while it
+            // ran) is compiled again, by a fresh compiler — the old one would
+            // keep answering for every class it ever had.
+            function settleClasses() {
+                var classes = tw.classes;
+                tw.classes = [];
+                dropSheet();
+                if (!classes.length || !tw.module) return;
+                tw.module.then(function (module) { module.forgetTailwindTheme(); });
+                paintClasses(classes);
             }
 
             // New markup: the page's new HTML morphed in, or a reload when it
@@ -335,8 +464,12 @@ final class Widget
                         // Opened the editor or switched off while it fetched:
                         // catch up later, as a poll would.
                         if (editing() || !enabled()) { busy = false; paint(enabled() ? 'on' : 'off'); schedule(0); return; }
-                        morphInto(done[1]);
+                        var classes = morphInto(done[1]);
+                        var built = status.build !== cfg.build;
                         cfg.markup = status.markup;
+                        cfg.build = status.build;
+                        if (built) settleClasses();
+                        paintClasses(classes);
                         busy = false;
                         if (status.error) showError(status.error);
                         else paint(status.building ? 'building' : 'on');
@@ -381,6 +514,16 @@ final class Widget
                 busy = true;
                 started = Date.now();
                 loadMorph();
+                // The compiler, ready before the first class it is needed for:
+                // the module (cached by the browser after the first page) and
+                // the site's theme, once per page, when the page is idle.
+                if (cfg.tailwind && !tw.module) {
+                    (window.requestIdleCallback || setTimeout)(function () {
+                        loadTailwind()
+                            .then(function (module) { return module.loadTailwindCompiler(window); })
+                            .catch(function () {});
+                    });
+                }
                 fetch(pollUrl(), { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                     .then(function (response) {
                         if (response.status === 401 || response.status === 403) return { refused: true };
@@ -394,8 +537,11 @@ final class Widget
                         if (status.refused) { paint('signedout'); schedule(30000); return; }
                         if (!enabled()) { paint('off'); return; }
                         if ((status.markup !== cfg.markup || status.build !== cfg.build) && !editing()) {
-                            // New CSS or JS from the build: only a page load brings it.
-                            if (status.build !== cfg.build) { reload(); return; }
+                            // A new build is morphed in when the poll brought the page
+                            // (its CSS is in the page's <head>); without it, or when
+                            // the build changed the page's scripts, only a page load
+                            // brings it.
+                            if (status.build !== cfg.build && typeof status.html !== 'string') { reload(); return; }
                             busy = true;
                             update(status);
                             return;

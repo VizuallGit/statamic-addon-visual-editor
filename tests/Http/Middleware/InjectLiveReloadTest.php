@@ -88,6 +88,20 @@ class InjectLiveReloadTest extends TestCase
         $this->assertTrue(BuiltAssets::isAllowed(substr($url, strlen('/!/sve/build/'))), 'the build route serves it');
     }
 
+    public function test_the_docks_tailwind_compiler_only_for_people_with_the_dock(): void
+    {
+        $this->signIn();
+
+        $this->assertStringContainsString('"tailwind":null', $this->inject(), 'the dock is off by default');
+
+        config(['statamic-visual-editor.features.template_dock' => true]);
+        Features::flush();
+        $url = BuiltAssets::url('resources/js/tw-compile.js');
+
+        $this->assertStringContainsString('"tailwind":"'.$url.'"', $this->inject());
+        $this->assertTrue(BuiltAssets::isAllowed(substr($url, strlen('/!/sve/build/'))), 'the build route serves it');
+    }
+
     public function test_not_for_guests(): void
     {
         $this->assertStringNotContainsString('sve-live-reload', $this->inject());

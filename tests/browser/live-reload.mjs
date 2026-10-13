@@ -28,12 +28,16 @@ const ALPINE = readFileSync(`${SITE}/node_modules/alpinejs/dist/cdn.min.js`, 'ut
 const MORPH_FILE = JSON.parse(readFileSync(`${ADDON}/resources/dist/build/manifest.json`, 'utf8'))['resources/js/live-reload-morph.js'].file;
 const MORPH_URL = `/!/sve/build/${MORPH_FILE}`;
 const MORPH = readFileSync(`${ADDON}/resources/dist/build/${MORPH_FILE}`, 'utf8');
+// The dock's Tailwind compiler as built, and a site theme for it to compile against.
+const TW_FILE = JSON.parse(readFileSync(`${ADDON}/resources/dist/build/manifest.json`, 'utf8'))['resources/js/tw-compile.js'].file;
+const TW_URL = `/!/sve/build/${TW_FILE}`;
+const THEME = { css: '@theme { --color-brand: #00aa55; }', plugins: [] };
 
 // Laravel's helpers define __() only when it is missing; this one answers the key.
 const widget = execFileSync('php', ['-r', `
     function __($key) { return $key === 'sve::messages.live_reload_error' ? 'failed: :reason' : $key; }
     require ${JSON.stringify(BOOTSTRAP)};
-    echo MarioHamann\\StatamicVisualEditor\\Http\\Middleware\\InjectLiveReload\\Widget::html(['markup' => 'MARKUP_SIG', 'build' => 'BUILD_SIG'], ${JSON.stringify(MORPH_URL)});
+    echo MarioHamann\\StatamicVisualEditor\\Http\\Middleware\\InjectLiveReload\\Widget::html(['markup' => 'MARKUP_SIG', 'build' => 'BUILD_SIG'], ${JSON.stringify(MORPH_URL)}, ${JSON.stringify(TW_URL)});
 `], { encoding: 'utf8' });
 
 if (!widget.includes('id="sve-live-reload"')) throw new Error('PHP did not render the button:\n' + widget);
@@ -50,6 +54,8 @@ const server = {
   // The page: its head style's colour, a script a template pushed, a page
   // answered without </body> once, the morph asset missing.
   color: 'rgb(0, 0, 0)', style: '', script: '', truncate: false, morphStatus: 200,
+  // Markup in <main> after the kept section, and CSS the site's build has made.
+  extra: '', builtCss: '',
   // The held poll renders the page it names and answers a markup change with
   // its HTML (LiveReloadController\PageRender); off, the button fetches it.
   inline: true,
@@ -58,15 +64,18 @@ let fetches = 0; // the page asked for by the button itself, not by a navigation
 let polls = 0;
 let pages = 0;
 let morphAsked = 0;
+let twAsked = 0;
+let documents = 0; // pages loaded in the tab
+let themeAsked = 0;
 const asked = []; // { at, url } per poll
 
 // As a site sends it: the edit button after the live-reload button (the outer
 // middleware writes last), a script inside a section, Alpine deferred.
 function pageHtml() {
   pages++;
-  const html = `<!doctype html><html><head><style id="sve-noanim"></style><style>main h1 { color: ${server.color}; }</style>${server.style}${server.script}<script defer src="/alpine.js"></script></head><body class="site">
+  const html = `<!doctype html><html><head><style id="sve-noanim"></style><style>main h1 { color: ${server.color}; } .underline { text-decoration-line: underline; }${server.builtCss}</style>${server.style}${server.script}<script defer src="/alpine.js"></script></head><body class="site">
 <header x-data="{ open: false }" style="padding: 5rem"><button id="menu" type="button" @click="open = !open">Menu</button><nav id="nav" x-show="open">Nav</nav></header>
-<main><h1>Page ${pages}</h1><script>window.__runs = (window.__runs || 0) + 1;</script><section id="kept"><p>Kept</p></section><div style="height: 4000px"></div></main>
+<main><h1>Page ${pages}</h1><script>window.__runs = (window.__runs || 0) + 1;</script><section id="kept"><p>Kept</p></section>${server.extra}<div style="height: 4000px"></div></main>
 <footer>Footer</footer>
 ${widget.replace('MARKUP_SIG', server.markup).replace('BUILD_SIG', server.build)}
 <a id="sve-edit-button" href="/cp">Rediger</a><style>#sve-edit-button { position: fixed; right: 0; top: 0; }</style><script>document.getElementById('sve-edit-button').setAttribute('data-ready', '');</script>
@@ -87,7 +96,7 @@ function answerPoll(request, url) {
     const changed = server.markup !== have.markup || server.build !== have.build;
     if (!named || changed || Date.now() >= until) {
       const answer = { markup: server.markup, build: server.build, building: server.building, error: server.error, own: false, css: null };
-      if (server.inline && url.searchParams.get('page') && server.markup !== have.markup && server.build === have.build) answer.html = pageHtml();
+      if (server.inline && url.searchParams.get('page') && (server.markup !== have.markup || server.build !== have.build)) answer.html = pageHtml();
       return respond({ status: 200, contentType: 'application/json', body: JSON.stringify(answer) });
     }
     setTimeout(look, 20);
@@ -120,6 +129,14 @@ try {
       return answerPoll(request, url);
     }
     if (url.pathname === '/alpine.js') return request.respond({ status: 200, contentType: 'text/javascript', body: ALPINE });
+    if (url.pathname === '/!/sve/tailwind-theme') {
+      themeAsked++;
+      return request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(THEME) });
+    }
+    if (url.pathname.startsWith('/!/sve/build/assets/') && url.pathname !== MORPH_URL) {
+      if (url.pathname === TW_URL) twAsked++;
+      return request.respond({ status: 200, contentType: 'text/javascript', body: readFileSync(`${ADDON}/resources/dist/build/${url.pathname.slice('/!/sve/build/'.length)}`, 'utf8') });
+    }
     if (url.pathname === MORPH_URL) {
       morphAsked++;
       return request.respond(server.morphStatus === 200
@@ -127,6 +144,7 @@ try {
         : { status: server.morphStatus, body: '' });
     }
     if (!request.isNavigationRequest()) fetches++;
+    else if (url.pathname !== '/favicon.ico') documents++;
     return request.respond({ status: 200, contentType: 'text/html', body: pageHtml() });
   });
 
@@ -143,10 +161,10 @@ try {
     return done ? Date.now() - start : null;
   }
   /** Sets the server's markup or build and measures until `ready` holds in the page. */
-  async function changeAndWait(key, value, ready) {
+  async function changeAndWait(key, value, ready, polling = 'mutation') {
     const start = Date.now();
     server[key] = value;
-    const done = await page.waitForFunction(ready, { timeout: 3000, polling: 'mutation' }).catch(() => null);
+    const done = await page.waitForFunction(ready, { timeout: 3000, polling }).catch(() => null);
     return done ? Date.now() - start : null;
   }
 
@@ -273,10 +291,36 @@ try {
   check('a page without </body> reloads instead', truncatedMs !== null && !(await sameDocument()), `${truncatedMs} ms`);
   await mark();
 
-  // The build wrote new CSS.
+  // A class the site's build has never made: compiled here, at once.
   await sleep(1200);
-  const buildMs = await changeAndTime('build', 'b2');
-  check('a new build reloads the page', buildMs !== null && buildMs < 500 && !(await sameDocument()), `${buildMs} ms`);
+  check('the dock\'s compiler is fetched when idle, once per page', twAsked === documents, `${twAsked} requests, ${documents} pages`);
+  server.extra = '<b id="tw" class="bg-[#ff00aa] text-brand underline">new</b>';
+  // A stylesheet is no DOM mutation: looked for every frame.
+  const htmlAt = page.waitForFunction(() => document.getElementById('tw'), { timeout: 3000, polling: 'raf' }).then(() => Date.now()).catch(() => null);
+  const twStart = Date.now();
+  const twMs = await changeAndWait('markup', 'm5b', () => {
+    const b = document.getElementById('tw');
+    return b && getComputedStyle(b).backgroundColor === 'rgb(255, 0, 170)';
+  }, 'raf');
+  const htmlMs = (await htmlAt) - twStart;
+  check('a class the build never made paints with the morph, no build, no reload', twMs !== null && twMs - htmlMs < 100 && await sameDocument(), `HTML +${htmlMs} ms, colour +${twMs} ms`);
+  check('…from the site\'s own theme (bg-[#ff00aa] text-brand)', (await page.$eval('#tw', (b) => getComputedStyle(b).color)) === 'rgb(0, 170, 85)');
+  check('…in one sheet of its own, for those classes alone', await page.evaluate(() => document.adoptedStyleSheets.length === 1 && [...document.adoptedStyleSheets[0].cssRules].map((r) => r.cssText).join(' ').includes('ff00aa') && ![...document.adoptedStyleSheets[0].cssRules].map((r) => r.cssText).join(' ').includes('.relative')));
+  check('a class the page already has CSS for is not compiled (underline)', await page.evaluate(() => ![...document.adoptedStyleSheets[0].cssRules].map((r) => r.cssText).join(' ').includes('.underline')));
+  check('…and the theme is asked once per page, while it is idle', themeAsked === documents, `${themeAsked} theme requests, ${documents} pages`);
+
+  // The build lands with that CSS: morphed in, the compiled sheet goes, no reload.
+  await sleep(HOLD_MS + 300);
+  server.builtCss = ' #tw.bg-\\[\\#ff00aa\\] { background-color: rgb(255, 0, 170); } #tw.text-brand { color: rgb(0, 170, 85); }';
+  const builtMs = await changeAndWait('build', 'b2', () => document.adoptedStyleSheets.length === 0, 'raf');
+  check('a new build is morphed in: no reload, the compiled sheet gone', builtMs !== null && builtMs < 1500 && await sameDocument(), `${builtMs} ms`);
+  check('…and the class keeps its colour, now from the build', (await page.$eval('#tw', (b) => getComputedStyle(b).backgroundColor)) === 'rgb(255, 0, 170)');
+  await sleep(HOLD_MS + 300);
+
+  // A build that changed the page's scripts: only a page load brings them.
+  server.script = '<script>window.__pushed = "built";</script>';
+  const buildMs = await changeAndTime('build', 'b3');
+  check('a new build with other scripts reloads the page', buildMs !== null && buildMs < 500 && !(await sameDocument()), `${buildMs} ms`);
   await mark();
 
   // The editor overlay is open: a Live Preview session must not be torn down.

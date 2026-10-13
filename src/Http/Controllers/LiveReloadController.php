@@ -22,9 +22,9 @@ use Statamic\Facades\User;
  * still being built. The next polls see `building` until it is done.
  *
  * The public page's button also names its page (`&page=`): its poll renders
- * that page before the hold and again on a markup change, and answers with
- * the HTML (`html`), so the button morphs without a request of its own
- * (PageRender). Live Preview names no page.
+ * that page before the hold and again on a markup change or a new build, and
+ * answers with the HTML (`html`), so the button morphs without a request of
+ * its own (PageRender). Live Preview names no page.
  */
 class LiveReloadController
 {
@@ -49,7 +49,9 @@ class LiveReloadController
             // meanwhile (a logout in another tab, a flash already shown).
             $this->readSessionAgain($request);
 
-            if ($page !== null && $status['markup'] !== $have['markup'] && $status['build'] === $have['build']) {
+            // A markup change, or a new build: its CSS is in the page's <head>,
+            // and the button morphs it in instead of reloading.
+            if ($page !== null && ($status['markup'] !== $have['markup'] || $status['build'] !== $have['build'])) {
                 $status['html'] = $page->html();
             }
         }

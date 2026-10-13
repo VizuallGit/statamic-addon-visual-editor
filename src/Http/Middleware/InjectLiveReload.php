@@ -41,20 +41,31 @@ class InjectLiveReload
         }
 
         $response->setContent(
-            substr_replace($content, Widget::html(LiveReload::page(), $this->morphUrl()).'</body>', $pos, strlen('</body>'))
+            substr_replace($content, Widget::html(LiveReload::page(), $this->builtUrl('resources/js/live-reload-morph.js'), $this->tailwindUrl()).'</body>', $pos, strlen('</body>'))
         );
 
         return $response;
     }
 
     /**
-     * Alpine's morph for the button, from the addon's build. A build without
-     * it (older than the button's morph) leaves the button reloading the page.
+     * The dock's Tailwind compiler, for a class the site's build has not made
+     * yet. Its theme route is the dock's (`template_dock`), so only people who
+     * have the dock get it; the others wait for the build as before.
      */
-    protected function morphUrl(): ?string
+    protected function tailwindUrl(): ?string
+    {
+        return Features::allows('template_dock') ? $this->builtUrl('resources/js/tw-compile.js') : null;
+    }
+
+    /**
+     * A file from the addon's build: Alpine's morph for the button, the dock's
+     * compiler. A build without it leaves the button doing without — a reload,
+     * a wait for the site's build.
+     */
+    protected function builtUrl(string $entry): ?string
     {
         try {
-            return BuiltAssets::url('resources/js/live-reload-morph.js');
+            return BuiltAssets::url($entry);
         } catch (RuntimeException) {
             return null;
         }

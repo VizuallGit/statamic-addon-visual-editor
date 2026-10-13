@@ -261,7 +261,7 @@ class LiveReloadControllerTest extends TestCase
         $this->assertArrayNotHasKey('html', $response->json(), 'a new session would put another CSRF token into the page');
     }
 
-    public function test_a_page_is_rendered_only_for_a_markup_change(): void
+    public function test_a_page_is_rendered_for_a_markup_change_or_a_new_build_only(): void
     {
         $page = $this->settled();
         $this->hold(0.2);
@@ -271,8 +271,9 @@ class LiveReloadControllerTest extends TestCase
         $held = $this->pollWithPage($page + ['page' => '/sve-live-reload-page'], Str::random(40))->assertOk();
         $this->assertArrayNotHasKey('html', $held->json(), 'nothing changed');
 
-        $newBuild = $this->pollWithPage(['markup' => 'old', 'build' => 'old build', 'page' => '/sve-live-reload-page'], Str::random(40))->assertOk();
-        $this->assertArrayNotHasKey('html', $newBuild->json(), 'a new build reloads the page anyway');
+        $newBuild = $this->pollWithPage(['markup' => $page['markup'], 'build' => 'the build before', 'page' => '/sve-live-reload-page'], Str::random(40))->assertOk();
+        $this->assertSame($page['build'], $newBuild->json('build'));
+        $this->assertIsString($newBuild->json('html'), 'a new build: its CSS is in the page, morphed in instead of a reload');
     }
 
     public function test_live_preview_names_no_page_and_gets_no_html(): void
