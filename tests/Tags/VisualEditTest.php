@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\Tags\VisualEdit;
 use MarioHamann\StatamicVisualEditor\Tests\TestCase;
 use Statamic\Facades\Blueprint;
+use Statamic\Fields\Field;
+use Statamic\Fields\Value;
 
 class VisualEditTest extends TestCase
 {
@@ -1015,6 +1017,62 @@ class VisualEditTest extends TestCase
 
         $this->assertStringContainsString('data-sid-insert="blocks"', $result);
         $this->assertStringNotContainsString('data-sid="section-1"', $result);
+    }
+
+    /**
+     * The "+" offers the sets of the replicator Statamic augmented here — not the
+     * first one in the blueprint with the same handle. `type` is the row being
+     * rendered (`content`), which another section can share.
+     */
+    public function test_insert_sets_come_from_the_fields_own_value(): void
+    {
+        $field = new Field('content_block', [
+            'type' => 'replicator',
+            'max_sets' => 4,
+            'sets' => [
+                'items' => [
+                    'display' => 'Items',
+                    'sets' => [
+                        'title' => ['display' => 'Title', 'icon' => 'text-formatting-title'],
+                        'headline' => ['display' => 'Headline'],
+                        'richtext' => ['display' => 'Richtext'],
+                        'links' => ['display' => 'Links'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $tag = $this->makeTag(
+            context: [
+                'id' => 'content-1',
+                'type' => 'content',
+                'content_block' => new Value([], 'content_block', $field->fieldtype()),
+            ],
+            params: ['field' => 'content_block', 'insertable' => 'true'],
+            livePreview: true,
+        );
+
+        $result = $tag->index();
+
+        preg_match('/data-sid-insert-sets="([^"]*)"/', $result, $m);
+        $sets = json_decode(html_entity_decode($m[1] ?? ''), true);
+
+        $this->assertSame(['title', 'headline', 'richtext', 'links'], array_column($sets, 'handle'));
+        $this->assertSame('Title', $sets[0]['display']);
+        $this->assertStringContainsString('data-sid-insert-max="4"', $result);
+    }
+
+    public function test_a_value_without_sets_offers_no_insert_sets(): void
+    {
+        $field = new Field('content_block', ['type' => 'text']);
+
+        $tag = $this->makeTag(
+            context: ['id' => 'content-1', 'content_block' => new Value('Hi', 'content_block', $field->fieldtype())],
+            params: ['field' => 'content_block', 'insertable' => 'true'],
+            livePreview: true,
+        );
+
+        $this->assertStringNotContainsString('data-sid-insert-sets', $tag->index());
     }
 
     public function test_default_param_emits_on_a_field(): void

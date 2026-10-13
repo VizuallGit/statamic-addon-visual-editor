@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Tags\Resolve;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\Tags\Resolve\BlueprintFields;
+use Statamic\Fields\Value;
 
 /**
  * What a `+` may insert here: the replicator config behind a field, its sets
@@ -17,17 +18,29 @@ trait ResolvesInserts
     private static array $replicatorByHandle = [];
 
     /**
-     * The replicator this tag is on, found inside the section being rendered.
+     * The replicator this tag is on.
      *
-     * A field handle is only unique within its set. Half the page-builder
-     * sections call their block field `blocks`, so searching the blueprint for
-     * the bare handle returns whichever one comes first in the file — another
-     * section's field, with another section's set types and another section's
-     * limits. The set being rendered is in the context as `type`, so the search
-     * starts there and only falls back to the whole tree when that fails.
+     * The field's own value carries its Field: Statamic resolved exactly which
+     * replicator this is while augmenting the row — the right section, the
+     * right nested set, references and imports included. So a set added to the
+     * fieldset is in the "+" list on the next render, wherever the field sits.
+     *
+     * Searching the blueprint by name cannot do that. A handle is only unique
+     * within its set, and `type` in the context is the row being rendered, not
+     * the section: inside hero/style_2's `content` block it is `content`, and
+     * the first set called `content` in the blueprint belonged to another
+     * section — so the hero's "+" offered that section's blocks. The search
+     * below is only for a context that holds no Value (plain arrays passed in).
      */
     protected function replicatorConfig(string $fieldHandle): ?array
     {
+        $value = $this->context->get($fieldHandle);
+        $config = $value instanceof Value ? $value->field()?->config() : null;
+
+        if (is_array($config['sets'] ?? null)) {
+            return $config;
+        }
+
         $page = $this->context->get('page');
         $blueprint = ($page && method_exists($page, 'blueprint')) ? $page->blueprint() : null;
 
