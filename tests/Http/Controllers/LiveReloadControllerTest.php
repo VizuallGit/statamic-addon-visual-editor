@@ -5,6 +5,7 @@ namespace MarioHamann\StatamicVisualEditor\Tests\Http\Controllers;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Cookie\CookieValuePrefix;
+use Illuminate\Foundation\Vite;
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
@@ -346,6 +347,30 @@ class LiveReloadControllerTest extends TestCase
         $this->assertSame(2, $renders, 'warm, then the render the answer carries');
         $this->assertStringContainsString('<style>[render 2]</style>', $html, 'the second render\'s CSS alone — a rule taken out stays out');
         StylePushStackBridge::reset();
+    }
+
+    public function test_after_a_new_build_the_page_links_that_build_not_the_one_this_process_read_before(): void
+    {
+        $this->withVite(); // Statamic's AddonTestCase fakes it
+        $page = $this->settled();
+        $this->hold(3.0);
+        $manifest = $this->root.'/public/build/manifest.json';
+        $build = fn (string $file) => file_put_contents($manifest, json_encode([
+            'resources/css/site.css' => ['file' => 'assets/'.$file, 'src' => 'resources/css/site.css', 'isEntry' => true],
+        ]));
+        $this->route('/sve-live-reload-vite', fn () => response(
+            '<html><head>'.app(Vite::class)('resources/css/site.css')->toHtml().'</head><body></body></html>', 200, ['Content-Type' => 'text/html']
+        ));
+        $this->signIn();
+
+        $build('site-before.css');
+        $before = LiveReload::page()['build'];
+        app(Vite::class)('resources/css/site.css'); // this process reads the manifest, as the warm render does
+        $build('site-after.css');
+
+        $html = $this->pollWithPage(['markup' => $page['markup'], 'build' => $before, 'page' => '/sve-live-reload-vite'], Str::random(40))->assertOk()->json('html');
+
+        $this->assertStringContainsString('assets/site-after.css', $html, 'the new build\'s stylesheet — Vite keeps every manifest it read for the process');
     }
 
     public function test_the_render_after_the_hold_starts_from_the_session_as_it_is_then(): void

@@ -2,7 +2,9 @@
 
 namespace MarioHamann\StatamicVisualEditor\Http\Controllers\LiveReloadController;
 
+use Closure;
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Foundation\Vite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Facade;
 use MarioHamann\StatamicVisualEditor\ScriptPushStack;
@@ -83,6 +85,7 @@ final class PageRender
     public function html(): ?string
     {
         static::flushPushStacks();
+        static::forgetViteManifests();
 
         $outer = app('request');
         $session = $this->poll->hasSession() ? $this->poll->session() : null;
@@ -131,6 +134,20 @@ final class PageRender
         if (ScriptPushStack::available()) {
             ScriptPushStackBridge::reset();
         }
+    }
+
+    /**
+     * Laravel's Vite keeps each manifest it read in a static array for the
+     * process (`Vite::$manifests`; `flush()` leaves it). The warm render read
+     * the site's manifest before the hold; when the hold ends on a new build,
+     * the render would still link the old stylesheet — the old files stay in
+     * public/build — and the page came back without the new build's classes
+     * (measured on Cuben: the button dropped its compiled CSS, the class lost
+     * its colour for 200 ms and came back). Read again, it is a small file.
+     */
+    private static function forgetViteManifests(): void
+    {
+        Closure::bind(static fn () => Vite::$manifests = [], null, Vite::class)();
     }
 
     /**

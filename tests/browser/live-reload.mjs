@@ -131,7 +131,10 @@ try {
     if (url.pathname === '/alpine.js') return request.respond({ status: 200, contentType: 'text/javascript', body: ALPINE });
     if (url.pathname === '/!/sve/tailwind-theme') {
       themeAsked++;
-      return request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(THEME) });
+      // As slow as the server's PHP (~200 ms on Cuben): a compiled sheet taken
+      // away before a new one is built shows as frames without the class.
+      setTimeout(() => request.respond({ status: 200, contentType: 'application/json', body: JSON.stringify(THEME) }).catch(() => {}), 200);
+      return;
     }
     if (url.pathname.startsWith('/!/sve/build/assets/') && url.pathname !== MORPH_URL) {
       if (url.pathname === TW_URL) twAsked++;
@@ -309,12 +312,30 @@ try {
   check('a class the page already has CSS for is not compiled (underline)', await page.evaluate(() => ![...document.adoptedStyleSheets[0].cssRules].map((r) => r.cssText).join(' ').includes('.underline')));
   check('…and the theme is asked once per page, while it is idle', themeAsked === documents, `${themeAsked} theme requests, ${documents} pages`);
 
-  // The build lands with that CSS: morphed in, the compiled sheet goes, no reload.
+  // From here on, every frame: the class must never lose its colour.
+  await page.evaluate(() => {
+    window.__lost = 0;
+    (function watch() {
+      const b = document.getElementById('tw');
+      if (!b || getComputedStyle(b).backgroundColor !== 'rgb(255, 0, 170)') window.__lost++;
+      requestAnimationFrame(watch);
+    })();
+  });
+
+  // A build that lacks the class (it started before the save): morphed in, the
+  // compiled sheet stays — the page has no other CSS for the class.
   await sleep(HOLD_MS + 300);
+  const lacking = await changeAndWait('build', 'b2a', () => !document.querySelector('#sve-live-reload[data-state="reloading"]'), 'raf');
+  await sleep(400);
+  check('a build without the class keeps the compiled sheet, no reload', lacking !== null && await sameDocument() && (await page.evaluate(() => document.adoptedStyleSheets.length)) === 1, `${await page.evaluate(() => document.adoptedStyleSheets.length)} sheets`);
+  await sleep(HOLD_MS + 300);
+
+  // The build lands with that CSS: morphed in, the compiled sheet goes, no reload.
   server.builtCss = ' #tw.bg-\\[\\#ff00aa\\] { background-color: rgb(255, 0, 170); } #tw.text-brand { color: rgb(0, 170, 85); }';
   const builtMs = await changeAndWait('build', 'b2', () => document.adoptedStyleSheets.length === 0, 'raf');
-  check('a new build is morphed in: no reload, the compiled sheet gone', builtMs !== null && builtMs < 1500 && await sameDocument(), `${builtMs} ms`);
-  check('…and the class keeps its colour, now from the build', (await page.$eval('#tw', (b) => getComputedStyle(b).backgroundColor)) === 'rgb(255, 0, 170)');
+  check('a new build with the class is morphed in: no reload, the compiled sheet gone', builtMs !== null && builtMs < 1500 && await sameDocument(), `${builtMs} ms`);
+  await sleep(300);
+  check('…and the class never lost its colour, not for one frame', (await page.evaluate(() => window.__lost)) === 0, `${await page.evaluate(() => window.__lost)} frames without it`);
   await sleep(HOLD_MS + 300);
 
   // A build that changed the page's scripts: only a page load brings them.

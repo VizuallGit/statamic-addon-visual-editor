@@ -42,7 +42,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware\InjectLiveReload;
  * Tailwind compiler makes the CSS for those classes alone, in the browser, in
  * the morph's frame (`$tailwind`, only for people with the dock); the new
  * build is then morphed in like new markup — its CSS is in the page's <head>
- * — and that CSS takes over.
+ * — and takes over once it has every class compiled here.
  *
  * Nothing is asked while the tab is hidden or the editor overlay is open (an
  * open overlay is a Live Preview session; reloading would end it); it looks
@@ -442,17 +442,28 @@ final class Widget
                 document.adoptedStyleSheets = document.adoptedStyleSheets.concat(sheet);
             }
 
-            // The build landed and the page has its CSS: the compiled sheet
-            // goes, and only a class this build still lacks (saved while it
-            // ran) is compiled again, by a fresh compiler — the old one would
-            // keep answering for every class it ever had.
+            // The build landed; its CSS is in the page's <head> now. Only when
+            // that CSS has every class compiled here does the compiled sheet
+            // go — never before, so a class never loses its CSS for a frame
+            // (it did for 200 ms on Cuben while the poll still linked the old
+            // build). A class this build lacks (saved while it ran) keeps the
+            // sheet as it is until the next build. Then the compiler is built
+            // again while the page is idle: the old one would keep answering
+            // for every class it ever had.
             function settleClasses() {
-                var classes = tw.classes;
+                if (!tw.sheet) return;
+                var known = classesWithRules();
+                if (tw.classes.some(function (name) { return !known.has(name); })) return;
                 tw.classes = [];
                 dropSheet();
-                if (!classes.length || !tw.module) return;
-                tw.module.then(function (module) { module.forgetTailwindTheme(); });
-                paintClasses(classes);
+                tw.module.then(function (module) {
+                    module.forgetTailwindTheme();
+                    whenIdle(function () { module.loadTailwindCompiler(window).catch(function () {}); });
+                });
+            }
+
+            function whenIdle(work) {
+                (window.requestIdleCallback || setTimeout)(work);
             }
 
             // New markup: the page's new HTML morphed in, or a reload when it
@@ -518,7 +529,7 @@ final class Widget
                 // the module (cached by the browser after the first page) and
                 // the site's theme, once per page, when the page is idle.
                 if (cfg.tailwind && !tw.module) {
-                    (window.requestIdleCallback || setTimeout)(function () {
+                    whenIdle(function () {
                         loadTailwind()
                             .then(function (module) { return module.loadTailwindCompiler(window); })
                             .catch(function () {});
