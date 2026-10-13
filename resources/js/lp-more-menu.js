@@ -63,8 +63,16 @@ const LP_MORE_ICON_SVG =
   '</svg>';
 
 const CHECK_ICON_SVG =
-  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
-  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" ' +
+  'stroke-linejoin="round" aria-hidden="true" style="width:.625rem;height:.625rem;display:block"><path d="M20 6 9 17l-5-5"/></svg>';
+
+// The short list's box in front of each preset: grey edge, or the CP's blue
+// with a tick on the one that is on.
+const PRESET_BOX = 'display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' +
+  'width:.875rem;height:.875rem;box-sizing:border-box;border-radius:.25rem;';
+const PRESET_BOX_OFF = `${PRESET_BOX}border:1px solid rgba(255,255,255,.3);`;
+const PRESET_BOX_ON = `${PRESET_BOX}border:1px solid var(--theme-color-primary,#4f46e5);` +
+  'background:var(--theme-color-primary,#4f46e5);color:#fff;';
 
 let menuApp = null;
 let menuHost = null;
@@ -625,14 +633,14 @@ function openPresetMenu(win, pill) {
     `right:${Math.round(win.innerWidth - rect.right)}px;min-width:11rem;width:max-content;` +
     'display:flex;flex-direction:column;padding:.3125rem;border-radius:.625rem;outline:none;' +
     'background:#343439;box-shadow:0 .75rem 2.5rem rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.12);' +
-    'font:500 .8125rem/1.2 ui-sans-serif,system-ui,sans-serif;';
+    'font:500 .75rem/1.2 ui-sans-serif,system-ui,sans-serif;';
   head.textContent = t(win, 'lp_settings_presets');
   head.style.cssText =
     'padding:.375rem .75rem .25rem;font-size:.6875rem;font-weight:600;letter-spacing:.04em;' +
     'text-transform:uppercase;color:rgba(255,255,255,.5);';
   menu.appendChild(head);
 
-  allPresets(win).forEach((preset) => {
+  allPresets(win).forEach((preset, index) => {
     const btn = doc.createElement('button');
     const mark = doc.createElement('span');
     const text = doc.createElement('span');
@@ -643,10 +651,10 @@ function openPresetMenu(win, pill) {
     btn.setAttribute('aria-checked', isOn ? 'true' : 'false');
     btn.setAttribute('data-sve-preset-switch', preset.id);
     btn.style.cssText =
-      'all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:.5rem;' +
-      'padding:.5625rem .75rem;border-radius:.4375rem;white-space:nowrap;color:rgba(255,255,255,.88);';
+      'all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:.625rem;' +
+      `padding:.5rem .75rem;border-radius:.4375rem;white-space:nowrap;color:${isOn ? '#fff' : 'rgba(255,255,255,.82)'};`;
     mark.setAttribute('aria-hidden', 'true');
-    mark.style.cssText = 'display:inline-flex;width:.875rem;flex-shrink:0;';
+    mark.style.cssText = isOn ? PRESET_BOX_ON : PRESET_BOX_OFF;
     mark.innerHTML = isOn ? CHECK_ICON_SVG : '';
     text.textContent = preset.label;
     btn.append(mark, text);
@@ -657,6 +665,15 @@ function openPresetMenu(win, pill) {
       dropPresetMenu();
       void applyPreset(win, preset.id);
     });
+
+    if (index > 0) {
+      const line = doc.createElement('div');
+
+      line.setAttribute('aria-hidden', 'true');
+      line.style.cssText = 'height:1px;margin:.125rem .75rem;background:rgba(255,255,255,.1);';
+      menu.appendChild(line);
+    }
+
     menu.appendChild(btn);
   });
 
