@@ -3,7 +3,9 @@
  * Presets switch the right sidebar too, in a real Live Preview, with real
  * mouse clicks — measured by what is on screen, not by what is in the DOM.
  *
- * Right-click on ⋮ lists the presets; Content editor opens the block tree and
+ * Right-click on ⋮ lists the presets. Two picked one right after the other,
+ * while the block tree's code is still on its first (slowed) load, end as the
+ * last one says. Content editor opens the block tree and
  * Patterns and closes the HTML dock; Shift-click on ⋮ lists them again, and
  * Developer opens the dock with its HTML tree and closes the two panes. Then
  * the Sidebars tab: Developer is picked there because it is on, and ticking
@@ -58,6 +60,7 @@ const PANE = {
   html_tree: '#__sve-html-tree-panel',
 };
 const DOCK = '#__sve-code-dock';
+let slowTree = false;
 
 const USER_FILE = `${SITE_DIR}/users/${USER}.yaml`;
 const userYaml = existsSync(USER_FILE) ? readFileSync(USER_FILE, 'utf8') : null;
@@ -247,7 +250,20 @@ if (WORKTREE) {
   console.log('info build served from the working tree');
 } else {
   await page.setRequestInterception(true);
-  page.on('request', (req) => blockPrefsWrite(req) || req.continue());
+  page.on('request', (req) => {
+    if (blockPrefsWrite(req)) {
+      return;
+    }
+
+    // A first load as slow as a server's: the switch after it must not race it.
+    if (slowTree && /\/block-tree-[\w-]+\.js/.test(req.url())) {
+      setTimeout(() => req.continue(), 1500);
+
+      return;
+    }
+
+    req.continue();
+  });
 }
 
 try {
@@ -280,6 +296,23 @@ try {
   await page.keyboard.press('Escape');
   await sleep(300);
   step('Escape closes it', !(await cp.$(SWITCH)));
+
+  // ── Two picks in a row, the first still loading ───────────────────────
+  if (WORKTREE) {
+    console.log('info the race step needs the installed build (its chunk is delayed on the way in) — skipped');
+  } else {
+    slowTree = true;
+    await switchTo(page, cp, 'editor');
+    await switchTo(page, cp, 'developer', { shift: true });
+    await sleep(2500);
+    await waitFor(cp, (sel) => !!document.querySelector(sel), PANE.html_tree, 15000);
+
+    const raced = await screen(cp);
+
+    slowTree = false;
+    step('Content editor then Developer at once, the block tree slow to load: Developer is what shows',
+      raced.dock && raced.html_tree && !raced.listview && !raced.sections, describe(raced));
+  }
 
   // ── Content editor ────────────────────────────────────────────────────
   await switchTo(page, cp, 'editor');

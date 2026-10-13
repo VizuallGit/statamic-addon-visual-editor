@@ -331,28 +331,20 @@ function pinPanes(win, want) {
   const keys = sidebarPanes(win).map(([id]) => id);
   const pinned = { ...parseJson(win, PIN_KEY, {}) };
   const open = parseJson(win, OPEN_PANES_KEY, []);
-  const next = [...(Array.isArray(open) ? open : []).filter((key) => !keys.includes(key)), ...want];
 
   keys.forEach((key) => {
     pinned[key] = want.includes(key);
   });
   chromeSet(win, PIN_KEY, JSON.stringify(pinned));
-  chromeSet(win, OPEN_PANES_KEY, JSON.stringify(next));
+  chromeSet(win, OPEN_PANES_KEY, JSON.stringify([...(Array.isArray(open) ? open : []).filter((key) => !keys.includes(key)), ...want]));
   // A reload reads this before the pins: 'outline' would put Accessibility
   // where the block tree was asked for.
   chromeSet(win, 'sve-listview-tab', want.includes('outline') ? 'outline' : 'tree');
   keys.filter((key) => !want.includes(key)).forEach((key) => closeTool(win, key));
-
-  return next;
 }
-
-// A later pick, or a later tick on the Sidebars tab, wins; an earlier one
-// still opening its panes stops.
-let switching = 0;
 
 /**
  * Pin `panes`, close the other sidebar panes, and open these, one at a time.
- * False when something later took over meanwhile.
  *
  * A pane that opens closes every pane that is not pinned, the HTML tree among
  * them; the tree opening with the dock closes every pane that is not pinned in
@@ -360,57 +352,58 @@ let switching = 0;
  * dock is open already, the caller opens the tree again once they are in.
  */
 async function openPanes(win, panes) {
-  const run = ++switching;
-  const open = pinPanes(win, panes);
+  pinPanes(win, panes);
 
   for (const key of panes) {
     await ensureRightTool(win, key);
-
-    if (run !== switching) {
-      return false;
-    }
   }
 
-  persistVisibleRightPanes(win, open);
   persistDockedPanel(win);
   syncPreviewInset(win);
+}
 
-  return true;
+// Switches run one at a time, in order, the last one asked for drawn last. A
+// pane that is opening cannot be stopped half-way — its first load may take a
+// second — so the next switch waits for it, then closes what it does not want.
+let switches = Promise.resolve();
+
+function queueSwitch(job) {
+  switches = switches.then(job).catch((error) => console.error(error));
+
+  return switches;
 }
 
 /**
  * Show what a preset shows, open its panes, then open or close the HTML dock
  * the way it says (All leaves both).
  */
-async function applyPreset(win, id) {
-  const preset = allPresets(win).find((item) => item.id === id);
+function applyPreset(win, id) {
+  return queueSwitch(async () => {
+    const preset = allPresets(win).find((item) => item.id === id);
 
-  if (!preset) {
-    return;
-  }
-
-  const panes = presetPanes(preset, readPaneChoices(win), sidebarPanes(win).map(([key]) => key));
-
-  writePickedPreset(win, preset.id);
-  setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
-
-  if (panes) {
-    if (!(await openPanes(win, panes))) {
+    if (!preset) {
       return;
     }
-  } else {
-    ++switching;
-  }
 
-  if (preset.dock === null || !templateDockAllowed(win)) {
-    return;
-  }
+    const panes = presetPanes(preset, readPaneChoices(win), sidebarPanes(win).map(([key]) => key));
 
-  if (isCodeDockArmed(win) !== preset.dock) {
-    setCodeDock(win, preset.dock);
-  } else if (preset.dock && panes?.length) {
-    openHtmlTreePanel(win);
-  }
+    writePickedPreset(win, preset.id);
+    setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
+
+    if (panes) {
+      await openPanes(win, panes);
+    }
+
+    if (preset.dock === null || !templateDockAllowed(win)) {
+      return;
+    }
+
+    if (isCodeDockArmed(win) !== preset.dock) {
+      setCodeDock(win, preset.dock);
+    } else if (preset.dock && panes?.length) {
+      openHtmlTreePanel(win);
+    }
+  });
 }
 
 /** The bar as it is now, with the panes pinned now, under a name of the user's. */
@@ -462,9 +455,12 @@ function setPresetPane(win, id, key, on) {
     return false;
   }
 
-  // The sidebar becomes the preset's, the way picking it would make it.
-  void openPanes(win, next).then((done) => {
-    if (done && isCodeDockArmed(win)) {
+  // The sidebar becomes the preset's, the way picking it would make it; a
+  // pane that opened has closed the HTML tree, which comes back with the dock.
+  void queueSwitch(async () => {
+    await openPanes(win, next);
+
+    if (on && isCodeDockArmed(win)) {
       openHtmlTreePanel(win);
     }
   });
