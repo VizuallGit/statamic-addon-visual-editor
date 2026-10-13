@@ -506,6 +506,16 @@ tabs:
                 enabled: 'equals true'
                 live_reload: 'equals true'
           -
+            handle: live_reload_instant
+            field:
+              type: toggle
+              display: 'Live reload: paint the saved file at once'
+              instructions: 'In Live Preview, a section partial saved outside the editor (Cursor over SSH) is painted into the preview in the same way the HTML pane paints — about a quarter of a second — when that section''s file is open in the dock. Off: the preview is only rendered again by the server (one to two seconds), which is lighter for the browser and the server. The sync itself is on whenever Live reload is on.'
+              default: false
+              if:
+                enabled: 'equals true'
+                live_reload: 'equals true'
+          -
             handle: collection_templates
             field:
               type: toggle

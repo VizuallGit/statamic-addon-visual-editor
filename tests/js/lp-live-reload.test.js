@@ -21,6 +21,8 @@ const calls = { refresh: [], swap: [], ask: [] };
 const fake = {
   header: true,
   feature: true,
+  /** The site's `live_reload_instant` switch. */
+  instant: true,
   refreshResult: true,
   /** When set, a refresh holds until it resolves — a slow refresh. */
   gate: null,
@@ -41,7 +43,7 @@ globalThis.__sveStub = (spec, name) => {
       return undefined;
     };
   }
-  if (name === 'featureSaidOn') return () => fake.feature;
+  if (name === 'featureSaidOn') return (win, key) => (key === 'live_reload_instant' ? fake.instant : fake.feature);
   if (name === 'pageDocuments') return () => [pageDoc('preview'), pageDoc('copy')];
   if (name === 'refreshTemplatesShown') {
     return async (win, types) => {
@@ -150,6 +152,7 @@ function reset() {
   fake.dockTakes = true;
   fake.header = true;
   fake.feature = true;
+  fake.instant = true;
   fake.refreshResult = true;
   fake.gate = null;
 }
@@ -342,6 +345,28 @@ test('a dock that refuses the file (locked, another file, typing of its own) lea
   await tick();
 
   assert.deepEqual(calls.refresh, [null, null], 'rendered both times, the whole page: the dock refused, and unknown files');
+
+  fake.header = false;
+  ensureLpLiveReload(win);
+  await tick();
+});
+
+test('with the instant switch off the dock is never asked, and every change renders the whole page', async () => {
+  reset();
+  fake.dockType = 'hero/style_2';
+  fake.instant = false;
+
+  const hero = 'resources/views/partials/page_sections/hero/style_2.antlers.html';
+  const win = fakeWindow([
+    { markup: 'm1', build: 'b1' },
+    { markup: 'm2', build: 'b1', own: false, changed: [{ path: hero, content: '<section>new</section>', parts: { html: '<section>new</section>', css: '', js: '', tw: '' } }] },
+  ]);
+
+  ensureLpLiveReload(win);
+  await tick();
+
+  assert.equal(calls.ask.filter(([what]) => what === 'dock:take-file' || what === 'dock:current-type').length, 0, 'the dock is not even asked what it shows');
+  assert.deepEqual(calls.refresh, [null], 'one render of the whole page');
 
   fake.header = false;
   ensureLpLiveReload(win);

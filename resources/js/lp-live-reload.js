@@ -232,7 +232,11 @@ async function run(win, loop) {
       // section focused (the dock on its file), a render scoped to a section
       // elsewhere on the page did not land (measured on Cuben: no paint in
       // 7 s); the whole page does, as it did before the scoping.
-      const taken = handToDock(step.changed);
+      // The hand-over to the dock is the site's choice (`live_reload_instant`,
+      // off by default): on, a saved partial paints in a quarter of a second
+      // when its file is open in the dock; off, the render alone shows it,
+      // one to two seconds later, and nothing else runs in the browser.
+      const taken = featureSaidOn(win, 'live_reload_instant') && handToDock(step.changed);
 
       void refresh(win, loop, taken ? sectionTypesOf(step.changed) : null);
     }

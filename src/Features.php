@@ -38,6 +38,7 @@ class Features
         'schema',
         'file_manager',
         'live_reload',
+        'live_reload_instant',
         'open_first_section',
         'collection_templates',
         'previews_autowatch',
@@ -81,6 +82,10 @@ class Features
         // A button on the public site that reloads the page when the site's
         // files change on the server. Off by default; super admins.
         'live_reload',
+        // Live Preview paints a section partial saved outside the editor at
+        // once, through the dock (dock:take-file), when its file is open
+        // there. Off: the server's render alone — lighter for both ends.
+        'live_reload_instant',
         'collection_templates',
         'tailwind_dock',
         'component_props',
