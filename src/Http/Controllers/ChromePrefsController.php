@@ -37,6 +37,7 @@ class ChromePrefsController
         'sve-toolbar-order',
         'sve-toolbar-presets',
         'sve-toolbar-preset',
+        'sve-toolbar-preset-panes',
         'sve-lite-load-all',
         'sve-previews-auto',
     ];

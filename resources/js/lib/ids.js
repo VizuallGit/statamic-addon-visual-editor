@@ -115,10 +115,12 @@ export const HEADER_FRAME_PREFIX = '__sve-frame-';
 export const TOOLBAR_HIDDEN_KEY = 'sve-toolbar-hidden';
 /** Per-user order of the topbar icons, JSON [tab key, …]; unset = the order they are drawn in. */
 export const TOOLBAR_ORDER_KEY = 'sve-toolbar-order';
-/** Per-user presets of their own, JSON [{ id: 'u-…', name, tools, dock }]. */
+/** Per-user presets of their own, JSON [{ id: 'u-…', name, tools, dock, panes }]. */
 export const TOOLBAR_PRESETS_KEY = 'sve-toolbar-presets';
 /** The preset this user last picked, by id — marked when two presets are the same bar. */
 export const TOOLBAR_PRESET_KEY = 'sve-toolbar-preset';
+/** Per-user right-sidebar panes per preset, JSON { preset id: [pane key, …] }; a missing id = the preset's own. */
+export const TOOLBAR_PRESET_PANES_KEY = 'sve-toolbar-preset-panes';
 
 // Topbar surfaces: colour tokens the toolbar, the reload button and the pickers share
 /** Fladen bag både ikonknappen og kontrolgruppen — samme, så de hører sammen. */

@@ -12,8 +12,9 @@
  * did. Page settings is always first, always shown, and drawn in a box of its
  * own, apart from the rest.
  *
- * The Live Preview settings menu (⋮ → Top bar) is the only writer. A tool this
- * user has no access to never gets a button, so it never reaches that list.
+ * The Live Preview settings menu (⋮ → Top bar, Sidebars; right-click on ⋮) is
+ * the only writer. A tool this user has no access to never gets a button, so it
+ * never reaches that list.
  *
  * May import: chrome-prefs.js and lib/ — header-toolbar.js imports this file.
  */
@@ -30,9 +31,10 @@ import {
   TOOLBAR_HIDDEN_KEY,
   TOOLBAR_ORDER_KEY,
   TOOLBAR_PRESET_KEY,
+  TOOLBAR_PRESET_PANES_KEY,
   TOOLBAR_PRESETS_KEY,
 } from './lib/ids.js';
-import { cleanPreset, inOrder } from './lib/toolbar-presets.js';
+import { cleanPaneChoices, cleanPreset, inOrder } from './lib/toolbar-presets.js';
 
 const STYLE_ID = '__sve-toolbar-hidden';
 
@@ -203,6 +205,25 @@ export function writeUserPresets(win, presets) {
     chromeSet(win, TOOLBAR_PRESETS_KEY, JSON.stringify(clean));
   } else {
     chromeRemove(win, TOOLBAR_PRESETS_KEY);
+  }
+}
+
+/** This user's own right-sidebar panes per preset: { preset id: [pane key, …] }. */
+export function readPaneChoices(win) {
+  try {
+    return cleanPaneChoices(JSON.parse(chromeGet(win, TOOLBAR_PRESET_PANES_KEY) || '{}'));
+  } catch {
+    return {};
+  }
+}
+
+export function writePaneChoices(win, choices) {
+  const clean = cleanPaneChoices(choices);
+
+  if (Object.keys(clean).length) {
+    chromeSet(win, TOOLBAR_PRESET_PANES_KEY, JSON.stringify(clean));
+  } else {
+    chromeRemove(win, TOOLBAR_PRESET_PANES_KEY);
   }
 }
 

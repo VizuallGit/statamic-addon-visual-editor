@@ -35,14 +35,19 @@ class ToolbarPresetsTest extends TestCase
             $this->assertSame(ToolbarPresets::TOOLS, array_keys($tools['options']), $id);
             $this->assertSame($default['tools'], $tools['default'], $id);
             $this->assertSame($default['dock'], $fields["toolbar_preset_{$id}_dock"]['default'], $id);
+
+            $panes = $fields["toolbar_preset_{$id}_panes"];
+
+            $this->assertSame(ToolbarPresets::PANES, array_keys($panes['options']), $id);
+            $this->assertSame($default['panes'], $panes['default'], $id);
         }
     }
 
     public function test_unsaved_presets_are_the_defaults(): void
     {
         $this->assertSame([
-            ['id' => 'developer', 'tools' => ['collections', 'forms', 'templates', 'blueprint', 'bard_styles', 'sections', 'code', 'site_css', 'theme', 'xray', 'design_overlay'], 'dock' => true],
-            ['id' => 'editor', 'tools' => ToolbarPresets::DEFAULTS['editor']['tools'], 'dock' => false],
+            ['id' => 'developer', 'tools' => ['collections', 'forms', 'templates', 'blueprint', 'bard_styles', 'sections', 'code', 'site_css', 'theme', 'xray', 'design_overlay'], 'dock' => true, 'panes' => []],
+            ['id' => 'editor', 'tools' => ToolbarPresets::DEFAULTS['editor']['tools'], 'dock' => false, 'panes' => ['listview', 'sections']],
         ], ToolbarPresets::all());
     }
 
@@ -53,12 +58,14 @@ class ToolbarPresetsTest extends TestCase
             'statamic-visual-editor.features.toolbar_preset_developer_dock' => false,
             'statamic-visual-editor.features.toolbar_preset_editor_tools' => [],
             'statamic-visual-editor.features.toolbar_preset_editor_dock' => true,
+            'statamic-visual-editor.features.toolbar_preset_developer_panes' => ['ai', 'bogus', 'listview', 'ai'],
+            'statamic-visual-editor.features.toolbar_preset_editor_panes' => [],
         ]);
         Features::flush();
 
         $this->assertSame([
-            ['id' => 'developer', 'tools' => ['sections', 'code', 'theme'], 'dock' => false],
-            ['id' => 'editor', 'tools' => [], 'dock' => true],
+            ['id' => 'developer', 'tools' => ['sections', 'code', 'theme'], 'dock' => false, 'panes' => ['listview', 'ai']],
+            ['id' => 'editor', 'tools' => [], 'dock' => true, 'panes' => []],
         ], ToolbarPresets::all());
     }
 

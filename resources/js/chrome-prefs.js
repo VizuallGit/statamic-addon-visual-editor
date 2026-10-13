@@ -46,6 +46,7 @@ export const CHROME_KEYS = [
   'sve-toolbar-order',
   'sve-toolbar-presets',
   'sve-toolbar-preset',
+  'sve-toolbar-preset-panes',
   'sve-lite-load-all',
 ];
 

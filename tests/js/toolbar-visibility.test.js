@@ -4,6 +4,7 @@ import {
   PEEK_ATTR,
   openToolbarTool,
   readHiddenTools,
+  readPaneChoices,
   readPickedPreset,
   readUserPresets,
   setToolbarOrder,
@@ -12,10 +13,11 @@ import {
   syncToolbarLayout,
   toolbarCss,
   toolbarTools,
+  writePaneChoices,
   writePickedPreset,
   writeUserPresets,
 } from '../../resources/js/toolbar-visibility.js';
-import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEY, TOOLBAR_ORDER_KEY, TOOLBAR_PRESETS_KEY } from '../../resources/js/lib/ids.js';
+import { HEADER_TOOLBAR_ID, TOOLBAR_HIDDEN_KEY, TOOLBAR_ORDER_KEY, TOOLBAR_PRESET_PANES_KEY, TOOLBAR_PRESETS_KEY } from '../../resources/js/lib/ids.js';
 
 /** The sheet with nothing hidden and no order: Page settings' own box. */
 const BOX = toolbarCss();
@@ -248,10 +250,15 @@ test("a user's own presets are stored clean", () => {
 
   writeUserPresets(win, [
     { id: 'u-abc', name: '  Kunde-demo  ', tools: ['pages', 'pages', 'x"y'], dock: true },
+    { id: 'u-pan', name: 'Panes', tools: [], panes: ['listview', 'x"y', 'listview'] },
     { id: 'developer', name: 'Not mine', tools: [] },
     { id: 'u-def', name: '   ', tools: [] },
   ]);
-  assert.deepEqual(readUserPresets(win), [{ id: 'u-abc', name: 'Kunde-demo', tools: ['pages'], dock: true }]);
+  assert.deepEqual(readUserPresets(win), [
+    // Saved before presets had panes: it leaves the sidebar alone.
+    { id: 'u-abc', name: 'Kunde-demo', tools: ['pages'], dock: true, panes: null },
+    { id: 'u-pan', name: 'Panes', tools: [], dock: false, panes: ['listview'] },
+  ]);
 
   writeUserPresets(win, []);
   assert.equal(win.store.has(TOOLBAR_PRESETS_KEY), false);
@@ -280,4 +287,18 @@ test('the picked preset is remembered, and only as an id', () => {
   assert.equal(readPickedPreset(win), '');
   win.store.set('sve-toolbar-preset', 'x"y');
   assert.equal(readPickedPreset(win), '');
+});
+
+test("a preset's panes chosen by the user are stored clean, per preset id", () => {
+  const win = fakeWin();
+
+  writePaneChoices(win, { developer: ['listview', 'x"y'], 'u-abc': [], 'bad id': ['ai'], editor: 'ai' });
+  assert.deepEqual(readPaneChoices(win), { developer: ['listview'], 'u-abc': [] });
+
+  writePaneChoices(win, {});
+  assert.equal(win.store.has(TOOLBAR_PRESET_PANES_KEY), false);
+  assert.deepEqual(readPaneChoices(win), {});
+
+  win.store.set(TOOLBAR_PRESET_PANES_KEY, '{not json');
+  assert.deepEqual(readPaneChoices(win), {});
 });

@@ -1,6 +1,8 @@
 /**
  * Overflow menu to the right of Close: Live Preview defaults + reset, in three
- * tabs (sidebars, HTML tree, top bar icons). Does not import the kernel.
+ * tabs (sidebars, HTML tree, top bar icons). Right-click or Shift-click on the
+ * button opens the short list instead: the presets, one click to switch.
+ * Does not import the kernel.
  */
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
@@ -21,10 +23,12 @@ import { applyLpEditorWidth } from './focus-panel.js';
 import { closeSectionPicker, syncPreviewInset } from './section-library.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeOutlinePanel } from './lazy/outline.js';
+import { openHtmlTreePanel } from './lazy/html-tree.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 import {
   openToolbarTool,
+  readPaneChoices,
   readPickedPreset,
   readToolbarOrder,
   readUserPresets,
@@ -34,13 +38,15 @@ import {
   showAllToolbarTools,
   syncToolbarLayout,
   toolbarTools,
+  writePaneChoices,
   writePickedPreset,
   writeUserPresets,
 } from './toolbar-visibility.js';
-import { PRESET_NAME_MAX, cleanPreset, newPresetId, presetHidden } from './lib/toolbar-presets.js';
+import { PRESET_NAME_MAX, activePreset, cleanPreset, newPresetId, presetHidden, presetPanes } from './lib/toolbar-presets.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
+export const LP_PRESET_MENU_ID = '__sve-lp-preset-menu';
 
 const PIN_KEY = 'sve-right-dock-pinned';
 const OPEN_PANES_KEY = 'sve-right-dock-open-panes';
@@ -60,9 +66,14 @@ const LP_MORE_ICON_SVG =
   '<circle cx="12" cy="19" r="1.85"></circle>' +
   '</svg>';
 
+const CHECK_ICON_SVG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
 let menuApp = null;
 let menuHost = null;
 let awayHandler = null;
+let presetMenu = null;
 // The tab the menu opens on: the one it was left on, for this page load.
 let lastTab = 'sidebars';
 
@@ -172,17 +183,31 @@ function setCodeDock(win, on) {
   applyHeaderTab(win);
 }
 
+/** The sidebar panes this user has, in the order the Sidebars tab lists them. */
+function sidebarPanes(win) {
+  return SIDEBAR_TOOLS.filter(([id]) => featureOn(win, id === 'ai' ? 'ai_panel' : id));
+}
+
+/**
+ * What the Sidebars tab shows — read each time the tab opens, as a preset
+ * picked on the Top bar tab may have changed both the pins and which preset
+ * is on. Per preset: the panes it opens (null = it leaves the sidebar alone).
+ */
+function sidebarState(win) {
+  const panes = sidebarPanes(win);
+  const keys = panes.map(([id]) => id);
+  const choices = readPaneChoices(win);
+  const presets = allPresets(win);
+
+  return {
+    tools: panes.map(([id, labelKey]) => ({ id, label: t(win, labelKey), on: paneOn(win, id) })),
+    presets: presets.map(({ id, label }) => ({ id, label })),
+    presetId: activePresetId(win) || 'all',
+    presetPanes: Object.fromEntries(presets.filter((preset) => preset.id !== 'all').map((preset) => [preset.id, presetPanes(preset, choices, keys)])),
+  };
+}
+
 function sidebarsProps(win) {
-  const tools = SIDEBAR_TOOLS.filter(([id]) => {
-    const key = id === 'ai' ? 'ai_panel' : id;
-
-    return featureOn(win, key);
-  }).map(([id, labelKey]) => ({
-    id,
-    label: t(win, labelKey),
-    on: paneOn(win, id),
-  }));
-
   return {
     panelLabel: t(win, 'panel'),
     modes: [
@@ -195,7 +220,10 @@ function sidebarsProps(win) {
       : 'hide',
     editorWidth: clampWidth(win, chromeGet(win, 'statamic.live-preview.editor-width')),
     sidebarLabel: t(win, 'lp_settings_sidebar'),
-    tools,
+    // ":name" is filled with the preset's name.
+    presetHint: t(win, 'lp_settings_sidebar_preset_hint'),
+    allHint: t(win, 'lp_settings_sidebar_all_hint'),
+    keepHint: t(win, 'lp_settings_sidebar_keep_hint'),
     dockWidth: clampWidth(win, chromeGet(win, DOCK_WIDTH_KEY)),
     widthLabel: t(win, 'lp_settings_width'),
     widthMin: remToPx(win, LP_SIDE_MIN_REM),
@@ -241,7 +269,7 @@ function allPresets(win) {
   return [
     // All: every icon, the dock left as it is — the bar nobody has changed,
     // so it is the one on until someone does.
-    { id: 'all', tools: toolbarTools(win).map((tool) => tool.key), dock: null, label: t(win, 'toolbar_preset_all'), own: false },
+    { id: 'all', tools: toolbarTools(win).map((tool) => tool.key), dock: null, panes: null, label: t(win, 'toolbar_preset_all'), own: false },
     ...sitePresets(win),
     ...readUserPresets(win).map((preset) => ({ ...preset, label: preset.name, own: true })),
   ];
@@ -282,23 +310,110 @@ function toolbarProps(win) {
   };
 }
 
-/** Show what a preset shows, and open or close the HTML dock the way it says (All leaves it). */
-function applyPreset(win, id) {
+/** The preset that is on now — the one the Top bar tab marks; '' when none is. */
+function activePresetId(win) {
+  const tools = toolbarTools(win);
+  const state = {
+    available: tools.map((tool) => tool.key),
+    shown: tools.filter((tool) => tool.shown).map((tool) => tool.key),
+    dock: isCodeDockArmed(win),
+    dockAllowed: templateDockAllowed(win),
+  };
+
+  return activePreset(allPresets(win), state, readPickedPreset(win))?.id || '';
+}
+
+/**
+ * Pin exactly `want` of the sidebar panes this user has and close the rest,
+ * the way ticking them on the Sidebars tab one by one would.
+ */
+function pinPanes(win, want) {
+  const keys = sidebarPanes(win).map(([id]) => id);
+  const pinned = { ...parseJson(win, PIN_KEY, {}) };
+  const open = parseJson(win, OPEN_PANES_KEY, []);
+  const next = [...(Array.isArray(open) ? open : []).filter((key) => !keys.includes(key)), ...want];
+
+  keys.forEach((key) => {
+    pinned[key] = want.includes(key);
+  });
+  chromeSet(win, PIN_KEY, JSON.stringify(pinned));
+  chromeSet(win, OPEN_PANES_KEY, JSON.stringify(next));
+  // A reload reads this before the pins: 'outline' would put Accessibility
+  // where the block tree was asked for.
+  chromeSet(win, 'sve-listview-tab', want.includes('outline') ? 'outline' : 'tree');
+  keys.filter((key) => !want.includes(key)).forEach((key) => closeTool(win, key));
+
+  return next;
+}
+
+// A later pick, or a later tick on the Sidebars tab, wins; an earlier one
+// still opening its panes stops.
+let switching = 0;
+
+/**
+ * Pin `panes`, close the other sidebar panes, and open these, one at a time.
+ * False when something later took over meanwhile.
+ *
+ * A pane that opens closes every pane that is not pinned, the HTML tree among
+ * them; the tree opening with the dock closes every pane that is not pinned in
+ * turn. So the panes are pinned first and survive the tree — and where the
+ * dock is open already, the caller opens the tree again once they are in.
+ */
+async function openPanes(win, panes) {
+  const run = ++switching;
+  const open = pinPanes(win, panes);
+
+  for (const key of panes) {
+    await ensureRightTool(win, key);
+
+    if (run !== switching) {
+      return false;
+    }
+  }
+
+  persistVisibleRightPanes(win, open);
+  persistDockedPanel(win);
+  syncPreviewInset(win);
+
+  return true;
+}
+
+/**
+ * Show what a preset shows, open its panes, then open or close the HTML dock
+ * the way it says (All leaves both).
+ */
+async function applyPreset(win, id) {
   const preset = allPresets(win).find((item) => item.id === id);
 
   if (!preset) {
     return;
   }
 
+  const panes = presetPanes(preset, readPaneChoices(win), sidebarPanes(win).map(([key]) => key));
+
   writePickedPreset(win, preset.id);
   setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
 
-  if (preset.dock !== null && templateDockAllowed(win) && isCodeDockArmed(win) !== preset.dock) {
+  if (panes) {
+    if (!(await openPanes(win, panes))) {
+      return;
+    }
+  } else {
+    ++switching;
+  }
+
+  if (preset.dock === null || !templateDockAllowed(win)) {
+    return;
+  }
+
+  if (isCodeDockArmed(win) !== preset.dock) {
     setCodeDock(win, preset.dock);
+  } else if (preset.dock && panes?.length) {
+    openHtmlTreePanel(win);
   }
 }
 
-/** The bar as it is now, under a name of the user's. */
+/** The bar as it is now, with the panes pinned now, under a name of the user's. */
 function saveOwnPreset(win, name) {
   const own = readUserPresets(win);
   const preset = cleanPreset({
@@ -306,6 +421,7 @@ function saveOwnPreset(win, name) {
     name,
     tools: toolbarTools(win).filter((tool) => tool.shown).map((tool) => tool.key),
     dock: isCodeDockArmed(win),
+    panes: sidebarPanes(win).map(([key]) => key).filter((key) => paneOn(win, key)),
   }, { user: true });
 
   if (!preset) {
@@ -315,6 +431,45 @@ function saveOwnPreset(win, name) {
   writeUserPresets(win, [...own, preset]);
 
   return { ...preset, label: preset.name, own: true };
+}
+
+/**
+ * Tick a pane on or off for a preset (All = the pins as they are, as before
+ * presets had panes). The user's own choice for that preset; on the preset
+ * that is on now, the sidebar follows at once. Answers whether it did.
+ */
+function setPresetPane(win, id, key, on) {
+  if (id === 'all') {
+    setStartupPane(win, key, on);
+
+    return true;
+  }
+
+  const preset = allPresets(win).find((item) => item.id === id);
+
+  if (!preset) {
+    return false;
+  }
+
+  const keys = sidebarPanes(win).map(([pane]) => pane);
+  const choices = readPaneChoices(win);
+  const current = presetPanes(preset, choices, keys) || [];
+  const next = keys.filter((pane) => (pane === key ? on : current.includes(pane)));
+
+  writePaneChoices(win, { ...choices, [id]: next });
+
+  if (activePresetId(win) !== id) {
+    return false;
+  }
+
+  // The sidebar becomes the preset's, the way picking it would make it.
+  void openPanes(win, next).then((done) => {
+    if (done && isCodeDockArmed(win)) {
+      openHtmlTreePanel(win);
+    }
+  });
+
+  return true;
 }
 
 function settingsProps(win, rect) {
@@ -339,7 +494,14 @@ function settingsProps(win, rect) {
   };
 }
 
+function dropPresetMenu() {
+  dropMenu(presetMenu);
+  presetMenu = null;
+}
+
+/** Whatever ⋮ has open: the full menu, or the short list of presets. */
 export function dismissLpMoreMenu() {
+  dropPresetMenu();
   awayHandler?.();
   awayHandler = null;
   menuApp?.unmount();
@@ -357,6 +519,8 @@ function bindSettingHandlers(win) {
       mode: (mode) => setPanelMode(win, mode),
       width: (which, px) => setWidth(win, which, px),
       tool: (key, on) => setStartupPane(win, key, on),
+      sidebarState: () => sidebarState(win),
+      presetPane: (id, key, on) => setPresetPane(win, id, key, on),
       codeDock: (on) => setCodeDock(win, on),
       htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
       familyColor: (family, hex) => setFamilyColor(win, family, hex),
@@ -367,10 +531,16 @@ function bindSettingHandlers(win) {
       toolbarShowAll: () => showAllToolbarTools(win),
       toolbarOrder: (keys) => setToolbarOrder(win, keys),
       toolbarOrderReset: () => setToolbarOrder(win, []),
-      toolbarPreset: (id) => applyPreset(win, id),
+      toolbarPreset: (id) => {
+        void applyPreset(win, id);
+      },
       toolbarPresetSave: (name) => saveOwnPreset(win, name),
       toolbarPresetDelete: (id) => {
+        const choices = readPaneChoices(win);
+
+        delete choices[id];
         writeUserPresets(win, readUserPresets(win).filter((item) => item.id !== id));
+        writePaneChoices(win, choices);
 
         if (readPickedPreset(win) === id) {
           writePickedPreset(win, '');
@@ -384,16 +554,98 @@ function bindSettingHandlers(win) {
     },
     onReset: () => {
       const own = readUserPresets(win);
+      const choices = readPaneChoices(win);
 
       dismissLpMoreMenu();
       resetEditorLayout(win);
       // The reset clears every layout key, the icons and their order with them.
-      // A user's own presets are not layout: they are put back.
+      // A user's own presets, and the panes they chose for each preset, are not
+      // layout: they are put back.
       writeUserPresets(win, own);
+      writePaneChoices(win, choices);
       syncToolbarLayout(win);
     },
     onClose: dismissLpMoreMenu,
   };
+}
+
+/**
+ * The short list under ⋮ (right-click or Shift-click): the presets, the one
+ * on now ticked, one click to switch. Everything else is on the full menu.
+ */
+function openPresetMenu(win, pill) {
+  const doc = win.document;
+
+  dropMenu(doc.getElementById(LP_BACK_MENU_ID));
+  dismissLpMoreMenu();
+
+  const rect = pill.getBoundingClientRect();
+  const on = activePresetId(win);
+  const menu = doc.createElement('div');
+  const head = doc.createElement('div');
+
+  menu.id = LP_PRESET_MENU_ID;
+  menu.tabIndex = -1;
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', t(win, 'lp_settings_presets'));
+  menu.style.cssText =
+    `position:fixed;z-index:2147483001;top:${Math.round(rect.bottom + 8)}px;` +
+    `right:${Math.round(win.innerWidth - rect.right)}px;min-width:11rem;width:max-content;` +
+    'display:flex;flex-direction:column;padding:.3125rem;border-radius:.625rem;outline:none;' +
+    'background:#343439;box-shadow:0 .75rem 2.5rem rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.12);' +
+    'font:500 .8125rem/1.2 ui-sans-serif,system-ui,sans-serif;';
+  head.textContent = t(win, 'lp_settings_presets');
+  head.style.cssText =
+    'padding:.375rem .75rem .25rem;font-size:.6875rem;font-weight:600;letter-spacing:.04em;' +
+    'text-transform:uppercase;color:rgba(255,255,255,.5);';
+  menu.appendChild(head);
+
+  allPresets(win).forEach((preset) => {
+    const btn = doc.createElement('button');
+    const mark = doc.createElement('span');
+    const text = doc.createElement('span');
+    const isOn = preset.id === on;
+
+    btn.type = 'button';
+    btn.setAttribute('role', 'menuitemradio');
+    btn.setAttribute('aria-checked', isOn ? 'true' : 'false');
+    btn.setAttribute('data-sve-preset-switch', preset.id);
+    btn.style.cssText =
+      'all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:.5rem;' +
+      'padding:.5625rem .75rem;border-radius:.4375rem;white-space:nowrap;color:rgba(255,255,255,.88);';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.style.cssText = 'display:inline-flex;width:.875rem;flex-shrink:0;';
+    mark.innerHTML = isOn ? CHECK_ICON_SVG : '';
+    text.textContent = preset.label;
+    btn.append(mark, text);
+    btn.addEventListener('mouseenter', () => (btn.style.background = '#2c2c31'));
+    btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      dropPresetMenu();
+      void applyPreset(win, preset.id);
+    });
+    menu.appendChild(btn);
+  });
+
+  doc.body.appendChild(menu);
+  menu._sveUnbind = bindMenuDismiss(
+    win,
+    (target) => menu.contains(target) || pill.contains(target),
+    dropPresetMenu
+  );
+  presetMenu = menu;
+  menu.focus();
+}
+
+function togglePresetMenu(win, pill) {
+  if (presetMenu) {
+    dropPresetMenu();
+
+    return;
+  }
+
+  openPresetMenu(win, pill);
 }
 
 function openMoreMenu(win, pill) {
@@ -439,9 +691,16 @@ export function ensureLpMoreButton(win) {
     pill.id = LP_MORE_ID;
     pill.type = 'button';
     pill.style.cssText = `${LP_ICON_BTN_STYLE}flex-shrink:0;`;
+    pill.setAttribute('aria-haspopup', 'menu');
     pill.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+
+      if (event.shiftKey) {
+        togglePresetMenu(win, pill);
+
+        return;
+      }
 
       if (doc.getElementById(LP_MORE_MENU_ID) || menuHost) {
         dismissLpMoreMenu();
@@ -451,14 +710,23 @@ export function ensureLpMoreButton(win) {
 
       openMoreMenu(win, pill);
     });
+    pill.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      togglePresetMenu(win, pill);
+    });
   }
 
   if (pill.innerHTML !== LP_MORE_ICON_SVG) {
     pill.innerHTML = LP_MORE_ICON_SVG;
   }
 
-  pill.title = t(win, 'more_lp_title');
-  pill.setAttribute('aria-label', pill.title);
+  const title = `${t(win, 'more_lp_title')}\n${t(win, 'more_lp_presets_hint')}`;
+
+  if (pill.title !== title) {
+    pill.title = title;
+    pill.setAttribute('aria-label', t(win, 'more_lp_title'));
+  }
   pill.style.opacity = '1';
   pill.style.background = HEADER_SURFACE;
   pill.style.padding = '0';

@@ -297,7 +297,7 @@ tabs:
                 comments: 'equals true'
       -
         display: 'Top bar presets'
-        instructions: 'Presets editors pick in Live Preview under ⋮ → Top bar: All (every icon — the default), then these two. A preset shows the icons ticked here and opens the HTML dock or not; everyone keeps their own order, and Page settings always stands first on its own. An icon a user has no access to stays hidden whatever a preset says. Editors can still tick icons on and off themselves, and save presets of their own.'
+        instructions: 'Presets editors pick in Live Preview under ⋮ → Top bar, or by right-clicking ⋮: All (every icon, nothing else changed — the default), then these two. A preset shows the icons ticked here, opens the HTML dock or not (the HTML tree comes with the dock), and opens the right-sidebar panes ticked here; everyone keeps their own order, and Page settings always stands first on its own. An icon a user has no access to stays hidden whatever a preset says. Editors can still tick icons on and off themselves, choose a preset''s panes for themselves under ⋮ → Sidebars, and save presets of their own.'
         fields:
           -
             handle: toolbar_preset_developer_tools
@@ -373,6 +373,7 @@ tabs:
                 - globals
                 - collections
                 - forms
+                - sections
                 - listview
                 - outline
                 - ai
@@ -399,6 +400,40 @@ tabs:
               display: 'Content editor: HTML dock open'
               instructions: 'The HTML dock opens with Live Preview when this preset is picked.'
               default: false
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: toolbar_preset_developer_panes
+            field:
+              type: checkboxes
+              display: 'Developer: open in the right sidebar'
+              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Each editor can change this for themselves.'
+              options:
+                listview: 'Block tree'
+                outline: 'Accessibility'
+                comments: 'Comments'
+                sections: 'Patterns'
+                ai: 'AI'
+              default: []
+              width: 50
+              if:
+                enabled: 'equals true'
+          -
+            handle: toolbar_preset_editor_panes
+            field:
+              type: checkboxes
+              display: 'Content editor: open in the right sidebar'
+              instructions: 'Pinned in the right sidebar when this preset is picked; the rest close. Each editor can change this for themselves.'
+              options:
+                listview: 'Block tree'
+                outline: 'Accessibility'
+                comments: 'Comments'
+                sections: 'Patterns'
+                ai: 'AI'
+              default:
+                - listview
+                - sections
               width: 50
               if:
                 enabled: 'equals true'

@@ -1,20 +1,27 @@
 /**
  * Top bar presets and order, as plain data — no storage, no DOM.
  *
- * A preset is { id, tools: [tab key, …], dock: bool | null }: the icons it
- * shows and whether the HTML dock opens — null leaves the dock as it is (All).
+ * A preset is { id, tools: [tab key, …], dock: bool | null, panes: [pane key, …] | null }:
+ * the icons it shows, whether the HTML dock opens — null leaves the dock as it
+ * is (All) — and the right-sidebar panes it opens, pinned; null leaves the
+ * sidebar as it is (All, and an own preset saved before presets had panes).
  * The site's two (Developer, Content editor) come from PHP (ToolbarPresets); a
  * user's own carry a `name` and an id that starts with `u-`. The order is not
  * part of a preset: it is the user's own, whichever preset is on.
+ *
+ * The panes are applied when a preset is picked, never matched: pinning a pane
+ * by hand does not make a preset stop being the one that is on.
  *
  * May import: nothing.
  */
 
 const TOOL_KEY = /^[a-z][a-z0-9_]*$/;
 const USER_ID = /^u-[a-z0-9]+$/;
+const PRESET_ID = /^[a-z0-9_-]+$/;
 export const PRESET_NAME_MAX = 40;
 
 const keysOf = (list) => (Array.isArray(list) ? [...new Set(list.filter((key) => typeof key === 'string' && TOOL_KEY.test(key)))] : []);
+const panesOf = (list) => (Array.isArray(list) ? keysOf(list) : null);
 
 /** A stored or provided preset made safe; null when it is not one. */
 export function cleanPreset(raw, { user = false } = {}) {
@@ -29,10 +36,34 @@ export function cleanPreset(raw, { user = false } = {}) {
       return null;
     }
 
-    return { id: raw.id, name, tools: keysOf(raw.tools), dock: raw.dock === true };
+    return { id: raw.id, name, tools: keysOf(raw.tools), dock: raw.dock === true, panes: panesOf(raw.panes) };
   }
 
-  return TOOL_KEY.test(raw.id) ? { id: raw.id, tools: keysOf(raw.tools), dock: raw.dock === true } : null;
+  return TOOL_KEY.test(raw.id) ? { id: raw.id, tools: keysOf(raw.tools), dock: raw.dock === true, panes: panesOf(raw.panes) } : null;
+}
+
+/** A user's own pane choices per preset, as stored, made safe: { preset id: [pane key, …] }. */
+export function cleanPaneChoices(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(raw)
+      .filter(([id, list]) => PRESET_ID.test(id) && Array.isArray(list))
+      .map(([id, list]) => [id, keysOf(list)])
+  );
+}
+
+/**
+ * The panes a preset opens, of those this user has: the user's own choice for
+ * it if there is one, else the preset's. null = leave the sidebar as it is.
+ */
+export function presetPanes(preset, choices, available) {
+  const own = choices?.[preset.id];
+  const panes = Array.isArray(own) ? own : preset.panes;
+
+  return Array.isArray(panes) ? available.filter((key) => panes.includes(key)) : null;
 }
 
 /** The icons a preset hides, of those this user has. */
