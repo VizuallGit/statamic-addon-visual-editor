@@ -177,6 +177,11 @@ const OUTLINE_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 // button. All of it is injected under an id of ours, and none of it is the page.
 const OUTLINE_CHROME = '[id^="__sve"], [id^="sve-"], [data-sve-ui]';
 
+// The same furniture as far as a click is concerned, plus what the inline
+// editor portals to <body> under a marker instead of an id: its dropdowns,
+// colour strip and the Bard set "+".
+const EDITOR_UI = `${OUTLINE_CHROME}, [data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu], [data-sve-bard-set-inserter]`;
+
 // A morph is hundreds of mutations; the panel wants the settled result.
 const OUTLINE_SETTLE_MS = 400;
 
@@ -654,9 +659,19 @@ function activateByUid(win, data) {
  * the page being edited with another one, inside an iframe with no way back.
  * So links (and form submits) are stopped before they navigate.
  *
- * Only the navigation is cancelled — the event still propagates, so clicking a
- * link keeps doing everything else it does here: selecting its section, opening
- * its field, starting an inline edit.
+ * The same goes for everything else the page does on a click: a button that
+ * opens a dialog, an accordion, a slider's arrows, a <summary>. A click on the
+ * page selects what is under it and nothing more — the site's own listeners
+ * (Alpine's @click, a lightbox, …) never hear it, and the browser's own
+ * activation (a <summary> toggling, a label ticking its box) is cancelled. A
+ * dialog that has to be open to be built is opened from the tree's Alpine icon
+ * (alpine-state.js), not by clicking it open.
+ *
+ * Neither stops the editor: its own click handler sits on the document too,
+ * after these, and stopPropagation (not stopImmediatePropagation) leaves the
+ * document's remaining listeners running — so a click still selects its
+ * section, opens its field, starts an inline edit. The editor's own controls in
+ * the preview are not the page and keep their clicks.
  *
  * Registered before the editor's own click handler so it runs first, whatever
  * that one decides to do with the event.
@@ -670,7 +685,21 @@ function blockNavigation(win) {
     }
   };
 
+  const stopSiteClick = (event) => {
+    const target = event.target;
+
+    // What the editor draws on <html> rather than <body> — grid handles, the
+    // global and header/footer bars, confirm dialogs — is outside the page too.
+    if (!win.document.body?.contains(target) || target.closest?.(EDITOR_UI)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
   win.document.addEventListener('click', stopLink, true);
+  win.document.addEventListener('click', stopSiteClick, true);
   win.document.addEventListener('auxclick', stopLink, true); // middle-click
   win.document.addEventListener(
     'submit',
