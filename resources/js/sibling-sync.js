@@ -757,6 +757,15 @@ function watchValues(container) {
 function containerOf(vm) {
     for (let parent = vm; parent; parent = parent.$parent) {
         if (typeof parent.setFieldValue === 'function' && parent.values) {
+            // The component is Statamic's PublishContainer, which exposes only
+            // part of itself (no setFieldMeta). The container it announced
+            // holds the same values and all of it — already hooked by onContainer.
+            const announced = publishContainers.find((c) => unwrapRef(c.values) === unwrapRef(parent.values));
+
+            if (announced) {
+                return announced;
+            }
+
             hookContainer(parent);
 
             return parent;

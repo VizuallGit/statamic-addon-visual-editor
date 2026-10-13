@@ -9,7 +9,7 @@ import {
   pageHasSectionField,
 } from '../../resources/js/lib/publish-containers.js';
 
-const container = (name) => ({ name, setFieldValue() {}, values: {} });
+const container = (name) => ({ name, setFieldValue() {}, setFieldMeta() {}, values: {} });
 const emptyDoc = { querySelector: () => null };
 
 test('addContainer keeps each container once and announces it to listeners', () => {
@@ -21,6 +21,15 @@ test('addContainer keeps each container once and announces it to listeners', () 
   addContainer({ name: 'no-setter', values: {} });
   assert.deepEqual(publishContainers.map((c) => c.name), ['a']);
   assert.deepEqual(seen, ['a']);
+});
+
+test('addContainer refuses a container that writes values but not meta', () => {
+  // What Statamic's PublishContainer component exposes to a $parent walk (sibling-sync).
+  // Kept, it came first in activeContainers and every meta write after it was skipped:
+  // a duplicated or dropped-in section had no meta, and the sidebar stopped drawing.
+  addContainer({ name: 'a', values: {}, meta: {}, setFieldValue() {}, setMeta() {} });
+  assert.deepEqual(publishContainers.map((c) => c.name), ['a']);
+  assert.equal(typeof activeContainers(emptyDoc)[0].setFieldMeta, 'function');
 });
 
 test('onContainer replays containers that were already known', () => {
@@ -57,7 +66,7 @@ test('pageHasSectionField: a form whose values carry the page builder, empty or 
   assert.equal(pageHasSectionField(win, emptyDoc), false);
 
   // A ref, as Statamic hands values out, holding the field with no rows in it.
-  addContainer({ name: 'page', setFieldValue() {}, values: { __v_isRef: true, value: { blocks: [] } } });
+  addContainer({ name: 'page', setFieldValue() {}, setFieldMeta() {}, values: { __v_isRef: true, value: { blocks: [] } } });
   assert.equal(pageHasSectionField(win, emptyDoc), true);
 
   // Without the setting the field is page_sections, which no form carries.

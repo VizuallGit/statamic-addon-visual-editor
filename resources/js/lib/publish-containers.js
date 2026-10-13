@@ -37,9 +37,23 @@ function announce(container) {
   }
 }
 
-/** Keep a container the events did not announce (found by walking a component's parents). */
+/**
+ * Keep a container the events did not announce (found by walking a component's parents).
+ *
+ * Only a whole container: one that writes meta as well as values. Statamic's
+ * PublishContainer component exposes `setFieldValue` and `values` but not
+ * `setFieldMeta`. Kept here, that half was the newest entry, so it came first
+ * in activeContainers — and every meta write after it was skipped: a section
+ * duplicated or dropped in landed in values with no meta, Statamic's
+ * Replicator threw on it, and the sidebar stopped drawing any section at all.
+ */
 export function addContainer(container) {
-  if (!container || typeof container.setFieldValue !== 'function' || publishContainers.includes(container)) {
+  if (
+    !container ||
+    typeof container.setFieldValue !== 'function' ||
+    typeof container.setFieldMeta !== 'function' ||
+    publishContainers.includes(container)
+  ) {
     return;
   }
 

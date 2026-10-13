@@ -59,7 +59,7 @@ test('the header’s, the footer’s and the layout’s states are sent by part 
 });
 
 test('a section on the page is still named by its ids, beside the frame', () => {
-  addContainer({ setFieldValue() {}, values: { page_sections: [{ type: 'hero/style_1', _visual_id: 'v-1', id: 'r-1' }] } });
+  addContainer({ setFieldValue() {}, setFieldMeta() {}, values: { page_sections: [{ type: 'hero/style_1', _visual_id: 'v-1', id: 'r-1' }] } });
 
   const { win, target, sent } = cp({ 'hero/style_1': { 0: { open: true } }, 'view:layout': { 0: { open: true } } }, TEMPLATES);
 
