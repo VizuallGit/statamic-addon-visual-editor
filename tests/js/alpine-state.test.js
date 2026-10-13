@@ -6,7 +6,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyAlpineStates, setAlpineState } from '../../resources/js/bridge/alpine-state.js';
+import { applyAlpineStates, guardDialogs, setAlpineState } from '../../resources/js/bridge/alpine-state.js';
 import { bridgeState } from '../../resources/js/bridge/state.js';
 
 globalThis.CSS ??= { escape: (value) => value };
@@ -310,4 +310,93 @@ test('chrome: after a morph the header’s state is flipped and set back like a 
   await Promise.resolve();
 
   assert.deepEqual(made.header.writes, ['menuOpen=false', 'menuOpen=true']);
+});
+
+/** A window with a dialog class whose openers report how inert they were called. */
+function dialogWindow() {
+  const calls = [];
+  const listeners = [];
+
+  class Dialog {
+    constructor() {
+      this.inert = false;
+    }
+
+    showModal() {
+      calls.push(`showModal inert=${this.inert}`);
+    }
+
+    show() {
+      calls.push(`show inert=${this.inert}`);
+    }
+  }
+
+  const win = {
+    HTMLDialogElement: Dialog,
+    document: {
+      addEventListener: (type, fn, capture) => listeners.push({ type, fn, capture }),
+    },
+  };
+
+  return { win, calls, listeners, Dialog };
+}
+
+function siteEvent(type, target) {
+  const event = { type, target, stopped: false, prevented: false };
+
+  event.stopPropagation = () => (event.stopped = true);
+  event.preventDefault = () => (event.prevented = true);
+
+  return event;
+}
+
+test('dialogs: showModal and show run inert — they cannot take focus — and leave the dialog as it was', () => {
+  const { win, calls, Dialog } = dialogWindow();
+
+  guardDialogs(win);
+
+  const dialog = new Dialog();
+
+  dialog.showModal();
+  dialog.show();
+
+  assert.deepEqual(calls, ['showModal inert=true', 'show inert=true']);
+  assert.equal(dialog.inert, false, 'not inert after the call: open, and clickable');
+
+  dialog.inert = true;
+  dialog.showModal();
+  assert.equal(dialog.inert, true, 'a dialog the site made inert stays inert');
+});
+
+test('dialogs: guarding twice wraps once', () => {
+  const { win, calls, listeners, Dialog } = dialogWindow();
+
+  guardDialogs(win);
+  guardDialogs(win);
+  new Dialog().showModal();
+
+  assert.equal(calls.length, 1);
+  assert.equal(listeners.length, 2);
+});
+
+test('dialogs: the site never hears a dialog close, and Escape does not close one', () => {
+  const { win, listeners, Dialog } = dialogWindow();
+
+  guardDialogs(win);
+
+  const on = (type) => listeners.find((l) => l.type === type);
+
+  assert.ok(on('close').capture && on('cancel').capture, 'on the document, in the capture phase');
+
+  const close = siteEvent('close', new Dialog());
+  const cancel = siteEvent('cancel', new Dialog());
+  const notADialog = siteEvent('close', {});
+
+  on('close').fn(close);
+  on('cancel').fn(cancel);
+  on('close').fn(notADialog);
+
+  assert.deepEqual([close.stopped, close.prevented], [true, false]);
+  assert.deepEqual([cancel.stopped, cancel.prevented], [true, true]);
+  assert.deepEqual([notADialog.stopped, notADialog.prevented], [false, false]);
 });

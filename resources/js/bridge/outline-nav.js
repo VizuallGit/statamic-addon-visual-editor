@@ -20,7 +20,8 @@ import { finishWidthDrag, hideColumnChrome, hideGridLines, widthDrag } from './g
 import { repositionInserters, setupInserters } from './inserters.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './video-hold.js';
-import { applyAlpineStates, setAlpineState, watchAlpineStart } from './alpine-state.js';
+import { applyAlpineStates, guardDialogs, setAlpineState, watchAlpineStart } from './alpine-state.js';
+import { installSiteInert } from './site-inert.js';
 
 // ===== outline-nav =====
 /**
@@ -176,11 +177,6 @@ const OUTLINE_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 // The editor's own furniture — toolbars, hover controls, the front-end edit
 // button. All of it is injected under an id of ours, and none of it is the page.
 const OUTLINE_CHROME = '[id^="__sve"], [id^="sve-"], [data-sve-ui]';
-
-// The same furniture as far as a click is concerned, plus what the inline
-// editor portals to <body> under a marker instead of an id: its dropdowns,
-// colour strip and the Bard set "+".
-const EDITOR_UI = `${OUTLINE_CHROME}, [data-sve-menu], [data-sve-color-menu], [data-sve-bard-style-menu], [data-sve-bard-set-inserter]`;
 
 // A morph is hundreds of mutations; the panel wants the settled result.
 const OUTLINE_SETTLE_MS = 400;
@@ -659,19 +655,10 @@ function activateByUid(win, data) {
  * the page being edited with another one, inside an iframe with no way back.
  * So links (and form submits) are stopped before they navigate.
  *
- * The same goes for everything else the page does on a click: a button that
- * opens a dialog, an accordion, a slider's arrows, a <summary>. A click on the
- * page selects what is under it and nothing more — the site's own listeners
- * (Alpine's @click, a lightbox, …) never hear it, and the browser's own
- * activation (a <summary> toggling, a label ticking its box) is cancelled. A
- * dialog that has to be open to be built is opened from the tree's Alpine icon
- * (alpine-state.js), not by clicking it open.
- *
- * Neither stops the editor: its own click handler sits on the document too,
- * after these, and stopPropagation (not stopImmediatePropagation) leaves the
- * document's remaining listeners running — so a click still selects its
- * section, opens its field, starts an inline edit. The editor's own controls in
- * the preview are not the page and keep their clicks.
+ * Only the navigation is cancelled — the event still propagates, so clicking a
+ * link keeps doing everything else it does here: selecting its section, opening
+ * its field, starting an inline edit. (That the site's own listeners never hear
+ * the click is site-inert.js's job.)
  *
  * Registered before the editor's own click handler so it runs first, whatever
  * that one decides to do with the event.
@@ -685,21 +672,7 @@ function blockNavigation(win) {
     }
   };
 
-  const stopSiteClick = (event) => {
-    const target = event.target;
-
-    // What the editor draws on <html> rather than <body> — grid handles, the
-    // global and header/footer bars, confirm dialogs — is outside the page too.
-    if (!win.document.body?.contains(target) || target.closest?.(EDITOR_UI)) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
   win.document.addEventListener('click', stopLink, true);
-  win.document.addEventListener('click', stopSiteClick, true);
   win.document.addEventListener('auxclick', stopLink, true); // middle-click
   win.document.addEventListener(
     'submit',
@@ -723,6 +696,10 @@ export function initBridge(win = window) {
   // Shared with preview.js (same window): while an inline edit is active, hot
   // reload defers its morph so the DOM under the caret is never replaced.
   win.__sveInlineEdit = win.__sveInlineEdit || { active: false };
+
+  // Before anything can open a dialog: one the tree holds open must neither
+  // take focus from the Control Panel nor shut on a morph.
+  guardDialogs(win);
 
   injectStyles(win.document);
   injectCpVariables(win.document, win);
@@ -894,8 +871,22 @@ export function initBridge(win = window) {
   });
 
   // Escape asks to leave chrome / global focus (CP warns if dirty).
-  win.document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !bridgeState.editing) {
+  //
+  // Capture: site-inert stops a key pressed on the page before the document's
+  // bubble phase, where this used to listen. An Escape the AI text popover
+  // takes is not a leave — it stops the key in this same phase, or, when it
+  // bound its listener after this one, its popover is still open here.
+  win.document.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key !== 'Escape' || bridgeState.editing || event.cancelBubble) {
+        return;
+      }
+
+      if (win.document.getElementById('__sve-ai-text-popover')) {
+        return;
+      }
+
       if (win.document.getElementById('__sve-preview-confirm')) {
         win.document.getElementById('__sve-preview-confirm')?.remove();
 
@@ -907,8 +898,13 @@ export function initBridge(win = window) {
       } else if (bridgeState.globalFocusEl) {
         requestCloseGlobal(win);
       }
-    }
-  });
+    },
+    true
+  );
+
+  // After the Escape listener above: `cancelBubble` there must mean an editor
+  // surface took the key, not that the page was kept from it.
+  installSiteInert(win);
 
   tagGlobalSections(win);
 

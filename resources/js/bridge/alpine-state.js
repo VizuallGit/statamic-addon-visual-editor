@@ -192,3 +192,63 @@ export function applyAlpineStates(win) {
 export function watchAlpineStart(win) {
   win.document.addEventListener('alpine:initialized', () => applyAlpineStates(win), { once: true });
 }
+
+/**
+ * A dialog the tree holds open is being built, not used. Two things a native
+ * dialog does would fight that, every time the person types in the dock:
+ *
+ * - `showModal()` and `show()` focus the first control inside the dialog. In
+ *   the preview that pulls focus out of the Control Panel, so the dock's class
+ *   field lost every keystroke after the first. The dialog is inert for the
+ *   length of the call — the dialog focusing steps skip an inert subject — and
+ *   not after it: it is open, modal and clickable as before.
+ * - The morph redraws the dialog to the server's markup, which has no `open`,
+ *   and Alpine's morph shuts it with `close()`. The `close` event reached the
+ *   site's `@close`, which wrote the state back to false, and the dialog
+ *   alternated shut and open on every save. Here the site hears neither
+ *   `close` nor `cancel` (Escape does not shut a modal one): the held state
+ *   puts the dialog back after the morph (applyAlpineStates, same task — no
+ *   frame shows it shut), and only the tree's toggle closes it.
+ *
+ * Idempotent: the bridge and every breakpoint frame call it on their window.
+ */
+export function guardDialogs(win) {
+  const proto = win.HTMLDialogElement?.prototype;
+
+  if (!proto || win.__sveDialogGuard) {
+    return;
+  }
+
+  win.__sveDialogGuard = true;
+
+  ['showModal', 'show'].forEach((name) => {
+    const open = proto[name];
+
+    proto[name] = function (...args) {
+      const inert = this.inert;
+
+      this.inert = true;
+
+      try {
+        return open.apply(this, args);
+      } finally {
+        this.inert = inert;
+      }
+    };
+  });
+
+  const keepFromSite = (event) => {
+    if (!(event.target instanceof win.HTMLDialogElement)) {
+      return;
+    }
+
+    if (event.type === 'cancel') {
+      event.preventDefault();
+    }
+
+    event.stopPropagation();
+  };
+
+  win.document.addEventListener('close', keepFromSite, true);
+  win.document.addEventListener('cancel', keepFromSite, true);
+}

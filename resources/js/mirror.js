@@ -32,7 +32,7 @@
  */
 import { applyThemeScaleCss, morphRender, normalizeChromeKind } from './preview.js';
 import { applyVideoHolds, setVideoHold, watchVideoPauses } from './bridge/video-hold.js';
-import { applyAlpineStates, setAlpineState, watchAlpineStart } from './bridge/alpine-state.js';
+import { applyAlpineStates, guardDialogs, setAlpineState, watchAlpineStart } from './bridge/alpine-state.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 /** The preview morphed to this render: do the same, from the same HTML. */
@@ -88,8 +88,10 @@ window.addEventListener('message', (event) => {
 
 // The rule the bridge keeps, kept here too: an autoplay video that is not
 // held plays, and every hold is put back after every draw — and every Alpine
-// state with it.
+// state with it. A dialog the tree holds open stays open and leaves focus
+// in the Control Panel here too.
 watchVideoPauses(window);
+guardDialogs(window);
 watchAlpineStart(window);
 window.addEventListener('statamic:preview-updated', () => {
   applyVideoHolds(window);

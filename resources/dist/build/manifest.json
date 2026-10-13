@@ -385,7 +385,7 @@
     ]
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-CuK74LwX.js",
+    "file": "assets/bridge-CMGwdggL.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true,
@@ -575,7 +575,7 @@
     "isEntry": true
   },
   "resources/js/mirror.js": {
-    "file": "assets/mirror-D3jtuv6O.js",
+    "file": "assets/mirror-Bg5kH7_x.js",
     "name": "mirror",
     "src": "resources/js/mirror.js",
     "isEntry": true
