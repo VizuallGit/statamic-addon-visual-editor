@@ -1,8 +1,9 @@
 /**
- * Overflow menu to the right of Close: Live Preview defaults + reset, in three
- * tabs (sidebars, HTML tree, top bar icons). Right-click or Shift-click on the
- * button opens the short list instead: the presets, one click to switch.
- * Does not import the kernel.
+ * Overflow menu to the right of Close: the presets on top (a click switches),
+ * then Live Preview defaults + reset in three tabs (sidebars, HTML tree, top
+ * bar icons) — Sidebars and Top bar for the preset that is on. Right-click or
+ * Shift-click on the button opens the short list instead: the presets, one
+ * click to switch. Does not import the kernel.
  */
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
@@ -23,6 +24,8 @@ import { applyLpEditorWidth } from './focus-panel.js';
 import { closeSectionPicker, syncPreviewInset } from './section-library.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeOutlinePanel } from './lazy/outline.js';
+import { closePerformancePanel } from './lazy/performance.js';
+import { closeThemePanel } from './theme-panel-lazy.js';
 import { openHtmlTreePanel } from './lazy/html-tree.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
@@ -42,7 +45,7 @@ import {
   writePickedPreset,
   writeUserPresets,
 } from './toolbar-visibility.js';
-import { PRESET_NAME_MAX, activePreset, cleanPreset, newPresetId, presetHidden, presetPanes } from './lib/toolbar-presets.js';
+import { PRESET_NAME_MAX, SIDEBAR_TOOLS, activePreset, cleanPreset, newPresetId, presetHidden, presetPanes, presetSidebar } from './lib/toolbar-presets.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -51,13 +54,6 @@ export const LP_PRESET_MENU_ID = '__sve-lp-preset-menu';
 const PIN_KEY = 'sve-right-dock-pinned';
 const OPEN_PANES_KEY = 'sve-right-dock-open-panes';
 const DOCK_WIDTH_KEY = 'sve-right-dock-width';
-const SIDEBAR_TOOLS = [
-  ['listview', 'listview'],
-  ['outline', 'outline'],
-  ['comments', 'comments_pane'],
-  ['sections', 'sections'],
-  ['ai', 'ai_panel'],
-];
 
 const LP_MORE_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
@@ -117,6 +113,11 @@ function closeTool(win, key) {
     closeSectionPicker(win);
   } else if (key === 'ai') {
     closeAiPanel(win);
+  } else if (key === 'performance') {
+    closePerformancePanel(win);
+  } else if (key === 'theme') {
+    // Another tool takes the sidebar: no question, unsaved values kept.
+    closeThemePanel(win, { force: true });
   }
 }
 
@@ -183,27 +184,42 @@ function setCodeDock(win, on) {
   applyHeaderTab(win);
 }
 
-/** The sidebar panes this user has, in the order the Sidebars tab lists them. */
+/**
+ * The sidebar tools this user has, in the order the Sidebars tab lists them:
+ * those with an icon in the top bar — no icon, no access.
+ */
 function sidebarPanes(win) {
-  return SIDEBAR_TOOLS.filter(([id]) => featureOn(win, id === 'ai' ? 'ai_panel' : id));
+  const keys = toolbarTools(win).map((tool) => tool.key);
+
+  return SIDEBAR_TOOLS.filter((key) => keys.includes(key));
 }
 
 /**
- * What the Sidebars tab shows — read each time the tab opens, as a preset
- * picked on the Top bar tab may have changed both the pins and which preset
- * is on. Per preset: the panes it opens (null = it leaves the sidebar alone).
+ * What the Sidebars tab shows for the preset that is on (`id`; anything else
+ * is All) — read each time the tab opens. A preset lists its own sidebar
+ * tools, ticked where it opens them; `keep` = it leaves the sidebar alone
+ * until one is ticked. All lists every sidebar tool, ticked where it is
+ * pinned or open now: the pins as before presets had panes.
  */
-function sidebarState(win) {
-  const panes = sidebarPanes(win);
-  const keys = panes.map(([id]) => id);
-  const choices = readPaneChoices(win);
-  const presets = allPresets(win);
+function sidebarState(win, id) {
+  const tools = toolbarTools(win);
+  const label = (key) => tools.find((tool) => tool.key === key)?.label || key;
+  const available = sidebarPanes(win);
+  const preset = id === 'all' ? null : allPresets(win).find((item) => item.id === id);
+
+  if (!preset) {
+    return { id: 'all', label: '', tools: available.map((key) => ({ id: key, label: label(key), on: paneOn(win, key) })), keep: false, tree: '' };
+  }
+
+  const panes = presetPanes(preset, readPaneChoices(win), available);
 
   return {
-    tools: panes.map(([id, labelKey]) => ({ id, label: t(win, labelKey), on: paneOn(win, id) })),
-    presets: presets.map(({ id, label }) => ({ id, label })),
-    presetId: activePresetId(win) || 'all',
-    presetPanes: Object.fromEntries(presets.filter((preset) => preset.id !== 'all').map((preset) => [preset.id, presetPanes(preset, choices, keys)])),
+    id: preset.id,
+    label: preset.label,
+    tools: presetSidebar(preset, available).map((key) => ({ id: key, label: label(key), on: (panes || []).includes(key) })),
+    keep: panes === null,
+    // No choice: the HTML tree comes with the HTML dock.
+    tree: preset.dock === true && templateDockAllowed(win) && featureOn(win, 'html_tree') ? t(win, 'html_tree') : '',
   };
 }
 
@@ -224,6 +240,8 @@ function sidebarsProps(win) {
     presetHint: t(win, 'lp_settings_sidebar_preset_hint'),
     allHint: t(win, 'lp_settings_sidebar_all_hint'),
     keepHint: t(win, 'lp_settings_sidebar_keep_hint'),
+    emptyHint: t(win, 'lp_settings_sidebar_empty'),
+    treeHint: t(win, 'lp_settings_sidebar_tree_hint'),
     dockWidth: clampWidth(win, chromeGet(win, DOCK_WIDTH_KEY)),
     widthLabel: t(win, 'lp_settings_width'),
     widthMin: remToPx(win, LP_SIDE_MIN_REM),
@@ -279,10 +297,30 @@ function allPresets(win) {
 function toolbarState(win) {
   return {
     tools: toolbarTools(win),
-    presets: allPresets(win),
-    dock: isCodeDockArmed(win),
     ordered: readToolbarOrder(win).length > 0,
-    picked: readPickedPreset(win),
+  };
+}
+
+/** The presets row on top of the menu: every preset, and the one that is on now. */
+function presetState(win) {
+  return {
+    presets: allPresets(win).map(({ id, label, own }) => ({ id, label, own })),
+    activeId: activePresetId(win),
+  };
+}
+
+function presetsProps(win) {
+  return {
+    presetsLabel: t(win, 'lp_settings_presets'),
+    newPresetLabel: t(win, 'lp_settings_preset_new'),
+    namePlaceholder: t(win, 'lp_settings_preset_name'),
+    saveLabel: t(win, 'lp_settings_preset_save'),
+    cancelLabel: t(win, 'lp_settings_preset_cancel'),
+    deleteLabel: t(win, 'lp_settings_preset_delete'),
+    editLabel: t(win, 'lp_settings_preset_edit'),
+    // Only for a user who may edit the addon's settings.
+    editUrl: win.Statamic?.$config?.get?.('sveToolbarPresetsUrl') || '',
+    nameMax: PRESET_NAME_MAX,
   };
 }
 
@@ -296,21 +334,10 @@ function toolbarProps(win) {
     showAllLabel: t(win, 'lp_settings_toolbar_all'),
     dragLabel: t(win, 'lp_settings_toolbar_drag'),
     orderResetLabel: t(win, 'lp_settings_toolbar_order_reset'),
-    presetsLabel: t(win, 'lp_settings_presets'),
-    newPresetLabel: t(win, 'lp_settings_preset_new'),
-    namePlaceholder: t(win, 'lp_settings_preset_name'),
-    saveLabel: t(win, 'lp_settings_preset_save'),
-    cancelLabel: t(win, 'lp_settings_preset_cancel'),
-    deleteLabel: t(win, 'lp_settings_preset_delete'),
-    editLabel: t(win, 'lp_settings_preset_edit'),
-    // Only for a user who may edit the addon's settings.
-    editUrl: win.Statamic?.$config?.get?.('sveToolbarPresetsUrl') || '',
-    nameMax: PRESET_NAME_MAX,
-    dockAllowed: templateDockAllowed(win),
   };
 }
 
-/** The preset that is on now — the one the Top bar tab marks; '' when none is. */
+/** The preset that is on now — the one the presets row marks; '' when none is. */
 function activePresetId(win) {
   const tools = toolbarTools(win);
   const state = {
@@ -328,7 +355,7 @@ function activePresetId(win) {
  * the way ticking them on the Sidebars tab one by one would.
  */
 function pinPanes(win, want) {
-  const keys = sidebarPanes(win).map(([id]) => id);
+  const keys = sidebarPanes(win);
   const pinned = { ...parseJson(win, PIN_KEY, {}) };
   const open = parseJson(win, OPEN_PANES_KEY, []);
 
@@ -375,8 +402,9 @@ function queueSwitch(job) {
 
 /**
  * Show what a preset shows, open its panes, then open or close the HTML dock
- * the way it says (All leaves both). The icons and which preset is picked
- * change at once; the panes and the dock wait their turn.
+ * the way it says (All leaves both). Which preset is on, its icons and the
+ * dock's switch change at once — the menu reads them; the panes and the dock
+ * itself wait their turn.
  */
 function applyPreset(win, id) {
   const preset = allPresets(win).find((item) => item.id === id);
@@ -385,23 +413,36 @@ function applyPreset(win, id) {
     return switches;
   }
 
+  const dock = preset.dock !== null && templateDockAllowed(win) ? preset.dock : null;
+  const dockMoves = dock !== null && isCodeDockArmed(win) !== dock;
+
   writePickedPreset(win, preset.id);
   setHiddenTools(win, presetHidden(preset, toolbarTools(win).map((tool) => tool.key)));
 
+  if (dockMoves) {
+    setCodeDockArmed(win, dock);
+  }
+
   return queueSwitch(async () => {
-    const panes = presetPanes(preset, readPaneChoices(win), sidebarPanes(win).map(([key]) => key));
+    const panes = presetPanes(preset, readPaneChoices(win), sidebarPanes(win));
 
     if (panes) {
       await openPanes(win, panes);
     }
 
-    if (preset.dock === null || !templateDockAllowed(win)) {
-      return;
+    if (dockMoves) {
+      if (dock) {
+        syncCodeDock(win, win.document, sveState.soloUid);
+      } else {
+        closeCodeDock(win.document);
+      }
+
+      applyHeaderTab(win);
     }
 
-    if (isCodeDockArmed(win) !== preset.dock) {
-      setCodeDock(win, preset.dock);
-    } else if (preset.dock && panes?.length) {
+    // A pane that opened has closed the HTML tree; with the dock open it comes
+    // back (a dock still loading opens it itself).
+    if (dock && panes?.length) {
       openHtmlTreePanel(win);
     }
   });
@@ -415,7 +456,7 @@ function saveOwnPreset(win, name) {
     name,
     tools: toolbarTools(win).filter((tool) => tool.shown).map((tool) => tool.key),
     dock: isCodeDockArmed(win),
-    panes: sidebarPanes(win).map(([key]) => key).filter((key) => paneOn(win, key)),
+    panes: sidebarPanes(win).filter((key) => paneOn(win, key)),
   }, { user: true });
 
   if (!preset) {
@@ -424,40 +465,31 @@ function saveOwnPreset(win, name) {
 
   writeUserPresets(win, [...own, preset]);
 
-  return { ...preset, label: preset.name, own: true };
+  return { id: preset.id, label: preset.name, own: true };
 }
 
 /**
- * Tick a pane on or off for a preset (All = the pins as they are, as before
- * presets had panes). The user's own choice for that preset; on the preset
- * that is on now, the sidebar follows at once. Answers whether it did.
+ * Tick a pane on or off on the Sidebars tab, which lists the preset that is
+ * on: the user's own choice for it, and the sidebar follows at once — a pane
+ * that opened has closed the HTML tree, which comes back with the dock. On
+ * All, the pins themselves, as before presets had panes.
  */
 function setPresetPane(win, id, key, on) {
-  if (id === 'all') {
-    setStartupPane(win, key, on);
-
-    return true;
-  }
-
-  const preset = allPresets(win).find((item) => item.id === id);
+  const preset = id === 'all' ? null : allPresets(win).find((item) => item.id === id);
 
   if (!preset) {
-    return false;
+    setStartupPane(win, key, on);
+
+    return;
   }
 
-  const keys = sidebarPanes(win).map(([pane]) => pane);
+  const available = sidebarPanes(win);
   const choices = readPaneChoices(win);
-  const current = presetPanes(preset, choices, keys) || [];
-  const next = keys.filter((pane) => (pane === key ? on : current.includes(pane)));
+  const current = presetPanes(preset, choices, available) || [];
+  const next = presetSidebar(preset, available).filter((pane) => (pane === key ? on : current.includes(pane)));
 
   writePaneChoices(win, { ...choices, [id]: next });
 
-  if (activePresetId(win) !== id) {
-    return false;
-  }
-
-  // The sidebar becomes the preset's, the way picking it would make it; a
-  // pane that opened has closed the HTML tree, which comes back with the dock.
   void queueSwitch(async () => {
     await openPanes(win, next);
 
@@ -465,8 +497,19 @@ function setPresetPane(win, id, key, on) {
       openHtmlTreePanel(win);
     }
   });
+}
 
-  return true;
+/** Delete a preset of the user's own, and the panes chosen for it. */
+function deleteOwnPreset(win, id) {
+  const choices = readPaneChoices(win);
+
+  delete choices[id];
+  writeUserPresets(win, readUserPresets(win).filter((item) => item.id !== id));
+  writePaneChoices(win, choices);
+
+  if (readPickedPreset(win) === id) {
+    writePickedPreset(win, '');
+  }
 }
 
 function settingsProps(win, rect) {
@@ -483,6 +526,7 @@ function settingsProps(win, rect) {
       { id: 'toolbar', label: t(win, 'lp_settings_tab_toolbar') },
     ].filter(Boolean),
     tab: lastTab,
+    presets: presetsProps(win),
     sidebars: sidebarsProps(win),
     tree,
     toolbar: toolbarProps(win),
@@ -515,9 +559,15 @@ function bindSettingHandlers(win) {
     on: {
       mode: (mode) => setPanelMode(win, mode),
       width: (which, px) => setWidth(win, which, px),
-      tool: (key, on) => setStartupPane(win, key, on),
-      sidebarState: () => sidebarState(win),
+      sidebarState: (id) => sidebarState(win, id),
       presetPane: (id, key, on) => setPresetPane(win, id, key, on),
+      presetState: () => presetState(win),
+      activePreset: () => activePresetId(win),
+      presetSwitch: (id) => {
+        void applyPreset(win, id);
+      },
+      presetSave: (name) => saveOwnPreset(win, name),
+      presetDelete: (id) => deleteOwnPreset(win, id),
       codeDock: (on) => setCodeDock(win, on),
       htmlTree: (on) => setHtmlTreeLook(win, on ? 'tags' : 'classic'),
       familyColor: (family, hex) => setFamilyColor(win, family, hex),
@@ -528,21 +578,6 @@ function bindSettingHandlers(win) {
       toolbarShowAll: () => showAllToolbarTools(win),
       toolbarOrder: (keys) => setToolbarOrder(win, keys),
       toolbarOrderReset: () => setToolbarOrder(win, []),
-      toolbarPreset: (id) => {
-        void applyPreset(win, id);
-      },
-      toolbarPresetSave: (name) => saveOwnPreset(win, name),
-      toolbarPresetDelete: (id) => {
-        const choices = readPaneChoices(win);
-
-        delete choices[id];
-        writeUserPresets(win, readUserPresets(win).filter((item) => item.id !== id));
-        writePaneChoices(win, choices);
-
-        if (readPickedPreset(win) === id) {
-          writePickedPreset(win, '');
-        }
-      },
       // The menu goes first: the tool opens where the menu was.
       toolbarOpen: (key) => {
         dismissLpMoreMenu();

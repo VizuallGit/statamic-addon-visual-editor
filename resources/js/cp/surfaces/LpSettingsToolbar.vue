@@ -1,11 +1,11 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
-import { activePreset, moveKey } from '../../lib/toolbar-presets.js';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import { moveKey } from '../../lib/toolbar-presets.js';
 
-// Top bar tab. Presets on top: All, the site's two (Developer, Content
-// editor — edited on the settings screen) and the user's own. Under them one row per
-// icon, in the user's order: drag the handle to move it, the box to show or
-// hide it, Open to press a hidden one. The list is read off the toolbar
+// Top bar tab: one row per icon, in the user's order — drag the handle to move
+// it, the box to show or hide it, Open to press a hidden one. The presets sit
+// on top of the menu (LpSettingsPresets.vue), and a switch remounts this tab
+// with the icons the new preset shows. The list is read off the toolbar
 // itself, so a tool this user may not use — no button — is not in it.
 // lp-more-menu.js owns every write (`on.*`); this keeps the rows in step.
 const props = defineProps({
@@ -17,34 +17,14 @@ const props = defineProps({
   showAllLabel: { type: String, required: true },
   dragLabel: { type: String, required: true },
   orderResetLabel: { type: String, required: true },
-  presetsLabel: { type: String, required: true },
-  newPresetLabel: { type: String, required: true },
-  namePlaceholder: { type: String, required: true },
-  saveLabel: { type: String, required: true },
-  cancelLabel: { type: String, required: true },
-  // ":name" is filled with the preset's name.
-  deleteLabel: { type: String, required: true },
-  editLabel: { type: String, required: true },
-  editUrl: { type: String, default: '' },
-  nameMax: { type: Number, default: 40 },
-  dockAllowed: { type: Boolean, default: false },
   on: { type: Object, required: true },
 });
 
 const state = props.on.toolbarState();
 const tools = ref(state.tools.map((tool) => ({ ...tool })));
-const presets = ref(state.presets.map((preset) => ({ ...preset })));
-const dock = ref(state.dock);
 const ordered = ref(state.ordered);
-const picked = ref(state.picked || '');
 
 const anyHidden = computed(() => tools.value.some((tool) => !tool.shown));
-const activeId = computed(() => {
-  const available = tools.value.map((tool) => tool.key);
-  const shown = tools.value.filter((tool) => tool.shown).map((tool) => tool.key);
-
-  return activePreset(presets.value, { available, shown, dock: dock.value, dockAllowed: props.dockAllowed }, picked.value)?.id || '';
-});
 
 function setShown(key, value) {
   const row = tools.value.find((tool) => tool.key === key);
@@ -62,63 +42,6 @@ function showAll() {
   });
   props.on.toolbarShowAll();
 }
-
-// ── Presets ─────────────────────────────────────────────────────────────
-function applyPreset(preset) {
-  picked.value = preset.id;
-  tools.value.forEach((tool) => {
-    tool.shown = preset.tools.includes(tool.key);
-  });
-
-  if (props.dockAllowed && preset.dock !== null) {
-    dock.value = preset.dock;
-  }
-
-  props.on.toolbarPreset(preset.id);
-}
-
-const adding = ref(false);
-const newName = ref('');
-const nameInput = ref(null);
-
-async function startAdding() {
-  adding.value = true;
-  newName.value = '';
-  await nextTick();
-  nameInput.value?.focus();
-}
-
-function saveNew() {
-  const name = newName.value.trim();
-
-  if (!name) {
-    nameInput.value?.focus();
-
-    return;
-  }
-
-  const preset = props.on.toolbarPresetSave(name);
-
-  if (preset) {
-    presets.value.push(preset);
-    // A new preset is the bar as it stands: it is the one on now.
-    picked.value = preset.id;
-    props.on.toolbarPreset(preset.id);
-  }
-
-  adding.value = false;
-}
-
-function deletePreset(preset) {
-  if (picked.value === preset.id) {
-    picked.value = '';
-  }
-
-  presets.value = presets.value.filter((item) => item.id !== preset.id);
-  props.on.toolbarPresetDelete(preset.id);
-}
-
-const deleteTitle = (preset) => props.deleteLabel.replace(':name', preset.label);
 
 // ── Order: drag the handle, or arrow keys on it ─────────────────────────
 const listEl = ref(null);
@@ -212,62 +135,6 @@ function resetOrder() {
 </script>
 
 <template>
-  <div class="sve-lp-settings__section">
-    <div class="sve-lp-settings__line">
-      <span class="sve-lp-settings__label">{{ presetsLabel }}</span>
-      <a
-        v-if="editUrl"
-        class="sve-lp-settings__link"
-        :href="editUrl"
-        target="_blank"
-        rel="noopener"
-        data-sve-toolbar-presets-edit
-      >{{ editLabel }} ↗</a>
-    </div>
-    <div class="sve-lp-settings__pills" role="group" :aria-label="presetsLabel">
-      <span
-        v-for="preset in presets"
-        :key="preset.id"
-        class="sve-lp-settings__pill"
-        :class="{ 'is-on': activeId === preset.id, 'is-own': preset.own }"
-        :data-sve-toolbar-preset="preset.id"
-      >
-        <button type="button" :aria-pressed="activeId === preset.id ? 'true' : 'false'" @click="applyPreset(preset)">
-          {{ preset.label }}
-        </button>
-        <button
-          v-if="preset.own"
-          type="button"
-          class="sve-lp-settings__pill-x"
-          :title="deleteTitle(preset)"
-          :aria-label="deleteTitle(preset)"
-          data-sve-toolbar-preset-delete
-          @click="deletePreset(preset)"
-        >×</button>
-      </span>
-      <button
-        v-if="!adding"
-        type="button"
-        class="sve-lp-settings__pill is-add"
-        data-sve-toolbar-preset-new
-        @click="startAdding"
-      >+ {{ newPresetLabel }}</button>
-    </div>
-    <form v-if="adding" class="sve-lp-settings__name" @submit.prevent="saveNew" @keydown.escape.stop.prevent="adding = false">
-      <input
-        ref="nameInput"
-        v-model="newName"
-        type="text"
-        :maxlength="nameMax"
-        :placeholder="namePlaceholder"
-        :aria-label="newPresetLabel"
-        data-sve-toolbar-preset-name
-      >
-      <button type="submit" class="sve-lp-settings__small is-primary" data-sve-toolbar-preset-save>{{ saveLabel }}</button>
-      <button type="button" class="sve-lp-settings__small" @click="adding = false">{{ cancelLabel }}</button>
-    </form>
-  </div>
-
   <div class="sve-lp-settings__section is-tight">
     <div class="sve-lp-settings__line">
       <span class="sve-lp-settings__label">{{ label }}</span>

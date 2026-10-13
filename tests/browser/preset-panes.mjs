@@ -2,16 +2,19 @@
 /**
  * Presets switch the right sidebar too, in a real Live Preview, with real
  * mouse clicks — measured by what is on screen, not by what is in the DOM.
+ * What each preset should open is read off the site's own presets: a preset
+ * opens only its own icons' tools, so the run fits any site's settings.
  *
  * Right-click on ⋮ lists the presets. Two picked one right after the other,
  * while the block tree's code is still on its first (slowed) load, end as the
- * last one says. Content editor opens the block tree and
- * Patterns and closes the HTML dock; Shift-click on ⋮ lists them again, and
- * Developer opens the dock with its HTML tree and closes the two panes. Then
- * the Sidebars tab: Developer is picked there because it is on, and ticking
- * the block tree for it opens the tree beside the HTML tree — both stay through
- * a full reload. Back to Content editor, and a pane unticked for Developer
- * (not on) changes nothing on screen until Developer is picked again.
+ * last one says. Content editor opens its panes and closes the HTML dock;
+ * Shift-click on ⋮ lists them again, and Developer opens the dock with its
+ * HTML tree and closes the panes. Then the menu: the presets row on top marks
+ * Developer, and the Sidebars tab lists Developer's own sidebar tools (the
+ * HTML tree fixed, as it comes with the dock). A click on Content editor in
+ * the row switches, and the list becomes Content editor's. Back on Developer,
+ * ticking its tools opens them beside the HTML tree — kept through a reload.
+ * All changes nothing and lists every sidebar tool.
  *
  * Needs the site's PHP to provide the presets' panes (ToolbarPresets::PANES) —
  * a site older than the build has none, and the run stops saying so.
@@ -54,9 +57,15 @@ const step = (name, ok, detail = '') => {
 const MORE = '#__sve-lp-more';
 const MENU = '#__sve-lp-more-menu';
 const SWITCH = '#__sve-lp-preset-menu';
+const SIDEBAR = ['listview', 'outline', 'comments', 'sections', 'ai', 'performance', 'theme'];
 const PANE = {
   listview: '#__sve-listview-panel',
+  outline: '#__sve-outline-panel',
+  comments: '#__sve-comments-pane',
   sections: '#__sve-section-picker',
+  ai: '#__sve-ai-panel',
+  performance: '#__sve-perf-panel',
+  theme: '#__sve-theme',
   html_tree: '#__sve-html-tree-panel',
 };
 const DOCK = '#__sve-code-dock';
@@ -168,7 +177,31 @@ async function screen(frame) {
   return out;
 }
 
-const describe = (s) => Object.entries(s).map(([key, on]) => `${key}:${on ? 'on' : 'off'}`).join(' ');
+/**
+ * The screen once it shows what is expected, or as it is after `ms`: a tool
+ * opening for the first time loads its code, and the next waits its turn.
+ */
+async function settle(frame, panes, options = {}, ms = 10000) {
+  const t0 = Date.now();
+  let now = await screen(frame);
+
+  while (!shows(now, panes, options) && Date.now() - t0 < ms) {
+    now = await screen(frame);
+  }
+
+  return now;
+}
+
+const describe = (s) => Object.entries(s).filter(([, on]) => on).map(([key]) => key).join(' ') || 'nothing';
+
+/** Exactly these panes (and the dock, the tree) on screen — no more, no fewer. */
+const shows = (now, panes, { dock = false } = {}) => Object.entries(now).every(([key, on]) => {
+  if (key === 'dock' || key === 'html_tree') {
+    return on === dock;
+  }
+
+  return on === panes.includes(key);
+});
 
 const storedKey = (frame, key) => frame.evaluate((k) => {
   const id = window.Statamic?.$config?.get?.('sveUserId');
@@ -215,8 +248,15 @@ async function openSidebarsTab(page, cp) {
   }
 
   await click(page, cp, `${MENU} [data-sve-lp-settings-tab="sidebars"]`);
-  await cp.waitForSelector(`${MENU} [data-sve-sidebar-preset]`, { timeout: 3000 });
+  await sleep(200);
 }
+
+/** The Sidebars tab's rows: which tools it lists, and which are ticked. */
+const sidebarRows = (cp) => cp.$$eval(`${MENU} [data-sve-sidebar-pane]`, (rows) => rows.map((row) => ({
+  key: row.getAttribute('data-sve-sidebar-pane'),
+  on: row.querySelector('input').checked,
+  fixed: row.querySelector('input').disabled,
+})));
 
 const browser = await puppeteer.launch({ headless: true, executablePath: CHROME, args: ['--window-size=1440,900'], defaultViewport: { width: 1440, height: 900 } });
 const page = await browser.newPage();
@@ -285,8 +325,13 @@ try {
     throw new Error("the site's PHP gives the presets no panes — it is older than this build");
   }
 
-  step('the site presets carry panes', editor.panes.join() === 'listview,sections' && developer.panes.length === 0 && developer.dock === true && editor.dock === false,
-    `editor ${editor.panes.join('+')}, developer ${developer.panes.join('+') || 'none'}`);
+  // What this user has, and what each preset should open: its own icons' sidebar tools.
+  const icons = await cp.evaluate(() => [...document.querySelectorAll('#__sve-toolbar button[data-tab]')].map((btn) => btn.dataset.tab));
+  const sidebarOf = (preset) => SIDEBAR.filter((key) => icons.includes(key) && preset.tools.includes(key));
+  const editorPanes = editor.panes.filter((key) => sidebarOf(editor).includes(key));
+
+  step('the site presets carry panes', developer.dock === true && editor.dock === false,
+    `editor opens ${editorPanes.join('+') || 'nothing'} of ${sidebarOf(editor).join(' ')}; developer has ${sidebarOf(developer).join(' ')}`);
 
   // ── Right-click: the short list ───────────────────────────────────────
   await click(page, cp, MORE, { button: 'right' });
@@ -311,7 +356,7 @@ try {
 
     slowTree = false;
     step('Content editor then Developer at once, the block tree slow to load: Developer is what shows',
-      raced.dock && raced.html_tree && !raced.listview && !raced.sections, describe(raced));
+      shows(raced, [], { dock: true }), describe(raced));
   }
 
   // ── Content editor ────────────────────────────────────────────────────
@@ -320,14 +365,7 @@ try {
   let now = await screen(cp);
 
   await shot(page, 'editor');
-  step('Content editor: block tree and Patterns open, no dock, no HTML tree',
-    now.listview && now.sections && !now.dock && !now.html_tree, describe(now));
-  step('and both are pinned', await cp.evaluate((key) => {
-    const id = window.Statamic?.$config?.get?.('sveUserId');
-    const pins = JSON.parse(localStorage.getItem(id ? `sve-u:${id}:${key}` : key) || '{}');
-
-    return pins.listview === true && pins.sections === true;
-  }, 'sve-right-dock-pinned'));
+  step('Content editor: its panes open, no dock, no HTML tree', shows(now, editorPanes), describe(now));
 
   await click(page, cp, MORE, { button: 'right' });
   await cp.waitForSelector(SWITCH, { timeout: 5000 });
@@ -340,53 +378,64 @@ try {
   await waitFor(cp, (sel) => !!document.querySelector(sel), PANE.html_tree, 15000);
   now = await screen(cp);
   await shot(page, 'developer');
-  step('Shift-click works too; Developer: dock and HTML tree open, the two panes closed',
-    now.dock && now.html_tree && !now.listview && !now.sections, describe(now));
+  step('Shift-click works too; Developer: dock and HTML tree, the panes closed', shows(now, [], { dock: true }), describe(now));
 
-  // ── Sidebars tab: a pane for the preset that is on ─────────────────────
+  // ── The menu: presets on top, the Sidebars tab for the one that is on ──
   await openSidebarsTab(page, cp);
-  step('the Sidebars tab has Developer picked, as it is on',
-    await cp.$eval(`${MENU} [data-sve-sidebar-preset="developer"]`, (el) => el.classList.contains('is-on')));
-  step('with nothing ticked for it', await cp.$$eval(`${MENU} [data-sve-sidebar-pane] input`, (els) => els.every((el) => !el.checked)));
-  await click(page, cp, `${MENU} [data-sve-sidebar-pane="listview"] input`);
-  await page.keyboard.press('Escape');
+
+  const isOn = (id) => cp.$eval(`${MENU} [data-sve-toolbar-preset="${id}"]`, (el) => el.classList.contains('is-on')).catch(() => false);
+  let rows = await sidebarRows(cp);
+
+  await shot(page, 'menu-developer');
+  step('the presets row on top marks Developer', (await isOn('developer')) && !(await isOn('editor')));
+  step("the Sidebars tab lists Developer's own sidebar tools, the HTML tree fixed",
+    rows.map((row) => row.key).join() === ['html_tree', ...sidebarOf(developer)].join() && rows[0].on && rows[0].fixed && rows.slice(1).every((row) => !row.on),
+    rows.map((row) => `${row.key}${row.on ? '✓' : ''}${row.fixed ? '(fixed)' : ''}`).join(' '));
+
+  await click(page, cp, `${MENU} [data-sve-toolbar-preset="editor"] button`);
+  await sleep(300);
+  rows = await sidebarRows(cp);
+  step('a click on Content editor in the row switches: it is marked, the list is its own',
+    (await isOn('editor')) && rows.map((row) => row.key).join() === sidebarOf(editor).join() && rows.every((row) => row.on === editorPanes.includes(row.key)),
+    rows.map((row) => `${row.key}${row.on ? '✓' : ''}`).join(' '));
   now = await screen(cp);
-  step('ticking the block tree opens it at once, beside the HTML tree',
-    now.listview && now.html_tree && now.dock, describe(now));
-  step('as this user\'s own choice for Developer', JSON.parse((await storedKey(cp, 'sve-toolbar-preset-panes')) || '{}').developer?.join() === 'listview',
+  step('and the sidebar and dock follow', shows(now, editorPanes), describe(now));
+
+  await click(page, cp, `${MENU} [data-sve-toolbar-preset="developer"] button`);
+  await sleep(300);
+
+  const ticks = sidebarOf(developer);
+
+  for (const key of ticks) {
+    await click(page, cp, `${MENU} [data-sve-sidebar-pane="${key}"] input`);
+    await sleep(300);
+  }
+
+  await page.keyboard.press('Escape');
+  now = await settle(cp, ticks, { dock: true });
+  await shot(page, 'developer-ticked');
+  step(`ticking Developer's ${ticks.join(' + ') || 'nothing'} opens them beside the HTML tree`, ticks.length > 0 && shows(now, ticks, { dock: true }), describe(now));
+  step("as this user's own choice for Developer", JSON.parse((await storedKey(cp, 'sve-toolbar-preset-panes')) || '{}').developer?.join() === ticks.join(),
     await storedKey(cp, 'sve-toolbar-preset-panes'));
 
   // ── A full reload keeps it ────────────────────────────────────────────
   cp = await openLivePreview(page);
   await waitFor(cp, (sel) => !!document.querySelector(sel), PANE.html_tree, 15000);
+  await sleep(1500);
   now = await screen(cp);
   await shot(page, 'developer-reload');
-  step('after a reload: dock, HTML tree and block tree, Patterns closed',
-    now.dock && now.html_tree && now.listview && !now.sections, describe(now));
+  step('after a reload: the dock, the HTML tree and the ticked tools', shows(now, ticks, { dock: true }), describe(now));
 
-  // ── A choice for a preset that is not on changes nothing on screen ─────
-  await switchTo(page, cp, 'editor');
-  now = await screen(cp);
-  step('back to Content editor: its two panes, the HTML tree and dock gone',
-    now.listview && now.sections && !now.dock && !now.html_tree, describe(now));
-
+  // ── All leaves the sidebar alone, and lists every sidebar tool ─────────
   await openSidebarsTab(page, cp);
-  await click(page, cp, `${MENU} [data-sve-sidebar-preset="developer"] button`);
-  await sleep(200);
-  step('Developer shows its own ticks', await cp.$eval(`${MENU} [data-sve-sidebar-pane="listview"] input`, (el) => el.checked));
-  await click(page, cp, `${MENU} [data-sve-sidebar-pane="listview"] input`);
+  await click(page, cp, `${MENU} [data-sve-toolbar-preset="all"] button`);
+  await sleep(300);
+  rows = await sidebarRows(cp);
+  step('All lists every sidebar tool this user has', rows.map((row) => row.key).join() === SIDEBAR.filter((key) => icons.includes(key)).join(), rows.map((row) => row.key).join(' '));
   await page.keyboard.press('Escape');
-  now = await screen(cp);
-  step('unticking it for Developer leaves the sidebar as it is', now.listview && now.sections, describe(now));
 
-  await switchTo(page, cp, 'developer');
-  await waitFor(cp, (sel) => !!document.querySelector(sel), PANE.html_tree, 15000);
-  now = await screen(cp);
-  step('and Developer, picked again, opens without the block tree', now.dock && now.html_tree && !now.listview && !now.sections, describe(now));
-
-  // ── All leaves the sidebar alone ──────────────────────────────────────
-  await switchTo(page, cp, 'all');
   const after = await screen(cp);
+
   step('All changes neither the dock nor the sidebar', JSON.stringify(after) === JSON.stringify(now), describe(after));
 
   const ours = errors.filter((line) => !/favicon|ResizeObserver/i.test(line));

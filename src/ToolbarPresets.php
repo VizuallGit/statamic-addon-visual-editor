@@ -51,13 +51,19 @@ class ToolbarPresets
         'comments',
     ];
 
-    /** The right-sidebar panes a preset can open, in the order the Sidebars tab lists them. */
+    /**
+     * The right-sidebar panes a preset can open, in the order the Sidebars tab
+     * lists them (lib/toolbar-presets.js SIDEBAR_TOOLS). A preset opens only
+     * those of them it shows an icon for.
+     */
     public const PANES = [
         'listview',
         'outline',
         'comments',
         'sections',
         'ai',
+        'performance',
+        'theme',
     ];
 
     /** @var array<string, array{tools: list<string>, dock: bool, panes: list<string>}> */
