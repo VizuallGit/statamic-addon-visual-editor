@@ -230,24 +230,55 @@ function onSubField(index, at, key, event) {
       <p v-if="row.binding" class="sve-cprops__hint">{{ ui.bindHint }}</p>
 
       <!--
-        A group's fields, inside its card. Read-only lines while the card is
-        closed — clicking one opens it — and the boxes that change them while
-        it is open. A field in a group has no default of its own: the group's
-        default is its rows.
+        A group's fields, inside its card: one line each while the card is
+        closed — clicking one opens it. A field in a group has no default of
+        its own; the group's default is its rows.
       -->
-      <div v-if="row.type === 'group'" class="sve-cprops__fields">
+      <div v-if="row.type === 'group' && !row.open" class="sve-cprops__fields">
         <p v-if="!row.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
         <div
-          v-for="(field, at) in row.fields"
+          v-for="field in row.fields"
           :key="field.key"
           class="sve-cprops__field"
-          @click="!row.open && ui.onOpen?.(index)"
+          @click="ui.onOpen?.(index)"
         >
           <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
             <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
             <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
           </span>
-          <template v-if="row.open">
+          <span class="sve-cprops__name">{{ field.handle }}</span>
+          <span class="sve-cprops__value sve-cprops__kindname">{{ field.typeLabel }}</span>
+        </div>
+      </div>
+
+      <div v-if="row.open" class="sve-cprops__edit">
+        <div class="sve-cprops__pair">
+          <input
+            class="sve-cprops__box"
+            type="text"
+            :value="row.handle"
+            :placeholder="ui.handleLabel"
+            :disabled="ui.locked"
+            spellcheck="false"
+            @change="onField(index, 'handle', $event)"
+          />
+          <select
+            class="sve-cprops__box sve-cprops__kind"
+            :value="row.type"
+            :disabled="ui.locked"
+            @change="onField(index, 'type', $event)"
+          >
+            <option v-for="kind in ui.types" :key="kind.id" :value="kind.id">{{ kind.label }}</option>
+          </select>
+        </div>
+        <!-- An open group: its fields' names and kinds, under its own. -->
+        <div v-if="row.type === 'group'" class="sve-cprops__fields sve-cprops__fields--edit">
+          <p v-if="!row.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
+          <div v-for="(field, at) in row.fields" :key="field.key" class="sve-cprops__field">
+            <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
+              <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
+              <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
+            </span>
             <span class="sve-cprops__fieldbox">
               <span class="sve-cprops__pair">
                 <input
@@ -289,33 +320,7 @@ function onSubField(index, at, key, event) {
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
             </button>
-          </template>
-          <template v-else>
-            <span class="sve-cprops__name">{{ field.handle }}</span>
-            <span class="sve-cprops__value sve-cprops__kindname">{{ field.typeLabel }}</span>
-          </template>
-        </div>
-      </div>
-
-      <div v-if="row.open" class="sve-cprops__edit">
-        <div class="sve-cprops__pair">
-          <input
-            class="sve-cprops__box"
-            type="text"
-            :value="row.handle"
-            :placeholder="ui.handleLabel"
-            :disabled="ui.locked"
-            spellcheck="false"
-            @change="onField(index, 'handle', $event)"
-          />
-          <select
-            class="sve-cprops__box sve-cprops__kind"
-            :value="row.type"
-            :disabled="ui.locked"
-            @change="onField(index, 'type', $event)"
-          >
-            <option v-for="kind in ui.types" :key="kind.id" :value="kind.id">{{ kind.label }}</option>
-          </select>
+          </div>
         </div>
         <!-- A choice is nothing without its choices: one line, commas between. -->
         <input
@@ -626,7 +631,11 @@ function onSubField(index, at, key, event) {
   cursor: pointer;
   min-width: 0;
 }
-.sve-cprops__card[data-open] .sve-cprops__field {
+/* Open, the fields sit inside the edit area, which is already indented. */
+.sve-cprops__fields--edit {
+  margin: .25rem 0 .375rem;
+}
+.sve-cprops__fields--edit .sve-cprops__field {
   cursor: default;
   align-items: flex-start;
 }

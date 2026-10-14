@@ -40,7 +40,12 @@ function bound(handle) {
     @update:model-value="props.store.onChange?.($event)"
   >
     <PublishFieldsProvider :fields="props.store.fields">
-      <div v-for="field in props.store.fields" :key="field.handle" class="sve-pv__row">
+      <div
+        v-for="field in props.store.fields"
+        :key="field.handle"
+        class="sve-pv__row"
+        :data-group="field.type === 'grid' || field.type === 'group' ? '' : undefined"
+      >
         <div class="sve-pv__bar">
           <span class="sve-pv__label">{{ field.display }}</span>
           <!--
@@ -97,8 +102,11 @@ function bound(handle) {
   enough — the header is still rendered — and the label has to go, because this
   panel draws its own with the switch beside it. Two labels for one field reads
   as a bug, which it would be.
+
+  Not inside a group: every header there belongs to a field in a row, and
+  without it a row is two boxes nobody can tell apart.
 */
-.sve-pv__row :deep([data-ui-field-header]) {
+.sve-pv__row:not([data-group]) :deep([data-ui-field-header]) {
   display: none;
 }
 .sve-pv__row + .sve-pv__row {
