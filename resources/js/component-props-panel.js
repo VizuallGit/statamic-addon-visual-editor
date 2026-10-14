@@ -76,6 +76,13 @@ let openIndex = -1;
 const nestedProps = new Map();
 
 /**
+ * The component the nested fields were read for. Opening another — the nested
+ * one, to add a field to it, say — and coming back asks again: what a nested
+ * component declares is only ever changed from inside it.
+ */
+let nestedFor = '';
+
+/**
  * The components this component calls, each with what its fields are doing:
  * reading from this component, said outright in the call, or left to the
  * nested component's own default.
@@ -386,6 +393,11 @@ export function paintComponentProps(win) {
   ui.removeSetLabel = t(win, 'component_props_remove_set');
   ui.bindingHandle = componentBindHandle();
   ui.rows = rowsFrom(win, props);
+
+  if (nestedFor !== src) {
+    nestedFor = src;
+    nestedProps.clear();
+  }
 
   const html = String(ask('dock:html') || '');
   const nested = nestedRows(win, html, src);

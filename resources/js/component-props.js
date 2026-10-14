@@ -140,74 +140,109 @@ export function writeGroupValue({ fields = [], repeat = false, rows = [], off = 
  * Components inside a component
  * ------------------------------------------------------------------ */
 
-const PROPS_PAIR = /\{\{\s*(\/?)props_([A-Za-z0-9_]+)\s*\}\}/g;
-const IF_TAG = /\{\{\s*(\/?)if\b([^}]*)\}\}/g;
+const PROPS_TAG = /\{\{\s*(\/?)props_([A-Za-z0-9_]+)((?:\s[^}]*)?)\}\}/g;
+const IF_TAG = /\{\{\s*(\/if|\/unless|if|unless|elseif|else)\b([^}]*)\}\}/g;
+const COMMENT_TAG = /\{\{#[\s\S]*?#\}\}/g;
+
+/** The type an `if` tests for — `type == 'picture'` — or null. */
+function testedType(condition) {
+  const match = String(condition || '').match(/^\s*type\s*===?\s*(["'])([A-Za-z0-9_]+)\1\s*$/);
+
+  return match ? match[2] : null;
+}
 
 /**
  * The list a call sits in: the innermost `{{ props_x }} … {{ /props_x }}`
  * around it whose `x` is one of this component's repeating groups — and, if
- * that list has block types, the one whose `{{ if type == '…' }}` branch the
- * call is in.
+ * that list has block types, the one whose branch (`{{ if type == '…' }}`,
+ * `{{ elseif … }}`) the call is in.
  *
  * Read from the text, because that is all there is: the call's fields go into
  * the rows of the list it renders in, and only the text says which that is.
+ * Only a pair is a loop — an opening tag with a closing one after it — so a
+ * single `{{ props_items | count }}` is not; comments are not read at all.
  *
  * @returns {{ handle: string, type: string|null } | null}
  */
 export function enclosingList(html, at, props) {
-  const before = String(html || '').slice(0, at);
+  const source = String(html || '').replace(COMMENT_TAG, (chunk) => ' '.repeat(chunk.length));
   const lists = new Set((props || []).filter((prop) => prop.type === 'group' && prop.repeat === true).map((prop) => prop.handle));
   const open = [];
+  let inner = null;
 
-  PROPS_PAIR.lastIndex = 0;
+  PROPS_TAG.lastIndex = 0;
 
   let match;
 
-  while ((match = PROPS_PAIR.exec(before))) {
+  while ((match = PROPS_TAG.exec(source))) {
     const name = match[2];
 
-    if (match[1]) {
-      const index = open.lastIndexOf(name);
+    if (!lists.has(name)) {
+      continue;
+    }
 
-      if (index > -1) {
-        open.splice(index);
-      }
-    } else if (lists.has(name)) {
-      open.push(name);
+    if (!match[1]) {
+      open.push({ name, end: match.index + match[0].length });
+      continue;
+    }
+
+    const index = open.map((item) => item.name).lastIndexOf(name);
+
+    if (index < 0) {
+      continue;
+    }
+
+    const pair = open[index];
+
+    open.splice(index);
+
+    // The innermost pair around the call is the one that opened last.
+    if (pair.end <= at && match.index >= at && (!inner || pair.end > inner.end)) {
+      inner = pair;
     }
   }
 
-  const handle = open[open.length - 1];
-
-  if (!handle) {
+  if (!inner) {
     return null;
   }
 
-  // Inside the loop: which `{{ if type == '…' }}` is still open at the call.
-  const loopStart = before.lastIndexOf(`props_${handle}`);
   const ifs = [];
 
   IF_TAG.lastIndex = 0;
 
-  while ((match = IF_TAG.exec(before.slice(loopStart)))) {
-    if (match[1]) {
-      ifs.pop();
-    } else {
-      const type = match[2].match(/^\s*type\s*===?\s*(["'])([A-Za-z0-9_]+)\1\s*$/);
+  const body = source.slice(inner.end, at);
 
-      ifs.push(type ? type[2] : null);
+  while ((match = IF_TAG.exec(body))) {
+    const word = match[1];
+
+    if (word === 'if' || word === 'unless') {
+      ifs.push(word === 'if' ? testedType(match[2]) : null);
+    } else if (word === 'elseif') {
+      ifs[ifs.length - 1] = testedType(match[2]);
+    } else if (word === 'else') {
+      ifs[ifs.length - 1] = null;
+    } else {
+      ifs.pop();
     }
   }
 
-  return { handle, type: [...ifs].reverse().find(Boolean) || null };
+  return { handle: inner.name, type: [...ifs].reverse().find(Boolean) || null };
 }
 
-/** What a call says outright — `headline="Hi"`, not `:headline="title"` — by prop. */
+/**
+ * A value that reads something: `{title}` in a parameter is Antlers filling it
+ * in, not the six characters — so it is a reading, the same as `:alt="title"`.
+ */
+function reads(found) {
+  return found.bound || /\{\s*[A-Za-z_][^{}]*\}/.test(found.value);
+}
+
+/** What a call says outright — `headline="Hi"`, not `:headline="title"` or `"{title}"` — by prop. */
 export function callValues(tag) {
   const out = {};
 
   for (const [param, found] of readCallParams(tag)) {
-    if (!found.bound) {
+    if (!reads(found)) {
       out[propHandle(param)] = found.value;
     }
   }
@@ -215,12 +250,12 @@ export function callValues(tag) {
   return out;
 }
 
-/** Which props a call reads from somewhere else (`:props_x="…"`), and from where. */
+/** Which props a call reads from somewhere else (`:props_x="…"`, `props_x="{…}"`), and from where. */
 export function callBindings(tag) {
   const out = {};
 
   for (const [param, found] of readCallParams(tag)) {
-    if (found.bound) {
+    if (reads(found)) {
       out[propHandle(param)] = found.value;
     }
   }

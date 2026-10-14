@@ -60,3 +60,48 @@ test('binding a call replaces what it said and keeps the rest', () => {
 
   assert.equal(next, '<div>{{ partial:components/image :props_src="props_image:src" class="w-full" :props_alt="props_image:alt" }}</div>');
 });
+
+const at = (html, src = 'components/image') => findPartials(html).find((call) => call.src === src).from;
+
+test('a call in an else branch is not the if branch\'s type', () => {
+  const html = "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ else }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
+
+  assert.deepEqual(enclosingList(html, at(html), props), { handle: 'content', type: null });
+});
+
+test('a call in an elseif branch is that branch\'s type', () => {
+  const html = "{{ props_content }}{{ if type == 'headline' }}<h2></h2>{{ elseif type == 'picture' }}{{ partial:components/image }}{{ /if }}{{ /props_content }}";
+
+  assert.deepEqual(enclosingList(html, at(html), props), { handle: 'content', type: 'picture' });
+});
+
+test('another mention of the list inside the loop does not move where the loop starts', () => {
+  const html = "{{ props_content }}{{ if type == 'picture' }}<i>{{ props_content:count }}</i>{{ partial:components/image }}{{ /if }}{{ /props_content }}";
+
+  assert.deepEqual(enclosingList(html, at(html), props), { handle: 'content', type: 'picture' });
+});
+
+test('a loop in a comment is not a loop', () => {
+  const html = '{{# {{ props_items }} #}}<div>{{ partial:components/image }}</div>{{# {{ /props_items }} #}}';
+
+  assert.equal(enclosingList(html, at(html), props), null);
+});
+
+test('a loop with parameters or modifiers is still the list', () => {
+  const html = '{{ props_items limit="3" }}{{ partial:components/image }}{{ /props_items }}';
+
+  assert.deepEqual(enclosingList(html, at(html), props), { handle: 'items', type: null });
+});
+
+test('a single tag reading the list is not a loop', () => {
+  const html = '<p>{{ props_items | count }}</p>{{ partial:components/image }}';
+
+  assert.equal(enclosingList(html, at(html), props), null);
+});
+
+test('a value that reads something is a reading, not text to copy', () => {
+  const tag = '{{ partial:components/image props_alt="{title}" props_src="/a.jpg" }}';
+
+  assert.deepEqual(callValues(tag), { src: '/a.jpg' });
+  assert.deepEqual(callBindings(tag), { alt: '{title}' });
+});
