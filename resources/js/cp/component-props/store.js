@@ -29,6 +29,11 @@ export const componentPropsUi = reactive({
   optionsLabel: '',
   bindingHandle: '',
   types: [],
+  // A group's fields can be any kind but another group.
+  fieldTypes: [],
+  repeatLabel: '',
+  addFieldLabel: '',
+  groupEmptyText: '',
   rows: [],
   openKey: null,
   onAdd: null,
@@ -36,6 +41,10 @@ export const componentPropsUi = reactive({
   onRemove: null,
   onReorder: null,
   onBind: null,
+  onToggleRepeat: null,
+  onAddField: null,
+  onEditField: null,
+  onRemoveField: null,
   defaultStore: null,
   // The other thing the left column can be showing: the values *this place*
   // gives a component, when its row is picked in the tree. Separate from

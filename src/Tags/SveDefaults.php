@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tags;
 
 use MarioHamann\StatamicVisualEditor\ComponentProps;
+use MarioHamann\StatamicVisualEditor\ComponentProps\GroupValue;
 use Statamic\Fields\Value;
 use Statamic\Support\Arr;
 use Statamic\Tags\Tags;
@@ -65,11 +66,49 @@ class SveDefaults extends Tags
 
             $name = ComponentProps::param($this->shortHandle($param));
             $given = $this->contextValue($name);
+            $group = GroupValue::decode($fallback);
 
-            $props[$name] = $this->literal($this->isBlank($given) ? $fallback : $given);
+            $props[$name] = $group === null
+                ? $this->literal($this->isBlank($given) ? $fallback : $given)
+                : $this->group($group, $given);
         }
 
         return $this->parse($props);
+    }
+
+    /**
+     * A group, as the template loops over it or reads into it: the rows the
+     * call wrote, or the declared ones when it wrote none — every row with
+     * every field.
+     *
+     * The fields are the declaration's and the call's together. A field added
+     * after a place was filled in is not in that place's rows, and a name a
+     * row does not have is read from the page around the loop instead: a row
+     * without `title` printed the page's title. Written as empty, it prints
+     * nothing.
+     *
+     * A group that reads from the page (`:props_items="team"`) is the page's
+     * field, handed over as Antlers would hand it to any loop.
+     */
+    private function group(array $declared, mixed $given): mixed
+    {
+        $passed = GroupValue::decode($given instanceof Value ? $given->value() : $given);
+
+        if ($passed === null && ! $this->isBlank($given)) {
+            return $given;
+        }
+
+        $fields = array_values(array_unique([...$declared['fields'], ...($passed['fields'] ?? [])]));
+        $rows = array_map(
+            fn (array $row) => array_map(fn ($value) => $this->literal($value), $row),
+            GroupValue::fill($fields, $passed['rows'] ?? $declared['rows'])
+        );
+
+        if ($declared['repeat']) {
+            return $rows;
+        }
+
+        return $rows[0] ?? GroupValue::fill($fields, [[]])[0];
     }
 
     /**

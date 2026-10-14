@@ -20,8 +20,13 @@ final class Schema
      * which travel with the declaration. A `boolean` is carried as the word
      * `true` or nothing, and `sve_defaults` hands it to the template as the
      * boolean it names.
+     *
+     * A `group` is fields of its own, one row of them or — with `repeat` — a
+     * list. Its value is still one string (`GroupValue`), and `sve_defaults`
+     * hands the template the row or the rows. One level deep: a field inside a
+     * group is any of the other kinds, never another group.
      */
-    public const TYPES = ['text', 'bard', 'number', 'boolean', 'select', 'color', 'media', 'link'];
+    public const TYPES = ['text', 'bard', 'number', 'boolean', 'select', 'color', 'media', 'link', 'group'];
 
     /**
      * What every prop is called once it reaches Antlers.
@@ -54,9 +59,24 @@ final class Schema
      * ends up in would not parse — so a row that cannot make one is dropped
      * rather than written out broken.
      *
-     * @return list<array<string, string>>
+     * @return list<array<string, mixed>>
      */
     public static function normalize(array $props): array
+    {
+        return static::rows($props, false);
+    }
+
+    /**
+     * The names Antlers gives every row of a loop. A field inside a group
+     * called `count` or `first` would be overwritten by the loop's own on every
+     * row (measured: `{{ count }}` in a row that has one prints the loop's).
+     */
+    protected const LOOP_NAMES = ['count', 'index', 'first', 'last', 'total_results'];
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    protected static function rows(array $props, bool $inGroup): array
     {
         $out = [];
         $seen = [];
@@ -68,14 +88,14 @@ final class Schema
 
             $handle = static::handle((string) ($prop['handle'] ?? ''));
 
-            if ($handle === null || isset($seen[$handle])) {
+            if ($handle === null || isset($seen[$handle]) || ($inGroup && in_array($handle, self::LOOP_NAMES, true))) {
                 continue;
             }
 
             $seen[$handle] = true;
 
             $type = (string) ($prop['type'] ?? 'text');
-            $type = in_array($type, self::TYPES, true) ? $type : 'text';
+            $type = in_array($type, self::TYPES, true) && ! ($inGroup && $type === 'group') ? $type : 'text';
 
             $row = [
                 'handle' => $handle,
@@ -97,10 +117,38 @@ final class Schema
                 $row['default'] = in_array(strtolower(trim($row['default'])), ['true', '1', 'on', 'yes'], true) ? 'true' : '';
             }
 
+            if ($type === 'group') {
+                $row = static::group($row, $prop);
+            }
+
             $out[] = $row;
         }
 
         return $out;
+    }
+
+    /**
+     * A group's own fields, whether it repeats, and its default rewritten
+     * against those fields.
+     *
+     * The default is always written, rows or none, because it is what tells
+     * `sve_defaults` which fields a row has: a field added after a place was
+     * filled in is missing from that place's rows, and a missing name inside
+     * the loop reads the page's instead.
+     *
+     * @return array<string, mixed>
+     */
+    protected static function group(array $row, array $prop): array
+    {
+        $fields = static::rows(is_array($prop['fields'] ?? null) ? $prop['fields'] : [], true);
+        $repeat = ($prop['repeat'] ?? false) === true;
+        $default = GroupValue::decode($row['default']);
+
+        $row['default'] = GroupValue::encode(array_column($fields, 'handle'), $default['rows'] ?? [], $repeat);
+        $row['repeat'] = $repeat;
+        $row['fields'] = $fields;
+
+        return $row;
     }
 
     /**

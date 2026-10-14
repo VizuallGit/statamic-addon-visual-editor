@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Http\Controllers;
 
 use Illuminate\Http\Request;
 use MarioHamann\StatamicVisualEditor\ComponentProps;
+use MarioHamann\StatamicVisualEditor\ComponentProps\GroupValue;
 use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\PropFields;
 use Statamic\Facades\User;
@@ -37,7 +38,16 @@ class PropFieldsController
         $raw = [];
 
         foreach ($props as $prop) {
-            $raw[$prop['handle']] = PropFields::toPublish($prop, (string) ($values[$prop['handle']] ?? ''));
+            $value = (string) ($values[$prop['handle']] ?? '');
+
+            // A place that has written no rows shows the rows it renders: the
+            // component's own. A text field says the same with its placeholder,
+            // and a list has nowhere to put one.
+            if ($value === '' && $prop['type'] === 'group') {
+                $value = (string) $prop['default'];
+            }
+
+            $raw[$prop['handle']] = PropFields::toPublish($prop, $value);
         }
 
         $fields = $blueprint->fields()->addValues($raw)->preProcess();
@@ -59,6 +69,7 @@ class PropFieldsController
         $values = is_array($values) ? $values : [];
 
         $params = [];
+        $place = $this->isPlace($request);
 
         foreach ($props as $prop) {
             // Only what the form actually sent. A field the panel never drew
@@ -67,7 +78,16 @@ class PropFieldsController
                 continue;
             }
 
-            $params[$prop['handle']] = PropFields::toParam($prop, $values[$prop['handle']]);
+            $param = PropFields::toParam($prop, $values[$prop['handle']]);
+
+            // The component's own rows, unchanged, are not this place's to keep
+            // a copy of: written, they would stop following the component when
+            // its rows change. A place gets rows of its own when it changes one.
+            if ($place && $prop['type'] === 'group' && GroupValue::same($param, (string) $prop['default'])) {
+                $param = '';
+            }
+
+            $params[$prop['handle']] = $param;
         }
 
         return response()->json(['params' => $params]);
@@ -104,6 +124,18 @@ class PropFieldsController
         }
 
         return $props;
+    }
+
+    /**
+     * Is this form a place's values, rather than one field's default?
+     *
+     * The default's editor always asks for its one field by `handle`; a
+     * place's form is the whole component. That is the difference `props()`
+     * already reads, so it is the one read here.
+     */
+    protected function isPlace(Request $request): bool
+    {
+        return (string) ($request->input('handle') ?? $request->query('handle', '')) === '';
     }
 
     protected function values(Request $request): array

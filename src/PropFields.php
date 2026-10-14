@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\ComponentProps\GroupFields;
 use Statamic\Facades\Asset;
 use Statamic\Facades\AssetContainer;
 use Statamic\Facades\Entry;
@@ -135,6 +136,7 @@ class PropFields
                 'display' => $label,
                 'hide_display' => true,
             ],
+            'group' => GroupFields::config($prop, $label),
             default => [
                 'type' => 'text',
                 'display' => $label,
@@ -224,6 +226,7 @@ class PropFields
             // The one word the pair reads as on. Anything else in the call is
             // a hand-written value the switch has no position for.
             'boolean' => $value === 'true',
+            'group' => GroupFields::toPublish($prop, $value),
             default => $value,
         };
     }
@@ -239,6 +242,10 @@ class PropFields
     public static function toParam(array $prop, mixed $value): string
     {
         $type = (string) ($prop['type'] ?? 'text');
+
+        if ($type === 'group') {
+            return GroupFields::toParam($prop, $value);
+        }
 
         if ($type === 'media') {
             $path = is_array($value) ? ($value[0] ?? null) : $value;

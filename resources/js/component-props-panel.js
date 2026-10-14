@@ -13,7 +13,7 @@
 
 import { t } from './lib/i18n.js';
 import { ask } from './cp/bus.js';
-import { componentPropsOn } from './component-props.js';
+import { componentPropsOn, readGroupValue } from './component-props.js';
 import { componentPropsUi as ui } from './cp/component-props/store.js';
 import { armComponentBind, componentBindHandle, disarmComponentBind } from './component-bind.js';
 import { createPropValues, propValuesReady } from './prop-values.js';
@@ -38,7 +38,11 @@ const TYPES = [
   { id: 'color', handle: 'color' },
   { id: 'media', handle: 'image' },
   { id: 'link', handle: 'link' },
+  { id: 'group', handle: 'group' },
 ];
+
+/** What a field inside a group can be: anything but another group. */
+const FIELD_TYPES = TYPES.filter((kind) => kind.id !== 'group');
 
 /** Which card is open. Index, because the list is rebuilt on every paint. */
 let openIndex = -1;
@@ -78,19 +82,54 @@ function typeLabel(win, type) {
   return t(win, `component_props_type_${TYPES.some((kind) => kind.id === type) ? type : 'text'}`);
 }
 
+/** The choices as one line, which is how they are typed. The file holds a list. */
+function optionsLine(prop) {
+  return Array.isArray(prop.options) ? prop.options.join(', ') : String(prop.options || '');
+}
+
+/**
+ * What the card says under a group's name. Its default is rows written as one
+ * string nobody could read, so it says how many there are instead.
+ */
+function groupSummary(win, prop) {
+  const fields = Array.isArray(prop.fields) ? prop.fields.length : 0;
+
+  if (prop.repeat !== true) {
+    return t(win, 'component_props_group_fields', { count: fields });
+  }
+
+  const rows = readGroupValue(prop.default)?.rows.length || 0;
+
+  return rows === 1 ? t(win, 'component_props_group_one_row') : t(win, 'component_props_group_rows', { count: rows });
+}
+
 function rowsFrom(win, props) {
-  return props.map((prop, index) => ({
-    key: index,
-    handle: prop.handle || '',
-    type: prop.type || 'text',
-    default: prop.default || '',
-    // The choices as one line, which is how they are typed. The file holds a
-    // list; a row edited a moment ago still holds the line it was typed as.
-    options: Array.isArray(prop.options) ? prop.options.join(', ') : String(prop.options || ''),
-    typeLabel: typeLabel(win, prop.type || 'text'),
-    open: index === openIndex,
-    binding: !!prop.handle && prop.handle === componentBindHandle(),
-  }));
+  return props.map((prop, index) => {
+    const group = prop.type === 'group';
+
+    return {
+      key: index,
+      handle: prop.handle || '',
+      type: prop.type || 'text',
+      default: group ? '' : prop.default || '',
+      summary: group ? groupSummary(win, prop) : '',
+      // A row edited a moment ago still holds the line it was typed as.
+      options: optionsLine(prop),
+      typeLabel: typeLabel(win, prop.type || 'text'),
+      open: index === openIndex,
+      binding: !!prop.handle && prop.handle === componentBindHandle(),
+      repeat: group && prop.repeat === true,
+      fields: group && Array.isArray(prop.fields)
+        ? prop.fields.map((field, at) => ({
+          key: at,
+          handle: field.handle || '',
+          type: field.type || 'text',
+          options: optionsLine(field),
+          typeLabel: typeLabel(win, field.type || 'text'),
+        }))
+        : [],
+    };
+  });
 }
 
 function commit(win, props) {
@@ -250,6 +289,10 @@ export function paintComponentProps(win) {
   ui.moveLabel = t(win, 'component_props_move');
   ui.emptyText = t(win, 'component_props_none');
   ui.types = TYPES.map((kind) => ({ id: kind.id, label: t(win, `component_props_type_${kind.id}`) }));
+  ui.fieldTypes = FIELD_TYPES.map((kind) => ({ id: kind.id, label: t(win, `component_props_type_${kind.id}`) }));
+  ui.repeatLabel = t(win, 'component_props_repeat');
+  ui.addFieldLabel = t(win, 'component_props_add_field');
+  ui.groupEmptyText = t(win, 'component_props_group_none');
   ui.bindingHandle = componentBindHandle();
   ui.rows = rowsFrom(win, props);
 
@@ -283,7 +326,10 @@ export function paintComponentProps(win) {
         onPick: () => {
           closeMenu();
           openIndex = props.length;
-          commit(win, [...props, { handle: freeHandle(props, kind.handle), type: kind.id, label: '', default: '' }]);
+
+          const field = { handle: freeHandle(props, kind.handle), type: kind.id, label: '', default: '' };
+
+          commit(win, [...props, kind.id === 'group' ? { ...field, repeat: false, fields: [] } : field]);
         },
       }))
     );
@@ -318,7 +364,86 @@ export function paintComponentProps(win) {
       next[index].label = '';
     }
 
+    // Into or out of a group, the default means something else entirely —
+    // rows on one side, a word on the other — and neither survives the switch.
+    if (key === 'type' && (clean === 'group') !== (props[index]?.type === 'group')) {
+      next[index].default = '';
+
+      if (clean === 'group') {
+        next[index].repeat = false;
+        next[index].fields = [];
+      } else {
+        delete next[index].repeat;
+        delete next[index].fields;
+      }
+    }
+
     commit(win, next);
+  };
+
+  /** A group's own fields, changed and written back as part of the group. */
+  const editFields = (index, change) => {
+    const prop = props[index];
+
+    if (ui.locked || prop?.type !== 'group') {
+      return;
+    }
+
+    const fields = change((Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field })));
+
+    openIndex = index;
+    commit(win, props.map((item, at) => (at === index ? { ...item, fields } : item)));
+  };
+
+  /** On: the group is a list, and every place that uses it can add rows. */
+  ui.onToggleRepeat = (index) => {
+    if (ui.locked || props[index]?.type !== 'group') {
+      return;
+    }
+
+    commit(win, props.map((prop, at) => (at === index ? { ...prop, repeat: prop.repeat !== true } : prop)));
+  };
+
+  ui.onAddField = (index, anchor) => {
+    if (ui.locked) {
+      return;
+    }
+
+    openMenuAt(
+      win,
+      anchor,
+      FIELD_TYPES.map((kind) => ({
+        label: t(win, `component_props_type_${kind.id}`),
+        icon: PROP_ICONS[kind.id] || '',
+        onPick: () => {
+          closeMenu();
+          editFields(index, (fields) => [
+            ...fields,
+            { handle: freeHandle(fields, kind.handle), type: kind.id, label: '', default: '' },
+          ]);
+        },
+      }))
+    );
+  };
+
+  ui.onEditField = (index, at, key, value) => {
+    editFields(index, (fields) => {
+      if (!fields[at]) {
+        return fields;
+      }
+
+      fields[at][key] = key === 'handle' ? normalizeHandle(value) : value;
+
+      if (key === 'handle') {
+        fields[at].label = '';
+      }
+
+      return fields;
+    });
+  };
+
+  ui.onRemoveField = (index, at) => {
+    editFields(index, (fields) => fields.filter((_, i) => i !== at));
   };
 
   /**
@@ -356,8 +481,14 @@ export function paintComponentProps(win) {
     const prop = props[openIndex];
     const at = openIndex;
 
+    // A group's editor is its fields — a grid or a group of them — so a field
+    // added or a switch to repeat is a different form, loaded again.
+    const shape = prop.type === 'group'
+      ? `::${prop.repeat === true}::${(prop.fields || []).map((field) => `${field.handle}:${field.type}:${optionsLine(field)}`).join(',')}`
+      : '';
+
     defaultValue.load(win, {
-      key: `${src}::${prop.handle}::${prop.type}`,
+      key: `${src}::${prop.handle}::${prop.type}${shape}`,
       src,
       handle: prop.handle,
       display: ui.defaultLabel,
@@ -378,7 +509,8 @@ export function paintComponentProps(win) {
 
   /** Point at the element in the preview this field should stand for. */
   ui.onBind = (index) => {
-    if (ui.locked) {
+    // A group is rows of fields; there is no one element in the preview for it to fill.
+    if (ui.locked || props[index]?.type === 'group') {
       return;
     }
 

@@ -17,4 +17,8 @@ export const PROP_ICONS = {
   color: `<svg ${A}><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17z" fill="currentColor" stroke="none"/></svg>`,
   media: `<svg ${A}><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m3 16 4.5-4.5L13 17"/><path d="m14 14 2.5-2.5L21 16"/></svg>`,
   link: `<svg ${A}><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>`,
+  group: `<svg ${A}><path d="M8 4H6.5A2.5 2.5 0 0 0 4 6.5v3A2.5 2.5 0 0 1 1.5 12 2.5 2.5 0 0 1 4 14.5v3A2.5 2.5 0 0 0 6.5 20H8"/><path d="M16 4h1.5A2.5 2.5 0 0 1 20 6.5v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5H16"/></svg>`,
 };
+
+/** A group's repeat switch: the same loop arrows on and off, coloured when on. */
+export const REPEAT_ICON = `<svg ${A}><path d="M17 2.5 20.5 6 17 9.5"/><path d="M3.5 11V9.5A3.5 3.5 0 0 1 7 6h13.5"/><path d="M7 21.5 3.5 18 7 14.5"/><path d="M20.5 13v1.5A3.5 3.5 0 0 1 17 18H3.5"/></svg>`;

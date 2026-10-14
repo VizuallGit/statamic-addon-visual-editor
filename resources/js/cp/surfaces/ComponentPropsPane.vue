@@ -13,7 +13,7 @@
 import { ref } from 'vue';
 import { componentPropsUi as ui } from '../component-props/store.js';
 import PropValues from './PropValues.vue';
-import { PROP_ICONS } from '../component-props/icons.js';
+import { PROP_ICONS, REPEAT_ICON } from '../component-props/icons.js';
 
 const rowEls = ref([]);
 const dragFrom = ref(-1);
@@ -91,8 +91,24 @@ function onDragEnd() {
  *  Prefixed, because a bare `{{ headline }}` is also whatever the page around
  *  the component calls `headline`, and the page's is the one that wins —
  *  `props_` is a name only the component has. */
-function usage(handle) {
-  return `{{ props_${handle || 'handle'} }}`;
+function usage(row) {
+  const name = `props_${row.handle || 'handle'}`;
+
+  if (row.type !== 'group') {
+    return `{{ ${name} }}`;
+  }
+
+  // A list is looped over, and inside the loop each field is its bare name.
+  // One row is read by path.
+  if (row.repeat) {
+    return `{{ ${name} }} {{ ${row.fields[0]?.handle || 'field'} }} {{ /${name} }}`;
+  }
+
+  return `{{ ${name}:${row.fields[0]?.handle || 'field'} }}`;
+}
+
+function onSubField(index, at, key, event) {
+  ui.onEditField?.(index, at, key, event.target.value);
 }
 </script>
 
@@ -151,7 +167,7 @@ function usage(handle) {
 
         <span class="sve-cprops__what">
           <span class="sve-cprops__name">{{ row.handle }}</span>
-          <span class="sve-cprops__value">{{ row.default || ui.defaultLabel }}</span>
+          <span class="sve-cprops__value">{{ row.type === 'group' ? row.summary : row.default || ui.defaultLabel }}</span>
         </span>
 
         <img
@@ -163,7 +179,31 @@ function usage(handle) {
         />
 
         <span class="sve-cprops__acts">
+          <!-- A group: whether it is a list, and a field more inside it. -->
+          <template v-if="row.type === 'group'">
+            <button
+              type="button"
+              class="sve-cprops__act sve-cprops__repeat"
+              :title="ui.repeatLabel"
+              :aria-label="ui.repeatLabel"
+              :aria-pressed="row.repeat"
+              :disabled="ui.locked"
+              @click.stop="ui.onToggleRepeat?.(index)"
+              v-html="REPEAT_ICON"
+            ></button>
+            <button
+              type="button"
+              class="sve-cprops__act"
+              :title="ui.addFieldLabel"
+              :aria-label="ui.addFieldLabel"
+              :disabled="ui.locked"
+              @click.stop="ui.onAddField?.(index, $event.currentTarget)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </template>
           <button
+            v-else
             type="button"
             class="sve-cprops__act"
             :title="ui.bindLabel"
@@ -188,6 +228,74 @@ function usage(handle) {
       </div>
 
       <p v-if="row.binding" class="sve-cprops__hint">{{ ui.bindHint }}</p>
+
+      <!--
+        A group's fields, inside its card. Read-only lines while the card is
+        closed — clicking one opens it — and the boxes that change them while
+        it is open. A field in a group has no default of its own: the group's
+        default is its rows.
+      -->
+      <div v-if="row.type === 'group'" class="sve-cprops__fields">
+        <p v-if="!row.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
+        <div
+          v-for="(field, at) in row.fields"
+          :key="field.key"
+          class="sve-cprops__field"
+          @click="!row.open && ui.onOpen?.(index)"
+        >
+          <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
+            <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
+            <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
+          </span>
+          <template v-if="row.open">
+            <span class="sve-cprops__fieldbox">
+              <span class="sve-cprops__pair">
+                <input
+                  class="sve-cprops__box"
+                  type="text"
+                  :value="field.handle"
+                  :placeholder="ui.handleLabel"
+                  :disabled="ui.locked"
+                  spellcheck="false"
+                  @change="onSubField(index, at, 'handle', $event)"
+                />
+                <select
+                  class="sve-cprops__box sve-cprops__kind"
+                  :value="field.type"
+                  :disabled="ui.locked"
+                  @change="onSubField(index, at, 'type', $event)"
+                >
+                  <option v-for="kind in ui.fieldTypes" :key="kind.id" :value="kind.id">{{ kind.label }}</option>
+                </select>
+              </span>
+              <input
+                v-if="field.type === 'select'"
+                class="sve-cprops__box"
+                type="text"
+                :value="field.options"
+                :placeholder="ui.optionsLabel"
+                :disabled="ui.locked"
+                spellcheck="false"
+                @change="onSubField(index, at, 'options', $event)"
+              />
+            </span>
+            <button
+              type="button"
+              class="sve-cprops__act"
+              :title="ui.removeLabel"
+              :aria-label="ui.removeLabel"
+              :disabled="ui.locked"
+              @click.stop="ui.onRemoveField?.(index, at)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            </button>
+          </template>
+          <template v-else>
+            <span class="sve-cprops__name">{{ field.handle }}</span>
+            <span class="sve-cprops__value sve-cprops__kindname">{{ field.typeLabel }}</span>
+          </template>
+        </div>
+      </div>
 
       <div v-if="row.open" class="sve-cprops__edit">
         <div class="sve-cprops__pair">
@@ -243,7 +351,7 @@ function usage(handle) {
           @change="onField(index, 'default', $event)"
         />
 
-        <code class="sve-cprops__use">{{ usage(row.handle) }}</code>
+        <code class="sve-cprops__use">{{ usage(row) }}</code>
       </div>
     </div>
   </div>
@@ -494,6 +602,68 @@ function usage(handle) {
 .sve-cprops__pair .sve-cprops__box:first-child {
   flex: 1 1 auto;
 }
+/* A group's fields, nested inside its card the way they are nested in the
+   file: indented under the group's name, each on its own darker line. */
+.sve-cprops__fields {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  margin: 0 .5rem .5rem calc(.5rem + 2.125em + .5rem);
+  padding: .25rem;
+  border-radius: .45rem;
+  background: rgba(0, 0, 0, .22);
+}
+.sve-cprops__fields .sve-cprops__empty {
+  padding: .25rem .375rem;
+}
+.sve-cprops__field {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .3rem .375rem;
+  border-radius: .35rem;
+  background: rgba(255, 255, 255, .05);
+  cursor: pointer;
+  min-width: 0;
+}
+.sve-cprops__card[data-open] .sve-cprops__field {
+  cursor: default;
+  align-items: flex-start;
+}
+.sve-cprops__tile--small {
+  width: 1.75em;
+  height: 1.75em;
+  font-size: .875em;
+}
+.sve-cprops__field .sve-cprops__name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sve-cprops__kindname {
+  flex: 0 0 auto;
+}
+.sve-cprops__fieldbox {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.sve-cprops__fieldbox .sve-cprops__pair {
+  margin-bottom: 0;
+}
+/* On: the group is a list. The tree's blue, the same as a field waiting to be
+   pointed at, because both say "this is switched on". */
+.sve-cprops__repeat[aria-pressed='true'] {
+  opacity: 1;
+  color: var(--sve-cprops-accent-soft);
+  background: rgba(56, 88, 233, .28);
+}
+.sve-cprops__repeat :deep(svg) {
+  width: .875rem;
+  height: .875rem;
+}
+
 /* The publish form brings its own look; this only gives it the room. */
 .sve-cprops__form {
   margin-top: .25rem;

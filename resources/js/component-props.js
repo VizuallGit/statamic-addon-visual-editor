@@ -72,6 +72,43 @@ export function forgetComponentProps(src) {
 }
 
 /* ------------------------------------------------------------------ *
+ * A group's value
+ * ------------------------------------------------------------------ */
+
+/** What a group's value is written behind. Mirrors `ComponentProps\GroupValue::PREFIX`. */
+export const GROUP_PREFIX = 'sve64:';
+
+/**
+ * What a group's written value holds, or null when it is not one.
+ *
+ * Read only to say how many rows there are. The rows themselves go to the
+ * server and back like every other value — the conversions are Statamic's.
+ *
+ * @returns {{fields: string[], repeat: boolean, rows: object[]} | null}
+ */
+export function readGroupValue(value) {
+  const text = String(value || '');
+
+  if (!text.startsWith(GROUP_PREFIX)) {
+    return null;
+  }
+
+  try {
+    const body = text.slice(GROUP_PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(body + '='.repeat((4 - (body.length % 4)) % 4));
+    const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0))));
+
+    return {
+      fields: Array.isArray(data?.fields) ? data.fields : [],
+      repeat: data?.repeat !== false,
+      rows: Array.isArray(data?.rows) ? data.rows : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * Reading and writing the call
  * ------------------------------------------------------------------ */
 
@@ -210,7 +247,8 @@ export function valueRows(props, tag) {
       options: Array.isArray(prop.options) ? prop.options : [],
       value: set ? set.value : '',
       bound: !!set?.bound,
-      placeholder: prop.default || '',
+      // A group's default is rows, written as one string nobody could read.
+      placeholder: prop.type === 'group' ? '' : prop.default || '',
     };
   });
 }
