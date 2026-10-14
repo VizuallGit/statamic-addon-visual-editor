@@ -74,6 +74,13 @@ final class Schema
     protected const LOOP_NAMES = ['count', 'index', 'first', 'last', 'total_results'];
 
     /**
+     * What a list's row already carries for Statamic's replicator: the set it
+     * is, whether it is on, and its id. A field by one of those names would
+     * overwrite them in the form.
+     */
+    protected const ROW_NAMES = ['type', 'enabled', '_id'];
+
+    /**
      * @param  list<string>  $reserved  names a field here may not have
      * @return list<array<string, mixed>>
      */
@@ -143,15 +150,23 @@ final class Schema
     {
         $repeat = ($prop['repeat'] ?? false) === true;
         $sets = $repeat ? static::sets(is_array($prop['sets'] ?? null) ? $prop['sets'] : []) : [];
-        $fields = $sets === [] ? static::rows(is_array($prop['fields'] ?? null) ? $prop['fields'] : [], true) : [];
+        $fields = $sets === [] ? static::rows(is_array($prop['fields'] ?? null) ? $prop['fields'] : [], true, $repeat ? self::ROW_NAMES : []) : [];
         $default = GroupValue::decode($row['default']);
+        $renamed = [];
+
+        foreach ($sets as $set) {
+            foreach ($set['was'] ?? [] as $old) {
+                $renamed[$old] = $set['handle'];
+            }
+        }
 
         $row['default'] = GroupValue::encode(
             GroupValue::names($fields, $sets),
             $default['rows'] ?? [],
             $repeat,
             $default['off'] ?? [],
-            array_column($sets, 'handle')
+            array_column($sets, 'handle'),
+            $renamed
         );
         $row['repeat'] = $repeat;
         $row['fields'] = $fields;
@@ -189,12 +204,46 @@ final class Schema
             }
 
             $seen[$handle] = true;
-            $out[] = [
+            $row = [
                 'handle' => $handle,
                 'label' => static::label((string) ($set['label'] ?? ''), $handle),
-                'fields' => static::rows(is_array($set['fields'] ?? null) ? $set['fields'] : [], true, [GroupValue::TYPE]),
+                'fields' => static::rows(is_array($set['fields'] ?? null) ? $set['fields'] : [], true, self::ROW_NAMES),
             ];
+
+            // The names the type had before a rename. Rows written under one of
+            // them — here and at every place that uses the component — are this
+            // type, not the first.
+            $was = [];
+
+            foreach (is_array($set['was'] ?? null) ? $set['was'] : [] as $old) {
+                $old = static::handle((string) $old);
+
+                if ($old !== null && $old !== $handle && ! in_array($old, $was, true)) {
+                    $was[] = $old;
+                }
+            }
+
+            if ($was !== []) {
+                $row['was'] = $was;
+            }
+
+            $out[] = $row;
         }
+
+        // A name a type has now is not an old name for another.
+        $now = array_column($out, 'handle');
+
+        foreach ($out as &$set) {
+            if (isset($set['was'])) {
+                $set['was'] = array_values(array_diff($set['was'], $now));
+
+                if ($set['was'] === []) {
+                    unset($set['was']);
+                }
+            }
+        }
+
+        unset($set);
 
         return $out;
     }

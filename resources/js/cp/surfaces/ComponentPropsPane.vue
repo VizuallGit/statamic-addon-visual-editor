@@ -13,7 +13,7 @@
 import { ref } from 'vue';
 import { componentPropsUi as ui } from '../component-props/store.js';
 import PropValues from './PropValues.vue';
-import { PROP_ICONS, REPEAT_ICON } from '../component-props/icons.js';
+import { COMPONENT_ICON, PROP_ICONS, REPEAT_ICON } from '../component-props/icons.js';
 
 const rowEls = ref([]);
 const dragFrom = ref(-1);
@@ -437,6 +437,54 @@ function fieldLists(row) {
         <code class="sve-cprops__use">{{ usage(row) }}</code>
       </div>
     </div>
+
+    <!--
+      The components this one calls. Each says what its fields are doing —
+      reading from here (←), said in the call, or left to its own default —
+      and offers to bring the rest up here, so every place this component is
+      used can fill them in.
+    -->
+    <template v-if="ui.nested.length">
+      <div class="sve-cprops__head sve-cprops__head--nested">
+        <span>{{ ui.nestedTitle }}</span>
+      </div>
+      <div v-for="item in ui.nested" :key="item.key" class="sve-cprops__card sve-cprops__nest">
+        <div class="sve-cprops__line sve-cprops__line--static">
+          <span class="sve-cprops__tile" data-kind="component">
+            <span class="sve-cprops__glyph" v-html="COMPONENT_ICON"></span>
+          </span>
+          <span class="sve-cprops__what">
+            <span class="sve-cprops__name">{{ item.name }}</span>
+            <span v-if="item.loading" class="sve-cprops__value">{{ ui.nestedLoading }}</span>
+          </span>
+        </div>
+        <div v-if="item.fields.length" class="sve-cprops__fields">
+          <div
+            v-for="field in item.fields"
+            :key="field.key"
+            class="sve-cprops__field sve-cprops__field--static"
+            :data-bound="field.bound ? '' : undefined"
+          >
+            <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
+              <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
+              <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
+            </span>
+            <span class="sve-cprops__name">{{ field.handle }}</span>
+            <span class="sve-cprops__value sve-cprops__state" :title="field.state">{{ field.state }}</span>
+          </div>
+          <button
+            v-if="item.canShow"
+            type="button"
+            class="sve-cprops__addset"
+            :disabled="ui.locked"
+            @click.stop="ui.onExpose?.(item.key)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            <span>{{ ui.exposeLabel }}</span>
+          </button>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -757,6 +805,24 @@ function fieldLists(row) {
 .sve-cprops__addset[disabled] {
   cursor: default;
   opacity: .35;
+}
+
+/* Nested components: read more than edited, so no hand on the line. */
+.sve-cprops__head--nested {
+  margin-top: 1rem;
+}
+.sve-cprops__line--static,
+.sve-cprops__field--static {
+  cursor: default;
+}
+.sve-cprops__state {
+  flex: 0 1 auto;
+  max-width: 55%;
+  text-align: right;
+}
+.sve-cprops__field[data-bound] .sve-cprops__state {
+  opacity: .85;
+  color: var(--sve-cprops-accent-soft);
 }
 
 /* Open, the fields sit inside the edit area, which is already indented. */

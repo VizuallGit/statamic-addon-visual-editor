@@ -39,6 +39,12 @@ export const componentPropsUi = reactive({
   setNameLabel: '',
   removeSetLabel: '',
   rows: [],
+  // The components this one calls, and the way to bring their fields up here.
+  nested: [],
+  nestedTitle: '',
+  exposeLabel: '',
+  nestedLoading: '',
+  onExpose: null,
   openKey: null,
   onAdd: null,
   onEdit: null,

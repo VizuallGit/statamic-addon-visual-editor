@@ -338,6 +338,45 @@ class GroupTest extends TestCase
         $this->assertSame(['image', 'text'], array_column($config['sets']['main']['sets']['picture']['fields'], 'handle'));
     }
 
+    public function test_a_renamed_block_type_keeps_its_rows_everywhere()
+    {
+        // `picture` was renamed `photo` in the panel; a place still has rows
+        // written as `picture`, and so does the component's own default.
+        $prop = ComponentProps::normalize([[
+            'handle' => 'content', 'type' => 'group', 'repeat' => true,
+            'sets' => [
+                ['handle' => 'headline', 'fields' => [['handle' => 'text', 'type' => 'text']]],
+                ['handle' => 'photo', 'was' => ['picture', 'photo', 'headline'], 'fields' => [['handle' => 'caption', 'type' => 'text']]],
+            ],
+            'default' => GroupValue::encode(['type', 'text', 'caption'], [['type' => 'picture', 'caption' => 'D']], true, [], ['headline', 'picture']),
+        ]])[0];
+
+        $this->assertSame(['picture'], $prop['sets'][1]['was']);
+        $this->assertSame('photo', GroupValue::decode($prop['default'])['rows'][0]['type']);
+
+        $place = GroupValue::encode(['type', 'text', 'caption'], [['type' => 'picture', 'caption' => 'P'], ['type' => 'headline', 'text' => 'H']], true, [], ['headline', 'picture']);
+
+        $this->assertSame(
+            '[photo:P][headline:H]',
+            $this->render('{{ sve_defaults props_content="'.$prop['default'].'" }}{{ props_content }}[{{ type }}:{{ caption }}{{ text }}]{{ /props_content }}{{ /sve_defaults }}', ['props_content' => $place])
+        );
+        $this->assertSame(['type' => 'photo', 'enabled' => true, 'caption' => 'P'], PropFields::toPublish($prop, $place)[0]);
+    }
+
+    public function test_a_list_field_may_not_be_named_like_statamics_row_keys()
+    {
+        $list = ComponentProps::normalize([$this->items(['fields' => [
+            ['handle' => 'type', 'type' => 'text'],
+            ['handle' => 'enabled', 'type' => 'boolean'],
+            ['handle' => '_id', 'type' => 'text'],
+            ['handle' => 'title', 'type' => 'text'],
+        ]])])[0];
+        $one = ComponentProps::normalize([$this->items(['repeat' => false, 'fields' => [['handle' => 'type', 'type' => 'text']]])])[0];
+
+        $this->assertSame(['title'], array_column($list['fields'], 'handle'));
+        $this->assertSame(['type'], array_column($one['fields'], 'handle'));
+    }
+
     public function test_a_value_that_is_not_ours_does_not_decode()
     {
         $this->assertNull(GroupValue::decode('Overskrift'));

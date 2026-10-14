@@ -13,7 +13,18 @@
 
 import { t } from './lib/i18n.js';
 import { ask } from './cp/bus.js';
-import { componentPropsOn, readGroupValue } from './component-props.js';
+import {
+  bindCall,
+  callBindings,
+  callValues,
+  componentPropsOn,
+  enclosingList,
+  fetchComponentProps,
+  readGroupValue,
+  writeGroupValue,
+} from './component-props.js';
+import { findPartials, hasToken } from './dock-partials.js';
+import { componentName } from './html-tree-parse.js';
 import { componentPropsUi as ui } from './cp/component-props/store.js';
 import { armComponentBind, componentBindHandle, disarmComponentBind } from './component-bind.js';
 import { createPropValues, propValuesReady } from './prop-values.js';
@@ -51,8 +62,65 @@ const FIELD_TYPES = TYPES.filter((kind) => kind.id !== 'group');
  */
 const LOOP_NAMES = ['count', 'index', 'first', 'last', 'total_results'];
 
+/** Mirrors `Schema::ROW_NAMES`: what a list's row already carries for Statamic's replicator. */
+const ROW_NAMES = ['type', 'enabled', '_id'];
+
 /** Which card is open. Index, because the list is rebuilt on every paint. */
 let openIndex = -1;
+
+/**
+ * What each nested component declares, by its src. Asked once per component
+ * per session (the fetch itself is cached in component-props.js); the panel
+ * repaints when an answer comes in.
+ */
+const nestedProps = new Map();
+
+/**
+ * The components this component calls, each with what its fields are doing:
+ * reading from this component, said outright in the call, or left to the
+ * nested component's own default.
+ */
+function nestedRows(win, html, own) {
+  return findPartials(html)
+    .filter((call) => !hasToken(call.src) && call.src !== own)
+    .map((call, key) => {
+      const declared = nestedProps.get(call.src);
+
+      if (declared === undefined) {
+        nestedProps.set(call.src, null);
+        void fetchComponentProps(win, call.src).then((list) => {
+          nestedProps.set(call.src, Array.isArray(list) ? list : []);
+          paintComponentProps(win);
+        });
+      }
+
+      const tag = html.slice(call.from, call.to);
+      const said = callValues(tag);
+      const reads = callBindings(tag);
+      // A group in the nested component stays its own: groups do not nest.
+      const fields = (declared || []).filter((prop) => prop.type !== 'group');
+
+      return {
+        key,
+        call,
+        name: componentName(call.src),
+        loading: declared == null,
+        fields: fields.map((prop) => ({
+          key: prop.handle,
+          handle: prop.handle,
+          type: prop.type || 'text',
+          state: reads[prop.handle] !== undefined
+            ? `← ${reads[prop.handle]}`
+            : said[prop.handle] !== undefined && said[prop.handle] !== ''
+              ? said[prop.handle]
+              : t(win, 'component_props_nested_default'),
+          bound: reads[prop.handle] !== undefined,
+        })),
+        declared: fields,
+        canShow: fields.some((prop) => reads[prop.handle] === undefined),
+      };
+    });
+}
 
 /** The open card's default, edited as the Control Panel's own field. */
 const defaultValue = createPropValues('sve-prop-default');
@@ -319,6 +387,114 @@ export function paintComponentProps(win) {
   ui.bindingHandle = componentBindHandle();
   ui.rows = rowsFrom(win, props);
 
+  const html = String(ask('dock:html') || '');
+  const nested = nestedRows(win, html, src);
+
+  ui.nestedTitle = t(win, 'component_props_nested');
+  ui.exposeLabel = t(win, 'component_props_expose');
+  ui.nestedLoading = t(win, 'component_props_nested_loading');
+  ui.nested = nested.map(({ call, declared, ...row }) => row);
+
+  /**
+   * A nested component's fields, brought up onto this one.
+   *
+   * At the top of the file they become a group named after the nested
+   * component, and the call reads each field from it — so every place this
+   * component is used fills them in under that name. Inside one of this
+   * component's lists they become fields of the list's rows instead (of the
+   * block type whose branch the call sits in), so each row gives its own.
+   * Whatever the call said outright becomes the starting value, and a field
+   * left empty falls back to the nested component's own default (measured),
+   * so nothing on the page changes until someone fills one in.
+   */
+  ui.onExpose = (key) => {
+    const item = nested[key];
+
+    if (ui.locked || !item || !item.declared.length) {
+      return;
+    }
+
+    const said = callValues(html.slice(item.call.from, item.call.to));
+    const reads = callBindings(html.slice(item.call.from, item.call.to));
+    const fields = item.declared.filter((prop) => reads[prop.handle] === undefined);
+    const base = normalizeHandle(item.name) || 'component';
+    const list = enclosingList(html, item.call.from, props);
+    const binds = {};
+    let next;
+
+    const field = (prop, handle) => ({
+      handle,
+      type: prop.type || 'text',
+      label: prop.label || '',
+      default: '',
+      ...(Array.isArray(prop.options) ? { options: prop.options } : {}),
+    });
+
+    if (list) {
+      next = props.map((prop) => {
+        if (prop.handle !== list.handle) {
+          return prop;
+        }
+
+        const sets = (prop.sets || []).map((set) => ({ ...set, fields: [...(set.fields || [])] }));
+        const set = sets.length ? Math.max(0, sets.findIndex((one) => one.handle === list.type)) : null;
+        const target = set === null ? [...(prop.fields || [])] : sets[set].fields;
+        const value = readGroupValue(prop.default) || { fields: [], rows: [], off: [], types: [] };
+
+        for (const one of fields) {
+          const handle = freeHandle(target, `${base}_${one.handle}`);
+
+          target.push(field(one, handle));
+          binds[one.handle] = handle;
+          value.fields.push(handle);
+          // The rows the list starts with keep showing what the call said.
+          value.rows = value.rows.map((row) => ({ ...row, [handle]: said[one.handle] ?? '' }));
+        }
+
+        return {
+          ...prop,
+          ...(set === null ? { fields: target } : { sets }),
+          default: writeGroupValue({ ...value, repeat: true }),
+        };
+      });
+    } else {
+      const handle = freeHandle(props, base);
+      // A name Antlers keeps for itself inside a group would be dropped by the
+      // server, value and all — so the field here gets one it may have.
+      const own = (name) => (LOOP_NAMES.includes(name) ? `${name}_value` : name);
+
+      next = [
+        ...props,
+        {
+          handle,
+          type: 'group',
+          // Left to the server, which makes `Nest child` of `nest_child`.
+          label: '',
+          repeat: false,
+          fields: fields.map((one) => field(one, own(one.handle))),
+          default: writeGroupValue({
+            fields: fields.map((one) => own(one.handle)),
+            repeat: false,
+            rows: [Object.fromEntries(fields.map((one) => [own(one.handle), said[one.handle] ?? '']))],
+          }),
+        },
+      ];
+
+      for (const one of fields) {
+        binds[one.handle] = `props_${handle}:${own(one.handle)}`;
+      }
+    }
+
+    // The call first, then the declaration: the save the declaration makes
+    // carries the pane's markup with it.
+    if (ask('dock:set-html', bindCall(html, item.call, binds)) !== true) {
+      return;
+    }
+
+    openIndex = list ? props.findIndex((prop) => prop.handle === list.handle) : next.length - 1;
+    commit(win, next);
+  };
+
   ui.exitOpen = !!exit.open;
   ui.exitName = exit.name || '';
   ui.exitLabel = t(win, 'component_exit');
@@ -498,15 +674,27 @@ export function paintComponentProps(win) {
         return prop;
       }
 
-      sets[set] = { ...sets[set], handle, label: '' };
+      // The old name is remembered: rows written under it — here and at every
+      // place the component is used — are still this type, not the first.
+      const was = [...new Set([...(sets[set].was || []), sets[set].handle])].filter((old) => old !== handle);
+
+      sets[set] = { ...sets[set], handle, label: '', was };
 
       return { ...prop, sets };
     });
   };
 
-  /** The last block type gone, the list is back to fields of its own — none yet. */
+  /**
+   * A block type gone. The last one's fields stay, as the list's own — the
+   * mirror of the first "+ Block type", which made the list's fields a type.
+   */
   ui.onRemoveSet = (index, set) => {
-    editGroup(index, (prop) => ({ ...prop, sets: setsOf(prop).filter((_, at) => at !== set), fields: [] }));
+    editGroup(index, (prop) => {
+      const sets = setsOf(prop);
+      const rest = sets.filter((_, at) => at !== set);
+
+      return { ...prop, sets: rest, fields: rest.length ? [] : sets[set]?.fields || [] };
+    });
   };
 
   ui.onAddField = (index, anchor, set = null) => {
@@ -542,8 +730,8 @@ export function paintComponentProps(win) {
 
         const clean = key === 'handle' ? normalizeHandle(value) : value;
 
-        // In a block type, `type` is what the row says it is.
-        if (key === 'handle' && (LOOP_NAMES.includes(clean) || (set !== null && clean === 'type'))) {
+        // In a list, `type`, `enabled` and `_id` are what Statamic's row carries.
+        if (key === 'handle' && (LOOP_NAMES.includes(clean) || (props[index]?.repeat === true && ROW_NAMES.includes(clean)))) {
           return fields;
         }
 

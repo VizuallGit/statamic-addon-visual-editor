@@ -108,6 +108,145 @@ export function readGroupValue(value) {
   }
 }
 
+/**
+ * A group's value written the way the server writes it: the panel needs one
+ * only when it makes a group itself — a nested component's fields brought up
+ * onto the parent, with whatever the call already said as the first row. The
+ * server rewrites it against the declaration on save, so this is the shape,
+ * not the last word.
+ */
+export function writeGroupValue({ fields = [], repeat = false, rows = [], off = [], types = [] } = {}) {
+  const data = { fields, repeat, rows };
+
+  if (off.length) {
+    data.off = off;
+  }
+
+  if (types.length) {
+    data.types = types;
+  }
+
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  let binary = '';
+
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return GROUP_PREFIX + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/* ------------------------------------------------------------------ *
+ * Components inside a component
+ * ------------------------------------------------------------------ */
+
+const PROPS_PAIR = /\{\{\s*(\/?)props_([A-Za-z0-9_]+)\s*\}\}/g;
+const IF_TAG = /\{\{\s*(\/?)if\b([^}]*)\}\}/g;
+
+/**
+ * The list a call sits in: the innermost `{{ props_x }} … {{ /props_x }}`
+ * around it whose `x` is one of this component's repeating groups — and, if
+ * that list has block types, the one whose `{{ if type == '…' }}` branch the
+ * call is in.
+ *
+ * Read from the text, because that is all there is: the call's fields go into
+ * the rows of the list it renders in, and only the text says which that is.
+ *
+ * @returns {{ handle: string, type: string|null } | null}
+ */
+export function enclosingList(html, at, props) {
+  const before = String(html || '').slice(0, at);
+  const lists = new Set((props || []).filter((prop) => prop.type === 'group' && prop.repeat === true).map((prop) => prop.handle));
+  const open = [];
+
+  PROPS_PAIR.lastIndex = 0;
+
+  let match;
+
+  while ((match = PROPS_PAIR.exec(before))) {
+    const name = match[2];
+
+    if (match[1]) {
+      const index = open.lastIndexOf(name);
+
+      if (index > -1) {
+        open.splice(index);
+      }
+    } else if (lists.has(name)) {
+      open.push(name);
+    }
+  }
+
+  const handle = open[open.length - 1];
+
+  if (!handle) {
+    return null;
+  }
+
+  // Inside the loop: which `{{ if type == '…' }}` is still open at the call.
+  const loopStart = before.lastIndexOf(`props_${handle}`);
+  const ifs = [];
+
+  IF_TAG.lastIndex = 0;
+
+  while ((match = IF_TAG.exec(before.slice(loopStart)))) {
+    if (match[1]) {
+      ifs.pop();
+    } else {
+      const type = match[2].match(/^\s*type\s*===?\s*(["'])([A-Za-z0-9_]+)\1\s*$/);
+
+      ifs.push(type ? type[2] : null);
+    }
+  }
+
+  return { handle, type: [...ifs].reverse().find(Boolean) || null };
+}
+
+/** What a call says outright — `headline="Hi"`, not `:headline="title"` — by prop. */
+export function callValues(tag) {
+  const out = {};
+
+  for (const [param, found] of readCallParams(tag)) {
+    if (!found.bound) {
+      out[propHandle(param)] = found.value;
+    }
+  }
+
+  return out;
+}
+
+/** Which props a call reads from somewhere else (`:props_x="…"`), and from where. */
+export function callBindings(tag) {
+  const out = {};
+
+  for (const [param, found] of readCallParams(tag)) {
+    if (found.bound) {
+      out[propHandle(param)] = found.value;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * A call with each of its props reading an expression: `{ src: 'props_image:src' }`
+ * writes `:props_src="props_image:src"`, replacing whatever the call said
+ * about `src` before. One pass, measured from the call's own end as it grows.
+ */
+export function bindCall(html, call, binds) {
+  let next = String(html || '');
+  let to = call.to;
+
+  for (const [handle, expr] of Object.entries(binds || {})) {
+    const before = next.length;
+
+    next = writePropParam(next, { from: call.from, to }, handle, expr, { bound: true });
+    to += next.length - before;
+  }
+
+  return next;
+}
+
 /* ------------------------------------------------------------------ *
  * Reading and writing the call
  * ------------------------------------------------------------------ */

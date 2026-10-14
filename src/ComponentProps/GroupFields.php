@@ -133,13 +133,21 @@ final class GroupFields
         }
 
         $declared = static::declaredSets($prop);
+        $renamed = [];
+
+        foreach ($declared as $set) {
+            foreach ($set['was'] as $old) {
+                $renamed[$old] = $set['handle'];
+            }
+        }
 
         return GroupValue::encode(
             GroupValue::names(static::fields($prop), $declared),
             $out,
             true,
             $off,
-            array_column($declared, 'handle')
+            array_column($declared, 'handle'),
+            $renamed
         );
     }
 
@@ -178,20 +186,20 @@ final class GroupFields
      * The kinds of row a list has: its block types, or — without any — the
      * one kind its own fields make.
      *
-     * @return list<array{handle: string, label: ?string, fields: list<array<string, mixed>>}>
+     * @return list<array{handle: string, label: ?string, fields: list<array<string, mixed>>, was: list<string>}>
      */
     private static function sets(array $prop): array
     {
-        return static::declaredSets($prop) ?: [['handle' => self::SET, 'label' => null, 'fields' => static::fields($prop)]];
+        return static::declaredSets($prop) ?: [['handle' => self::SET, 'label' => null, 'fields' => static::fields($prop), 'was' => []]];
     }
 
-    /** The set a row is: the one it names, or the first. */
+    /** The set a row is: the one it names — now or before a rename — or the first. */
     private static function setOf(array $prop, mixed $type): array
     {
         $sets = static::sets($prop);
 
         foreach ($sets as $set) {
-            if ($set['handle'] === $type) {
+            if ($set['handle'] === $type || in_array($type, $set['was'], true)) {
                 return $set;
             }
         }
@@ -199,7 +207,7 @@ final class GroupFields
         return $sets[0];
     }
 
-    /** @return list<array{handle: string, label: ?string, fields: list<array<string, mixed>>}> */
+    /** @return list<array{handle: string, label: ?string, fields: list<array<string, mixed>>, was: list<string>}> */
     private static function declaredSets(array $prop): array
     {
         if (! static::repeats($prop)) {
@@ -214,6 +222,7 @@ final class GroupFields
                     'handle' => (string) $set['handle'],
                     'label' => isset($set['label']) ? (string) $set['label'] : null,
                     'fields' => static::valid(is_array($set['fields'] ?? null) ? $set['fields'] : []),
+                    'was' => array_values(array_filter(is_array($set['was'] ?? null) ? $set['was'] : [], 'is_string')),
                 ];
             }
         }

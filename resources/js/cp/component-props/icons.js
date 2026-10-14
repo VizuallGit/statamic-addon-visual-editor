@@ -20,5 +20,8 @@ export const PROP_ICONS = {
   group: `<svg ${A}><path d="M8 4H6.5A2.5 2.5 0 0 0 4 6.5v3A2.5 2.5 0 0 1 1.5 12 2.5 2.5 0 0 1 4 14.5v3A2.5 2.5 0 0 0 6.5 20H8"/><path d="M16 4h1.5A2.5 2.5 0 0 1 20 6.5v3a2.5 2.5 0 0 0 2.5 2.5 2.5 2.5 0 0 0-2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5H16"/></svg>`,
 };
 
+/** A component inside this one: the same cube the component header wears. */
+export const COMPONENT_ICON = `<svg ${A}><path d="m12 2.8 8 4.6v9.2l-8 4.6-8-4.6V7.4z"/><path d="m12 12 8-4.6M12 12v9.2M12 12 4 7.4"/></svg>`;
+
 /** A group's repeat switch: the same loop arrows on and off, coloured when on. */
 export const REPEAT_ICON = `<svg ${A}><path d="M17 2.5 20.5 6 17 9.5"/><path d="M3.5 11V9.5A3.5 3.5 0 0 1 7 6h13.5"/><path d="M7 21.5 3.5 18 7 14.5"/><path d="M20.5 13v1.5A3.5 3.5 0 0 1 17 18H3.5"/></svg>`;

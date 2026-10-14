@@ -42,15 +42,21 @@ final class GroupValue
      * can tell a row with no type (written before the list had types) to be
      * the first kind rather than none. Written only when there are types.
      *
+     * `renamed` is the names block types had before: `{old: new}`. A row
+     * written under the old name — in the component's own rows or at any place
+     * that uses it — is the renamed type, not the first one.
+     *
      * @param  list<string>  $fields
      * @param  list<array<string, mixed>>  $rows
      * @param  list<int>  $off
      * @param  list<string>  $types
+     * @param  array<string, string>  $renamed
      */
-    public static function encode(array $fields, array $rows, bool $repeat, array $off = [], array $types = []): string
+    public static function encode(array $fields, array $rows, bool $repeat, array $off = [], array $types = [], array $renamed = []): string
     {
         $types = array_values(array_filter($types, fn ($type) => is_string($type) && $type !== ''));
-        $rows = static::typed(static::fill($fields, $rows), $types);
+        $renamed = static::renames($renamed, $types);
+        $rows = static::typed(static::fill($fields, $rows), $types, $renamed);
         $off = static::positions($off, count($rows));
         $data = ['fields' => array_values($fields), 'repeat' => $repeat, 'rows' => $rows];
 
@@ -62,6 +68,10 @@ final class GroupValue
             $data['types'] = $types;
         }
 
+        if ($renamed !== []) {
+            $data['renamed'] = $renamed;
+        }
+
         $json = (string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
         return self::PREFIX.rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
@@ -71,7 +81,7 @@ final class GroupValue
      * The fields, rows and shape a written value holds, or null when the value
      * is not one of ours — a plain string, a page field handed over with `:`.
      *
-     * @return array{fields: list<string>, repeat: bool, rows: list<array<string, string>>, off: list<int>, types: list<string>}|null
+     * @return array{fields: list<string>, repeat: bool, rows: list<array<string, string>>, off: list<int>, types: list<string>, renamed: array<string, string>}|null
      */
     public static function decode(mixed $value): ?array
     {
@@ -96,7 +106,8 @@ final class GroupValue
             is_array($data['types'] ?? null) ? $data['types'] : [],
             fn ($type) => is_string($type) && $type !== ''
         ));
-        $rows = static::typed(static::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []), $types);
+        $renamed = static::renames(is_array($data['renamed'] ?? null) ? $data['renamed'] : [], $types);
+        $rows = static::typed(static::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []), $types, $renamed);
 
         return [
             'fields' => $fields,
@@ -104,6 +115,7 @@ final class GroupValue
             'rows' => $rows,
             'off' => static::positions(is_array($data['off'] ?? null) ? $data['off'] : [], count($rows)),
             'types' => $types,
+            'renamed' => $renamed,
         ];
     }
 
@@ -143,19 +155,42 @@ final class GroupValue
      * @param  list<string>  $types
      * @return list<array<string, string>>
      */
-    public static function typed(array $rows, array $types): array
+    public static function typed(array $rows, array $types, array $renamed = []): array
     {
         if ($types === []) {
             return $rows;
         }
 
-        return array_map(function (array $row) use ($types) {
-            if (! in_array($row[self::TYPE] ?? null, $types, true)) {
-                $row[self::TYPE] = $types[0];
+        return array_map(function (array $row) use ($types, $renamed) {
+            $type = $row[self::TYPE] ?? null;
+
+            if (is_string($type) && isset($renamed[$type])) {
+                $type = $renamed[$type];
             }
+
+            $row[self::TYPE] = in_array($type, $types, true) ? $type : $types[0];
 
             return $row;
         }, $rows);
+    }
+
+    /**
+     * Old names that point at a type the list still has, and are not a type's
+     * name now themselves.
+     *
+     * @return array<string, string>
+     */
+    private static function renames(array $renamed, array $types): array
+    {
+        $out = [];
+
+        foreach ($renamed as $old => $new) {
+            if (is_string($old) && $old !== '' && is_string($new) && in_array($new, $types, true) && ! in_array($old, $types, true)) {
+                $out[$old] = $new;
+            }
+        }
+
+        return $out;
     }
 
     /**
