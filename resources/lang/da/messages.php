@@ -743,13 +743,6 @@ return [
     'field_where_panel' => 'Kun ved siden af preview\'et',
     'field_where_form' => 'Ikke ved siden af preview\'et',
 
-    'card_role' => 'Vises på kort som',
-    'card_role_instructions' => 'Kortet i en liste læser `card:title`, `card:image`, `card:text`, `card:label` og `card:url`. Her vælger du, hvilket felt der fylder hvad. Titel og link er entryens egne, hvis intet felt er valgt. Har blueprintet ingen roller, bruges det første billedfelt.',
-    'card_role_title' => 'Titel',
-    'card_role_image' => 'Billede',
-    'card_role_text' => 'Tekst',
-    'card_role_label' => 'Etiket',
-    'card_role_url' => 'Link',
     'sync_siblings_setting' => 'Synk søskende',
     'sync_siblings_setting_instructions' => 'I live preview kan værdien låses til de andre rækker i listen med samme felt. Én række er kilden; de andre følger med, indtil de låses op. Virker også når feltet er responsive — laptop, tablet og mobil synces som én værdi.',
     'sync_siblings_label' => 'Synk',
@@ -1263,6 +1256,11 @@ return [
     'template_prop_collection' => 'Collection',
     'template_prop_media' => 'Billede / media',
     'template_prop_empty' => 'Ingen felter af den type på denne collection',
+    'entry_field_none' => '— Intet felt (brug teksten) —',
+    'entry_field_missing' => ':field (findes ikke i :collection)',
+    'entry_field_pick_collection' => 'Vælg først en samling på sektionen.',
+    'entry_field_no_fields' => ':collection har ingen felter af den type.',
+    'entry_field_url' => 'Entryens side (link)',
     'template_props' => 'Felter',
 
     // AI-chatten der svæver i hjørnet af Control Panel.

@@ -22,6 +22,7 @@ use MarioHamann\StatamicVisualEditor\Fieldtypes\DefaultSetsFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\GlobalsPickerFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\ToolbarAccessFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\UniqueSetsFieldtype;
+use MarioHamann\StatamicVisualEditor\Fieldtypes\EntryFieldFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\TemplatePropsFieldtype;
 use MarioHamann\StatamicVisualEditor\BuiltAssets;
 use MarioHamann\StatamicVisualEditor\Boot\ControlPanelScript;
@@ -93,6 +94,7 @@ class ServiceProvider extends AddonServiceProvider
         DefaultSetsFieldtype::class,
         BardDefaultFieldtype::class,
         TemplatePropsFieldtype::class,
+        EntryFieldFieldtype::class,
         // ⚠️ Overtager Statamics egen `replicator`-handle — handlen udledes
         // af klassenavnet. ALT replicator-arbejde i CP'et går igennem den.
         Replicator::class,
@@ -399,10 +401,6 @@ class ServiceProvider extends AddonServiceProvider
         LivePreviewConfig::devices();
 
         StoreCollections::register();
-
-        // `card` on every entry — the same shape whatever a collection's fields
-        // are called. See EntryCard.
-        EntryCard::registerComputed();
 
         Routes::register();
 

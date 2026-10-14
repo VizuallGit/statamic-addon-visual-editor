@@ -4,7 +4,6 @@ namespace MarioHamann\StatamicVisualEditor\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use MarioHamann\StatamicVisualEditor\EntryCard;
 use MarioHamann\StatamicVisualEditor\GridIcon;
 use MarioHamann\StatamicVisualEditor\GridKeepTable;
 use MarioHamann\StatamicVisualEditor\IconifyDefault;
@@ -34,7 +33,6 @@ class RegisterPanelVisibility
         GridKeepTable::register();
         ResponsiveFields::register();
         SiblingSync::register();
-        EntryCard::registerSettings();
         ReplicatorSettings::register();
         IconifyDefault::register();
 
