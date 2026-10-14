@@ -251,6 +251,93 @@ class GroupTest extends TestCase
         $this->assertSame([0], GroupValue::decode(ComponentProps::normalize([$this->items(['default' => GroupValue::encode(['title', 'flag'], [['title' => 'A']], true, [0])])])[0]['default'])['off']);
     }
 
+    private function blocks(array $extra = []): array
+    {
+        return ComponentProps::normalize([[
+            'handle' => 'content',
+            'type' => 'group',
+            'repeat' => true,
+            'sets' => [
+                ['handle' => 'headline', 'fields' => [['handle' => 'text', 'type' => 'text']]],
+                ['handle' => 'picture', 'label' => 'Billede', 'fields' => [['handle' => 'image', 'type' => 'media'], ['handle' => 'text', 'type' => 'text'], ['handle' => 'type', 'type' => 'text']]],
+            ],
+            ...$extra,
+        ]])[0];
+    }
+
+    public function test_a_list_keeps_its_block_types_and_type_is_taken()
+    {
+        $prop = $this->blocks();
+
+        $this->assertSame(['headline', 'picture'], array_column($prop['sets'], 'handle'));
+        $this->assertSame('Billede', $prop['sets'][1]['label']);
+        $this->assertSame(['image', 'text'], array_column($prop['sets'][1]['fields'], 'handle'));
+        $this->assertSame([], $prop['fields']);
+
+        $default = GroupValue::decode($prop['default']);
+
+        $this->assertSame(['type', 'text', 'image'], $default['fields']);
+        $this->assertSame(['headline', 'picture'], $default['types']);
+    }
+
+    public function test_block_types_belong_to_a_list_only()
+    {
+        $prop = $this->blocks(['repeat' => false]);
+
+        $this->assertArrayNotHasKey('sets', $prop);
+        $this->assertSame([], GroupValue::decode($prop['default'])['types']);
+    }
+
+    public function test_each_row_renders_as_its_type_and_never_reads_the_page()
+    {
+        $prop = $this->blocks();
+        $call = PropFields::toParam($prop, [
+            ['type' => 'headline', 'enabled' => true, 'text' => 'Overskrift'],
+            ['type' => 'picture', 'enabled' => true, 'image' => null, 'text' => 'Billedtekst'],
+        ]);
+
+        $this->assertSame(
+            '[headline:Overskrift|][picture:Billedtekst|]',
+            $this->render(
+                '{{ sve_defaults props_content="'.$prop['default'].'" }}{{ props_content }}[{{ type }}:{{ text }}|{{ image }}]{{ /props_content }}{{ /sve_defaults }}',
+                ['props_content' => $call, 'image' => 'SIDENS BILLEDE', 'text' => 'SIDENS TEKST']
+            )
+        );
+    }
+
+    public function test_a_row_with_no_type_is_the_first_type()
+    {
+        $prop = $this->blocks();
+        // Written while the list had no block types: no `type` in its rows.
+        $old = GroupValue::encode(['text'], [['text' => 'Gammel']], true);
+
+        $this->assertSame(
+            '[headline:Gammel]',
+            $this->render('{{ sve_defaults props_content="'.$prop['default'].'" }}{{ props_content }}[{{ type }}:{{ text }}]{{ /props_content }}{{ /sve_defaults }}', ['props_content' => $old])
+        );
+        $this->assertSame('headline', PropFields::toPublish($prop, $old)[0]['type']);
+    }
+
+    public function test_block_type_rows_come_back_to_the_form_as_their_own_set()
+    {
+        $prop = $this->blocks();
+        $written = GroupValue::encode(['type', 'text', 'image'], [['type' => 'picture', 'text' => 'B'], ['type' => 'headline', 'text' => 'H']], true, [], ['headline', 'picture']);
+        $form = PropFields::toPublish($prop, $written);
+
+        $this->assertSame(['type' => 'picture', 'enabled' => true, 'image' => null, 'text' => 'B'], $form[0]);
+        $this->assertSame(['type' => 'headline', 'enabled' => true, 'text' => 'H'], $form[1]);
+        $this->assertTrue(GroupValue::same($written, PropFields::toParam($prop, $form)));
+    }
+
+    public function test_the_form_has_a_set_per_block_type()
+    {
+        $config = PropFields::config($this->blocks());
+
+        $this->assertSame(['headline', 'picture'], array_keys($config['sets']['main']['sets']));
+        $this->assertSame('Billede', $config['sets']['main']['sets']['picture']['display']);
+        $this->assertSame(['image', 'text'], array_column($config['sets']['main']['sets']['picture']['fields'], 'handle'));
+    }
+
     public function test_a_value_that_is_not_ours_does_not_decode()
     {
         $this->assertNull(GroupValue::decode('Overskrift'));

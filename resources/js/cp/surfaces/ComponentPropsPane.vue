@@ -99,7 +99,13 @@ function usage(row) {
   }
 
   // A list is looped over, and inside the loop each field is its bare name.
-  // One row is read by path.
+  // With block types, a row says which it is in `type`. One row is read by path.
+  if (row.repeat && row.sets.length) {
+    const set = row.sets[0];
+
+    return `{{ ${name} }} {{ if type == '${set.handle}' }} {{ ${set.fields[0]?.handle || 'field'} }} {{ /if }} {{ /${name} }}`;
+  }
+
   if (row.repeat) {
     return `{{ ${name} }} {{ ${row.fields[0]?.handle || 'field'} }} {{ /${name} }}`;
   }
@@ -107,8 +113,19 @@ function usage(row) {
   return `{{ ${name}:${row.fields[0]?.handle || 'field'} }}`;
 }
 
-function onSubField(index, at, key, event) {
-  ui.onEditField?.(index, at, key, event.target.value);
+function onSubField(index, at, key, event, set = null) {
+  ui.onEditField?.(index, at, key, event.target.value, set);
+}
+
+/**
+ * The lists of fields a group card draws: the group's own, or one per block
+ * type with the type's name above it. One loop for both, so a field looks and
+ * edits the same wherever it sits.
+ */
+function fieldLists(row) {
+  return row.sets.length
+    ? row.sets.map((set, at) => ({ key: `set-${at}`, set, at, fields: set.fields }))
+    : [{ key: 'own', set: null, at: null, fields: row.fields }];
 }
 </script>
 
@@ -194,10 +211,10 @@ function onSubField(index, at, key, event) {
             <button
               type="button"
               class="sve-cprops__act"
-              :title="ui.addFieldLabel"
-              :aria-label="ui.addFieldLabel"
+              :title="row.sets.length ? ui.addSetLabel : ui.addFieldLabel"
+              :aria-label="row.sets.length ? ui.addSetLabel : ui.addFieldLabel"
               :disabled="ui.locked"
-              @click.stop="ui.onAddField?.(index, $event.currentTarget)"
+              @click.stop="row.sets.length ? ui.onAddSet?.(index) : ui.onAddField?.(index, $event.currentTarget)"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </button>
@@ -235,20 +252,27 @@ function onSubField(index, at, key, event) {
         its own; the group's default is its rows.
       -->
       <div v-if="row.type === 'group' && !row.open" class="sve-cprops__fields">
-        <p v-if="!row.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
-        <div
-          v-for="field in row.fields"
-          :key="field.key"
-          class="sve-cprops__field"
-          @click="ui.onOpen?.(index)"
-        >
-          <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
-            <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
-            <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
-          </span>
-          <span class="sve-cprops__name">{{ field.handle }}</span>
-          <span class="sve-cprops__value sve-cprops__kindname">{{ field.typeLabel }}</span>
-        </div>
+        <template v-for="list in fieldLists(row)" :key="list.key">
+          <div v-if="list.set" class="sve-cprops__set" @click="ui.onOpen?.(index)">
+            <span class="sve-cprops__glyph sve-cprops__setmark" v-html="PROP_ICONS.group"></span>
+            <span class="sve-cprops__name">{{ list.set.handle }}</span>
+          </div>
+          <p v-if="!list.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
+          <div
+            v-for="field in list.fields"
+            :key="field.key"
+            class="sve-cprops__field"
+            :data-in-set="list.set ? '' : undefined"
+            @click="ui.onOpen?.(index)"
+          >
+            <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
+              <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
+              <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
+            </span>
+            <span class="sve-cprops__name">{{ field.handle }}</span>
+            <span class="sve-cprops__value sve-cprops__kindname">{{ field.typeLabel }}</span>
+          </div>
+        </template>
       </div>
 
       <div v-if="row.open" class="sve-cprops__edit">
@@ -271,56 +295,110 @@ function onSubField(index, at, key, event) {
             <option v-for="kind in ui.types" :key="kind.id" :value="kind.id">{{ kind.label }}</option>
           </select>
         </div>
-        <!-- An open group: its fields' names and kinds, under its own. -->
+        <!--
+          An open group: its fields' names and kinds, under its own — or, in a
+          list with block types, each type's name with its fields under it.
+        -->
         <div v-if="row.type === 'group'" class="sve-cprops__fields sve-cprops__fields--edit">
-          <p v-if="!row.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
-          <div v-for="(field, at) in row.fields" :key="field.key" class="sve-cprops__field">
-            <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
-              <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
-              <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
-            </span>
-            <span class="sve-cprops__fieldbox">
-              <span class="sve-cprops__pair">
-                <input
-                  class="sve-cprops__box"
-                  type="text"
-                  :value="field.handle"
-                  :placeholder="ui.handleLabel"
-                  :disabled="ui.locked"
-                  spellcheck="false"
-                  @change="onSubField(index, at, 'handle', $event)"
-                />
-                <select
-                  class="sve-cprops__box sve-cprops__kind"
-                  :value="field.type"
-                  :disabled="ui.locked"
-                  @change="onSubField(index, at, 'type', $event)"
-                >
-                  <option v-for="kind in ui.fieldTypes" :key="kind.id" :value="kind.id">{{ kind.label }}</option>
-                </select>
-              </span>
+          <template v-for="list in fieldLists(row)" :key="list.key">
+            <div v-if="list.set" class="sve-cprops__set sve-cprops__set--edit">
+              <span class="sve-cprops__glyph sve-cprops__setmark" v-html="PROP_ICONS.group"></span>
               <input
-                v-if="field.type === 'select'"
                 class="sve-cprops__box"
                 type="text"
-                :value="field.options"
-                :placeholder="ui.optionsLabel"
+                :value="list.set.handle"
+                :placeholder="ui.setNameLabel"
+                :title="ui.setNameLabel"
                 :disabled="ui.locked"
                 spellcheck="false"
-                @change="onSubField(index, at, 'options', $event)"
+                @change="ui.onEditSet?.(index, list.at, 'handle', $event.target.value)"
               />
-            </span>
-            <button
-              type="button"
-              class="sve-cprops__act"
-              :title="ui.removeLabel"
-              :aria-label="ui.removeLabel"
-              :disabled="ui.locked"
-              @click.stop="ui.onRemoveField?.(index, at)"
+              <button
+                type="button"
+                class="sve-cprops__act"
+                :title="ui.addFieldLabel"
+                :aria-label="ui.addFieldLabel"
+                :disabled="ui.locked"
+                @click.stop="ui.onAddField?.(index, $event.currentTarget, list.at)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button
+                type="button"
+                class="sve-cprops__act"
+                :title="ui.removeSetLabel"
+                :aria-label="ui.removeSetLabel"
+                :disabled="ui.locked"
+                @click.stop="ui.onRemoveSet?.(index, list.at)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+            </div>
+            <p v-if="!list.fields.length" class="sve-cprops__empty">{{ ui.groupEmptyText }}</p>
+            <div
+              v-for="(field, at) in list.fields"
+              :key="field.key"
+              class="sve-cprops__field"
+              :data-in-set="list.set ? '' : undefined"
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-            </button>
-          </div>
+              <span class="sve-cprops__tile sve-cprops__tile--small" :data-kind="field.type">
+                <span v-if="field.type === 'text'" class="sve-cprops__letter">T</span>
+                <span v-else class="sve-cprops__glyph" v-html="PROP_ICONS[field.type] || PROP_ICONS.bard"></span>
+              </span>
+              <span class="sve-cprops__fieldbox">
+                <span class="sve-cprops__pair">
+                  <input
+                    class="sve-cprops__box"
+                    type="text"
+                    :value="field.handle"
+                    :placeholder="ui.handleLabel"
+                    :disabled="ui.locked"
+                    spellcheck="false"
+                    @change="onSubField(index, at, 'handle', $event, list.at)"
+                  />
+                  <select
+                    class="sve-cprops__box sve-cprops__kind"
+                    :value="field.type"
+                    :disabled="ui.locked"
+                    @change="onSubField(index, at, 'type', $event, list.at)"
+                  >
+                    <option v-for="kind in ui.fieldTypes" :key="kind.id" :value="kind.id">{{ kind.label }}</option>
+                  </select>
+                </span>
+                <input
+                  v-if="field.type === 'select'"
+                  class="sve-cprops__box"
+                  type="text"
+                  :value="field.options"
+                  :placeholder="ui.optionsLabel"
+                  :disabled="ui.locked"
+                  spellcheck="false"
+                  @change="onSubField(index, at, 'options', $event, list.at)"
+                />
+              </span>
+              <button
+                type="button"
+                class="sve-cprops__act"
+                :title="ui.removeLabel"
+                :aria-label="ui.removeLabel"
+                :disabled="ui.locked"
+                @click.stop="ui.onRemoveField?.(index, at, list.at)"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </button>
+            </div>
+          </template>
+          <!-- Only a list has block types: rows of different kinds. -->
+          <button
+            v-if="row.repeat"
+            type="button"
+            class="sve-cprops__addset"
+            :disabled="ui.locked"
+            @click.stop="ui.onAddSet?.(index)"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <span>{{ ui.addSetLabel }}</span>
+          </button>
         </div>
         <!-- A choice is nothing without its choices: one line, commas between. -->
         <input
@@ -631,6 +709,56 @@ function onSubField(index, at, key, event) {
   cursor: pointer;
   min-width: 0;
 }
+/* A block type: its name above its fields, the fields one step in. */
+.sve-cprops__set {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  padding: .3rem .375rem .1rem;
+  font-size: .75rem;
+  cursor: pointer;
+}
+.sve-cprops__set + .sve-cprops__empty,
+.sve-cprops__field + .sve-cprops__set {
+  margin-top: .25rem;
+}
+.sve-cprops__set--edit {
+  cursor: default;
+}
+.sve-cprops__set--edit .sve-cprops__box {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+.sve-cprops__setmark {
+  color: var(--sve-cprops-accent-soft);
+  font-size: .875rem;
+}
+.sve-cprops__field[data-in-set] {
+  margin-left: 1rem;
+}
+.sve-cprops__addset {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .375em;
+  margin-top: .125rem;
+  padding: .4em;
+  border: 1px dashed rgba(255, 255, 255, .25);
+  border-radius: .35rem;
+  font-size: .75rem;
+  opacity: .8;
+}
+.sve-cprops__addset:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, .06);
+}
+.sve-cprops__addset[disabled] {
+  cursor: default;
+  opacity: .35;
+}
+
 /* Open, the fields sit inside the edit area, which is already indented. */
 .sve-cprops__fields--edit {
   margin: .25rem 0 .375rem;

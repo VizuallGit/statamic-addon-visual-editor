@@ -106,8 +106,21 @@ function groupSummary(win, prop) {
   }
 
   const rows = readGroupValue(prop.default)?.rows.length || 0;
+  const rowsText = rows === 1 ? t(win, 'component_props_group_one_row') : t(win, 'component_props_group_rows', { count: rows });
+  const sets = Array.isArray(prop.sets) ? prop.sets.length : 0;
 
-  return rows === 1 ? t(win, 'component_props_group_one_row') : t(win, 'component_props_group_rows', { count: rows });
+  return sets ? `${t(win, 'component_props_group_sets', { count: sets })} · ${rowsText}` : rowsText;
+}
+
+/** One field inside a group or a block type, as the card draws it. */
+function fieldRow(win, field, at) {
+  return {
+    key: at,
+    handle: field.handle || '',
+    type: field.type || 'text',
+    options: optionsLine(field),
+    typeLabel: typeLabel(win, field.type || 'text'),
+  };
 }
 
 function rowsFrom(win, props) {
@@ -126,13 +139,13 @@ function rowsFrom(win, props) {
       open: index === openIndex,
       binding: !!prop.handle && prop.handle === componentBindHandle(),
       repeat: group && prop.repeat === true,
-      fields: group && Array.isArray(prop.fields)
-        ? prop.fields.map((field, at) => ({
+      fields: group && Array.isArray(prop.fields) ? prop.fields.map((field, at) => fieldRow(win, field, at)) : [],
+      // A list's block types, each with fields of its own.
+      sets: group && Array.isArray(prop.sets)
+        ? prop.sets.map((set, at) => ({
           key: at,
-          handle: field.handle || '',
-          type: field.type || 'text',
-          options: optionsLine(field),
-          typeLabel: typeLabel(win, field.type || 'text'),
+          handle: set.handle || '',
+          fields: (Array.isArray(set.fields) ? set.fields : []).map((field, i) => fieldRow(win, field, i)),
         }))
         : [],
     };
@@ -300,6 +313,9 @@ export function paintComponentProps(win) {
   ui.repeatLabel = t(win, 'component_props_repeat');
   ui.addFieldLabel = t(win, 'component_props_add_field');
   ui.groupEmptyText = t(win, 'component_props_group_none');
+  ui.addSetLabel = t(win, 'component_props_add_set');
+  ui.setNameLabel = t(win, 'component_props_set_name');
+  ui.removeSetLabel = t(win, 'component_props_remove_set');
   ui.bindingHandle = componentBindHandle();
   ui.rows = rowsFrom(win, props);
 
@@ -388,30 +404,112 @@ export function paintComponentProps(win) {
     commit(win, next);
   };
 
-  /** A group's own fields, changed and written back as part of the group. */
-  const editFields = (index, change) => {
+  /** A group, changed and written back, its card kept open. */
+  const editGroup = (index, change) => {
     const prop = props[index];
 
     if (ui.locked || prop?.type !== 'group') {
       return;
     }
 
-    const fields = change((Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field })));
-
     openIndex = index;
-    commit(win, props.map((item, at) => (at === index ? { ...item, fields } : item)));
+    commit(win, props.map((item, at) => (at === index ? change({ ...item }) : item)));
   };
 
-  /** On: the group is a list, and every place that uses it can add rows. */
+  /** A copy of the group's block types, deep enough to change. */
+  const setsOf = (prop) =>
+    (Array.isArray(prop.sets) ? prop.sets : []).map((set) => ({
+      ...set,
+      fields: (Array.isArray(set.fields) ? set.fields : []).map((field) => ({ ...field })),
+    }));
+
+  /**
+   * A group's fields — its own, or one block type's (`set` is its position) —
+   * changed and written back as part of the group.
+   */
+  const editFields = (index, change, set = null) => {
+    editGroup(index, (prop) => {
+      if (set === null) {
+        return { ...prop, fields: change((Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field }))) };
+      }
+
+      const sets = setsOf(prop);
+
+      if (sets[set]) {
+        sets[set].fields = change(sets[set].fields);
+      }
+
+      return { ...prop, sets };
+    });
+  };
+
+  /**
+   * On: the group is a list, and every place that uses it can add rows.
+   * Off, a list with block types keeps their fields as the group's own, each
+   * name once — block types belong to a list, and a switch must not be the
+   * way a set of fields disappears.
+   */
   ui.onToggleRepeat = (index) => {
-    if (ui.locked || props[index]?.type !== 'group') {
-      return;
-    }
+    editGroup(index, (prop) => {
+      if (prop.repeat !== true || !setsOf(prop).length) {
+        return { ...prop, repeat: prop.repeat !== true };
+      }
 
-    commit(win, props.map((prop, at) => (at === index ? { ...prop, repeat: prop.repeat !== true } : prop)));
+      const seen = new Set();
+      const fields = setsOf(prop)
+        .flatMap((set) => set.fields)
+        .filter((field) => !seen.has(field.handle) && seen.add(field.handle));
+
+      return { ...prop, repeat: false, fields, sets: [] };
+    });
   };
 
-  ui.onAddField = (index, anchor) => {
+  /**
+   * A block type more. The first one turns the list's own fields into a block
+   * type of their own, `item`, and the rows the list already has are that
+   * type — so nothing on the page changes until a row of the new type is added.
+   */
+  ui.onAddSet = (index) => {
+    editGroup(index, (prop) => {
+      const sets = setsOf(prop);
+
+      if (!sets.length) {
+        sets.push({ handle: 'item', label: '', fields: (Array.isArray(prop.fields) ? prop.fields : []).map((field) => ({ ...field })) });
+      }
+
+      sets.push({ handle: freeHandle(sets, 'block'), label: '', fields: [] });
+
+      return { ...prop, fields: [], sets };
+    });
+  };
+
+  ui.onEditSet = (index, set, key, value) => {
+    editGroup(index, (prop) => {
+      const sets = setsOf(prop);
+
+      if (!sets[set] || key !== 'handle') {
+        return prop;
+      }
+
+      const handle = normalizeHandle(value);
+
+      // Another block type's name, or one Antlers cannot read: kept as it was.
+      if (!/^[a-z_][a-z0-9_]*$/.test(handle) || sets.some((other, at) => at !== set && other.handle === handle)) {
+        return prop;
+      }
+
+      sets[set] = { ...sets[set], handle, label: '' };
+
+      return { ...prop, sets };
+    });
+  };
+
+  /** The last block type gone, the list is back to fields of its own — none yet. */
+  ui.onRemoveSet = (index, set) => {
+    editGroup(index, (prop) => ({ ...prop, sets: setsOf(prop).filter((_, at) => at !== set), fields: [] }));
+  };
+
+  ui.onAddField = (index, anchor, set = null) => {
     if (ui.locked) {
       return;
     }
@@ -424,39 +522,45 @@ export function paintComponentProps(win) {
         icon: PROP_ICONS[kind.id] || '',
         onPick: () => {
           closeMenu();
-          editFields(index, (fields) => [
-            ...fields,
-            { handle: freeHandle(fields, kind.handle), type: kind.id, label: '', default: '' },
-          ]);
+          editFields(
+            index,
+            (fields) => [...fields, { handle: freeHandle(fields, kind.handle), type: kind.id, label: '', default: '' }],
+            set
+          );
         },
       }))
     );
   };
 
-  ui.onEditField = (index, at, key, value) => {
-    editFields(index, (fields) => {
-      if (!fields[at]) {
+  ui.onEditField = (index, at, key, value, set = null) => {
+    editFields(
+      index,
+      (fields) => {
+        if (!fields[at]) {
+          return fields;
+        }
+
+        const clean = key === 'handle' ? normalizeHandle(value) : value;
+
+        // In a block type, `type` is what the row says it is.
+        if (key === 'handle' && (LOOP_NAMES.includes(clean) || (set !== null && clean === 'type'))) {
+          return fields;
+        }
+
+        fields[at][key] = clean;
+
+        if (key === 'handle') {
+          fields[at].label = '';
+        }
+
         return fields;
-      }
-
-      const clean = key === 'handle' ? normalizeHandle(value) : value;
-
-      if (key === 'handle' && LOOP_NAMES.includes(clean)) {
-        return fields;
-      }
-
-      fields[at][key] = clean;
-
-      if (key === 'handle') {
-        fields[at].label = '';
-      }
-
-      return fields;
-    });
+      },
+      set
+    );
   };
 
-  ui.onRemoveField = (index, at) => {
-    editFields(index, (fields) => fields.filter((_, i) => i !== at));
+  ui.onRemoveField = (index, at, set = null) => {
+    editFields(index, (fields) => fields.filter((_, i) => i !== at), set);
   };
 
   /**
@@ -496,8 +600,9 @@ export function paintComponentProps(win) {
 
     // A group's editor is its fields — a grid or a group of them — so a field
     // added or a switch to repeat is a different form, loaded again.
+    const fieldsKey = (fields) => (fields || []).map((field) => `${field.handle}:${field.type}:${optionsLine(field)}`).join(',');
     const shape = prop.type === 'group'
-      ? `::${prop.repeat === true}::${(prop.fields || []).map((field) => `${field.handle}:${field.type}:${optionsLine(field)}`).join(',')}`
+      ? `::${prop.repeat === true}::${fieldsKey(prop.fields)}::${(prop.sets || []).map((set) => `${set.handle}(${fieldsKey(set.fields)})`).join(';')}`
       : '';
 
     defaultValue.load(win, {

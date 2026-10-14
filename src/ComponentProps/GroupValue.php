@@ -26,6 +26,9 @@ final class GroupValue
 {
     public const PREFIX = 'sve64:';
 
+    /** What a row of a list with block types says it is. */
+    public const TYPE = 'type';
+
     /**
      * `off` is the rows switched off in the panel — Statamic's own switch on a
      * replicator row, which keeps the row and leaves it out of the page. Kept
@@ -34,18 +37,29 @@ final class GroupValue
      * `enabled`. Written only when there is one, so a list without any reads
      * exactly as it did before there was a switch.
      *
+     * `types` is the block types a list's rows can be, first one first — the
+     * declaration's, carried in the component's own default so `sve_defaults`
+     * can tell a row with no type (written before the list had types) to be
+     * the first kind rather than none. Written only when there are types.
+     *
      * @param  list<string>  $fields
      * @param  list<array<string, mixed>>  $rows
      * @param  list<int>  $off
+     * @param  list<string>  $types
      */
-    public static function encode(array $fields, array $rows, bool $repeat, array $off = []): string
+    public static function encode(array $fields, array $rows, bool $repeat, array $off = [], array $types = []): string
     {
-        $rows = static::fill($fields, $rows);
+        $types = array_values(array_filter($types, fn ($type) => is_string($type) && $type !== ''));
+        $rows = static::typed(static::fill($fields, $rows), $types);
         $off = static::positions($off, count($rows));
         $data = ['fields' => array_values($fields), 'repeat' => $repeat, 'rows' => $rows];
 
         if ($off !== []) {
             $data['off'] = $off;
+        }
+
+        if ($types !== []) {
+            $data['types'] = $types;
         }
 
         $json = (string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -57,7 +71,7 @@ final class GroupValue
      * The fields, rows and shape a written value holds, or null when the value
      * is not one of ours — a plain string, a page field handed over with `:`.
      *
-     * @return array{fields: list<string>, repeat: bool, rows: list<array<string, string>>, off: list<int>}|null
+     * @return array{fields: list<string>, repeat: bool, rows: list<array<string, string>>, off: list<int>, types: list<string>}|null
      */
     public static function decode(mixed $value): ?array
     {
@@ -78,14 +92,70 @@ final class GroupValue
             fn ($field) => is_string($field) && $field !== ''
         )));
 
-        $rows = static::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []);
+        $types = array_values(array_filter(
+            is_array($data['types'] ?? null) ? $data['types'] : [],
+            fn ($type) => is_string($type) && $type !== ''
+        ));
+        $rows = static::typed(static::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []), $types);
 
         return [
             'fields' => $fields,
             'repeat' => ($data['repeat'] ?? true) === true,
             'rows' => $rows,
             'off' => static::positions(is_array($data['off'] ?? null) ? $data['off'] : [], count($rows)),
+            'types' => $types,
         ];
+    }
+
+    /**
+     * The names every row has: the fields — and, in a list with block types,
+     * `type` and every type's fields, so a headline row has the image row's
+     * fields too, empty. Inside the loop a name a row does not have is read
+     * from the page, and a branch for one type sits in the same loop as the
+     * others.
+     *
+     * @param  list<array<string, mixed>>  $fields
+     * @param  list<array<string, mixed>>  $sets
+     * @return list<string>
+     */
+    public static function names(array $fields, array $sets = []): array
+    {
+        if ($sets === []) {
+            return array_values(array_column($fields, 'handle'));
+        }
+
+        $names = [self::TYPE];
+
+        foreach ($sets as $set) {
+            foreach (is_array($set['fields'] ?? null) ? $set['fields'] : [] as $field) {
+                $names[] = (string) ($field['handle'] ?? '');
+            }
+        }
+
+        return array_values(array_unique(array_filter($names, fn ($name) => $name !== '')));
+    }
+
+    /**
+     * Every row a type the list has: one it does not know, or none at all,
+     * is the first.
+     *
+     * @param  list<array<string, string>>  $rows
+     * @param  list<string>  $types
+     * @return list<array<string, string>>
+     */
+    public static function typed(array $rows, array $types): array
+    {
+        if ($types === []) {
+            return $rows;
+        }
+
+        return array_map(function (array $row) use ($types) {
+            if (! in_array($row[self::TYPE] ?? null, $types, true)) {
+                $row[self::TYPE] = $types[0];
+            }
+
+            return $row;
+        }, $rows);
     }
 
     /**

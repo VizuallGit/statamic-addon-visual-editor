@@ -34,6 +34,10 @@ export const componentPropsUi = reactive({
   repeatLabel: '',
   addFieldLabel: '',
   groupEmptyText: '',
+  // A list's block types.
+  addSetLabel: '',
+  setNameLabel: '',
+  removeSetLabel: '',
   rows: [],
   openKey: null,
   onAdd: null,
@@ -45,6 +49,9 @@ export const componentPropsUi = reactive({
   onAddField: null,
   onEditField: null,
   onRemoveField: null,
+  onAddSet: null,
+  onEditSet: null,
+  onRemoveSet: null,
   defaultStore: null,
   // The other thing the left column can be showing: the values *this place*
   // gives a component, when its row is picked in the tree. Separate from

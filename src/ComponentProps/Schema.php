@@ -74,9 +74,10 @@ final class Schema
     protected const LOOP_NAMES = ['count', 'index', 'first', 'last', 'total_results'];
 
     /**
+     * @param  list<string>  $reserved  names a field here may not have
      * @return list<array<string, mixed>>
      */
-    protected static function rows(array $props, bool $inGroup): array
+    protected static function rows(array $props, bool $inGroup, array $reserved = []): array
     {
         $out = [];
         $seen = [];
@@ -88,7 +89,7 @@ final class Schema
 
             $handle = static::handle((string) ($prop['handle'] ?? ''));
 
-            if ($handle === null || isset($seen[$handle]) || ($inGroup && in_array($handle, self::LOOP_NAMES, true))) {
+            if ($handle === null || isset($seen[$handle]) || ($inGroup && in_array($handle, self::LOOP_NAMES, true)) || in_array($handle, $reserved, true)) {
                 continue;
             }
 
@@ -140,15 +141,62 @@ final class Schema
      */
     protected static function group(array $row, array $prop): array
     {
-        $fields = static::rows(is_array($prop['fields'] ?? null) ? $prop['fields'] : [], true);
         $repeat = ($prop['repeat'] ?? false) === true;
+        $sets = $repeat ? static::sets(is_array($prop['sets'] ?? null) ? $prop['sets'] : []) : [];
+        $fields = $sets === [] ? static::rows(is_array($prop['fields'] ?? null) ? $prop['fields'] : [], true) : [];
         $default = GroupValue::decode($row['default']);
 
-        $row['default'] = GroupValue::encode(array_column($fields, 'handle'), $default['rows'] ?? [], $repeat, $default['off'] ?? []);
+        $row['default'] = GroupValue::encode(
+            GroupValue::names($fields, $sets),
+            $default['rows'] ?? [],
+            $repeat,
+            $default['off'] ?? [],
+            array_column($sets, 'handle')
+        );
         $row['repeat'] = $repeat;
         $row['fields'] = $fields;
 
+        // Only a list has block types, and only a list that has some carries
+        // the key — a group without them reads exactly as it did before.
+        if ($sets !== []) {
+            $row['sets'] = $sets;
+        }
+
         return $row;
+    }
+
+    /**
+     * A list's block types: a handle, a label and fields of their own. The
+     * fields follow every group field's rules, and `type` is taken — it is
+     * what a row says it is.
+     *
+     * @return list<array<string, mixed>>
+     */
+    protected static function sets(array $raw): array
+    {
+        $out = [];
+        $seen = [];
+
+        foreach ($raw as $set) {
+            if (! is_array($set)) {
+                continue;
+            }
+
+            $handle = static::handle((string) ($set['handle'] ?? ''));
+
+            if ($handle === null || isset($seen[$handle])) {
+                continue;
+            }
+
+            $seen[$handle] = true;
+            $out[] = [
+                'handle' => $handle,
+                'label' => static::label((string) ($set['label'] ?? ''), $handle),
+                'fields' => static::rows(is_array($set['fields'] ?? null) ? $set['fields'] : [], true, [GroupValue::TYPE]),
+            ];
+        }
+
+        return $out;
     }
 
     /**
