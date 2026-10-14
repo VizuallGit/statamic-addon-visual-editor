@@ -78,9 +78,12 @@ final class GroupFields
     /**
      * The fieldtype's answer, as the one string the call carries.
      *
-     * Nothing filled in is written as nothing — a list with no rows, a group
-     * with every field empty — because that is what an empty text prop means
-     * too: whatever the component falls back to.
+     * A group with every field empty is written as nothing, because that is
+     * what an empty text prop means too: whatever the component falls back to.
+     * A list with no rows is not: it is the last row deleted, and writing
+     * nothing would bring the component's own rows back in its place. Rows a
+     * place has not changed are left out by the controller, which knows the
+     * component's.
      */
     public static function toParam(array $prop, mixed $value): string
     {
@@ -106,7 +109,7 @@ final class GroupFields
 
         $filled = array_filter($out, fn (array $row) => implode('', $row) !== '');
 
-        if ($out === [] || (! static::repeats($prop) && $filled === [])) {
+        if (! static::repeats($prop) && $filled === []) {
             return '';
         }
 

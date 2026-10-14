@@ -140,7 +140,7 @@ class PropFieldsController
 
     protected function values(Request $request): array
     {
-        $values = $request->query('values');
+        $values = $request->input('values');
 
         return is_array($values) ? $values : [];
     }

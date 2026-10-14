@@ -44,6 +44,13 @@ const TYPES = [
 /** What a field inside a group can be: anything but another group. */
 const FIELD_TYPES = TYPES.filter((kind) => kind.id !== 'group');
 
+/**
+ * The names Antlers gives every row of a loop. Mirrors `Schema::LOOP_NAMES`:
+ * the server drops a field in a group by one of them, rows and all, so a
+ * rename to one is refused here before it gets that far.
+ */
+const LOOP_NAMES = ['count', 'index', 'first', 'last', 'total_results'];
+
 /** Which card is open. Index, because the list is rebuilt on every paint. */
 let openIndex = -1;
 
@@ -432,7 +439,13 @@ export function paintComponentProps(win) {
         return fields;
       }
 
-      fields[at][key] = key === 'handle' ? normalizeHandle(value) : value;
+      const clean = key === 'handle' ? normalizeHandle(value) : value;
+
+      if (key === 'handle' && LOOP_NAMES.includes(clean)) {
+        return fields;
+      }
+
+      fields[at][key] = clean;
 
       if (key === 'handle') {
         fields[at].label = '';

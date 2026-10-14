@@ -205,7 +205,10 @@ final class EditorRoutes
 
             // A component's fields as the Control Panel's own fields, and the
             // way back from what the form holds to what the call carries.
-            Route::get('/!/sve/prop-fields', [PropFieldsController::class, 'show'])
+            // The form is asked for with a POST: it carries the call's values,
+            // and a group's rows in a query string outgrow what a web server
+            // takes in a request line (nginx: 8 KB) with no error to show.
+            Route::post('/!/sve/prop-fields/form', [PropFieldsController::class, 'show'])
                 ->name('sve.prop-fields');
             Route::post('/!/sve/prop-fields', [PropFieldsController::class, 'store'])
                 ->name('sve.prop-fields.store');

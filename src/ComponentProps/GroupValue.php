@@ -36,7 +36,7 @@ final class GroupValue
             'fields' => array_values($fields),
             'repeat' => $repeat,
             'rows' => static::fill($fields, $rows),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
         return self::PREFIX.rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
     }

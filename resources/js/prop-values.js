@@ -76,24 +76,32 @@ export function createPropValues(name) {
     loadedKey = key;
     ui.ready = false;
 
-    const query = new URLSearchParams({ src });
+    const body = { src, values: {} };
 
     if (handle) {
-      query.set('handle', handle);
+      body.handle = handle;
     }
 
     if (display) {
-      query.set('display', display);
+      body.display = display;
     }
 
     for (const [name, value] of Object.entries(params || {})) {
-      query.append(`values[${name}]`, value ?? '');
+      body.values[name] = value ?? '';
     }
 
+    // A POST, not a query string: a group's rows are one long value, and a
+    // request line that long is refused by the web server before PHP sees it.
     void win
-      .fetch(`/!/sve/prop-fields?${query}`, {
+      .fetch('/!/sve/prop-fields/form', {
+        method: 'POST',
         credentials: 'same-origin',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': csrfToken(win),
+        },
+        body: JSON.stringify(body),
       })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {

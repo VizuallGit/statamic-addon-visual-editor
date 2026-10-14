@@ -167,12 +167,31 @@ class GroupTest extends TestCase
         $this->assertTrue(GroupValue::same($written, PropFields::toParam($prop, $form)));
     }
 
-    public function test_an_empty_list_is_written_as_nothing()
+    public function test_a_list_with_its_last_row_deleted_is_written_as_no_rows()
     {
         $prop = ComponentProps::normalize([$this->items()])[0];
 
-        $this->assertSame('', PropFields::toParam($prop, []));
-        $this->assertSame('', PropFields::toParam($prop, null));
+        $this->assertSame([], GroupValue::decode(PropFields::toParam($prop, []))['rows']);
+        $this->assertSame([], GroupValue::decode(PropFields::toParam($prop, null))['rows']);
+    }
+
+    public function test_a_place_with_no_rows_shows_none_of_the_component_rows()
+    {
+        $default = GroupValue::encode(['title'], [['title' => 'A'], ['title' => 'B']], true);
+        $call = GroupValue::encode(['title'], [], true);
+
+        $this->assertSame(
+            '<ul></ul>',
+            $this->render('{{ sve_defaults props_items="'.$default.'" }}<ul>{{ props_items }}<li>{{ title }}</li>{{ /props_items }}</ul>{{ /sve_defaults }}', ['props_items' => $call])
+        );
+    }
+
+    public function test_text_that_is_not_utf8_never_empties_the_value()
+    {
+        $written = GroupValue::encode(['title'], [['title' => "ok \xB1 ok"]], true);
+
+        $this->assertSame(['title'], GroupValue::decode($written)['fields']);
+        $this->assertStringStartsWith('ok ', GroupValue::decode($written)['rows'][0]['title']);
     }
 
     public function test_a_group_with_nothing_filled_in_is_written_as_nothing()
