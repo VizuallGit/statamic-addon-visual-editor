@@ -163,7 +163,10 @@ class GroupTest extends TestCase
 
         $form = PropFields::toPublish($prop, $written);
 
-        $this->assertSame([['title' => 'Én', 'flag' => true], ['title' => 'To', 'flag' => false]], $form);
+        $this->assertSame([
+            ['type' => 'row', 'enabled' => true, 'title' => 'Én', 'flag' => true],
+            ['type' => 'row', 'enabled' => true, 'title' => 'To', 'flag' => false],
+        ], $form);
         $this->assertTrue(GroupValue::same($written, PropFields::toParam($prop, $form)));
     }
 
@@ -207,11 +210,45 @@ class GroupTest extends TestCase
         $repeat = PropFields::config(ComponentProps::normalize([$this->items()])[0]);
         $single = PropFields::config(ComponentProps::normalize([$this->items(['repeat' => false])])[0]);
 
-        $this->assertSame('grid', $repeat['type']);
+        $set = $repeat['sets']['main']['sets']['row'];
+
+        $this->assertSame('replicator', $repeat['type']);
+        $this->assertSame('accordion', $repeat['collapse']);
         $this->assertSame('group', $single['type']);
-        $this->assertSame(['title', 'flag'], array_column($repeat['fields'], 'handle'));
-        $this->assertSame('toggle', $repeat['fields'][1]['field']['type']);
-        $this->assertFalse($repeat['fields'][0]['field']['hide_display']);
+        $this->assertSame(['title', 'flag'], array_column($set['fields'], 'handle'));
+        $this->assertSame('toggle', $set['fields'][1]['field']['type']);
+        $this->assertFalse($set['fields'][0]['field']['hide_display']);
+        $this->assertSame(['title', 'flag'], array_column($single['fields'], 'handle'));
+    }
+
+    public function test_a_row_switched_off_stays_in_the_list_and_off_the_page()
+    {
+        $prop = ComponentProps::normalize([$this->items()])[0];
+        $written = PropFields::toParam($prop, [
+            ['type' => 'row', 'enabled' => true, 'title' => 'Én'],
+            ['type' => 'row', 'enabled' => false, 'title' => 'To'],
+            ['type' => 'row', 'enabled' => true, 'title' => 'Tre'],
+        ]);
+
+        $this->assertSame([1], GroupValue::decode($written)['off']);
+        $this->assertSame([true, false, true], array_column(PropFields::toPublish($prop, $written), 'enabled'));
+
+        $default = GroupValue::encode(['title', 'flag'], [], true);
+
+        $this->assertSame(
+            '[Én][Tre]',
+            $this->render('{{ sve_defaults props_items="'.$default.'" }}{{ props_items }}[{{ title }}]{{ /props_items }}{{ /sve_defaults }}', ['props_items' => $written])
+        );
+    }
+
+    public function test_switching_a_row_off_is_a_change_and_a_list_without_any_reads_as_before()
+    {
+        $on = GroupValue::encode(['title'], [['title' => 'A']], true);
+        $off = GroupValue::encode(['title'], [['title' => 'A']], true, [0]);
+
+        $this->assertFalse(GroupValue::same($on, $off));
+        $this->assertStringNotContainsString('"off"', base64_decode(strtr(substr($on, strlen(GroupValue::PREFIX)), '-_', '+/')));
+        $this->assertSame([0], GroupValue::decode(ComponentProps::normalize([$this->items(['default' => GroupValue::encode(['title', 'flag'], [['title' => 'A']], true, [0])])])[0]['default'])['off']);
     }
 
     public function test_a_value_that_is_not_ours_does_not_decode()

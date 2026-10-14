@@ -292,6 +292,7 @@ return [
     'component_props_group_fields' => ':count fields',
     'component_props_group_rows' => ':count rows',
     'component_props_group_one_row' => '1 row',
+    'component_props_add_row' => 'Add row',
     'component_props_options' => 'Choices, separated by commas',
     'component_props_page' => 'Pick a page',
     'component_props_pages_none' => 'No pages to link to yet.',

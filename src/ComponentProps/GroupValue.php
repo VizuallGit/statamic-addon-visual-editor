@@ -27,16 +27,28 @@ final class GroupValue
     public const PREFIX = 'sve64:';
 
     /**
+     * `off` is the rows switched off in the panel — Statamic's own switch on a
+     * replicator row, which keeps the row and leaves it out of the page. Kept
+     * as positions beside the rows rather than as a key in them, because a key
+     * in a row is a name the template reads, and a field may well be called
+     * `enabled`. Written only when there is one, so a list without any reads
+     * exactly as it did before there was a switch.
+     *
      * @param  list<string>  $fields
      * @param  list<array<string, mixed>>  $rows
+     * @param  list<int>  $off
      */
-    public static function encode(array $fields, array $rows, bool $repeat): string
+    public static function encode(array $fields, array $rows, bool $repeat, array $off = []): string
     {
-        $json = (string) json_encode([
-            'fields' => array_values($fields),
-            'repeat' => $repeat,
-            'rows' => static::fill($fields, $rows),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        $rows = static::fill($fields, $rows);
+        $off = static::positions($off, count($rows));
+        $data = ['fields' => array_values($fields), 'repeat' => $repeat, 'rows' => $rows];
+
+        if ($off !== []) {
+            $data['off'] = $off;
+        }
+
+        $json = (string) json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 
         return self::PREFIX.rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
     }
@@ -45,7 +57,7 @@ final class GroupValue
      * The fields, rows and shape a written value holds, or null when the value
      * is not one of ours — a plain string, a page field handed over with `:`.
      *
-     * @return array{fields: list<string>, repeat: bool, rows: list<array<string, string>>}|null
+     * @return array{fields: list<string>, repeat: bool, rows: list<array<string, string>>, off: list<int>}|null
      */
     public static function decode(mixed $value): ?array
     {
@@ -66,11 +78,43 @@ final class GroupValue
             fn ($field) => is_string($field) && $field !== ''
         )));
 
+        $rows = static::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []);
+
         return [
             'fields' => $fields,
             'repeat' => ($data['repeat'] ?? true) === true,
-            'rows' => static::fill($fields, is_array($data['rows'] ?? null) ? $data['rows'] : []),
+            'rows' => $rows,
+            'off' => static::positions(is_array($data['off'] ?? null) ? $data['off'] : [], count($rows)),
         ];
+    }
+
+    /**
+     * The rows the page shows: every row but the ones switched off.
+     *
+     * @return list<array<string, string>>
+     */
+    public static function shown(array $value): array
+    {
+        $off = array_flip($value['off'] ?? []);
+
+        return array_values(array_filter($value['rows'], fn ($row, $at) => ! isset($off[$at]), ARRAY_FILTER_USE_BOTH));
+    }
+
+    /**
+     * Positions of real rows, each once, in order.
+     *
+     * @return list<int>
+     */
+    private static function positions(array $off, int $count): array
+    {
+        $out = array_values(array_unique(array_filter(
+            array_map(fn ($at) => is_int($at) ? $at : (is_string($at) && ctype_digit($at) ? (int) $at : -1), $off),
+            fn (int $at) => $at >= 0 && $at < $count
+        )));
+
+        sort($out);
+
+        return $out;
     }
 
     /**
@@ -107,7 +151,7 @@ final class GroupValue
         $left = static::decode($a);
         $right = static::decode($b);
 
-        return $left !== null && $right !== null && $left['rows'] === $right['rows'];
+        return $left !== null && $right !== null && $left['rows'] === $right['rows'] && $left['off'] === $right['off'];
     }
 
     /**

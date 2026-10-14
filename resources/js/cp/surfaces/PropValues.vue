@@ -44,7 +44,7 @@ function bound(handle) {
         v-for="field in props.store.fields"
         :key="field.handle"
         class="sve-pv__row"
-        :data-group="field.type === 'grid' || field.type === 'group' ? '' : undefined"
+        :data-group="['replicator', 'grid', 'group'].includes(field.type) ? '' : undefined"
       >
         <div class="sve-pv__bar">
           <span class="sve-pv__label">{{ field.display }}</span>
@@ -107,6 +107,12 @@ function bound(handle) {
   without it a row is two boxes nobody can tell apart.
 */
 .sve-pv__row:not([data-group]) :deep([data-ui-field-header]) {
+  display: none;
+}
+/* A group's own header, and only its own: the list's "collapse all" bar. Its
+   rows already fold one at a time, and the bar was a line of height with a
+   lone button in it. The headers of the fields inside the rows stay. */
+.sve-pv__row[data-group] > :deep([data-ui-input-group] > [data-ui-field-header]) {
   display: none;
 }
 .sve-pv__row + .sve-pv__row {

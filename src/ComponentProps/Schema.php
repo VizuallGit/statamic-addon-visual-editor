@@ -144,7 +144,7 @@ final class Schema
         $repeat = ($prop['repeat'] ?? false) === true;
         $default = GroupValue::decode($row['default']);
 
-        $row['default'] = GroupValue::encode(array_column($fields, 'handle'), $default['rows'] ?? [], $repeat);
+        $row['default'] = GroupValue::encode(array_column($fields, 'handle'), $default['rows'] ?? [], $repeat, $default['off'] ?? []);
         $row['repeat'] = $repeat;
         $row['fields'] = $fields;
 

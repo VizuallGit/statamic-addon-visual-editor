@@ -7,17 +7,23 @@ use MarioHamann\StatamicVisualEditor\PropFields;
 /**
  * A group, as the Control Panel's own fields.
  *
- * A group that repeats is Statamic's Grid — rows added, removed and dragged
- * the way they are everywhere else in the Control Panel. One that does not is
- * Statamic's Group. Neither is drawn here: the fields inside are the same
- * fields every other prop is turned into, nested in the fieldtype Statamic
- * already has for nesting them.
+ * A group that repeats is Statamic's Replicator with one set — rows added,
+ * removed, dragged and switched off the way they are everywhere else in the
+ * Control Panel — folded as an accordion: every row shut to its one-line
+ * preview, and opening one shuts the others. A grid stays open row by row,
+ * and four rows of four fields filled the whole column. One that does not
+ * repeat is Statamic's Group. Neither is drawn here: the fields inside are the
+ * same fields every other prop is turned into, nested in the fieldtype
+ * Statamic already has for nesting them.
  *
  * Both directions go a field at a time through `PropFields`, so a picture in a
  * row is the same URL a picture prop is, and rich text the same HTML.
  */
 final class GroupFields
 {
+    /** The one set a list's rows are. A replicator row names its set. */
+    private const SET = 'row';
+
     public static function config(array $prop, string $label): array
     {
         $fields = [];
@@ -33,14 +39,21 @@ final class GroupFields
 
         if (static::repeats($prop)) {
             return [
-                'type' => 'grid',
+                'type' => 'replicator',
                 'display' => $label,
                 'hide_display' => true,
-                // One field above the next: the panel is narrow, and a table
-                // of columns in it would be a row of slivers.
-                'mode' => 'stacked',
+                'collapse' => 'accordion',
+                'previews' => true,
                 'fullscreen' => false,
-                'fields' => $fields,
+                'button_label' => __('sve::messages.component_props_add_row'),
+                'sets' => [
+                    'main' => [
+                        'display' => $label,
+                        'sets' => [
+                            self::SET => ['display' => $label, 'fields' => $fields],
+                        ],
+                    ],
+                ],
             ];
         }
 
@@ -62,15 +75,19 @@ final class GroupFields
             return null;
         }
 
-        $rows = array_map(function (array $row) use ($prop) {
+        $off = array_flip($value['off']);
+        $rows = [];
+
+        foreach ($value['rows'] as $at => $row) {
             $out = [];
 
             foreach (static::fields($prop) as $field) {
                 $out[$field['handle']] = PropFields::toPublish($field, (string) ($row[$field['handle']] ?? ''));
             }
 
-            return $out;
-        }, $value['rows']);
+            // A replicator row names its set, and says whether it is on.
+            $rows[] = static::repeats($prop) ? ['type' => self::SET, 'enabled' => ! isset($off[$at]), ...$out] : $out;
+        }
 
         return static::repeats($prop) ? $rows : ($rows[0] ?? null);
     }
@@ -92,6 +109,7 @@ final class GroupFields
             ? (is_array($value) ? array_values($value) : [])
             : (is_array($value) ? [$value] : []);
         $out = [];
+        $off = [];
 
         foreach ($rows as $row) {
             if (! is_array($row)) {
@@ -104,6 +122,10 @@ final class GroupFields
                 $clean[$field['handle']] = PropFields::toParam($field, $row[$field['handle']] ?? null);
             }
 
+            if (($row['enabled'] ?? true) === false) {
+                $off[] = count($out);
+            }
+
             $out[] = $clean;
         }
 
@@ -113,7 +135,7 @@ final class GroupFields
             return '';
         }
 
-        return GroupValue::encode(array_column($fields, 'handle'), $out, static::repeats($prop));
+        return GroupValue::encode(array_column($fields, 'handle'), $out, static::repeats($prop), $off);
     }
 
     /** @return list<array<string, mixed>> */

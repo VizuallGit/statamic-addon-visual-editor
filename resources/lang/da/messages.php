@@ -289,6 +289,7 @@ return [
     'component_props_group_fields' => ':count felter',
     'component_props_group_rows' => ':count rækker',
     'component_props_group_one_row' => '1 række',
+    'component_props_add_row' => 'Tilføj række',
     'component_props_options' => 'Valgmuligheder, adskilt med komma',
     'component_props_page' => 'Vælg en side',
     'component_props_pages_none' => 'Ingen sider at linke til endnu.',

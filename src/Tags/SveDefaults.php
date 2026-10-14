@@ -101,7 +101,7 @@ class SveDefaults extends Tags
         $fields = array_values(array_unique([...$declared['fields'], ...($passed['fields'] ?? [])]));
         $rows = array_map(
             fn (array $row) => array_map(fn ($value) => $this->literal($value), $row),
-            GroupValue::fill($fields, $passed['rows'] ?? $declared['rows'])
+            GroupValue::fill($fields, GroupValue::shown($passed ?? $declared))
         );
 
         if ($declared['repeat']) {
