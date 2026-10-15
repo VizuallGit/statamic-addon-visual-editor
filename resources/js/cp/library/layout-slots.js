@@ -29,6 +29,9 @@ const URL = '/!/sve/layout-slots';
 /** The places, as the server last described them; null until asked. */
 let slots = null;
 let asking = null;
+// Bumped by forget and by every write: an answer to a read that started
+// before either is the state from before, and is dropped.
+let epoch = 0;
 
 /** True while Live Preview is on the layout. */
 export function layoutOpen(win) {
@@ -51,24 +54,45 @@ export function layoutSlots() {
  */
 export function forgetLayoutSlots() {
   slots = null;
+  asking = null;
+  epoch++;
+}
+
+/** The site Live Preview edits — the CP's selected site — so a write lands in that site's globals. */
+function site(win) {
+  return String(win.Statamic?.$config?.get?.('selectedSite') || '');
 }
 
 /** Ask the server what is in the layout. One request at a time. */
 export function loadLayoutSlots(win) {
-  asking ??= win
-    .fetch(URL, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+  if (asking) {
+    return asking;
+  }
+
+  const mine = epoch;
+  const query = site(win) ? `?site=${encodeURIComponent(site(win))}` : '';
+  const request = win
+    .fetch(`${URL}${query}`, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
-      slots = data?.slots && typeof data.slots === 'object' ? data.slots : {};
+      if (mine === epoch) {
+        slots = data?.slots && typeof data.slots === 'object' ? data.slots : {};
+      }
     })
     .catch(() => {
-      slots = {};
+      if (mine === epoch) {
+        slots = {};
+      }
     })
     .finally(() => {
-      asking = null;
+      if (asking === request) {
+        asking = null;
+      }
     });
 
-  return asking;
+  asking = request;
+
+  return request;
 }
 
 /**
@@ -150,6 +174,9 @@ function put(win, tab, value, onChange) {
 async function write(win, method, body, onChange) {
   let data = null;
 
+  epoch++;
+  asking = null;
+
   try {
     const res = await win.fetch(URL, {
       method,
@@ -160,7 +187,7 @@ async function write(win, method, body, onChange) {
         'X-CSRF-TOKEN': csrfToken(win),
         'X-Requested-With': 'XMLHttpRequest',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, site: site(win) }),
     });
 
     data = await res.json().catch(() => null);

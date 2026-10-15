@@ -41,8 +41,8 @@ export function layoutCardStates(slot, tab, { query = '', saved = [] } = {}) {
   }
 
   const current = (slot.rows || [])[0] || null;
-
-  return (slot.types || [])
+  const types = slot.types || [];
+  const cards = types
     .filter((type) => matches(type.display))
     .map((type) => {
       const mine = !!current && current.type === type.handle;
@@ -57,4 +57,21 @@ export function layoutCardStates(slot, tab, { query = '', saved = [] } = {}) {
         state: mine ? 'in' : current ? 'blocked' : 'free',
       };
     });
+
+  // The row in the place is of a set the list does not offer — renamed,
+  // hidden, removed. It still gets its card, in use, so its trash can empty
+  // the place; otherwise every card would be greyed and nothing could go in.
+  if (current && !types.some((type) => type.handle === current.type) && matches(current.type)) {
+    cards.unshift({
+      key: current.type,
+      title: current.type,
+      imageUrl: '',
+      value: current.type,
+      item: { handle: current.type, display: current.type },
+      row: current,
+      state: 'in',
+    });
+  }
+
+  return cards;
 }

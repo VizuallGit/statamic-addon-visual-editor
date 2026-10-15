@@ -30,8 +30,20 @@ final class LayoutSlots
     /** Places that hold a single row. */
     public const SINGLE = ['header', 'footer'];
 
-    /** The set a global section is placed with — the page builder's own, drawn by its partial. */
-    public const SECTION_SET = 'global_section';
+    /**
+     * The set a global section is placed with — the page builder's own, drawn
+     * by its partial — and the collection the sections are saved in. The
+     * site's names, as the rest of the editor reads them.
+     */
+    public static function sectionSet(): string
+    {
+        return (string) config('statamic-visual-editor.saved_sections.set', 'global_section');
+    }
+
+    private static function sectionCollection(): string
+    {
+        return (string) config('statamic-visual-editor.saved_sections.collection', 'saved_sections');
+    }
 
     /** Where a place is stored: `['set' => 'site_head', 'field' => 'header']`, or null. */
     public static function target(string $slot): ?array
@@ -149,7 +161,7 @@ final class LayoutSlots
     public static function add(string $slot, string $value, ?string $site = null): ?string
     {
         $target = static::target($slot);
-        $variables = $target && static::field($slot) ? static::variables($target['set'], $site) : null;
+        $variables = $target && static::field($slot) ? static::variables($target['set'], $site, true) : null;
 
         if (! $variables) {
             return 'missing';
@@ -161,7 +173,7 @@ final class LayoutSlots
         if ($slot === 'sections') {
             $entry = Entry::find($value);
 
-            if (! $entry || $entry->collectionHandle() !== 'saved_sections') {
+            if (! $entry || $entry->collectionHandle() !== static::sectionCollection()) {
                 return 'unknown';
             }
 
@@ -169,7 +181,8 @@ final class LayoutSlots
                 return 'twice';
             }
 
-            $rows[] = ['id' => $id, 'type' => self::SECTION_SET, self::SECTION_SET => $value, 'enabled' => true];
+            $set = static::sectionSet();
+            $rows[] = ['id' => $id, 'type' => $set, $set => $value, 'enabled' => true];
         } else {
             if ($rows !== []) {
                 return 'taken';
@@ -191,7 +204,7 @@ final class LayoutSlots
     public static function remove(string $slot, string $rowId, ?string $site = null): bool
     {
         $target = static::target($slot);
-        $variables = $target ? static::variables($target['set'], $site) : null;
+        $variables = $target ? static::variables($target['set'], $site, true) : null;
         $rows = static::rows($slot, $site);
         $kept = array_values(array_filter($rows, fn ($row) => (string) ($row['id'] ?? '') !== $rowId));
 
@@ -213,7 +226,7 @@ final class LayoutSlots
     /** The saved section a sections row points at — stored as an id, or a one-item list. */
     private static function entryId(array $row): ?string
     {
-        $value = $row[self::SECTION_SET] ?? null;
+        $value = $row[static::sectionSet()] ?? null;
 
         if (is_array($value)) {
             $value = $value[0] ?? null;
@@ -222,11 +235,20 @@ final class LayoutSlots
         return is_string($value) && $value !== '' ? $value : null;
     }
 
-    private static function variables(string $handle, ?string $site)
+    /**
+     * The global set's values in a site. Reading falls back to the default
+     * site, as Statamic does for a site without its own; writing does not —
+     * it would land, unseen, in another site's header.
+     */
+    private static function variables(string $handle, ?string $site, bool $write = false)
     {
         $set = GlobalSet::findByHandle($handle);
         $site ??= Site::selected()?->handle() ?? Site::default()->handle();
 
-        return $set ? ($set->in($site) ?? $set->inDefaultSite()) : null;
+        if (! $set) {
+            return null;
+        }
+
+        return $write ? $set->in($site) : ($set->in($site) ?? $set->inDefaultSite());
     }
 }

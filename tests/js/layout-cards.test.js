@@ -59,3 +59,15 @@ test('a place the site does not have is null, not an empty list', () => {
   assert.equal(layoutCardStates(undefined, 'footer'), null);
   assert.deepEqual(layoutCardStates({ single: true, types: [], rows: [] }, 'footer'), []);
 });
+
+test('a header of a set the list no longer offers still gets its card, in use, so it can be deleted', () => {
+  const cards = layoutCardStates(header([{ id: 'r1', type: 'header/old' }]), 'header');
+
+  assert.deepEqual(states(cards), {
+    'header/old': 'in',
+    'header/custom': 'blocked',
+    'header/style_1': 'blocked',
+    'header/style_2': 'blocked',
+  });
+  assert.equal(cards[0].row.id, 'r1');
+});
