@@ -36,6 +36,7 @@ import LibrarySaveButton from './cp/surfaces/LibrarySaveButton.vue';
 import { mountPane } from './cp/mount-pane.js';
 import { mountSurface } from './cp/mount.js';
 import { deleteLibraryUi } from './cp/library/delete-store.js';
+import { forgetLayoutSlots, layoutCards, layoutOpen, layoutSlots, layoutTabs, loadLayoutSlots } from './cp/library/layout-slots.js';
 import {
   RIGHT_DOCK_ID,
   RIGHT_DOCK_PIN_STACK,
@@ -2392,17 +2393,26 @@ export function mountSectionPicker(win, options = {}) {
   });
   groupsEl.addEventListener('scroll', syncGroupsFade);
 
-  const tabs = [
+  const pageTabs = [
     { key: 'page', feature: 'library_page', label: t(win, 'tab_page') },
     { key: 'custom', feature: 'library_custom', label: t(win, 'tab_custom') },
     { key: 'global', feature: 'library_global', label: t(win, 'tab_global') },
     { key: 'template', feature: 'library_templates', label: t(win, 'tab_templates') },
   ].filter((tab) => featureOn(win, tab.feature));
 
+  // On the layout the panel offers the layout's places instead — its header,
+  // its footer, the global sections under every page — and nothing a page
+  // builder takes. Read again on every render: Live Preview may have moved on
+  // to a page, or back, with the panel still standing.
+  let layoutMode = layoutOpen(win);
+  let tabs = layoutMode ? layoutTabs(win) : pageTabs;
+
+  forgetLayoutSlots();
+
   // 'page' is the natural landing tab, but a site can switch it off — then the
   // first tab that survived is what opens.
-  const fallbackTab = tabs.some((tab) => tab.key === 'page') ? 'page' : tabs[0]?.key;
-  let active = initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : fallbackTab;
+  const fallbackTab = () => (tabs.some((tab) => tab.key === 'page') ? 'page' : tabs[0]?.key);
+  let active = initialTab && tabs.some((tab) => tab.key === initialTab) ? initialTab : fallbackTab();
   let saved = null;
   let templates = null;
   let query = '';
@@ -2415,7 +2425,10 @@ export function mountSectionPicker(win, options = {}) {
 
   // Natural-height preview cards in a CSS-columns masonry grid. The image sets
   // the card height (no fixed crop); break-inside keeps a card in one column.
-    const card = (title, imageUrl, kind, item) => {
+    // `layout`: a card for one of the layout's places ({@see layoutCards}) —
+    // in use, greyed, or dropped into its place; its trash takes it out of the
+    // layout rather than deleting it from the library.
+    const card = (title, imageUrl, kind, item, layout = null) => {
       const el = doc.createElement('div');
 
       el.setAttribute('data-sve-lib-handle', String(item?.handle || item?.id || title));
@@ -2428,16 +2441,25 @@ export function mountSectionPicker(win, options = {}) {
         title,
         imageUrl: imageUrl || '',
         noPreview: t(win, 'no_preview'),
-        canDelete: !!item?.can_delete,
-        onDelete: () => {
+        canDelete: layout ? !!layout.onRemove : !!item?.can_delete,
+        deleteLabel: layout?.removeLabel || '',
+        badge: layout?.badge || '',
+        note: layout?.note || '',
+        disabled: !!layout?.disabled,
+        onDelete: layout?.onRemove || (() => {
           confirmDeleteLibraryItem(win, kind, item, () => {
             saved = null;
             templates = null;
             renderActive();
           });
-        },
+        }),
       });
-      beginCardDrag(win, el, kind, item);
+
+      if (!layout) {
+        beginCardDrag(win, el, kind, item);
+      } else if (layout.onDrop) {
+        beginCardDrag(win, el, kind, item, layout);
+      }
 
       return el;
     };
@@ -2706,7 +2728,66 @@ export function mountSectionPicker(win, options = {}) {
   // Design cards for header/footer live in the LEFT chrome-designs panel now —
   // not in this sections library.
 
+  // The layout's places. Short lists that change only when a card is dropped
+  // or deleted, so the grid is drawn whole every time — `paintGrid` keeps
+  // cards whose key did not change, and a card here changes state, not key.
+  const renderLayout = () => {
+    if (layoutSlots() === null) {
+      gridEl.innerHTML = '';
+      gridEl.appendChild(empty(t(win, 'loading')));
+      void loadLayoutSlots(win).then(() => {
+        if (layoutMode) {
+          renderActive();
+        }
+      });
+
+      return;
+    }
+
+    if (active === 'sections' && saved === null) {
+      gridEl.innerHTML = '';
+      gridEl.appendChild(empty(t(win, 'loading')));
+      pollLibrary(
+        win,
+        '/!/sve/saved-sections',
+        (data) => data.sections || [],
+        (items) => {
+          saved = items;
+          renderActive();
+        },
+        () => {
+          saved = [];
+          renderActive();
+        }
+      );
+
+      return;
+    }
+
+    const view = layoutCards(win, active, { query, saved, onChange: () => renderActive() });
+
+    gridEl.innerHTML = '';
+
+    if (view.empty) {
+      gridEl.appendChild(empty(view.empty));
+
+      return;
+    }
+
+    view.rows.forEach((row) => gridEl.appendChild(card(row.title, row.imageUrl, 'layout', row.item, row.opts)));
+  };
+
   const renderActive = () => {
+    const nowLayout = layoutOpen(win);
+
+    if (nowLayout !== layoutMode) {
+      layoutMode = nowLayout;
+      forgetLayoutSlots();
+      tabs = layoutMode ? layoutTabs(win) : pageTabs;
+      active = fallbackTab();
+      group = null;
+    }
+
     mountPane(tabsEl, LibraryTabs, {
       tabs: tabs.map((tab) => ({ ...tab, on: tab.key === active })),
       onPick: (key) => {
@@ -2725,9 +2806,9 @@ export function mountSectionPicker(win, options = {}) {
     // No page builder on this blueprint: the panel still opens, and its top
     // line says why nothing dropped here lands, instead of telling you to drag.
     if (hintEl) {
-      const noBuilder = !formHasSectionField(win);
+      const noBuilder = !layoutMode && !formHasSectionField(win);
 
-      hintEl.textContent = t(win, noBuilder ? 'library_no_builder' : 'library_hint');
+      hintEl.textContent = t(win, layoutMode ? 'layout_hint' : noBuilder ? 'library_no_builder' : 'library_hint');
       hintEl.toggleAttribute('data-sve-no-builder', noBuilder);
     }
 
@@ -2736,6 +2817,12 @@ export function mountSectionPicker(win, options = {}) {
     }
 
     renderGroups();
+
+    if (layoutMode) {
+      renderLayout();
+
+      return;
+    }
 
     if (active === 'page') {
       if (!typesAsked || typesAskedFor !== sectionField(win)) {
@@ -3301,14 +3388,21 @@ export function pointerOverLivePreview(win, frame, event) {
  * Pointer drag on a library card. A release over the live preview inserts.
  * Letting go halfway (library, editor, chrome) cancels; nothing is added.
  * A click without a drag does not insert.
+ *
+ * With `drop` (`{ onDrop, dropLabel }`) the card has one place to go, not a
+ * spot between sections: the layout's header, footer or sections. The preview
+ * is not asked where — it is outlined while the pointer is over it, and a
+ * release there calls `onDrop`.
  */
-export function beginCardDrag(win, cardEl, kind, item) {
+export function beginCardDrag(win, cardEl, kind, item, drop = null) {
   cardEl.addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || sveState.libraryDrag) {
       return;
     }
 
-    if (kind === 'template') {
+    if (drop) {
+      // Nothing to prefetch: the server writes the row.
+    } else if (kind === 'template') {
       (item.sections || []).forEach((section) => {
         if (section?.type) {
           fetchSetMeta(win, section.type);
@@ -3325,6 +3419,7 @@ export function beginCardDrag(win, cardEl, kind, item) {
     let active = false;
     let ghost = null;
     let moved = false;
+    let outline = null;
 
     // In the page's own pixels: the frame may be drawn scaled — a device
     // preset, or the overview's row — and the bridge measures its sections
@@ -3353,7 +3448,19 @@ export function beginCardDrag(win, cardEl, kind, item) {
       // The iframe would swallow the pointer once we're over it — let this window
       // keep the events, and map the coordinates ourselves.
       frame.style.pointerEvents = 'none';
-      frame.contentWindow.postMessage({ source: SOURCE, type: MSG.EXT_DRAG_START }, win.location.origin);
+
+      if (drop) {
+        outline = doc.createElement('div');
+        outline.textContent = drop.dropLabel || '';
+        outline.style.cssText =
+          'position:fixed;z-index:2147483646;pointer-events:none;display:none;align-items:flex-start;justify-content:center;' +
+          'padding-top:1rem;border:2px dashed var(--theme-color-primary,#4f46e5);border-radius:0.5rem;' +
+          'background:color-mix(in srgb,var(--theme-color-primary,#4f46e5) 8%,transparent);' +
+          'font:600 0.8125rem/1.3 ui-sans-serif,system-ui,sans-serif;color:var(--theme-color-primary,#4f46e5);';
+        doc.body.appendChild(outline);
+      } else {
+        frame.contentWindow.postMessage({ source: SOURCE, type: MSG.EXT_DRAG_START }, win.location.origin);
+      }
 
       ghost = cardEl.cloneNode(true);
       ghost.style.cssText +=
@@ -3396,12 +3503,23 @@ export function beginCardDrag(win, cardEl, kind, item) {
         return;
       }
 
-      const p = toPreview(e);
+      if (outline) {
+        const over = pointerOverLivePreview(win, frame, e);
+        const r = frame.getBoundingClientRect();
 
-      frame.contentWindow.postMessage(
-        { source: SOURCE, type: MSG.EXT_DRAG_MOVE, x: p.x, y: p.y },
-        win.location.origin
-      );
+        outline.style.display = over ? 'flex' : 'none';
+        outline.style.left = `${r.left}px`;
+        outline.style.top = `${r.top}px`;
+        outline.style.width = `${r.width}px`;
+        outline.style.height = `${r.height}px`;
+      } else {
+        const p = toPreview(e);
+
+        frame.contentWindow.postMessage(
+          { source: SOURCE, type: MSG.EXT_DRAG_MOVE, x: p.x, y: p.y },
+          win.location.origin
+        );
+      }
 
       if (ghost) {
         ghost.style.left = `${e.clientX - 110}px`;
@@ -3425,6 +3543,20 @@ export function beginCardDrag(win, cardEl, kind, item) {
 
       const overPreview =
         e.type !== 'pointercancel' && pointerOverLivePreview(win, frame, e);
+
+      if (drop) {
+        outline?.remove();
+
+        if (frame) {
+          frame.style.pointerEvents = '';
+        }
+
+        if (overPreview) {
+          drop.onDrop();
+        }
+
+        return;
+      }
 
       if (overPreview) {
         // The bridge replies with ext-drop → the message listener inserts.

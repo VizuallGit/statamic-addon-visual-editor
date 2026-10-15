@@ -72,6 +72,12 @@ function prefetchLibraryCard(card) {
   const handle = card.getAttribute('data-sve-lib-handle');
   const set = card.getAttribute('data-sve-lib-set');
 
+  // A card for the layout's header, footer or sections goes in through the
+  // server (cp/library/layout-slots.js); no set meta is ever read for it.
+  if (kind === 'layout') {
+    return;
+  }
+
   if (set) {
     warm(set);
 

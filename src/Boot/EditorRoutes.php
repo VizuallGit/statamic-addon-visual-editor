@@ -19,6 +19,7 @@ use MarioHamann\StatamicVisualEditor\Http\Controllers\EntryBlueprintController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FileManagerController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\FontsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LibraryScanController;
+use MarioHamann\StatamicVisualEditor\Http\Controllers\LayoutSlotsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LinkTargetsController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\LiveReloadController;
 use MarioHamann\StatamicVisualEditor\Http\Controllers\PageSpeedController;
@@ -303,6 +304,13 @@ final class EditorRoutes
             // Who is drawn with a template, and which template draws an entry.
             Route::get('/!/sve/template-usage', [TemplateBoardController::class, 'usage'])
                 ->name('sve.template-usage');
+            // The layout's places: one header, one footer, global sections under the page.
+            Route::get('/!/sve/layout-slots', [LayoutSlotsController::class, 'index'])
+                ->name('sve.layout-slots.index');
+            Route::post('/!/sve/layout-slots', [LayoutSlotsController::class, 'store'])
+                ->name('sve.layout-slots.store');
+            Route::delete('/!/sve/layout-slots', [LayoutSlotsController::class, 'destroy'])
+                ->name('sve.layout-slots.destroy');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)

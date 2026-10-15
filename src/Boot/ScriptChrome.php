@@ -4,6 +4,7 @@ namespace MarioHamann\StatamicVisualEditor\Boot;
 
 use Illuminate\Support\Str;
 use MarioHamann\StatamicVisualEditor\CollectionViewFile;
+use MarioHamann\StatamicVisualEditor\LayoutSlots;
 use MarioHamann\StatamicVisualEditor\SectionTemplate;
 use MarioHamann\StatamicVisualEditor\SectionTemplate\Paths;
 use Statamic\Facades\GlobalSet;
@@ -85,6 +86,18 @@ final class ScriptChrome
         foreach (['header', 'footer'] as $half) {
             $handle = config("statamic-visual-editor.chrome.{$half}.global") ?: $shared;
             $set = $handle ? GlobalSet::findByHandle($handle) : null;
+
+            // A half placed from the layout's Patterns is a set on its own
+            // Replicator, named after its partial: `header/custom` is drawn
+            // by `partials/header/custom` — that is the style in use.
+            $placed = LayoutSlots::current($half, $site);
+
+            if (is_string($placed) && str_starts_with($placed, $half.'/')) {
+                $styles[$half] = substr($placed, strlen($half) + 1);
+
+                continue;
+            }
+
             $variables = $set ? ($set->in($site) ?? $set->inDefaultSite()) : null;
             $style = $variables?->get("{$half}_style");
 
