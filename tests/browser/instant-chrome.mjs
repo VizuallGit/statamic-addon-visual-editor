@@ -3,10 +3,9 @@
  * Instant paint and morph in the files that are NOT page-section rows: the
  * header, the footer and a static (custom) section.
  *
- * The header's file is the one the server names (`sveChromeTemplates`): the
- * partial carrying `data-sve-chrome="header"` — `partials/site_head` on a site
- * that writes its header there, `partials/header/style_1` on one whose header
- * is placed from the layout's Patterns. The dock used to open
+ * The header's file is the partial carrying `data-sve-chrome="header"` (on
+ * this site `partials/site_head.antlers.html`), the footer's is
+ * `partials/footer/widgets.antlers.html`. The dock used to open
  * `header/style_1` — a file nothing renders — so every keystroke saved and
  * the preview never changed. Each step types a static <p> into the open file,
  * measures how long the preview takes to show it (Instant is one frame) and
@@ -95,8 +94,6 @@ try {
   // Config values are reactive proxies; serialise inside the page, or the CDP hands back `{}`.
   const templates = JSON.parse(await cp.evaluate(() => JSON.stringify(window.Statamic?.$config?.get?.('sveChromeTemplates') ?? null)));
   step('server names the chrome files', !!templates?.header?.type && !!templates?.footer?.type, JSON.stringify(templates));
-  // The file a dock handle is: `header/style_1` → views/partials/header/style_1, `view:partials/site_head` → views/partials/site_head.
-  const fileOf = (type) => `resources/views/${String(type || '').startsWith('view:') ? type.slice(5) : `partials/${type}`}.antlers.html`;
 
   const dockPath = () => cp.evaluate(() => { const el = document.querySelector('#__sve-code-dock [data-sve-code-path], [data-sve-code-path]'); return el ? (el.getAttribute('data-sve-code-path') || el.textContent.trim()) : ''; });
   const openDock = async () => { let ok = false; for (let attempt = 1; attempt <= 2 && !ok; attempt++) { if (!(await cp.$('#__sve-code-dock [data-sve-code-pane="html"] .cm-editor'))) { await realClick(page, cp, '#__sve-toolbar button[data-tab="code"]'); await sleep(600); } ok = await waitIn(cp, '#__sve-code-dock [data-sve-code-pane="html"] .cm-editor', 15000); if (!ok) await sleep(2000); } await sleep(1200); return ok; };
@@ -170,7 +167,7 @@ try {
   await sleep(1500);
   step('code dock open', await openDock());
   let path = await waitPath(/site_head|partials\/header\//);
-  step('dock opened the header\'s file', !!path && path.endsWith(fileOf(templates?.header?.type)), `${path} (server: ${templates?.header?.type})`);
+  step('dock opened the header\'s file', /partials\/site_head\.antlers\.html$/.test(path), path);
   if (path) { remember(path); await probe('header', path, 'data-sve-chrome="header"', 'sve-probe-h', 'hdr', '[data-sve-chrome="header"]'); }
 
   // ---- Footer: leave the header first — inside a half the rest of the page is locked ----
@@ -178,7 +175,7 @@ try {
   step('footer editor open', await enterChrome('footer'));
   await sleep(2000);
   path = await waitPath(/partials\/footer\//);
-  step('dock opened the footer\'s file', !!path && path.endsWith(fileOf(templates?.footer?.type)), `${path} (server: ${templates?.footer?.type})`);
+  step('dock opened the footer\'s file', /partials\/footer\/widgets\.antlers\.html$/.test(path), path);
   if (path) { remember(path); await probe('footer', path, 'data-sve-chrome="footer"', 'sve-probe-f', 'ftr', '[data-sve-chrome="footer"]'); }
 
   // ---- Static (custom) section: a page-section row without a fieldset ----

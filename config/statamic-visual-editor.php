@@ -677,26 +677,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | The layout's places
-    |--------------------------------------------------------------------------
-    |
-    | What the layout draws on every page besides the page itself: one header,
-    | one footer, and the global sections under the page's content. Each is a
-    | Replicator on a global set, written `set.field`. Its sets are what the
-    | Patterns panel offers while Live Preview is on the layout — a header set
-    | is a fieldset plus a partial, the same as a page section.
-    |
-    | A place whose set or field is missing is simply not offered.
-    |
-    */
-    'layout' => [
-        'header' => 'site_head.header',
-        'footer' => 'site_foot.footer',
-        'sections' => 'site_layout.sections',
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | Data picker
     |--------------------------------------------------------------------------
     |
