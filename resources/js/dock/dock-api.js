@@ -33,6 +33,7 @@ import { HTML_TREE_PANEL_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { sectionField } from '../lib/config.js';
 import { activeContainers, pageHasSectionField } from '../lib/publish-containers.js';
+import { collectionViewType } from '../lib/collection-view.js';
 import { setTypeForUid } from '../focus-panel.js';
 import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
@@ -688,42 +689,6 @@ function pageSectionType(win, doc, uid) {
       if (type) {
         return type;
       }
-    }
-  }
-
-  return '';
-}
-
-export function collectionViewType(win) {
-  const features = win.Statamic?.$config?.get?.('sveFeatures') || {};
-
-  if (features.collection_templates !== true) {
-    return '';
-  }
-
-  const store = win.Statamic?.$config?.get?.('sveCollectionTemplatesCollection') || 'templates';
-  const path = win.location?.pathname || '';
-
-  if (!path.includes(`/collections/${store}/entries/`)) {
-    return '';
-  }
-
-  const containers = typeof activeContainers === 'function' ? activeContainers(win.document) : [];
-
-  for (const container of containers) {
-    const values = unwrapRef(container.values) || container.values;
-    const view = typeof values?.view === 'string' ? values.view.trim() : '';
-
-    if (!view || view.includes('..')) {
-      continue;
-    }
-
-    const normalised = view
-      .replace(/\.(antlers\.html|blade\.php)$/i, '')
-      .replace(/^\/+|\/+$/g, '');
-
-    if (normalised) {
-      return `view:${normalised}`;
     }
   }
 
