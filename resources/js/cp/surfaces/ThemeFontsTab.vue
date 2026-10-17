@@ -80,6 +80,11 @@ function usesOf(name) {
     uses.push(ui.labels.type_headings || 'Headings');
   }
 
+  // Only a family of its own: a Title that follows the headings is in their use.
+  if (ui.type['title-font'] && firstFamily(ui.type['title-font']).toLowerCase() === key) {
+    uses.push(ui.labels.type_title || 'Title');
+  }
+
   return uses;
 }
 </script>

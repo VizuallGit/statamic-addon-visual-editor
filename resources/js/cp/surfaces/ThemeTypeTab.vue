@@ -121,6 +121,73 @@
     <p class="sve-theme__hint" style="margin: 0">{{ ui.labels.type_levels_hint }}</p>
   </div>
 
+  <!-- The Title block's defaults: the top choice of font, weight and line height follows the headings. -->
+  <div class="sve-theme__section" data-sve-type-title>
+    <span class="sve-theme__section-title">{{ ui.labels.type_title }}</span>
+    <p class="sve-theme__hint" style="margin: -0.375rem 0 0">{{ ui.labels.type_title_hint }}</p>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_font }}</span>
+      <span class="sve-theme__input">
+        <select :value="firstFamily(ui.type['title-font'])" data-sve-type="title-font" @change="h.onType('title-font', $event.target.value && withFamily(ui.type['font-heading'], $event.target.value))">
+          <option value="">{{ followText(firstFamily(ui.type['font-heading'])) }}</option>
+          <option v-for="family in familiesWith(ui.type['title-font'])" :key="family" :value="family">{{ family }}</option>
+        </select>
+        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </label>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_size }}</span>
+      <span class="sve-theme__input">
+        <select :value="sizeRef(valueOf('title-size')) || ''" data-sve-type="title-size" @change="h.onType('title-size', `var(--${$event.target.value})`)">
+          <option v-for="o in sizeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </label>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_weight }}</span>
+      <span class="sve-theme__input">
+        <select :value="ui.type['title-weight']" data-sve-type="title-weight" @change="h.onType('title-weight', $event.target.value)">
+          <option value="">{{ followText(headingWeight) }}</option>
+          <option v-for="o in withCurrent(weightOptions(titleStack), ui.type['title-weight'])" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </label>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_line_height }}</span>
+      <span class="sve-theme__input">
+        <select :value="titleLeading" data-sve-type="title-line-height" @change="h.onType('title-line-height', $event.target.value)">
+          <option value="">{{ followText(headingLeading) }}</option>
+          <option v-for="o in withCurrent(leadingOptions, titleLeading)" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </label>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_letter_spacing }}</span>
+      <span class="sve-theme__input">
+        <select :value="titleTracking" data-sve-type="title-letter-spacing" @change="h.onType('title-letter-spacing', $event.target.value === 'normal' ? '' : $event.target.value)">
+          <option v-for="o in withCurrent(trackingOptions, titleTracking)" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </label>
+    <div class="sve-theme__switch-row">
+      <span class="sve-theme__label">{{ ui.labels.type_capitals }}</span>
+      <button
+        type="button"
+        role="switch"
+        class="sve-theme__switch"
+        :class="{ 'is-on': titleUpper }"
+        :aria-checked="titleUpper"
+        :aria-label="ui.labels.type_title_uppercase"
+        data-sve-type="title-text-transform"
+        @click="h.onType('title-text-transform', titleUpper ? '' : 'uppercase')"
+      ><span></span></button>
+    </div>
+  </div>
+
   <div class="sve-theme__section">
     <span class="sve-theme__section-title">{{ ui.labels.type_sizes }}</span>
     <p class="sve-theme__hint" style="margin: -0.375rem 0 0">{{ ui.labels.type_sizes_hint }}</p>
@@ -145,7 +212,7 @@
 <script setup>
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { HEADINGS, TYPE_DEFAULTS, firstFamily, sizeRef, withFamily } from '../theme-panel/presets.js';
+import { HEADINGS, TRACKINGS, TYPE_DEFAULTS, firstFamily, sizeRef, withFamily } from '../theme-panel/presets.js';
 import { WEIGHT_NAMES, hasVariant } from '../theme-panel/font-helpers.js';
 import { installedFamily } from '../theme-panel/fonts.js';
 import ThemeLevelCell from './ThemeLevelCell.vue';
@@ -167,6 +234,15 @@ const bodyWeight = computed(() => valueOf('body-weight'));
 const bodyLeading = computed(() => leading(valueOf('line-height')));
 const headingWeight = computed(() => valueOf('heading-weight'));
 const headingLeading = computed(() => leading(valueOf('heading-line-height')));
+const titleStack = computed(() => ui.type['title-font'] || ui.type['font-heading']);
+const titleLeading = computed(() => leading(ui.type['title-line-height']));
+const titleTracking = computed(() => valueOf('title-letter-spacing'));
+const titleUpper = computed(() => ui.type['title-text-transform'] === 'uppercase');
+const trackingOptions = computed(() => TRACKINGS.map(([key, value]) => {
+  const name = ui.labels[`type_tracking_${key}`] || key;
+
+  return { value, label: value === 'normal' ? name : `${name} · ${value}`, short: value };
+}));
 
 const sizeOptions = computed(() => ui.sizes.map((s) => ({ value: s.name, label: `${s.name} · ${px(s)}`, short: s.name.replace(/^size-/, '') })));
 const leadingOptions = computed(() => ui.leadings.map((l) => ({ value: l.value, label: `${l.name} · ${l.value}`, short: l.value })));
@@ -206,6 +282,10 @@ function usesOf(name) {
       uses.push(level.toUpperCase());
     }
   });
+
+  if (sizeRef(valueOf('title-size')) === name) {
+    uses.push(ui.labels.type_title || 'Title');
+  }
 
   return uses;
 }

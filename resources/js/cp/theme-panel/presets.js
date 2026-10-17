@@ -18,23 +18,42 @@ export const HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 export const LEVEL_TOKENS = HEADINGS.flatMap((h) => [`${h}-weight`, `${h}-line-height`]);
 
 /**
+ * The Title block's defaults (`.block-title` in the site's type.css). Each is
+ * only in the file while it is set: an empty one falls back to the headings
+ * (font, weight, line height) or to the CSS default (size-100, none, normal).
+ */
+export const TITLE_TOKENS = [
+  'title-font', 'title-size', 'title-weight', 'title-line-height', 'title-text-transform', 'title-letter-spacing',
+];
+
+/**
  * Typography: body (family, size, weight, line height), headings (family,
  * weight, line height, capitals) and each level's size — plus its own
- * weight and line height when it has them.
+ * weight and line height when it has them — and the Title block.
  */
 export const TYPE_TOKENS = [
   'font-base', 'font-size', 'body-weight', 'line-height',
   'font-heading', 'heading-weight', 'heading-line-height', 'heading-text-transform',
   'font-size-h1', 'font-size-h2', 'font-size-h3', 'font-size-h4', 'font-size-h5', 'font-size-h6',
   ...LEVEL_TOKENS,
+  ...TITLE_TOKENS,
 ];
 
 /**
  * What the site's CSS falls back to while a token is not in site.css yet
  * (base.css: `var(--body-weight, 400)`; the heading rule in
- * cms_styles/layout_style_push: `var(--heading-line-height, var(--leading-flat))`).
+ * cms_styles/layout_style_push: `var(--heading-line-height, var(--leading-flat))`;
+ * `.block-title` in type.css: `var(--title-size, var(--size-100))`).
  */
-export const TYPE_DEFAULTS = { 'body-weight': '400', 'heading-weight': '700', 'heading-line-height': '1.1' };
+export const TYPE_DEFAULTS = {
+  'body-weight': '400', 'heading-weight': '700', 'heading-line-height': '1.1',
+  'title-size': 'var(--size-100)', 'title-letter-spacing': 'normal',
+};
+
+/** The letter spacings the Title offers, narrowest first — the same five as the block's own field. */
+export const TRACKINGS = [
+  ['ultra_narrow', '-0.05em'], ['narrow', '-0.025em'], ['normal', 'normal'], ['wide', '0.05em'], ['ultra_wide', '0.1em'],
+];
 
 export const BUTTON_TOKENS = ['button-font', 'button-size', 'button-weight', 'button-radius', 'button-transform'];
 
@@ -83,7 +102,7 @@ export function sizeRef(value) {
  * every render — the same list as its MANAGED pattern (app/Tags/ThemeTokens.php
  * on the site), so what the panel paints is what the page will get.
  */
-const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|button-[\w-]+|btn-radius)$/;
+const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius)$/;
 
 export function isManaged(name) {
   return MANAGED.test(name);

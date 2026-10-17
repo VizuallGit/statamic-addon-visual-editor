@@ -24,7 +24,7 @@ import { themePanelUi as ui } from './cp/theme-panel/store.js';
 import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, nudgeSteps, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
-import { BUTTON_TOKENS, LEVEL_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+import { BUTTON_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
@@ -116,7 +116,7 @@ function fontFamilies(win) {
     // no FontFaceSet: the theme's own families below are enough
   }
 
-  [ui.type['font-base'], ui.type['font-heading']].forEach((stack) => stack && names.add(firstFamily(stack)));
+  [ui.type['font-base'], ui.type['font-heading'], ui.type['title-font']].forEach((stack) => stack && names.add(firstFamily(stack)));
   names.delete('Iconfont');
 
   return [...names].filter(Boolean).sort((a, b) => a.localeCompare(b));
@@ -382,8 +382,9 @@ function tokenChanges() {
       changes[name] = null;
     }
 
-    // A heading level set back to "as the headings" loses its own line.
-    if (LEVEL_TOKENS.includes(name) && !ui.type[name]) {
+    // A heading level set back to "as the headings" loses its own line, and so
+    // does a Title value set back to its default.
+    if ((LEVEL_TOKENS.includes(name) || TITLE_TOKENS.includes(name)) && !ui.type[name]) {
       changes[name] = null;
     }
   }

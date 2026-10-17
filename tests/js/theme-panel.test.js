@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readTokens, resolveToken, writeTokens } from '../../resources/js/cp/theme-panel/tokens.js';
 import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resources/js/cp/theme-panel/sizes.js';
+import { TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged } from '../../resources/js/cp/theme-panel/presets.js';
 
 const CSS = `@import "tailwindcss";
 
@@ -130,4 +131,17 @@ test('a new size’s Tailwind lines land after their neighbours, in number order
     --size-1200: 9rem;
     --size-1300: 10rem;
 }`);
+});
+
+test('the Title tokens are typography the page gets on every render', () => {
+  for (const name of TITLE_TOKENS) {
+    assert.ok(TYPE_TOKENS.includes(name), name);
+    assert.ok(isManaged(name), name);
+  }
+
+  assert.ok(!isManaged('title-color'));
+});
+
+test('the Title letter spacings run narrowest first, with normal in the middle', () => {
+  assert.deepEqual(TRACKINGS.map(([, value]) => value), ['-0.05em', '-0.025em', 'normal', '0.05em', '0.1em']);
 });
