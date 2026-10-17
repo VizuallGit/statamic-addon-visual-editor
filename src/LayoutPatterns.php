@@ -19,16 +19,17 @@ use Statamic\Facades\Fieldset;
  * as before. A section's HTML is copied into the layout, inside `<main>`
  * under `{{ template_content }}`.
  *
- * One header, one footer: a drop onto a header that is not the empty default
- * is refused unless it says `replace` — the editor asks first. What is
- * replaced is kept under storage/sve-layout-backups/.
+ * `custom` is the header (and footer) every site starts with. The pattern in
+ * use is the one whose file the header's file still is, character for
+ * character; once the header is edited, none is. A drop onto a header asks
+ * first (`replace`); what is replaced is kept under storage/sve-layout-backups/.
  */
 final class LayoutPatterns
 {
     public const KINDS = ['header' => 'headers', 'footer' => 'footers', 'section' => 'sections'];
 
-    /** The pattern every header or footer starts as and goes back to. */
-    public const EMPTY = 'empty';
+    /** The header and footer every site starts with. Listed first. */
+    public const DEFAULT = 'custom';
 
     /** @return list<array{handle: string, title: string}> */
     public static function patterns(string $kind): array
@@ -37,31 +38,33 @@ final class LayoutPatterns
         $out = [];
 
         foreach (File::exists($dir) ? File::files($dir) : [] as $file) {
-            $name = Str::before($file->getFilename(), '.antlers.html');
-
             if (! str_ends_with($file->getFilename(), '.antlers.html')) {
                 continue;
             }
 
+            $name = Str::before($file->getFilename(), '.antlers.html');
             $fieldset = Fieldset::find(self::KINDS[$kind].'.'.$name);
             $out[] = ['handle' => $name, 'title' => $fieldset?->title() ?? Str::headline($name)];
         }
 
-        // The empty one first: it is where every header starts, and how to start over.
-        usort($out, fn ($a, $b) => [$a['handle'] !== self::EMPTY, $a['handle']] <=> [$b['handle'] !== self::EMPTY, $b['handle']]);
+        usort($out, fn ($a, $b) => [$a['handle'] !== self::DEFAULT, $a['handle']] <=> [$b['handle'] !== self::DEFAULT, $b['handle']]);
 
         return $out;
     }
 
-    /** What the panel shows: the patterns of each kind, and what is placed now. */
+    /** What the panel shows: the patterns of each kind, and which is in use. */
     public static function describe(): array
     {
         $out = [];
 
         foreach (['header', 'footer'] as $half) {
+            $current = static::normalise(File::exists(static::halfPath($half)) ? File::get(static::halfPath($half)) : '');
+
             $out[$half] = [
-                'patterns' => static::patterns($half),
-                'empty' => static::isEmpty($half),
+                'has' => static::stripComments($current) !== '',
+                'patterns' => array_map(fn ($p) => $p + [
+                    'current' => $current !== '' && $current === static::normalise(File::get(static::patternPath($half, $p['handle']))),
+                ], static::patterns($half)),
             ];
         }
 
@@ -73,25 +76,6 @@ final class LayoutPatterns
         return $out;
     }
 
-    /**
-     * Whether a half is still the empty default: its file draws only an empty
-     * root element, and its global set has no fields. Anything built in it —
-     * markup or a field — makes it the site's own header, which a drop never
-     * overwrites.
-     */
-    public static function isEmpty(string $half): bool
-    {
-        $path = static::halfPath($half);
-        $source = File::exists($path) ? File::get($path) : '';
-        $source = preg_replace('/\{\{#.*?#\}\}/s', '', $source);
-        $source = preg_replace('/\{\{\s*sve_tw[^}]*\}\}/', '', $source);
-        $tag = $half === 'header' ? 'header' : 'footer';
-
-        $emptyMarkup = trim($source) === '' || (bool) preg_match('#^\s*<'.$tag.'\b[^>]*>\s*</'.$tag.'>\s*$#s', $source);
-
-        return $emptyMarkup && static::blueprintFields($half) === [];
-    }
-
     /** Copy a header or footer pattern in. Null when it landed, else why not. */
     public static function place(string $half, string $handle, bool $replace = false): ?string
     {
@@ -99,7 +83,14 @@ final class LayoutPatterns
             return 'unknown';
         }
 
-        if (! static::isEmpty($half)) {
+        $path = static::halfPath($half);
+        $current = File::exists($path) ? static::normalise(File::get($path)) : '';
+
+        if ($current === static::normalise(File::get(static::patternPath($half, $handle)))) {
+            return null;
+        }
+
+        if (static::stripComments($current) !== '') {
             if (! $replace) {
                 return 'taken';
             }
@@ -107,16 +98,59 @@ final class LayoutPatterns
             static::backup($half);
         }
 
-        static::write($half, $handle);
+        File::put($path, File::get(static::patternPath($half, $handle)));
+
+        $dir = self::KINDS[$half];
+        $fields = Fieldset::find("{$dir}.{$handle}")?->contents()['fields'] ?? [];
+        $set = static::globalHandle($half);
+        $blueprint = Blueprint::find("globals.{$set}") ?? Blueprint::make($set)->setNamespace('globals');
+        $display = $half === 'header' ? 'Header' : 'Footer';
+
+        // The tab keeps its name: Live Preview finds the half's tab by it.
+        $blueprint->setContents([
+            'title' => $display,
+            'tabs' => [$half => ['display' => $display, 'sections' => [['fields' => array_values($fields)]]]],
+        ])->save();
+
+        GitSync::after('layout '.$half);
 
         return null;
     }
 
-    /** Put the empty default back. The file it had is kept under storage/. */
-    public static function clear(string $half): void
+    /** Copy a section pattern into the layout, under the page's content. */
+    public static function addSection(string $handle): ?string
     {
-        static::backup($half);
-        static::write($half, self::EMPTY);
+        $layoutPath = static::layoutPath();
+
+        if (! static::exists('section', $handle) || ! File::exists($layoutPath)) {
+            return 'unknown';
+        }
+
+        $layout = File::get($layoutPath);
+
+        if (str_contains($layout, static::marker($handle))) {
+            return 'twice';
+        }
+
+        if (! preg_match('/^([ \t]*)\{\{\s*template_content\s*\}\}[^\n]*\n/m', $layout, $m, PREG_OFFSET_CAPTURE)) {
+            return 'no_content';
+        }
+
+        $indent = $m[1][0];
+        $at = $m[0][1] + strlen($m[0][0]);
+        $block = static::marker($handle)."\n".rtrim(File::get(static::patternPath('section', $handle)));
+        $block = implode("\n", array_map(fn ($line) => $line === '' ? '' : $indent.$line, explode("\n", $block)))."\n";
+
+        File::put($layoutPath, substr($layout, 0, $at).$block.substr($layout, $at));
+        GitSync::after('layout section');
+
+        return null;
+    }
+
+    /** The view a pattern renders as, for its preview: `patterns/headers/custom`. */
+    public static function view(string $kind, string $handle): ?string
+    {
+        return static::exists($kind, $handle) ? 'patterns/'.self::KINDS[$kind].'/'.$handle : null;
     }
 
     /** Keep the half's file and blueprint as they are now, under storage/. */
@@ -134,74 +168,27 @@ final class LayoutPatterns
         }
     }
 
-    /** Copy a section pattern into the layout, under the page's content. */
-    public static function addSection(string $handle): ?string
+    private static function exists(string $kind, string $handle): bool
     {
-        $pattern = resource_path('views/patterns/sections/'.$handle.'.antlers.html');
-        $layoutPath = static::layoutPath();
-
-        if (! preg_match('/^[a-z0-9_-]+$/', $handle) || ! File::exists($pattern) || ! File::exists($layoutPath)) {
-            return 'unknown';
-        }
-
-        $layout = File::get($layoutPath);
-
-        if (str_contains($layout, static::marker($handle))) {
-            return 'twice';
-        }
-
-        if (! preg_match('/^([ \t]*)\{\{\s*template_content\s*\}\}[^\n]*\n/m', $layout, $m, PREG_OFFSET_CAPTURE)) {
-            return 'no_content';
-        }
-
-        $indent = $m[1][0];
-        $at = $m[0][1] + strlen($m[0][0]);
-        $block = static::marker($handle)."\n".rtrim(File::get($pattern))."\n";
-        $block = implode("\n", array_map(fn ($line) => $line === '' ? '' : $indent.$line, explode("\n", rtrim($block))))."\n";
-
-        File::put($layoutPath, substr($layout, 0, $at).$block.substr($layout, $at));
-        GitSync::after('layout section');
-
-        return null;
+        return isset(self::KINDS[$kind])
+            && preg_match('/^[a-z0-9_-]+$/', $handle)
+            && File::exists(static::patternPath($kind, $handle));
     }
 
-    private static function write(string $half, string $handle): void
+    private static function patternPath(string $kind, string $handle): string
     {
-        $dir = self::KINDS[$half];
-        File::put(static::halfPath($half), File::get(resource_path("views/patterns/{$dir}/{$handle}.antlers.html")));
-
-        $fields = Fieldset::find("{$dir}.{$handle}")?->contents()['fields'] ?? [];
-        $set = static::globalHandle($half);
-        $blueprint = Blueprint::find("globals.{$set}") ?? Blueprint::make($set)->setNamespace('globals');
-        $display = $half === 'header' ? 'Header' : 'Footer';
-
-        // The tab keeps its name: Live Preview finds the half's tab by it.
-        $blueprint->setContents([
-            'title' => $display,
-            'tabs' => [$half => ['display' => $display, 'sections' => [['fields' => array_values($fields)]]]],
-        ])->save();
-
-        GitSync::after('layout '.$half);
+        return resource_path('views/patterns/'.self::KINDS[$kind].'/'.$handle.'.antlers.html');
     }
 
-    private static function exists(string $half, string $handle): bool
+    /** Line endings and trailing blanks don't make two files different headers. */
+    private static function normalise(string $source): string
     {
-        return preg_match('/^[a-z0-9_-]+$/', $handle)
-            && File::exists(resource_path('views/patterns/'.self::KINDS[$half].'/'.$handle.'.antlers.html'));
+        return trim(implode("\n", array_map('rtrim', preg_split('/\R/', $source))));
     }
 
-    private static function blueprintFields(string $half): array
+    private static function stripComments(string $source): string
     {
-        $contents = Blueprint::find('globals.'.static::globalHandle($half))?->contents() ?? [];
-        $fields = [];
-
-        foreach ($contents['tabs'] ?? [] as $tab) {
-            foreach ($tab['sections'] ?? [] as $section) {
-                $fields = array_merge($fields, $section['fields'] ?? []);
-            }
-        }
-
-        return $fields;
+        return trim(preg_replace('/\{\{#.*?#\}\}/s', '', $source));
     }
 
     /** The marker a placed section starts with — how the panel knows it is there. */

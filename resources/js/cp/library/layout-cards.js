@@ -1,9 +1,10 @@
 /**
  * The cards in one of the layout's tabs, before anything is drawn.
  *
- * `data` is `/!/sve/layout-patterns`' answer. Every header and footer can be
- * dragged — a drop onto a header that is already there asks to replace it.
- * A section goes in once: after that its card says it is in the layout.
+ * `data` is `/!/sve/layout-patterns`' answer. The header (or footer) in use
+ * — the pattern its file still is — and a section already in the layout are
+ * `in`: shown faded, not draggable. Every other card can be dragged; over a
+ * header that is already there the drop asks to replace it.
  *
  * May import: nothing. Pure, so the rules are tested without a CP.
  */
@@ -28,8 +29,8 @@ export function layoutCardStates(data, tab, { query = '' } = {}) {
       value: pattern.handle,
       item: pattern,
       kind,
-      state: pattern.placed ? 'in' : 'free',
+      state: pattern.current || pattern.placed ? 'in' : 'free',
       // Over a header or footer already there, the drop asks first.
-      replaces: kind !== 'section' && place.empty === false,
+      replaces: kind !== 'section' && place.has === true,
     }));
 }

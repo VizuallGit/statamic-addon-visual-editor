@@ -2446,6 +2446,7 @@ export function mountSectionPicker(win, options = {}) {
         badge: layout?.badge || '',
         note: layout?.note || '',
         disabled: !!layout?.disabled,
+        previewUrl: layout?.previewUrl || '',
         onDelete: layout?.onRemove || (() => {
           confirmDeleteLibraryItem(win, kind, item, () => {
             saved = null;

@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue';
+
 defineProps({
   title: { type: String, required: true },
   imageUrl: { type: String, default: '' },
@@ -11,13 +13,51 @@ defineProps({
   badge: { type: String, default: '' },
   note: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  // A live preview instead of a picture: the pattern drawn by the site at
+  // full width, scaled down to the card (layout patterns).
+  previewUrl: { type: String, default: '' },
 });
+
+const frameBox = ref(null);
+
+/** Scale the drawn page to the card, and make the box as tall as the pattern. */
+function fit(event) {
+  const frame = event.target;
+  const box = frameBox.value;
+
+  if (!box) {
+    return;
+  }
+
+  // The page is drawn desktop-wide (the iframe's own width) and scaled to the card.
+  const scale = box.clientWidth / (frame.offsetWidth || 1);
+  let height = 0;
+
+  try {
+    const root = frame.contentDocument?.querySelector('[data-sve-pattern-preview]');
+    const top = root?.getBoundingClientRect().top ?? 0;
+
+    // A header drawn `position:absolute` has no height of its own; its
+    // children do.
+    for (const el of root ? [root, ...root.querySelectorAll('*')] : []) {
+      height = Math.max(height, el.getBoundingClientRect().bottom - top);
+    }
+  } catch {
+    /* not readable: keep the minimum */
+  }
+
+  frame.style.transform = `scale(${scale})`;
+  box.style.height = `${Math.ceil(Math.max(height, 60) * scale)}px`;
+}
 </script>
 
 <template>
   <div class="sve-lib-card" :data-sve-card-disabled="disabled || null" :data-sve-card-in-use="badge ? '' : null">
     <div class="sve-lib-card__preview">
-      <img v-if="imageUrl" :src="imageUrl" alt="">
+      <div v-if="previewUrl" ref="frameBox" class="sve-lib-card__frame">
+        <iframe :src="previewUrl" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" @load="fit" />
+      </div>
+      <img v-else-if="imageUrl" :src="imageUrl" alt="">
       <div v-else class="sve-lib-card__empty">{{ noPreview }}</div>
     </div>
     <div class="sve-lib-card__bar">
@@ -113,13 +153,28 @@ img {
 }
 .sve-lib-card[data-sve-card-disabled] {
   cursor: not-allowed;
+  opacity: 0.3;
 }
 .sve-lib-card[data-sve-card-disabled]:hover {
   border-color: rgba(128, 128, 128, 0.25);
 }
-.sve-lib-card[data-sve-card-disabled] .sve-lib-card__preview,
-.sve-lib-card[data-sve-card-disabled] [data-sve-card-title] {
-  opacity: 0.45;
+.sve-lib-card__frame {
+  position: relative;
+  overflow: hidden;
+  height: 3.75rem;
+  min-height: 3.5rem;
+  background: #fff;
+}
+.sve-lib-card__frame iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Desktop width, narrow enough that a header strip is still readable on a card. */
+  width: 64rem;
+  height: 100rem;
+  border: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
 }
 .sve-lib-card[data-sve-card-in-use] {
   cursor: default;

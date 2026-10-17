@@ -309,8 +309,10 @@ final class EditorRoutes
                 ->name('sve.layout-patterns.index');
             Route::post('/!/sve/layout-patterns', [LayoutPatternsController::class, 'store'])
                 ->name('sve.layout-patterns.store');
-            Route::delete('/!/sve/layout-patterns', [LayoutPatternsController::class, 'destroy'])
-                ->name('sve.layout-patterns.destroy');
+            // One pattern alone, for its card. A `…preview` path: the editor's
+            // render middleware (no Vite client, eager images) applies.
+            Route::get('/!/sve/layout-pattern-preview', [LayoutPatternsController::class, 'preview'])
+                ->name('sve.layout-patterns.preview');
 
             // Entries to jump to from the preview's collection picker.
             Route::get('/!/sve/collections/{collection}/entries', CollectionEntriesController::class)

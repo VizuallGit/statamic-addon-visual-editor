@@ -21,6 +21,7 @@ import { openCpOverlay } from '../open-overlay.js';
 import ChoiceDialog from '../surfaces/ChoiceDialog.vue';
 
 const URL = '/!/sve/layout-patterns';
+const PREVIEW_URL = '/!/sve/layout-pattern-preview';
 
 /** The patterns, as the server last described them; null until asked. */
 let slots = null;
@@ -99,16 +100,22 @@ export function layoutCards(win, tab, { query = '', onChange = () => {} } = {}) 
   }
 
   return {
-    rows: cards.map((card) => ({
-      ...card,
-      opts: card.state === 'in'
-        ? { badge: t(win, 'layout_in_layout') }
-        : {
-            onDrop: () => drop(win, card, onChange),
-            dropLabel: t(win, card.kind === 'section' ? 'layout_drop_main' : 'layout_drop_here'),
-            target: card.kind === 'section' ? 'main' : 'frame',
-          },
-    })),
+    rows: cards.map((card) => {
+      const previewUrl = `${PREVIEW_URL}?kind=${card.kind}&pattern=${encodeURIComponent(card.value)}`;
+
+      return {
+        ...card,
+        // In use (or already in the layout): faded, not draggable.
+        opts: card.state === 'in'
+          ? { disabled: true, previewUrl }
+          : {
+              previewUrl,
+              onDrop: () => drop(win, card, onChange),
+              dropLabel: t(win, card.kind === 'section' ? 'layout_drop_main' : 'layout_drop_here'),
+              target: card.kind === 'section' ? 'main' : 'frame',
+            },
+      };
+    }),
   };
 }
 
