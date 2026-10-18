@@ -179,6 +179,34 @@ class SectionTypesController
     }
 
     /**
+     * Makes a new section type from one on the page: "Duplicate as a new
+     * section". Same gate as making one from scratch. The display name is the
+     * author's (the dialog offers the source's with "copy" after it); the
+     * handle follows from it, in the source's folder.
+     */
+    public function copy(Request $request)
+    {
+        abort_unless(User::current()?->can('configure fields'), 403);
+
+        $handle = trim((string) $request->input('handle', ''));
+        $display = trim((string) $request->input('display', ''));
+
+        abort_if($handle === '' || $display === '', 400);
+
+        $made = SectionTypeMaker::copy(static::list($request), $handle, mb_substr($display, 0, 60));
+
+        if (is_string($made)) {
+            return response()->json(['error' => $made], $made === 'not_found' ? 404 : 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'section' => $made,
+            'section_types' => SectionTypes::map(static::blueprint($request)),
+        ]);
+    }
+
+    /**
      * Changes one set: kept out of the picker or let back in (`hidden`), or
      * given fields (`fields`) — the fieldset a static section was made
      * without. Same gate as making one: both edit the fieldset in the

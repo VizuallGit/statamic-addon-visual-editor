@@ -2,6 +2,7 @@
 
 namespace MarioHamann\StatamicVisualEditor;
 
+use MarioHamann\StatamicVisualEditor\SectionTypeMaker\Copy;
 use MarioHamann\StatamicVisualEditor\SectionTypeMaker\Names;
 use Statamic\Facades\Fieldset;
 
@@ -202,6 +203,20 @@ class SectionTypeMaker
     }
 
     /**
+     * A new section type made from `$source`: its markup, its baked Tailwind
+     * and its own fieldset copied under the new name, registered right after
+     * it. Returns the new set, or why not — `not_found`, `bad_name`, `failed`.
+     *
+     * @see Copy
+     *
+     * @return array{handle: string, display: string, group: string, view: string, fieldset: ?string, static: bool, hidden: bool}|string
+     */
+    public static function copy(SectionList|string $list, string $source, string $display): array|string
+    {
+        return Copy::run(static::list($list), $source, $display);
+    }
+
+    /**
      * Makes a new, empty group in the page builder — a tab in the fieldset,
      * with no sections yet — and returns it as `{handle, display}`. Null when
      * the name slugs to nothing. A name already in use gets a numbered
@@ -357,7 +372,7 @@ class SectionTypeMaker
     }
 
     /** The group a set handle sits in, or null. Every group is checked: which one is the site's business. */
-    protected static function groupOf(array $groups, string $handle): ?string
+    public static function groupOf(array $groups, string $handle): ?string
     {
         foreach ($groups as $key => $group) {
             if (isset($group['sets'][$handle]) && is_array($group['sets'][$handle])) {
@@ -371,7 +386,7 @@ class SectionTypeMaker
     /**
      * @return array{handle: string, display: string, group: string, fieldset: ?string, static: bool, hidden: bool}
      */
-    protected static function describe(string $handle, string $group, array $set): array
+    public static function describe(string $handle, string $group, array $set): array
     {
         $fieldset = null;
 

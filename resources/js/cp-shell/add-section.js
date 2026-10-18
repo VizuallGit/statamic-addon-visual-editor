@@ -18,7 +18,7 @@ import { syncStoredAlpineStates } from '../alpine-states.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn, soloSection } from '../focus-panel.js';
-import { closeRightPanels, dismissChromeForPageEdit, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, openSectionPicker, overlaySidTemplate, watchNewRow } from '../section-library.js';
+import { closeRightPanels, dismissChromeForPageEdit, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, openSectionPicker, overlaySidTemplate, pageSectionRow, rowDuplicable, watchNewRow } from '../section-library.js';
 import { handleOpenChrome, handleOpenGlobal, notifyChromeDirty, notifyGlobalSectionDirty, saveGlobalsPanel, setChromeSidebarMode } from '../globals-panel.js';
 import { applyStartingText, editSession, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest } from '../inline-edit.js';
 import { closeGlobalSectionPanel, forwardGlobalSectionFocus, globalSectionEditorOpen, saveGlobalSectionPanel } from '../global-section.js';
@@ -2051,7 +2051,16 @@ export function createMessageListener(doc = document, win = window) {
         handleRemoveRow(data, doc, win);
       }
     } else if (data.type === MSG.DUPLICATE_ROW) {
-      handleDuplicateRow(data, doc, win);
+      // A page section asks first: as itself, or as a new section type
+      // (section-copy.js, loaded on the first one). A block, a Grid row or a
+      // Bard set has no template of its own and is duplicated at once.
+      if (pageSectionRow(win, doc, data.uid) && rowDuplicable(data.uid, doc)) {
+        import('../section-copy.js')
+          .then(({ duplicateSection }) => duplicateSection(data, doc, win))
+          .catch(() => win.Statamic?.$toast?.error(t(win, 'section_duplicate_failed')));
+      } else {
+        handleDuplicateRow(data, doc, win);
+      }
     } else if (data.type === MSG.HIDE_ROW) {
       handleHideRow(data, doc, win);
     } else if (data.type === MSG.ROW_CAPS) {

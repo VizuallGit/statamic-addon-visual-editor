@@ -1067,6 +1067,68 @@
         return null;
     }
 
+    /** A row's section in the preview, by any uid the row carries — `data-sid` is `id` first, `_visual_id` on a fresh row. */
+    function sectionOfRow(doc, row) {
+        var keys = ['id', '_id', '_visual_id'];
+        var el;
+        var i;
+
+        for (i = 0; i < keys.length; i++) {
+            el = typeof row[keys[i]] === 'string' && row[keys[i]] !== '' ? sectionBySid(doc, row[keys[i]]) : null;
+
+            if (el) {
+                return el;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Every other section on the page the dock's file renders: the publish
+     * form's rows of the file's type, found in the preview by their uid. A
+     * section duplicated on the page shares its partial with the original;
+     * a class typed in the dock changed the focused one only, and the copy
+     * kept the old markup until the whole page was rendered again (Cuben,
+     * 18 Oct 2026). Rows, not the preview, say which sections are the file's.
+     */
+    function sameTypeSections(doc, live) {
+        var type = dockSectionType();
+        var field = cfg('sveSectionField', 'page_sections');
+        var out = [];
+        var values;
+        var rows;
+        var el;
+        var i;
+        var j;
+
+        if (!type || !doc) {
+            return out;
+        }
+
+        for (i = 0; i < containers.length; i++) {
+            values = unwrapRef(containers[i].values);
+            rows = values && Array.isArray(values[field]) ? values[field] : [];
+
+            for (j = 0; j < rows.length; j++) {
+                el = rows[j] && rows[j].type === type ? sectionOfRow(doc, rows[j]) : null;
+
+                if (el && el !== live && out.indexOf(el) === -1) {
+                    out.push(el);
+                }
+            }
+        }
+
+        return out;
+    }
+
+    /** The file's root in the preview and, for a page section, every other section of its type. */
+    function fileRootsLive(doc, root) {
+        var live = fileRootLive(doc, root);
+
+        return live ? [live].concat(sameTypeSections(doc, live)) : [];
+    }
+
     // Tag pairs whose body sees the same variables as the markup around
     // them. Every other pair — a loop, a collection, a nav, a glide — hands
     // its body its own, and a field in there is not the section's.
@@ -2735,23 +2797,32 @@
      * Save in the top bar. The block is found by its text, rendered with the
      * row's fields and minified as the server does; a block the paint cannot
      * render alike (a `{{ responsive_css }}` in it) is not found and stays.
-     * The whole text is kept on the element, so `restoreSavedCss` can put it
-     * back when the live sheet goes.
+     * One block per row in `ctxs` — every section of the file's type pushed
+     * its own — and every copy of it goes. The whole text is kept on the
+     * element, so `restoreSavedCss` can put it back when the live sheet goes.
      */
-    function cutSavedCss(doc, ctx) {
+    function cutSavedCss(doc, ctxs) {
         var saved = savedCss();
-        var needle = saved ? minifyLikeServer(cssForLive(saved, ctx)) : '';
+        var needles = saved
+            ? ctxs
+                .map(function (ctx) {
+                    return minifyLikeServer(cssForLive(saved, ctx));
+                })
+                .filter(function (needle, at, all) {
+                    return needle !== '' && all.indexOf(needle) === at;
+                })
+            : [];
         var styles;
         var i;
         var style;
+        var whole;
         var text;
-        var at;
 
         if (!doc || !doc.head) {
             return;
         }
 
-        if (!needle) {
+        if (!needles.length) {
             restoreSavedCss(doc);
 
             return;
@@ -2766,10 +2837,12 @@
                 continue;
             }
 
-            text = typeof style.__sveWhole === 'string' ? style.__sveWhole : style.textContent;
-            at = text.indexOf(needle);
+            whole = typeof style.__sveWhole === 'string' ? style.__sveWhole : style.textContent;
+            text = needles.reduce(function (rest, needle) {
+                return rest.split(needle).join('');
+            }, whole);
 
-            if (at === -1) {
+            if (text === whole) {
                 if (typeof style.__sveWhole === 'string') {
                     style.textContent = style.__sveWhole;
                     delete style.__sveWhole;
@@ -2778,8 +2851,7 @@
                 continue;
             }
 
-            style.__sveWhole = text;
-            text = text.slice(0, at) + text.slice(at + needle.length);
+            style.__sveWhole = whole;
 
             if (style.textContent !== text) {
                 style.textContent = text;
@@ -3421,10 +3493,14 @@
             return;
         }
 
+        // The section, and every other section of its type on the page: each
+        // is painted with its own row's values.
         if (live && live.tagName === root.tagName) {
-            if (!paintStructure(live, html, null)) {
-                syncClasses(live, root);
-            }
+            [live].concat(sameTypeSections(doc, live)).forEach(function (el) {
+                if (el.tagName === root.tagName && !paintStructure(el, html, null)) {
+                    syncClasses(el, root);
+                }
+            });
 
             return;
         }
@@ -3491,16 +3567,42 @@
     }
 
     /** The section the dock is on, as the page loop hands its partial the row — for the CSS pane's `{{ id }}` and friends. */
-    function cssContext(doc) {
+    /**
+     * The rows the CSS pane is rendered for: the focused section's, then every
+     * other section of the file's type — `#id-{{ id }}` is a rule per section,
+     * and a copy on the page needs its own. `[null]` when no row is known.
+     */
+    function cssContexts(doc) {
         var section;
+        var out;
 
         try {
             section = pageSection(doc);
+            out = (section ? [section].concat(sameTypeSections(doc, section)) : [])
+                .map(function (el) {
+                    return sectionContext(el.getAttribute('data-sid') || '');
+                })
+                .filter(Boolean);
 
-            return section ? sectionContext(section.getAttribute('data-sid') || '') : null;
+            return out.length ? out : [null];
         } catch (e) {
-            return null;
+            return [null];
         }
+    }
+
+    /** The CSS rendered once per row, each text once: an `@scope(.{{ _class }})` rule reads the same for every copy. */
+    function cssPerRow(css, ctxs) {
+        var out = [];
+
+        ctxs.forEach(function (ctx) {
+            var text = cssForLive(css, ctx);
+
+            if (out.indexOf(text) === -1) {
+                out.push(text);
+            }
+        });
+
+        return out;
     }
 
     /**
@@ -3572,17 +3674,19 @@
             bindPreview(doc);
         });
 
-        if (css !== lastCss) {
-            lastCss = css;
-            docs.forEach(function (doc) {
-                putStyle(doc, STYLE_CSS_ID, cssForLive(css, cssContext(doc)));
-            });
-        }
-
-        docs.forEach(placeLiveCss);
+        // Every paint, not only when the pane changed: the sections of the
+        // file's type change too (a copy made on the page), and the saved
+        // block is cut for each of them below — a copy whose saved rules were
+        // cut while the live sheet had none for it lost its styles.
+        lastCss = css;
         docs.forEach(function (doc) {
+            var ctxs = cssContexts(doc);
+
+            putStyle(doc, STYLE_CSS_ID, cssPerRow(css, ctxs).join('\n'));
+            placeLiveCss(doc);
+
             if (css) {
-                cutSavedCss(doc, cssContext(doc));
+                cutSavedCss(doc, ctxs);
             } else {
                 restoreSavedCss(doc);
             }
@@ -3853,7 +3957,7 @@
             return { targets: [], tag: '', tplEl: null, tplRoot: tplRoot, roots: [] };
         }
 
-        roots = snippetOnly ? snippetRootLive(doc, tplRoot) : [fileRootLive(doc, tplRoot)].filter(Boolean);
+        roots = snippetOnly ? snippetRootLive(doc, tplRoot) : fileRootsLive(doc, tplRoot);
         path = templatePathAt(html, at, null);
         tplEl = path ? elementAtPath(tplRoot, path) : null;
 

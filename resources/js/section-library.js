@@ -3910,10 +3910,41 @@ export function handleRemoveRow(data, doc, win) {
   }
 }
 
+/** The row when `uid` is a section of the page builder itself (not a block in one), else null. */
+export function pageSectionRow(win, doc, uid) {
+  const field = sectionField(win);
+
+  for (const container of activeContainers(doc)) {
+    const values = unwrapRef(container.values);
+    const found = values && typeof values === 'object' ? rowLocation(values, uid) : null;
+
+    if (!found) {
+      continue;
+    }
+
+    const row = found.rows[found.index];
+
+    return found.parentPath === field && row && typeof row.type === 'string' && row.type !== globalSectionSet(win)
+      ? row
+      : null;
+  }
+
+  return null;
+}
+
+/** Whether a row may be duplicated — not when it is locked, by whichever path the duplicate came. */
+export function rowDuplicable(uid, doc) {
+  return !rowIsLocked(uid, doc);
+}
+
 /**
  * Duplicate an orderable row (replicator set, Bard set, or grid row), keeping
  * its content but giving every id a fresh value — same idea as Statamic's
  * "Duplicate Set".
+ *
+ * `data.asType`: the copy is a row of that set instead — a section type just
+ * made from this one (section-copy.js), with the same fields, so the row's
+ * values and meta carry over as they are. Answers the copy, or nothing.
  */
 export async function handleDuplicateRow(data, doc, win) {
   if (rowIsLocked(data.uid, doc)) {
@@ -3944,6 +3975,10 @@ export async function handleDuplicateRow(data, doc, win) {
 
     if (copy && typeof copy === 'object' && 'enabled' in copy) {
       copy.enabled = true;
+    }
+
+    if (data.asType && copy && typeof copy === 'object' && typeof copy.type === 'string') {
+      copy.type = data.asType;
     }
 
     if (kind === 'bard-set' && copy?.type === 'set' && copy.attrs) {
@@ -3983,7 +4018,7 @@ export async function handleDuplicateRow(data, doc, win) {
     next.splice(index + 1, 0, copy);
     container.setFieldValue(parentPath, next);
 
-    return;
+    return copy;
   }
 }
 

@@ -5,6 +5,8 @@ const props = defineProps({
   heading: { type: String, required: true },
   groupLabel: { type: String, required: true },
   nameLabel: { type: String, required: true },
+  // The name to start from, selected so typing replaces it (a copy's "… copy").
+  value: { type: String, default: '' },
   placeholder: { type: String, default: '' },
   note: { type: String, default: '' },
   // [{ key, display }] in the order the page-builder fieldset lists them, so
@@ -27,7 +29,7 @@ const props = defineProps({
   onAddGroup: { type: Function, default: null },
 });
 
-const name = ref('');
+const name = ref(props.value);
 const groupList = ref([...props.groups]);
 const group = ref(props.groups[0]?.key ?? '');
 const addingGroup = ref(false);
@@ -89,7 +91,15 @@ const toggle = ref(props.toggleOn);
 const input = ref(null);
 const busy = ref(false);
 
-onMounted(() => nextTick(() => input.value?.focus()));
+onMounted(() =>
+  nextTick(() => {
+    input.value?.focus();
+
+    if (props.value) {
+      input.value?.select();
+    }
+  })
+);
 
 function submit() {
   const value = name.value.trim();

@@ -7,6 +7,7 @@ import { twCandidates } from '../tw-candidates.js';
 import { tailwindDockOn } from '../tailwind-complete.js';
 import { componentPropsOn } from '../component-props.js';
 import { csrfToken } from '../lib/csrf.js';
+import { pageSectionRows } from '../lib/publish-containers.js';
 import { t } from '../lib/i18n.js';
 import { dockState } from '../dock/state.js';
 import { paintHtmlScope, paintLock } from './scope.js';
@@ -33,6 +34,21 @@ export function isChromeTemplateType(win, type) {
   return Object.values(templates).some((t) => t && t.type === handle);
 }
 
+/** How many sections on the page render this type: rows of the form, each counted once however many forms hold it. */
+function sectionsOfType(win, type) {
+  const seen = new Set();
+
+  return pageSectionRows(win, win.document).filter((row) => {
+    if (row.type !== type || row.ids.some((id) => seen.has(id))) {
+      return false;
+    }
+
+    row.ids.forEach((id) => seen.add(id));
+
+    return true;
+  }).length;
+}
+
 export function refreshPreview(win) {
   const type = dockState.lastType;
 
@@ -41,6 +57,16 @@ export function refreshPreview(win) {
   // footer) as it was; the whole document is replayed instead, and the preview
   // morphs the focused half alone when one is focused.
   if (!dockState.lastUid || !type || String(type).startsWith('view:') || isChromeTemplateType(win, type)) {
+    replayLivePreview(win);
+
+    return;
+  }
+
+  // The file renders more than one section on this page — a section copied
+  // on the page shares it with the original. The preview morphs one section
+  // per render (`sve_sid` names one row), so the copy kept the old markup
+  // until the page was saved; the whole page is replayed instead.
+  if (sectionsOfType(win, type) > 1) {
     replayLivePreview(win);
 
     return;

@@ -101,6 +101,9 @@ final class EditorRoutes
             // A new, empty group in the page builder — a tab in the fieldset.
             Route::post('/!/sve/section-types/groups', [SectionTypesController::class, 'storeGroup'])
                 ->name('sve.section-types.groups.store');
+            // A copy of one as a type of its own: markup, fieldset, registration.
+            Route::post('/!/sve/section-types/copy', [SectionTypesController::class, 'copy'])
+                ->name('sve.section-types.copy');
             // One set changed in place: hidden from the picker or shown, or
             // given the fieldset a static section was made without.
             Route::patch('/!/sve/section-types', [SectionTypesController::class, 'update'])
