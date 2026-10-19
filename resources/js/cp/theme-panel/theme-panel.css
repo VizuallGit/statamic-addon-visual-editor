@@ -870,95 +870,19 @@
   color: #5eead4;
 }
 
-/* Typography: a text color — a dot on a button that opens the theme's swatches.
-   Its own class: `.sve-theme__swatch` is the Colors tab's step (color + name). */
-.sve-theme__dot {
+/* Typography: a text color's dot, in a field and in a level's cell */
+.sve-theme__swatch {
   flex: none;
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 0.75rem;
+  height: 0.75rem;
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
-.sve-theme__dot.is-empty {
-  background-image: repeating-linear-gradient(135deg, transparent 0 2px, rgba(255, 255, 255, 0.3) 2px 3px);
+.sve-theme__swatch.is-empty {
+  background: repeating-linear-gradient(135deg, transparent 0 2px, rgba(255, 255, 255, 0.3) 2px 3px);
 }
-.sve-theme__colorpick {
-  display: block;
-  min-width: 0;
-}
-.sve-theme__colorpick-trigger {
-  width: 100%;
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-.sve-theme__colorpick-trigger.is-open {
-  border-color: #0d9488;
-}
-.sve-theme__colorpick-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.sve-theme__colorpick.is-compact .sve-theme__colorpick-trigger {
-  height: 2rem;
-  padding: 0 0.375rem 0 0.625rem;
-  justify-content: space-between;
-}
-.sve-theme__colorpick-trigger.is-inherited .sve-theme__dot {
-  opacity: 0.45;
-}
-.sve-theme__colorpick-trigger.is-own {
-  border-color: rgba(94, 234, 212, 0.45);
-}
-.sve-theme__colorpop {
-  box-sizing: border-box;
-  position: fixed;
-  z-index: 2147483000;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border: 1px solid #3c3c3c;
-  border-radius: 0.5rem;
-  background: #1E1E21;
-  color: #d4d4d4;
-  font: 500 0.75rem/1.3 ui-sans-serif, system-ui, sans-serif;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
-}
-.sve-theme__colorpop-none {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.5rem;
-  border: 1px solid #3c3c3c;
-  border-radius: 0.375rem;
-  background: #161618;
-  color: #fff;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.sve-theme__colorpop-none.is-picked {
-  border-color: #0d9488;
-}
-.sve-theme__colorpop-family {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-.sve-theme__colorpop-title {
-  color: #fff;
-  font-weight: 600;
-}
-.sve-theme__colorpop .sve-theme__swatch:focus-visible {
-  outline: 2px solid #0d9488;
-  outline-offset: 2px;
-  border-radius: 0.5rem;
+.sve-theme__cell.is-inherited .sve-theme__swatch {
+  opacity: 0.55;
 }
 
 /* Button: a sample on a page-like background */

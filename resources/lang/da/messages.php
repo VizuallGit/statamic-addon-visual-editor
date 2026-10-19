@@ -1033,7 +1033,6 @@ return [
     'theme_type_color' => 'Farve',
     'theme_type_color_none' => 'Ingen — som siden',
     'theme_type_color_hint' => 'Farverne kommer fra Farver-fanen. En sektions egen tekstfarve går forud, og på en mørk baggrund vælger auto-kontrast lys tekst.',
-    'theme_type_color_custom' => 'Egen værdi',
     'theme_type_letter_spacing' => 'Bogstavafstand',
     'theme_type_tracking_ultra_narrow' => 'Ultra smal',
     'theme_type_tracking_narrow' => 'Smal',
