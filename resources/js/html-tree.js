@@ -73,11 +73,12 @@ import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFiel
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
 import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
 import { openCollections } from './lp-collections.js';
-import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE } from './lib/ids.js';
+import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE, CHROME_CONTAINER } from './lib/ids.js';
 import { activeContainers, pageHasSectionField } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
 import { focusFromPreview, setMeta } from './focus-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
+import { GLOBAL_SECTION_CONTAINER } from './global-section.js';
 import { confirmCloseDiscard, navigateFromLp } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 import { hasToken } from './dock-partials.js';
@@ -1079,6 +1080,13 @@ function htmlTreeSections(win, doc) {
   const out = [];
 
   for (const container of activeContainers(doc) || []) {
+    // A global section's borrowed form and the header's form hold rows too,
+    // while they are open; those are not the page's, and listing them drew
+    // the section a second time under its own row.
+    if (container.name === GLOBAL_SECTION_CONTAINER || container.name === CHROME_CONTAINER) {
+      continue;
+    }
+
     const values = unwrapRef(container.values);
     const list = values && typeof values === 'object' ? values[field] : null;
 
@@ -1104,7 +1112,10 @@ function htmlTreeSections(win, doc) {
       const type = globalSectionType(win, row) || row.type;
       const custom = typeof row._sve_label === 'string' ? row._sve_label.trim() : '';
       // The file's first tag: what the row says open, so it says it shut too.
-      const tag = sectionRootTagOf(win, row.type);
+      // A global section's own file opens with a hidden <span> that only
+      // carries its id; the row is the section it renders, so its tag is that
+      // section's.
+      const tag = sectionRootTagOf(win, type);
 
       // Read before this tab held the file: should the file say otherwise when
       // it lands (edited elsewhere since), the row is drawn again.

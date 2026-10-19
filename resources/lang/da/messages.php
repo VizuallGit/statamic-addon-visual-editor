@@ -586,6 +586,8 @@ return [
 
     // Live Preview-chrome
     'all_sections' => 'Alle sektioner',
+    'selection_back' => 'Tilbage',
+    'selection_page' => 'Siden',
     'globals' => 'Globals…',
     'save_globals' => 'Gem globale indstillinger',
     'back_to_site' => 'Tilbage til sitet',
@@ -1030,10 +1032,6 @@ return [
     'theme_type_title' => 'Titel',
     'theme_type_title_hint' => 'Det Title-blokken starter med. Et valg på blokken eller i sektionen går forud.',
     'theme_type_title_uppercase' => 'Titler med store bogstaver',
-    'theme_type_color' => 'Farve',
-    'theme_type_color_none' => 'Ingen — som siden',
-    'theme_type_color_hint' => 'Farverne kommer fra Farver-fanen. En sektions egen tekstfarve går forud, og på en mørk baggrund vælger auto-kontrast lys tekst.',
-    'theme_type_color_custom' => 'Egen værdi',
     'theme_type_letter_spacing' => 'Bogstavafstand',
     'theme_type_tracking_ultra_narrow' => 'Ultra smal',
     'theme_type_tracking_narrow' => 'Smal',

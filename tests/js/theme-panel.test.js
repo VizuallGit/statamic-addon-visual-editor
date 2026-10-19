@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readTokens, resolveToken, writeTokens } from '../../resources/js/cp/theme-panel/tokens.js';
 import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resources/js/cp/theme-panel/sizes.js';
-import { COLOR_TOKENS, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged } from '../../resources/js/cp/theme-panel/presets.js';
+import { TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged } from '../../resources/js/cp/theme-panel/presets.js';
 
 const CSS = `@import "tailwindcss";
 
@@ -140,19 +140,6 @@ test('the Title tokens are typography the page gets on every render', () => {
   }
 
   assert.ok(!isManaged('title-color'));
-});
-
-test('the text colors are typography the page gets on every render', () => {
-  assert.deepEqual(COLOR_TOKENS, ['body-color', 'heading-color', 'h1-color', 'h2-color', 'h3-color', 'h4-color', 'h5-color', 'h6-color']);
-
-  for (const name of COLOR_TOKENS) {
-    assert.ok(TYPE_TOKENS.includes(name), name);
-    assert.ok(isManaged(name), name);
-  }
-
-  // Not a text color: a palette color is served as --color-*, and the Title has none (yet).
-  assert.ok(!isManaged('h7-color'));
-  assert.ok(!isManaged('color-text'));
 });
 
 test('the Title letter spacings run narrowest first, with normal in the middle', () => {

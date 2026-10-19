@@ -186,3 +186,66 @@ npm run test:switch    # opening a section writes nothing: no save, no section r
 ## Er det en Fable-opgave? (til Cursor / Opus / andre agenter)
 
 Spørger ejeren "kan du det, eller skal Fable?": **læs `.cursor/rules/hvornaar-fable.mdc` og svar ud fra den, før du rører noget.** Kort version: kernen (preview/overlay/bridge + `bridge/`, mirror, lp-replay, cp.js + `cp-shell/`, code-dock + `dock/`, dock-instant-preview), protokollen og udgivelseskæden (cp:build, `resources/dist`, composer.lock, Packagist, server/SSH) → **vent på Fable**. Vue-surfaces, panel-CSS, lang-strenge, rene hjælpere med tests, docs → fri bane, men kør `npm test` + `npm run isolate` og stop før build/udgivelse. I tvivl → sig "vent på Fable".
+
+---
+
+## The selection panel (phase 0, 19 October 2026, behind `selection_panel`)
+
+The left column's successor to the focus panel. The focus panel isolates
+Statamic's whole publish form down to one row with marks on the form's DOM
+(`solo`), waits for lite to mount the row, and shows a second time when the
+block inside had not opened — seven routes wrote into that column and the
+state lived in two places (DOM marks and `sveState`), which is what made the
+column jump, show the wrong thing after Publish, and vanish when a top-bar
+tool opened. The selection panel draws the selected row itself and owns one
+fact: which row is selected.
+
+**Files.** `lib/selection.js` (the one selection: `select`, `clearSelection`,
+`currentSelection`, `onSelection`), `cp/panel/resolve.js` (pure: a row's id →
+Statamic's field path, meta path and field definitions, walked from the
+blueprint's publish array), `cp/panel/store.js` (reactive: the context, the
+selection, `resolvedSelection` as a computed over the form's values),
+`cp/surfaces/SelectionPanel.vue` (header + Statamic's `PublishFieldsProvider`
+/ `PublishFields` from `@statamic/cms/ui`, drawn on the page form's own
+publish context), `selection-panel.js` (host in the column, routing from
+preview, tree, outline and the back arrow; the dock, tree and preview told
+when the panel itself selects). Flag: `Features::KEYS` `selection_panel`,
+default off; `selectionPanelOn(win)` is `featureSaidOn`.
+
+**What it changed elsewhere, all behind the flag:** the shell's `click`
+branch hands the row to `selectFromPreview` before the focus path; the block
+tree, outline and a11y rows call `selectRow` first; the Page Settings icon and
+`setLpMode('show')` clear the selection; the lite field injects
+`PublishContainerContext` and registers it (`registerContainerContext`,
+holder-counted) and stands down when the panel takes a row (its preview-click
+interceptor, `openLiteSection`, and its `rows` watcher, which otherwise took
+the first section after every save).
+
+**Phase 0 covers** page sections, the blocks inside them and grid rows. Not
+yet: Bard sets, header/footer, global sections (they keep the focus path —
+`selectionPanelTakes` says no and the old branch runs). Sibling-sync badges
+do not appear inside the panel yet (it walks `$parent` to the container).
+
+**Three traps, measured on the way (do not reintroduce):**
+
+1. *`display: none` on the hidden form unmounts it.* Statamic's PublishTabs
+   measures its tab bar; at zero width every tab overflows, the bar re-renders,
+   the active tab's content — the lite field, and with it the registered
+   context — unmounted 180 ms after the panel appeared. The form is hidden
+   out of flow at the column's width, `visibility: hidden`, never `display: none`.
+2. *`_visual_id` is an auto_uuid that renames a row drawn twice.* Its mount
+   claims the value in a module-wide set and replaces a value already claimed.
+   The panel filters `auto_uuid` out of the fields it draws and swaps field
+   trees one tick apart (`shownUid`), so a row drawn in the old tree and the
+   new (a block, then its section) is never mounted twice at once.
+3. *The lite field remounts while its form stays.* Vue creates the new
+   instance before the old unmounts; forgetting the context on unmount dropped
+   what the new instance had just registered. Holders are counted.
+
+**Proof:** `tests/browser/selection-panel.mjs` (needs the flag on for the
+site under test): leaf click paints that block alone in ~55 ms, a section in
+~260 ms (its nested sets mount collapsed — Statamic's cost), the same click
+three times gives the same panel, back steps block → section → page, typing
+reaches the preview, Save Changes keeps the panel, the block tree opens on
+the selected row, the Page Settings icon shows the page, no solo marks, no
+lite rows. Unit: `tests/js/selection.test.js`, `tests/js/panel-resolve.test.js`.

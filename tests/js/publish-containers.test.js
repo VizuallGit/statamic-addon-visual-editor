@@ -72,3 +72,4 @@ test('pageHasSectionField: a form whose values carry the page builder, empty or 
   // Without the setting the field is page_sections, which no form carries.
   assert.equal(pageHasSectionField({}, emptyDoc), false);
 });
+

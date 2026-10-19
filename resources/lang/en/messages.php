@@ -589,6 +589,8 @@ return [
 
     // Live Preview chrome
     'all_sections' => 'All sections',
+    'selection_back' => 'Back',
+    'selection_page' => 'Page',
     'globals' => 'Globals…',
     'save_globals' => 'Save global settings',
     'back_to_site' => 'Back to the site',
@@ -1036,10 +1038,6 @@ return [
     'theme_type_title' => 'Title',
     'theme_type_title_hint' => 'Where the Title block starts. A choice on the block or its section comes first.',
     'theme_type_title_uppercase' => 'Titles in capitals',
-    'theme_type_color' => 'Color',
-    'theme_type_color_none' => 'None — as the page',
-    'theme_type_color_hint' => 'The colors come from the Colors tab. A section’s own text color goes first, and on a dark background auto-contrast picks light text.',
-    'theme_type_color_custom' => 'Custom',
     'theme_type_letter_spacing' => 'Letter spacing',
     'theme_type_tracking_ultra_narrow' => 'Ultra narrow',
     'theme_type_tracking_narrow' => 'Narrow',

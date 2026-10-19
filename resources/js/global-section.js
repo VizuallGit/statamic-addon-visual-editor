@@ -17,10 +17,10 @@ import {
 import { syncCodeDock } from './code-dock-lazy.js';
 import { FOCUS_HEADER_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, SECTION_PANEL_REVEAL_MS } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
-import { sectionField } from './lib/config.js';
+import { sectionField, selectionPanelOn } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
-import { activeContainers, publishContainers, registerContainerEvents, registerContainerSource } from './lib/publish-containers.js';
+import { activeContainers, adoptContextFromHost, publishContainers, registerContainerEvents, registerContainerSource, unregisterContainerContext } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, focusFieldOwner, hideSettingsBar, lpStoredWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 import { closeRightPanels, savedSectionsCollection, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
@@ -30,6 +30,7 @@ import { dockedPanelTop } from './lazy/listview.js';
 import { editSession } from './inline-edit.js';
 import { ask } from './cp/bus.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { clearSelection, select } from './lib/selection.js';
 
 // ===== global-section-panel =====
 // --- Global section panel -------------------------------------------------------
@@ -1045,10 +1046,57 @@ export async function openGlobalSectionInline(win, id) {
   globalSectionEntryPath = new URL(loaded.path, win.location.origin).pathname;
   watchGlobalSectionInlineSaves(win);
   watchGlobalSectionInlineValues(win, id);
-  bootGlobalSectionSolo(win, doc, host);
+
+  if (selectionPanelOn(win)) {
+    adoptGlobalSectionContext(win, host);
+  } else {
+    bootGlobalSectionSolo(win, doc, host);
+  }
   notifyGlobalSectionDirty(win);
   syncSectionLibraryAvailability(win);
   win.setTimeout(() => syncCodeDock(win, doc, null), 200);
+}
+
+/** The borrowed form's publish context, while the selection panel draws it. */
+let globalSectionCtx = null;
+
+/**
+ * The selection panel's way in: the borrowed form's context is read off its
+ * fields once they are drawn, the rows get the ids the preview targets them by
+ * (legacy synced entries lost their nested ids on save), and the section's
+ * first row is selected — drawn on that context, nothing isolated, no reveal
+ * timer.
+ */
+function adoptGlobalSectionContext(win, host) {
+  const field = sectionField(win);
+
+  adoptContextFromHost(win, host, () => globalSectionHost(win.document) === host).then((ctx) => {
+    if (!ctx || globalSectionHost(win.document) !== host) {
+      return;
+    }
+
+    globalSectionCtx = ctx;
+
+    const values = unwrapRef(ctx.values);
+    const rows = values && typeof values === 'object' ? values[field] : null;
+
+    if (!Array.isArray(rows) || !rows.length) {
+      return;
+    }
+
+    const next = JSON.parse(JSON.stringify(rows));
+
+    if (ensureNestedRowIds(next)) {
+      ctx.setFieldValue(field, next);
+    }
+
+    const first = next[0];
+    const uid = first?._visual_id || first?.id || first?._id || null;
+
+    if (uid) {
+      select({ uid, source: 'global' });
+    }
+  });
 }
 
 /** Solo the section the way a click on a page section would. */
@@ -1223,6 +1271,15 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
   clearSolo(doc);
   openSettingsTab(win);
   showPageFieldsAgain(doc);
+
+  if (globalSectionCtx) {
+    unregisterContainerContext(globalSectionCtx);
+    globalSectionCtx = null;
+  }
+
+  if (selectionPanelOn(win)) {
+    clearSelection('global');
+  }
 
   globalSectionEntryPath = null;
   globalSectionValuesSeen = null;

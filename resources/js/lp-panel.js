@@ -8,6 +8,7 @@ import { ensureLpLiveReload } from './lp-live-reload.js';
 import { ensureLpPreviewWatch } from './previews-watch.js';
 import { ensureLpStaticPublishButton } from './lp-static-publish.js';
 import { t } from './lib/i18n.js';
+import { clearSelection } from './lib/selection.js';
 import { sveState } from './cp-state.js';
 import { SELECTORS } from './cp-selectors.js';
 import { setHeaderTab } from './cp.js';
@@ -460,6 +461,7 @@ export function setLpMode(win, mode) {
 
   // Switching to Show reveals the FULL form, like the old open-toggle did.
   if (mode === 'show') {
+    clearSelection('settings');
     clearSolo(win.document);
     setHeaderTab(win, 'settings');
   } else if (sveState.headerTab === 'settings') {

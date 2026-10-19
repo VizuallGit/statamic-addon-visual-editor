@@ -41,6 +41,7 @@ import './global-section.js';
 import './chrome.js';
 import { initCp } from './cp.js';
 import { initAiLauncher } from './ai-launcher.js';
+import { initSelectionPanel } from './selection-panel.js';
 
 // addon.js takes the first click on Statamic's Live Preview control itself
 // while this chunk is on its way, then hands it over through this.
@@ -62,4 +63,6 @@ export function bootLpCluster() {
   booted = true;
   initCp();
   initAiLauncher();
+  // The left column's selection panel, behind its feature; a no-op when off.
+  initSelectionPanel(window);
 }
