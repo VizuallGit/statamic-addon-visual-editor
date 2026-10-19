@@ -21,20 +21,20 @@ import { watchAddedMatches } from '../lib/added-matches.js';
  */
 export function applyComponentFocus(win) {
   const doc = win.document;
+  const selector = bridgeState.componentFocus?.selector || '';
 
-  doc.documentElement.classList.remove('sve-component-focus');
-  doc.querySelectorAll(`[${COMPONENT_FOCUSED}], [${COMPONENT_DIM}]`).forEach((el) => {
-    el.removeAttribute(COMPONENT_FOCUSED);
-    el.removeAttribute(COMPONENT_DIM);
-  });
-
-  if (!bridgeState.componentFocus?.selector) {
+  if (!selector) {
     unwatchComponentFocus();
+    clearComponentFocus(doc);
 
     return;
   }
 
-  watchComponentFocus(win, bridgeState.componentFocus.selector);
+  // Another component's marks, or none yet: start from a clean page.
+  if (componentWatch?.selector !== selector) {
+    clearComponentFocus(doc);
+    watchComponentFocus(win, selector);
+  }
 
   let hits = [];
 
@@ -47,10 +47,19 @@ export function applyComponentFocus(win) {
 
   hits = hits.filter((el) => !isPickChrome(el) && !el.closest('[data-sve-chrome-ui]'));
 
+  // Nothing matches right now: the marks stand as they are. A dialog's body
+  // is copied in from its `<template>` on the microtask after the morph, and
+  // the dims around it were put there for exactly that body. Clearing them
+  // here, to put them back a moment later, is what the eye caught: the fade
+  // is a transition, and a dialog's `showModal()` forces a style pass in the
+  // gap, so the page lit up and faded down on every save. An instance the
+  // page has truly lost leaves its dims until the next one lands or the focus
+  // is lifted.
   if (!hits.length) {
     return;
   }
 
+  clearComponentFocus(doc);
   // Mark every match first: two instances side by side must not dim each other.
   hits.forEach((el) => el.setAttribute(COMPONENT_FOCUSED, ''));
 
@@ -77,6 +86,14 @@ export function applyComponentFocus(win) {
   doc.documentElement.classList.add('sve-component-focus');
 }
 
+function clearComponentFocus(doc) {
+  doc.documentElement.classList.remove('sve-component-focus');
+  doc.querySelectorAll(`[${COMPONENT_FOCUSED}], [${COMPONENT_DIM}]`).forEach((el) => {
+    el.removeAttribute(COMPONENT_FOCUSED);
+    el.removeAttribute(COMPONENT_DIM);
+  });
+}
+
 /** The watch on the open component's selector: its stop, and the selector it was started for. */
 let componentWatch = null;
 
@@ -92,10 +109,6 @@ let componentWatch = null;
  * writes attributes only, so it never wakes the observer itself.
  */
 function watchComponentFocus(win, selector) {
-  if (componentWatch?.selector === selector) {
-    return;
-  }
-
   unwatchComponentFocus();
   componentWatch = {
     selector,
