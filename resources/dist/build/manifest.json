@@ -409,7 +409,7 @@
     ]
   },
   "resources/js/bridge.js": {
-    "file": "assets/bridge-CMXCbRv-.js",
+    "file": "assets/bridge-C8Ar0fhN.js",
     "name": "bridge",
     "src": "resources/js/bridge.js",
     "isEntry": true,
@@ -602,7 +602,7 @@
     "isEntry": true
   },
   "resources/js/mirror.js": {
-    "file": "assets/mirror-Bg5kH7_x.js",
+    "file": "assets/mirror-6CphwRjH.js",
     "name": "mirror",
     "src": "resources/js/mirror.js",
     "isEntry": true
@@ -649,7 +649,7 @@
     ]
   },
   "resources/js/preview.js": {
-    "file": "assets/preview-Bszk8hG7.js",
+    "file": "assets/preview-B5sl_SZg.js",
     "name": "preview",
     "src": "resources/js/preview.js",
     "isEntry": true,
