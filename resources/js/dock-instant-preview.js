@@ -1200,48 +1200,54 @@
      * on Cuben, 12 Oct 2026). A comment ends at `#}}`. A tag still being
      * typed, with no `}}` to come, runs to the end: `closed` is false.
      */
+    /**
+     * Where the tag opening at `start` ends: after the `}}` that answers its
+     * own `{{`, a nested tag counted in; `text.length` for a tag still being
+     * typed. `closed` says which.
+     */
+    function tagEnd(text, start) {
+        var depth = 0;
+        var j = start;
+        var end;
+
+        if (text.charAt(start + 2) === '#') {
+            end = text.indexOf('#}}', start + 3);
+
+            return { end: end === -1 ? text.length : end + 3, closed: end !== -1 };
+        }
+
+        while (j < text.length) {
+            if (text.charAt(j) === '{' && text.charAt(j + 1) === '{') {
+                depth++;
+                j += 2;
+            } else if (text.charAt(j) === '}' && text.charAt(j + 1) === '}') {
+                depth--;
+                j += 2;
+
+                if (!depth) {
+                    break;
+                }
+            } else {
+                j++;
+            }
+        }
+
+        return { end: j, closed: !depth };
+    }
+
     function eachAntlers(text, fn) {
         var out = '';
         var i = 0;
         var start;
-        var end;
-        var depth;
-        var j;
+        var tag;
 
         text = String(text);
 
         while ((start = text.indexOf('{{', i)) !== -1) {
             out += text.slice(i, start);
-
-            if (text.charAt(start + 2) === '#') {
-                end = text.indexOf('#}}', start + 3);
-                j = end === -1 ? text.length : end + 3;
-                out += fn(text.slice(start, j), end !== -1);
-                i = j;
-                continue;
-            }
-
-            depth = 0;
-            j = start;
-
-            while (j < text.length) {
-                if (text.charAt(j) === '{' && text.charAt(j + 1) === '{') {
-                    depth++;
-                    j += 2;
-                } else if (text.charAt(j) === '}' && text.charAt(j + 1) === '}') {
-                    depth--;
-                    j += 2;
-
-                    if (!depth) {
-                        break;
-                    }
-                } else {
-                    j++;
-                }
-            }
-
-            out += fn(text.slice(start, j), !depth);
-            i = j;
+            tag = tagEnd(text, start);
+            out += fn(text.slice(start, tag.end), tag.closed);
+            i = tag.end;
         }
 
         return out + text.slice(i);
@@ -3622,8 +3628,63 @@
      * own line — is removed too: a selector that misses matches nothing, a
      * bare tag would otherwise swallow the next rule as its prelude.
      */
+    /**
+     * `{{ responsive_css … }} body {{ /responsive_css }}` the way the server
+     * writes it: the body inside the section's own rule — the `selector`
+     * parameter when there is one, else `#id-{{ id }}`. The responsive
+     * fields' declarations are the server's (a tag each; they go below).
+     * Dropping only the two tags left the body at the top of the sheet: the
+     * hero file's `.media { inline-size: 40% }`, scoped to the hero on the
+     * page, reached every `.media` in the preview while the hero was open in
+     * the dock — the media textbox's image shrank to 40% of its block
+     * (Cuben, 19 Oct 2026). A pair that is not closed yet is left to the
+     * tag-dropping below, as before.
+     */
+    function wrapResponsiveCss(css) {
+        var text = String(css);
+        var out = '';
+        var i = 0;
+        var start;
+        var tag;
+        var open;
+        var close;
+        var closeEnd;
+        var selector;
+        var body;
+        var m;
+
+        while ((start = text.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(text, start);
+            open = text.slice(start, tag.end);
+
+            if (!tag.closed || !/^\{\{\s*responsive_css\b/.test(open)) {
+                out += text.slice(i, tag.end);
+                i = tag.end;
+                continue;
+            }
+
+            close = text.slice(tag.end).search(/\{\{\s*\/responsive_css\s*\}\}/);
+
+            if (close === -1) {
+                out += text.slice(i, tag.end);
+                i = tag.end;
+                continue;
+            }
+
+            close += tag.end;
+            closeEnd = close + text.slice(close).indexOf('}}') + 2;
+            m = open.match(/\bselector\s*=\s*(?:"([^"]*)"|'([^']*)')/);
+            selector = m ? m[1] || m[2] || '' : '#id-{{ id }}';
+            body = text.slice(tag.end, close);
+            out += text.slice(i, start) + (selector && body.trim() ? selector + '{' + body + '}' : '');
+            i = closeEnd;
+        }
+
+        return out + text.slice(i);
+    }
+
     function cssForLive(css, ctx) {
-        var text = eachAntlers(String(css || '').replace(/\{\{#[\s\S]*?#\}\}/g, ''), function (tag, closed) {
+        var text = eachAntlers(wrapResponsiveCss(String(css || '').replace(/\{\{#[\s\S]*?#\}\}/g, '')), function (tag, closed) {
             var value = resolveField(closed ? tag.slice(2, -2) : tag.slice(2), ctx);
 
             return value === null ? ANT : String(value);

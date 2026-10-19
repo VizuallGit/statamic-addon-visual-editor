@@ -12,6 +12,9 @@ import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GL
 import { unwrapRef } from './lib/values.js';
 import { containerContextName, publishContainers, whenContainerContext } from './lib/publish-containers.js';
 import { selectionPanelOn } from './lib/config.js';
+import { inertiaPageResolver } from './lib/inertia.js';
+import { mountStatamicSurface } from './cp/mount-statamic.js';
+import ChromeForm from './cp/surfaces/ChromeForm.vue';
 import { clearSelection, select } from './lib/selection.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, ensureSoloStyle, markSoloPath, paintFocusHeader, soloRoot } from './focus-panel.js';
@@ -55,27 +58,32 @@ export function chromeContainer() {
   return publishContainers.find((container) => container.name === CHROME_CONTAINER) || null;
 }
 
+/** The headless form's api ({ save }) while the selection panel draws the half. */
+export let chromeForm = null;
+
 /**
- * Statamic's own page-component resolver, borrowed off the running app.
- *
- * The globals screen is an Inertia page, not one of the components registered on
- * the CP's Vue app, so there is no name to resolve it by. Inertia holds the
- * resolver that knows how to load it — asking that rather than reaching for a
- * hashed asset path means this keeps working across Statamic builds.
+ * Mount the half's globals form headless, on Statamic's PublishContainer under
+ * our own container name (cp/surfaces/ChromeForm.vue). The selection panel
+ * draws the tab's fields on its context; nothing of the globals screen itself
+ * is borrowed, so this holds in every build of the Control Panel.
  */
-export function inertiaPageResolver(win) {
-  const start = win.document.querySelector('main') || win.document.body;
-  let component = start?.__vueParentComponent;
+export function mountChromeContainer(win, host, page) {
+  chromeForm = null;
 
-  while (component) {
-    if (typeof component.props?.resolveComponent === 'function') {
-      return component.props.resolveComponent;
-    }
-
-    component = component.parent;
+  try {
+    chromeApp = mountStatamicSurface(ChromeForm, host, {
+      name: CHROME_CONTAINER,
+      page,
+      bind: (api) => {
+        chromeForm = api;
+      },
+    });
+  } catch (err) {
+    console.error('[sve] chrome form', err);
+    chromeApp = null;
   }
 
-  return null;
+  return !!chromeApp;
 }
 
 /**
@@ -423,9 +431,10 @@ export async function openChromeInline(win, kind) {
   closeRightPanels(win, doc.getElementById(HTML_TREE_PANEL_ID) ? [HTML_TREE_PANEL_ID] : []);
 
   const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
-  const resolver = inertiaPageResolver(win);
+  const panel = selectionPanelOn(win);
+  const resolver = panel ? null : inertiaPageResolver(win);
 
-  if (!column || !resolver) {
+  if (!column || (!panel && !resolver)) {
     // The frame's form stands in for the inline one (a production build strips
     // the way to Inertia's resolver). No inline form, no inline kind: left
     // set, it named the half for every dock sync after the half was left,
@@ -456,34 +465,46 @@ export async function openChromeInline(win, kind) {
     return;
   }
 
-  let Page = null;
+  // The panel draws the half's fields itself: the form is the data alone, on
+  // our own container, and needs nothing of the globals screen's component.
+  if (panel) {
+    if (!loaded?.props?.blueprint || !mountChromeContainer(win, host, loaded.props)) {
+      closeChromeInline(win);
+      console.error('[sve] the globals screen for', handle, 'could not be fetched — the header stays closed');
+      syncCodeDock(win, doc, null);
 
-  if (loaded?.component) {
-    try {
-      const mod = await resolver(loaded.component);
-
-      Page = mod?.default ?? mod;
-    } catch {
-      Page = null;
+      return;
     }
-  }
+  } else {
+    let Page = null;
 
-  if (chromeHost(doc) !== host) {
-    return;
-  }
+    if (loaded?.component) {
+      try {
+        const mod = await resolver(loaded.component);
 
-  if (!Page || !mountChromeForm(win, host, Page, loaded.props)) {
+        Page = mod?.default ?? mod;
+      } catch {
+        Page = null;
+      }
+    }
+
+    if (chromeHost(doc) !== host) {
+      return;
+    }
+
+    if (!Page || !mountChromeForm(win, host, Page, loaded.props)) {
     closeChromeInline(win);
     // The frame's form stands in for the inline one (a production build strips
     // the way to Inertia's resolver). No inline form, no inline kind: left
     // set, it named the half for every dock sync after the half was left,
     // and a click on a section fetched the header's file. The active kind
     // carries the half while the frame is open; the dock follows it.
-    chromeInlineKind = null;
-    openGlobalsPanelFrameForChrome(win, chromeKind);
-    syncCodeDock(win, doc, null);
+      chromeInlineKind = null;
+      openGlobalsPanelFrameForChrome(win, chromeKind);
+      syncCodeDock(win, doc, null);
 
-    return;
+      return;
+    }
   }
 
   chromeInlineHandle = handle;
@@ -661,6 +682,12 @@ export function pressChromeSave(win) {
     return false;
   }
 
+  if (chromeForm) {
+    void chromeForm.save();
+
+    return true;
+  }
+
   const button = [...host.querySelectorAll('button')].find((el) =>
     /^(save|gem)\b/i.test((el.textContent || '').trim())
   );
@@ -719,6 +746,7 @@ export function closeChromeInline(win, { refresh = true } = {}) {
     chromeApp = null;
   }
 
+  chromeForm = null;
   host.remove();
   clearSolo(doc);
 
