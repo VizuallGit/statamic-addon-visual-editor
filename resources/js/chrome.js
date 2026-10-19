@@ -10,7 +10,7 @@ import { openSettingsTab, rearmFirstSection } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
 import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
-import { adoptContextFromHost, containerContextName, publishContainers, unregisterContainerContext } from './lib/publish-containers.js';
+import { containerContextName, publishContainers, whenContainerContext } from './lib/publish-containers.js';
 import { selectionPanelOn } from './lib/config.js';
 import { clearSelection, select } from './lib/selection.js';
 import { setLpMode } from './lp-panel.js';
@@ -511,8 +511,16 @@ export let chromeCtx = null;
  * a normal mount; given up after two seconds, when the form did not come.
  */
 function adoptChromeContext(win, host, kind) {
-  adoptContextFromHost(win, host, () => chromeHost(win.document) === host && chromeInlineKind === kind).then((ctx) => {
-    if (!ctx || chromeHost(win.document) !== host || chromeInlineKind !== kind) {
+  whenContainerContext(CHROME_CONTAINER, 2500, win).then((ctx) => {
+    if (chromeHost(win.document) !== host || chromeInlineKind !== kind) {
+      return;
+    }
+
+    // A form with no set in it registers nothing (an empty header): the
+    // isolation view still knows how to show it.
+    if (!ctx) {
+      bootChromeSolo(win, win.document, host, kind);
+
       return;
     }
 
@@ -687,10 +695,7 @@ export function closeChromeInline(win, { refresh = true } = {}) {
   stopChromeInlineValues(win);
   chromeInlineKind = null;
 
-  if (chromeCtx) {
-    unregisterContainerContext(chromeCtx);
-    chromeCtx = null;
-  }
+  chromeCtx = null;
 
   if (selectionPanelOn(win)) {
     clearSelection('chrome');
@@ -716,7 +721,13 @@ export function closeChromeInline(win, { refresh = true } = {}) {
 
   host.remove();
   clearSolo(doc);
-  openSettingsTab(win);
+
+  // Page Settings is where the focus path lands; the panel keeps the sections
+  // tab, whose fields are what the page's context lives in.
+  if (!selectionPanelOn(win)) {
+    openSettingsTab(win);
+  }
+
   showPageFieldsAgain(doc);
 
   chromeInlineHandle = null;

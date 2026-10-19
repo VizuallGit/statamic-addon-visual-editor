@@ -20,7 +20,7 @@ import { unwrapRef } from './lib/values.js';
 import { sectionField, selectionPanelOn } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
-import { activeContainers, adoptContextFromHost, publishContainers, registerContainerEvents, registerContainerSource, unregisterContainerContext } from './lib/publish-containers.js';
+import { activeContainers, publishContainers, registerContainerEvents, registerContainerSource, whenContainerContext } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, focusFieldOwner, hideSettingsBar, lpStoredWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 import { closeRightPanels, savedSectionsCollection, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
@@ -1070,8 +1070,15 @@ let globalSectionCtx = null;
 function adoptGlobalSectionContext(win, host) {
   const field = sectionField(win);
 
-  adoptContextFromHost(win, host, () => globalSectionHost(win.document) === host).then((ctx) => {
-    if (!ctx || globalSectionHost(win.document) !== host) {
+  whenContainerContext(GLOBAL_SECTION_CONTAINER, 2500, win).then((ctx) => {
+    if (globalSectionHost(win.document) !== host) {
+      return;
+    }
+
+    // Nothing registered within the wait — the isolation view still can.
+    if (!ctx) {
+      bootGlobalSectionSolo(win, win.document, host);
+
       return;
     }
 
@@ -1269,13 +1276,15 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
 
   host.remove();
   clearSolo(doc);
-  openSettingsTab(win);
-  showPageFieldsAgain(doc);
 
-  if (globalSectionCtx) {
-    unregisterContainerContext(globalSectionCtx);
-    globalSectionCtx = null;
+  // Page Settings is where the focus path lands; the panel keeps the sections
+  // tab, whose fields are what the page's context lives in.
+  if (!selectionPanelOn(win)) {
+    openSettingsTab(win);
   }
+
+  showPageFieldsAgain(doc);
+  globalSectionCtx = null;
 
   if (selectionPanelOn(win)) {
     clearSelection('global');
