@@ -1,5 +1,6 @@
 import morphPlugin from '@alpinejs/morph';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { MORPH_OPTIONS } from './lib/morph-templates.js';
 
 /**
  * KERNEL — not Vue. Morph for Live Preview. Do not convert this file.
@@ -385,7 +386,7 @@ function morphChromeOnly(updated, kind) {
 
   try {
     if (window.Alpine?.morph) {
-      window.Alpine.morph(live, next.outerHTML);
+      window.Alpine.morph(live, next.outerHTML, MORPH_OPTIONS);
     } else {
       live.replaceWith(document.importNode(next, true));
     }
@@ -446,7 +447,7 @@ function morphSectionOnly(updated, uids) {
 
   try {
     if (window.Alpine?.morph) {
-      window.Alpine.morph(live, next.outerHTML);
+      window.Alpine.morph(live, next.outerHTML, MORPH_OPTIONS);
     } else {
       live.replaceWith(document.importNode(next, true));
     }
@@ -474,7 +475,7 @@ function morphFullBody(updated) {
       }
 
       to.innerHTML = updated.body.innerHTML;
-      window.Alpine.morph(document.body, to);
+      window.Alpine.morph(document.body, to, MORPH_OPTIONS);
     } else {
       document.body.innerHTML = updated.body.innerHTML;
     }
