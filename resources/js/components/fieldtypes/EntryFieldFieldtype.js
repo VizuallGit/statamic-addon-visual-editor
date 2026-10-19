@@ -5,7 +5,9 @@
  * skåret til de felttyper blokken tager. Hvilken samling, læses reaktivt fra
  * formularen: det felt `config.collection_field` navngiver, nærmeste på vejen
  * op fra blokkens egen række. Vælger man en anden samling, skifter listen i
- * samme øjeblik — intet skal gemmes først. Se src/Fieldtypes/EntryFieldFieldtype.php.
+ * samme øjeblik — intet skal gemmes først. Er entries håndplukkede (list_source =
+ * picked), bruges de samlinger de valgte entries ligger i. Se
+ * src/Fieldtypes/EntryFieldFieldtype.php.
  */
 import { t } from '../../lib/i18n.js';
 (function () {
@@ -48,6 +50,50 @@ import { t } from '../../lib/i18n.js';
             return undefined;
         }
 
+        /** Formularens meta (feltdata fra serveren). Også et ref() i v6. */
+        function publishMeta(ctx) {
+            return ctx?.meta?.value ?? ctx?.meta ?? {};
+        }
+
+        /** Entry-id'er fra et entries-felt (liste af id'er, eller én). */
+        function idsOf(value) {
+            if (typeof value === 'string') return value ? [value] : [];
+            return Array.isArray(value) ? value.filter(id => typeof id === 'string' && id) : [];
+        }
+
+        /**
+         * Samlingerne de håndplukkede entries ligger i. Entries-feltets meta har
+         * en række pr. valgt entry med `edit_url` (…/collections/{samling}/entries/…);
+         * metaens form afhænger af hvor feltet sidder (replicator, sæt …), så den
+         * gennemsøges i stedet for at slå en bestemt sti op.
+         */
+        function collectionsOf(meta, ids) {
+            const want = new Set(ids);
+            const found = new Set();
+            const seen = new Set();
+
+            (function walk(node, depth) {
+                if (!node || typeof node !== 'object' || depth > 14 || seen.has(node)) return;
+                seen.add(node);
+
+                if (Array.isArray(node)) {
+                    for (const item of node) {
+                        if (item && typeof item === 'object' && want.has(item.id) && typeof item.edit_url === 'string') {
+                            const match = item.edit_url.match(/\/collections\/([^/?#]+)\/entries\//);
+                            if (match) found.add(decodeURIComponent(match[1]));
+                        } else {
+                            walk(item, depth + 1);
+                        }
+                    }
+                    return;
+                }
+
+                for (const key of Object.keys(node)) walk(node[key], depth + 1);
+            })(meta, 0);
+
+            return [...found];
+        }
+
         Statamic.$components.register('sve-entry-field-fieldtype', {
             props: {
                 value: { default: null },
@@ -63,17 +109,48 @@ import { t } from '../../lib/i18n.js';
             setup(props, { emit }) {
                 const publishContext = inject('PublishContainerContext', null);
 
-                const collection = computed(() => handleOf(nearest(
+                /**
+                 * Håndplukkede entries: felterne kommer fra de samlinger entries
+                 * faktisk ligger i — ikke fra "Samling", som kan stå på noget andet
+                 * (fx Sider, mens man har plukket Lejere).
+                 */
+                const pickedCollections = computed(() => {
+                    const values = publishValues(publishContext);
+                    const source = nearest(values, props.fieldPathPrefix, props.config.source_field || 'list_source');
+                    if (source !== (props.config.picked_value || 'picked')) return [];
+
+                    const ids = idsOf(nearest(values, props.fieldPathPrefix, props.config.entries_field || 'list_entries'));
+                    if (!ids.length) return [];
+
+                    return collectionsOf(publishMeta(publishContext), ids)
+                        .filter(handle => Array.isArray(props.meta?.fields?.[handle]));
+                });
+
+                const collection = computed(() => pickedCollections.value[0] || handleOf(nearest(
                     publishValues(publishContext),
                     props.fieldPathPrefix,
                     props.config.collection_field || 'list_collection',
                 )));
 
-                const collectionTitle = computed(() => props.meta?.collections?.[collection.value] || collection.value);
+                const collectionTitle = computed(() => (pickedCollections.value.length > 1 ? pickedCollections.value : [collection.value])
+                    .map(handle => props.meta?.collections?.[handle] || handle)
+                    .join(', '));
 
                 const options = computed(() => {
-                    const list = props.meta?.fields?.[collection.value];
-                    return Array.isArray(list) ? list : [];
+                    // Entries fra flere samlinger: alle deres felter, hvert handle én gang.
+                    const handles = pickedCollections.value.length > 1 ? pickedCollections.value : [collection.value];
+                    const seen = new Set();
+                    const list = [];
+
+                    for (const handle of handles) {
+                        for (const option of (props.meta?.fields?.[handle] || [])) {
+                            if (seen.has(option.handle)) continue;
+                            seen.add(option.handle);
+                            list.push(option);
+                        }
+                    }
+
+                    return list;
                 });
 
                 const current = computed(() => (typeof props.value === 'string' ? props.value : ''));
