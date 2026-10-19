@@ -4,6 +4,7 @@
     :class="{ 'is-inherited': !value && inherit !== null, 'is-own': overridable && !!value }"
     :title="!value && inherit !== null ? inheritLabel : ''"
   >
+    <i v-if="swatch !== null" class="sve-theme__swatch" :class="{ 'is-empty': !swatch }" :style="{ background: swatch }" aria-hidden="true"></i>
     <span class="sve-theme__cell-value">{{ shown }}</span>
     <select :value="value" :aria-label="label" @change="onChange($event.target.value)">
       <option v-if="inherit !== null" value="">{{ inheritLabel }}</option>
@@ -30,6 +31,8 @@ const props = defineProps({
   /** `{ value, label, short }` — `short` is what the cell shows. */
   options: { type: Array, required: true },
   overridable: { type: Boolean, default: false },
+  /** A color cell's dot: the color shown (own or followed), '' for none; null for a cell without a dot. */
+  swatch: { type: String, default: null },
   label: { type: String, default: '' },
   onChange: { type: Function, required: true },
 });
