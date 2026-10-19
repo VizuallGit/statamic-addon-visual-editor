@@ -28,7 +28,6 @@ class Features
      * light up on sites that have not merged the config yet. List those here.
      */
     protected const DEFAULT_OFF = [
-        'selection_panel',
         'psi',
         'template_dock',
         'site_css',
@@ -77,8 +76,9 @@ class Features
         'focus_panel',
         // The left column draws only the selected row with Statamic's own
         // fields (selection-panel.js) instead of isolating the whole form.
-        // Off by default while it is proven; phase 0 covers page sections and
-        // the blocks inside them.
+        // On by default since 1.1.552: sections, blocks, grid rows, the
+        // header and footer, and global sections. Off = the focus panel's
+        // isolation of Statamic's form (the route it replaces).
         'selection_panel',
         'open_first_section',
         'open_in_preview',

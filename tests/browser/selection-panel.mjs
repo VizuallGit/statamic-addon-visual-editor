@@ -160,7 +160,12 @@ try {
   if (await page.$('input[name="email"]')) {
     await page.type('input[name="email"]', USER);
     await page.type('input[name="password"]', PASS);
-    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2' }), page.keyboard.press('Enter')]);
+    // Statamic answers the login with a 409 (Inertia version) and sends the
+    // browser to /cp/login, which is a 404 for a user who is now logged in; the
+    // session is set all the same. So: press Enter, give it a moment, go on.
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 8000 }).catch(() => null), page.keyboard.press('Enter')]);
+    await sleep(500);
+    await page.goto(`${SITE_URL}/cp`, { waitUntil: 'networkidle2' });
   }
   step('login', !(await page.$('input[name="password"]')), page.url());
 

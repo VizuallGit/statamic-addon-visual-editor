@@ -77,10 +77,12 @@ return [
     |                      flag on the visual_edit tags stops taking effect and a
     |                      click focuses the field in the panel instead — so a
     |                      site can turn this off without touching its templates.
-    | - focus_panel:       the simplified editor panel. On, clicking a section (or
-    |                      a block inside one) shows that one thing, named at the
-    |                      top with its icon and instructions, and nothing else.
-    |                      Off, the panel stays the section list Statamic renders.
+    | - selection_panel:   the left column draws the clicked row (section, block,
+    |                      grid row, header, footer, global section) with
+    |                      Statamic's own fields and nothing else. On by default.
+    | - focus_panel:       the older panel the selection panel replaces: the
+    |                      same one-thing-at-a-time view, done by isolating
+    |                      Statamic's form. Used only while selection_panel is off.
     | - open_first_section: parked — code remains, always off. Page Settings is
     |                      the empty-panel default; Focus panel already shows
     |                      one section at a time. Needs focus_panel if re-enabled.
@@ -161,6 +163,7 @@ return [
         'psi' => false,
         'html_tree' => true,
         'inline_edit' => true,
+        'selection_panel' => true,
         'focus_panel' => true,
         'open_first_section' => false,
         'open_in_preview' => false,
