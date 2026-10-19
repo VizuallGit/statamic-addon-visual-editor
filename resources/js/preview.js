@@ -1,6 +1,6 @@
 import morphPlugin from '@alpinejs/morph';
 import { MSG, SOURCE } from './lib/protocol.js';
-import { MORPH_OPTIONS } from './lib/morph-templates.js';
+import { MORPH_OPTIONS } from './lib/morph-options.js';
 
 /**
  * KERNEL — not Vue. Morph for Live Preview. Do not convert this file.

@@ -1,6 +1,6 @@
 /**
  * lib/added-matches.js — the watch that reports elements a selector names as
- * the page gains them — and lib/morph-templates.js — the morph option that
+ * the page gains them — and lib/morph-options.js — the morph option that
  * lets a `<template>` take the server's markup. Both run against small fakes
  * of the DOM and of MutationObserver: which added nodes are reported, when the
  * watch stops, and which templates are rewritten.
@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { watchAddedMatches } from '../../resources/js/lib/added-matches.js';
-import { MORPH_OPTIONS } from '../../resources/js/lib/morph-templates.js';
+import { MORPH_OPTIONS } from '../../resources/js/lib/morph-options.js';
 
 /** An element that answers `matches` by class and `querySelector` over its children. */
 class El {
@@ -124,7 +124,7 @@ test('the returned function ends the watch', () => {
 });
 
 test('MORPH_OPTIONS.updating rewrites a template whose markup differs, and only that', () => {
-  const tpl = (innerHTML, nodeName = 'TEMPLATE') => ({ nodeName, innerHTML });
+  const tpl = (innerHTML, nodeName = 'TEMPLATE') => ({ nodeType: 1, nodeName, innerHTML, attributes: [] });
   const changed = tpl('<h2 class="text-400">A</h2>');
 
   MORPH_OPTIONS.updating(changed, tpl('<h2 class="text-500">A</h2>'));
@@ -141,4 +141,32 @@ test('MORPH_OPTIONS.updating rewrites a template whose markup differs, and only 
   const swapped = tpl('<p>tpl</p>');
   MORPH_OPTIONS.updating(swapped, tpl('<p>div</p>', 'DIV'));
   assert.equal(swapped.innerHTML, '<p>tpl</p>');
+});
+
+test('MORPH_OPTIONS.updating keeps the bridge\'s component marks on the server\'s node, and nothing else', () => {
+  const el = (attrs, nodeType = 1) => ({
+    nodeType,
+    nodeName: 'DIV',
+    attributes: Object.entries(attrs).map(([name, value]) => ({ name, value })),
+    hasAttribute(name) {
+      return name in attrs;
+    },
+    setAttribute(name, value) {
+      attrs[name] = value;
+    },
+    attrs,
+  });
+
+  const live = el({ 'data-sve-component-dim': '', 'data-sve-component-src': 'components/card', class: 'old', 'data-sid': 'x' });
+  const server = el({ class: 'new', 'data-sve-component-src': 'components/other' });
+
+  MORPH_OPTIONS.updating(live, server);
+  assert.deepEqual(server.attrs, {
+    class: 'new',
+    'data-sve-component-src': 'components/other',
+    'data-sve-component-dim': '',
+  });
+
+  // Text nodes carry no attributes and must pass through untouched.
+  assert.doesNotThrow(() => MORPH_OPTIONS.updating({ nodeType: 3, nodeName: '#text' }, { nodeType: 3, nodeName: '#text' }));
 });
