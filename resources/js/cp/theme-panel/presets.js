@@ -27,19 +27,9 @@ export const TITLE_TOKENS = [
 ];
 
 /**
- * The text colors (`--body-color`, `--heading-color`, `--h1-color` …): each
- * only in the file while it is set. An empty body color leaves the text as
- * the page has it; an empty level follows `heading-color`, an empty
- * `heading-color` the text around it. The site's type.css reads them, after
- * `--color-text` — a section's own text color, or light text that
- * data-auto-contrast picked on a dark background, goes first.
- */
-export const COLOR_TOKENS = ['body-color', 'heading-color', ...HEADINGS.map((h) => `${h}-color`)];
-
-/**
- * Typography: body (family, size, weight, line height, color), headings
- * (family, weight, line height, capitals, color) and each level's size — plus
- * its own weight, line height and color when it has them — and the Title block.
+ * Typography: body (family, size, weight, line height), headings (family,
+ * weight, line height, capitals) and each level's size — plus its own
+ * weight and line height when it has them — and the Title block.
  */
 export const TYPE_TOKENS = [
   'font-base', 'font-size', 'body-weight', 'line-height',
@@ -47,7 +37,6 @@ export const TYPE_TOKENS = [
   'font-size-h1', 'font-size-h2', 'font-size-h3', 'font-size-h4', 'font-size-h5', 'font-size-h6',
   ...LEVEL_TOKENS,
   ...TITLE_TOKENS,
-  ...COLOR_TOKENS,
 ];
 
 /**
@@ -113,7 +102,7 @@ export function sizeRef(value) {
  * every render — the same list as its MANAGED pattern (app/Tags/ThemeTokens.php
  * on the site), so what the panel paints is what the page will get.
  */
-const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-weight|heading-weight|heading-line-height|body-color|heading-color|h[1-6]-(?:weight|line-height|color)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius)$/;
+const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius)$/;
 
 export function isManaged(name) {
   return MANAGED.test(name);

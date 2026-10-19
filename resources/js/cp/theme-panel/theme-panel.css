@@ -818,7 +818,7 @@
 /* Typography: the heading levels as a small table — size, weight, line height */
 .sve-theme__levels {
   display: grid;
-  grid-template-columns: 1.75rem repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1.75rem repeat(3, minmax(0, 1fr));
   align-items: center;
   gap: 0.375rem;
   margin-top: 0.25rem;
@@ -868,21 +868,6 @@
 }
 .sve-theme__cell.is-own .sve-theme__cell-value {
   color: #5eead4;
-}
-
-/* Typography: a text color's dot, in a field and in a level's cell */
-.sve-theme__swatch {
-  flex: none;
-  width: 0.75rem;
-  height: 0.75rem;
-  border-radius: 999px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-}
-.sve-theme__swatch.is-empty {
-  background: repeating-linear-gradient(135deg, transparent 0 2px, rgba(255, 255, 255, 0.3) 2px 3px);
-}
-.sve-theme__cell.is-inherited .sve-theme__swatch {
-  opacity: 0.55;
 }
 
 /* Button: a sample on a page-like background */
