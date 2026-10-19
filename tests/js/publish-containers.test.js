@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   publishContainers, addContainer, onContainer, registerContainerSource, registerContainerEvents, activeContainers,
-  pageHasSectionField,
+  pageHasSectionField, registerContainerContext, unregisterContainerContext, containerContext, onContainerContext,
 } from '../../resources/js/lib/publish-containers.js';
 
 const container = (name) => ({ name, setFieldValue() {}, setFieldMeta() {}, values: {} });
@@ -71,4 +71,19 @@ test('pageHasSectionField: a form whose values carry the page builder, empty or 
 
   // Without the setting the field is page_sections, which no form carries.
   assert.equal(pageHasSectionField({}, emptyDoc), false);
+});
+
+test('the container context survives a remount of the field that registers it', () => {
+  const ctx = { setFieldValue() {}, values: {} };
+  const seen = [];
+  onContainerContext((c) => seen.push(c ? 'ctx' : 'null'));
+  registerContainerContext(ctx);            // first instance created
+  registerContainerContext(ctx);            // new instance created (remount) …
+  unregisterContainerContext(ctx);          // … then the old one unmounts
+  assert.equal(containerContext(), ctx);
+  unregisterContainerContext(ctx);          // the last holder goes
+  assert.equal(containerContext(), null);
+  unregisterContainerContext(ctx);          // once more is nothing
+  registerContainerContext(null);           // a missing inject registers nothing
+  assert.deepEqual(seen, ['ctx', 'null']);
 });

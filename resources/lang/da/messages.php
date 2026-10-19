@@ -586,6 +586,8 @@ return [
 
     // Live Preview-chrome
     'all_sections' => 'Alle sektioner',
+    'selection_back' => 'Tilbage',
+    'selection_page' => 'Siden',
     'globals' => 'Globals…',
     'save_globals' => 'Gem globale indstillinger',
     'back_to_site' => 'Tilbage til sitet',

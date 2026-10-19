@@ -589,6 +589,8 @@ return [
 
     // Live Preview chrome
     'all_sections' => 'All sections',
+    'selection_back' => 'Back',
+    'selection_page' => 'Page',
     'globals' => 'Globals…',
     'save_globals' => 'Save global settings',
     'back_to_site' => 'Back to the site',
