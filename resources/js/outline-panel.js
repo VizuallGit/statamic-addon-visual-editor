@@ -26,6 +26,7 @@ import { OUTLINE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { autoOpenPanel, persistDockedPanel } from './lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn } from './focus-panel.js';
+import { selectRow } from './selection-panel.js';
 import { closeRightPanels, syncPreviewInset } from './section-library.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
@@ -628,6 +629,8 @@ export function jumpToOutlineEntry(win, index, item) {
   }
 
   if (item.uid) {
-    focusFromPreview(item.uid, win.document, win, { clampToSection: true });
+    if (!selectRow(win, item.uid, 'outline')) {
+      focusFromPreview(item.uid, win.document, win, { clampToSection: true });
+    }
   }
 }

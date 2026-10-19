@@ -40,13 +40,15 @@ import { ensureFocusHeader, focusBack, focusRowMeta, isolateSoloSection, paintFo
 import { FOCUS_HEADER_ID, SOLO_KEEP_ATTR } from '../lib/ids.js';
 import { t } from '../lib/i18n.js';
 import { injectStyle } from '../lib/style.js';
-import { featureOn } from '../lib/config.js';
+import { featureOn, selectionPanelOn } from '../lib/config.js';
 import { mark } from '../lib/debug.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
 import { SELECTORS } from '../cp-selectors.js';
 import { chromeGet, chromeSet } from '../chrome-prefs.js';
 import { bindTips } from '../cp/tip.js';
 import { syncCodeDock } from '../code-dock-lazy.js';
+import { registerContainerContext, unregisterContainerContext } from '../lib/publish-containers.js';
+import { selectRow, selectionPanelTakes } from '../selection-panel.js';
 
     // Restore first-open mount / neighbour warmup: set these back to true.
     var PRELOAD_FIRST_SECTION = false;
@@ -1157,6 +1159,13 @@ import { syncCodeDock } from '../code-dock-lazy.js';
         return {
             mixins: [FieldtypeMixin],
 
+            // The page form's whole publish context. This field always sits in
+            // the form, so it is the one place of ours that can inject it; the
+            // selection panel draws the selected row's fields on it.
+            inject: {
+                sveContainerContext: { from: 'PublishContainerContext', default: null },
+            },
+
             provide: function () {
                 return {
                     replicatorSets: (this.config && this.config.sets) || [],
@@ -1169,6 +1178,7 @@ import { syncCodeDock } from '../code-dock-lazy.js';
             },
 
             created: function () {
+                registerContainerContext(this.sveContainerContext);
                 bindLite(this);
 
                 if (PRELOAD_FIRST_SECTION && !this.activeUid && this.rows[0]) {
@@ -1213,6 +1223,8 @@ import { syncCodeDock } from '../code-dock-lazy.js';
 
             beforeUnmount: function () {
                 var at = livePanels.indexOf(this);
+
+                unregisterContainerContext(this.sveContainerContext);
 
                 if (at !== -1) {
                     livePanels.splice(at, 1);
@@ -1282,6 +1294,14 @@ import { syncCodeDock } from '../code-dock-lazy.js';
                         var prevIds = {};
                         var i;
                         var uid;
+
+                        // The selection panel owns the active row. Left to run,
+                        // the fallback below took the first section after every
+                        // save (values replaced, no active row here) and isolated
+                        // it under the panel.
+                        if (selectionPanelOn(window)) {
+                            return;
+                        }
 
                         prev = prev || [];
 
@@ -2016,6 +2036,11 @@ import { syncCodeDock } from '../code-dock-lazy.js';
     function openLiteSection(uid, doc, view, done) {
         var finish = typeof done === 'function' ? done : function () {};
 
+        // The selection panel draws the row itself; nothing to mount here.
+        if (selectRow(view || window, uid, 'tree')) {
+            return true;
+        }
+
         if (!liteVm || !sectionUidFor(uid)) {
             finish();
 
@@ -2543,6 +2568,17 @@ import { syncCodeDock } from '../code-dock-lazy.js';
 
                 uid = data.scope || data.uid;
                 section = sectionUidFor(uid);
+
+                // The selection panel draws the row itself: no row to mount
+                // here, no neighbour to warm. The click goes on to the shell,
+                // which hands it to the panel.
+                if (data.type === MSG.HOVER && selectionPanelOn(window)) {
+                    return;
+                }
+
+                if (data.type === MSG.CLICK && selectionPanelTakes(window, uid)) {
+                    return;
+                }
 
                 if (data.type === MSG.HOVER) {
                     scheduleLiteHover(uid, doc, window);

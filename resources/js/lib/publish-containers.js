@@ -16,12 +16,16 @@
  *   containerFromDom(doc)          the container behind the publish form on screen
  *   pageHasSectionField(win, doc)  whether the page on screen is built from sections
  *   pageSectionRows(win, doc)      the page's section rows, each with every id it answers to
+ *   registerContainerContext(ctx)  the page form's full publish context, from inside the form
+ *   containerContext()             that context, or null
+ *   onContainerContext(fn)         fn(ctx) now if known, and on every change
  *
  * May import: lib/, cp-selectors.js (constants only).
  */
 import { SELECTORS } from '../cp-selectors.js';
 import { sectionField } from './config.js';
 import { unwrapRef } from './values.js';
+import { log } from './debug.js';
 
 // Publish containers captured from Statamic's `publish-container-created`
 // event, in the order they were created.
@@ -75,6 +79,91 @@ export function registerContainerSource(fn) {
   if (!sources.includes(fn)) {
     sources.push(fn);
   }
+}
+
+/*
+ * The page form's publish context, whole.
+ *
+ * `publish-container-created` hands out a part of it: values, meta and their
+ * setters. A field drawn outside the form needs the rest as well — errors,
+ * the blueprint, hidden and revealer fields, locks, the direction — because
+ * Statamic's own PublishField reads all of it from one injected object. Only
+ * a component inside the form can inject that object, so the one component of
+ * ours that always sits there (the lite sections field) registers it here.
+ */
+let containerCtx = null;
+const ctxListeners = [];
+// How many live components hold each context. The field that registers it
+// remounts while its form stays (a tab shown again, the column reopened), and
+// Vue creates the new instance before it unmounts the old: a plain "forget on
+// unmount" dropped the context the new instance had just registered.
+const ctxHolders = new Map();
+
+function publish(next) {
+  if (next === containerCtx) {
+    return;
+  }
+
+  containerCtx = next;
+
+  for (const fn of ctxListeners) {
+    fn(containerCtx);
+  }
+}
+
+export function registerContainerContext(ctx) {
+  const next = ctx && typeof ctx === 'object' && typeof ctx.setFieldValue === 'function' ? ctx : null;
+
+  if (!next) {
+    return;
+  }
+
+  ctxHolders.set(next, (ctxHolders.get(next) || 0) + 1);
+  log(`ctx register holders=${ctxHolders.get(next)}`);
+  publish(next);
+}
+
+/** One holder fewer; the context is forgotten when the last one has gone. */
+export function unregisterContainerContext(ctx) {
+  if (!ctx || !ctxHolders.has(ctx)) {
+    return;
+  }
+
+  const left = ctxHolders.get(ctx) - 1;
+
+  log(`ctx unregister left=${left}`);
+
+  if (left > 0) {
+    ctxHolders.set(ctx, left);
+
+    return;
+  }
+
+  ctxHolders.delete(ctx);
+
+  if (containerCtx === ctx) {
+    publish(null);
+  }
+}
+
+export function containerContext() {
+  return containerCtx;
+}
+
+export function onContainerContext(fn) {
+  ctxListeners.push(fn);
+
+  if (containerCtx) {
+    fn(containerCtx);
+  }
+
+  return () => {
+    const at = ctxListeners.indexOf(fn);
+
+    if (at !== -1) {
+      ctxListeners.splice(at, 1);
+    }
+  };
 }
 
 export function registerContainerEvents(win = window) {

@@ -29,6 +29,7 @@ import { handleOutline } from '../lazy/outline.js';
 import { handleAiTextApply, handleAiTextGenerate, handleAiTextOpen, handleAiTextSetKeywords, syncAiTextToPreview } from '../lazy/ai-text.js';
 import { collectAncestorSets, expandSet, findFieldElement, findSetByUid, handleFieldFocus, handleFieldHover, handleFocus, handleHover, topLevelSectionUid } from './sets.js';
 import { applyDeclaredDefaults, restoreDockedHeaderPanels, scheduleHtmlTreePrefetch } from './header-toolbar.js';
+import { selectFromPreview } from '../selection-panel.js';
 import { tellPreviewWherePillIs } from './grid-rows.js';
 import { openOverlay } from '../cp.js';
 import { MIRRORED, MSG, SOURCE } from '../lib/protocol.js';
@@ -1888,6 +1889,13 @@ export function createMessageListener(doc = document, win = window) {
 
       if (dockUid) {
         syncCodeDock(win, doc, dockUid);
+      }
+
+      // The selection panel takes the row when it is on and can draw it — the
+      // block clicked, or the section — and paints it from the form's values.
+      // What it does not take yet (phase 0: not a Bard set) keeps the path below.
+      if (selectFromPreview(win, data)) {
+        return;
       }
 
       if (data.field) {

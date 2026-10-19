@@ -79,6 +79,9 @@ export const CHROME_DESIGNS_ID = '__sve-chrome-designs';
 /** Header/footer edit inline in the left panel (true) or in the docked iframe. */
 export const CHROME_INLINE = true;
 export const GLOBAL_SECTION_HOST_ID = '__sve-global-section-host';
+/** The selection panel's host in the left column (selection-panel.js), and the column's mark while it shows. */
+export const SELECTION_PANEL_ID = '__sve-selection-panel';
+export const SELECTION_ATTR = 'data-sve-selection';
 export const GLOBAL_SECTION_PANEL_ID = '__sve-global-section-panel';
 export const SECTION_PANEL_REVEAL_MS = 2500;
 

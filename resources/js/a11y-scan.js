@@ -28,6 +28,7 @@ import { previewFrame } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
 import { autoOpenPanel } from './lp-panel.js';
 import { focusFieldOwner, focusFromPreview, focusPanelOn } from './focus-panel.js';
+import { selectRow } from './selection-panel.js';
 
 const OVERLAY_ID = '__sve-a11y-overlay';
 const STYLE_ID = '__sve-a11y-style';
@@ -487,7 +488,9 @@ function focusElement(win, el) {
   const uid = el.closest('[data-sid]')?.getAttribute('data-sid');
 
   if (uid) {
-    focusFromPreview(uid, win.document, win, { clampToSection: true });
+    if (!selectRow(win, uid, 'a11y')) {
+      focusFromPreview(uid, win.document, win, { clampToSection: true });
+    }
   }
 }
 
