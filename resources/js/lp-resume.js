@@ -15,26 +15,17 @@
  *   top. Put back on every preview document the new editor loads until it is
  *   shown, and once more after; the first wheel, key or pointer in the preview
  *   ends it.
- * - the section open in the sidebar, by putting the preview click that opens a
- *   section through the same listeners a real one goes through.
- * - its Content/Style segment and its open accordion, by clicking them.
+ * - the row selected in the panel, selected again once the page's form has
+ *   registered its context — the panel paints it from the values.
  *
  * One reading, written once, read once: the key is gone the moment the new
  * editor reads it, and a reading older than a minute or for another page is
  * not used.
  */
-import { MSG, SOURCE } from './lib/protocol.js';
 import { register } from './cp/bus.js';
 import { sveState } from './cp-state.js';
-import { FOCUS_HEADER_ID } from './lib/ids.js';
-import {
-  SECTION_ACTIVE_ATTR as ACTIVE_ATTR,
-  SECTION_PANEL_ATTR as PANEL_ATTR,
-  SECTION_PANEL_HEAD_ATTR as PANEL_HEAD_ATTR,
-  SECTION_PANEL_OPEN_ATTR as PANEL_OPEN_ATTR,
-  SECTION_SEG_ATTR as SEG_ATTR,
-  sectionFieldLists,
-} from './cp-section-groups.js';
+import { currentSelection, select } from './lib/selection.js';
+import { whenContainerContext } from './lib/publish-containers.js';
 
 const KEY = 'sve-lp-resume';
 
@@ -44,8 +35,8 @@ const MAX_AGE_MS = 60000;
 /** How long the new editor keeps putting the scroll back after it is shown. */
 const HOLD_AFTER_READY_MS = 1500;
 
-/** How long it waits for the section, its segment and its accordion to be there. */
-const FOCUS_WAIT_MS = 10000;
+/** How long it waits for the page's form to register its context. */
+const CONTEXT_WAIT_MS = 10000;
 
 /** A new editor that never says it is shown stops being held after this. */
 const HOLD_MAX_MS = 20000;
@@ -58,8 +49,6 @@ const TICK_MS = 16;
 
 const PREVIEW_ID = 'live-preview-iframe';
 
-/** The set the focus panel is showing (focus-panel.js FOCUS_SET_ATTR). */
-const FOCUS_SET = '[data-sve-focus-set]';
 
 let resumed = false;
 
@@ -88,49 +77,17 @@ function readScroll(pwin) {
   };
 }
 
-/**
- * The open set's own field list — the one its segments and accordions belong
- * to. Not the first list on show: the sections around a nested block are on
- * show too, as the frame it stands in.
- */
-function focusList(doc) {
-  const setEl = doc.querySelector(FOCUS_SET);
-
-  return setEl ? sectionFieldLists(setEl).find((el) => el.hasAttribute(ACTIVE_ATTR)) || null : null;
-}
-
-/**
- * A control of the open set's own — never one of a block nested in it, whose
- * segments and accordions go by the same names. On show, and either inside the
- * set's own list or in the focus header, where the panel moves the set's
- * segment control.
- */
-function ownControl(doc, list, selector) {
-  const header = doc.getElementById(FOCUS_HEADER_ID);
-
-  return [...doc.querySelectorAll(`.live-preview-editor ${selector}`)].find((el) =>
-    el.getBoundingClientRect().width > 0 &&
-    (el.closest(`[${ACTIVE_ATTR}]`) === list || header?.contains(el))
-  ) || null;
-}
-
-/** Is the panel showing one set (the focus header is up), rather than the page's list? */
-function showingOne(doc) {
-  return !!doc.getElementById(FOCUS_HEADER_ID);
-}
-
 /** Write down where the editor is. Called right before the reload button's load. */
 export function rememberWhereWeAre(win) {
   const doc = win.document;
-  const solo = showingOne(doc) ? sveState.soloUid || null : null;
-  const list = solo ? focusList(doc) : null;
+  const selection = currentSelection();
   const reading = {
     path: win.location.pathname,
     at: Date.now(),
     scroll: readScroll(previewWindow(doc)),
-    solo,
-    segment: list?.getAttribute(ACTIVE_ATTR) || '',
-    panel: list?.getAttribute(PANEL_OPEN_ATTR) || '',
+    // A row of the page's own form; a header or a global section's form is
+    // not mounted again by a reload, so there is nothing to put back there.
+    uid: selection?.uid && (!selection.ctxName || selection.ctxName === 'base') ? selection.uid : null,
   };
 
   try {
@@ -256,81 +213,15 @@ function holdScroll(win, scroll) {
   tick();
 }
 
-/** Wait for `find` to return something, checked every tick, for at most `ms`. */
-function when(win, find, ms) {
-  return new Promise((resolve) => {
-    const until = Date.now() + ms;
-
-    const look = () => {
-      const found = find();
-
-      if (found || Date.now() > until) {
-        resolve(found || null);
-
-        return;
-      }
-
-      win.setTimeout(look, TICK_MS);
-    };
-
-    look();
-  });
-}
-
 /**
- * Open the section again — as a click on it in the preview does. The message
- * comes from the preview's own window, so every listener that checks where a
- * click came from takes it for one.
+ * Select the row again, once the page's form has registered its context —
+ * the panel paints it from the values the moment it is selected.
  */
 async function reopen(win, reading) {
-  const doc = win.document;
+  const ctx = await whenContainerContext('base', CONTEXT_WAIT_MS, win);
 
-  // The preview has to have drawn its sections, and the sidebar to be there to open one in.
-  const pwin = await when(win, () => {
-    const p = previewWindow(doc);
-
-    try {
-      return p?.document?.querySelector('[id^="id-"]') && doc.querySelector('[data-sve-lite]') ? p : null;
-    } catch {
-      return null;
-    }
-  }, FOCUS_WAIT_MS);
-
-  if (!pwin) {
-    return;
-  }
-
-  win.dispatchEvent(new MessageEvent('message', {
-    data: { source: SOURCE, type: MSG.CLICK, uid: reading.solo },
-    origin: win.location.origin,
-    source: pwin,
-  }));
-
-  if (!reading.segment && !reading.panel) {
-    return;
-  }
-
-  // The segment control and the accordions are built once the set's fields are,
-  // and only the open set's are on show once the panel shows it alone.
-  const list = await when(win, () => {
-    const l = showingOne(doc) ? focusList(doc) : null;
-
-    return l && (!reading.segment || l.querySelector(`[${SEG_ATTR}="${reading.segment}"]`)) ? l : null;
-  }, FOCUS_WAIT_MS);
-
-  if (!list) {
-    return;
-  }
-
-  if (reading.segment && list.getAttribute(ACTIVE_ATTR) !== reading.segment) {
-    ownControl(doc, list, `[${SEG_ATTR}="${reading.segment}"]`)?.click();
-  }
-
-  if (reading.panel && list.getAttribute(PANEL_OPEN_ATTR) !== reading.panel) {
-    // The accordion is on show once its segment is.
-    const head = await when(win, () => ownControl(doc, list, `[${PANEL_ATTR}="${reading.panel}"] [${PANEL_HEAD_ATTR}]`), FOCUS_WAIT_MS);
-
-    head?.click();
+  if (ctx) {
+    select({ uid: reading.uid, source: 'resume' });
   }
 }
 
@@ -356,7 +247,7 @@ function resumeWhereWeWere(win) {
     holdScroll(win, reading.scroll);
   }
 
-  return reading.solo ? reopen(win, reading) : undefined;
+  return reading.uid ? reopen(win, reading) : undefined;
 }
 
 // Asked by the shell once the preview has painted, before the new editor is

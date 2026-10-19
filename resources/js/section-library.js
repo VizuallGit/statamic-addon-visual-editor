@@ -52,17 +52,18 @@ import {
 } from './right-dock.js';
 import { csrfToken } from './lib/csrf.js';
 import { checkPreviews, paintPreviewButtons, previewsAuto, setPreviewsAuto } from './previews-watch.js';
-import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { defaultSectionField, featureOn, pageBuilderParams, pageBuilderQuery, sectionField } from './lib/config.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { lpMode, persistDockedPanel, setLpCollapsed } from './lp-panel.js';
-import { clearSolo, focusPanelOn, hideSettingsBar, sectionSettingsFields, soloSection, soloSectionSettings } from './focus-panel.js';
-import { activeChromeKind, closeChromeDesignsPanel, hasUnsavedGlobals, removeChromeModeToggles, setActiveChromeKind, unlockChromeGlobalsTabs } from './globals-panel.js';
+import { hideSettingsBar } from './lp-width.js';
+import { selectRow, selectionPanelShowing } from './selection-panel.js';
+import { activeChromeKind, closeChromeDesignsPanel, hasUnsavedGlobals, removeChromeModeToggles, setActiveChromeKind } from './globals-panel.js';
 import { savePageAsTemplate } from './inline-edit.js';
-import { closeGlobalSectionPanel, globalSectionEditorOpen, openGlobalSectionPanel } from './global-section.js';
+import { closeGlobalSectionPanel, globalSectionEditorOpen, openGlobalSectionInline } from './global-section.js';
 import { closeChromeInline } from './chrome.js';
 import { confirmLeaveGlobalsOverlay } from './pages.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
@@ -1913,7 +1914,7 @@ export function closeRightPanelsInner(win, keepIds) {
     closeCommentsPanel(win);
   }
 
-  if (!keepIds.includes(GLOBAL_SECTION_PANEL_ID) && !keepIds.includes(GLOBAL_SECTION_HOST_ID)) {
+  if (!keepIds.includes(GLOBAL_SECTION_HOST_ID)) {
     closeGlobalSectionPanel(win);
   }
 
@@ -2008,8 +2009,6 @@ export function editorOverlayCss() {
  * inside it so switching footer ↔ hero never changes sidebar width.
  */
 export function claimLivePreviewEditor(win) {
-  clearSolo(win.document);
-
   if (sveState.headerTab === 'settings') {
     setHeaderTab(win, null);
   }
@@ -2065,7 +2064,7 @@ export function releaseLeftEdgeIfFree(win) {
     return;
   }
 
-  if (sveState.soloUid) {
+  if (selectionPanelShowing()) {
     setLpCollapsed(win, false);
 
     return;
@@ -2090,7 +2089,6 @@ export function dismissChromeForPageEdit(win, { syncDock = false } = {}) {
   // header as it is being typed.
   const closedInline = closeChromeInline(win, { refresh: false }) !== false;
 
-  unlockChromeGlobalsTabs(win);
   sveState.forcePanelOpen = false;
   syncPreviewInset(win);
   syncSectionLibraryAvailability(win);
@@ -4115,26 +4113,17 @@ export function handleOpenGlobalSection(data, win) {
     return;
   }
 
-  openGlobalSectionPanel(win, data.id);
+  openGlobalSectionInline(win, data.id);
   syncSectionLibraryAvailability(win);
 }
 
 /**
- * The gear on a section in the preview: open that section's own settings popup
- * (spacing, colours, …) — the very one the panel's "Show settings" button opens,
- * so every fieldtype and condition inside it behaves exactly as it always has.
- *
- * The set has to be expanded first: a collapsed set keeps its fields behind
- * v-show, and the popup measures layout as it opens — clicked while hidden it
- * does nothing at all.
+ * The gear on a section in the preview: the section on the panel, settings a
+ * tab away. It used to expand the set in Statamic's form, click its revealer,
+ * wait for the fields and isolate them; the panel draws the row from the
+ * form's values instead.
  */
 export function handleSectionSettings(data, doc, win) {
-  const setEl = findSetByUid(data.uid, doc) ?? sortableItemForUid(data.uid, doc);
-
-  if (!setEl) {
-    return;
-  }
-
   if (isGlobalsOverlayOpen(win) && hasUnsavedGlobals(win)) {
     confirmLeaveGlobalsOverlay(win, () => {
       dismissChromeForPageEdit(win);
@@ -4146,83 +4135,11 @@ export function handleSectionSettings(data, doc, win) {
 
   dismissChromeForPageEdit(win);
 
-  // Expand ONCE. Expanding is a toggle and Vue applies it asynchronously, so a
-  // second nudge while the first is still pending closes the set right back up.
-  [...collectAncestorSets(setEl), setEl].forEach(expandSet);
-
-  let attempts = 0;
-  let revealed = false;
-
-  const open = () => {
-    // Some sections hide their settings behind a revealer — open it first. It's a
-    // toggle, so it gets exactly one click.
-    if (!revealed) {
-      const revealer = settingsRevealer(setEl);
-
-      if (revealer && /^(show|vis)/i.test((revealer.textContent || '').trim())) {
-        revealer.click();
-        revealed = true;
-      }
-    }
-
-    // A collapsed set renders no fields, and revealing takes a beat — just wait.
-    if (!sectionSettingsFields(setEl).length) {
-      if (++attempts < 30) {
-        setTimeout(open, 200);
-      }
-
-      return;
-    }
-
-    // Let Vue settle before isolating; fall back to showing the whole section if
-    // the settings can't be pinned down.
-    setTimeout(() => {
-      // With the focus panel on, the section already comes up under its own name
-      // with its tabs across the top — the gear means "open it on the settings
-      // tab", not "show me the settings fields and nothing around them".
-      const opened = focusPanelOn(win)
-        ? soloSection(data.uid, doc, win, { kind: 'section', segment: 'settings' })
-        : soloSectionSettings(data.uid, doc, win);
-
-      if (!opened) {
-        soloSection(data.uid, doc, win);
-      }
-
-      sveState.forcePanelOpen = true;
-      setLpCollapsed(win, false);
-    }, 250);
-  };
-
-  open();
-}
-
-/**
- * The section's own "Show settings" revealer.
- *
- * Settings aren't a popup — `show_settings` is a `revealer` fieldtype that
- * unhides the section's `settings` fields in place. Sections are full of buttons
- * that say much the same thing (every button row and column has its own), so the
- * section's is picked by nesting: its fields sit in the set's own field list,
- * everything else's are one or more field lists further in.
- */
-export function settingsRevealer(setEl) {
-  const depth = (el) => {
-    let levels = 0;
-
-    for (let node = el.parentElement; node && node !== setEl; node = node.parentElement) {
-      if (node.classList?.contains('publish-fields')) {
-        levels++;
-      }
-    }
-
-    return levels;
-  };
-
-  // Found by fieldtype, not by label: the field is *called* "Show settings", but
-  // the button Statamic renders inside it reads "Show Fields".
-  return [...setEl.querySelectorAll('.revealer-fieldtype button')].sort(
-    (a, b) => depth(a) - depth(b)
-  )[0];
+  // The panel draws the section under its own name with its tabs across the
+  // top; the gear means "show me this section", its settings one tab away.
+  selectRow(win, data.uid, 'preview');
+  sveState.forcePanelOpen = true;
+  setLpCollapsed(win, false);
 }
 
 /**

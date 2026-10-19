@@ -1,73 +1,68 @@
 /**
  * Settings toggle: `chrome_header`
- * Header and footer chrome in this window.
+ * Header and footer, edited in this window.
+ *
+ * The site's header and footer are fields on a global set, not on the page —
+ * so, like a synced section, the page's own form has nothing to edit. The
+ * half's globals form is mounted headless in the Live Preview field column
+ * (cp/surfaces/ChromeForm.vue: Statamic's PublishContainer on the globals
+ * screen's Inertia props, under our own container name) and the selection
+ * panel draws the half's tab on its context; its widgets are rows of that
+ * form, and every piece of the editor that works on a page section works on
+ * them — because it is the same code. What is typed is stashed for the
+ * preview; Save runs Statamic's own save pipeline.
+ *
+ * The borrowed globals page component, the solo isolation of its tabs and the
+ * docked globals iframe as a fallback went with phase 2 of the selection panel.
+ *
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
-import { SELECTORS } from './cp-selectors.js';
-import { openSettingsTab, rearmFirstSection } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
-import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
+import { CHROME_CONTAINER, CHROME_HOST_ID, HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
 import { containerContextName, publishContainers, whenContainerContext } from './lib/publish-containers.js';
-import { selectionPanelOn } from './lib/config.js';
-import { inertiaPageResolver } from './lib/inertia.js';
-import { mountStatamicSurface } from './cp/mount-statamic.js';
-import ChromeForm from './cp/surfaces/ChromeForm.vue';
 import { clearSelection, select } from './lib/selection.js';
 import { setLpMode } from './lp-panel.js';
-import { clearSolo, ensureSoloStyle, markSoloPath, paintFocusHeader, soloRoot } from './focus-panel.js';
-import { closeRightPanels, hideGlobalsPanel, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
-import { activeChromeKind, chromeGlobalHandle, chromeIgnoreValuePostsUntil, clearGlobalsStash, globalSets, globalsAcceptValues, lockChromeGlobalsTab, notifyChromeDirty, notifyGlobalSectionDirty, openGlobalsPanel, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
+import { closeRightPanels, hideGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
+import { chromeGlobalHandle, chromeIgnoreValuePostsUntil, clearGlobalsStash, globalsAcceptValues, notifyChromeDirty, notifyGlobalSectionDirty, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
 import { flushPendingEditUntilPanel } from './inline-edit.js';
-import { fetchInertiaPage, flushPendingFocusUntilPanel, hidePageFieldsForGlobalSection, mountBorrowedForm, postSectionValues, revealSectionPanelFrame, sectionPanelContainer, showPageFieldsAgain } from './global-section.js';
+import { fetchInertiaPage, postSectionValues } from './global-section.js';
+import { mountStatamicSurface } from './cp/mount-statamic.js';
+import ChromeForm from './cp/surfaces/ChromeForm.vue';
 import { MSG, SOURCE } from './lib/protocol.js';
-
-// ===== chrome-inline =====
-// --- Header / footer, edited in this window --------------------------------------
-//
-// The site's header and footer are fields on a global set (Theme Settings), not
-// on the page — so, like a synced section, the page's own form has nothing to
-// edit. Everything below does for that global what the block above does for a
-// synced entry: mounts Statamic's own globals form in the Live Preview field
-// column and isolates it to the one tab the chrome belongs to. From there the
-// header's widgets are sets in this document, and every piece of the editor that
-// works on a page section works on them — because it is the same code.
-
-/** The div Theme Settings' form is mounted into, in this document. */
-
-/** Publish-container name for that form — never "base", which is the page's. */
 
 export let chromeApp = null;
 export let chromeInlineKind = null;
 export let chromeInlineHandle = null;
-export let chromeValuesTimer = null;
+
+/** The headless form's api ({ save }) while it is mounted. */
+export let chromeForm = null;
+
+/** The mounted chrome form's publish context, while the selection panel draws it. */
+export let chromeCtx = null;
 
 export function chromeHost(doc) {
   return doc.getElementById(CHROME_HOST_ID);
 }
 
-/** True while header/footer owns the editor, whichever way it was opened. */
+/** True while header/footer owns the editor. */
 export function chromeEditorOpen(doc) {
-  return !!(doc.getElementById(GLOBALS_PANEL_ID) || chromeHost(doc));
+  return !!chromeHost(doc);
 }
 
-/** Theme Settings' own publish container, once its form has mounted. */
+/** The half's own publish container, once its form has mounted. */
 export function chromeContainer() {
   return publishContainers.find((container) => container.name === CHROME_CONTAINER) || null;
 }
 
-/** The headless form's api ({ save }) while the selection panel draws the half. */
-export let chromeForm = null;
-
 /**
  * Mount the half's globals form headless, on Statamic's PublishContainer under
- * our own container name (cp/surfaces/ChromeForm.vue). The selection panel
- * draws the tab's fields on its context; nothing of the globals screen itself
- * is borrowed, so this holds in every build of the Control Panel.
+ * our own container name. The selection panel draws the tab's fields on its
+ * context; nothing of the globals screen itself is borrowed, so this holds in
+ * every build of the Control Panel. What is typed arrives on `onChange`.
  */
-export function mountChromeContainer(win, host, page) {
+export function mountChromeContainer(win, host, page, handle) {
   chromeForm = null;
 
   try {
@@ -77,6 +72,7 @@ export function mountChromeContainer(win, host, page) {
       bind: (api) => {
         chromeForm = api;
       },
+      onChange: (values) => onChromeValues(win, handle, values),
     });
   } catch (err) {
     console.error('[sve] chrome form', err);
@@ -84,220 +80,6 @@ export function mountChromeContainer(win, host, page) {
   }
 
   return !!chromeApp;
-}
-
-/**
- * Mount Theme Settings' form, under a container name of our own.
- *
- * The globals page hardcodes `publish-container="base"` — the page entry's name —
- * and two containers answering to one name is a form writing into another form's
- * values. The page's render is therefore taken as it is built and the one prop
- * rewritten before Vue ever sees it. The same pass drops the page's <Head>
- * sibling: it wants Inertia's head manager, which a borrowed app has no business
- * providing, and the form is the only part of that screen we came for.
- */
-export function mountChromeForm(win, host, Page, props) {
-  let form = null;
-
-  const findForm = (vnode) => {
-    if (!vnode || typeof vnode !== 'object' || form) {
-      return;
-    }
-
-    if (Array.isArray(vnode)) {
-      vnode.forEach(findForm);
-
-      return;
-    }
-
-    if (vnode.props && ('publish-container' in vnode.props || 'publishContainer' in vnode.props)) {
-      if ('publish-container' in vnode.props) {
-        vnode.props['publish-container'] = CHROME_CONTAINER;
-      }
-
-      if ('publishContainer' in vnode.props) {
-        vnode.props.publishContainer = CHROME_CONTAINER;
-      }
-
-      form = vnode;
-
-      return;
-    }
-
-    if (Array.isArray(vnode.children)) {
-      vnode.children.forEach(findForm);
-    }
-  };
-
-  const Patched = {
-    ...Page,
-    render(...args) {
-      form = null;
-
-      const tree = Page.render.apply(this, args);
-
-      findForm(tree);
-
-      return form || tree;
-    },
-  };
-
-  // A build that no longer renders the form this way would leave us mounting the
-  // whole globals screen under the page's own container name. Better to say so
-  // and let the docked panel take it.
-  if (typeof Page.render !== 'function') {
-    console.error('[sve] globals page has no render — chrome falls back to the panel');
-
-    return false;
-  }
-
-  chromeApp = mountBorrowedForm(win, host, (Vue) => () => Vue.h(Patched, props), 'chrome form');
-
-  return !!chromeApp;
-}
-
-/** The tab button in the mounted form whose label names this chrome. */
-export function chromeTabButton(host, kind) {
-  const needle = kind === 'footer' ? 'footer' : 'header';
-
-  return [...host.querySelectorAll('button[role="tab"]')].find((tab) =>
-    (tab.textContent || '').trim().toLowerCase().startsWith(needle)
-  );
-}
-
-export function activeChromeTabPanel(host) {
-  return (
-    host.querySelector('[role="tabpanel"][data-state="active"]') ||
-    [...host.querySelectorAll('[role="tabpanel"]')].find((panel) => panel.offsetParent !== null) ||
-    null
-  );
-}
-
-/**
- * Show one tab and nothing else.
- *
- * The isolation is the section view's isolation — the same keep/parent marking
- * `markSoloPath` does, started at the tab's own panel instead of at a set. So the
- * globals form arrives stripped of everything a section's card is stripped of:
- * its title bar, its Save, the row of other tabs, and the page's own fields
- * behind it. What is left is the header's fields under a header naming them.
- */
-/**
- * The form's own fields, for a set whose blueprint draws no tab bar.
- *
- * A set holding a single half has a single tab, and Statamic renders no tab
- * strip for one tab — so there is no tabpanel to isolate and no button to press.
- * The whole form is the half, which is the answer, not a failure.
- *
- * Saying "not yet" here is expensive in a way that is easy to miss: the boot
- * retries every 120ms and the host stays at opacity 0 until either the solo
- * lands or the blind reveal timer fires, and that timer is 2.5 seconds. A form
- * that could never be isolated therefore always cost the full 2.5s before it
- * appeared — the whole of the wait between clicking the header and seeing it.
- */
-export function soleChromePanel(host) {
-  // A tab strip means the tabs are still rendering; that is genuinely "not yet",
-  // and answering with the whole form would isolate every half at once.
-  if (host.querySelector('[role="tabpanel"]') || host.querySelector('button[role="tab"]')) {
-    return null;
-  }
-
-  return host.querySelector('.publish-fields') || null;
-}
-
-export function soloChromeTab(win, doc, kind) {
-  const host = chromeHost(doc);
-  const editor = soloRoot(doc);
-
-  if (!host || !editor || !editor.contains(host)) {
-    return false;
-  }
-
-  const tab = chromeTabButton(host, kind);
-  const tabs = host.querySelectorAll('button[role="tab"]');
-
-  // No tab by that name, and more than one to choose from: this is the other
-  // half's form, still mounted. Saying "not yet" keeps the caller's host at
-  // opacity 0 — isolating the active panel here is what used to leave the
-  // previous half on screen until the right form arrived.
-  if (!tab && tabs.length > 1) {
-    return false;
-  }
-
-  if (tab && tab.getAttribute('aria-selected') !== 'true') {
-    // reka-ui switches on the full pointer sequence, never a bare click().
-    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-      tab.dispatchEvent(new win.PointerEvent(type, { bubbles: true, cancelable: true }));
-    });
-  }
-
-  const panel = activeChromeTabPanel(host) || soleChromePanel(host);
-
-  if (!panel) {
-    return false;
-  }
-
-  ensureSoloStyle(doc);
-
-  doc.querySelectorAll(`[${SOLO_PARENT_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_PARENT_ATTR));
-  doc.querySelectorAll(`[${SOLO_KEEP_ATTR}]`).forEach((el) => el.removeAttribute(SOLO_KEEP_ATTR));
-
-  for (let node = panel; node && node !== editor && node.parentElement; node = node.parentElement) {
-    node.setAttribute(SOLO_KEEP_ATTR, '');
-    node.parentElement.setAttribute(SOLO_PARENT_ATTR, '');
-  }
-
-  // Lives outside Vue's tree; without this the stylesheet hides it.
-  doc.getElementById(FOCUS_HEADER_ID)?.setAttribute(SOLO_KEEP_ATTR, '');
-
-  // The word is written for the middle of a sentence ("you are editing the
-  // header"); at the top of the panel it is a name, so it starts like one.
-  const word = t(win, kind === 'footer' ? 'chrome_footer' : 'chrome_header');
-
-  paintFocusHeader(
-    win,
-    doc,
-    {
-      display: word.charAt(0).toUpperCase() + word.slice(1),
-      icon: 'layout',
-      instructions: '',
-    },
-    null
-  );
-
-  return true;
-}
-
-/**
- * Keep that view on screen while Vue rebuilds the form under it.
- *
- * Stored in `sveState.soloObserver` on purpose: it is the same slot a section's solo uses,
- * so stepping from the header into one of its widgets replaces this watch with
- * that one, and `clearSolo` takes down whichever is running.
- */
-export function watchChromeSolo(win, doc, kind) {
-  if (sveState.soloObserver) {
-    sveState.soloObserver.disconnect();
-  }
-
-  const target = doc.querySelector('.live-preview-fields') || doc.body;
-  let queued = false;
-
-  sveState.soloObserver = new MutationObserver(() => {
-    if (chromeInlineKind !== kind || sveState.soloUid || queued) {
-      return;
-    }
-
-    queued = true;
-    win.requestAnimationFrame(() => {
-      queued = false;
-
-      if (chromeInlineKind === kind && !sveState.soloUid && chromeHost(doc)) {
-        soloChromeTab(win, doc, kind);
-      }
-    });
-  });
-  sveState.soloObserver.observe(target, { childList: true, subtree: true });
 }
 
 /**
@@ -401,13 +183,8 @@ export async function openChromeInline(win, kind) {
   // Both halves in one set: they are two tabs of one form, and stepping across is
   // a tab switch rather than a remount — nothing half-typed is lost.
   if (existing && chromeInlineHandle === handle) {
-    sveState.soloUid = null;
-
-    if (selectionPanelOn(win) && chromeCtx) {
+    if (chromeCtx) {
       select({ tab: chromeKind, ctxName: containerContextName(chromeCtx), source: 'chrome' });
-    } else {
-      soloChromeTab(win, doc, chromeKind);
-      watchChromeSolo(win, doc, chromeKind);
     }
 
     syncSectionLibraryAvailability(win);
@@ -431,17 +208,10 @@ export async function openChromeInline(win, kind) {
   closeRightPanels(win, doc.getElementById(HTML_TREE_PANEL_ID) ? [HTML_TREE_PANEL_ID] : []);
 
   const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
-  const panel = selectionPanelOn(win);
-  const resolver = panel ? null : inertiaPageResolver(win);
 
-  if (!column || (!panel && !resolver)) {
-    // The frame's form stands in for the inline one (a production build strips
-    // the way to Inertia's resolver). No inline form, no inline kind: left
-    // set, it named the half for every dock sync after the half was left,
-    // and a click on a section fetched the header's file. The active kind
-    // carries the half while the frame is open; the dock follows it.
+  if (!column) {
     chromeInlineKind = null;
-    openGlobalsPanelFrameForChrome(win, chromeKind);
+    console.error('[sve] no Live Preview column to open the', chromeKind, 'in');
     syncCodeDock(win, doc, null);
 
     return;
@@ -451,9 +221,8 @@ export async function openChromeInline(win, kind) {
 
   host.id = CHROME_HOST_ID;
   host.dataset.sveChromeKind = chromeKind;
-  // Invisible until isolated — but the page form stays up. Hiding it first left
-  // an empty column until this host faded in (the jump / delay in the sidebar).
-  host.style.cssText = 'position:absolute;inset:0;opacity:0;overflow:auto;pointer-events:none;';
+  // Out of sight: the panel draws the half; this form is the data and the save.
+  host.style.cssText = 'position:absolute;inset:0;opacity:0;overflow:hidden;pointer-events:none;';
   if (win.getComputedStyle(column).position === 'static') {
     column.style.position = 'relative';
   }
@@ -465,57 +234,19 @@ export async function openChromeInline(win, kind) {
     return;
   }
 
-  // The panel draws the half's fields itself: the form is the data alone, on
-  // our own container, and needs nothing of the globals screen's component.
-  if (panel) {
-    if (!loaded?.props?.blueprint || !mountChromeContainer(win, host, loaded.props)) {
-      closeChromeInline(win);
-      console.error('[sve] the globals screen for', handle, 'could not be fetched — the header stays closed');
-      syncCodeDock(win, doc, null);
-
-      return;
-    }
-  } else {
-    let Page = null;
-
-    if (loaded?.component) {
-      try {
-        const mod = await resolver(loaded.component);
-
-        Page = mod?.default ?? mod;
-      } catch {
-        Page = null;
-      }
-    }
-
-    if (chromeHost(doc) !== host) {
-      return;
-    }
-
-    if (!Page || !mountChromeForm(win, host, Page, loaded.props)) {
+  if (!loaded?.props?.blueprint || !mountChromeContainer(win, host, loaded.props, handle)) {
     closeChromeInline(win);
-    // The frame's form stands in for the inline one (a production build strips
-    // the way to Inertia's resolver). No inline form, no inline kind: left
-    // set, it named the half for every dock sync after the half was left,
-    // and a click on a section fetched the header's file. The active kind
-    // carries the half while the frame is open; the dock follows it.
-      chromeInlineKind = null;
-      openGlobalsPanelFrameForChrome(win, chromeKind);
-      syncCodeDock(win, doc, null);
+    console.error('[sve] the globals screen for', handle, 'could not be fetched — the', chromeKind, 'stays closed');
+    syncCodeDock(win, doc, null);
 
-      return;
-    }
+    return;
   }
 
   chromeInlineHandle = handle;
+  sveState.chromeValuesBaseline = JSON.stringify(loaded.props.values || {});
+  sveState.chromeValuesSeen = sveState.chromeValuesBaseline;
   watchChromeInlineSaves(win);
-  watchChromeInlineValues(win, handle);
-
-  if (selectionPanelOn(win)) {
-    adoptChromeContext(win, host, chromeKind);
-  } else {
-    bootChromeSolo(win, doc, host, chromeKind);
-  }
+  adoptChromeContext(win, host, chromeKind);
   syncSectionLibraryAvailability(win);
   syncCodeDock(win, doc, null);
   // Both, not just the other one: this half was consumed on the way in, and
@@ -523,24 +254,20 @@ export async function openChromeInline(win, kind) {
   warmChromeInlinePages(win);
 }
 
-/** The mounted chrome form's publish context, while the selection panel draws it. */
-export let chromeCtx = null;
-
 /**
- * Register the chrome form's context and select its tab, once the form has
- * drawn its fields — the context is read off them. A frame or two at most on
- * a normal mount; given up after two seconds, when the form did not come.
+ * Register the chrome form's context and select its tab, once the container
+ * has registered it — a frame or two at most. Given up after four seconds,
+ * when the form did not come, and said so.
  */
 function adoptChromeContext(win, host, kind) {
-  whenContainerContext(CHROME_CONTAINER, 2500, win).then((ctx) => {
+  whenContainerContext(CHROME_CONTAINER, 4000, win).then((ctx) => {
     if (chromeHost(win.document) !== host || chromeInlineKind !== kind) {
       return;
     }
 
-    // A form with no set in it registers nothing (an empty header): the
-    // isolation view still knows how to show it.
     if (!ctx) {
-      bootChromeSolo(win, win.document, host, kind);
+      closeChromeInline(win);
+      console.error('[sve] the', kind, 'form registered no publish context');
 
       return;
     }
@@ -550,153 +277,49 @@ function adoptChromeContext(win, host, kind) {
   });
 }
 
-/** The docked Theme Settings route, for when the in-window one cannot be built. */
-export function openGlobalsPanelFrameForChrome(win, kind) {
-  const set = globalSets(win).find((candidate) => candidate.handle === chromeGlobalHandle(win, kind));
-
-  if (!set) {
+/**
+ * What the form holds, as it changes — from the container's own update, not a
+ * poll. Stashed for the preview over the same channel the docked panel used
+ * (`postGlobals` and its debounce), so the render, the chrome bar and the
+ * discard path all behave exactly as they did. Inside the settle window after
+ * an open or a save, what arrives is the form agreeing with what is on disk —
+ * that is the clean state, not an edit.
+ */
+function onChromeValues(win, handle, values) {
+  if (!chromeHost(win.document) || !values || typeof values !== 'object') {
     return;
   }
 
-  openGlobalsPanel(win, set, { chromeLock: kind });
-  showGlobalsPanel(win);
-  lockChromeGlobalsTab(win, kind);
-}
+  const serialized = JSON.stringify(values);
 
-/** Isolate the tab once the form has rendered enough of itself to be isolated. */
-export function bootChromeSolo(win, doc, host, kind) {
-  let attempts = 0;
-
-  const reveal = () => {
-    if (chromeHost(doc) !== host) {
-      return;
-    }
-
-    hidePageFieldsForGlobalSection(host);
-    host.style.position = '';
-    host.style.inset = '';
-    host.style.overflow = '';
-    host.style.pointerEvents = '';
-    host.style.opacity = '1';
-  };
-
-  win.setTimeout(reveal, SECTION_PANEL_REVEAL_MS);
-
-  const tryBoot = () => {
-    if (chromeHost(doc) !== host || chromeInlineKind !== kind) {
-      return;
-    }
-
-    if (soloChromeTab(win, doc, kind)) {
-      watchChromeSolo(win, doc, kind);
-      reveal();
-
-      return;
-    }
-
-    if (attempts++ < 80) {
-      win.setTimeout(tryBoot, 120);
-
-      return;
-    }
-
-    reveal();
-  };
-
-  tryBoot();
-}
-
-/**
- * Read what the form holds, four times a second, and stash it for the preview.
- *
- * Same channel the docked panel used — `postGlobals` and its debounce — so the
- * render, the chrome bar and the discard path all behave exactly as they did.
- */
-export function watchChromeInlineValues(win, handle) {
-  stopChromeInlineValues(win);
-  sveState.chromeValuesSeen = null;
-
-  chromeValuesTimer = win.setInterval(() => {
-    if (!chromeHost(win.document)) {
-      return;
-    }
-
-    const container = chromeContainer();
-    const values = container ? unwrapRef(container.values) : null;
-
-    if (!values || typeof values !== 'object') {
-      return;
-    }
-
-    const serialized = JSON.stringify(values);
-
-    if (serialized === sveState.chromeValuesSeen) {
-      return;
-    }
-
-    const first = sveState.chromeValuesSeen === null;
-
-    sveState.chromeValuesSeen = serialized;
-
-    // First read is what the form opened with — the baseline, not an edit.
-    if (first) {
-      sveState.chromeValuesBaseline = serialized;
-
-      return;
-    }
-
-    // Inside the settle window after an open or a save, what arrives is the form
-    // agreeing with what is on disk — that is the clean state, not an edit.
-    if (Date.now() < chromeIgnoreValuePostsUntil) {
-      sveState.chromeValuesBaseline = serialized;
-
-      return;
-    }
-
-    if (!globalsAcceptValues) {
-      return;
-    }
-
-    sveState.globalsStashActive = true;
-    notifyChromeDirty(win);
-    postGlobals(win, handle, JSON.parse(serialized));
-  }, 250);
-}
-
-export function stopChromeInlineValues(win) {
-  if (chromeValuesTimer) {
-    win.clearInterval(chromeValuesTimer);
-    chromeValuesTimer = null;
+  if (serialized === sveState.chromeValuesSeen) {
+    return;
   }
+
+  sveState.chromeValuesSeen = serialized;
+
+  if (Date.now() < chromeIgnoreValuePostsUntil) {
+    sveState.chromeValuesBaseline = serialized;
+
+    return;
+  }
+
+  if (!globalsAcceptValues) {
+    return;
+  }
+
+  sveState.globalsStashActive = true;
+  notifyChromeDirty(win);
+  postGlobals(win, handle, JSON.parse(serialized));
 }
 
-/**
- * The globals form's own Save, pressed for it. Hidden by the solo view, which is
- * not the same as disabled — the click runs Statamic's real save, and that form
- * never navigates afterwards, so there is nothing to hold back.
- */
+/** The form's own save, for the bar's Save. */
 export function pressChromeSave(win) {
-  const host = chromeHost(win.document);
-
-  if (!host) {
+  if (!chromeHost(win.document) || !chromeForm) {
     return false;
   }
 
-  if (chromeForm) {
-    void chromeForm.save();
-
-    return true;
-  }
-
-  const button = [...host.querySelectorAll('button')].find((el) =>
-    /^(save|gem)\b/i.test((el.textContent || '').trim())
-  );
-
-  if (!button) {
-    return false;
-  }
-
-  button.click();
+  void chromeForm.save();
 
   return true;
 }
@@ -714,19 +337,14 @@ export function closeChromeInline(win, { refresh = true } = {}) {
   // Nothing of ours is open — and nothing of ours may be forgotten either. This
   // is called on the way IN as well (closeRightPanels clears the field column
   // before the form is built), and clearing the kind there left the boot with
-  // nothing to isolate: the whole Theme Settings screen, ten tabs and all.
+  // nothing to show.
   if (!host) {
     return false;
   }
 
-  stopChromeInlineValues(win);
   chromeInlineKind = null;
-
   chromeCtx = null;
-
-  if (selectionPanelOn(win)) {
-    clearSelection('chrome');
-  }
+  clearSelection('chrome');
 
   // Leaving for real — as opposed to the internal swap that steps from one half
   // to the other, which needs the half it is about to mount still warm. Whatever
@@ -748,68 +366,17 @@ export function closeChromeInline(win, { refresh = true } = {}) {
 
   chromeForm = null;
   host.remove();
-  clearSolo(doc);
-
-  // Page Settings is where the focus path lands; the panel keeps the sections
-  // tab, whose fields are what the page's context lives in.
-  if (!selectionPanelOn(win)) {
-    openSettingsTab(win);
-  }
-
-  showPageFieldsAgain(doc);
 
   chromeInlineHandle = null;
   sveState.chromeValuesSeen = null;
   sveState.chromeValuesBaseline = null;
 
-  rearmFirstSection();
   syncPreviewInset(win);
   clearGlobalsStash(win, { refresh });
   syncSectionLibraryAvailability(win);
-  syncCodeDock(win, doc, sveState.soloUid);
+  syncCodeDock(win, doc, null);
 
   return true;
-}
-
-/** The panel frame reports what's being typed → stash it → re-render the page. */
-export function listenForSectionValues(win) {
-  win.addEventListener('message', (event) => {
-    if (event.origin !== win.location.origin) {
-      return;
-    }
-
-    const { data } = event;
-
-    if (data?.source !== SOURCE) {
-      return;
-    }
-
-    // Entry form finished booting — flush any preview click held while it loaded.
-    if (data.type === MSG.SVE_SECTION_PANEL_READY) {
-      const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-      if (panel && event.source === panel.querySelector('iframe')?.contentWindow) {
-        flushPendingFocusUntilPanel(win);
-        // The rebuild is done — this is the first moment the form is worth
-        // looking at, so it is the moment it becomes visible.
-        revealSectionPanelFrame(win);
-      }
-
-      return;
-    }
-
-    if (data.type !== MSG.SVE_SECTION_VALUES) {
-      return;
-    }
-
-    const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-    if (!panel || event.source !== panel.querySelector('iframe')?.contentWindow) {
-      return;
-    }
-
-    applySectionValues(win, data.id, data.values);
-  });
 }
 
 /**
@@ -820,13 +387,11 @@ export function listenForSectionValues(win) {
  * button and the preview stash are decided in one place.
  */
 export function applySectionValues(win, id, values) {
-  // Kept so the panel can stand in as a container — that's what lets a global
-  // section's text be edited inline in the page (see sectionPanelContainer).
+  // What the bar names the section by, and what an inline edit waits for.
   sveState.sectionPanelValues = { id, values };
 
-  // Inline edit / focus clicked before hydrate finished — try again now.
+  // An inline edit clicked before the form had values — try again now.
   flushPendingEditUntilPanel();
-  flushPendingFocusUntilPanel(win);
 
   const serialized = JSON.stringify(values ?? {});
 

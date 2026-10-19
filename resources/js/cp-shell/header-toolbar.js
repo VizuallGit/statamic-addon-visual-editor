@@ -16,14 +16,15 @@ import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
 import { syncToolbarLayout } from '../toolbar-visibility.js';
-import { COLLECTION_PICKER_ID, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from '../lib/ids.js';
+import { COLLECTION_PICKER_ID, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { featureOn, sectionField } from '../lib/config.js';
 import { lpHeader } from '../lib/live-preview.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, persistDockedPanel, setLpMode } from '../lp-panel.js';
-import { focusFromPreview, focusPanelOn, leaveSolo, placeLpWidthPicker } from '../focus-panel.js';
+import { placeLpWidthPicker } from '../lp-width.js';
 import { leaveSelection, selectionPanelShowing } from '../selection-panel.js';
+import { currentSelection } from '../lib/selection.js';
 import { closeRightPanels, closeSectionPicker, isGlobalsOverlayOpen, leaveFocusLock, openSectionPicker, rowLocation, syncPreviewInset } from '../section-library.js';
 import { blockRowUid, closeListViewPanel, commentsPanel, listViewPanel, toggleCommentsPanel, toggleListViewPanel } from '../lazy/listview.js';
 import { armHtmlTreePrefetch, closeHtmlTreePanel, toggleHtmlTreePanel } from '../lazy/html-tree.js';
@@ -205,7 +206,7 @@ export function loadHeaderTab(win) {
 export function restoreRememberedCodeDock(win) {
   try {
     if (isCodeDockArmed(win) && templateDockAllowed(win)) {
-      syncCodeDock(win, win.document, sveState.soloUid);
+      syncCodeDock(win, win.document, currentSelection()?.uid ?? null);
     }
   } catch (err) {
     console.error('[sve] restore code dock', err);
@@ -763,7 +764,7 @@ export function toggleCodeDockButton(win) {
   setCodeDockArmed(win, next);
 
   if (next) {
-    syncCodeDock(win, win.document, sveState.soloUid);
+    syncCodeDock(win, win.document, currentSelection()?.uid ?? null);
   } else {
     closeCodeDock(win.document);
   }
@@ -1547,28 +1548,11 @@ export function toggleHeaderTab(win, key) {
     // as "settings" while the sidebar is gone — using that as `active` made the
     // next click close a panel that was already closed.
     const open = sveState.lpCollapsed === false;
-    const solo =
-      sveState.soloUid != null ||
-      !!win.document.querySelector(
-        `[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`
-      );
 
-    // The selection panel is showing a row: the first click shows the page.
-    if (open && selectionPanelShowing(win)) {
+    // A row is on the panel: this icon is Page settings, so the first click
+    // leaves the row and shows the page — not hide. A second click hides.
+    if (open && selectionPanelShowing()) {
       leaveSelection(win, 'settings');
-      applyHeaderTab(win);
-
-      return;
-    }
-
-    // A section is selected: this icon is Page settings, so the first click
-    // leaves the section and shows the page — not hide. A second click hides.
-    if (open && solo) {
-      fireTabClick(win, 1);
-      settingsTabPressedAt = Date.now();
-      settingsTabTries = 0;
-      leaveSolo(win.document, win);
-      applySectionsFieldVisibility(win);
       applyHeaderTab(win);
 
       return;
@@ -1769,11 +1753,7 @@ export function ensureSettingsTabs(win) {
   }
 
   const panelOpen = !sveState.lpCollapsed;
-  const inSection =
-    sveState.soloUid != null ||
-    !!doc.querySelector(
-      `[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`
-    );
+  const inSection = selectionPanelShowing();
 
   group.querySelectorAll('[data-tab-index]').forEach((btn) => {
     const selected =
@@ -1874,22 +1854,16 @@ export function clickNativeTab(win, index) {
   };
 
   // At bede om SEO mens man står inde i en overskrift er også at bede om at komme
-  // ud af den: felterne hører til siden, ikke til blokken. Og solo-visningen
-  // skjuler fanelisten, så der ville ikke være nogen fane at ramme.
-  const leavingSolo = sveState.soloUid !== null;
+  // ud af den: felterne hører til siden, ikke til blokken.
   let asked = false;
 
-  // Ask for the destination tab while isolation is still on. Dropping solo
-  // first painted the sections list (or an empty Main tab) for a frame, and
-  // the delayed click then hit Page Settings a second time — a visible jank.
-  if (leavingSolo && index > 0) {
-    asked = fireTabClick(win, index);
-    notePress();
-  }
+  if (selectionPanelShowing()) {
+    if (index > 0) {
+      asked = fireTabClick(win, index);
+      notePress();
+    }
 
-  if (leavingSolo) {
-    leaveSolo(win.document, win);
-    applySectionsFieldVisibility(win);
+    leaveSelection(win, 'settings');
   }
 
   // Asking for a tab means asking to see it — so an open panel is implied. On
@@ -2158,9 +2132,6 @@ export function applyHeaderTab(win) {
  * tabs). Measure the content’s left edge and set header padding — more reliable
  * than shifting only the toolbar, which drifted when the mode group expanded.
  */
-/** Whether this opening of the editor has already been sent into a section. */
-export let firstSectionOpened = false;
-
 /**
  * The page-sections field's own wrapper in the editor panel.
  *
@@ -2189,103 +2160,6 @@ export function sectionsFieldWrapper(doc) {
   }
 
   return node.parentElement ? node : null;
-}
-
-/**
- * Takes the list of every section out of the sidebar.
- *
- * Only while nothing is open: a section's fields render inside this same
- * wrapper, so hiding it whenever the flag is on would hide the section you are
- * editing along with the list of the ones you are not.
- */
-export function applySectionsFieldVisibility(win) {
-  const doc = win.document;
-  const wrapper = sectionsFieldWrapper(doc);
-
-  if (!wrapper) {
-    return;
-  }
-
-  const hide =
-    featureOn(win, 'open_first_section')
-    && focusPanelOn(win)
-    && !doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`);
-
-  wrapper.style.display = hide ? 'none' : '';
-}
-
-/**
- * Opens the entry in its first section rather than on the list of all of them.
- *
- * Off unless the site asks for it (Addons → Visual Editor). Where the work
- * begins is a matter of how a team uses the editor: a page of three sections is
- * quicker from the list, a page of twenty is not.
- *
- * Once per opening, and never over a choice already made — a click that arrives
- * before this runs is the editor's answer to where you want to be, and it wins.
- */
-export function openFirstSectionOnce(win) {
-  const doc = win.document;
-  const editor = doc.querySelector('.live-preview-editor');
-
-  // The editor is gone, so this is between openings: arm it for the next one.
-  if (!editor) {
-    firstSectionOpened = false;
-
-    return;
-  }
-
-  if (firstSectionOpened || !featureOn(win, 'open_first_section') || !focusPanelOn(win)) {
-    return;
-  }
-
-  // Something is already soloed — a click got here first, and it says more about
-  // where the author wants to be than a default does.
-  if (doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`)) {
-    firstSectionOpened = true;
-
-    return;
-  }
-
-  const field = sectionField(win) || 'page_sections';
-
-  for (const container of activeContainers(doc)) {
-    const values = unwrapRef(container.values);
-    const rows = values && typeof values === 'object' ? values[field] : null;
-
-    if (!Array.isArray(rows)) {
-      continue;
-    }
-
-    // A page with no sections has nothing to open onto, and an empty panel is
-    // worse than none — so it starts closed and the preview has the window to
-    // itself until there is something to edit.
-    if (!rows.length) {
-      firstSectionOpened = true;
-      setLpMode(win, 'show');
-
-      return;
-    }
-
-    // The values arrive before the form that draws them. Soloing then hides a
-    // list of sets that do not exist yet and leaves the panel blank — which is
-    // exactly what it did. This runs again on every pass of the header loop, so
-    // declining now costs a frame and nothing else.
-    if (!editor.querySelector(SELECTORS.replicatorSet)) {
-      return;
-    }
-
-    const uid = blockRowUid(rows[0]) || rows[0]?._visual_id || rows[0]?.id || rows[0]?._id || '';
-
-    if (!uid) {
-      return;
-    }
-
-    firstSectionOpened = true;
-    focusFromPreview(uid, doc, win);
-
-    return;
-  }
 }
 
 /** When the panel was last moved off the sections tab — see openSettingsTab. */
@@ -2317,15 +2191,15 @@ export function openSettingsTab(win) {
     return;
   }
 
-  // The one thing that counts as "something is selected": a section or a block
-  // isolated in the panel. Its fields are on the first tab, so this must never
-  // pull the panel off it while one is open.
+  // The one thing that counts as "something is selected": a row on the panel.
+  // The page's context lives in the fields of the first tab, so this must never
+  // pull the panel off it while a row is shown.
   //
   // Nothing else is asked about. An earlier version also stood down for the
   // header, the footer and the globals panel, and that was simply wrong: the
   // globals panel is built and parked off screen the moment Live Preview opens,
   // so its element is always in the document and the rule never ran once.
-  if (sveState.soloUid !== null || doc.querySelector(`[${SOLO_KEEP_ATTR}], [${SOLO_PARENT_ATTR}]`)) {
+  if (selectionPanelShowing()) {
     settingsTabTries = 0; // closing this again is a fresh question, not a retry
 
     return;
@@ -2364,25 +2238,6 @@ export function openSettingsTab(win) {
   fireTabClick(win, 1);
   setTimeout(() => ensureSettingsTabs(win), 60); // light the tab we just moved to
 }
-
-/**
- * Hand the field column back to the page, and let it land somewhere real.
- *
- * Stepping out of a header, a footer or a global section leaves the page's own
- * form with nothing isolated — and where the site opens straight into its first
- * section, the list of all of them is hidden while nothing is, so what is left is
- * a blank column. Arming the flag again is the whole fix: the next pass of the
- * header loop treats leaving exactly like an opening, which means the first
- * section, or a closed panel on a page that has none.
- *
- * Deliberately not a focus call of its own. Leaving and opening are the same
- * question — "where does the editor start?" — and answering it twice is how the
- * two drift apart.
- */
-export function rearmFirstSection() {
-  firstSectionOpened = false;
-}
-
 
 /**
  * Writes the starting values a template declared for a block, where the block
@@ -2497,7 +2352,6 @@ export function alignHeaderToolbarWithSidebar(win) {
     doc.querySelector('[data-sve-focus-tile]'),
     doc.querySelector('[data-tabs-track], [data-sve-section-track]'),
     editor.querySelector('.replicator-set'),
-    editor.querySelector('[data-sve-solo-back], [data-sve-focus-head]'),
   ].filter((el) => el && el.getClientRects().length);
 
   let targetLeft = null;

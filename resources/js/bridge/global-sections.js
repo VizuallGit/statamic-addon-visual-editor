@@ -442,7 +442,7 @@ export const CHROME_BAR_ID = '__sve-chrome-bar';
  * false — the older behaviour: the click asks the Control Panel to close chrome,
  *   warning first if Theme Settings has unsaved work.
  *
- * Goes off together with CHROME_INLINE in cp.js — the lock is part of editing the
+ * Part of editing the
  * header in the left panel, and on its own over the docked route it would only
  * take away a way out that route still expects to have.
  */

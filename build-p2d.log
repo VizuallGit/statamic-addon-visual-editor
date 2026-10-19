@@ -1,0 +1,93 @@
+
+> cp:build
+> vite build && node scripts/prune-dist.mjs
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 532 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/section-library.js is dynamically imported by /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/lazy-panels.js but also statically imported by /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/block-tree.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/chrome.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/cp-shell/add-section.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/cp-shell/boot.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/cp-shell/grid-rows.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/cp-shell/header-toolbar.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/global-section.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/globals-panel.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/html-tree.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/inline-edit.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/lazy-panels.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/lp-cluster.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/lp-more-menu.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/lp-panel.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/lp-reload.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/lp-width.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/outline-panel.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/pages.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/performance-panel.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/right-dock-tabs.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/section-copy.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/section-create.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/section-fields.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/selection-panel.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/side/section-meta-prefetch.js, /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/theme-panel.js, dynamic import will not move module into another chunk.
+
+computing gzip size...
+resources/dist/build/manifest.json                              28.45 kB │ gzip:   2.73 kB
+resources/dist/build/assets/outline-panel-CQMkWeVv.css           1.25 kB │ gzip:   0.51 kB
+resources/dist/build/assets/block-tree-ByydzHXR.css              1.30 kB │ gzip:   0.55 kB
+resources/dist/build/assets/ChoiceDialog-C1GDnWs9.css            2.11 kB │ gzip:   0.65 kB
+resources/dist/build/assets/FieldsetOverlay-49qp1cRA.css         2.35 kB │ gzip:   0.91 kB
+resources/dist/build/assets/page-activity-B1t8DxHg.css           3.47 kB │ gzip:   0.98 kB
+resources/dist/build/assets/BardStyles-CSAKA60d.css              3.80 kB │ gzip:   1.19 kB
+resources/dist/build/assets/comments-BU5mT28e.css                3.91 kB │ gzip:   1.12 kB
+resources/dist/build/assets/file-manager-Cjptmnxa.css            3.96 kB │ gzip:   1.07 kB
+resources/dist/build/assets/site-css-CFQBT-E0.css                4.79 kB │ gzip:   1.15 kB
+resources/dist/build/assets/section-create-D-VSrlKw.css          5.04 kB │ gzip:   1.34 kB
+resources/dist/build/assets/code-dock-BhVBb5in.css               5.19 kB │ gzip:   1.13 kB
+resources/dist/build/assets/AiPanel-Bu31E1Le.css                 9.56 kB │ gzip:   2.03 kB
+resources/dist/build/assets/html-tree-qWiyl--2.css               9.63 kB │ gzip:   2.28 kB
+resources/dist/build/assets/antlers-edit-OeU4ApI5.css           15.74 kB │ gzip:   3.14 kB
+resources/dist/build/assets/lp-cluster-BL0qjhtg.css             16.20 kB │ gzip:   3.39 kB
+resources/dist/build/assets/theme-panel-u0qc7ayk.css            23.40 kB │ gzip:   4.54 kB
+resources/dist/build/assets/ai-text-icon-B7uCWIwa.js             0.40 kB │ gzip:   0.28 kB
+resources/dist/build/assets/preview-context-FTWw99no.js          0.46 kB │ gzip:   0.28 kB
+resources/dist/build/assets/tw-candidates-CSP7aVNi.js            0.87 kB │ gzip:   0.55 kB
+resources/dist/build/assets/ai-panel-DOjcNVv8.js                 1.00 kB │ gzip:   0.58 kB
+resources/dist/build/assets/html-pick-align-CLq5l-p4.js          1.59 kB │ gzip:   0.82 kB
+resources/dist/build/assets/ids-C1vpT4U6.js                      2.02 kB │ gzip:   1.00 kB
+resources/dist/build/assets/section-copy-D4JJNPrR.js             2.54 kB │ gzip:   1.26 kB
+resources/dist/build/assets/codemirror-DcpxcB8T.js               2.74 kB │ gzip:   1.13 kB
+resources/dist/build/assets/ChoiceDialog-BDCY_5nv.js             2.79 kB │ gzip:   1.20 kB
+resources/dist/build/assets/utility-paint-DXCEnfCB.js            3.10 kB │ gzip:   1.48 kB
+resources/dist/build/assets/section-fields-CK15SBzM.js           3.13 kB │ gzip:   1.53 kB
+resources/dist/build/assets/protocol-YXBURS-N.js                 3.24 kB │ gzip:   1.33 kB
+resources/dist/build/assets/FieldsetOverlay-BXyqwQ_X.js          5.06 kB │ gzip:   2.34 kB
+resources/dist/build/assets/live-reload-morph-ZgQV7Bg3.js        5.52 kB │ gzip:   2.11 kB
+resources/dist/build/assets/ai-text-D_DnSzp0.js                  5.79 kB │ gzip:   2.32 kB
+resources/dist/build/assets/schema-panel-BDbKfm4l.js             6.50 kB │ gzip:   2.51 kB
+resources/dist/build/assets/page-activity-ClXS-tCs.js            7.42 kB │ gzip:   2.94 kB
+resources/dist/build/assets/template-board-C-kklwU6.js           8.31 kB │ gzip:   2.98 kB
+resources/dist/build/assets/overlay-host-BhCOrexz.js            10.36 kB │ gzip:   3.76 kB
+resources/dist/build/assets/design-overlay-BpQjlWvj.js          10.37 kB │ gzip:   4.17 kB
+resources/dist/build/assets/outline-panel-DgBDAZ-z.js           10.46 kB │ gzip:   4.14 kB
+resources/dist/build/assets/file-manager-CdjeRvbA.js            11.74 kB │ gzip:   4.52 kB
+resources/dist/build/assets/preview-CB3tGtaX.js                 12.55 kB │ gzip:   4.49 kB
+resources/dist/build/assets/site-css-LjXZsHPr.js                13.76 kB │ gzip:   5.13 kB
+resources/dist/build/assets/AiPanel-62Svs3v_.js                 19.94 kB │ gzip:   6.92 kB
+resources/dist/build/assets/mirror-Bl60gKJo.js                  20.75 kB │ gzip:   7.32 kB
+resources/dist/build/assets/breakpoint-overview-BZm8iO07.js     22.27 kB │ gzip:   8.40 kB
+resources/dist/build/assets/section-create-BDoZt90p.js          22.37 kB │ gzip:   7.36 kB
+resources/dist/build/assets/BardStyles-BpEJVlk4.js              23.11 kB │ gzip:   6.57 kB
+resources/dist/build/assets/css-scope-sgvLGydo.js               25.73 kB │ gzip:   9.29 kB
+resources/dist/build/assets/index-0IxPFT_m.js                   26.52 kB │ gzip:   8.81 kB
+resources/dist/build/assets/comments-tnMIxjGo.js                27.11 kB │ gzip:   9.24 kB
+resources/dist/build/assets/xray-BN5mMTpC.js                    27.76 kB │ gzip:  10.79 kB
+resources/dist/build/assets/index-DkhC0r6-.js                   28.39 kB │ gzip:  12.81 kB
+resources/dist/build/assets/index-sh1K8s4m.js                   28.95 kB │ gzip:  11.77 kB
+resources/dist/build/assets/index-DwJNgNWz.js                   29.13 kB │ gzip:   9.63 kB
+resources/dist/build/assets/a11y-scan-D4QT1vmA.js               31.00 kB │ gzip:  11.05 kB
+resources/dist/build/assets/block-tree-BYt0YxPw.js              33.52 kB │ gzip:  11.25 kB
+resources/dist/build/assets/index-Ci-3qkVd.js                   35.22 kB │ gzip:  12.28 kB
+resources/dist/build/assets/performance-panel-BFhqOAI1.js       36.59 kB │ gzip:  11.63 kB
+resources/dist/build/assets/index-B4S9JIPB.js                   38.16 kB │ gzip:  13.76 kB
+resources/dist/build/assets/index-D9YSa79V.js                   38.26 kB │ gzip:  13.59 kB
+resources/dist/build/assets/index-B5fiB6ig.js                   49.18 kB │ gzip:  16.41 kB
+resources/dist/build/assets/index-BwRQ94Ql.js                   87.24 kB │ gzip:  34.62 kB
+resources/dist/build/assets/html-tree-9ANdHNrd.js              101.94 kB │ gzip:  30.71 kB
+resources/dist/build/assets/html-tag-sync-BpXNELva.js          102.30 kB │ gzip:  35.16 kB
+resources/dist/build/assets/antlers-edit-D2pR5v9p.js           112.12 kB │ gzip:  35.76 kB
+resources/dist/build/assets/addon-BvzB7BQi.js                  125.90 kB │ gzip:  38.56 kB
+resources/dist/build/assets/theme-panel-CYqbIcIc.js            126.99 kB │ gzip:  39.12 kB
+resources/dist/build/assets/bridge-CuVE53ZX.js                 165.29 kB │ gzip:  46.86 kB
+resources/dist/build/assets/index-M2RCOyrL.js                  201.57 kB │ gzip:  65.65 kB
+resources/dist/build/assets/code-dock-CXNn1bEh.js              203.72 kB │ gzip:  59.36 kB
+resources/dist/build/assets/decompress-B3gwIZr2.js             295.22 kB │ gzip: 127.02 kB
+resources/dist/build/assets/lp-cluster-R0-bq_v0.js             409.29 kB │ gzip: 123.88 kB
+resources/dist/build/assets/tw-compile-6Zdug8kL.js             428.61 kB │ gzip: 107.28 kB
+resources/dist/build/assets/index-D5MszuVk.js                1,021.96 kB │ gzip: 420.87 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.90s
+build/assets: kept 72, removed 37 (1.7 MB)
+locked: kept 52, removed 33 (1.5 MB)

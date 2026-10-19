@@ -19,13 +19,13 @@
  *   (SVE_ACTIVATE) when the selection came from the panel itself — the other
  *   sources already told them.
  *
- * Behind the `selection_panel` feature, off by default. Phase 0: page sections
- * and the blocks and grid rows inside them. Phase 1: a global section's rows
- * (its borrowed entry form registers its own context when it mounts) and the
- * header and footer (the chrome form's context, as a tab of that form). The
+ * The one route to the left column since 1.1.553: page sections, the blocks,
+ * grid rows and Bard sets inside them, a global section's rows (its borrowed
+ * entry form registers its own context when it mounts) and the header and
+ * footer (the headless chrome form's context, as a tab of that form). The
  * forms themselves stay as they were — mounted out of sight as the data, with
- * their save, dirty state and the preview stash — only the isolation of their
- * DOM is gone.
+ * their save, dirty state and the preview stash — nothing of their DOM is
+ * isolated, marked or waited for any more.
  *
  * May import: lib/, cp/, cp-state.js, cp-selectors.js, cp-section-groups.js,
  * code-dock-lazy.js, lazy/listview.js, pages.js, section-library.js. Not
@@ -34,7 +34,6 @@
 import { h, nextTick } from 'vue';
 import { clearSelection, currentSelection, onSelection, select } from './lib/selection.js';
 import { containerContextName, onContainerContext, whenContainerContext } from './lib/publish-containers.js';
-import { selectionPanelOn } from './lib/config.js';
 import { SELECTION_ATTR, SELECTION_PANEL_ID } from './lib/ids.js';
 import { livePreviewEditorEl } from './lib/live-preview.js';
 import { injectStyle } from './lib/style.js';
@@ -48,7 +47,7 @@ import { mountStatamicSurface } from './cp/mount-statamic.js';
 import { ctxKey, panelStore, panelValues, resolvedSelection, setPanelContexts, setPanelSelection } from './cp/panel/store.js';
 import { handleRequestCloseGlobal } from './pages.js';
 import { dismissChromeForPageEdit } from './section-library.js';
-import { activateSectionsTab } from './focus-panel.js';
+import { activateSectionsTab } from './lp-width.js';
 import SelectionPanel from './cp/surfaces/SelectionPanel.vue';
 import { syncCodeDock } from './code-dock-lazy.js';
 import { listViewSyncTo } from './lazy/listview.js';
@@ -60,13 +59,13 @@ let host = null;
 let started = false;
 
 /** True when the panel is the thing in the left column right now. */
-export function selectionPanelShowing(win) {
-  return selectionPanelOn(win) && !!currentSelection() && !!resolvedSelection.value;
+export function selectionPanelShowing() {
+  return !!currentSelection() && !!resolvedSelection.value;
 }
 
 /** Whether this panel takes a row: resolvable against one of the open forms. */
 export function selectionPanelTakes(win, uid) {
-  if (!selectionPanelOn(win) || !uid || !panelStore.ctxs.length) {
+  if (!uid || !panelStore.ctxs.length) {
     return false;
   }
 
@@ -88,7 +87,7 @@ export function selectionPanelTakes(win, uid) {
 export function selectFromPreview(win, data) {
   const uid = data?.scope || data?.uid || null;
 
-  if (!selectionPanelOn(win) || !uid) {
+  if (!uid) {
     return false;
   }
 
@@ -128,7 +127,7 @@ export function selectRow(win, uid, source = 'tree') {
 
 /** A whole tab of a form — the header, the footer — chosen by the editor. */
 export function selectTab(win, tab, ctxName, source = 'chrome') {
-  if (!selectionPanelOn(win) || !tab || !ctxName) {
+  if (!tab || !ctxName) {
     return false;
   }
 
@@ -168,9 +167,9 @@ function fieldHandle(field) {
   return typeof field === 'string' && field ? field.split('.').pop() : null;
 }
 
-/** Once per page, from the Live Preview cluster's boot. Nothing when the feature is off. */
+/** Once per page, from the Live Preview cluster's boot. */
 export function initSelectionPanel(win) {
-  if (started || !selectionPanelOn(win)) {
+  if (started) {
     return;
   }
 
@@ -207,15 +206,16 @@ export function initSelectionPanel(win) {
 
     // A field in the panel still focused when its tree goes is a field whose
     // blur handler runs after its element is gone — Bard's reaches for
-    // `$el.contains` a millisecond after the blur and throws. Let go of the
-    // focus first and give it that millisecond; the new row paints right after.
+    // `$refs.container.contains` on a timer after the blur and throws. Let go
+    // of the focus first and give that timer its turn; the new row paints
+    // right after (measured: 5 ms was not enough in a headless Chrome).
     const active = host?.ownerDocument?.activeElement;
 
     if (host && active && host.contains(active) && typeof active.blur === 'function') {
       log(`blur before switch: ${active.tagName.toLowerCase()} focused=${active === active.ownerDocument.activeElement} hasFocus=${active.ownerDocument.hasFocus()}`);
       active.blur();
       log(`after blur: active=${active.ownerDocument.activeElement?.tagName?.toLowerCase()}`);
-      win.setTimeout(apply, 5);
+      win.setTimeout(apply, 80);
 
       return;
     }

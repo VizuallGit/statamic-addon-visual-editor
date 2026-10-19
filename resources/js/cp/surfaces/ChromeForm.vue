@@ -34,6 +34,8 @@ const props = defineProps({
   page: { type: Object, required: true },
   /** Called once with `{ save }`, so the host can save without reaching into Vue. */
   bind: { type: Function, default: null },
+  /** Called with the values whenever the container changes them — the host stashes them for the preview. */
+  onChange: { type: Function, default: null },
 });
 
 const clone = (value) => JSON.parse(JSON.stringify(value ?? {}));
@@ -57,6 +59,11 @@ const ContextTap = defineComponent({
     return () => null;
   },
 });
+
+function onValues(next) {
+  values.value = unwrapRef(next);
+  props.onChange?.(values.value);
+}
 
 function translate(text) {
   return typeof window.__ === 'function' ? window.__(text) : text;
@@ -109,7 +116,7 @@ onMounted(() => props.bind?.({ save }));
     :site="page.locale"
     :read-only="!!page.readOnly"
     :modified-fields="localizedFields"
-    @update:model-value="values = unwrapRef($event)"
+    @update:model-value="onValues($event)"
     @update:meta="meta = unwrapRef($event)"
     @update:modified-fields="localizedFields = unwrapRef($event)"
   >

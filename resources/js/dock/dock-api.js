@@ -34,7 +34,7 @@ import { unwrapRef } from '../lib/values.js';
 import { sectionField } from '../lib/config.js';
 import { activeContainers, pageHasSectionField } from '../lib/publish-containers.js';
 import { collectionViewType } from '../lib/collection-view.js';
-import { setTypeForUid } from '../focus-panel.js';
+import { setTypeForUid } from '../lib/row-meta.js';
 import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';

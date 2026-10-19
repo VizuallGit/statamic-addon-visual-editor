@@ -1,9 +1,10 @@
 /**
  * From a row's id to what Statamic needs to draw that row's fields.
  *
- * Statamic draws a Replicator set or a Grid row from three things: the field
- * definitions of the set (`config.fields`), the dotted path of the row in the
- * form's values (`page_sections.3.blocks.0`) and the dotted path of its meta
+ * Statamic draws a Replicator set, a Bard set or a Grid row from three things:
+ * the field definitions of the set (`config.fields`), the dotted path of the
+ * row in the form's values (`page_sections.3.blocks.0`; a Bard set's
+ * `text.2.attrs.values`) and the dotted path of its meta
  * (`page_sections.existing.<id>.blocks.existing.<id>`). Its own Set and Row
  * components build those on the way down the tree; this file builds the same
  * three for one row, from the top, so the row can be drawn on its own.
@@ -54,6 +55,22 @@ function holdsSets(field) {
 }
 
 /**
+ * A Bard set is a ProseMirror node: `{ type: 'set', attrs: { id, enabled,
+ * values: { type, … } } }`. The row Statamic draws is `attrs.values`, at
+ * `field.N.attrs.values` in the values and `field.existing.<attrs.id>` in the
+ * meta (bard/Set.vue). Its path therefore has two more segments than a
+ * replicator row's, and the `_id` that keys its meta sits on the node, not
+ * on the row.
+ */
+function bardRow(field, node, index) {
+  const list = node?.[field];
+  const item = Array.isArray(list) && /^\d+$/.test(index) ? list[Number(index)] : null;
+  const row = item?.type === 'set' && item.attrs && typeof item.attrs.values === 'object' ? item.attrs.values : null;
+
+  return row ? { row, id: item.attrs.id } : null;
+}
+
+/**
  * Resolve one row.
  *
  * @returns {null | {
@@ -85,9 +102,11 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
     return null;
   }
 
-  const segments = path.split('.');
+  // A row path alternates field, index, field, index … — a Bard set adds
+  // `attrs.values` after its index, which is folded away here and told
+  // apart below by the field's type.
+  const segments = path.split('.').filter((part, i, all) => !(part === 'attrs' && all[i + 1] === 'values') && !(part === 'values' && all[i - 1] === 'attrs'));
 
-  // A row path alternates field, index, field, index …
   if (segments.length % 2 !== 0) {
     why(`odd path ${path}`);
 
@@ -105,7 +124,8 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
     const index = segments[i + 1];
     const field = fields.find((candidate) => candidate?.handle === handle);
     const list = node?.[handle];
-    const row = Array.isArray(list) && /^\d+$/.test(index) ? list[Number(index)] : null;
+    const bard = field?.type === 'bard' ? bardRow(handle, node, index) : null;
+    const row = bard ? bard.row : Array.isArray(list) && /^\d+$/.test(index) ? list[Number(index)] : null;
 
     if (!field || !row || typeof row !== 'object') {
       why(`at ${handle}.${index}: field=${!!field} row=${!!row} (fields: ${fields.map((f) => f?.handle).join(',')})`);
@@ -113,7 +133,7 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
       return null;
     }
 
-    metaPath = `${metaPath ? `${metaPath}.` : ''}${handle}.existing.${row._id}`;
+    metaPath = `${metaPath ? `${metaPath}.` : ''}${handle}.existing.${bard ? bard.id : row._id}`;
 
     let kind;
     let config;
@@ -122,7 +142,7 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
       kind = 'grid';
       config = field;
       fields = Array.isArray(field.fields) ? field.fields : [];
-    } else if (holdsSets(field)) {
+    } else if (holdsSets(field) || bard) {
       const set = setsOf(field).find((candidate) => candidate?.handle === row.type);
 
       if (!set) {
@@ -135,7 +155,6 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
       config = set;
       fields = Array.isArray(set.fields) ? set.fields : [];
     } else {
-      // Bard sets and anything else that keeps rows some other way wait for a later phase.
       why(`field ${handle} is a ${field.type}`);
 
       return null;
@@ -148,6 +167,7 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
 
       result = {
         uid,
+        // The values path as found: a Bard row's keeps its `attrs.values`.
         path,
         metaPath,
         fields,

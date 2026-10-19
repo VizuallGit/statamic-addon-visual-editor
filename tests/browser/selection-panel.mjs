@@ -2,8 +2,7 @@
 /**
  * Selection panel — the left column shows what was clicked, at once, and nothing else.
  *
- * Needs the `selection_panel` setting on for the site under test (it is off by
- * default). Opens an entry in Live Preview with the panel column shown, then:
+ * Opens an entry in Live Preview with the panel column shown, then:
  *
  *   1. a click on a block inside a section (the preview's own `click` message)
  *      paints that block alone: its name in the header, its fields below, no
@@ -20,9 +19,14 @@
  *   SVE_SECTION / SVE_BLOCK / SVE_LEAF   the three ids (section, block in it, block in that)
  *   SVE_LEAF_FIELD   the leaf's text field handle (default `headline`, an inline Bard)
  *   SVE_SHOT      a png path for a screenshot of the leaf state
- *   SVE_HEADER_WIDGET   a widget row id in the site's header (phase 1: header as a tab, widget as a row)
+ *   SVE_HEADER_WIDGET   a widget row id in the site's header (header as a tab, widget as a row)
  *   SVE_GLOBAL_ID / SVE_GLOBAL_LEAF   a synced saved section's entry id, and a block id inside it
- *                      (phase 1: the global section's rows on the panel); both unset = skipped
+ *                      (the global section's rows on the panel); both unset = skipped
+ *   SVE_LIST_ROW      a row id inside a block's own list (a Grid row or a nested set, e.g. a link in a links block); unset = skipped
+ *   SVE_BARD_SET      a Bard set's id on the page (a set inside a Bard field is a row on the panel); unset = skipped
+ *
+ * Every kind of click is made three times in a row and must give the same
+ * panel three times (the regression the panel exists for).
  *   SVE_NO_SEED=1   do not touch the user's preference file (a remote site)
  *   SVE_PREFLIGHT=1 stop after login, Live Preview and the ids — nothing is clicked or saved
  *   SVE_SKIP_SAVE=1 leave out the typing and Save Changes steps
@@ -50,6 +54,8 @@ const SHOT = env('SVE_SHOT', '');
 const HEADER_WIDGET = env('SVE_HEADER_WIDGET', '');
 const GLOBAL_ID = env('SVE_GLOBAL_ID', '');
 const GLOBAL_LEAF = env('SVE_GLOBAL_LEAF', '');
+const LIST_ROW = env('SVE_LIST_ROW', '');
+const BARD_SET = env('SVE_BARD_SET', '');
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -155,6 +161,20 @@ async function clickIn(preview, cp, payload, expectTitle) {
   return ms;
 }
 
+/** The same click three times; the panel read after each. */
+async function thrice(preview, cp, payload, expectTitle = null) {
+  const reads = [];
+
+  for (let i = 0; i < 3; i++) {
+    await clickIn(preview, cp, payload, expectTitle);
+    await sleep(250);
+    const r = await readPanel(cp);
+    reads.push(`${r.kind}|${r.title}|${r.back}|${r.fieldCount}|${r.sets.join(',')}`);
+  }
+
+  return { same: new Set(reads).size === 1, read: reads[0], reads };
+}
+
 try {
   await page.goto(`${SITE_URL}/cp`, { waitUntil: 'networkidle2' });
   if (await page.$('input[name="email"]')) {
@@ -179,8 +199,6 @@ try {
   cpForLog = cp;
   await page.keyboard.press('Escape');
   await cp.waitForSelector('#__sve-toolbar button', { timeout: 20000 });
-  const flag = await cp.evaluate(() => window.Statamic?.$config?.get?.('sveFeatures')?.selection_panel === true);
-  step('selection_panel is on for this site', flag);
 
   let preview = null;
   for (let i = 0; i < 30; i++) {
@@ -244,6 +262,18 @@ try {
     reads.push(`${r.title}|${r.back}|${r.fieldCount}|${r.sets.join(',')}`);
   }
   step('the same click three times gives the same panel', new Set(reads).size === 1, reads[0]);
+  const sec3 = await thrice(preview, cp, { type: 'click', uid: SECTION }, section1.title);
+  step('a section clicked three times gives the same panel', sec3.same && sec3.read.startsWith('set|'), sec3.read);
+  if (LIST_ROW) {
+    const list3 = await thrice(preview, cp, { type: 'click', uid: LIST_ROW }, null);
+    step('a row inside a block\'s list clicked three times is the same row on the panel', list3.same && /^(grid|set)\|/.test(list3.read), list3.read);
+  }
+  if (BARD_SET) {
+    const bard3 = await thrice(preview, cp, { type: 'click', uid: BARD_SET }, null);
+    step('a Bard set clicked three times is the same row on the panel', bard3.same && bard3.read.startsWith('set|'), bard3.read);
+  }
+  await clickIn(preview, cp, { type: 'click', field: LEAF_FIELD, scope: LEAF }, leaf.title);
+  await sleep(250);
 
   // 3. back: leaf → block → section → page
   const back = async () => { await cp.evaluate((sel) => document.querySelector(`${sel} .sve-sel__back`)?.click(), PANEL); await sleep(300); return readPanel(cp); };
@@ -261,14 +291,30 @@ try {
   await sleep(300);
   const typed = `Panel ${Date.now().toString(36)}`;
   const inputSel = `${PANEL} [data-sve-active] input, ${PANEL} [data-sve-active] textarea, ${PANEL} [data-sve-active] .ProseMirror`;
-  const hasInput = !SKIP_SAVE && !!(await cp.$(inputSel));
-  const original = hasInput ? await cp.$eval(inputSel, (el) => ('value' in el && el.tagName !== 'DIV' ? el.value : el.textContent) || '') : '';
+  // The first VISIBLE input of the active field (a set carries hidden inputs too).
+  const visibleInput = async () => {
+    const handles = await cp.$$(inputSel);
+    for (const h of handles) {
+      if (await h.evaluate((el) => el.type !== 'hidden' && el.getClientRects().length > 0)) return h;
+    }
+    return null;
+  };
+  let inputEl = SKIP_SAVE ? null : await visibleInput();
+  const hasInput = !!inputEl;
+  const original = hasInput ? await inputEl.evaluate((el) => ('value' in el && el.tagName !== 'DIV' ? el.value : el.textContent) || '') : '';
   const typeInto = async (text) => {
-    await cp.click(inputSel, { clickCount: 3 });
+    inputEl = (await visibleInput()) || inputEl;
+    const about = await inputEl.evaluate((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 2).join('.')} connected=${el.isConnected} rect=${JSON.stringify(el.getBoundingClientRect()).slice(0, 60)}`);
+    try {
+      await inputEl.click({ clickCount: 3 });
+    } catch (e) {
+      console.log('typeInto: click failed on', about, '—', e.message.slice(0, 80), '— focusing instead');
+      await inputEl.evaluate((el) => el.focus());
+    }
     // The keyboard belongs to the page, not to the CP frame.
     await page.keyboard.down('Meta'); await page.keyboard.press('a'); await page.keyboard.up('Meta');
     await page.keyboard.press('Backspace');
-    await cp.type(inputSel, text);
+    await inputEl.type(text);
   };
   if (hasInput) {
     await typeInto(typed);
@@ -350,10 +396,14 @@ try {
     await sleep(600);
     const headerTab = await readPanel(cp);
     step('opening the header paints its tab on the panel, no reveal wait', headerTab.shown && headerTab.kind === 'tab' && headerTab.fieldCount > 0 && headerTab.soloMarks === 0, `title="${headerTab.title}" fields=${headerTab.fieldCount} contexts=${headerTab.contexts} ms=${tOpen == null ? '?' : Math.round(tOpen)}`);
-    await clickIn(preview, cp, { type: 'click', uid: HEADER_WIDGET }, null);
-    await sleep(400);
+    const widget3 = await thrice(preview, cp, { type: 'click', uid: HEADER_WIDGET }, null);
     const widget = await readPanel(cp);
     step('a widget in the header is a row on the panel, with the header as its way back', widget.shown && widget.kind === 'set' && widget.back === headerTab.title, `title="${widget.title}" back="${widget.back}"`);
+    step('the widget clicked three times gives the same panel', widget3.same, widget3.read);
+    const header3 = await thrice(preview, cp, { type: 'open-chrome', kind: 'header' }, headerTab.title);
+    step('the header opened three times gives the same panel', header3.same && header3.read.startsWith('tab|'), header3.read);
+    await clickIn(preview, cp, { type: 'click', uid: HEADER_WIDGET }, null);
+    await sleep(300);
     const backToTab = await back();
     step('back from the widget shows the header tab again', backToTab.kind === 'tab' && backToTab.title === headerTab.title, `title="${backToTab.title}"`);
     const outOfHeader = await back();
@@ -381,9 +431,9 @@ try {
     step('the preview shows the global section with ids the form knows', !!leaf, leaf ? `${leaf.field}@${leaf.scope}` : 'no field inside [data-sve-global-root]');
     if (leaf) {
       const elNow = await cp.$('#live-preview-iframe'); const pvNow = await elNow.contentFrame();
-      await clickIn(pvNow, cp, { type: 'click', field: leaf.field, scope: leaf.scope, global: true }, null);
-      await sleep(400);
+      const gleaf3 = await thrice(pvNow, cp, { type: 'click', field: leaf.field, scope: leaf.scope, global: true }, null);
       const gleaf = await readPanel(cp);
+      step('the block in the global section clicked three times gives the same panel', gleaf3.same, gleaf3.read);
       step('a block inside the global section is a row on the panel', gleaf.shown && gleaf.kind === 'set' && gleaf.title !== opened.title && gleaf.contexts.includes('sve-global-section'), `title="${gleaf.title}" back="${gleaf.back}"`);
       let steps = 0;
       let r = gleaf;

@@ -22,8 +22,7 @@ import { componentPropsUi as ui } from './cp/component-props/store.js';
 import { paintComponentProps } from './component-props-panel.js';
 import ComponentSidebar from './cp/surfaces/ComponentSidebar.vue';
 import { injectStyle } from './lib/style.js';
-import { FOCUS_HEADER_ID } from './lib/ids.js';
-import { soloSection } from './focus-panel.js';
+import { selectRow } from './selection-panel.js';
 
 const HOST_ID = 'sve-cprops-host';
 const AWAY_ATTR = 'data-sve-cprops-away';
@@ -32,31 +31,16 @@ const STYLE_ID = 'sve-cprops-host-css';
 let app = null;
 
 /**
- * Put the focused section back in the column we just handed over.
- *
- * Statamic rebuilds the column while the component has it, and the solo goes
- * with the nodes it was applied to — so letting go leaves the page's own
- * fields showing and the section you are standing in nowhere to be seen. The
- * dock still knows which section it was opened for, which is the one to solo.
- *
- * Twice, because the column is often still rebuilding on the way out: the
- * first attempt has nothing to mark, the second lands.
+ * Put the section back in the column we just handed over: the dock still
+ * knows which section the component was opened for, and the panel draws it
+ * from the form's values — no column to mark, nothing to wait for.
  */
 function restoreSolo(win) {
   const uid = ask('dock:current-uid');
 
-  if (!uid || typeof soloSection !== 'function') {
-    return;
+  if (uid && !win.document.getElementById(HOST_ID)) {
+    selectRow(win, uid, 'panel');
   }
-
-  const go = () => {
-    if (!win.document.getElementById(HOST_ID)) {
-      soloSection(uid, win.document, win);
-    }
-  };
-
-  go();
-  win.setTimeout(go, 250);
 }
 
 function drop(host) {
@@ -222,14 +206,6 @@ function stopWatching() {
 function hideTheRest(col, host) {
   [...col.children].forEach((child) => {
     if (child === host || child.id === STYLE_ID) {
-      return;
-    }
-
-    // The id is a constant since WP4a; this used to be a registry function
-    // and was still being called as one — a string called with `?.()` throws,
-    // so every click on a component row died here before the menu or the
-    // fields were drawn. Same test as focus-panel.js makes.
-    if (child.id === FOCUS_HEADER_ID || child.hasAttribute('data-sve-focus-header')) {
       return;
     }
 

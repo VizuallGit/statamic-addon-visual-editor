@@ -34,14 +34,14 @@ import ListViewTree from './cp/surfaces/ListViewTree.vue';
 import ListViewMenu from './cp/surfaces/ListViewMenu.vue';
 import { listViewUi } from './cp/listview/store.js';
 import { injectStyle } from './lib/style.js';
-import { CHROME_CONTAINER, COMMENTS_PANEL_ID, FOCUS_ROOT_ATTR, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID } from './lib/ids.js';
+import { CHROME_CONTAINER, COMMENTS_PANEL_ID, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID } from './lib/ids.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
-import { sectionField, selectionPanelOn } from './lib/config.js';
+import { sectionField } from './lib/config.js';
 import { currentSelection } from './lib/selection.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
-import { focusBack, focusFromPreview, focusRowMeta, gridMeta, paintFocusHeader, setMeta } from './focus-panel.js';
+import { gridMeta, setMeta } from './lib/row-meta.js';
 import { closeRightPanels, globalSectionSet, handleDuplicateRow, handleHideRow, handleRemoveRow, mountSectionPicker, placeGlobalsOverlay, rowLocation, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { handleMove } from './inline-edit.js';
 import { fillOutlinePane, showOutlinePane, watchOutlineInPreview } from './lazy/outline.js';
@@ -899,27 +899,6 @@ export function writeRowLabel(win, uid, label) {
 }
 
 /**
- * Puts the current name on the left panel, if it is showing this row or a
- * block inside it. The tree already redraws; the header does not, unless asked.
- */
-export function refreshFocusName(win) {
-  const doc = win.document;
-
-  if (!sveState.soloUid) {
-    return;
-  }
-
-  const kind = doc.documentElement.getAttribute(FOCUS_ROOT_ATTR) || 'section';
-
-  paintFocusHeader(
-    win,
-    doc,
-    focusRowMeta(win, sveState.soloUid, doc),
-    focusBack(win, doc, sveState.soloUid, kind)
-  );
-}
-
-/**
  * Turns the row's name into an input. Enter keeps it, Escape throws it away,
  * an empty name (or the type's own name again) goes back to the default.
  */
@@ -968,10 +947,7 @@ export function beginListViewRename(win, rowEl, item) {
       );
     }
 
-    win.setTimeout(() => {
-      renderListView(win);
-      refreshFocusName(win);
-    }, 0);
+    win.setTimeout(() => renderListView(win), 0);
   };
 
   ['mousedown', 'click', 'dblclick', 'pointerdown'].forEach((name) => {
@@ -1499,9 +1475,7 @@ export function renderListView(win) {
     listViewRevealPath(item);
     renderListView(win);
 
-    if (!selectRow(win, item.uid, 'tree')) {
-      focusFromPreview(item.uid, doc, win, { clampToSection: true });
-    }
+    selectRow(win, item.uid, 'tree');
 
     sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: item.ids }, win);
   };
@@ -1658,7 +1632,7 @@ export function showListViewPane(win) {
 
 /** Opened while a row is selected, the tree points at that row from the first paint. */
 function pointAtSelection(win) {
-  const uid = selectionPanelOn(win) ? currentSelection()?.uid : null;
+  const uid = currentSelection()?.uid ?? null;
 
   if (uid) {
     listViewSyncTo(win, uid);

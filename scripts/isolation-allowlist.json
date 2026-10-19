@@ -8,9 +8,6 @@
   "block-tree.js": [
     "import cp.js"
   ],
-  "chrome.js": [
-    "import cp.js"
-  ],
   "component-focus.js": [
     "import cp.js"
   ],
@@ -20,9 +17,6 @@
   "dock/save.js": [
     "import cp.js",
     "replayLivePreview"
-  ],
-  "focus-panel.js": [
-    "import cp.js"
   ],
   "global-section.js": [
     "import cp.js"
@@ -46,6 +40,9 @@
     "import cp.js"
   ],
   "lp-reload.js": [
+    "import cp.js"
+  ],
+  "lp-width.js": [
     "import cp.js"
   ],
   "open-in-preview.js": [
