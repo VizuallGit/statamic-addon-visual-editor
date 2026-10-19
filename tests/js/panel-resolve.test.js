@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blueprintFields, resolveRow, rowUid, setsOf } from '../../resources/js/cp/panel/resolve.js';
+import { blueprintFields, resolveRow, resolveTab, rowUid, setsOf } from '../../resources/js/cp/panel/resolve.js';
 
 const headline = { handle: 'headline', type: 'text', display: 'Headline' };
 const richtext = { handle: 'richtext', type: 'bard', display: 'Richtext' };
@@ -140,4 +140,24 @@ test('rowUid prefers the visual id, then id, then _id', () => {
   assert.equal(rowUid({ _id: 'a', id: 'b' }), 'b');
   assert.equal(rowUid({ _id: 'a' }), 'a');
   assert.equal(rowUid(null), null);
+});
+
+test('resolveTab draws a whole tab: by handle, by display, or the only one there is', () => {
+  const { resolveTab: tabOf } = { resolveTab };
+  const bp = {
+    tabs: [
+      { handle: 'header', display: 'Header', sections: [{ fields: [{ handle: 'style' }] }, { fields: [{ handle: 'widgets' }] }] },
+      { handle: 'sidebar', display: 'Sidebar', sections: [{ fields: [{ handle: 'title' }] }] },
+    ],
+  };
+  const tab = tabOf(bp, 'header');
+  assert.equal(tab.kind, 'tab');
+  assert.equal(tab.path, '');
+  assert.equal(tab.metaPath, '');
+  assert.deepEqual(tab.fields.map((f) => f.handle), ['style', 'widgets']);
+  assert.equal(tab.display, 'Header');
+  assert.equal(tabOf({ tabs: [{ handle: 'main', display: 'Footer stuff', sections: [] }] }, 'footer').handle, 'main');
+  assert.equal(tabOf({ tabs: [{ handle: 'only', display: 'Only', sections: [] }] }, 'footer').handle, 'only');
+  assert.equal(tabOf(bp, 'footer'), null);
+  assert.equal(tabOf(null, 'header'), null);
 });

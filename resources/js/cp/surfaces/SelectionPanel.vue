@@ -53,14 +53,19 @@ const fields = computed(() => (resolvedSelection.value?.fields || []).filter((fi
 const shownUid = ref(null);
 
 watch(
-  () => resolvedSelection.value?.uid || null,
-  async (uid) => {
+  () => shownKeyOf(resolvedSelection.value),
+  async (key) => {
     shownUid.value = null;
     await nextTick();
-    shownUid.value = uid;
+    shownUid.value = key;
   },
   { immediate: true }
 );
+
+/** A row by its id; a tab by its name — what the field tree is keyed on. */
+function shownKeyOf(row) {
+  return row ? row.uid || `tab:${row.handle}` : null;
+}
 
 let tileEl = null;
 
@@ -93,7 +98,7 @@ function backLabel() {
 }
 
 function goBack() {
-  panelStore.onBack?.(resolvedSelection.value?.parentUid || null);
+  panelStore.onBack?.(resolvedParent.value, resolvedSelection.value);
 }
 
 watch(
@@ -122,8 +127,8 @@ onBeforeUnmount(() => log('SelectionPanel unmount'));
     </header>
 
     <PublishFieldsProvider
-      v-if="shownUid === resolvedSelection.uid"
-      :key="resolvedSelection.uid"
+      v-if="shownUid === shownKeyOf(resolvedSelection)"
+      :key="shownKeyOf(resolvedSelection)"
       :fields="fields"
       :field-path-prefix="resolvedSelection.path"
       :meta-path-prefix="resolvedSelection.metaPath"

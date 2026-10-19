@@ -167,6 +167,46 @@ export function resolveRow(values, blueprint, uid, why = () => {}) {
   return result;
 }
 
+/**
+ * A whole tab of a form — the header's fields, the footer's — as something the
+ * panel can draw: its fields at the top of the values, no row around them.
+ * Found by handle first, then by a display name that starts with the handle
+ * (a site's own blueprint says "Header" where the editor says `header`).
+ */
+export function resolveTab(blueprint, handle) {
+  const tabs = Array.isArray(blueprint?.tabs) ? blueprint.tabs : [];
+  const want = String(handle || '').toLowerCase();
+
+  if (!want || !tabs.length) {
+    return null;
+  }
+
+  const tab =
+    tabs.find((candidate) => String(candidate?.handle || '').toLowerCase() === want) ||
+    tabs.find((candidate) => String(candidate?.display || '').toLowerCase().startsWith(want)) ||
+    (tabs.length === 1 ? tabs[0] : null);
+
+  if (!tab) {
+    return null;
+  }
+
+  const sections = Array.isArray(tab.sections) ? tab.sections : [];
+
+  return {
+    uid: null,
+    path: '',
+    metaPath: '',
+    fields: sections.flatMap((section) => (Array.isArray(section?.fields) ? section.fields : [])),
+    kind: 'tab',
+    handle: tab.handle || want,
+    display: tab.display || humanizeHandle(tab.handle || want),
+    icon: null,
+    instructions: tab.instructions || '',
+    row: null,
+    parentUid: null,
+  };
+}
+
 /** The row's values, for a reader that has the path but not the row. */
 export function rowAt(values, path) {
   return dataGet(values, path);
