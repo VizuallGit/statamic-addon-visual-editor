@@ -4,7 +4,6 @@
  */
 import { ACTIVE_ATTR, COLLAPSE_SETTLE_MS, HIGHLIGHT_CLASS, HIGHLIGHT_DURATION, SELECTORS } from '../cp-selectors.js';
 import { revealSegmentsFor } from '../cp-section-groups.js';
-import { FOCUS_STEP_ATTR } from '../lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { setGridRowCollapsed } from './grid-rows.js';
@@ -383,9 +382,7 @@ export function ownHeaderToggle(setEl) {
   }
 
   return (
-    [...header.children].find(
-      (el) => el.matches('button[type="button"]') && !el.hasAttribute(FOCUS_STEP_ATTR)
-    ) || null
+    [...header.children].find((el) => el.matches('button[type="button"]')) || null
   );
 }
 

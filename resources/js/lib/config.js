@@ -34,16 +34,6 @@ export function featureSaidOn(win, key) {
   return win.Statamic?.$config?.get?.('sveFeatures')?.[key] === true;
 }
 
-/**
- * The selection panel: the left column draws only the selected row, with
- * Statamic's own fields, instead of isolating Statamic's whole form down to
- * that row. Off unless the settings say on — a Control Panel on an older PHP
- * has no such key, and off is the only right answer there.
- */
-export function selectionPanelOn(win) {
-  return featureSaidOn(win, 'selection_panel');
-}
-
 /** Where the Control Panel lives (`/cp` unless the site moved it), no trailing slash. */
 export function cpRoot(win) {
   return String(win.Statamic?.$config?.get?.('cpRoot') || '/cp').replace(/\/+$/, '');

@@ -109,7 +109,6 @@ export const MSG = Object.freeze({
   SVE_GRID_SPAN: 'sve-grid-span',
   SVE_HTML_PICK: 'sve-html-pick',
   SVE_HTML_PICK_FOCUS: 'sve-html-pick-focus',
-  SVE_LOCK_TAB: 'sve-lock-tab',
   // CP → a copy of the preview (mirror.js, the breakpoint overview's frames):
   // the preview just morphed to this render — do the same, without fetching.
   SVE_MIRROR: 'sve-mirror',
@@ -117,11 +116,6 @@ export const MSG = Object.freeze({
   SVE_PILL_BOX_REQUEST: 'sve-pill-box-request',
   SVE_RESTORE_CHROME: 'sve-restore-chrome',
   SVE_ROW_LABEL: 'sve-row-label',
-  SVE_SECTION_ADD_BLOCK: 'sve-section-add-block',
-  SVE_SECTION_FOCUS: 'sve-section-focus',
-  SVE_SECTION_PANEL_READY: 'sve-section-panel-ready',
-  SVE_SECTION_SET_VALUE: 'sve-section-set-value',
-  SVE_SECTION_VALUES: 'sve-section-values',
   SVE_THEME_SCALE: 'sve-theme-scale',
   SVE_THEME_SCALE_VALUES: 'sve-theme-scale-values',
   // CP → preview: a <video> of the open section is held paused (or let go) —
@@ -129,7 +123,6 @@ export const MSG = Object.freeze({
   SVE_VIDEO_HOLD: 'sve-video-hold',
   // Preview → CP, at boot: send me the remembered holds.
   SVE_VIDEO_HOLDS_REQUEST: 'sve-video-holds-request',
-  SVE_UNLOCK_TABS: 'sve-unlock-tabs',
   THEME_SWATCHES: 'theme-swatches',
   THEME_SWATCHES_REQUEST: 'theme-swatches-request',
 });

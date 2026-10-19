@@ -39,17 +39,8 @@ class Features
         'file_manager',
         'live_reload',
         'live_reload_instant',
-        'open_first_section',
         'collection_templates',
         'previews_autowatch',
-    ];
-
-    /**
-     * Still in KEYS and JS, but never on. Page Settings is the empty-panel
-     * default; Focus panel already does one-section-at-a-time.
-     */
-    protected const PARKED_OFF = [
-        'open_first_section',
     ];
 
     /** Every toggle, in the order the settings screen shows them. */
@@ -73,14 +64,6 @@ class Features
         'design_overlay',
         'html_tree',
         'inline_edit',
-        'focus_panel',
-        // The left column draws only the selected row with Statamic's own
-        // fields (selection-panel.js) instead of isolating the whole form.
-        // On by default since 1.1.552: sections, blocks, grid rows, the
-        // header and footer, and global sections. Off = the focus panel's
-        // isolation of Statamic's form (the route it replaces).
-        'selection_panel',
-        'open_first_section',
         'open_in_preview',
         'template_dock',
         'site_css',
@@ -144,10 +127,6 @@ class Features
                     "statamic-visual-editor.features.{$key}",
                     ! in_array($key, static::DEFAULT_OFF, true)
                 );
-
-            if (in_array($key, static::PARKED_OFF, true)) {
-                $map[$key] = false;
-            }
 
             if (! SundayAug30::enabled() && $key === 'html_tree') {
                 $map[$key] = false;

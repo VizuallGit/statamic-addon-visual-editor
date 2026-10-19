@@ -9,7 +9,7 @@ import { sveState } from '../cp-state.js';
 import { COLLAPSE_SETTLE_MS, SELECTORS } from '../cp-selectors.js';
 import { closeCodeDockPopups } from '../code-dock-lazy.js';
 import { ensurePanel, markLivePreviewReady } from '../lazy-panels.js';
-import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, GLOBAL_SECTION_PANEL_ID, HEADER_ICON_HOVER, LP_BACK_ID, LP_COVER_ID } from '../lib/ids.js';
+import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, HEADER_ICON_HOVER, LP_BACK_ID, LP_COVER_ID } from '../lib/ids.js';
 import { dataGet, findPathByUid, unwrapRef } from '../lib/values.js';
 import { livePreviewButton, livePreviewEditorEl } from '../lib/live-preview.js';
 import { previewCopies, previewFrame } from '../lib/preview-frame.js';
@@ -17,11 +17,10 @@ import { syncStoredVideoHolds } from '../video-holds.js';
 import { syncStoredAlpineStates } from '../alpine-states.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { autoOpenPanel, lpMode, setLpCollapsed } from '../lp-panel.js';
-import { focusFieldOwner, focusFromPreview, focusPanelOn, soloSection } from '../focus-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, handleAddRow, handleDuplicateRow, handleHideRow, handleInsertBardSet, handleInsertBlock, handleOpenGlobalSection, handleRemoveRow, handleRowCaps, handleSectionSettings, insertSection, openSectionPicker, overlaySidTemplate, pageSectionRow, rowDuplicable, watchNewRow } from '../section-library.js';
 import { handleOpenChrome, handleOpenGlobal, notifyChromeDirty, notifyGlobalSectionDirty, saveGlobalsPanel, setChromeSidebarMode } from '../globals-panel.js';
 import { applyStartingText, editSession, handleAddColumn, handleAssetEdit, handleBardCommand, handleBlockFormat, handleColumnWidth, handleEditControl, handleEditEnd, handleEditInput, handleEditRequest, handleGridSpan, handleIconEdit, handleLinkEdit, handleMove, handleOpenPanelField, handleSaveSection, handleThemeSwatchesRequest } from '../inline-edit.js';
-import { closeGlobalSectionPanel, forwardGlobalSectionFocus, globalSectionEditorOpen, saveGlobalSectionPanel } from '../global-section.js';
+import { closeGlobalSectionPanel, globalSectionEditorOpen, saveGlobalSectionPanel } from '../global-section.js';
 import { claimOrigin, markLivePreviewOpening } from '../open-in-preview.js';
 import { confirmCloseDiscard, handleRequestCloseChrome, handleRequestCloseGlobal, hideNavSpinner } from '../pages.js';
 import { listViewSyncTo, pinDockedPanelsUnderHeader } from '../lazy/listview.js';
@@ -29,7 +28,8 @@ import { handleOutline } from '../lazy/outline.js';
 import { handleAiTextApply, handleAiTextGenerate, handleAiTextOpen, handleAiTextSetKeywords, syncAiTextToPreview } from '../lazy/ai-text.js';
 import { collectAncestorSets, expandSet, findFieldElement, findSetByUid, handleFieldFocus, handleFieldHover, handleFocus, handleHover, topLevelSectionUid } from './sets.js';
 import { applyDeclaredDefaults, restoreDockedHeaderPanels, scheduleHtmlTreePrefetch } from './header-toolbar.js';
-import { selectFromPreview } from '../selection-panel.js';
+import { selectFromPreview, selectRow } from '../selection-panel.js';
+import { log } from '../lib/debug.js';
 import { tellPreviewWherePillIs } from './grid-rows.js';
 import { openOverlay } from '../cp.js';
 import { MIRRORED, MSG, SOURCE } from '../lib/protocol.js';
@@ -1188,47 +1188,12 @@ export function handleAddBlockNative(data, doc, win) {
     });
   }
 
-  // A global section's fields are not in this form. They belong to the synced
-  // source entry, whose own form is the panel docked beside the preview — so the
-  // set lives in that document, and the picker has to open in there. Without
-  // this the lookup below finds nothing, retries, and the "+" does nothing.
-  //
-  // Edited in this window there is no other document: the section's sets are
-  // right here, so the lookup below finds them, the "+" takes the same path a
-  // page section's does, and Statamic's own picker opens over the preview,
-  // pinned under the button. That is what the missing panel means here.
-  if (data.global) {
-    const frame = doc.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
-
-    if (frame?.contentWindow) {
-      const forward = (extra = {}) =>
-        frame.contentWindow.postMessage(
-          { ...data, ...extra, source: SOURCE, type: MSG.SVE_SECTION_ADD_BLOCK },
-          win.location.origin
-        );
-
-      // The picker belongs over the preview, so it is opened here and the answer
-      // is sent on. Only if that cannot be mounted does the panel open its own.
-      const opened =
-        PICKER_OVER_PREVIEW &&
-        openSetPickerOverPreview(doc, win, data.sets, data.anchorRect, (set) =>
-          forward({ setHandle: set?.handle, setLabel: set?.display || set?.handle })
-        );
-
-      if (!opened) {
-        forward();
-      }
-
-      return;
-    }
-  }
-
   // Preview "+": Statamic's set-picker in the *editor* document, at the plus.
   // The sidebar Add Set button is hidden behind the overlay — clicking it
   // looks like plus does nothing. Mount the same Search Sets component here.
   //
   // LOCKED. Do not remove this. Only skip if the user asks in this message.
-  if (anchorRect && !data.global) {
+  if (anchorRect) {
     const field =
       replicatorOwningUid(anchorUid, doc) ||
       replicatorOwningUid(sectionUid, doc);
@@ -1604,7 +1569,7 @@ export function handleAddBardSetNative(data, doc, win) {
   }
 
   if (scope && autoOpenPanel(win)) {
-    soloSection(topLevelSectionUid(scope, doc) || scope, doc, win);
+    selectRow(win, scope, 'preview');
   }
 
   handleFieldFocus(field, doc, { scopeUid: scope || undefined });
@@ -1709,33 +1674,6 @@ export function handleAddBardSetNative(data, doc, win) {
   };
 
   setTimeout(run, 120);
-}
-
-/**
- * When a synced section panel is open, field DOM (focus, assets, link UI) lives
- * in that iframe — not the page publish form. Value writes still go through
- * sectionPanelContainer on the parent.
- */
-export function globalSectionEditorDoc(doc) {
-  // Edited in this window there is no panel, so this is null and every caller
-  // works in `doc` — exactly as it does for one of the page's own sections.
-  const frame = doc.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
-
-  try {
-    return frame?.contentDocument || null;
-  } catch {
-    return null;
-  }
-}
-
-export function globalSectionEditorWin(win) {
-  const frame = win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
-
-  try {
-    return frame?.contentWindow || null;
-  } catch {
-    return null;
-  }
 }
 
 /** True when the message came from the preview iframe, including a nested one. */
@@ -1857,12 +1795,6 @@ export function createMessageListener(doc = document, win = window) {
         return;
       }
 
-      // Synced section: focus/solo runs inside the left iframe (source entry),
-      // not the page form — those uids are not on this page.
-      if (forwardGlobalSectionFocus(data, doc, win)) {
-        return;
-      }
-
       // Normal page click while the synced-section editor is still up: put the
       // page form back so the sidebar matches the section being edited.
       if (globalSectionEditorOpen(doc) && !data.global) {
@@ -1891,42 +1823,11 @@ export function createMessageListener(doc = document, win = window) {
         syncCodeDock(win, doc, dockUid);
       }
 
-      // The selection panel takes the row when it is on and can draw it — the
-      // block clicked, or the section — and paints it from the form's values.
-      // What it does not take yet (phase 0: not a Bard set) keeps the path below.
-      if (selectFromPreview(win, data)) {
-        return;
-      }
-
-      if (data.field) {
-        // Open what the field belongs to. With the focus panel on that is the
-        // block holding it; without it, the top-level section — a nested block
-        // passes its row id as scope, which still expands below via
-        // handleFieldFocus.
-        if (data.scope && autoOpenPanel(win)) {
-          if (focusPanelOn(win)) {
-            focusFieldOwner(data.field, data.scope, doc, win);
-          } else {
-            focusFromPreview(data.scope, doc, win, { clampToSection: true });
-          }
-        }
-
-        handleFieldFocus(data.field, doc, { scopeUid: data.scope });
-
-        // Solo/accordion re-render can leave the nested set collapsed — re-assert
-        // after the expand transition so the edited block's fields stay open.
-        if (data.scope) {
-          setTimeout(
-            () => handleFieldFocus(data.field, doc, { animate: false, scopeUid: data.scope }),
-            COLLAPSE_SETTLE_MS
-          );
-        }
-      } else if (autoOpenPanel(win)) {
-        // Clicking a section opens the panel showing ONLY that section. Falls
-        // back to plain focus (e.g. nested rows without a resolvable set).
-        if (!focusFromPreview(data.uid, doc, win)) {
-          handleFocus(data.uid, doc, data.afterSetUid, data.uidIndex ?? 0);
-        }
+      // The selection panel takes the row — the block clicked, or the section —
+      // and paints it from the form's values, the clicked field marked in it.
+      // A row the forms do not hold is said so, not guessed at.
+      if (!selectFromPreview(win, data)) {
+        log(`click on ${data.scope || data.uid || '?'} not taken by the panel`);
       }
     } else if (data.type === MSG.EDIT_REQUEST) {
       // A click that starts editing text is a click on that section too: the
@@ -1949,51 +1850,15 @@ export function createMessageListener(doc = document, win = window) {
     } else if (data.type === MSG.OUTLINE) {
       handleOutline(data, win);
     } else if (data.type === MSG.OPEN_PANEL_FIELD) {
-      // Pencil / "finish in panel": focus the field in the synced-section iframe
-      // when that is the active editor — same path as a preview click.
-      const iwin = globalSectionEditorWin(win);
-
-      if (iwin && editSession?.container?.name === 'sve-global-section' && editSession.field) {
-        setLpCollapsed(win, false);
-        iwin.postMessage(
-          {
-            source: SOURCE,
-            type: MSG.SVE_SECTION_FOCUS,
-            uid: editSession.scope || null,
-            field: editSession.field,
-          },
-          win.location.origin
-        );
-
-        return;
-      }
-
       handleOpenPanelField(data, doc, win);
     } else if (data.type === MSG.BARD_COMMAND) {
-      const idoc = globalSectionEditorDoc(doc);
-
-      if (idoc && editSession?.container?.name === 'sve-global-section') {
-        handleBardCommand(data, idoc, globalSectionEditorWin(win) || win);
-      } else {
-        handleBardCommand(data, doc, win);
-      }
+      handleBardCommand(data, doc, win);
     } else if (data.type === MSG.ASSET_EDIT) {
-      const idoc = globalSectionEditorDoc(doc);
-
-      handleAssetEdit(data, idoc || doc);
+      handleAssetEdit(data, doc);
     } else if (data.type === MSG.ICON_EDIT) {
-      const idoc = globalSectionEditorDoc(doc);
-
-      handleIconEdit(data, idoc || doc, win);
+      handleIconEdit(data, doc, win);
     } else if (data.type === MSG.LINK_EDIT) {
-      const idoc = globalSectionEditorDoc(doc);
-      const iwin = globalSectionEditorWin(win);
-
-      if (idoc && iwin && editSession?.container?.name === 'sve-global-section') {
-        handleLinkEdit(data, idoc, iwin);
-      } else {
-        handleLinkEdit(data, doc, win);
-      }
+      handleLinkEdit(data, doc, win);
     } else if (data.type === MSG.MOVE) {
       handleMove(data, doc);
     } else if (data.type === MSG.ADD_SET) {
@@ -2283,12 +2148,6 @@ export const CP_STYLES = `
   padding-inline: 0 !important;
 }
 
-/* The page's own fields, while the field column belongs to a global section.
-   The solo view hides them too once it has a set to isolate; this covers the
-   moment before that, when the synced entry's form is still mounting. */
-[data-sve-global-away] {
-  display: none !important;
-}
 /* Focus-panel / block-tree icons. Tab-bar icons live in the tabs addon. */
 [data-sve-icon] {
   flex: 0 0 auto;
@@ -2326,158 +2185,6 @@ export const CP_STYLES = `
   padding: 0 !important;
   margin: 0 !important;
   overflow: hidden !important;
-}
-/* --- Focus panel -----------------------------------------------------------
-   The panel showing one thing: its name at the top, its fields under it, and
-   none of the frame it wears as a row in a list. Everything here is scoped to
-   [data-sve-focus-set] or the header — with the feature off not one rule of it
-   can match, and the ordinary publish form never carries the attribute at all. */
-/* Sticky, because it is the answer to "what am I editing?" and the answer is
-   worth having at the bottom of a long section too. The column it sits in scrolls
-   and carries its own horizontal padding, so this adds none. */
-[data-sve-focus-header] {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
-  padding: 0.875rem 0 1rem;
-  border-bottom: 1px solid rgba(128, 128, 128, .16);
-  background: var(--color-white, #fff);
-}
-.dark [data-sve-focus-header] {
-  background: var(--theme-color-gray-850, #1f2937);
-}
-[data-sve-focus-id] {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-}
-/* The initial of the name when nothing named an icon — enough to tell one block
-   from the next, and the same square either way. */
-[data-sve-focus-tile] {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 0.6rem;
-  background: rgba(128, 128, 128, .16);
-  font-size: 0.9rem;
-  font-weight: 600;
-  line-height: 1;
-}
-[data-sve-focus-tile] [data-sve-icon] {
-  width: 1.15rem;
-  height: 1.15rem;
-  font-size: 1.15rem;
-  opacity: 1;
-}
-[data-sve-focus-title] {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.25;
-}
-/* The way back, at the end of the line that names where you are. */
-[data-sve-focus-back] {
-  all: unset;
-  cursor: pointer;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55em;
-  margin-left: auto;
-  padding: 0.55em 0.95em;
-  border-radius: 0.55rem;
-  background: rgba(128, 128, 128, .16);
-  font-size: 0.75rem;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-  transition: background-color .12s;
-}
-[data-sve-focus-back]:hover {
-  background: rgba(128, 128, 128, .28);
-}
-[data-sve-focus-back-arrow] {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  line-height: 1;
-  font-weight: 600;
-  /* Optical align with lowercase text — glyph sits a hair low otherwise. */
-  transform: translateY(-1.5px);
-}
-[data-sve-focus-desc] {
-  margin: 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  opacity: .6;
-}
-/* A row this view leaves out: a section's block list, opened from the page, and
-   any segment left with nothing to show once it is gone. */
-[data-sve-focus] [data-sve-focus-hide] {
-  display: none !important;
-}
-/* The set IS the panel now. Its header bar names it a second time, its card
-   draws a box around a box, and both belong to the list it was lifted out of.
-   Under [data-sve-focus], which only the focused Live Preview document ever
-   carries: a mark left behind can't reach an ordinary publish form from here. */
-[data-sve-focus] [data-sve-focus-set] > header {
-  display: none !important;
-}
-/* The arrow out of a block, in its own header beside the collapse chevron. Quiet
-   until the header is under the pointer — the chevron is the common move, and two
-   equally loud controls on one row is a decision nobody asked for. */
-[data-sve-focus-step] {
-  all: unset;
-  cursor: pointer;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  margin-left: 0.25rem;
-  border-radius: 0.4rem;
-  opacity: .45;
-  transition: opacity .12s, background-color .12s;
-}
-header:hover > [data-sve-focus-step] {
-  opacity: .9;
-}
-[data-sve-focus-step]:hover {
-  opacity: 1;
-  background: rgba(128, 128, 128, .2);
-}
-/* Every wrapper between the panel and the fields — the tab pane, the page
-   builder's list, the section's card and grid, the block's card. Everything they
-   draw goes; the boxes themselves stay in the layout, so a wrapper that is a grid
-   still lays its fields out in one. Decoration only: nothing here can hide a
-   field, whatever the markup between the panel and it turns out to be. */
-[data-sve-focus] [data-sve-focus-flat] {
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-/* Dividers drawn as a child rather than as a border — a set list separates its
-   rows with one, and in a panel showing a single row it is a line under nothing. */
-[data-sve-focus] [data-sve-focus-flat] > hr {
-  display: none !important;
-}
-/* The field list itself, out to the same gutter as the header above it. Sides
-   only: the padding it was given is the inset of a card, and the card is gone —
-   what it puts above and below the fields is spacing, and that stays. */
-[data-sve-focus] [data-sve-focus-flush] {
-  padding-inline: 0 !important;
 }
 /* --- Heading outline -------------------------------------------------------
    A row draws its own share of the tree: one rail per level above it, then the

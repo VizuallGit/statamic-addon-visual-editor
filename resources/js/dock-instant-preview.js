@@ -602,7 +602,7 @@
 
     function uidFromCp() {
         var hosts = document.querySelectorAll(
-            '[data-sve-active], [data-sve-section-active], [data-sve-focus-set], [data-sve-lite-focus]'
+            '[data-sve-active], [data-sve-section-active]'
         );
         var i;
         var input;

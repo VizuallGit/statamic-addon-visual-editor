@@ -30,9 +30,7 @@ function typeInDocument(doc) {
     return '';
   }
 
-  const marked =
-    doc.querySelector('[data-sve-solo-parent][data-type], [data-replicator-set][data-sve-solo-parent]') ||
-    doc.querySelector('[data-replicator-set][data-sve-active], [data-sve-active][data-type]');
+  const marked = doc.querySelector('[data-replicator-set][data-sve-active], [data-sve-active][data-type]');
 
   return outermostSectionType(marked);
 }

@@ -112,7 +112,6 @@ function inEditorPanel(el) {
     if (
         el.closest('.live-preview-editor')
         || el.closest('.live-preview-fields')
-        || el.closest('[data-sve-focus-set]')
         || el.closest('[data-sve-panel-column]')
     ) {
         return true;
@@ -788,7 +787,7 @@ function isWideRow(el) {
         || isWideFieldtype(el)
         || el.classList?.contains('publish-fields')
         || el.classList?.contains('publish-form')
-        || el.matches?.('form, [data-sve-panel-body], [data-sve-focus-set]');
+        || el.matches?.('form, [data-sve-panel-body]');
 }
 
 /** Ydre Statamic-wrapper hedder også responsive-fieldtype — brug den med header. */

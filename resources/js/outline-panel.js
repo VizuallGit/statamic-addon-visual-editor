@@ -25,8 +25,7 @@ import { featureOn, sectionField } from './lib/config.js';
 import { OUTLINE_PANEL_ID } from './lib/ids.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { autoOpenPanel, persistDockedPanel } from './lp-panel.js';
-import { focusFieldOwner, focusFromPreview, focusPanelOn } from './focus-panel.js';
-import { selectRow } from './selection-panel.js';
+import { selectFromPreview, selectRow } from './selection-panel.js';
 import { closeRightPanels, syncPreviewInset } from './section-library.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
@@ -622,15 +621,13 @@ export function jumpToOutlineEntry(win, index, item) {
     return;
   }
 
-  if (item.field && item.scope && focusPanelOn(win)) {
-    focusFieldOwner(item.field, item.scope, win.document, win);
+  if (item.field && item.scope) {
+    selectFromPreview(win, { scope: item.scope, field: item.field });
 
     return;
   }
 
   if (item.uid) {
-    if (!selectRow(win, item.uid, 'outline')) {
-      focusFromPreview(item.uid, win.document, win, { clampToSection: true });
-    }
+    selectRow(win, item.uid, 'outline');
   }
 }

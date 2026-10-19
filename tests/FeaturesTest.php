@@ -46,11 +46,6 @@ class FeaturesTest extends TestCase
         $this->assertTrue(Features::enabled('html_tree'));
     }
 
-    public function test_selection_panel_is_on_by_default(): void
-    {
-        $this->assertTrue(Features::enabled('selection_panel'));
-    }
-
     public function test_ai_panel_stays_off_when_the_config_key_is_missing(): void
     {
         $features = config('statamic-visual-editor.features', []);

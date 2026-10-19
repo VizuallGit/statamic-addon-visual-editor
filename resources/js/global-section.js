@@ -1,266 +1,53 @@
 /**
  * Settings toggle: `sections`
  * Synced / global section editor.
+ *
+ * A synced section's content lives in another entry, so the page's form has
+ * nothing to edit — only a reference. This mounts that entry's own publish form
+ * (`EntryPublishForm`, registered on the CP's Vue app) in the Live Preview field
+ * column, out of sight: its sets register the form's publish context, the
+ * selection panel draws the section's rows on that context, and what is typed
+ * is stashed so the page around it re-renders live. Save is the entry form's
+ * own Save. A global section runs on the page's code, not a copy of it.
+ *
+ * The iframe route (the same form in a frame covering the column, reached over
+ * postMessage), the solo boot that isolated the mounted form and the value
+ * poll went with phase 2 of the selection panel.
+ *
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
-import { t } from './lib/i18n.js';
+import { watch } from 'vue';
 import { sveState } from './cp-state.js';
-import { GLOBALS_PANEL_PARAM, SELECTORS } from './cp-selectors.js';
-import {
-  LP_SAVE_TIMEOUT,
-  autoPickSet,
-  findSetByUid,
-  openSetPickerOverPreview,
-  openSettingsTab,
-  rearmFirstSection,
-} from './cp.js';
+import { LP_SAVE_TIMEOUT } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
-import { FOCUS_HEADER_ID, GLOBAL_SECTION_HOST_ID, GLOBAL_SECTION_PANEL_ID, SECTION_PANEL_REVEAL_MS } from './lib/ids.js';
+import { GLOBAL_SECTION_HOST_ID } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
-import { sectionField, selectionPanelOn } from './lib/config.js';
+import { sectionField } from './lib/config.js';
 import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
-import { activeContainers, publishContainers, registerContainerEvents, registerContainerSource, whenContainerContext } from './lib/publish-containers.js';
+import { publishContainers, whenContainerContext } from './lib/publish-containers.js';
 import { setLpMode } from './lp-panel.js';
-import { clearSolo, focusFieldOwner, hideSettingsBar, lpStoredWidth, placeLpWidthPicker, soloSection } from './focus-panel.js';
 import { closeRightPanels, savedSectionsCollection, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
-import { ensureNestedRowIds, expandTopLevelSectionSets, lockChromeGlobalsTab, notifyGlobalSectionDirty, openGlobalsPanel } from './globals-panel.js';
+import { ensureNestedRowIds, notifyGlobalSectionDirty } from './globals-panel.js';
 import { applySectionValues } from './chrome.js';
-import { dockedPanelTop } from './lazy/listview.js';
 import { editSession } from './inline-edit.js';
 import { ask } from './cp/bus.js';
-import { MSG, SOURCE } from './lib/protocol.js';
 import { clearSelection, select } from './lib/selection.js';
 
-// ===== global-section-panel =====
-// --- Global section panel -------------------------------------------------------
-//
-// A synced section's content lives in another entry, so the page's form has
-// nothing to edit — only a reference. This opens that entry's own editor in the
-// left Live Preview panel and stashes what's being typed, so the page around it
-// re-renders live: editing in context, without the section ever needing a URL of
-// its own.
-
-/**
- * Where the synced entry's form is built — the one switch between the two ways
- * of editing a global section.
- *
- * true (default) — in THIS window. Statamic renders the entry screen from a
- *   single component, `EntryPublishForm`, and registers it on the CP's Vue app,
- *   so the same form can be mounted straight into the Live Preview field column
- *   from the props the CP would have handed it. Its sets then sit in the very
- *   document the preview talks to, which is the whole point: `findSetByUid`
- *   finds them, Statamic's own Add Set picker opens over the "+" in the preview,
- *   the sidebar shows the section like any other, and Save is the entry form's
- *   own Save. A global section runs on the page's code, not a copy of it.
- *
- * false — the older way: the same form in an iframe covering the left panel,
- *   reached only over postMessage. Every piece of that route is still here
- *   (openGlobalSectionPanel, forwardGlobalSectionFocus, the sve-section-* message
- *   handlers, openSetPickerOverPreview, autoPickSet), so flipping this back
- *   restores it whole.
- */
-export const GLOBAL_SECTION_INLINE = true;
-
-/**
- * The same question asked of the site's header and footer — one switch, same
- * shape as the one above.
- *
- * true (default) — Theme Settings' own publish form is mounted in the Live
- *   Preview field column, isolated to the Header (or Footer) tab. Its widgets are
- *   then sets in this document like any section's blocks: clicking one opens it
- *   in the panel, inline edit writes to a real publish container, and Save is the
- *   globals form's own Save.
- *
- * false — the docked Theme Settings iframe, driven over postMessage. That whole
- *   route is still here (openGlobalsPanel, lockChromeGlobalsTab, the sve-lock-tab
- *   and sve-chrome-set-style messages), and it is also what the in-window route
- *   falls back to when the globals page cannot be mounted — so flipping this back
- *   restores it whole.
- *
- * Goes on together with CHROME_LOCKS_PAGE in bridge.js: the page lock is part of
- * editing the header in the left panel, and one without the other is half a
- * behaviour.
- */
-
-
-/** The div the synced entry's form is mounted into, in this document. */
-
-/** Publish-container name for that form — never "base", which is the page's. */
+/** Publish-container name for the borrowed form — never "base", which is the page's. */
 export const GLOBAL_SECTION_CONTAINER = 'sve-global-section';
-
-/** Marks the page's own fields while the field column belongs to a global section. */
-export const GLOBAL_SECTION_AWAY_ATTR = 'data-sve-global-away';
-
-// The panel's latest values, as it streams them up: { id, values }. This is what
-// lets a global section be edited inline like any other — see activeContainers.
-
-/** First hydrate of the panel form — not a real edit. Same idea as chrome baseline. */
-
-/** True while the form holds exactly what it was opened with — nothing to save. */
 
 /** True after we've pushed unsaved global-section values into the preview stash. */
 export let sectionsStashActive = false;
 
-/** Edit-request that arrived before the panel streamed values — retry once ready. */
-
-/** Preview click/focus that arrived before the panel iframe could receive it. */
-
 /**
- * How long after a save the next values still count as the save's own echo.
- *
- * Statamic replaces the form's values with what the server sent back, and that
- * lands a beat after the request resolves — so the first thing read after a save
- * is the saved entry, not an edit of it. Without this window the bar goes back to
- * "unsaved changes" a quarter of a second after saving, and the section is stashed
- * over a page that already has it.
+ * Whether the open global section holds something to save: the stash is only
+ * how the page is kept showing what the form holds, so its existence is not
+ * the question — whether what it holds differs from what was opened is.
+ * Undoing an edit by hand leaves the stash in place and nothing to save.
  */
-
-export function globalSectionPanelFrame(win) {
-  return win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe') || null;
-}
-
-/**
- * Forward a preview click into the synced-section iframe. Returns true when the
- * click was handled (or queued) as a global-section focus — caller must not run
- * the page-form path.
- *
- * Only clicks *inside* a focused global section are forwarded. A click on a
- * normal page section while the panel is still open must hit the page form —
- * otherwise the sidebar shows an empty Headline header from the wrong document
- * while inline edit (correctly) updates the page.
- */
-export function forwardGlobalSectionFocus(data, doc, win) {
-  // No panel means the form is in this window, and there is nowhere to forward
-  // to: the section's fields are in this document, so the click takes the same
-  // path a page section's does.
-  const panel = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-  if (!panel || !(data.field || data.uid) || !data.global) {
-    return false;
-  }
-
-  const frame = panel.querySelector('iframe');
-
-  if (frame?.contentWindow) {
-    sveState.pendingFocusUntilPanel = null;
-    frame.contentWindow.postMessage(
-      {
-        source: SOURCE,
-        type: MSG.SVE_SECTION_FOCUS,
-        uid: data.scope || data.uid,
-        field: data.field || null,
-      },
-      win.location.origin
-    );
-
-    return true;
-  }
-
-  // Panel shell is up but the entry form has not mounted yet — hold the click.
-  sveState.pendingFocusUntilPanel = { field: data.field || null, uid: data.scope || data.uid || null };
-
-  return true;
-}
-
-export function flushPendingFocusUntilPanel(win) {
-  if (!sveState.pendingFocusUntilPanel) {
-    return;
-  }
-
-  const frame = globalSectionPanelFrame(win);
-
-  if (!frame?.contentWindow) {
-    return;
-  }
-
-  const { field, uid } = sveState.pendingFocusUntilPanel;
-
-  sveState.pendingFocusUntilPanel = null;
-  frame.contentWindow.postMessage(
-    {
-      source: SOURCE,
-      type: MSG.SVE_SECTION_FOCUS,
-      uid,
-      field,
-    },
-    win.location.origin
-  );
-}
-
-/**
- * Synced section panel lives in its own iframe — entry $dirty never sees it.
- * Stash activity is the other signal (same idea as Theme Settings).
- */
-export function hasUnsavedGlobalSection(win) {
-  // A stash is only how the page is kept showing what the form holds, so its
-  // existence is not the question — whether what it holds differs from what was
-  // opened is. Undoing an edit by hand leaves the stash in place and the section
-  // with nothing to save.
-  if (sectionsStashActive && !sveState.sectionValuesMatchBaseline) {
-    return true;
-  }
-
-  // Edited in this window there is no second $dirty to ask — the form shares the
-  // page's, and the baseline compare above is the whole answer.
-  const iwin = globalSectionPanelFrame(win)?.contentWindow;
-
-  if (!iwin) {
-    return false;
-  }
-
-  try {
-    const dirty = iwin.Statamic?.$dirty;
-
-    if (typeof dirty?.has !== 'function') {
-      return false;
-    }
-
-    const raw = typeof dirty.names === 'function' ? dirty.names() : dirty.names;
-    const list = unwrapRef(raw);
-
-    if (Array.isArray(list) && list.length) {
-      return list.some((name) => dirty.has(name));
-    }
-
-    return dirty.has('base');
-  } catch {
-    return false;
-  }
-}
-
-/**
- * The open panel, dressed up as a publish container.
- *
- * Reads resolve against the copy of its values it streams us; writes are posted
- * into the panel, where the real container applies them — and its next poll
- * streams the change back, stashes it, and re-renders the page. So an inline edit
- * on a global section takes the same path as one on the page's own fields, and
- * nothing downstream needs to know the difference.
- */
-export function sectionPanelContainer(doc) {
-  // Only ever a stand-in for a panel. Edited in this window the form registers a
-  // real publish container of its own (see registerContainerEvents), and the
-  // lookup below finds no panel and returns null — as it should.
-  const panel = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
-  const frame = panel?.querySelector('iframe');
-
-  if (!panel || !frame?.contentWindow || !sveState.sectionPanelValues?.values) {
-    return null;
-  }
-
-  const win = doc.defaultView;
-
-  return {
-    name: 'sve-global-section',
-    values: sveState.sectionPanelValues.values,
-    setFieldValue: (path, value) => {
-      frame.contentWindow.postMessage(
-        { source: SOURCE, type: MSG.SVE_SECTION_SET_VALUE, path, value },
-        win.location.origin
-      );
-    },
-  };
+export function hasUnsavedGlobalSection() {
+  return sectionsStashActive && !sveState.sectionValuesMatchBaseline;
 }
 
 /** Tells the preview to re-render asking for (or forgetting) the stashed section. */
@@ -374,19 +161,17 @@ export function onSectionSave(callback) {
   };
 }
 
+/** The entry form's own Save, for the bar's Save. `done(ok)` when the save has been heard. */
 export function saveGlobalSectionPanel(win, done) {
-  if (!hasUnsavedGlobalSection(win)) {
+  if (!hasUnsavedGlobalSection()) {
     done(true);
 
     return;
   }
 
-  const host = globalSectionHost(win.document);
-  const iwin = globalSectionPanelFrame(win)?.contentWindow;
-
   // Nothing open to save into: whatever the stash still holds is not backed by a
   // form any more, so it goes.
-  if (!host && !iwin) {
+  if (!globalSectionHost(win.document)) {
     clearSectionsStash(win, { refresh: false }).finally(() => done(true));
 
     return;
@@ -408,71 +193,41 @@ export function saveGlobalSectionPanel(win, done) {
   const stop = onSectionSave(finish);
   const timer = win.setTimeout(() => finish(false), LP_SAVE_TIMEOUT);
 
-  if (host) {
-    pressGlobalSectionSave(win);
-
-    return;
-  }
-
-  iwin.postMessage(
-    { source: SOURCE, type: MSG.SVE_GLOBALS_SAVE },
-    win.location.origin
-  );
+  pressGlobalSectionSave(win);
 }
 
-/**
- * Announce the result of a synced-section save.
- *
- * `frame` is the window holding the form when that is somewhere else; edited in
- * this window there is none, and the baseline it would be asked to move is the
- * one right here.
- */
-export function announceSectionSave(parentWin, ok, frame = null) {
+/** Announce the result of a synced-section save: saved = the new clean baseline. */
+export function announceSectionSave(win, ok) {
   if (ok) {
     sectionsStashActive = true;
-    // Saved = new clean baseline (don't treat the next poll as a fresh edit).
+
     if (sveState.sectionPanelValues?.values) {
       sveState.sectionValuesBaseline = JSON.stringify(sveState.sectionPanelValues.values);
     }
+
     sveState.sectionValuesMatchBaseline = true;
     sveState.sectionBaselineUntil = Date.now() + 2000;
-    clearSectionsStash(parentWin, { refresh: false });
-
-    // The panel form keeps its own "what was it when we last agreed" copy —
-    // without this it re-reports the very next poll as an edit and the bar
-    // goes back to "unsaved changes" a quarter of a second after saving.
-    if (frame) {
-      try {
-        frame.postMessage(
-          { source: SOURCE, type: MSG.SVE_GLOBALS_SAVED },
-          parentWin.location.origin
-        );
-      } catch {
-        /* panel closed while saving */
-      }
-    }
+    clearSectionsStash(win, { refresh: false });
   }
 
   [...sectionSaveListeners].forEach((listener) => listener(ok));
 }
 
 /**
- * Watch a window for the entry save the synced section's form sends.
+ * Hear the entry save the synced section's form sends, in this window.
  *
- * `entryPath` is a function rather than a string because the window being
- * watched can be this one: the CP is not reloaded between global sections, so
- * which entry counts as "the save" changes while the same patched fetch stays in
- * place.
+ * `entryPath` is a function rather than a string: the CP is not reloaded
+ * between global sections, so which entry counts as "the save" changes while
+ * the same patched fetch and XHR stay in place. Patched once per window.
  */
-export function watchGlobalSectionPanelSaves(iwin, parentWin, entryPath = null) {
-  if (!iwin || !parentWin || iwin.__sveSectionSaveWatch) {
+export function watchGlobalSectionSaves(iwin, entryPath) {
+  if (!iwin || iwin.__sveSectionSaveWatch) {
     return;
   }
 
   iwin.__sveSectionSaveWatch = true;
 
-  const savePath = entryPath ?? (() => iwin.location.pathname);
-  const frame = iwin === parentWin ? null : iwin;
+  const savePath = entryPath;
 
   const isSave = (url, method) => {
     if (!url || !/^(POST|PUT|PATCH)$/i.test(method || 'GET')) {
@@ -496,7 +251,7 @@ export function watchGlobalSectionPanelSaves(iwin, parentWin, entryPath = null) 
     return path.startsWith(base) && !path.includes('/preview');
   };
 
-  const announce = (ok) => announceSectionSave(parentWin, ok, frame);
+  const announce = (ok) => announceSectionSave(iwin, ok);
 
   const { fetch: originalFetch } = iwin;
 
@@ -548,232 +303,23 @@ export function watchGlobalSectionPanelSaves(iwin, parentWin, entryPath = null) 
   };
 }
 
-export function ensureGlobalSectionPanelSaveWatch(win) {
-  const frame = globalSectionPanelFrame(win);
-
-  if (!frame) {
-    return;
-  }
-
-  const arm = () => {
-    try {
-      if (frame.contentWindow) {
-        watchGlobalSectionPanelSaves(frame.contentWindow, win);
-      }
-    } catch {
-      /* iframe not ready */
-    }
-  };
-
-  arm();
-  frame.addEventListener('load', arm);
-}
-
-// How long the section panel may stay hidden waiting for its form to rebuild.
-// Long enough for a slow boot, short enough that a silent failure is a pause
-// rather than an empty panel.
-
-/**
- * Show the section panel's frame. Called both by the ready handshake and by a
- * fallback timer, so it has to be safe to run twice — setting an opacity that
- * is already 1 costs nothing.
- */
-export function revealSectionPanelFrame(win) {
-  const frame = win.document.getElementById(GLOBAL_SECTION_PANEL_ID)?.querySelector('iframe');
-
-  if (frame) {
-    frame.style.opacity = '1';
-  }
-}
-
+/** Close the open global section's form, if one is open. */
 export function closeGlobalSectionPanel(win) {
-  // Whichever one is open. Only one ever is.
-  if (closeGlobalSectionInline(win)) {
-    return;
-  }
-
-  const panel = win.document.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-  if (!panel) {
-    return;
-  }
-
-  panel.remove();
-  sveState.sectionPanelValues = null;
-  sveState.sectionValuesBaseline = null;
-  sveState.sectionValuesMatchBaseline = true;
-  sveState.pendingEditUntilPanel = null;
-  sveState.pendingFocusUntilPanel = null;
-  // Left editor was covered — restore normal section editing surface.
-  const editor = win.document.querySelector('.live-preview-editor');
-
-  if (editor) {
-    editor.querySelectorAll('[data-sve-global-cover]').forEach((el) => el.remove());
-  }
-
-  syncPreviewInset(win);
-
-  clearSectionsStash(win, { refresh: true });
-  syncSectionLibraryAvailability(win);
+  closeGlobalSectionInline(win);
 }
-
-/**
- * Mount the synced section's publish form in the LEFT Live Preview editor —
- * same slot a normal section uses. Keeps an iframe so values can stream for
- * inline edit; does NOT open a right-hand drawer.
- */
-export function openGlobalSectionPanel(win, id) {
-  if (GLOBAL_SECTION_INLINE) {
-    openGlobalSectionInline(win, id);
-
-    return;
-  }
-
-  openGlobalSectionPanelFrame(win, id);
-}
-
-/**
- * The docked-panel route: the same form, in an iframe covering the left editor,
- * reached only over postMessage. Kept whole — GLOBAL_SECTION_INLINE picks
- * between this and the in-window form, and this is also where the in-window one
- * falls back to when there is no Live Preview editor to mount into.
- */
-export function openGlobalSectionPanelFrame(win, id) {
-  const doc = win.document;
-  const existing = doc.getElementById(GLOBAL_SECTION_PANEL_ID);
-
-  // Already showing this section — leave it be. Rebuilding would reload the form
-  // and throw away whatever is half-typed in it.
-  if (existing?.dataset.sveSectionId === id) {
-    setLpMode(win, 'show');
-
-    return;
-  }
-
-  // Close other right drawers; keep left editor free for this form.
-  closeRightPanels(win, []);
-
-  sveState.sectionValuesBaseline = null;
-  sveState.sectionValuesMatchBaseline = true;
-  sveState.pendingEditUntilPanel = null;
-  sveState.pendingFocusUntilPanel = null;
-
-  setLpMode(win, 'show');
-
-  const editor = doc.querySelector('.live-preview-editor');
-  const collection = encodeURIComponent(savedSectionsCollection(win));
-  const url = new URL(`/cp/collections/${collection}/entries/${encodeURIComponent(id)}`, win.location.origin);
-
-  url.searchParams.set(GLOBALS_PANEL_PARAM, '1');
-
-  const panel = doc.createElement('div');
-
-  panel.id = GLOBAL_SECTION_PANEL_ID;
-  panel.dataset.sveSectionId = id;
-  panel.setAttribute('data-sve-global-cover', '');
-  panel.style.cssText =
-    'position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;' +
-    'background:var(--theme-color-content-bg,#fff);';
-
-  // Docked in Live Preview the preview draws its own bar over the page — the one
-  // naming the section, saying whether it has unsaved work, and holding Save and
-  // Close. A second Save above the panel is the same button twice, and the strip
-  // it sits in is a band of nothing between the top of the panel and the section
-  // it is showing. Off the Live Preview screen there is no such bar, so the
-  // fallback keeps it: that is the only way to save from there.
-  const bar = editor ? null : doc.createElement('div');
-
-  if (bar) {
-    bar.style.cssText =
-      'display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:6px 10px;' +
-      'border-bottom:1px solid rgba(128,128,128,.24);flex:0 0 auto;';
-
-    const save = doc.createElement('button');
-
-    save.type = 'button';
-    save.textContent = t(win, 'save');
-    save.title = t(win, 'save_global_section');
-    save.style.cssText =
-      'all:unset;cursor:pointer;padding:5px 12px;border-radius:6px;background:var(--theme-color-primary,#4f46e5);' +
-      'color:#fff;font-size:12px;font-weight:600;line-height:1;';
-    save.addEventListener('click', () => {
-      doc
-        .getElementById(GLOBAL_SECTION_PANEL_ID)
-        ?.querySelector('iframe')
-        ?.contentWindow?.postMessage({ source: SOURCE, type: MSG.SVE_GLOBALS_SAVE }, win.location.origin);
-    });
-    bar.appendChild(save);
-  }
-
-  const frame = doc.createElement('iframe');
-
-  frame.src = url.toString();
-  frame.title = t(win, 'global_panel_title');
-  // The form arrives as the CP's raw publish view and is rebuilt in place —
-  // tabs become a segmented control, blocks become cards. Watching that rebuild
-  // is the flicker, so the frame stays invisible until the panel reports ready.
-  // The timer is the safety net: a boot that never reports still reveals
-  // itself, so a failure can never leave a permanently blank panel.
-  frame.style.cssText =
-    'flex:1 1 auto;width:100%;border:0;background:transparent;' +
-    'opacity:0;transition:opacity .12s ease;';
-  frame.addEventListener('load', () => flushPendingFocusUntilPanel(win));
-  win.setTimeout(() => revealSectionPanelFrame(win), SECTION_PANEL_REVEAL_MS);
-
-  if (bar) {
-    panel.appendChild(bar);
-  }
-
-  panel.appendChild(frame);
-
-  if (editor) {
-    const cs = win.getComputedStyle(editor);
-
-    if (cs.position === 'static') {
-      editor.style.position = 'relative';
-    }
-
-    editor.appendChild(panel);
-  } else {
-    // Fallback if LP editor isn't mounted yet — left-docked fixed panel.
-    const top = dockedPanelTop(win);
-
-    panel.style.cssText =
-      `position:fixed;top:${top}px;left:0;bottom:0;width:${lpStoredWidth(win)}px;z-index:40;` +
-      'display:flex;flex-direction:column;background:var(--theme-color-content-bg,#fff);' +
-      'border-right:1px solid rgba(128,128,128,.28);box-shadow:8px 0 24px rgba(0,0,0,.12);';
-    doc.body.appendChild(panel);
-  }
-
-  ensureGlobalSectionPanelSaveWatch(win);
-  notifyGlobalSectionDirty(win);
-}
-
-
-// ===== global-section-inline =====
-// --- Global section, edited in this window ---------------------------------------
-//
-// Everything below builds the synced entry's form where the page's own form
-// already is: inside the Live Preview field column. That is the whole difference.
-// Once its sets are in this document, a global section is not a special case any
-// more — the "+" opens Statamic's picker over the preview, the sidebar solos the
-// section, the arrows move it, and inline edit writes to a real publish container.
-// Nothing here re-implements any of that; it only puts the fields within reach of
-// the code that already does it.
 
 /** The mounted form: its Vue app, the entry it shows, and how to save it. */
 export let globalSectionApp = null;
 export let globalSectionEntryPath = null;
-export let globalSectionValuesTimer = null;
-export let globalSectionValuesSeen = null;
+let stopGlobalSectionValues = null;
 
 export function globalSectionHost(doc) {
   return doc.getElementById(GLOBAL_SECTION_HOST_ID);
 }
 
-/** True while a global section owns the editor, whichever way it was opened. */
+/** True while a global section owns the editor. */
 export function globalSectionEditorOpen(doc) {
-  return !!(doc.getElementById(GLOBAL_SECTION_PANEL_ID) || globalSectionHost(doc));
+  return !!globalSectionHost(doc);
 }
 
 /** The synced entry's own publish container, once its form has mounted. */
@@ -942,53 +488,6 @@ export function mountGlobalSectionForm(win, host, props) {
 }
 
 /**
- * Hide the page's own fields while the column belongs to a global section.
- *
- * The solo view does this too, once it has a set to isolate — but the form takes
- * a moment to mount, and without this the page's fields sit under the section's
- * for that moment. Marked rather than detached: the page's form keeps its state,
- * and stepping back out is one attribute removal away.
- */
-export function hidePageFieldsForGlobalSection(host) {
-  const column = host.parentElement;
-
-  if (!column) {
-    return;
-  }
-
-  host.dataset.sveReady = '1';
-
-  [...column.children].forEach((child) => {
-    if (child === host) {
-      return;
-    }
-
-    // The focus header names what the column is showing. It is not a page field —
-    // same skip as markPanelIsolate. Hiding it left Header/Footer (and a synced
-    // section) without the icon+title every ordinary section has.
-    if (child.id === FOCUS_HEADER_ID) {
-      child.removeAttribute(GLOBAL_SECTION_AWAY_ATTR);
-
-      return;
-    }
-
-    child.setAttribute(GLOBAL_SECTION_AWAY_ATTR, '');
-  });
-
-  const win = host.ownerDocument.defaultView;
-
-  hideSettingsBar(win);
-}
-
-export function showPageFieldsAgain(doc) {
-  doc.querySelectorAll(`[${GLOBAL_SECTION_AWAY_ATTR}]`).forEach((el) =>
-    el.removeAttribute(GLOBAL_SECTION_AWAY_ATTR)
-  );
-
-  placeLpWidthPicker(doc.defaultView);
-}
-
-/**
  * Open the synced entry's form in the left Live Preview editor, in this window.
  */
 export async function openGlobalSectionInline(win, id) {
@@ -1012,9 +511,7 @@ export async function openGlobalSectionInline(win, id) {
   const column = doc.querySelector('.live-preview-fields') || doc.querySelector('.live-preview-editor');
 
   if (!column) {
-    // No Live Preview editor to mount into — fall back to the docked panel, which
-    // builds its own surface and does not need one.
-    openGlobalSectionPanelFrame(win, id);
+    console.error('[sve] no Live Preview column to open the global section in');
 
     return;
   }
@@ -1023,8 +520,8 @@ export async function openGlobalSectionInline(win, id) {
 
   host.id = GLOBAL_SECTION_HOST_ID;
   host.dataset.sveSectionId = id;
-  // Invisible until soloed — page form stays up so the column is never empty.
-  host.style.cssText = 'position:absolute;inset:0;opacity:0;overflow:auto;pointer-events:none;';
+  // Out of sight: the panel draws the rows; this form is the data and the save.
+  host.style.cssText = 'position:absolute;inset:0;opacity:0;overflow:hidden;pointer-events:none;';
   if (win.getComputedStyle(column).position === 'static') {
     column.style.position = 'relative';
   }
@@ -1039,65 +536,54 @@ export async function openGlobalSectionInline(win, id) {
 
   if (!loaded?.props || !mountGlobalSectionForm(win, host, loaded.props)) {
     closeGlobalSectionInline(win);
+    console.error('[sve] the global section', id, 'could not be mounted');
 
     return;
   }
 
   globalSectionEntryPath = new URL(loaded.path, win.location.origin).pathname;
-  watchGlobalSectionInlineSaves(win);
-  watchGlobalSectionInlineValues(win, id);
-
-  if (selectionPanelOn(win)) {
-    adoptGlobalSectionContext(win, host);
-  } else {
-    bootGlobalSectionSolo(win, doc, host);
-  }
+  watchGlobalSectionSaves(win, () => globalSectionEntryPath);
+  adoptGlobalSectionContext(win, host, id);
   notifyGlobalSectionDirty(win);
   syncSectionLibraryAvailability(win);
   win.setTimeout(() => syncCodeDock(win, doc, null), 200);
 }
 
-/** The borrowed form's publish context, while the selection panel draws it. */
-let globalSectionCtx = null;
-
 /**
- * The selection panel's way in: the borrowed form's context is read off its
- * fields once they are drawn, the rows get the ids the preview targets them by
- * (legacy synced entries lost their nested ids on save), and the section's
- * first row is selected — drawn on that context, nothing isolated, no reveal
- * timer.
+ * The borrowed form's context is read off its sets once they are drawn, the
+ * rows get the ids the preview targets them by (legacy synced entries lost
+ * their nested ids on save), the values start streaming to the stash, and
+ * the section's first row is selected — drawn on that context.
  */
-function adoptGlobalSectionContext(win, host) {
+function adoptGlobalSectionContext(win, host, id) {
   const field = sectionField(win);
 
-  whenContainerContext(GLOBAL_SECTION_CONTAINER, 2500, win).then((ctx) => {
+  whenContainerContext(GLOBAL_SECTION_CONTAINER, 4000, win).then((ctx) => {
     if (globalSectionHost(win.document) !== host) {
       return;
     }
 
-    // Nothing registered within the wait — the isolation view still can.
     if (!ctx) {
-      bootGlobalSectionSolo(win, win.document, host);
+      closeGlobalSectionInline(win);
+      console.error('[sve] the global section', id, 'registered no publish context');
 
       return;
     }
-
-    globalSectionCtx = ctx;
 
     const values = unwrapRef(ctx.values);
     const rows = values && typeof values === 'object' ? values[field] : null;
 
-    if (!Array.isArray(rows) || !rows.length) {
-      return;
+    if (Array.isArray(rows) && rows.length) {
+      const next = JSON.parse(JSON.stringify(rows));
+
+      if (ensureNestedRowIds(next)) {
+        ctx.setFieldValue(field, next);
+      }
     }
 
-    const next = JSON.parse(JSON.stringify(rows));
+    watchGlobalSectionInlineValues(win, id, ctx);
 
-    if (ensureNestedRowIds(next)) {
-      ctx.setFieldValue(field, next);
-    }
-
-    const first = next[0];
+    const first = Array.isArray(rows) ? rows[0] : null;
     const uid = first?._visual_id || first?.id || first?._id || null;
 
     if (uid) {
@@ -1106,108 +592,52 @@ function adoptGlobalSectionContext(win, host) {
   });
 }
 
-/** Solo the section the way a click on a page section would. */
-export function bootGlobalSectionSolo(win, doc, host) {
-  const field = sectionField(win);
-  let attempts = 0;
-
-  const reveal = () => {
-    if (globalSectionHost(doc) !== host) {
-      return;
-    }
-
-    hidePageFieldsForGlobalSection(host);
-    host.style.position = '';
-    host.style.inset = '';
-    host.style.overflow = '';
-    host.style.pointerEvents = '';
-    host.style.opacity = '1';
-  };
-
-  // Safety net: a boot that never settles still shows its form rather than
-  // leaving a blank column behind.
-  win.setTimeout(reveal, SECTION_PANEL_REVEAL_MS);
-
-  const tryBoot = () => {
-    if (globalSectionHost(doc) !== host) {
-      return;
-    }
-
-    const container = globalSectionContainer();
-    const values = container ? unwrapRef(container.values) : null;
-    const rows = values && typeof values === 'object' ? values[field] : null;
-
-    if (Array.isArray(rows) && rows.length) {
-      // Legacy synced entries stripped nested ids — assign them once so preview
-      // scope="{{ id }}" and focusFieldOwner can target the blocks inside.
-      const next = JSON.parse(JSON.stringify(rows));
-
-      if (ensureNestedRowIds(next)) {
-        container.setFieldValue(field, next);
-        win.setTimeout(tryBoot, 150);
-
-        return;
-      }
-
-      const uid = next[0]?._visual_id || next[0]?.id || next[0]?._id;
-
-      if (uid && findSetByUid(uid, doc) && soloSection(uid, doc, win, { kind: 'section' })) {
-        reveal();
-
-        return;
-      }
-
-      if (uid) {
-        expandTopLevelSectionSets(doc, field);
-      }
-    }
-
-    if (attempts++ < 80) {
-      win.setTimeout(tryBoot, 120);
-
-      return;
-    }
-
-    reveal();
-  };
-
-  tryBoot();
-}
-
 /**
- * Read what the form holds, four times a second.
+ * What the form holds, as it changes.
  *
- * Polled rather than watched for the same reason the docked panel polled: the
- * container's `values` is a Vue ref, and a JSON compare is both cheaper and far
- * more robust than reaching into Vue's reactivity from outside its own bundle.
+ * A watch on the container's values ref — Statamic's own container already
+ * watches it deep for its dirty state — debounced to a quarter second, the
+ * cadence the old poll had. The first reading is the baseline; every later
+ * one goes to the stash and re-renders the page (applySectionValues). The
+ * baseline is read a beat after the form has mounted, not the instant its
+ * context appears: fields normalise their values on mount (a responsive
+ * wrapper reshapes its drawers before its first render), and read earlier
+ * those writes counted as edits — Close then asked to discard nothing.
  */
-export function watchGlobalSectionInlineValues(win, id) {
+export function watchGlobalSectionInlineValues(win, id, ctx) {
   stopGlobalSectionInlineValues(win);
-  globalSectionValuesSeen = null;
 
-  globalSectionValuesTimer = win.setInterval(() => {
-    const container = globalSectionContainer();
-    const values = container ? unwrapRef(container.values) : null;
+  let timer = null;
 
-    if (!values || typeof values !== 'object') {
-      return;
+  const push = () => {
+    const values = unwrapRef(ctx.values);
+
+    if (values && typeof values === 'object') {
+      applySectionValues(win, id, JSON.parse(JSON.stringify(values)));
     }
+  };
 
-    const serialized = JSON.stringify(values);
+  timer = win.setTimeout(push, 300);
 
-    if (serialized === globalSectionValuesSeen) {
-      return;
-    }
+  const stop = watch(
+    () => unwrapRef(ctx.values),
+    () => {
+      win.clearTimeout(timer);
+      timer = win.setTimeout(push, 250);
+    },
+    { deep: true }
+  );
 
-    globalSectionValuesSeen = serialized;
-    applySectionValues(win, id, JSON.parse(serialized));
-  }, 250);
+  stopGlobalSectionValues = () => {
+    win.clearTimeout(timer);
+    stop();
+  };
 }
 
-export function stopGlobalSectionInlineValues(win) {
-  if (globalSectionValuesTimer) {
-    win.clearInterval(globalSectionValuesTimer);
-    globalSectionValuesTimer = null;
+export function stopGlobalSectionInlineValues() {
+  if (stopGlobalSectionValues) {
+    stopGlobalSectionValues();
+    stopGlobalSectionValues = null;
   }
 }
 
@@ -1240,25 +670,14 @@ export function pressGlobalSectionSave(win) {
 }
 
 /**
- * Hear the save go out.
- *
- * The form is in this window now, so the request it sends is this window's —
- * matched on the synced entry's own path, which is read live because the CP is
- * never reloaded between one global section and the next.
- */
-export function watchGlobalSectionInlineSaves(win) {
-  watchGlobalSectionPanelSaves(win, win, () => globalSectionEntryPath);
-}
-
-/**
  * Take the form back down and hand the column back to the page. Returns whether
- * there was one — that is how the caller knows which of the two routes was open.
+ * there was one.
  */
 export function closeGlobalSectionInline(win, { refresh = true } = {}) {
   const doc = win.document;
   const host = globalSectionHost(doc);
 
-  stopGlobalSectionInlineValues(win);
+  stopGlobalSectionInlineValues();
 
   if (!host) {
     return false;
@@ -1275,37 +694,19 @@ export function closeGlobalSectionInline(win, { refresh = true } = {}) {
   }
 
   host.remove();
-  clearSolo(doc);
-
-  // Page Settings is where the focus path lands; the panel keeps the sections
-  // tab, whose fields are what the page's context lives in.
-  if (!selectionPanelOn(win)) {
-    openSettingsTab(win);
-  }
-
-  showPageFieldsAgain(doc);
-  globalSectionCtx = null;
-
-  if (selectionPanelOn(win)) {
-    clearSelection('global');
-  }
+  clearSelection('global');
 
   globalSectionEntryPath = null;
-  globalSectionValuesSeen = null;
   sveState.sectionBaselineUntil = 0;
   sveState.sectionPanelValues = null;
   sveState.sectionValuesBaseline = null;
   sveState.sectionValuesMatchBaseline = true;
   sveState.pendingEditUntilPanel = null;
-  sveState.pendingFocusUntilPanel = null;
 
-  rearmFirstSection();
   syncPreviewInset(win);
   clearSectionsStash(win, { refresh });
   syncSectionLibraryAvailability(win);
-  syncCodeDock(win, doc, sveState.soloUid);
+  syncCodeDock(win, doc, null);
 
   return true;
 }
-// activeContainers() consults the panel beside the preview last — see lib/publish-containers.js.
-registerContainerSource(sectionPanelContainer);

@@ -10,10 +10,8 @@ import {
   FRAMED_SELECT_STYLE,
   LP_SAVE_TIMEOUT,
   applyHeaderTab,
-  autoPickSet,
   expandSet,
   findSetByUid,
-  handleAddBlockNative,
   handleFieldFocus,
   isSetCollapsed,
   sendToPreview,
@@ -25,15 +23,15 @@ import { csrfToken } from './lib/csrf.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { frameDocumentUrl, isLivePreviewDocumentUrl, lastPreviewUrl, replayLivePreview, watchPreviewRenders } from './lp-replay.js';
 import { injectStyle } from './lib/style.js';
-import { CHROME_DESIGNS_ID, CHROME_INLINE, GLOBALS_PANEL_ID, GLOBALS_PICKER_ID, LIBRARY_BUTTON_ID, LP_ICON_IDLE_OPACITY, LP_MODE_ID, LP_WIDTH_ID, SECTION_PICKER_ID } from './lib/ids.js';
+import { CHROME_DESIGNS_ID, GLOBALS_PANEL_ID, GLOBALS_PICKER_ID, LIBRARY_BUTTON_ID, LP_ICON_IDLE_OPACITY, LP_MODE_ID, LP_WIDTH_ID, SECTION_PICKER_ID } from './lib/ids.js';
 import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { featureOn, sectionField } from './lib/config.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
-import { focusFieldOwner, focusPanelOn, setMeta, soloSection } from './focus-panel.js';
+import { setMeta } from './lib/row-meta.js';
 import { attachGlobalsOverlay, closeRightPanels, editorOverlayCss, hideGlobalsPanel, isSectionLibraryLocked, leaveFocusLock, libraryMatchesQuery, libraryWentStale, mountInLivePreviewEditor, newRowId, openSectionPicker, parkGlobalsOverlay, pinGlobalsPanelLeft, releaseLeftEdgeIfFree, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
-import { hasUnsavedGlobalSection, sectionPanelContainer } from './global-section.js';
-import { chromeContainer, chromeHost, closeChromeInline, openChromeInline, pressChromeSave, soloChromeTab, warmChromeInlinePages, watchChromeSolo } from './chrome.js';
+import { hasUnsavedGlobalSection } from './global-section.js';
+import { chromeContainer, chromeHost, closeChromeInline, openChromeInline, pressChromeSave, warmChromeInlinePages } from './chrome.js';
 import { hasUnsavedChanges } from './open-in-preview.js';
 import { confirmLeaveGlobalsOverlay, handleRequestCloseChrome } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
@@ -950,36 +948,15 @@ export function prefetchChromeGlobals(win) {
     return;
   }
 
-  // What a click actually opens is the in-window form, and until now this warmed
-  // the docked iframe instead — the fallback, the one path a click almost never
-  // takes. So the head start went to the wrong door and the panel was a second
-  // or two behind the click, every time.
-  if (CHROME_INLINE) {
-    warmChromeInlinePages(win);
-
-    return;
-  }
-
-  if (doc.getElementById(GLOBALS_PANEL_ID)) {
-    return;
-  }
-
-  const handle = chromeGlobalHandle(win);
-  const sets = globalSets(win);
-  const set = sets.find((candidate) => candidate.handle === handle);
-
-  if (!set) {
-    return;
-  }
-
-  openGlobalsPanel(win, set, { prefetch: true });
+  // What a click opens is the in-window form: its globals screens are what
+  // get the head start.
+  warmChromeInlinePages(win);
 }
 
 export function openGlobalsPanel(win, set, options = {}) {
   const doc = win.document;
   const existing = doc.getElementById(GLOBALS_PANEL_ID);
   const prefetch = options.prefetch === true;
-  const chromeLock = options.chromeLock === 'footer' || options.chromeLock === 'header' ? options.chromeLock : null;
 
   // Switching sets reuses the panel rather than replacing it. Tearing an iframe
   // out of the page discards its session-history entries, and the browser then
@@ -995,7 +972,7 @@ export function openGlobalsPanel(win, set, options = {}) {
     const title = existing.querySelector('[data-sve-globals-title]');
 
     if (frame && title) {
-      const label = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
+      const label = set.title;
 
       title.textContent = label;
       existing.querySelector('[data-sve-focus-tile]') &&
@@ -1007,12 +984,7 @@ export function openGlobalsPanel(win, set, options = {}) {
       // Same set already loaded: do NOT location.replace — a dirty form inside
       // the iframe triggers Chrome's "Leave site?" dialog and blocks the editor.
       if (existing.getAttribute('data-sve-globals-handle') === set.handle) {
-        if (chromeLock) {
-          lockChromeGlobalsTab(win, chromeLock);
-        } else {
-          setActiveChromeKind(null);
-          unlockChromeGlobalsTabs(win);
-        }
+        setActiveChromeKind(null);
 
         return;
       }
@@ -1027,13 +999,7 @@ export function openGlobalsPanel(win, set, options = {}) {
           /* ignore */
         }
         frame.contentWindow.location.replace(globalsPanelUrl(win, set));
-
-        if (chromeLock) {
-          lockChromeGlobalsTab(win, chromeLock);
-        } else {
-          setActiveChromeKind(null);
-          unlockChromeGlobalsTabs(win);
-        }
+        setActiveChromeKind(null);
       };
 
       confirmLeaveGlobalsOverlay(
@@ -1076,7 +1042,7 @@ export function openGlobalsPanel(win, set, options = {}) {
 
   title.setAttribute('data-sve-globals-title', '');
   title.setAttribute('data-sve-focus-title', '');
-  title.textContent = chromeLock === 'footer' ? 'Footer' : chromeLock === 'header' ? 'Header' : set.title;
+  title.textContent = set.title;
   title.style.cssText = 'flex:1 1 auto;min-width:0;';
   bar.appendChild(title);
 
@@ -1161,10 +1127,6 @@ export function openGlobalsPanel(win, set, options = {}) {
   } else {
     pinGlobalsPanelLeft(win, panel);
     syncPreviewInset(win);
-
-    if (chromeLock) {
-      lockChromeGlobalsTab(win, chromeLock);
-    }
   }
 }
 
@@ -1430,12 +1392,6 @@ export function initGlobalsPanelFrame(win) {
   // SECTION (/cp/collections/<c>/entries/<id>) — both are just a publish form in
   // an iframe. The path says which; each stashes through its own channel, and
   // only an entry brings its own Save button along.
-  const isEntry = win.location.pathname.includes('/collections/');
-
-  if (isEntry) {
-    doc.documentElement.setAttribute('data-sve-entry-panel', '');
-  }
-
   // Strip the CP's own chrome (top bar, main nav) but nothing else: the publish
   // form lives inside <main>, and it has plenty of its own <header>s (every
   // replicator set) and <nav>s (the tab bar) that must survive.
@@ -1506,11 +1462,6 @@ export function initGlobalsPanelFrame(win) {
       }
     });
 
-    // Synced-section entry: hide library meta + publish chrome so the panel
-    // matches a normal section focus view (not Navn/Synced/Published/SEO).
-    if (isEntry) {
-      hideSavedSectionEntryChrome(doc);
-    }
   };
 
   // When set (e.g. "header"), chrome focus hides every other publish tab so you
@@ -1529,10 +1480,6 @@ export function initGlobalsPanelFrame(win) {
   // CP boots, and this runs early enough that caching it could catch an empty
   // one and then never look again. A config get and an array lookup are cheap.
   const hiddenTabNeedles = () => {
-    if (isEntry) {
-      return [];
-    }
-
     const map = win.Statamic?.$config?.get?.('sveHiddenGlobalsTabs') || {};
     const handle = win.location.pathname.split('/').filter(Boolean).pop();
 
@@ -1757,43 +1704,6 @@ export function initGlobalsPanelFrame(win) {
     // and the change lands asynchronously — see pendingTicks by the interval.
     pendingTicks = PARKED_SYNC_TICKS;
 
-    // An inline edit in the page, on content this form owns: apply it to the real
-    // container here. The value poll below streams it straight back out, so the
-    // page re-renders with it — the edit never has to know it crossed a window.
-    if (event.data.type === MSG.SVE_SECTION_SET_VALUE) {
-      for (const container of activeContainers(doc)) {
-        container.setFieldValue(event.data.path, event.data.value);
-
-        return;
-      }
-
-      return;
-    }
-
-    // The preview's "+" inside this global section. The blocks belong to this
-    // form, so Statamic's own Add Set picker is opened here — the same call the
-    // CP makes for a page's own sections, just in the document that has them.
-    if (event.data.type === MSG.SVE_SECTION_ADD_BLOCK) {
-      handleAddBlockNative(event.data, doc, win);
-      autoPickSet(doc, win, event.data.setLabel);
-
-      return;
-    }
-
-    // Header/footer design picker: write flattened `header_style` / `footer_style`.
-    if (event.data.type === MSG.SVE_CHROME_SET_STYLE) {
-      const kind = event.data.kind === 'footer' ? 'footer' : 'header';
-      const style = event.data.style;
-
-      for (const container of activeContainers(doc)) {
-        container.setFieldValue(`${kind}_style`, style);
-
-        return;
-      }
-
-      return;
-    }
-
     // Open the matching publish tab (Header / Footer / …). reka-ui ignores a
     // bare click() and keeps a hidden twin of each tab — only the visible one.
     if (event.data.type === MSG.SVE_ACTIVATE_TAB) {
@@ -1802,27 +1712,6 @@ export function initGlobalsPanelFrame(win) {
           .trim()
           .toLowerCase()
       );
-
-      return;
-    }
-
-    // Live Preview header/footer: only that tab's fields — hide Colors, etc.
-    if (event.data.type === MSG.SVE_LOCK_TAB) {
-      lockedTabNeedle = String(event.data.label || event.data.kind || '')
-        .trim()
-        .toLowerCase();
-
-      if (lockedTabNeedle) {
-        activatePublishTab(lockedTabNeedle);
-        applyTabLock();
-      }
-
-      return;
-    }
-
-    if (event.data.type === MSG.SVE_UNLOCK_TABS) {
-      lockedTabNeedle = null;
-      applyTabLock();
 
       return;
     }
@@ -1908,25 +1797,21 @@ export function initGlobalsPanelFrame(win) {
       const changed = previous !== null;
       previous = serialized;
 
-      // First snapshot: still push for entries so the parent can resolve inline
-      // edit (sectionPanelContainer). Parent treats the first poll as baseline
-      // and does not mark dirty / stash. Globals keep the old "seed silent" path
-      // — pushing them refreshed the Live Preview on every panel open.
+      // The first snapshot is the seed, not an edit: pushing it refreshed the
+      // Live Preview on every panel open.
       if (!seeded) {
         seeded = true;
 
-        if (!isEntry) {
-          return;
-        }
-      } else if (!changed) {
+        return;
+      }
+
+      if (!changed) {
         return;
       }
 
       try {
         win.parent.postMessage(
-          isEntry
-            ? { source: SOURCE, type: MSG.SVE_SECTION_VALUES, id: handle, values: JSON.parse(serialized) }
-            : { source: SOURCE, type: MSG.SVE_GLOBALS_VALUES, handle, values: JSON.parse(serialized) },
+          { source: SOURCE, type: MSG.SVE_GLOBALS_VALUES, handle, values: JSON.parse(serialized) },
           win.location.origin
         );
       } catch {
@@ -1937,347 +1822,11 @@ export function initGlobalsPanelFrame(win) {
     }
   }, 250);
 
-  // Preview asked to focus a field/block inside this synced section — same as
-  // clicking it on a normal page (solo + field focus in THIS form).
-  win.addEventListener('message', (event) => {
-    if (event.origin !== win.location.origin || event.data?.source !== SOURCE) {
-      return;
-    }
-
-    if (event.data.type === MSG.SVE_SECTION_FOCUS) {
-      const applyFocus = (attempt = 0) => {
-        hideSavedSectionEntryChrome(doc);
-
-        // Same path as a normal page click: open the block that owns the field,
-        // not just the section scope (which may be a parent when block ids were
-        // missing from saved YAML).
-        if (event.data.field) {
-          let opened = false;
-
-          if (event.data.uid) {
-            if (focusPanelOn(win)) {
-              opened = focusFieldOwner(event.data.field, event.data.uid, doc, win);
-            } else {
-              opened = soloSection(event.data.uid, doc, win);
-            }
-          }
-
-          handleFieldFocus(event.data.field, doc, { scopeUid: event.data.uid });
-
-          if (event.data.uid) {
-            win.setTimeout(
-              () => handleFieldFocus(event.data.field, doc, { animate: false, scopeUid: event.data.uid }),
-              COLLAPSE_SETTLE_MS
-            );
-          }
-
-          // Form still mounting / set collapsed — expand and retry a few times
-          // so the sidebar does not stick on an empty Headline header.
-          if (!opened && event.data.uid && attempt < 12) {
-            expandTopLevelSectionSets(doc, sectionField(win));
-            win.setTimeout(() => applyFocus(attempt + 1), 120);
-          }
-        } else if (event.data.uid) {
-          const opened = soloSection(event.data.uid, doc, win);
-
-          if (!opened && attempt < 12) {
-            expandTopLevelSectionSets(doc, sectionField(win));
-            win.setTimeout(() => applyFocus(attempt + 1), 120);
-          }
-        }
-      };
-
-      applyFocus();
-    }
-  });
-
-  // Entry form for a saved section: jump straight into the first page section so
-  // the left panel matches a normal Hero/… focus view (not Navn/Synced meta).
-  if (isEntry) {
-    injectPanelFocusStyles(doc);
-    bootSavedSectionSolo(win, doc);
-    // Parent may have queued a click before this frame's listener existed.
-    try {
-      win.parent.postMessage(
-        { source: SOURCE, type: MSG.SVE_SECTION_PANEL_READY },
-        win.location.origin
-      );
-    } catch {
-      /* panel closed */
-    }
-  }
-
   return true;
-}
-
-/** Focus-panel CSS lives on the parent CP; the sve-panel iframe needs its own copy. */
-export function injectPanelFocusStyles(doc) {
-  injectStyle(doc, '__sve-panel-focus-styles', `
-    [data-sve-focus-header] {
-      position: sticky; top: 0; z-index: 3; display: flex; flex-direction: column;
-      gap: 0.5rem; margin-bottom: 0.75rem; padding: 0.875rem 0 1rem;
-      border-bottom: 1px solid rgba(128,128,128,.16);
-      background: var(--theme-color-content-bg, var(--color-white, #fff));
-    }
-    [data-sve-focus-id] { display: flex; align-items: center; gap: 0.7rem; }
-    [data-sve-focus-tile] {
-      flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-      width: 2.1rem; height: 2.1rem; border-radius: 0.6rem;
-      background: rgba(128,128,128,.16); font-size: 0.9rem; font-weight: 600; line-height: 1;
-    }
-    [data-sve-focus-title] { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.25; }
-    [data-sve-focus-back] {
-      all: unset; cursor: pointer; flex: 0 0 auto; display: inline-flex; align-items: center;
-      gap: 0.55em; margin-left: auto; padding: 0.55em 0.95em; border-radius: 0.55rem;
-      background: rgba(128,128,128,.16); font-size: 0.75rem; font-weight: 500; line-height: 1;
-      white-space: nowrap;
-    }
-    [data-sve-focus-back]:hover { background: rgba(128,128,128,.28); }
-    [data-sve-focus-back-arrow] {
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 1.2rem; line-height: 1; font-weight: 600;
-      transform: translateY(-1.5px);
-    }
-    [data-sve-focus-desc] { margin: 0; font-size: 0.8125rem; line-height: 1.5; opacity: .6; }
-    [data-sve-focus] [data-sve-focus-hide] { display: none !important; }
-    [data-sve-focus] [data-sve-focus-set] > header { display: none !important; }
-    [data-sve-focus-step] {
-      all: unset; cursor: pointer; flex: 0 0 auto; display: inline-flex; align-items: center;
-      justify-content: center; width: 1.6rem; height: 1.6rem; margin-left: 0.25rem;
-      border-radius: 0.4rem; opacity: .45;
-    }
-    header:hover > [data-sve-focus-step] { opacity: .9; }
-    [data-sve-focus] [data-sve-focus-flat] {
-      border: 0 !important; border-radius: 0 !important; background: none !important;
-      box-shadow: none !important; padding: 0 !important; margin: 0 !important;
-    }
-    [data-sve-focus] [data-sve-focus-flat] > hr { display: none !important; }
-    [data-sve-focus] [data-sve-focus-flush] { padding-inline: 0 !important; }
-    /* Entry Main/Sidebar tabs — redundant once we're inside the section. */
-    [data-sve-focus] [role="tablist"] { display: none !important; }
-  `);
 }
 
 /** Library-only fields on a saved_sections entry — not part of a normal section edit. */
 export const SAVED_SECTION_META_HANDLES = ['title', 'synced', 'section_type', 'preview_image'];
-
-/**
- * Hide entry chrome that a normal Live Preview section never shows: library
- * meta (Navn/Synced/…), Published, and SEO/Sidebar/Page settings tabs.
- */
-export function hideSavedSectionEntryChrome(doc) {
-  const hideRow = (el) => {
-    if (!el) {
-      return;
-    }
-
-    // Never hide fields that live inside the section being edited.
-    if (el.closest?.(SELECTORS.replicatorSet)) {
-      return;
-    }
-
-    // `[class*="publish-field"]` is deliberately not in this list. Statamic 6
-    // renders no singular `.publish-field` at all — a field is a `*-fieldtype`
-    // wrapper — so the substring match only ever found `.publish-fields`, the
-    // whole field column, and hiding one meta field took the entire panel with
-    // it: header showing, nothing under it.
-    const row =
-      el.closest('.publish-field') ||
-      el.closest('[class*="-fieldtype"]') ||
-      el.closest('label') ||
-      (el.parentElement?.children.length === 1 ? el.parentElement : el);
-
-    // A row holding the section itself is not a row — it is the column around
-    // it. Asked in terms of what must survive rather than what to climb past,
-    // so the next markup change cannot bring the blank panel back.
-    if (!row || row.querySelector?.(SELECTORS.replicatorSet)) {
-      return;
-    }
-
-    row.setAttribute('data-sve-panel-hide', '');
-  };
-
-  for (const handle of SAVED_SECTION_META_HANDLES) {
-    const el =
-      doc.getElementById(`field_${handle}`) ||
-      doc.querySelector(`.publish-field-${handle}`) ||
-      doc.querySelector(`[data-field="${handle}"]`) ||
-      doc.querySelector(`[data-handle="${handle}"]`);
-
-    if (el) {
-      el.setAttribute('data-sve-panel-hide', '');
-      hideRow(el);
-    }
-
-    // Statamic 6 often omits field_* ids — match bare name attributes outside sets.
-    doc.querySelectorAll(`[name="${handle}"]`).forEach((input) => hideRow(input));
-  }
-
-  // Published toggle — Statamic 6 may render it outside field_* ids (switch /
-  // reka). Match by label text, name, or aria.
-  doc.querySelectorAll('label, .toggle-fieldtype, [class*="toggle-fieldtype"], [role="switch"]').forEach((el) => {
-    if (el.closest?.(SELECTORS.replicatorSet)) {
-      return;
-    }
-
-    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-    const name = el.getAttribute('name') || el.querySelector?.('input')?.getAttribute('name') || '';
-
-    if (
-      /^(published|udgivet)\b/i.test(text) ||
-      name === 'published' ||
-      el.querySelector?.('input[name="published"]')
-    ) {
-      hideRow(el);
-    }
-  });
-
-  doc.querySelectorAll('input[name="published"], [name="published"]').forEach(hideRow);
-
-  // Extra publish tabs (Sidebar / SEO / Page settings) — keep Main only.
-  // Section Content/Style use data-sve-section-seg (tabs addon), not role=tab.
-  const tabs = [...doc.querySelectorAll('button[role="tab"]')];
-
-  if (tabs.length > 1) {
-    const first = tabs[0];
-
-    if (first.getAttribute('aria-selected') !== 'true') {
-      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-        first.dispatchEvent(
-          new (doc.defaultView?.PointerEvent || PointerEvent)(type, {
-            bubbles: true,
-            cancelable: true,
-          })
-        );
-      });
-    }
-
-    tabs.forEach((tab, index) => {
-      if (index > 0) {
-        tab.setAttribute('data-sve-panel-hide', '');
-      }
-    });
-
-    const tablist = first.closest('[role="tablist"]');
-
-    if (tablist) {
-      tablist.setAttribute('data-sve-panel-hide', '');
-    }
-  }
-}
-
-/**
- * Expand top-level page_sections sets so their _visual_id inputs exist in the DOM.
- * Collapsed replicator sets render no fields — findSetByUid would otherwise fail.
- */
-export function expandTopLevelSectionSets(doc, field) {
-  const fieldEl = doc.getElementById(`field_${field}`);
-  const root = fieldEl || doc.querySelector('main') || doc;
-  let expanded = false;
-
-  root.querySelectorAll(SELECTORS.replicatorSet).forEach((setEl) => {
-    const ancestor = setEl.parentElement?.closest(SELECTORS.replicatorSet);
-
-    if (ancestor && root.contains(ancestor)) {
-      return; // nested block — leave for focusFieldOwner / solo later
-    }
-
-    if (isSetCollapsed(setEl)) {
-      expandSet(setEl);
-      expanded = true;
-    }
-  });
-
-  return expanded;
-}
-
-/** Solo the first page_sections row so the panel matches a normal section edit. */
-export function bootSavedSectionSolo(win, doc) {
-  const field = sectionField(win);
-  let attempts = 0;
-
-  hideSavedSectionEntryChrome(doc);
-
-  const tryBoot = () => {
-    hideSavedSectionEntryChrome(doc);
-
-    // Prefer event-captured containers; fall back to walking the Vue tree from
-    // any mounted visual-id input (form may have mounted before we listened).
-    const containers = activeContainers(doc);
-
-    for (const container of containers) {
-      const values = unwrapRef(container.values);
-      const rows = values && typeof values === 'object' ? values[field] : null;
-
-      if (!Array.isArray(rows) || !rows.length) {
-        continue;
-      }
-
-      // Legacy synced entries stripped nested ids — assign them once so preview
-      // scope="{{ id }}" and focusFieldOwner can target Headline blocks.
-      const next = JSON.parse(JSON.stringify(rows));
-
-      if (ensureNestedRowIds(next)) {
-        container.setFieldValue(field, next);
-
-        // Wait for the write + value poll before soloing.
-        win.setTimeout(tryBoot, 150);
-
-        return;
-      }
-
-      const row = next[0];
-      const uid = row?._visual_id || row?.id || row?._id;
-
-      if (!uid) {
-        // Section row with no id yet — mint one and retry.
-        row.id = newRowId();
-        container.setFieldValue(field, next);
-        win.setTimeout(tryBoot, 150);
-
-        return;
-      }
-
-      // Collapsed sets have no visual-id inputs — expand first, then retry.
-      if (!findSetByUid(uid, doc)) {
-        expandTopLevelSectionSets(doc, field);
-        // Also expand every replicator set we can see (ids may live on nested inputs).
-        doc.querySelectorAll(SELECTORS.replicatorSet).forEach((setEl) => {
-          if (isSetCollapsed(setEl)) {
-            expandSet(setEl);
-          }
-        });
-
-        if (attempts++ < 60) {
-          win.setTimeout(tryBoot, COLLAPSE_SETTLE_MS);
-
-          return;
-        }
-
-        continue;
-      }
-
-      const opened = soloSection(uid, doc, win, { kind: 'section' });
-
-      if (opened) {
-        doc.documentElement.setAttribute('data-sve-boot', 'ok');
-
-        return;
-      }
-    }
-
-    // Form still mounting — keep expanding anything that appeared and retry.
-    expandTopLevelSectionSets(doc, field);
-
-    if (attempts++ < 60) {
-      win.setTimeout(tryBoot, 120);
-    } else {
-      doc.documentElement.setAttribute('data-sve-boot', 'fail');
-    }
-  };
-
-  tryBoot();
-}
 
 /**
  * Assign stable `id` on every set row that lacks one (synced sections saved
@@ -2541,20 +2090,9 @@ export function setChromeSidebarMode(win, mode) {
     designs.setAttribute('data-sve-chrome-hidden', '1');
   }
 
-  // Edited in this window "settings" is simply the chrome's own tab again — the
-  // fields never left, the design drawer was only sitting over them.
-  if (chromeHost(win.document)) {
-    sveState.soloUid = null;
-    soloChromeTab(win, win.document, chromeKind);
-    watchChromeSolo(win, win.document, chromeKind);
-    paintAllChromeModeToggles(win, 'settings');
-
-    return;
-  }
-
-  showGlobalsPanel(win);
-  lockChromeGlobalsTab(win, chromeKind);
-  ensureChromeModeToggle(win, win.document.getElementById(GLOBALS_PANEL_ID), 'settings');
+  // "settings" is the half's own tab on the panel again — the fields never
+  // left, the design drawer was only sitting over them.
+  openChromeInline(win, chromeKind);
   paintAllChromeModeToggles(win, 'settings');
 }
 
@@ -2748,13 +2286,7 @@ export function handleOpenChrome(data, doc, win) {
 
   closeChromeDesignsPanel(win);
 
-  if (CHROME_INLINE) {
-    openChromeInline(win, kind);
-  } else {
-    openGlobalsPanel(win, set, { chromeLock: kind });
-    showGlobalsPanel(win);
-    lockChromeGlobalsTab(win, kind);
-  }
+  openChromeInline(win, kind);
 
   assertChromeFocusInPreview(win);
 
@@ -2793,39 +2325,7 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
     return;
   }
 
-  const frame = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
-
-  // Designs panel alone isn't enough — style changes must hit the theme_settings
-  // form so the globals stash + preview refresh run. Keep the form mounted (hidden).
-  if (!frame?.contentWindow) {
-    if (set) {
-      openGlobalsPanel(win, set, { keepLibrary: true, chromeLock: kind === 'footer' ? 'footer' : 'header' });
-      hideGlobalsPanel(win);
-    }
-
-    if (attempt < 25) {
-      setTimeout(() => setChromeStyle(win, kind, style, attempt + 1), 200);
-    }
-
-    return;
-  }
-
-  frame.contentWindow.postMessage(
-    { source: SOURCE, type: MSG.SVE_CHROME_SET_STYLE, kind, style },
-    win.location.origin
-  );
-
-  // Form may still be mounting — retry a few times.
-  if (attempt < 15) {
-    setTimeout(() => {
-      const again = win.document.getElementById(GLOBALS_PANEL_ID)?.querySelector('iframe');
-
-      again?.contentWindow?.postMessage(
-        { source: SOURCE, type: MSG.SVE_CHROME_SET_STYLE, kind, style },
-        win.location.origin
-      );
-    }, 250 * (attempt + 1));
-  }
+  console.warn('[sve] no', kind, 'form open to write the style into');
 
   // Mark the chosen card in the open designs panel.
   const panel = win.document.getElementById(CHROME_DESIGNS_ID);
@@ -2836,101 +2336,6 @@ export function setChromeStyle(win, kind, style, attempt = 0) {
     el.style.borderColor = on ? 'var(--theme-color-primary,#4f46e5)' : 'rgba(128,128,128,.25)';
     el.style.boxShadow = on ? '0 0 0 1px var(--theme-color-primary,#4f46e5)' : 'none';
   });
-}
-
-/**
- * Lock Theme Settings to Header or Footer only (chrome focus from Live Preview).
- * reka-ui keeps a hidden measurement copy of each tab — only the visible one
- * switches — and it needs the full pointer sequence, not a bare `.click()`.
- */
-export function lockChromeGlobalsTab(win, kind, attempts = 0) {
-  const chromeKind = kind === 'footer' ? 'footer' : 'header';
-  const label = chromeKind === 'footer' ? 'Footer' : 'Header';
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-  const frame = panel?.querySelector('iframe');
-  const iwin = frame?.contentWindow;
-  const inner = frame?.contentDocument;
-  const title = panel?.querySelector('[data-sve-globals-title]');
-
-  // A retry is for the lock it was started for. Released since (Close, Escape)
-  // or moved to the other half, it stops: carried on, it named the half open
-  // again for up to six seconds after leaving it, and the dock went back to it.
-  if (
-    attempts > 0 &&
-    (panel?.getAttribute('data-sve-chrome-locked') !== '1' || panel.getAttribute('data-sve-chrome-kind') !== chromeKind)
-  ) {
-    return;
-  }
-
-  if (panel) {
-    panel.setAttribute('data-sve-chrome-kind', chromeKind);
-    panel.setAttribute('data-sve-chrome-locked', '1');
-    ensureChromeModeToggle(win, panel, currentChromeSidebarMode(win));
-  }
-
-  setActiveChromeKind(chromeKind);
-
-  if (title) {
-    title.textContent = label;
-  }
-
-  if (!iwin || !inner) {
-    if (attempts < 40) {
-      setTimeout(() => lockChromeGlobalsTab(win, chromeKind, attempts + 1), 150);
-    }
-
-    return;
-  }
-
-  iwin.postMessage(
-    { source: SOURCE, type: MSG.SVE_LOCK_TAB, label, kind: chromeKind },
-    win.location.origin
-  );
-
-  const tabs = [...inner.querySelectorAll('button[role="tab"]')].filter((el) => el.offsetParent !== null);
-  const tab = tabs.find((el) => {
-    const text = (el.textContent || '').trim().toLowerCase();
-    const needle = label.toLowerCase();
-
-    return text === needle || text.startsWith(needle);
-  });
-
-  if (tab?.getAttribute('aria-selected') === 'true') {
-    // Tablist should already be hidden by the iframe lock — done.
-    return;
-  }
-
-  if (tab) {
-    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach((type) => {
-      tab.dispatchEvent(new iwin.PointerEvent(type, { bubbles: true, cancelable: true }));
-    });
-  }
-
-  if (attempts < 40) {
-    setTimeout(() => lockChromeGlobalsTab(win, chromeKind, attempts + 1), 150);
-  }
-}
-
-/** Full Theme Settings again — all publish tabs visible. */
-export function unlockChromeGlobalsTabs(win) {
-  const panel = win.document.getElementById(GLOBALS_PANEL_ID);
-  const frame = panel?.querySelector('iframe');
-  const title = panel?.querySelector('[data-sve-globals-title]');
-  const handle = panel?.getAttribute('data-sve-globals-handle');
-  const set = globalSets(win).find((candidate) => candidate.handle === handle);
-
-  panel?.removeAttribute('data-sve-chrome-locked');
-  panel?.removeAttribute('data-sve-chrome-kind');
-  removeChromeModeToggles(win);
-
-  if (title && set) {
-    title.textContent = set.title;
-  }
-
-  frame?.contentWindow?.postMessage(
-    { source: SOURCE, type: MSG.SVE_UNLOCK_TABS },
-    win.location.origin
-  );
 }
 
 /** Waits for the panel's form to mount, then scrolls the field into view. */

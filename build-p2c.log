@@ -1,0 +1,30 @@
+
+> cp:build
+> vite build && node scripts/prune-dist.mjs
+
+vite v7.3.1 building client environment for production...
+transforming...
+✓ 532 modules transformed.
+✗ Build failed in 1.09s
+error during build:
+resources/js/block-tree.js (39:23): "selectionPanelOn" is not exported by "resources/js/lib/config.js", imported by "resources/js/block-tree.js".
+file: /private/tmp/claude-501/-Users-flemmingmeyer-Sites-vizuall-skabelon/bf27f2f7-52d3-4dfe-8163-9e9fc8297632/scratchpad/ve/resources/js/block-tree.js:39:23
+
+37: import { CHROME_CONTAINER, COMMENTS_PANEL_ID, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID } from './lib/ids.js';
+38: import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
+39: import { sectionField, selectionPanelOn } from './lib/config.js';
+                           ^
+40: import { currentSelection } from './lib/selection.js';
+41: import { lpHeader } from './lib/live-preview.js';
+
+    at getRollupError (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/parseAst.js:402:41)
+    at error (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/parseAst.js:398:42)
+    at Module.error (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:17040:16)
+    at Module.traceVariable (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:17452:29)
+    at ModuleScope.findVariable (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:15070:39)
+    at FunctionScope.findVariable (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at FunctionBodyScope.findVariable (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:5673:38)
+    at Identifier.bind (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:5447:40)
+    at CallExpression.bind (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:2829:23)
+    at CallExpression.bind (file:///Users/flemmingmeyer/Sites/statamic-addon-visual-editor-vue/node_modules/rollup/dist/es/shared/node-entry.js:12179:15)
+exit=1

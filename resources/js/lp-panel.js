@@ -17,7 +17,7 @@ import { chromeGet, chromeRemove, chromeSet } from './chrome-prefs.js';
 import { LP_MORE_ID } from './lp-more-menu.js';
 import { lpHeader } from './lib/live-preview.js';
 import { COMMENTS_BADGE_ACTIVE_BG, COMMENTS_BADGE_FG, COMMENTS_BADGE_IDLE_TYPE, LP_BACK_ID, LP_CHROME_H, LP_COLLAPSED_KEY, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_ICON_IDLE_OPACITY, LP_MODE_KEY, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT, LP_PUBLISH_ID, LP_RELOAD_ID, LP_TOOLBAR_GAP } from './lib/ids.js';
-import { clearSolo, ensureLpPanelToggle } from './focus-panel.js';
+import { ensureLpPanelToggle } from './lp-width.js';
 import { hideGlobalsPanel, isGlobalsOverlayOpen } from './section-library.js';
 
 // ===== lp-panel =====
@@ -462,7 +462,6 @@ export function setLpMode(win, mode) {
   // Switching to Show reveals the FULL form, like the old open-toggle did.
   if (mode === 'show') {
     clearSelection('settings');
-    clearSolo(win.document);
     setHeaderTab(win, 'settings');
   } else if (sveState.headerTab === 'settings') {
     setHeaderTab(win, null);

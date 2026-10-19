@@ -18,10 +18,9 @@ import { syncBardEditorFromValue } from './inline-edit.js';
 import { sendToPreview } from './cp.js';
 import { currentSectionType } from './cp/preview-context.js';
 import { csrfToken } from './lib/csrf.js';
-import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
+import { dataGet, deepestFieldPath, findPathByUid, unwrapRef } from './lib/values.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { paintLpActiveControl } from './lp-panel.js';
-import { deepestFieldPath } from './focus-panel.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 const ON_KEY = 'sve-ai-text-on';

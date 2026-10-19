@@ -454,34 +454,6 @@ tabs:
               if:
                 enabled: 'equals true'
           -
-            handle: focus_panel
-            field:
-              type: toggle
-              display: 'Focus panel'
-              instructions: 'Show one thing at a time beside the preview. Clicking a section opens its own fields under its name, icon and instructions; clicking a block inside it steps in and shows the block''s, with the back arrow pointing at the section it came from. The blocks nested in a section are opened from the page rather than unfolded as a list here. Off, the panel is the section list Statamic renders. The ordinary publish form is untouched either way.'
-              default: true
-              if:
-                enabled: 'equals true'
-          -
-            handle: selection_panel
-            field:
-              type: toggle
-              display: 'Selection panel'
-              instructions: 'The left column draws only what you clicked — a section, a block, a grid row, the header or footer, a global section — with Statamic''s own fields, and nothing else: no form behind it to isolate, no wait for rows to mount. The page''s form stays as the data; the Page Settings icon shows it again. On by default. Off, the older focus panel isolates Statamic''s form instead.'
-              default: true
-              if:
-                enabled: 'equals true'
-          -
-            handle: open_first_section
-            field:
-              type: toggle
-              display: 'Open in the first section'
-              instructions: 'Parked. The code is still there; Live Preview opens on Page Settings instead, and Focus panel already shows one section at a time. Not shown on this screen.'
-              default: false
-              visibility: hidden
-              if:
-                enabled: 'equals never'
-          -
             handle: template_dock
             field:
               type: toggle

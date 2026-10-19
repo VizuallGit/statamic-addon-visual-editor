@@ -17,7 +17,7 @@ import { remToPx } from '../lib/dom.js';
 import { csrfToken } from '../lib/csrf.js';
 import { previewFrame } from '../lib/preview-frame.js';
 import { findLpRightActionTail, findLpSaveButton, syncLpRightBarGaps } from '../lp-panel.js';
-import { ensureLpPanelToggle, persistLpWidth } from '../focus-panel.js';
+import { ensureLpPanelToggle, persistLpWidth } from '../lp-width.js';
 import { closeRightPanels, syncPreviewInset } from '../section-library.js';
 import { discardGlobalsChanges, hasUnsavedGlobals, hasUnsavedWork, saveGlobalsPanel } from '../globals-panel.js';
 import { clearEntryBaseline, markEntryFormClean, scheduleEntryBaseline } from '../inline-edit.js';
@@ -675,7 +675,7 @@ export function collectStatamicLpCloseButtons(header) {
   // may sit outside the header element — never into the publish form, where
   // an asset row's "Remove" (×) was being taken for it and hidden.
   const buttons = [...scope.querySelectorAll('button')].filter(
-    (button) => !isOurLpChromeButton(button) && !button.closest('.form-group, [class*="fieldtype"], .publish-fields, [data-sve-panel-column], [data-sve-focus-set]')
+    (button) => !isOurLpChromeButton(button) && !button.closest('.form-group, [class*="fieldtype"], .publish-fields, [data-sve-panel-column]')
   );
 
   return buttons.filter((button) => {

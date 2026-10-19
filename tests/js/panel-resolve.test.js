@@ -8,7 +8,13 @@ import assert from 'node:assert/strict';
 import { blueprintFields, resolveRow, resolveTab, rowUid, setsOf } from '../../resources/js/cp/panel/resolve.js';
 
 const headline = { handle: 'headline', type: 'text', display: 'Headline' };
-const richtext = { handle: 'richtext', type: 'bard', display: 'Richtext' };
+const quote = { handle: 'quote', type: 'text', display: 'Quote' };
+const richtext = {
+  handle: 'richtext',
+  type: 'bard',
+  display: 'Richtext',
+  sets: [{ handle: 'inline', sets: [{ handle: 'pull_quote', display: 'Pull quote', icon: 'quote', fields: [quote] }] }],
+};
 const blocks = {
   handle: 'blocks',
   type: 'replicator',
@@ -69,7 +75,15 @@ const values = {
       _sve_label: 'Top hero',
       blocks: [
         { _id: 'b0', _visual_id: 'v-b0', type: 'headline', headline: 'Hi' },
-        { _id: 'b1', _visual_id: 'v-b1', type: 'richtext', richtext: [] },
+        {
+          _id: 'b1',
+          _visual_id: 'v-b1',
+          type: 'richtext',
+          richtext: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] },
+            { type: 'set', attrs: { id: 'bs0', enabled: true, values: { type: 'pull_quote', _visual_id: 'v-bs0', quote: 'Said.' } } },
+          ],
+        },
       ],
       sizes: [{ _id: 'g0', label: 'S' }],
     },
@@ -109,6 +123,19 @@ test('a block inside a section resolves two levels down, with its section as par
   assert.equal(row.display, 'Richtext');
   assert.equal(row.icon, 'fieldtype-textarea');
   assert.equal(row.parentUid, 'v-s1');
+});
+
+test('a Bard set resolves to its set: the node\'s attrs.values, meta by the node id, the block as parent', () => {
+  const row = resolveRow(values, blueprint, 'v-bs0');
+
+  assert.equal(row.path, 'page_sections.1.blocks.1.richtext.1.attrs.values');
+  assert.equal(row.metaPath, 'page_sections.existing.s1.blocks.existing.b1.richtext.existing.bs0');
+  assert.deepEqual(row.fields, [quote]);
+  assert.equal(row.kind, 'set');
+  assert.equal(row.display, 'Pull quote');
+  assert.equal(row.icon, 'quote');
+  assert.equal(row.parentUid, 'v-b1');
+  assert.equal(row.row.quote, 'Said.');
 });
 
 test('a grid row resolves to the grid field, by its _id', () => {

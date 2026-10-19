@@ -28,7 +28,6 @@ import {
   writePropParam,
 } from './component-props.js';
 import { syncComponentProps, syncComponentPropsHost } from './component-props-host.js';
-import { openLiteSection } from './side/lite-sections.js';
 import { componentPropsUi } from './cp/component-props/store.js';
 import { componentBindPick } from './component-bind.js';
 import { openPageMenu } from './link-targets.js';
@@ -76,7 +75,8 @@ import { openCollections } from './lp-collections.js';
 import { HTML_TREE_PANEL_ID, LAYOUT_TEMPLATE_TYPE, CHROME_CONTAINER } from './lib/ids.js';
 import { activeContainers, pageHasSectionField } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
-import { focusFromPreview, setMeta } from './focus-panel.js';
+import { setMeta } from './lib/row-meta.js';
+import { selectRow } from './selection-panel.js';
 import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { GLOBAL_SECTION_CONTAINER } from './global-section.js';
 import { confirmCloseDiscard, navigateFromLp } from './pages.js';
@@ -1427,22 +1427,9 @@ function openHtmlTreeSection(win, doc, sections, uid, openUid) {
   }, 4000);
   renderHtmlTree(win);
 
-  // Mount the section, then focus it — in that order, and with the wait in
-  // between.
-  //
-  // The panel beside the preview keeps only a handful of sections mounted, and
-  // the focus code bails on a set it cannot find in the DOM. A click on the
-  // page goes through the same mount but never notices, because it replays
-  // itself once the section has landed. Focusing straight after activating is
-  // focusing something that is not there yet: the tree and the dock moved, and
-  // the sidebar quietly went on showing the section before.
-  //
-  // The dock does not wait for the mount (the switch moves it at once), and
-  // a click overtaken by the next one never focuses — both in
-  // `switchMountedSection`, shared with a click on the page.
-  const focus = () => focusFromPreview(section.uid, doc, win, { clampToSection: true });
-
-  openLiteSection(section.uid, doc, win, focus);
+  // The panel draws the section from the form's values: nothing to mount,
+  // nothing to wait for.
+  selectRow(win, section.uid, 'tree');
   sendToPreview(
     { source: SOURCE, type: MSG.SVE_ACTIVATE, ids: section.ids },
     win

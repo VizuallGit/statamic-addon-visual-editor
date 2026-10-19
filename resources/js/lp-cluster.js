@@ -30,7 +30,7 @@ import './section-library.js';
 // Warms set meta on hover; calls the library above, so it follows it here.
 import './side/section-meta-prefetch.js';
 import './lp-panel.js';
-import './focus-panel.js';
+import './lp-width.js';
 // Mounts one page_sections row at a time in Live Preview; hooks into the
 // focus panel above through the bus, so it follows it here.
 import './side/lite-sections.js';

@@ -64,7 +64,7 @@ watch(
 
     if (active && rootEl.value?.contains(active) && typeof active.blur === 'function') {
       active.blur();
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise((resolve) => setTimeout(resolve, 80));
     }
 
     shownUid.value = null;

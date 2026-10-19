@@ -65,25 +65,14 @@ export const NEW_ENTRY_ID = '__sve-new-entry';
 /** An entry's edit URL in the CP — never the create screen. */
 export const ENTRY_EDIT_PATH = /\/collections\/([^/]+)\/entries\/(?!create(?:\/|$))[^/?#]+/;
 
-// Focus panel
-export const FOCUS_HEADER_ID = '__sve-focus-header';
-export const FOCUS_ROOT_ATTR = 'data-sve-focus'; // on <html>: which kind is on show
-export const FOCUS_STEP_ATTR = 'data-sve-focus-step'; // the arrow into a block's own view
-export const SOLO_PARENT_ATTR = 'data-sve-solo-parent';
-export const SOLO_KEEP_ATTR = 'data-sve-solo-keep';
-
 // Header / footer and global sections
 export const CHROME_CONTAINER = 'sve-chrome';
 export const CHROME_HOST_ID = '__sve-chrome-host';
 export const CHROME_DESIGNS_ID = '__sve-chrome-designs';
-/** Header/footer edit inline in the left panel (true) or in the docked iframe. */
-export const CHROME_INLINE = true;
 export const GLOBAL_SECTION_HOST_ID = '__sve-global-section-host';
 /** The selection panel's host in the left column (selection-panel.js), and the column's mark while it shows. */
 export const SELECTION_PANEL_ID = '__sve-selection-panel';
 export const SELECTION_ATTR = 'data-sve-selection';
-export const GLOBAL_SECTION_PANEL_ID = '__sve-global-section-panel';
-export const SECTION_PANEL_REVEAL_MS = 2500;
 
 // Live Preview topbar geometry and ids (drawn by cp.js, measured by lp-panel.js and lp-reload.js)
 export const LP_PREVIEW_CHROME_ID = '__sve-preview-chrome';

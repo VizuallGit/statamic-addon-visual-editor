@@ -7,3 +7,4 @@ Developed by Vizuall and Flemming Meyer.
 Proprietary. All rights reserved.
 
 The `{{ visual_edit }}` tag reference lives in [docs/visual-edit-tag.md](docs/visual-edit-tag.md).
+How the left column in Live Preview works — the selection panel — is in [docs/selection-panel.md](docs/selection-panel.md).

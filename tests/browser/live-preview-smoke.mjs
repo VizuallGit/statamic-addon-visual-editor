@@ -310,22 +310,19 @@ try {
       console.log('DEBUG frames:', page.frames().map((f) => f.url().replace(SITE_URL, '').slice(0, 50)).join(' , '));
     }
     const messages = await cp.evaluate(() => window.__sveSmokeSeen || []);
-    // A preview click reaches cp.js as a 'click' message; it opens the focus
-    // panel for that block (data-sve-focus-*) and/or marks the set as active.
-    const focused = await cp.evaluate(() => ({
-      focusPanel: document.querySelectorAll('[data-sve-focus-id], [data-sve-focus-header], [data-sve-focus-title]').length,
-      active: document.querySelectorAll('[data-sve-active], [data-sve-solo-parent], [data-sve-solo-keep]').length,
-      title: document.querySelector('[data-sve-focus-title]')?.textContent?.trim().slice(0, 40) || '',
-    }));
-    // The click must reach the CP as a `click` message — that is the one thing
-    // every click-to-focus feature hangs on. What the CP then shows (focus
-    // panel, lite pane, solo) depends on the panel mode and is only recorded.
-    // The row's fields mounted in the sidebar: lite-sections hosts the section
-    // list (data-sve-lite=idle until then) and answers focus-panel's lite:solo
-    // by mounting the clicked row first — `on` is that row on screen.
-    const lite = await cp.evaluate(() => ({ state: document.querySelector('[data-sve-lite]')?.getAttribute('data-sve-lite') || 'no host', panes: document.querySelectorAll('[data-sve-lite-pane]').length }));
-    step('the clicked section mounted in the sidebar (lite on)', lite.state === 'on', `data-sve-lite=${lite.state} panes=${lite.panes}`);
-    step('preview click reaches the CP', messages.some((m) => /^click(?:[:/]|$)/.test(m)), `bridge sent [${messages.join(' ')}]; focus-panel=${focused.focusPanel} active=${focused.active}; clicked at ${hit.x},${hit.y} on ${hit.under}`);
+    // A preview click reaches cp.js as a 'click' message; the selection panel
+    // draws the clicked row (its title in the panel's header).
+    const focused = await cp.evaluate(() => {
+      const panel = document.querySelector('#__sve-selection-panel [data-sve-selection-panel]');
+
+      return {
+        shown: !!panel && panel.getClientRects().length > 0,
+        title: panel?.querySelector('.sve-sel__title')?.textContent?.trim().slice(0, 40) || '',
+        fields: panel ? panel.querySelectorAll('.form-group').length : 0,
+      };
+    });
+    step('the clicked row is drawn on the selection panel', focused.shown && focused.fields > 0, `title="${focused.title}" fields=${focused.fields}`);
+    step('preview click reaches the CP', messages.some((m) => /^click(?:[:/]|$)/.test(m)), `bridge sent [${messages.join(' ')}]; clicked at ${hit.x},${hit.y} on ${hit.under}`);
     if (process.env.SVE_DEBUG) {
       // What the click did on each side — for when the assertion above needs re-thinking.
       const previewSide = await preview.evaluate((px, py) => {

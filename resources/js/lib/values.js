@@ -85,3 +85,50 @@ export function humanizeHandle(handle) {
 
   return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
 }
+
+/**
+ * Deepest dotted path to `handle` under `node` (children before self), so a
+ * section that wraps a headline block resolves to the block field — not a
+ * missing `section.headline`.
+ */
+export function deepestFieldPath(node, handle, path = '') {
+  if (node == null || typeof handle !== 'string' || !handle) {
+    return null;
+  }
+
+  const field = handle.includes('.') ? handle.split('.').pop() : handle;
+
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i++) {
+      const found = deepestFieldPath(node[i], field, path ? `${path}.${i}` : String(i));
+
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  if (typeof node !== 'object') {
+    return null;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === field) {
+      continue;
+    }
+
+    const found = deepestFieldPath(value, field, path ? `${path}.${key}` : key);
+
+    if (found) {
+      return found;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(node, field)) {
+    return path ? `${path}.${field}` : field;
+  }
+
+  return null;
+}

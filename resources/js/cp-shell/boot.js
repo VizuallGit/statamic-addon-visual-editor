@@ -15,10 +15,10 @@ import { injectStyle } from '../lib/style.js';
 import { registerContainerEvents } from '../lib/publish-containers.js';
 import { registerPanelConditions } from '../lib/live-preview.js';
 import { persistDockedPanel } from '../lp-panel.js';
-import { ensureLpPanelToggle, markStepIntoAll } from '../focus-panel.js';
+import { ensureLpPanelToggle } from '../lp-width.js';
 import { openSectionPicker, syncPreviewInset } from '../section-library.js';
 import { ensurePreviewOutsideDismiss, initGlobalsPanelFrame } from '../globals-panel.js';
-import { listenForGlobalsValues, listenForSectionValues } from '../chrome.js';
+import { listenForGlobalsValues } from '../chrome.js';
 import { initOpenInPreview, watchEntrySaves } from '../open-in-preview.js';
 import { CP_STYLES, armSetPickerSearchSilence, autoOpenLivePreview, createMessageListener, findPrecedingBardSetNode, getUidFromSet, interceptLivePreviewOpen, isEmbeddedInSite, previewPainted, sendToPreview } from './add-section.js';
 import { applyHeaderTab, scheduleHtmlTreePrefetch } from './header-toolbar.js';
@@ -251,7 +251,6 @@ export function initCp(win = window) {
   watchPreviewRenders(win);
   guardAssetLimit(win);
   listenForGlobalsValues(win);
-  listenForSectionValues(win);
 
   // Capture publish containers BEFORE the sve-panel frame boots. The panel's
   // bootSavedSectionSolo / value poll need activeContainers(); if we register
@@ -285,7 +284,6 @@ export function initCp(win = window) {
       // Live Preview mounts (and remounts) its iframe from here — bind the
       // click-outside forward to whichever one is on screen now.
       ensurePreviewOutsideDismiss(win);
-      markStepIntoAll(win);
 
       if (previewPainted(win.document)) {
         markLivePreviewReady(win);

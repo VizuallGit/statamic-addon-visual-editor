@@ -7,6 +7,7 @@
  */
 import { t } from './lib/i18n.js';
 import { sveState } from './cp-state.js';
+import { currentSelection } from './lib/selection.js';
 import { LP_BACK_MENU_ID, LP_ICON_BTN_STYLE, applyHeaderTab, ensureRightTool, resetEditorLayout } from './cp.js';
 import { chromeGet, chromeSet } from './chrome-prefs.js';
 import { persistVisibleRightPanes, placeRightDock, relayoutRightDock } from './right-dock.js';
@@ -20,7 +21,7 @@ import { lpHeader } from './lib/live-preview.js';
 import { remToPx } from './lib/dom.js';
 import { featureOn } from './lib/config.js';
 import { persistDockedPanel, setLpMode } from './lp-panel.js';
-import { applyLpEditorWidth } from './focus-panel.js';
+import { applyLpEditorWidth } from './lp-width.js';
 import { closeSectionPicker, syncPreviewInset } from './section-library.js';
 import { closeCommentsPanel, closeListViewPanel } from './lazy/listview.js';
 import { closeOutlinePanel } from './lazy/outline.js';
@@ -184,7 +185,7 @@ function setCodeDock(win, on) {
   setCodeDockArmed(win, on);
 
   if (on) {
-    syncCodeDock(win, win.document, sveState.soloUid);
+    syncCodeDock(win, win.document, currentSelection()?.uid ?? null);
   } else {
     closeCodeDock(win.document);
   }
@@ -440,7 +441,7 @@ function applyPreset(win, id) {
 
     if (dockMoves) {
       if (dock) {
-        syncCodeDock(win, win.document, sveState.soloUid);
+        syncCodeDock(win, win.document, currentSelection()?.uid ?? null);
       } else {
         closeCodeDock(win.document);
       }

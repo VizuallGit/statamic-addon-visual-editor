@@ -4,8 +4,6 @@ export const sveState = {
   forcePanelOpen: false,
   headerTab: undefined,
   listViewTab: 'tree',
-  soloUid: null,
-  soloAncestors: null,
   chromeValuesBaseline: null,
   lpEnterSidebarClosed: null,
   dockedHeaderRestored: false,
@@ -13,7 +11,6 @@ export const sveState = {
   sectionValuesMatchBaseline: true,
   pendingEditUntilPanel: null,
   lpWidthDragging: false,
-  soloObserver: null,
   foldedFor: null,
   dockRestorePaused: false,
   /** True once the preview has painted and remembered chrome may prefetch. */
@@ -28,6 +25,5 @@ export const sveState = {
   libraryDrag: null,
   lpHeaderBgCache: null,
   lpCloseHideObserver: null,
-  pendingFocusUntilPanel: null,
   chromeValuesSeen: null,
 };
