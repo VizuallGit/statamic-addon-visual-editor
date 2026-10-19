@@ -36,7 +36,8 @@ import { listViewUi } from './cp/listview/store.js';
 import { injectStyle } from './lib/style.js';
 import { CHROME_CONTAINER, COMMENTS_PANEL_ID, FOCUS_ROOT_ATTR, LISTVIEW_PANEL_ID, OUTLINE_PANEL_ID } from './lib/ids.js';
 import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
-import { sectionField } from './lib/config.js';
+import { sectionField, selectionPanelOn } from './lib/config.js';
+import { currentSelection } from './lib/selection.js';
 import { lpHeader } from './lib/live-preview.js';
 import { activeContainers } from './lib/publish-containers.js';
 import { persistDockedPanel } from './lp-panel.js';
@@ -44,6 +45,7 @@ import { focusBack, focusFromPreview, focusRowMeta, gridMeta, paintFocusHeader, 
 import { closeRightPanels, globalSectionSet, handleDuplicateRow, handleHideRow, handleRemoveRow, mountSectionPicker, placeGlobalsOverlay, rowLocation, savedSectionInfo, syncPreviewInset } from './section-library.js';
 import { handleMove } from './inline-edit.js';
 import { fillOutlinePane, showOutlinePane, watchOutlineInPreview } from './lazy/outline.js';
+import { selectRow } from './selection-panel.js';
 import { MSG, SOURCE } from './lib/protocol.js';
 
 // ===== listview =====
@@ -1496,7 +1498,11 @@ export function renderListView(win) {
     listViewActiveUid = item.uid;
     listViewRevealPath(item);
     renderListView(win);
-    focusFromPreview(item.uid, doc, win, { clampToSection: true });
+
+    if (!selectRow(win, item.uid, 'tree')) {
+      focusFromPreview(item.uid, doc, win, { clampToSection: true });
+    }
+
     sendToPreview({ source: SOURCE, type: MSG.SVE_ACTIVATE, ids: item.ids }, win);
   };
   listViewUi.onRename = (uid, event) => {
@@ -1647,6 +1653,16 @@ export function fillListViewPane(win, pane) {
 
 export function showListViewPane(win) {
   renderListView(win);
+  pointAtSelection(win);
+}
+
+/** Opened while a row is selected, the tree points at that row from the first paint. */
+function pointAtSelection(win) {
+  const uid = selectionPanelOn(win) ? currentSelection()?.uid : null;
+
+  if (uid) {
+    listViewSyncTo(win, uid);
+  }
 }
 
 export function registerRightDockContent() {
@@ -1697,6 +1713,7 @@ export function toggleListViewPanel(win) {
   syncPreviewInset(win);
 
   setListViewTab(win, 'tree');
+  pointAtSelection(win);
 }
 
 export function commentsPanel(doc) {

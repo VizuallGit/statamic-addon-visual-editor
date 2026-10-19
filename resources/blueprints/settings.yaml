@@ -463,6 +463,15 @@ tabs:
               if:
                 enabled: 'equals true'
           -
+            handle: selection_panel
+            field:
+              type: toggle
+              display: 'Selection panel (preview)'
+              instructions: 'The left column draws only what you clicked — a section or a block — with Statamic''s own fields, and nothing else: no form behind it to isolate, no wait for rows to mount. The page''s form stays as the data; the Page Settings icon shows it again. Off by default while it is being proven. Phase 0 covers page sections and the blocks inside them; header, footer and global sections still use the focus panel.'
+              default: false
+              if:
+                enabled: 'equals true'
+          -
             handle: open_first_section
             field:
               type: toggle
