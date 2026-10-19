@@ -7,6 +7,7 @@ import { bridgeState } from '../bridge/state.js';
 import { ACTIVE_ATTR, COMPONENT_DIM, COMPONENT_FOCUSED, SID_ATTR } from '../bridge.js';
 import { applyOutlineTone } from './drag.js';
 import { MSG, SOURCE } from '../lib/protocol.js';
+import { watchAddedMatches } from '../lib/added-matches.js';
 
 // ===== component-pick =====
 /**
@@ -28,8 +29,12 @@ export function applyComponentFocus(win) {
   });
 
   if (!bridgeState.componentFocus?.selector) {
+    unwatchComponentFocus();
+
     return;
   }
+
+  watchComponentFocus(win, bridgeState.componentFocus.selector);
 
   let hits = [];
 
@@ -70,6 +75,37 @@ export function applyComponentFocus(win) {
   });
 
   doc.documentElement.classList.add('sve-component-focus');
+}
+
+/** The watch on the open component's selector: its stop, and the selector it was started for. */
+let componentWatch = null;
+
+/**
+ * Instances Alpine draws after the marking has run get marked too.
+ *
+ * A dialog the tree holds open takes its body from a `<template>` on the
+ * microtask after `open` turns true — later than `applyComponentFocus`, which
+ * runs synchronously on the preview update and on the tree's toggle. The body
+ * was therefore never marked, and the dock's Instant paint, which only paints
+ * marked instances, left the open dialog to the morph. One observer on the
+ * body re-runs the marking when a node the selector names lands; the marking
+ * writes attributes only, so it never wakes the observer itself.
+ */
+function watchComponentFocus(win, selector) {
+  if (componentWatch?.selector === selector) {
+    return;
+  }
+
+  unwatchComponentFocus();
+  componentWatch = {
+    selector,
+    stop: watchAddedMatches(win, selector, () => applyComponentFocus(win)),
+  };
+}
+
+function unwatchComponentFocus() {
+  componentWatch?.stop();
+  componentWatch = null;
 }
 
 /**
