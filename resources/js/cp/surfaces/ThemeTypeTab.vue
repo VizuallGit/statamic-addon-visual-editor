@@ -37,6 +37,17 @@
         <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       </span>
     </label>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_color }}</span>
+      <span class="sve-theme__input">
+        <i class="sve-theme__swatch" :class="{ 'is-empty': !ui.type['body-color'] }" :style="{ background: swatchOf(ui.type['body-color']) }" aria-hidden="true"></i>
+        <select :value="ui.type['body-color']" data-sve-type="body-color" @change="h.onType('body-color', $event.target.value)">
+          <option value="">{{ ui.labels.type_color_none }}</option>
+          <option v-for="o in withCurrent(colorOptions, ui.type['body-color'])" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </label>
   </div>
 
   <div class="sve-theme__section" data-sve-type-headings>
@@ -80,13 +91,25 @@
         @click="h.onType('heading-text-transform', ui.type['heading-text-transform'] === 'uppercase' ? 'none' : 'uppercase')"
       ><span></span></button>
     </div>
+    <label class="sve-theme__field">
+      <span class="sve-theme__label">{{ ui.labels.type_color }}</span>
+      <span class="sve-theme__input">
+        <i class="sve-theme__swatch" :class="{ 'is-empty': !ui.type['heading-color'] }" :style="{ background: swatchOf(ui.type['heading-color']) }" aria-hidden="true"></i>
+        <select :value="ui.type['heading-color']" data-sve-type="heading-color" @change="h.onType('heading-color', $event.target.value)">
+          <option value="">{{ ui.labels.type_color_none }}</option>
+          <option v-for="o in withCurrent(colorOptions, ui.type['heading-color'])" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </span>
+    </label>
 
-    <!-- Each level: its size, and a weight and line height of its own or the headings' (dimmed). -->
+    <!-- Each level: its size, and a weight, line height and color of its own or the headings' (dimmed). -->
     <div class="sve-theme__levels" data-sve-type-levels>
       <span></span>
       <span class="sve-theme__levels-head">{{ ui.labels.type_size }}</span>
       <span class="sve-theme__levels-head">{{ ui.labels.type_weight }}</span>
       <span class="sve-theme__levels-head">{{ ui.labels.type_line_height }}</span>
+      <span class="sve-theme__levels-head">{{ ui.labels.type_color }}</span>
       <template v-for="level in HEADINGS" :key="level">
         <span class="sve-theme__level-name">{{ level.toUpperCase() }}</span>
         <ThemeLevelCell
@@ -116,9 +139,21 @@
           :on-change="(v) => h.onType(`${level}-line-height`, v)"
           :data-sve-type-cell="`${level}-line-height`"
         />
+        <ThemeLevelCell
+          :value="ui.type[`${level}-color`] || ''"
+          :inherit="headingColorShort"
+          :inherit-label="followText(headingColorShort)"
+          :options="colorOptions"
+          :swatch="swatchOf(ui.type[`${level}-color`] || ui.type['heading-color'])"
+          overridable
+          :label="`${level.toUpperCase()} · ${ui.labels.type_color}`"
+          :on-change="(v) => h.onType(`${level}-color`, v)"
+          :data-sve-type-cell="`${level}-color`"
+        />
       </template>
     </div>
     <p class="sve-theme__hint" style="margin: 0">{{ ui.labels.type_levels_hint }}</p>
+    <p class="sve-theme__hint" style="margin: 0" data-sve-type-color-hint>{{ ui.labels.type_color_hint }}</p>
   </div>
 
   <!-- The Title block's defaults: the top choice of font, weight and line height follows the headings. -->
@@ -243,6 +278,37 @@ const trackingOptions = computed(() => TRACKINGS.map(([key, value]) => {
 
   return { value, label: value === 'normal' ? name : `${name} · ${value}`, short: value };
 }));
+
+/**
+ * The theme's colors as choices for the text colors: each color and each of its
+ * steps, written as `var(--color-…)` so a later change of the color follows.
+ * `swatch` is the color as the Colors tab has it now, for the dot.
+ */
+const colorOptions = computed(() => ui.families.filter((f) => f.name && !f.problem).flatMap((f) => [
+  ...(f.value ? [{ value: `var(--color-${f.name})`, label: `${f.name} · ${f.value}`, short: f.name, swatch: f.value }] : []),
+  ...(f.steps || []).map((step) => ({
+    value: `var(--color-${f.name}-${step.name})`,
+    label: `${f.name}-${step.name} · ${step.value}`,
+    short: `${f.name}-${step.name}`,
+    swatch: step.value,
+  })),
+]));
+
+/** The dot's color for a value: the theme color it names, or the value itself (a hex written by hand). */
+function swatchOf(value) {
+  if (!value) {
+    return '';
+  }
+
+  return colorOptions.value.find((o) => o.value === value)?.swatch || value;
+}
+
+/** What an empty level shows: the headings' color by name, or "none". */
+const headingColorShort = computed(() => {
+  const value = ui.type['heading-color'];
+
+  return value ? colorOptions.value.find((o) => o.value === value)?.short || value : (ui.labels.type_color_none || '—');
+});
 
 const sizeOptions = computed(() => ui.sizes.map((s) => ({ value: s.name, label: `${s.name} · ${px(s)}`, short: s.name.replace(/^size-/, '') })));
 const leadingOptions = computed(() => ui.leadings.map((l) => ({ value: l.value, label: `${l.name} · ${l.value}`, short: l.value })));
