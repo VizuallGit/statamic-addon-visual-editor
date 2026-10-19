@@ -16,9 +16,12 @@
  *   containerFromDom(doc)          the container behind the publish form on screen
  *   pageHasSectionField(win, doc)  whether the page on screen is built from sections
  *   pageSectionRows(win, doc)      the page's section rows, each with every id it answers to
- *   registerContainerContext(ctx)  the page form's full publish context, from inside the form
- *   containerContext()             that context, or null
- *   onContainerContext(fn)         fn(ctx) now if known, and on every change
+ *   registerContainerContext(ctx)  a form's full publish context, from inside that form
+ *   unregisterContainerContext(ctx) one holder fewer; gone with the last
+ *   containerContexts()            every registered context, newest first
+ *   containerContext()             the page's own ('base')
+ *   containerContextName(ctx)      the container's name
+ *   onContainerContext(fn)         fn(contexts) now, and on every change
  *
  * May import: lib/, cp-selectors.js (constants only).
  */
@@ -82,16 +85,20 @@ export function registerContainerSource(fn) {
 }
 
 /*
- * The page form's publish context, whole.
+ * The publish contexts, whole.
  *
- * `publish-container-created` hands out a part of it: values, meta and their
- * setters. A field drawn outside the form needs the rest as well — errors,
- * the blueprint, hidden and revealer fields, locks, the direction — because
- * Statamic's own PublishField reads all of it from one injected object. Only
- * a component inside the form can inject that object, so the one component of
- * ours that always sits there (the lite sections field) registers it here.
+ * `publish-container-created` hands out a part of each: values, meta and
+ * their setters. A field drawn outside its form needs the rest as well —
+ * errors, the blueprint, hidden and revealer fields, locks, the direction —
+ * because Statamic's own PublishField reads all of it from one injected
+ * object. Only a component inside a form can inject that object, so the
+ * forms register theirs here: the page's through the lite sections field
+ * that always sits in it, a global section's through the same field in its
+ * borrowed entry form, the header's and footer's through the chrome form's
+ * host. Each is named by its container (`ctx.name`: 'base' for the page,
+ * 'sve-global-section', 'sve-chrome'), newest first when asked.
  */
-let containerCtx = null;
+const ctxEntries = [];
 const ctxListeners = [];
 // How many live components hold each context. The field that registers it
 // remounts while its form stays (a tab shown again, the column reopened), and
@@ -99,16 +106,17 @@ const ctxListeners = [];
 // unmount" dropped the context the new instance had just registered.
 const ctxHolders = new Map();
 
-function publish(next) {
-  if (next === containerCtx) {
-    return;
-  }
-
-  containerCtx = next;
+function publishContexts() {
+  const list = containerContexts();
 
   for (const fn of ctxListeners) {
-    fn(containerCtx);
+    fn(list);
   }
+}
+
+/** The name a context's container goes by ('base' for the page's own form). */
+export function containerContextName(ctx) {
+  return String(unwrapRef(ctx?.name) || 'base');
 }
 
 export function registerContainerContext(ctx) {
@@ -118,9 +126,15 @@ export function registerContainerContext(ctx) {
     return;
   }
 
-  ctxHolders.set(next, (ctxHolders.get(next) || 0) + 1);
-  log(`ctx register holders=${ctxHolders.get(next)}`);
-  publish(next);
+  const holders = (ctxHolders.get(next) || 0) + 1;
+
+  ctxHolders.set(next, holders);
+  log(`ctx register ${containerContextName(next)} holders=${holders}`);
+
+  if (holders === 1) {
+    ctxEntries.push(next);
+    publishContexts();
+  }
 }
 
 /** One holder fewer; the context is forgotten when the last one has gone. */
@@ -131,7 +145,7 @@ export function unregisterContainerContext(ctx) {
 
   const left = ctxHolders.get(ctx) - 1;
 
-  log(`ctx unregister left=${left}`);
+  log(`ctx unregister ${containerContextName(ctx)} left=${left}`);
 
   if (left > 0) {
     ctxHolders.set(ctx, left);
@@ -141,21 +155,93 @@ export function unregisterContainerContext(ctx) {
 
   ctxHolders.delete(ctx);
 
-  if (containerCtx === ctx) {
-    publish(null);
+  const at = ctxEntries.indexOf(ctx);
+
+  if (at !== -1) {
+    ctxEntries.splice(at, 1);
   }
+
+  publishContexts();
 }
 
+/** Forget every context of a container that Statamic has taken down. */
+export function forgetContainerContexts(name) {
+  const gone = ctxEntries.filter((ctx) => containerContextName(ctx) === name);
+
+  if (!gone.length) {
+    return;
+  }
+
+  for (const ctx of gone) {
+    ctxHolders.delete(ctx);
+    ctxEntries.splice(ctxEntries.indexOf(ctx), 1);
+  }
+
+  log(`ctx forget ${name}`);
+  publishContexts();
+}
+
+// Contexts adopted from a form's DOM rather than injected by a field of ours:
+// registered once each, however often the form is looked at.
+const adopted = new WeakSet();
+
+/**
+ * Register the context behind a form we mounted or found, once its fields are
+ * drawn — the context is read off them. Resolves with the context, or null
+ * when the form did not come within about two seconds or `stillOpen` says it
+ * has gone. Selectors cover what any publish form draws first: its tab bar,
+ * its field list, a field.
+ */
+export function adoptContextFromHost(win, host, stillOpen = () => true) {
+  return new Promise((resolve) => {
+    let frames = 0;
+
+    const tick = () => {
+      if (!host?.isConnected || !stillOpen()) {
+        resolve(null);
+
+        return;
+      }
+
+      const el = host.querySelector('button[role="tab"], .publish-fields, .form-group, [data-reka-tabs-root], input, textarea');
+      const ctx = el ? publishContextOf(el) : null;
+
+      if (ctx) {
+        if (!adopted.has(ctx)) {
+          adopted.add(ctx);
+          registerContainerContext(ctx);
+        }
+
+        resolve(ctx);
+
+        return;
+      }
+
+      if ((frames += 1) < 120) {
+        win.requestAnimationFrame(tick);
+      } else {
+        resolve(null);
+      }
+    };
+
+    tick();
+  });
+}
+
+/** Every registered context, newest first — a form opened later answers for its own rows first. */
+export function containerContexts() {
+  return [...ctxEntries].reverse();
+}
+
+/** The page's own context: the one named 'base', else the oldest. */
 export function containerContext() {
-  return containerCtx;
+  return ctxEntries.find((ctx) => containerContextName(ctx) === 'base') || ctxEntries[0] || null;
 }
 
+/** fn(contexts) now, and on every change (newest first). */
 export function onContainerContext(fn) {
   ctxListeners.push(fn);
-
-  if (containerCtx) {
-    fn(containerCtx);
-  }
+  fn(containerContexts());
 
   return () => {
     const at = ctxListeners.indexOf(fn);
@@ -187,7 +273,35 @@ export function registerContainerEvents(win = window) {
     if (index !== -1) {
       publishContainers.splice(index, 1);
     }
+
+    if (payload?.name) {
+      forgetContainerContexts(payload.name);
+    }
   });
+}
+
+/**
+ * The publish context an element is drawn under, or null.
+ *
+ * Vue keeps each component's `provides` as a chain back to the root, so any
+ * element inside a form resolves the container's context through its own
+ * component. Used for a form we mounted ourselves but did not write (the
+ * header's globals form), where no field of ours sits inside to inject it.
+ */
+export function publishContextOf(el) {
+  let component = el?.__vueParentComponent;
+
+  while (component) {
+    const ctx = component.provides?.['PublishContainerContext'];
+
+    if (ctx?.setFieldValue) {
+      return ctx;
+    }
+
+    component = component.parent;
+  }
+
+  return null;
 }
 
 export function containerFromDom(doc) {

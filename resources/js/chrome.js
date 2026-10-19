@@ -10,7 +10,9 @@ import { openSettingsTab, rearmFirstSection } from './cp.js';
 import { syncCodeDock } from './code-dock-lazy.js';
 import { CHROME_CONTAINER, CHROME_HOST_ID, FOCUS_HEADER_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_PANEL_ID, HTML_TREE_PANEL_ID, SECTION_PANEL_REVEAL_MS, SOLO_KEEP_ATTR, SOLO_PARENT_ATTR } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
-import { publishContainers } from './lib/publish-containers.js';
+import { adoptContextFromHost, containerContextName, publishContainers, unregisterContainerContext } from './lib/publish-containers.js';
+import { selectionPanelOn } from './lib/config.js';
+import { clearSelection, select } from './lib/selection.js';
 import { setLpMode } from './lp-panel.js';
 import { clearSolo, ensureSoloStyle, markSoloPath, paintFocusHeader, soloRoot } from './focus-panel.js';
 import { closeRightPanels, hideGlobalsPanel, showGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
@@ -392,8 +394,14 @@ export async function openChromeInline(win, kind) {
   // a tab switch rather than a remount — nothing half-typed is lost.
   if (existing && chromeInlineHandle === handle) {
     sveState.soloUid = null;
-    soloChromeTab(win, doc, chromeKind);
-    watchChromeSolo(win, doc, chromeKind);
+
+    if (selectionPanelOn(win) && chromeCtx) {
+      select({ tab: chromeKind, ctxName: containerContextName(chromeCtx), source: 'chrome' });
+    } else {
+      soloChromeTab(win, doc, chromeKind);
+      watchChromeSolo(win, doc, chromeKind);
+    }
+
     syncSectionLibraryAvailability(win);
     syncCodeDock(win, doc, null);
 
@@ -481,12 +489,36 @@ export async function openChromeInline(win, kind) {
   chromeInlineHandle = handle;
   watchChromeInlineSaves(win);
   watchChromeInlineValues(win, handle);
-  bootChromeSolo(win, doc, host, chromeKind);
+
+  if (selectionPanelOn(win)) {
+    adoptChromeContext(win, host, chromeKind);
+  } else {
+    bootChromeSolo(win, doc, host, chromeKind);
+  }
   syncSectionLibraryAvailability(win);
   syncCodeDock(win, doc, null);
   // Both, not just the other one: this half was consumed on the way in, and
   // re-opening it later should cost no more than stepping across does.
   warmChromeInlinePages(win);
+}
+
+/** The mounted chrome form's publish context, while the selection panel draws it. */
+export let chromeCtx = null;
+
+/**
+ * Register the chrome form's context and select its tab, once the form has
+ * drawn its fields — the context is read off them. A frame or two at most on
+ * a normal mount; given up after two seconds, when the form did not come.
+ */
+function adoptChromeContext(win, host, kind) {
+  adoptContextFromHost(win, host, () => chromeHost(win.document) === host && chromeInlineKind === kind).then((ctx) => {
+    if (!ctx || chromeHost(win.document) !== host || chromeInlineKind !== kind) {
+      return;
+    }
+
+    chromeCtx = ctx;
+    select({ tab: kind, ctxName: containerContextName(ctx), source: 'chrome' });
+  });
 }
 
 /** The docked Theme Settings route, for when the in-window one cannot be built. */
@@ -654,6 +686,15 @@ export function closeChromeInline(win, { refresh = true } = {}) {
 
   stopChromeInlineValues(win);
   chromeInlineKind = null;
+
+  if (chromeCtx) {
+    unregisterContainerContext(chromeCtx);
+    chromeCtx = null;
+  }
+
+  if (selectionPanelOn(win)) {
+    clearSelection('chrome');
+  }
 
   // Leaving for real — as opposed to the internal swap that steps from one half
   // to the other, which needs the half it is about to mount still warm. Whatever

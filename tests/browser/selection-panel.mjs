@@ -20,6 +20,15 @@
  *   SVE_SECTION / SVE_BLOCK / SVE_LEAF   the three ids (section, block in it, block in that)
  *   SVE_LEAF_FIELD   the leaf's text field handle (default `headline`, an inline Bard)
  *   SVE_SHOT      a png path for a screenshot of the leaf state
+ *   SVE_HEADER_WIDGET   a widget row id in the site's header (phase 1: header as a tab, widget as a row)
+ *   SVE_GLOBAL_ID / SVE_GLOBAL_LEAF   a synced saved section's entry id, and a block id inside it
+ *                      (phase 1: the global section's rows on the panel); both unset = skipped
+ *   SVE_NO_SEED=1   do not touch the user's preference file (a remote site)
+ *   SVE_PREFLIGHT=1 stop after login, Live Preview and the ids — nothing is clicked or saved
+ *   SVE_SKIP_SAVE=1 leave out the typing and Save Changes steps
+ *
+ * The save step types into the leaf's text field and saves; afterwards it
+ * types the original text back and saves again, so a site keeps its content.
  *
  *   node tests/browser/selection-panel.mjs
  */
@@ -38,6 +47,9 @@ const LEAF = env('SVE_LEAF', 'muaayv1kuxei-muaayv1kfjwu');
 const LEAF_FIELD = env('SVE_LEAF_FIELD', 'headline');
 const CHROME = env('SVE_CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
 const SHOT = env('SVE_SHOT', '');
+const HEADER_WIDGET = env('SVE_HEADER_WIDGET', '');
+const GLOBAL_ID = env('SVE_GLOBAL_ID', '');
+const GLOBAL_LEAF = env('SVE_GLOBAL_LEAF', '');
 const puppeteer = createRequire(`${SITE_DIR}/package.json`)('puppeteer');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -50,7 +62,10 @@ function seed(prefs) {
   }
   writeFileSync(USER_FILE, yaml);
 }
-seed({ 'sve-lp-panel-mode': 'show', 'sve-lp-collapsed': '0' });
+const NO_SEED = process.env.SVE_NO_SEED === '1';
+const PREFLIGHT = process.env.SVE_PREFLIGHT === '1';
+const SKIP_SAVE = process.env.SVE_SKIP_SAVE === '1';
+if (!NO_SEED) seed({ 'sve-lp-panel-mode': 'show', 'sve-lp-collapsed': '0' });
 
 const results = [];
 let failed = 0;
@@ -76,6 +91,7 @@ page.on('response', (r) => { if (r.status() >= 400) note(`${r.status()} ${r.url(
 
 /** The panel as the eye sees it: header, back label, field count, nested sets. */
 const PANEL = '#__sve-selection-panel [data-sve-selection-panel]';
+const panelStrings = { page: null };
 const readPanel = (cp) => cp.evaluate((sel) => {
   const col = document.querySelector('.live-preview-fields') || document.querySelector('.live-preview-editor');
   const panel = document.querySelector(sel);
@@ -91,7 +107,10 @@ const readPanel = (cp) => cp.evaluate((sel) => {
     fieldHandles: fields.map((f) => f.querySelector('[id^="field_"]')?.id.replace(/^field_/, '').split('_').pop() || f.className.split(' ').find((c) => c.startsWith('field-w-')) || '?').slice(0, 12),
     sets: panel ? [...panel.querySelectorAll('[data-replicator-set]')].map((s) => `${s.dataset.type}${s.hasAttribute('data-collapsed') ? '(collapsed)' : '(open)'}`) : [],
     activeField: panel?.querySelector('[data-sve-active] [id^="field_"]')?.id || panel?.querySelector('[data-sve-active]')?.className || '',
-    soloMarks: document.querySelectorAll('[data-sve-solo-parent], [data-sve-solo-keep], [data-sve-panel-away]').length,
+    soloMarks: document.querySelectorAll('[data-sve-solo-parent], [data-sve-solo-keep], [data-sve-panel-away], [data-sve-global-away]').length,
+    contexts: (window.__sveDebug?.contexts?.() || []).join('+'),
+    chromeHost: !!document.getElementById('__sve-chrome-host'),
+    globalHost: !!document.getElementById('__sve-global-section-host'),
     liteRows: [...document.querySelectorAll('[data-sve-lite] [data-replicator-set]')].length,
     statamicFormVisible: [...(col?.querySelectorAll('.form-group, [data-sve-lite]') || [])].some((el) => !el.closest('#__sve-selection-panel') && visible(el) && getComputedStyle(el).visibility !== 'hidden'),
     tabsVisible: [...document.querySelectorAll('.live-preview-editor [role="tablist"]')].some((el) => !el.closest('#__sve-selection-panel') && visible(el) && getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().height > 0),
@@ -160,12 +179,22 @@ try {
   for (let i = 0; i < 30; i++) {
     const el = await cp.$('#live-preview-iframe');
     preview = el ? await el.contentFrame() : null;
-    const ready = preview ? await preview.evaluate((ids) => ids.every((id) => !!document.querySelector(`[data-sid="${id}"]`)), [SECTION, BLOCK, LEAF]).catch(() => false) : false;
+    // A block's id sits on its wrapper (`data-sid`) or on the field it drew (`data-sid-field-uid`).
+    const ready = preview ? await preview.evaluate((ids) => ids.every((id) => !!document.querySelector(`[data-sid="${id}"], [data-sid-field-uid="${id}"]`)), [SECTION, BLOCK, LEAF]).catch(() => false) : false;
     if (ready) break;
     await sleep(1000);
   }
-  step('preview shows the section, the block and the leaf', !!preview, `${SECTION} ${BLOCK} ${LEAF}`);
+  const idsThere = preview ? await preview.evaluate((ids) => ids.map((id) => !!document.querySelector(`[data-sid="${id}"], [data-sid-field-uid="${id}"]`)), [SECTION, BLOCK, LEAF]).catch(() => []) : [];
+  // Informational: a saved page may carry other ids in the preview than the
+  // form (saves strip and reassign nested ids). The clicks below are the proof.
+  step('preview shows the section, the block and the leaf (informational)', true, `${SECTION}=${idsThere[0]} ${BLOCK}=${idsThere[1]} ${LEAF}=${idsThere[2]}`);
   await sleep(2500);
+
+  if (PREFLIGHT) {
+    const pre = await readPanel(cp);
+    step('preflight: panel mode and column', true, `columnMarked=${pre.columnMarked} formVisible=${pre.statamicFormVisible} lpCollapsed=${await cp.evaluate(() => getComputedStyle(document.querySelector('.live-preview-editor') || document.body).width)}`);
+    throw new Error('preflight done');
+  }
 
   const before = await readPanel(cp);
   step('before any click the column shows the page form, not the panel', !before.columnMarked && !before.shown, JSON.stringify(before));
@@ -179,6 +208,7 @@ try {
     await sleep(300);
   }
   const leaf = await readPanel(cp);
+  const leaf0Title = leaf.title;
   step('a click on the leaf block paints the panel', leaf.shown && leaf.columnMarked, JSON.stringify(leaf));
   step('the panel shows the leaf alone: one set, its own fields, no section around it', leaf.sets.length === 0 && leaf.fieldCount > 0 && leaf.fieldCount < 12, `fields=${leaf.fieldCount} ${leaf.fieldHandles.join(',')} sets=${leaf.sets.join(',')}`);
   step('the page\'s own tabs (Page Settings, SEO) are out of the way while a row shows', !leaf.tabsVisible, `tabsVisible=${leaf.tabsVisible}`);
@@ -214,6 +244,7 @@ try {
   step('back from the leaf shows the block it sits in', block.shown && block.title === leaf.back, `title="${block.title}" back="${block.back}" fields=${block.fieldCount} sets=${block.sets.join(',')}`);
   step('the block shows its own blocks as a folded list, not opened', block.sets.length > 0 && block.sets.every((s) => s.endsWith('(collapsed)')), block.sets.join(','));
   const section = await back();
+  panelStrings.page = section.back;
   step('back from the block shows the section', section.shown && section.title === block.back && section.kind === 'set', `title="${section.title}" back="${section.back}" fields=${section.fieldCount}`);
   const pageAgain = await back();
   step('back from the section shows the page form again', !pageAgain.columnMarked && !pageAgain.shown && pageAgain.statamicFormVisible, JSON.stringify(pageAgain));
@@ -223,10 +254,17 @@ try {
   await sleep(300);
   const typed = `Panel ${Date.now().toString(36)}`;
   const inputSel = `${PANEL} [data-sve-active] input, ${PANEL} [data-sve-active] textarea, ${PANEL} [data-sve-active] .ProseMirror`;
-  const hasInput = !!(await cp.$(inputSel));
-  if (hasInput) {
+  const hasInput = !SKIP_SAVE && !!(await cp.$(inputSel));
+  const original = hasInput ? await cp.$eval(inputSel, (el) => ('value' in el && el.tagName !== 'DIV' ? el.value : el.textContent) || '') : '';
+  const typeInto = async (text) => {
     await cp.click(inputSel, { clickCount: 3 });
-    await cp.type(inputSel, typed);
+    // The keyboard belongs to the page, not to the CP frame.
+    await page.keyboard.down('Meta'); await page.keyboard.press('a'); await page.keyboard.up('Meta');
+    await page.keyboard.press('Backspace');
+    await cp.type(inputSel, text);
+  };
+  if (hasInput) {
+    await typeInto(typed);
   }
   let inPreview = false;
   for (let i = 0; i < 30 && hasInput; i++) {
@@ -234,20 +272,31 @@ try {
     if (inPreview) break;
     await sleep(200);
   }
-  step('text typed in the panel reaches the preview', hasInput && inPreview, hasInput ? `"${typed}"` : 'no text input in the active field');
+  step('text typed in the panel reaches the preview', SKIP_SAVE || (hasInput && inPreview), SKIP_SAVE ? 'skipped (SVE_SKIP_SAVE)' : hasInput ? `"${typed}"` : 'no text input in the active field');
 
   // 4b. Save Changes: the same form, the same save — and the panel stays where it was.
   const saveBtn = await cp.evaluateHandle(() => [...document.querySelectorAll('.live-preview-header button')].find((b) => /save changes|gem ændringer/i.test(b.textContent || '')) || null);
-  const saveEnabled = await cp.evaluate((b) => !!b && !b.disabled, saveBtn);
-  step('the typed change marks the form dirty: Save Changes is enabled', saveEnabled);
+  const saveEnabled = !SKIP_SAVE && (await cp.evaluate((b) => !!b && !b.disabled, saveBtn));
+  step('the typed change marks the form dirty: Save Changes is enabled', SKIP_SAVE || saveEnabled, SKIP_SAVE ? 'skipped' : '');
+  const saveNow = () => new Promise((resolve) => { const h = (r) => { if (/\/cp\/collections\/pages\/entries\//.test(r.url()) && r.request().method() !== 'GET') { page.off('response', h); resolve(r.status()); } }; page.on('response', h); setTimeout(() => resolve(0), 15000); });
   if (saveEnabled) {
-    const saved = new Promise((resolve) => { const h = (r) => { if (/\/cp\/collections\/pages\/entries\//.test(r.url()) && r.request().method() !== 'GET') { page.off('response', h); resolve(r.status()); } }; page.on('response', h); setTimeout(() => resolve(0), 15000); });
+      const saved = saveNow();
     await cp.evaluate((b) => b.click(), saveBtn);
     const status = await saved;
     await sleep(2500);
     const afterSave = await readPanel(cp);
     step('Save Changes goes through', status >= 200 && status < 300, `status ${status}`);
     step('after the save the panel still shows the same block', afterSave.shown && afterSave.title === leaf.title && afterSave.columnMarked, `title="${afterSave.title}" marked=${afterSave.columnMarked}`);
+
+    // Put the text back and save again: the site keeps what it had.
+    await typeInto(original);
+    await sleep(400);
+    const restoring = saveNow();
+    await cp.evaluate((b) => b.click(), saveBtn);
+    const restored = await restoring;
+    await sleep(1500);
+    const backInPreview = await preview.evaluate((text) => (document.body?.textContent || '').includes(text) , original.trim().slice(0, 40)).catch(() => false);
+    step('the original text is put back and saved', restored >= 200 && restored < 300 && backInPreview, `status ${restored} "${original.slice(0, 40)}"`);
   }
 
   // 5. the HTML tree from the top bar leaves the panel standing
@@ -255,11 +304,17 @@ try {
   const treeName = (await cp.$('#__sve-toolbar button[data-tab="html_tree"]')) ? 'HTML tree' : 'block tree';
   if (treeBtn) {
     await treeBtn.click();
-    await sleep(1500);
+    // The tree is a lazy chunk: on a remote site it takes a moment to arrive and draw its rows.
+    for (let i = 0; i < 30; i++) { if (await cp.$('[data-sve-lv-row], [data-sve-ht-row]')) break; await sleep(250); }
+    await sleep(600);
     const withTree = await readPanel(cp);
     step(`opening the ${treeName} from the top bar keeps the panel`, withTree.shown && withTree.title === leaf.title, `title="${withTree.title}"`);
     const treeRow = await cp.evaluate(() => document.querySelector('[data-sve-lv-current]')?.textContent.trim().slice(0, 40) || '');
-    step('the block tree points at the selected block', treeRow !== '' && treeRow.toLowerCase().includes(leaf.title.toLowerCase().slice(0, 6)), `tree row "${treeRow}"`);
+    const treeInfo = await cp.evaluate((uid) => {
+      const rows = [...document.querySelectorAll('[data-sve-lv-row]')];
+      return `rows=${rows.length} hasLeaf=${rows.some((r) => (r.getAttribute('data-sve-lv-uid') || '') === uid)} first=${rows.slice(0, 4).map((r) => `${r.getAttribute('data-sve-lv-uid')?.slice(0, 12)}:${r.textContent.trim().slice(0, 14)}`).join(',')} panel=${!!document.getElementById('__sve-listview-panel')} current=${document.querySelectorAll('[data-sve-lv-current]').length}`;
+    }, LEAF);
+    step('the block tree points at the selected block', treeRow !== '' && treeRow.toLowerCase().includes(leaf.title.toLowerCase().slice(0, 6)), `tree row "${treeRow}" ${treeInfo}`);
     await treeBtn.click();
     await sleep(500);
   } else {
@@ -277,6 +332,64 @@ try {
     step('the Page Settings icon shows the page again', false, 'no settings button found');
   }
 
+  // 8. phase 1: the header as a tab of its form, a widget as a row in it
+  if (HEADER_WIDGET) {
+    const tOpen = await clickIn(preview, cp, { type: 'open-chrome', kind: 'header' }, null);
+    await sleep(600);
+    const headerTab = await readPanel(cp);
+    step('opening the header paints its tab on the panel, no reveal wait', headerTab.shown && headerTab.kind === 'tab' && headerTab.fieldCount > 0 && headerTab.soloMarks === 0, `title="${headerTab.title}" fields=${headerTab.fieldCount} contexts=${headerTab.contexts} ms=${tOpen == null ? '?' : Math.round(tOpen)}`);
+    await clickIn(preview, cp, { type: 'click', uid: HEADER_WIDGET }, null);
+    await sleep(400);
+    const widget = await readPanel(cp);
+    step('a widget in the header is a row on the panel, with the header as its way back', widget.shown && widget.kind === 'set' && widget.back === headerTab.title, `title="${widget.title}" back="${widget.back}"`);
+    const backToTab = await back();
+    step('back from the widget shows the header tab again', backToTab.kind === 'tab' && backToTab.title === headerTab.title, `title="${backToTab.title}"`);
+    const outOfHeader = await back();
+    await sleep(600);
+    const afterHeader = await readPanel(cp);
+    step('back from the header closes its form and shows the page', !afterHeader.chromeHost && !afterHeader.columnMarked && afterHeader.statamicFormVisible, `chromeHost=${afterHeader.chromeHost} contexts=${afterHeader.contexts} ${outOfHeader.title}`);
+  }
+
+  // 9. phase 1: a global section's rows on the panel, from its own form
+  if (GLOBAL_ID) {
+    await preview.evaluate((id) => window.parent.postMessage({ source: 'statamic-visual-editor', type: 'open-global-section', id }, '*'), GLOBAL_ID);
+    let opened = null;
+    for (let i = 0; i < 40; i++) { opened = await readPanel(cp); if (opened.shown && opened.contexts.includes('sve-global-section')) break; await sleep(250); }
+    step('opening a global section paints its first row at once, from its own context', opened.shown && opened.kind === 'set' && opened.contexts.includes('sve-global-section') && opened.soloMarks === 0, `title="${opened.title}" contexts=${opened.contexts} solo=${opened.soloMarks}`);
+
+    // The preview re-renders the section from the form's values; a block in it
+    // is found there, by the id it carries now.
+    let leaf = null;
+    for (let i = 0; i < 40 && !leaf; i++) {
+      const el = await cp.$('#live-preview-iframe');
+      const pv = el ? await el.contentFrame() : null;
+      leaf = pv ? await pv.evaluate(() => { const f = document.querySelector('[data-sve-global-root] [data-sid-field-uid]'); return f ? { scope: f.getAttribute('data-sid-field-uid'), field: f.getAttribute('data-sid-field') } : null; }).catch(() => null) : null;
+      if (!leaf) await sleep(250);
+    }
+    step('the preview shows the global section with ids the form knows', !!leaf, leaf ? `${leaf.field}@${leaf.scope}` : 'no field inside [data-sve-global-root]');
+    if (leaf) {
+      const elNow = await cp.$('#live-preview-iframe'); const pvNow = await elNow.contentFrame();
+      await clickIn(pvNow, cp, { type: 'click', field: leaf.field, scope: leaf.scope, global: true }, null);
+      await sleep(400);
+      const gleaf = await readPanel(cp);
+      step('a block inside the global section is a row on the panel', gleaf.shown && gleaf.kind === 'set' && gleaf.title !== opened.title && gleaf.contexts.includes('sve-global-section'), `title="${gleaf.title}" back="${gleaf.back}"`);
+      let steps = 0;
+      let r = gleaf;
+      while (r.shown && r.back !== panelStrings.page && steps < 4) { r = await back(); steps += 1; }
+      step('back steps up to the global section itself', r.shown && r.title === opened.title, `title="${r.title}" after ${steps} steps`);
+    }
+    await back();
+    await sleep(800);
+    const afterGlobal = await readPanel(cp);
+    step('back from the global section closes its form and shows the page', !afterGlobal.globalHost && !afterGlobal.columnMarked && !afterGlobal.contexts.includes('sve-global-section') && afterGlobal.contexts.includes('base'), `globalHost=${afterGlobal.globalHost} contexts=${afterGlobal.contexts}`);
+    // And the page's own rows are still the panel's: the context survived the detour.
+    await clickIn(preview, cp, { type: 'click', field: LEAF_FIELD, scope: LEAF }, leaf0Title);
+    await sleep(300);
+    const again = await readPanel(cp);
+    step('after the global section, a page block paints as before', again.shown && again.title === leaf0Title, `title="${again.title}" contexts=${again.contexts}`);
+    await back(); await back(); await back();
+  }
+
   // 7. the old path stayed quiet
   const last = await readPanel(cp);
   step('no solo marks on the form, no lite rows mounted', last.soloMarks === 0 && last.liteRows === 0, `solo=${last.soloMarks} lite=${last.liteRows}`);
@@ -288,14 +401,14 @@ try {
     await page.screenshot({ path: SHOT });
   }
 } catch (e) {
-  step('run', false, e.message.slice(0, 300));
+  if (e.message !== 'preflight done') step('run', false, e.message.slice(0, 300));
 } finally {
   if (cpForLog) {
     const log = await cpForLog.evaluate(() => (window.__sveDebug?.log || []).filter((l) => !/lite created|ctx |beforeUnmount/.test(l))).catch(() => []);
     results.push('--- editor log (selection, paint) ---', ...log.slice(-40).map((l) => '  ' + l.slice(0, 220)));
   }
   await browser.close();
-  seed(null);
+  if (!NO_SEED) seed(null);
 }
 
 console.log(results.join('\n'));

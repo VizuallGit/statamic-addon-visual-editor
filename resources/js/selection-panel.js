@@ -20,15 +20,20 @@
  *   sources already told them.
  *
  * Behind the `selection_panel` feature, off by default. Phase 0: page sections
- * and the blocks and grid rows inside them. Header, footer and global sections
- * keep their own path until phase 1.
+ * and the blocks and grid rows inside them. Phase 1: a global section's rows
+ * (its borrowed entry form registers its own context when it mounts) and the
+ * header and footer (the chrome form's context, as a tab of that form). The
+ * forms themselves stay as they were — mounted out of sight as the data, with
+ * their save, dirty state and the preview stash — only the isolation of their
+ * DOM is gone.
  *
  * May import: lib/, cp/, cp-state.js, cp-selectors.js, cp-section-groups.js,
- * code-dock-lazy.js, lazy/listview.js. Not cp.js, not the kernel.
+ * code-dock-lazy.js, lazy/listview.js, pages.js, section-library.js. Not
+ * cp.js, not the kernel.
  */
 import { h, nextTick } from 'vue';
 import { clearSelection, currentSelection, onSelection, select } from './lib/selection.js';
-import { onContainerContext } from './lib/publish-containers.js';
+import { adoptContextFromHost, containerContextName, onContainer, onContainerContext } from './lib/publish-containers.js';
 import { selectionPanelOn } from './lib/config.js';
 import { SELECTION_ATTR, SELECTION_PANEL_ID } from './lib/ids.js';
 import { livePreviewEditorEl } from './lib/live-preview.js';
@@ -40,7 +45,9 @@ import { MSG, SOURCE } from './lib/protocol.js';
 import { ACTIVE_ATTR } from './cp-selectors.js';
 import { panelIcon } from './cp-section-groups.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
-import { panelStore, panelValues, resolvedSelection, setPanelContext, setPanelSelection } from './cp/panel/store.js';
+import { ctxKey, panelStore, panelValues, resolvedSelection, setPanelContexts, setPanelSelection } from './cp/panel/store.js';
+import { handleRequestCloseGlobal } from './pages.js';
+import { dismissChromeForPageEdit } from './section-library.js';
 import SelectionPanel from './cp/surfaces/SelectionPanel.vue';
 import { syncCodeDock } from './code-dock-lazy.js';
 import { listViewSyncTo } from './lazy/listview.js';
@@ -56,9 +63,9 @@ export function selectionPanelShowing(win) {
   return selectionPanelOn(win) && !!currentSelection() && !!resolvedSelection.value;
 }
 
-/** Whether this panel takes a row: resolvable against the page form. */
+/** Whether this panel takes a row: resolvable against one of the open forms. */
 export function selectionPanelTakes(win, uid) {
-  if (!selectionPanelOn(win) || !uid || !panelStore.ctx) {
+  if (!selectionPanelOn(win) || !uid || !panelStore.ctxs.length) {
     return false;
   }
 
@@ -100,6 +107,43 @@ export function selectRow(win, uid, source = 'tree') {
   return true;
 }
 
+/** A whole tab of a form — the header, the footer — chosen by the editor. */
+export function selectTab(win, tab, ctxName, source = 'chrome') {
+  if (!selectionPanelOn(win) || !tab || !ctxName) {
+    return false;
+  }
+
+  select({ tab, ctxName, source });
+
+  return true;
+}
+
+/**
+ * Out of what is selected, the way a person means it: a row of the page back
+ * to the page; a row or tab of a global section or of the header out of that
+ * form (its own close, with its unsaved-changes question), which also takes
+ * the selection with it.
+ */
+export function leaveSelection(win, source = 'panel') {
+  const row = resolvedSelection.value;
+  const name = row?.ctxName || currentSelection()?.ctxName || 'base';
+
+  if (name === 'sve-global-section') {
+    handleRequestCloseGlobal(win);
+
+    return;
+  }
+
+  if (name !== 'base') {
+    dismissChromeForPageEdit(win, { syncDock: true });
+    clearSelection(source);
+
+    return;
+  }
+
+  clearSelection(source);
+}
+
 /** `data-sid-field` carries a dotted path at times; the field is its last part. */
 function fieldHandle(field) {
   return typeof field === 'string' && field ? field.split('.').pop() : null;
@@ -116,25 +160,47 @@ export function initSelectionPanel(win) {
   // For the browser tests only: a way to read the form's values from outside.
   if (win.__sveDebug) {
     win.__sveDebug.values = () => JSON.parse(JSON.stringify(panelValues() || null));
+    win.__sveDebug.contexts = () => panelStore.ctxs.map(containerContextName);
   }
   panelStore.strings = { back: t(win, 'selection_back'), page: t(win, 'selection_page') };
-  panelStore.onBack = (parentUid) => {
-    if (parentUid) {
-      selectRow(win, parentUid, 'panel');
+  panelStore.onBack = (parent, row) => {
+    if (parent?.kind === 'tab') {
+      selectTab(win, parent.handle, parent.ctxName, 'panel');
+    } else if (parent?.uid) {
+      selectRow(win, parent.uid, 'panel');
+    } else if (row && row.ctxName !== 'base') {
+      leaveSelection(win, 'panel');
     } else {
       clearSelection('panel');
     }
   };
 
-  onContainerContext((ctx) => {
-    setPanelContext(ctx);
+  onContainerContext((list) => {
+    setPanelContexts(list);
     paint(win, currentSelection(), null);
   });
+
+  // The page's own context, read off its form rather than only from the lite
+  // field inside it: that field lives in one tab, and a tab shown later
+  // unmounts it, which took the context with it until the tab came back. The
+  // form's root outlives its tabs. Asked for at every container Statamic
+  // announces, so a reopened Live Preview registers again.
+  onContainer(() => win.requestAnimationFrame(() => adoptPageContext(win)));
+  adoptPageContext(win);
 
   onSelection((selection, previous) => {
     setPanelSelection(selection);
     paint(win, selection, previous);
   });
+}
+
+/** Register the page form's context from its DOM, once it is drawn. */
+function adoptPageContext(win) {
+  const col = column(win.document);
+
+  if (col) {
+    void adoptContextFromHost(win, col, () => !!column(win.document));
+  }
 }
 
 /** The column the panel lives in: the fields column, or the editor pane when there is none. */
@@ -195,15 +261,20 @@ function ensureHost(win) {
   app = mountStatamicSurface(
     {
       setup() {
-        return () =>
-          panelStore.ctx
+        return () => {
+          const row = resolvedSelection.value;
+
+          // Keyed on the owning form: a row of another form is a fresh tree on
+          // that form's context, never the old fields re-bound.
+          return row
             ? h(SelectionPanel, {
-                key: panelStore.ctxId,
-                ctx: panelStore.ctx,
+                key: ctxKey(row.ctx),
+                ctx: row.ctx,
                 drawIcon: panelIcon,
                 onPainted: () => revealField(win),
               })
             : null;
+        };
       },
     },
     host
@@ -235,9 +306,9 @@ function paint(win, selection, previous) {
     return;
   }
 
-  const showing = !!selection && !!panelStore.ctx && !!resolvedSelection.value;
+  const showing = !!selection && !!resolvedSelection.value;
 
-  log(`paint showing=${showing} uid=${selection?.uid || null} ctx=${!!panelStore.ctx} resolved=${!!resolvedSelection.value}`);
+  log(`paint showing=${showing} uid=${selection?.uid || (selection?.tab ? `tab:${selection.tab}` : null)} ctxs=${panelStore.ctxs.map(containerContextName).join('+')} resolved=${!!resolvedSelection.value}`);
 
   if (!showing) {
     col.removeAttribute(SELECTION_ATTR);
@@ -254,9 +325,9 @@ function paint(win, selection, previous) {
   col.setAttribute(SELECTION_ATTR, '');
 
   // The panel's own back arrow is the one source that has not told the others.
-  if (selection.source === 'panel') {
-    const row = resolvedSelection.value;
+  const row = resolvedSelection.value;
 
+  if (selection.source === 'panel' && row.uid) {
     syncCodeDock(win, doc, row.uid);
     listViewSyncTo(win, row.uid);
     previewFrame(doc)?.contentWindow?.postMessage(

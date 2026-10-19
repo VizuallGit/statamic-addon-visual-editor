@@ -23,8 +23,7 @@ import { lpHeader } from '../lib/live-preview.js';
 import { activeContainers } from '../lib/publish-containers.js';
 import { lpHeaderBg, lpMode, lpModeSeparator, paintLpActiveControl, persistDockedPanel, setLpMode } from '../lp-panel.js';
 import { focusFromPreview, focusPanelOn, leaveSolo, placeLpWidthPicker } from '../focus-panel.js';
-import { clearSelection } from '../lib/selection.js';
-import { selectionPanelShowing } from '../selection-panel.js';
+import { leaveSelection, selectionPanelShowing } from '../selection-panel.js';
 import { closeRightPanels, closeSectionPicker, isGlobalsOverlayOpen, leaveFocusLock, openSectionPicker, rowLocation, syncPreviewInset } from '../section-library.js';
 import { blockRowUid, closeListViewPanel, commentsPanel, listViewPanel, toggleCommentsPanel, toggleListViewPanel } from '../lazy/listview.js';
 import { armHtmlTreePrefetch, closeHtmlTreePanel, toggleHtmlTreePanel } from '../lazy/html-tree.js';
@@ -1556,7 +1555,7 @@ export function toggleHeaderTab(win, key) {
 
     // The selection panel is showing a row: the first click shows the page.
     if (open && selectionPanelShowing(win)) {
-      clearSelection('settings');
+      leaveSelection(win, 'settings');
       applyHeaderTab(win);
 
       return;
