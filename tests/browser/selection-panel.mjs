@@ -70,6 +70,7 @@ if (!NO_SEED) seed({ 'sve-lp-panel-mode': 'show', 'sve-lp-collapsed': '0' });
 const results = [];
 let failed = 0;
 function step(name, ok, note = '') {
+  lastStep = name;
   results.push(`${ok ? 'ok  ' : 'FAIL'} ${name}${note ? ` — ${note}` : ''}`);
   if (!ok) failed++;
 }
@@ -83,7 +84,8 @@ const noise = [];
 // Failures of the bench, not of the editor: another addon's endpoint refusing
 // the session on a bare host, Inertia's version check after a rebuild.
 const isNoise = (text) => /\/cp\/color-scheme\/|\/cp\/bard-style\/|invalid domain|409 |auth\/login/.test(text);
-const note = (text) => (isNoise(text) ? noise : errors).push(text);
+let lastStep = 'start';
+const note = (text) => (isNoise(text) ? noise : errors).push(`${text} [after: ${lastStep}]`);
 page.on('pageerror', (e) => note(`pageerror ${e.message.slice(0, 160)} @ ${(e.stack || '').split('\n').slice(1, 3).join(' ').replace(SITE_URL, '').slice(0, 200)}`));
 // Console "Failed to load resource" lines carry no URL; the response does.
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) note(`console ${m.text().slice(0, 160)}`); });
@@ -303,7 +305,8 @@ try {
   const treeBtn = (await cp.$('#__sve-toolbar button[data-tab="html_tree"]')) || (await cp.$('#__sve-toolbar button[data-tab="listview"]'));
   const treeName = (await cp.$('#__sve-toolbar button[data-tab="html_tree"]')) ? 'HTML tree' : 'block tree';
   if (treeBtn) {
-    await treeBtn.click();
+    // Clicked through the DOM: a toolbar preset may keep the button out of view.
+    await cp.evaluate((b) => b.click(), treeBtn);
     // The tree is a lazy chunk: on a remote site it takes a moment to arrive and draw its rows.
     for (let i = 0; i < 30; i++) { if (await cp.$('[data-sve-lv-row], [data-sve-ht-row]')) break; await sleep(250); }
     await sleep(600);
@@ -315,11 +318,15 @@ try {
       return `rows=${rows.length} hasLeaf=${rows.some((r) => (r.getAttribute('data-sve-lv-uid') || '') === uid)} first=${rows.slice(0, 4).map((r) => `${r.getAttribute('data-sve-lv-uid')?.slice(0, 12)}:${r.textContent.trim().slice(0, 14)}`).join(',')} panel=${!!document.getElementById('__sve-listview-panel')} current=${document.querySelectorAll('[data-sve-lv-current]').length}`;
     }, LEAF);
     step('the block tree points at the selected block', treeRow !== '' && treeRow.toLowerCase().includes(leaf.title.toLowerCase().slice(0, 6)), `tree row "${treeRow}" ${treeInfo}`);
-    await treeBtn.click();
+    await cp.evaluate((b) => b.click(), treeBtn);
     await sleep(500);
   } else {
     step('opening a tree from the top bar keeps the panel', false, 'no tree button on this toolbar');
   }
+
+  // Where the focus is before the page is shown again (a Bard left focused would blur as it unmounts).
+  const focusInfo = await cp.evaluate(() => { const a = document.activeElement; const panel = document.getElementById('__sve-selection-panel'); return `${a?.tagName?.toLowerCase()}.${[...(a?.classList || [])].slice(0, 2).join('.')} inPanel=${!!(panel && a && panel.contains(a))} pmFocused=${!!document.querySelector('#__sve-selection-panel .ProseMirror-focused')}`; });
+  step('focus before Page Settings (informational)', true, focusInfo);
 
   // 6. Page Settings icon shows the page
   const settingsBtn = await cp.$('#__sve-toolbar button[data-tab="settings"]');

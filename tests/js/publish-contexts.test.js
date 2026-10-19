@@ -36,3 +36,18 @@ test('contexts register once per form, newest first, and the page is the one nam
   assert.deepEqual(seen, ['', 'base', 'sve-global-section,base', 'base', '']);
   off();
 });
+
+test('whenContainerContext answers now, later, or null after the wait', async () => {
+  const { whenContainerContext } = await import('../../resources/js/lib/publish-containers.js');
+  const win = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (t) => clearTimeout(t) };
+  const page = ctx('base');
+  registerContainerContext(page);
+  assert.equal(await whenContainerContext('base', 50, win), page);
+  const later = whenContainerContext('sve-chrome', 500, win);
+  const chrome = ctx('sve-chrome');
+  setTimeout(() => registerContainerContext(chrome), 20);
+  assert.equal(await later, chrome);
+  assert.equal(await whenContainerContext('nothing', 30, win), null);
+  unregisterContainerContext(chrome);
+  unregisterContainerContext(page);
+});

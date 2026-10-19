@@ -51,10 +51,22 @@ const fields = computed(() => (resolvedSelection.value?.fields || []).filter((fi
  * tick is a microtask — the new fields still paint in the same frame.
  */
 const shownUid = ref(null);
+const rootEl = ref(null);
 
 watch(
   () => shownKeyOf(resolvedSelection.value),
   async (key) => {
+    // A field still focused when its tree goes is a field whose blur handler
+    // runs after its element is gone — Bard's reaches for `$el.contains` a
+    // millisecond after the blur and throws. Let go of the focus first, and
+    // give that millisecond before the old tree is unmounted.
+    const active = rootEl.value?.ownerDocument?.activeElement;
+
+    if (active && rootEl.value?.contains(active) && typeof active.blur === 'function') {
+      active.blur();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+
     shownUid.value = null;
     await nextTick();
     shownUid.value = key;
@@ -114,7 +126,7 @@ onBeforeUnmount(() => log('SelectionPanel unmount'));
 </script>
 
 <template>
-  <div v-if="resolvedSelection" class="sve-sel" data-sve-selection-panel :data-sve-selection-kind="resolvedSelection.kind">
+  <div v-if="resolvedSelection" ref="rootEl" class="sve-sel" data-sve-selection-panel :data-sve-selection-kind="resolvedSelection.kind">
     <header class="sve-sel__head">
       <div class="sve-sel__id">
         <span class="sve-sel__tile" :ref="setTile"></span>

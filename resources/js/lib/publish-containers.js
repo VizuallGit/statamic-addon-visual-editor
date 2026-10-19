@@ -22,6 +22,7 @@
  *   containerContext()             the page's own ('base')
  *   containerContextName(ctx)      the container's name
  *   onContainerContext(fn)         fn(contexts) now, and on every change
+ *   whenContainerContext(name, ms) the context of that container, or null after ms
  *
  * May import: lib/, cp-selectors.js (constants only).
  */
@@ -92,11 +93,12 @@ export function registerContainerSource(fn) {
  * errors, the blueprint, hidden and revealer fields, locks, the direction —
  * because Statamic's own PublishField reads all of it from one injected
  * object. Only a component inside a form can inject that object, so the
- * forms register theirs here: the page's through the lite sections field
- * that always sits in it, a global section's through the same field in its
- * borrowed entry form, the header's and footer's through the chrome form's
- * host. Each is named by its container (`ctx.name`: 'base' for the page,
- * 'sve-global-section', 'sve-chrome'), newest first when asked.
+ * forms register theirs here through the fields of ours that sit in them:
+ * the lite sections field in the page's form, and the auto_uuid field in
+ * every set of every form (the page's, a global section's borrowed entry
+ * form, the header's globals form). Each is named by its container
+ * (`ctx.name`: 'base' for the page, 'sve-global-section', 'sve-chrome'),
+ * newest first when asked.
  */
 const ctxEntries = [];
 const ctxListeners = [];
@@ -181,50 +183,35 @@ export function forgetContainerContexts(name) {
   publishContexts();
 }
 
-// Contexts adopted from a form's DOM rather than injected by a field of ours:
-// registered once each, however often the form is looked at.
-const adopted = new WeakSet();
-
 /**
- * Register the context behind a form we mounted or found, once its fields are
- * drawn — the context is read off them. Resolves with the context, or null
- * when the form did not come within about two seconds or `stillOpen` says it
- * has gone. Selectors cover what any publish form draws first: its tab bar,
- * its field list, a field.
+ * The context of the container named `name`, once it is registered — now, or
+ * within `timeoutMs` — else null. A form we mount (a global section's entry
+ * form, the header's globals form) registers its context through the sets it
+ * draws; this is how the caller waits for that without polling the DOM.
  */
-export function adoptContextFromHost(win, host, stillOpen = () => true) {
+export function whenContainerContext(name, timeoutMs, win = window) {
+  const now = ctxEntries.find((ctx) => containerContextName(ctx) === name);
+
+  if (now) {
+    return Promise.resolve(now);
+  }
+
   return new Promise((resolve) => {
-    let frames = 0;
+    let off = () => {};
+    const timer = win.setTimeout(() => {
+      off();
+      resolve(null);
+    }, timeoutMs);
 
-    const tick = () => {
-      if (!host?.isConnected || !stillOpen()) {
-        resolve(null);
+    off = onContainerContext((list) => {
+      const found = list.find((ctx) => containerContextName(ctx) === name);
 
-        return;
+      if (found) {
+        win.clearTimeout(timer);
+        off();
+        resolve(found);
       }
-
-      const el = host.querySelector('button[role="tab"], .publish-fields, .form-group, [data-reka-tabs-root], input, textarea');
-      const ctx = el ? publishContextOf(el) : null;
-
-      if (ctx) {
-        if (!adopted.has(ctx)) {
-          adopted.add(ctx);
-          registerContainerContext(ctx);
-        }
-
-        resolve(ctx);
-
-        return;
-      }
-
-      if ((frames += 1) < 120) {
-        win.requestAnimationFrame(tick);
-      } else {
-        resolve(null);
-      }
-    };
-
-    tick();
+    });
   });
 }
 
@@ -278,30 +265,6 @@ export function registerContainerEvents(win = window) {
       forgetContainerContexts(payload.name);
     }
   });
-}
-
-/**
- * The publish context an element is drawn under, or null.
- *
- * Vue keeps each component's `provides` as a chain back to the root, so any
- * element inside a form resolves the container's context through its own
- * component. Used for a form we mounted ourselves but did not write (the
- * header's globals form), where no field of ours sits inside to inject it.
- */
-export function publishContextOf(el) {
-  let component = el?.__vueParentComponent;
-
-  while (component) {
-    const ctx = component.provides?.['PublishContainerContext'];
-
-    if (ctx?.setFieldValue) {
-      return ctx;
-    }
-
-    component = component.parent;
-  }
-
-  return null;
 }
 
 export function containerFromDom(doc) {

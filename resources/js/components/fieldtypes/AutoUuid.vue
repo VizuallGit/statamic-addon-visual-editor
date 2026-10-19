@@ -19,7 +19,8 @@ function uuid() {
 
 <script setup>
 import { Fieldtype } from '@statamic/cms';
-import { onMounted, onUnmounted } from 'vue';
+import { inject, onMounted, onUnmounted } from 'vue';
+import { registerContainerContext, unregisterContainerContext } from '../../lib/publish-containers.js';
 
 const emit = defineEmits(Fieldtype.emits);
 const props = defineProps(Fieldtype.props);
@@ -30,7 +31,18 @@ defineExpose(expose);
 // release the correct entry even if props.value has already been updated.
 let myUuid = null;
 
+// The form this set sits in, whole. This field is in every set the editor
+// draws — the page's sections and blocks, a global section's rows in its
+// borrowed form, the header's widgets — so it is the one component of ours
+// that can hand each form's publish context to the selection panel in any
+// build of Statamic (a production Vue keeps no component on the DOM to walk).
+// Counted per instance: the context stays registered while any set of the
+// form is mounted, and goes when the last one does.
+const containerContext = inject('PublishContainerContext', null);
+
 onMounted(() => {
+    registerContainerContext(containerContext);
+
     if (!props.value || _seenUuids.has(props.value)) {
         // No value yet, or another set already owns this UUID (freshly duplicated row).
         myUuid = uuid();
@@ -43,6 +55,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    unregisterContainerContext(containerContext);
+
     if (myUuid) {
         _seenUuids.delete(myUuid);
         myUuid = null;

@@ -33,7 +33,7 @@
  */
 import { h, nextTick } from 'vue';
 import { clearSelection, currentSelection, onSelection, select } from './lib/selection.js';
-import { adoptContextFromHost, containerContextName, onContainer, onContainerContext } from './lib/publish-containers.js';
+import { containerContextName, onContainerContext, whenContainerContext } from './lib/publish-containers.js';
 import { selectionPanelOn } from './lib/config.js';
 import { SELECTION_ATTR, SELECTION_PANEL_ID } from './lib/ids.js';
 import { livePreviewEditorEl } from './lib/live-preview.js';
@@ -48,6 +48,7 @@ import { mountStatamicSurface } from './cp/mount-statamic.js';
 import { ctxKey, panelStore, panelValues, resolvedSelection, setPanelContexts, setPanelSelection } from './cp/panel/store.js';
 import { handleRequestCloseGlobal } from './pages.js';
 import { dismissChromeForPageEdit } from './section-library.js';
+import { activateSectionsTab } from './focus-panel.js';
 import SelectionPanel from './cp/surfaces/SelectionPanel.vue';
 import { syncCodeDock } from './code-dock-lazy.js';
 import { listViewSyncTo } from './lazy/listview.js';
@@ -86,6 +87,24 @@ export function selectionPanelTakes(win, uid) {
  */
 export function selectFromPreview(win, data) {
   const uid = data?.scope || data?.uid || null;
+
+  if (!selectionPanelOn(win) || !uid) {
+    return false;
+  }
+
+  // The page's context comes from the fields in its sections tab; on Page
+  // Settings those are not mounted and there is nothing to resolve against.
+  // Show the sections tab (as the focus path did) and select when it is there.
+  if (!panelStore.ctxs.length) {
+    activateSectionsTab(win);
+    whenContainerContext('base', 2000, win).then((ctx) => {
+      if (ctx && selectionPanelTakes(win, uid)) {
+        select({ uid, field: fieldHandle(data?.field), source: 'preview' });
+      }
+    });
+
+    return true;
+  }
 
   if (!selectionPanelTakes(win, uid)) {
     return false;
@@ -180,27 +199,29 @@ export function initSelectionPanel(win) {
     paint(win, currentSelection(), null);
   });
 
-  // The page's own context, read off its form rather than only from the lite
-  // field inside it: that field lives in one tab, and a tab shown later
-  // unmounts it, which took the context with it until the tab came back. The
-  // form's root outlives its tabs. Asked for at every container Statamic
-  // announces, so a reopened Live Preview registers again.
-  onContainer(() => win.requestAnimationFrame(() => adoptPageContext(win)));
-  adoptPageContext(win);
-
   onSelection((selection, previous) => {
-    setPanelSelection(selection);
-    paint(win, selection, previous);
+    const apply = () => {
+      setPanelSelection(selection);
+      paint(win, selection, previous);
+    };
+
+    // A field in the panel still focused when its tree goes is a field whose
+    // blur handler runs after its element is gone — Bard's reaches for
+    // `$el.contains` a millisecond after the blur and throws. Let go of the
+    // focus first and give it that millisecond; the new row paints right after.
+    const active = host?.ownerDocument?.activeElement;
+
+    if (host && active && host.contains(active) && typeof active.blur === 'function') {
+      log(`blur before switch: ${active.tagName.toLowerCase()} focused=${active === active.ownerDocument.activeElement} hasFocus=${active.ownerDocument.hasFocus()}`);
+      active.blur();
+      log(`after blur: active=${active.ownerDocument.activeElement?.tagName?.toLowerCase()}`);
+      win.setTimeout(apply, 5);
+
+      return;
+    }
+
+    apply();
   });
-}
-
-/** Register the page form's context from its DOM, once it is drawn. */
-function adoptPageContext(win) {
-  const col = column(win.document);
-
-  if (col) {
-    void adoptContextFromHost(win, col, () => !!column(win.document));
-  }
 }
 
 /** The column the panel lives in: the fields column, or the editor pane when there is none. */
