@@ -345,11 +345,24 @@ function paint(win, selection, previous) {
   ensureHost(win);
   col.setAttribute(SELECTION_ATTR, '');
 
-  // The panel's own back arrow is the one source that has not told the others.
   const row = resolvedSelection.value;
 
-  if (selection.source === 'panel' && row.uid) {
+  // The dock follows the selection, whoever made it: the tree, the outline,
+  // the block tree, the panel's own back arrow. A click on the page tells the
+  // dock before it selects (cp-shell/add-section.js), and a second ask for the
+  // file already held changes nothing — so the dock is told here for every
+  // source, and the selection is the one place it follows. Until here a click
+  // in the tree reached the dock only by accident: SVE_ACTIVATE opens an inline
+  // edit on a section with exactly one field, and that edit request syncs the
+  // dock. A section with no field, or several, left the dock on the previous
+  // file — and the tree, which marks the dock's section, jumped back to that
+  // one four seconds later, with the fields icon opening its fieldset.
+  if (row.uid) {
     syncCodeDock(win, doc, row.uid);
+  }
+
+  // The panel's own back arrow is the one source that has not told the others.
+  if (selection.source === 'panel' && row.uid) {
     listViewSyncTo(win, row.uid);
     previewFrame(doc)?.contentWindow?.postMessage(
       { source: SOURCE, type: MSG.SVE_ACTIVATE, ids: [row.uid, row.row?._id].filter(Boolean) },
