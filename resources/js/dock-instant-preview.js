@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 16) {
+    if (window.__sveDockInstantPreview === 17) {
         return;
     }
-    window.__sveDockInstantPreview = 16;
+    window.__sveDockInstantPreview = 17;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -73,7 +73,6 @@
     var raf = 0;
     var lastHtml = null;
     var lastCss = '';
-    var lastSid = '';
     var painting = false;
     var booted = false;
     var lastFullHtml = '';
@@ -592,51 +591,6 @@
         return outermostSid(el);
     }
 
-    function uidFromInput(input) {
-        if (!input) {
-            return '';
-        }
-
-        return String(input.getAttribute('data-visual-id') || input.value || '').trim();
-    }
-
-    function uidFromCp() {
-        var hosts = document.querySelectorAll(
-            '[data-sve-active], [data-sve-section-active]'
-        );
-        var i;
-        var input;
-        var uid;
-
-        for (i = 0; i < hosts.length; i++) {
-            input = hosts[i].querySelector('[data-visual-id]');
-            uid = uidFromInput(input);
-            if (uid) {
-                return uid;
-            }
-        }
-
-        return '';
-    }
-
-    function lonePageSection(doc) {
-        var nodes = doc.querySelectorAll('[data-sid-section-orderable]');
-        var list = [];
-        var seen = {};
-        var i;
-        var id;
-
-        for (i = 0; i < nodes.length; i++) {
-            id = nodes[i].getAttribute('data-sid');
-            if (id && !seen[id]) {
-                seen[id] = true;
-                list.push(nodes[i]);
-            }
-        }
-
-        return list.length === 1 ? list[0] : null;
-    }
-
     function classTokens(el) {
         return (el && el.getAttribute && el.getAttribute('class') || '')
             .split(/\s+/)
@@ -653,39 +607,6 @@
         var m = /partials\/page_sections\/(.+)\.antlers\.html$/.exec(dockPath());
 
         return m ? m[1] : '';
-    }
-
-    /**
-     * Whether `live` is a section the dock's file renders: by the row's `type`
-     * in the publish form, else by the `_class` the shell puts on the root.
-     *
-     * The section to paint used to be whatever looked active. After a reload,
-     * or with a section picked in another panel, that could be a different
-     * section than the file open in the dock — and the file's markup was
-     * morphed into it: the other section lost every child the file did not
-     * have and kept a headline that happened to match. A live root the file
-     * does not own is left to the morph now.
-     */
-    function paintsOwnSection(live) {
-        var type = dockSectionType();
-        var uid;
-        var ctx;
-        var cls;
-
-        if (!type || !live) {
-            return true;
-        }
-
-        uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
-        ctx = sectionContext(uid);
-
-        if (ctx && typeof ctx.type === 'string' && ctx.type !== '') {
-            return ctx.type === type;
-        }
-
-        cls = ' ' + (live.getAttribute('class') || '') + ' ';
-
-        return cls.indexOf(' ' + classFromType(type) + ' ') !== -1;
     }
 
     /**
@@ -765,9 +686,18 @@
             return null;
         }
 
+        // Only the path is known (a snippet with no file around it): the half itself.
+        if (!root) {
+            return host;
+        }
+
         marker = root.matches('[data-sve-chrome]') ? root : root.querySelector('[data-sve-chrome]');
 
         if (marker === root) {
+            if (host.tagName !== root.tagName) {
+                trace('chrome: the file\'s root is <' + root.tagName.toLowerCase() + '>, the ' + kind + ' on the page is <' + host.tagName.toLowerCase() + '>; left to the morph');
+            }
+
             return host.tagName === root.tagName ? host : null;
         }
 
@@ -812,102 +742,39 @@
     }
 
     /**
-     * Collection templates (services/show, index) stamp `visual_edit` on an
-     * inner tag, not `section_orderable` on the file root. Match the file's
-     * first element by path, then by tag + classes — not the header.
+     * A collection template or the layout: the one element of the root's tag
+     * outside the halves and the sections, else nothing. The preview marks no
+     * root for a view, and a guess is not a root: the view's markup used to
+     * be morphed into whichever section was active and shared the tag, until
+     * the morph put the section back. With two candidates the morph is all.
      */
-    function fileRootLive(doc, root) {
-        var tag;
-        var found;
-        var nodes;
-        var i;
-        var path;
-        var tokens;
+    function viewRoots(doc, root) {
+        var tag = root ? root.tagName : '';
+        var out = [];
         var live;
-        var cls;
-        var j;
-        var ok;
+        var i;
 
-        if (!doc || !root) {
-            return null;
+        if (!tag || /^(HTML|HEAD|BODY|META|LINK|TITLE|BASE|SCRIPT|STYLE)$/.test(tag)) {
+            return out;
         }
 
-        // A header or footer file is found by the half it is — never by a
-        // tag that happens to match a page section, which would paint the
-        // header's markup into that section.
-        if (chromeKindOfFile(root)) {
-            return chromeLive(doc, root);
-        }
-
-        tag = root.tagName;
-        found = pageSection(doc);
-
-        if (found && found.tagName === tag) {
-            return found;
-        }
-
-        nodes = doc.querySelectorAll('[data-sve-ht-path]');
-
-        for (i = 0; i < nodes.length; i++) {
-            path = nodes[i].getAttribute('data-sve-ht-path') || '';
-
-            if (nodes[i].tagName === tag && path.indexOf('/') === -1) {
-                return nodes[i];
-            }
-        }
-
-        tokens = classTokens(root);
         live = doc.getElementsByTagName(tag);
 
-        if (tokens.length) {
-            for (i = 0; i < live.length; i++) {
-                cls = ' ' + (live[i].getAttribute('class') || '') + ' ';
-                ok = true;
-
-                for (j = 0; j < tokens.length; j++) {
-                    if (cls.indexOf(' ' + tokens[j] + ' ') === -1) {
-                        ok = false;
-                        break;
-                    }
-                }
-
-                if (ok) {
-                    return live[i];
-                }
-            }
-        }
-
-        found = null;
-
         for (i = 0; i < live.length; i++) {
-            if (live[i].closest && live[i].closest('header, footer, nav, [data-sve-chrome]')) {
+            if (live[i].closest('header, footer, nav, [data-sve-chrome], [data-sid]')) {
                 continue;
             }
 
-            if (found) {
-                return live.length === 1 ? live[0] : null;
+            out.push(live[i]);
+
+            if (out.length > 1) {
+                trace('view: more than one <' + tag.toLowerCase() + '> on the page could be the file\'s root; left to the morph');
+
+                return [];
             }
-
-            found = live[i];
         }
 
-        return found || (live.length === 1 ? live[0] : null);
-    }
-
-    function pageSection(doc) {
-        var found =
-            outermostSid(
-                doc.querySelector('[data-sid-active]') || doc.querySelector('[data-sid-hover]')
-            ) ||
-            sectionBySid(doc, uidFromCp()) ||
-            sectionBySid(doc, lastSid) ||
-            lonePageSection(doc);
-
-        if (found) {
-            lastSid = found.getAttribute('data-sid') || lastSid;
-        }
-
-        return found;
+        return out;
     }
 
     // ---- Publish-form values: the real source for `{{ field }}` ----------------
@@ -1085,26 +952,25 @@
     }
 
     /**
-     * Every other section on the page the dock's file renders: the publish
-     * form's rows of the file's type, found in the preview by their uid. A
-     * section duplicated on the page shares its partial with the original;
-     * a class typed in the dock changed the focused one only, and the copy
-     * kept the old markup until the whole page was rendered again (Cuben,
-     * 18 Oct 2026). Rows, not the preview, say which sections are the file's.
+     * Every section on the page the dock's file renders: the forms' top-level
+     * rows of the file's type — the page's own and an open global section's
+     * — found in the preview by their uid, the picked one first. A section
+     * duplicated on the page shares its partial with the original; a class
+     * typed in the dock changed the focused one only, and the copy kept the
+     * old markup until the whole page was rendered again (Cuben, 18 Oct
+     * 2026). Rows, not the preview, say which sections are the file's: a
+     * section that merely looks active is left alone when its row is of
+     * another type.
      */
-    function sameTypeSections(doc, live) {
-        var type = dockSectionType();
+    function sectionRoots(doc, type) {
         var field = cfg('sveSectionField', 'page_sections');
+        var active = outermostSid(doc.querySelector('[data-sid-active]'));
         var out = [];
         var values;
         var rows;
         var el;
         var i;
         var j;
-
-        if (!type || !doc) {
-            return out;
-        }
 
         for (i = 0; i < containers.length; i++) {
             values = unwrapRef(containers[i].values);
@@ -1113,20 +979,99 @@
             for (j = 0; j < rows.length; j++) {
                 el = rows[j] && rows[j].type === type ? sectionOfRow(doc, rows[j]) : null;
 
-                if (el && el !== live && out.indexOf(el) === -1) {
+                if (el && out.indexOf(el) === -1) {
                     out.push(el);
                 }
             }
         }
 
+        if (active && out.indexOf(active) > 0) {
+            out.splice(out.indexOf(active), 1);
+            out.unshift(active);
+        }
+
         return out;
     }
 
-    /** The file's root in the preview and, for a page section, every other section of its type. */
-    function fileRootsLive(doc, root) {
-        var live = fileRootLive(doc, root);
+    // ---- The target: what the file is, where it renders, what it reads -------
+    //
+    // One answer for every path that paints — structure, classes, the CSS
+    // sheet, the saved block, the strip's lists — so a page section, a global
+    // section, the header, the footer and a component all go the same way.
+    // It used to be a different question in each path: the CSS pane was
+    // rendered for "the active page section" whatever file the dock held, so
+    // a footer's `{{ responsive_css }}` landed on a hero and a hero file's
+    // `#id-{{ id }}` on the intro that happened to be picked; a collection
+    // template's root was the active section when the tags matched.
 
-        return live ? [live].concat(sameTypeSections(doc, live)) : [];
+    /**
+     * `{ kind, roots, ctxs }` for the dock's file, from the file's path and
+     * the forms' values — never from what looks active in the preview.
+     *
+     *   kind   'section'    a page-section partial: the rows of its type say
+     *                       which sections, a page's or a global section's
+     *          'chrome'     the header's or the footer's file: the half the
+     *                       preview marks with `data-sve-chrome`
+     *          'component'  any other partial: the instances the preview marks
+     *          'view'       a collection template or the layout: the one
+     *                       element of the root's tag, else nothing
+     *   roots  the live elements the file renders, the picked one first;
+     *          empty when the page shows none, and then the morph is all
+     *   ctxs   per root, the values its `{{ field }}` reads, or null
+     *
+     * `root` is the file's parsed root — the half's marker, a component's or
+     * a view's tag are read off it; null when only the path is known.
+     */
+    function target(doc, root) {
+        var type = dockSectionType();
+        var kind;
+        var roots;
+        var live;
+
+        if (!doc) {
+            return { kind: '', roots: [], ctxs: [] };
+        }
+
+        if (type) {
+            kind = 'section';
+            roots = sectionRoots(doc, type);
+        } else if (chromeKindOfFile(root)) {
+            kind = 'chrome';
+            live = chromeLive(doc, root);
+            roots = live ? [live] : [];
+        } else if (isComponentFile(root)) {
+            kind = 'component';
+            roots = componentInstances(doc, root);
+        } else {
+            kind = 'view';
+            roots = viewRoots(doc, root);
+        }
+
+        return { kind: kind, roots: roots, ctxs: roots.map(contextOf) };
+    }
+
+    /** The values a live root's `{{ field }}` reads: its row's, else its half's; null with no form behind it. */
+    function contextOf(live) {
+        var uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
+
+        return sectionContext(uid) || chromeContext(live);
+    }
+
+    /** Whether `el` is in something the file renders. */
+    function inTarget(t, el) {
+        return t.roots.some(function (own) {
+            return own === el || own.contains(el);
+        });
+    }
+
+    /** The file's first live root, for the picked tag's lists. */
+    function fileRootLive(doc, root) {
+        return target(doc, root).roots[0] || null;
+    }
+
+    /** Every live root of the file. */
+    function fileRootsLive(doc, root) {
+        return target(doc, root).roots;
     }
 
     // Tag pairs whose body sees the same variables as the markup around
@@ -1283,10 +1228,361 @@
      * everything else becomes the marker character the rest of this file
      * treats as "not ours to paint".
      */
+    /**
+     * `{{ if field }} … {{ else }} … {{ /if }}` decided from the values, when
+     * the condition is one the values can decide: a field, its negation, a
+     * comparison with a literal, and `and` / `or` chains of those. The branch
+     * the server renders stays as static markup, the others go — so a tag
+     * typed inside `{{ if media }}` paints like one outside it. Anything the
+     * values cannot decide (a modifier, a tag, an unknown field, a condition
+     * inside a loop, where the fields are the rows') stays a block for the
+     * server to draw, as before.
+     */
+    function resolveConditions(source, ctx) {
+        var text = String(source);
+        var tags = [];
+        var i = 0;
+        var start;
+        var tag;
+        var body;
+        var name;
+        var closers = {};
+        var out;
+
+        if (!ctx) {
+            return text;
+        }
+
+        while ((start = text.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(text, start);
+            i = tag.end;
+
+            if (!tag.closed) {
+                break;
+            }
+
+            body = text.slice(start + 2, tag.end - 2).trim();
+            name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
+
+            // `{{ endif }}` is `{{ /if }}`, `{{ endunless }}` is `{{ /unless }}`.
+            if (name === 'endif' || name === 'endunless') {
+                tags.push({ from: start, to: tag.end, body: body, name: name.slice(3), closer: true });
+                continue;
+            }
+
+            tags.push({ from: start, to: tag.end, body: body, name: name, closer: body.charAt(0) === '/' });
+
+            if (body.charAt(0) === '/') {
+                closers[name] = true;
+            }
+        }
+
+        // How many loops are open at each tag: a condition inside a loop reads
+        // the rows' fields, not the row's, and is never decided here. An
+        // object pair (`{{ site_foot }}`) is a scope, not a loop.
+        markLoops(tags, closers, ctx);
+        out = renderConditions(text, tags, 0, tags.length, 0, text.length, ctx);
+
+        return out;
+    }
+
+    function markLoops(tags, closers, ctx) {
+        var open = [];
+        var i;
+        var t;
+
+        for (i = 0; i < tags.length; i++) {
+            t = tags[i];
+            t.loops = open.length;
+
+            if (t.closer) {
+                if (open.length && open[open.length - 1] === t.name) {
+                    open.pop();
+                }
+            } else if (t.name !== 'if' && t.name !== 'unless' && closers[t.name] && !SAME_SCOPE.test(t.name) && !scopeObject(t.name, ctx)) {
+                open.push(t.name);
+            }
+        }
+    }
+
+    /**
+     * The text from `from` to `to`, with the tags `a..b` in it: each top-level
+     * if-chain in that range decided when it can be (`tag.loops` says whether
+     * a loop is open around it).
+     */
+    function renderConditions(text, tags, a, b, from, to, ctx) {
+        var out = '';
+        var pos = from;
+        var i = a;
+        var tag;
+        var chain;
+        var pick;
+        var branch;
+        var inner;
+
+        while (i < b) {
+            tag = tags[i];
+
+            if (tag.closer) {
+                i++;
+                continue;
+            }
+
+            if (tag.name === 'if' || tag.name === 'unless') {
+                chain = ifChain(tags, i, b);
+
+                if (!chain) {
+                    break;
+                }
+
+                pick = tag.loops === 0 ? chosenBranch(chain, text, ctx) : null;
+
+                if (!pick) {
+                    // Undecided: copied as it is, nested chains and all.
+                    out += text.slice(pos, tags[chain.close].to);
+                } else {
+                    branch = pick.branch;
+                    out += text.slice(pos, tags[chain.open].from);
+
+                    if (branch) {
+                        inner = renderConditions(text, tags, branch.a, branch.b, branch.from, branch.to, ctx);
+                        out += inner;
+                    }
+                }
+
+                pos = tags[chain.close].to;
+                i = chain.close + 1;
+                continue;
+            }
+
+            i++;
+        }
+
+        return out + text.slice(pos, to);
+    }
+
+    /** The if-chain opening at tag `i`: its branches (condition tag, body range, tag range) and its closer index; null when it is not closed within `b`. */
+    function ifChain(tags, i, b) {
+        var open = i;
+        var depth = 0;
+        var branches = [];
+        var current = { cond: tags[i], a: i + 1, from: tags[i].to };
+        var j;
+        var t;
+
+        for (j = i + 1; j < b; j++) {
+            t = tags[j];
+
+            if (!t.closer && (t.name === 'if' || t.name === 'unless')) {
+                depth++;
+            } else if (t.closer && (t.name === 'if' || t.name === 'unless')) {
+                if (depth === 0) {
+                    current.b = j;
+                    current.to = t.from;
+                    branches.push(current);
+
+                    return { open: open, close: j, branches: branches };
+                }
+
+                depth--;
+            } else if (depth === 0 && !t.closer && (t.name === 'elseif' || t.name === 'else')) {
+                current.b = j;
+                current.to = t.from;
+                branches.push(current);
+                current = { cond: t, a: j + 1, from: t.to };
+            }
+        }
+
+        return null;
+    }
+
+    /** The branch the values choose, `{ branch }` (`branch` null when no branch renders), or null when a condition cannot be decided. */
+    function chosenBranch(chain, text, ctx) {
+        var i;
+        var br;
+        var cond;
+        var verdict;
+
+        for (i = 0; i < chain.branches.length; i++) {
+            br = chain.branches[i];
+            cond = br.cond;
+
+            if (cond.name === 'else') {
+                return { branch: br };
+            }
+
+            verdict = evalCondition(cond.body.replace(/^(if|unless|elseif)\b/, ''), ctx);
+
+            if (verdict === null) {
+                return null;
+            }
+
+            if (cond.name === 'unless') {
+                verdict = !verdict;
+            }
+
+            if (verdict) {
+                return { branch: br };
+            }
+        }
+
+        return { branch: null };
+    }
+
+    /** true / false when the values decide `expr`; null when they cannot. */
+    function evalCondition(expr, ctx) {
+        var text = String(expr || '').trim();
+        var parts;
+        var i;
+        var v;
+        var m;
+        var left;
+        var right;
+        var all;
+
+        while (/^\(.*\)$/.test(text) && balanced(text.slice(1, -1))) {
+            text = text.slice(1, -1).trim();
+        }
+
+        if (!text) {
+            return null;
+        }
+
+        if (/\s(or|\|\|)\s/.test(text) && /\s(and|&&)\s/.test(text)) {
+            return null;
+        }
+
+        parts = text.split(/\s(?:or|\|\|)\s/);
+
+        if (parts.length > 1) {
+            all = false;
+
+            for (i = 0; i < parts.length; i++) {
+                v = evalCondition(parts[i], ctx);
+
+                if (v === null) {
+                    return null;
+                }
+
+                all = all || v;
+            }
+
+            return all;
+        }
+
+        parts = text.split(/\s(?:and|&&)\s/);
+
+        if (parts.length > 1) {
+            all = true;
+
+            for (i = 0; i < parts.length; i++) {
+                v = evalCondition(parts[i], ctx);
+
+                if (v === null) {
+                    return null;
+                }
+
+                all = all && v;
+            }
+
+            return all;
+        }
+
+        m = /^(!|not\s+)?([a-zA-Z_][\w]*(?:\.[\w]+)*)$/.exec(text);
+
+        if (m) {
+            v = rawValue(m[2], ctx);
+
+            return v === undefined ? null : (m[1] ? !truthy(v) : truthy(v));
+        }
+
+        m = /^([a-zA-Z_][\w]*(?:\.[\w]+)*)\s*(===|!==|==|!=)\s*(?:'([^']*)'|"([^"]*)"|(-?\d+(?:\.\d+)?)|(true|false|null))$/.exec(text);
+
+        if (m) {
+            left = rawValue(m[1], ctx);
+
+            if (left === undefined || (left !== null && typeof left === 'object')) {
+                return null;
+            }
+
+            right = m[3] !== undefined ? m[3] : m[4] !== undefined ? m[4] : m[5] !== undefined ? Number(m[5]) : m[6] === 'true' ? true : m[6] === 'false' ? false : null;
+            v = m[5] !== undefined ? Number(left) === right : m[6] !== undefined ? (right === null ? (left === null || left === '') : left === right) : String(left === null ? '' : left) === right;
+
+            return m[2] === '!=' || m[2] === '!==' ? !v : v;
+        }
+
+        return null;
+    }
+
+    function balanced(text) {
+        var depth = 0;
+        var i;
+
+        for (i = 0; i < text.length; i++) {
+            if (text.charAt(i) === '(') {
+                depth++;
+            } else if (text.charAt(i) === ')') {
+                depth--;
+
+                if (depth < 0) {
+                    return false;
+                }
+            }
+        }
+
+        return depth === 0;
+    }
+
+    /** The value at a field path, as the form holds it; `undefined` when the path is not in the values. */
+    function rawValue(path, ctx) {
+        var parts = String(path).split('.');
+        var value = ctx;
+        var i;
+
+        if (!ctx || NOT_A_FIELD.test(parts[0]) || !Object.prototype.hasOwnProperty.call(ctx, parts[0])) {
+            return undefined;
+        }
+
+        for (i = 0; i < parts.length; i++) {
+            if (value === null || value === undefined) {
+                return null;
+            }
+
+            if (typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, parts[i])) {
+                return undefined;
+            }
+
+            value = value[parts[i]];
+        }
+
+        return value;
+    }
+
+    /** Antlers truth: null, '', 0, false and an empty list or set are false. */
+    function truthy(v) {
+        if (v === null || v === undefined || v === '' || v === 0 || v === false) {
+            return false;
+        }
+
+        if (Array.isArray(v)) {
+            return v.length > 0;
+        }
+
+        if (typeof v === 'object') {
+            return Object.keys(v).length > 0;
+        }
+
+        return true;
+    }
+
     function stripAntlers(html, ctx) {
-        var source = String(html).replace(/\{\{#[\s\S]*?#\}\}/g, '');
+        var source = resolveConditions(String(html).replace(/\{\{#[\s\S]*?#\}\}/g, ''), ctx);
         var closers = {};
         var scope = 0;
+        // The object pairs the paint is inside, outermost first: each one's
+        // name and the values that held before it opened.
+        var scopes = [];
+        var cur = ctx;
         var m;
         var re = /\{\{\s*\/([a-zA-Z0-9_:.-]+)/g;
 
@@ -1298,8 +1594,15 @@
             var body = (closed ? tag.slice(2, -2) : tag.slice(2)).trim();
             var name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
             var value;
+            var inner;
 
             if (body.charAt(0) === '/') {
+                if (scope === 0 && scopes.length && scopes[scopes.length - 1].name === name) {
+                    cur = scopes.pop().ctx;
+
+                    return '';
+                }
+
                 if (closers[name] && !SAME_SCOPE.test(name)) {
                     scope = Math.max(0, scope - 1);
                 }
@@ -1307,7 +1610,32 @@
                 return ANT_CLOSE;
             }
 
+            // Antlers also closes a condition with `{{ endif }}` / `{{ endunless }}`;
+            // read as a marker, it left the block open to the end of the file.
+            if (name === 'endif' || name === 'endunless') {
+                return ANT_CLOSE;
+            }
+
             if (name === 'if' || name === 'unless' || closers[name]) {
+                // A pair on a plain object — `{{ site_foot }} … {{ /site_foot }}`
+                // around the footer, `{{ settings }} …` in a section — is a
+                // scope, not a loop: the markup in it is as static as the
+                // markup around it, and a field in it reads the object first,
+                // the row after. Only an object the forms hold; an array is
+                // a loop, and a name the paint does not know stays a block
+                // for the server to draw. The footer's whole file used to be
+                // such a block: every field in it a marker, nothing filled.
+                if (scope === 0 && closers[name] && body === name && !SAME_SCOPE.test(name)) {
+                    inner = scopeObject(name, cur);
+
+                    if (inner) {
+                        scopes.push({ name: name, ctx: cur });
+                        cur = Object.assign({}, cur, inner);
+
+                        return '';
+                    }
+                }
+
                 if (closers[name] && !SAME_SCOPE.test(name)) {
                     scope++;
                 }
@@ -1323,10 +1651,31 @@
                 return ANT;
             }
 
-            value = resolveField(body, ctx);
+            value = resolveField(body, cur);
 
             return value === null ? ANT : escapeHtml(value);
         });
+    }
+
+    /** `name` (a field path) in `ctx` when it is a plain object — a scope a tag pair opens; null otherwise. */
+    function scopeObject(name, ctx) {
+        var parts = String(name).split('.');
+        var value = ctx;
+        var i;
+
+        if (!ctx || NOT_A_FIELD.test(parts[0])) {
+            return null;
+        }
+
+        for (i = 0; i < parts.length; i++) {
+            if (!value || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, parts[i])) {
+                return null;
+            }
+
+            value = value[parts[i]];
+        }
+
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
     }
 
     /**
@@ -1343,6 +1692,23 @@
         tpl.innerHTML = html;
 
         return tpl.content;
+    }
+
+    /**
+     * The file's root with no values filled in, read for its tag, its
+     * classes and the half's marker — parsed once per text, since the CSS
+     * sheet, the target and the class paint all ask on the same keystroke.
+     * Never painted from: `paintStructure` parses its own, with values.
+     */
+    var rootMemo = { html: null, root: null };
+
+    function fileRoot(html) {
+        if (rootMemo.html !== html) {
+            rootMemo.html = html;
+            rootMemo.root = templateRoot(html, null);
+        }
+
+        return rootMemo.root;
     }
 
     function templateRoot(html, ctx) {
@@ -1399,7 +1765,13 @@
         var priorTokens;
         var kept;
 
-        if (!el || hasMarker(value)) {
+        // A value with Antlers in it — `[ blocks ] {{ _alignment }}`,
+        // `{{ settings.x ?= 'sr-only' }} {{ class }}` — is still painted:
+        // its static tokens go on and off as in any class, the tag's output
+        // is a token this script does not know and so never touches (it is
+        // neither in the template now nor in `prior`). It used to wait whole
+        // for the morph (Cuben's media textbox, 20 Oct 2026).
+        if (!el) {
             return;
         }
 
@@ -1531,7 +1903,7 @@
         var kb = tplKidsOf(b);
         var i;
 
-        if (a.tagName !== b.tagName || ka.length !== kb.length) {
+        if (a.tagName !== b.tagName || ka.length !== kb.length || !relatedClass(a, b)) {
             return false;
         }
 
@@ -1542,6 +1914,40 @@
         }
 
         return true;
+    }
+
+    /**
+     * Whether two template elements can be the same one a keystroke apart:
+     * they share a class, one class is the other being typed, or — with no
+     * class to go by — their text is the same being typed. A new element with
+     * other classes and other text that happens to land at a previous child's
+     * index is not it: read as its prior, a `<p class="probe">` typed inside
+     * an undecided {{ if }} claimed the loop's last `<p class="item">` and
+     * rewrote it (20 Oct 2026).
+     */
+    function relatedClass(a, b) {
+        var ta = classValue(a.getAttribute('class') || '').split(' ').filter(Boolean);
+        var tb = classValue(b.getAttribute('class') || '').split(' ').filter(Boolean);
+        var i;
+        var j;
+
+        if (!ta.length && !tb.length) {
+            return true;
+        }
+
+        if (!ta.length || !tb.length) {
+            return sameTextBeingTyped(a.textContent.trim(), b.textContent.trim());
+        }
+
+        for (i = 0; i < ta.length; i++) {
+            for (j = 0; j < tb.length; j++) {
+                if (ta[i] === tb[j] || ta[i].indexOf(tb[j]) === 0 || tb[j].indexOf(ta[i]) === 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1732,7 +2138,8 @@
     function syncAttrs(live, tpl) {
         var cls = tpl.getAttribute('class');
 
-        if (cls !== null && !hasMarker(cls)) {
+        // A class with Antlers in it is painted too: its static tokens (applyClass).
+        if (cls !== null) {
             applyClass(live, cls, priorClass(tpl));
         }
     }
@@ -2213,14 +2620,95 @@
      * then swallowed the video after it, which the paint removed) — and for
      * a comment not closed yet.
      */
+    /**
+     * Whether the text ends inside a tag still being typed — `<p`, `<p class="x`,
+     * `</`, an open `<!--`. Read with Antlers blanked first and quotes
+     * followed, as a parser would. It used to be one regular expression over
+     * the raw text, and a `<` inside a quoted Alpine expression (`index < 0`
+     * in an `x-data`) read as the next tag's start: Cuben's gallery never
+     * painted a single keystroke, every edit waited for the morph (20 Oct 2026).
+     */
     function midTag(html) {
-        var text = String(html || '');
+        var text = maskAntlersText(String(html || ''));
+        var i = 0;
+        var n = text.length;
+        var c;
+        var quote;
 
-        return (
-            /<\/?[a-zA-Z][^<>"']*(?:"[^"]*"[^<>"']*|'[^']*'[^<>"']*)*(?:<|$|"[^"]*(?:<|$)|'[^']*(?:<|$))/.test(text) ||
-            /<\/(?![a-zA-Z])/.test(text) ||
-            /<!--(?![\s\S]*?-->)/.test(text)
-        );
+        while (i < n) {
+            if (text.charAt(i) !== '<') {
+                i++;
+                continue;
+            }
+
+            if (text.substr(i, 4) === '<!--') {
+                i = text.indexOf('-->', i + 4);
+
+                if (i === -1) {
+                    return true;
+                }
+
+                i += 3;
+                continue;
+            }
+
+            c = text.charAt(i + 1);
+
+            if (c === '/') {
+                if (!/[a-zA-Z]/.test(text.charAt(i + 2) || '')) {
+                    return true;
+                }
+            } else if (!/[a-zA-Z]/.test(c || '')) {
+                i++;
+                continue;
+            }
+
+            // Inside a tag: to its `>`, quotes followed; the end of the text first means a tag half typed.
+            i++;
+            quote = '';
+
+            while (i < n) {
+                c = text.charAt(i);
+
+                if (quote) {
+                    if (c === quote) {
+                        quote = '';
+                    }
+                } else if (c === '"' || c === "'") {
+                    quote = c;
+                } else if (c === '>') {
+                    break;
+                } else if (c === '<') {
+                    return true;
+                }
+
+                i++;
+            }
+
+            if (i >= n) {
+                return true;
+            }
+
+            i++;
+        }
+
+        return false;
+    }
+
+    /** Antlers blanked to spaces (offsets kept): a `>` or `<` inside `{{ }}` is not markup. */
+    function maskAntlersText(text) {
+        var out = '';
+        var i = 0;
+        var start;
+        var tag;
+
+        while ((start = text.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(text, start);
+            out += text.slice(i, start) + new Array(tag.end - start + 1).join(' ');
+            i = tag.end;
+        }
+
+        return out + text.slice(i);
     }
 
     /**
@@ -2625,7 +3113,6 @@
      * paint if the walk throws, so a bad template never breaks the preview.
      */
     function paintStructure(live, html, scopedRoot) {
-        var uid;
         var ctx = null;
         var tpl = scopedRoot;
         var started = window.performance ? performance.now() : Date.now();
@@ -2637,8 +3124,7 @@
         }
 
         try {
-            uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
-            ctx = sectionContext(uid) || chromeContext(live);
+            ctx = contextOf(live);
             tpl = scopedRoot || templateRoot(html, ctx);
         } catch (e) {
             trace('structure: values/template failed, classes only: ' + (e && e.message));
@@ -3105,7 +3591,6 @@
                 lastHtml = null;
                 lastCalls = null;
                 waitingCalls = {};
-                lastSid = '';
                 // A new document has no live sheet: forgotten, or the paint
                 // would skip the CSS as "already there" until the next
                 // keystroke in the pane.
@@ -3310,7 +3795,7 @@
             return liveByPath(doc, active);
         }
 
-        root = tpl ? fileRootLive(doc, templateRoot(fullHtml() || paneText('html')) || tpl) : null;
+        root = tpl ? fileRootLive(doc, fileRoot(fullHtml() || paneText('html')) || tpl) : null;
 
         if (active && tag && active.tagName !== tag) {
             inner = active.querySelector(tag.toLowerCase());
@@ -3395,7 +3880,7 @@
         var i;
 
         for (i = 0; i < marked.length; i++) {
-            if (marked[i].tagName === root.tagName) {
+            if (!root || marked[i].tagName === root.tagName) {
                 out.push(marked[i]);
             }
         }
@@ -3420,27 +3905,23 @@
     function paintLive(doc, html, snippetOnly) {
         var pane = paneText('html');
         var root;
-        var live;
-        var focused;
+        var t;
         var tpl;
         var i;
         var targets;
 
         if (snippetOnly) {
             root = templateRoot(pane);
+            t = target(doc, null);
+            // Only inside what the file renders: the snippet's tag found in
+            // another file's section is that section's, not the dock's.
             targets = scopedRootLive(doc, pane).filter(function (el) {
-                if (paintsOwnSection(el)) {
-                    return true;
-                }
-
-                trace('paintLive: ' + el.tagName.toLowerCase() + ' is not the section the dock\'s file renders (' + dockSectionType() + '); left to the morph');
-
-                return false;
+                return inTarget(t, el);
             });
 
             if (root && targets.length && targets[0].tagName === root.tagName) {
                 targets.forEach(function (el) {
-                    var scoped = templateRoot(pane, sectionContext((outermostSid(el) || el).getAttribute('data-sid') || ''));
+                    var scoped = templateRoot(pane, contextOf(el));
 
                     if (!scoped || !paintStructure(el, pane, scoped)) {
                         syncClasses(el, root);
@@ -3451,70 +3932,41 @@
             return;
         }
 
-        root = templateRoot(html);
+        root = fileRoot(html);
 
         if (!root) {
             return;
         }
 
-        // The open file is a component: the preview marks every place it
-        // renders, and every one is painted — a card typed once is on the page
-        // eight times. Structure and classes, like a section; the text of a
-        // `{{ props_* }}` is the caller's and waits for the morph. Used to be
-        // classes only here, so a new tag in a component waited a second.
-        focused = componentInstances(doc, root);
+        t = target(doc, root);
+        trace('target: ' + t.kind + ' → ' + t.roots.length + ' live root(s)' + (t.roots.length ? ' <' + t.roots[0].tagName.toLowerCase() + '>' : '') + ', values for ' + t.ctxs.filter(Boolean).length);
 
-        if (focused.length) {
-            tpl = templateRoot(html, null);
+        // Nothing on the page renders the file — a component whose dialog is
+        // shut, a view with no one root, a section whose row the forms do
+        // not hold. Nothing is guessed in its place: the morph is all.
+        if (!t.roots.length) {
+            trace('paintLive: nothing on the page renders the dock\'s file; left to the morph');
 
-            for (i = 0; i < focused.length; i++) {
-                if (!paintStructure(focused[i], html, tpl)) {
-                    syncClasses(focused[i], root);
-                }
+            return;
+        }
+
+        // Every root the file renders is painted: each section of the file's
+        // type with its own row's values; every instance of a component —
+        // a card typed once is on the page eight times — with structure and
+        // classes, while the text of a `{{ props_* }}` is the caller's and
+        // waits for the morph.
+        tpl = t.kind === 'component' ? templateRoot(html, null) : null;
+
+        for (i = 0; i < t.roots.length; i++) {
+            if (t.roots[i].tagName !== root.tagName) {
+                trace('paintLive: <' + root.tagName.toLowerCase() + '> in the file, <' + t.roots[i].tagName.toLowerCase() + '> on the page; left to the morph');
+
+                continue;
             }
 
-            return;
-        }
-
-        // A component's places are the ones the preview marks. None on the
-        // page — a dialog shut, so its body is not drawn — leaves nothing of
-        // this file to paint. Read further, the section rules below guessed
-        // an element by tag and morphed the component into it: a shut
-        // dialog's body stood in the section, outside the dialog, unstyled.
-        if (isComponentFile(root)) {
-            trace('paintLive: no instance of the component on the page; left to the morph');
-
-            return;
-        }
-
-        live = fileRootLive(doc, root);
-
-        if (!live) {
-            trace('paintLive: no live root for <' + root.tagName.toLowerCase() + '>');
-        }
-
-        if (live && !paintsOwnSection(live)) {
-            trace('paintLive: ' + live.tagName.toLowerCase() + '#' + live.id + ' is not the section the dock\'s file renders (' + dockSectionType() + '); left to the morph');
-
-            return;
-        }
-
-        // The section, and every other section of its type on the page: each
-        // is painted with its own row's values.
-        if (live && live.tagName === root.tagName) {
-            [live].concat(sameTypeSections(doc, live)).forEach(function (el) {
-                if (el.tagName === root.tagName && !paintStructure(el, html, null)) {
-                    syncClasses(el, root);
-                }
-            });
-
-            return;
-        }
-
-        targets = pickedLive(doc, root).filter(paintsOwnSection);
-
-        if (targets.length && targets[0].tagName === root.tagName) {
-            syncClasses(targets[0], root);
+            if (!paintStructure(t.roots[i], html, tpl)) {
+                syncClasses(t.roots[i], root);
+            }
         }
     }
 
@@ -3531,7 +3983,6 @@
 
         lastPath = path;
         lastHtml = null;
-        lastSid = '';
         lastFullHtml = '';
         lastSnippet = '';
         lastCalls = null;
@@ -3572,23 +4023,20 @@
         return htmlScoped() ? lastCss : paneText('css');
     }
 
-    /** The section the dock is on, as the page loop hands its partial the row — for the CSS pane's `{{ id }}` and friends. */
     /**
-     * The rows the CSS pane is rendered for: the focused section's, then every
-     * other section of the file's type — `#id-{{ id }}` is a rule per section,
-     * and a copy on the page needs its own. `[null]` when no row is known.
+     * The values the CSS pane is rendered for: one set per root the file
+     * renders — `#id-{{ id }}` is a rule per section, and a copy on the page
+     * needs its own; the footer's `{{ site_foot.bg_color }}` is the footer
+     * form's. `[null]` when no form is behind any root: every declaration
+     * with a tag in it then goes, and the rest stands as typed. Used to be
+     * the active page section's row whatever file the dock held, so a
+     * footer's rules were rendered for a hero.
      */
-    function cssContexts(doc) {
-        var section;
+    function cssContexts(doc, root) {
         var out;
 
         try {
-            section = pageSection(doc);
-            out = (section ? [section].concat(sameTypeSections(doc, section)) : [])
-                .map(function (el) {
-                    return sectionContext(el.getAttribute('data-sid') || '');
-                })
-                .filter(Boolean);
+            out = target(doc, root).ctxs.filter(Boolean);
 
             return out.length ? out : [null];
         } catch (e) {
@@ -3741,7 +4189,7 @@
         // cut while the live sheet had none for it lost its styles.
         lastCss = css;
         docs.forEach(function (doc) {
-            var ctxs = cssContexts(doc);
+            var ctxs = cssContexts(doc, fileRoot(html));
 
             putStyle(doc, STYLE_CSS_ID, cssPerRow(css, ctxs).join('\n'));
             placeLiveCss(doc);
@@ -3775,7 +4223,7 @@
 
             // A snippet with no file has no calls to place, and a component's
             // own calls render inside its instances, not in a section.
-            if (!(scoped && !file) && !isComponentFile(templateRoot(html))) {
+            if (!(scoped && !file) && !isComponentFile(fileRoot(html))) {
                 // A list held on a call goes first: the element's own classes
                 // are what the change is painted on, and the hold goes back on top.
                 if (twHoldRequest && twHoldRequest.call) {
@@ -3978,8 +4426,7 @@
      */
     function snippetRootLive(doc, tplRoot) {
         var tag = tplRoot.tagName;
-        var active = doc.querySelector('[data-sid-active]');
-        var host = active || pageSection(doc);
+        var host = target(doc, null).roots[0] || null;
 
         if (!host || host.tagName !== tag) {
             trace('snippet: <' + tag.toLowerCase() + '> with no file around it; left to the morph');
@@ -4002,6 +4449,8 @@
         var path;
         var tplEl;
         var targets = [];
+        var call;
+        var found;
 
         if (!tplRoot) {
             return { targets: [], tag: '' };
@@ -4013,6 +4462,16 @@
         // 12 Oct 2026). The tag's output is the server's; nothing is its
         // live element until the morph.
         if (inAntlers(html, at)) {
+            call = callAt(html, at);
+            found = call ? callTargets(doc, html, call, call.name || 'class', call.value) : null;
+
+            // In the class parameter of a call: the element its output is.
+            if (found && found.targets.length) {
+                trace('tw: caret in the class of {{ ' + call.kind + ' }} → ' + found.targets.length + ' live element(s)');
+
+                return { targets: found.targets, tag: found.targets[0].tagName, tplEl: null, tplRoot: tplRoot, roots: [], call: call };
+            }
+
             trace('tw: caret inside an Antlers tag; its output is the server\'s — no live element');
 
             return { targets: [], tag: '', tplEl: null, tplRoot: tplRoot, roots: [] };
@@ -4084,7 +4543,15 @@
     // Anything else waits for the morph, which stays the truth.
 
     /** `{{ partial:… }}` / `{{ partial src="…" }}` — the calls the dock finds (dock-partials.js). */
-    var CALL_RE = /\{\{\s*partial(?::([^\s}]+)|(?=[\s}]))([\s\S]*?)\}\}/gi;
+    /**
+     * Antlers tags whose literal `class` parameter lands on an element the
+     * server renders: a component call (`{{ partial:… class="…" }}`), and
+     * `{{ svg }}` / `{{ iconify }}`, whose output is one <svg>. A class typed
+     * in such a parameter used to wait for the morph — the tag is a marker to
+     * the structure paint, and a caret inside it had no live element (the
+     * pattern svg in Cuben's banner, 20 Oct 2026).
+     */
+    var CALL_OUTPUT = { svg: 'SVG', iconify: 'SVG' };
     /** The class a call hands on: `class`, `_class` or a `class` prop (component-props.js `CLASS_PARAMS`). */
     var CALL_CLASS_RE = /(^|\s)(:?)(class|_class|props_class)\s*=\s*(["'])([\s\S]*?)\4/;
     /** A component's own HTML by src: a string, null when there is none, a promise while it is asked for. */
@@ -4094,32 +4561,61 @@
     /** A call's change that came before its component's file: painted when the file arrives, if the dock still says the same. */
     var waitingCalls = {};
 
+    /** Every call in the file, in order: `{ at, end, kind, src, name, bound, value, valueAt }`. */
     function componentCalls(html) {
         var source = String(html || '').replace(/\{\{#[\s\S]*?#\}\}/g, function (m) {
             return new Array(m.length + 1).join(' ');
         });
         var out = [];
-        var m;
-        var src;
+        var i = 0;
+        var start;
+        var tag;
+        var raw;
+        var head;
+        var kind;
+        var given;
         var attr;
         var cls;
 
-        CALL_RE.lastIndex = 0;
+        while ((start = source.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(source, start);
+            i = tag.end;
 
-        while ((m = CALL_RE.exec(source))) {
-            attr = m[2].match(/\bsrc\s*=\s*(["'])([^"']+)\1/i);
-            src = (m[1] || '').trim() || (attr ? attr[2].trim() : '');
-            cls = m[2].match(CALL_CLASS_RE);
+            if (!tag.closed) {
+                continue;
+            }
+
+            raw = source.slice(start, tag.end);
+            head = /^\{\{\s*(partial|svg|iconify)(?::([^\s}]+))?(?=[\s}])/.exec(raw);
+
+            if (!head) {
+                continue;
+            }
+
+            kind = head[1];
+            attr = raw.match(/\bsrc\s*=\s*(["'])([^"']+)\1/i);
+            given = (head[2] || '').trim() || (attr ? attr[2].trim() : '');
+            cls = raw.match(CALL_CLASS_RE);
             out.push({
-                at: m.index,
-                src: src,
+                at: start,
+                end: tag.end,
+                kind: kind,
+                src: kind === 'partial' ? given : kind + ':' + (given || '?'),
                 name: cls ? cls[3] : '',
                 bound: !!(cls && cls[2]),
                 value: cls ? cls[5] : '',
+                valueAt: cls ? start + cls.index + cls[0].indexOf(cls[4]) + 1 : -1,
             });
         }
 
         return out;
+    }
+
+    /** The call whose literal class value the offset `at` is in, or null. */
+    function callAt(html, at) {
+        return componentCalls(html).filter(function (call) {
+            return !call.bound && call.valueAt !== -1 && at >= call.valueAt && at <= call.valueAt + call.value.length;
+        })[0] || null;
     }
 
     /** `blocks/{type}` is a folder, not one component (dock-partials.js `hasToken`). */
@@ -4222,7 +4718,7 @@
     /** The element starts a render of the component: its class-bearing tag, a root its file names, or the preview's stamp. */
     function startsRender(el, spec, src) {
         return fitsSpec(el, spec) || el.getAttribute('data-sve-component-src') === src || spec.roots.some(function (root) {
-            return root.tag === el.tagName && root.classes.every(function (name) {
+            return root.tag === el.tagName.toUpperCase() && root.classes.every(function (name) {
                 return el.classList.contains(name);
             });
         });
@@ -4235,8 +4731,9 @@
         });
     }
 
+    /** An <svg> in an HTML document keeps a lowercase tagName; compared uppercased. */
     function fitsSpec(el, spec) {
-        return el.tagName === spec.tag && spec.classes.every(function (name) {
+        return el.tagName.toUpperCase() === spec.tag && spec.classes.every(function (name) {
             return el.classList.contains(name);
         });
     }
@@ -4268,7 +4765,14 @@
      * component gives them itself (never taken away). Null when they cannot
      * be told for certain — the morph shows the class then.
      */
-    function callTargets(doc, html, call, name) {
+    /**
+     * `current` is the class value the live element bears now — the call's
+     * value before this keystroke when painting, the value in the file when a
+     * list is held on it. A `{{ svg }}` / `{{ iconify }}` is found by it: the
+     * one <svg> the server rendered beside the template's own children that
+     * wears those classes. A component is found by its file's class-bearing tag.
+     */
+    function callTargets(doc, html, call, name, current) {
         var file;
         var spec;
         var where;
@@ -4276,38 +4780,46 @@
         var targets = [];
         var ambiguous = false;
 
-        if (!oneComponent(call.src) || call.bound || /[{}]/.test(call.value)) {
+        if (call.bound || /[{}]/.test(call.value)) {
             return null;
         }
 
-        if (componentCalls(html).filter(function (other) {
-            return other.src === call.src;
-        }).length !== 1) {
-            trace('call: ' + call.src + ' is called more than once in the file; left to the morph');
+        if (call.kind !== 'partial') {
+            spec = { tag: CALL_OUTPUT[call.kind], classes: splitClasses(current), roots: [] };
+        } else {
+            if (!oneComponent(call.src)) {
+                return null;
+            }
 
-            return null;
-        }
+            if (componentCalls(html).filter(function (other) {
+                return other.src === call.src;
+            }).length !== 1) {
+                trace('call: ' + call.src + ' is called more than once in the file; left to the morph');
 
-        file = componentFiles[call.src];
+                return null;
+            }
 
-        if (typeof file !== 'string') {
-            wantComponentFile(call.src);
-            trace('call: ' + call.src + (file === null ? ' has no file to read' : ' not read yet') + '; left to the morph');
+            file = componentFiles[call.src];
 
-            return null;
-        }
+            if (typeof file !== 'string') {
+                wantComponentFile(call.src);
+                trace('call: ' + call.src + (file === null ? ' has no file to read' : ' not read yet') + '; left to the morph');
 
-        spec = classSpec(file, name);
+                return null;
+            }
 
-        if (!spec) {
-            trace('call: no one tag in ' + call.src + ' reads {{ ' + name + ' }}; left to the morph');
+            spec = classSpec(file, name);
 
-            return null;
+            if (!spec) {
+                trace('call: no one tag in ' + call.src + ' reads {{ ' + name + ' }}; left to the morph');
+
+                return null;
+            }
         }
 
         where = liveForOffset(doc, html, call.at, false);
 
-        if (!where.targets.length || !where.tplEl || !where.roots.every(paintsOwnSection)) {
+        if (!where.targets.length || !where.tplEl) {
             trace('call: no live parent for ' + call.src + '; left to the morph');
 
             return null;
@@ -4345,7 +4857,7 @@
                 return;
             }
 
-            hits = [roots[0]].concat(Array.prototype.slice.call(roots[0].querySelectorAll(spec.tag))).filter(function (el) {
+            hits = [roots[0]].concat(Array.prototype.slice.call(roots[0].querySelectorAll(spec.tag.toLowerCase()))).filter(function (el) {
                 return fitsSpec(el, spec) && !inOtherComponent(el, roots[0], call.src);
             });
 
@@ -4362,7 +4874,7 @@
             return null;
         }
 
-        return { targets: targets, keep: spec.classes };
+        return { targets: targets, keep: call.kind === 'partial' ? spec.classes : [] };
     }
 
     /** The element's classes with the call's old ones out and the new ones in; the component's own stay. */
@@ -4397,7 +4909,9 @@
 
         lastCalls = calls;
         calls.forEach(function (call) {
-            wantComponentFile(call.src);
+            if (call.kind === 'partial') {
+                wantComponentFile(call.src);
+            }
         });
 
         if (!prev || prev.length !== calls.length || prev.some(function (call, at) {
@@ -4420,7 +4934,7 @@
             return;
         }
 
-        if (typeof componentFiles[call.src] !== 'string' && componentFiles[call.src] !== null && oneComponent(call.src)) {
+        if (call.kind === 'partial' && typeof componentFiles[call.src] !== 'string' && componentFiles[call.src] !== null && oneComponent(call.src)) {
             waitingCalls[call.src] = { html: html, call: call, prev: (waitingCalls[call.src] || {}).prev || prev };
             wantComponentFile(call.src);
             trace('call: ' + call.src + ' changed before its file arrived; painted when it does');
@@ -4429,7 +4943,7 @@
         }
 
         docs.forEach(function (doc) {
-            var found = callTargets(doc, html, call, name);
+            var found = callTargets(doc, html, call, name, prev.value);
 
             if (!found) {
                 return;
@@ -4456,7 +4970,7 @@
 
         // The paint's rules: a scoped slice with no file around it has no call
         // to place, and a component's own calls render inside its instances.
-        if ((scoped && !file) || isComponentFile(templateRoot(html))) {
+        if ((scoped && !file) || isComponentFile(fileRoot(html))) {
             return;
         }
 
@@ -4472,7 +4986,7 @@
 
         holdTw(docs, {
             find: function (doc) {
-                var found = callTargets(doc, html, call, name);
+                var found = callTargets(doc, html, call, name, typeof detail.old === 'string' ? detail.old : call.value);
 
                 keep = found ? found.keep : keep;
 

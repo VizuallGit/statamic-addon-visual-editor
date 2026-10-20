@@ -4,3 +4,5 @@ composer.lock
 .phpunit.result.cache
 .DS_Store
 tests/browser/instant-harness.out.html
+tests/browser/instant-target.out.html
+tests/browser/instant-calls.out.html
