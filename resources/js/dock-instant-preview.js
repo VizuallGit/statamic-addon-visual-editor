@@ -1228,8 +1228,355 @@
      * everything else becomes the marker character the rest of this file
      * treats as "not ours to paint".
      */
+    /**
+     * `{{ if field }} … {{ else }} … {{ /if }}` decided from the values, when
+     * the condition is one the values can decide: a field, its negation, a
+     * comparison with a literal, and `and` / `or` chains of those. The branch
+     * the server renders stays as static markup, the others go — so a tag
+     * typed inside `{{ if media }}` paints like one outside it. Anything the
+     * values cannot decide (a modifier, a tag, an unknown field, a condition
+     * inside a loop, where the fields are the rows') stays a block for the
+     * server to draw, as before.
+     */
+    function resolveConditions(source, ctx) {
+        var text = String(source);
+        var tags = [];
+        var i = 0;
+        var start;
+        var tag;
+        var body;
+        var name;
+        var closers = {};
+        var out;
+
+        if (!ctx) {
+            return text;
+        }
+
+        while ((start = text.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(text, start);
+            i = tag.end;
+
+            if (!tag.closed) {
+                break;
+            }
+
+            body = text.slice(start + 2, tag.end - 2).trim();
+            name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
+
+            // `{{ endif }}` is `{{ /if }}`, `{{ endunless }}` is `{{ /unless }}`.
+            if (name === 'endif' || name === 'endunless') {
+                tags.push({ from: start, to: tag.end, body: body, name: name.slice(3), closer: true });
+                continue;
+            }
+
+            tags.push({ from: start, to: tag.end, body: body, name: name, closer: body.charAt(0) === '/' });
+
+            if (body.charAt(0) === '/') {
+                closers[name] = true;
+            }
+        }
+
+        // How many loops are open at each tag: a condition inside a loop reads
+        // the rows' fields, not the row's, and is never decided here. An
+        // object pair (`{{ site_foot }}`) is a scope, not a loop.
+        markLoops(tags, closers, ctx);
+        out = renderConditions(text, tags, 0, tags.length, 0, text.length, ctx);
+
+        return out;
+    }
+
+    function markLoops(tags, closers, ctx) {
+        var open = [];
+        var i;
+        var t;
+
+        for (i = 0; i < tags.length; i++) {
+            t = tags[i];
+            t.loops = open.length;
+
+            if (t.closer) {
+                if (open.length && open[open.length - 1] === t.name) {
+                    open.pop();
+                }
+            } else if (t.name !== 'if' && t.name !== 'unless' && closers[t.name] && !SAME_SCOPE.test(t.name) && !scopeObject(t.name, ctx)) {
+                open.push(t.name);
+            }
+        }
+    }
+
+    /**
+     * The text from `from` to `to`, with the tags `a..b` in it: each top-level
+     * if-chain in that range decided when it can be (`tag.loops` says whether
+     * a loop is open around it).
+     */
+    function renderConditions(text, tags, a, b, from, to, ctx) {
+        var out = '';
+        var pos = from;
+        var i = a;
+        var tag;
+        var chain;
+        var pick;
+        var branch;
+        var inner;
+
+        while (i < b) {
+            tag = tags[i];
+
+            if (tag.closer) {
+                i++;
+                continue;
+            }
+
+            if (tag.name === 'if' || tag.name === 'unless') {
+                chain = ifChain(tags, i, b);
+
+                if (!chain) {
+                    break;
+                }
+
+                pick = tag.loops === 0 ? chosenBranch(chain, text, ctx) : null;
+
+                if (!pick) {
+                    // Undecided: copied as it is, nested chains and all.
+                    out += text.slice(pos, tags[chain.close].to);
+                } else {
+                    branch = pick.branch;
+                    out += text.slice(pos, tags[chain.open].from);
+
+                    if (branch) {
+                        inner = renderConditions(text, tags, branch.a, branch.b, branch.from, branch.to, ctx);
+                        out += inner;
+                    }
+                }
+
+                pos = tags[chain.close].to;
+                i = chain.close + 1;
+                continue;
+            }
+
+            i++;
+        }
+
+        return out + text.slice(pos, to);
+    }
+
+    /** The if-chain opening at tag `i`: its branches (condition tag, body range, tag range) and its closer index; null when it is not closed within `b`. */
+    function ifChain(tags, i, b) {
+        var open = i;
+        var depth = 0;
+        var branches = [];
+        var current = { cond: tags[i], a: i + 1, from: tags[i].to };
+        var j;
+        var t;
+
+        for (j = i + 1; j < b; j++) {
+            t = tags[j];
+
+            if (!t.closer && (t.name === 'if' || t.name === 'unless')) {
+                depth++;
+            } else if (t.closer && (t.name === 'if' || t.name === 'unless')) {
+                if (depth === 0) {
+                    current.b = j;
+                    current.to = t.from;
+                    branches.push(current);
+
+                    return { open: open, close: j, branches: branches };
+                }
+
+                depth--;
+            } else if (depth === 0 && !t.closer && (t.name === 'elseif' || t.name === 'else')) {
+                current.b = j;
+                current.to = t.from;
+                branches.push(current);
+                current = { cond: t, a: j + 1, from: t.to };
+            }
+        }
+
+        return null;
+    }
+
+    /** The branch the values choose, `{ branch }` (`branch` null when no branch renders), or null when a condition cannot be decided. */
+    function chosenBranch(chain, text, ctx) {
+        var i;
+        var br;
+        var cond;
+        var verdict;
+
+        for (i = 0; i < chain.branches.length; i++) {
+            br = chain.branches[i];
+            cond = br.cond;
+
+            if (cond.name === 'else') {
+                return { branch: br };
+            }
+
+            verdict = evalCondition(cond.body.replace(/^(if|unless|elseif)\b/, ''), ctx);
+
+            if (verdict === null) {
+                return null;
+            }
+
+            if (cond.name === 'unless') {
+                verdict = !verdict;
+            }
+
+            if (verdict) {
+                return { branch: br };
+            }
+        }
+
+        return { branch: null };
+    }
+
+    /** true / false when the values decide `expr`; null when they cannot. */
+    function evalCondition(expr, ctx) {
+        var text = String(expr || '').trim();
+        var parts;
+        var i;
+        var v;
+        var m;
+        var left;
+        var right;
+        var all;
+
+        while (/^\(.*\)$/.test(text) && balanced(text.slice(1, -1))) {
+            text = text.slice(1, -1).trim();
+        }
+
+        if (!text) {
+            return null;
+        }
+
+        if (/\s(or|\|\|)\s/.test(text) && /\s(and|&&)\s/.test(text)) {
+            return null;
+        }
+
+        parts = text.split(/\s(?:or|\|\|)\s/);
+
+        if (parts.length > 1) {
+            all = false;
+
+            for (i = 0; i < parts.length; i++) {
+                v = evalCondition(parts[i], ctx);
+
+                if (v === null) {
+                    return null;
+                }
+
+                all = all || v;
+            }
+
+            return all;
+        }
+
+        parts = text.split(/\s(?:and|&&)\s/);
+
+        if (parts.length > 1) {
+            all = true;
+
+            for (i = 0; i < parts.length; i++) {
+                v = evalCondition(parts[i], ctx);
+
+                if (v === null) {
+                    return null;
+                }
+
+                all = all && v;
+            }
+
+            return all;
+        }
+
+        m = /^(!|not\s+)?([a-zA-Z_][\w]*(?:\.[\w]+)*)$/.exec(text);
+
+        if (m) {
+            v = rawValue(m[2], ctx);
+
+            return v === undefined ? null : (m[1] ? !truthy(v) : truthy(v));
+        }
+
+        m = /^([a-zA-Z_][\w]*(?:\.[\w]+)*)\s*(===|!==|==|!=)\s*(?:'([^']*)'|"([^"]*)"|(-?\d+(?:\.\d+)?)|(true|false|null))$/.exec(text);
+
+        if (m) {
+            left = rawValue(m[1], ctx);
+
+            if (left === undefined || (left !== null && typeof left === 'object')) {
+                return null;
+            }
+
+            right = m[3] !== undefined ? m[3] : m[4] !== undefined ? m[4] : m[5] !== undefined ? Number(m[5]) : m[6] === 'true' ? true : m[6] === 'false' ? false : null;
+            v = m[5] !== undefined ? Number(left) === right : m[6] !== undefined ? (right === null ? (left === null || left === '') : left === right) : String(left === null ? '' : left) === right;
+
+            return m[2] === '!=' || m[2] === '!==' ? !v : v;
+        }
+
+        return null;
+    }
+
+    function balanced(text) {
+        var depth = 0;
+        var i;
+
+        for (i = 0; i < text.length; i++) {
+            if (text.charAt(i) === '(') {
+                depth++;
+            } else if (text.charAt(i) === ')') {
+                depth--;
+
+                if (depth < 0) {
+                    return false;
+                }
+            }
+        }
+
+        return depth === 0;
+    }
+
+    /** The value at a field path, as the form holds it; `undefined` when the path is not in the values. */
+    function rawValue(path, ctx) {
+        var parts = String(path).split('.');
+        var value = ctx;
+        var i;
+
+        if (!ctx || NOT_A_FIELD.test(parts[0]) || !Object.prototype.hasOwnProperty.call(ctx, parts[0])) {
+            return undefined;
+        }
+
+        for (i = 0; i < parts.length; i++) {
+            if (value === null || value === undefined) {
+                return null;
+            }
+
+            if (typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, parts[i])) {
+                return undefined;
+            }
+
+            value = value[parts[i]];
+        }
+
+        return value;
+    }
+
+    /** Antlers truth: null, '', 0, false and an empty list or set are false. */
+    function truthy(v) {
+        if (v === null || v === undefined || v === '' || v === 0 || v === false) {
+            return false;
+        }
+
+        if (Array.isArray(v)) {
+            return v.length > 0;
+        }
+
+        if (typeof v === 'object') {
+            return Object.keys(v).length > 0;
+        }
+
+        return true;
+    }
+
     function stripAntlers(html, ctx) {
-        var source = String(html).replace(/\{\{#[\s\S]*?#\}\}/g, '');
+        var source = resolveConditions(String(html).replace(/\{\{#[\s\S]*?#\}\}/g, ''), ctx);
         var closers = {};
         var scope = 0;
         // The object pairs the paint is inside, outermost first: each one's
@@ -1260,6 +1607,12 @@
                     scope = Math.max(0, scope - 1);
                 }
 
+                return ANT_CLOSE;
+            }
+
+            // Antlers also closes a condition with `{{ endif }}` / `{{ endunless }}`;
+            // read as a marker, it left the block open to the end of the file.
+            if (name === 'endif' || name === 'endunless') {
                 return ANT_CLOSE;
             }
 
@@ -1412,7 +1765,13 @@
         var priorTokens;
         var kept;
 
-        if (!el || hasMarker(value)) {
+        // A value with Antlers in it — `[ blocks ] {{ _alignment }}`,
+        // `{{ settings.x ?= 'sr-only' }} {{ class }}` — is still painted:
+        // its static tokens go on and off as in any class, the tag's output
+        // is a token this script does not know and so never touches (it is
+        // neither in the template now nor in `prior`). It used to wait whole
+        // for the morph (Cuben's media textbox, 20 Oct 2026).
+        if (!el) {
             return;
         }
 
@@ -1544,7 +1903,7 @@
         var kb = tplKidsOf(b);
         var i;
 
-        if (a.tagName !== b.tagName || ka.length !== kb.length) {
+        if (a.tagName !== b.tagName || ka.length !== kb.length || !relatedClass(a, b)) {
             return false;
         }
 
@@ -1555,6 +1914,40 @@
         }
 
         return true;
+    }
+
+    /**
+     * Whether two template elements can be the same one a keystroke apart:
+     * they share a class, one class is the other being typed, or — with no
+     * class to go by — their text is the same being typed. A new element with
+     * other classes and other text that happens to land at a previous child's
+     * index is not it: read as its prior, a `<p class="probe">` typed inside
+     * an undecided {{ if }} claimed the loop's last `<p class="item">` and
+     * rewrote it (20 Oct 2026).
+     */
+    function relatedClass(a, b) {
+        var ta = classValue(a.getAttribute('class') || '').split(' ').filter(Boolean);
+        var tb = classValue(b.getAttribute('class') || '').split(' ').filter(Boolean);
+        var i;
+        var j;
+
+        if (!ta.length && !tb.length) {
+            return true;
+        }
+
+        if (!ta.length || !tb.length) {
+            return sameTextBeingTyped(a.textContent.trim(), b.textContent.trim());
+        }
+
+        for (i = 0; i < ta.length; i++) {
+            for (j = 0; j < tb.length; j++) {
+                if (ta[i] === tb[j] || ta[i].indexOf(tb[j]) === 0 || tb[j].indexOf(ta[i]) === 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1745,7 +2138,8 @@
     function syncAttrs(live, tpl) {
         var cls = tpl.getAttribute('class');
 
-        if (cls !== null && !hasMarker(cls)) {
+        // A class with Antlers in it is painted too: its static tokens (applyClass).
+        if (cls !== null) {
             applyClass(live, cls, priorClass(tpl));
         }
     }
@@ -2226,14 +2620,95 @@
      * then swallowed the video after it, which the paint removed) — and for
      * a comment not closed yet.
      */
+    /**
+     * Whether the text ends inside a tag still being typed — `<p`, `<p class="x`,
+     * `</`, an open `<!--`. Read with Antlers blanked first and quotes
+     * followed, as a parser would. It used to be one regular expression over
+     * the raw text, and a `<` inside a quoted Alpine expression (`index < 0`
+     * in an `x-data`) read as the next tag's start: Cuben's gallery never
+     * painted a single keystroke, every edit waited for the morph (20 Oct 2026).
+     */
     function midTag(html) {
-        var text = String(html || '');
+        var text = maskAntlersText(String(html || ''));
+        var i = 0;
+        var n = text.length;
+        var c;
+        var quote;
 
-        return (
-            /<\/?[a-zA-Z][^<>"']*(?:"[^"]*"[^<>"']*|'[^']*'[^<>"']*)*(?:<|$|"[^"]*(?:<|$)|'[^']*(?:<|$))/.test(text) ||
-            /<\/(?![a-zA-Z])/.test(text) ||
-            /<!--(?![\s\S]*?-->)/.test(text)
-        );
+        while (i < n) {
+            if (text.charAt(i) !== '<') {
+                i++;
+                continue;
+            }
+
+            if (text.substr(i, 4) === '<!--') {
+                i = text.indexOf('-->', i + 4);
+
+                if (i === -1) {
+                    return true;
+                }
+
+                i += 3;
+                continue;
+            }
+
+            c = text.charAt(i + 1);
+
+            if (c === '/') {
+                if (!/[a-zA-Z]/.test(text.charAt(i + 2) || '')) {
+                    return true;
+                }
+            } else if (!/[a-zA-Z]/.test(c || '')) {
+                i++;
+                continue;
+            }
+
+            // Inside a tag: to its `>`, quotes followed; the end of the text first means a tag half typed.
+            i++;
+            quote = '';
+
+            while (i < n) {
+                c = text.charAt(i);
+
+                if (quote) {
+                    if (c === quote) {
+                        quote = '';
+                    }
+                } else if (c === '"' || c === "'") {
+                    quote = c;
+                } else if (c === '>') {
+                    break;
+                } else if (c === '<') {
+                    return true;
+                }
+
+                i++;
+            }
+
+            if (i >= n) {
+                return true;
+            }
+
+            i++;
+        }
+
+        return false;
+    }
+
+    /** Antlers blanked to spaces (offsets kept): a `>` or `<` inside `{{ }}` is not markup. */
+    function maskAntlersText(text) {
+        var out = '';
+        var i = 0;
+        var start;
+        var tag;
+
+        while ((start = text.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(text, start);
+            out += text.slice(i, start) + new Array(tag.end - start + 1).join(' ');
+            i = tag.end;
+        }
+
+        return out + text.slice(i);
     }
 
     /**
@@ -3974,6 +4449,8 @@
         var path;
         var tplEl;
         var targets = [];
+        var call;
+        var found;
 
         if (!tplRoot) {
             return { targets: [], tag: '' };
@@ -3985,6 +4462,16 @@
         // 12 Oct 2026). The tag's output is the server's; nothing is its
         // live element until the morph.
         if (inAntlers(html, at)) {
+            call = callAt(html, at);
+            found = call ? callTargets(doc, html, call, call.name || 'class', call.value) : null;
+
+            // In the class parameter of a call: the element its output is.
+            if (found && found.targets.length) {
+                trace('tw: caret in the class of {{ ' + call.kind + ' }} → ' + found.targets.length + ' live element(s)');
+
+                return { targets: found.targets, tag: found.targets[0].tagName, tplEl: null, tplRoot: tplRoot, roots: [], call: call };
+            }
+
             trace('tw: caret inside an Antlers tag; its output is the server\'s — no live element');
 
             return { targets: [], tag: '', tplEl: null, tplRoot: tplRoot, roots: [] };
@@ -4056,7 +4543,15 @@
     // Anything else waits for the morph, which stays the truth.
 
     /** `{{ partial:… }}` / `{{ partial src="…" }}` — the calls the dock finds (dock-partials.js). */
-    var CALL_RE = /\{\{\s*partial(?::([^\s}]+)|(?=[\s}]))([\s\S]*?)\}\}/gi;
+    /**
+     * Antlers tags whose literal `class` parameter lands on an element the
+     * server renders: a component call (`{{ partial:… class="…" }}`), and
+     * `{{ svg }}` / `{{ iconify }}`, whose output is one <svg>. A class typed
+     * in such a parameter used to wait for the morph — the tag is a marker to
+     * the structure paint, and a caret inside it had no live element (the
+     * pattern svg in Cuben's banner, 20 Oct 2026).
+     */
+    var CALL_OUTPUT = { svg: 'SVG', iconify: 'SVG' };
     /** The class a call hands on: `class`, `_class` or a `class` prop (component-props.js `CLASS_PARAMS`). */
     var CALL_CLASS_RE = /(^|\s)(:?)(class|_class|props_class)\s*=\s*(["'])([\s\S]*?)\4/;
     /** A component's own HTML by src: a string, null when there is none, a promise while it is asked for. */
@@ -4066,32 +4561,61 @@
     /** A call's change that came before its component's file: painted when the file arrives, if the dock still says the same. */
     var waitingCalls = {};
 
+    /** Every call in the file, in order: `{ at, end, kind, src, name, bound, value, valueAt }`. */
     function componentCalls(html) {
         var source = String(html || '').replace(/\{\{#[\s\S]*?#\}\}/g, function (m) {
             return new Array(m.length + 1).join(' ');
         });
         var out = [];
-        var m;
-        var src;
+        var i = 0;
+        var start;
+        var tag;
+        var raw;
+        var head;
+        var kind;
+        var given;
         var attr;
         var cls;
 
-        CALL_RE.lastIndex = 0;
+        while ((start = source.indexOf('{{', i)) !== -1) {
+            tag = tagEnd(source, start);
+            i = tag.end;
 
-        while ((m = CALL_RE.exec(source))) {
-            attr = m[2].match(/\bsrc\s*=\s*(["'])([^"']+)\1/i);
-            src = (m[1] || '').trim() || (attr ? attr[2].trim() : '');
-            cls = m[2].match(CALL_CLASS_RE);
+            if (!tag.closed) {
+                continue;
+            }
+
+            raw = source.slice(start, tag.end);
+            head = /^\{\{\s*(partial|svg|iconify)(?::([^\s}]+))?(?=[\s}])/.exec(raw);
+
+            if (!head) {
+                continue;
+            }
+
+            kind = head[1];
+            attr = raw.match(/\bsrc\s*=\s*(["'])([^"']+)\1/i);
+            given = (head[2] || '').trim() || (attr ? attr[2].trim() : '');
+            cls = raw.match(CALL_CLASS_RE);
             out.push({
-                at: m.index,
-                src: src,
+                at: start,
+                end: tag.end,
+                kind: kind,
+                src: kind === 'partial' ? given : kind + ':' + (given || '?'),
                 name: cls ? cls[3] : '',
                 bound: !!(cls && cls[2]),
                 value: cls ? cls[5] : '',
+                valueAt: cls ? start + cls.index + cls[0].indexOf(cls[4]) + 1 : -1,
             });
         }
 
         return out;
+    }
+
+    /** The call whose literal class value the offset `at` is in, or null. */
+    function callAt(html, at) {
+        return componentCalls(html).filter(function (call) {
+            return !call.bound && call.valueAt !== -1 && at >= call.valueAt && at <= call.valueAt + call.value.length;
+        })[0] || null;
     }
 
     /** `blocks/{type}` is a folder, not one component (dock-partials.js `hasToken`). */
@@ -4194,7 +4718,7 @@
     /** The element starts a render of the component: its class-bearing tag, a root its file names, or the preview's stamp. */
     function startsRender(el, spec, src) {
         return fitsSpec(el, spec) || el.getAttribute('data-sve-component-src') === src || spec.roots.some(function (root) {
-            return root.tag === el.tagName && root.classes.every(function (name) {
+            return root.tag === el.tagName.toUpperCase() && root.classes.every(function (name) {
                 return el.classList.contains(name);
             });
         });
@@ -4207,8 +4731,9 @@
         });
     }
 
+    /** An <svg> in an HTML document keeps a lowercase tagName; compared uppercased. */
     function fitsSpec(el, spec) {
-        return el.tagName === spec.tag && spec.classes.every(function (name) {
+        return el.tagName.toUpperCase() === spec.tag && spec.classes.every(function (name) {
             return el.classList.contains(name);
         });
     }
@@ -4240,7 +4765,14 @@
      * component gives them itself (never taken away). Null when they cannot
      * be told for certain — the morph shows the class then.
      */
-    function callTargets(doc, html, call, name) {
+    /**
+     * `current` is the class value the live element bears now — the call's
+     * value before this keystroke when painting, the value in the file when a
+     * list is held on it. A `{{ svg }}` / `{{ iconify }}` is found by it: the
+     * one <svg> the server rendered beside the template's own children that
+     * wears those classes. A component is found by its file's class-bearing tag.
+     */
+    function callTargets(doc, html, call, name, current) {
         var file;
         var spec;
         var where;
@@ -4248,33 +4780,41 @@
         var targets = [];
         var ambiguous = false;
 
-        if (!oneComponent(call.src) || call.bound || /[{}]/.test(call.value)) {
+        if (call.bound || /[{}]/.test(call.value)) {
             return null;
         }
 
-        if (componentCalls(html).filter(function (other) {
-            return other.src === call.src;
-        }).length !== 1) {
-            trace('call: ' + call.src + ' is called more than once in the file; left to the morph');
+        if (call.kind !== 'partial') {
+            spec = { tag: CALL_OUTPUT[call.kind], classes: splitClasses(current), roots: [] };
+        } else {
+            if (!oneComponent(call.src)) {
+                return null;
+            }
 
-            return null;
-        }
+            if (componentCalls(html).filter(function (other) {
+                return other.src === call.src;
+            }).length !== 1) {
+                trace('call: ' + call.src + ' is called more than once in the file; left to the morph');
 
-        file = componentFiles[call.src];
+                return null;
+            }
 
-        if (typeof file !== 'string') {
-            wantComponentFile(call.src);
-            trace('call: ' + call.src + (file === null ? ' has no file to read' : ' not read yet') + '; left to the morph');
+            file = componentFiles[call.src];
 
-            return null;
-        }
+            if (typeof file !== 'string') {
+                wantComponentFile(call.src);
+                trace('call: ' + call.src + (file === null ? ' has no file to read' : ' not read yet') + '; left to the morph');
 
-        spec = classSpec(file, name);
+                return null;
+            }
 
-        if (!spec) {
-            trace('call: no one tag in ' + call.src + ' reads {{ ' + name + ' }}; left to the morph');
+            spec = classSpec(file, name);
 
-            return null;
+            if (!spec) {
+                trace('call: no one tag in ' + call.src + ' reads {{ ' + name + ' }}; left to the morph');
+
+                return null;
+            }
         }
 
         where = liveForOffset(doc, html, call.at, false);
@@ -4317,7 +4857,7 @@
                 return;
             }
 
-            hits = [roots[0]].concat(Array.prototype.slice.call(roots[0].querySelectorAll(spec.tag))).filter(function (el) {
+            hits = [roots[0]].concat(Array.prototype.slice.call(roots[0].querySelectorAll(spec.tag.toLowerCase()))).filter(function (el) {
                 return fitsSpec(el, spec) && !inOtherComponent(el, roots[0], call.src);
             });
 
@@ -4334,7 +4874,7 @@
             return null;
         }
 
-        return { targets: targets, keep: spec.classes };
+        return { targets: targets, keep: call.kind === 'partial' ? spec.classes : [] };
     }
 
     /** The element's classes with the call's old ones out and the new ones in; the component's own stay. */
@@ -4369,7 +4909,9 @@
 
         lastCalls = calls;
         calls.forEach(function (call) {
-            wantComponentFile(call.src);
+            if (call.kind === 'partial') {
+                wantComponentFile(call.src);
+            }
         });
 
         if (!prev || prev.length !== calls.length || prev.some(function (call, at) {
@@ -4392,7 +4934,7 @@
             return;
         }
 
-        if (typeof componentFiles[call.src] !== 'string' && componentFiles[call.src] !== null && oneComponent(call.src)) {
+        if (call.kind === 'partial' && typeof componentFiles[call.src] !== 'string' && componentFiles[call.src] !== null && oneComponent(call.src)) {
             waitingCalls[call.src] = { html: html, call: call, prev: (waitingCalls[call.src] || {}).prev || prev };
             wantComponentFile(call.src);
             trace('call: ' + call.src + ' changed before its file arrived; painted when it does');
@@ -4401,7 +4943,7 @@
         }
 
         docs.forEach(function (doc) {
-            var found = callTargets(doc, html, call, name);
+            var found = callTargets(doc, html, call, name, prev.value);
 
             if (!found) {
                 return;
@@ -4444,7 +4986,7 @@
 
         holdTw(docs, {
             find: function (doc) {
-                var found = callTargets(doc, html, call, name);
+                var found = callTargets(doc, html, call, name, typeof detail.old === 'string' ? detail.old : call.value);
 
                 keep = found ? found.keep : keep;
 
