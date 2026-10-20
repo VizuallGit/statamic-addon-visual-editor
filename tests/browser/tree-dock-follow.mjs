@@ -74,7 +74,17 @@ const readState = (cp) => cp.evaluate(() => {
 const readSections = (cp) => cp.evaluate(() => {
   const values = window.__sveDebug?.values?.() || {};
   const rows = values.page_sections || [];
-  return rows.map((row) => ({ uid: row._visual_id || row.id || row._id, type: row.type, label: row._sve_label || '' }));
+  // A row of the global set renders a saved section: the file the dock opens
+  // and the tree marks is that section's, read as section-library.js reads it.
+  const globalSet = window.Statamic?.$config?.get?.('sveGlobalSectionSet') || 'global_section';
+  const saved = window.Statamic?.$config?.get?.('sveSavedSectionLabels') || {};
+  const rendered = (row) => {
+    if (row.type !== globalSet) return row.type;
+    const ref = row[globalSet];
+    const id = typeof ref === 'string' ? ref : Array.isArray(ref) ? (typeof ref[0] === 'string' ? ref[0] : ref[0]?.id) : '';
+    return saved[id]?.section_type || row.type;
+  };
+  return rows.map((row) => ({ uid: row._visual_id || row.id || row._id, type: row.type, rendered: rendered(row), label: row._sve_label || '' }));
 });
 
 const treeRows = (cp) => cp.evaluate(() => [...document.querySelectorAll('[data-sve-ht-sec-uid]')].map((w) => ({
@@ -188,7 +198,7 @@ try {
       await sleep(wait);
       samples.push(await readState(cp));
     }
-    const want = fileOf(sec.type);
+    const want = fileOf(sec.rendered || sec.type);
     const last = samples[2];
     const dockOk = samples.every((s) => s.path.endsWith(want));
     const treeOk = last.open.length === 1 && last.open[0] === sec.uid;
@@ -207,7 +217,7 @@ try {
   });
   await sleep(5000);
   const after = await readState(cp);
-  const fsFile = String(lastSec.type || '').replace('/', '.');
+  const fsFile = String(lastSec.rendered || lastSec.type || '').replace('/', '.');
   step(`fields icon opens the fieldset of ${lastSec.type}`, after.overlay.includes(`/fields/fieldsets/${encodeURIComponent(fsFile)}/`) || after.overlay.includes(`/fields/fieldsets/${fsFile}/`), `${iconOpened}; overlay=${after.overlay.replace(SITE_URL, '') || '∅'}`);
   await page.keyboard.press('Escape');
 } catch (err) {
