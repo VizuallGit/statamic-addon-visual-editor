@@ -4,8 +4,9 @@
  * header, the footer and a static (custom) section.
  *
  * The header's file is the partial carrying `data-sve-chrome="header"` (on
- * this site `partials/site_head.antlers.html`), the footer's is
- * `partials/footer/widgets.antlers.html`. The dock used to open
+ * this site `partials/site_head.antlers.html`), the footer's the one carrying
+ * `data-sve-chrome="footer"` (`partials/site_foot.antlers.html` since the
+ * layout patterns, v1.1.540; `partials/footer/widgets.antlers.html` before). The dock used to open
  * `header/style_1` — a file nothing renders — so every keystroke saved and
  * the preview never changed. Each step types a static <p> into the open file,
  * measures how long the preview takes to show it (Instant is one frame) and
@@ -79,9 +80,14 @@ try {
   await page.goto(`${SITE_URL}/cp`, { waitUntil: 'networkidle2' });
   await page.waitForSelector('input[name="email"]');
   await page.type('input[name="email"]', USER); await page.type('input[name="password"]', PASS);
-  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2' }), page.keyboard.press('Enter')]);
-  step('login', !/login/.test(page.url()), page.url());
+  // Statamic answers the login POST with 409 (Inertia version) and sends the
+  // browser to /cp/login, which is a 404 for a user who is now logged in; the
+  // session is set either way. Press Enter, let it settle, and judge the login
+  // by the entry page coming up without a login form.
+  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle2' }).catch(() => {}), page.keyboard.press('Enter')]);
+  await sleep(500);
   await page.goto(`${SITE_URL}${ENTRY}`, { waitUntil: 'networkidle2' });
+  step('login', !(await page.$('input[name="password"]')), page.url());
   await sleep(1500);
   await page.evaluate(() => [...document.querySelectorAll('button')].find((e) => /live preview/i.test(e.textContent || ''))?.click());
   step('preview overlay open', await waitIn(page, 'iframe.sve-edit-overlay[data-open]', 30000));
@@ -174,8 +180,8 @@ try {
   await leaveChrome();
   step('footer editor open', await enterChrome('footer'));
   await sleep(2000);
-  path = await waitPath(/partials\/footer\//);
-  step('dock opened the footer\'s file', /partials\/footer\/widgets\.antlers\.html$/.test(path), path);
+  path = await waitPath(/site_foot|partials\/footer\//);
+  step('dock opened the footer\'s file', /partials\/(site_foot|footer\/widgets)\.antlers\.html$/.test(path), path);
   if (path) { remember(path); await probe('footer', path, 'data-sve-chrome="footer"', 'sve-probe-f', 'ftr', '[data-sve-chrome="footer"]'); }
 
   // ---- Static (custom) section: a page-section row without a fieldset ----

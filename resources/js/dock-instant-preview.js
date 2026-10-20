@@ -46,10 +46,10 @@
 (function () {
     'use strict';
 
-    if (window.__sveDockInstantPreview === 16) {
+    if (window.__sveDockInstantPreview === 17) {
         return;
     }
-    window.__sveDockInstantPreview = 16;
+    window.__sveDockInstantPreview = 17;
 
     var DOCK_ID = '__sve-code-dock';
     var STYLE_TW_ID = '__sve-tw-dock-live';
@@ -73,7 +73,6 @@
     var raf = 0;
     var lastHtml = null;
     var lastCss = '';
-    var lastSid = '';
     var painting = false;
     var booted = false;
     var lastFullHtml = '';
@@ -592,51 +591,6 @@
         return outermostSid(el);
     }
 
-    function uidFromInput(input) {
-        if (!input) {
-            return '';
-        }
-
-        return String(input.getAttribute('data-visual-id') || input.value || '').trim();
-    }
-
-    function uidFromCp() {
-        var hosts = document.querySelectorAll(
-            '[data-sve-active], [data-sve-section-active]'
-        );
-        var i;
-        var input;
-        var uid;
-
-        for (i = 0; i < hosts.length; i++) {
-            input = hosts[i].querySelector('[data-visual-id]');
-            uid = uidFromInput(input);
-            if (uid) {
-                return uid;
-            }
-        }
-
-        return '';
-    }
-
-    function lonePageSection(doc) {
-        var nodes = doc.querySelectorAll('[data-sid-section-orderable]');
-        var list = [];
-        var seen = {};
-        var i;
-        var id;
-
-        for (i = 0; i < nodes.length; i++) {
-            id = nodes[i].getAttribute('data-sid');
-            if (id && !seen[id]) {
-                seen[id] = true;
-                list.push(nodes[i]);
-            }
-        }
-
-        return list.length === 1 ? list[0] : null;
-    }
-
     function classTokens(el) {
         return (el && el.getAttribute && el.getAttribute('class') || '')
             .split(/\s+/)
@@ -653,39 +607,6 @@
         var m = /partials\/page_sections\/(.+)\.antlers\.html$/.exec(dockPath());
 
         return m ? m[1] : '';
-    }
-
-    /**
-     * Whether `live` is a section the dock's file renders: by the row's `type`
-     * in the publish form, else by the `_class` the shell puts on the root.
-     *
-     * The section to paint used to be whatever looked active. After a reload,
-     * or with a section picked in another panel, that could be a different
-     * section than the file open in the dock — and the file's markup was
-     * morphed into it: the other section lost every child the file did not
-     * have and kept a headline that happened to match. A live root the file
-     * does not own is left to the morph now.
-     */
-    function paintsOwnSection(live) {
-        var type = dockSectionType();
-        var uid;
-        var ctx;
-        var cls;
-
-        if (!type || !live) {
-            return true;
-        }
-
-        uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
-        ctx = sectionContext(uid);
-
-        if (ctx && typeof ctx.type === 'string' && ctx.type !== '') {
-            return ctx.type === type;
-        }
-
-        cls = ' ' + (live.getAttribute('class') || '') + ' ';
-
-        return cls.indexOf(' ' + classFromType(type) + ' ') !== -1;
     }
 
     /**
@@ -765,9 +686,18 @@
             return null;
         }
 
+        // Only the path is known (a snippet with no file around it): the half itself.
+        if (!root) {
+            return host;
+        }
+
         marker = root.matches('[data-sve-chrome]') ? root : root.querySelector('[data-sve-chrome]');
 
         if (marker === root) {
+            if (host.tagName !== root.tagName) {
+                trace('chrome: the file\'s root is <' + root.tagName.toLowerCase() + '>, the ' + kind + ' on the page is <' + host.tagName.toLowerCase() + '>; left to the morph');
+            }
+
             return host.tagName === root.tagName ? host : null;
         }
 
@@ -812,102 +742,39 @@
     }
 
     /**
-     * Collection templates (services/show, index) stamp `visual_edit` on an
-     * inner tag, not `section_orderable` on the file root. Match the file's
-     * first element by path, then by tag + classes — not the header.
+     * A collection template or the layout: the one element of the root's tag
+     * outside the halves and the sections, else nothing. The preview marks no
+     * root for a view, and a guess is not a root: the view's markup used to
+     * be morphed into whichever section was active and shared the tag, until
+     * the morph put the section back. With two candidates the morph is all.
      */
-    function fileRootLive(doc, root) {
-        var tag;
-        var found;
-        var nodes;
-        var i;
-        var path;
-        var tokens;
+    function viewRoots(doc, root) {
+        var tag = root ? root.tagName : '';
+        var out = [];
         var live;
-        var cls;
-        var j;
-        var ok;
+        var i;
 
-        if (!doc || !root) {
-            return null;
+        if (!tag || /^(HTML|HEAD|BODY|META|LINK|TITLE|BASE|SCRIPT|STYLE)$/.test(tag)) {
+            return out;
         }
 
-        // A header or footer file is found by the half it is — never by a
-        // tag that happens to match a page section, which would paint the
-        // header's markup into that section.
-        if (chromeKindOfFile(root)) {
-            return chromeLive(doc, root);
-        }
-
-        tag = root.tagName;
-        found = pageSection(doc);
-
-        if (found && found.tagName === tag) {
-            return found;
-        }
-
-        nodes = doc.querySelectorAll('[data-sve-ht-path]');
-
-        for (i = 0; i < nodes.length; i++) {
-            path = nodes[i].getAttribute('data-sve-ht-path') || '';
-
-            if (nodes[i].tagName === tag && path.indexOf('/') === -1) {
-                return nodes[i];
-            }
-        }
-
-        tokens = classTokens(root);
         live = doc.getElementsByTagName(tag);
 
-        if (tokens.length) {
-            for (i = 0; i < live.length; i++) {
-                cls = ' ' + (live[i].getAttribute('class') || '') + ' ';
-                ok = true;
-
-                for (j = 0; j < tokens.length; j++) {
-                    if (cls.indexOf(' ' + tokens[j] + ' ') === -1) {
-                        ok = false;
-                        break;
-                    }
-                }
-
-                if (ok) {
-                    return live[i];
-                }
-            }
-        }
-
-        found = null;
-
         for (i = 0; i < live.length; i++) {
-            if (live[i].closest && live[i].closest('header, footer, nav, [data-sve-chrome]')) {
+            if (live[i].closest('header, footer, nav, [data-sve-chrome], [data-sid]')) {
                 continue;
             }
 
-            if (found) {
-                return live.length === 1 ? live[0] : null;
+            out.push(live[i]);
+
+            if (out.length > 1) {
+                trace('view: more than one <' + tag.toLowerCase() + '> on the page could be the file\'s root; left to the morph');
+
+                return [];
             }
-
-            found = live[i];
         }
 
-        return found || (live.length === 1 ? live[0] : null);
-    }
-
-    function pageSection(doc) {
-        var found =
-            outermostSid(
-                doc.querySelector('[data-sid-active]') || doc.querySelector('[data-sid-hover]')
-            ) ||
-            sectionBySid(doc, uidFromCp()) ||
-            sectionBySid(doc, lastSid) ||
-            lonePageSection(doc);
-
-        if (found) {
-            lastSid = found.getAttribute('data-sid') || lastSid;
-        }
-
-        return found;
+        return out;
     }
 
     // ---- Publish-form values: the real source for `{{ field }}` ----------------
@@ -1085,26 +952,25 @@
     }
 
     /**
-     * Every other section on the page the dock's file renders: the publish
-     * form's rows of the file's type, found in the preview by their uid. A
-     * section duplicated on the page shares its partial with the original;
-     * a class typed in the dock changed the focused one only, and the copy
-     * kept the old markup until the whole page was rendered again (Cuben,
-     * 18 Oct 2026). Rows, not the preview, say which sections are the file's.
+     * Every section on the page the dock's file renders: the forms' top-level
+     * rows of the file's type — the page's own and an open global section's
+     * — found in the preview by their uid, the picked one first. A section
+     * duplicated on the page shares its partial with the original; a class
+     * typed in the dock changed the focused one only, and the copy kept the
+     * old markup until the whole page was rendered again (Cuben, 18 Oct
+     * 2026). Rows, not the preview, say which sections are the file's: a
+     * section that merely looks active is left alone when its row is of
+     * another type.
      */
-    function sameTypeSections(doc, live) {
-        var type = dockSectionType();
+    function sectionRoots(doc, type) {
         var field = cfg('sveSectionField', 'page_sections');
+        var active = outermostSid(doc.querySelector('[data-sid-active]'));
         var out = [];
         var values;
         var rows;
         var el;
         var i;
         var j;
-
-        if (!type || !doc) {
-            return out;
-        }
 
         for (i = 0; i < containers.length; i++) {
             values = unwrapRef(containers[i].values);
@@ -1113,20 +979,99 @@
             for (j = 0; j < rows.length; j++) {
                 el = rows[j] && rows[j].type === type ? sectionOfRow(doc, rows[j]) : null;
 
-                if (el && el !== live && out.indexOf(el) === -1) {
+                if (el && out.indexOf(el) === -1) {
                     out.push(el);
                 }
             }
         }
 
+        if (active && out.indexOf(active) > 0) {
+            out.splice(out.indexOf(active), 1);
+            out.unshift(active);
+        }
+
         return out;
     }
 
-    /** The file's root in the preview and, for a page section, every other section of its type. */
-    function fileRootsLive(doc, root) {
-        var live = fileRootLive(doc, root);
+    // ---- The target: what the file is, where it renders, what it reads -------
+    //
+    // One answer for every path that paints — structure, classes, the CSS
+    // sheet, the saved block, the strip's lists — so a page section, a global
+    // section, the header, the footer and a component all go the same way.
+    // It used to be a different question in each path: the CSS pane was
+    // rendered for "the active page section" whatever file the dock held, so
+    // a footer's `{{ responsive_css }}` landed on a hero and a hero file's
+    // `#id-{{ id }}` on the intro that happened to be picked; a collection
+    // template's root was the active section when the tags matched.
 
-        return live ? [live].concat(sameTypeSections(doc, live)) : [];
+    /**
+     * `{ kind, roots, ctxs }` for the dock's file, from the file's path and
+     * the forms' values — never from what looks active in the preview.
+     *
+     *   kind   'section'    a page-section partial: the rows of its type say
+     *                       which sections, a page's or a global section's
+     *          'chrome'     the header's or the footer's file: the half the
+     *                       preview marks with `data-sve-chrome`
+     *          'component'  any other partial: the instances the preview marks
+     *          'view'       a collection template or the layout: the one
+     *                       element of the root's tag, else nothing
+     *   roots  the live elements the file renders, the picked one first;
+     *          empty when the page shows none, and then the morph is all
+     *   ctxs   per root, the values its `{{ field }}` reads, or null
+     *
+     * `root` is the file's parsed root — the half's marker, a component's or
+     * a view's tag are read off it; null when only the path is known.
+     */
+    function target(doc, root) {
+        var type = dockSectionType();
+        var kind;
+        var roots;
+        var live;
+
+        if (!doc) {
+            return { kind: '', roots: [], ctxs: [] };
+        }
+
+        if (type) {
+            kind = 'section';
+            roots = sectionRoots(doc, type);
+        } else if (chromeKindOfFile(root)) {
+            kind = 'chrome';
+            live = chromeLive(doc, root);
+            roots = live ? [live] : [];
+        } else if (isComponentFile(root)) {
+            kind = 'component';
+            roots = componentInstances(doc, root);
+        } else {
+            kind = 'view';
+            roots = viewRoots(doc, root);
+        }
+
+        return { kind: kind, roots: roots, ctxs: roots.map(contextOf) };
+    }
+
+    /** The values a live root's `{{ field }}` reads: its row's, else its half's; null with no form behind it. */
+    function contextOf(live) {
+        var uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
+
+        return sectionContext(uid) || chromeContext(live);
+    }
+
+    /** Whether `el` is in something the file renders. */
+    function inTarget(t, el) {
+        return t.roots.some(function (own) {
+            return own === el || own.contains(el);
+        });
+    }
+
+    /** The file's first live root, for the picked tag's lists. */
+    function fileRootLive(doc, root) {
+        return target(doc, root).roots[0] || null;
+    }
+
+    /** Every live root of the file. */
+    function fileRootsLive(doc, root) {
+        return target(doc, root).roots;
     }
 
     // Tag pairs whose body sees the same variables as the markup around
@@ -1287,6 +1232,10 @@
         var source = String(html).replace(/\{\{#[\s\S]*?#\}\}/g, '');
         var closers = {};
         var scope = 0;
+        // The object pairs the paint is inside, outermost first: each one's
+        // name and the values that held before it opened.
+        var scopes = [];
+        var cur = ctx;
         var m;
         var re = /\{\{\s*\/([a-zA-Z0-9_:.-]+)/g;
 
@@ -1298,8 +1247,15 @@
             var body = (closed ? tag.slice(2, -2) : tag.slice(2)).trim();
             var name = (body.match(/^\/?([a-zA-Z0-9_:.-]+)/) || [])[1] || '';
             var value;
+            var inner;
 
             if (body.charAt(0) === '/') {
+                if (scope === 0 && scopes.length && scopes[scopes.length - 1].name === name) {
+                    cur = scopes.pop().ctx;
+
+                    return '';
+                }
+
                 if (closers[name] && !SAME_SCOPE.test(name)) {
                     scope = Math.max(0, scope - 1);
                 }
@@ -1308,6 +1264,25 @@
             }
 
             if (name === 'if' || name === 'unless' || closers[name]) {
+                // A pair on a plain object — `{{ site_foot }} … {{ /site_foot }}`
+                // around the footer, `{{ settings }} …` in a section — is a
+                // scope, not a loop: the markup in it is as static as the
+                // markup around it, and a field in it reads the object first,
+                // the row after. Only an object the forms hold; an array is
+                // a loop, and a name the paint does not know stays a block
+                // for the server to draw. The footer's whole file used to be
+                // such a block: every field in it a marker, nothing filled.
+                if (scope === 0 && closers[name] && body === name && !SAME_SCOPE.test(name)) {
+                    inner = scopeObject(name, cur);
+
+                    if (inner) {
+                        scopes.push({ name: name, ctx: cur });
+                        cur = Object.assign({}, cur, inner);
+
+                        return '';
+                    }
+                }
+
                 if (closers[name] && !SAME_SCOPE.test(name)) {
                     scope++;
                 }
@@ -1323,10 +1298,31 @@
                 return ANT;
             }
 
-            value = resolveField(body, ctx);
+            value = resolveField(body, cur);
 
             return value === null ? ANT : escapeHtml(value);
         });
+    }
+
+    /** `name` (a field path) in `ctx` when it is a plain object — a scope a tag pair opens; null otherwise. */
+    function scopeObject(name, ctx) {
+        var parts = String(name).split('.');
+        var value = ctx;
+        var i;
+
+        if (!ctx || NOT_A_FIELD.test(parts[0])) {
+            return null;
+        }
+
+        for (i = 0; i < parts.length; i++) {
+            if (!value || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, parts[i])) {
+                return null;
+            }
+
+            value = value[parts[i]];
+        }
+
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
     }
 
     /**
@@ -1343,6 +1339,23 @@
         tpl.innerHTML = html;
 
         return tpl.content;
+    }
+
+    /**
+     * The file's root with no values filled in, read for its tag, its
+     * classes and the half's marker — parsed once per text, since the CSS
+     * sheet, the target and the class paint all ask on the same keystroke.
+     * Never painted from: `paintStructure` parses its own, with values.
+     */
+    var rootMemo = { html: null, root: null };
+
+    function fileRoot(html) {
+        if (rootMemo.html !== html) {
+            rootMemo.html = html;
+            rootMemo.root = templateRoot(html, null);
+        }
+
+        return rootMemo.root;
     }
 
     function templateRoot(html, ctx) {
@@ -2625,7 +2638,6 @@
      * paint if the walk throws, so a bad template never breaks the preview.
      */
     function paintStructure(live, html, scopedRoot) {
-        var uid;
         var ctx = null;
         var tpl = scopedRoot;
         var started = window.performance ? performance.now() : Date.now();
@@ -2637,8 +2649,7 @@
         }
 
         try {
-            uid = (outermostSid(live) || live).getAttribute('data-sid') || '';
-            ctx = sectionContext(uid) || chromeContext(live);
+            ctx = contextOf(live);
             tpl = scopedRoot || templateRoot(html, ctx);
         } catch (e) {
             trace('structure: values/template failed, classes only: ' + (e && e.message));
@@ -3105,7 +3116,6 @@
                 lastHtml = null;
                 lastCalls = null;
                 waitingCalls = {};
-                lastSid = '';
                 // A new document has no live sheet: forgotten, or the paint
                 // would skip the CSS as "already there" until the next
                 // keystroke in the pane.
@@ -3310,7 +3320,7 @@
             return liveByPath(doc, active);
         }
 
-        root = tpl ? fileRootLive(doc, templateRoot(fullHtml() || paneText('html')) || tpl) : null;
+        root = tpl ? fileRootLive(doc, fileRoot(fullHtml() || paneText('html')) || tpl) : null;
 
         if (active && tag && active.tagName !== tag) {
             inner = active.querySelector(tag.toLowerCase());
@@ -3395,7 +3405,7 @@
         var i;
 
         for (i = 0; i < marked.length; i++) {
-            if (marked[i].tagName === root.tagName) {
+            if (!root || marked[i].tagName === root.tagName) {
                 out.push(marked[i]);
             }
         }
@@ -3420,27 +3430,23 @@
     function paintLive(doc, html, snippetOnly) {
         var pane = paneText('html');
         var root;
-        var live;
-        var focused;
+        var t;
         var tpl;
         var i;
         var targets;
 
         if (snippetOnly) {
             root = templateRoot(pane);
+            t = target(doc, null);
+            // Only inside what the file renders: the snippet's tag found in
+            // another file's section is that section's, not the dock's.
             targets = scopedRootLive(doc, pane).filter(function (el) {
-                if (paintsOwnSection(el)) {
-                    return true;
-                }
-
-                trace('paintLive: ' + el.tagName.toLowerCase() + ' is not the section the dock\'s file renders (' + dockSectionType() + '); left to the morph');
-
-                return false;
+                return inTarget(t, el);
             });
 
             if (root && targets.length && targets[0].tagName === root.tagName) {
                 targets.forEach(function (el) {
-                    var scoped = templateRoot(pane, sectionContext((outermostSid(el) || el).getAttribute('data-sid') || ''));
+                    var scoped = templateRoot(pane, contextOf(el));
 
                     if (!scoped || !paintStructure(el, pane, scoped)) {
                         syncClasses(el, root);
@@ -3451,70 +3457,41 @@
             return;
         }
 
-        root = templateRoot(html);
+        root = fileRoot(html);
 
         if (!root) {
             return;
         }
 
-        // The open file is a component: the preview marks every place it
-        // renders, and every one is painted — a card typed once is on the page
-        // eight times. Structure and classes, like a section; the text of a
-        // `{{ props_* }}` is the caller's and waits for the morph. Used to be
-        // classes only here, so a new tag in a component waited a second.
-        focused = componentInstances(doc, root);
+        t = target(doc, root);
+        trace('target: ' + t.kind + ' → ' + t.roots.length + ' live root(s)' + (t.roots.length ? ' <' + t.roots[0].tagName.toLowerCase() + '>' : '') + ', values for ' + t.ctxs.filter(Boolean).length);
 
-        if (focused.length) {
-            tpl = templateRoot(html, null);
+        // Nothing on the page renders the file — a component whose dialog is
+        // shut, a view with no one root, a section whose row the forms do
+        // not hold. Nothing is guessed in its place: the morph is all.
+        if (!t.roots.length) {
+            trace('paintLive: nothing on the page renders the dock\'s file; left to the morph');
 
-            for (i = 0; i < focused.length; i++) {
-                if (!paintStructure(focused[i], html, tpl)) {
-                    syncClasses(focused[i], root);
-                }
+            return;
+        }
+
+        // Every root the file renders is painted: each section of the file's
+        // type with its own row's values; every instance of a component —
+        // a card typed once is on the page eight times — with structure and
+        // classes, while the text of a `{{ props_* }}` is the caller's and
+        // waits for the morph.
+        tpl = t.kind === 'component' ? templateRoot(html, null) : null;
+
+        for (i = 0; i < t.roots.length; i++) {
+            if (t.roots[i].tagName !== root.tagName) {
+                trace('paintLive: <' + root.tagName.toLowerCase() + '> in the file, <' + t.roots[i].tagName.toLowerCase() + '> on the page; left to the morph');
+
+                continue;
             }
 
-            return;
-        }
-
-        // A component's places are the ones the preview marks. None on the
-        // page — a dialog shut, so its body is not drawn — leaves nothing of
-        // this file to paint. Read further, the section rules below guessed
-        // an element by tag and morphed the component into it: a shut
-        // dialog's body stood in the section, outside the dialog, unstyled.
-        if (isComponentFile(root)) {
-            trace('paintLive: no instance of the component on the page; left to the morph');
-
-            return;
-        }
-
-        live = fileRootLive(doc, root);
-
-        if (!live) {
-            trace('paintLive: no live root for <' + root.tagName.toLowerCase() + '>');
-        }
-
-        if (live && !paintsOwnSection(live)) {
-            trace('paintLive: ' + live.tagName.toLowerCase() + '#' + live.id + ' is not the section the dock\'s file renders (' + dockSectionType() + '); left to the morph');
-
-            return;
-        }
-
-        // The section, and every other section of its type on the page: each
-        // is painted with its own row's values.
-        if (live && live.tagName === root.tagName) {
-            [live].concat(sameTypeSections(doc, live)).forEach(function (el) {
-                if (el.tagName === root.tagName && !paintStructure(el, html, null)) {
-                    syncClasses(el, root);
-                }
-            });
-
-            return;
-        }
-
-        targets = pickedLive(doc, root).filter(paintsOwnSection);
-
-        if (targets.length && targets[0].tagName === root.tagName) {
-            syncClasses(targets[0], root);
+            if (!paintStructure(t.roots[i], html, tpl)) {
+                syncClasses(t.roots[i], root);
+            }
         }
     }
 
@@ -3531,7 +3508,6 @@
 
         lastPath = path;
         lastHtml = null;
-        lastSid = '';
         lastFullHtml = '';
         lastSnippet = '';
         lastCalls = null;
@@ -3572,23 +3548,20 @@
         return htmlScoped() ? lastCss : paneText('css');
     }
 
-    /** The section the dock is on, as the page loop hands its partial the row — for the CSS pane's `{{ id }}` and friends. */
     /**
-     * The rows the CSS pane is rendered for: the focused section's, then every
-     * other section of the file's type — `#id-{{ id }}` is a rule per section,
-     * and a copy on the page needs its own. `[null]` when no row is known.
+     * The values the CSS pane is rendered for: one set per root the file
+     * renders — `#id-{{ id }}` is a rule per section, and a copy on the page
+     * needs its own; the footer's `{{ site_foot.bg_color }}` is the footer
+     * form's. `[null]` when no form is behind any root: every declaration
+     * with a tag in it then goes, and the rest stands as typed. Used to be
+     * the active page section's row whatever file the dock held, so a
+     * footer's rules were rendered for a hero.
      */
-    function cssContexts(doc) {
-        var section;
+    function cssContexts(doc, root) {
         var out;
 
         try {
-            section = pageSection(doc);
-            out = (section ? [section].concat(sameTypeSections(doc, section)) : [])
-                .map(function (el) {
-                    return sectionContext(el.getAttribute('data-sid') || '');
-                })
-                .filter(Boolean);
+            out = target(doc, root).ctxs.filter(Boolean);
 
             return out.length ? out : [null];
         } catch (e) {
@@ -3741,7 +3714,7 @@
         // cut while the live sheet had none for it lost its styles.
         lastCss = css;
         docs.forEach(function (doc) {
-            var ctxs = cssContexts(doc);
+            var ctxs = cssContexts(doc, fileRoot(html));
 
             putStyle(doc, STYLE_CSS_ID, cssPerRow(css, ctxs).join('\n'));
             placeLiveCss(doc);
@@ -3775,7 +3748,7 @@
 
             // A snippet with no file has no calls to place, and a component's
             // own calls render inside its instances, not in a section.
-            if (!(scoped && !file) && !isComponentFile(templateRoot(html))) {
+            if (!(scoped && !file) && !isComponentFile(fileRoot(html))) {
                 // A list held on a call goes first: the element's own classes
                 // are what the change is painted on, and the hold goes back on top.
                 if (twHoldRequest && twHoldRequest.call) {
@@ -3978,8 +3951,7 @@
      */
     function snippetRootLive(doc, tplRoot) {
         var tag = tplRoot.tagName;
-        var active = doc.querySelector('[data-sid-active]');
-        var host = active || pageSection(doc);
+        var host = target(doc, null).roots[0] || null;
 
         if (!host || host.tagName !== tag) {
             trace('snippet: <' + tag.toLowerCase() + '> with no file around it; left to the morph');
@@ -4307,7 +4279,7 @@
 
         where = liveForOffset(doc, html, call.at, false);
 
-        if (!where.targets.length || !where.tplEl || !where.roots.every(paintsOwnSection)) {
+        if (!where.targets.length || !where.tplEl) {
             trace('call: no live parent for ' + call.src + '; left to the morph');
 
             return null;
@@ -4456,7 +4428,7 @@
 
         // The paint's rules: a scoped slice with no file around it has no call
         // to place, and a component's own calls render inside its instances.
-        if ((scoped && !file) || isComponentFile(templateRoot(html))) {
+        if ((scoped && !file) || isComponentFile(fileRoot(html))) {
             return;
         }
 

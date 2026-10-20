@@ -13,6 +13,7 @@
     "test:instant": "node tests/browser/instant-paint.mjs",
     "test:section-row": "node tests/browser/instant-section-row.mjs",
     "test:chrome": "node tests/browser/instant-chrome.mjs",
+    "test:target": "node tests/browser/instant-target.mjs",
     "test:switch": "node tests/browser/section-switch.mjs",
     "test:hide-show": "node tests/browser/section-hide-show.mjs",
     "test:two-divs": "node tests/browser/instant-two-divs.mjs",
