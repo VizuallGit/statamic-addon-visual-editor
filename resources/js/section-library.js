@@ -53,7 +53,7 @@ import {
 import { csrfToken } from './lib/csrf.js';
 import { checkPreviews, paintPreviewButtons, previewsAuto, setPreviewsAuto } from './previews-watch.js';
 import { CHROME_DESIGNS_ID, COMMENTS_PANEL_ID, GLOBALS_PANEL_ID, GLOBAL_SECTION_HOST_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LISTVIEW_PANEL_ID, LP_WIDTH_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from './lib/ids.js';
-import { dataGet, findPathByUid, unwrapRef } from './lib/values.js';
+import { dataGet, findPathByUid, firstEntryId, unwrapRef } from './lib/values.js';
 import { currentCollection, livePreviewEditorEl, lpHeader } from './lib/live-preview.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { defaultSectionField, featureOn, pageBuilderParams, pageBuilderQuery, sectionField } from './lib/config.js';
@@ -525,6 +525,28 @@ export function savedSectionLookup(win) {
 
 export function savedSectionInfo(win, id) {
   return id ? savedSectionLookup(win).get(id) || null : null;
+}
+
+/**
+ * The section a page row renders: its own set, or — for a row of the global
+ * set, which only points at a saved section — that section's type.
+ *
+ * A global row's own partial is a wrapper (a hidden <span> with the row's id,
+ * then a loop over the saved entry's sections); nothing that names, draws or
+ * opens "the section" means the wrapper. The HTML tree names the row by this,
+ * and the dock opens this file when the row is clicked — one answer, so the
+ * tree can match the dock's file to the row. The row's own set when the saved
+ * section is unknown (deleted, or not in the index); '' for a row with no type.
+ */
+export function renderedSectionType(win, row) {
+  const type = typeof row?.type === 'string' ? row.type : '';
+  const globalSet = globalSectionSet(win);
+
+  if (!type || type !== globalSet) {
+    return type;
+  }
+
+  return savedSectionInfo(win, firstEntryId(row[globalSet]))?.section_type || type;
 }
 
 /** The Replicator set handle a library card of the given kind inserts. */

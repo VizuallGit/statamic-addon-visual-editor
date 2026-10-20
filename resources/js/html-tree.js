@@ -67,7 +67,7 @@ import {
 import { NAV_PAGES } from './antlers-blocks.js';
 import { previewDocument } from './lib/preview-frame.js';
 import { injectStyle } from './lib/style.js';
-import { firstEntryId, humanizeHandle, unwrapRef } from './lib/values.js';
+import { humanizeHandle, unwrapRef } from './lib/values.js';
 import { collectionTemplatesCollection, featureOn, sectionField, sectionLoopFields, sectionRootTag } from './lib/config.js';
 import { currentCollection, currentEntryId } from './lib/live-preview.js';
 import { inLivePreview, openTemplateSlot, templateUsage } from './lp-templates.js';
@@ -77,7 +77,7 @@ import { activeContainers, pageHasSectionField } from './lib/publish-containers.
 import { persistDockedPanel } from './lp-panel.js';
 import { setMeta } from './lib/row-meta.js';
 import { selectRow } from './selection-panel.js';
-import { closeRightPanels, dismissChromeForPageEdit, globalSectionSet, handleRemoveRow, savedSectionInfo, syncPreviewInset } from './section-library.js';
+import { closeRightPanels, dismissChromeForPageEdit, handleRemoveRow, renderedSectionType, syncPreviewInset } from './section-library.js';
 import { GLOBAL_SECTION_CONTAINER } from './global-section.js';
 import { confirmCloseDiscard, navigateFromLp } from './pages.js';
 import { MSG, SOURCE } from './lib/protocol.js';
@@ -894,19 +894,6 @@ function paintComponentExit(win) {
   };
 }
 
-/** The saved section a global row points at — its type is what to name it by. */
-function globalSectionType(win, row) {
-  const globalSet = globalSectionSet(win);
-
-  if (!globalSet || row.type !== globalSet) {
-    return '';
-  }
-
-  const id = firstEntryId(row[globalSet]);
-
-  return (id && savedSectionInfo(win, id)?.section_type) || '';
-}
-
 /** Types waiting to be fetched, and whether the queue is moving. */
 const htmlTreePrefetch = [];
 let htmlTreePrefetching = false;
@@ -1109,18 +1096,22 @@ function htmlTreeSections(win, doc) {
         return;
       }
 
-      const type = globalSectionType(win, row) || row.type;
+      // What the row renders: its own set, or — for a row of the global set,
+      // which only points at a saved section — that section. A global row's
+      // own file is a wrapper that opens with a hidden <span> carrying the
+      // row's id; it is never the file meant, shut or open. So the row is the
+      // section it renders in everything below: its tag and name, the file
+      // prefetched for it, and the file the dock is matched against — the
+      // same answer the dock gives when the row is clicked.
+      const type = renderedSectionType(win, row);
       const custom = typeof row._sve_label === 'string' ? row._sve_label.trim() : '';
       // The file's first tag: what the row says open, so it says it shut too.
-      // A global section's own file opens with a hidden <span> that only
-      // carries its id; the row is the section it renders, so its tag is that
-      // section's.
       const tag = sectionRootTagOf(win, type);
 
       // Read before this tab held the file: should the file say otherwise when
       // it lands (edited elsewhere since), the row is drawn again.
-      if (!templateRootTag(row.type)) {
-        htmlTreeGuessedTags.set(row.type, tag);
+      if (!templateRootTag(type)) {
+        htmlTreeGuessedTags.set(type, tag);
       }
 
       // The name a rename gave it, read whether or not its file is open. Shut,
@@ -1128,12 +1119,12 @@ function htmlTreeSections(win, doc) {
       // — so the same section answered to two names depending on its state.
       // The root tag's path is its index among the file's root tags, and a
       // section template has one.
-      const alias = readHtmlTreeLabels(row.type)[`0:${tag}`];
+      const alias = readHtmlTreeLabels(type)[`0:${tag}`];
 
       out.push({
         uid: ids[0],
         ids,
-        type: row.type,
+        type,
         tag,
         // Its own name first: a rename on the page is this section's, and two
         // sections of one type may be called two things. The alias is the
@@ -2706,7 +2697,7 @@ function writeSectionLabel(win, uid, label) {
       continue;
     }
 
-    const type = globalSectionType(win, list[index]) || list[index].type;
+    const type = renderedSectionType(win, list[index]);
     const given = setMeta(win, type)?.display || humanizeHandle(type) || type;
     const rows = JSON.parse(JSON.stringify(list));
 

@@ -34,8 +34,9 @@ import { unwrapRef } from '../lib/values.js';
 import { sectionField } from '../lib/config.js';
 import { activeContainers, pageHasSectionField } from '../lib/publish-containers.js';
 import { collectionViewType } from '../lib/collection-view.js';
-import { setTypeForUid } from '../lib/row-meta.js';
+import { setRowForUid } from '../lib/row-meta.js';
 import { log as debugLog } from '../lib/debug.js';
+import { renderedSectionType } from '../section-library.js';
 import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
@@ -663,6 +664,14 @@ export function relayoutCodeDock(win) {
  * values. The left sidebar is a Vue mount of those rows — whether it is open
  * or has painted a set must not decide which file the dock shows.
  *
+ * A row of the global set renders a saved section through a wrapper partial
+ * (`global_section.antlers.html`: a hidden <span> with the row's id and a loop
+ * over the saved entry's sections). The file meant by "this section" is the
+ * saved section's, never the wrapper's — `renderedSectionType` answers with it,
+ * from the row's own values and the CP's index of saved sections. Opening the
+ * wrapper drew it in the HTML tree as a `span` row with a `global_section`
+ * loop under it.
+ *
  * Header/footer and a global-section host are separate forms, so those still
  * read their own container. Collection index/show uses the entry's `view`.
  */
@@ -670,12 +679,9 @@ function pageSectionType(win, doc, uid) {
   if (uid) {
     const sectionUid =
       topLevelSectionUid(uid, doc) || topLevelSectionUid(uid, win.document) || uid;
+    const row = setRowForUid(sectionUid, doc) || setRowForUid(sectionUid, win.document);
 
-    return String(
-      (typeof setTypeForUid === 'function' &&
-        (setTypeForUid(sectionUid, doc) || setTypeForUid(sectionUid, win.document))) ||
-        ''
-    ).trim();
+    return renderedSectionType(win, row).trim();
   }
 
   const field = typeof sectionField === 'function' ? sectionField(win) : 'page_sections';
@@ -690,7 +696,7 @@ function pageSectionType(win, doc, uid) {
     }
 
     for (const row of sections) {
-      const type = typeof row?.type === 'string' ? row.type.trim() : '';
+      const type = renderedSectionType(win, row).trim();
 
       if (type) {
         return type;
@@ -795,7 +801,10 @@ function chromeTemplateType(win, doc) {
  * the site has chosen (`sveChromeStyles` comes from the globals), so the
  * button never does nothing.
  */
-/** Whether a top-level row of the page builder renders `type`. */
+/**
+ * Whether a top-level row of the page builder renders `type` — a global row
+ * counts for the section it renders, as `pageSectionType` opens it.
+ */
 function pageHasType(win, type) {
   if (!type || String(type).startsWith('view:') || isChromeTemplateType(win, type)) {
     return false;
@@ -808,7 +817,7 @@ function pageHasType(win, type) {
     const values = unwrapRef(container.values) || container.values;
     const rows = values?.[field];
 
-    if (Array.isArray(rows) && rows.some((row) => row?.type === type)) {
+    if (Array.isArray(rows) && rows.some((row) => renderedSectionType(win, row) === type)) {
       return true;
     }
   }
