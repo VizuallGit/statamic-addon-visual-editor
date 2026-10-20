@@ -13,8 +13,9 @@ import { reactive } from 'vue';
  * `--size-*` scale; `maxViewport` is where they stop growing (the container
  * width), in px.
  *
- * `type` and `button` (Typography, Button): the tokens' CSS values as they
- * stand in the file, by token name. `fonts` are the families the dropdowns
+ * `type`, `button` and `input` (Typography, Button, Forms): the tokens' CSS
+ * values as they stand in the file, by token name (`input` holds the
+ * `--input-*` tokens the site's form controls read). `fonts` are the families the dropdowns
  * offer (fonts.css, the faces the page has loaded, the theme's own), `leadings`
  * the line heights in `@theme` — the choices offered.
  *
@@ -55,6 +56,7 @@ export const themePanelUi = reactive({
   selectedSize: '',
   type: {},
   button: {},
+  input: {},
   fonts: [],
   leadings: [],
   installed: [],

@@ -885,6 +885,70 @@
   line-height: 1;
 }
 
+/* Forms: a small form on the same page-like card. The fields' look is inline
+   (ThemeFormsTab.vue); only what inline styles cannot say lives here. */
+.sve-theme__forms-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 1rem 0.875rem;
+  border-radius: 0.75rem;
+  background: #f4f4f5;
+  color: #27272a;
+}
+.sve-theme__forms-sample .sve-theme__forms-field {
+  display: block;
+  box-sizing: border-box;
+  outline: 0;
+}
+.sve-theme__forms-sample .sve-theme__forms-field::placeholder {
+  color: inherit;
+  opacity: 0.7;
+}
+.sve-theme__forms-sample .sve-theme__forms-field:focus,
+.sve-theme__forms-sample.is-focusing input.sve-theme__forms-field {
+  outline: 1px solid var(--sve-forms-focus);
+}
+.sve-theme__forms-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.sve-theme__forms-checks {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  line-height: 1.2;
+}
+.sve-theme__forms-checks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  cursor: pointer;
+}
+.sve-theme__forms-send {
+  display: inline-block;
+  padding: 0.75em 1.5em;
+  line-height: 1;
+}
+.sve-theme__input select optgroup {
+  background: #1E1E21;
+  color: #a1a1aa;
+}
+/* The color a row points at, before its name; a checkerboard for transparent. */
+.sve-theme__forms-swatch {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.sve-theme__forms-swatch.is-clear {
+  background: repeating-conic-gradient(#71717a 0 25%, #3f3f46 0 50%) 0 0 / 0.5rem 0.5rem;
+}
+
 /* Colors: rename by lightness — the button, and what it costs */
 .sve-theme__rename {
   display: flex;

@@ -1,5 +1,5 @@
 /**
- * The choices the typography and button tabs offer, and the tokens they write.
+ * The choices the typography, button and forms tabs offer, and the tokens they write.
  *
  * A choice is written as a literal (`700`, `0.25rem`), not as a Tailwind
  * variable (`var(--font-weight-bold)`): Tailwind only emits the variables a
@@ -57,6 +57,26 @@ export const TRACKINGS = [
 
 export const BUTTON_TOKENS = ['button-font', 'button-size', 'button-weight', 'button-radius', 'button-transform'];
 
+/**
+ * Forms: the site's text inputs, textareas and selects (background and its
+ * opacity, text, size, corners, border, focus ring) and the checkboxes and
+ * radios (their color and size) — read by the input rule in site.css as `.btn`
+ * reads the button's.
+ */
+export const INPUT_TOKENS = [
+  'input-bg', 'input-bg-opacity', 'input-color', 'input-size', 'input-radius',
+  'input-border-width', 'input-border-color', 'input-focus', 'input-accent', 'input-check-size',
+];
+
+/** How much of the field's background shows, solid first. */
+export const OPACITIES = ['100%', '90%', '75%', '50%', '25%', '0%'];
+
+/** The field's border width: px, the one unit a hairline is allowed. */
+export const BORDERS = [['none', '0'], ['thin', '1px'], ['thick', '2px']];
+
+/** Checkbox and radio size, relative to the text beside them. */
+export const CHECK_SIZES = [['small', '1em'], ['normal', '1.1em'], ['large', '1.4em']];
+
 /** Tailwind's font weights, what `var(--font-weight-*)` means. */
 export const WEIGHTS = [
   ['thin', '100'], ['extralight', '200'], ['light', '300'], ['normal', '400'], ['medium', '500'],
@@ -68,6 +88,14 @@ export const RADII = [
   ['none', '0'], ['xs', '0.125rem'], ['sm', '0.25rem'], ['md', '0.375rem'], ['lg', '0.5rem'],
   ['xl', '0.75rem'], ['2xl', '1rem'], ['3xl', '1.5rem'], ['4xl', '2rem'], ['full', '999em'],
 ];
+
+/**
+ * A choice list with the current value first when the list does not have it
+ * (written by hand in site.css), so the dropdown still shows what is there.
+ */
+export function withCurrent(list, value) {
+  return !value || list.some(([, v]) => v === value) ? list : [['', value], ...list];
+}
 
 /** `var(--font-weight-bold)` → `700`, `var(--radius-sm)` → `0.25rem`; anything else as it is. */
 export function literalOf(value, list, prefix) {
@@ -102,7 +130,7 @@ export function sizeRef(value) {
  * every render — the same list as its MANAGED pattern (app/Tags/ThemeTokens.php
  * on the site), so what the panel paints is what the page will get.
  */
-const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius)$/;
+const MANAGED = /^(?:size-[\w-]+|spacing-[\w-]+|text-[\w-]+|container-width|font-base|font-heading|font-size(?:-h[1-6])?|line-height|heading-text-transform|body-weight|heading-weight|heading-line-height|h[1-6]-(?:weight|line-height)|title-(?:font|size|weight|line-height|text-transform|letter-spacing)|button-[\w-]+|btn-radius|input-[\w-]+)$/;
 
 export function isManaged(name) {
   return MANAGED.test(name);

@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readTokens, resolveToken, writeTokens } from '../../resources/js/cp/theme-panel/tokens.js';
 import { inferViewport, nextSizeName, parseSize, sizeValue } from '../../resources/js/cp/theme-panel/sizes.js';
-import { TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged } from '../../resources/js/cp/theme-panel/presets.js';
+import { BORDERS, CHECK_SIZES, INPUT_TOKENS, OPACITIES, TITLE_TOKENS, TRACKINGS, TYPE_TOKENS, isManaged, withCurrent } from '../../resources/js/cp/theme-panel/presets.js';
+import { checkSample, fieldSample, sampleColor } from '../../resources/js/cp/theme-panel/samples.js';
 
 const CSS = `@import "tailwindcss";
 
@@ -144,4 +145,89 @@ test('the Title tokens are typography the page gets on every render', () => {
 
 test('the Title letter spacings run narrowest first, with normal in the middle', () => {
   assert.deepEqual(TRACKINGS.map(([, value]) => value), ['-0.05em', '-0.025em', 'normal', '0.05em', '0.1em']);
+});
+
+const FORMS_CSS = `@theme {
+    --color-white: #FFFFFF;
+    --button-radius: 0;
+    --btn-radius: var(--button-radius);
+
+    --input-bg: var(--color-white);
+    --input-bg-opacity: 100%;
+    --input-radius: 0.375rem;
+    --input-check-size: 1.1em;
+}
+`;
+
+test('a changed input token is rewritten in place, and reads back the same', () => {
+  const out = writeTokens(FORMS_CSS, { 'input-radius': '0.5rem' });
+
+  assert.equal(out, FORMS_CSS.replace('--input-radius: 0.375rem;', '--input-radius: 0.5rem;'));
+  assert.equal(readTokens(out).get('input-radius'), '0.5rem');
+  assert.equal(writeTokens(out, Object.fromEntries(readTokens(out))), out);
+});
+
+test('a new input token joins the other input tokens', () => {
+  const out = writeTokens(FORMS_CSS, { 'input-focus': 'var(--color-primary)' });
+
+  assert.ok(out.includes('    --input-radius: 0.375rem;\n    --input-focus: var(--color-primary);\n'), out);
+});
+
+test('every Forms token is one the page gets on every render, so the panel paints it at once', () => {
+  assert.equal(INPUT_TOKENS.length, 10);
+
+  for (const name of INPUT_TOKENS) {
+    assert.ok(isManaged(name), name);
+  }
+
+  assert.ok(isManaged('input-bg-opacity'));
+  assert.ok(!isManaged('inputs'));
+});
+
+test('the Forms choices are written in rem/em and %, px only for border widths', () => {
+  assert.deepEqual(OPACITIES, ['100%', '90%', '75%', '50%', '25%', '0%']);
+  assert.deepEqual(BORDERS.map(([, v]) => v), ['0', '1px', '2px']);
+  assert.ok(CHECK_SIZES.every(([, v]) => /^[\d.]+em$/.test(v)));
+});
+
+test('a value the list does not have is offered first; a listed one is not repeated', () => {
+  assert.deepEqual(withCurrent(BORDERS, '3px')[0], ['', '3px']);
+  assert.equal(withCurrent(BORDERS, '1px'), BORDERS);
+  assert.equal(withCurrent(BORDERS, ''), BORDERS);
+});
+
+const FAMILIES = [
+  { name: 'white', value: '#FFFFFF', steps: [] },
+  { name: 'gray', value: null, steps: [{ name: '300', value: '#d4d4d4' }, { name: '800', value: '#262626' }] },
+  { name: 'primary', value: '#bc6f35', steps: [{ name: '500', value: '#9e571e' }] },
+];
+
+test('a color token resolves through the theme for the sample', () => {
+  assert.equal(sampleColor('var(--color-white)', FAMILIES), '#fff');
+  assert.equal(sampleColor('var(--color-black)', FAMILIES), '#000');
+  assert.equal(sampleColor('var(--color-primary)', FAMILIES), '#bc6f35');
+  assert.equal(sampleColor('var(--color-primary-500)', FAMILIES), '#9e571e');
+  assert.equal(sampleColor('var(--gray-800)', FAMILIES), '#262626');
+  assert.equal(sampleColor('transparent', FAMILIES), 'transparent');
+  assert.equal(sampleColor('var(--color-nope)', FAMILIES), null);
+});
+
+test('the sample field reads the tokens the way the site\'s input rule does', () => {
+  const ui = {
+    families: FAMILIES,
+    sizes: [{ name: 'size-sm', min: 15, max: 15 }],
+    input: {
+      'input-bg': 'var(--color-primary)', 'input-bg-opacity': '50%', 'input-color': 'var(--color-gray-800)',
+      'input-size': 'var(--size-sm)', 'input-radius': 'var(--radius-lg)', 'input-border-width': '1px',
+      'input-border-color': 'var(--color-gray-300)', 'input-accent': 'var(--color-primary-500)', 'input-check-size': '1.4em',
+    },
+  };
+  const field = fieldSample(ui);
+
+  assert.equal(field.backgroundColor, 'color-mix(in srgb, #bc6f35 50%, transparent)');
+  assert.equal(field.color, '#262626');
+  assert.equal(field.fontSize, '0.9375rem');
+  assert.equal(field.borderRadius, '0.5rem');
+  assert.equal(field.border, '1px solid #d4d4d4');
+  assert.deepEqual([checkSample(ui).accentColor, checkSample(ui).width], ['#9e571e', '1.4em']);
 });

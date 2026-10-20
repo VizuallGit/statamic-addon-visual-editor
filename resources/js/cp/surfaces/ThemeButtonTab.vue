@@ -23,7 +23,7 @@
       <span class="sve-theme__label">{{ ui.labels.button_size }}</span>
       <span class="sve-theme__input">
         <select :value="sizeRef(ui.button['button-size']) || ''" @change="h.onButton('button-size', `var(--${$event.target.value})`)">
-          <option v-for="s in ui.sizes" :key="s.key" :value="s.name">{{ s.name }} · {{ px(s) }}</option>
+          <option v-for="s in ui.sizes" :key="s.key" :value="s.name">{{ s.name }} · {{ sizeLabel(s) }}</option>
         </select>
         <svg class="sve-theme__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
       </span>
@@ -67,7 +67,8 @@
 <script setup>
 import { computed } from 'vue';
 import { themePanelUi as ui } from '../theme-panel/store.js';
-import { RADII, WEIGHTS, firstFamily, literalOf, sizeRef } from '../theme-panel/presets.js';
+import { RADII, WEIGHTS, literalOf, sizeRef, withCurrent } from '../theme-panel/presets.js';
+import { buttonSample, sizeLabel } from '../theme-panel/samples.js';
 
 defineProps({ h: { type: Object, required: true } });
 
@@ -80,29 +81,9 @@ const weight = computed(() => literalOf(ui.button['button-weight'], WEIGHTS, 'fo
 const radius = computed(() => literalOf(ui.button['button-radius'], RADII, 'radius'));
 
 function radiiWith(value) {
-  return RADII.some(([, v]) => v === value) || !value ? RADII : [['', value], ...RADII];
-}
-
-function px(s) {
-  const r = (n) => Math.round(n * 100) / 100;
-
-  return s.min === s.max ? `${r(s.min)} px` : `${r(s.min)}–${r(s.max)} px`;
+  return withCurrent(RADII, value);
 }
 
 /** A button drawn with the chosen values, in the site's primary color, at its desktop size. */
-const sample = computed(() => {
-  const size = ui.sizes.find((s) => s.name === sizeRef(ui.button['button-size']));
-  const stack = ui.button['button-font'] === 'var(--font-heading)' ? ui.type['font-heading'] : ui.type['font-base'];
-  const primary = ui.families.find((f) => f.name === 'primary')?.value || '#0d9488';
-
-  return {
-    background: primary,
-    color: '#fff',
-    fontFamily: `'${firstFamily(stack)}', ui-sans-serif, system-ui, sans-serif`,
-    fontSize: size ? `${size.max / 16}rem` : '0.9375rem',
-    fontWeight: weight.value,
-    borderRadius: radius.value,
-    textTransform: ui.button['button-transform'] || 'none',
-  };
-});
+const sample = computed(() => buttonSample(ui));
 </script>

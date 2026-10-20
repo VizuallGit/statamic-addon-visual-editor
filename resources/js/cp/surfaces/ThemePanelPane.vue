@@ -81,6 +81,7 @@
       <ThemeFontsTab v-else-if="ui.tab === 'fonts'" :h="props" />
       <ThemeTypeTab v-else-if="ui.tab === 'type'" :h="props" />
       <ThemeButtonTab v-else-if="ui.tab === 'button'" :h="props" />
+      <ThemeFormsTab v-else-if="ui.tab === 'forms'" :h="props" />
       <ThemeStylesTab v-else-if="ui.tab === 'styles'" :h="props" />
     </div>
   </div>
@@ -94,12 +95,13 @@ import ThemeSpacingTab from './ThemeSpacingTab.vue';
 import ThemeFontsTab from './ThemeFontsTab.vue';
 import ThemeTypeTab from './ThemeTypeTab.vue';
 import ThemeButtonTab from './ThemeButtonTab.vue';
+import ThemeFormsTab from './ThemeFormsTab.vue';
 import ThemeStylesTab from './ThemeStylesTab.vue';
 
 const svg = (paths) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 
-/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, a button, braces. */
+/** Each tab with its icon: a palette, a ruler, a large and a small A, a T, a cube, a button, a text field. */
 const TABS = [
   {
     key: 'colors',
@@ -124,6 +126,10 @@ const TABS = [
   {
     key: 'button',
     icon: svg('<rect x="2" y="7" width="20" height="10" rx="5"/><path d="M8 12h8"/>'),
+  },
+  {
+    key: 'forms',
+    icon: svg('<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4"/>'),
   },
 ];
 
@@ -194,6 +200,7 @@ const props = defineProps({
   onOpenClassKey: { type: Function, required: true },
   onAddUtilityFromClasses: { type: Function, required: true },
   onButton: { type: Function, required: true },
+  onInput: { type: Function, required: true },
   onAddUtility: { type: Function, required: true },
   onOpenUtility: { type: Function, required: true },
   onUtilityName: { type: Function, required: true },

@@ -1,7 +1,7 @@
 /**
- * The theme panel in Live Preview: colors, the size scale, typography and the
- * button — the tokens in the site's site.css `@theme`, edited like a design
- * tool, one tab each.
+ * The theme panel in Live Preview: colors, the size scale, typography, the
+ * button and the form controls — the tokens in the site's site.css `@theme`,
+ * edited like a design tool, one tab each.
  *
  * Own surface. Does not import overlay, preview, bridge or the template dock.
  * Two speeds: a change paints into the preview at once (the variables are set
@@ -24,7 +24,7 @@ import { themePanelUi as ui } from './cp/theme-panel/store.js';
 import { MAX_VARIANTS, familyMode, generateSteps, isCoreColor, isHex, nameProblem, nudgeSteps, readColors, remakeSteps, scaleSteps, writeColors } from './cp/theme-panel/palette.js';
 import { readTokens, writeTokens } from './cp/theme-panel/tokens.js';
 import { MIN_VIEWPORT, inferViewport, nextSizeName, parseSize, sizeValue } from './cp/theme-panel/sizes.js';
-import { BUTTON_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
+import { BUTTON_TOKENS, INPUT_TOKENS, LEVEL_TOKENS, TITLE_TOKENS, TYPE_TOKENS, firstFamily, isManaged } from './cp/theme-panel/presets.js';
 import { applyListing, installedNames, loadFonts, refreshPageFonts } from './cp/theme-panel/fonts.js';
 import { bodyProblem, compilerCss, dedent, utilityBodies, utilityNameProblem, writeUtilities } from './cp/theme-panel/utilities.js';
 import { propNameProblem, propValueProblem, readCustomProps, writeCustomProps } from './cp/theme-panel/custom-props.js';
@@ -40,7 +40,7 @@ const ENTRY = 'site.css';
 const VARS = 'var.css';
 const CLASSES = 'custom-classes.css';
 
-const TABS = ['colors', 'spacing', 'fonts', 'type', 'styles', 'button'];
+const TABS = ['colors', 'spacing', 'fonts', 'type', 'styles', 'button', 'forms'];
 
 let app = null;
 let keySeq = 0;
@@ -134,6 +134,7 @@ function remember(css) {
   ui.maxViewport = parseSize(tokens.get('container-width'))?.max || inferViewport(ui.sizes.map((s) => s.value)) || 1280;
   ui.type = Object.fromEntries(TYPE_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.button = Object.fromEntries(BUTTON_TOKENS.map((name) => [name, tokens.get(name) || '']));
+  ui.input = Object.fromEntries(INPUT_TOKENS.map((name) => [name, tokens.get(name) || '']));
   ui.leadings = [...tokens]
     .filter(([name, value]) => name.startsWith('leading-') && /^[\d.]+$/.test(value))
     .map(([name, value]) => ({ name: name.slice('leading-'.length), value }));
@@ -357,7 +358,7 @@ function desiredTokens() {
     }
   }
 
-  for (const [name, value] of Object.entries({ ...ui.type, ...ui.button })) {
+  for (const [name, value] of Object.entries({ ...ui.type, ...ui.button, ...ui.input })) {
     if (value) {
       out[name] = value;
     }
@@ -869,7 +870,7 @@ const handlers = (win) => ({
   // Fonts: added at once, no Save — the dropdowns and the preview have them straight away.
   onAddFont: () => openFontDialog(win),
 
-  // Typography and button
+  // Typography, button and forms
   onType: (name, value) => {
     if (TYPE_TOKENS.includes(name)) {
       ui.type[name] = value;
@@ -879,6 +880,12 @@ const handlers = (win) => ({
   onButton: (name, value) => {
     if (BUTTON_TOKENS.includes(name)) {
       ui.button[name] = value;
+      changed(win);
+    }
+  },
+  onInput: (name, value) => {
+    if (INPUT_TOKENS.includes(name)) {
+      ui.input[name] = value;
       changed(win);
     }
   },
@@ -1311,7 +1318,7 @@ function labels(win) {
 
   return Object.fromEntries(
     Object.keys(strings)
-      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|utilities|classes|props)_/.test(key))
+      .filter((key) => /^theme_(panel|colors|spacing|fonts|type|button|forms|utilities|classes|props)_/.test(key))
       .map((key) => [key.replace(/^theme_/, ''), t(win, key)])
   );
 }

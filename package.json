@@ -19,6 +19,7 @@
     "test:theme": "node tests/browser/theme-panel.mjs",
     "test:utilities": "node tests/browser/theme-utilities.mjs",
     "test:fonts": "node tests/browser/theme-fonts.mjs",
+    "test:forms": "node tests/browser/theme-forms.mjs",
     "test:toolbar": "node tests/browser/toolbar-visibility.mjs",
     "test:presets": "node tests/browser/preset-panes.mjs",
     "test:perf": "node tests/browser/perf-server-tab.mjs",
