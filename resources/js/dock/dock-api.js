@@ -35,6 +35,7 @@ import { sectionField } from '../lib/config.js';
 import { activeContainers, pageHasSectionField } from '../lib/publish-containers.js';
 import { collectionViewType } from '../lib/collection-view.js';
 import { setTypeForUid } from '../lib/row-meta.js';
+import { log as debugLog } from '../lib/debug.js';
 import { globalSectionHost } from '../global-section.js';
 import { chromeContainer, chromeEditorOpen, chromeHost, chromeInlineKind } from '../chrome.js';
 import { closeHtmlTreePanel, openHtmlTreePanel } from '../lazy/html-tree.js';
@@ -386,7 +387,9 @@ export async function loadTemplate(win, type, mode = 'replace') {
     landed = resolve;
   });
 
+  debugLog(`dock loadTemplate ${type}: waiting for the dock`);
   const dock = await ensureDock(win);
+  debugLog(`dock loadTemplate ${type}: dock ready, fetching`);
 
   paintLock(win);
   paintHtmlScope(win);
@@ -419,8 +422,10 @@ export async function loadTemplate(win, type, mode = 'replace') {
       const data = await res.json();
 
       if (gen !== dockState.loadGen) {
+        debugLog(`dock loadTemplate ${type}: overtaken (gen ${gen}/${dockState.loadGen})`);
         return;
       }
+      debugLog(`dock loadTemplate ${type}: landed ${data.path || '-'}`);
 
       dockState.lastParts = {
         html: typeof data.html === 'string' ? data.html : '',
@@ -466,7 +471,8 @@ export async function loadTemplate(win, type, mode = 'replace') {
       paintAutosave(win);
       placeDock(win, dock);
     })
-    .catch(() => {
+    .catch((err) => {
+      debugLog(`dock loadTemplate ${type}: failed ${err?.message || err} (gen ${gen}/${dockState.loadGen})`);
       if (gen !== dockState.loadGen) {
         return;
       }
@@ -828,6 +834,8 @@ function globalSectionTemplateType(doc) {
  * row to exist as a replicator set in the left sidebar.
  */
 export function syncCodeDock(win, doc, uid) {
+  // For the browser tests (`window.__sveDebug.log`): who asked, and what came of it.
+  debugLog(`dock sync uid=${uid || '-'} last=${dockState.lastUid || '-'}/${dockState.lastType || '-'}`);
   if (dockState.dragging) {
     return;
   }
@@ -907,6 +915,7 @@ export function syncCodeDock(win, doc, uid) {
   }
 
   if (type === dockState.lastType && doc.getElementById(DOCK_ID)) {
+    debugLog('dock same type, dock open: nothing to do');
     return;
   }
 
@@ -921,6 +930,7 @@ export function syncCodeDock(win, doc, uid) {
   }
 
   flushSave(doc);
+  debugLog(`dock loadTemplate ${type}`);
   loadTemplate(win, type, 'replace');
 }
 
