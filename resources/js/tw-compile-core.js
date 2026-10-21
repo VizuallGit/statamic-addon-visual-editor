@@ -16,8 +16,11 @@
  * from `{{ sve_tw }}` would put a second copy after the stylesheet that owns
  * them.
  *
- * The compiler is built once and kept: `build()` on an existing one is cheap,
- * `compile()` is not.
+ * Two ways to use it. `makeTailwindCompiler` + `buildTailwind` is a compiler
+ * that is kept and asked again and again — Instant's live sheet, where a rule
+ * for a class the file no longer has matches nothing. `bakeTailwind` is a
+ * compiler of its own for one build — the CSS written to disk, where that
+ * same leftover rule would be another file's CSS shipped with this one.
  */
 
 import { twCandidates, twSiteUtilities } from './tw-candidates.js';
@@ -115,7 +118,12 @@ function skipSet(site) {
 }
 
 /**
- * The CSS for one file's classes.
+ * The CSS for one file's classes, from a compiler that is kept.
+ *
+ * `build()` remembers every candidate it has been handed and keeps emitting
+ * their rules, so the sheet grows with the session: right for Instant, where
+ * a rule nothing matches is inert and the compile must not be paid again per
+ * keystroke. Not for disk — that is `bakeTailwind`.
  *
  * An unknown class is not an error — Tailwind simply has no rule for it, and
  * the reader finds out by seeing nothing change.
@@ -128,4 +136,26 @@ export function buildTailwind(state, html) {
   }
 
   return state.compiler.build(candidates);
+}
+
+/**
+ * The CSS saved with one file: a compiler of its own, one build.
+ *
+ * A compiler shared across saves wrote the header's twenty-odd rules into
+ * every section baked after it, in whatever order the files happened to be
+ * opened. Compiling the site's theme costs 10–20 ms and the save is debounced
+ * and off the paint path, so each bake gets a compiler nothing has touched.
+ *
+ * @param {object} options  what `makeTailwindCompiler` takes
+ */
+export async function bakeTailwind(options, html) {
+  const candidates = twCandidates(html).filter((name) => !skipSet(options.site).has(name));
+
+  if (!candidates.length) {
+    return '';
+  }
+
+  const { compiler } = await makeTailwindCompiler(options);
+
+  return compiler.build(candidates);
 }

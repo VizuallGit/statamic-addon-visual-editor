@@ -6,14 +6,18 @@
  * stylesheets ride along as text, so nothing is fetched from a CDN and nothing
  * needs Vite on the server.
  *
- * A fresh compiler per build, on purpose. `build()` remembers every candidate
- * it has been given, so reusing one would keep emitting CSS for classes the
- * file no longer has — and would mix one section's classes into the next.
- * Building one costs a few milliseconds; the save is debounced anyway.
+ * Two compilers, two speeds. `build()` remembers every candidate it has been
+ * given and keeps emitting their rules, so:
  *
- * The design system is the opposite: one per session, kept. It is read-only —
- * a class list and a compiler for single candidates — so nothing accumulates
- * in it, and rebuilding it per keystroke would be absurd.
+ * - Instant keeps one for the session (`loadTailwindCompiler`): a class paints
+ *   the frame it is typed, and a leftover rule for a class the file no longer
+ *   has matches nothing in the preview.
+ * - The bake takes a fresh one per save (`compileTailwind`): what is written
+ *   to disk is this file's classes and nothing else. Compiling the theme costs
+ *   10–20 ms; the save is debounced and off the paint path.
+ *
+ * The design system is read-only — a class list and a compiler for single
+ * candidates — so one per session, kept.
  */
 
 import { compile, __unstable__loadDesignSystem } from 'tailwindcss';
@@ -21,7 +25,7 @@ import themeSource from 'tailwindcss/theme.css?raw';
 import utilitiesSource from 'tailwindcss/utilities.css?raw';
 import forms from '@tailwindcss/forms';
 import typography from '@tailwindcss/typography';
-import { buildTailwind, makeDesignSystem, makeTailwindCompiler } from './tw-compile-core.js';
+import { bakeTailwind, buildTailwind, makeDesignSystem, makeTailwindCompiler } from './tw-compile-core.js';
 
 /**
  * Plugins this addon carries, so a class from them paints at once in Instant
@@ -75,22 +79,31 @@ function loadSite(win) {
 }
 
 /**
- * The compiler for this site, made once and kept.
+ * Everything a compiler for this site is made from. `css` replaces the site's
+ * own `@theme` / `@utility` blocks when a draft of them is what should compile.
+ */
+async function compilerOptions(win, css) {
+  const site = await loadSite(win);
+
+  return {
+    compile,
+    sources: { theme: themeSource, utilities: utilitiesSource },
+    site: css === undefined ? site : { ...site, css },
+    modules: MODULES,
+  };
+}
+
+/**
+ * Instant's compiler: made once, kept for the session.
  *
- * Building it means compiling the theme (~300 ms); building a file's classes
- * with it is a few milliseconds. The save path and the dock's Instant paint
- * share this one, so what the preview shows the moment you type is the same
- * CSS the file is saved with — one bake, two speeds.
+ * The dock paints a class the frame it is typed with `buildTailwind` on this
+ * one. It accumulates — see the top of the file — which is why it is not the
+ * compiler the save writes to disk with.
  */
 export function loadTailwindCompiler(win) {
   if (!compilerPromise) {
-    compilerPromise = loadSite(win)
-      .then((site) => makeTailwindCompiler({
-        compile,
-        sources: { theme: themeSource, utilities: utilitiesSource },
-        site,
-        modules: MODULES,
-      }))
+    compilerPromise = compilerOptions(win)
+      .then((options) => makeTailwindCompiler(options))
       .then((state) => {
         if (!warned && state.missingPlugins.length) {
           warned = true;
@@ -113,8 +126,14 @@ export function loadTailwindCompiler(win) {
   return compilerPromise;
 }
 
+/**
+ * The CSS saved with a file — the section's `sve_tw`, a component's sheet.
+ *
+ * A compiler of its own per call: the one Instant keeps would hand this file
+ * every class the session has seen before it.
+ */
 export async function compileTailwind(win, html) {
-  return buildTailwind(await loadTailwindCompiler(win), html);
+  return bakeTailwind(await compilerOptions(win), html);
 }
 
 export { buildTailwind };
@@ -131,13 +150,7 @@ export async function compileDraft(win, css, candidates) {
     return '';
   }
 
-  const site = await loadSite(win);
-  const state = await makeTailwindCompiler({
-    compile,
-    sources: { theme: themeSource, utilities: utilitiesSource },
-    site: { ...site, css },
-    modules: MODULES,
-  });
+  const state = await makeTailwindCompiler(await compilerOptions(win, css));
 
   return state.compiler.build(candidates);
 }

@@ -34,23 +34,51 @@ final class Manifest
     }
 
     /**
-     * @return array<string, mixed>
+     * The build on disk, as one string: the md5 of manifest.json. Every Vite
+     * run rewrites that file, so a new build is a new key — and the same
+     * build is the same key on the server as on the machine that built it.
+     * Null while there is no build.
      */
-    public static function manifest(): array
+    public static function buildKey(): ?string
     {
         $path = static::manifestPath();
 
         if (! is_file($path)) {
-            throw new RuntimeException('Visual Editor build is missing: '.$path);
+            return null;
         }
 
-        $manifest = json_decode((string) file_get_contents($path), true);
+        return md5_file($path) ?: null;
+    }
+
+    /** Memo for the request, with the key of the file it was parsed from. */
+    private static ?array $manifest = null;
+
+    private static ?string $manifestKey = null;
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function manifest(): array
+    {
+        $key = static::buildKey();
+
+        if ($key === null) {
+            throw new RuntimeException('Visual Editor build is missing: '.static::manifestPath());
+        }
+
+        if (static::$manifest !== null && static::$manifestKey === $key) {
+            return static::$manifest;
+        }
+
+        $manifest = json_decode((string) file_get_contents(static::manifestPath()), true);
 
         if (! is_array($manifest)) {
             throw new RuntimeException('Visual Editor manifest is not valid JSON.');
         }
 
-        return $manifest;
+        static::$manifestKey = $key;
+
+        return static::$manifest = $manifest;
     }
 
     public static function fileFor(string $entry): string
@@ -136,13 +164,9 @@ final class Manifest
      * File names the live `addon.js` reaches through chunk imports
      * (`from "./name.js"` or `import("./name.js")`), all the way down.
      *
-     * One hop stopped being enough when addon.js deferred the Live Preview
-     * cluster behind a single `import('./lp-cluster.js')`: overlay-host and
-     * every panel chunk now sit behind that hop, and serving, recovery and the
-     * lock all read this list.
-     *
-     * A chunk missing from assets/ is read from locked/ so the walk still sees
-     * its imports — that is exactly the file Recovery is about to put back.
+     * From the lock when it describes this build — Recovery wrote the list the
+     * last time it walked — and from the walk itself otherwise. The walk reads
+     * every chunk in the graph (4 MB, 10 ms); the lock is one small JSON file.
      *
      * @return list<string>
      */
@@ -152,10 +176,32 @@ final class Manifest
             return static::$addonImports;
         }
 
+        if (Lock::holds(static::buildKey())) {
+            return static::$addonImports = array_values(array_map('strval', Lock::read()['imports']));
+        }
+
+        return static::$addonImports = static::walkAddonImports();
+    }
+
+    /**
+     * The walk itself, every time it is called: addon.js and every chunk it
+     * reaches, read and matched for `from "./x.js"` / `import("./x.js")`.
+     *
+     * One hop stopped being enough when addon.js deferred the Live Preview
+     * cluster behind a single `import('./lp-cluster.js')`: overlay-host and
+     * every panel chunk now sit behind that hop.
+     *
+     * A chunk missing from assets/ is read from locked/ so the walk still sees
+     * its imports — that is exactly the file Recovery is about to put back.
+     *
+     * @return list<string>
+     */
+    public static function walkAddonImports(): array
+    {
         $path = static::liveAddonPath();
 
         if (! $path) {
-            return static::$addonImports = [];
+            return [];
         }
 
         $seen = [basename($path) => true];
@@ -187,6 +233,14 @@ final class Manifest
             }
         }
 
-        return static::$addonImports = $names;
+        return $names;
+    }
+
+    /** Forget what this request memoised — for tests that change the build under it. */
+    public static function forget(): void
+    {
+        static::$addonImports = null;
+        static::$manifest = null;
+        static::$manifestKey = null;
     }
 }

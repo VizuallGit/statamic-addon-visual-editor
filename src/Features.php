@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor;
 
 use Statamic\Facades\Addon;
+use Statamic\Facades\YAML;
 
 /**
  * Which parts of the editor this site gets.
@@ -272,6 +273,14 @@ class Features
     /**
      * The toggles as saved on the settings screen, or [] if never saved.
      *
+     * Read from the file the way Statamic's own FileSettingsRepository::find
+     * reads it — `YAML::file($path)->parse()` — and not through
+     * `$addon->settings()->raw()`. Those are the same values: raw() is the
+     * parsed YAML, untouched. But building the Settings object around them
+     * runs Antlers::parse over every value and every one of the blueprint's
+     * 73 defaults: 48 ms, on every request, a visitor's too (five middlewares
+     * ask editorEnabled()). The file itself parses in under a millisecond.
+     *
      * Guarded: this runs from a middleware on every front-end request, and an
      * addon that isn't registered (or a settings file that has gone missing)
      * must fall through to config rather than take the site down.
@@ -283,9 +292,27 @@ class Features
         }
 
         try {
-            return static::$saved = Addon::get(static::ADDON_ID)?->settings()->raw() ?? [];
+            $path = static::settingsPath();
+
+            return static::$saved = $path !== null && is_file($path)
+                ? (array) YAML::file($path)->parse()
+                : [];
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * Where Statamic keeps this addon's saved settings: FileSettings::path().
+     * Spelled out here so the file can be read without building a Settings
+     * object; tests/FeaturesTest holds it against Statamic's own answer, so a
+     * Statamic that moves the file fails the suite instead of silently
+     * leaving every toggle on its default.
+     */
+    public static function settingsPath(): ?string
+    {
+        $slug = Addon::get(static::ADDON_ID)?->slug();
+
+        return $slug ? resource_path("addons/{$slug}.yaml") : null;
     }
 }

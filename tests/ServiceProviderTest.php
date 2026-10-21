@@ -3,6 +3,7 @@
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
 use Illuminate\Support\Facades\Event;
+use MarioHamann\StatamicVisualEditor\Features;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\AutoUuidFieldtype;
 use MarioHamann\StatamicVisualEditor\Fieldtypes\SveLiteSections;
 use MarioHamann\StatamicVisualEditor\Http\Middleware\DisableStaticCacheInLivePreview;
@@ -24,6 +25,7 @@ use Statamic\Events\EntrySaving;
 use Statamic\Events\GlobalVariablesBlueprintFound;
 use Statamic\Events\GlobalVariablesSaving;
 use Statamic\Fields\FieldtypeRepository;
+use Statamic\Statamic;
 
 class ServiceProviderTest extends TestCase
 {
@@ -131,5 +133,42 @@ class ServiceProviderTest extends TestCase
         $this->assertContains(DisableStaticCacheInLivePreview::class, $middleware);
         $this->assertContains(InjectBridgeScript::class, $middleware);
         $this->assertContains(DisableViteHotReload::class, $middleware);
+    }
+
+    public function test_instant_paint_script_stays_out_of_the_cp_while_the_template_dock_is_off(): void
+    {
+        $this->assertFalse(Features::enabled('template_dock'));
+
+        $this->assertNotContains('dock-instant-preview', $this->cpScriptNames());
+        $this->assertContains('dedupe-cp-fetch', $this->cpScriptNames());
+        $this->assertContains('save-errors', $this->cpScriptNames());
+    }
+
+    public function test_instant_paint_script_is_handed_to_the_cp_when_the_template_dock_is_on(): void
+    {
+        $features = config('statamic-visual-editor.features', []);
+        $features['template_dock'] = true;
+        config(['statamic-visual-editor.features' => $features]);
+        Features::flush();
+
+        $provider = $this->app->getProvider(ServiceProvider::class);
+        $boot = new \ReflectionMethod($provider, 'bootScripts');
+        $boot->invoke($provider);
+
+        $this->assertContains('dock-instant-preview', $this->cpScriptNames());
+    }
+
+    /** The file names (without hash or extension) Statamic will put in the CP's <head>. */
+    private function cpScriptNames(): array
+    {
+        $names = [];
+
+        foreach (Statamic::availableScripts(request()) as $paths) {
+            foreach ($paths as $path) {
+                $names[] = preg_replace('/\.js(\?.*)?$/', '', basename(parse_url($path, PHP_URL_PATH) ?: $path));
+            }
+        }
+
+        return $names;
     }
 }

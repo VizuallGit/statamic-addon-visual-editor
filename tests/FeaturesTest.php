@@ -2,7 +2,9 @@
 
 namespace MarioHamann\StatamicVisualEditor\Tests;
 
+use Illuminate\Support\Facades\File;
 use MarioHamann\StatamicVisualEditor\Features;
+use Statamic\Facades\Addon;
 
 class FeaturesTest extends TestCase
 {
@@ -217,5 +219,42 @@ class FeaturesTest extends TestCase
         ]);
 
         $this->assertSame([], $shown);
+    }
+
+    /**
+     * The settings file is read directly, without building Statamic's Settings
+     * object (48 ms of Antlers per request). That only holds while the path we
+     * read is the one Statamic writes to — so it is held against Statamic's
+     * own answer here, and a Statamic that moves the file fails this test.
+     */
+    public function test_settings_are_read_from_the_file_statamic_writes_them_to(): void
+    {
+        $addon = Addon::get('statamic-addon/visual-editor');
+
+        $this->assertNotNull($addon, 'the addon must be registered in the test app');
+        $this->assertSame($addon->settings()->path(), Features::settingsPath());
+    }
+
+    public function test_a_toggle_saved_on_the_settings_screen_wins_over_config(): void
+    {
+        $path = Features::settingsPath();
+        $this->assertNotNull($path);
+
+        config(['statamic-visual-editor.features.template_dock' => false]);
+        Features::flush();
+        $this->assertFalse(Features::enabled('template_dock'));
+
+        File::ensureDirectoryExists(dirname($path));
+        File::put($path, "template_dock: true\ncomments: false\n");
+
+        try {
+            Features::flush();
+
+            $this->assertTrue(Features::enabled('template_dock'));
+            $this->assertFalse(Features::enabled('comments'));
+        } finally {
+            File::delete($path);
+            Features::flush();
+        }
     }
 }

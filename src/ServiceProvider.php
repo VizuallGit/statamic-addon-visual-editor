@@ -228,10 +228,23 @@ class ServiceProvider extends AddonServiceProvider
     //
     //   dedupe-cp-fetch           — one GET for iconify/config and colour swatches
     //   dock-instant-preview        — paint HTML-dock classes into LP before morph
+    //                                 (only while `template_dock` is on, see
+    //                                 SCRIPT_FEATURES)
     protected $scripts = [
         __DIR__.'/../resources/js/dedupe-cp-fetch.js',
         __DIR__.'/../resources/js/dock-instant-preview.js',
         __DIR__.'/../resources/js/save-errors.js',
+    ];
+
+    /**
+     * Scripts that belong to one tool, keyed by file name: handed to the
+     * Control Panel only while that tool is on. The Instant paint script is
+     * 150 KB of classic JS on every CP screen; without the template dock there
+     * is nothing for it to paint, so it stays out of the page instead of
+     * loading and returning early.
+     */
+    protected const SCRIPT_FEATURES = [
+        'dock-instant-preview' => 'template_dock',
     ];
 
     protected $commands = [
@@ -298,11 +311,20 @@ class ServiceProvider extends AddonServiceProvider
      * Keep public/vendor copies of $scripts in sync with the addon source, and
      * cache-bust on file contents. Statamic's default only publishes on install
      * and busts on package version.
+     *
+     * Runs inside Statamic's boot (bootScripts), where the settings file
+     * behind Features can be read through the addon registry.
      */
     public function registerScript(string $path)
     {
-        $name = $this->getAddon()->packageName();
         $filename = pathinfo($path, PATHINFO_FILENAME);
+        $feature = static::SCRIPT_FEATURES[$filename] ?? null;
+
+        if ($feature !== null && ! Features::enabled($feature)) {
+            return;
+        }
+
+        $name = $this->getAddon()->packageName();
         $dest = public_path("vendor/{$name}/js/{$filename}.js");
 
         $this->publishes([

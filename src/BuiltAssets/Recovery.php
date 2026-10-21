@@ -14,14 +14,53 @@ final class Recovery
 {
     /**
      * Put back any chunk `addon.js` still names, then refuse to boot if one
-     * is still missing. Call this on every request — a Vite run must not be
+     * is still missing. Called on every request — a Vite run must not be
      * able to leave the Control Panel without an editor.
+     *
+     * Once per build, not once per request: when the lock describes the build
+     * on disk and every file it names is there, nothing has changed since the
+     * last full pass and there is nothing to restore, assert or copy. That
+     * check is stat calls only. The full pass — read the graph, md5 the lock
+     * copies — runs again the moment the manifest changes or a file is gone.
      */
     public static function recover(): void
     {
+        $lock = Lock::read();
+
+        if ($lock !== null && Lock::holds(Manifest::buildKey()) && static::whole($lock)) {
+            return;
+        }
+
         static::restoreImportedChunks();
         static::assertIntegrity();
         static::refreshLock();
+    }
+
+    /**
+     * Every file the lock names, and every file the manifest names, is on
+     * disk. The same files assertIntegrity() checks — without the walk.
+     *
+     * @param  array{addon: string, imports: list<string>}  $lock
+     */
+    protected static function whole(array $lock): bool
+    {
+        if (! is_file(Manifest::root().'/'.$lock['addon'])) {
+            return false;
+        }
+
+        foreach ($lock['imports'] as $name) {
+            if (! is_file(Manifest::assetsDir().'/'.$name)) {
+                return false;
+            }
+        }
+
+        foreach (Manifest::manifest() as $resolved) {
+            if (is_array($resolved) && ! empty($resolved['file']) && ! is_file(Manifest::root().'/'.$resolved['file'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static function restoreImportedChunks(): void
@@ -85,6 +124,9 @@ final class Recovery
      * After a good boot, keep a copy of the live addon.js and every file it
      * imports. Not every leftover hashed addon-*.js in the folder — reading
      * those on each request made Live Preview open slower after many builds.
+     *
+     * Then write down what was locked (Lock), so the next request can see
+     * the build is unchanged without reading any of it again.
      */
     public static function refreshLock(): void
     {
@@ -111,6 +153,12 @@ final class Recovery
 
         foreach (Manifest::addonImports() as $name) {
             static::lockFile($assets.'/'.$name, $locked.'/'.$name);
+        }
+
+        $build = Manifest::buildKey();
+
+        if ($addon && $build !== null) {
+            Lock::write($build, Manifest::fileFor('resources/js/addon.js'), Manifest::addonImports());
         }
     }
 
