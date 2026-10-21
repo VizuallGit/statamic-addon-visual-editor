@@ -17,7 +17,9 @@
  * What it tells:
  *   the dock (syncCodeDock), the block tree (listViewSyncTo) and the preview
  *   (SVE_ACTIVATE) when the selection came from the panel itself — the other
- *   sources already told them.
+ *   sources already told them; the form's host, on the bus, when the door of
+ *   an empty tab is clicked (`chrome:open-fields` — chrome.js opens the half's
+ *   blueprint, and refreshes its form when that blueprint is saved).
  *
  * The one route to the left column since 1.1.553: page sections, the blocks,
  * grid rows and Bard sets inside them, a global section's rows (its borrowed
@@ -34,13 +36,14 @@
 import { h, nextTick } from 'vue';
 import { clearSelection, currentSelection, onSelection, select } from './lib/selection.js';
 import { containerContextName, onContainerContext, whenContainerContext } from './lib/publish-containers.js';
-import { SELECTION_ATTR, SELECTION_PANEL_ID } from './lib/ids.js';
+import { CHROME_CONTAINER, SELECTION_ATTR, SELECTION_PANEL_ID } from './lib/ids.js';
 import { livePreviewEditorEl } from './lib/live-preview.js';
 import { injectStyle } from './lib/style.js';
 import { previewFrame } from './lib/preview-frame.js';
 import { t } from './lib/i18n.js';
 import { log } from './lib/debug.js';
 import { MSG, SOURCE } from './lib/protocol.js';
+import { ask } from './cp/bus.js';
 import { ACTIVE_ATTR } from './cp-selectors.js';
 import { panelIcon } from './cp-section-groups.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
@@ -180,7 +183,22 @@ export function initSelectionPanel(win) {
     win.__sveDebug.values = () => JSON.parse(JSON.stringify(panelValues() || null));
     win.__sveDebug.contexts = () => panelStore.ctxs.map(containerContextName);
   }
-  panelStore.strings = { back: t(win, 'selection_back'), page: t(win, 'selection_page') };
+  panelStore.strings = {
+    back: t(win, 'selection_back'),
+    page: t(win, 'selection_page'),
+    noFields: t(win, 'selection_no_fields'),
+    addFields: t(win, 'selection_add_fields'),
+  };
+  // Statamic's own gate for its blueprint and fieldset screens (canEditFields
+  // in section-fields.js asks the same).
+  panelStore.canFields = win.Statamic?.$permissions?.has?.('configure fields') === true;
+  // The door of an empty tab. The only tabs are the header's and the footer's,
+  // and the form behind them is chrome.js's: it knows the set and opens it.
+  panelStore.onFields = (row) => {
+    if (row?.kind === 'tab' && row.ctxName === CHROME_CONTAINER) {
+      ask('chrome:open-fields', { win, label: row.display });
+    }
+  };
   panelStore.onBack = (parent, row) => {
     if (parent?.kind === 'tab') {
       selectTab(win, parent.handle, parent.ctxName, 'panel');

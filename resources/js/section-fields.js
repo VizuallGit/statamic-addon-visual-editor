@@ -14,9 +14,15 @@
  *
  * On Save, that section's sidebar and Antlers-data are updated in place.
  * Closing remorphs that section's preview once. Other sections are left alone.
+ *
+ * A global set's blueprint (the header's, the footer's) opens in the same
+ * overlay. Its Save is announced on the bus — `globals:blueprint-saved`,
+ * `{ win, handle }` — and the half's host (chrome.js) answers: the form it
+ * has mounted is built again on the new field list, and its warmed screen is
+ * fetched anew. This file does not know who listens.
  */
 import { t } from './lib/i18n.js';
-import { ask } from './cp/bus.js';
+import { ask, emit } from './cp/bus.js';
 import { ensurePanel } from './lazy-panels.js';
 import { openCpOverlay } from './cp/open-overlay.js';
 import FieldsetOverlay from './cp/surfaces/FieldsetOverlay.vue';
@@ -237,8 +243,15 @@ export function canEditFields(win) {
 
 /**
  * A global set's blueprint — the header's or the footer's fields — in the
- * overlay a section's fieldset opens in. Nothing to refresh afterwards here:
- * the half's form is fetched fresh the next time it is stepped into.
+ * overlay a section's fieldset opens in. Opened from the selection panel's
+ * empty header and from the HTML tree's header/footer row.
+ *
+ * Each Save that lands (the YAML is on disk) is announced on the bus as
+ * `globals:blueprint-saved` with `{ win, handle }`. The form mounted for the
+ * half took its blueprint when it mounted, and the screen warmed for the next
+ * open was fetched before this Save — both are out of date the moment it
+ * lands, and chrome.js (the listener) builds the one and fetches the other
+ * again. Nothing waits on Close.
  */
 export function openGlobalFieldsOverlay(win, handle, label) {
   if (!handle) {
@@ -251,6 +264,7 @@ export function openGlobalFieldsOverlay(win, handle, label) {
     src: `${cpRoot(win)}/fields/blueprints/globals/${encodeURIComponent(handle)}/edit`,
     closeLabel: t(win, 'close'),
     saveMatch: /\/fields\/blueprints\/globals\//,
+    onSaved: () => emit('globals:blueprint-saved', { win, handle }),
     onClose: () => {},
   });
 }

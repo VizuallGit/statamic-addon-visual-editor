@@ -281,6 +281,17 @@ export let globalsAcceptValues = true;
 /** Ignore value polls until this timestamp (tab-lock settle after chrome open). */
 export let chromeIgnoreValuePostsUntil = 0;
 
+/**
+ * Open the settle window from outside this file: for the next `ms`, values the
+ * half's form reports are the form agreeing with what it was mounted on — a
+ * remount filling in a field it has just been given — adopted as seen, never
+ * stashed, never dirty (onChromeValues in chrome.js reads the window). Nothing
+ * else changes: a form with unsaved edits stays dirty, a clean one clean.
+ */
+export function settleChromeValues(ms) {
+  chromeIgnoreValuePostsUntil = Date.now() + ms;
+}
+
 /** Cancel pending stash POSTs and ignore value polls until re-enabled. */
 export function invalidateGlobalsPreviewStash() {
   clearTimeout(globalsSaveTimer);
@@ -350,16 +361,16 @@ export function notifyChromeDirty(win) {
     saveBtn.style.opacity = dirty ? '1' : LP_ICON_IDLE_OPACITY;
   }
 
-  // How many fields the half's global set has rides along: none, and the
-  // preview shows no bar — there is nothing that could ever change there.
-  const set = globalSets(win).find((candidate) => candidate.handle === chromeGlobalHandle(win, activeChromeKind));
-
+  // No field count rides along any more. A count of 0 took the bar — and with
+  // it the only Close in the preview — off an empty header; the count was the
+  // one taken when the Control Panel page loaded, so it stayed 0 after fields
+  // were added. The selection panel says a half is empty now (and opens its
+  // blueprint), so the bar always stands while the header or footer is edited.
   sendToPreview(
     {
       source: SOURCE,
       type: MSG.SVE_CHROME_DIRTY,
       dirty,
-      fields: typeof set?.fields === 'number' ? set.fields : null,
     },
     win
   );

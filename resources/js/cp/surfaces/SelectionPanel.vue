@@ -15,6 +15,11 @@
  * what editors know; the tabs addon turns the row's `tab` markers into the
  * Content | Style control on its own, as it does in every publish form.
  *
+ * A whole tab with no field of its own (a header whose blueprint is still
+ * empty) says so instead of drawing nothing, and — for someone who may
+ * configure fields — offers the door to its blueprint. What the door opens is
+ * the host's business (`panelStore.onFields`); this file only draws it.
+ *
  * Keyed on the context by the host: a new form means a fresh field tree.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
@@ -43,6 +48,9 @@ const emit = defineEmits(['painted']);
  * preview's feet.
  */
 const fields = computed(() => (resolvedSelection.value?.fields || []).filter((field) => field?.type !== 'auto_uuid'));
+
+/** A tab with nothing to draw: said in words, never an empty column under a header. */
+const emptyTab = computed(() => resolvedSelection.value?.kind === 'tab' && fields.value.length === 0);
 
 /**
  * Which row's fields are on show. Set one tick after the selection: the old
@@ -113,6 +121,10 @@ function goBack() {
   panelStore.onBack?.(resolvedParent.value, resolvedSelection.value);
 }
 
+function openFields() {
+  panelStore.onFields?.(resolvedSelection.value);
+}
+
 watch(
   () => [shownUid.value, resolvedSelection.value?.icon, resolvedSelection.value?.display],
   () => {
@@ -138,8 +150,22 @@ onBeforeUnmount(() => log('SelectionPanel unmount'));
       <p v-if="resolvedSelection.instructions" class="sve-sel__desc">{{ resolvedSelection.instructions }}</p>
     </header>
 
+    <div v-if="emptyTab" class="sve-sel__empty" data-sve-selection-empty>
+      <p class="sve-sel__empty-text">{{ panelStore.strings.noFields }}</p>
+      <button
+        v-if="panelStore.canFields && panelStore.onFields"
+        type="button"
+        class="sve-sel__door"
+        data-sve-selection-fields-door
+        @click="openFields"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
+        <span>{{ panelStore.strings.addFields }}</span>
+      </button>
+    </div>
+
     <PublishFieldsProvider
-      v-if="shownUid === shownKeyOf(resolvedSelection)"
+      v-else-if="shownUid === shownKeyOf(resolvedSelection)"
       :key="shownKeyOf(resolvedSelection)"
       :fields="fields"
       :field-path-prefix="resolvedSelection.path"
@@ -230,5 +256,44 @@ onBeforeUnmount(() => log('SelectionPanel unmount'));
   font-size: 0.8125rem;
   line-height: 1.5;
   opacity: 0.6;
+}
+.sve-sel__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+.sve-sel__empty-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  opacity: 0.6;
+}
+.sve-sel__door {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.55em 0.95em;
+  border-radius: 0.55rem;
+  background: rgba(128, 128, 128, 0.16);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+.sve-sel__door:hover {
+  background: rgba(128, 128, 128, 0.28);
+}
+.sve-sel__door:focus-visible {
+  outline: 0.125rem solid currentColor;
+  outline-offset: 0.125rem;
+}
+.sve-sel__door svg {
+  flex: 0 0 auto;
+  width: 1.1em;
+  height: 1.1em;
 }
 </style>

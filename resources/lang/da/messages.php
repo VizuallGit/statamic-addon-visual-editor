@@ -588,6 +588,8 @@ return [
     'all_sections' => 'Alle sektioner',
     'selection_back' => 'Tilbage',
     'selection_page' => 'Siden',
+    'selection_no_fields' => 'Ingen felter endnu.',
+    'selection_add_fields' => 'Tilføj felter',
     'globals' => 'Globals…',
     'save_globals' => 'Gem globale indstillinger',
     'back_to_site' => 'Tilbage til sitet',

@@ -29,6 +29,8 @@ isolated, marked, mounted on demand or waited for.
 - **Page**: the `sve_lite_sections` field (`side/lite-sections.js`) sits in the page form, injects its publish context and registers it. It draws nothing. It also holds the set configs a fieldset edit or a new set writes into (`refreshLiteSetFields`, `addLiteSetConfig`).
 - **Global section** (`global-section.js`): Statamic's `EntryPublishForm` mounted headless in the column with the entry's Inertia props; its sets register the context; the first row is selected; a Vue watch on the values (debounced 250 ms) stashes them for the preview; Save presses the form's own Save.
 - **Header / footer** (`chrome.js` + `cp/surfaces/ChromeForm.vue`): Statamic's `PublishContainer` on the globals screen's Inertia props under the name `sve-chrome`; the half is a tab of that form, a widget a row in it. Changes arrive on `onChange` and go to the globals stash; Save runs Statamic's save pipeline (`@statamic/cms/save-pipeline`).
+  - A half whose blueprint has no fields shows "No fields yet." (`[data-sve-selection-empty]`) and, for a user with `configure fields`, an "Add fields" door (`[data-sve-selection-fields-door]` → `panelStore.onFields` → bus `chrome:open-fields` → the set's blueprint in the fields drawer). The preview's header bar (with its Close) stands whatever the field count.
+  - A blueprint saved in that drawer (from this door or the HTML tree's) is announced as `globals:blueprint-saved`; `refreshChromeForm` in chrome.js fetches the screen again and mounts the form anew on it — what is typed kept, the selection and the dirty state unchanged (the open's settle window covers the new form's first values) — and renews the warmed copy.
 
 ## Rules learned the hard way
 
@@ -42,3 +44,4 @@ isolated, marked, mounted on demand or waited for.
 
 - `npm run check` — isolation (no panel may import the kernel), dist integrity, protocol, node tests (`tests/js/selection.test.js`, `panel-resolve.test.js`, `publish-contexts.test.js`).
 - `node tests/browser/selection-panel.mjs` — against a site with the production CP build (`APP_DEBUG=false`): every kind of click three times gives the same panel, timings, back arrows, trees open with the panel standing, Page Settings, header as a tab and widget as a row, a global section's rows.
+- `node tests/browser/header-empty-state.mjs` — on a disposable site copy (it rewrites the copy's `site_head` blueprint and puts it back): an empty header says so, offers the door and keeps the bar's Close; the door opens the blueprint; a refreshed form draws the new field without turning dirty; typing still stashes; back closes the form.

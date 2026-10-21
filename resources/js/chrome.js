@@ -15,6 +15,15 @@
  * The borrowed globals page component, the solo isolation of its tabs and the
  * docked globals iframe as a fallback went with phase 2 of the selection panel.
  *
+ * The half's blueprint. The form takes its field list when it mounts, so a
+ * blueprint saved while the half is open (the panel's door on an empty half,
+ * the HTML tree's door on its row — both `openGlobalFieldsOverlay`) left the
+ * new fields out until the page was loaded again. That Save is announced on
+ * the bus (`globals:blueprint-saved`); `refreshChromeForm` answers it: the
+ * screen fetched again, the form mounted anew on it with what is typed kept,
+ * the warmed copy fetched again too. On the bus as well: `chrome:open-fields`,
+ * the selection panel's door, opens the open half's blueprint.
+ *
  * Imports leftover helpers from cp.js. Does not get imported by cp.js.
  */
 import { sveState } from './cp-state.js';
@@ -22,15 +31,23 @@ import { syncCodeDock } from './code-dock-lazy.js';
 import { CHROME_CONTAINER, CHROME_HOST_ID, HTML_TREE_PANEL_ID } from './lib/ids.js';
 import { unwrapRef } from './lib/values.js';
 import { containerContextName, publishContainers, whenContainerContext } from './lib/publish-containers.js';
-import { clearSelection, select } from './lib/selection.js';
+import { clearSelection, currentSelection, select } from './lib/selection.js';
+import { on, register } from './cp/bus.js';
 import { setLpMode } from './lp-panel.js';
 import { closeRightPanels, hideGlobalsPanel, syncPreviewInset, syncSectionLibraryAvailability } from './section-library.js';
-import { chromeGlobalHandle, chromeIgnoreValuePostsUntil, clearGlobalsStash, globalsAcceptValues, notifyChromeDirty, notifyGlobalSectionDirty, postGlobals, setActiveChromeKind, watchGlobalsPanelSaves } from './globals-panel.js';
+import { chromeGlobalHandle, chromeIgnoreValuePostsUntil, clearGlobalsStash, globalsAcceptValues, notifyChromeDirty, notifyGlobalSectionDirty, postGlobals, setActiveChromeKind, settleChromeValues, watchGlobalsPanelSaves } from './globals-panel.js';
 import { flushPendingEditUntilPanel } from './inline-edit.js';
 import { fetchInertiaPage, postSectionValues } from './global-section.js';
 import { mountStatamicSurface } from './cp/mount-statamic.js';
 import ChromeForm from './cp/surfaces/ChromeForm.vue';
 import { MSG, SOURCE } from './lib/protocol.js';
+
+/**
+ * How long a freshly mounted form's own value reports count as the form
+ * settling rather than as edits — the window an open gives it
+ * (handleOpenChrome in globals-panel.js).
+ */
+const CHROME_SETTLE_MS = 900;
 
 export let chromeApp = null;
 export let chromeInlineKind = null;
@@ -171,6 +188,13 @@ export function resetChromeInlinePages(win) {
 /** Open header/footer in the left editor, in this window. */
 export async function openChromeInline(win, kind) {
   const doc = win.document;
+
+  // For the browser tests only: rebuild the open half's form on demand, as a
+  // blueprint save does (tests/browser/header-empty-state.mjs).
+  if (win.__sveDebug) {
+    win.__sveDebug.refreshChromeForm = (handle) => refreshChromeForm(win, handle);
+  }
+
   const chromeKind = kind === 'footer' ? 'footer' : 'header';
   const handle = chromeGlobalHandle(win, chromeKind);
   const existing = chromeHost(doc);
@@ -258,8 +282,13 @@ export async function openChromeInline(win, kind) {
  * Register the chrome form's context and select its tab, once the container
  * has registered it — a frame or two at most. Given up after four seconds,
  * when the form did not come, and said so.
+ *
+ * `keepSelection`: the form was mounted again under a selection that is
+ * already its own (the tab, or a widget row in it) — that selection resolves
+ * on the new context by itself, and moving it to the tab would throw away
+ * the row the editor stands on.
  */
-function adoptChromeContext(win, host, kind) {
+function adoptChromeContext(win, host, kind, { keepSelection = false } = {}) {
   whenContainerContext(CHROME_CONTAINER, 4000, win).then((ctx) => {
     if (chromeHost(win.document) !== host || chromeInlineKind !== kind) {
       return;
@@ -273,9 +302,126 @@ function adoptChromeContext(win, host, kind) {
     }
 
     chromeCtx = ctx;
+
+    if (keepSelection && currentSelection()) {
+      return;
+    }
+
     select({ tab: kind, ctxName: containerContextName(ctx), source: 'chrome' });
   });
 }
+
+/** What the open half's form holds right now, as a plain copy. */
+function chromeValuesNow() {
+  const live = unwrapRef(chromeCtx?.values);
+
+  if (live && typeof live === 'object') {
+    return JSON.parse(JSON.stringify(live));
+  }
+
+  try {
+    const seen = sveState.chromeValuesSeen ? JSON.parse(sveState.chromeValuesSeen) : null;
+
+    return seen && typeof seen === 'object' ? seen : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The half's form again, on its blueprint as it is now on disk.
+ *
+ * Statamic's PublishContainer takes its blueprint when it mounts, so after a
+ * blueprint save the form standing here still has the old field list — the
+ * panel drew a header with no fields after fields had been added, until the
+ * whole page was loaded again. The screen is fetched again and the form
+ * mounted anew on it, with what is typed laid over the server's values: an
+ * unsaved edit is kept, a field just added starts from the server's value for
+ * it. The selection stays (the panel re-resolves it on the new context and
+ * draws the new fields), the dirty state stays (the values the new form
+ * reports while it settles are the open's settle window, never an edit), and
+ * the warmed copy — fetched before the save — goes and is fetched again.
+ *
+ * For the other half, or with no half open, only the warmed copy is renewed:
+ * the next open then mounts the new field list.
+ */
+export async function refreshChromeForm(win, handle) {
+  if (!win || !handle) {
+    return false;
+  }
+
+  const doc = win.document;
+  const host = chromeHost(doc);
+
+  chromeInlinePages.delete(handle);
+
+  if (!host || chromeInlineHandle !== handle) {
+    warmChromeInlinePages(win);
+
+    return false;
+  }
+
+  const kind = chromeInlineKind;
+  const loaded = await fetchInertiaPage(win, `/cp/globals/${encodeURIComponent(handle)}`).catch(() => null);
+
+  // Closed, or stepped to the other half, while the screen was on its way.
+  if (chromeHost(doc) !== host || chromeInlineHandle !== handle || chromeInlineKind !== kind) {
+    return false;
+  }
+
+  if (!loaded?.props?.blueprint) {
+    console.error('[sve] the globals screen for', handle, 'could not be fetched again — the', kind, 'keeps the fields it has');
+
+    return false;
+  }
+
+  const values = { ...(loaded.props.values || {}), ...chromeValuesNow() };
+
+  if (chromeApp) {
+    try {
+      chromeApp.unmount();
+    } catch {
+      /* already gone */
+    }
+
+    chromeApp = null;
+  }
+
+  chromeCtx = null;
+  settleChromeValues(CHROME_SETTLE_MS);
+
+  if (!mountChromeContainer(win, host, { ...loaded.props, values }, handle)) {
+    closeChromeInline(win);
+    console.error('[sve] the', kind, 'form could not be mounted again on its new blueprint');
+
+    return false;
+  }
+
+  adoptChromeContext(win, host, kind, { keepSelection: true });
+  warmChromeInlinePages(win);
+
+  return true;
+}
+
+// A global set's blueprint was saved in the fields drawer (section-fields.js).
+on('globals:blueprint-saved', ({ win, handle } = {}) => {
+  void refreshChromeForm(win, handle);
+});
+
+// The selection panel's door on an empty half: that half's blueprint, in the
+// same drawer the HTML tree opens it in. Loaded on the click — the drawer's
+// module is a chunk of its own and stays one.
+register('chrome:open-fields', ({ win, label } = {}) => {
+  const handle = win && chromeHost(win.document) ? chromeInlineHandle : null;
+
+  if (!handle) {
+    return false;
+  }
+
+  void import('./section-fields.js').then(({ openGlobalFieldsOverlay }) => openGlobalFieldsOverlay(win, handle, label));
+
+  return true;
+});
 
 /**
  * What the form holds, as it changes — from the container's own update, not a

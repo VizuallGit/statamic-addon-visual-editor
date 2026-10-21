@@ -33,8 +33,12 @@ export const panelStore = reactive({
   tabByCtx: {},
   /** Set by the host: what the back arrow does. Called with (parent, row). */
   onBack: null,
+  /** Set by the host: what the empty state's door does — opens the fields of the tab shown. Called with (row). */
+  onFields: null,
+  /** Set by the host: whether this user may configure fields (Statamic's `configure fields`). */
+  canFields: false,
   /** Labels in the CP user's language, filled by the host. */
-  strings: { back: 'Back', page: 'Page' },
+  strings: { back: 'Back', page: 'Page', noFields: 'No fields yet.', addFields: 'Add fields' },
 });
 
 const ctxIds = new WeakMap();
