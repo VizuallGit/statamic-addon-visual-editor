@@ -319,8 +319,14 @@ async function submit() {
   border-end-end-radius: 0;
 }
 
-.sve-bp-add__unit {
+/* The unit after the number. The select carries __input too for the shared
+   frame, so this stands below the join rule above and takes it back: its own
+   width, square where it meets the number, round at the outer end. */
+.sve-bp-add__unit,
+.sve-bp-add__join > .sve-bp-add__unit {
+  flex: 0 0 auto;
   box-sizing: border-box;
+  width: auto;
   height: 1.75rem;
   padding: 0 0.625rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
