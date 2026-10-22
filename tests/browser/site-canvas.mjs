@@ -229,9 +229,7 @@ const canvasShape = (layerSel) => {
     fit: { x: vr.x, y: vr.y, w: scroller.clientWidth, h: scroller.clientHeight - Math.max(0, layer.clientHeight - layer.querySelector('.sve-sc-zoom').offsetTop) },
     bar: (() => { const b = layer.querySelector('.sve-sc-zoom').getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; })(),
     scrollbars: [scroller.offsetWidth - scroller.clientWidth, scroller.offsetHeight - scroller.clientHeight],
-    heads: [...layer.querySelectorAll('.sve-sc-head')].map((h) => ({ kind: h.dataset.kind, text: h.textContent, x: h.getBoundingClientRect().x, y: h.getBoundingClientRect().y, w: h.getBoundingClientRect().width, h: h.getBoundingClientRect().height, size: parseFloat(getComputedStyle(h).fontSize) * z })),
-    // The box behind each cluster of a line of several rows, and the divider drawn before every box but the line's first: `divider` its width on screen (0 when none), `dividerX` where it stands.
-    plates: [...layer.querySelectorAll('.sve-sc-plate')].map((p) => { const r = p.getBoundingClientRect(); const cs = getComputedStyle(p); const before = getComputedStyle(p, '::before'); const drawn = before.content !== 'none' && before.content !== ''; return { key: p.dataset.key, first: p.hasAttribute('data-first'), x: r.x, y: r.y, w: r.width, h: r.height, background: cs.backgroundColor, divider: drawn ? parseFloat(before.width) * z : 0, dividerX: drawn ? r.x + parseFloat(before.left) * z : NaN, pointer: cs.pointerEvents }; }),
+    heads: [...layer.querySelectorAll('.sve-sc-head')].map((h) => ({ kind: h.dataset.kind, text: h.textContent, x: h.getBoundingClientRect().x, y: h.getBoundingClientRect().y, size: parseFloat(getComputedStyle(h).fontSize) * z })),
     items: [...layer.querySelectorAll('.sve-sc-item')].map((item) => {
       const r = item.getBoundingClientRect();
       const frame = item.querySelector('iframe');
@@ -610,14 +608,6 @@ try {
   const rowsExpected = groups.flatMap((g) => (g.rows.length > 1 ? g.rows.map((r) => r.title) : []));
   step('a row heading over each cluster of a group with several rows, left to right on its line; none for a group of one row', rowHeads.map((h) => h.text).join('|') === rowsExpected.join('|') && rowHeads.every((h, i) => i === 0 || h.y > rowHeads[i - 1].y + 0.5 || (Math.abs(h.y - rowHeads[i - 1].y) <= 0.5 && h.x > rowHeads[i - 1].x)), `${rowHeads.map((h) => `"${h.text}" at ${Math.round(h.x)},${Math.round(h.y)}`).join(', ')}; groups of one row: ${groups.filter((g) => g.rows.length === 1).map((g) => `"${g.title}"`).join(', ') || 'none'}`);
   step('headings and labels keep their screen size whatever the zoom', groupHeads.every((h) => Math.abs(h.size - 18) < 0.5) && rowHeads.every((h) => Math.abs(h.size - 13) < 0.5) && shape1.items.every((it) => Math.abs(it.labelSize - 12) < 0.5), `group ${groupHeads[0]?.size.toFixed(1)} px, row ${rowHeads[0]?.size.toFixed(1)} px, label ${shape1.items[0]?.labelSize.toFixed(1)} px on screen at zoom ${shape1.z.toFixed(3)}`);
-
-  // A divider midway in the row gap before every cluster but the line's first, from the row headings' top to the line's bottom, 1 px on screen; no box drawn (no background); a group of one row has none; drawing only, no pointer.
-  {
-    const expected = groups.flatMap((g) => (g.rows.length > 1 ? g.rows.map((r, i) => ({ key: `${g.key}/${r.key}`, first: i === 0 })) : []));
-    const lines = shape1.plates.filter((p) => !p.first);
-    const between = lines.every((p) => { const i = shape1.plates.findIndex((q) => q.key === p.key); const prev = shape1.plates[i - 1]; return !!prev && p.divider > 0 && Math.abs(p.divider - 1) < 0.25 && p.dividerX > prev.x + prev.w && p.dividerX < p.x && Math.abs(p.dividerX - (prev.x + prev.w + p.x) / 2) <= 1 && Math.abs(p.h - prev.h) <= 0.5; });
-    step('a divider between the clusters of a group with several rows — midway in the gap, 1 px, the line’s height — none before the first, none for a group of one row, no box and no pointer', shape1.plates.map((p) => `${p.key}${p.first ? '*' : ''}`).join('|') === expected.map((e) => `${e.key}${e.first ? '*' : ''}`).join('|') && between && shape1.plates.every((p) => (p.first ? p.divider === 0 : true) && p.pointer === 'none' && (p.background === 'rgba(0, 0, 0, 0)' || p.background === 'transparent')), `${shape1.plates.map((p) => `${p.key}${p.first ? ' (first)' : ` divider ${p.divider.toFixed(2)} px at x ${Math.round(p.dividerX)}`}`).join('; ') || 'none'}`);
-  }
 
   // 5. One frame per entry: 1440 wide × as tall as its page, scaled, none overlapping, under its group.
   const byId = new Map(frames.map((f) => [f.id, f]));

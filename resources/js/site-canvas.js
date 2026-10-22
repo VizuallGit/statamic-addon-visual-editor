@@ -351,13 +351,6 @@ export function dropIndicator(target, columns, items, draggedId, band, z, option
  * stack of frames and gaps — so the split holds at every zoom; a column of
  * one tall page beside one of several short ones is at most a few labels
  * taller than either needs.
- *
- * `clusters`: on a line of several rows, the box each row takes — its
- * heading, its labels and its frames, from the line's top to its bottom,
- * so the boxes stand level and equally tall. A divider is drawn midway in
- * the row gap before every box but the line's first (`first`), which is
- * what shows where one row's frames end and the next's begin. A group of
- * one row has none: its heading says it all.
  */
 export function canvasLayout(groups, z, options = {}) {
   const {
@@ -374,7 +367,6 @@ export function canvasLayout(groups, z, options = {}) {
   const scale = z > 0 ? z : 1;
   const items = [];
   const headings = [];
-  const clusters = [];
   let y = pad;
   let screen = 0;
   let right = pad; // the right edge of the widest line
@@ -392,9 +384,7 @@ export function canvasLayout(groups, z, options = {}) {
     screen += groupHead;
 
     const headed = group.rows.length > 1;
-    const lineTop = y; // the row headings' top on this line
     const top = y + (headed ? rowHead / scale : 0); // the first label's top on this line
-    const firstCluster = clusters.length; // this line's clusters start here
     let x = pad;
     let deepest = 0; // frames in the column with the most
     let tallest = 0; // sheet pixels of frames and gaps in the column with the most
@@ -404,12 +394,8 @@ export function canvasLayout(groups, z, options = {}) {
         x += rowGap;
       }
 
-      const key = `${group.key}/${row.key}`;
-      const left = x;
-
       if (headed) {
-        headings.push({ kind: 'row', key, title: row.title, x, y, height: rowHead / scale });
-        clusters.push({ key, x: left, y: lineTop, width: 0, height: 0, first: ri === 0 }); // width and height once the line is laid
+        headings.push({ kind: 'row', key: `${group.key}/${row.key}`, title: row.title, x, y, height: rowHead / scale });
       }
 
       row.columns.forEach((column, ci) => {
@@ -439,26 +425,18 @@ export function canvasLayout(groups, z, options = {}) {
         tallest = Math.max(tallest, stack);
         x += frame.width;
       });
-
-      if (headed) {
-        clusters[clusters.length - 1].width = x - left;
-      }
     });
 
     right = Math.max(right, x);
     y = top + deepest * (label / scale) + tallest;
     screen += (headed ? rowHead : 0) + deepest * label;
     heading.bottom = y;
-
-    for (let i = firstCluster; i < clusters.length; i++) {
-      clusters[i].height = y - lineTop; // the line's full height: level boxes, equally tall
-    }
   });
 
   const width = right + pad;
   const height = items.length ? y + pad : pad * 2;
 
-  return { width, height, items, headings, clusters, metrics: { fixedHeight: height - screen / scale, screenHeight: screen } };
+  return { width, height, items, headings, metrics: { fixedHeight: height - screen / scale, screenHeight: screen } };
 }
 
 /**
@@ -637,7 +615,6 @@ function emptyState() {
     layout: null, // canvasLayout at the current zoom
     entries: new Map(), // frame id -> { frame, item, label, el, hit, url, src: '' until the iframe has been given url }
     heads: new Map(), // heading key -> element
-    plates: new Map(), // cluster key -> the plate drawn behind that row's frames
     heights: new Map(), // frame id -> its page's height (frameHeight), once its load has fired; absent until then
     zoom: 1,
     fitted: false, // «Fit all» set the view and nothing has moved it since: a page's height makes the fit again
@@ -895,8 +872,6 @@ ${L} .sve-sc-sheet { --z: 1; position: absolute; left: 0; top: 0; transform-orig
 ${L} .sve-sc-head { position: absolute; white-space: nowrap; line-height: 1.2; pointer-events: none; }
 ${L} .sve-sc-head[data-kind="group"] { font-size: calc(1.125rem / var(--z)); font-weight: 600; }
 ${L} .sve-sc-head[data-kind="row"] { font-size: calc(.8125rem / var(--z)); font-weight: 500; opacity: .7; }
-${L} .sve-sc-plate { position: absolute; pointer-events: none; }
-${L} .sve-sc-plate:not([data-first])::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(-${ROW_GAP / 2}px - .5px / var(--z)); width: calc(1px / var(--z)); background: color-mix(in oklab, var(--sve-sc-fg) 18%, transparent); }
 ${L} .sve-sc-item { position: absolute; }
 ${L} .sve-sc-label { position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: calc(.375rem / var(--z)); display: flex; align-items: baseline; gap: calc(.5rem / var(--z)); font-size: calc(.75rem / var(--z)); line-height: 1.3; white-space: nowrap; opacity: .85; pointer-events: none; }
 ${L} .sve-sc-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -956,20 +931,6 @@ function populate(win, groups) {
   empty.textContent = frames.length ? '' : t(win, 'site_canvas_empty');
 
   const at1 = canvasLayout(groups, 1);
-
-  // Behind everything else on the sheet: a box per row of a line of several, with a divider before every box but the first.
-  for (const cluster of at1.clusters) {
-    const el = make(doc, 'div', 'sve-sc-plate');
-
-    el.dataset.key = cluster.key;
-
-    if (cluster.first) {
-      el.dataset.first = '';
-    }
-
-    sheet.appendChild(el);
-    canvasState.plates.set(cluster.key, el);
-  }
 
   for (const heading of at1.headings) {
     const el = make(doc, 'div', 'sve-sc-head');
@@ -1036,23 +997,12 @@ function fitSheet() {
  * their page.
  */
 function applyZoom(z) {
-  const { sheet, sizer, scroller, groups, heights, heads, plates, entries, zoomLabel } = canvasState;
+  const { sheet, sizer, scroller, groups, heights, heads, entries, zoomLabel } = canvasState;
   const layout = canvasLayout(groups, z, { heights });
   const room = { x: scroller.clientWidth, y: scroller.clientHeight };
 
   canvasState.zoom = z;
   canvasState.layout = layout;
-
-  for (const cluster of layout.clusters) {
-    const el = plates.get(cluster.key);
-
-    if (el) {
-      setStyle(el, 'left', `${cluster.x}px`);
-      setStyle(el, 'top', `${cluster.y}px`);
-      setStyle(el, 'width', `${cluster.width}px`);
-      setStyle(el, 'height', `${cluster.height}px`);
-    }
-  }
 
   for (const heading of layout.headings) {
     const el = heads.get(heading.key);
