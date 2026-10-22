@@ -34,9 +34,15 @@
  * ZOOM_MIN leave the sheet bigger than the view. The scrollbars are not
  * drawn: the room would make them say "more" at every zoom.
  *
- * Every frame is an iframe at one desktop viewport of its page's top
- * (FRAME, 1440×900 CSS pixels), scaled down with the sheet's one transform —
- * not page-high. Its URL carries `sve_view=canvas`, which InjectBridgeScript
+ * Every frame is an iframe a desktop viewport wide (FRAME.width, 1440 CSS
+ * pixels) and as tall as its page: its document's scrollHeight as its `load`
+ * fires, never under FRAME.minHeight, which is also its height until then —
+ * so a page is measured in a frame of the minimum height, where a body with
+ * a viewport-high floor cannot report a height it was given — scaled down
+ * with the sheet's one transform. A line of frames is as tall as its tallest.
+ * As a page's height comes in, the sheet is laid out again: fitted anew while
+ * the view is as it opened, left where it is once the user has panned or
+ * zoomed (`moved`). Its URL carries `sve_view=canvas`, which InjectBridgeScript
  * answers with mirror.js alone: no bridge, so no badges, no hover, no inline
  * edit and nothing sent back; and nothing here ever posts to it, so it never
  * morphs — the canvas does not follow the fields while it is open. A
@@ -88,8 +94,8 @@ export const ENDPOINT = '/!/sve/site-canvas';
 export const VIEW_FLAG = 'sve_view';
 export const VIEW_VALUE = 'canvas';
 
-/** One frame: a desktop viewport of the page's top, in CSS pixels. */
-export const FRAME = { width: 1440, height: 900 };
+/** One frame, in CSS pixels: a desktop viewport's width, and the least height a frame has — its height until its page has said how tall it is. */
+export const FRAME = { width: 1440, minHeight: 600 };
 
 /** Sheet pixels (they scale with the zoom): between frames, round the sheet, between the two groups. */
 export const GAP = 96;
@@ -157,23 +163,28 @@ export function canvasFrames(groups) {
 
 /**
  * Where everything stands on the sheet at zoom `z`, in sheet pixels — the
- * sheet div's own, before its transform. Frames are FRAME-sized, `cols` to a
- * line. A group's rows flow along a line, each a block of its heading over
- * its frames, until the next block's columns would not fit, which starts a
- * new line (two short template rows share one line; a row of more than
- * `cols` frames wraps within itself). The groups stand apart by `groupGap`.
- * Headings and labels keep their screen size at every zoom, so the room they
- * take on the sheet is their pixels over `z`; `metrics` splits the sheet's
- * height into the part that scales (`fixedHeight`, sheet pixels) and the part
- * that does not (`screenHeight`, screen pixels), so that fitZoom can solve
- * for `z` in one step: height(z) = fixedHeight + screenHeight / z. A line's
- * height is its tallest block's, and the block with the most frame lines is
- * the tallest in both parts at once, so the split holds.
+ * sheet div's own, before its transform. Frames are `frame.width` wide and
+ * as tall as `heights` says of each (id → CSS pixels), `frame.minHeight`
+ * for one it does not name; `cols` to a line, each line of frames as tall
+ * as its tallest. A group's rows flow along a line, each a block of its
+ * heading over its frames, until the next block's columns would not fit,
+ * which starts a new line (two short template rows share one line; a row of
+ * more than `cols` frames wraps within itself). The groups stand apart by
+ * `groupGap`. Headings and labels keep their screen size at every zoom, so
+ * the room they take on the sheet is their pixels over `z`; `metrics` splits
+ * the sheet's height into the part that scales (`fixedHeight`, sheet pixels)
+ * and the part that does not (`screenHeight`, screen pixels), so that fitZoom
+ * can solve for `z` in one step: height(z) = fixedHeight + screenHeight / z.
+ * A line of blocks is as tall as its blocks' largest in each part on its
+ * own — the most label lines, the tallest frames and gaps — so the split
+ * holds at every zoom; a line of one tall frame beside a two-lined block of
+ * short ones is at most a label taller than either needs.
  */
 export function canvasLayout(groups, z, options = {}) {
   const {
     cols = COLS,
     frame = FRAME,
+    heights = new Map(),
     gap = GAP,
     pad = PAD,
     groupGap = GROUP_GAP,
@@ -187,8 +198,7 @@ export function canvasLayout(groups, z, options = {}) {
   let y = pad;
   let screen = 0;
   let maxCols = 0;
-  // A line of blocks: its height is rowHead + lines × (label + frame + gap) − gap, for the most lines any block on it has.
-  const lineHeight = (lines) => rowHead / scale + lines * (label / scale + frame.height + gap) - gap;
+  const heightOf = (item) => heights.get(item.id) ?? frame.minHeight;
 
   groups.forEach((group, gi) => {
     if (gi > 0) {
@@ -200,18 +210,23 @@ export function canvasLayout(groups, z, options = {}) {
     screen += groupHead;
 
     let used = 0; // columns taken on the current line
-    let deepest = 0; // frame lines of the tallest block on it
+    let deepest = 0; // label lines of the block with the most on it
+    let tallest = 0; // sheet pixels of frames and gaps of the block with the most on it
 
     const closeLine = () => {
-      y += lineHeight(deepest);
+      y += rowHead / scale + deepest * (label / scale) + tallest;
       screen += rowHead + deepest * label;
       used = 0;
       deepest = 0;
+      tallest = 0;
     };
 
     group.rows.forEach((row) => {
       const span = Math.min(cols, row.frames.length);
       const lines = Math.ceil(row.frames.length / cols);
+      // Each of the block's frame lines is as tall as its tallest frame.
+      const lineTops = [];
+      const lineHeights = Array.from({ length: lines }, (_, line) => Math.max(...row.frames.slice(line * cols, (line + 1) * cols).map(heightOf)));
 
       if (used > 0 && used + span > cols) {
         closeLine();
@@ -222,24 +237,29 @@ export function canvasLayout(groups, z, options = {}) {
 
       headings.push({ kind: 'row', key: `${group.key}/${row.key}`, title: row.title, x: x0, y, height: rowHead / scale });
 
-      row.frames.forEach((item, i) => {
-        const col = i % cols;
-        const line = Math.floor(i / cols);
+      let top = y + rowHead / scale;
 
+      for (const height of lineHeights) {
+        lineTops.push(top + label / scale);
+        top += label / scale + height + gap;
+      }
+
+      row.frames.forEach((item, i) => {
         items.push({
           id: item.id,
           title: item.title,
           group: group.key,
           row: row.key,
-          x: x0 + col * (frame.width + gap),
-          y: y + rowHead / scale + line * (label / scale + frame.height + gap) + label / scale,
+          x: x0 + (i % cols) * (frame.width + gap),
+          y: lineTops[Math.floor(i / cols)],
           width: frame.width,
-          height: frame.height,
+          height: heightOf(item),
         });
       });
 
       used += span;
       deepest = Math.max(deepest, lines);
+      tallest = Math.max(tallest, lineHeights.reduce((sum, height) => sum + height, 0) + (lines - 1) * gap);
       maxCols = Math.max(maxCols, used);
     });
 
@@ -252,6 +272,15 @@ export function canvasLayout(groups, z, options = {}) {
   const height = items.length ? y + pad : pad * 2;
 
   return { width, height, items, headings, metrics: { fixedHeight: height - screen / scale, screenHeight: screen } };
+}
+
+/**
+ * A frame's height from its page: the document's scroll height in whole
+ * pixels, never under `min` — which is also the answer for a page that said
+ * nothing (no document to read, a height that is not a number).
+ */
+export function frameHeight(scrollHeight, min = FRAME.minHeight) {
+  return Number.isFinite(scrollHeight) && scrollHeight > min ? Math.ceil(scrollHeight) : min;
 }
 
 export function clampZoom(z) {
@@ -421,7 +450,9 @@ function emptyState() {
     layout: null, // canvasLayout at the current zoom
     entries: new Map(), // frame id -> { frame, item, label, el, hit, url, src: '' until the iframe has been given url }
     heads: new Map(), // heading key -> element
+    heights: new Map(), // frame id -> its page's height (frameHeight), once its load has fired; absent until then
     zoom: 1,
+    moved: false, // the user has panned or zoomed: the opening fit no longer holds, a page's height leaves the view where it is
     pan: null,
     loading: 0, // frames whose page is on its way (LOAD_AT_ONCE)
     loadFrame: 0, // the animation frame of a pending loadNear
@@ -745,7 +776,6 @@ function populate(win, groups) {
 
     item.dataset.id = frame.id;
     item.style.width = `${FRAME.width}px`;
-    item.style.height = `${FRAME.height}px`;
     label.textContent = frame.title;
     el.title = frame.title;
     el.tabIndex = -1;
@@ -760,7 +790,14 @@ function populate(win, groups) {
     canvasState.entries.set(frame.id, { frame, item, label, el, hit, url: frameSrc(frame, current, preview, win.location.href), src: '' });
   }
 
-  applyZoom(fitZoom(fitView(), at1));
+  fitSheet();
+}
+
+/** The whole sheet in the fit view, at rest. */
+function fitSheet() {
+  const { groups, heights } = canvasState;
+
+  applyZoom(fitZoom(fitView(), canvasLayout(groups, 1, { heights })));
   centreSheet();
 }
 
@@ -768,12 +805,13 @@ function populate(win, groups) {
  * Zoom is one transform on the sheet plus the sizer the scroll area is
  * measured by: the sheet's size at this zoom with a view's width and height
  * of room on every side. The headings and labels keep their screen size, so
- * the sheet is laid out again at every zoom (their room on it changes); the
- * frames then near the view get their page.
+ * the sheet is laid out again at every zoom (their room on it changes), and
+ * again as a page's height comes in; the frames then near the view get
+ * their page.
  */
 function applyZoom(z) {
-  const { sheet, sizer, scroller, groups, heads, entries, zoomLabel } = canvasState;
-  const layout = canvasLayout(groups, z);
+  const { sheet, sizer, scroller, groups, heights, heads, entries, zoomLabel } = canvasState;
+  const layout = canvasLayout(groups, z, { heights });
   const room = { x: scroller.clientWidth, y: scroller.clientHeight };
 
   canvasState.zoom = z;
@@ -795,6 +833,7 @@ function applyZoom(z) {
     if (entry) {
       setStyle(entry.item, 'left', `${item.x}px`);
       setStyle(entry.item, 'top', `${item.y}px`);
+      setStyle(entry.item, 'height', `${item.height}px`);
     }
   }
 
@@ -908,7 +947,9 @@ function keepRoom() {
 }
 
 function zoomAction(action) {
-  const { zoom, groups } = canvasState;
+  const { zoom } = canvasState;
+
+  canvasState.moved = true;
 
   if (action === 'in') {
     setZoom(stepZoom(zoom, 1));
@@ -917,8 +958,7 @@ function zoomAction(action) {
   } else if (action === 'actual') {
     setZoom(1);
   } else if (action === 'fit') {
-    setZoom(fitZoom(fitView(), canvasLayout(groups, 1)));
-    centreSheet();
+    fitSheet();
   }
 }
 
@@ -950,9 +990,30 @@ function loadNear() {
     canvasState.loading += 1;
     listen(entry.el, 'load', () => {
       canvasState.loading -= 1;
-      loadNear();
+      measured(entry);
     }, { once: true });
     entry.el.src = entry.src;
+  }
+}
+
+/**
+ * A page has loaded: its frame takes the page's height, read once, now,
+ * from the frame's own document (the preview is the same origin as the
+ * Control Panel; a frame whose document cannot be read stays at the
+ * minimum). The sheet is laid out again with it — fitted anew while the
+ * view is as it opened, left where it is once the user has moved it, the
+ * frames below it moving down — and the frames then near the view load.
+ */
+function measured(entry) {
+  const { heights, moved, zoom } = canvasState;
+  const height = frameHeight(entry.el.contentDocument?.documentElement?.scrollHeight);
+
+  heights.set(entry.frame.id, height);
+
+  if (moved) {
+    applyZoom(zoom);
+  } else {
+    fitSheet();
   }
 }
 
@@ -1030,6 +1091,8 @@ function onKey(event) {
  * both directions — nothing to do here.
  */
 function onWheel(event) {
+  canvasState.moved = true;
+
   if (!event.ctrlKey && !event.metaKey) {
     return;
   }
@@ -1063,6 +1126,10 @@ function onPanMove(event) {
 
   if (!pan || pan.id !== event.pointerId) {
     return;
+  }
+
+  if (isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
+    canvasState.moved = true;
   }
 
   scroller.scrollLeft -= event.clientX - pan.x;

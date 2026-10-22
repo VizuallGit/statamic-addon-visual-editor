@@ -26,6 +26,7 @@ import {
   clampZoom,
   contentBox,
   fitZoom,
+  frameHeight,
   frameSrc,
   framesNear,
   isDrag,
@@ -97,17 +98,17 @@ test('nothing, or nonsense, from the endpoint is no groups', () => {
 
 // --- layout -------------------------------------------------------------------------
 
-test('frames are one desktop viewport each and wrap at the column count; short rows share a line, groups stand under one another', () => {
+test('frames are a desktop viewport wide and the minimum tall until their page has said, and wrap at the column count; short rows share a line, groups stand under one another', () => {
   const { items, headings, width } = canvasLayout(canvasGroups(PAYLOAD), 1);
 
   assert.equal(items.length, 10);
-  assert.ok(items.every((item) => item.width === FRAME.width && item.height === FRAME.height));
+  assert.ok(items.every((item) => item.width === FRAME.width && item.height === FRAME.minHeight));
 
   // The pages row has five frames: four on one line, one on the next, same x as the first.
   const pages = items.filter((item) => item.group === 'pages');
 
   assert.deepEqual(pages.map((item) => item.x), [PAD, PAD + FRAME.width + GAP, PAD + 2 * (FRAME.width + GAP), PAD + 3 * (FRAME.width + GAP), PAD]);
-  assert.ok(pages[4].y > pages[0].y + FRAME.height, 'the fifth frame is on the next line');
+  assert.ok(pages[4].y > pages[0].y + FRAME.minHeight, 'the fifth frame is on the next line');
   assert.equal(width, PAD * 2 + COLS * (FRAME.width + GAP) - GAP);
 
   // Headings: one per group, one per row, in order, each above what it names.
@@ -128,13 +129,13 @@ test('frames are one desktop viewport each and wrap at the column count; short r
   assert.equal(pagesRow.y, services.y, 'two short rows share a line');
   assert.deepEqual(byRow('pages').map((item) => [item.x, item.y]), [[PAD + 2 * (FRAME.width + GAP), byRow('services')[0].y]]);
   assert.equal(sitet.x, PAD);
-  assert.ok(sitet.y >= byRow('services')[0].y + FRAME.height + GAP, 'the row that does not fit starts a new line under the first');
+  assert.ok(sitet.y >= byRow('services')[0].y + FRAME.minHeight + GAP, 'the row that does not fit starts a new line under the first');
   assert.ok(byRow('site')[0].y > sitet.y, 'its frames stand under its heading');
 
   const pagesGroup = headings.find((heading) => heading.kind === 'group' && heading.title === 'Sider');
   const lastTemplate = items.filter((item) => item.group === 'templates').at(-1);
 
-  assert.ok(pagesGroup.y >= lastTemplate.y + FRAME.height + GROUP_GAP, 'the second group stands a group gap under the first');
+  assert.ok(pagesGroup.y >= lastTemplate.y + FRAME.minHeight + GROUP_GAP, 'the second group stands a group gap under the first');
   assert.ok(pages[0].y > pagesGroup.y, 'the pages stand under their heading');
 });
 
@@ -156,31 +157,111 @@ test('a row of more than the column count takes whole lines of its own; a line�
   const row = (key) => items.filter((item) => item.row === key);
 
   // A (1) alone cannot share with B (5 > 4 columns): B starts a new line and spans two; C and D share the line after.
-  assert.ok(head('B').y > row('a')[0].y + FRAME.height, 'B under A');
+  assert.ok(head('B').y > row('a')[0].y + FRAME.minHeight, 'B under A');
   assert.equal(row('b').map((item) => item.x).join(), [PAD, PAD + (FRAME.width + GAP), PAD + 2 * (FRAME.width + GAP), PAD + 3 * (FRAME.width + GAP), PAD].join());
-  assert.ok(head('C').y > row('b')[4].y + FRAME.height, 'C under B’s second line');
+  assert.ok(head('C').y > row('b')[4].y + FRAME.minHeight, 'C under B’s second line');
   assert.equal(head('D').y, head('C').y, 'C and D share a line');
   assert.equal(head('D').x, PAD + 2 * (FRAME.width + GAP));
   // Screen pixels: one group heading, three lines of row headings, 1 + 2 + 1 lines of labels.
   assert.equal(metrics.screenHeight, GROUP_HEAD_PX + 3 * ROW_HEAD_PX + 4 * LABEL_PX);
 });
 
-test('no two frames overlap, at any zoom', () => {
-  for (const z of [1, 0.5, 0.12]) {
-    const { items } = canvasLayout(canvasGroups(PAYLOAD), z);
+test('a frame is as tall as its page says; a line of frames is as tall as its tallest; a page that has not said is the minimum', () => {
+  const groups = canvasGroups(PAYLOAD);
+  const heights = new Map([
+    ['home', 4200],
+    ['about', 2300],
+    ['services', 1800],
+    ['layout', 700],
+  ]);
+  const { items, headings, metrics, height } = canvasLayout(groups, 1, { heights });
+  const item = (id) => items.find((it) => it.id === id);
 
-    for (const a of items) {
-      for (const b of items) {
-        if (a === b) {
-          continue;
+  assert.equal(item('home').height, 4200);
+  assert.equal(item('about').height, 2300);
+  assert.equal(item('contact').height, FRAME.minHeight, 'not measured: the minimum');
+  assert.equal(item('layout').height, 700);
+  assert.ok(items.every((it) => it.width === FRAME.width), 'every frame keeps the viewport width');
+
+  // The pages row: home, about, contact, services on the first line — as tall as home — and news on the next, under it.
+  assert.equal(item('news').y, item('home').y + 4200 + LABEL_PX + GAP);
+  assert.equal(item('news').x, item('home').x);
+  assert.ok([item('about'), item('contact'), item('services')].every((it) => it.y === item('home').y), 'frames on a line share its top');
+
+  // The templates: Services (short, two frames) and Pages share a line; Sitet has layout at 700, so its line is 700 tall and the pages group follows that.
+  const sitet = headings.find((heading) => heading.title === 'Sitet');
+  const pagesGroup = headings.find((heading) => heading.kind === 'group' && heading.title === 'Sider');
+
+  assert.equal(pagesGroup.y, sitet.y + ROW_HEAD_PX + LABEL_PX + 700 + GROUP_GAP);
+
+  // The sheet is as tall as the sum of its parts, and the metrics still split it: the frames and gaps scale, the headings and labels do not.
+  const screen = 2 * GROUP_HEAD_PX + 3 * ROW_HEAD_PX + (1 + 1 + 2) * LABEL_PX;
+  const sheet = 2 * PAD + GROUP_GAP + FRAME.minHeight + GAP + 700 + 4200 + GAP + FRAME.minHeight;
+
+  assert.equal(metrics.screenHeight, screen);
+  assert.equal(metrics.fixedHeight, sheet);
+  assert.equal(height, sheet + screen);
+
+  const atHalf = canvasLayout(groups, 0.5, { heights });
+
+  assert.equal(atHalf.metrics.fixedHeight, sheet, 'the part that scales is the same at every zoom');
+  assert.equal(atHalf.height, sheet + screen / 0.5);
+});
+
+test('the height of a frame’s page: its scroll height in whole pixels, never under the minimum, the minimum for a page that said nothing', () => {
+  assert.equal(frameHeight(3187.4), 3188);
+  assert.equal(frameHeight(FRAME.minHeight + 1), FRAME.minHeight + 1);
+  assert.equal(frameHeight(FRAME.minHeight), FRAME.minHeight);
+  assert.equal(frameHeight(120), FRAME.minHeight, 'a short page is the minimum tall');
+  assert.equal(frameHeight(0), FRAME.minHeight);
+  assert.equal(frameHeight(undefined), FRAME.minHeight, 'no document to read');
+  assert.equal(frameHeight(NaN), FRAME.minHeight);
+  assert.equal(frameHeight(Infinity), FRAME.minHeight);
+  assert.equal(frameHeight(900, 1000), 1000, 'the minimum is the caller’s');
+});
+
+test('no two frames overlap, at any zoom, whatever the pages’ heights — a tall frame beside a two-lined block of short ones too', () => {
+  const mixed = canvasGroups({
+    groups: [{
+      key: 'templates',
+      title: 'T',
+      rows: [
+        { key: 'a', title: 'A', frames: [frame('a1')] },
+        { key: 'b', title: 'B', frames: [frame('b1'), frame('b2'), frame('b3')] },
+        { key: 'c', title: 'C', frames: [frame('c1'), frame('c2'), frame('c3'), frame('c4'), frame('c5')] },
+        { key: 'd', title: 'D', frames: [frame('d1')] },
+      ],
+    }],
+  });
+  const heights = new Map([['a1', 9000], ['b2', 3000], ['c3', 2400], ['c5', 7000], ['d1', 650], ['home', 4200], ['about', 2300]]);
+
+  for (const [groups, name] of [[canvasGroups(PAYLOAD), 'payload'], [mixed, 'mixed']]) {
+    for (const z of [1, 0.5, 0.12, ZOOM_MIN]) {
+      const { items } = canvasLayout(groups, z, { heights });
+
+      for (const a of items) {
+        for (const b of items) {
+          if (a === b) {
+            continue;
+          }
+
+          const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+
+          assert.ok(apart, `${name}: ${a.id} and ${b.id} overlap at zoom ${z}`);
         }
-
-        const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
-
-        assert.ok(apart, `${a.id} and ${b.id} overlap at zoom ${z}`);
       }
     }
   }
+
+  // In the mixed sheet, A (one frame, 9000 tall) and B (three short frames) share a line; C (five frames, two lines) takes the next; D the one after, under C's tallest.
+  const { items, headings } = canvasLayout(mixed, 1, { heights });
+  const head = (title) => headings.find((heading) => heading.title === title);
+  const item = (id) => items.find((it) => it.id === id);
+
+  assert.equal(head('B').y, head('A').y, 'A and B share a line');
+  assert.ok(head('C').y >= item('a1').y + 9000 + GAP, 'C stands under the tall frame of A');
+  assert.equal(item('c5').y, item('c1').y + 2400 + LABEL_PX + GAP, 'C’s second line stands under its first line’s tallest frame');
+  assert.ok(head('D').y >= item('c5').y + 7000 + GAP, 'D stands under C’s tallest frame');
 });
 
 test('headings and labels keep their screen size: their room on the sheet is their pixels over the zoom, and the metrics add up', () => {
@@ -290,7 +371,7 @@ test('only frames near the view get a src: those in it, and those within the mar
   const first = items[0];
 
   // A view the size of one frame, over the first frame alone: the first, and its neighbour within the margin.
-  const view = { scrollLeft: first.x, scrollTop: first.y, width: FRAME.width, height: FRAME.height };
+  const view = { scrollLeft: first.x, scrollTop: first.y, width: FRAME.width, height: FRAME.minHeight };
   const near = framesNear(items, z, view, LOAD_MARGIN_PX);
 
   assert.ok(near.includes('services-index'));

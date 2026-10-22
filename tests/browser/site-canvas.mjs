@@ -5,8 +5,9 @@
  * Proves, in a real Live Preview, what the owner asked for: the button is in
  * the top bar; closed, the canvas costs nothing (no chunk fetched, no layer,
  * no extra iframe); open, there is one frame per template and per page, in
- * two groups with their rows, every frame a 1440 × 900 desktop viewport of
- * that page's top loaded through Live Preview without the bridge, the frame
+ * two groups with their rows, every frame 1440 wide and as tall as its page
+ * (never under the minimum, nothing cut off) loaded through Live Preview
+ * without the bridge, the lines as tall as their tallest frame, the frame
  * of the entry being edited wearing the ring; the open fits everything into
  * the pane; zoom (buttons, ctrl/cmd + wheel round the pointer) and pan (drag,
  * wheel) work and a pan opens nothing; Escape and the button close it and
@@ -87,7 +88,7 @@ const BUTTON = '#__sve-preview-chrome [data-canvas]';
 const BP_LAYER = '#__sve-bp-overview';
 const BP_BUTTON = '#__sve-preview-chrome [data-overview]';
 const ENDPOINT = '/!/sve/site-canvas';
-const FRAME = { width: 1440, height: 900 };
+const FRAME = { width: 1440, minHeight: 600 };
 // site-canvas.js LOAD_AT_ONCE: frames whose page is on its way at the same time.
 const LOAD_AT_ONCE = 4;
 
@@ -555,10 +556,19 @@ try {
   step('one row heading per row, in order: along a line, then down', rowHeads.map((h) => h.text).join('|') === rowsExpected.join('|') && rowHeads.every((h, i) => i === 0 || h.y > rowHeads[i - 1].y + 0.5 || (Math.abs(h.y - rowHeads[i - 1].y) <= 0.5 && h.x > rowHeads[i - 1].x)), rowHeads.map((h) => `"${h.text}" at ${Math.round(h.x)},${Math.round(h.y)}`).join(', '));
   step('headings and labels keep their screen size whatever the zoom', groupHeads.every((h) => Math.abs(h.size - 18) < 0.5) && rowHeads.every((h) => Math.abs(h.size - 13) < 0.5) && shape1.items.every((it) => Math.abs(it.labelSize - 12) < 0.5), `group ${groupHeads[0]?.size.toFixed(1)} px, row ${rowHeads[0]?.size.toFixed(1)} px, label ${shape1.items[0]?.labelSize.toFixed(1)} px on screen at zoom ${shape1.z.toFixed(3)}`);
 
-  // 5. One frame per entry: a 1440 × 900 viewport each, scaled, none overlapping, under its group.
+  // 5. One frame per entry: 1440 wide × as tall as its page, scaled, none overlapping, under its group.
   const byId = new Map(frames.map((f) => [f.id, f]));
   step(`one frame per entry, ${frames.length} in all, each with its title`, shape1.items.length === frames.length && shape1.items.every((it) => byId.get(it.id)?.title === it.title), shape1.items.map((it) => `"${it.title}"`).join(' '));
-  step('every frame is a 1440 × 900 viewport × zoom on screen', shape1.items.every((it) => Math.abs(it.w - FRAME.width * shape1.z) <= 1.5 && Math.abs(it.h - FRAME.height * shape1.z) <= 1.5), `${shape1.items[0]?.w.toFixed(1)}x${shape1.items[0]?.h.toFixed(1)} ≈ ${FRAME.width}×${shape1.z.toFixed(3)} by ${FRAME.height}×${shape1.z.toFixed(3)}`);
+  step('every frame is 1440 × zoom wide on screen, and no less than the minimum height × zoom tall', shape1.items.every((it) => Math.abs(it.w - FRAME.width * shape1.z) <= 1.5 && it.h >= FRAME.minHeight * shape1.z - 1.5), `${shape1.items[0]?.w.toFixed(1)} ≈ ${FRAME.width}×${shape1.z.toFixed(3)}; heights ${shape1.items.map((it) => Math.round(it.h / shape1.z)).join(' ')} sheet px`);
+  const heightsSeen = new Set(shape1.items.map((it) => Math.round(it.h / shape1.z)));
+  step('the frames are as tall as their pages, not one size: more than one height among them', heightsSeen.size > 1, `${heightsSeen.size} distinct heights: ${[...heightsSeen].sort((a, b) => a - b).join(' ')}`);
+  // Within a row, frames on a line share its top, and the next line starts under the tallest frame of the one before.
+  const rowLines = [...new Set(frames.map((f) => `${f.group}/${f.row}`))].map((key) => {
+    const its = shape1.items.filter((it) => `${byId.get(it.id)?.group}/${byId.get(it.id)?.row}` === key);
+    const tops = [...new Set(its.map((it) => Math.round(it.y)))].sort((a, b) => a - b);
+    return { key, lines: tops.map((top) => its.filter((it) => Math.round(it.y) === top)) };
+  });
+  step('within a row, the next line of frames starts under the tallest frame of the one before', rowLines.every(({ lines }) => lines.every((line, i) => i === 0 || line[0].y >= Math.max(...lines[i - 1].map((it) => it.y + it.h)) - 0.5)), rowLines.map(({ key, lines }) => `${key}: ${lines.map((line) => `${line.length} at y ${Math.round(line[0].y)} (tallest ${Math.round(Math.max(...line.map((it) => it.h)) / shape1.z)} sheet px)`).join(', ')}`).join('; '));
   const over = overlaps(shape1.items);
   step('no two frames overlap', over.length === 0, over.join(', ') || `${shape1.items.length} frames clear of each other`);
   const templateItems = shape1.items.filter((it) => byId.get(it.id)?.group === 'templates');
@@ -580,7 +590,7 @@ try {
   step('the current frame loads the preview’s own URL (same token as the preview iframe), flagged', currentFromPreview, `canvas …${currentItem?.src.slice(-70)} | preview …${mainSrc.slice(-70)}`);
   step('every other frame loads the endpoint’s URL for that entry, flagged, with a token', shape1.items.filter((it) => !it.current).every((it) => (SEAM ? stripFlag(it.src) === new URL(byId.get(it.id).preview).toString() : sameTarget(stripFlag(it.src), byId.get(it.id).preview) && /[?&]token=\w+/.test(it.src))));
 
-  // 7. Inside the frames: a desktop viewport of the page's top, mirror.js alone, no bridge, nothing to click.
+  // 7. Inside the frames: a desktop-wide viewport as tall as the page, mirror.js alone, no bridge, nothing to click.
   const inside = [];
   for (const h of await cp.$$(`${LAYER} iframe.sve-sc-frame[src]`)) {
     const f = await h.contentFrame();
@@ -588,6 +598,7 @@ try {
       url: location.href,
       width: innerWidth,
       height: innerHeight,
+      scrollHeight: document.documentElement.scrollHeight,
       scrollY: scrollY,
       bridge: !!document.querySelector('script[src*="bridge"]'),
       bridgeRan: '__sveBridgeReady' in window,
@@ -598,7 +609,7 @@ try {
       body: document.body.children.length,
     })).catch((e) => ({ error: e.message })));
   }
-  step('every frame is a 1440 × 900 desktop viewport at the top of its page', inside.length === frames.length && inside.every((f) => f.width === FRAME.width && f.height === FRAME.height && f.scrollY === 0), inside.map((f) => `${f.width}x${f.height}`).filter((v, i, a) => a.indexOf(v) === i).join(' '));
+  step('every frame is a 1440-wide viewport as tall as its page: no less than the minimum, nothing of the page cut off, at its top', inside.length === frames.length && inside.every((f) => f.width === FRAME.width && f.height >= FRAME.minHeight && f.scrollHeight <= f.height + 1 && f.scrollY === 0), inside.map((f) => `${f.width}x${f.height} (page ${f.scrollHeight})`).join(' '));
   // The installed InjectBridgeScript honours `sve_view` (every release since the breakpoint overview); the frames say so.
   step('no bridge in any frame: no script, never ran, no badges/outlines/toolbar; mirror.js alone, not preview.js', inside.every((f) => !f.bridge && !f.bridgeRan && f.bridgeUi === 0 && f.mirror && !f.preview), JSON.stringify(inside.map((f) => ({ bridge: f.bridge, mirror: f.mirror, preview: f.preview })).filter((v, i, a) => a.findIndex((o) => JSON.stringify(o) === JSON.stringify(v)) === i)));
   // The frames are Live Preview documents through the installed middleware, as the preview is: the Vite client is its decision, per document, not the canvas's. Noted, not judged.
