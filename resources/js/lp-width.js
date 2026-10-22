@@ -21,6 +21,8 @@ import { ensureGlobalsPicker, ensureSectionLibraryButton, parkGlobalsPanel } fro
 import { pinDockedPanelsUnderHeader } from './lazy/listview.js';
 import { ensureLpMoreButton } from './lp-more-menu.js';
 import { persistDockedPanel, setLpMode, storedLpCollapsed } from './lp-panel.js';
+import { bindToolbarAddMenu } from './toolbar-add-menu.js';
+import { bindToolbarDrag } from './toolbar-drag.js';
 import { ensureLpReloadButton } from './lp-reload.js';
 import { ensureCollectionPicker } from './pages.js';
 import { closeRightPanels, isGlobalsOverlayOpen, placeGlobalsOverlay } from './section-library.js';
@@ -430,6 +432,10 @@ export function ensureLpPanelToggleInner(win) {
   // Reload before More: More anchors on it, so it has to exist first.
   ensureLpReloadButton(win);
   ensureLpMoreButton(win);
+  // Drag an icon, press a group's «+»: bound once on the icon row, which is
+  // in by now (ensureHeaderToolbar above).
+  bindToolbarDrag(win);
+  bindToolbarAddMenu(win);
   positionLpBackButton(win);
   watchStatamicLpClose(win);
   ensureLpPreviewChrome(win);

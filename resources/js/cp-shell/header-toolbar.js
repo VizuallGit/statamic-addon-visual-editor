@@ -15,7 +15,7 @@ import { beginRightShellSwap, endRightShellSwap, isRightDockTool, isToolbarShort
 import { chromeGet, chromeRemove, chromeSet } from '../chrome-prefs.js';
 import { ensurePanel, hidePanelWait, isRightPanelInDom, showPanelWait, warmLivePreviewCore } from '../lazy-panels.js';
 import { bindToolbarPrefetch } from '../toolbar-prefetch.js';
-import { syncToolbarLayout } from '../toolbar-visibility.js';
+import { placeToolbarButton, syncToolbarLayout } from '../toolbar-visibility.js';
 import { COLLECTION_PICKER_ID, GLOBALS_PICKER_ID, HEADER_FRAME_PREFIX, HEADER_SURFACE, HEADER_TOOLBAR_ID, HTML_TREE_PANEL_ID, LIBRARY_BUTTON_ID, LP_CHROME_H, LP_CONTROL_H, LP_CONTROL_PAD, LP_DOCKED_KEY, LP_MODE_ID, LP_PRIMARY_FLAT, LP_TOGGLE_ID, LP_TOOLBAR_GAP, LP_WIDTH_ID, NEW_ENTRY_ID, OUTLINE_PANEL_ID, PERF_PANEL_ID, SECTION_PICKER_ID } from '../lib/ids.js';
 import { unwrapRef } from '../lib/values.js';
 import { featureOn, sectionField } from '../lib/config.js';
@@ -583,8 +583,10 @@ export function ensureHeaderToolbar(win) {
   const doc = win.document;
   const header = lpHeader(doc);
 
-  // Which icons show, and in which order, is one stylesheet, not here: the
-  // ensure* calls below re-create, re-show and re-place buttons on every pass.
+  // Which icons show is one stylesheet, and where they stand is the groups
+  // toolbar-visibility.js keeps — not here: the ensure* calls below re-create
+  // and re-show buttons on every pass, and hand each new one to
+  // placeToolbarButton.
   syncToolbarLayout(win);
 
   if (!header || doc.getElementById(HEADER_TOOLBAR_ID)) {
@@ -756,6 +758,8 @@ export function ensureHeaderToolbar(win) {
 
   header.insertBefore(bar, header.firstChild);
   syncToolbarIconSeps(bar);
+  // In the row in drawn order so far; into their groups now that the row is in the document.
+  syncToolbarLayout(win);
 }
 
 export function toggleCodeDockButton(win) {
@@ -783,7 +787,7 @@ export function toggleSiteCssButton(win) {
 
 /**
  * The code icon is added after the toolbar first mounts (feature flags can
- * arrive late) and sits after the block tree, last in the icon row.
+ * arrive late); where it stands is the user's groups.
  */
 export function ensureCodeDockToolbarButton(win) {
   const doc = win.document;
@@ -821,17 +825,7 @@ export function ensureCodeDockToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => toggleCodeDockButton(win));
-
-  const listview = bar.querySelector('button[data-tab="listview"]');
-  const rightdock = bar.querySelector('button[data-tab="rightdock"]');
-
-  if (listview) {
-    listview.after(btn);
-  } else if (rightdock) {
-    rightdock.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  placeToolbarButton(win, btn);
 }
 
 export function ensureSiteCssToolbarButton(win) {
@@ -869,14 +863,7 @@ export function ensureSiteCssToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => toggleSiteCssButton(win));
-
-  const code = bar.querySelector('button[data-tab="code"]');
-
-  if (code) {
-    code.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  placeToolbarButton(win, btn);
 }
 
 export function toggleThemePanelButton(win) {
@@ -887,7 +874,7 @@ export function toggleThemePanelButton(win) {
   void toggleThemePanel(win).then(() => applyHeaderTab(win));
 }
 
-/** The palette icon, right after the stylesheet icon: both edit site.css. */
+/** The palette icon: like the stylesheet icon, it edits site.css. */
 export function ensureThemePanelToolbarButton(win) {
   const doc = win.document;
   const bar = doc.getElementById(HEADER_TOOLBAR_ID);
@@ -921,14 +908,7 @@ export function ensureThemePanelToolbarButton(win) {
   btn.innerHTML = TOOLBAR_ICONS.theme;
   btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
   btn.addEventListener('click', () => toggleThemePanelButton(win));
-
-  const anchor = bar.querySelector('button[data-tab="site_css"]') || bar.querySelector('button[data-tab="code"]');
-
-  if (anchor) {
-    anchor.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  placeToolbarButton(win, btn);
 }
 
 export function ensureOutlineToolbarButton(win) {
@@ -960,20 +940,7 @@ export function ensureOutlineToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => toggleHeaderTab(win, 'outline'));
-
-  const listview = bar.querySelector('button[data-tab="listview"]');
-
-  if (listview) {
-    listview.after(btn);
-  } else {
-    const code = bar.querySelector('button[data-tab="code"]');
-
-    if (code) {
-      code.before(btn);
-    } else {
-      bar.appendChild(btn);
-    }
-  }
+  placeToolbarButton(win, btn);
 }
 
 export function ensurePerformanceToolbarButton(win) {
@@ -1005,20 +972,7 @@ export function ensurePerformanceToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => toggleHeaderTab(win, 'performance'));
-
-  const outline = bar.querySelector('button[data-tab="outline"]');
-
-  if (outline) {
-    outline.after(btn);
-  } else {
-    const code = bar.querySelector('button[data-tab="code"]');
-
-    if (code) {
-      code.before(btn);
-    } else {
-      bar.appendChild(btn);
-    }
-  }
+  placeToolbarButton(win, btn);
 }
 
 /** HTML tree opens with the template dock — no top-bar icon. */
@@ -1050,8 +1004,6 @@ export function ensureCommentsToolbarButton(win) {
     }
 
     if (bar.querySelector('button[data-tab="comments"]')) {
-      bar.appendChild(bar.querySelector('button[data-tab="comments"]'));
-
       return;
     }
 
@@ -1071,16 +1023,8 @@ export function ensureCommentsToolbarButton(win) {
       applyHeaderTab(win);
       syncPreviewInset(win);
     });
-    bar.appendChild(btn);
+    placeToolbarButton(win, btn);
     win.dispatchEvent(new CustomEvent('sve-right-dock-change', { detail: {} }));
-
-    return;
-  }
-
-  const comments = bar.querySelector('button[data-tab="comments"]');
-
-  if (comments && comments !== bar.lastElementChild) {
-    bar.appendChild(comments);
   }
 }
 
@@ -1119,14 +1063,7 @@ export function ensurePageEditsToolbarButton(win) {
       applyHeaderTab(win);
     })();
   });
-
-  const comments = bar.querySelector('button[data-tab="comments"]');
-
-  if (comments) {
-    comments.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  placeToolbarButton(win, btn);
 }
 
 export function toggleAiPanelButton(win) {
@@ -1179,14 +1116,7 @@ export function ensureAiToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => toggleAiPanelButton(win));
-
-  const code = bar.querySelector('button[data-tab="code"]');
-
-  if (code) {
-    code.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  placeToolbarButton(win, btn);
 }
 
 /**
@@ -1230,14 +1160,7 @@ export function ensureSchemaToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => toggleSchema(win));
-
-  const aitext = bar.querySelector('button[data-tab="aitext"]');
-
-  if (aitext) {
-    aitext.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  placeToolbarButton(win, btn);
 }
 
 /**
@@ -1249,8 +1172,7 @@ export function ensureSchemaToolbarButton(win) {
  * open is a drawer or a popup, not a panel, so none of them is ever lit: it
  * covers the bar while it is open.
  *
- * Put in once, after Globals (or Pages), in this order; where they stand after
- * that is the user's order, which is CSS and never moves the buttons.
+ * Put in once each; where they stand is the user's groups (placeToolbarButton).
  */
 const DRAWER_TOOLS = [
   {
@@ -1293,35 +1215,29 @@ export function ensureDrawerToolbarButtons(win) {
     return;
   }
 
-  let anchor = doc.getElementById(frameId('globals')) || doc.getElementById(frameId('pages'));
-
   DRAWER_TOOLS.forEach((tool) => {
-    let btn = bar.querySelector(`button[data-tab="${tool.key}"]`);
+    const existing = bar.querySelector(`button[data-tab="${tool.key}"]`);
 
     if (!tool.allowed(win)) {
-      btn?.remove();
+      existing?.remove();
 
       return;
     }
 
-    if (!btn) {
-      btn = doc.createElement('button');
-      btn.type = 'button';
-      btn.dataset.tab = tool.key;
-      btn.dataset.iconVer = 'stairs-toc-20260821';
-      btn.title = tool.title(win);
-      btn.innerHTML = TOOLBAR_ICONS[tool.key];
-      btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
-      btn.addEventListener('click', () => tool.open(win, btn));
-
-      if (anchor?.parentElement === bar) {
-        anchor.after(btn);
-      } else {
-        bar.appendChild(btn);
-      }
+    if (existing) {
+      return;
     }
 
-    anchor = btn;
+    const btn = doc.createElement('button');
+
+    btn.type = 'button';
+    btn.dataset.tab = tool.key;
+    btn.dataset.iconVer = 'stairs-toc-20260821';
+    btn.title = tool.title(win);
+    btn.innerHTML = TOOLBAR_ICONS[tool.key];
+    btn.style.cssText = LP_TOOLBAR_ICON_STYLE;
+    btn.addEventListener('click', () => tool.open(win, btn));
+    placeToolbarButton(win, btn);
   });
 }
 
@@ -1368,14 +1284,7 @@ export function ensureAiTextToolbarButton(win) {
   btn.querySelector('svg')?.setAttribute('width', '15');
   btn.querySelector('svg')?.setAttribute('height', '15');
   btn.addEventListener('click', () => toggleAiText(win));
-
-  const ai = bar.querySelector('button[data-tab="ai"]');
-
-  if (ai) {
-    ai.after(btn);
-  } else {
-    bar.appendChild(btn);
-  }
+  placeToolbarButton(win, btn);
 
   paintLpActiveControl(btn, !!isAiTextOn(win));
 
@@ -1401,7 +1310,6 @@ const PREVIEW_SWITCHES = {
     isOn: isXrayOn,
     toggle: toggleXray,
     sync: syncXrayToPreview,
-    after: ['theme', 'site_css', 'code'],
   },
   design_overlay: {
     title: 'design_overlay_tip',
@@ -1410,7 +1318,6 @@ const PREVIEW_SWITCHES = {
     // A dropdown under the icon, not a switch: sizes, images, opacity live in it.
     toggle: toggleDesignMenu,
     sync: syncDesignToPreview,
-    after: ['xray', 'theme', 'site_css', 'code'],
   },
 };
 
@@ -1431,9 +1338,9 @@ export function ensureDesignToolbarButton(win) {
 }
 
 /**
- * One switch's icon, put in once after the first of `after` that is there;
- * from then on the user's order is CSS. Each pass also lets the tool follow
- * the preview (a new document, another page) — fenced, like the click.
+ * One switch's icon, put in once; where it stands is the user's groups. Each
+ * pass also lets the tool follow the preview (a new document, another page) —
+ * fenced, like the click.
  */
 function ensurePreviewSwitchButton(win, key) {
   const tool = PREVIEW_SWITCHES[key];
@@ -1467,14 +1374,7 @@ function ensurePreviewSwitchButton(win, key) {
         .catch((err) => console.error('[sve] preview switch', err))
         .finally(() => paintLpActiveControl(btn, !!tool.isOn(win)));
     });
-
-    const anchor = tool.after.map((tab) => bar.querySelector(`button[data-tab="${tab}"]`)).find(Boolean);
-
-    if (anchor) {
-      anchor.after(btn);
-    } else {
-      bar.appendChild(btn);
-    }
+    placeToolbarButton(win, btn);
 
     paintLpActiveControl(btn, !!tool.isOn(win));
   }

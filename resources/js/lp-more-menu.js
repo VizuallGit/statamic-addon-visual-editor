@@ -31,22 +31,29 @@ import { openHtmlTreePanel } from './lazy/html-tree.js';
 import { readHtmlTreeLook, setHtmlTreeLook } from './cp/html-tree/store.js';
 import { familyColorRows, resetFamilyColors, setFamilyColor } from './family-colors.js';
 import {
+  deleteToolbarGroup,
+  moveToolbarGroup,
+  moveToolbarTool,
+  moveToolbarToolToNewGroup,
   openToolbarTool,
   readPaneChoices,
   readPickedPreset,
-  readToolbarOrder,
   readUserPresets,
+  renameToolbarGroup,
+  resetToolbarGroups,
   setHiddenTools,
-  setToolbarOrder,
   setToolbarToolShown,
   showAllToolbarTools,
   syncToolbarLayout,
+  toolbarGrouped,
+  toolbarGroups,
   toolbarTools,
   writePaneChoices,
   writePickedPreset,
   writeUserPresets,
 } from './toolbar-visibility.js';
 import { PRESET_NAME_MAX, SIDEBAR_TOOLS, activePreset, cleanPreset, newPresetId, presetHidden, presetPanes, presetSidebar } from './lib/toolbar-presets.js';
+import { GROUP_NAME_MAX } from './lib/toolbar-groups.js';
 
 export const LP_MORE_ID = '__sve-lp-more';
 export const LP_MORE_MENU_ID = '__sve-lp-more-menu';
@@ -305,8 +312,8 @@ function allPresets(win) {
 /** What the Top bar tab shows — read each time the tab opens, as a preset may have changed it. */
 function toolbarState(win) {
   return {
-    tools: toolbarTools(win),
-    ordered: readToolbarOrder(win).length > 0,
+    groups: toolbarGroups(win),
+    grouped: toolbarGrouped(win),
   };
 }
 
@@ -342,7 +349,15 @@ function toolbarProps(win) {
     closeLabel: t(win, 'lp_settings_toolbar_close'),
     showAllLabel: t(win, 'lp_settings_toolbar_all'),
     dragLabel: t(win, 'lp_settings_toolbar_drag'),
-    orderResetLabel: t(win, 'lp_settings_toolbar_order_reset'),
+    groupsResetLabel: t(win, 'lp_settings_toolbar_groups_reset'),
+    newGroupLabel: t(win, 'lp_settings_toolbar_group_new'),
+    groupNamePlaceholder: t(win, 'lp_settings_toolbar_group_name'),
+    // ":n" is filled with the group's number, ":name" with its name.
+    groupUnnamedLabel: t(win, 'lp_settings_toolbar_group_unnamed'),
+    groupMoveLabel: t(win, 'lp_settings_toolbar_group_move'),
+    groupDeleteLabel: t(win, 'lp_settings_toolbar_group_delete'),
+    groupDropHint: t(win, 'lp_settings_toolbar_group_drop'),
+    nameMax: GROUP_NAME_MAX,
   };
 }
 
@@ -585,8 +600,12 @@ function bindSettingHandlers(win) {
       toolbarState: () => toolbarState(win),
       toolbarShown: (key, shown) => setToolbarToolShown(win, key, shown),
       toolbarShowAll: () => showAllToolbarTools(win),
-      toolbarOrder: (keys) => setToolbarOrder(win, keys),
-      toolbarOrderReset: () => setToolbarOrder(win, []),
+      toolbarMove: (key, groupId, index) => moveToolbarTool(win, key, groupId, index),
+      toolbarMoveToNewGroup: (key, groupIndex, name) => moveToolbarToolToNewGroup(win, key, groupIndex, name),
+      toolbarGroupRename: (id, name) => renameToolbarGroup(win, id, name),
+      toolbarGroupMove: (id, index) => moveToolbarGroup(win, id, index),
+      toolbarGroupDelete: (id) => deleteToolbarGroup(win, id),
+      toolbarGroupsReset: () => resetToolbarGroups(win),
       // The menu goes first: the tool opens where the menu was.
       toolbarOpen: (key) => {
         dismissLpMoreMenu();
@@ -599,7 +618,7 @@ function bindSettingHandlers(win) {
 
       dismissLpMoreMenu();
       resetEditorLayout(win);
-      // The reset clears every layout key, the icons and their order with them.
+      // The reset clears every layout key, the icons and their groups with them.
       // A user's own presets, and the panes they chose for each preset, are not
       // layout: they are put back.
       writeUserPresets(win, own);

@@ -111,8 +111,14 @@ export const HEADER_TOOLBAR_ID = '__sve-toolbar';
 export const HEADER_FRAME_PREFIX = '__sve-frame-';
 /** Per-user icons left out of the topbar, JSON [tab key, …]; unset = every icon shown. */
 export const TOOLBAR_HIDDEN_KEY = 'sve-toolbar-hidden';
-/** Per-user order of the topbar icons, JSON [tab key, …]; unset = the order they are drawn in. */
+/** The old per-user order of the topbar icons, JSON [tab key, …] — read once and carried into TOOLBAR_GROUPS_KEY. */
 export const TOOLBAR_ORDER_KEY = 'sve-toolbar-order';
+/** Per-user groups of the topbar icons, JSON [{ id: 'g-…', name, tools: [tab key, …] }]; unset = one group, drawn order. */
+export const TOOLBAR_GROUPS_KEY = 'sve-toolbar-groups';
+/** On a group's box in the topbar: the group's id. */
+export const TOOLBAR_GROUP_ATTR = 'data-sve-toolbar-group';
+/** On the small «+» at a group's right edge: the group's id. */
+export const TOOLBAR_ADD_ATTR = 'data-sve-toolbar-add';
 /** Per-user presets of their own, JSON [{ id: 'u-…', name, tools, dock, panes }]. */
 export const TOOLBAR_PRESETS_KEY = 'sve-toolbar-presets';
 /** The preset this user last picked, by id — marked when two presets are the same bar. */

@@ -44,6 +44,7 @@ export const CHROME_KEYS = [
   'sve-fam-colors',
   'sve-toolbar-hidden',
   'sve-toolbar-order',
+  'sve-toolbar-groups',
   'sve-toolbar-presets',
   'sve-toolbar-preset',
   'sve-toolbar-preset-panes',

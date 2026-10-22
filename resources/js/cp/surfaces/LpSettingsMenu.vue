@@ -347,6 +347,98 @@ const on = {
   cursor: grabbing;
   opacity: 0.9;
 }
+/* Top bar groups: one box per group, its name on top, its tools under it. */
+.sve-lp-settings__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.sve-lp-settings__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+/* Not a group yet: an outline to drop a tool into. */
+.sve-lp-settings__group.is-draft {
+  background: transparent;
+  outline: 1px dashed rgba(255, 255, 255, 0.2);
+  outline-offset: -1px;
+}
+.sve-lp-settings__group.is-dragging {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.35);
+}
+.sve-lp-settings__group.is-dragging > .sve-lp-settings__group-head .sve-lp-settings__handle {
+  cursor: grabbing;
+  opacity: 0.9;
+}
+.sve-lp-settings__group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.5rem;
+}
+/* The draft has no handle: its name lines up with the groups' names. */
+.sve-lp-settings__group-spacer {
+  flex: none;
+  width: 0.875rem;
+}
+/* At rest the name reads as a label; it shows it is a field when focused. */
+.sve-lp-settings__group-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0 0.375rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  outline: none;
+}
+.sve-lp-settings__group-name::placeholder {
+  color: inherit;
+  opacity: 0.45;
+}
+.sve-lp-settings__group-name:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.sve-lp-settings__group-name:focus {
+  background: rgba(0, 0, 0, 0.25);
+  outline: 1px solid var(--theme-color-primary, #4f46e5);
+  outline-offset: -1px;
+}
+.sve-lp-settings__group-x {
+  all: unset;
+  flex: none;
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  opacity: 0.5;
+  cursor: pointer;
+}
+.sve-lp-settings__group-x:hover,
+.sve-lp-settings__group-x:focus-visible {
+  opacity: 1;
+}
+.sve-lp-settings__group-hint {
+  margin: 0;
+  min-height: 1.5rem;
+  padding-left: 1.375rem;
+  font-size: 0.6875rem;
+  line-height: 1.5rem;
+  opacity: 0.55;
+}
+button.sve-lp-settings__group-new {
+  align-self: flex-start;
+}
 /* Presets: one pill each; the user's own carry an × to delete them. */
 .sve-lp-settings__pills {
   display: flex;

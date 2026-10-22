@@ -6,8 +6,11 @@
  * Opens ⋮ → Top bar, hides a panel tool and Pages (a framed one), waits out
  * several toolbar passes and a full reload to see they stay hidden, opens both
  * from the menu (the icon shows while open and goes again when closed), and
- * Show all brings every icon back. Then the order: a row dragged by its handle
- * moves the icon in the bar, survives a reload, and Default order undoes it.
+ * Show all brings every icon back. Then the groups: a row dragged by its handle
+ * moves the icon in the bar and survives a reload; New group in the menu takes
+ * a dropped row into a group of its own; the «+» at a group's edge adds a
+ * hidden tool to it; an icon dragged in the bar itself joins another group,
+ * or makes a new one when dropped in the gap; Reset groups undoes it all.
  * Then the presets: the site's Developer and Content editor (skipped when the
  * site's PHP does not provide them yet), and one of the user's own — saved,
  * picked again, kept by the reset, deleted.
@@ -174,7 +177,51 @@ const barOrder = (frame) => frame.evaluate((bar) => [...document.querySelectorAl
 
 const listOrder = (frame) => frame.evaluate((m) => [...document.querySelectorAll(`${m} [data-sve-toolbar-tool]`)].map((el) => el.dataset.sveToolbarTool), MENU);
 
+/** The group boxes on screen, left to right, each as the keys of its visible tools. */
+const groupBoxes = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)]
+  .filter((box) => box.getBoundingClientRect().width > 0)
+  .map((box) => [...box.querySelectorAll(':scope > button[data-tab], :scope > [id^="__sve-frame-"]')]
+    .filter((el) => el.getBoundingClientRect().width > 0)
+    .map((el) => el.dataset.tab || el.id.replace('__sve-frame-', ''))), BAR);
+
+const groupBoxIds = (frame) => frame.evaluate((bar) => [...document.querySelectorAll(`${bar} > [data-sve-toolbar-group]`)]
+  .filter((box) => box.getBoundingClientRect().width > 0)
+  .map((box) => box.getAttribute('data-sve-toolbar-group')), BAR);
+
+const storedGroups = async (frame) => JSON.parse((await storedKey(frame, 'sve-toolbar-groups')) || '[]');
+
 const sameSet = (a, b) => a.length === b.length && a.every((key) => b.includes(key));
+
+/** Page coordinates of the first visible match's box inside `frame`, through its parent frames. */
+async function rectIn(frame, selector) {
+  const r = await frame.evaluate((sel) => {
+    const el = [...document.querySelectorAll(sel)].find((node) => node.getBoundingClientRect().width > 0);
+
+    if (!el) {
+      return null;
+    }
+
+    const b = el.getBoundingClientRect();
+
+    return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, y: b.top + b.height / 2 };
+  }, selector);
+
+  if (!r) {
+    throw new Error(`nothing visible for ${selector}`);
+  }
+
+  for (let f = frame; f.parentFrame(); f = f.parentFrame()) {
+    const box = await (await f.frameElement()).boundingBox();
+
+    r.left += box.x;
+    r.right += box.x;
+    r.top += box.y;
+    r.bottom += box.y;
+    r.y += box.y;
+  }
+
+  return r;
+}
 
 /** Drag a row by its handle, with the real mouse, onto the upper half of another row. */
 async function dragRow(page, frame, key, onto) {
@@ -184,6 +231,32 @@ async function dragRow(page, frame, key, onto) {
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(from.x, to.y - 6, { steps: 16 });
+  await page.mouse.up();
+  await sleep(300);
+}
+
+/** Drag a row by its handle onto the middle of whatever `selector` is (the draft group). */
+async function dragRowOnto(page, frame, key, selector) {
+  const from = await pointIn(frame, `${toolRow(key)} [data-sve-toolbar-drag]`);
+  const to = await pointIn(frame, selector);
+
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x, to.y, { steps: 16 });
+  await page.mouse.up();
+  await sleep(300);
+}
+
+/** Drag an icon in the bar itself, with the real mouse, to page coordinate `x` on the bar's line. */
+async function dragIcon(page, frame, key, x) {
+  const from = await pointIn(frame, icon(key));
+
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  // Past the 6 px threshold first, then to the slot.
+  await page.mouse.move(from.x + 12, from.y, { steps: 4 });
+  await page.mouse.move(x, from.y, { steps: 16 });
+  await sleep(100);
   await page.mouse.up();
   await sleep(300);
 }
@@ -210,13 +283,13 @@ async function openLivePreview(page) {
 
 /**
  * Start from the bar nobody has changed, through the menu itself: Show all and
- * Default order, where the account's own stored choice put anything else.
+ * Reset groups, where the account's own stored choice put anything else.
  * Nothing is saved (see above) — this is the test browser's copy only.
  */
-async function cleanSlate(page, cp, { order = true } = {}) {
+async function cleanSlate(page, cp, { groups = true } = {}) {
   await openMenuTab(page, cp, 'toolbar');
 
-  for (const button of order ? ['[data-sve-toolbar-all]', '[data-sve-toolbar-order-reset]'] : ['[data-sve-toolbar-all]']) {
+  for (const button of groups ? ['[data-sve-toolbar-all]', '[data-sve-toolbar-groups-reset]'] : ['[data-sve-toolbar-all]']) {
     if (await cp.$(`${MENU} ${button}`)) {
       await click(page, cp, `${MENU} ${button}`);
       await sleep(200);
@@ -332,29 +405,28 @@ try {
 
   // Page settings as a button of its own, like the breakpoint overview: the
   // full 32 px square from the row's left edge, its own surface, then a topbar
-  // gap and the rest on a surface of their own (the row's is taken off).
+  // gap and the first group on a surface of its own (the row's is taken off).
   const box = await cp.evaluate((bar) => {
     const row = document.querySelector(bar);
     const btn = row.querySelector(':scope > button[data-tab="settings"]');
     const r = btn.getBoundingClientRect();
     const rowBox = row.getBoundingClientRect();
-    const next = [...row.querySelectorAll(':scope > button[data-tab], :scope > [id^="__sve-frame-"]')]
-      .filter((el) => el !== btn && el.getBoundingClientRect().width > 0)
-      .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)[0]?.getBoundingClientRect();
-    const rest = getComputedStyle(row, '::before');
+    const group = [...row.querySelectorAll(':scope > [data-sve-toolbar-group]')].find((el) => el.getBoundingClientRect().width > 0);
+    const g = group?.getBoundingClientRect();
 
     return {
       w: Math.round(r.width),
       h: Math.round(r.height),
       left: Math.round(r.left - rowBox.left),
       bg: getComputedStyle(btn).backgroundColor,
-      gap: next ? Math.round(next.left - r.right) : 0,
-      restBox: rest.content !== 'none' && rest.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      gap: g ? Math.round(g.left - r.right) : 0,
+      groupBox: !!group && getComputedStyle(group).backgroundColor !== 'rgba(0, 0, 0, 0)' && Math.round(g.height) === 32,
       rowBg: getComputedStyle(row).backgroundColor,
     };
   }, BAR);
 
-  step('Page settings is a full button of its own', box.w === 32 && box.h === 32 && box.left === 0 && box.bg !== 'rgba(0, 0, 0, 0)' && box.restBox && box.gap >= 12 && box.rowBg === 'rgba(0, 0, 0, 0)', JSON.stringify(box));
+  step('Page settings is a full button of its own, one gap before the first group', box.w === 32 && box.h === 32 && box.left === 0 && box.bg !== 'rgba(0, 0, 0, 0)' && box.groupBox && box.gap === 8 && box.rowBg === 'rgba(0, 0, 0, 0)', JSON.stringify(box));
+  step('with nothing stored the bar is one group', (await groupBoxes(cp)).length === 1, JSON.stringify(await groupBoxes(cp)));
 
   // ── The menu ──────────────────────────────────────────────────────────
   await click(page, cp, MORE);
@@ -474,7 +546,7 @@ try {
   step('Show all brings every icon back', (await visibleIcons(cp)).join() === before.join(), (await visibleIcons(cp)).join(' '));
   step('and clears the stored list', (await stored(cp)) === null);
 
-  // ── Order: drag a row with the real mouse ─────────────────────────────
+  // ── Groups: drag a row with the real mouse ────────────────────────────
   const rows = await listOrder(cp);
   const mover = rows[rows.length - 1];
 
@@ -482,29 +554,93 @@ try {
   step('dragging a row moves it to the top of the list', (await listOrder(cp))[0] === mover, (await listOrder(cp)).join(' '));
   step('and in the top bar, right after Page settings', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
   step('Page settings stays first', (await barOrder(cp))[0] === 'settings');
-  step('the order is stored', JSON.parse((await storedKey(cp, 'sve-toolbar-order')) || '[]')[0] === mover);
+  step('the groups are stored, the tool first in the first group', (await storedGroups(cp))[0]?.tools[0] === mover, JSON.stringify(await storedGroups(cp)));
 
   await page.keyboard.press('Escape');
   cp = await openLivePreview(page);
 
-  // The account's own hidden icons came back with the reload; the order steps
+  // The account's own hidden icons came back with the reload; the group steps
   // look at every icon.
   if (accountHas('sve-toolbar-hidden')) {
-    await cleanSlate(page, cp, { order: false });
+    await cleanSlate(page, cp, { groups: false });
   }
 
-  reloadStep('sve-toolbar-order', 'the order survives a reload', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
+  reloadStep('sve-toolbar-groups', 'the groups survive a reload', (await barOrder(cp))[1] === mover, (await barOrder(cp)).join(' '));
 
   await openMenuTab(page, cp, 'toolbar');
-  reloadStep('sve-toolbar-order', 'the list opens in that order', (await listOrder(cp))[0] === mover);
-  await click(page, cp, `${MENU} [data-sve-toolbar-order-reset]`);
-  await sleep(300);
-  // Default order = the order the toolbar draws them in (the DOM), which is
-  // not `before` when the account had an order of its own at the start.
-  const drawn = await visibleIcons(cp);
+  reloadStep('sve-toolbar-groups', 'the list opens in that order', (await listOrder(cp))[0] === mover);
 
-  step('Default order puts the bar back', (await barOrder(cp)).join() === drawn.join(), (await barOrder(cp)).join(' '));
-  step('and the list', (await listOrder(cp)).join() === drawn.filter((key) => key !== 'settings').join());
+  // ── A second group, from the menu ─────────────────────────────────────
+  await click(page, cp, `${MENU} [data-sve-toolbar-group-new]`);
+  await sleep(200);
+  step('New group adds a draft to drop into', !!(await cp.$(`${MENU} [data-sve-toolbar-group-draft]`)));
+  await dragRowOnto(page, cp, mover, `${MENU} [data-sve-toolbar-group-draft]`);
+
+  const split = await groupBoxes(cp);
+
+  step('the dropped tool is in a group of its own, last in the bar', split.length === 2 && split[1].join() === mover, JSON.stringify(split));
+  step('the menu shows two groups, no draft', (await cp.evaluate((m) => document.querySelectorAll(`${m} [data-sve-toolbar-group-row]`).length === 2 && !document.querySelector(`${m} [data-sve-toolbar-group-draft]`), MENU)));
+  step('both are stored', (await storedGroups(cp)).length === 2 && (await storedGroups(cp))[1].tools.join() === mover);
+
+  // A tool hidden now is what the «+» has to offer.
+  const addable = (await listOrder(cp)).find((key) => key !== mover);
+
+  await click(page, cp, `${toolRow(addable)} input[type="checkbox"]`);
+  await sleep(200);
+  step('a tool hidden for the «+» to add', !(await visibleIcons(cp)).includes(addable));
+  await page.keyboard.press('Escape');
+  await sleep(300);
+
+  // ── «+» at a group's edge ─────────────────────────────────────────────
+  const [firstId, secondId] = await groupBoxIds(cp);
+  const secondBox = await pointIn(cp, `${BAR} [data-sve-toolbar-group="${secondId}"]`);
+
+  // The «+» shows on hover: the mouse goes onto the group first.
+  await page.mouse.move(secondBox.x, secondBox.y);
+  await sleep(200);
+  await click(page, cp, `${BAR} [data-sve-toolbar-add="${secondId}"]`);
+  step('«+» opens the add menu', !!(await cp.waitForSelector('#__sve-toolbar-add-menu', { timeout: 5000 }).catch(() => null)));
+  step('a tool already in the bar is greyed out', await cp.evaluate((k) => document.querySelector(`#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${k}"]`)?.disabled === true, mover));
+  step('a hidden one is not', await cp.evaluate((k) => document.querySelector(`#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${k}"]`)?.disabled === false, addable));
+  await click(page, cp, `#__sve-toolbar-add-menu [data-sve-toolbar-add-tool="${addable}"]`);
+  await sleep(300);
+
+  const added = await groupBoxes(cp);
+
+  step('the hidden tool joins that group at its end, shown', added[1]?.join() === [mover, addable].join(), JSON.stringify(added));
+  step('and is no longer hidden', !JSON.parse((await stored(cp)) || '[]').includes(addable));
+  step('the add menu closed', !(await cp.$('#__sve-toolbar-add-menu')));
+
+  // ── Drag an icon in the bar itself ────────────────────────────────────
+  const firstRect = await rectIn(cp, `${BAR} [data-sve-toolbar-group="${firstId}"]`);
+
+  await dragIcon(page, cp, addable, firstRect.right - 10);
+
+  const merged = await groupBoxes(cp);
+
+  step('an icon dragged into another group lands at its end', merged[0]?.[merged[0].length - 1] === addable, JSON.stringify(merged));
+  step('its old group still holds the other tool', merged.length === 2 && merged[1].join() === mover, JSON.stringify(merged));
+  step('the drag opened nothing', !(await cp.evaluate((k) => document.querySelector(`#__sve-toolbar button[data-tab="${k}"]`)?.getAttribute('aria-pressed') === 'true', addable)));
+
+  // Dropped in the gap before the first group: a new group there, and the
+  // one it left — empty now — is gone.
+  const settingsRect = await rectIn(cp, `${BAR} > button[data-tab="settings"]`);
+
+  // 2 px into the 8 px gap: inside the drop zone, clear of the first box's slack.
+  await dragIcon(page, cp, mover, settingsRect.right + 2);
+
+  const regrouped = await groupBoxes(cp);
+
+  step('an icon dropped in the gap makes a new group there', regrouped.length === 2 && regrouped[0].join() === mover, JSON.stringify(regrouped));
+  step('the group it emptied is gone', regrouped[1]?.includes(addable) && !(await storedGroups(cp)).some((g) => g.id === secondId), JSON.stringify(await storedGroups(cp)));
+
+  // ── Reset groups ──────────────────────────────────────────────────────
+  await openMenuTab(page, cp, 'toolbar');
+  await click(page, cp, `${MENU} [data-sve-toolbar-groups-reset]`);
+  await sleep(300);
+  step('Reset groups is one group again', (await groupBoxes(cp)).length === 1, JSON.stringify(await groupBoxes(cp)));
+  step('and clears the stored groups', (await storedKey(cp, 'sve-toolbar-groups')) === null);
+  step('the list is one group too', (await cp.evaluate((m) => document.querySelectorAll(`${m} [data-sve-toolbar-group-row]`).length, MENU)) === 1);
 
   // ── The site's presets ────────────────────────────────────────────────
   // Statamic's config hands back reactive proxies, which do not cross into
