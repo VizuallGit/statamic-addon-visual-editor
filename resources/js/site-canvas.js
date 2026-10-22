@@ -1323,7 +1323,7 @@ function onPanStart(event) {
   const item = event.target.closest?.('.sve-sc-item');
   const lift = item ? canvasState.entries.get(item.dataset.id) : null;
 
-  canvasState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY }, lift: lift?.arrange ? lift : null };
+  canvasState.pan = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { x: event.clientX, y: event.clientY }, lift: lift && arrangeRow(lift) ? lift : null };
   scroller.setPointerCapture(event.pointerId);
   scroller.dataset.panning = '';
 }
@@ -1335,12 +1335,16 @@ function onPanMove(event) {
     return;
   }
 
-  if (pan.lift && !canvasState.drag && isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
-    startDrag(pan.lift, pan.from);
-  }
+  // A press on a frame that can be dragged is a click or a drag of that frame — never a pan, not
+  // even the few pixels under the threshold: the sheet must stand still under the lifted frame.
+  if (pan.lift) {
+    if (!canvasState.drag && isDrag(pan.from, { x: event.clientX, y: event.clientY })) {
+      startDrag(pan.lift, pan.from);
+    }
 
-  if (canvasState.drag) {
-    moveDrag(event.clientX, event.clientY);
+    if (canvasState.drag) {
+      moveDrag(event.clientX, event.clientY);
+    }
 
     return;
   }

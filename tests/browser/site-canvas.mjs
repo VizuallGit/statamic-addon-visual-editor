@@ -774,7 +774,8 @@ try {
     const dragging = layer.querySelector('.sve-sc-item[data-dragging]');
     const bar = layer.querySelector('.sve-sc-drop');
     const r = bar && !bar.hidden ? bar.getBoundingClientRect() : null;
-    return { dragging: dragging?.dataset.id || null, transform: dragging ? getComputedStyle(dragging).transform : null, bar: r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null, cursor: getComputedStyle(layer.querySelector('.sve-sc-scroll')).cursor };
+    const scroller = layer.querySelector('.sve-sc-scroll');
+    return { dragging: dragging?.dataset.id || null, transform: dragging ? getComputedStyle(dragging).transform : null, bar: r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null, cursor: getComputedStyle(scroller).cursor, scroll: { x: scroller.scrollLeft, y: scroller.scrollTop } };
   }, LAYER);
   const canArrange = columns0.length >= 3 && columns0.every((c) => c.length === 1);
   step('the pages come one a column, three or more of them, so a page can be stood under another', canArrange, `${columns0.length} columns: ${columns0.map((c) => c.length).join('+')}`);
@@ -785,13 +786,15 @@ try {
     const from = { x: moving0.x + moving0.w / 2, y: moving0.y + moving0.h / 2 };
     const to = { x: over0.x + over0.w / 2, y: over0.y + over0.h + Math.max(6, GAP * arr0.z) };
     step('an arrangeable frame says so, and offers a grab cursor; a template frame does not', arr0.items.length > 0 && (await cp.evaluate((sel, id, tid) => { const page = document.querySelector(`${sel} .sve-sc-item[data-id="${id}"]`); const tpl = document.querySelector(`${sel} .sve-sc-item[data-id="${tid}"]`); return page?.hasAttribute('data-arrange') && getComputedStyle(page.querySelector('.sve-sc-hit')).cursor === 'grab' && !tpl?.hasAttribute('data-arrange') && getComputedStyle(tpl.querySelector('.sve-sc-hit')).cursor === 'pointer'; }, LAYER, movingId, frames.find((f) => f.group === 'templates')?.id)));
+    const still0 = await dragState();
     const mid = await dragFrame(from, to, { peek: dragState });
+    step('a press on a page frame never pans: the sheet stood still under the lifted frame, the first pixels under the threshold included', !!mid && mid.scroll.x === still0.scroll.x && mid.scroll.y === still0.scroll.y, `scroll ${still0.scroll.x},${still0.scroll.y} → ${mid?.scroll.x},${mid?.scroll.y}`);
     step('lifted, the frame follows the pointer (a transform, the sheet not laid out again) and a bar across the column under the page it would stand beneath says where it lands', !!mid && mid.dragging === movingId && mid.transform !== 'none' && !!mid.bar && mid.bar.w > mid.bar.h && Math.abs(mid.bar.x - over0.x) <= 1.5 && mid.bar.y > over0.y + over0.h - 1 && mid.cursor === 'grabbing', `dragging ${mid?.dragging}, bar ${mid?.bar ? `${Math.round(mid.bar.w)}×${Math.round(mid.bar.h)} at ${Math.round(mid.bar.x)},${Math.round(mid.bar.y)}` : 'none'} (column at x ${Math.round(over0.x)}, frame ends at y ${Math.round(over0.y + over0.h)}), cursor ${mid?.cursor}`);
     const arr1 = await cp.evaluate(canvasShape, LAYER);
     const over1 = itemOf(arr1, overId); const moving1 = itemOf(arr1, movingId);
     const next1 = next0 ? itemOf(arr1, columns0[3][0]) : null;
     const closedUp = !next1 || Math.abs(onSheetBox(arr1, next1).x - onSheetBox(arr0, moving0).x) <= 1;
-    step('dropped, it stands under that page in its column, a label and a gap below it; the columns to its right close up', Math.abs(moving1.x - over1.x) <= 1 && Math.abs(onSheetBox(arr1, moving1).y - (onSheetBox(arr1, over1).y + over1.h / arr1.z + GAP + 28)) <= 1.5 && closedUp && !(await dragState()).dragging && !(await dragState()).bar, `${movingId.slice(0, 8)} at ${Math.round(moving1.x)},${Math.round(moving1.y)} under ${overId.slice(0, 8)} at ${Math.round(over1.x)},${Math.round(over1.y)} (ends ${Math.round(over1.y + over1.h)}); next column on the sheet now at x ${next1 ? Math.round(onSheetBox(arr1, next1).x) : '—'} (the moved one stood at ${Math.round(onSheetBox(arr0, moving0).x)})`);
+    step('dropped, it stands under that page in its column, a label and a gap below it; the columns to its right close up', Math.abs(moving1.x - over1.x) <= 1 && Math.abs(onSheetBox(arr1, moving1).y - (onSheetBox(arr1, over1).y + over1.h / arr1.z + GAP + 28 / arr1.z)) <= 1.5 / arr1.z && closedUp && !(await dragState()).dragging && !(await dragState()).bar, `${movingId.slice(0, 8)} at ${Math.round(moving1.x)},${Math.round(moving1.y)} under ${overId.slice(0, 8)} at ${Math.round(over1.x)},${Math.round(over1.y)} (ends ${Math.round(over1.y + over1.h)}); next column on the sheet now at x ${next1 ? Math.round(onSheetBox(arr1, next1).x) : '—'} (the moved one stood at ${Math.round(onSheetBox(arr0, moving0).x)})`);
     step('no two frames overlap after the drop', overlaps(arr1.items).length === 0, overlaps(arr1.items).join(', ') || 'clear');
     const want1 = columns0.flatMap((c, i) => (i === 1 ? [[overId, movingId]] : i === 2 ? [] : [c]));
     const posted = await until(async () => { const p = await cp.evaluate(async (url) => (await fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json', 'X-SVE-Test': 'probe' } })).json(), ENDPOINT); const c = payloadColumns((p.groups || []).find((g) => g.key === 'pages')?.rows[0]); return JSON.stringify(c) === JSON.stringify(want1) ? c : null; }, 4000);
