@@ -44,7 +44,7 @@ class Breakpoints
     public const DIRECTIONS = Rows::DIRECTIONS;
 
     /** Ikonerne der kan vælges pr. breakpoint. Navnet slås op i cp-shell/preview-chrome.js. */
-    public const ICONS = ['mobile', 'mobile_landscape', 'tablet', 'tablet_landscape', 'laptop', 'desktop', 'widescreen', 'ultrawide', 'tv', 'watch'];
+    public const ICONS = ['mobile', 'mobile_landscape', 'tablet', 'tablet_landscape', 'laptop', 'desktop', 'widescreen', 'ultrawide', 'tv'];
 
     /**
      * Cachet pr. request: indstillingerne læses fra disk.

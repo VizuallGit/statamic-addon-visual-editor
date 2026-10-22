@@ -164,7 +164,7 @@ async function submit() {
             :disabled="preset.taken"
             :title="preset.px + 'px'"
             @click="usePreset(preset)"
-          >{{ preset.key }} <small>{{ preset.px }}</small></button>
+          ><span>{{ preset.key }} <small>{{ preset.px }}</small></span></button>
         </div>
       </div>
 
@@ -322,7 +322,7 @@ async function submit() {
 .sve-bp-add__unit {
   box-sizing: border-box;
   height: 1.75rem;
-  padding: 0 0.375rem;
+  padding: 0 0.625rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-inline-start: none;
   border-radius: 0 0.375rem 0.375rem 0;
@@ -330,6 +330,29 @@ async function submit() {
   color: inherit;
   font: inherit;
   font-size: 0.75rem;
+}
+
+/* The browser's own select keeps square corners and its own arrow whatever
+   the radius says. Drawn here instead: our padding, our chevron, our corners. */
+select.sve-bp-add__unit {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: 1.625rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.75)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.75rem;
+  cursor: pointer;
+}
+
+select.sve-bp-add__unit:focus-visible {
+  outline: 0.125rem solid var(--theme-color-primary, #4f46e5);
+  outline-offset: 0;
+}
+
+select.sve-bp-add__unit option {
+  background: #343439;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .sve-bp-add__unit--static {
@@ -381,12 +404,15 @@ async function submit() {
   outline: 0.125rem solid var(--theme-color-primary, #4f46e5);
 }
 
+/* One span inside, so key and px share a baseline while the pair sits in the
+   middle of the pill. Two flex items on `baseline` lined up with each other
+   but hung from the top of the fixed height. */
 .sve-bp-add__preset {
   all: unset;
   box-sizing: border-box;
   display: inline-flex;
-  align-items: baseline;
-  gap: 0.25rem;
+  align-items: center;
+  justify-content: center;
   height: 1.5rem;
   padding: 0 0.5rem;
   border-radius: 0.375rem;

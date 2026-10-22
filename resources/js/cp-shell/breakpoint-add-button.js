@@ -13,7 +13,7 @@
  * button that would be refused on save is a button that lies.
  */
 import { t } from '../lib/i18n.js';
-import { HEADER_SURFACE, LP_PREVIEW_CHROME_ID } from '../lib/ids.js';
+import { HEADER_SURFACE, LP_PREVIEW_CHROME_ID, LP_PRIMARY_FLAT } from '../lib/ids.js';
 
 /** On the «+»: nothing else carries it. */
 export const BP_ADD_ATTR = 'data-sve-bp-add';
@@ -24,7 +24,12 @@ const ADD_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
   'stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 
-/** Same frame as the top bar's group «+», mirrored to the left edge. */
+/**
+ * Same place as the top bar's group «+», mirrored to the left edge. Idle it
+ * is the group's own grey (`--sve-toolbar-ring`: the group surface mixed
+ * over the header, set on the header by header-toolbar.js) with no ring, so
+ * it reads as part of the group; hovered, focused or open it is primary.
+ */
 function css() {
   const group = `#${LP_PREVIEW_CHROME_ID} [data-sve-devices]`;
   const add = `[${BP_ADD_ATTR}]`;
@@ -33,10 +38,10 @@ function css() {
     `${group}{position:relative}`,
     `${group}>${add}{position:absolute;top:50%;left:-.5rem;transform:translateY(-50%);width:1rem;height:1rem;box-sizing:border-box;` +
       'display:inline-flex;align-items:center;justify-content:center;padding:0;border:none;border-radius:50%;cursor:pointer;' +
-      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});box-shadow:0 0 0 1px rgba(128,128,128,.35);` +
+      `color:currentColor;background:var(--sve-toolbar-ring,${HEADER_SURFACE});box-shadow:none;` +
       'opacity:0;pointer-events:none;transition:opacity .12s;z-index:1}',
     `${group}:hover>${add},${group}:focus-within>${add},${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{opacity:1;pointer-events:auto}`,
-    `${group}>${add}:hover,${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{background:var(--theme-color-primary,#4f46e5);color:#fff;box-shadow:none}`,
+    `${group}>${add}:hover,${group}>${add}:focus-visible,${group}>${add}[aria-expanded="true"]{background:${LP_PRIMARY_FLAT};color:#fff}`,
   ].join('\n');
 }
 

@@ -884,7 +884,6 @@ tabs:
                       widescreen: Widescreen
                       ultrawide: Ultrawide
                       tv: TV
-                      watch: Watch
                 -
                   handle: min
                   field:

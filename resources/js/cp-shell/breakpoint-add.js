@@ -39,7 +39,7 @@ function maxSizes(win) {
 }
 
 /** The pictures a size may have, in the order to offer them. Only the ones this build draws. */
-const ICON_ORDER = ['mobile', 'mobile_landscape', 'tablet', 'tablet_landscape', 'laptop', 'desktop', 'widescreen', 'ultrawide', 'tv', 'watch'];
+const ICON_ORDER = ['mobile', 'mobile_landscape', 'tablet', 'tablet_landscape', 'laptop', 'desktop', 'widescreen', 'ultrawide', 'tv'];
 
 /** Tailwind's own scale, as starting points — the same five Queries::TAILWIND_SCALE names. */
 const PRESETS = [

@@ -2044,8 +2044,11 @@ export const CP_STYLES = `
   color: ${COMMENTS_BADGE_FG} !important;
   -webkit-text-fill-color: ${COMMENTS_BADGE_FG} !important;
 }
+/* The size group's «+» is not a framed control: its hover is primary, drawn
+   by breakpoint-add-button.js — the same way the top bar's «+» escapes the
+   [data-tab] rule above. */
 #__sve-lp-mode button:hover:not(:disabled):not([aria-pressed="true"]),
-#__sve-preview-chrome button:hover:not(:disabled):not([aria-pressed="true"]) {
+#__sve-preview-chrome button:hover:not(:disabled):not([aria-pressed="true"]):not([data-sve-bp-add]) {
   background: rgba(128, 128, 128, .22) !important;
 }
 
